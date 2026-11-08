@@ -815,11 +815,11 @@ impl Parser<'_> {
                     && proven_type_closer.is_none()
                     && outside_owner
                     && !protected_suffix_group
-                    && self.at_supertype_recovery_boundary(
+                    && self.at_supertype_suffix_boundary(
                         raw_index,
                         current,
                         supertype_owner,
-                        false,
+                        stops,
                     )?)
                 || (outside_owner
                     && delimiters.is_empty()
@@ -868,8 +868,7 @@ impl Parser<'_> {
                     if stops.has_greater() {
                         break;
                     }
-                    unclosed_angle =
-                        raw_index != first.0 || !stops.keeps_leading_unproved_angle_comma();
+                    unclosed_angle = !stops.keeps_unproved_angle_comma(raw_index == first.0);
                 }
             }
 

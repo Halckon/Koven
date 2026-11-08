@@ -3,7 +3,7 @@
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexemeKind, TokenKind},
-    parser::{ClassifierDeclaration, Item, NameMarker, ParsedDeclaration, TypeRef},
+    parser::{ClassifierDeclaration, ClassifierKind, Item, NameMarker, ParsedDeclaration, TypeRef},
     source::{SourceMap, Span},
 };
 
@@ -480,4 +480,156 @@ fn lexical_suffix_extends_an_existing_delegation_error_target() {
 fn poisoned_string_before_unproved_delegation_angle_keeps_the_outer_comma() {
     assert_delegation_suffix(r#""bad\q"<A"#, &["L0006"]);
     assert_delegation_suffix(r#"async "bad\q"<A"#, &["L0002", "L0006"]);
+}
+
+#[test]
+fn invalid_delegation_target_keeps_proven_inner_commas_out_of_the_parent_list() {
+    for (target, expected) in [
+        ("β<A, B>", &["L0001"][..]),
+        ("async<A, β>", &["L0002", "L0001"][..]),
+        ("42<A, B>", &["L0078"][..]),
+        (r#""bad\q"<A, B>"#, &["L0006"][..]),
+        ("async<A", &["L0002"][..]),
+        ("β Junk<A", &["L0001"][..]),
+        ("42 Junk<A", &["L0078"][..]),
+        ("β async Junk<A", &["L0001", "L0002"][..]),
+        ("<A, B>", &["L0078"][..]),
+        ("<A", &["L0078"][..]),
+        ("β Junk([A, B], { -> 1 })", &["L0001"][..]),
+    ] {
+        let text = format!("class C: I by {target}, J {{ fun keep(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        let file = parse_file_twice(&sources, parsed.source_id(), &text);
+        let Item::Classifier(file_class) =
+            file.ast().items().get(file.roots()[0]).unwrap().payload()
+        else {
+            panic!("file classifier");
+        };
+        for (class, diagnostics) in [
+            (classifier(&parsed), parsed.diagnostics()),
+            (file_class, file.diagnostics()),
+        ] {
+            assert_eq!(codes(diagnostics), expected, "{text}");
+            let [invalid, following] = class.supertypes.as_slice() else {
+                panic!("original error entry and following parent for {text}");
+            };
+            let clause = invalid.delegation.unwrap();
+            assert!(matches!(clause.target, NameMarker::Error(_)));
+            assert_eq!(sources.slice(marker_span(clause.target)), Ok(target));
+            assert_eq!(
+                sources.slice(clause.span),
+                Ok(format!("by {target}").as_str())
+            );
+            assert!(invalid.trailing_lexical_error.is_none());
+            assert_eq!(sources.slice(following.span), Ok("J"));
+            let body = class.body.as_ref().unwrap();
+            assert_eq!(body.members.len(), 1);
+            assert!(body.right_brace_span.is_some());
+        }
+    }
+}
+
+#[test]
+fn invalid_delegation_target_only_stops_at_proven_member_prefixes() {
+    for target in ["β value Junk<A, B>", "β deinit", "β deinit()"] {
+        let text = format!(
+            "class Outer {{\n class Inner: I by {target}, J;\n own fun keep(): Unit {{}}\n}}"
+        );
+        let (sources, parsed) = declaration(&text);
+        let file = parse_file_twice(&sources, parsed.source_id(), &text);
+        let Item::Classifier(file_class) =
+            file.ast().items().get(file.roots()[0]).unwrap().payload()
+        else {
+            panic!("file classifier");
+        };
+        for (ast, outer, diagnostics) in [
+            (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+            (file.ast(), file_class, file.diagnostics()),
+        ] {
+            assert_eq!(codes(diagnostics), ["L0077", "L0001"], "{text}");
+            let [inner, member] = outer.body.as_ref().unwrap().members.as_slice() else {
+                panic!("nested classifier and actual enclosing member");
+            };
+            let Item::Classifier(inner) = ast.items().get(*inner).unwrap().payload() else {
+                panic!("nested classifier");
+            };
+            assert!(inner.body.is_none());
+            let [invalid, following] = inner.supertypes.as_slice() else {
+                panic!("the invalid target and original following parent");
+            };
+            let NameMarker::Error(error) = invalid.delegation.unwrap().target else {
+                panic!("invalid target");
+            };
+            assert_eq!(sources.slice(error), Ok(target));
+            assert_eq!(sources.slice(following.span), Ok("J"));
+            assert_eq!(
+                sources.slice(ast.items().get(*member).unwrap().span()),
+                Ok("own fun keep(): Unit {}")
+            );
+        }
+    }
+}
+
+#[test]
+fn invalid_delegation_target_keeps_a_file_value_class_prefix() {
+    let text = "class C: I by β Junk value class Sentinel(val x: Int)";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("delegation-file.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, source, text);
+    let [first, sentinel] = parsed.roots() else {
+        panic!("the recovered class and the following value class");
+    };
+    let Item::Classifier(class) = parsed.ast().items().get(*first).unwrap().payload() else {
+        panic!("original class");
+    };
+    let [parent] = class.supertypes.as_slice() else {
+        panic!("one original parent");
+    };
+    let NameMarker::Error(error) = parent.delegation.unwrap().target else {
+        panic!("invalid delegation target");
+    };
+    assert_eq!(sources.slice(error), Ok("β Junk"));
+    let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+    let Item::Classifier(class) = sentinel.payload() else {
+        panic!("following value class");
+    };
+    assert!(matches!(class.kind, ClassifierKind::ValueClass { .. }));
+    assert_eq!(
+        sources.slice(sentinel.span()),
+        Ok("value class Sentinel(val x: Int)")
+    );
+}
+
+#[test]
+fn invalid_delegation_target_leaves_the_actual_following_deinit() {
+    let text = "class Outer {\n class Inner: I by β\n deinit() {}\n}";
+    let (sources, parsed) = declaration(text);
+    let file = parse_file_twice(&sources, parsed.source_id(), text);
+    let Item::Classifier(file_class) = file.ast().items().get(file.roots()[0]).unwrap().payload()
+    else {
+        panic!("file classifier");
+    };
+    for (ast, outer, diagnostics) in [
+        (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+        (file.ast(), file_class, file.diagnostics()),
+    ] {
+        assert_eq!(codes(diagnostics), ["L0077", "L0001"]);
+        let [inner, deinit] = outer.body.as_ref().unwrap().members.as_slice() else {
+            panic!("nested classifier and actual destructor");
+        };
+        let Item::Classifier(inner) = ast.items().get(*inner).unwrap().payload() else {
+            panic!("nested classifier");
+        };
+        let [parent] = inner.supertypes.as_slice() else {
+            panic!("one original parent");
+        };
+        assert_eq!(
+            sources.slice(marker_span(parent.delegation.unwrap().target)),
+            Ok("β")
+        );
+        assert_eq!(
+            sources.slice(ast.items().get(*deinit).unwrap().span()),
+            Ok("deinit() {}")
+        );
+    }
 }

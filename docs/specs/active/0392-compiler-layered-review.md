@@ -2654,6 +2654,18 @@ Lexer opener 与 token 单向并进，扫描每次常数查询。32→64 用例�
 合入 `d2a81954` 的集成树上，Parser 内部 39 项及 class family、接口委托、上下文 TypeRef、
 递归边界与两项词法错误矩阵合计 117 项通过，零失败和忽略。
 
+[PR #373](https://github.com/Halckon/Koven/pull/373) 合入 `e4d6dbbe`。
+[正式 CI 42492956821](https://github.com/Halckon/Koven/actions/runs/42492956821)
+对 head `9f7ebce7` 和 base `d2a81954` 成功。合成提交 `30d8993d` 的两个父
+与上述身份一致，测试树 `fb47a3635ba52b768641d9970d2d9806244d1f4d` 与本地 head
+及实际合并树一致。两宿主 Check/Clippy、定向、预览生产与独立安装及精确证据门均通过。
+
+两端定向日志实际包含严格查询隔离、嵌套函数箭头、委托逗号和连续坏字符串计数用例。
+两宿主 conformance 均 137/154、0/6 既知未实现整程序、零 regression、P2 58/74。
+Linux ASan 13 个干净样例、16 个生成资源用例且总验收 pass。macOS 16 个生成资源
+用例通过，校准仍为 partial（ASan 不支持、LSan 仅计数器）。
+Editor lexical 按路径跳过；Linux sanitizer 专项未在 macOS 运行。
+
 ## 102. R3 Unit 借用运输的 Abort 与不返回边
 
 主干 #366 后的同一工作树上，本机重跑 `unit_direct_call_loan_ends` 93 项及
@@ -2667,3 +2679,86 @@ Lexer opener 与 token 单向并进，扫描每次常数查询。32→64 用例�
   正常耗尽仍有独立边。
 
 这里执行的是前端事实检查，测试没有运行源程序的 Abort，也未覆盖完整 native 资源矩阵。
+
+## 103. R1 直接无效委托目标的分隔符归属
+
+在 `9f7ebce7` 上，`I by β<A, B>, J` 只把 `β` 放入 Error 目标，内部 `B` 可被
+提升为父类型，并出现额外的 L0077 与外层恢复诊断。保留 Lexer 或 L0078 的实际根因，
+让已判定 Error 的目标继续持有真实闭合角列表和普通组。首 token 就是 `<` 时也由同一次
+扫描判断归属。无证角列表保留旧外逗号规则，Error 目标自身与原委托跨度仍连续。
+
+独立复核逐轮锁定无证非首角列表、后接 poison、模糊软成员前缀、File 同行完整
+`value class` 前缀与同行 `deinit(), J`。后者真实红测产生多余成员/缺体诊断。
+最终严格成员前缀仅用于 Member 的 Error 目标；同行 `deinit()` 需紧随真实 body opener，
+换行后的实际析构仍归外层。合法 Identifier 与普通表达式后缀拒绝行为保留。
+
+验证覆盖 File/Declaration 同源结果、根诊断顺序、Error marker/委托 Span、配对组、
+未证角列表及实际后继父类型和成员。更宽的合法目标后非词法表达式仍是独立开放范围。
+
+本机复审工作树的 Parser 内部及定向共 160 项通过，零失败和忽略。
+
+## 104. R0/R2 F1/F2 completion 与流事实测试消费者
+
+`lambda_completion` 四个测试的六份源码保持原样。迁移前，同一 fixture 的旧 Single、
+MemoryDocument 和 Rooted Unit 都通过精确诊断码列表对照。移除该测试模块对旧 Single
+的调用后，两种 Unit 分别验证原 SourceId 与入口身份，再按原 AST 表达式 ID 检查
+创建 lambda 可继续、局部 return 终止，并检查实际存在两种节点。
+保留缺 return、分支写入使 smart cast 失效、正控及 lambda 自己的非法 return 四项。
+独立复核确认该范围没有旧 `TypedFile` 专属事实；不据此推断诊断载荷或仓外 API 等价。
+
+同一工作树的 lambda completion、control branch join 和 while flow 共 25 项通过，
+零失败和忽略；与 Parser 合计 185 项。前端全目标 Clippy 通过。
+
+## 105. R0 codegen 的旧单文件消费者与生产回退分流
+
+以 `9f7ebce7` 的 codegen 树为基线，直接调用语法检出 `check_types` 15 文件/18 行，
+`check_ownership` 14 文件/17 行，`lower_scalar_file_with_entry` 4 文件/8 行。
+核对注册链，全部位于 `cfg(test)` 模块或其子模块。SSA 的 `lower_frontend` 整个模块
+由 `cfg(test)` 门控，旧入口 re-export 也只供测试；当前 CLI/LSP 的 src 没有这两种
+旧 checker 的引用。此处的 Single 文件 lowering 与生产 Unit lowering 的 legacy fallback
+分别记账，后者仍属 R4 路由复审。
+
+| 旧见证 | 处置边界 |
+|---|---|
+| lowering 入口身份、readonly receiver 拒绝、borrow result | 旧产物合同的直接负控，保留至对应合同退役或有双入口等价证明 |
+| canonical callable、closure/source、instance 计划与注册 | 直接读旧分析或 lowering 的内部结构，逐个比较 Unit canonical identity 和发布顺序 |
+| Range、while/If、Rc nullable、临时与条件 cleanup | 保留对照、路径及资源顺序，不能仅以 Unit 诊断码替换 SSA oracle |
+
+计数是直接语法匹配与注册追踪，未覆盖仓外调用或整个 Rust 名称解析图。现有
+`lowering_dependency_tests` 的词法守卫检查指定生产核心路径，另有正反控制；守卫不会
+解释 cfg_attr、宏展开、include 或扫描范围外 re-export。
+
+本机 `lowering_dependency_tests` 14 项通过，零失败和忽略。
+
+## 106. R4 借用绑定校验归属与兄弟函数对照
+
+独立复核找到生产 Unit 在逐函数 refine 路由前按整个单元决定是否运行旧绑定扫描。
+CLI 实测 `6f791a21` 上，字段借用、打印、随后 return 的程序构建退出 2
+（UnsupportedNode），追加一个未调用、含 swap 的函数后退出 0 并输出 `hi`。
+原生回归先在有/无该 sibling 的输入上复现，故障定位到与借用已无交叠的 return。
+
+首版将旧整函数扫描移到旧绑定入口，误拒别名建立前含 `if` 的 P05-for 变体。第二版
+修复两条原生正控，但去掉的前置扫描仍保护已知未支持的 RangeView、普通借用与 carrier
+别名边界。PR #375 的 `c58be8ae` 在 [Linux](https://github.com/Halckon/Koven/actions/runs/42496593270/job/128781164928)
+和 [macOS](https://github.com/Halckon/Koven/actions/runs/42496593270/job/128781164978)
+均实际通过两条原生正控，也分别失败于同样的 27 条 codegen 拒绝测试，后续验收未执行。
+
+修补保留原 CFG 前置开关，门禁启用时仅跳过两类有专门检查的形状。直接字段绑定匹配 typed 投影
+与 owned 来源字段，由细化层消费绑定、来源和生命周期事实。稳定根 Map 别名匹配同一
+来源及完整 provider 计划，旧路径仍核对直接来源、活动 shared loan、CFG 传递与最终 verifier。
+未改动 RangeView、carrier 别名、普通调用返回的绑定前置或拒绝测试的 oracle。
+
+编译单元借用结果声明准入与 Map 迭代前置的原边界保留。另一个借用返回转发候选
+`view(n + 1, source)` 在有/无未调用 swap 时均无法构建，但错误在 UnsupportedNode
+和 InvalidModel 间变化。普通借用调用结果的局部绑定另在 `c58be8ae` 上复现三种
+`if` 位置（绑定前、存活期间和最后读取后）都受未调用 swap 影响。无 sibling 时
+三者构建退出 2，有 sibling 时构建运行退出 0。局部绑定、转发与 Map 迭代前置分别复审。
+
+本机实际执行 map/refine 路由矩阵 13 项、Map 原别名事实 1 项、multi-borrow 6 项、
+borrow result 5 项、RangeView 路由 1 项、依赖方向 14 项，共 40 项，零失败和忽略。
+对象写入修复后的前置提交 `6f791a21` 另实际运行 LLDB/Mach-O/CLI 最终产物 6 项，
+零失败和忽略，包含实际停止在源码断点和 Unicode 多根项目。
+
+修补版在本机按双宿主失败日志的精确测试名复跑原 27 项，并运行两条原生正控，
+共 29 项通过，零失败和忽略；lang-codegen 全目标 Clippy、fmt、文档与 Rust 尺寸门禁通过。
+收紧来源身份前启动的全 lib 本机运行已主动结束，完整修补版矩阵以新双宿主 CI 为准。

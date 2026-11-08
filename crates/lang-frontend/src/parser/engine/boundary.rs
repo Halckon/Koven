@@ -847,9 +847,15 @@ impl DeclarationStops {
     pub(super) const SUPERTYPE_SUFFIX: u32 = 1 << 20;
     const TYPE_ELEMENT: u32 = 1 << 21;
     pub(super) const LEADING_UNPROVED_ANGLE_COMMA: u32 = 1 << 22;
+    pub(super) const DELEGATION_ERROR_TARGET: u32 = 1 << 23;
 
-    pub(super) const fn keeps_leading_unproved_angle_comma(self) -> bool {
-        self.0 & Self::LEADING_UNPROVED_ANGLE_COMMA != 0
+    pub(super) const fn in_delegation_error_target(self) -> bool {
+        self.0 & Self::DELEGATION_ERROR_TARGET != 0
+    }
+
+    pub(super) const fn keeps_unproved_angle_comma(self, leading: bool) -> bool {
+        self.in_delegation_error_target()
+            || (leading && self.0 & Self::LEADING_UNPROVED_ANGLE_COMMA != 0)
     }
 
     pub(super) const fn recovers_type_element(self) -> bool {
