@@ -129,7 +129,7 @@ impl DropPlanner<'_, '_> {
             if let Some(lambda) = state.lambda
                 && self
                     .checker
-                    .exclusive_captures
+                    .capture_index
                     .roots
                     .get(&self.checker.unit_expression(lambda))
                     .is_some_and(|roots| roots.contains(&symbol))
