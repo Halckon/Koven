@@ -1,69 +1,16 @@
-//! SPEC-0288: Map 参数交付与 receiver 权限的单文件/unit 一致性。
+//! SPEC-0288: Map 参数交付与 receiver 权限的双入口 Unit 合同。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
-    ownership_checking::{
-        CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
-        check_ownership,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
     parser::parse_file,
     source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
-fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("map.ko", text).unwrap();
-    let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    let typed = check_types(&sources, &file, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    for descriptor in typed.map_with_values() {
-        let Some(lang_frontend::type_checking::TypeKind::Function {
-            parameters,
-            return_type,
-            ..
-        }) = typed.types().get(descriptor.action_type())
-        else {
-            panic!("callback type missing")
-        };
-        assert_eq!(parameters.len(), 1);
-        assert_eq!(
-            parameters[0].mode,
-            lang_frontend::type_checking::ParameterMode::Borrow
-        );
-        assert_eq!(parameters[0].ty, descriptor.value_type());
-        assert_eq!(
-            Some(*return_type),
-            typed
-                .types()
-                .builtin(lang_frontend::type_checking::BuiltinType::Unit)
-        );
-    }
-    let single = check_ownership(&sources, &file, &names, &typed).unwrap();
-    let inputs = [SourceUnitInput::new("root", "map.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    (single, unit)
-}
-
-// Diagnostic-only consumers use original bytes through both Unit entry modes.
-// The generic loan witness retains the independent Single helper and its facts.
+// Original bytes and callback/loan contracts are checked through both Unit entries.
 fn checked_unit(text: &str) -> (CompilationUnitOwnership, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("map.ko", text).unwrap();
@@ -80,6 +27,17 @@ fn checked_unit(text: &str) -> (CompilationUnitOwnership, CompilationUnitOwnersh
         let inputs = [input];
         let index = index_compilation_unit(&sources, &inputs).unwrap();
         assert!(index.diagnostics().is_empty());
+        let [indexed] = index.source_units() else {
+            panic!("one original Map source")
+        };
+        assert_eq!(indexed.source_id(), source);
+        match indexed.key() {
+            lang_frontend::name_resolution::SourceUnitKey::MemoryDocument => {}
+            lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path } => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "map.ko");
+            }
+        }
         let names =
             resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
         assert!(names.diagnostics().is_empty());
@@ -172,18 +130,15 @@ fn scoped_map_action_generic_borrow_ends_before_owned_map_delivery() {
         let text = format!(
             "value class Packet(val text:String)\nclass Resource {{deinit() {{}}}}\nclass Token(val n:Int)\nfun observe(value:{value}) {{}}\nfun consumeMap(own m:MutableMap<String,{value}>) {{}}\nfun run() {{val key=\"key\";var m=mutableMapOf<String,{value}>();m.withValue(key,{{value -> observe(value);return}});println(key);consumeMap(m)}}"
         );
-        let (single, unit) = checked(&text);
-        assert!(
-            single.diagnostics().is_empty(),
-            "{text}: {:?}",
-            single.diagnostics()
-        );
-        assert!(
-            unit.diagnostics().is_empty(),
-            "{text}: {:?}",
-            unit.diagnostics()
-        );
-        assert!(single.loans().len() >= 4 && unit.loans().len() >= 4);
+        let (memory, rooted) = checked_unit(&text);
+        for owned in [&memory, &rooted] {
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{text}: {:?}",
+                owned.diagnostics()
+            );
+            assert!(owned.loans().len() >= 4);
+        }
     }
 }
 

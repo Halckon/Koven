@@ -3513,3 +3513,51 @@ AfterExpression/CallReturn temporary cleanup、IndexPlace deferred 与空 drop p
 
 验证：四项 `remaining_unit::` 定向测试通过，frontend all-targets Clippy、fmt、文档及尺寸检查；
 未运行 full/native/Abort、故障注入或校准测试。与待合 #350 为不同测试段落，后续保留两批证据整合。
+## Map.withValue 泛型借用消费者迁移（2026-11-07）
+
+独立基于 main `78a36f25`，不依赖 callable 或 borrow-prefix 候选合入。
+`ownership_map_with::scoped_map_action_generic_borrow_ends_before_owned_map_delivery`
+的 String、Packet、Resource、Token? 四份原源码逐字保留，转用既有 MemoryDocument/Rooted
+Unit helper。原无诊断、loans≥4 下界、callback 单参数 Borrow/类型等于 value_type、返回
+Unit 合同全部保留；还复用同轮 completion/ownership 兼容性与单 descriptor 检查，并核源身份。
+删除该文件最后一条 Single name/type/ownership helper 及导入，未改生产或Guide。
+
+这里原测试没有独立 loan-end 事件表、完整动态cleanup或native oracle，不能将本次消费者
+退休说成新增上述证明；其他文件中依赖 Single 专有字段或事件顺序的见证保持。
+原七种 source invalidation/escape 负例、原 L0087 primary span及普通借用正例不删不改。
+最终文件175行（原220行），没有引入新的生产API或改变withValue语义。
+
+Mac Rust1.96、locked/offline、默认debug=2，串行复用释放后的target。四项直接消费者
+逐个精确运行各1 passed/3 filtered，包括泛型四实例；frontend all-targets Clippy通过。
+fmt、849份Markdown、diff及相对78a36f25尺寸门禁通过（2148份手写Rust、38份旧超长文件未增长）。
+不运行全量/native/Abort/故障注入/校准，不以本地测试
+替代正式CI，D10/E2仍未完成。
+
+### 容器参数与元素借用消费者迁移（2026-11-07）
+
+`ownership_containers` 的 runtime-length 构造与已知 sibling 元素借用两例，保留原始源文本，
+改经现有 MemoryDocument / Rooted 双入口、完成类型准入和实际 P3 检查。前者保留恰好两个
+Shared loan；后者保留四个 loan 的 Shared/Shared/Exclusive/Exclusive 顺序、
+Known(0)/Known(0)/Known(0)/Known(1) 索引及 named root 的 CallReturn cleanup，
+并检查 source-qualified call/root。没有用有界 loan-end 切片替代全流事件表。
+
+验证：上述两项 exact 定向测试各通过；frontend all-targets Clippy、fmt、文档、尺寸与 diff 检查。
+本片不运行 full/native/Abort 故障路径；剩余 Single helper 与独立生命周期见证保持原样。
+
+同批后续补迁两项容器 size 消费者：named receiver 的四条 Shared loan、无诊断/无 deferred
+与 owner 后续 move，以及 temporary receiver 同步 loan 所指 owner 的恰好一次 CallReturn drop。
+两项保留原始源文本，双 Unit 入口新增 call/owner 的 SourceUnit 校验；各自 exact 测试通过。
+没有将这两项普通读取路径扩大为完整借用结束事件流或所有 temporary 生命周期的迁移结论。
+
+重传组合验收（2026-11-07）：合入 main `333ba5ec`，仅调和本节与 callable 验收的追加冲突，
+双方历史记录完整保留；原 #350 两份测试及 ownership 架构内容未改变。Mac Rust1.96、
+locked/offline、默认 debug profile，Map 全4项及上述容器4项 exact 测试通过；两个直接测试
+目标 Clippy（-D warnings）、workspace fmt、862份Markdown与diff检查通过。
+未运行全量/native/Abort/故障注入/校准，本次精确新头的正式CI须另行确认。
+
+最新主干组合复验（2026-11-07）：合入已含 #349 的 main `86430a05`，双方 Spec 与
+architecture 记录完整保留，原 Map/容器测试内容不变。Mac Rust1.96、locked/offline、
+默认 debug profile，原8项消费者、ownership_borrow_continuation 全14项、
+unit_direct_call_loan_ends 全60项通过，共82项；frontend all-targets Clippy
+（-D warnings）、workspace fmt、862份Markdown及diff检查通过。
+本次未运行全量/native/故障注入/校准；正式CI须以本次新头单独核验，不沿用旧头绿灯。
