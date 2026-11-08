@@ -167,15 +167,22 @@ fn runtime_length_construction_reuses_its_two_borrow_contracts() {
                 fun build(size: Int, initializer: (Int) -> Resource): Unit {\n\
                     val list = List<Resource>(size, initializer)\n\
                 }";
-    let (_, _, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.loans().len(), 2);
-    assert!(
-        owned
-            .loans()
-            .iter()
-            .all(|loan| loan.kind() == LoanKind::Shared)
-    );
+    mutable_unit::check_each(text, &[], |_, _, unit, owned| {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert_eq!(owned.loans().len(), 2);
+        assert!(
+            owned
+                .loans()
+                .iter()
+                .all(|loan| loan.call().source_unit() == unit)
+        );
+        assert!(
+            owned
+                .loans()
+                .iter()
+                .all(|loan| loan.kind() == LoanKind::Shared)
+        );
+    });
 }
 
 #[test]
@@ -245,6 +252,7 @@ fn element_owned_read_copies_copyable_and_rejects_move_only() {
 
 #[test]
 fn element_loans_publish_logical_indices_and_allow_proven_siblings() {
+    use lang_frontend::ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget};
     let text = "class Resource {}\n\
                 fun inspect(first: Resource, second: Resource): Unit {}\n\
                 fun mutate(inout first: Resource, inout second: Resource): Unit {}\n\
@@ -252,48 +260,57 @@ fn element_loans_publish_logical_indices_and_allow_proven_siblings() {
                     val shared = inspect(list[0], list[0])\n\
                     val exclusive = mutate(&list[0], &list[1])\n\
                 }";
-    let (_, _, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.loans().len(), 4);
-    assert_eq!(
-        owned
+    mutable_unit::check_each(text, &[], |_, _, unit, owned| {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert_eq!(owned.loans().len(), 4);
+        assert_eq!(
+            owned
+                .loans()
+                .iter()
+                .map(|loan| loan.kind())
+                .collect::<Vec<_>>(),
+            [
+                LoanKind::Shared,
+                LoanKind::Shared,
+                LoanKind::Exclusive,
+                LoanKind::Exclusive,
+            ]
+        );
+        let indices = owned
             .loans()
             .iter()
-            .map(|loan| loan.kind())
-            .collect::<Vec<_>>(),
-        [
-            LoanKind::Shared,
-            LoanKind::Shared,
-            LoanKind::Exclusive,
-            LoanKind::Exclusive,
-        ]
-    );
-    let indices = owned
-        .loans()
-        .iter()
-        .map(|loan| match loan.target() {
-            LoanTarget::Place(place) => place.element().expect("element identity"),
-            LoanTarget::Temporary(_) | LoanTarget::This(_) => {
-                panic!("named list must publish a stable place")
-            }
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        indices,
-        [
-            ElementIndexIdentity::Known(0),
-            ElementIndexIdentity::Known(0),
-            ElementIndexIdentity::Known(0),
-            ElementIndexIdentity::Known(1),
-        ]
-    );
-    let root = match owned.loans()[0].target() {
-        LoanTarget::Place(place) => place.root(),
-        LoanTarget::Temporary(_) | LoanTarget::This(_) => unreachable!(),
-    };
-    assert!(owned.drops().iter().any(|fact| {
-        fact.target() == DropTarget::Named(root) && matches!(fact.point(), DropPoint::CallReturn(_))
-    }));
+            .map(|loan| match loan.target() {
+                UnitLoanTarget::Place(place) => place.element().expect("element identity"),
+                UnitLoanTarget::Temporary(_) | UnitLoanTarget::This(_) => {
+                    panic!("named list must publish a stable place")
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            indices,
+            [
+                ElementIndexIdentity::Known(0),
+                ElementIndexIdentity::Known(0),
+                ElementIndexIdentity::Known(0),
+                ElementIndexIdentity::Known(1),
+            ]
+        );
+        let root = match owned.loans()[0].target() {
+            UnitLoanTarget::Place(place) => place.root(),
+            UnitLoanTarget::Temporary(_) | UnitLoanTarget::This(_) => unreachable!(),
+        };
+        assert_eq!(root.source_unit(), unit);
+        assert!(
+            owned
+                .loans()
+                .iter()
+                .all(|loan| loan.call().source_unit() == unit)
+        );
+        assert!(owned.drops().iter().any(|fact| {
+            fact.target() == UnitDropTarget::Named(root)
+                && matches!(fact.point(), UnitDropPoint::CallReturn(_))
+        }));
+    });
 }
 
 #[test]
@@ -508,7 +525,7 @@ fn post_index_field_projection_stays_deferred_without_an_early_drop_plan() {
 
 #[test]
 fn container_size_is_a_synchronous_read_that_preserves_the_owner() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun take(own value: List<Int>): Unit {}\n\
          fun sizes(own value: List<Int>, borrowed: Array<Int>, mutable: MutableList<Int>): Unit {\n\
              val first = value.size\n\
@@ -517,39 +534,55 @@ fn container_size_is_a_synchronous_read_that_preserves_the_owner() {
              val mutableSize = mutable.size\n\
              val moved = take(value)\n\
          }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-    assert_eq!(owned.loans().len(), 4);
-    assert!(
-        owned
-            .loans()
-            .iter()
-            .all(|loan| loan.kind() == LoanKind::Shared)
+        &[],
+        |_, _, unit, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+            assert_eq!(owned.loans().len(), 4);
+            assert!(
+                owned
+                    .loans()
+                    .iter()
+                    .all(|loan| loan.kind() == LoanKind::Shared)
+            );
+            assert!(
+                owned
+                    .loans()
+                    .iter()
+                    .all(|loan| loan.call().source_unit() == unit)
+            );
+        },
     );
 }
 
 #[test]
 fn temporary_container_size_cleans_up_at_the_read() {
-    let (_, _, owned) =
-        checked("class Resource {}\nfun sizes(): Unit { val temporary = listOf(Resource()).size }");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-    let temporary = owned
-        .loans()
-        .iter()
-        .find_map(|loan| match loan.target() {
-            LoanTarget::Temporary(owner) => Some((loan.call(), *owner)),
-            _ => None,
-        })
-        .expect("temporary header read has a synchronous loan");
-    let drops = owned
-        .drops()
-        .iter()
-        .filter(|drop| drop.target() == DropTarget::Temporary(temporary.1))
-        .collect::<Vec<_>>();
-    assert_eq!(drops.len(), 1);
-    assert_eq!(drops[0].point(), DropPoint::CallReturn(temporary.0));
+    use lang_frontend::ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget};
+    mutable_unit::check_each(
+        "class Resource {}\nfun sizes(): Unit { val temporary = listOf(Resource()).size }",
+        &[],
+        |_, _, unit, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+            let temporary = owned
+                .loans()
+                .iter()
+                .find_map(|loan| match loan.target() {
+                    UnitLoanTarget::Temporary(owner) => Some((loan.call(), *owner)),
+                    _ => None,
+                })
+                .expect("temporary header read has a synchronous loan");
+            let drops = owned
+                .drops()
+                .iter()
+                .filter(|drop| drop.target() == UnitDropTarget::Temporary(temporary.1))
+                .collect::<Vec<_>>();
+            assert_eq!(drops.len(), 1);
+            assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(temporary.0));
+            assert_eq!(temporary.0.source_unit(), unit);
+            assert_eq!(temporary.1.source_unit(), unit);
+        },
+    );
 }
 
 #[test]

@@ -1951,3 +1951,11 @@ index/key、RHS 的正常出口。Map 的 put 描述符仍以原 Index target ID
 恢复通用赋值 fallback 前，前端全目标 182 个目标共 2,700 项通过。最终源码复跑
 前端 lib 加十个集成套件共 798 项（含 50 格迭代计划矩阵）、全目标 Clippy 与
 Range SSA 定向三项，均通过。格式、文档、Rust 尺寸和 diff 门禁通过。
+
+## 72. 第 68–71 批 PR 合流
+
+用户要求推送、跟进 CI 并合并。提交 `f7d2a1ad` 合入最新主干 `60aa67d1`，
+无冲突。复核主干带入的 Map 和容器 ownership 消费者迁移以及相应记录。
+合流工作树运行 `final_type_admission`、`ownership_containers`、`ownership_map_with`
+共 112 项，零失败或忽略。双宿主验收以 [PR #351](https://github.com/Halckon/Koven/pull/351)
+的精确新头为准。
