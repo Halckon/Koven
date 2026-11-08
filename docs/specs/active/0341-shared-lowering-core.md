@@ -4292,3 +4292,41 @@ consumer unwind 与全部动态路径仍待后续；旧 Single absence/唯一结
 1557→1564/1669，仅字段、聚合和接线增长；算法留92行子模块，原例外额度与拆分计划不变。
 文档、diff及相对main尺寸门禁随本提交验证；未运行native、Linux、故障注入或官方CI。
 合计96项相关测试通过，不代表D10/E2完成，也不自行合并PR。
+
+
+### 真实 source token 的 forwarded return 交接切片（2026-11-08）
+
+接续本地 `0adfca46` 的 Phase 3 运输。无 receiver 的直接 declaration 借用调用正常返回时，
+从实际 pending 队列移出 Shared 参数根的完整 source token，保存到 ValueState；实际
+wrapper Return 或表达式体返回时，再将该 token 交给 `UnitBorrowForwardTransportFact`。
+call、argument、origin 与已验证 forwarded/return-origin 同时匹配；Group 保留完整返回
+表达式身份。此事实是 live source 的继续转发，不是 source end，也不建立 caller 动态实例
+映射。未完成或不可达调用不交接，借用参数不取得 payload owner 或 drop。
+
+边界仍为 Shared 参数根，排除 receiver、投影来源、借用局部、exclusive 来源与活动
+iteration provider；合法投影仍可有原 forwarded descriptor，却没有本片运输事实。
+同根具名参数不混淆 source 与 auxiliary，多层 wrapper 保持各函数自己的 source 身份；
+互斥分支的真实 Return 分别交接。owned auxiliary 的唯一 Drop 仍在 inner CallReturn，
+不被推迟到 wrapper Return。原 iteration/native cleanup 不变，旧 Single absence
+见证保留，不宣称完整流、跨事务统一顺序或全部 unwind 已完成。
+
+同步 consumer 后参 Return 的成功探针首先得到既有 L0164；本片保留其拒绝合同，没有
+放宽 checker 来制造运输事实。forwarded API 缺失时编译红测，补实现后双入口测试通过。
+新增 raw Analysis 测试另抓到早期撤销遗漏：外层公开门已保护，但 dataflow finalize 失败
+分支未清新表。现已直接清空新表，完整正例前缀后接独立错误/deferred 来源均实测撤销。
+
+| 验收项 | 目标/过滤器 | 本地实际结果 |
+|---|---|---|
+| 表达式体/Return/Group、同根具名参数、wrapper链与caller隔离、未完成/不可达、投影排除、错误/deferred、分支Return、owned辅助清理 | `unit_direct_call_loan_ends::borrow_forward_transport` | 9项双Unit入口通过 |
+| 整族回归 | `unit_direct_call_loan_ends`，skip `abort_` 与 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup` | 81通过；3项明确未执行 |
+| 直接调用方 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments` | 14＋10通过 |
+| raw原子门与邻接表 | `--lib adjacent_borrow_results` | 5通过，含真实非空forwarded前缀撤销 |
+| 公共API/质量 | frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt | Mac Rust1.96、locked/offline、独立target、默认debug通过 |
+
+合计110项相关Rust测试通过，尺寸政策测试47项通过；文档结构、diff和相对main尺寸检查通过。独立只读复审确认raw
+清空修复闭环，并核对辅助owner的唯一Drop位置。CompilationUnitOwnership父文件
+996→1008重新跨1000软阈值，仅公开导出、字段、successful/deferred门控与getter；
+算法留123行子模块。原1156额度、baseline、owner与拆分计划不变，显式补记例外审阅；
+dataflow 1127→1132/1248、drop_planner 1564→1572/1669均为有界接线。
+未运行native、Linux、故障注入或官方CI；未同步此后推进的main，不宣称新主线组合验收，
+也不据此关闭D10/E2。本片仅本地提交，不推送或合并PR。

@@ -295,3 +295,40 @@ impl UnitBorrowBindingTransportFact {
         self.point
     }
 }
+
+/// Actual Shared parameter-source token handed from an inner call to a wrapper return.
+/// This bounded forwarding transaction does not end the source, map it to a caller
+/// instance, or prove absence in a complete loan-end stream.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowForwardTransportFact {
+    pub(super) source: UnitLoanFact,
+    pub(super) returned: UnitExpressionId,
+    pub(super) point: UnitDropPoint,
+}
+
+impl UnitBorrowForwardTransportFact {
+    /// Original pending source token, preserved without reconstructing a loan descriptor.
+    #[must_use]
+    pub const fn source_loan(&self) -> &UnitLoanFact {
+        &self.source
+    }
+
+    /// The complete returned expression, retaining any Group identity.
+    #[must_use]
+    pub const fn returned_expression(&self) -> UnitExpressionId {
+        self.returned
+    }
+
+    /// Normal inner return where the source token moved into forwarding state.
+    #[must_use]
+    pub const fn handoff_point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source.call)
+    }
+
+    /// Actual wrapper return where its result takes over the live source token.
+    /// This is a transfer, not a source end or owner drop.
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+}

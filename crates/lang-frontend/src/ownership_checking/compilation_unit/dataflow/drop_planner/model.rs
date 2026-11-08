@@ -249,6 +249,8 @@ pub(super) struct ValueState {
     pub(super) borrow_call_transports: Vec<super::borrow_transport::PendingTransport>,
     pub(super) borrow_binding_transports:
         Vec<super::borrow_binding_transport::PendingBindingTransport>,
+    pub(super) borrow_forward_transports:
+        Vec<super::borrow_forward_transport::PendingForwardTransport>,
     pub(super) iterations: Vec<super::iteration::IterationFrame>,
     pub(super) pending_temporaries: Vec<super::pending_call::PendingTemporary>,
     pub(super) values: Vec<OwnedValue>,
@@ -314,6 +316,11 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     let Some(mut merged) = states.pop() else {
         return ValueState::default();
     };
+    merged.borrow_forward_transports.retain(|transport| {
+        states
+            .iter()
+            .all(|state| state.borrow_forward_transports.contains(transport))
+    });
     merged.borrow_binding_transports.retain(|transport| {
         states
             .iter()

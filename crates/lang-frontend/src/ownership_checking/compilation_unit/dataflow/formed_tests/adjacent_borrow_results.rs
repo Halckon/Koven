@@ -24,6 +24,7 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.borrow_results.range_returns.is_empty());
     assert!(raw.borrow_results.range_uses.is_empty());
     assert!(raw.borrow_results.call_uses.is_empty());
+    assert!(raw.borrow_forward_transports.is_empty());
 }
 
 fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixture, &Analysis)) {
@@ -161,5 +162,13 @@ fn real_deferred_and_diagnostic_clear_nonempty_synchronous_call_use_table() {
     let text = "fun view(source: String): borrow String from source = source\nfun observe(item: String) { println(item) }\nfun consume(own item: String) {}\nfun run() { val source = \"kept\"; observe(view(source)); consume(source) }";
     assert_rejections_clear(text, false, |_, raw| {
         assert_eq!(raw.borrow_results.call_uses.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_forwarded_source_transport() {
+    let text = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.borrow_forward_transports.len(), 1);
     });
 }

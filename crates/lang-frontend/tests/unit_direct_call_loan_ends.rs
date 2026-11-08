@@ -870,3 +870,6 @@ mod borrow_transport;
 
 #[path = "unit_direct_call_loan_ends/borrow_binding_transport.rs"]
 mod borrow_binding_transport;
+
+#[path = "unit_direct_call_loan_ends/borrow_forward_transport.rs"]
+mod borrow_forward_transport;

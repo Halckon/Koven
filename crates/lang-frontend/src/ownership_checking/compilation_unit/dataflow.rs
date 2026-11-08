@@ -105,6 +105,7 @@ pub(super) struct Analysis {
     pub(super) borrow_call_handoffs: Vec<super::UnitBorrowCallHandoffFact>,
     pub(super) borrow_call_transports: Vec<super::UnitBorrowCallTransportFact>,
     pub(super) borrow_binding_transports: Vec<super::UnitBorrowBindingTransportFact>,
+    pub(super) borrow_forward_transports: Vec<super::UnitBorrowForwardTransportFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -217,6 +218,7 @@ pub(super) fn analyze(
     let mut borrow_call_handoffs = Vec::new();
     let mut borrow_call_transports = Vec::new();
     let mut borrow_binding_transports = Vec::new();
+    let mut borrow_forward_transports = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
@@ -315,6 +317,7 @@ pub(super) fn analyze(
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
         borrow_call_transports.extend(drop_analysis.borrow_call_transports);
         borrow_binding_transports.extend(drop_analysis.borrow_binding_transports);
+        borrow_forward_transports.extend(drop_analysis.borrow_forward_transports);
         borrow_call_prefix_ends.extend(drop_analysis.borrow_call_prefix_ends);
         exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
         drops.extend(drop_analysis.drops);
@@ -366,6 +369,7 @@ pub(super) fn analyze(
     if !formed_publication::finalize(typed, &diagnostics, &deferred, &mut formed_owned_locals) {
         nullable_whens.clear();
         borrow_return_origins.clear();
+        borrow_forward_transports.clear();
         borrow_results = Default::default();
     }
     nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
@@ -401,6 +405,7 @@ pub(super) fn analyze(
         borrow_call_handoffs,
         borrow_call_transports,
         borrow_binding_transports,
+        borrow_forward_transports,
         borrow_call_prefix_ends,
         exclusive_call_prefix_ends,
         value_deliveries,
