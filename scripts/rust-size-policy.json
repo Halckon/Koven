@@ -214,11 +214,11 @@
       "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1261 行；不声称独立评审。再次增长或职责增加前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/signatures.rs": {
-      "max_lines": 1041,
+      "max_lines": 1038,
       "reason": "SPEC-0289 N1a 休眠接线：新增 mod range_carrier 与 check_range_types 调用，相对远端中间提交 9c4df04 的 1034 行净增 2 行；其余 0288 签名接线未增加职责。 SPEC-0341 为已解析 enum case 的签名 TypeRef 增加 5 行位置校验接线，判定逻辑独立在 enum_case 子模块，不新增其他职责。",
       "owner": "lang-frontend compilation-unit signatures",
       "split_plan": "后续按完整 TypeRef 签名解析职责拆分；本次只有 enum_case 子模块与一处调用，不机械移动无关代码。",
-      "review": "SPEC-0341 独立复审核验完整 case 身份、原 TypeRef primary 与 root label；1036→1041 的 5 行接线有界。超过 1041 行或职责变化前重新复审。"
+      "review": "SPEC-0341 独立复审核验完整 case 身份、原 TypeRef primary 与 root label；原1036→1041的5行接线有界；四候选合批由L0091显式Span接口净减3行，实测1038并收紧上限。超过1038行或职责变化前重新复审。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/model.rs": {
       "max_lines": 1406,

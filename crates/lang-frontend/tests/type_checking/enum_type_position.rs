@@ -40,15 +40,27 @@ fn enum_case_types_are_rejected_through_nested_signature_positions() {
         ("class Invalid : Shape.Circle", "Shape.Circle"),
         ("fun <T: Shape.Circle> invalid(): Unit", "Shape.Circle"),
     ] {
-        let text = format!("enum class Shape {{ Circle }}\n{declarations}");
-        let (sources, _, entries) = checked_entries(&text);
-        for (_, typed) in entries {
-            assert_eq!(codes(typed.diagnostics()), ["L0114"], "{text}");
-            assert_eq!(
-                diagnostic_spans(&sources, &typed.diagnostics()[0]),
-                (primary, "Shape")
-            );
-            assert!(typed.validate().is_err());
+        // Exercise the integration: case identity must exist before signatures,
+        // and explicit visibility must still reach the real enum layout.
+        for visibility in ["", "public "] {
+            let shape = format!("{visibility}enum class Shape {{ Circle }}");
+            for text in [
+                format!("{shape}\n{declarations}"),
+                format!("{declarations}\n{shape}"),
+            ] {
+                let (sources, file, entries) = checked_entries(&text);
+                for (_, typed) in entries {
+                    assert_eq!(codes(typed.diagnostics()), ["L0114"], "{text}");
+                    let diagnostic = &typed.diagnostics()[0];
+                    assert_eq!(diagnostic_spans(&sources, diagnostic), (primary, "Shape"));
+                    assert_eq!(diagnostic.primary_span().source_id(), file.source_id());
+                    assert_eq!(
+                        diagnostic.primary_span().start(),
+                        text.find(primary).unwrap()
+                    );
+                    assert!(typed.validate().is_err());
+                }
+            }
         }
     }
 }

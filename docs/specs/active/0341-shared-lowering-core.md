@@ -3978,3 +3978,45 @@ workspace fmt、863份Markdown、尺寸与diff检查通过；独立只读复审�
 空 enum 已由 Guide08/parser L0073 拒绝，本片不追加其恢复诊断；超过两段 TypeRef、
 表达式成员路径与 legacy local resolver 不变。未运行 frontend/workspace 全量、native、Linux
 或正式 CI；不合并，D10/E2仍in-progress。
+
+## 类型诊断四候选集中集成（2026-11-08）
+
+以已合 #365 的 main `6d87040b69dfc12ae5accacd3a73a2f816d8bb36` 新建本地
+`fix/spec-0341-type-candidate-batch`。`git cherry` 核实四源候选均未被主线吸收；
+依次保留 `16593a5c`（L0091）、`f27960e3`（L0114）、`5d5a68bb`（修饰器解包）与
+`58b6d36c`（前向 case 名称）完整逻辑提交，生产输入归于合批头 `845ed317`。
+四笔生产差异的 stable patch-id 分别与源提交相同，不另改语言规则或所有权能力。
+
+冲突仅为测试注册、尾部追加与文档同段/追加位置，生产代码无冲突。原测试源码及断言保留，
+不混入主工作区未跟踪脚本或其他候选；原独立验收仍是历史记录，本节才描述组合结果。
+已将先前一次性组合探针固化：8种签名位置 × 正反声明顺序 × 默认/public × 双 Unit 入口
+共64组，均精确单条 L0114并拒绝validate；双文件默认/public、正反输入排列保留使用处
+primary与enum声明label的来源身份。合法is/!is、root签名、遮蔽、缺case与递归布局邻控保留。
+
+首轮扩大到Box邻控发现一个旧oracle不再匹配：原完整 `Box<Point<Int>>` 输入仍产生既有
+五个诊断码及五个Error参数，但L0091由旧首实参`Int`转为正确使用点`Point`。
+按Guide03合同迁移这一处primary，保留其余四个primary、全部源码与Error断言，补精确
+SourceId/字节范围、声明label及validate拒绝。独立复审确认是锚点修复的必要消费者迁移，
+未放宽生产行为或接受多种结果。首次475通过/1失败的结果不冒充全绿。
+
+Mac AArch64、Rust/Cargo1.96、locked/offline、默认debug profile、单一独立target、
+编译jobs=2，最终组合实跑如下：
+
+| 验收项 | 目标/命令 | 实际结果 |
+|---|---|---|
+| 名称、签名、body、诊断、能力、原Single与双Unit | frontend `diagnostic_model`、`multifile_name_resolution`、`multifile_type_capability_graph`、`multifile_type_checking`、`multifile_type_signatures`、`name_resolution`、`type_checking`、`type_copyability`、`unit_name_snapshot`；一次`--no-fail-fast`调用 | 9/19/10/281/24/15/94/17/7，共476项通过，零失败/忽略 |
+| 名称身份直接下游 | `cargo test --locked --offline -p lang-lsp --no-fail-fast` | 56项及stdio1项，共57项通过，零失败/忽略 |
+| 静态检查 | frontend all-targets Clippy `-D warnings`、workspace fmt、`git diff --check` | 通过 |
+| 文档与尺寸政策 | `check_docs.py`、`check_rust_sizes.py --base 6d87040b`、`unittest scripts.tests.test_check_rust_sizes` | 863份Markdown、2207份手写Rust/34份历史超长与47项政策测试通过 |
+
+独立只读复审核对真实root/case身份、未知case抑制、Error资格链、修饰器布局及冲突oracle，
+最终增量无P1/P2。signatures.rs从main1036行经+5/−3成为1038行，尺寸例外收紧至1038；
+architecture合并本片重复段落保持200行，不删除原事实。政策测试初次受只读临时目录限制，
+允许创建其测试临时仓库后47项实跑通过，不将初次环境失败算作通过。
+
+`type_checking`精确排除历史Abort输入
+`nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`
+共1项；其源码、规模、ignore与线程栈均未修改，该项只编译，正式CI仍负责实跑。
+未运行frontend/workspace全量、native、Linux、损坏注入或新头CI；未改跨crate API，不追加
+workspace check。空enum、超过两段本地TypeRef及错误嵌套case实参恢复不新增覆盖。
+本批只本地准备，不推送、不创建PR、不合并；D10/E2仍in-progress。
