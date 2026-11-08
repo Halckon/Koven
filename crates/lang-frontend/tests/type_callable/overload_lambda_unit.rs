@@ -57,10 +57,10 @@ fn checked_entries(
     })
 }
 
-fn lambda_parameters(
-    names: &CompilationUnitNames,
+fn lambda_parameters<'a>(
+    names: &'a CompilationUnitNames,
     typed: &CompilationUnitTypes,
-) -> Vec<UnitSymbolId> {
+) -> Vec<(&'a str, UnitSymbolId)> {
     let [source] = names.source_units() else {
         panic!("one original names source")
     };
@@ -82,7 +82,7 @@ fn lambda_parameters(
             let [qualified] = matches.as_slice() else {
                 panic!("one committed mode for the exact original lambda binding")
             };
-            *qualified
+            (symbol.name(), *qualified)
         })
         .collect()
 }
@@ -102,7 +102,27 @@ pub(super) fn unique_trial(
             repeated.body_parameter_modes()
         );
         assert_eq!(typed.body_symbol_types(), repeated.body_symbol_types());
-        assert_eq!(typed.calls().len(), 2);
+        let mut call_spans = typed
+            .calls()
+            .iter()
+            .map(|call| {
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(call.expression().expression())
+                    .unwrap()
+                    .span()
+            })
+            .collect::<Vec<_>>();
+        call_spans.sort_by_key(|span| span.start());
+        assert_eq!(
+            call_spans
+                .into_iter()
+                .map(|span| sources.slice(span).unwrap())
+                .collect::<Vec<_>>(),
+            ["resolve { intResult(it) }", "intResult(it)"]
+        );
+        assert_eq!(typed.body_parameter_modes().len(), 1);
         assert!(matches!(
             typed.types().get(typed.calls()[0].return_type()),
             Some(UnitTypeKind::Builtin(BuiltinType::Int))
@@ -112,7 +132,7 @@ pub(super) fn unique_trial(
             Some(UnitTypeKind::Builtin(BuiltinType::Int))
         ));
         let parameters = lambda_parameters(&names, &typed);
-        let [parameter] = parameters.as_slice() else {
+        let [("it", parameter)] = parameters.as_slice() else {
             panic!("one committed lambda parameter")
         };
         assert_eq!(
@@ -143,7 +163,9 @@ pub(super) fn generic_trial(
             repeated.body_parameter_modes()
         );
         assert_eq!(typed.body_symbol_types(), repeated.body_symbol_types());
-        let call = typed.calls().last().expect("selected generic overload");
+        let [call] = typed.calls() else {
+            panic!("only the winning dispatch call publishes a descriptor")
+        };
         assert_eq!(
             call.arguments()
                 .iter()
@@ -156,14 +178,46 @@ pub(super) fn generic_trial(
             Some(UnitTypeKind::Builtin(BuiltinType::Long))
         ));
         assert_eq!(
-            lambda_parameters(&names, &typed)
-                .into_iter()
-                .map(|parameter| typed.body_parameter_mode(parameter))
+            call.instance()
+                .type_arguments()
+                .iter()
+                .map(|&argument| typed.types().get(argument))
                 .collect::<Vec<_>>(),
             [
-                Some(ParameterMode::Inout),
-                Some(ParameterMode::Borrow),
-                Some(ParameterMode::Value)
+                Some(&UnitTypeKind::Builtin(BuiltinType::String)),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+            ]
+        );
+        assert_eq!(typed.body_parameter_modes().len(), 3);
+        assert_eq!(
+            lambda_parameters(&names, &typed)
+                .into_iter()
+                .map(|(name, parameter)| {
+                    (
+                        name,
+                        typed.body_parameter_mode(parameter),
+                        typed
+                            .symbol_type(parameter)
+                            .and_then(|ty| typed.types().get(ty)),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            [
+                (
+                    "changed",
+                    Some(ParameterMode::Inout),
+                    Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                ),
+                (
+                    "borrowed",
+                    Some(ParameterMode::Borrow),
+                    Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                ),
+                (
+                    "owned",
+                    Some(ParameterMode::Value),
+                    Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                ),
             ]
         );
     }
