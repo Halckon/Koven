@@ -116,7 +116,7 @@ impl Parser<'_> {
                 primary,
             )?;
         }
-        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
+        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters(false)?;
         let (name, extension_receiver) = self.parse_function_head(declaration_stops)?;
         if !allow_extension && let Some(receiver) = extension_receiver {
             self.emit(
@@ -348,15 +348,24 @@ impl Parser<'_> {
 
     pub(super) fn parse_type_parameters(
         &mut self,
+        class_header: bool,
     ) -> Result<(Vec<TypeParameter>, Option<Span>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Less) {
             return Ok((Vec::new(), None));
         }
         let opener = self.bump()?.span();
         let mut parameters = Vec::new();
-        let stops = TypeStops::empty()
-            .with(TypeStops::COMMA)
-            .with(TypeStops::GREATER);
+        let mut outer_stops = TypeStops::empty();
+        let mut recovery_stops = DeclarationStops::EMPTY;
+        if class_header {
+            outer_stops = outer_stops
+                .with(TypeStops::CLASS_BODY)
+                .with(TypeStops::RIGHT_BRACE);
+            recovery_stops = recovery_stops
+                .with(DeclarationStops::CLASS_BODY)
+                .with(DeclarationStops::RIGHT_BRACE);
+        }
+        let stops = outer_stops.with(TypeStops::COMMA).with(TypeStops::GREATER);
         if self.current_is_symbol(Symbol::Greater) {
             self.emit(
                 codes::EXPECTED_LIST_ELEMENT,
@@ -365,6 +374,9 @@ impl Parser<'_> {
             )?;
         } else {
             loop {
+                if class_header && outer_stops.contains(self.current()?) {
+                    break;
+                }
                 if self.current_is_symbol(Symbol::Comma) {
                     let comma = self.bump()?.span();
                     self.emit(codes::EXPECTED_LIST_ELEMENT, "expected list element", comma)?;
@@ -373,10 +385,11 @@ impl Parser<'_> {
                     }
                     continue;
                 }
-                let name = self.parse_name_marker(
+                let name = self.parse_name_marker_with_stops(
                     codes::EXPECTED_PARAMETER_NAME,
                     "expected parameter name",
                     NameContext::TypeParameter,
+                    recovery_stops,
                 )?;
                 let start = marker_span(name).start();
                 let (colon_span, bound) = if self.current_is_symbol(Symbol::Colon) {
@@ -386,10 +399,14 @@ impl Parser<'_> {
                 } else {
                     (None, None)
                 };
-                let end = bound
-                    .map(|id| self.type_span(id).map(Span::end))
-                    .transpose()?
-                    .unwrap_or(marker_span(name).end());
+                let end = if class_header {
+                    self.previous_significant_end().max(start)
+                } else {
+                    bound
+                        .map(|id| self.type_span(id).map(Span::end))
+                        .transpose()?
+                        .unwrap_or(marker_span(name).end())
+                };
                 parameters.push(TypeParameter {
                     span: self.span(start, end)?,
                     name,
@@ -409,6 +426,9 @@ impl Parser<'_> {
                     continue;
                 }
                 if self.current_is_symbol(Symbol::Greater) {
+                    break;
+                }
+                if class_header && outer_stops.contains(self.current()?) {
                     break;
                 }
                 if self.current_is_identifier()
@@ -448,6 +468,7 @@ impl Parser<'_> {
                     }
                     if matches!(self.current()?.kind(), LexemeKind::Eof)
                         || self.current_is_symbol(Symbol::Greater)
+                        || (class_header && outer_stops.contains(self.current()?))
                     {
                         break;
                     }
@@ -459,7 +480,7 @@ impl Parser<'_> {
                     primary,
                 )?;
                 self.recover_declaration_region(
-                    DeclarationStops::EMPTY
+                    recovery_stops
                         .with(DeclarationStops::COMMA)
                         .with(DeclarationStops::GREATER),
                 )?;
@@ -475,10 +496,14 @@ impl Parser<'_> {
         } else {
             let current = self.current()?;
             self.emit_closing(self.empty_at(current.span().start())?, opener)?;
-            parameters
-                .last()
-                .map(|parameter| parameter.span.end())
-                .unwrap_or(opener.end())
+            if class_header {
+                self.previous_significant_end()
+            } else {
+                parameters
+                    .last()
+                    .map(|parameter| parameter.span.end())
+                    .unwrap_or(opener.end())
+            }
         };
         Ok((parameters, Some(self.span(opener.start(), end)?)))
     }

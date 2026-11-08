@@ -108,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78 | 主构造器、interface 的父类型边界、软修饰词等 class-family 恢复路径仍开放 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–79 | 缺类体时的文件边界、软修饰词、连续词法 poison 等 class-family 恢复路径仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2121,3 +2121,33 @@ companion 与 malformed TypeRef 自身范围仍是后续审查项。本批保持
 CLI `check_cli` 6 项，LSP 57 项，零失败或忽略。frontend 全目标 Clippy、格式、文档、
 Rust 尺寸和 diff 门禁通过。`class.rs` 从 1088 降至 943 行，尺寸额度未增加。
 双宿主及 native 发布门禁以 PR 的精确候选为准。
+
+[PR #359 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42452943514) 在 `37ec9d43`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主生成资源及预览包独立安装通过，编辑器按范围跳过。已合入 `6e5934b5`。
+本机同提交补跑 6 项 LLDB 检查，含 Mach-O 行表、macOS CI 默认忽略的后端真实断点及
+4 项 CLI 调试检查。`parser_interface_delegation` 的 9 项仅本机执行，见 §79 的补接。
+
+## 79. R1 类声明头的 body 边界与诊断
+
+在 `37ec9d43` 上复现主构造器、类型参数和父类型列表吞类体，以及非法默认值吞外层
+`}`。让真实类体 opener 与外层 closer 穿过对应 header/TypeRef 解析。保留函数类型、
+内层平衡 brace 及非法默认 lambda 的 owner；未闭合的非法父类型调用继续保留原有硬
+brace 规则。独立复核先复现候选把硬 stop 改软后吞类体的回归，已恢复基线并补见证。
+
+Classifier、构造器字段和声明头受影响的 TypeRef 使用真实消费末端，不跨错误节点前的
+trivia。重复 companion 现在在同一 classifier 的第二个关键词报告 L0077。构造器和
+枚举 payload 分隔恢复保留词法 poison 的单一根因，在已恢复的真实逗号处不重报缺字段。
+
+隔离候选的三组定向测试共 49 项，frontend 全量 183 个结果组、2731 项，零失败或忽略。
+frontend 全目标 Clippy 与格式检查通过。后续还需核验无类体时的下一文件声明、软修饰词、
+连续 TypeParameter poison、父类型后继 poison 与非法分组委托目标的 owner。独立最小探针
+已实跑记录上述边界。R1 保持开放。
+
+核对 PR #359 两宿主日志，`parser_interface_delegation` 当时只本机实跑。现在加入既有
+Parser stage Cargo 命令，唯一普通目标从 136 增至 137，Cargo 调用仍为 23。新增静态
+选择先失败再通过，最终两条静态与一条成功路径选择检查、`bash -n` 通过。
+
+从 `6e5934b5` 建立实际分支，逐字接入上述候选。当前分支通过 49 项定向及 19 项
+Parser 内部检查，零失败或忽略。frontend 全目标 Clippy、格式、文档、Rust 尺寸与 diff
+门禁，以及同样三项 CI 选择检查通过。该分支的双宿主矩阵待推送后执行。

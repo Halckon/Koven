@@ -76,6 +76,9 @@ Parser 直接覆盖为 `parser_n1a_frontier`；`type_declaration_frontier` 在 M
 class-family 成员体及非法嵌套 class、companion 的恢复共用该预算。委托目标的字符串错误
 区由声明恢复状态机只消费该 lexical owner。枚举 payload 的显式分号也穿过嵌套 TypeRef
 保留给枚举成员区，companion 常量恢复保留成员分号与右花括号。
+类声明头的构造器、类型参数和父类型有单独的类体边界。解析到调用方的真实 `{` 或 `}`
+时保留给对应声明体，类型内部仍按 TypeRef 的规则处理。非法构造器默认值保留平衡
+lambda 的闭合符，成员解析按 classifier 分别验证 companion 唯一性。
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
