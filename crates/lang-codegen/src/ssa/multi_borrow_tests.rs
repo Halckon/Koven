@@ -127,16 +127,75 @@ fn multi_parameter_borrow_unit_source_matrix() {
 
 #[test]
 fn multi_parameter_borrow_wrapper_control_prefix_remains_unsupported() {
-    for argument in ["-n", "if (true) { 1 } else { 2 }", "n + 1"] {
+    for (argument, primary) in [
+        ("-n", "-n"),
+        ("if (true) { 1 } else { 2 }", "if (true) { 1 } else { 2 }"),
+        ("n + 1", "n + 1"),
+        ("when (n) { else -> n + 1 }", "n + 1"),
+    ] {
         let text = format!(
             "fun view(other: Int, source: String): borrow String from source = source\nfun wrap(source: String, n: Int): borrow String from source = view({argument}, source)\nfun entry() {{ val source = \"kept\"; val n = 1; borrow val item = wrap(source, n); println(item) }}"
         );
-        for result in [memory_unit(&text), unit(&text)] {
-            assert_eq!(
-                result.err().unwrap().kind,
-                super::LoweringErrorKind::UnsupportedNode
-            );
+        let with_sibling =
+            format!("{text}\nfun unrelated() {{ var a = 1; var b = 2; swap(&a, &b) }}");
+        for (lower, prefix_len) in [
+            (memory_unit as fn(&str) -> _, 0),
+            (unit, "package p\n".len()),
+        ] {
+            let start = text.find(primary).unwrap() + prefix_len;
+            for source in [&text, &with_sibling] {
+                let rejection = lower(source).err().expect(argument);
+                assert_eq!(rejection.kind, super::LoweringErrorKind::UnsupportedNode);
+                let span = rejection.span.expect("argument control split");
+                assert_eq!(
+                    (span.start(), span.end()),
+                    (start, start + primary.len()),
+                    "{argument}"
+                );
+            }
         }
+    }
+}
+
+#[test]
+fn multi_parameter_borrow_wrapper_straight_line_arguments_ignore_uncalled_swap() {
+    for (parameter_type, argument) in [
+        ("Boolean", "n == 1"),
+        ("Int", "n and 1"),
+        ("Int", "when (n) { else -> 1 }"),
+    ] {
+        let text = format!(
+            "fun view(other: {parameter_type}, source: String): borrow String from source = source\nfun wrap(source: String, n: Int): borrow String from source = view({argument}, source)\nfun entry() {{ val source = \"kept\"; val n = 1; borrow val item = wrap(source, n); println(item) }}"
+        );
+        let with_sibling =
+            format!("{text}\nfun unrelated() {{ var a = 1; var b = 2; swap(&a, &b) }}");
+        for lower in [memory_unit, unit] {
+            for source in [&text, &with_sibling] {
+                let program = lower(source).unwrap_or_else(|error| panic!("{argument}: {error:?}"));
+                check(&program, 1, false);
+            }
+        }
+    }
+}
+
+#[test]
+fn direct_map_borrow_return_keeps_its_straight_line_key() {
+    let text = r#"fun view(source: MutableMap<Int, String>, n: Int): borrow String from source = source.requireValue(when (n) { else -> 1 })
+fun entry() {
+    var source = mutableMapOf<Int, String>()
+    source.put(1, "kept")
+    borrow val item = view(source, 1)
+    println(item)
+}"#;
+    for result in [memory_unit(text), unit(text)] {
+        let program = result.unwrap();
+        check(&program, 0, false);
+        assert!(program.modules[0].functions.iter().any(|function| {
+            function.borrow_return == Some(0)
+                && function.instructions.iter().any(|instruction| {
+                    matches!(instruction.operation, Operation::MapRequireValue { .. })
+                })
+        }));
     }
 }
 

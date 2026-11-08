@@ -280,6 +280,7 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
         view.names(),
         view.types(),
         view.ownership(),
+        true,
     )
     .expect_err("the legacy boundary check rejects this construct");
     assert_eq!(direct_stage_err.kind, LoweringErrorKind::UnsupportedNode);

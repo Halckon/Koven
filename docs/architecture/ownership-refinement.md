@@ -18,6 +18,14 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 `scope_requires_refine`，仍逐项校验 Map provider 与完整函数子集；无关 sibling 中的操作
 不改变纯 Map-for 路由。验证范围见 [SPEC-0383 §5](../specs/active/0383-refine-final-legacy-retirement.md#5-map-for-与整数家族的组合路由修复)。
 
+普通借用返回转发按本次调用实参实际产生的 CFG 判定。直线求值与可合并的无条件跳转
+保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到实际分支的源码范围。
+直接 `Map.requireValue` 结果走独立的 Map 入口。
+
+普通调用结果的局部绑定可以与借用获取前、或有序且已验证的结束点之后的独立 `if`
+共存。该判断只沿普通块的语句顺序传播，活跃 loan 的分支和实参仍走原有边界。
+编译单元中的其他函数或 lambda 的所有权原语不改变这一路径。
+
 ## 两段 lowering
 
 - 细化（`refine/build`）：facts 映射为槽位 CFG。析构点、Borrow 实参 loan、Value 交付、null 比较的
