@@ -52,3 +52,22 @@ fn consecutive_poisoned_delegation_strings_use_linear_significant_visits() {
     assert!(large_visits <= large_raw * 24);
     assert!(large_visits <= small_visits * 2 + 64);
 }
+
+#[test]
+fn unsupported_delegation_suffixes_use_linear_significant_visits() {
+    let metrics = |count| {
+        let entries = (0..count)
+            .map(|index| format!("I{index} by delegate + Junk<A, B>([A, B], {{ -> 1 }})"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let text = format!("class C: {entries}, J {{ fun keep(): Unit {{}} }}");
+        super::parse_class_family_metrics(&text, count)
+    };
+    let (small_raw, small_visits, small_items) = metrics(32);
+    let (large_raw, large_visits, large_items) = metrics(64);
+    assert_eq!(small_items, 2);
+    assert_eq!(large_items, 2);
+    assert!(small_visits <= small_raw * 24);
+    assert!(large_visits <= large_raw * 24);
+    assert!(large_visits <= small_visits * 2 + 64);
+}

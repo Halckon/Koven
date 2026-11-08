@@ -633,3 +633,195 @@ fn invalid_delegation_target_leaves_the_actual_following_deinit() {
         );
     }
 }
+
+#[test]
+fn unsupported_delegation_suffix_keeps_proven_delimiters_with_the_original_target() {
+    for (suffix, primary) in [
+        ("<A, B>", "<"),
+        (" + Junk([A, B], { -> 1 })", "+"),
+        (" + Junk<A, B>", "+"),
+        ("<A", "<"),
+    ] {
+        let text = format!("class C: I by delegate{suffix}, J {{ fun keep(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        let file = parse_file_twice(&sources, parsed.source_id(), &text);
+        let Item::Classifier(file_class) =
+            file.ast().items().get(file.roots()[0]).unwrap().payload()
+        else {
+            panic!("file classifier");
+        };
+        for (ast, class, diagnostics) in [
+            (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+            (file.ast(), file_class, file.diagnostics()),
+        ] {
+            assert_eq!(codes(diagnostics), ["L0077"], "{text}");
+            assert_eq!(sources.slice(diagnostics[0].primary_span()), Ok(primary));
+            let [first, following] = class.supertypes.as_slice() else {
+                panic!("delegate and following parent for {text}");
+            };
+            let clause = first.delegation.unwrap();
+            let NameMarker::Present(name) = clause.target else {
+                panic!("the original target name remains available");
+            };
+            assert_eq!(sources.slice(name), Ok("delegate"));
+            assert_eq!(sources.slice(clause.span), Ok("by delegate"));
+            assert!(first.trailing_lexical_error.is_none());
+            assert_eq!(sources.slice(following.span), Ok("J"));
+            let body = class.body.as_ref().unwrap();
+            let [member] = body.members.as_slice() else {
+                panic!("class member recovered for {text}");
+            };
+            assert_eq!(
+                sources.slice(ast.items().get(*member).unwrap().span()),
+                Ok("fun keep(): Unit {}")
+            );
+            assert!(body.right_brace_span.is_some());
+        }
+    }
+}
+
+#[test]
+fn delegation_does_not_consume_a_following_members_soft_prefix() {
+    for member in ["own fun keep(): Unit {}", "deinit() {}"] {
+        for (target, expected_codes) in
+            [("", &["L0077", "L0078"][..]), (" delegate", &["L0077"][..])]
+        {
+            let text = format!("class Outer {{\n class Inner: I by{target}\n {member}\n}}");
+            let (sources, parsed) = declaration(&text);
+            let file = parse_file_twice(&sources, parsed.source_id(), &text);
+            let Item::Classifier(file_class) =
+                file.ast().items().get(file.roots()[0]).unwrap().payload()
+            else {
+                panic!("file classifier");
+            };
+            for (ast, outer, diagnostics) in [
+                (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+                (file.ast(), file_class, file.diagnostics()),
+            ] {
+                assert_eq!(codes(diagnostics), expected_codes, "{text}");
+                let [inner, following] = outer.body.as_ref().unwrap().members.as_slice() else {
+                    panic!("recovered nested class and original following member for {text}");
+                };
+                let Item::Classifier(inner) = ast.items().get(*inner).unwrap().payload() else {
+                    panic!("nested class");
+                };
+                assert!(inner.body.is_none());
+                let [parent] = inner.supertypes.as_slice() else {
+                    panic!("one delegated parent");
+                };
+                let clause = parent.delegation.unwrap();
+                match clause.target {
+                    NameMarker::Missing(span) if target.is_empty() => {
+                        assert!(span.is_empty());
+                        assert_eq!(span.start(), text.find(member).unwrap());
+                        assert_eq!(clause.span.end(), clause.by_span.end());
+                    }
+                    NameMarker::Present(span) if !target.is_empty() => {
+                        assert_eq!(sources.slice(span), Ok("delegate"));
+                    }
+                    _ => panic!("wrong target in {text}"),
+                }
+                assert_eq!(
+                    sources.slice(ast.items().get(*following).unwrap().span()),
+                    Ok(member)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn bare_soft_word_on_the_next_line_remains_a_delegation_identifier() {
+    let text = "class Outer {\n class Inner: I by\n own, J;\n own fun keep(): Unit {}\n}";
+    let (sources, parsed) = declaration(text);
+    let body = classifier(&parsed).body.as_ref().unwrap();
+    let [inner, member] = body.members.as_slice() else {
+        panic!("nested class and original member");
+    };
+    let Item::Classifier(inner) = parsed.ast().items().get(*inner).unwrap().payload() else {
+        panic!("nested class");
+    };
+    let [first, following] = inner.supertypes.as_slice() else {
+        panic!("delegate and following parent");
+    };
+    let NameMarker::Present(name) = first.delegation.unwrap().target else {
+        panic!("own is a bare identifier in this context");
+    };
+    assert_eq!(sources.slice(name), Ok("own"));
+    assert_eq!(sources.slice(following.span), Ok("J"));
+    assert_eq!(
+        sources.slice(parsed.ast().items().get(*member).unwrap().span()),
+        Ok("own fun keep(): Unit {}")
+    );
+}
+
+#[test]
+fn unsupported_delegation_suffix_does_not_promote_a_destructor_shaped_call() {
+    for suffix in [" +\n deinit()", "\n deinit()"] {
+        let text = format!(
+            "class Outer {{\n class Inner: I by delegate{suffix}, J;\n own fun keep(): Unit {{}}\n}}"
+        );
+        let (sources, parsed) = declaration(&text);
+        let file = parse_file_twice(&sources, parsed.source_id(), &text);
+        let Item::Classifier(file_class) =
+            file.ast().items().get(file.roots()[0]).unwrap().payload()
+        else {
+            panic!("file classifier");
+        };
+        for (ast, outer, diagnostics) in [
+            (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+            (file.ast(), file_class, file.diagnostics()),
+        ] {
+            assert_eq!(codes(diagnostics), ["L0077", "L0077"], "{text}");
+            let [inner, member] = outer.body.as_ref().unwrap().members.as_slice() else {
+                panic!("nested class and actual enclosing member for {text}");
+            };
+            let Item::Classifier(inner) = ast.items().get(*inner).unwrap().payload() else {
+                panic!("nested class");
+            };
+            let [first, following] = inner.supertypes.as_slice() else {
+                panic!("the suffix must leave the outer comma and parent");
+            };
+            assert_eq!(
+                sources.slice(first.delegation.unwrap().span),
+                Ok("by delegate")
+            );
+            assert_eq!(sources.slice(following.span), Ok("J"));
+            assert_eq!(
+                sources.slice(ast.items().get(*member).unwrap().span()),
+                Ok("own fun keep(): Unit {}")
+            );
+        }
+    }
+}
+
+#[test]
+fn same_line_destructor_shaped_suffix_keeps_the_nested_class_body() {
+    let text =
+        "class Outer {\n class Inner: I by delegate + deinit() {};\n own fun keep(): Unit {}\n}";
+    let (sources, parsed) = declaration(text);
+    let file = parse_file_twice(&sources, parsed.source_id(), text);
+    let Item::Classifier(file_class) = file.ast().items().get(file.roots()[0]).unwrap().payload()
+    else {
+        panic!("file classifier");
+    };
+    for (ast, outer, diagnostics) in [
+        (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+        (file.ast(), file_class, file.diagnostics()),
+    ] {
+        assert_eq!(codes(diagnostics), ["L0077", "L0077"]);
+        let [inner, member] = outer.body.as_ref().unwrap().members.as_slice() else {
+            panic!("the nested class and actual following member");
+        };
+        let Item::Classifier(inner) = ast.items().get(*inner).unwrap().payload() else {
+            panic!("nested class");
+        };
+        let body = inner.body.as_ref().expect("the braces belong to Inner");
+        assert!(body.members.is_empty());
+        assert!(body.right_brace_span.is_some());
+        assert_eq!(
+            sources.slice(ast.items().get(*member).unwrap().span()),
+            Ok("own fun keep(): Unit {}")
+        );
+    }
+}
