@@ -6,9 +6,9 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, TypeRef},
     source::SourceMap,
     type_checking::{
-        BuiltinType, Capability, EnvironmentFunction, EnvironmentParameter, ExpressionCategory,
-        ParameterMode, TypeEnvironment, TypeKind, UnitCallTarget, UnitTypeKind, UnitTypeRefId,
-        check_types, standard_environments,
+        BuiltinType, Capability, DeferredReason, EnvironmentFunction, EnvironmentParameter,
+        ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, UnitCallTarget,
+        UnitExpressionId, UnitTypeKind, UnitTypeRefId, check_types, standard_environments,
     },
 };
 
@@ -484,52 +484,84 @@ fn explicit_inferred_and_member_generic_calls_publish_stable_instances() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 7);
+    for (names, unit) in unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types)
+    {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert_eq!(unit.calls().len(), 7);
+        let call = |text| {
+            unit.calls()
+                .iter()
+                .find(|call| {
+                    let expression = call.expression().expression();
+                    let node = parsed.ast().expressions().get(expression).unwrap();
+                    sources.slice(node.span()) == Ok(text)
+                })
+                .expect("call descriptor for original expression")
+        };
+        let int = UnitTypeKind::Builtin(BuiltinType::Int);
+        let explicit = call("identity<Int>(1)");
+        let inferred = call("identity(1)");
+        assert_eq!(explicit.instance(), inferred.instance());
+        assert_eq!(unit.types().get(explicit.return_type()), Some(&int));
+        assert_eq!(unit.types().get(inferred.return_type()), Some(&int));
+        let [argument] = explicit.instance().type_arguments() else {
+            panic!("one identity type argument")
+        };
+        assert_eq!(unit.types().get(*argument), Some(&int));
 
-    let identity_calls = &typed.calls()[1..=2];
-    assert_eq!(identity_calls[0].instance(), identity_calls[1].instance());
-    assert!(matches!(
-        typed.types().get(identity_calls[0].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    assert!(matches!(
-        typed
-            .types()
-            .get(identity_calls[0].instance().type_arguments()[0]),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-
-    let member = &typed.calls()[3];
-    assert_eq!(member.instance().type_arguments().len(), 3);
-    assert!(matches!(
-        typed.types().get(member.instance().type_arguments()[0]),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    assert!(matches!(
-        typed.types().get(member.instance().type_arguments()[1]),
-        Some(TypeKind::Builtin(BuiltinType::Long))
-    ));
-    assert!(matches!(
-        typed.types().get(member.instance().type_arguments()[2]),
-        Some(TypeKind::Builtin(BuiltinType::String))
-    ));
-    assert_eq!(member.arguments()[0].parameter_type(), member.return_type());
-    assert!(matches!(
-        typed.types().get(typed.calls()[4].return_type()),
-        Some(TypeKind::Nullable(inner))
-            if matches!(typed.types().get(*inner), Some(TypeKind::Builtin(BuiltinType::Int)))
-    ));
-    assert!(matches!(
-        typed.types().get(typed.calls()[5].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    assert!(matches!(
-        typed.types().get(typed.calls()[6].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+        let member = call("holder.select<String>(\"value\", 1)");
+        assert_eq!(
+            member
+                .instance()
+                .type_arguments()
+                .iter()
+                .map(|&argument| unit.types().get(argument))
+                .collect::<Vec<_>>(),
+            [
+                Some(&int),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Long)),
+                Some(&UnitTypeKind::Builtin(BuiltinType::String)),
+            ]
+        );
+        assert_eq!(member.arguments()[0].parameter_type(), member.return_type());
+        assert_eq!(
+            unit.types().get(member.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        );
+        assert!(matches!(
+            unit.types().get(call("unwrap(nested)").return_type()),
+            Some(UnitTypeKind::Nullable(inner)) if unit.types().get(*inner) == Some(&int)
+        ));
+        for text in ["apply(1, { item -> item })", "invoke(callback)"] {
+            assert_eq!(unit.types().get(call(text).return_type()), Some(&int));
+        }
+        let UnitCallTarget::Declaration(identity) = explicit.target() else {
+            panic!("top-level identity declaration")
+        };
+        let UnitCallTarget::Symbol(select) = member.target() else {
+            panic!("Holder.select member symbol")
+        };
+        let source = &names.names().source_units()[0];
+        for (id, expected) in [
+            (
+                names.names().declaration_symbol(identity).unwrap(),
+                "identity",
+            ),
+            (select, "select"),
+        ] {
+            assert_eq!(id.source_unit(), source.source_unit());
+            let symbol = source
+                .resolution()
+                .symbols()
+                .iter()
+                .find(|symbol| symbol.id() == id.symbol())
+                .expect("selected original declaration symbol");
+            assert_eq!(symbol.name(), expected);
+        }
+        let callback = call("callback(input)");
+        assert_eq!(callback.target(), UnitCallTarget::FunctionValue);
+        assert!(callback.instance().type_arguments().is_empty());
+    }
 }
 
 #[test]
@@ -855,41 +887,56 @@ fn generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order()
 
 #[test]
 fn generic_source_calls_instantiate_while_reference_and_safe_calls_remain_deferred() {
-    let text = "fun <T> identity(own input: T): T = input\n\
-                fun mono(input: Int): Int = input\n\
-                class Sample { fun read(input: Int): Int = input }\n\
-                val generic = identity<Int>(1)\n\
-                val reference = ::mono\n\
-                val referenced = reference(1)\n\
-                val optional: Sample? = null\n\
-                val safe = optional?.read(1)";
+    let text = "fun <T> identity(own input: T): T = input
+                fun mono(input: Int): Int = input
+                class Sample { fun read(input: Int): Int = input }
+                fun use(): Unit {
+                    val generic = identity<Int>(1)
+                    val reference = ::mono
+                    val referenced = reference(1)
+                    val optional: Sample? = null
+                    val safe = optional?.read(1)
+                }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty());
     let calls = parsed
         .ast()
         .expressions()
         .iter()
-        .filter_map(|(id, node)| matches!(node.payload(), Expression::Call { .. }).then_some(id))
+        .filter(|(_, node)| matches!(node.payload(), Expression::Call { .. }))
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 3);
-    assert!(matches!(
-        typed
-            .expression_type(calls[0])
-            .and_then(|ty| typed.types().get(ty)),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    assert!(typed.call(calls[0]).is_some());
-    for call in &calls[1..] {
-        assert!(matches!(
-            typed
-                .expression_type(*call)
-                .and_then(|ty| typed.types().get(ty)),
-            Some(TypeKind::Deferred(_))
-        ));
-        assert!(typed.call(*call).is_none());
+    let call = |text| {
+        calls
+            .iter()
+            .find(|(_, node)| sources.slice(node.span()) == Ok(text))
+            .expect("original call expression")
+            .0
+    };
+    for (resolved, unit) in
+        unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types)
+    {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let source = resolved.names().source_units()[0].source_unit();
+        let generic = UnitExpressionId::new(source, call("identity<Int>(1)"));
+        assert_eq!(
+            unit.expression_type(generic)
+                .and_then(|ty| unit.types().get(ty)),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        assert_eq!(unit.calls().len(), 1);
+        assert!(unit.call(generic).is_some());
+        for (text, reason) in [
+            ("reference(1)", DeferredReason::OverloadSelection),
+            ("optional?.read(1)", DeferredReason::MemberAccess),
+        ] {
+            let id = UnitExpressionId::new(source, call(text));
+            assert_eq!(
+                unit.expression_type(id).and_then(|ty| unit.types().get(ty)),
+                Some(&UnitTypeKind::Deferred(reason))
+            );
+            assert!(unit.call(id).is_none());
+        }
     }
 }
 
