@@ -161,7 +161,7 @@ impl DropPlanner<'_, '_> {
         }
     }
 
-    fn borrowed_temporary_field_owner(
+    pub(super) fn borrowed_temporary_field_owner(
         &self,
         call: ExpressionId,
         argument: ExpressionId,

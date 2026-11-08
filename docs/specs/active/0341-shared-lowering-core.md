@@ -4352,3 +4352,36 @@ dataflow 1127→1132/1248、drop_planner 1564→1572/1669均为有界接线。
 非空运输前缀动态用例。dataflow 1132→1134/1248，仅失败门清空接线，无额度增长。
 这不是所有raw cleanup表或全局完整流的保证；未运行native、Linux、故障注入、
 Tree-sitter或官方CI，未增加workspace检查。仅本地提交，不推送或合并PR。
+
+
+## 临时父字段 Borrow 的真实结束事件（2026-11-08）
+
+独立基线 main `59396543e2bf29e7a739cd892926586b14ca86b1`。Phase 3 观测切片复用
+既有 Field/Group pending-owner 证明，只接普通 owned-result、无 receiver 调用的 Shared
+`Temporary(parent)`，并核完整父的 MoveOnly 类别。正常返回移除并发布原 pending token，
+return/break/continue 沿原 loop-depth unwind；不新增 token，不改注册、drop 或借用准入。
+
+失败先行实跑：`temporary_field_parent_drops_once_after_normal_call_return` 在未改生产代码
+时得到空事件向量，独立 AST 期望为唯一父 token 的 CallReturn；原完整 drop oracle 已通过。
+修复后原 13 项临时字段测试保留源码与完整父 drop 顺序，并补完整有序结束向量。另核工厂
+返回父、已返回嵌套调用不重复退休、隐藏 Exclusive 的同点序号、for-provider 清理顺序及
+错误/deferred 撤销。Rooted/MemoryDocument 双入口与既有 Single MemberReceiver witness 保留。
+
+Copyable 父、普通借用结果、receiver、provider 来源、Rc.value 与其后字段均不扩张；
+Index 后字段保持精确 IndexPlace deferred。旧 §105/§112 的空观测描述是当时事实，本节
+仅接其 Shared 临时父字段的真实结束事件，不表示完整 loan-end、NLL、Single 退役或 P4/native。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 失败先行 | direct suite 的上述精确测试 | 修复前 1 failed，空事件向量与非空固定期望不符 |
+| 字段与相邻事件 | `unit_direct_call_loan_ends`，整项排除 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events` 与 `temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent` | 66 passed；2 项仅编译，未本地执行 |
+| range 邻控 | `ownership_range_construction` | 14 passed，无过滤 |
+| Unit iteration 邻控 | `multifile_ownership_checking` 的 `iteration::`，整项排除 `iteration::nested_while_jumps_preserve_outer_provider_and_abort_has_no_cleanup_edge` | 20 passed；该 Abort 整项仅编译，未本地执行 |
+| pending lifetime | 同 target 的 `pending_lifetime::unit_pending_borrow_owner_survives_branches_and_nested_calls`，exact | 1 passed |
+| 静态门禁 | frontend all-targets Clippy `-D warnings`、workspace fmt、文档、相对基线尺寸及 diff 检查 | 通过；863 Markdown、2203 Rust、34 个旧超长文件无增长 |
+
+本地 Mac Rust 1.96.0、locked/offline、独立 target、默认 debug profile，101 项实际通过。
+两轮独立只读复审核完整父资格、真实 token 退休、顺序、循环深度和错误/deferred 能力门，
+无生产 blocker；公开查询注释已同步，Rc/Index 邻控已补。
+未运行全量 frontend/workspace、native、含 Abort 整项或故障注入；本候选只本地提交，
+同 PR 组合后仍须精确发布头官方 CI，D10/E2 保持 in-progress。
