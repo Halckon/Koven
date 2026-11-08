@@ -309,3 +309,91 @@ fn contextual_move_literal_acceptance_preserves_named_identity_mode_and_arity_er
     );
     assert!(typed.validate().is_err());
 }
+
+#[test]
+fn cross_file_named_lambda_error_labels_the_selected_member_parameter() {
+    let declaration = concat!(
+        "package p\nclass Chooser {\n",
+        "    fun choose(tag: Int, callback: (Int) -> Int): Int = 1\n",
+        "    fun choose(tag: String, callback: (String) -> String): String = tag\n",
+        "}",
+    );
+    let mut sources = SourceMap::new();
+    let (callee_source, callee) = parsed(&mut sources, "callee.ko", declaration);
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\nfun use(owner: Chooser): Unit { val invalid = owner.choose(callback = ({ value -> true }), tag = 1) }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/callee.ko", callee_source, &callee),
+    ];
+    let start = declaration.find("callback:").expect("chosen parameter");
+    let label_span = sources
+        .span(callee_source, start, start + "callback".len())
+        .unwrap();
+    let (name_environment, type_environment) = standard_environments();
+    for inputs in [inputs, [inputs[1], inputs[0]]] {
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed =
+            check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+        let [diagnostic] = typed.diagnostics() else {
+            panic!("one diagnostic: {:?}", typed.diagnostics());
+        };
+        assert_eq!(diagnostic.code().to_string(), "L0084");
+        assert_eq!(diagnostic.primary_span().source_id(), uses_source);
+        assert_eq!(sources.slice(diagnostic.primary_span()), Ok("true"));
+        assert!(diagnostic.details().iter().any(|detail| {
+            matches!(detail, DiagnosticDetail::Label(label) if label.span() == label_span)
+        }));
+        assert!(typed.calls().is_empty());
+    }
+}
+
+#[test]
+fn structurally_invalid_expected_lambda_does_not_publish_a_mode() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "lambda-recovery.ko",
+        concat!(
+            "fun inspect(borrow input: Int): Unit {}\n",
+            "fun invalid(): Unit {\n",
+            "    val wrongMove: move (borrow Int) -> Unit = { item -> inspect(item) }\n",
+            "    val wrongArity: (borrow Int) -> Unit = { -> }\n",
+            "    val accepted: (borrow Int) -> Unit = { valid -> inspect(valid) }\n",
+            "}",
+        ),
+    );
+    let (name_environment, type_environment) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "lambda-recovery.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("recovering lambda types");
+        let [wrong_move, wrong_arity] = typed.diagnostics() else {
+            panic!("two lambda header diagnostics: {:?}", typed.diagnostics());
+        };
+        for (diagnostic, header) in [(wrong_move, "item ->"), (wrong_arity, "{ ->")] {
+            assert_eq!(diagnostic.code().to_string(), "L0084");
+            let text = sources.source_text(source).unwrap();
+            let arrow = text.find(header).unwrap() + header.len() - 2;
+            assert_eq!(
+                diagnostic.primary_span(),
+                sources.span(source, arrow, arrow + 2).unwrap()
+            );
+        }
+        let unit = source_unit(&names, source);
+        let rejected = symbol_named(&typed, &names, unit, "item");
+        let accepted = symbol_named(&typed, &names, unit, "valid");
+        assert_eq!(typed.body_parameter_mode(rejected), None);
+        assert_eq!(
+            typed.body_parameter_mode(accepted),
+            Some(ParameterMode::Borrow)
+        );
+    }
+}

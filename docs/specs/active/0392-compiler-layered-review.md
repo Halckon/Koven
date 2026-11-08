@@ -2258,3 +2258,57 @@ marker 时，其后以词法错误起始的恢复区更新目标、委托子句�
 同一批候选的 frontend 全量 183 组、2755 项通过，另跑类声明与接口委托 67 项，零失败和
 忽略。最新候选通过独立静态复核，复核者未重复运行 Cargo。格式、文档、尺寸和 diff 门禁
 通过。双宿主实跑以本批 PR 的精确 head 为准。
+
+PR #364 合入 `6d87040b` 后，精确头 `45a5c71f` 的
+[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42470307101) 通过。两宿主 Check、
+Clippy、定向组合、生成资源、Preview 构建与独立安装均通过，Linux native sanitizer 与
+精确头门禁通过。两宿主和本机 conformance 均为 137/154，零回归、入口差异和内部错误，
+6 个验收程序仍属已登记的未实现。Editor job 按范围跳过，macOS CI 已登记的真实 LLDB
+断点在同一提交本机显式补跑，连同 Mach-O 行表与四项 CLI 检查共 6 项通过。
+PR 已合入 `34311941`。
+
+## 84. R0/R2 调用参数诊断来源与类型身份消费者
+
+在 `bf8e6750` 上，非 lambda 实参筛出唯一重载后，两个 Unit 入口均在 `true` 报 L0084，
+但 label 覆盖完整 `callback: (Int) -> Int`。旧 Single oracle 要求所选参数名的精确 Span。
+Unit 源码候选保留声明参数的 source-qualified symbol。按具名或位置映射取得选中参数，lambda
+上下文从现有名称事实读取精确名称范围。普通实参诊断和没有源码 symbol 的外部/函数值路径
+沿用原 label，失败调用继续不发布描述符。
+
+原精确诊断测试迁至 MemoryDocument 和 Rooted。跨文件新增同名重载的成员调用回归，分别
+调换具名实参和源文件输入顺序，验证错误处及 label 的实际源文件、精确 Span 和失败 call
+事实。独立复核核对参数 symbol、替换与实参映射，复用已有 `unit_symbol_span` 查询。
+
+隐式借用、显式 `borrow` 和 `own` 的规范类型身份测试一并迁移。原顶层运行时值用例在 Unit
+会报 L0167，故将声明放入合法函数体，保留三个 TypeRef 及身份/参数模式断言。原 Single 与
+两个 Unit 入口先用同一局部输入核对等价，再将此测试切到两个 Unit 入口。
+
+基于 `45a5c71f` 的合批候选 frontend 全量 183 组、2780 项通过，零失败和忽略。
+前端全目标 Clippy 与格式通过。接入 `34311941` 后，实际分支的 `type_callable` 与
+`multifile_type_checking` 定向共 304 项通过，零失败和忽略。远端验收随下一批 PR 执行。
+
+R0 对 `45a5c71f` 按 §2 的同类源码模式重新计数。排除定义后的匹配行数如下，保留语法计数
+的局限，包含测试或字符串，未覆盖仓外调用和全部别名/宏。
+
+| 旧入口 | frontend 文件 / 匹配行 | codegen 文件 / 匹配行 |
+|---|---|---|
+| `check_types` | 86 / 147 | 15 / 18 |
+| `check_ownership` | 46 / 58 | 14 / 17 |
+| `lower_scalar_file_with_entry` | 无 | 4 / 8 |
+
+CLI 单文件由 bootstrap 构造 Unit 描述，project 走 `project_build`，LSP 由 `unit_session`
+持有 Unit 名称与类型输入。三者及 frontend `analysis` 未检出旧名字。codegen 的八条
+`lower_scalar_file_with_entry` 匹配分布在四个测试文件，含输入身份负控、可空 Rc 路径与只读
+方法旧路径拒绝见证。仍需按实际测试意图处置剩余消费者，计数下降不代表迁移退出。
+
+
+## 85. R0/R2 错误 lambda 结构的参数模式消费者
+
+原 Single 测试用两个顶层运行时值检查错误 move 约束和参数数量。将两条 initializer
+置于合法函数体，保持原 `inspect(item)`，加同体的合法共享借用 lambda 作为正控。
+实际运行了同一输入的原 Single、MemoryDocument 和 Rooted 检查，三者均报告两条 L0084，
+结构失败的参数均无已采纳模式。双 Unit 测试另核两个真实箭头的精确 Span 及合法参数的
+Borrow 模式。此后只保留双 Unit 测试，继续通过真实名称事实定位参数符号。
+
+三笔合批提交的 `type_callable` 与 `multifile_type_checking` 共 304 项通过，零失败和忽略。
+前端全目标 Clippy、格式、文档及 diff 检查通过，双宿主验收以合批 PR 的精确 head 为准。
