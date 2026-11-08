@@ -8,7 +8,43 @@ use crate::{
     },
 };
 
+/// Recovery types can describe the shape of a value whose evaluation is incomplete.
+/// Track that distinction during checking and restore it with callable trials.
+#[derive(Clone, Default)]
+pub(super) struct IterationRecovery {
+    pub(super) revision: usize,
+    expressions: BTreeSet<usize>,
+    pub(super) bindings: BTreeSet<SymbolId>,
+    pub(super) sources: BTreeSet<usize>,
+    pub(super) loop_exits: Vec<super::while_flow::PendingLoopExits>,
+    pub(super) suppressed: bool,
+    pub(super) discovered_loops: BTreeSet<usize>,
+    pub(super) abrupt_expressions: BTreeSet<usize>,
+    pub(super) abrupt_statements: BTreeSet<usize>,
+    pub(super) boolean_edges: BTreeMap<usize, super::pending_boolean::PendingBooleanEdges>,
+    pub(super) deferred_argument_entries: BTreeMap<usize, BTreeSet<SymbolId>>,
+}
+
+impl IterationRecovery {
+    pub(super) fn is_pending(&self, expression: ExpressionId) -> bool {
+        self.expressions.contains(&expression.index())
+    }
+
+    pub(super) fn observe(&mut self, expression: ExpressionId) {
+        self.revision += 1;
+        self.expressions.insert(expression.index());
+    }
+}
+
 impl Checker<'_> {
+    pub(super) fn note_pending_iteration_binding(&mut self, marker: NameMarker) {
+        if let NameMarker::Present(span) = marker
+            && let Some(symbol) = self.symbol_at(span)
+        {
+            self.iteration_recovery.bindings.insert(symbol);
+        }
+    }
+
     /// 类型与 binding 先封闭，再检查 body；错误恢复不向下游泄漏半份计划。
     pub(super) fn check_sequential_iteration(
         &mut self,
@@ -18,7 +54,25 @@ impl Checker<'_> {
         body: StatementId,
     ) -> Result<(), TypeCheckingError> {
         let diagnostic_start = self.diagnostics.len();
-        let source_type = self.check_expression(source, None, None)?.ty;
+        let checked = self.check_expression(source, None, None)?;
+        let source_type = checked.ty;
+        if !self.pending_expression_exit(source, checked.falls_through) {
+            self.iteration_recovery
+                .abrupt_statements
+                .insert(statement.index());
+        }
+        let source_pending = self.iteration_recovery.is_pending(source);
+        if source_pending {
+            self.iteration_recovery.sources.insert(source.index());
+            match binding {
+                ForBinding::Name(marker) => self.note_pending_iteration_binding(*marker),
+                ForBinding::Destructuring { names, .. } => {
+                    for &marker in names {
+                        self.note_pending_iteration_binding(marker);
+                    }
+                }
+            }
+        }
         if let Some((constructor, key, value)) = self.map_parts(source_type) {
             return self.check_map_iteration(
                 statement,
@@ -83,7 +137,7 @@ impl Checker<'_> {
                 }
             }
         }
-        self.check_repeating_flow(None, body)?;
+        self.check_iteration_body(statement, body)?;
         let span = self.ast().statements().get(statement)?.span();
         let upstream_error = self
             .input_error_spans
@@ -91,6 +145,7 @@ impl Checker<'_> {
             .any(|primary| primary.start() >= span.start() && primary.end() <= span.end());
         if self.diagnostics.len() == diagnostic_start
             && !upstream_error
+            && !source_pending
             && let (Some((provider, element_type)), Some(binding)) = (provider, plan_binding)
         {
             self.iterations.push(SequentialIterationDescriptor {
@@ -102,6 +157,21 @@ impl Checker<'_> {
                 binding,
             });
         }
+        Ok(())
+    }
+
+    pub(super) fn check_iteration_body(
+        &mut self,
+        statement: StatementId,
+        body: StatementId,
+    ) -> Result<(), TypeCheckingError> {
+        let reaches_body = !self
+            .iteration_recovery
+            .abrupt_statements
+            .contains(&statement.index());
+        self.check_pending_path(reaches_body, |checker| {
+            checker.check_repeating_flow(None, body, true)
+        })?;
         Ok(())
     }
 

@@ -514,12 +514,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if !self.expression(condition, ExpressionUse::Read, state)? {
                     return Ok(false);
                 }
-                let mut body_state = state.clone();
-                self.loop_boundaries.push(self.scope_depth);
-                self.statement(body, &mut body_state)?;
-                self.loop_boundaries.pop();
-                self.drop_loop_exit(id, state);
-                Ok(true)
+                self.plan_optional_loop_body(id, body, state)
             }
             Statement::For { source, body, .. } => self.iteration(id, source, body, state),
             Statement::Loop { body, .. } => {

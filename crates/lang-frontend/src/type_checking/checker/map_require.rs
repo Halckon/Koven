@@ -34,7 +34,7 @@ impl Checker<'_> {
         }
 
         let arg = &arguments[0];
-        let arg_result = self.check_expression(arg.value, Some(key_type), None)?;
+        let arg_result = self.check_pending_receiver_operand(receiver, arg.value, key_type)?;
         if !self.is_error(arg_result.ty)
             && !self.is_deferred(arg_result.ty)
             && !self.assignable(arg_result.ty, key_type)

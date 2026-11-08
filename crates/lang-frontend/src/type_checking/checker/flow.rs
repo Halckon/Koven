@@ -11,7 +11,7 @@ use crate::{
 
 use crate::type_checking::flow_effects::merge_flow_versions;
 
-use super::*;
+use super::{pending_boolean::PendingBooleanEdges, *};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum FlowKey {
@@ -22,8 +22,49 @@ pub(super) enum FlowKey {
 type ConditionFacts = (BTreeMap<FlowKey, TypeId>, BTreeMap<FlowKey, TypeId>);
 
 impl Checker<'_> {
+    pub(super) fn check_pending_logical_rhs(
+        &mut self,
+        expression: ExpressionId,
+        left: ExpressionId,
+        operator: BinaryOperator,
+        right: ExpressionId,
+        left_result: ExprCheck,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let left_edges = self.pending_boolean_edges(left, left_result.falls_through)?;
+        let (entry, bypass) = if operator == BinaryOperator::LogicalAnd {
+            (
+                left_edges.yes,
+                PendingBooleanEdges {
+                    yes: None,
+                    no: left_edges.no,
+                },
+            )
+        } else {
+            (
+                left_edges.no,
+                PendingBooleanEdges {
+                    yes: left_edges.yes,
+                    no: None,
+                },
+            )
+        };
+        let reaches_right = entry.is_some();
+        self.iteration_recovery.bindings = entry.unwrap_or_default();
+        let result = self.check_pending_path(reaches_right, |checker| {
+            checker.check_expression(right, None, None)
+        })?;
+        let mut exits = bypass;
+        if reaches_right {
+            exits.merge(self.pending_boolean_edges(right, result.falls_through)?);
+        }
+        self.finish_pending_boolean(expression, exits);
+        Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn check_elvis(
         &mut self,
+        expression: ExpressionId,
         left: ExpressionId,
         operator_span: Span,
         right: ExpressionId,
@@ -57,8 +98,20 @@ impl Checker<'_> {
             .filter(|inner| !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)));
         let bypass =
             left_can_bypass_right.then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
-        let right_result =
-            self.check_expression(right, right_expected.or(expected), expected_span)?;
+        let left_completes = self.pending_expression_exit(left, left_result.falls_through);
+        let can_bypass = left_can_bypass_right && left_completes;
+        let mut pending_exits = if can_bypass {
+            PendingBooleanEdges::unknown(&self.iteration_recovery.bindings)
+        } else {
+            PendingBooleanEdges::default()
+        };
+        let right_result = self.check_pending_path(left_completes, |checker| {
+            checker.check_expression(right, right_expected.or(expected), expected_span)
+        })?;
+        if left_completes {
+            pending_exits.merge(self.pending_boolean_edges(right, right_result.falls_through)?);
+        }
+        self.finish_pending_boolean(expression, pending_exits);
         if let Some((facts, versions)) = bypass {
             if right_result.falls_through {
                 self.flow_facts = intersect_facts(&facts, &self.flow_facts);
@@ -155,6 +208,7 @@ impl Checker<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_if(
         &mut self,
+        expression: ExpressionId,
         condition: ExpressionId,
         then_branch: StatementId,
         else_span: Option<Span>,
@@ -163,9 +217,13 @@ impl Checker<'_> {
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
         let boolean = self.builtin(BuiltinType::Boolean);
-        self.check_expression(condition, Some(boolean), None)?;
+        let checked = self.check_expression(condition, Some(boolean), None)?;
+        let edges = self.pending_boolean_edges(condition, checked.falls_through)?;
+        let reaches_then = edges.yes.is_some();
+        let reaches_else = edges.no.is_some();
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
+        self.iteration_recovery.bindings = edges.yes.unwrap_or_default();
         let (true_facts, false_facts) = self.condition_facts(condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
         let then_expected = if else_branch.is_some() {
@@ -173,10 +231,22 @@ impl Checker<'_> {
         } else {
             expected
         };
-        let then_result = self.check_value_body(then_branch, then_expected, expected_span)?;
+        let then_result = self.check_pending_path(reaches_then, |checker| {
+            checker.check_value_body(then_branch, then_expected, expected_span)
+        })?;
+        let then_exits =
+            reaches_then && self.pending_statement_exit(then_branch, then_result.falls_through)?;
+        let mut pending_exits = PendingBooleanEdges::default();
+        if then_exits {
+            pending_exits.merge(self.pending_branch_edges(then_branch)?);
+        }
         let then_facts = self.flow_facts.clone();
         let then_versions = self.flow_versions.clone();
         let Some(else_branch) = else_branch else {
+            if let Some(bindings) = edges.no {
+                pending_exits.merge(PendingBooleanEdges::unknown(&bindings));
+            }
+            self.finish_pending_boolean(expression, pending_exits);
             let false_path = extend_facts(&baseline, &false_facts);
             self.flow_facts = if then_result.falls_through {
                 intersect_facts(&then_facts, &false_path)
@@ -195,8 +265,17 @@ impl Checker<'_> {
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
         self.flow_versions = baseline_versions.clone();
+        self.iteration_recovery.bindings = edges.no.unwrap_or_default();
         let else_expected = self.control_branch_expected(else_branch, expected)?;
-        let else_result = self.check_value_body(else_branch, else_expected, expected_span)?;
+        let else_result = self.check_pending_path(reaches_else, |checker| {
+            checker.check_value_body(else_branch, else_expected, expected_span)
+        })?;
+        let else_exits =
+            reaches_else && self.pending_statement_exit(else_branch, else_result.falls_through)?;
+        if else_exits {
+            pending_exits.merge(self.pending_branch_edges(else_branch)?);
+        }
+        self.finish_pending_boolean(expression, pending_exits);
         let else_facts = self.flow_facts.clone();
         let else_versions = self.flow_versions.clone();
         self.flow_facts = match (then_result.falls_through, else_result.falls_through) {

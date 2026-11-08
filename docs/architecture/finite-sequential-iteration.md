@@ -12,6 +12,13 @@ codegen按identity→diagnostics→deferred→constants→for schema消费；字
 Return descriptor只要求最近callable内的循环退出；读取现有名称作用域排除嵌套lambda/函数Return，
 循环自身位于lambda内时仍必须保留真实Return退出，不建立跨callable返回语义。
 
+Single 的待定来源保留恢复类型，待定性随局部绑定、解构和迭代绑定传递。
+待定循环只做求值与循环体的所有权恢复，不发布 provider 计划或清理动作，最终准入仍保留来源诊断。
+Single 的普通局部 `var` 按可达赋值与分支出口更新待定性。短路真假边保留各自绑定，
+普通调用按源码实参顺序传播正常出口。发现待定回边的循环用既有事务快照重算。
+普通运算、字符串插值、容器构造、专用调用以及下标读写共用操作数的恢复检查。
+跨调用写回和其他复合表达式仍有独立边界。
+
 ## SSA与资源边界
 
 本机恢复增加direct nongeneric resource class容器元素与resource value-class字段支持。

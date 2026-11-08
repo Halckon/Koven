@@ -38,6 +38,7 @@ pub(super) struct TrialState {
     flow_versions: BTreeMap<FlowKey, u64>,
     destructurings: Vec<DestructuringDescriptor>,
     iterations: Vec<crate::type_checking::SequentialIterationDescriptor>,
+    iteration_recovery: super::iteration::IterationRecovery,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
@@ -79,6 +80,7 @@ impl Checker<'_> {
             flow_versions: self.flow_versions.clone(),
             destructurings: self.destructurings.clone(),
             iterations: self.iterations.clone(),
+            iteration_recovery: self.iteration_recovery.clone(),
             expression_categories: self.expression_categories.clone(),
             calls: self.calls.clone(),
             constructions: self.constructions.clone(),
@@ -119,6 +121,7 @@ impl Checker<'_> {
         self.flow_versions = state.flow_versions;
         self.destructurings = state.destructurings;
         self.iterations = state.iterations;
+        self.iteration_recovery = state.iteration_recovery;
         self.expression_categories = state.expression_categories;
         self.calls = state.calls;
         self.constructions = state.constructions;

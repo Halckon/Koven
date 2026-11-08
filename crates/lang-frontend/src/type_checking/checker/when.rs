@@ -10,6 +10,7 @@ use crate::{
 
 use super::{
     flow::{FlowKey, intersect_facts},
+    pending_boolean::PendingBooleanEdges,
     *,
 };
 
@@ -37,10 +38,21 @@ impl Checker<'_> {
         expected: Option<TypeId>,
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
-        let subject_type = if let Some(subject) = subject {
-            Some(self.check_expression(subject, None, None)?.ty)
+        let mut boolean_subject = None;
+        let (subject_type, mut reaches_remaining) = if let Some(subject) = subject {
+            let result = self.check_expression(subject, None, None)?;
+            if self.is_builtin(result.ty, BuiltinType::Boolean) {
+                let edges = self.pending_boolean_edges(subject, result.falls_through)?;
+                if edges.yes != edges.no {
+                    boolean_subject = Some(edges);
+                }
+            }
+            (
+                Some(result.ty),
+                self.pending_expression_exit(subject, result.falls_through),
+            )
         } else {
-            None
+            (None, true)
         };
         let subject_key = subject.and_then(|subject| self.stable_flow_key(subject));
         let domain = subject_type.and_then(|ty| self.closed_domain(ty));
@@ -55,6 +67,8 @@ impl Checker<'_> {
         let mut remaining_versions = self.flow_versions.clone();
         let mut exit_versions = self.flow_versions.clone();
         let mut remaining_facts = self.flow_facts.clone();
+        let mut remaining_pending = self.iteration_recovery.bindings.clone();
+        let mut pending_exits = PendingBooleanEdges::default();
         let mut remaining_domain = domain
             .clone()
             .map(WhenDomain::Finite)
@@ -69,10 +83,13 @@ impl Checker<'_> {
         for (entry_index, entry) in entries.iter().enumerate() {
             self.flow_facts = remaining_facts.clone();
             self.flow_versions = remaining_versions.clone();
+            self.iteration_recovery.bindings = remaining_pending.clone();
             let input_domain = remaining_domain.clone();
             let mut body_domain = WhenDomain::Empty;
             let mut alternative_plans = Vec::new();
             let mut entry_facts = None;
+            let mut entry_pending = BTreeSet::new();
+            let mut reaches_body = false;
             let mut entry_source_valid = subject_key.is_some_and(|key| {
                 Some(self.flow_versions.get(&key).copied().unwrap_or_default()) == subject_version
             });
@@ -81,6 +98,11 @@ impl Checker<'_> {
                 body_domain = input_domain.clone();
                 remaining_domain = WhenDomain::Empty;
                 entry_facts = Some(self.flow_facts.clone());
+                reaches_body = reaches_remaining;
+                if reaches_body {
+                    entry_pending.extend(&self.iteration_recovery.bindings);
+                }
+                reaches_remaining = false;
                 if let Some(first) = first_else {
                     self.emit_with_label(
                         self.duplicate_when_else_code,
@@ -104,12 +126,24 @@ impl Checker<'_> {
             } else {
                 for condition in &entry.conditions {
                     let condition_span = self.when_condition_span(condition)?;
-                    let checked = self.check_when_condition(
-                        subject_type,
-                        subject_key,
-                        domain.as_deref(),
-                        condition,
-                    )?;
+                    let checked = self.check_pending_path(reaches_remaining, |checker| {
+                        checker.check_when_condition(
+                            subject_type,
+                            subject_key,
+                            domain.as_deref(),
+                            condition,
+                        )
+                    })?;
+                    let literal_case = match (condition, checked.coverage.as_slice()) {
+                        (WhenCondition::Expression(_), [CoverageAtom::Boolean(value)]) => {
+                            Some(*value)
+                        }
+                        _ => None,
+                    };
+                    if literal_case.is_none() {
+                        // An evaluated alternative can write bindings before either match edge.
+                        boolean_subject = None;
+                    }
                     let source_valid = subject_key.is_some_and(|key| {
                         Some(self.flow_versions.get(&key).copied().unwrap_or_default())
                             == subject_version
@@ -147,13 +181,63 @@ impl Checker<'_> {
                         match_domain: matched,
                         fallthrough_domain: missed,
                     });
-                    remaining_domain = split_domain(
+                    let (pending_match, pending_miss) = split_domain(
                         &remaining_domain,
                         &checked.coverage,
                         checked.non_null,
                         checked.valid,
-                    )
-                    .1;
+                    );
+                    if reaches_remaining {
+                        let operand = match condition {
+                            WhenCondition::Expression(expression)
+                            | WhenCondition::Contains { expression, .. } => Some(*expression),
+                            _ => None,
+                        };
+                        let completes = match operand {
+                            Some(expression) => {
+                                let falls_through = self.expression_types[expression.index()]
+                                    .is_none_or(|ty| !self.is_builtin(ty, BuiltinType::Nothing));
+                                self.pending_expression_exit(expression, falls_through)
+                            }
+                            None => true,
+                        };
+                        let edges = if let (Some(subject), Some(value)) =
+                            (&mut boolean_subject, literal_case)
+                        {
+                            let matched = if value {
+                                subject.yes.take()
+                            } else {
+                                subject.no.take()
+                            };
+                            let missed = if subject.yes.is_some() || subject.no.is_some() {
+                                Some(subject.bindings().collect())
+                            } else {
+                                None
+                            };
+                            PendingBooleanEdges {
+                                yes: matched,
+                                no: missed,
+                            }
+                        } else if let WhenCondition::Expression(expression) = condition
+                            && subject.is_none()
+                        {
+                            self.pending_boolean_edges(*expression, completes)?
+                        } else if completes {
+                            PendingBooleanEdges::unknown(&self.iteration_recovery.bindings)
+                        } else {
+                            PendingBooleanEdges::default()
+                        };
+                        // A deferred condition has no coverage evidence; it can still match.
+                        if let Some(matched) = edges.yes
+                            && (!checked.valid || !pending_match.is_empty())
+                        {
+                            reaches_body = true;
+                            entry_pending.extend(matched);
+                        }
+                        reaches_remaining = edges.no.is_some() && !pending_miss.is_empty();
+                        self.iteration_recovery.bindings = edges.no.unwrap_or_default();
+                    }
+                    remaining_domain = pending_miss;
                     if checked.valid && !checked.coverage.is_empty() {
                         let mut first_previous = None;
                         let mut added = false;
@@ -186,6 +270,8 @@ impl Checker<'_> {
             }
             remaining_facts = self.flow_facts.clone();
             remaining_versions = self.flow_versions.clone();
+            remaining_pending = self.iteration_recovery.bindings.clone();
+            self.iteration_recovery.bindings = entry_pending;
             self.flow_facts = entry_facts.unwrap_or_else(|| remaining_facts.clone());
             let body_type = if body_domain.is_non_null() {
                 nullable_inner
@@ -222,7 +308,12 @@ impl Checker<'_> {
             } else {
                 expected
             };
-            let result = self.check_value_body(entry.body, branch_expected, expected_span)?;
+            let result = self.check_pending_path(reaches_body, |checker| {
+                checker.check_value_body(entry.body, branch_expected, expected_span)
+            })?;
+            if reaches_body && self.pending_statement_exit(entry.body, result.falls_through)? {
+                pending_exits.merge(self.pending_branch_edges(entry.body)?);
+            }
             if result.falls_through {
                 exits.push(self.flow_facts.clone());
             }
@@ -245,6 +336,10 @@ impl Checker<'_> {
         if !exhaustive {
             exits.push(remaining_facts);
         }
+        if reaches_remaining {
+            pending_exits.merge(PendingBooleanEdges::unknown(&remaining_pending));
+        }
+        self.finish_pending_boolean(id, pending_exits);
         self.flow_facts = exits
             .into_iter()
             .reduce(|left, right| intersect_facts(&left, &right))

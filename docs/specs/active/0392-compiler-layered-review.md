@@ -1848,3 +1848,106 @@ GitHub 核实的 `86430a05`，两处冲突分别保留 `FlowVersions` 与 `unit_
 共用 fixture，两个 `build` 入口继续核验 human/JSON 的 L0135、主范围、退出码和产物
 原子性。历史 p42 源码与 conformance 分类保持原样。以相同 `crates/` 隔离副本执行
 `check_cli` 6 项和两个 `build` 回归，均通过。独立复审核对字节范围及入口断言。
+
+[PR #351 的 `cedb448f` 门禁](https://github.com/Halckon/Koven/actions/runs/42428262895)
+已通过 macOS 与 Linux 的 workspace check、Clippy、集成、conformance 和生成资源用例，
+Linux native sanitizer 及两宿主预览包独立安装也通过。两宿主 conformance 均为 137/154，
+验收程序 0/6，零回归、入口差异及内部错误。编辑器门禁按范围跳过。用户完成调试器授权后，
+本机 CLI 三条断点测试和 CI 默认忽略的一条后端 LLDB 测试均通过。该证据只覆盖此 PR 候选。
+
+## 68. R2/R3 旧 Single 待定迭代来源
+
+在 `cedb448f` 上用公开的 `check_types`、`check_ownership` 与 `complete_file_types`
+复现。直接来源的 List、Map、IntRange、View，以及经 `val` 的 List、Map、IntRange
+共七格提前发布类型计划。IntRange 两格还发布所有权计划。最终准入均保留
+`outside` 的 L0165。每格的稳定对照在同一 callable 内。
+
+Single 记录恢复类型背后的待定来源，表达式缓存与 callable trial 一起回滚。待定来源仍保留
+恢复类型，局部绑定、局部解构和循环绑定传递待定性。独立复审指出外层循环的恢复绑定可让
+内层循环提前发布，补顺序、解构和 Map 三种回归。类型检查只发布稳定 provider；所有权在
+有恢复标记且没有 descriptor 时诊断遍历，Map 最终准入仍走原合同。CLI/LSP 的 Unit 路径未改。
+独立复审进一步复现 drop planner 在没有计划时仍发布 `EndElement`、`FinishProvider`
+和 `EndSource`。待定循环改用无 provider 的可零次遍历，保留真实外层的退出深度。
+前向常量的稳定对照也曾被旧标记误抑制，修复后仍按已有常量资格重查。
+
+实际探针确认两条可变边界：待定初始化后写入稳定值，raw 计划仍为 0。循环先使用稳定值、
+后写入待定值时，回边未重算，raw 计划仍为 1。两条最终准入均只报告 L0165。分支合流、
+稳定覆盖和回边的精确语义仍需对账。R4 的 while 路由边界仍开放。
+
+本机顺序执行前端定向七套件，共 564 项通过。回归覆盖嵌套待定循环的 break 和 continue
+不结束真实外层 provider，return 则只清理真实外层。下游 Range SSA 定向三项通过。
+本批尚未运行完整原生、conformance 或双宿主 CI。
+
+## 69. R2 Single 可变绑定到达写入和回边
+
+基于 §68 的本地工作树，独立复现稳定覆盖、if 正常出口及 fallthrough/continue 回边的
+错误计划。对照按源码顺序核实际发布的 For 身份，最终准入仍逐处报告 `outside` 的 L0165。
+
+非捕获局部 `var` 的稳定赋值清除旧待定性。待定性按 if、when、短路与 Elvis 的可达正常出口
+合流，诊断仍使用原有类型和普通 `falls_through`。循环分别记录 break、continue 和正常回边。
+只有发现可增长的待定回边才启用既有 trial 快照。每次重算只增加待定的循环入口绑定，
+候选诊断、类型、计划及恢复缓存一并回滚。普通稳定路径不做整份快照。
+
+独立复审的附加反例包括已知 break 后的死写、无出口的内层 loop、待定 when 条件、穷尽后
+不再求值的 when 候选及不可写绑定。根赋值 RHS 的非正常出口也保留，后续死写不能进入回边。
+覆盖包括两层绑定的传递收敛、相邻稳定 provider 和真实 break 不回到循环头。
+
+本轮保留复合布尔真/假边相关性、捕获或 inout 跨调用写回及其他复合表达式的非正常出口传播
+为独立审查边界。多个含待定回边的循环仍可能多次复制整份试探状态，未量化恢复路径成本。
+两条未关闭的本机探针均只报 L0165。短路条件只在 true 边覆写稳定值时，raw 计划为 0，
+该 true 分支预期 1。将提前 break 的表达式放到普通调用实参时，raw 计划仍为 0，
+前后的两个稳定循环预期 2。
+
+本机顺序门禁通过：前端 lib 加八个集成套件共 930 项，含 21 格到达写入矩阵。Range SSA
+定向 3 项通过。前端全目标 Clippy（`-D warnings`）、格式、文档、尺寸及 diff 门禁通过。
+本批未运行全量原生、conformance 或双宿主 CI。
+
+## 70. R2 Single 布尔分支与普通调用实参
+
+从 §69 的两个实测见证扩为六格红测。短路条件分别保留真、假出口的待定绑定，`if`、
+`while` 和无主体 `when` 守卫按实际出口进入分支。Boolean 主体的 `when` 在连续
+字面量匹配中保留该关联，并复用覆盖事实识别括号字面量。可能执行写入的其他候选保守合流。
+`if`、`when` 值与必求值的 Elvis 右侧可以把布尔关联传给外层条件。
+
+普通调用从 callee 到实参按源码求值顺序传播非正常出口。提前退出后的实参仍检查诊断，
+其写入和跳转不进入调用后的流状态。命名参数映射不改变求值次序。泛型推导及重载预检
+保存延后检查的 lambda 在源码位置上的绑定，失败候选恢复该状态。原返回类型、诊断和
+普通 `falls_through` 合同保留。
+
+独立复审复现了 Boolean 主体匹配、`in` 操作数提前退出及延后 lambda 入口三个缺口，
+修复后回归覆盖它们及括号字面量。仍需复审非短路运算、专用内建或构造、可空调用实参
+路径及跨调用捕获／inout 写回。R4 的 while 路由合同仍开放。
+本机探针确认，`take((if (true) { break } else 0) + 1)` 及
+`listOf(if (true) { break } else 0)` 的后续死写仍可能进入回边。两例 raw 计划均为 0，
+预期前后各保留一个稳定计划，最终准入仍只报告 L0165。
+
+本机最终顺序门禁通过：前端 lib 加八个集成套件共 930 项，含 34 格迭代计划矩阵；
+Range SSA 定向 3 项。前端全目标 Clippy、格式、文档、尺寸和 diff 门禁通过。
+本批未提交或推送，未运行全量原生、conformance 或双宿主 CI。
+
+## 71. R2 Single 复合操作数和专用调用的正常出口
+
+§70 留下的算术与 `listOf` 见证加入红测，扩为七格，原工作树全部漏发两个稳定计划。
+共享操作数检查沿源码求值顺序传递恢复可达性。提前退出后的操作数仍接受诊断检查，
+写入与跳转不进入实际流。透明一元表达式将退出存到自身 ID，后续查询不再重复遍历包装链。
+普通类型、`falls_through`、null 上下文推导和调用映射保持原义。
+
+专用顺序容器构造、名义构造及已识别专用调用接入同一检查。独立复审复现
+`MutableList.insertAt` 与 `MutableMap.put` 的后续实参假回边，另核 RangeView、
+`replace`、`swap` 以及 receiver 后的单实参方法。下标读取与写入检查 receiver、
+index/key、RHS 的正常出口。Map 的 put 描述符仍以原 Index target ID 发布和消费。
+通用赋值 fallback 保留既有路径，避免把已验证的下标求值顺序套到其他存储形式。
+
+回归按 For 身份核对清理前后两个稳定计划。可达的第二操作数写入仍经真实 break
+影响循环后继。最终准入逐处保留原 L0165。非法实参恢复、可空调用和跨调用捕获／inout
+仍需独立复审。R4 静态核对确认 `sequential_for` 仍在节点处检查 while 组合，
+早于 callable 级局部解构路由，准入和真实 lowering 的组合验收继续开放。
+复跑 §65 留存的 CLI 二进制，空 while 的原组合 `check` 通过但 `build` 退出 2；
+去掉 while 可构建并输出 `local`。加入同 callable 的 `MutableList.add` 后，空 while
+与 nullable 外层变量重赋值两例都可构建运行，后者输出 `loop\nchanged\n`。
+当前 `strip_reassigned_loop_views` 也受 `scope_requires_refine()` 限制。
+后续修复需要分别证明路由准入和重赋值后的 view 失效。此处原生复跑使用旧二进制。
+
+恢复通用赋值 fallback 前，前端全目标 182 个目标共 2,700 项通过。最终源码复跑
+前端 lib 加十个集成套件共 798 项（含 50 格迭代计划矩阵）、全目标 Clippy 与
+Range SSA 定向三项，均通过。格式、文档、Rust 尺寸和 diff 门禁通过。

@@ -23,6 +23,8 @@ mod map;
 mod members;
 mod nominal;
 mod ownership_primitives;
+mod pending_boolean;
+mod pending_operands;
 mod projection;
 mod range_carrier;
 mod range_construction;
@@ -105,7 +107,15 @@ pub(super) fn check(
     environment: &TypeEnvironment,
 ) -> Result<TypedFile, TypeCheckingError> {
     sources.source_text(parsed.source_id())?;
-    Checker::new(sources, parsed, names, environment)?.run()
+    let mut replay_sites = BTreeSet::new();
+    loop {
+        let (typed, discovered) =
+            Checker::new(sources, parsed, names, environment, &replay_sites)?.run()?;
+        if discovered.is_empty() {
+            return Ok(typed);
+        }
+        replay_sites.extend(discovered);
+    }
 }
 
 struct Checker<'a> {
@@ -169,6 +179,8 @@ struct Checker<'a> {
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     destructurings: Vec<DestructuringDescriptor>,
     iterations: Vec<crate::type_checking::SequentialIterationDescriptor>,
+    iteration_recovery: iteration::IterationRecovery,
+    iteration_replay_sites: &'a BTreeSet<usize>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
@@ -268,6 +280,7 @@ impl<'a> Checker<'a> {
         parsed: &'a ParsedFile,
         names: &'a NameResolution,
         environment: &'a TypeEnvironment,
+        iteration_replay_sites: &'a BTreeSet<usize>,
     ) -> Result<Self, TypeCheckingError> {
         let catalog = codes::catalog()?;
         let mut references = BTreeMap::new();
@@ -386,6 +399,8 @@ impl<'a> Checker<'a> {
             external_types: BTreeMap::new(),
             destructurings: Vec::new(),
             iterations: Vec::new(),
+            iteration_recovery: Default::default(),
+            iteration_replay_sites,
             expression_categories: vec![
                 ExpressionCategory::Temporary;
                 parsed.ast().expressions().len()
@@ -493,7 +508,7 @@ impl<'a> Checker<'a> {
         })
     }
 
-    fn run(mut self) -> Result<TypedFile, TypeCheckingError> {
+    fn run(mut self) -> Result<(TypedFile, BTreeSet<usize>), TypeCheckingError> {
         self.collect_nominals()?;
         self.collect_flow_metadata();
         self.collect_enum_cases()?;
@@ -566,7 +581,7 @@ impl<'a> Checker<'a> {
             .into_iter()
             .cloned()
             .collect();
-        Ok(TypedFile::new(
+        let typed = TypedFile::new(
             self.parsed.source_id(),
             self.environment.owner().clone(),
             self.name_analysis_owner,
@@ -588,7 +603,10 @@ impl<'a> Checker<'a> {
                 enum_cases: self.enum_cases,
                 copyabilities,
                 destructurings: self.destructurings,
-                iterations: self.iterations,
+                iterations: super::iteration::FileIterations {
+                    sequential: self.iterations,
+                    pending_sources: self.iteration_recovery.sources,
+                },
                 expression_categories: self.expression_categories,
                 calls: self.calls,
                 constructions: self.constructions,
@@ -611,7 +629,8 @@ impl<'a> Checker<'a> {
                 map_descriptors: self.map_descriptors,
             },
             diagnostics,
-        ))
+        );
+        Ok((typed, self.iteration_recovery.discovered_loops))
     }
 
     fn ast(&self) -> &SyntaxAst {

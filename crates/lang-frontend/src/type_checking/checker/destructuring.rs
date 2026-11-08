@@ -15,6 +15,11 @@ impl Checker<'_> {
         initializer: ExpressionId,
     ) -> Result<StatementCheck, TypeCheckingError> {
         let source = self.check_expression(initializer, None, None)?.ty;
+        if self.iteration_recovery.is_pending(initializer) {
+            for &binding in bindings {
+                self.note_pending_iteration_binding(binding);
+            }
+        }
         let unit = self.builtin(BuiltinType::Unit);
         let TypeKind::Nominal { nominal, arguments } = self.kind(source).clone() else {
             let fallback = if self.is_error(source) {

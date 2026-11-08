@@ -33,7 +33,7 @@ impl Checker<'_> {
                 }
             }
         }
-        self.check_repeating_flow(None, body)?;
+        self.check_iteration_body(statement, body)?;
         let span = self.ast().statements().get(statement)?.span();
         let upstream_error = self
             .input_error_spans
@@ -41,6 +41,7 @@ impl Checker<'_> {
             .any(|primary| primary.start() >= span.start() && primary.end() <= span.end());
         if self.diagnostics.len() == diagnostic_start
             && !upstream_error
+            && !self.iteration_recovery.sources.contains(&source.index())
             && let Some([key_binding, value_binding]) = symbols
             && let Some(kind) = MapIterationKind::from_constructor(constructor)
         {

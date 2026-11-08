@@ -43,8 +43,10 @@ impl Checker<'_> {
             return_type: unit,
         });
         let mut falls_through = receiver_falls_through;
+        let mut reachable = self.pending_expression_exit(receiver, receiver_falls_through);
         for (argument, expected) in arguments.iter().zip([key_type, action_type]) {
-            let result = self.check_expression(argument.value, Some(expected), None)?;
+            let result =
+                self.check_pending_operand(argument.value, Some(expected), None, &mut reachable)?;
             falls_through &= result.falls_through;
             if !self.is_error(result.ty)
                 && !self.is_deferred(result.ty)

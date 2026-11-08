@@ -46,6 +46,22 @@ pub(super) struct IterationFrame {
 }
 
 impl DropPlanner<'_, '_> {
+    /// Walk a potentially empty loop without acquiring a provider.
+    pub(super) fn plan_optional_loop_body(
+        &mut self,
+        statement: StatementId,
+        body: StatementId,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let mut body_state = state.clone();
+        self.loop_boundaries.push(self.scope_depth);
+        let result = self.statement(body, &mut body_state);
+        self.loop_boundaries.pop();
+        result?;
+        self.drop_loop_exit(statement, state);
+        Ok(true)
+    }
+
     pub(super) fn iteration(
         &mut self,
         statement: StatementId,
@@ -53,6 +69,12 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        if self.checker.iteration_in_recovery(statement, source) {
+            if !self.expression(source, ExpressionUse::Read, state)? {
+                return Ok(false);
+            }
+            return self.plan_optional_loop_body(statement, body, state);
+        }
         let borrowed = self
             .checker
             .iterations
