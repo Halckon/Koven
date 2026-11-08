@@ -247,3 +247,46 @@ fn numeric_for_cannot_use_local_destructuring_to_retire_outer_proof() {
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }
+
+#[test]
+fn nested_while_does_not_veto_enclosing_named_iteration() {
+    for body in [
+        "println(\"nested\")",
+        "while (false) {}; println(\"nested\")",
+    ] {
+        let source = format!(
+            r#"fun f(): Unit {{
+                val nested: () -> Unit = {{ {body} }}
+                nested()
+                val xs = listOf("kept")
+                for (item in xs) {{ println(item) }}
+            }}"#
+        );
+        let (result, routed) = route(&source);
+        assert!(
+            routed,
+            "outer route changed with nested body {body}: {:?}",
+            result.as_ref().err()
+        );
+        crate::ssa::verify::verify_program(&result.expect("named iteration lowers"))
+            .expect("the callable and iteration both verify");
+    }
+}
+
+#[test]
+fn while_in_the_same_callable_keeps_its_named_iteration_gate() {
+    let source = r#"
+        fun f(): Unit {
+            while (false) {}
+            val xs = listOf("kept")
+            for (item in xs) { println(item) }
+        }
+    "#;
+    let (result, routed) = route(source);
+    assert!(
+        !routed,
+        "a while in f retains the existing route restriction"
+    );
+    crate::ssa::verify::verify_program(&result.expect("ordinary Unit lowers"))
+        .expect("verified program");
+}

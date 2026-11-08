@@ -187,3 +187,26 @@ fn local_callable_bindings_and_views_lower_in_refine() {
     );
     run_counted(&program, entry, 2, b"local\nmoved\n");
 }
+
+#[test]
+fn a_thunk_keeps_the_gate_for_its_own_while_and_named_iteration() {
+    for (head, expected_thunk_route) in [("", true), ("while (false) {};", false)] {
+        let source = format!(
+            r#"fun main(): Unit {{
+                val run: () -> Unit = {{
+                    {head}
+                    val xs = listOf("kept")
+                    for (item in xs) {{ println(item) }}
+                }}
+                run()
+            }}"#
+        );
+        let (program, routed, _) = lower(&source);
+        assert_eq!(
+            routed.iter().any(|name| name.ends_with(".thunk")),
+            expected_thunk_route,
+            "{routed:?}"
+        );
+        crate::ssa::verify::verify_program(&program).expect("the callable and iteration verify");
+    }
+}

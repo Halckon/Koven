@@ -9,7 +9,7 @@ use lang_frontend::{
         BorrowBindingStorage, BorrowSourceLoan, RangeUseSite, UnitIterationCleanupAction as Action,
         UnitIterationSourceAccess, UnitLoanTarget,
     },
-    parser::{Expression, Statement},
+    parser::Expression,
     source::Span,
     type_checking::{
         BorrowReturnOrigin, BuiltinType, CallableResultSource, IntrinsicTypeConstructor,
@@ -734,23 +734,5 @@ impl Checker<'_, '_> {
         let ok = self.range_call(value_expr);
         self.migrated |= ok;
         ok
-    }
-
-    pub(super) fn scope_has_while_loop(&self) -> bool {
-        let Some(scope) = self.inputs.scope_span() else {
-            return true;
-        };
-        self.inputs
-            .parsed
-            .ast()
-            .statements()
-            .iter()
-            .any(|(_, node)| {
-                let span = node.span();
-                scope.source_id() == span.source_id()
-                    && scope.start() <= span.start()
-                    && span.end() <= scope.end()
-                    && matches!(node.payload(), Statement::While { .. })
-            })
     }
 }
