@@ -152,7 +152,7 @@ impl Parser<'_> {
     ) -> Result<bool, ParserInternalError> {
         Ok(stops.contains(current)
             || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
-            || self.at_file_angle_separator(current)?)
+            || self.at_file_angle_boundary(current)?)
     }
 
     pub(super) fn type_boundary_span(

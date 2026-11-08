@@ -3,7 +3,7 @@
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexemeKind, TokenKind},
-    parser::{ClassifierDeclaration, Item, NameMarker, ParsedDeclaration},
+    parser::{ClassifierDeclaration, Item, NameMarker, ParsedDeclaration, TypeRef},
     source::{SourceMap, Span},
 };
 
@@ -55,6 +55,11 @@ fn ordinary_class_preserves_mixed_delegated_supertypes_in_source_order() {
     );
     let entries = &classifier(&parsed).supertypes;
     assert_eq!(entries.len(), 3);
+    assert!(
+        entries
+            .iter()
+            .all(|entry| entry.trailing_lexical_error.is_none())
+    );
     assert!(entries[1].delegation.is_none());
     for (entry, expected_clause, expected_target) in [
         (&entries[0], "by logger", "logger"),
@@ -308,15 +313,25 @@ fn consecutive_lexical_errors_remain_in_the_invalid_delegation_target() {
     assert_eq!(sources.slice(span).unwrap(), "β async");
     assert_eq!(sources.slice(clause.span).unwrap(), "by β async");
     assert_eq!(sources.slice(first.span).unwrap(), "I by β async");
+    assert!(first.trailing_lexical_error.is_none());
     assert_eq!(sources.slice(following.span).unwrap(), "J");
     assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
 }
 
 #[test]
 fn a_lexical_error_after_a_valid_target_keeps_the_target_name() {
-    let (sources, parsed) = declaration("class C: I by delegate async, J {}");
-    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
-    let [first, following] = classifier(&parsed).supertypes.as_slice() else {
+    let text = "class C: I by delegate async β  , J {}\nclass Sentinel";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("delegation-file.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, source, text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0002", "L0001"]);
+    let [class, sentinel] = parsed.roots() else {
+        panic!("expected both file declarations");
+    };
+    let Item::Classifier(classifier) = parsed.ast().items().get(*class).unwrap().payload() else {
+        panic!("class with recovered delegation");
+    };
+    let [first, following] = classifier.supertypes.as_slice() else {
         panic!("delegation and following supertype");
     };
     let clause = first.delegation.unwrap();
@@ -325,5 +340,60 @@ fn a_lexical_error_after_a_valid_target_keeps_the_target_name() {
     };
     assert_eq!(sources.slice(span).unwrap(), "delegate");
     assert_eq!(sources.slice(clause.span).unwrap(), "by delegate");
+    assert_eq!(sources.slice(first.span).unwrap(), "I by delegate async β");
+    assert_eq!(
+        sources
+            .slice(first.trailing_lexical_error.unwrap())
+            .unwrap(),
+        "async β"
+    );
+    assert!(following.trailing_lexical_error.is_none());
     assert_eq!(sources.slice(following.span).unwrap(), "J");
+    assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
+    let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+    assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+}
+
+fn assert_delegation_suffix(suffix: &str) {
+    let text = format!("class C: I by delegate {suffix}  , J {{}}");
+    let (sources, parsed) = declaration(&text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+    let classifier = classifier(&parsed);
+    let [first, following] = classifier.supertypes.as_slice() else {
+        panic!("delegation and following supertype");
+    };
+    let parent = parsed.ast().type_refs().get(first.type_ref).unwrap();
+    assert!(matches!(parent.payload(), TypeRef::Qualified { .. }));
+    assert_eq!(sources.slice(parent.span()).unwrap(), "I");
+    assert_eq!(
+        sources.slice(first.span).unwrap(),
+        format!("I by delegate {suffix}")
+    );
+    assert_eq!(
+        sources
+            .slice(first.trailing_lexical_error.unwrap())
+            .unwrap(),
+        suffix
+    );
+    assert_eq!(
+        sources.slice(first.delegation.unwrap().span).unwrap(),
+        "by delegate"
+    );
+    assert_eq!(sources.slice(following.span).unwrap(), "J");
+    assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
+}
+
+#[test]
+fn closed_type_arguments_after_delegation_poison_keep_the_outer_comma() {
+    assert_delegation_suffix("async<A, B>");
+}
+
+#[test]
+fn a_closed_group_after_delegation_poison_keeps_its_own_brace() {
+    assert_delegation_suffix("async({ -> 1 })");
+}
+
+#[test]
+fn an_unclosed_type_list_after_delegation_poison_keeps_the_outer_comma() {
+    assert_delegation_suffix("async<A");
 }
