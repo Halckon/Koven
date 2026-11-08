@@ -60,13 +60,13 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     v2_readiness = summarize_v2_chapter_readiness(expectations)
 
     lines = [
-        "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
+        "# Conformance 强 Oracle 语义推导与 Guide v0.47 章节覆盖对账账本",
         "",
         "> 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。",
         "",
-        "## 1. Guide v0.46 章节覆盖与正/负向极性汇总（154 Probes）",
+        "## 1. Guide v0.47 章节覆盖与正/负向极性汇总（154 Probes）",
         "",
-        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |",
+        "| Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |",
         "|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
@@ -130,7 +130,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
             f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
             "",
-            f"### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（{exempt_count} Probes）",
+            f"### 1.3 `v046_spec_contract` 历史基线豁免项与 Spec 交付合同溯源矩阵（{exempt_count} Probes）",
             "",
             "| Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |",
             "|---|---|---|---:|---|---|",
@@ -317,7 +317,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "",
             "### 1.12 语料库源码规模、LF 尾换行卫生契约与章节源码分布汇总",
             "",
-            "| Guide v0.46 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |",
+            "| Guide v0.47 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |",
             "|---|---|---:|---:|---|---:|---:|",
         ]
     )

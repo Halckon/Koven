@@ -7,14 +7,17 @@
 - **管线切换门槛**：单文件与 project 两种模式在同一 probe 上的结果必须一致，新管线不得让
   基线中已经通过的 probe 退化（见 `docs/roadmap/v1.json` 的 E2、V0、V2）。
 
-语言语义以 [Guide v0.46](../docs/guide/README.md) 为准；本目录只保存输入与结果，不定义语义。
+语言语义以 [Guide v0.47](../docs/guide/README.md) 为准；本目录只保存输入与结果，不定义语义。
+本种子集冻结于 v0.46 启用的语法与语义；v0.47 完整继承 v0.46，仅新增 `koven.text` / `koven.io`
+表面与标准源可见性（见 Guide 13「文本字节与严格解析」与 Guide 02「标准环境」），这些新增表面
+不在本目录 154 个 probe 的覆盖范围内。
 
 ## 布局
 
 | 路径 | 内容 |
 |---|---|
 | `probes/*.ko` | 154 个独立小程序，每个都有 `fun main(): Unit`，成功时打印明确输出 |
-| `expectations.json` | 154 个 probe 与六个验收程序的机器可读期望（强 oracle、`oracle_origin` 溯源标注、`all_diagnostics` 多诊断码列表、源文件 SHA-256 与 v0.46 基线豁免标注） |
+| `expectations.json` | 154 个 probe 与六个验收程序的机器可读期望（强 oracle、`oracle_origin` 溯源标注、`all_diagnostics` 多诊断码列表、源文件 SHA-256 与 `v046_baseline_exempt` 历史基线豁免标注） |
 | `baseline-aef3f4f8.tsv` | 154 个 probe 在 PR #120 head `aef3f4f8` 上的结果（来源见下文） |
 | `programs/<name>/main.ko` | 六个验收程序（V1 目标） |
 | `programs/<name>/expected.txt` | 对应程序 stdout 的精确期望 |
@@ -62,7 +65,7 @@ python3 scripts/conformance_gate.py \
 python3 scripts/conformance_gate.py --audit-summary
 ```
 
-在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-15` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
+在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-15` 与 `ubuntu-26.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
 
 门禁行为与产物（`--evidence <dir>`）：
 
@@ -134,7 +137,9 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 
 该基线在 Guide v0.46 启用前产生，运行的是下一节改动**之前**的 probe 源码；不能把 `baseline-aef3f4f8.tsv` 与 Guide v0.46 修改后的源码直接做裸 `diff` 混比。`expectations.json` 中已对下节条目及后续合入能力标记 `v046_baseline_exempt: true`，由 `scripts/conformance_gate.py` 按强 oracle 判读。
 
-## v0.46 带来的 probe 变化
+## v0.46 带来的 probe 变化（历史记录）
+
+以下记录 v0.46 启用时的语料调整；v0.47 完整继承 v0.46，不改变这些 probe 的期望。
 
 | Probe | 处理 | 原因 | 期望 |
 |---|---|---|---|
@@ -163,16 +168,16 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 7 | `N01`, `N08`, `L3b` |
 | `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 7 | `N01`, `N03`, `N07`, `L7` |
 
-这些程序按 Guide v0.46 编写，是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算
+这些程序按 Guide v0.47 编写（v0.47 完整继承 v0.46），是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算
 失败，只说明对应能力尚未实现。每个程序不读输入、输出确定；验收以 stdout 与 `expected.txt`
 逐字节相同、退出码 0 为准，V1/V3 另要求双宿主运行与 ASan/LSan 干净。现行 `String` 没有字符
 访问 API，因此需要逐字符处理的程序把输入以 `Char` 字面量序列内嵌。
 
-## Guide v0.46 章节覆盖矩阵与语义推导对账（V2）
+## Guide v0.47 章节覆盖矩阵与语义推导对账（V2）
 
-`expectations.json` 中每个 probe 与验收程序均通过 `guide_chapter` 绑定到对应的 Guide v0.46 规范章节，并由 `oracle_derivation` 记录逐条语义推导、前端诊断码 `crates/lang-frontend/src/diagnostic.rs` 常量或 Guide 09 abort 合同出处。完整 154 个 probe 与 6 个验收程序的逐项推导表见自动生成并受 `scripts/check_docs.py` 门禁保护的 [ORACLE_AUDIT.md](ORACLE_AUDIT.md)：
+`expectations.json` 中每个 probe 与验收程序均通过 `guide_chapter` 绑定到对应的 Guide v0.47 规范章节，并由 `oracle_derivation` 记录逐条语义推导、前端诊断码 `crates/lang-frontend/src/diagnostic.rs` 常量或 Guide 09 abort 合同出处。完整 154 个 probe 与 6 个验收程序的逐项推导表见自动生成并受 `scripts/check_docs.py` 门禁保护的 [ORACLE_AUDIT.md](ORACLE_AUDIT.md)：
 
-| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |
+| Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |
 |---|---:|---:|---:|---:|---:|---:|
 | [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 |

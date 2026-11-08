@@ -19,6 +19,7 @@ from conformance_catalogs import (
     PACKAGE_DIRECTIVE_RE,
     PROBE_BATCH_CATALOG,
     PROBE_GUIDE_CHAPTERS,
+    PROGRAM_ALLOWED_MARKERS,
     PROGRAM_GUIDE_CHAPTERS,
     PROGRAM_ORACLE_DERIVATIONS,
     PROGRAM_PREREQUISITE_PROBES,
@@ -564,6 +565,7 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
         if extra:
             raise ValueError(f"{label} contains unknown probe keys: {extra}")
     for label, catalog in (
+        ("PROGRAM_ALLOWED_MARKERS", PROGRAM_ALLOWED_MARKERS),
         ("PROGRAM_GUIDE_CHAPTERS", PROGRAM_GUIDE_CHAPTERS),
         ("PROGRAM_ROADMAP_BLOCKERS", PROGRAM_ROADMAP_BLOCKERS),
         ("PROGRAM_ORACLE_DERIVATIONS", PROGRAM_ORACLE_DERIVATIONS),
@@ -887,6 +889,11 @@ def derive_static_expectations(
         main_text = main_bytes.decode("utf-8")
         exp_bytes = expected_txt.read_bytes()
         exp_text = exp_bytes.decode("utf-8")
+        program_markers = PROGRAM_ALLOWED_MARKERS.get(prog_dir.name)
+        if not program_markers:
+            raise ValueError(
+                f"programs.{prog_dir.name} is missing a PROGRAM_ALLOWED_MARKERS entry"
+            )
         prog_entry: dict[str, Any] = {
             "kind": "known_unimplemented",
             "source_sha256": sha256_bytes(main_bytes),
@@ -899,14 +906,7 @@ def derive_static_expectations(
             "expected_sha256": sha256_bytes(exp_bytes),
             "expected_lines": len(exp_text.splitlines()),
             "expected_bytes": len(exp_bytes),
-            "allowed_markers": [
-                "FE:L0080",
-                "FE:L0084",
-                "FE:L0085",
-                "FE:L0165",
-                "BE:UnsupportedNode",
-                "BE:MissingFact",
-            ],
+            "allowed_markers": list(program_markers),
             "oracle_origin": "expected_txt_file",
             "roadmap_blockers": list(PROGRAM_ROADMAP_BLOCKERS.get(prog_dir.name, ["N02"])),
         }
