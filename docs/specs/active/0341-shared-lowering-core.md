@@ -3621,3 +3621,44 @@ Mac Rust1.96、独立 target、默认 debug profile：`ownership_containers` 全
 Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 diff 检查通过。
 旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
 `60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。
+
+
+## Unit 栈帧候选适配新主线（2026-11-08）
+
+基于已合 PR #351 的 main `d8c7393a`，独立分支 `fix/spec-0341-unit-stack-main`。
+旧候选 `341ac068` 保留，不把其旧 expression/flow 实现覆盖到新主线。本片从新
+`checker/expression.rs` 提取 Call 分派，保留 `ExpressionExpected` 与成功普通调用后的
+`record_pending_call_prefix`；Elvis、逻辑和普通二元分帧，逻辑 left 求值后才进入右侧
+pending 处理帧。后半逻辑的 tokens、普通 binary 的原文、求值和错误返回顺序经独立复核。
+#351 的 pending edges、rhs_required、bypass、versions、写入失效和诊断/事实发布均保留。
+
+Mac AArch64 / Rust1.96、默认 debug=2、独立target同配置前后反汇编：
+main 左结合逻辑链每层为192+16,192+9,776=26,160 B；本片为
+192+14,176+480+560=15,408 B（减少41.1%）。96层该链由2,511,360降为
+1,479,168 B，未计外层、叶子和后半处理，不是整个程序的栈上界证明。
+没有增栈、降输入、改profile或添加ignore；不承诺无限深度。
+
+原Single测试文件未改；新增双Unit `nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`
+与旧候选逐字一致，保留128 enum cases、96 smart-cast条件、同parsed/names/types重复
+检查及enum域128/2断言。此历史Abort输入仅编译，本机明确排除执行；正式
+`check_stage_integration.sh` 的 type_checking目标会实际执行，不能把帧缩减当作已实跑转绿。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 普通定向邻控 | frontend `type_checking`、`type_callable`、`type_containers`、`type_ownership_primitives`、`control_branch_join`、`while_flow_facts`、`final_type_admission`、`type_iteration`、`ownership_iteration`，locked/offline；统一 `--skip nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 443 passed；仅新增历史Abort输入1项未执行 |
+| 静态门禁 | frontend all-targets Clippy `-D warnings`、fmt、863份Markdown、diff、相对d8c7393a尺寸门禁 | 通过；35个历史超长文件无增长 |
+| 压力双入口 | 原128/96，默认线程栈 | 编译通过，正式CI实跑待验 |
+
+没有执行故障注入、Abort、全workspace或native套件；不以旧候选或#351的CI代替本头验证。
+未开PR、未合并，D10/E2仍in-progress。
+
+### 栈帧候选与容器借用主干合流（2026-11-08）
+
+#354 原头 `36c0df3c` 的[正式 CI](https://github.com/Halckon/Koven/actions/runs/42438608336)
+通过后，合入已含 #352 的 main `4fd948dd`；仅调和本账本追加记录，双方内容保留。
+相对新主干的前端 patch-id 与原 #354 一致。Mac Rust1.96、独立 target、默认 debug profile、
+locked/offline：原九个普通目标443项、`ownership_containers` 45项及 mixed Return
+`borrow_handoff::return_during_later_operand_ends_only_the_established_source_prefix` 精确1项通过，
+合计489项。历史Abort压力输入仍在本机精确排除，不修改源码、输入、ignore或线程栈。
+frontend all-targets Clippy（-D warnings）、workspace fmt、863份Markdown及diff检查通过。
+新组合须重新取得正式PR CI；旧头通过不代替新组合验收，D10/E2仍in-progress。
