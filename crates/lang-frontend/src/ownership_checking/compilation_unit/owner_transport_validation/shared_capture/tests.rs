@@ -56,8 +56,27 @@ fn every_consuming_route_is_blocked_while_a_shared_slot_is_live() {
         },
     ] {
         let mut damaged = events.to_vec();
-        damaged.insert(at + 1, event);
+        damaged.insert(at + 1, event.clone());
         assert!(!consistent(&damaged));
+        // Overlay-only negative controls: both arms, nested as well as direct,
+        // must inherit loans. Location/control authentication is checked separately.
+        for in_then in [false, true] {
+            let branch = |event: UnitOwnerTransportEvent| UnitOwnerTransportEvent::If {
+                control: expression,
+                then_events: if in_then {
+                    vec![event.clone()]
+                } else {
+                    Vec::new()
+                },
+                else_events: if in_then { Vec::new() } else { vec![event] },
+            };
+            let mut direct = events.to_vec();
+            direct.insert(at + 1, branch(event.clone()));
+            assert!(!consistent(&direct));
+            let mut nested = events.to_vec();
+            nested.insert(at + 1, branch(branch(event.clone())));
+            assert!(!consistent(&nested));
+        }
     }
 }
 

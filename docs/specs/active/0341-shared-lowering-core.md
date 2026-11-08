@@ -3738,3 +3738,22 @@ Mac、locked/offline、独立 target、默认 debug profile；最终代码本地
 普通定向共15项通过，零忽略；未运行全量、native、CI-only损坏测试或正式CI。
 独立只读复审核对真实token输入、loan集合、逆序退休、默认cleanup等价及负控静态逻辑。
 本片保存观测协议候选，不宣称 conditional owner/phi 或 D10/E2 完成，不创建PR、不合并。
+
+## Shared slots 跨独立 If（2026-11-08）
+
+基于 `6ba0e742` 的后续片仅放开已有 slots 不变的显式双臂 Unit If。真实源码基线已实跑
+失败为 InconsistentTransport；overlay 现在逐臂复制入口 loans，递归保护所有消费路径，
+要求出口与入口完整相等且无部分退休，顶层仍从空集合开始并归空。原位置 replay、分支
+内形成/退休门禁、cleanup、V1 和循环 L0164 不变；不宣称动态 conditional owner/phi 完成。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 跨 If 身份与退休顺序 | lib `shared_capture_live_across_independent_if_keeps_source_slots` | 1 passed，4真实输入：独立String、嵌套、双环境同源、无关replace/swap |
+| 边界、原槽与全产物等价 | lib `shared_capture_outside_the_named_straight_line_slice_stays_unsupported`、`shared_string_environment_has_real_source_owner_slots`、`shared_capture_observation_preserves_all_existing_cleanup_products`、`owner_observation_never_changes_existing_cleanup_products` | 各1 passed；边界8输入，Shared on/off合计16输入 |
+| 循环与消费者邻控 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 工程检查 | frontend all-targets Clippy `-D warnings`、fmt、相对6ba0e742尺寸、diff | 通过 |
+
+Mac、locked/offline、独立 target、默认 debug profile；普通定向共15项通过。
+五种消费旁路追加双臂和嵌套 overlay 负控，属于 CI-only 注入，只编译未本地执行。
+未运行全量、native、正式CI；未改变公开产物类型，未追加workspace检查。分支内退休及
+单臂return仍拒绝观测；本片仅认证不变的跨边借用身份，不新增语言或lowering执行能力。

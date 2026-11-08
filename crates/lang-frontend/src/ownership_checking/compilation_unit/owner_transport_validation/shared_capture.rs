@@ -3,7 +3,17 @@ use super::{UnitDropPoint, UnitOwnerId, UnitOwnerTransportEvent};
 use crate::name_resolution::UnitSymbolId;
 
 pub(super) fn consistent(events: &[UnitOwnerTransportEvent]) -> bool {
-    let mut loans: Vec<(UnitOwnerId, UnitSymbolId, UnitOwnerId)> = Vec::new();
+    preserves(events, &[])
+}
+
+// Each edge inherits the same live slots and must return them unchanged. This
+// transports existing loans only; conditional formation/retirement stays excluded
+// by the location replay and planner admission gates.
+fn preserves(
+    events: &[UnitOwnerTransportEvent],
+    inherited: &[(UnitOwnerId, UnitSymbolId, UnitOwnerId)],
+) -> bool {
+    let mut loans = inherited.to_vec();
     let mut retiring: Option<(UnitOwnerId, UnitDropPoint)> = None;
     for event in events {
         // Loan ends are a single contiguous retirement immediately before the
@@ -79,14 +89,14 @@ pub(super) fn consistent(events: &[UnitOwnerTransportEvent]) -> bool {
                 then_events,
                 else_events,
                 ..
-            } if !loans.is_empty() || !consistent(then_events) || !consistent(else_events) => {
-                // Shared environments across alternatives need a later conditional protocol.
+            } if !preserves(then_events, &loans) || !preserves(else_events, &loans) => {
+                // Neither edge may consume or lose a loan inherited from its predecessor.
                 return false;
             }
             _ => {}
         }
     }
-    loans.is_empty() && retiring.is_none()
+    loans == inherited && retiring.is_none()
 }
 
 #[cfg(test)]

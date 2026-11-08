@@ -1,4 +1,4 @@
-//! Real shared capture slots, not conditional or loop admission.
+//! Real shared slots and unchanged transport across If, not conditional formation or loops.
 use super::*;
 
 pub(in crate::ownership_checking::compilation_unit) const SOURCES: &[&str] = &[
@@ -145,8 +145,91 @@ pub(in crate::ownership_checking::compilation_unit) const BOUNDARIES: &[&str] = 
     r#"fun inspect(callback: () -> Boolean): Unit {}
 fun run(): Unit { val text = "x"; inspect({ text == "x" }) }"#,
     r#"fun run(number: Int): Unit { val text = "x"; val callback = { text == "x" && number == 0 } }"#,
-    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) {} else {}; val forwarded = callback }"#,
+    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { val forwarded = callback } else { val forwarded = callback } }"#,
+    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return } else {}; val forwarded = callback }"#,
 ];
+
+pub(in crate::ownership_checking::compilation_unit) const CROSS_IF_SOURCES: &[&str] = &[
+    r#"fun run(flag: Boolean): Unit {
+val text = "source"
+val callback = { text == "test" }
+if (flag) { val unrelated = "left" } else { val unrelated = "right" }
+val forwarded = callback
+}"#,
+    r#"fun run(flag: Boolean): Unit {
+val text = "source"
+val callback = { text == "test" }
+if (flag) { if (flag) {} else {} } else { if (flag) {} else {} }
+val forwarded = callback
+}"#,
+    r#"fun run(flag: Boolean): Unit {
+val text = "source"
+val callback = { text == "test" }
+val second = { text == "other" }
+if (flag) {} else {}
+val forwarded = callback
+if (flag) {} else {}
+val forwarded_second = second
+}"#,
+    r#"fun run(flag: Boolean): Unit {
+val text = "source"
+val callback = { text == "test" }
+var unrelated = "other"
+if (flag) { var local = "left"; val old = replace(&local, "next") } else { var local = "right"; swap(&local, &unrelated); swap(&local, &unrelated) }
+val forwarded = callback
+}"#,
+];
+
+#[test]
+fn shared_capture_live_across_independent_if_keeps_source_slots() {
+    for text in CROSS_IF_SOURCES {
+        let fixture = Fixture::new(&[("root.ko", text)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        let observation = &owned.owner_observations()[0];
+        assert_eq!(
+            observation.status(),
+            UnitOwnerObservationStatus::Complete,
+            "{text}"
+        );
+        assert!(observation.is_consistent());
+        let source = literal_owner(&fixture, 0, observation, "\"source\"");
+        let events = observation.events();
+        let mut formations = 0;
+        for (index, event) in events.iter().enumerate() {
+            let UnitOwnerTransportEvent::SharedCapture {
+                environment,
+                inputs,
+                ..
+            } = event
+            else {
+                continue;
+            };
+            formations += 1;
+            assert_eq!(inputs, &[(fixture.symbol(0, "text"), source.clone())]);
+            let end = events
+                .iter()
+                .position(|event| {
+                    matches!(event,
+                UnitOwnerTransportEvent::SharedCaptureEnd { environment: actual, owner, .. }
+                if actual == environment && owner == &source)
+                })
+                .unwrap();
+            assert!(
+                events[index + 1..end]
+                    .iter()
+                    .any(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+            );
+            assert!(
+                matches!(&events[end + 1], UnitOwnerTransportEvent::Drop { owner, .. } if owner == environment)
+            );
+            let source_end = events.iter().position(|event| matches!(event, UnitOwnerTransportEvent::Drop { owner, .. } if owner == &source)).unwrap();
+            assert!(source_end > end + 1);
+        }
+        assert_eq!(formations, if text.contains("val second") { 2 } else { 1 });
+        assert!(observation.value_observation_v1().is_none());
+    }
+}
 
 #[test]
 fn shared_capture_outside_the_named_straight_line_slice_stays_unsupported() {

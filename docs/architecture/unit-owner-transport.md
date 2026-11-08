@@ -145,6 +145,11 @@ owner token；新环境有独立 token，来源不被移走。转移环境 bindi
 
 独立 loan overlay 与原位置 replay 共同检查身份、成对退休及 Move/Drop/Replace/Swap/
 Owned Capture 旁路。它只认证观测，不更改原 cleanup，不授予 lowering 执行能力。
-借用参数缺 owner、临时/mixed/nested capture、分支内形成及活跃 loan 穿过 If、循环仍不准入；
+借用参数缺 owner、临时/mixed/nested capture、分支内形成或退休、循环仍不准入；
 已退休环境之前或之后的独立原支持语句不因本片禁用。V1 value 投影仍拒绝 Shared 事件，
 循环 L0164 与 Single 条件 owner/phi 见证保留；条件 slots、循环实例及 native 尚未实现。
+
+既有 Shared slots 可跨不改变这些 slots 的显式双臂 Unit If：每臂与嵌套 If 独立继承相同
+loan 集合，退出须保持环境、来源、owner 与顺序完整相等，且不能留下部分退休。根出口仍
+要求集合为空。位置 replay 继续核对每臂 owner 合流并拒绝分支内 Shared 形成/结束；这不
+构造条件 slot 或 phi，也不改变 cleanup、循环 L0164 或 V1 投影边界。
