@@ -37,9 +37,9 @@ impl Parser<'_> {
             NameMarker::Present(self.bump()?.span())
         } else {
             let current = self.current()?;
-            let primary = if matches!(current.kind(), LexemeKind::Eof)
-                || self.is_file_declaration_boundary(current)
-            {
+            let boundary =
+                declaration_stops.contains(current) || self.is_file_declaration_boundary(current);
+            let primary = if boundary {
                 self.empty_at(current.span().start())?
             } else {
                 current.span()
@@ -51,15 +51,14 @@ impl Parser<'_> {
                     primary,
                 )?;
             }
-            if self.file_mode && self.is_file_declaration_boundary(current) {
-                NameMarker::Missing(self.empty_at(current.span().start())?)
+            if boundary {
+                NameMarker::Missing(primary)
             } else if self.current_is_keyword(Keyword::Var) {
                 NameMarker::Error(self.bump()?.span())
             } else if self.current_is_identifier()
                 || matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart))
                 || self.current_is_symbol(Symbol::Colon)
                 || self.current_is_symbol(Symbol::Equal)
-                || matches!(current.kind(), LexemeKind::Eof)
             {
                 // 保留 StringStart，让名称恢复一次消费完整 lexical owner。
                 NameMarker::Missing(self.empty_at(current.span().start())?)
@@ -67,8 +66,8 @@ impl Parser<'_> {
                 NameMarker::Error(self.bump()?.span())
             }
         };
-        // 嵌套 constant 的名称恢复不能越过成员调用方拥有的 hard closer。
-        let name_stops = DeclarationStops::from_expression_hard(declaration_stops);
+        // 名称恢复保留外层成员的 closer 与显式 separator。
+        let name_stops = DeclarationStops::from_expression(declaration_stops);
         let name_stops = if self.file_mode {
             name_stops.union(DeclarationStops::FILE)
         } else {
@@ -82,10 +81,7 @@ impl Parser<'_> {
         )?;
         let (colon_span, type_ref) = self.parse_optional_type_annotation(declaration_stops)?;
         let (equals_span, initializer) = self.parse_required_initializer(declaration_stops)?;
-        let end = self
-            .expression_span(initializer)?
-            .end()
-            .max(const_span.end());
+        let end = self.previous_significant_end();
         self.add_item(
             self.span(const_span.start(), end)?,
             Item::Constant {
@@ -337,9 +333,12 @@ impl Parser<'_> {
             primary
         } else {
             let start = current.span().start();
-            let recovery_stops = self
+            let mut recovery_stops = self
                 .root_declaration_stops()
                 .union(DeclarationStops::from_expression_hard(declaration_stops));
+            if declaration_stops.delimiters & Stops::SEMICOLON != 0 {
+                recovery_stops = recovery_stops.with(DeclarationStops::SEMICOLON);
+            }
             let end = self.recover_declaration_region(recovery_stops)?;
             self.span(start, end.max(start))?
         };
@@ -721,6 +720,22 @@ impl Parser<'_> {
         &mut self,
         stops: DeclarationStops,
     ) -> Result<usize, ParserInternalError> {
+        self.recover_declaration_tokens(stops, false)
+            .map(|(end, _)| end)
+    }
+
+    /// 从 StringStart 恢复到该字符串的真实结束或 Lexer 终止事件。
+    pub(super) fn recover_declaration_string(
+        &mut self,
+    ) -> Result<(usize, bool), ParserInternalError> {
+        self.recover_declaration_tokens(DeclarationStops::EMPTY, true)
+    }
+
+    fn recover_declaration_tokens(
+        &mut self,
+        stops: DeclarationStops,
+        stop_at_string_end: bool,
+    ) -> Result<(usize, bool), ParserInternalError> {
         let mut delimiters = Vec::new();
         let mut owners: Vec<(RecoveryOwner, usize)> = Vec::new();
         let first = self
@@ -743,6 +758,7 @@ impl Parser<'_> {
         }
         let mut next_terminal_event = self.next_terminal_recovery_event;
         let mut end = recovery_start;
+        let mut string_poison = false;
         let mut next_significant = Some(first);
 
         'recovery: loop {
@@ -787,6 +803,10 @@ impl Parser<'_> {
                 owners.pop();
                 delimiters.truncate(delimiter_baseline);
                 next_terminal_event += 1;
+                string_poison = true;
+                if stop_at_string_end && owners.is_empty() {
+                    break 'recovery;
+                }
             }
             if matches!(current.kind(), LexemeKind::Eof) {
                 break;
@@ -843,6 +863,7 @@ impl Parser<'_> {
                     };
                     delimiters.truncate(delimiter_baseline);
                 }
+                LexemeKind::Invalid(InvalidKind::InvalidStringEscape) => string_poison = true,
                 LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
                     delimiters.push(Symbol::RightParen)
                 }
@@ -856,9 +877,12 @@ impl Parser<'_> {
             }
             self.index = raw_index + 1;
             end = current.span().end();
+            if stop_at_string_end && owners.is_empty() {
+                break;
+            }
         }
         self.next_terminal_recovery_event = next_terminal_event;
-        Ok(end)
+        Ok((end, string_poison))
     }
 
     pub(super) fn consume_declaration_tail(

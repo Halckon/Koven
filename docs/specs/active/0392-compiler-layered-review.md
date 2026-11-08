@@ -108,10 +108,10 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽。局部解构的初始化式及分号 owner 已修，见 §60。借用解构内层右括号及外层停止范围已修，见 §63 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78 | 主构造器、interface 的父类型边界、软修饰词等 class-family 恢复路径仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
-| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None。局部解构与顺序源、`while` 的有界组合见 §65、§73 |
+| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
 
 ## 8. 验收账本
@@ -2087,3 +2087,37 @@ MemoryDocument helper，与同一测试原有的 Rooted 入口对照，保留原
 7 项、lowering 依赖门禁 14 项，零失败或忽略。codegen 全目标 Clippy、格式、文档、
 尺寸和 diff 检查通过。本批未在本机重跑全量或动态矩阵。
 本批迁移归属 [SPEC-0341](0341-shared-lowering-core.md)。其他旧消费者和 R0–R5 退出条件仍开放。
+
+[PR #358 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42451131543) 在 `babae5a0`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer 与两宿主预览包独立安装通过，编辑器按范围跳过。已合入 `f129ba39`。
+同一 PR 提交的本机 Mach-O 行表、macOS CI 默认忽略的后端真实 LLDB 断点和四项 CLI
+调试检查共 6 项通过，零失败或忽略。
+
+## 78. R1 类声明的错误恢复与共享递归预算
+
+从 `a884ab8d` 独立复审 class-family。最小字符串委托目标 `by ""` 的原版 Parser 返回
+`InvalidLexemeStream`。原 CLI 单文件 `check` 退出 2。修复复用声明恢复的 owner 栈，只消费
+目标字符串，使用真实关闭引号或已验证的词法终止事件停止。空串、嵌套插值、非法转义及
+相邻终止事件均保留后继 supertype、body 或文件声明。委托分支不逐项二分 owner 索引。
+修复候选对已声明两个接口的单文件和项目均退出 1，输出恰一条 L0078 JSON 诊断。
+
+空变体但有成员的 enum 原本零诊断，现报 L0073 并保留真实成员区。payload 缺 `)` 时
+保留外层分号和右花括号，显式分号穿过嵌套泛型及函数 TypeRef。变体与参数的 Span 止于
+实际消费位置。缺失 companion 常量以及跳过非法初始化 token 时保留调用方的显式分号、
+两个真实 closer 和后继成员。两公开入口用相同 oracle 核对常量诊断、成员与源码范围。
+
+非法嵌套 class 和 companion 的成员体接入既有 Parser 递归预算。class 的第 1025 层
+原来仍可返回 AST，修复后两入口在该深度返回 `NestingLimitExceeded`，第 1024 层
+仍返回带 L0077 的恢复产物。未测原版进程栈溢出阈值。
+
+独立复核先确认了嵌套 TypeRef、单条声明分号与零宽错误子节点的范围缺口，再核对
+修订后的普通 region 路径、终止事件游标与显式 stops。父类型解析移动到同职责子模块，
+除委托字符串恢复外保留原分派。主构造器、interface 的父类型边界、软修饰词、重复
+companion 与 malformed TypeRef 自身范围仍是后续审查项。本批保持 R1 开放。
+
+隔离候选 frontend 全量 183 个结果组、2725 项通过，零失败或忽略。相关源码逐字接入
+`f129ba39` 后，分支复跑 class-family、接口委托和递归边界 43 项，Parser 内部 19 项，
+CLI `check_cli` 6 项，LSP 57 项，零失败或忽略。frontend 全目标 Clippy、格式、文档、
+Rust 尺寸和 diff 门禁通过。`class.rs` 从 1088 降至 943 行，尺寸额度未增加。
+双宿主及 native 发布门禁以 PR 的精确候选为准。
