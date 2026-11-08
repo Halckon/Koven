@@ -702,7 +702,7 @@ impl Checker<'_, '_> {
                         && self.inputs.owned.borrow_results().bindings().iter().any(
                             |fact| {
                                 fact.binding() == symbol
-                                    && fact.origin() == UnitLoanTarget::Place(place.clone())
+                                    && fact.origin() == &UnitLoanTarget::Place(place.clone())
                             },
                         ));
                 if !origin_matches {

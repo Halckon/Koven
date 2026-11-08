@@ -43,16 +43,11 @@ impl UnitExpressionLowerer<'_> {
             element,
             int_type,
             ..
-        } = iteration.state
-        else {
-            return Err(unsupported());
-        };
+        } = iteration.state;
         let [frame] = self.pending_call_frames.as_slice() else {
             return Err(unsupported());
         };
-        if context.proof_scope.is_some()
-            || iteration.inherited_borrowed.is_some()
-            || !self.nullable_proofs.is_empty()
+        if !self.nullable_proofs.is_empty()
             || context.entry_symbols.contains(&root)
             || iteration.retained_start != 0
             || frame.receiver

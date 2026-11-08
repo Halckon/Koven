@@ -619,7 +619,7 @@ impl Builder<'_, '_> {
                     temp_expr,
                 )) = plan.source()
                 {
-                    self.temporaries.insert(temp_expr, owner);
+                    self.temporaries.insert(*temp_expr, owner);
                 }
                 let place =
                     self.value(ROp::RootPlace { owner }, EntityType::Place(container), span)?;
@@ -850,7 +850,6 @@ impl Builder<'_, '_> {
                         return Err(error(LoweringErrorKind::MissingFact, span));
                     }
                 }
-                _ => return Err(error(LoweringErrorKind::UnsupportedNode, self.inputs.span)),
             }
         }
         Ok(true)

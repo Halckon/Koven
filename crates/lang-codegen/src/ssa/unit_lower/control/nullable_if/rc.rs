@@ -118,12 +118,8 @@ impl UnitExpressionLowerer<'_> {
             let operation = nodes
                 .get(effect.expression().expression())
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if !super::super::super::map_iteration::contains(body.span(), operation.span())
-                || super::super::super::map_iteration::enclosing_lambda(
-                    self.parsed,
-                    operation.span(),
-                )
-                .is_some()
+            if !super::super::super::span_contains(body.span(), operation.span())
+                || super::super::super::enclosing_lambda(self.parsed, operation.span()).is_some()
             {
                 continue;
             }

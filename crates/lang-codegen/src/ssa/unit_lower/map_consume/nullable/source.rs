@@ -1,9 +1,11 @@
 //! Exact nullable storage/read/receiver-Move qualification, without changing live state.
 use super::*;
+use crate::ssa::model::{MapContainerKind, SsaTypeKind};
 use lang_frontend::{
     name_resolution::ScopeKind,
+    ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
     parser::VariableKind,
-    type_checking::{UnitMapConsumeDescriptor, UnitTypeKind},
+    type_checking::{IntrinsicTypeConstructor, UnitMapConsumeDescriptor, UnitTypeKind},
 };
 
 pub(super) struct NullableMapConsumeSource {

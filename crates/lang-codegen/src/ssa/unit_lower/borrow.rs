@@ -232,7 +232,7 @@ impl UnitExpressionLowerer<'_> {
             || descriptor.expression() != call
             || arguments.len() != descriptor.arguments().len()
             || self.function_ids.get(key) != Some(&self.function.id())
-            || super::map_iteration::enclosing_lambda(self.parsed, span).is_some()
+            || super::enclosing_lambda(self.parsed, span).is_some()
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

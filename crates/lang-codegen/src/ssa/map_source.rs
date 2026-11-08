@@ -4,8 +4,10 @@ pub(super) mod handoff;
 pub(super) mod handoff_runtime;
 pub(super) mod transport;
 use super::{LoweringError, LoweringErrorKind};
-pub(super) use formation::continuation;
-pub(super) use formation::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
+#[cfg_attr(not(test), expect(unused_imports, reason = "test-only provenance helpers"))]
+pub(super) use formation::{
+    BindingDeclaration, Birth, Formation, OwnerUpdate, continuation, named_formation,
+};
 use lang_frontend::{
     ast::ExpressionId,
     parser::{Expression, ParsedFile},

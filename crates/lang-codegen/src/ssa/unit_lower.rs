@@ -61,7 +61,7 @@ use lang_frontend::{
     ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
-        Statement,
+        ParsedFile, Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -86,6 +86,26 @@ use super::{
 };
 
 use super::expression_core::LoweredValue;
+
+/// Same-source span containment formerly hosted by the retired map-iteration module.
+pub(super) fn span_contains(outer: Span, inner: Span) -> bool {
+    outer.source_id() == inner.source_id()
+        && outer.start() <= inner.start()
+        && inner.end() <= outer.end()
+}
+
+/// Nearest enclosing lambda; identity filtering, not capability.
+pub(super) fn enclosing_lambda(parsed: &ParsedFile, span: Span) -> Option<ExpressionId> {
+    parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| {
+            span_contains(node.span(), span) && matches!(node.payload(), Expression::Lambda { .. })
+        })
+        .min_by_key(|(_, node)| node.span().end() - node.span().start())
+        .map(|(id, _)| id)
+}
 
 enum FunctionPlanBody {
     Expression(ExpressionId),

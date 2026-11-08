@@ -12,7 +12,6 @@ enum Fault {
     HeaderOwner,
     WrongInner,
     WrongNiche,
-    WhileScope,
     PendingOperand,
     PendingFrame,
     MissingEntryString,
@@ -81,16 +80,6 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
             }
         })
         .unwrap();
-    let while_scope = fixture
-        .parsed
-        .ast()
-        .statements()
-        .iter()
-        .find_map(|(id, node)| {
-            matches!(node.payload(), Statement::While { .. })
-                .then_some(UnitStatementId::new(fixture.source, id))
-        })
-        .unwrap();
     let fact = fixture.owned.ownership().loans().iter().find(|fact| {
         matches!(fact.target(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == root)
     }).unwrap();
@@ -100,7 +89,6 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
         Fault::HeaderOwner,
         Fault::WrongInner,
         Fault::WrongNiche,
-        Fault::WhileScope,
         Fault::PendingOperand,
         Fault::PendingFrame,
         Fault::MissingEntryString,
@@ -218,28 +206,10 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
                 Fault::WrongNiche => {
                     lowerer.function.values[owner.index()].ty = EntityType::Value(wrong_niche)
                 }
-                Fault::WhileScope => {
-                    lowerer.nullable_proofs.clear();
-                    assert!(
-                        lowerer
-                            .introduce_nullable_proof(
-                                header,
-                                column,
-                                root,
-                                inner,
-                                NullableProofScope::While(while_scope),
-                                span
-                            )
-                            .is_err()
-                    );
-                    assert!(lowerer.nullable_proofs.is_empty());
-                    return;
-                }
                 Fault::PendingOperand => lowerer.pending_operands.push(EntityId::Value(owner)),
                 Fault::PendingFrame => lowerer.pending_call_frames.push(PendingCallFrame {
                     call: fact.call(),
                     receiver: true,
-                    nullable_children: Vec::new(),
                     loan_arguments: Vec::new(),
                     loop_depth: 0,
                     pending_start: 0,

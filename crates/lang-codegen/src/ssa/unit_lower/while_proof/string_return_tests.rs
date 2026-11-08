@@ -146,7 +146,6 @@ fn string_if_owner_return_guards_preserve_the_original_state() {
                     loop_depth: 0,
                     pending_start: 0,
                     created_loans: Vec::new(),
-                    nullable_children: Vec::new(),
                     loan_arguments: Vec::new(),
                     abi_slots: Vec::new(),
                     exclusive_root_owners: Vec::new(),

@@ -19,7 +19,6 @@ impl UnitExpressionLowerer<'_> {
         // Do not extend the existing While, Rc, Map, root-Borrow or live-proof entries.
         if self.thunk_expression.is_some()
             || !self.nullable_proofs.is_empty()
-            || self.current_while_proof_scope().is_some()
             || !self.loops.is_empty()
             || !self.substitutions.is_empty()
         {
@@ -95,7 +94,7 @@ impl UnitExpressionLowerer<'_> {
         }
         self.validate_named_nullable_if_condition(condition, comparison, root, span)?;
         // The current Value and registered storage are checked, never retyped.
-        let (nullable, inner) = self.direct_nullable_while_entry(comparison, span)?;
+        let (nullable, inner) = self.heap_nullable_storage(comparison, span)?;
         if storage != nullable
             || self.type_ids.get(&root.narrowed) != Some(&inner)
             || self.typed.copyability(root.declared) != Copyability::MoveOnly

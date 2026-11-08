@@ -28,7 +28,6 @@ impl UnitExpressionLowerer<'_> {
         // The original no-else, While, Rc and Map entries retain their own rules.
         if self.thunk_expression.is_some()
             || !self.nullable_proofs.is_empty()
-            || self.current_while_proof_scope().is_some()
             || !self.loops.is_empty()
             || !self.substitutions.is_empty()
         {
@@ -107,7 +106,7 @@ impl UnitExpressionLowerer<'_> {
         }
         self.validate_named_nullable_if_condition(condition, comparison, root, span)?;
         // Reuse the existing actual storage/current-Value check, not its != parser.
-        let (nullable, inner) = self.direct_nullable_while_entry(comparison, span)?;
+        let (nullable, inner) = self.heap_nullable_storage(comparison, span)?;
         if storage != nullable
             || self.type_ids.get(&root.narrowed) != Some(&inner)
             || self.typed.copyability(root.declared) != Copyability::MoveOnly
@@ -127,6 +126,56 @@ impl UnitExpressionLowerer<'_> {
             non_null_when_true: comparison.non_null_when_true(),
             consume: None,
         }))
+    }
+
+    /// Resolve the nullable storage and inner heap type for a direct nullable entry.
+    /// Retained from the retired nullable-while path so heap Ifs keep the same facts.
+    fn heap_nullable_storage(
+        &self,
+        descriptor: UnitNullComparisonDescriptor,
+        span: Span,
+    ) -> Result<(SsaTypeId, SsaTypeId), LoweringError> {
+        if !self.temporaries.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let symbol = descriptor.symbol();
+        let nullable = super::super::super::resolve_concrete_type(
+            self.typed,
+            descriptor.nullable_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let nullable = *self
+            .type_ids
+            .get(&nullable)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(crate::ssa::model::SsaTypeKind::NullableHandle { inner }) =
+            self.ssa_types.get(nullable.index())
+        else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let inner = *inner;
+        if !matches!(
+            self.ssa_types.get(inner.index()),
+            Some(crate::ssa::model::SsaTypeKind::HeapOwner { .. })
+        ) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let Some(super::super::super::LoweredValue::Value(entry_owner)) =
+            self.bindings.get(&symbol).copied()
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        if self
+            .function
+            .entity(crate::ssa::model::EntityId::Value(entry_owner))
+            .map(|data| data.ty)
+            != Some(crate::ssa::model::EntityType::Value(nullable))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok((nullable, inner))
     }
 
     fn heap_if_source_context(
@@ -169,7 +218,7 @@ impl UnitExpressionLowerer<'_> {
         // operands outside CFG carriers. Only ordinary control ancestors qualify.
         Ok(!self.parsed.ast().expressions().iter().any(|(id, node)| {
             id != control.expression()
-                && super::super::super::map_iteration::contains(node.span(), span)
+                && super::super::super::span_contains(node.span(), span)
                 && !matches!(
                     node.payload(),
                     Expression::Group { .. } | Expression::If { .. } | Expression::When { .. }

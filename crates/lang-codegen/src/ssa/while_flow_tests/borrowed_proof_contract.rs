@@ -55,7 +55,7 @@ struct Trace {
     drops: [BTreeSet<InstructionId>; 5],
 }
 
-pub(super) fn assert_borrowed_proof(program: &Program, spans: &Spans, unit: bool) {
+pub(super) fn assert_borrowed_proof(program: &Program, spans: &Spans, _unit: bool) {
     let module = only(program.modules.iter());
     let function = only(module.functions.iter().filter(|function| {
         function.blocks.iter().any(|block| {

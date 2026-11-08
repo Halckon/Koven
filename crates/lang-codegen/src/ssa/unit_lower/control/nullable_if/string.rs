@@ -91,8 +91,7 @@ impl UnitExpressionLowerer<'_> {
             returned.source_id() == body.source_id()
                 && body.start() <= returned.start()
                 && returned.end() <= body.end()
-                && super::super::super::map_iteration::enclosing_lambda(self.parsed, returned)
-                    .is_none()
+                && super::super::super::enclosing_lambda(self.parsed, returned).is_none()
                 && self
                     .direct_place_symbol(*value, returned)
                     .is_ok_and(|symbol| symbol == root)
