@@ -24,6 +24,8 @@ pub(super) enum CallTrial {
     NoMatch {
         /// 判定失败前实际探索到的最大附加递归深度。
         additional_depth: usize,
+        /// 严格类型列表的真实 `>`。仅在调用后缀不匹配时仍可能存在。
+        closed_list_raw: Option<usize>,
     },
 }
 
@@ -33,7 +35,9 @@ impl CallTrial {
             Self::Match {
                 additional_depth, ..
             }
-            | Self::NoMatch { additional_depth } => additional_depth,
+            | Self::NoMatch {
+                additional_depth, ..
+            } => additional_depth,
         }
     }
 }
@@ -98,8 +102,22 @@ impl StrictCallTrialIndex {
                         additional_depth,
                     }))
                 }
-                Some(SignificantCallTrial::NoMatch { additional_depth }) => {
-                    Ok(Some(CallTrial::NoMatch { additional_depth }))
+                Some(SignificantCallTrial::NoMatch {
+                    additional_depth,
+                    closed_list_significant,
+                }) => {
+                    let closed_list_raw = closed_list_significant
+                        .map(|index| {
+                            significant_to_raw
+                                .get(index)
+                                .copied()
+                                .ok_or(ParserInternalError::InvalidLexemeStream)
+                        })
+                        .transpose()?;
+                    Ok(Some(CallTrial::NoMatch {
+                        additional_depth,
+                        closed_list_raw,
+                    }))
                 }
                 None => Ok(None),
             })
@@ -115,26 +133,40 @@ impl StrictCallTrialIndex {
         })
     }
 
-    /// 查询一个原始 `<` 下标；查询本身为 `O(1)`，并按当前 parser 深度重验统一预算。
-    pub(super) fn query(
-        &self,
-        raw_start: usize,
-        baseline_depth: usize,
-    ) -> Result<CallTrial, ParserInternalError> {
+    fn trial_at_raw(&self, raw_start: usize) -> Result<Option<CallTrial>, ParserInternalError> {
         let significant = self
             .raw_to_significant
             .get(raw_start)
             .copied()
             .flatten()
             .ok_or(ParserInternalError::InvalidLexemeStream)?;
-        let trial = self
-            .trials
-            .get(significant)
-            .copied()
-            .flatten()
-            .unwrap_or(CallTrial::NoMatch {
-                additional_depth: 1,
-            });
+        Ok(self.trials.get(significant).copied().flatten())
+    }
+
+    /// 错误类型头只需要严格闭合列表的边界，无递归解析或调用准入。
+    pub(super) fn closed_type_list(
+        &self,
+        raw_start: usize,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        Ok(match self.trial_at_raw(raw_start)? {
+            Some(CallTrial::Match { closing_raw, .. }) => Some(closing_raw),
+            Some(CallTrial::NoMatch {
+                closed_list_raw, ..
+            }) => closed_list_raw,
+            None => None,
+        })
+    }
+
+    /// 查询一个原始 `<` 下标；查询本身为 `O(1)`，并按当前 parser 深度重验统一预算。
+    pub(super) fn query(
+        &self,
+        raw_start: usize,
+        baseline_depth: usize,
+    ) -> Result<CallTrial, ParserInternalError> {
+        let trial = self.trial_at_raw(raw_start)?.unwrap_or(CallTrial::NoMatch {
+            additional_depth: 1,
+            closed_list_raw: None,
+        });
         if baseline_depth
             .checked_add(trial.additional_depth())
             .is_none_or(|depth| depth > MAX_RECURSION_DEPTH)
@@ -196,6 +228,7 @@ enum SignificantCallTrial {
     },
     NoMatch {
         additional_depth: usize,
+        closed_list_significant: Option<usize>,
     },
 }
 
@@ -283,6 +316,7 @@ impl<'a> TrialBuilder<'a> {
                     }
                     _ => SignificantCallTrial::NoMatch {
                         additional_depth: list.explored_depth,
+                        closed_list_significant: list.success.map(|success| success.closing),
                     },
                 });
             }
@@ -611,7 +645,8 @@ mod tests {
             assert!(matches!(
                 index.query(less_raw(&lexed, 0), 0),
                 Ok(CallTrial::NoMatch {
-                    additional_depth: 1..
+                    additional_depth: 1..,
+                    ..
                 })
             ));
         }

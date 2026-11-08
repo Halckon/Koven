@@ -102,41 +102,46 @@ pub(super) enum TypeParameterOwner {
 
 pub(super) struct FileAngleRecovery {
     pub(super) groups: RefCell<recovery::FileAngleGroups>,
-    pub(super) separator: Cell<Option<(usize, bool)>>,
+    pub(super) boundary: Cell<Option<(usize, bool)>>,
+    pub(super) recovered_group_greater: bool,
 }
 
 impl Parser<'_> {
-    pub(super) fn at_file_angle_separator(
+    pub(super) fn at_file_angle_boundary(
         &self,
         current: Lexeme,
     ) -> Result<bool, ParserInternalError> {
-        if !matches!(
-            current.kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-        ) {
-            return Ok(false);
-        }
         let Some(recovery) = &self.file_angle else {
             return Ok(false);
         };
+        let explicit = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        );
+        if !explicit && !recovery.recovered_group_greater {
+            return Ok(false);
+        }
         let offset = current.span().start();
-        let memo = &recovery.separator;
+        let memo = &recovery.boundary;
         if let Some((previous, boundary)) = memo.get()
             && previous == offset
         {
             return Ok(boundary);
         }
-        // 嵌套 TypeRef 在同一分号逐层退栈，后继 trivia 和声明前缀只读一次。
-        let boundary = self.probe_file_angle_separator(recovery)?;
+        // 嵌套 TypeRef 可在同一边界逐层退栈，后继 trivia 和声明前缀只读一次。
+        let boundary = self.file_declaration_prefix_at(usize::from(explicit))?
+            && (explicit || self.file_separator_region_has_line_break()?)
+            && recovery.groups.borrow_mut().at_boundary_baseline(
+                self.lexed,
+                &self.lexical_recoveries.terminal_owner_events,
+                self.current_raw()?,
+            )?;
         memo.set(Some((offset, boundary)));
         Ok(boundary)
     }
 
-    fn probe_file_angle_separator(
-        &self,
-        recovery: &FileAngleRecovery,
-    ) -> Result<bool, ParserInternalError> {
-        let ordinal = if self.peek(1).is_some_and(|token| {
+    fn file_declaration_prefix_at(&self, start: usize) -> Result<bool, ParserInternalError> {
+        let ordinal = if self.peek(start).is_some_and(|token| {
             matches!(
                 token.kind(),
                 LexemeKind::Token(TokenKind::Keyword(
@@ -144,11 +149,11 @@ impl Parser<'_> {
                 ))
             )
         }) {
-            2
+            start + 1
         } else {
-            1
+            start
         };
-        let next_declaration = self.peek(ordinal).is_some_and(|token| {
+        Ok(self.peek(ordinal).is_some_and(|token| {
             classifier_declaration_start_kind(token.kind())
                 || matches!(
                     token.kind(),
@@ -156,16 +161,10 @@ impl Parser<'_> {
                         Keyword::Val | Keyword::Var | Keyword::Const | Keyword::Fun
                     ))
                 )
-        }) || (ordinal == 1
-            && (self.peek_is_keyword(1, Keyword::Package)
-                || self.peek_is_keyword(1, Keyword::Import)))
-            || self.value_class_start_at(ordinal)?;
-        Ok(next_declaration
-            && recovery.groups.borrow_mut().at_semicolon_baseline(
-                self.lexed,
-                &self.lexical_recoveries.terminal_owner_events,
-                self.current_raw()?,
-            )?)
+        }) || (ordinal == start
+            && (self.peek_is_keyword(start, Keyword::Package)
+                || self.peek_is_keyword(start, Keyword::Import)))
+            || self.value_class_start_at(ordinal)?)
     }
 
     pub(super) fn value_class_start_at(&self, ordinal: usize) -> Result<bool, ParserInternalError> {
@@ -699,6 +698,10 @@ impl DeclarationStops {
     const CONTROL_EXPRESSION: u32 = 1 << 17;
     pub(super) const CLASS_BODY: u32 = 1 << 18;
     pub(super) const CLASS_FILE: u32 = 1 << 19;
+
+    pub(super) const fn has_greater(self) -> bool {
+        self.0 & Self::GREATER != 0
+    }
 
     pub(super) const fn has_class_file_boundary(self) -> bool {
         self.0 & Self::CLASS_FILE != 0
