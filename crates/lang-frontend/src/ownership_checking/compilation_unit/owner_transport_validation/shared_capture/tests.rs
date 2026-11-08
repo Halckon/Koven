@@ -119,3 +119,60 @@ fn ending_one_environment_does_not_end_another_environment_loan() {
     missing_environment.remove(at + 1);
     assert!(!consistent(&missing_environment));
 }
+
+#[test]
+fn branch_retirement_requires_equal_complete_slot_states() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_capture::RETIRE_IF_SOURCES;
+    for source in [
+        RETIRE_IF_SOURCES[0],
+        RETIRE_IF_SOURCES[2],
+        RETIRE_IF_SOURCES[4],
+    ] {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        let events = owned.owner_observations()[0].events();
+        assert!(consistent(events));
+        for in_then in [true, false] {
+            for damage in 0..4 {
+                let mut damaged = events.to_vec();
+                let UnitOwnerTransportEvent::If {
+                    then_events,
+                    else_events,
+                    ..
+                } = damaged
+                    .iter_mut()
+                    .find(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                let edge = if in_then { then_events } else { else_events };
+                let at = edge
+                    .iter()
+                    .position(|event| {
+                        matches!(event, UnitOwnerTransportEvent::SharedCaptureEnd { .. })
+                    })
+                    .unwrap();
+                match damage {
+                    0 => edge.clear(), // Only the other arm retires its incoming slots.
+                    1 => {
+                        edge.remove(at);
+                    } // Missing/partial retirement.
+                    2 => {
+                        edge.insert(at, edge[at].clone());
+                    } // Duplicate end.
+                    _ => {
+                        // Complete ends cannot stand in for the environment drop.
+                        let drop = edge[at..]
+                            .iter()
+                            .position(|event| matches!(event, UnitOwnerTransportEvent::Drop { .. }))
+                            .unwrap()
+                            + at;
+                        edge.remove(drop);
+                    }
+                }
+                assert!(!consistent(&damaged));
+            }
+        }
+    }
+}

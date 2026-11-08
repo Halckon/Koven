@@ -143,9 +143,14 @@ fn owner_observation_preserves_exclusive_return_prefix_events() {
 #[test]
 fn shared_capture_observation_preserves_all_existing_cleanup_products() {
     use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_capture::{
-        BOUNDARIES, CROSS_IF_SOURCES, SOURCES,
+        BOUNDARIES, CROSS_IF_SOURCES, RETIRE_IF_SOURCES, SOURCES,
     };
-    for source in SOURCES.iter().chain(BOUNDARIES).chain(CROSS_IF_SOURCES) {
+    for source in SOURCES
+        .iter()
+        .chain(BOUNDARIES)
+        .chain(CROSS_IF_SOURCES)
+        .chain(RETIRE_IF_SOURCES)
+    {
         let fixture = Fixture::new(&[("root.ko", source)]);
         let owned = fixture.shared();
         assert!(owned.clone().validate().is_ok());

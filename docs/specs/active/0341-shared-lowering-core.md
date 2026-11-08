@@ -3757,3 +3757,24 @@ Mac、locked/offline、独立 target、默认 debug profile；普通定向共15�
 五种消费旁路追加双臂和嵌套 overlay 负控，属于 CI-only 注入，只编译未本地执行。
 未运行全量、native、正式CI；未改变公开产物类型，未追加workspace检查。分支内退休及
 单臂return仍拒绝观测；本片仅认证不变的跨边借用身份，不新增语言或lowering执行能力。
+
+## Shared slots 双臂一致退休（2026-11-08）
+
+基于 `50b723aa`，loan overlay 逐臂从相同真实入口状态 replay，仅在完整有序 loan 集合
+相等时合流。SharedEnd 不再一律拒绝 edge，改为核对 BranchEntry/Exit 的 control/branch；
+位置合流、环境 Drop、逆序完整退休和来源保护仍联合成立。真实双臂退休源码先实跑失败
+为 InconsistentTransport，再以最小实现转绿。Shared 形成仍不得进入分支，不实现不等状态
+phi、循环运输或新的 cleanup；观察协议不授予 lowering 能力。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 双臂一致退休 | lib `shared_capture_retires_on_both_if_edges_without_phi` | 1 passed，5输入含嵌套叶边、双环境只退其一、来源后用、多槽逆序 |
+| 既有Shared与边界 | lib `shared_capture_live_across_independent_if_keeps_source_slots`、`shared_capture_outside_the_named_straight_line_slice_stays_unsupported`、`shared_string_environment_has_real_source_owner_slots` | 各1 passed |
+| 全旧产物等价 | lib `shared_capture_observation_preserves_all_existing_cleanup_products` | 1 passed，20份真实源码开关对照 |
+| 循环和消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 工程与文档 | frontend all-targets Clippy `-D warnings`、fmt、尺寸相对50b723aa、diff、check_docs.py | 通过；2196份Rust、35份历史超长，863份Markdown |
+
+Mac、locked/offline、独立 target、默认 debug profile；普通定向15项。正向直接断言每个臂
+及嵌套叶边确实退休原环境，禁止把退休推到合流后；另一仍活跃环境保留独立来源保护。
+CI-only 另加单臂丢失/重复/部分End、缺环境Drop、错误分支点及另一环境仍借用时提前消费
+来源，编译但未本地执行。未跑全量、native或正式CI，未改公开类型；不新增workspace检查。

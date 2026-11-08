@@ -3,16 +3,15 @@ use super::{UnitDropPoint, UnitOwnerId, UnitOwnerTransportEvent};
 use crate::name_resolution::UnitSymbolId;
 
 pub(super) fn consistent(events: &[UnitOwnerTransportEvent]) -> bool {
-    preserves(events, &[])
+    replay(events, &[]).is_some_and(|loans| loans.is_empty())
 }
 
-// Each edge inherits the same live slots and must return them unchanged. This
-// transports existing loans only; conditional formation/retirement stays excluded
-// by the location replay and planner admission gates.
-fn preserves(
+// Both edges start from identical slots. Only an exactly equal completed state
+// can join; formation still requires the separate planner/location gates.
+fn replay(
     events: &[UnitOwnerTransportEvent],
     inherited: &[(UnitOwnerId, UnitSymbolId, UnitOwnerId)],
-) -> bool {
+) -> Option<Vec<(UnitOwnerId, UnitSymbolId, UnitOwnerId)>> {
     let mut loans = inherited.to_vec();
     let mut retiring: Option<(UnitOwnerId, UnitDropPoint)> = None;
     for event in events {
@@ -28,7 +27,7 @@ fn preserves(
                 UnitOwnerTransportEvent::Drop {
                     owner, point: at, ..
                 } if owner == environment && at == point => {}
-                _ => return false,
+                _ => return None,
             }
         }
         let borrowed = |owner: &UnitOwnerId| loans.iter().any(|(_, _, source)| source == owner);
@@ -39,7 +38,7 @@ fn preserves(
                 ..
             } => {
                 if loans.iter().any(|(prior, _, _)| prior == environment) {
-                    return false;
+                    return None;
                 }
                 loans.extend(
                     inputs
@@ -53,50 +52,51 @@ fn preserves(
                 owner,
                 point,
             } => {
-                let Some(index) = loans
+                let index = loans
                     .iter()
-                    .rposition(|(formed, _, _)| formed == environment)
-                else {
-                    return false;
-                };
+                    .rposition(|(formed, _, _)| formed == environment)?;
                 if loans[index].1 != *source || loans[index].2 != *owner {
-                    return false;
+                    return None;
                 }
                 loans.remove(index);
                 retiring = Some((environment.clone(), *point));
             }
             UnitOwnerTransportEvent::Drop { owner, .. } => {
                 if borrowed(owner) || loans.iter().any(|(environment, _, _)| environment == owner) {
-                    return false;
+                    return None;
                 }
                 retiring = None;
             }
-            UnitOwnerTransportEvent::Move { owner, .. } if borrowed(owner) => return false,
+            UnitOwnerTransportEvent::Move { owner, .. } if borrowed(owner) => return None,
             UnitOwnerTransportEvent::Capture { inputs, .. }
                 if inputs.iter().any(|(_, owner)| borrowed(owner)) =>
             {
-                return false;
+                return None;
             }
             UnitOwnerTransportEvent::Swap {
                 left_owner,
                 right_owner,
                 ..
-            } if borrowed(left_owner) || borrowed(right_owner) => return false,
+            } if borrowed(left_owner) || borrowed(right_owner) => return None,
             UnitOwnerTransportEvent::Replace {
                 previous, incoming, ..
-            } if borrowed(previous) || borrowed(incoming) => return false,
+            } if borrowed(previous) || borrowed(incoming) => return None,
             UnitOwnerTransportEvent::If {
                 then_events,
                 else_events,
                 ..
-            } if !preserves(then_events, &loans) || !preserves(else_events, &loans) => {
-                // Neither edge may consume or lose a loan inherited from its predecessor.
-                return false;
+            } => {
+                let left = replay(then_events, &loans)?;
+                let right = replay(else_events, &loans)?;
+                if left != right {
+                    return None;
+                }
+                loans = left;
             }
             _ => {}
         }
     }
-    loans == inherited && retiring.is_none()
+    retiring.is_none().then_some(loans)
 }
 
 #[cfg(test)]

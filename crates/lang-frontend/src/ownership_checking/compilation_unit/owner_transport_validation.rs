@@ -224,10 +224,12 @@ impl UnitOwnerObservation {
                     source: symbol,
                     owner,
                 } => {
-                    if edge.is_some()
-                        || !valid_owner(owner)
+                    if !valid_owner(owner)
                         || !valid_owner(environment)
                         || point_source(*point) != source
+                        || matches!(point, UnitDropPoint::BranchEntry { control, branch }
+                            | UnitDropPoint::BranchExit { control, branch }
+                            if edge != Some((*control, *branch)))
                         || symbol.source_unit() != source
                         || !matches!(locations[environment.index], Location::Named(_))
                         || locations[owner.index] != Location::Named(*symbol)
