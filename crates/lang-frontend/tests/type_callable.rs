@@ -6,9 +6,9 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, TypeRef},
     source::SourceMap,
     type_checking::{
-        BuiltinType, CallableTarget, Capability, EnvironmentFunction, EnvironmentParameter,
-        ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, UnitCallTarget, UnitTypeKind,
-        UnitTypeRefId, check_types, standard_environments,
+        BuiltinType, Capability, EnvironmentFunction, EnvironmentParameter, ExpressionCategory,
+        ParameterMode, TypeEnvironment, TypeKind, UnitCallTarget, UnitTypeKind, UnitTypeRefId,
+        check_types, standard_environments,
     },
 };
 
@@ -579,35 +579,56 @@ fn generic_bound_failures_filter_overloads_without_leaking_trial_diagnostics() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0093", "L0115", "L0141", "L0123", "L0124"]
-    );
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("bad")
-    );
-    assert_eq!(
-        sources.slice(typed.diagnostics()[1].primary_span()),
-        Ok("bad")
-    );
-    assert_eq!(
-        sources.slice(typed.diagnostics()[2].primary_span()),
-        Ok("callback")
-    );
-    let selected = typed
-        .calls()
-        .iter()
-        .find(|call| {
-            matches!(
-                typed.types().get(call.return_type()),
-                Some(TypeKind::Builtin(BuiltinType::Long))
-            ) && call.instance().type_arguments().len() == 1
-        })
-        .expect("the Transferable overload must survive candidate filtering");
-    assert!(matches!(selected.target(), CallableTarget::Source(_)));
+    for unit in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(
+            codes(unit.diagnostics()),
+            ["L0093", "L0115", "L0141", "L0123", "L0124"]
+        );
+        for (diagnostic, (call, argument)) in unit.diagnostics().iter().zip([
+            ("interfaceBound(bad)", "bad"),
+            ("copyBound(bad)", "bad"),
+            ("transferBound(callback)", "callback"),
+        ]) {
+            let start = text.find(call).unwrap() + call.find('(').unwrap() + 1;
+            let expected = sources
+                .span(parsed.source_id(), start, start + argument.len())
+                .unwrap();
+            assert_eq!(diagnostic.primary_span(), expected);
+        }
+        let mut calls = unit
+            .calls()
+            .iter()
+            .map(|call| {
+                let node = parsed
+                    .ast()
+                    .expressions()
+                    .get(call.expression().expression())
+                    .unwrap();
+                (
+                    node.span().start(),
+                    sources.slice(node.span()).unwrap(),
+                    call,
+                )
+            })
+            .collect::<Vec<_>>();
+        calls.sort_by_key(|(start, _, _)| *start);
+        assert_eq!(
+            calls.iter().map(|(_, text, _)| *text).collect::<Vec<_>>(),
+            [
+                "interfaceBound(good)",
+                "copyBound(1)",
+                "transferBound(\"ok\")",
+                "choose(text)"
+            ]
+        );
+        let chosen = calls.last().unwrap().2;
+        assert!(matches!(chosen.target(), UnitCallTarget::Declaration(_)));
+        assert_eq!(chosen.instance().type_arguments().len(), 1);
+        assert_eq!(
+            unit.types().get(chosen.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Long))
+        );
+    }
 }
 
 #[test]
@@ -620,35 +641,51 @@ fn overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls(), repeated.calls());
-    assert_eq!(typed.calls().len(), 2);
-    assert!(matches!(
-        typed.types().get(typed.calls()[0].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    assert!(matches!(
-        typed.types().get(typed.calls()[1].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    let parameter = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-        .expect("committed lambda parameter");
-    assert_eq!(
-        typed.parameter_mode(parameter.id()),
-        Some(ParameterMode::Borrow)
-    );
-    assert!(matches!(
-        typed
-            .symbol_type(parameter.id())
-            .and_then(|ty| typed.types().get(ty)),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+    let entries = unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types);
+    let repeats = checked_entries(&sources, &parsed, &names, &types);
+    for ((names, unit), repeated) in entries.into_iter().zip(repeats) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert_eq!(unit.calls(), repeated.calls());
+        let mut call_spans = unit
+            .calls()
+            .iter()
+            .map(|call| {
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(call.expression().expression())
+                    .unwrap()
+                    .span()
+            })
+            .collect::<Vec<_>>();
+        call_spans.sort_by_key(|span| span.start());
+        assert_eq!(
+            call_spans
+                .iter()
+                .map(|&span| sources.slice(span).unwrap())
+                .collect::<Vec<_>>(),
+            ["resolve { intResult(it) }", "intResult(it)"]
+        );
+        assert!(unit.calls().iter().all(|call| {
+            unit.types().get(call.return_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        }));
+        let resolved = &names.names().source_units()[0];
+        let parameter = resolved
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+            .expect("committed lambda parameter");
+        assert_eq!(unit.body_parameter_modes().len(), 1);
+        let (&id, &mode) = unit.body_parameter_modes().iter().next().unwrap();
+        assert_eq!(id.source_unit(), resolved.source_unit());
+        assert_eq!(id.symbol(), parameter.id());
+        assert_eq!(mode, ParameterMode::Borrow);
+        assert_eq!(
+            unit.symbol_type(id).and_then(|ty| unit.types().get(ty)),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+    }
 }
 
 #[test]
