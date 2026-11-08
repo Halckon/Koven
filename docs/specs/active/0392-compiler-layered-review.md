@@ -2840,4 +2840,22 @@ lambda 的 `swap` 均不能绕过门禁。只有已证不交叠的完整 `if` �
 六条 native 回归在基线均失败。修改后本机六条全部通过，每条分别链接并运行有/无
 sibling 的输入且核对退出、stdout 和 stderr。两组嵌套 Map 查询、九条匹配
 `retired_` 的既有边界测试通过，零失败和忽略。该结果覆盖本机 macOS，双宿主验证
-需在批次 PR 的集成提交上执行。
+需在批次 PR 的集成提交上执行。首版扩大 SSA 验证为 1939 项通过、2 项失败；
+失败均为上述嵌套查询全量 pin 所致。修正 pin 后两条逐项复跑通过，未将首版记为全绿。
+
+## 110. R4 Borrow 内联 nullable 的只读判空
+
+`5ce6512f` 的 CLI 对照中，Borrow `String?` 判空在有无 Map sibling 时均报
+`InvalidModel`。直接返回比较结果也复现。以同样方式比较普通类句柄可以运行，
+对 Borrow MoveOnly value class 的内联 nullable 则同样报 `InvalidModel`。
+
+Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布局。
+现有 verifier 继续要求活动 Shared loan 和 Boolean 结果。LLVM 依据已验证的表示
+读取同一 storage，句柄读指针，内联表示读 niche 指针或显式 tag，缺席分支不读 payload。
+不新增 proof view、take 或 ownership 转移。
+
+本机原生回归覆盖 null、空 String（非空 niche）、已有 String owner 的借用，以及
+显式 tag 的 MoveOnly value class。两条均先有 CLI 失败证据，修复后链接、运行并逐字节
+校验输出。LLVM 断言分别锁定字段 0 的 pointer load 与 i1 load，检查函数中其余
+读只对应打印的本地字面量 storage。原普通类句柄的 borrowed nullable temporary
+定向测试 1 项、inline nullable 布局套件 6 项及 codegen 全目标 Clippy 均通过。

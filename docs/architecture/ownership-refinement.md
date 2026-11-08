@@ -23,6 +23,10 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 不依赖编译单元是否另有 Map 迭代。兼容路径仍检查 source-qualified descriptor、资源身份
 及最终 SSA。细化构建出错直接返回结构化错误。
 
+普通 Unit 的 Borrow nullable 判空读取原 shared storage loan。SSA 验证活跃借用与 nullable
+布局。LLVM 对句柄只加载指针，对内联表示只加载第一个字段，即 String 的 niche 指针或
+value class 的显式 presence tag。该操作不触及 payload 或其所有权。
+
 普通借用返回转发按本次调用实参实际产生的 CFG 判定。直线求值与可合并的无条件跳转
 保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到实际分支的源码范围。
 直接 `Map.requireValue` 结果走独立的 Map 入口。

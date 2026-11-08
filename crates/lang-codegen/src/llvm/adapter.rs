@@ -1191,16 +1191,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         results.len(),
                     ));
                 };
-                let ty = access_type(self.function, PlaceAccess::Loan(*source))?;
-                let pointer = self
-                    .builder
-                    .build_load(
-                        self.dependencies.type_map.basic_type(ty)?,
-                        self.access(PlaceAccess::Loan(*source))?,
-                        "nullable.borrowed.payload",
-                    )?
-                    .into_pointer_value();
-                let is_null = self.builder.build_is_null(pointer, &value_name(*result))?;
+                let is_null = self.nullable_loan_is_null(*source, &value_name(*result))?;
                 self.values.insert(*result, is_null.into());
             }
             Operation::NullableTake { owner, proof } => {
