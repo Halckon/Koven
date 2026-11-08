@@ -85,6 +85,8 @@ lambda 的闭合符，成员解析按 classifier 分别验证 companion 唯一�
 分组配对，保留已闭合构造器的内部错误区，以及已闭合委托分组之外的父类型和类体。
 父类型槽位以 invalid 或保留字起始时，原恢复区在父类型列表内保留为 `TypeRef::Error`。
 词法诊断仍是该 token 的根因，逗号后父类型、类体及后继文件声明沿用既有 owner。
+非法委托目标已有 Error marker 时，紧随其后的词法错误区归入该 marker，并更新委托与
+父类型项的源码末端。
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
