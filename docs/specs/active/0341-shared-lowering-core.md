@@ -4467,3 +4467,30 @@ frontend/workspace全量测试、native、Linux或Tree-sitter。前批类型/LSP
 旧头 `d0fb233f` 的[正式CI](https://github.com/Halckon/Koven/actions/runs/42480287069)
 完整成功后才发布本批，避免中断在途CI；该绿灯不代表本批新头已通过。仍保持同一草稿
 PR #366，等待精确新头正式CI，不自动合并，D10/E2仍in-progress。
+
+
+### 发布前同步 #369 的 CaptureIndex 与 callable 主线（2026-11-08）
+
+交叉见证与上述验收记录保存为 `c4a4ce6b` 后，推送前守卫发现 main 刚由 `59396543`
+推进至 `6d315265`（#369），因此在任何 push 之前停止。随后无冲突合入新 main，
+组合代码头 `0af0949c1716809d9e0188610e7a71d029b08dee`，未反复发布或取消在途CI。
+
+独立只读复核确认13文件主线增量保全：CaptureIndex 按 source-qualified lambda 分组并
+保留 descriptor ordinal；dataflow 的三运输表及两层撤销门未回退，owner 全Analysis
+helper 只迁索引构造。main 的标准error/external两个消费者与本PR三个callable消费者
+均保留，三个helper及模块注册不变；direct `check_types` 调用现为9，不计作任务数。
+原标准error虽已迁Unit，仍按既有本机Abort边界整项不执行。
+
+| 验收项 | 新组合实际选择 | 结果 |
+|---|---|---|
+| 借用/字段与callable直接消费者 | direct-call、callable、continuation、nested-borrow，沿用原Abort排除 | 90 + 20 + 14 + 10 = 134 passed |
+| raw撤销、owner全产物和索引 | 前述30项普通lib，加真实两来源32/64 lambda的 `capture_queries_visit_only_the_requested_lambda_in_each_source` | 31 passed；不是注入，未宽选formed_tests |
+| 捕获形成/错误/替换与loop诊断 | 两个capture身份、3个closure邻控、1个multifile错误邻控、loop_choice八项 | 5 + 1 + 8 = 14 passed |
+| factory身份 | `callable_provenance::contract` 下新source-unit隔离与原capturing-return summary两项，exact | 2 passed；首次错误模块过滤未命中，未把零命中算通过 |
+| 静态质量 | 默认frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、相对新main尺寸、diff | 全通过；863 Markdown、2217 Rust、35项超1000，原额度不变 |
+
+本次新主线组合实跑181项（134 + 31 + 14 + 2），不把原基线200项与本轮重复选择相加
+为381项覆盖。尺寸政策脚本未改，复用本批47项成功结果；未重跑无关类型/Parser/LSP
+全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
+（借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
+通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
