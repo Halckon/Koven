@@ -81,6 +81,8 @@ class-family 成员体及非法嵌套 class、companion 的恢复共用该预算
 lambda 的闭合符，成员解析按 classifier 分别验证 companion 唯一性。
 类体恢复回到本地 owner baseline 后识别 receiver 软修饰词，交正式成员解析保留 marker
 和顺序诊断。非法嵌套类缺名称时，父类体仍消费真实 `}`。
+文件级类声明头可把下一条文件声明交还给文件解析。构造器和分组委托共用按需建立的普通
+分组配对，保留已闭合构造器的内部错误区，以及已闭合委托分组之外的父类型和类体。
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。

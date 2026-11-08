@@ -259,7 +259,9 @@ impl Parser<'_> {
         context: NameContext,
         additional_stops: DeclarationStops,
     ) -> Result<NameMarker, ParserInternalError> {
-        if self.current_is_identifier() {
+        let file_boundary = additional_stops.has_class_file_boundary()
+            && self.at_class_header_file_boundary(true)?;
+        if self.current_is_identifier() && !file_boundary {
             return Ok(NameMarker::Present(self.bump()?.span()));
         }
         let current = self.current()?;
@@ -270,7 +272,8 @@ impl Parser<'_> {
             LexemeKind::Token(TokenKind::Symbol(symbol)) => Some(symbol),
             _ => None,
         };
-        let boundary = matches!(current.kind(), LexemeKind::Eof)
+        let boundary = file_boundary
+            || matches!(current.kind(), LexemeKind::Eof)
             || context.is_stop(current)
             || additional_stops.contains_hard(current, symbol)
             || additional_stops.contains_soft(current, symbol);
@@ -855,6 +858,8 @@ impl Parser<'_> {
                 || (outside_owner
                     && delimiters.is_empty()
                     && (stops.contains_soft(current, symbol)
+                        || (stops.has_class_file_boundary()
+                            && self.at_class_header_file_boundary(false)?)
                         || (stops.stops_at_class_member()
                             && self.class_member_recovery_start()?)))
             {

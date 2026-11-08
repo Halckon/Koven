@@ -44,8 +44,10 @@ impl Parser<'_> {
                 return self.consume_segmented_string_type_poison(owner_end);
             }
         }
-        if !self.current_is_identifier() {
-            if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
+        let file_boundary =
+            stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?;
+        if !self.current_is_identifier() || file_boundary {
+            if stops.contains(current) || file_boundary {
                 let span = self.empty_at(current.span().start())?;
                 let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
                     && self.lexical_recoveries.terminal_error_at_eof;
@@ -113,7 +115,9 @@ impl Parser<'_> {
                 break;
             }
             let dot = self.bump()?.span();
-            if !self.current_is_identifier() {
+            if !self.current_is_identifier()
+                || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
+            {
                 let current = self.current()?;
                 let error_end = if self.is_poison() {
                     self.bump()?.span().end()
