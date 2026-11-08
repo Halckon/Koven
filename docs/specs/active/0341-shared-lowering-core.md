@@ -4521,3 +4521,35 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 上述测试在Mac AArch64、Rust1.96.0、默认debug=2、locked/offline、独立Cargo target串行运行。
 未运行workspace全量、Abort/故障注入/校准、native、Linux或本分支官方CI；不得替代精确发布头
 双宿主CI。D10/E2保持in-progress，不创建PR或自动合并。
+
+
+### 独立后续：接口闭包与泛型签名消费者（2026-11-08）
+
+基于已合并 #351 的 main `d8c7393a`，分支 `feature/spec-0341-signature-type-consumers`
+集中承接 Rc 原发布头 `97ac6070` 的两项提交为 `622da63d` / `cc0f666f`；唯一文档冲突
+同时保留主线循环/Elvis流事实和Rc范围说明，原Rc分支不改。不依赖 #352 或CI等待。
+
+- `nominal_unit::signatures` 迁移接口闭包、泛型签名与合法this两项原消费者；两份源码字节
+  保留，L0093及Wrong/T双span、Good直接/传递接口数量、identity函数类型/泛型参数、
+  顶层与成员归属及Nominal/StaticSelf顺序断言保留。归属读取Unit顶层declaration与
+  nominal.members，receiver模式额外核验；不以函数名推断Unit symbol。
+- 既有helper提供同一重复解析AST、自定义环境和MemoryDocument/Rooted两入口，查询真实
+  source-qualified symbol/expression。不改helper、生产代码、Guide、selector或准入。
+- 两项尝试迁移的原见证完整恢复：`enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests`
+  原Single为L0114，Unit当前无诊断；`nominal_and_type_parameter_identity_is_known_and_arity_is_exact`
+  第二条L0091的主span在Single为Left、Unit为Int，label同为Left。这是本机原source探针
+  的明确差距，不改oracle或source强行迁移，不宣称已修复或Single退休。
+- 单独作者复核逐项核原断言与Unit结构映射，脚本确认两份source字节及其余根测试/helper
+  全部保留，type_checking测试数仍89。新增测试模块小于1000行。
+
+| 验收项 | 目标/命令 | 实际结果 |
+|---|---|---|
+| 集中基线 | main加Rc两提交后的 `type_checking` | 89 passed |
+| 最终消费者 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 89 passed，0 filtered |
+| 签名共享邻控 | `cargo test --locked --offline -p lang-frontend --test multifile_type_signatures` | 19 passed，0 filtered |
+| 编译与格式 | frontend all-targets Clippy（locked/offline，`-D warnings`）、fmt check | 通过 |
+| 文档、尺寸与差异 | check_docs、check_rust_sizes（base `d8c7393a`）、diff check | 863份Markdown、尺寸及差异通过；35项旧尺寸欠账不变 |
+
+本机Mac AArch64、Rust1.96.0、默认debug=2，独立Cargo target串行执行；不把历史Rc基线
+当作本分支官方CI。workspace全量、Abort/故障注入/校准、native、Linux及本头官方CI未运行。
+D10/E2继续in-progress，未创建PR或合并。
