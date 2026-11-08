@@ -53,6 +53,11 @@ LLVM 先声明全部函数，再定义 drop glue。HeapOwner 析构为句柄建�
 调用用户 body；正常返回后继续现有 aggregate 字段逆序 drop，最后 free 实例。body 中的字段仍
 可读取；Abort 直接终止，不新增 unwind。没有额外 retain、copy、clone 或堆分配。
 
+`ownership_resource_deinit/unit_plans` 固定两种 Unit 入口对原字段写入和 Inout 实参的
+完整拒绝诊断：L0134 分别锚定 `this.value` 与 `&`，保留字段及所选参数标签顺序；
+错误产物不发布 drops，且不能通过 owned validate。原 Single 诊断差异见证保留，
+这是[前端合同补全](../specs/active/0341-shared-lowering-core.md#deinit-只读能力双入口拒绝合同2026-11-08)，不扩大 native 或借用清理撤销范围。
+
 两入口 body 的 Shared `this` 接收者只允许读取与同步共享借用。unit 的 this 字段链核对 typed
 projection 和 ownership loan target，派生 loan 按创建逆序结束并参与 pending-call 控制退出；
 单文件只支持当前已验证的直接字段调用借用与 nested Copyable 字段读取。

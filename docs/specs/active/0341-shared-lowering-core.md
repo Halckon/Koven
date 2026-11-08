@@ -4385,3 +4385,34 @@ Index 后字段保持精确 IndexPlace deferred。旧 §105/§112 的空观测�
 无生产 blocker；公开查询注释已同步，Rc/Index 邻控已补。
 未运行全量 frontend/workspace、native、含 Abort 整项或故障注入；本候选只本地提交，
 同 PR 组合后仍须精确发布头官方 CI，D10/E2 保持 in-progress。
+
+
+## Deinit 只读能力双入口拒绝合同（2026-11-08）
+
+基于 main `59396543e2bf29e7a739cd892926586b14ca86b1`，独立分支
+`feature/spec-0341-deinit-rejection-contracts`。这是 Phase 3 原合同补全，不是生产修复或
+Single 消费者退休；不涉及在途 callable/类型组合、capture Return 边或借用撤销补片。
+
+- 仅在 `ownership_resource_deinit/unit_plans.rs` 追加一项测试，原文件前缀与全部既有
+  测试保持原样。两份源码逐字复用 `deinit_cannot_mutate_fields_or_establish_exclusive_reborrows`
+  的字段赋值和 Inout 实参，不改变原 Single L0135 / Unit L0134 差异见证。
+- MemoryDocument/Rooted 共享同一原 SourceMap/AST/标准环境，各自核入口身份并经过
+  原 basic typed gate。独立源码定位完整 L0134：赋值 primary 为 `this.value`，Inout为
+  `&`；两者 immutable label 指向 class 字段 `value`，Inout 再保留所选参数 label。
+  固定 severity/message/完整 details 及顺序，不从任一分析结果生成另一入口的期望。
+- 同时核 typed/owned 兼容、无 deferred、无可执行 drops，以及 owned validate 拒绝后
+  完整诊断与空 drop 表保全。不扩大到所有失败程序的 loan-end 或清理撤销合同。
+- 首轮新 oracle 错把实际早期 immutable-place 拒绝当成后续 receiver-capability 分支，
+  精确测试真实失败；核 assignment/call-contract 及 marker 来源后纠正新预期并转绿。
+  没有修改生产以迎合预期，也不把该测试构造错误记为已修复编译器缺陷。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 新合同 | `ownership_resource_deinit::unit_plans::readonly_deinit_rejection_keeps_exact_diagnostics_in_both_unit_entries` 精确选择 | 1 passed，两个原输入×双Unit；首轮错误预期失败保留 |
+| 普通正反邻控 | `ownership_resource_deinit` 与 `resource_deinit_type_facts` 的 `deinit` 过滤器，先核list，再 `--no-fail-fast` 实跑 | 4 + 6 passed，零失败/忽略；其余27 + 5项未执行 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、workspace fmt、docs、尺寸、diff | 全通过；863份Markdown、2202份Rust，34项历史超长无增长 |
+| 独立复核 | 原源码保全、真实早期拒绝路径、独立span与完整诊断oracle | 最终修正版无阻断 |
+
+Mac AArch64 / Rust1.96，locked/offline、独立target、默认debug profile，编译jobs=2。
+未运行故障注入、Abort、压力、frontend/workspace全量、native或正式CI。
+候选保持独立本地提交，交后续同PR合批；未推送、未合并，D10/E2仍in-progress。
