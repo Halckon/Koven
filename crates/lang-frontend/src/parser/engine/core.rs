@@ -145,12 +145,22 @@ impl Parser<'_> {
         }
     }
 
+    pub(super) fn at_type_recovery_boundary(
+        &self,
+        current: Lexeme,
+        stops: TypeStops,
+    ) -> Result<bool, ParserInternalError> {
+        Ok(stops.contains(current)
+            || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
+            || self.at_file_angle_separator(current)?)
+    }
+
     pub(super) fn type_boundary_span(
         &self,
         current: Lexeme,
         stops: TypeStops,
     ) -> Result<Span, ParserInternalError> {
-        if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
+        if self.at_type_recovery_boundary(current, stops)? {
             self.empty_at(current.span().start())
         } else {
             Ok(current.span())

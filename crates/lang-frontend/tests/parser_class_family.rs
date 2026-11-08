@@ -12,6 +12,9 @@ use lang_frontend::{
 #[path = "parser_class_family/header_recovery.rs"]
 mod header_recovery;
 
+#[path = "parser_class_family/file_boundary.rs"]
+mod file_boundary;
+
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 

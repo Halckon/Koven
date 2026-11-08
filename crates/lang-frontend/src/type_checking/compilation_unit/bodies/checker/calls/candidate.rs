@@ -1,6 +1,9 @@
 //! source-qualified 候选合同及源码签名构造。
 use super::*;
-use crate::{name_resolution::ExternalSymbolId, type_checking::EnvironmentFunctionEffect};
+use crate::{
+    name_resolution::{ExternalSymbolId, UnitSymbolId},
+    type_checking::EnvironmentFunctionEffect,
+};
 
 /// Receiver-derived inputs kept in the canonical table before candidate discovery.
 #[derive(Clone)]
@@ -22,6 +25,7 @@ pub(super) struct CallCandidate {
     pub(super) type_parameters: Vec<crate::name_resolution::UnitSymbolId>,
     pub(super) move_only: bool,
     pub(super) parameters: Vec<MappedParameter<UnitTypeId>>,
+    pub(super) parameter_symbols: Vec<Option<UnitSymbolId>>,
     pub(super) return_type: UnitTypeId,
     pub(super) result_source: crate::type_checking::CallableResultSource,
     pub(super) instance_arguments: Vec<UnitTypeId>,
@@ -55,6 +59,11 @@ impl CallCandidate {
                     ty: parameter.ty(),
                     span: Some(parameter.span()),
                 })
+                .collect(),
+            parameter_symbols: callable
+                .parameters()
+                .iter()
+                .map(|parameter| parameter.symbol())
                 .collect(),
             return_type: callable.return_type(),
             result_source: callable.result_source(),
@@ -95,6 +104,7 @@ impl BodyChecker<'_> {
             type_parameters: Vec::new(),
             move_only: false,
             parameters,
+            parameter_symbols: Vec::new(),
             return_type: self.normalize_environment_type(&signature.return_type),
             result_source: crate::type_checking::CallableResultSource::Owned,
             instance_arguments: Vec::new(),

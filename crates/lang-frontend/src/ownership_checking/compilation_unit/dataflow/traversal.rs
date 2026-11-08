@@ -382,12 +382,14 @@ impl Checker<'_> {
                 let mut state = state;
                 state.origins.attach(&self.callable_sources.arena);
                 let headers = state.origins.begin_loop();
+                let entry = state.clone();
                 let body = self.check_statement(body, state)?;
                 for state in [&body.next, &body.continues].into_iter().flatten() {
                     state.origins.backedge(&headers);
                 }
                 if self.diagnostics.len() == errors {
                     self.check_loop_backedge(body_id, body_id, &body)?;
+                    self.check_loop_capture_transport(id, body_id, &entry, &body)?;
                 }
                 Ok(Flows {
                     next: body.breaks,
@@ -457,6 +459,7 @@ impl Checker<'_> {
         let body = self.check_statement(body, base.clone())?;
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, repeated, &body)?;
+            self.check_loop_capture_transport(repeated, body_id, &base, &body)?;
         }
         let origins = base.origins.loop_exit(
             headers,

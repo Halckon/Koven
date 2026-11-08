@@ -3,7 +3,10 @@ mod supertypes;
 use super::*;
 
 impl Parser<'_> {
-    pub(super) fn parse_classifier_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
+    pub(super) fn parse_classifier_declaration(
+        &mut self,
+        file_header: bool,
+    ) -> Result<ItemId, ParserInternalError> {
         let kind = if self.current_identifier_is("value")? {
             let value_span = self.bump()?.span();
             let class_span = if self.current_is_keyword(Keyword::Class) {
@@ -52,8 +55,14 @@ impl Parser<'_> {
             }
         };
         let start = classifier_keyword_start(kind);
-        let name = self.parse_classifier_name()?;
-        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters(true)?;
+        let name = self.parse_classifier_name(file_header)?;
+        let parameter_owner = if file_header {
+            TypeParameterOwner::FileClassifier
+        } else {
+            TypeParameterOwner::Classifier
+        };
+        let (type_parameters, type_parameter_list_span) =
+            self.parse_type_parameters(parameter_owner)?;
         if let (ClassifierKind::Object { .. }, Some(list_span)) = (kind, type_parameter_list_span) {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -67,8 +76,10 @@ impl Parser<'_> {
             ClassifierKind::ValueClass { .. } | ClassifierKind::Class { .. }
         );
         let primary_constructor = if self.current_is_symbol(Symbol::LeftParen) {
-            let constructor =
-                self.parse_primary_constructor(matches!(kind, ClassifierKind::ValueClass { .. }))?;
+            let constructor = self.parse_primary_constructor(
+                matches!(kind, ClassifierKind::ValueClass { .. }),
+                file_header,
+            )?;
             if !supports_constructor {
                 self.emit(
                     codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -88,7 +99,7 @@ impl Parser<'_> {
             None
         };
 
-        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind)?;
+        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind, file_header)?;
         let body = if self.current_is_symbol(Symbol::LeftBrace) {
             Some(self.parse_classifier_body(kind)?)
         } else {
@@ -117,8 +128,12 @@ impl Parser<'_> {
         )
     }
 
-    pub(super) fn parse_classifier_name(&mut self) -> Result<NameMarker, ParserInternalError> {
-        if self.current_is_identifier() {
+    fn parse_classifier_name(
+        &mut self,
+        file_header: bool,
+    ) -> Result<NameMarker, ParserInternalError> {
+        let file_boundary = file_header && self.at_class_header_file_boundary(true)?;
+        if self.current_is_identifier() && !file_boundary {
             return Ok(NameMarker::Present(self.bump()?.span()));
         }
         let current = self.current()?;
@@ -145,7 +160,8 @@ impl Parser<'_> {
                 return Ok(NameMarker::Error(self.span(start, end)?));
             }
         }
-        let is_boundary = matches!(current.kind(), LexemeKind::Eof)
+        let is_boundary = file_boundary
+            || matches!(current.kind(), LexemeKind::Eof)
             || matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(
@@ -180,18 +196,28 @@ impl Parser<'_> {
     pub(super) fn parse_primary_constructor(
         &mut self,
         require_nonempty: bool,
+        file_header: bool,
     ) -> Result<PrimaryConstructor, ParserInternalError> {
+        let file_recovery = file_header
+            && self
+                .lexical_recoveries
+                .group_closer(self.lexed, self.current_raw()?)
+                .is_none();
         let left_paren_span = self.bump()?.span();
         let mut fields = Vec::new();
-        let boundary = TypeStops::empty()
+        let mut boundary = TypeStops::empty()
             .with(TypeStops::RIGHT_PAREN)
             .with(TypeStops::RIGHT_BRACE)
             .with(TypeStops::CLASS_BODY);
-        let recovery_stops = DeclarationStops::EMPTY
+        let mut recovery_stops = DeclarationStops::EMPTY
             .with(DeclarationStops::COMMA)
             .with(DeclarationStops::RIGHT_PAREN)
             .with(DeclarationStops::RIGHT_BRACE)
             .with(DeclarationStops::CLASS_BODY);
+        if file_recovery {
+            boundary = boundary.with(TypeStops::CLASS_FILE);
+            recovery_stops = recovery_stops.with(DeclarationStops::CLASS_FILE);
+        }
         if self.current_is_symbol(Symbol::RightParen) && require_nonempty {
             self.emit(
                 codes::EXPECTED_CONSTRUCTOR_FIELD,
@@ -199,7 +225,7 @@ impl Parser<'_> {
                 self.current()?.span(),
             )?;
         }
-        while !boundary.contains(self.current()?) {
+        while !self.at_constructor_field_boundary(boundary)? {
             if self.current_is_symbol(Symbol::Comma) {
                 let comma = self.bump()?.span();
                 self.emit(
@@ -212,7 +238,9 @@ impl Parser<'_> {
             if let Some(field) = self.parse_class_field(boundary, recovery_stops)? {
                 fields.push(field);
             }
-            if !boundary.contains(self.current()?) && !self.current_is_symbol(Symbol::Comma) {
+            if !self.at_constructor_field_boundary(boundary)?
+                && !self.current_is_symbol(Symbol::Comma)
+            {
                 if !self.is_poison() {
                     self.emit(
                         codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
@@ -250,6 +278,11 @@ impl Parser<'_> {
             fields,
             right_paren_span,
         })
+    }
+
+    fn at_constructor_field_boundary(&self, stops: TypeStops) -> Result<bool, ParserInternalError> {
+        Ok(stops.contains(self.current()?)
+            || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(false)?))
     }
 
     fn parse_class_field(
@@ -321,12 +354,14 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            self.recover_declaration_region(
-                DeclarationStops::EMPTY
-                    .with(DeclarationStops::COMMA)
-                    .with(DeclarationStops::RIGHT_PAREN)
-                    .with(DeclarationStops::RIGHT_BRACE),
-            )?;
+            let mut default_stops = DeclarationStops::EMPTY
+                .with(DeclarationStops::COMMA)
+                .with(DeclarationStops::RIGHT_PAREN)
+                .with(DeclarationStops::RIGHT_BRACE);
+            if recovery_stops.has_class_file_boundary() {
+                default_stops = default_stops.with(DeclarationStops::CLASS_FILE);
+            }
+            self.recover_declaration_region(default_stops)?;
         }
         let end = self.previous_significant_end();
         Ok(Some(ClassField {
@@ -535,7 +570,7 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            self.parse_classifier_declaration()?
+            self.parse_classifier_declaration(false)?
         } else {
             let boundary = self.current_is_symbol(Symbol::RightBrace)
                 || matches!(self.current()?.kind(), LexemeKind::Eof);

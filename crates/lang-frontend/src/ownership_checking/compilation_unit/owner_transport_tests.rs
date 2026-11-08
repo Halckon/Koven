@@ -9,6 +9,8 @@ pub(super) mod if_observation;
 pub(super) mod loop_boundaries;
 mod loop_closed_model;
 mod loop_continuation_model;
+pub(super) mod shared_branch_local;
+pub(super) mod shared_capture;
 mod swap;
 
 use super::formed_tests::Fixture;

@@ -279,6 +279,7 @@ impl BodyChecker<'_> {
                             span: None,
                         })
                         .collect(),
+                    parameter_symbols: Vec::new(),
                     return_type,
                     result_source: crate::type_checking::CallableResultSource::Owned,
                     instance_arguments: Vec::new(),
@@ -473,7 +474,20 @@ impl BodyChecker<'_> {
         let mut arguments_exit = !track_arguments || self.checked_callee_exits(source, callee)?;
         let mut observed = constraints.as_ref().map(|_| vec![None; arguments.len()]);
         for (argument_index, argument) in arguments.iter().enumerate() {
-            let parameter = &candidate.parameters[mapping[argument_index]];
+            let parameter_index = mapping[argument_index];
+            let parameter = &candidate.parameters[parameter_index];
+            let parameter_symbol = candidate
+                .parameter_symbols
+                .get(parameter_index)
+                .copied()
+                .flatten();
+            let lambda_syntax = (pending_instance || parameter_symbol.is_some())
+                && self.is_lambda_syntax(source, argument.value);
+            let expected_span = parameter_symbol
+                .filter(|_| lambda_syntax)
+                .map(|symbol| self.unit_symbol_span(symbol))
+                .transpose()?
+                .or(parameter.span);
             let expected = match &candidate_types {
                 Some(types) => ExpressionExpected::Candidate(types, parameter.ty),
                 None => ExpressionExpected::Canonical(parameter.ty),
@@ -482,7 +496,7 @@ impl BodyChecker<'_> {
                 && expected.probe(self, |checker, ty| {
                     Ok(checker.contains_unresolved_call_type(ty))
                 })?;
-            let lambda = pending_instance && self.is_lambda_syntax(source, argument.value);
+            let lambda = pending_instance && lambda_syntax;
             if lambda {
                 match self.partial_lambda_context(source, argument.value, expected) {
                     PartialLambdaContext::Unresolved if unresolved_context => {
@@ -491,11 +505,11 @@ impl BodyChecker<'_> {
                                 self,
                                 candidate_types.as_ref(),
                                 source,
-                                mapping[argument_index],
+                                parameter_index,
                                 argument.value,
                             )?
                         {
-                            self.emit_lambda_structure_mismatch(span, parameter.span)?;
+                            self.emit_lambda_structure_mismatch(span, expected_span)?;
                             valid = false;
                         }
                         uncommitted_context = true;
@@ -518,7 +532,7 @@ impl BodyChecker<'_> {
                             codes::TYPE_MISMATCH,
                             "lambda argument requires a function parameter type",
                             span,
-                            parameter.span,
+                            expected_span,
                             "parameter type declared here",
                         )?;
                         valid = false;
@@ -551,7 +565,7 @@ impl BodyChecker<'_> {
                             source,
                             argument.value,
                             Some(context),
-                            parameter.span,
+                            expected_span,
                             return_type,
                         )
                     })?

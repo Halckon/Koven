@@ -1,4 +1,5 @@
 use super::*;
+use std::cell::{Cell, RefCell};
 
 pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
     matches!(
@@ -92,7 +93,127 @@ pub(super) fn class_member_start_kind(kind: LexemeKind) -> bool {
         )
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum TypeParameterOwner {
+    Function,
+    Classifier,
+    FileClassifier,
+}
+
+pub(super) struct FileAngleRecovery {
+    pub(super) groups: RefCell<recovery::FileAngleGroups>,
+    pub(super) separator: Cell<Option<(usize, bool)>>,
+}
+
 impl Parser<'_> {
+    pub(super) fn at_file_angle_separator(
+        &self,
+        current: Lexeme,
+    ) -> Result<bool, ParserInternalError> {
+        if !matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) {
+            return Ok(false);
+        }
+        let Some(recovery) = &self.file_angle else {
+            return Ok(false);
+        };
+        let offset = current.span().start();
+        let memo = &recovery.separator;
+        if let Some((previous, boundary)) = memo.get()
+            && previous == offset
+        {
+            return Ok(boundary);
+        }
+        // 嵌套 TypeRef 在同一分号逐层退栈，后继 trivia 和声明前缀只读一次。
+        let boundary = self.probe_file_angle_separator(recovery)?;
+        memo.set(Some((offset, boundary)));
+        Ok(boundary)
+    }
+
+    fn probe_file_angle_separator(
+        &self,
+        recovery: &FileAngleRecovery,
+    ) -> Result<bool, ParserInternalError> {
+        let ordinal = if self.peek(1).is_some_and(|token| {
+            matches!(
+                token.kind(),
+                LexemeKind::Token(TokenKind::Keyword(
+                    Keyword::Public | Keyword::Internal | Keyword::Private
+                ))
+            )
+        }) {
+            2
+        } else {
+            1
+        };
+        let next_declaration = self.peek(ordinal).is_some_and(|token| {
+            classifier_declaration_start_kind(token.kind())
+                || matches!(
+                    token.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(
+                        Keyword::Val | Keyword::Var | Keyword::Const | Keyword::Fun
+                    ))
+                )
+        }) || (ordinal == 1
+            && (self.peek_is_keyword(1, Keyword::Package)
+                || self.peek_is_keyword(1, Keyword::Import)))
+            || self.value_class_start_at(ordinal)?;
+        Ok(next_declaration
+            && recovery.groups.borrow_mut().at_semicolon_baseline(
+                self.lexed,
+                &self.lexical_recoveries.terminal_owner_events,
+                self.current_raw()?,
+            )?)
+    }
+
+    pub(super) fn value_class_start_at(&self, ordinal: usize) -> Result<bool, ParserInternalError> {
+        Ok(self.peek_is_keyword(ordinal + 1, Keyword::Class)
+            && self.peek_identifier_is(ordinal, "value")?)
+    }
+
+    pub(super) fn at_class_header_file_boundary(
+        &self,
+        allow_identifier: bool,
+    ) -> Result<bool, ParserInternalError> {
+        if self.current_is_symbol(Symbol::Semicolon) {
+            return Ok(true);
+        }
+        let current = self.current()?;
+        let ordinal = usize::from(matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Public | Keyword::Internal | Keyword::Private
+            ))
+        ));
+        if self.peek(ordinal).is_some_and(|token| {
+            classifier_declaration_start_kind(token.kind())
+                || matches!(
+                    token.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(
+                        Keyword::Fun | Keyword::Const | Keyword::Package | Keyword::Import
+                    ))
+                )
+        }) {
+            return Ok(true);
+        }
+        if !self.value_class_start_at(ordinal)? {
+            return Ok(false);
+        }
+        if ordinal != 0 || !allow_identifier {
+            return Ok(true);
+        }
+        let class = self
+            .peek(1)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        // 跨行的裸 `value` 仍可作为名称或类型；仅在下一行的完整前缀处归还文件层。
+        Ok(
+            self.gap_has_line_break(self.previous_significant_end(), current.span().start())?
+                && !self.gap_has_line_break(current.span().end(), class.span().start())?,
+        )
+    }
+
     pub(super) fn classifier_declaration_start(&self) -> Result<bool, ParserInternalError> {
         if self.current_identifier_is("value")?
             && (self.peek_is_keyword(1, Keyword::Class) || self.peek_is_identifier(1))
@@ -392,6 +513,11 @@ impl TypeStops {
     pub(super) const EXTENSION_NAME: u16 = 1 << 11;
     const SEMICOLON: u16 = 1 << 12;
     pub(super) const CLASS_BODY: u16 = 1 << 13;
+    pub(super) const CLASS_FILE: u16 = 1 << 14;
+
+    pub(super) const fn has_class_file_boundary(self) -> bool {
+        self.0 & Self::CLASS_FILE != 0
+    }
 
     pub(super) const fn has_class_body_boundary(self) -> bool {
         self.0 & Self::CLASS_BODY != 0
@@ -443,7 +569,7 @@ impl TypeStops {
 
     pub(super) const fn without_block_elements(self) -> Self {
         // Explicit semicolons belong to the enclosing declaration even inside TypeRefs.
-        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE))
+        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::CLASS_FILE))
     }
 
     pub(super) fn contains(self, lexeme: Lexeme) -> bool {
@@ -572,6 +698,11 @@ impl DeclarationStops {
     const ELSE: u32 = 1 << 16;
     const CONTROL_EXPRESSION: u32 = 1 << 17;
     pub(super) const CLASS_BODY: u32 = 1 << 18;
+    pub(super) const CLASS_FILE: u32 = 1 << 19;
+
+    pub(super) const fn has_class_file_boundary(self) -> bool {
+        self.0 & Self::CLASS_FILE != 0
+    }
 
     pub(super) const fn from_expression_hard(stops: Stops) -> Self {
         let mut bits = 0;

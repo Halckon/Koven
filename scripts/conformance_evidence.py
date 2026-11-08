@@ -798,7 +798,7 @@ def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
 
     chapter_stats = summarize_chapter_polarity(expectations)
     lines = [
-        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
+        "| Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
         "|---|---:|---:|---:|---:|---:|---:|",
     ]
     tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0

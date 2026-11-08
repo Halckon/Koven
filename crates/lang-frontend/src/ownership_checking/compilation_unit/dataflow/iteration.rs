@@ -293,6 +293,7 @@ impl Checker<'_> {
         let body_flows = self.check_statement(body, next.clone())?;
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body, body, &body_flows)?;
+            self.check_loop_capture_transport(statement.statement(), body, &next, &body_flows)?;
             for state in [&body_flows.next, &body_flows.continues]
                 .into_iter()
                 .flatten()

@@ -139,3 +139,35 @@ fn owner_observation_preserves_exclusive_return_prefix_events() {
     let parts = fixture.parts(&shared);
     compare(&fixture, &parts);
 }
+
+#[test]
+fn shared_capture_observation_preserves_all_existing_cleanup_products() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_capture::{
+        BOUNDARIES, CROSS_IF_SOURCES, REPLACED_SHARED_SOURCE, RETIRE_IF_SOURCES, SOURCES,
+    };
+    for source in SOURCES
+        .iter()
+        .chain(BOUNDARIES)
+        .chain(CROSS_IF_SOURCES)
+        .chain(RETIRE_IF_SOURCES)
+        .chain(std::iter::once(&REPLACED_SHARED_SOURCE))
+    {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}
+
+#[test]
+fn branch_local_shared_capture_preserves_full_cleanup_analysis() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_branch_local::{
+        BOUNDARIES, SOURCES,
+    };
+    for source in SOURCES.iter().chain(BOUNDARIES) {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}

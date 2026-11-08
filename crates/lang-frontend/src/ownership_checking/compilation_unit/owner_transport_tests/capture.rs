@@ -153,7 +153,9 @@ val callback = move { a + b }
 #[test]
 fn capture_boundaries_discard_the_entire_observation_without_language_errors() {
     for suffix in [
-        "val callback = { a }",
+        // Pure Shared String is now admitted; its exact former source is retained
+        // by shared_replaced_source_keeps_real_owner_and_ordered_retirement.
+        "val n = 1; val callback = { n; a }",
         "val n = 1; val callback = move { n; a }",
         "val inner = move { a }; val outer = move { inner }",
         "move { a }",
