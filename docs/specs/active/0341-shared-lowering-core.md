@@ -4140,3 +4140,33 @@ Rust 定向共583项通过，不是 frontend/workspace 全量。历史
 不修改源码、规模、ignore、线程栈或默认 profile。所有 CI-only 损坏产物注入也仅编译，
 未跑 native、Linux 或 Tree-sitter。本批继续同一草稿 PR #366 取得新头正式双平台 CI，
 旧 `cb1de268` 的 CI 不能代表本组合已通过；不自动合并，D10/E2 仍 in-progress。
+
+
+## 成功 overload lambda 消费者迁移（2026-11-08）
+
+基于 main `f83aff80fd565771eb4873ebf8cfa51b5613ad02`，独立分支
+`feature/spec-0341-overload-lambda-consumers`。与 expected 参数模式切片分别实现，
+只修改 Phase 2 测试消费入口；不改生产、Guide、ownership 或 lowering。
+
+- 原 `overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call` 与
+  `generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order` 的完整
+  源码、测试名、重复解析与自定义环境逐字保留。两项各走 MemoryDocument/Rooted；每个
+  入口在同一 ParsedFile、inputs、validated names 和环境上连续检查两次，不能用重新
+  resolve 替代原 repeated-check 合同。仅观察 raw types，不新增 final/ownership 前置。
+- 唯一候选保留两个 Int 返回、calls 相等与唯一 lambda 的 Borrow/Int；泛型候选保留
+  源码实参映射 `[2, 0, 1]`、Long 返回与 Inout/Borrow/Value 模式顺序。按真实 source-unit
+  和 local symbol 从 modes 表找到唯一原 binding，另核完整诊断、calls、body modes 与
+  body symbol types 的重复稳定性，不按同名文本或猜测索引配对。
+- 另17项顶层测试正文逐字保留，包含失败/歧义 trial 的 Single Error 恢复见证。
+  本文件直接 `check_types` 调用17→14，旧API不删；与其他切片合批后的数量另行清点，
+  本变化不代表所有 trial 或 D10/E2 完成。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 原入口基线与迁移后邻控 | `type_callable`，排除 `standard_error_has_a_stable_abort_identity_and_nothing_result` | 前后各20 passed，原Abort witness未执行 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、workspace fmt、docs、尺寸、diff | 全通过；863份Markdown、2203份Rust，34项历史超长无增长 |
+| 独立只读复核 | 原fixture/oracle、同names重复分析与source-qualified身份 | 无阻断，确认全部原契约保全 |
+
+Mac AArch64 / Rust1.96，locked/offline、独立target、默认debug profile，编译jobs=2。
+未运行故障注入、Abort、压力输入、frontend/workspace全量、native或正式CI。
+候选只保存在独立本地分支，交给同一PR合批；未自行推送、未合并，D10/E2仍in-progress。

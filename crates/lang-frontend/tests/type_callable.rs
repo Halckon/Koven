@@ -24,6 +24,9 @@ use unit_entries::checked_entries;
 #[path = "type_callable/expected_parameter_modes.rs"]
 mod expected_parameter_modes;
 
+#[path = "type_callable/overload_lambda_unit.rs"]
+mod overload_lambda_unit;
+
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,
@@ -709,35 +712,7 @@ fn overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls(), repeated.calls());
-    assert_eq!(typed.calls().len(), 2);
-    assert!(matches!(
-        typed.types().get(typed.calls()[0].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    assert!(matches!(
-        typed.types().get(typed.calls()[1].return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
-    let parameter = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-        .expect("committed lambda parameter");
-    assert_eq!(
-        typed.parameter_mode(parameter.id()),
-        Some(ParameterMode::Borrow)
-    );
-    assert!(matches!(
-        typed
-            .symbol_type(parameter.id())
-            .and_then(|ty| typed.types().get(ty)),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+    overload_lambda_unit::unique_trial(&sources, &parsed, &names, &types);
 }
 
 #[test]
@@ -837,34 +812,7 @@ fn generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order()
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let call = typed.calls().last().expect("selected generic overload");
-    assert_eq!(
-        call.arguments()
-            .iter()
-            .map(|argument| argument.parameter_index())
-            .collect::<Vec<_>>(),
-        [2, 0, 1]
-    );
-    assert!(matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Long))
-    ));
-    assert_eq!(
-        resolution
-            .symbols()
-            .iter()
-            .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-            .map(|symbol| typed.parameter_mode(symbol.id()))
-            .collect::<Vec<_>>(),
-        [
-            Some(ParameterMode::Inout),
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Value),
-        ]
-    );
+    overload_lambda_unit::generic_trial(&sources, &parsed, &names, &types);
 }
 
 #[test]
