@@ -28,6 +28,9 @@ mod non_null_unit;
 #[path = "type_checking/nominal_arity_spans.rs"]
 mod nominal_arity_spans;
 
+#[path = "type_checking/enum_type_position.rs"]
+mod enum_type_position;
+
 #[path = "type_checking/unit_entries.rs"]
 mod unit_entries;
 

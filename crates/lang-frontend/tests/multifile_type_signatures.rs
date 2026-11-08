@@ -440,3 +440,46 @@ fn nominal_arity_primary_stays_in_use_source_under_input_permutation() {
         assert!(signatures.validate().is_err());
     }
 }
+
+#[test]
+fn enum_case_position_diagnostic_preserves_cross_file_identity_and_input_order() {
+    let mut sources = SourceMap::new();
+    let (model_id, model) = parsed(
+        &mut sources,
+        "model.ko",
+        "package p\nenum class Shape { Circle }",
+    );
+    let (use_id, usage) = parsed(
+        &mut sources,
+        "use.ko",
+        "package p\nfun invalid(input: Shape.Circle): Unit",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/model.ko", model_id, &model),
+        SourceUnitInput::new("root", "p/use.ko", use_id, &usage),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    for inputs in [inputs, [inputs[1], inputs[0]]] {
+        let validated = names(&sources, &inputs, &name_environment)
+            .validate()
+            .expect("valid names");
+        let signatures =
+            collect_compilation_unit_signatures(&sources, &inputs, &validated, &type_environment)
+                .expect("signatures");
+        assert_eq!(codes(signatures.diagnostics()), ["L0114"]);
+        let diagnostic = &signatures.diagnostics()[0];
+        assert_eq!(sources.slice(diagnostic.primary_span()), Ok("Shape.Circle"));
+        assert_eq!(diagnostic.primary_span().source_id(), use_id);
+        let label = diagnostic
+            .details()
+            .iter()
+            .find_map(|detail| match detail {
+                lang_frontend::diagnostic::DiagnosticDetail::Label(label) => Some(label.span()),
+                _ => None,
+            })
+            .expect("root enum label");
+        assert_eq!(sources.slice(label), Ok("Shape"));
+        assert_eq!(label.source_id(), model_id);
+        assert!(signatures.validate().is_err());
+    }
+}

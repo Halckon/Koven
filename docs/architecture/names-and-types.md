@@ -157,6 +157,8 @@ callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不�
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
 canonical type identity；Unit 签名和 body 的结构能力保留确定否决，泛型调用与名义构造在字段能力待定时延迟发布描述符；构造的部分推断仅用于诊断。Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名、成员与顶层函数体的有界实例化拒绝不可存储的具体实参；名义字段、payload 与接口上界通过有限参数义务传播至类型引用及构造入口，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
+Unit 签名对已解析 enum case TypeRef 发 L0114（完整 TypeRef/root enum span），不实例化为可存储类型；type-test 仍走 body 独立入口。
+
 Unit 名义签名 L0091 的 primary 为 use-site 类型名、label 为声明名，不跨 source 解读 TypeRefId；覆盖见 `type_checking::nominal_arity_spans` 与 `multifile_type_signatures`。两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
 Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。 `type_checking::nominal_unit` 的12项原enum/构造、静态接口及返回流消费者已迁至双Unit raw type入口，15份原源码与原oracle保留，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次名义构造与接口类型消费者2026-11-07)。
 
