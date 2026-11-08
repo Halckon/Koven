@@ -4579,3 +4579,27 @@ producer。已撤销该测试的迁移，原Single源码和全部oracle逐字保
 本机Mac AArch64/Rust1.96、locked/offline、默认debug=2，独占target串行验证。
 共14项不同测试通过。独立复查步骤核原输入逐字保全、Single完整恢复和原oracle对等迁移。
 未运行完整target、workspace、native、Linux或官方CI；没有推送或自动合并，D10/E2仍in-progress。
+
+## Signature 与深类型图候选复用整合（2026-11-08）
+
+以远端 main `65eaf1a736b7060416ff25ffc5233eb6ee473855` 为基线，隔离分支复用
+`40df03a9` 的 Rc/signature 四提交链及 `cd86f515`，不重复 Rc，不改生产实现。
+主线 `nominal_unit/stress.rs` 的128个枚举分支/96层smart-cast及其Single见证逐字保留；
+深泛型候选原stress另存 `deep_graph_stress.rs`，96层Box与64接口输入不降规模。
+原候选工作区和其未提交文档不变。上述历史signature/Rc验收仅属于各节旧基线；
+旧Unit L0114缺失及L0091定位差异已由当前主线修复，不作为当前缺口或新头通过证据。
+
+独立逐项复审核五份原输入、oracle、helper source/analysis身份与两份stress字节保全。
+首次整合把stress模块重复注册，实际编译报E0428；修正后两模块各注册一次并重跑。
+文档首次超过200行入口限制，已将新事实放回原消费者概览，未删除历史记录或提高额度。
+
+| 验收项 | 本组合实际选择 | 结果 |
+|---|---|---|
+| 类型消费者 | `type_checking`，排除两个同名 `long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 93 passed，2 filtered；历史压力整项只编译，交正式CI |
+| 签名共享邻控 | `multifile_type_signatures` 全目标 | 24 passed |
+| 静态检查 | frontend all-targets Clippy，locked/offline，`-W clippy::all -D warnings`；workspace fmt、diff | 通过 |
+| 文档与尺寸 | `check_docs.py`、`check_rust_sizes.py --base 65eaf1a7` | 863 Markdown；2221 Rust、35项既有超长，无新额度 |
+
+Mac AArch64、Rust1.96、默认debug，独占复用target且Cargo串行。117项不同普通测试通过；
+没有执行历史Abort/长枚举压力、故障注入、frontend全量、native或Linux。当前头正式CI
+仍待运行，不沿用原候选绿灯；不自动合并，D10/E2仍in-progress。
