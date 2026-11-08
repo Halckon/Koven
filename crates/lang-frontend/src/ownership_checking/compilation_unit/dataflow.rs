@@ -352,7 +352,7 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     let callable_provenance = if diagnostics.is_empty() && typed.has_valid_type_facts() {
-        callable_provenance::finish(&callable_sources, typed, closure_inputs.captures)
+        callable_provenance::finish(&callable_sources, typed, &capture_index)
     } else {
         Default::default()
     };

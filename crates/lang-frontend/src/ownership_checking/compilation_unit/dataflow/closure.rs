@@ -42,6 +42,10 @@ impl CaptureIndex<'_> {
         self.captures.is_empty()
     }
 
+    pub(super) fn contains_lambda(&self, lambda: UnitExpressionId) -> bool {
+        self.by_lambda.contains_key(&lambda)
+    }
+
     pub(super) fn for_lambda(
         &self,
         lambda: UnitExpressionId,

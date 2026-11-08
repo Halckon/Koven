@@ -317,6 +317,9 @@ fn capture_queries_visit_only_the_requested_lambda_in_each_source() {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(lambdas.len(), count);
 
+        assert!(lambdas.iter().all(|&lambda| index.contains_lambda(lambda)));
+        assert_eq!(index.descriptor_visits.get(), 0);
+
         let mut linear_visits = 0;
         for lambda in lambdas {
             let expected = captures

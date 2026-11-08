@@ -825,3 +825,40 @@ fn callable_contract_abort_return_and_lambda_inner_return_are_not_outer_deliveri
         ))
     );
 }
+
+#[test]
+fn callable_contract_factory_captures_are_scoped_to_the_source_unit() {
+    let fixture = preflight(
+        "package p\nfun plain(own seed: Int): (Int)->Int = move { index -> index }",
+        "package q\nfun captured(own seed: Int): (Int)->Int = move { index -> seed }",
+    );
+    let plain = expression(
+        &fixture.sources,
+        &fixture.provider,
+        source_unit(&fixture.names, fixture.provider_source),
+        "move { index -> index }",
+    );
+    let captured = expression(
+        &fixture.sources,
+        &fixture.consumer,
+        source_unit(&fixture.names, fixture.consumer_source),
+        "move { index -> seed }",
+    );
+    assert_eq!(plain.expression(), captured.expression());
+    assert_ne!(plain.source_unit(), captured.source_unit());
+    assert!(fixture.owned.captures_of(plain).next().is_none());
+    assert_eq!(fixture.owned.captures_of(captured).count(), 1);
+    let [pointer] = fixture.owned.pointer_callable_returns() else {
+        panic!("only the capture-free factory has a pointer return");
+    };
+    assert_eq!(pointer.target(), target(&fixture, "plain"));
+    assert_eq!(
+        pointer.origin(),
+        UnitPointerCallableReturnOrigin::Lambda(plain)
+    );
+    let [closure] = fixture.owned.closure_callable_returns() else {
+        panic!("only the capturing factory has a closure return");
+    };
+    assert_eq!(closure.target(), target(&fixture, "captured"));
+    assert_eq!(closure.origin(), captured);
+}
