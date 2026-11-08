@@ -91,7 +91,15 @@ fn replay(
                 let (left, left_continues) = replay(then_events, &loans)?;
                 let (right, right_continues) = replay(else_events, &loans)?;
                 loans = match (left_continues, right_continues) {
-                    (false, false) => return None,
+                    (false, false) => {
+                        // A nested terminal fork ends its enclosing path too.
+                        // No event may run after either already-retired alternative.
+                        if event_index + 1 != events.len() || !left.is_empty() || !right.is_empty()
+                        {
+                            return None;
+                        }
+                        return Some((left, false));
+                    }
                     (false, true) => right,
                     (true, false) => left,
                     (true, true) if left == right => left,

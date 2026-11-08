@@ -4494,3 +4494,34 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+## 双 bare Return 的终止闭合（2026-11-08）
+
+基于本地合批 `2dec24d2`，隔离分支 `feature/spec-0341-terminal-owner-edges` 推进 Phase 3
+owner observation。原 Shared 双 Return 完整源码先实际得到 Unsupported/Syntax；再接纳
+显式 If 的 Nothing 结果，由真实 bare Return 事件闭合两臂。两 replay 各自传播终止并拒绝
+后缀；主位置只归一 Dropped/Uncreated，不生成动态 join、phi 或额外清理。
+
+原 Shared/Owned 双终止源码逐字保留为正控。八份真实输入覆盖同源多环境、多来源、嵌套、
+外层继续及两侧终止臂局部定义；逐项对照 AST If/Return 身份和每条路径实际形成集合的
+恰一次清理。Owned alias 保持原 AfterStatement 槽/环境释放点。四份边界保留带值返回、
+隐式 else、循环和臂内 Owned capture 拒绝；完整 Analysis 开关对比不只比较数量。
+
+独立复审指出两 replay 的组合负控可能互相遮蔽，已增加各自直接入口的终止传播、后缀与
+缺清理负控并完成静态复核。这些损坏产物测试只编译，未本地执行。事件 gate 不重判 typed
+AST；真实 Return 的身份与完整性由 producer 和源码正控约束，不宣称损坏图可反推源码。
+
+| 验收 | 目标/命令 | 本机实际结果 |
+|---|---|---|
+| 新终止与原合同 | lib 16项普通精确选择：`terminal_return` 三项正控、`terminal_if_observation_preserves_full_legacy_cleanup_analysis`；既有12项单 Return、局部 owner、捕获槽和完整 cleanup 普通合同 | 16 passed；新增8准入+4拒绝源码，零失败/忽略；CI-only负控仅 `--lib --no-run` 编译 |
+| 原循环与消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 原 Return 与借用顺序 | `ownership_checking::return_cleanup_preserves_declaration_order_after_rebinding`、`ownership_borrow_continuation::children_end_before_parents_and_owner_cleanup_on_scope_and_return_edges` | 1 + 1 passed |
+| 严格静态检查 | frontend `clippy --locked --offline --all-targets -- -W clippy::all -D warnings`；fmt、docs、尺寸 `--base 2dec24d2`、diff | passed；全部修改 Rust 文件低于1000行，未新增尺寸例外 |
+
+Mac 使用既有 target 串行、jobs=2、默认 debug profile。首轮常规 all-targets Clippy 报现有
+borrow transport 三个 API 缺失，源码均存在，`--lib -vv` 却显示 Fresh；显式开启默认
+`clippy::all` 并保持严格 warnings 后全目标重核通过。未删缓存或改源码来消除该错误；
+首轮失败保留，跨 worktree 复用产物的关联不等于完整根因证明。
+
+本片28项普通定向通过，不代表 frontend 全量；未跑 workspace、native、Linux、正式CI
+或损坏注入。主线随后新增的 CaptureIndex 合流须在最终组合头重验，不能复用此旧基底
+作为组合证明。V1、动态条件 owner/phi、循环实例及 D10/E2仍未完成；仅本地提交，不推送。

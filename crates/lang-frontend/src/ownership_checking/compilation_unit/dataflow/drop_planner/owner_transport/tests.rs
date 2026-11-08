@@ -199,3 +199,20 @@ fn owned_capture_return_preserves_full_cleanup_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn terminal_if_observation_preserves_full_legacy_cleanup_analysis() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::terminal_return::{
+        BOUNDARIES, SOURCES,
+    };
+    for source in SOURCES
+        .iter()
+        .map(|(source, _, _)| *source)
+        .chain(BOUNDARIES.iter().copied())
+    {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}
