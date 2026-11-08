@@ -4691,3 +4691,29 @@ all-targets check、fmt、文档、diff通过；相对d2a81954尺寸门禁为222
 超长，原额度不变。Mac/Rust1.96/LLVM21.1.8、默认debug、jobs=2，共享target串行。
 未运行frontend/workspace全量测试、native、Linux或正式CI。文档后继不冒称再次运行
 测试；新头正式CI待验证，草稿发布不表示D10/E2完成，不自动合并。
+
+### 双终止负控夹具的正式 CI 修复（2026-11-08）
+
+输入为 #374 的 `51a20256dcd9d036ceba5f23cc3e6166c1783d75`，base 仍为 `d2a81954`。
+[正式 run 42494969195](https://github.com/Halckon/Koven/actions/runs/42494969195) 的
+[Linux](https://github.com/Halckon/Koven/actions/runs/42494969195/job/128776499617)与
+[macOS](https://github.com/Halckon/Koven/actions/runs/42494969195/job/128776499633)均在三个
+terminal owner 负控准备阶段 `unwrap(None)`：原 `SOURCES[0]` 的 callback 从未在分支使用，
+已合法在声明后 ASAP 退休，分支中不存在所假定的 SharedCaptureEnd。这不是生产 cleanup
+缺失；后继 artifact 未生成属于前序测试失败，不通过简单重跑或修改生产语义掩盖。
+
+原八个 SOURCES 逐字保留。新增双臂 alias 使用源并加入完整 Analysis 开关等价测试；
+两项普通源码回归分别固定原 unused-prefix 与新 branch-retirement，独立核对 AST alias
+清理点、真实来源 owner 和 Return 身份。三个负控改用真实活入分支的夹具，按唯一
+环境/来源身份找破坏目标，不再把 `end + 2` 当作来源 Drop；六种总验证、两臂 location-only
+删除及两臂 overlay-only 删除/重复拒绝全部保留，生产文件无改动。
+
+安全前提回归首先在原源实际失败（分支 end 0，预期1）；新增源首次运行的重复字面量
+AST 查询歧义亦记录为失败，改用唯一比较串后同选择通过。最终普通 lib 精确27项通过，
+其余376项未选：原23项加两项新回归、Shared双臂退休及原plain-return邻控，不重复累计
+4项先行复跑。全部403项lib已编译；frontend all-targets严格Clippy、fmt、文档、diff与
+相对d2a81954的Rust尺寸门禁通过。独立只读复审核原源保全、身份选择与三层负控未发现阻断。
+
+Mac AArch64/Rust1.96、locked/offline、默认debug、jobs=2、共享target串行；损坏注入、
+Abort、压力及native本机未执行，未复跑workspace或frontend全量。按本轮范围仅本地提交
+并format-patch备份，不推送或合并；修复头正式双宿主CI尚未运行，远端旧头失败仍未解除。

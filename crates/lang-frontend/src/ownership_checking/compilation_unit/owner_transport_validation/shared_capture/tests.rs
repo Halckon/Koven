@@ -179,7 +179,9 @@ fn branch_retirement_requires_equal_complete_slot_states() {
 
 #[test]
 fn terminal_forks_preserve_the_independent_loan_overlay_contract() {
-    use crate::ownership_checking::compilation_unit::owner_transport_tests::terminal_return::SOURCES;
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::terminal_return::{
+        BRANCH_RETIREMENT, SOURCES, retirement_indexes,
+    };
     for index in [0, 4] {
         let fixture = Fixture::new(&[("root.ko", SOURCES[index].0)]);
         let owned = fixture.shared();
@@ -196,8 +198,10 @@ fn terminal_forks_preserve_the_independent_loan_overlay_contract() {
         suffix.push(else_events.last().unwrap().clone());
         assert!(!consistent(&suffix));
     }
-    let fixture = Fixture::new(&[("root.ko", SOURCES[0].0)]);
+    let fixture = Fixture::new(&[("root.ko", BRANCH_RETIREMENT)]);
     let owned = fixture.shared();
+    let observation = &owned.owner_observations()[0];
+    assert!(consistent(observation.events()));
     for arm in [0, 1] {
         for damage in 0..3 {
             let mut events = owned.owner_observations()[0].events().to_vec();
@@ -210,16 +214,13 @@ fn terminal_forks_preserve_the_independent_loan_overlay_contract() {
                 unreachable!()
             };
             let edge = if arm == 0 { then_events } else { else_events };
-            let end = edge
-                .iter()
-                .position(|event| matches!(event, UnitOwnerTransportEvent::SharedCaptureEnd { .. }))
-                .unwrap();
+            let (end, environment_drop, _) = retirement_indexes(observation, edge);
             match damage {
                 0 => {
                     edge.remove(end);
                 }
                 1 => {
-                    edge.remove(end + 1);
+                    edge.remove(environment_drop);
                 }
                 _ => {
                     edge.insert(end, edge[end].clone());

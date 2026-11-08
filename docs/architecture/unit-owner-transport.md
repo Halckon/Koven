@@ -193,6 +193,8 @@ source-qualified UnitReturn，继续臂不带终止事件。原双 bare Return �
 
 原 Shared/Owned 双终止输入逐字保留，真实源码按 AST Return 身份与每条路径的实际
 形成集合检查恰一次清理；Owned alias 仍在原 AfterStatement 释放，不推迟到 Return。
+未使用的 Shared 环境仍在 If 前 ASAP 退休；双臂 alias 见证另核真实分支内的
+SharedCaptureEnd、环境与来源 Drop 身份，按 AST alias 的 AfterStatement 清理，不伪造 Return 端点。
 两 replay 各有独立的损坏产物负控，防止组合校验互相遮蔽。事件校验不重判 typed AST，
 不凭清理序列推断原源码必然终止；Return 身份和完整性由 producer 与源码合同约束。
 V1、动态条件 owner/phi、循环实例及 native 能力不变。

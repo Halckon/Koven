@@ -1,7 +1,8 @@
 //! CI-only location replay contracts, deliberately bypassing the loan overlay.
 use super::*;
 use crate::ownership_checking::compilation_unit::{
-    formed_tests::Fixture, owner_transport_tests::terminal_return::SOURCES,
+    formed_tests::Fixture,
+    owner_transport_tests::terminal_return::{BRANCH_RETIREMENT, SOURCES, retirement_indexes},
 };
 
 fn replay(observation: &UnitOwnerObservation, events: &[UnitOwnerTransportEvent]) -> Option<bool> {
@@ -63,12 +64,12 @@ fn location_replay_propagates_terminal_forks_and_rejects_all_successors() {
 
 #[test]
 fn location_replay_requires_actual_terminal_retirement_on_both_arms() {
-    let fixture = Fixture::new(&[("root.ko", SOURCES[0].0)]);
+    let fixture = Fixture::new(&[("root.ko", BRANCH_RETIREMENT)]);
     let owned = fixture.shared();
     let observation = &owned.owner_observations()[0];
     assert_eq!(replay(observation, observation.events()), Some(false));
     for arm in [0, 1] {
-        for drop_offset in [1, 2] {
+        for remove_environment in [true, false] {
             let mut events = observation.events().to_vec();
             let UnitOwnerTransportEvent::If {
                 then_events,
@@ -79,11 +80,12 @@ fn location_replay_requires_actual_terminal_retirement_on_both_arms() {
                 unreachable!()
             };
             let edge = if arm == 0 { then_events } else { else_events };
-            let end = edge
-                .iter()
-                .position(|event| matches!(event, UnitOwnerTransportEvent::SharedCaptureEnd { .. }))
-                .unwrap();
-            edge.remove(end + drop_offset);
+            let (_, environment_drop, source_drop) = retirement_indexes(observation, edge);
+            edge.remove(if remove_environment {
+                environment_drop
+            } else {
+                source_drop
+            });
             assert_eq!(replay(observation, &events), None);
         }
     }
