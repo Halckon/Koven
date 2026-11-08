@@ -483,3 +483,5 @@ fn enum_case_position_diagnostic_preserves_cross_file_identity_and_input_order()
         assert!(signatures.validate().is_err());
     }
 }
+#[path = "multifile_type_signatures/enum_identity.rs"]
+mod enum_identity;

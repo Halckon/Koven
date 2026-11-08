@@ -162,8 +162,8 @@ Unit 签名对已解析 enum case TypeRef 发 L0114（完整 TypeRef/root enum s
 Unit 名义签名 L0091 的 primary 为 use-site 类型名、label 为声明名，不跨 source 解读 TypeRefId；覆盖见 `type_checking::nominal_arity_spans` 与 `multifile_type_signatures`。两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
 Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。 `type_checking::nominal_unit` 的12项原enum/构造、静态接口及返回流消费者已迁至双Unit raw type入口，15份原源码与原oracle保留，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次名义构造与接口类型消费者2026-11-07)。
 
-unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
-不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
+Unit inline-layout 先解包声明修饰器，保留 enum/value class 身份与 L0116；`multifile_type_signatures::enum_identity` 覆盖三可见性双入口、跨包 public enum 及输入排列。
+unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
 `type_containers` 的六项核心构造、诊断、遮蔽、泛型推导与 size 原测试走双 Unit 入口；signature storage 诊断和 deferred recovery 两项 Single witness 保留。对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
 `multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。 `type_checking::scalar_unit` 与 `interface_unit` 的九项原数值、局部/返回和接口诊断消费者走双 Unit raw type 入口，保留原诊断顺序、span 与自定义环境；顶层数值溢出因 Unit 额外 L0167 保留原 Single witness，不增加 final/ownership 前置。 四批合并后原82项测试与新增顶层对照共83项全部保留，见[组合验收](../specs/active/0341-shared-lowering-core.md#115-raw-type-消费者四批集中集成2026-11-07)。 `type_callable` 的调用失败分类与泛型推导冲突两项消费者使用同源双 Unit 入口，保留原有序诊断码与 primary span。nullable overload ambiguity 已补 Unit 相容规则并保留三入口见证；唯一候选 lambda 的 callback label 精度仍有差异，保留原 Single 见证。
