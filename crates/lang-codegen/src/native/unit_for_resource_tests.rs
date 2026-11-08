@@ -203,3 +203,36 @@ fn unit_for_resource_value_components_return_cleans_nested_sources_once() {
         );
     }
 }
+
+#[test]
+fn unit_qualified_while_reassignment_releases_replaced_string_owners_once() {
+    let provider = r#"
+package p
+value class Pair(val first: Int, val second: Int)
+fun fresh(left: String, right: String): String = left + right
+fun work(limit: Int): Unit {
+    val (second, first) = Pair(20, 22)
+    var outer: String? = fresh("fi", "rst")
+    val untouched: String? = fresh("ke", "pt")
+    var step = 0
+    if (outer != null && untouched != null) {
+        while (step < limit && first == 20) {
+            step = step + 1
+            outer = fresh("sec", "ond")
+            if (step < limit) { continue }
+            break
+        }
+        println(untouched)
+    }
+    if (outer != null && outer == "second") { println("changed") }
+}
+"#;
+    let consumer = "package q\nfun entry(): Unit { p.work(0); p.work(3) }";
+    let expected = b"kept\nkept\nchanged\n";
+    for constants in [false, true] {
+        let (run, ir) = run_unit(provider, consumer, constants);
+        assert_success(&run, expected);
+        // Two fresh roots per call and one fresh replacement per executed iteration.
+        assert_success(&run_counted_allocations(&ir, 2 + 2 + 3), expected);
+    }
+}

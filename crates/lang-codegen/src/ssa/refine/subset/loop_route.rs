@@ -1,5 +1,5 @@
-//! A retry may combine while with sequential iteration only after a validated
-//! local destructuring makes the callable require refinement.
+//! A retry can qualify sequential iteration with while, or a while header
+//! that invalidates a proof, only with a validated local destructuring.
 use super::{RefineInputs, accepts_with_loop_route};
 
 #[derive(Clone, Copy, PartialEq, Eq)]

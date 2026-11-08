@@ -962,11 +962,14 @@ impl Checker<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => {
-                self.strip_reassigned_loop_views(node.span(), true);
+                let invalidated = self.strip_reassigned_loop_views(node.span(), true);
                 let saved = self.view_symbols.clone();
                 let ok = self.condition(condition, true)
                     && (!self.condition_outcomes(condition).0 || self.loop_body(body));
                 self.view_symbols = saved;
+                if ok && invalidated {
+                    self.loop_route = LoopRoute::Verified;
+                }
                 ok
             }
             Statement::Loop { body, .. } => {
