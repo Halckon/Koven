@@ -4170,3 +4170,38 @@ Rust 定向共583项通过，不是 frontend/workspace 全量。历史
 Mac AArch64 / Rust1.96，locked/offline、独立target、默认debug profile，编译jobs=2。
 未运行故障注入、Abort、压力输入、frontend/workspace全量、native或正式CI。
 候选只保存在独立本地分支，交给同一PR合批；未自行推送、未合并，D10/E2仍in-progress。
+
+
+### PR #366 追加消费者与旧 Owned Return 见证迁移（2026-11-08）
+
+在已发布 `e26babd4` 上合入 main `59396543`（#368），追加 `204bdeeb` 的两项成功
+overload lambda 消费者，整合为 `0fb8dc50`。仅模块注册、Architecture同段与本账本
+追加冲突，双方内容保留；原expected模式helper、失败trial见证与#368全部13文件逐字
+保全。`type_callable`直接`check_types`调用由本PR前一头16减至13，不以调用次数代替任务数。
+
+前一头的[正式CI](https://github.com/Halckon/Koven/actions/runs/42478679334)在旧
+`capture_release_does_not_admit_noncontinuing_if_edges`断言失败：原完整Owned move
+环境单bare Return输入已按新协议Complete，旧oracle仍要求Unsupported/Syntax。
+`0fb8dc50`本机精确复现同因，0 passed/1 failed，不能将首次失败算作通过。
+
+修复 `7ea84ebab07c35269df71cb0231081b6d56a3c02` 仅改测试与架构，不再放宽生产。
+原 `RETURN_RELEASE` 源码完整保留为正控，固定原参数槽、closure/If/Return的真实Unit
+身份，两路径各一次slot→environment释放，独立从AST构造AfterStatement清理点，继续
+臂无终止且顶层无重复清理，V1仍拒绝。原负测名改承接完整双return输入，保留精确
+Unsupported/Syntax、definitions/events整体清空；两个输入均比较观测开关的完整Analysis。
+独立复审确认这是既有准入的oracle迁移，不从当前事件反推预期，不削弱原源码契约。
+
+| 验收项 | 目标/选择 | 实际结果 |
+|---|---|---|
+| 类型、名称、callable与新main Parser | 前述10目标加 `parser_class_family`、`parser_interface_delegation`，`--no-fail-fast` | 498 + 65 + 15 = 578 passed；两项历史Abort仍精确排除 |
+| Owned修复、Shared、终止边与完整cleanup等价 | 前述16个普通lib选择，加新正/负控及全Analysis、既有两项branch release与两项composition邻控 | 23 passed；未选364项，不运行注入 |
+| 循环、消费者与原Return/borrow | 前述4目标/过滤器 | 8 + 2 + 1 + 1 = 12 passed |
+| LSP直接下游 | 完整LSP及失败stdio的原参数精确复核 | lib 56 passed；stdio首轮10秒响应超时，未改代码/超时阈值的精确复核1 passed（9.57秒） |
+| 静态质量与跨crate | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸相对59396543、diff | 全通过；863份Markdown、2210份手写Rust/34项历史超长 |
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、同一独立target、默认debug、
+jobs=2，门禁串行。最终相关Rust选择累计670项通过，保留上述首次失败/超时记录；stdio
+超时原因未定位，不声称已修复或全量通过。类型/外部消费者在`0fb8dc50`实跑，后续仅
+私有测试/架构变化，输入等价；23项lib及静态门禁在`7ea84eba`复跑。尺寸政策未改，复用
+前一组合47项政策实跑。两项历史Abort、所有CI-only注入仍仅编译，未跑native、Linux、
+Tree-sitter或frontend/workspace全量。新头需重新取得正式CI，PR仍草稿，不自动合并。
