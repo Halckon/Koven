@@ -1,8 +1,8 @@
-//! source-qualified 普通 Borrow/Value 参数 shared 结果；非 refine 路径保留 Map 借用 root 绑定。
+//! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
 use super::*;
 use lang_frontend::{
-    ownership_checking::{BorrowBindingFact, UnitLoanTarget},
-    type_checking::BorrowReturnOrigin,
+    ownership_checking::{BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget},
+    type_checking::{BorrowReturnOrigin, UnitAggregateProjectionReceiver},
 };
 
 pub(super) fn validate_declarations(
@@ -46,6 +46,55 @@ pub(super) fn validate_declarations(
         }
     }
     Ok(())
+}
+
+// These binding shapes have dedicated lowering checks. Other bindings still require
+// the older whole-function CFG frontier, including RangeView and carrier aliases.
+fn has_dedicated_binding_path(
+    file: &lang_frontend::parser::ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+) -> Result<bool, LoweringError> {
+    let UnitLoanTarget::Place(place) = fact.origin() else {
+        return Ok(false);
+    };
+    if fact.storage() != BorrowBindingStorage::BorrowedStorage
+        || fact.source_loan().is_some()
+        || fact.parent().is_some()
+        || place.element().is_some()
+    {
+        return Ok(false);
+    }
+    let source_unit = fact.binding().source_unit();
+    if !place.is_root() {
+        let expression = crate::ssa::borrow_result_support::ungroup(
+            file,
+            fact.initializer().expression(),
+            fact.marker_span(),
+        )?;
+        return Ok(typed
+            .aggregate_projection(UnitExpressionId::new(source_unit, expression))
+            .is_some_and(|projection| {
+                matches!(projection.receiver(), UnitAggregateProjectionReceiver::Expression(receiver)
+                    if receiver.source_unit() == source_unit)
+                    && place.fields().last() == Some(&projection.field())
+            }));
+    }
+    Ok(owned.map_iterations().iter().any(|plan| {
+        let statement = plan.descriptor().statement();
+        statement.source_unit() == source_unit
+            && plan.source() == Some(fact.origin())
+            && super::map_iteration::stable_borrow_provider(
+                file,
+                names,
+                typed,
+                owned,
+                statement,
+                fact.binding(),
+            )
+    }))
 }
 
 fn validate_binding(
@@ -199,8 +248,7 @@ impl UnitExpressionLowerer<'_> {
         // Only direct root Borrow parameter aliases remain here (SPEC-0393).
         let origin = match fact.origin() {
             UnitLoanTarget::Place(origin)
-                if fact.storage()
-                    == lang_frontend::ownership_checking::BorrowBindingStorage::BorrowedStorage
+                if fact.storage() == BorrowBindingStorage::BorrowedStorage
                     && fact.source_loan().is_none()
                     && fact.parent().is_none()
                     && origin.is_root() =>
@@ -286,8 +334,7 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn validate_bindings_for_test(
+pub(crate) fn validate_bindings(
     parsed: &[&lang_frontend::parser::ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
@@ -298,7 +345,9 @@ pub(crate) fn validate_bindings_for_test(
             .iter()
             .find(|file| file.source_id() == fact.marker_span().source_id())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
-        validate_binding(file, names, typed, owned, fact)?;
+        if !has_dedicated_binding_path(file, names, typed, owned, fact)? {
+            validate_binding(file, names, typed, owned, fact)?;
+        }
     }
     Ok(())
 }

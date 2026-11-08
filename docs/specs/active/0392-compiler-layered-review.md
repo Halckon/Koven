@@ -2737,18 +2737,28 @@ CLI 实测 `6f791a21` 上，字段借用、打印、随后 return 的程序构�
 （UnsupportedNode），追加一个未调用、含 swap 的函数后退出 0 并输出 `hi`。
 原生回归先在有/无该 sibling 的输入上复现，故障定位到与借用已无交叠的 return。
 
-旧整函数扫描从编排前置移到实际旧绑定入口，并限于已确定不受支持的形状，用于保留
-精确拒绝诊断。细化层使用已验证的绑定/来源/生命周期事实。稳定根 Map 别名仍核对
-直接来源、活动 shared loan、provider 计划和 CFG 传递，再交最终 verifier。
-首版移动扫描会误拒旧 Map 根别名。CLI A/B 证实，在别名建立前添加 `if` 的 P05-for
-变体带 swap 时旧版可运行、首版拒绝。最终修正后，两种借用的有/无 sibling 原生
-回归均构建、运行并产生相同输出，原拒绝矩阵保持精确位置。独立复核确认。
+首版将旧整函数扫描移到旧绑定入口，误拒别名建立前含 `if` 的 P05-for 变体。第二版
+修复两条原生正控，但去掉的前置扫描仍保护已知未支持的 RangeView、普通借用与 carrier
+别名边界。PR #375 的 `c58be8ae` 在 [Linux](https://github.com/Halckon/Koven/actions/runs/42496593270/job/128781164928)
+和 [macOS](https://github.com/Halckon/Koven/actions/runs/42496593270/job/128781164978)
+均实际通过两条原生正控，也分别失败于同样的 27 条 codegen 拒绝测试，后续验收未执行。
+
+修补保留原 CFG 前置开关，门禁启用时仅跳过两类有专门检查的形状。直接字段绑定匹配 typed 投影
+与 owned 来源字段，由细化层消费绑定、来源和生命周期事实。稳定根 Map 别名匹配同一
+来源及完整 provider 计划，旧路径仍核对直接来源、活动 shared loan、CFG 传递与最终 verifier。
+未改动 RangeView、carrier 别名、普通调用返回的绑定前置或拒绝测试的 oracle。
 
 编译单元借用结果声明准入与 Map 迭代前置的原边界保留。另一个借用返回转发候选
 `view(n + 1, source)` 在有/无未调用 swap 时均无法构建，但错误在 UnsupportedNode
-和 InvalidModel 间变化。该 builder 差异与 Map 迭代旧前置仍待逐项审计。
+和 InvalidModel 间变化。普通借用调用结果的局部绑定另在 `c58be8ae` 上复现三种
+`if` 位置（绑定前、存活期间和最后读取后）都受未调用 swap 影响。无 sibling 时
+三者构建退出 2，有 sibling 时构建运行退出 0。局部绑定、转发与 Map 迭代前置分别复审。
 
 本机实际执行 map/refine 路由矩阵 13 项、Map 原别名事实 1 项、multi-borrow 6 项、
 borrow result 5 项、RangeView 路由 1 项、依赖方向 14 项，共 40 项，零失败和忽略。
 对象写入修复后的前置提交 `6f791a21` 另实际运行 LLDB/Mach-O/CLI 最终产物 6 项，
 零失败和忽略，包含实际停止在源码断点和 Unicode 多根项目。
+
+修补版在本机按双宿主失败日志的精确测试名复跑原 27 项，并运行两条原生正控，
+共 29 项通过，零失败和忽略；lang-codegen 全目标 Clippy、fmt、文档与 Rust 尺寸门禁通过。
+收紧来源身份前启动的全 lib 本机运行已主动结束，完整修补版矩阵以新双宿主 CI 为准。
