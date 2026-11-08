@@ -864,3 +864,6 @@ mod prefix_oracle;
 
 #[path = "unit_direct_call_loan_ends/prefix_order.rs"]
 mod prefix_order;
+
+#[path = "unit_direct_call_loan_ends/borrow_transport.rs"]
+mod borrow_transport;

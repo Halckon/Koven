@@ -103,6 +103,7 @@ pub(super) struct Analysis {
     pub(super) exclusive_call_prefix_ends: Vec<super::UnitExclusiveCallPrefixEndFact>,
     pub(super) borrow_call_prefix_ends: Vec<super::UnitBorrowCallPrefixEndFact>,
     pub(super) borrow_call_handoffs: Vec<super::UnitBorrowCallHandoffFact>,
+    pub(super) borrow_call_transports: Vec<super::UnitBorrowCallTransportFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -213,6 +214,7 @@ pub(super) fn analyze(
     let mut owner_observations = Vec::new();
     let mut borrow_call_prefix_ends = Vec::new();
     let mut borrow_call_handoffs = Vec::new();
+    let mut borrow_call_transports = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
@@ -309,6 +311,7 @@ pub(super) fn analyze(
         owner_observations.extend(drop_analysis.owner_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
+        borrow_call_transports.extend(drop_analysis.borrow_call_transports);
         borrow_call_prefix_ends.extend(drop_analysis.borrow_call_prefix_ends);
         exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
         drops.extend(drop_analysis.drops);
@@ -393,6 +396,7 @@ pub(super) fn analyze(
         owner_observations,
         direct_call_loan_ends,
         borrow_call_handoffs,
+        borrow_call_transports,
         borrow_call_prefix_ends,
         exclusive_call_prefix_ends,
         value_deliveries,

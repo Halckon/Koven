@@ -228,3 +228,34 @@ impl UnitBorrowCallPrefixEndFact {
         self.preceding_call_loan_ends
     }
 }
+
+/// Actual source-token transport through a synchronous Borrow consumer.
+/// This bounded normal-return transaction is not a complete loan-end stream.
+/// It does not cover binding/forwarded sources, receivers, providers or unwind.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowCallTransportFact {
+    pub(super) source: UnitLoanFact,
+    pub(super) consumer: UnitLoanFact,
+}
+
+impl UnitBorrowCallTransportFact {
+    /// The inner call completed here, moving its actual source token into transport.
+    /// This is a handoff, not a source end.
+    #[must_use]
+    pub const fn handoff_point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source.call)
+    }
+
+    /// The actual consumer completed here and retired both transported tokens.
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.consumer.call)
+    }
+
+    /// Consumer token ends before its source ancestor, in this transaction only.
+    /// Other transactions and cleanup actions have no shared ordering through this API.
+    #[must_use]
+    pub const fn ended_loans(&self) -> [&UnitLoanFact; 2] {
+        [&self.consumer, &self.source]
+    }
+}

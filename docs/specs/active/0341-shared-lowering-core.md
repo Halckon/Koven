@@ -4225,3 +4225,36 @@ source loan identity。辅助 loan 又存于 handoff 旁表。因此当前 itera
 也不是完整 loan-end 流，禁止拼接现有切片或从 end_span/result endpoint 反推全局事件。
 后续应从实际 pending token 建立 continuation 状态，分别闭合同步 consumer、local binding
 和 forwarded return 的生命周期及错误原子发布，再逐项退休 Single 证据。
+
+### 真实 source token 的同步 consumer 运输首片（2026-11-08）
+
+同分支在前项合同后新增生产状态运输，不止增加测试。`borrow_transport` 在 inner 正常
+返回且同轮 call-use 已验证时，从实际 pending 队列移出唯一 source token，保存进
+ValueState；outer 正常返回再匹配并移出真实 consumer token，最后消费所运输的 source。
+`UnitBorrowCallTransportFact` 保留两份完整 source-qualified loan 身份、inner handoff 点、
+outer return 点及局部 consumer-before-source 顺序。它不从最终 loan descriptor、end_span
+或结果 endpoint 生成结束事实；两处移出的 token 原本均会被各自 call-local retain 删除。
+
+首片限无 receiver 的直接声明借用调用、当前存活 owned Shared 根及返回 owned 结果的
+直接 declaration/symbol 同步 consumer。Group 只保原参数身份；同根的两份 source 与
+命名反排仍按实际 pending 顺序分别运输。辅助 Shared 根资格复用既有检查，排除 parent、
+provider、投影和 temporary。新状态随 ValueState 克隆，合流只保全部继续边共有的同一
+transport；不修改原 owner 保护、iteration/native cleanup 或调用检查语义。
+
+只有完整正常 consumer 事务发布；未完成事务不代表已释放来源。错误与 deferred 沿两层
+原子门清空新产物。此首片不是全局完整流，也不提供跨事务统一顺序或 unwind/source
+absence 证明；local binding、forwarded return、receiver/provider 与完整 CFG 运输仍待
+后续。既有 direct/forwarded absence、named source 恰一次与 nested 顺序 Single 见证原样保留。
+
+先因新 API 缺失得到编译红测；实现后5项双入口测试通过：direct/Group、同根命名反排的
+固定字节身份、未完成 consumer/后置错误、非空 prefix 后 deferred、后参 CFG 关闭边界。
+CFG 成功探针实际得到既有 L0164（`view(owner)` 的167–178字节）；改为锁定现行拒绝合同，
+双继续与混合 Return 均不宣称已获支持。只读独立审查未发现可确认P1/P2，并核实旧cleanup
+不变。dataflow 1123/1248、drop_planner 1557/1669，仅字段/聚合/两处调用接线增长，
+算法留独立子模块，既有尺寸额度和拆分计划不变。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug：direct-call 63项、continuation
+14项、nested-borrow 10项，共87项通过。direct-call 明确过滤两个 `abort_` 测试及
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`，不计为已通过。
+frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt、文档、
+尺寸和diff检查通过。未运行 native、Linux、故障注入或官方CI，不宣称完整流已完成。
