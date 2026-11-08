@@ -1,4 +1,6 @@
 //! 首片 CFG 能力边界：不让尚未运输的结果/source loan 隐式跨块。
+use std::collections::BTreeSet;
+
 use super::{LoweringError, LoweringErrorKind, lowering_support::error};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -8,6 +10,7 @@ use lang_frontend::{
 };
 
 mod local_if;
+pub(super) mod ordinary_local;
 mod short_circuit;
 pub(super) mod stable_map;
 
@@ -72,6 +75,7 @@ pub(super) fn binding(
     marker: Span,
     range: bool,
     range_prefixes: &[Span],
+    disjoint_ifs: Option<&BTreeSet<usize>>,
     scope: Option<StatementId>,
     builtin: impl Fn(ExpressionId) -> Option<BuiltinType>,
     call_allowed: impl Fn(ExpressionId, CallAccess) -> bool,
@@ -88,6 +92,9 @@ pub(super) fn binding(
         .min_by_key(|span| span.end() - span.start())
         .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, marker))?;
     for (expression, node) in parsed.ast().expressions().iter() {
+        if disjoint_ifs.is_some_and(|ifs| ifs.contains(&expression.index())) {
+            continue;
+        }
         // Checked Int arithmetic uses the existing success/Abort edges and their
         // explicit carrier/root/source-loan transport; other borrow bindings keep
         // the original CFG frontier. Syntax alone is not a scalar type proof.

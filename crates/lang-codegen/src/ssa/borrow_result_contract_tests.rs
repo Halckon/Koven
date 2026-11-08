@@ -198,3 +198,176 @@ fn borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported() {
         LoweringErrorKind::UnsupportedNode
     );
 }
+
+const LOCAL_RESULT_CONTROL: &str = "if (flag) { println(\"branch\") }";
+const LOCAL_RESULT_BINDING: &str = "borrow val item = view(source)";
+const LOCAL_RESULT_READ: &str = "println(item)";
+
+fn local_result_control_sources(body: &str) -> [String; 3] {
+    let text = format!(
+        "{PROVIDER}fun probe(flag: Boolean): Unit {{\n    val source = \"kept\".clone()\n    {body}\n}}\nfun entry() {{ probe(true); probe(false) }}"
+    );
+    let with_sibling =
+        format!("{text}\nfun unrelated(): Unit {{ var a = 1; var b = 2; swap(&a, &b) }}");
+    let with_lambda = text.replace(
+        "\n}\nfun entry()",
+        "\n    val unrelated: () -> Unit = { var a = 1; var b = 2; swap(&a, &b) }\n}\nfun entry()",
+    );
+    assert_ne!(text, with_lambda);
+    [text, with_sibling, with_lambda]
+}
+
+fn assert_disjoint_local_result_control(body: &str, branch_before_borrow: bool) {
+    for (variant, source) in local_result_control_sources(body).iter().enumerate() {
+        for lower in [memory_unit, super::borrow_storage_contract_tests::unit] {
+            let program =
+                lower(source).unwrap_or_else(|error| panic!("layout {variant}: {body}: {error:?}"));
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            assert_local_result_order(&program, branch_before_borrow);
+        }
+    }
+}
+
+fn assert_local_result_order(program: &Program, branch_before_borrow: bool) {
+    let probe = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains(".probe."))
+        .expect("probe lowered");
+    let branch = probe
+        .blocks
+        .iter()
+        .find(|block| {
+            block.terminator.as_ref().is_some_and(|terminator| {
+                matches!(terminator.kind, TerminatorKind::Conditional { .. })
+            })
+        })
+        .expect("actual If branch");
+    let call = probe
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction.operation, Operation::BorrowCall { .. }))
+        .expect("actual ordinary borrow acquisition");
+    let dominators = super::verify::compute_dominators(probe);
+    let dominates =
+        |first: BlockId, second: BlockId| dominators[second.index()].contains(&first.index());
+    if branch_before_borrow {
+        assert_ne!(
+            branch.id, call.block,
+            "acquisition cannot precede the branch terminator"
+        );
+        assert!(dominates(branch.id, call.block));
+    } else {
+        let Operation::BorrowCall { source, .. } = call.operation else {
+            unreachable!()
+        };
+        let [EntityId::Loan(result)] = call.results.as_slice() else {
+            panic!("ordinary call returns one loan");
+        };
+        let end = |loan| {
+            probe
+                .instructions
+                .iter()
+                .find(|instruction| instruction.operation == Operation::BorrowEnd { loan })
+                .expect("loan ends before leaving its lexical scope")
+        };
+        let result_end = end(*result);
+        let source_end = end(source);
+        assert!(dominates(result_end.block, source_end.block));
+        if result_end.block == source_end.block {
+            assert!(result_end.id.index() < source_end.id.index());
+        }
+        assert!(dominates(source_end.block, branch.id));
+    }
+}
+
+#[test]
+fn ordinary_result_local_accepts_control_before_acquisition() {
+    for body in [
+        format!("{LOCAL_RESULT_CONTROL}\n    {LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}"),
+        format!("{LOCAL_RESULT_CONTROL}\n    {{ {LOCAL_RESULT_BINDING}; {LOCAL_RESULT_READ} }}"),
+        format!(
+            "{{ {LOCAL_RESULT_CONTROL} }}\n    {LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}"
+        ),
+    ] {
+        assert_disjoint_local_result_control(&body, true);
+    }
+}
+
+#[test]
+fn ordinary_result_local_accepts_control_after_lexical_end() {
+    for following in [
+        LOCAL_RESULT_CONTROL.to_owned(),
+        format!("{{ {LOCAL_RESULT_CONTROL} }}"),
+    ] {
+        assert_disjoint_local_result_control(
+            &format!("{{ {LOCAL_RESULT_BINDING}; {LOCAL_RESULT_READ} }}\n    {following}"),
+            false,
+        );
+    }
+}
+
+#[test]
+fn ordinary_result_local_rejects_control_while_scope_still_owns_the_loan() {
+    for body in [
+        format!("{LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_CONTROL}\n    {LOCAL_RESULT_READ}"),
+        format!("{LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}\n    {LOCAL_RESULT_CONTROL}"),
+    ] {
+        for (variant, source) in local_result_control_sources(&body).iter().enumerate() {
+            for (lower, prefix_len) in [
+                (memory_unit as fn(&str) -> _, 0),
+                (
+                    super::borrow_storage_contract_tests::unit,
+                    "package p\n".len(),
+                ),
+            ] {
+                let error = lower(source).err().unwrap_or_else(|| {
+                    panic!("layout {variant}: the result loan has not reached its end: {body}")
+                });
+                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+                let span = error.span.expect("control expression span");
+                let start = source.find(LOCAL_RESULT_CONTROL).unwrap() + prefix_len;
+                assert_eq!(
+                    (span.start(), span.end()),
+                    (start, start + LOCAL_RESULT_CONTROL.len())
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_result_local_preserves_argument_boundary() {
+    for argument in ["if (flag) { 1 } else { 2 }", "-1"] {
+        let body = format!("borrow val item = view(source, {argument})\n    {LOCAL_RESULT_READ}");
+        for source in local_result_control_sources(&body) {
+            let source = source
+                .replacen(
+                    "fun view(source: String)",
+                    "fun view(source: String, own extra: Int)",
+                    1,
+                )
+                .replacen(
+                    "= view(source)\nfun consume",
+                    "= view(source, 1)\nfun consume",
+                    1,
+                );
+            for (lower, prefix_len) in [
+                (memory_unit as fn(&str) -> _, 0),
+                (
+                    super::borrow_storage_contract_tests::unit,
+                    "package p\n".len(),
+                ),
+            ] {
+                let error = lower(&source)
+                    .err()
+                    .expect("borrowed call argument rejected");
+                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+                let span = error.span.expect("exact argument boundary");
+                let start = source.find(argument).unwrap() + prefix_len;
+                assert_eq!((span.start(), span.end()), (start, start + argument.len()));
+            }
+        }
+    }
+}

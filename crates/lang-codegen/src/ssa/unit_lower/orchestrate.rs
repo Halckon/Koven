@@ -53,9 +53,13 @@ fn lower_unit_impl(
     // borrow-binding CFG frontier for bindings without dedicated lowering checks.
     let unit_has_refine_constructs =
         !owned.field_replacements().is_empty() || !typed.ownership_primitives().is_empty();
-    if !unit_has_refine_constructs {
-        super::borrow_result::validate_bindings(&parsed_by_source, names, typed, owned)?;
-    }
+    super::borrow_result::validate_bindings(
+        &parsed_by_source,
+        names,
+        typed,
+        owned,
+        !unit_has_refine_constructs,
+    )?;
     // Runtime global initialization is not lowered yet. Check every source root,
     // including unused declarations, before reachability can discard its initializer.
     for parsed in &parsed_by_source {
