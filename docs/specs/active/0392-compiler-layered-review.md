@@ -1994,3 +1994,12 @@ PR 已合入主干 `d8c7393a`。用户完成本机授权后，在该主干重跑
 continue、break、保留无关根的证明，以及在 while 和顺序 for 中分别重赋值。
 独立复核确认原候选红测及上述前端修正，验证保留 null 上下文类型推导、循环作用域和诊断检查。
 workspace 全目标 Clippy、格式、文档、Rust 尺寸与 diff 门禁通过。
+
+[PR #353 的首个候选](https://github.com/Halckon/Koven/actions/runs/42438293604) `a82a0bb7`
+两宿主定向、生成资源与 conformance 均通过，Linux sanitizer 通过。
+两宿主 conformance 为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+首次 Linux workspace check 因 crates.io 索引下载超时失败，原提交重试后通过。
+本机该候选复跑三条 CLI 真实断点、frame 身份负控和后端默认忽略的 LLDB 断点，共 5 项通过。
+随后合入更新的主干 `4fd948dd`，无冲突。它带入 SPEC-0341 容器与借用测试迁移，
+合流后 `ownership_containers`、`unit_direct_call_loan_ends`、`ownership_map_with` 和
+`final_type_admission` 共 172 项通过。最终双宿主门禁以合流提交为准。
