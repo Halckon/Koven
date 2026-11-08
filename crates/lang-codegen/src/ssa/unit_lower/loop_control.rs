@@ -26,7 +26,7 @@ use super::{
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{BlockId, Origin, TerminatorKind},
+    model::{BlockId, Definition, EntityId, Operation, Origin, ScalarConstant, TerminatorKind},
 };
 
 struct LoopJump {
@@ -123,13 +123,26 @@ impl UnitExpressionLowerer<'_> {
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let constant_condition = if let Some(entity) =
+            self.function.entity(EntityId::Value(condition))
+            && let Definition::InstructionResult { instruction, .. } = entity.definition
+            && let Some(instruction) = self.function.instruction(instruction)
+            && let Operation::Constant(ScalarConstant::Boolean(value)) = instruction.operation
+        {
+            Some(value)
+        } else {
+            None
+        };
+        if constant_condition == Some(false) {
+            self.emit_loop_exit(statement)?;
+            return Ok(LoweredValue::Unit);
+        }
         let condition_state = self.loop_state();
         let body_block = self.add_carried_control_block(
             &context.carried,
             &context.loans,
             self.statement_span(body)?,
         )?;
-        let false_block = self.add_carried_control_block(&context.carried, &context.loans, span)?;
         let when_true = self.carried_edge_from(
             body_block,
             &context.carried,
@@ -137,31 +150,40 @@ impl UnitExpressionLowerer<'_> {
             &condition_state,
             span,
         )?;
-        let when_false = self.carried_edge_from(
-            false_block,
-            &context.carried,
-            &context.loans,
-            &condition_state,
-            span,
-        )?;
-        self.function
-            .set_terminator(
-                self.block,
+        let (terminator, false_block) = if constant_condition == Some(true) {
+            (TerminatorKind::Branch(when_true), None)
+        } else {
+            let block = self.add_carried_control_block(&context.carried, &context.loans, span)?;
+            let when_false = self.carried_edge_from(
+                block,
+                &context.carried,
+                &context.loans,
+                &condition_state,
+                span,
+            )?;
+            (
                 TerminatorKind::Conditional {
                     condition,
                     when_true,
                     when_false,
                 },
-                Origin::Source(span),
+                Some(block),
             )
+        };
+        self.function
+            .set_terminator(self.block, terminator, Origin::Source(span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
 
-        // Both successors start from the complete condition state, before body
-        // lowering can consume an owner or retire a proof on a sibling path.
-        self.restore_loop_state(&condition_state);
-        self.block = false_block;
-        self.bindings = self.rebind_loop(&condition_state.bindings, false_block, &context, span)?;
-        let false_exit = self.loop_state();
+        // Each reachable successor starts from the complete condition state.
+        let false_exit = if let Some(false_block) = false_block {
+            self.restore_loop_state(&condition_state);
+            self.block = false_block;
+            self.bindings =
+                self.rebind_loop(&condition_state.bindings, false_block, &context, span)?;
+            Some(self.loop_state())
+        } else {
+            None
+        };
 
         self.restore_loop_state(&condition_state);
         self.block = body_block;
@@ -183,7 +205,10 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .map(branch_exit)
             .collect::<Vec<_>>();
-        exits.push(false_exit);
+        exits.extend(false_exit);
+        if exits.is_empty() {
+            return self.merge_unit_exits(exits, span);
+        }
         if let Some((root, proof)) = inherited {
             // Consume each exit's own facts, never a reconstruction from entry or
             // the state left behind by another exit, before merging inherited pairs.

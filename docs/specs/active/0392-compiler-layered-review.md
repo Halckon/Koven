@@ -2003,3 +2003,87 @@ workspace 全目标 Clippy、格式、文档、Rust 尺寸与 diff 门禁通过�
 随后合入更新的主干 `4fd948dd`，无冲突。它带入 SPEC-0341 容器与借用测试迁移，
 合流后 `ownership_containers`、`unit_direct_call_loan_ends`、`ownership_map_with` 和
 `final_type_admission` 共 172 项通过。最终双宿主门禁以合流提交为准。
+
+[PR #353 最终门禁](https://github.com/Halckon/Koven/actions/runs/42440264349) 在 `b09c2f99`
+上通过双宿主定向、生成资源、Linux sanitizer 与两宿主预览包独立安装，conformance 均为
+137/154、验收程序 0/6，零回归、入口差异或内部错误。编辑器按范围跳过，macOS CI
+忽略的后端 LLDB 断点和四条 CLI 调试检查在同一提交上本机通过。已合入 `04583bb2`。
+
+## 74. R4 局部解构与独立 while 的可空证明
+
+从 §73 原生见证去掉顺序 `for` 后，`check` 仍成功，`build` 返回
+`UnsupportedNode`。Refine 重试已可识别 `while` 入口的证明失效，却要等顺序迭代
+才确认路由。现由通过预检且实际移除外层可空证明的 `while` 确认重试，仍要求同一
+callable 的已验证局部解构，保留既有首次准入。独立复核核对了循环资格与 builder 的
+失效位置。数值 `for` 在空 `while` 后仍不能借用此规则。
+
+新增单文件与项目原生见证，核对零轮和重赋值后精确输出。另用真实双文件 Unit 验证普通
+和常量能力入口，覆盖三次重赋值、continue、break 与无关根的读取，两个入口均完成
+7 次分配和 7 次释放。常量 `while` 的死分支 lowering 仍是独立缺口。
+当前分支本机通过 Refine 路由 35 项、while SSA 37 项、原生资源计数 1 项和 while CLI
+7 项，零失败或忽略。codegen 与 CLI 全目标 Clippy、格式、文档、Rust 尺寸和 diff 门禁通过。
+
+[PR #355 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42442529470) 在 `48289d95`
+上通过。两宿主 conformance 均为 137/154、验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主预览包独立安装及本机 5 项 LLDB 相关检查均通过。已合入 `adba71c3`。
+
+## 75. R4 常量 while 的可达边与操作数退出
+
+在 `adba71c3` 上，死循环体或无正常出口循环的死后缀含局部解构时，前端接受，
+普通 Unit lowering 仍沿不可能边尝试构建并报 `UnsupportedNode`。改为先求值条件，
+再依据已产生的 SSA 布尔常量保留实际后继。假条件直接消费 LoopExit 清理，真条件保留
+break/continue，无退出时返回 Diverged。动态条件与专用 nullable while 保留原分派。
+
+独立复审及原生对照确认，原型让一元操作数、名义构造参数和方法接收者的已终止求值
+误变为后端错误。普通 Unit 现将终止结果传给外层，未产生结果时不会提交构造或调用，
+已求值的构造前缀沿实际控制转移处理。修订同时覆盖共享取值入口的 Rc、临时可空比较和字段投影。
+
+单文件与项目回归对照条件副作用、死循环体、真条件 break、一元操作数、标量构造前缀
+及方法接收者。SSA 负控核对死解构仍不触发 Refine，标量字段构造由保留的 Unit 路径完成。
+MoveOnly Guard 前缀另走默认路径，逐次核对释放且无完整对象析构。强制保留 Unit 时该
+MoveOnly 构造前缀在基线也返回 UnsupportedNode，本批未扩大该能力。
+最终工作树本机通过 96 项定向检查，覆盖 CLI while、Refine 路由、while SSA、
+短路与 aggregate。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+[PR #356 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42445897440) 在 `7cfe3e8e`
+上通过。conformance 均为 137/154、验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主预览包独立安装与同提交的 5 项本机 LLDB 相关检查均通过。
+已合入 `f3d2857e`。
+
+## 76. R4 内层 lambda 的 while 与外层顺序迭代
+
+具名顺序源在外层函数中可进入 Refine。给同一函数内的 lambda 增加 `while (false)`，
+外层路由错误回退，原生输出仍为 `nested\nkept\n`。原查询按范围遍历 AST，未区分
+最近 callable。改由同源 AST 的 while 节点和名称解析的父作用域建立归属索引。
+查询仅在路由需要时按 SourceUnit 构建一次，函数、泛型实例、thunk 和重试共用。
+索引缺失或名称事实与 AST 不匹配时，保留保守门禁。
+
+回归对照无 while、内层 lambda 的 while、当前函数的 while 和 thunk 自身的 while。
+独立复核核对了同源索引、未包装 AST 的 callable Span、父作用域顺序和重试复用。
+隔离候选实际构建并运行单文件与项目，有无内层 while 均输出 `nested\nkept\n`。
+当前分支本机通过 Refine 路由 38 项、closure 4 项、while SSA 37 项和 while CLI 8 项，
+零失败或忽略。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+[PR #357 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42448570108) 在 `6ad9723c`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer 与两宿主预览包独立安装通过，编辑器按范围跳过。已合入 `a884ab8d`。
+本机完成授权后在同一 PR 提交重跑，Mach-O 行表、CI 默认忽略的后端真实 LLDB 断点和
+四项 CLI 调试检查共 6 项通过，零失败或忽略。
+
+## 77. R0/R3 可空容器与借用测试的 Unit 消费者迁移
+
+以 `a884ab8d` 为基线。将 Map promotion、owned-null cleanup、多参数借用、混合借用
+四份测试中的 33 处旧 helper 调用移出 Single。成功路径与后端拒绝路径复用既有
+MemoryDocument helper，与同一测试原有的 Rooted 入口对照，保留原源码及 SSA、
+清理顺序或 `UnsupportedNode` 断言。§12 四项混合借用后端对照的旧入口分支在本批退役，
+当前由 MemoryDocument 与 Rooted 覆盖。
+
+两份非法借用源码通过 Unit 分析检查，分别在 ownership 阶段精确拒绝为 L0162 和 L0135，
+主 Span 分别指向 `other` 和 `source`。保留可空工厂的旧规划拒绝与 Rooted 成功对照，
+以及 Map require 未被 entry 调用的旧整文件见证。没有生产实现改动。
+
+独立复核核对了源码和断言、最终 Unit 准入、Rooted 跨文件来源及保留的旧路径见证。
+本机 `lang-codegen --lib` 依次通过四组迁移测试 23 项、借用结果及 Map require 见证
+7 项、lowering 依赖门禁 14 项，零失败或忽略。codegen 全目标 Clippy、格式、文档、
+尺寸和 diff 检查通过。本批未在本机重跑全量或动态矩阵。
+本批迁移归属 [SPEC-0341](0341-shared-lowering-core.md)。其他旧消费者和 R0–R5 退出条件仍开放。

@@ -1,6 +1,7 @@
 //! SPEC-0296: inspect unmodified ordinary-source SSA, never fabricate IR.
 use super::{
-    borrow_result_contract_tests::single,
+    borrow_memory_test_support::single as memory_unit,
+    borrow_result_contract_tests::single as legacy_single,
     borrow_storage_contract_tests::unit,
     model::{EntityId, Operation},
 };
@@ -16,7 +17,7 @@ fn owned_null_cleanup_presence_precedes_unique_asap_drop() {
         let source = format!(
             "value class Text(val text: String)\nfun entry() {{ var m = mutableMapOf<Int, {payload}>(); m.put(1, {value}); val removed = m.remove(1); val present = ((removed)) != null; if (present) {{ println(\"present\") }} }}"
         );
-        for (label, program) in [("single", single(&source)), ("unit", unit(&source))] {
+        for (label, program) in [("memory", memory_unit(&source)), ("rooted", unit(&source))] {
             let program = program.unwrap_or_else(|error| panic!("{label}/{payload}: {error:?}"));
             super::verify::verify_program(&program).unwrap();
             let function = program.modules[0]
@@ -57,7 +58,7 @@ fn temporary_null_cleanup_presence_precedes_unique_result_drop() {
             let source = format!(
                 "value class Text(val text: String)\nclass Resource {{ deinit() {{ println(\"drop\") }} }}\nfun entry() {{ var m = mutableMapOf<Int, {payload}>(); m.put(1, {value}); val present = {condition}; if (present) {{ println(\"present\") }} }}"
             );
-            for (label, program) in [("single", single(&source)), ("unit", unit(&source))] {
+            for (label, program) in [("memory", memory_unit(&source)), ("rooted", unit(&source))] {
                 let program =
                     program.unwrap_or_else(|error| panic!("{label}/{payload}: {error:?}"));
                 super::verify::verify_program(&program).unwrap();
@@ -106,7 +107,7 @@ fn temporary_null_cleanup_presence_precedes_unique_result_drop() {
 #[test]
 fn single_nullable_factory_planning_boundary_precedes_any_comparison() {
     let source = "class Resource(val text: String) { deinit() { println(this.text) } }\nfun make(): Resource? = Resource(\"plain nullable drop\")\nfun entry() { val value = make() }";
-    let error = single(source)
+    let error = legacy_single(source)
         .err()
         .expect("single arbitrary nullable factory remains unsupported");
     assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);

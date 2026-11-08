@@ -47,7 +47,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let fields = self.lower_construction_fields(&descriptor, span)?;
+        let Some(fields) = self.lower_construction_fields(&descriptor, span)? else {
+            return Ok(LoweredValue::Diverged);
+        };
         let [payload] = fields.as_slice() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };

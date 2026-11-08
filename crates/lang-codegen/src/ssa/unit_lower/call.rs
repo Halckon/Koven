@@ -217,6 +217,9 @@ impl UnitExpressionLowerer<'_> {
             }
         });
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
+        if receiver.is_none() && descriptor.receiver().is_some() {
+            return Ok(LoweredValue::Diverged);
+        }
         let receiver = if resolved.delegation().is_empty() {
             receiver
         } else if !self.typed.map_iterations().is_empty() {

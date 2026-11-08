@@ -1,6 +1,6 @@
 //! SPEC-0306 boundaries use ordinary source only; no malformed SSA or mutation.
 use super::{
-    LoweringErrorKind, borrow_result_contract_tests::single as legacy_single,
+    LoweringErrorKind, borrow_memory_test_support::single as memory_unit,
     borrow_storage_contract_tests::unit,
 };
 use lang_frontend::{
@@ -105,7 +105,7 @@ fn mixed_value_borrow_non_source_inout_remains_lowering_unsupported() {
         include_str!("../../tests/fixtures/mixed_borrow/non_source_inout.ko"),
         include_str!("../../tests/fixtures/mixed_borrow/non_source_inout_writeback.ko"),
     ] {
-        for lowered in [legacy_single(source), unit(source)] {
+        for lowered in [memory_unit(source), unit(source)] {
             assert_eq!(
                 lowered.err().unwrap().kind,
                 LoweringErrorKind::UnsupportedNode
@@ -123,7 +123,7 @@ fn mixed_value_borrow_nested_result_binding_remains_frontend_deferred() {
 #[test]
 fn mixed_value_borrow_callable_value_remains_lowering_unsupported() {
     let source = "fun <T> view(source: String, own other: T): borrow String from source = source\nfun <T> inspect(source: String, own other: T) { borrow val item = view(source, other); println(item) }\nfun entry() { val source = \"kept\".clone(); val action: () -> Unit = { println(\"called\") }; inspect(source, action) }";
-    for lowered in [legacy_single(source), unit(source)] {
+    for lowered in [memory_unit(source), unit(source)] {
         assert_eq!(
             lowered.err().unwrap().kind,
             LoweringErrorKind::UnsupportedNode
@@ -137,7 +137,7 @@ fn mixed_value_borrow_wrapper_control_prefix_remains_lowering_unsupported() {
         let source = format!(
             "fun view(own other: Int, source: String): borrow String from source = source\nfun wrap(source: String, n: Int): borrow String from source = view({argument}, source)\nfun entry() {{ val source = \"kept\"; borrow val item = wrap(source, 7); println(item) }}"
         );
-        for lowered in [legacy_single(&source), unit(&source)] {
+        for lowered in [memory_unit(&source), unit(&source)] {
             assert_eq!(
                 lowered.err().unwrap().kind,
                 LoweringErrorKind::UnsupportedNode
@@ -149,7 +149,7 @@ fn mixed_value_borrow_wrapper_control_prefix_remains_lowering_unsupported() {
 #[test]
 fn mixed_value_borrow_caller_cfg_remains_lowering_unsupported() {
     let source = "fun view(source: String, own other: Int): borrow String from source = source\nfun entry() { val source = \"kept\"; borrow val item = view(source, 7); if (true) { println(item) }; println(item) }";
-    for lowered in [legacy_single(source), unit(source)] {
+    for lowered in [memory_unit(source), unit(source)] {
         assert_eq!(
             lowered.err().unwrap().kind,
             LoweringErrorKind::UnsupportedNode
