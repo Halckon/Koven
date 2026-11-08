@@ -107,8 +107,8 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
-| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
+| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过；内部旧入口见 §93 | 全部真实消费者/逐合同清单仍需对账 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2437,3 +2437,56 @@ multifile suites 428 项通过，零失败和忽略。
 
 实际交付工作树的数据流单测 40 项与四个定向集成套件 450 项通过，零失败和忽略。
 前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+PR #369 的 head `990a3edf`、base `59396543` 的[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42480499647)
+以合并快照 `2f71205b` 运行定向检查，已核对源码树等于 head。两宿主 Check、Clippy、
+定向组合、Preview 构建及独立安装均通过。精确 head/base 的 Code CI Evidence 与
+CI Passed 均成功，Editor lexical contracts 按范围跳过。两宿主 conformance 均为
+137/154，零回归、入口差异或内部错误，6 个 v1 程序仍未实现。两宿主 P2 基础组均为
+58/74，低于 70 的目标。两宿主各 16 个生成资源
+用例通过。Linux 13 个 native ASan 干净程序及检测负控通过，macOS 生成资源报告按
+平台跳过 ASan/LSan 校准，保留资源计数检查。精确 head 的本机 LLDB
+断点、Mach-O 行表与 CLI 调试检查共 6 项通过。合入前一版 `fc998cdf` 的 frontend
+全量为 183 组、2796 项，零失败和忽略。已合入 `6d315265`。
+
+## 92. R1 闭合父类型后的词法错误与外层 owner
+
+在 `59396543` 上，完整父类型后的词法错误会把本应留给类的父类型列表和类体交给
+文件错误恢复。TypeRef 解析报告实际语法结束，只有到达该边界的非委托父类型才接管
+紧邻词法错误。保留原 TypeRef 和精确消费的恢复 Span。分段字符串复用现有声明尾随
+词法判定与 Lexer 终止事件。
+
+已配对普通组使用现有局部配对索引，严格角列表使用 strict trial 的真实 closer。
+内部逗号与花括号保持局部归属；无配对证明的普通 opener 不吞已知后继文件或成员，
+不能严格证明的角列表不让未归属逗号生成父类型。File、Declaration 和 Member
+owner 显式区分；外层成员分号、析构、companion 和 receiver 前缀仍交给外层。
+
+候选复核先后复现嵌套普通组花括号、严格角列表逗号、分段字符串、嵌套 classifier
+吞外层成员、独立入口丢分号及未配对组后丢成员。定向回归覆盖两入口和原诊断 Span，
+32→64 项的 significant token 访问计数在既有线性门槛内。
+
+TypeRef 自身未闭合时的恢复另有边界，例如 `I<(async)?, B>` 和 `I<async by field, B>`。
+有真实角闭合但严格试探因实参内词法错误无证的 `async Junk<A, β>, J` 仍需复审，
+当前记录为不确定的错误区，不把 `J` 的缺失写成验收通过。委托目标后任意错误表达式
+的更宽恢复亦保持开放。
+
+本地 `16bba7fe` 和接入 `6d315265` 后的 `d4ddceac` 均通过 Parser 内部及定向集成
+检查 128 项，零失败和忽略。全目标 frontend Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 93. R0 前端内部旧检查器调用分流
+
+以 `59396543` 源码和 §2 的直接调用语法为基线，剔除两个公开定义后，frontend
+`src` 下的 41 条 `check_types`、13 条 `check_ownership` 匹配均位于测试入口链。
+核对了 `iteration.rs`、`checked_file.rs`、`checker.rs`、`origins.rs` 和
+`borrow_result/source.rs` 的 `cfg(test)`，包括其子模块。统计不覆盖别名与仓外 API。
+
+| 测试职责 | `check_types` 文件/行 | `check_ownership` 文件/行 | 迁移约束 |
+|---|---:|---:|---|
+| Single 循环与 drop planner | 18/28 | 2/2 | 对比原有限图、cleanup 顺序和条件退出，先补 Unit oracle |
+| 独立 instance replay | 7/7 | 7/7 | 消费现有 Single 清理模型，动态路径证据等价后再迁移 |
+| Single 验证器的真实产物变异 | 3/3 | 3/3 | 保留对旧产物的负控，已有 Unit 验证器由不同测试入口覆盖 |
+| 原始 origin 与 formed rollback | 2/2 | 0/0 | 私有 Single 合同随对应实现退役 |
+| 借用返回来源对照 | 1/1 | 1/1 | 在迁移前确认双链差异仍有意保留 |
+
+公开 `tests/` 的消费者需要逐项区分普通语言合同与旧产物见证。内部调用分流属于
+当前源码静态证据，未把 `cfg(test)` 内的见证或仓外 API 算成可直接删除的入口。
