@@ -14,7 +14,7 @@
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
 Unit调用与逻辑递归帧隔离保留pending语义（[新主线适配](../specs/active/0341-shared-lowering-core.md#unit-栈帧候选适配新主线2026-11-08)）；raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
 [最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
-`type_callable` 的 println 身份/遮蔽、成员与函数值映射、参数模式三项原测试已由双 Unit 入口承接，其他 Single 覆盖保留。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)。for 与 loop 同样清除回边可能写入的事实，for 先检查 source。Elvis 和 if 按正常出口合并事实与来源版本，见[分层复审 §25](../specs/active/0392-compiler-layered-review.md#25-r2-循环回边和-elvis-出口的流事实)。lambda expected/capture 见[专题](expected-move-literals.md)。
+`type_callable` 的 println 身份、实参映射、lambda 模式与泛型实例由双 Unit 入口覆盖。旧 Single 保留失败 trial 的封存哨兵见证，见[复审账本](../specs/active/0392-compiler-layered-review.md#98-r0r2-泛型实例身份与待定调用消费者)。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)。for 与 loop 同样清除回边可能写入的事实，for 先检查 source。Elvis 和 if 按正常出口合并事实与来源版本，见[分层复审 §25](../specs/active/0392-compiler-layered-review.md#25-r2-循环回边和-elvis-出口的流事实)。lambda expected/capture 见[专题](expected-move-literals.md)。
 
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
 final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。 `type_checking::raw_followup` 的11项构造/smart-cast/when 原消费者现走双 Unit raw type 入口；顶层溢出保留 L0167 与 L0090 并存及原 Single witness，范围见 [迁移验收](../specs/active/0341-shared-lowering-core.md#独立批次构造与控制类型消费者2026-11-07)。
@@ -143,7 +143,7 @@ binding。稳定产物按逻辑 source key 和源码身份排序，不以 `Sourc
 validated wrapper 只在对应阶段无诊断且身份链一致时产生。混用另一份 index、names、SourceMap 或
 environment 会在遍历前返回内部错误。
 
-对应覆盖位于 `compilation_unit_index` 与 `multifile_name_resolution` integration suites。
+对应覆盖位于 `compilation_unit_index` 与 `multifile_name_resolution` integration suites。 同文件非空 enum 的两段 TypeRef 复用已绑定 root 补全前向 case 身份；缺 case 保持 L0080，不回退同名顶层类型。遮蔽、双入口及排列覆盖见 `multifile_name_resolution::forward_enum`。
 
 ## Compilation-unit 类型链
 `type_checking::compilation_unit` 保留原身份门，按稳定 root/path 对齐一次 AST 借用供签名与 body 共享；先冻结全 unit 签名图，再检查 body：
@@ -157,14 +157,14 @@ callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不�
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
 canonical type identity；Unit 签名和 body 的结构能力保留确定否决，泛型调用与名义构造在字段能力待定时延迟发布描述符；构造的部分推断仅用于诊断。Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名、成员与顶层函数体的有界实例化拒绝不可存储的具体实参；名义字段、payload 与接口上界通过有限参数义务传播至类型引用及构造入口，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
-两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
+Unit 签名对已解析 enum case TypeRef 发 L0114（完整 TypeRef/root enum span），不实例化为可存储类型；type-test 仍走 body 独立入口。Unit 名义签名 L0091 的 primary 为 use-site 类型名、label 为声明名，不跨 source 解读 TypeRefId；覆盖见 `type_checking::nominal_arity_spans` 与 `multifile_type_signatures`。两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
 Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。 `type_checking::nominal_unit` 的12项原enum/构造、静态接口及返回流消费者已迁至双Unit raw type入口，15份原源码与原oracle保留，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次名义构造与接口类型消费者2026-11-07)。
 
-unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
-不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
+Unit inline-layout 先解包声明修饰器，保留 enum/value class 身份与 L0116；`multifile_type_signatures::enum_identity` 覆盖三可见性双入口、跨包 public enum 及输入排列。
+unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
 `type_containers` 的六项核心构造、诊断、遮蔽、泛型推导与 size 原测试走双 Unit 入口；signature storage 诊断和 deferred recovery 两项 Single witness 保留。对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
-`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。 `type_checking::scalar_unit` 与 `interface_unit` 的九项原数值、局部/返回和接口诊断消费者走双 Unit raw type 入口，保留原诊断顺序、span 与自定义环境；顶层数值溢出因 Unit 额外 L0167 保留原 Single witness，不增加 final/ownership 前置。 四批合并后原82项测试与新增顶层对照共83项全部保留，见[组合验收](../specs/active/0341-shared-lowering-core.md#115-raw-type-消费者四批集中集成2026-11-07)。 `type_callable` 的调用失败分类与泛型推导冲突两项消费者使用同源双 Unit 入口，保留原有序诊断码与 primary span。nullable overload ambiguity 与 nullable bottom 的诊断由同源双 Unit 入口验证；唯一候选 lambda 的 callback label 取所选源码参数的名称范围，原 Single 诊断测试由双 Unit 入口承接；函数类型的隐式/显式 borrow 规范身份也在两个 Unit 入口验证，见[分层复审 §84](../specs/active/0392-compiler-layered-review.md#84-r0r2-调用参数诊断来源与类型身份消费者)。
+`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。 `type_checking::scalar_unit` 与 `interface_unit` 的九项原数值、局部/返回和接口诊断消费者走双 Unit raw type 入口，保留原诊断顺序、span 与自定义环境；顶层数值溢出因 Unit 额外 L0167 保留原 Single witness，不增加 final/ownership 前置。 四批合并后原82项测试与新增顶层对照共83项全部保留，见[组合验收](../specs/active/0341-shared-lowering-core.md#115-raw-type-消费者四批集中集成2026-11-07)。 `type_callable` 的调用失败分类与泛型推导冲突两项消费者使用同源双 Unit 入口，保留原有序诊断码与 primary span。nullable overload ambiguity 与 nullable bottom 的诊断由同源双 Unit 入口验证；唯一候选 lambda 的 callback label 取所选源码参数的名称范围，原 Single 诊断测试由双 Unit 入口承接；函数类型的隐式/显式 borrow 规范身份也在两个 Unit 入口验证，见[分层复审 §84](../specs/active/0392-compiler-layered-review.md#84-r0r2-调用参数诊断来源与类型身份消费者)。 expected lambda 的六个命名参数、七个lambda参数及函数类型模式也已由同源双Unit固定oracle承接（[验收](../specs/active/0341-shared-lowering-core.md#callable-expected-参数模式消费者迁移2026-11-08)）。 成功overload lambda的唯一候选及泛型多lambda消费者已迁至双Unit，保留同names重复分析、返回类型、参数模式及原实参顺序，失败trial的Single恢复见证仍保留（[验收](../specs/active/0341-shared-lowering-core.md#成功-overload-lambda-消费者迁移2026-11-08)）。
 
 ### Unit 关联常量选择
 

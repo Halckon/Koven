@@ -305,3 +305,614 @@ fn an_unclosed_poisoned_type_suffix_leaves_the_next_supertype_available() {
     assert!(recovered.body.as_ref().unwrap().right_brace_span.is_some());
     assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
 }
+
+#[test]
+fn a_lexical_error_after_a_complete_supertype_keeps_its_siblings_and_body() {
+    use lang_frontend::parser::TypeRef;
+
+    for parent in ["I", "pkg.I<A, B>?", "move (A) -> (B) -> I"] {
+        let text = format!("class C: {parent} async β  , J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0002", "L0001"], "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        let type_node = parsed.ast().type_refs().get(first.type_ref).unwrap();
+        assert!(matches!(
+            type_node.payload(),
+            TypeRef::Qualified { .. } | TypeRef::Function { .. }
+        ));
+        assert_eq!(sources.slice(type_node.span()).unwrap(), parent);
+        assert_eq!(
+            sources.slice(first.span).unwrap(),
+            format!("{parent} async β")
+        );
+        assert_eq!(
+            sources
+                .slice(first.trailing_lexical_error.unwrap())
+                .unwrap(),
+            "async β"
+        );
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        assert!(class.body.as_ref().unwrap().right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn malformed_type_arguments_do_not_create_parent_entries_or_delegation() {
+    for (parent, expected_diagnostics, error, first_argument) in [
+        ("I<A async, B>", &["L0002"][..], "async", "A"),
+        ("I<async by field, B>", &["L0002"][..], "by field", "async"),
+        ("I<(async)?, B>", &["L0002", "L0014"][..], "?", "(async)"),
+        ("I<Inner<A async, B>, D>", &["L0002"][..], "async", "A"),
+    ] {
+        let text = format!("class C: {parent}, J {{ fun member(): Unit {{}} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), expected_diagnostics, "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        assert_eq!(sources.slice(first.span).unwrap(), parent);
+        assert!(first.delegation.is_none(), "{text}");
+        assert!(first.trailing_lexical_error.is_none(), "{text}");
+        let types = parsed.ast().type_refs();
+        let get_segment = |id| {
+            let lang_frontend::parser::TypeRef::Qualified { segments, .. } =
+                types.get(id).unwrap().payload()
+            else {
+                panic!("qualified type for {text}");
+            };
+            segments.last().unwrap()
+        };
+        let outer = get_segment(first.type_ref);
+        let segment = if parent.starts_with("I<Inner") {
+            assert!(outer.argument_errors.is_empty(), "{text}");
+            assert_eq!(
+                sources
+                    .slice(types.get(outer.arguments[1]).unwrap().span())
+                    .unwrap(),
+                "D"
+            );
+            get_segment(outer.arguments[0])
+        } else {
+            outer
+        };
+        assert_eq!(segment.arguments.len(), 2, "{text}");
+        assert_eq!(sources.slice(segment.argument_errors[0]).unwrap(), error);
+        assert_eq!(segment.argument_errors.len(), 1, "{text}");
+        assert_eq!(
+            sources
+                .slice(types.get(segment.arguments[0]).unwrap().span())
+                .unwrap(),
+            first_argument
+        );
+        assert_eq!(
+            sources
+                .slice(types.get(segment.arguments[1]).unwrap().span())
+                .unwrap(),
+            "B"
+        );
+
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        assert_eq!(class.body.as_ref().unwrap().members.len(), 1);
+        assert_eq!(
+            sources
+                .slice(parsed.ast().items().get(*sentinel).unwrap().span())
+                .unwrap(),
+            "class Sentinel"
+        );
+    }
+}
+
+#[test]
+fn a_proven_nested_suffix_group_cannot_claim_the_outer_supertype_boundary() {
+    for suffix in [
+        "async Junk<A, B>",
+        "async Junk(A, { -> 1 })",
+        "async Junk(A, { \"bad\n })",
+    ] {
+        let text =
+            format!("class C: I {suffix}  , J {{ fun member(): Unit {{}} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let expected = if suffix.contains("\"bad") {
+            vec!["L0002", "L0004"]
+        } else {
+            vec!["L0002"]
+        };
+        assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        assert_eq!(
+            sources
+                .slice(first.trailing_lexical_error.unwrap())
+                .unwrap(),
+            suffix
+        );
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        let body = class.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert!(body.right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn only_a_paired_suffix_group_keeps_a_nested_file_starter() {
+    for suffix in ["async(\nclass Hidden)", "async ("] {
+        let text = format!("class C: I {suffix}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0002"], "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [entry] = class.supertypes.as_slice() else {
+            panic!("one original supertype");
+        };
+        assert_eq!(
+            sources
+                .slice(entry.trailing_lexical_error.unwrap())
+                .unwrap(),
+            suffix
+        );
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn an_unproved_suffix_angle_does_not_turn_its_argument_into_a_parent() {
+    for suffix in ["Junk<A, B", "Junk<1, B>, J"] {
+        let text =
+            format!("class C: I async {suffix} {{ fun member(): Unit {{}} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [entry] = class.supertypes.as_slice() else {
+            panic!("ambiguous inner comma cannot establish a parent");
+        };
+        assert_eq!(
+            sources
+                .slice(entry.trailing_lexical_error.unwrap())
+                .unwrap(),
+            format!("async {suffix}")
+        );
+        assert_eq!(class.body.as_ref().unwrap().members.len(), 1);
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn a_lexically_poisoned_string_after_a_complete_supertype_keeps_its_owner() {
+    for (suffix, diagnostic, separator) in [("\"bad", "L0004", "\n,"), (r#""bad\q""#, "L0006", ",")]
+    {
+        let text = format!("class C: I {suffix}{separator} J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), [diagnostic], "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        assert_eq!(
+            sources
+                .slice(first.trailing_lexical_error.unwrap())
+                .unwrap(),
+            suffix
+        );
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        assert!(class.body.as_ref().unwrap().right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn a_nested_classifier_suffix_preserves_the_enclosing_members() {
+    for member in [
+        "deinit() {}",
+        "companion { fun keep(): Unit {} }",
+        "own fun keep(): Unit {}",
+    ] {
+        for (suffix, separator) in [
+            ("async", "\n"),
+            ("async", "; "),
+            ("async (", "\n"),
+            ("async (deinit() {})", "\n"),
+        ] {
+            let text = format!("class Outer {{\nclass Inner: I {suffix}{separator}{member}\n}}");
+            let mut sources = SourceMap::new();
+            let source = add_source(&mut sources, "nested-suffix.ko", &text);
+            let file = parse_file_twice(&sources, source, &text);
+            let declaration = parse_declaration_twice(&sources, source, &text);
+            for (ast, root, diagnostics) in [
+                (file.ast(), file.roots()[0], file.diagnostics()),
+                (
+                    declaration.ast(),
+                    declaration.root(),
+                    declaration.diagnostics(),
+                ),
+            ] {
+                assert_eq!(codes(diagnostics), ["L0077", "L0002"], "{text}");
+                let Item::Classifier(outer) = ast.items().get(root).unwrap().payload() else {
+                    panic!("outer classifier for {text}");
+                };
+                let [inner, sibling] = outer.body.as_ref().unwrap().members.as_slice() else {
+                    panic!("nested classifier and its outer sibling for {text}");
+                };
+                let inner = ast.items().get(*inner).unwrap();
+                let Item::Classifier(inner) = inner.payload() else {
+                    panic!("nested classifier for {text}");
+                };
+                assert!(inner.body.is_none(), "{text}");
+                assert_eq!(
+                    sources
+                        .slice(inner.supertypes[0].trailing_lexical_error.unwrap())
+                        .unwrap(),
+                    suffix
+                );
+                let sibling = ast.items().get(*sibling).unwrap();
+                assert_eq!(sources.slice(sibling.span()).unwrap(), member, "{text}");
+            }
+        }
+    }
+}
+
+#[test]
+fn function_parent_parameters_keep_their_comma_after_lexical_errors() {
+    let parent = "(A async, B) -> I";
+    let text = format!("class C: {parent}, J {{}}\nclass Sentinel");
+    let (sources, parsed) = file(&text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+    let [class, sentinel] = parsed.roots() else {
+        panic!("class and following declaration");
+    };
+    let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+        panic!("recovered classifier");
+    };
+    let [first, following] = class.supertypes.as_slice() else {
+        panic!("two original supertypes");
+    };
+    assert_eq!(sources.slice(first.span).unwrap(), parent);
+    let types = parsed.ast().type_refs();
+    let lang_frontend::parser::TypeRef::Function {
+        parameters,
+        return_type,
+        ..
+    } = types.get(first.type_ref).unwrap().payload()
+    else {
+        panic!("function TypeRef");
+    };
+    let [damaged, intact] = parameters.as_slice() else {
+        panic!("two original function parameters");
+    };
+    assert_eq!(
+        sources.slice(damaged.trailing_error.unwrap()).unwrap(),
+        "async"
+    );
+    assert_eq!(sources.slice(damaged.span).unwrap(), "A async");
+    assert!(intact.trailing_error.is_none());
+
+    assert_eq!(
+        sources
+            .slice(types.get(damaged.type_ref).unwrap().span())
+            .unwrap(),
+        "A"
+    );
+    assert_eq!(
+        sources
+            .slice(types.get(intact.type_ref).unwrap().span())
+            .unwrap(),
+        "B"
+    );
+    assert_eq!(
+        sources
+            .slice(types.get(*return_type).unwrap().span())
+            .unwrap(),
+        "I"
+    );
+    assert_eq!(sources.slice(following.span).unwrap(), "J");
+    assert!(class.body.as_ref().unwrap().right_brace_span.is_some());
+    assert_eq!(
+        sources
+            .slice(parsed.ast().items().get(*sentinel).unwrap().span())
+            .unwrap(),
+        "class Sentinel"
+    );
+}
+
+#[test]
+fn delegation_requires_the_actual_closing_angle_of_its_parent() {
+    let text = "class C: I<A async, B> by delegate, J {}\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+    let [class, _] = parsed.roots() else {
+        panic!("two original roots");
+    };
+    let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+        panic!("recovered classifier");
+    };
+    let [first, following] = class.supertypes.as_slice() else {
+        panic!("two original parents");
+    };
+    let clause = first.delegation.unwrap();
+    assert_eq!(sources.slice(clause.span).unwrap(), "by delegate");
+    assert_eq!(sources.slice(following.span).unwrap(), "J");
+
+    let (sources, parsed) = file("class C: I<async by field\nclass Sentinel");
+    let [class, sentinel] = parsed.roots() else {
+        panic!("unfinished parent and following class");
+    };
+    let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+        panic!("recovered classifier");
+    };
+    assert!(class.supertypes[0].delegation.is_none());
+    assert_eq!(codes(parsed.diagnostics()), ["L0002", "L0010"]);
+    assert_eq!(
+        sources
+            .slice(parsed.ast().items().get(*sentinel).unwrap().span())
+            .unwrap(),
+        "class Sentinel"
+    );
+}
+
+#[test]
+fn damaged_type_elements_only_obey_delimiters_with_a_current_owner() {
+    for parent in [
+        "I<A async ], B>",
+        "I<A async < 1, B>",
+        "(A async ], B) -> I",
+        "(A async < 1, B) -> I",
+        "(A async (Y) -> I, B) -> J",
+        "I<(A async >, B) -> R, D>",
+        "(A async { -> 1 }, B) -> I",
+        "I<[A, B], C>",
+        "I<<A, B>, C>",
+        "([A, B], C) -> I",
+    ] {
+        let text = format!("class C: {parent}, J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let [class, sentinel] = parsed.roots() else {
+            panic!("class and sentinel for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("classifier for {text}");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("two parent entries for {text}");
+        };
+        assert_eq!(sources.slice(first.span).unwrap(), parent);
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        assert!(class.body.as_ref().unwrap().right_brace_span.is_some());
+        assert_eq!(
+            sources
+                .slice(parsed.ast().items().get(*sentinel).unwrap().span())
+                .unwrap(),
+            "class Sentinel"
+        );
+    }
+}
+
+#[test]
+fn a_missing_type_closer_after_a_comma_preserves_the_next_declaration() {
+    for parent in ["I<A async,", "(A async,"] {
+        let text = format!("class C: {parent}\nfun next(): Unit {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let [class, next, sentinel] = parsed.roots() else {
+            panic!("class, function and sentinel for {text}");
+        };
+        let items = parsed.ast().items();
+        let Item::Classifier(class) = items.get(*class).unwrap().payload() else {
+            panic!("classifier for {text}");
+        };
+        assert!(class.body.is_none());
+        assert_eq!(
+            sources.slice(items.get(*next).unwrap().span()).unwrap(),
+            "fun next(): Unit {}"
+        );
+        assert_eq!(
+            sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+            "class Sentinel"
+        );
+    }
+
+    let (sources, parsed) = declaration("class Outer {\nclass Inner: I<A async,\ndeinit() {}\n}");
+    let [inner, deinit] = classifier(&parsed)
+        .body
+        .as_ref()
+        .unwrap()
+        .members
+        .as_slice()
+    else {
+        panic!("nested classifier and original deinit");
+    };
+    let Item::Classifier(inner) = item(&parsed, *inner) else {
+        panic!("nested classifier");
+    };
+    assert!(inner.body.is_none());
+    assert_eq!(
+        sources
+            .slice(parsed.ast().items().get(*deinit).unwrap().span())
+            .unwrap(),
+        "deinit() {}"
+    );
+}
+
+#[test]
+fn a_contextual_member_name_can_still_be_a_nested_type_name() {
+    let (sources, parsed) =
+        declaration("class Outer { class Inner: I<A, deinit>, (deinit) -> I {} }");
+    let [inner] = classifier(&parsed)
+        .body
+        .as_ref()
+        .unwrap()
+        .members
+        .as_slice()
+    else {
+        panic!("one nested classifier");
+    };
+    let Item::Classifier(inner) = item(&parsed, *inner) else {
+        panic!("nested classifier");
+    };
+    assert_eq!(codes(parsed.diagnostics()), ["L0077"]);
+    let [qualified, function] = inner.supertypes.as_slice() else {
+        panic!("two original supertypes");
+    };
+    assert_eq!(sources.slice(qualified.span).unwrap(), "I<A, deinit>");
+    assert_eq!(sources.slice(function.span).unwrap(), "(deinit) -> I");
+}
+
+#[test]
+fn type_element_start_respects_contextual_names_and_real_file_prefixes() {
+    for ty in ["value", "() -> value"] {
+        let (sources, parsed) = file(&format!("class C: {ty}\nclass Sentinel"));
+        assert!(parsed.diagnostics().is_empty(), "{ty}");
+        let [class, _] = parsed.roots() else {
+            panic!("original class and sentinel");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("classifier");
+        };
+        assert_eq!(sources.slice(class.supertypes[0].span).unwrap(), ty);
+    }
+
+    for ty in ["deinit", "() -> deinit", "(borrow own) -> I"] {
+        let (sources, parsed) = declaration(&format!("class Outer {{ class Inner: {ty} {{}} }}"));
+        assert_eq!(codes(parsed.diagnostics()), ["L0077"], "{ty}");
+        let [inner] = classifier(&parsed)
+            .body
+            .as_ref()
+            .unwrap()
+            .members
+            .as_slice()
+        else {
+            panic!("one nested classifier");
+        };
+        let Item::Classifier(inner) = item(&parsed, *inner) else {
+            panic!("nested classifier");
+        };
+        assert!(inner.body.is_some(), "{ty}");
+        assert_eq!(sources.slice(inner.supertypes[0].span).unwrap(), ty);
+    }
+
+    let (sources, parsed) = file("class C: I<A async,\nvalue class Sentinel(val i: Int)");
+    let [class, sentinel] = parsed.roots() else {
+        panic!("unfinished parent and value class");
+    };
+    let items = parsed.ast().items();
+    let Item::Classifier(class) = items.get(*class).unwrap().payload() else {
+        panic!("unfinished classifier");
+    };
+    assert!(class.body.is_none());
+    assert_eq!(
+        sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+        "value class Sentinel(val i: Int)"
+    );
+}
+
+#[test]
+fn an_error_group_cannot_jump_past_a_proven_function_parameter_closer() {
+    let text = "class C: (A async [X) -> I, J ], K {}\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    let items = parsed.ast().items();
+    let Item::Classifier(class) = items.get(parsed.roots()[0]).unwrap().payload() else {
+        panic!("classifier");
+    };
+    let [function, sibling] = class.supertypes.as_slice() else {
+        panic!("function parent and J");
+    };
+    assert_eq!(sources.slice(function.span).unwrap(), "(A async [X) -> I");
+    assert_eq!(sources.slice(sibling.span).unwrap(), "J");
+    let lang_frontend::parser::TypeRef::Function {
+        arrow_span,
+        parameters,
+        ..
+    } = parsed
+        .ast()
+        .type_refs()
+        .get(function.type_ref)
+        .unwrap()
+        .payload()
+    else {
+        panic!("function TypeRef");
+    };
+    assert_eq!(sources.slice(*arrow_span).unwrap(), "->");
+    let [parameter] = parameters.as_slice() else {
+        panic!("one function parameter");
+    };
+    assert_eq!(
+        sources.slice(parameter.trailing_error.unwrap()).unwrap(),
+        "async [X"
+    );
+}
+
+#[test]
+fn a_proven_parenthesis_cannot_spend_an_explicit_file_separator() {
+    let (sources, parsed) = file("class C: (A async;\nfun next(): Unit {} )\nclass Sentinel");
+    let items = parsed.ast().items();
+    let Item::Classifier(class) = items.get(parsed.roots()[0]).unwrap().payload() else {
+        panic!("classifier");
+    };
+    assert!(class.body.is_none());
+    assert_eq!(sources.slice(class.supertypes[0].span).unwrap(), "(A async");
+    assert!(parsed.roots().iter().any(|id| {
+        let item = items.get(*id).unwrap();
+        sources.slice(item.span()).unwrap() == "fun next(): Unit {}"
+    }));
+    assert_eq!(
+        sources
+            .slice(items.get(*parsed.roots().last().unwrap()).unwrap().span())
+            .unwrap(),
+        "class Sentinel"
+    );
+}
+
+#[test]
+fn an_unproved_type_group_does_not_spend_the_standalone_separator() {
+    let (sources, parsed) = declaration("class C: I<A async [X;");
+    let class = classifier(&parsed);
+    assert_eq!(
+        sources.slice(class.supertypes[0].span).unwrap(),
+        "I<A async [X"
+    );
+    assert!(
+        parsed
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| { sources.slice(diagnostic.primary_span()).unwrap() == ";" })
+    );
+}

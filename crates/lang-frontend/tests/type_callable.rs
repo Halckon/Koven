@@ -24,6 +24,12 @@ use unit_entries::checked_entries;
 #[path = "type_callable/lambda_modes.rs"]
 mod lambda_modes;
 
+#[path = "type_callable/expected_parameter_modes.rs"]
+mod expected_parameter_modes;
+
+#[path = "type_callable/overload_lambda_unit.rs"]
+mod overload_lambda_unit;
+
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,
@@ -246,6 +252,28 @@ fn parameter_modes_accept_only_the_phase2_contract_matrix() {
         );
         assert_eq!(typed.calls()[3].arguments()[0].mode(), ParameterMode::Inout);
     }
+}
+
+#[test]
+fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
+    let text = "fun inspect(borrow input: Int): Unit {}\n\
+                fun mutate(inout input: Int): Unit {}\n\
+                fun consume(own input: Int): Unit {}\n\
+                fun applyBorrow(callback: (borrow Int) -> Unit): Unit {}\n\
+                fun applyOwn(callback: (own Int) -> Unit): Unit {}\n\
+                fun applyInout(callback: (inout Int) -> Unit): Unit {}\n\
+                fun use(): Unit {\n\
+                    val reader: (borrow Int) -> Unit = { item -> inspect(item) }\n\
+                    val writer: (inout Int) -> Unit = { item -> mutate(&item) }\n\
+                    val owner: (own Int) -> Unit = { item -> }\n\
+                    val moved: move (borrow Int) -> Unit = move { item -> inspect(item) }\n\
+                    val appliedBorrow = applyBorrow({ item -> })\n\
+                    val appliedOwn = applyOwn({ item -> })\n\
+                    val appliedInout = applyInout({ item -> })\n\
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    expected_parameter_modes::check(&sources, &parsed, &names, &types);
 }
 
 #[test]
@@ -484,8 +512,7 @@ fn explicit_inferred_and_member_generic_calls_publish_stable_instances() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    for (names, unit) in unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types)
-    {
+    for (names, unit) in unit_entries::checked_named_entries(&sources, &parsed, &names, &types) {
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
         assert_eq!(unit.calls().len(), 7);
         let call = |text| {
@@ -541,12 +568,9 @@ fn explicit_inferred_and_member_generic_calls_publish_stable_instances() {
         let UnitCallTarget::Symbol(select) = member.target() else {
             panic!("Holder.select member symbol")
         };
-        let source = &names.names().source_units()[0];
+        let source = &names.source_units()[0];
         for (id, expected) in [
-            (
-                names.names().declaration_symbol(identity).unwrap(),
-                "identity",
-            ),
+            (names.declaration_symbol(identity).unwrap(), "identity"),
             (select, "select"),
         ] {
             assert_eq!(id.source_unit(), source.source_unit());
@@ -678,51 +702,7 @@ fn overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let entries = unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types);
-    let repeats = checked_entries(&sources, &parsed, &names, &types);
-    for ((names, unit), repeated) in entries.into_iter().zip(repeats) {
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        assert_eq!(unit.calls(), repeated.calls());
-        let mut call_spans = unit
-            .calls()
-            .iter()
-            .map(|call| {
-                parsed
-                    .ast()
-                    .expressions()
-                    .get(call.expression().expression())
-                    .unwrap()
-                    .span()
-            })
-            .collect::<Vec<_>>();
-        call_spans.sort_by_key(|span| span.start());
-        assert_eq!(
-            call_spans
-                .iter()
-                .map(|&span| sources.slice(span).unwrap())
-                .collect::<Vec<_>>(),
-            ["resolve { intResult(it) }", "intResult(it)"]
-        );
-        assert!(unit.calls().iter().all(|call| {
-            unit.types().get(call.return_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
-        }));
-        let resolved = &names.names().source_units()[0];
-        let parameter = resolved
-            .resolution()
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-            .expect("committed lambda parameter");
-        assert_eq!(unit.body_parameter_modes().len(), 1);
-        let (&id, &mode) = unit.body_parameter_modes().iter().next().unwrap();
-        assert_eq!(id.source_unit(), resolved.source_unit());
-        assert_eq!(id.symbol(), parameter.id());
-        assert_eq!(mode, ParameterMode::Borrow);
-        assert_eq!(
-            unit.symbol_type(id).and_then(|ty| unit.types().get(ty)),
-            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
-        );
-    }
+    overload_lambda_unit::unique_trial(&sources, &parsed, &names, &types);
 }
 
 #[test]
@@ -824,65 +804,7 @@ fn generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order()
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    for (resolved, unit) in
-        unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types)
-    {
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let [call] = unit.calls() else {
-            panic!("only the winning dispatch call publishes a descriptor")
-        };
-        assert_eq!(
-            call.arguments()
-                .iter()
-                .map(|argument| argument.parameter_index())
-                .collect::<Vec<_>>(),
-            [2, 0, 1]
-        );
-        assert_eq!(
-            unit.types().get(call.return_type()),
-            Some(&UnitTypeKind::Builtin(BuiltinType::Long))
-        );
-        assert_eq!(
-            call.instance()
-                .type_arguments()
-                .iter()
-                .map(|&argument| unit.types().get(argument))
-                .collect::<Vec<_>>(),
-            [
-                Some(&UnitTypeKind::Builtin(BuiltinType::String)),
-                Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
-            ]
-        );
-
-        let source = &resolved.names().source_units()[0];
-        assert_eq!(unit.body_parameter_modes().len(), 3);
-        for (name, mode, builtin) in [
-            ("changed", ParameterMode::Inout, BuiltinType::Int),
-            ("borrowed", ParameterMode::Borrow, BuiltinType::String),
-            ("owned", ParameterMode::Value, BuiltinType::Int),
-        ] {
-            let symbol = source
-                .resolution()
-                .symbols()
-                .iter()
-                .find(|symbol| {
-                    symbol.kind() == SymbolKind::LambdaParameter && symbol.name() == name
-                })
-                .expect("original lambda parameter");
-            let (&id, &actual_mode) = unit
-                .body_parameter_modes()
-                .iter()
-                .find(|(id, _)| {
-                    id.source_unit() == source.source_unit() && id.symbol() == symbol.id()
-                })
-                .expect("committed mode for original lambda parameter");
-            assert_eq!(actual_mode, mode);
-            assert_eq!(
-                unit.symbol_type(id).and_then(|ty| unit.types().get(ty)),
-                Some(&UnitTypeKind::Builtin(builtin))
-            );
-        }
-    }
+    overload_lambda_unit::generic_trial(&sources, &parsed, &names, &types);
 }
 
 #[test]
@@ -913,11 +835,9 @@ fn generic_source_calls_instantiate_while_reference_and_safe_calls_remain_deferr
             .expect("original call expression")
             .0
     };
-    for (resolved, unit) in
-        unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types)
-    {
+    for (resolved, unit) in unit_entries::checked_named_entries(&sources, &parsed, &names, &types) {
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let source = resolved.names().source_units()[0].source_unit();
+        let source = resolved.source_units()[0].source_unit();
         let generic = UnitExpressionId::new(source, call("identity<Int>(1)"));
         assert_eq!(
             unit.expression_type(generic)

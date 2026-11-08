@@ -94,9 +94,11 @@ impl UnitOwnerObservation {
             &mut created,
             &mut Vec::new(),
             None,
-        ) && !locations
-            .iter()
-            .any(|location| matches!(location, Location::Uncreated | Location::Pending(..)))
+        )
+        .is_some()
+            && !locations
+                .iter()
+                .any(|location| matches!(location, Location::Uncreated | Location::Pending(..)))
     }
 
     fn replay_owner_events(
@@ -107,8 +109,8 @@ impl UnitOwnerObservation {
         created: &mut [bool],
         controls: &mut Vec<UnitExpressionId>,
         edge: Option<(UnitExpressionId, usize)>,
-    ) -> bool {
-        for event in events {
+    ) -> Option<bool> {
+        for (event_index, event) in events.iter().enumerate() {
             let valid_owner = |id: &UnitOwnerId| self.definition(id.clone()).is_some();
             match event {
                 UnitOwnerTransportEvent::If {
@@ -117,27 +119,50 @@ impl UnitOwnerObservation {
                     else_events,
                 } => {
                     if control.source_unit() != source || controls.contains(control) {
-                        return false;
+                        return None;
                     }
                     controls.push(*control);
                     let mut left = locations.to_vec();
                     let mut right = locations.to_vec();
-                    if !self.replay_owner_events(
+                    let left_continues = self.replay_owner_events(
                         then_events,
                         source,
                         &mut left,
                         created,
                         controls,
                         Some((*control, 0)),
-                    ) || !self.replay_owner_events(
+                    )?;
+                    let right_continues = self.replay_owner_events(
                         else_events,
                         source,
                         &mut right,
                         created,
                         controls,
                         Some((*control, 1)),
-                    ) {
-                        return false;
+                    )?;
+                    match (left_continues, right_continues) {
+                        (false, false) => return None, // Both-terminal control is not admitted yet.
+                        (false, true) | (true, false) => {
+                            let (continuing, terminated) = if left_continues {
+                                (&left, &right)
+                            } else {
+                                (&right, &left)
+                            };
+                            for ((joined, live), dead) in
+                                locations.iter_mut().zip(continuing).zip(terminated)
+                            {
+                                // A definition created and retired only on the terminal
+                                // path is unavailable on the survivor, not a live phi.
+                                *joined =
+                                    if *live == Location::Uncreated && *dead == Location::Dropped {
+                                        Location::Dropped
+                                    } else {
+                                        *live
+                                    };
+                            }
+                            continue;
+                        }
+                        (true, true) => {}
                     }
                     for ((joined, left), right) in locations.iter_mut().zip(left).zip(right) {
                         if left == right {
@@ -153,9 +178,21 @@ impl UnitOwnerObservation {
                             // dropped there. It is unavailable after either continuation.
                             *joined = Location::Dropped;
                         } else {
-                            return false;
+                            return None;
                         }
                     }
+                }
+                UnitOwnerTransportEvent::UnitReturn { expression } => {
+                    if edge.is_none()
+                        || expression.source_unit() != source
+                        || event_index + 1 != events.len()
+                        || locations.iter().any(|location| {
+                            !matches!(location, Location::Uncreated | Location::Dropped)
+                        })
+                    {
+                        return None;
+                    }
+                    return Some(false);
                 }
                 UnitOwnerTransportEvent::Capture {
                     expression,
@@ -170,7 +207,7 @@ impl UnitOwnerObservation {
                         || locations[environment.index] != Location::Uncreated
                         || inputs.is_empty()
                     {
-                        return false;
+                        return None;
                     }
                     for (symbol, owner) in inputs {
                         if !valid_owner(owner)
@@ -182,7 +219,7 @@ impl UnitOwnerObservation {
                             || locations[owner.index] != Location::Named(*symbol)
                             || locations.contains(&Location::Captured(environment.index, *symbol))
                         {
-                            return false;
+                            return None;
                         }
                         locations[owner.index] = Location::Captured(environment.index, *symbol);
                     }
@@ -201,7 +238,7 @@ impl UnitOwnerObservation {
                         || created[environment.index]
                         || inputs.is_empty()
                     {
-                        return false;
+                        return None;
                     }
                     for (index, (symbol, owner)) in inputs.iter().enumerate() {
                         if !valid_owner(owner)
@@ -213,7 +250,7 @@ impl UnitOwnerObservation {
                             || locations[owner.index] != Location::Named(*symbol)
                             || inputs[..index].iter().any(|(prior, _)| prior == symbol)
                         {
-                            return false;
+                            return None;
                         }
                     }
                     created[environment.index] = true;
@@ -235,7 +272,7 @@ impl UnitOwnerObservation {
                         || !matches!(locations[environment.index], Location::Named(_))
                         || locations[owner.index] != Location::Named(*symbol)
                     {
-                        return false;
+                        return None;
                     }
                 }
                 UnitOwnerTransportEvent::CaptureDrop {
@@ -254,7 +291,7 @@ impl UnitOwnerObservation {
                         || !matches!(locations[environment.index], Location::Named(_))
                         || locations[owner.index] != Location::Captured(environment.index, *symbol)
                     {
-                        return false;
+                        return None;
                     }
                     locations[owner.index] = Location::Dropped;
                 }
@@ -269,7 +306,7 @@ impl UnitOwnerObservation {
                         || symbol.source_unit() != source
                         || locations[owner.index] != Location::Named(*symbol)
                     {
-                        return false;
+                        return None;
                     }
                     locations[owner.index] = Location::Result(*expression);
                 }
@@ -290,13 +327,13 @@ impl UnitOwnerObservation {
                             Location::Captured(environment, _) if *environment == owner.index)
                         })
                     {
-                        return false;
+                        return None;
                     }
                     locations[owner.index] = Location::Dropped;
                 }
                 UnitOwnerTransportEvent::Result { expression, owner } => {
                     if !valid_owner(owner) || expression.source_unit() != source {
-                        return false;
+                        return None;
                     }
                     match locations[owner.index] {
                         Location::Uncreated
@@ -304,12 +341,12 @@ impl UnitOwnerObservation {
                                 == UnitOwnerOrigin::String(*expression) =>
                         {
                             if created[owner.index] {
-                                return false;
+                                return None;
                             }
                             created[owner.index] = true;
                         }
                         Location::Result(_) => {}
-                        _ => return false,
+                        _ => return None,
                     }
                     locations[owner.index] = Location::Result(*expression);
                 }
@@ -324,7 +361,7 @@ impl UnitOwnerObservation {
                         || locations[owner.index] != Location::Result(*initializer)
                         || locations.contains(&Location::Named(*symbol))
                     {
-                        return false;
+                        return None;
                     }
                     locations[owner.index] = Location::Named(*symbol);
                 }
@@ -339,7 +376,7 @@ impl UnitOwnerObservation {
                         || locations[owner.index] != Location::Result(*argument)
                         || locations.contains(&Location::Pending(*call, *argument))
                     {
-                        return false;
+                        return None;
                     }
                     locations[owner.index] = Location::Pending(*call, *argument);
                 }
@@ -360,7 +397,7 @@ impl UnitOwnerObservation {
                         || locations[left_owner.index] != Location::Named(*left)
                         || locations[right_owner.index] != Location::Named(*right)
                     {
-                        return false;
+                        return None;
                     }
                     locations[left_owner.index] = Location::Named(*right);
                     locations[right_owner.index] = Location::Named(*left);
@@ -381,13 +418,13 @@ impl UnitOwnerObservation {
                         || locations[previous.index] != Location::Named(*root)
                         || locations[incoming.index] != Location::Pending(*call, *argument)
                     {
-                        return false;
+                        return None;
                     }
                     locations[previous.index] = Location::Result(*call);
                     locations[incoming.index] = Location::Named(*root);
                 }
             }
         }
-        true
+        Some(true)
     }
 }

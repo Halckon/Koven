@@ -3869,3 +3869,628 @@ Mac、locked/offline、默认debug、独立target：新正控、原失败边界�
 Owned分支隔离、Shared全产物等价、分支局部形成、双臂退休共8项普通定向通过。
 独立只读复核确认原源码逐字一致且未弱化oracle。未改生产代码或损坏产物负控；
 CI-only注入仍未本地执行，新头仍须取得正式双平台CI，不以此次定向代替全量验收。
+
+## 独立修复：名义签名 L0091 来源锚点（2026-11-08）
+
+基线 main `adba71c3`（含 #351）；#356 为 constant while exits，不与本片改动重叠。
+Guide 03 的 L0091 允许类型实参表或类型名作为 primary；原 Unit signature 错取首实参，
+且用声明 source 解读 use-site TypeRefId。原 `nominal_and_type_parameter_identity_is_known_and_arity_is_exact`
+源码的双入口回归修复前实得 `(Int, Left)` 而非 `(Left, Left)`；跨文件回归实得声明文件
+`Long` 而非使用文件 `Left`。本片令 emitter 显式接收 Span，nominal 传类型名，type parameter
+保持原 argument primary，诊断码、label、错误恢复与 validate 拒绝不变。原 Single 见证完整保留。
+
+| 验收项 | 测试目标/命令 | 实际结果 |
+|---|---|---|
+| 原源码缺失/多余实参诊断，两 raw Unit 入口 | `type_checking::nominal_arity_spans` | 修复前失败，修复后通过 |
+| 跨文件 primary/label source identity、正反输入排列 | `multifile_type_signatures::nominal_arity_primary_stays_in_use_source_under_input_permutation` | 修复前失败，修复后通过 |
+| `T<Int>` / `Int<String>` 原锚点邻控与同文件精确位置 | `type_checking::nominal_arity_spans` | 通过 |
+| 签名/body/原 Single/诊断共享契约 | `cargo test -p lang-frontend --test type_checking --test multifile_type_signatures --test multifile_type_checking --test diagnostic_model` | 401 项通过，0 失败、0 忽略 |
+
+Mac、Rust 1.96、独立 target、默认 debug profile。frontend all-targets Clippy
+（locked/offline、`-D warnings`）、workspace fmt、863份 Markdown、diff 与 Rust 尺寸门禁通过。
+独立复审核对 use-site primary、声明 label 与两入口后，补齐邻控和精确字节身份，最终复跑全绿。
+仅 Phase 2 诊断锚点修复；不宣称原类型
+消费者已整体迁移。enum case TypeRef 的 L0114 差距仍未修复，Single 仍保留；未运行 native、
+full suite 或新头 CI，不开 PR、不合并。signatures.rs 原 1036 行旧债，本次改为1033行，
+不扩大既有例外或增加职责。
+
+## 独立修复：已解析 enum case 签名位置（2026-11-08）
+
+基线 main `f3d2857e`。Guide 06 的 case TypeRef 仅用于 is/!is；签名、字段、payload、
+泛型实参、supertype、bound 等显式位置必须 L0114。原 Single witness
+`enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests` 保持原样；
+同一源码双 Unit 原先无诊断，新增回归已实测失败，再修复为单条 L0114。
+本片只识别名称产物中真实 terminal case symbol，不按拼写猜身份，也不依赖 case signature
+收集进度；完整 TypeRef 为 primary，root enum 名称为 label，缓存 Error 不授成功资格。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 原 Single 源码双 raw Unit 入口与原 span | `type_checking::enum_type_position::enum_case_signature_rejects_original_single_source_in_both_entries` | 修复前无诊断失败，修复后通过 |
+| 字段、返回、nullable、函数参数、泛型、payload、supertype、bound | `type_checking::enum_type_position::enum_case_types_are_rejected_through_nested_signature_positions` | 双入口单条 L0114，无附加诊断 |
+| root 签名、is/!is | `type_checking::enum_type_position::enum_root_signatures_and_case_type_tests_remain_valid` | 双入口无诊断、可 validate |
+| 默认可见性的双文件来源身份及正反输入排列 | `multifile_type_signatures::enum_case_position_diagnostic_preserves_cross_file_identity_and_input_order` | primary/use source、label/enum source 均正确，拒绝 validate |
+
+Mac Rust1.96、独立 target、默认 debug profile：`cargo test -p lang-frontend --test type_checking
+--test multifile_type_signatures --test multifile_type_checking --test diagnostic_model` 全402项
+（92/20/281/9）通过，零失败、零忽略；frontend all-targets Clippy（locked/offline、
+`-D warnings`）、workspace fmt、863份 Markdown、diff、Rust尺寸门禁及尺寸政策专项47项通过。
+最终候选独立复审无阻断。
+
+范围仍有限：探针 `class Holder(val value: Shape.Circle)` 在同文件 `enum class Shape { Circle }`
+之前时，名称产物缺 terminal reference，Unit 仍漏 L0114；本片不伪造类型层名称解析。
+双文件显式 `public enum class Shape { Circle }` 则在原 main 生产代码与本修复上均报
+`MissingDeclarationSymbol`；已用原生产版本复测，不把默认 public 的成功 witness 冒充此形式通过。
+这两项继续 open，未删除/修改既有断言，未声称所有 enum 或 Single 消费者退休。
+
+signatures.rs 1036→1041 行仅增加模块及位置门接线，识别逻辑独立子模块；独立复审认可有界
+例外并更新尺寸政策。未运行 native、full suite 或新头 CI；不创建 PR、不合并。
+
+## 独立修复：显式可见性的 inline classifier 身份（2026-11-08）
+
+基线 main `6e5934b5`。跨包 `public enum class Shape { Circle(radius: Int), Point }`
+合法签名原先实测 `MissingDeclarationSymbol`。inline-layout 读取误把 `Item::Modified`
+当 classifier；本片复用既有声明解包，保留原声明/字段/payload 身份，不吞内部错误或绕过布局检查。
+不改名称产物、L0114 位置门或可见性政策，不接入其他候选分支。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 跨包 public enum 的 case、payload、来源身份与完整签名排列相等，body 中合法 is | `multifile_type_signatures::enum_identity::explicit_public_enum_preserves_case_signatures_across_files` | 原版 MissingDeclarationSymbol 红测，修复后通过 |
+| public/internal/private 的 enum 与 value class 有限布局 | `multifile_type_signatures::enum_identity::explicit_visibility_preserves_finite_inline_components_in_both_entries` | memory/rooted 均无诊断，可 validate |
+| 同三可见性的 enum/value class 递归布局 | `multifile_type_signatures::enum_identity::explicit_visibility_does_not_skip_recursive_inline_layout_diagnostics` | 双入口单条 L0116、精确递归 TypeRef 位置，拒绝 validate |
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug profile：`multifile_type_signatures` 22、
+`multifile_type_capability_graph` 10、`multifile_type_checking` 281、`type_checking` 89、
+`type_copyability` 17，共419项通过，零失败/忽略。frontend all-targets Clippy（`-D warnings`）、
+workspace fmt、863份Markdown、diff与相对基线尺寸门禁通过；无新增尺寸欠账。
+独立只读复审未发现 P1/P2。
+前向 enum case terminal reference 缺口仍 open；已解析 case 的 L0114 修复仍属独立候选，
+本片不声称其组合已验。未运行 frontend/workspace 全量、native、Linux 或正式 CI；不合并。
+
+## 独立修复：同文件 enum 前向 case 名称身份（2026-11-08）
+
+基线 main `4ae149a6`。同文件 `Shape.Circle` 使用早于 enum 声明时，局部名称产品尚无
+terminal 引用，Unit 遇到已绑定 lexical root 又跳过补全。另已实测 `Shape.Missing` 会被
+同名顶层 `class Missing` 接管，错误地消除 L0080。六项定向基线4失败/2通过。
+本片仅在 Unit 名称阶段，以 Type namespace 的真实 root SymbolId 及完整 enum case 表
+补齐两段 TypeRef 的 terminal，保留 root、scope、symbol/case ID 和其他引用；不在类型层按拼写猜身份。
+仅 terminal 的局部引用/旧 L0080 被替换，未知 case 发布单条 L0080 和 Type/Unresolved。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 正反声明顺序、精确 root/case 身份及 Span，memory/rooted | `multifile_name_resolution::forward_enum::local_enum_type_paths_preserve_root_and_case_identity_in_both_orders` | 通过；保留局部 symbol/scope/case 表 |
+| 两个 enum 同名 case 由各自 root 选择 | 同模块 `equally_named_cases_are_selected_by_the_bound_root` | 通过 |
+| 类型参数遮蔽、值参数同拼写不遮类型 | 同模块 `type_parameter_shadowing_is_not_rebound_to_the_outer_enum`、`same_spelling_value_parameter_does_not_shadow_the_enum_type` | 通过 |
+| 缺 case 有/无同名顶层类型，普通裸名不受影响 | 同模块 `missing_local_case_cannot_fall_back_to_a_same_named_top_level_type` | 双顺序/双入口均单条精确 L0080，拒绝 validate |
+| 合法前向 is 与完整名称输入排列相等 | 同模块 `forward_enum_type_tests_validate_and_input_permutation_preserves_names` | 名称相等、typed 无诊断并可 validate |
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug profile：`name_resolution` 15、
+`multifile_name_resolution` 19、`unit_name_snapshot` 7、`type_checking` 90、
+`multifile_type_signatures` 19、`multifile_type_checking` 281，共431项；完整 LSP 56项及
+stdio 1项，合计488项通过，零失败/忽略。frontend all-targets Clippy（`-D warnings`）、
+workspace fmt、863份Markdown、尺寸与diff检查通过；独立只读复审未发现阻断问题。
+
+额外一次性组合验证：以同基线及本片 qualified.rs，叠加 `f27960e3` 的 L0114 生产/测试差异、
+`5d5a68bb` 的声明解包生产差异；3项 enum_type_position 和1项跨文件 case 诊断通过。
+嵌套签名探针扩为8种位置×正反声明顺序×默认/public×双入口共64组，均精确 L0114；
+跨文件 public enum 正反输入排列保留 primary/use 与 label/enum 来源。这仅为隔离组合证据，
+不代表三个分支已集成、发布或取得正式 CI。
+
+空 enum 已由 Guide08/parser L0073 拒绝，本片不追加其恢复诊断；超过两段 TypeRef、
+表达式成员路径与 legacy local resolver 不变。未运行 frontend/workspace 全量、native、Linux
+或正式 CI；不合并，D10/E2仍in-progress。
+
+## 类型诊断四候选集中集成（2026-11-08）
+
+以已合 #365 的 main `6d87040b69dfc12ae5accacd3a73a2f816d8bb36` 新建本地
+`fix/spec-0341-type-candidate-batch`。`git cherry` 核实四源候选均未被主线吸收；
+依次保留 `16593a5c`（L0091）、`f27960e3`（L0114）、`5d5a68bb`（修饰器解包）与
+`58b6d36c`（前向 case 名称）完整逻辑提交，生产输入归于合批头 `845ed317`。
+四笔生产差异的 stable patch-id 分别与源提交相同，不另改语言规则或所有权能力。
+
+冲突仅为测试注册、尾部追加与文档同段/追加位置，生产代码无冲突。原测试源码及断言保留，
+不混入主工作区未跟踪脚本或其他候选；原独立验收仍是历史记录，本节才描述组合结果。
+已将先前一次性组合探针固化：8种签名位置 × 正反声明顺序 × 默认/public × 双 Unit 入口
+共64组，均精确单条 L0114并拒绝validate；双文件默认/public、正反输入排列保留使用处
+primary与enum声明label的来源身份。合法is/!is、root签名、遮蔽、缺case与递归布局邻控保留。
+
+首轮扩大到Box邻控发现一个旧oracle不再匹配：原完整 `Box<Point<Int>>` 输入仍产生既有
+五个诊断码及五个Error参数，但L0091由旧首实参`Int`转为正确使用点`Point`。
+按Guide03合同迁移这一处primary，保留其余四个primary、全部源码与Error断言，补精确
+SourceId/字节范围、声明label及validate拒绝。独立复审确认是锚点修复的必要消费者迁移，
+未放宽生产行为或接受多种结果。首次475通过/1失败的结果不冒充全绿。
+
+Mac AArch64、Rust/Cargo1.96、locked/offline、默认debug profile、单一独立target、
+编译jobs=2，最终组合实跑如下：
+
+| 验收项 | 目标/命令 | 实际结果 |
+|---|---|---|
+| 名称、签名、body、诊断、能力、原Single与双Unit | frontend `diagnostic_model`、`multifile_name_resolution`、`multifile_type_capability_graph`、`multifile_type_checking`、`multifile_type_signatures`、`name_resolution`、`type_checking`、`type_copyability`、`unit_name_snapshot`；一次`--no-fail-fast`调用 | 9/19/10/281/24/15/94/17/7，共476项通过，零失败/忽略 |
+| 名称身份直接下游 | `cargo test --locked --offline -p lang-lsp --no-fail-fast` | 56项及stdio1项，共57项通过，零失败/忽略 |
+| 静态检查 | frontend all-targets Clippy `-D warnings`、workspace fmt、`git diff --check` | 通过 |
+| 文档与尺寸政策 | `check_docs.py`、`check_rust_sizes.py --base 6d87040b`、`unittest scripts.tests.test_check_rust_sizes` | 863份Markdown、2207份手写Rust/34份历史超长与47项政策测试通过 |
+
+独立只读复审核对真实root/case身份、未知case抑制、Error资格链、修饰器布局及冲突oracle，
+最终增量无P1/P2。signatures.rs从main1036行经+5/−3成为1038行，尺寸例外收紧至1038；
+architecture合并本片重复段落保持200行，不删除原事实。政策测试初次受只读临时目录限制，
+允许创建其测试临时仓库后47项实跑通过，不将初次环境失败算作通过。
+
+`type_checking`精确排除历史Abort输入
+`nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`
+共1项；其源码、规模、ignore与线程栈均未修改，该项只编译，正式CI仍负责实跑。
+未运行frontend/workspace全量、native、Linux、损坏注入或新头CI；未改跨crate API，不追加
+workspace check。空enum、超过两段本地TypeRef及错误嵌套case实参恢复不新增覆盖。
+本批只本地准备，不推送、不创建PR、不合并；D10/E2仍in-progress。
+
+## Unit Return 终止边前置（2026-11-08）
+
+基于已合 #365 的 main `6d87040b`，独立分支 `feature/spec-0341-shared-owner-continuation`。
+下一有界合同是显式 Unit If 的单臂 bare Return，另一臂继续。旧真实 Shared 输入本机
+先实跑为 Unsupported/Syntax，再引入真实 UnitReturn 事件及两个 replay 的继续/终止状态。
+真实 Return 求值、iteration cleanup、drop_all 顺序不变，超长 planner 把该语义块委托到
+control helper，净减少行数；观测关闭也执行完整原路径。终止边须清空 owner/loan、无
+部分退休与事件后缀；只采用继续臂状态，不求伪 phi。事件事实 Eq 与 V1 拒绝同步更新。
+
+五份 Shared 正控覆盖正反臂、同源双环境、多来源、嵌套。精确核 bare Return 的 AST Unit
+身份，终止臂所有 End/Drop 为该 Return 的 ControlTransfer，环境先于来源退休；继续路径
+仍实际 Move 环境。原普通 String Return 边界源码完整保留为正控。十二份真实源码做全
+Analysis 开关对照（五准入、六边界、原普通返回输入），不把状态变Complete当作cleanup等价。
+
+边界包括带返回值、双终止、return臂新增静态owner、无else、循环和opaque调用，全部仍
+拒绝观测。尤其 return 臂新增 owner 尚未归一到另一臂的未形成状态，本片不放宽此项。
+CI-only 负控覆盖遗漏End/环境Drop/来源Drop/终止、终止后缀、伪终止、foreign-source Return
+及继续臂提前来源消费；本地只编译，不执行注入。无动态条件owner/phi或循环实例交付，
+不修改Tree-sitter，不自行外发或合并。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 终止边与边界 | lib `shared_capture_unit_return_edge_does_not_retire_the_continuation`、`unit_return_keeps_unsupported_terminal_shapes_fail_closed`、`original_plain_return_boundary_keeps_the_surviving_owner_state`、`unit_return_observation_keeps_full_legacy_analysis` | 各1 passed；五Shared正控、六边界、原普通返回输入 |
+| 旧分支与Shared邻控 | lib 原分支拒绝、Shared拒绝、双臂退休、跨If、分支局部形成及两种全产物等价过滤器 | 7 passed |
+| 循环和消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 原Return与borrow边 | `ownership_checking::return_cleanup_preserves_declaration_order_after_rebinding`、`ownership_borrow_continuation::children_end_before_parents_and_owner_cleanup_on_scope_and_return_edges` | 各1 passed |
+| 工程检查 | frontend all-targets Clippy `-D warnings`、workspace all-targets check（LLVM21）、fmt、diff、尺寸相对6d87040b、check_docs.py | 通过；2203份Rust、34份历史超长，863份Markdown |
+
+Mac、locked/offline、独立target、默认debug profile；普通定向23项通过。独立复核发现并
+修复CI-only多文件fixture按索引误选观察的问题，现按source-qualified callable选择，并
+核原始consistent及foreign-source差异；最终复核闭合。损坏负控仅编译、未本地执行；
+未跑全量、native或正式CI，本片仅本地保存，不推送或创建PR。
+
+## 终止臂局部 owner 静态归一（2026-11-08）
+
+基于本地 `9f84e652`，在原隔离分支推进其明确保留的局部owner缺口。原完整边界源码
+先实跑为 InconsistentTransport；最小修复仅处理 continuation=Uncreated、已验证terminal=Dropped
+的组合，将其记为静态不可用Dropped。其余继续状态不动，两边Uncreated不变，不伪造
+运行时drop、owner或phi。终止完整清理、loan分流、created去重及双终止门禁不变。
+
+四份真实输入保留原boundary并覆盖反向臂、局部Shared环境、嵌套。逐路径确认局部owner
+只在终止路径真实绑定/析构，继续路径无其Result/Binding/Move/Drop；外层Shared来源
+仍保留至该路径环境结束。十五份源码验证完整Analysis开关等价，含旧准入/拒绝和原
+普通Return输入。CI-only负控检查合流后四类token复活、缺局部String Drop/Shared End/
+环境Drop、兄弟臂复用静态定义及两臂都未形成的孤立definition；本地仅编译未执行。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 局部身份静态归一 | lib `retired_return_local_owners_are_unavailable_on_the_continuation` | 1 passed，4源码 |
+| 原终止协议和Shared邻控 | 前一切片11个普通lib过滤器（含全Analysis等价） | 11 passed |
+| 循环和消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 原Return/borrow边 | 两个前述原Return/borrow普通过滤器 | 各1 passed |
+| 静态检查 | frontend all-targets Clippy `-D warnings`、fmt、diff、相对9f84e652尺寸、check_docs.py | 通过；2203份Rust，34份历史超长 |
+
+Mac、locked/offline、独立target、默认debug profile；普通定向24项，独立只读复核无生产漏洞。
+未改公开类型，不重复workspace检查；未跑全量/native/CI-only注入/正式CI或Tree-sitter。
+此片仍不实现动态owner phi或循环实例，仅本地保存，不接触借用线补片、不外发或合并。
+
+## Callable expected 参数模式消费者迁移（2026-11-08）
+
+基于 main `f83aff80fd565771eb4873ebf8cfa51b5613ad02`，独立分支
+`feature/spec-0341-callable-lambda-mode-consumers`。仅迁移 Phase 2 测试消费入口，
+不修改生产、Guide、ownership、lowering 或仍保留的 Single 恢复见证。
+
+- `expected_lambdas_adopt_and_publish_all_parameter_modes` 保持原名称、完整源码、自定义
+  十六 builtin/两能力环境及三组固定 oracle。原一次 Single 类型分析由同一 AST 与环境的
+  MemoryDocument/Rooted 两次真实 Unit 分析承接；无新增 final/ownership 准入前置。
+- 六个命名参数通过真实 source-unit/local symbol 对应唯一 callable signature parameter；
+  七个 lambda 参数由同源 body mode 映射取值；七个 lambda function type 使用原 AST
+  expression 加真实 unit identity 查询。保留原顺序和 Borrow/Inout/Value 预期，另核唯一
+  来源和函数参数 arity，不按参数同名文本配对，也不把缺事实默认为成功。
+- 私有 `unit_entries` 提供保留名称结果的窄 helper，原 `checked_entries` 返回结构与检查
+  不变；其他顶层测试正文逐字保留。`type_callable` 直接 `check_types` 调用17→16，
+  仅说明这一消费者退休，不代表剩余 Single witness 或 D10/E2 已完成。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 原入口基线 | 原测试完整名称加 `--exact` | 1 passed |
+| 双入口及共享 helper 消费者 | `type_callable`，排除 `standard_error_has_a_stable_abort_identity_and_nothing_result` | 20 passed，1项原Abort witness未执行 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、workspace fmt、docs、尺寸、diff | 全通过；863份Markdown、2203份Rust，34项历史超长无增长 |
+| 独立复核 | 原源码与固定 oracle、来源身份、共享 helper | 无阻断，确认原契约完整保全 |
+
+Mac AArch64 / Rust1.96，locked/offline、独立 target、默认 debug profile，编译 jobs=2。
+本片没有运行故障注入、Abort、压力输入、frontend/workspace全量、native或正式CI；
+测试已编译不代表上述未执行项通过。未推送、未开PR、未合并，D10/E2仍in-progress。
+
+
+## PR #366 类型、终止边与 callable 合批（2026-11-08）
+
+保留 #366 原头 `cb1de268` 的四项类型修复，在独立
+`fix/spec-0341-d10-batch-integration` 分支合入 main `f83aff80`，随后接入
+`9f84e652`、`dcb1ffa5` 的终止边/局部 owner 与 `5cde1d3e` 的 expected lambda
+参数模式消费者。整合代码头为 `197ebf27d4da43ff79d6b072de6d7948f107fec7`；原逻辑
+提交保留，新增切片分别对应 `549a0808`、`27cc5532`、`197ebf27`。
+
+Rust 无冲突，只有本账本的尾部追加冲突，双方完整保留。独立只读复核确认：所有权源码
+与 `dcb1ffa5`、callable 测试/helper 与 `5cde1d3e`、四项类型生产路径与 `cb1de268`
+逐字一致；parser/type body 保留新 main，实现没有回退 #367 的 callback 来源修复。
+原 fixture、诊断/模式 oracle 与 observation on/off 全 Analysis 对照未弱化，未混入其他
+未纳入本批的候选。独立复审未发现新的 P1/P2，静态复核不代替执行验收。
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、默认 debug profile、
+单一独立 target、编译 jobs=2，Cargo 门禁串行运行。组合代码实跑如下：
+
+| 验收项 | 目标/选择 | 实际结果 |
+|---|---|---|
+| 类型、名称与 callable | 前述类型合批9个目标加 `type_callable`，一次 `--no-fail-fast` 调用 | 498 passed，0 failed/ignored；两项历史 Abort witness 精确排除 |
+| 所有权普通 lib 见证 | 前述终止边12项普通过滤器，加真实Shared槽、replace来源、分支局部边界及全旧cleanup等价 | 16 passed；其余367项未选中 |
+| 循环、消费者与原 Return/borrow | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` 及前述两个原 Return/borrow 过滤器 | 8 + 2 + 1 + 1 passed |
+| 名称身份直接下游 | 完整 `cargo test --locked --offline -p lang-lsp --no-fail-fast` | 56 + stdio 1 passed |
+| 跨 crate 与静态质量 | frontend all-targets Clippy `-D warnings`、workspace all-targets check、workspace fmt | 全通过 |
+| 文档与尺寸 | `check_docs.py`、尺寸相对 `f83aff80`、尺寸政策47项、diff | 全通过；863份Markdown，2209份手写Rust/34份历史超长 |
+
+Rust 定向共583项通过，不是 frontend/workspace 全量。历史
+`nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`
+与 `standard_error_has_a_stable_abort_identity_and_nothing_result` 只编译未本机执行；
+不修改源码、规模、ignore、线程栈或默认 profile。所有 CI-only 损坏产物注入也仅编译，
+未跑 native、Linux 或 Tree-sitter。本批继续同一草稿 PR #366 取得新头正式双平台 CI，
+旧 `cb1de268` 的 CI 不能代表本组合已通过；不自动合并，D10/E2 仍 in-progress。
+
+
+## 成功 overload lambda 消费者迁移（2026-11-08）
+
+基于 main `f83aff80fd565771eb4873ebf8cfa51b5613ad02`，独立分支
+`feature/spec-0341-overload-lambda-consumers`。与 expected 参数模式切片分别实现，
+只修改 Phase 2 测试消费入口；不改生产、Guide、ownership 或 lowering。
+
+- 原 `overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call` 与
+  `generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order` 的完整
+  源码、测试名、重复解析与自定义环境逐字保留。两项各走 MemoryDocument/Rooted；每个
+  入口在同一 ParsedFile、inputs、validated names 和环境上连续检查两次，不能用重新
+  resolve 替代原 repeated-check 合同。仅观察 raw types，不新增 final/ownership 前置。
+- 唯一候选保留两个 Int 返回、calls 相等与唯一 lambda 的 Borrow/Int；泛型候选保留
+  源码实参映射 `[2, 0, 1]`、Long 返回与 Inout/Borrow/Value 模式顺序。按真实 source-unit
+  和 local symbol 从 modes 表找到唯一原 binding，另核完整诊断、calls、body modes 与
+  body symbol types 的重复稳定性，不按同名文本或猜测索引配对。
+- 另17项顶层测试正文逐字保留，包含失败/歧义 trial 的 Single Error 恢复见证。
+  本文件直接 `check_types` 调用17→14，旧API不删；与其他切片合批后的数量另行清点，
+  本变化不代表所有 trial 或 D10/E2 完成。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 原入口基线与迁移后邻控 | `type_callable`，排除 `standard_error_has_a_stable_abort_identity_and_nothing_result` | 前后各20 passed，原Abort witness未执行 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、workspace fmt、docs、尺寸、diff | 全通过；863份Markdown、2203份Rust，34项历史超长无增长 |
+| 独立只读复核 | 原fixture/oracle、同names重复分析与source-qualified身份 | 无阻断，确认全部原契约保全 |
+
+Mac AArch64 / Rust1.96，locked/offline、独立target、默认debug profile，编译jobs=2。
+未运行故障注入、Abort、压力输入、frontend/workspace全量、native或正式CI。
+候选只保存在独立本地分支，交给同一PR合批；未自行推送、未合并，D10/E2仍in-progress。
+
+
+### PR #366 追加消费者与旧 Owned Return 见证迁移（2026-11-08）
+
+在已发布 `e26babd4` 上合入 main `59396543`（#368），追加 `204bdeeb` 的两项成功
+overload lambda 消费者，整合为 `0fb8dc50`。仅模块注册、Architecture同段与本账本
+追加冲突，双方内容保留；原expected模式helper、失败trial见证与#368全部13文件逐字
+保全。`type_callable`直接`check_types`调用由本PR前一头16减至13，不以调用次数代替任务数。
+
+前一头的[正式CI](https://github.com/Halckon/Koven/actions/runs/42478679334)在旧
+`capture_release_does_not_admit_noncontinuing_if_edges`断言失败：原完整Owned move
+环境单bare Return输入已按新协议Complete，旧oracle仍要求Unsupported/Syntax。
+`0fb8dc50`本机精确复现同因，0 passed/1 failed，不能将首次失败算作通过。
+
+修复 `7ea84ebab07c35269df71cb0231081b6d56a3c02` 仅改测试与架构，不再放宽生产。
+原 `RETURN_RELEASE` 源码完整保留为正控，固定原参数槽、closure/If/Return的真实Unit
+身份，两路径各一次slot→environment释放，独立从AST构造AfterStatement清理点，继续
+臂无终止且顶层无重复清理，V1仍拒绝。原负测名改承接完整双return输入，保留精确
+Unsupported/Syntax、definitions/events整体清空；两个输入均比较观测开关的完整Analysis。
+独立复审确认这是既有准入的oracle迁移，不从当前事件反推预期，不削弱原源码契约。
+
+| 验收项 | 目标/选择 | 实际结果 |
+|---|---|---|
+| 类型、名称、callable与新main Parser | 前述10目标加 `parser_class_family`、`parser_interface_delegation`，`--no-fail-fast` | 498 + 65 + 15 = 578 passed；两项历史Abort仍精确排除 |
+| Owned修复、Shared、终止边与完整cleanup等价 | 前述16个普通lib选择，加新正/负控及全Analysis、既有两项branch release与两项composition邻控 | 23 passed；未选364项，不运行注入 |
+| 循环、消费者与原Return/borrow | 前述4目标/过滤器 | 8 + 2 + 1 + 1 = 12 passed |
+| LSP直接下游 | 完整LSP及失败stdio的原参数精确复核 | lib 56 passed；stdio首轮10秒响应超时，未改代码/超时阈值的精确复核1 passed（9.57秒） |
+| 静态质量与跨crate | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸相对59396543、diff | 全通过；863份Markdown、2210份手写Rust/34项历史超长 |
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、同一独立target、默认debug、
+jobs=2，门禁串行。最终相关Rust选择累计670项通过，保留上述首次失败/超时记录；stdio
+超时原因未定位，不声称已修复或全量通过。类型/外部消费者在`0fb8dc50`实跑，后续仅
+私有测试/架构变化，输入等价；23项lib及静态门禁在`7ea84eba`复跑。尺寸政策未改，复用
+前一组合47项政策实跑。两项历史Abort、所有CI-only注入仍仅编译，未跑native、Linux、
+Tree-sitter或frontend/workspace全量。新头需重新取得正式CI，PR仍草稿，不自动合并。
+
+### 嵌套完成与后参放弃的同根顺序合同（2026-11-08）
+
+基于 `04583bb2`，固定一份原源码：outer borrow initializer 的 source、已正常返回的
+`ready(owner)` 与命名参数反排的 `sink(second = owner, first = owner, stop = return)`
+共用同一 owned 根。双 Unit 入口锁定完整有界 direct 向量三项及 source-prefix 单项；
+已完成 token 只在自身 CallReturn 出现一次，pending tokens 按源码逆序在 Return 结束，
+source 的真实同点 rank 为2，owner 只在该 Return 清理一次，未提交 binding/handoff。
+不新增全流 API，不改变 Single witnesses 或既有生产语义。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug：prefix_order 四项、continuation
+14项、nested-borrow 10项全部通过；frontend all-targets Clippy、fmt、863份Markdown、
+diff及尺寸检查通过。未运行 native、Linux、故障注入或官方CI。
+
+完整流下一实现的真实缺口是正常完成调用后的 call-local pending retain：尚未被有界观察
+消费的 token 在此移除；`continue_borrow_call_source` 目前只运输 owner 根保护，不运输
+source loan identity。辅助 loan 又存于 handoff 旁表。因此当前 iteration actions 的全集
+也不是完整 loan-end 流，禁止拼接现有切片或从 end_span/result endpoint 反推全局事件。
+后续应从实际 pending token 建立 continuation 状态，分别闭合同步 consumer、local binding
+和 forwarded return 的生命周期及错误原子发布，再逐项退休 Single 证据。
+
+### 真实 source token 的同步 consumer 运输首片（2026-11-08）
+
+同分支在前项合同后新增生产状态运输，不止增加测试。`borrow_transport` 在 inner 正常
+返回且同轮 call-use 已验证时，从实际 pending 队列移出唯一 source token，保存进
+ValueState；outer 正常返回再匹配并移出真实 consumer token，最后消费所运输的 source。
+`UnitBorrowCallTransportFact` 保留两份完整 source-qualified loan 身份、inner handoff 点、
+outer return 点及局部 consumer-before-source 顺序。它不从最终 loan descriptor、end_span
+或结果 endpoint 生成结束事实；两处移出的 token 原本均会被各自 call-local retain 删除。
+
+首片限无 receiver 的直接声明借用调用、当前存活 owned Shared 根及返回 owned 结果的
+直接 declaration/symbol 同步 consumer。Group 只保原参数身份；同根的两份 source 与
+命名反排仍按实际 pending 顺序分别运输。辅助 Shared 根资格复用既有检查，排除 parent、
+provider、投影和 temporary。新状态随 ValueState 克隆，合流只保全部继续边共有的同一
+transport；不修改原 owner 保护、iteration/native cleanup 或调用检查语义。
+
+只有完整正常 consumer 事务发布；未完成事务不代表已释放来源。错误与 deferred 沿两层
+原子门清空新产物。此首片不是全局完整流，也不提供跨事务统一顺序或 unwind/source
+absence 证明；local binding、forwarded return、receiver/provider 与完整 CFG 运输仍待
+后续。既有 direct/forwarded absence、named source 恰一次与 nested 顺序 Single 见证原样保留。
+
+先因新 API 缺失得到编译红测；实现后5项双入口测试通过：direct/Group、同根命名反排的
+固定字节身份、未完成 consumer/后置错误、非空 prefix 后 deferred、后参 CFG 关闭边界。
+CFG 成功探针实际得到既有 L0164（`view(owner)` 的167–178字节）；改为锁定现行拒绝合同，
+双继续与混合 Return 均不宣称已获支持。只读独立审查未发现可确认P1/P2，并核实旧cleanup
+不变。dataflow 1123/1248、drop_planner 1557/1669，仅字段/聚合/两处调用接线增长，
+算法留独立子模块，既有尺寸额度和拆分计划不变。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug：direct-call 63项、continuation
+14项、nested-borrow 10项，共87项通过。direct-call 明确过滤两个 `abort_` 测试及
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`，不计为已通过。
+frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt、文档、
+尺寸和diff检查通过。未运行 native、Linux、故障注入或官方CI，不宣称完整流已完成。
+
+
+### 真实 source token 的 local binding 运输切片（2026-11-08）
+
+接续 `6dbc3c7b`，在同步 main `a884ab8d` 的合流点 `f1c6aea4` 上推进 Phase 3。
+直接借用 initializer 正常返回时，从实际 pending 队列移出 source token，放入随
+ValueState 克隆的 binding 运输状态；实际 initialized binding 终止时消费该 token，
+发布 `UnitBorrowBindingTransportFact`。匹配完整 call、argument 和 origin，保留原 loan
+身份及参数 Span，不从结果 endpoint、最终 descriptor 或 end_span 重建 source end。
+
+首片限无 receiver 的直接 declaration initializer、无 parent 的显式 borrow val 及
+现存 Shared owned 根；复用辅助来源资格，排除 provider、投影、temporary 与借用父根。
+Group initializer 保留关闭边界。已建立的 parent 运输可保留到其子 binding 全部终止；
+子来源本身没有因此取得运输事实。未使用 binding 在初始化后结束；既有 if/while 保守
+作用域规则不变，同一 token 可在互斥 Return 与继续 scope 路径分别结束，合流只保留
+所有继续边共有的 token。未完成 initializer 不发布事务；错误/deferred 清空已完成前缀。
+
+此产物只证明该 source 从真实队列运输到实际 binding 终止，不提供全局 absence、跨事务
+统一顺序、完整 loan-end 流或新增 CFG/NLL 能力。既有 child-before-parent/owner cleanup
+顺序和 iteration/native 动作不变。forwarded return、receiver/provider、完整同步
+consumer unwind 与全部动态路径仍待后续；旧 Single absence/唯一结束见证继续保留。
+
+| 验收项 | 目标/过滤器 | 本组合版本实际结果 |
+|---|---|---|
+| source 身份、具名同根辅助、父子 binding、同根多 binding、Return、未完成 initializer、Group 边界、原子清空、unused 与 if/while 双出口 | `unit_direct_call_loan_ends::borrow_binding_transport` | 9项双 Unit 入口通过；先以缺失 API 得到编译红测 |
+| 直接调用相关回归 | `unit_direct_call_loan_ends`，skip `abort_` 与 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup` | 72通过、0失败；3项明确未执行，不计通过 |
+| 直接调用方 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments` | 14＋10通过 |
+| 公共 API/质量 | frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt | Mac Rust1.96、locked/offline、独立target、默认debug通过 |
+
+独立只读复审未发现可证实P1/P2，已复核真实队列移除、双层原子门、CFG clone/merge和
+最终测试；复审本身未执行Cargo。dataflow 1123→1127/1248、drop_planner
+1557→1564/1669，仅字段、聚合和接线增长；算法留92行子模块，原例外额度与拆分计划不变。
+文档、diff及相对main尺寸门禁随本提交验证；未运行native、Linux、故障注入或官方CI。
+合计96项相关测试通过，不代表D10/E2完成，也不自行合并PR。
+
+
+### 真实 source token 的 forwarded return 交接切片（2026-11-08）
+
+接续本地 `0adfca46` 的 Phase 3 运输。无 receiver 的直接 declaration 借用调用正常返回时，
+从实际 pending 队列移出 Shared 参数根的完整 source token，保存到 ValueState；实际
+wrapper Return 或表达式体返回时，再将该 token 交给 `UnitBorrowForwardTransportFact`。
+call、argument、origin 与已验证 forwarded/return-origin 同时匹配；Group 保留完整返回
+表达式身份。此事实是 live source 的继续转发，不是 source end，也不建立 caller 动态实例
+映射。未完成或不可达调用不交接，借用参数不取得 payload owner 或 drop。
+
+边界仍为 Shared 参数根，排除 receiver、投影来源、借用局部、exclusive 来源与活动
+iteration provider；合法投影仍可有原 forwarded descriptor，却没有本片运输事实。
+同根具名参数不混淆 source 与 auxiliary，多层 wrapper 保持各函数自己的 source 身份；
+互斥分支的真实 Return 分别交接。owned auxiliary 的唯一 Drop 仍在 inner CallReturn，
+不被推迟到 wrapper Return。原 iteration/native cleanup 不变，旧 Single absence
+见证保留，不宣称完整流、跨事务统一顺序或全部 unwind 已完成。
+
+同步 consumer 后参 Return 的成功探针首先得到既有 L0164；本片保留其拒绝合同，没有
+放宽 checker 来制造运输事实。forwarded API 缺失时编译红测，补实现后双入口测试通过。
+新增 raw Analysis 测试另抓到早期撤销遗漏：外层公开门已保护，但 dataflow finalize 失败
+分支未清新表。现已直接清空新表，完整正例前缀后接独立错误/deferred 来源均实测撤销。
+
+| 验收项 | 目标/过滤器 | 本地实际结果 |
+|---|---|---|
+| 表达式体/Return/Group、同根具名参数、wrapper链与caller隔离、未完成/不可达、投影排除、错误/deferred、分支Return、owned辅助清理 | `unit_direct_call_loan_ends::borrow_forward_transport` | 9项双Unit入口通过 |
+| 整族回归 | `unit_direct_call_loan_ends`，skip `abort_` 与 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup` | 81通过；3项明确未执行 |
+| 直接调用方 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments` | 14＋10通过 |
+| raw原子门与邻接表 | `--lib adjacent_borrow_results` | 5通过，含真实非空forwarded前缀撤销 |
+| 公共API/质量 | frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt | Mac Rust1.96、locked/offline、独立target、默认debug通过 |
+
+合计110项相关Rust测试通过，尺寸政策测试47项通过；文档结构、diff和相对main尺寸检查通过。独立只读复审确认raw
+清空修复闭环，并核对辅助owner的唯一Drop位置。CompilationUnitOwnership父文件
+996→1008重新跨1000软阈值，仅公开导出、字段、successful/deferred门控与getter；
+算法留123行子模块。原1156额度、baseline、owner与拆分计划不变，显式补记例外审阅；
+dataflow 1127→1132/1248、drop_planner 1564→1572/1669均为有界接线。
+未运行native、Linux、故障注入或官方CI；未同步此后推进的main，不宣称新主线组合验收，
+也不据此关闭D10/E2。本片仅本地提交，不推送或合并PR。
+
+
+### 三类运输表的 raw 撤销一致性（2026-11-08）
+
+基于 `6d3885ab`，用同一合法源码真实形成同步 consumer 与 local binding 运输各1条，
+再按稳定 source 顺序追加独立错误/deferred 来源。红测直接观察 dataflow::Analysis，
+确认旧两张raw表未在finalize失败时撤销；公开层原有门控有效，不是公开产物泄漏。
+仅在现有失败分支追加两次clear，使call、binding与forward三类运输表统一撤销。
+合法路径与既有条件不变，不改变loan lifetime、cleanup或语言准入。
+
+| 验收项 | 目标/过滤器 | 本地实际结果 |
+|---|---|---|
+| 两类真实非空前缀、独立错误/deferred与既有邻接表 | `--lib adjacent_borrow_results` | 6通过；新增案例先红后绿 |
+| 运输/结束事件相关回归 | `unit_direct_call_loan_ends`，同前片skip3项 | 81通过，3项未执行 |
+| 直接调用方 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments` | 14＋10通过 |
+| 质量门禁 | frontend all-targets Clippy（-D warnings）、fmt、文档、尺寸、diff | Mac Rust1.96、locked/offline、独立target、默认debug通过 |
+
+合计111项相关Rust测试通过。独立只读复审确认正例确已形成两条运输，错误/deferred
+精确事实与早期撤销均直接验证；typed无效由既有finalize条件覆盖，本片未新增该状态的
+非空运输前缀动态用例。dataflow 1132→1134/1248，仅失败门清空接线，无额度增长。
+这不是所有raw cleanup表或全局完整流的保证；未运行native、Linux、故障注入、
+Tree-sitter或官方CI，未增加workspace检查。仅本地提交，不推送或合并PR。
+
+
+## 临时父字段 Borrow 的真实结束事件（2026-11-08）
+
+独立基线 main `59396543e2bf29e7a739cd892926586b14ca86b1`。Phase 3 观测切片复用
+既有 Field/Group pending-owner 证明，只接普通 owned-result、无 receiver 调用的 Shared
+`Temporary(parent)`，并核完整父的 MoveOnly 类别。正常返回移除并发布原 pending token，
+return/break/continue 沿原 loop-depth unwind；不新增 token，不改注册、drop 或借用准入。
+
+失败先行实跑：`temporary_field_parent_drops_once_after_normal_call_return` 在未改生产代码
+时得到空事件向量，独立 AST 期望为唯一父 token 的 CallReturn；原完整 drop oracle 已通过。
+修复后原 13 项临时字段测试保留源码与完整父 drop 顺序，并补完整有序结束向量。另核工厂
+返回父、已返回嵌套调用不重复退休、隐藏 Exclusive 的同点序号、for-provider 清理顺序及
+错误/deferred 撤销。Rooted/MemoryDocument 双入口与既有 Single MemberReceiver witness 保留。
+
+Copyable 父、普通借用结果、receiver、provider 来源、Rc.value 与其后字段均不扩张；
+Index 后字段保持精确 IndexPlace deferred。旧 §105/§112 的空观测描述是当时事实，本节
+仅接其 Shared 临时父字段的真实结束事件，不表示完整 loan-end、NLL、Single 退役或 P4/native。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 失败先行 | direct suite 的上述精确测试 | 修复前 1 failed，空事件向量与非空固定期望不符 |
+| 字段与相邻事件 | `unit_direct_call_loan_ends`，整项排除 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events` 与 `temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent` | 66 passed；2 项仅编译，未本地执行 |
+| range 邻控 | `ownership_range_construction` | 14 passed，无过滤 |
+| Unit iteration 邻控 | `multifile_ownership_checking` 的 `iteration::`，整项排除 `iteration::nested_while_jumps_preserve_outer_provider_and_abort_has_no_cleanup_edge` | 20 passed；该 Abort 整项仅编译，未本地执行 |
+| pending lifetime | 同 target 的 `pending_lifetime::unit_pending_borrow_owner_survives_branches_and_nested_calls`，exact | 1 passed |
+| 静态门禁 | frontend all-targets Clippy `-D warnings`、workspace fmt、文档、相对基线尺寸及 diff 检查 | 通过；863 Markdown、2203 Rust、34 个旧超长文件无增长 |
+
+本地 Mac Rust 1.96.0、locked/offline、独立 target、默认 debug profile，101 项实际通过。
+两轮独立只读复审核完整父资格、真实 token 退休、顺序、循环深度和错误/deferred 能力门，
+无生产 blocker；公开查询注释已同步，Rc/Index 邻控已补。
+未运行全量 frontend/workspace、native、含 Abort 整项或故障注入；本候选只本地提交，
+同 PR 组合后仍须精确发布头官方 CI，D10/E2 保持 in-progress。
+
+
+## Deinit 只读能力双入口拒绝合同（2026-11-08）
+
+基于 main `59396543e2bf29e7a739cd892926586b14ca86b1`，独立分支
+`feature/spec-0341-deinit-rejection-contracts`。这是 Phase 3 原合同补全，不是生产修复或
+Single 消费者退休；不涉及在途 callable/类型组合、capture Return 边或借用撤销补片。
+
+- 仅在 `ownership_resource_deinit/unit_plans.rs` 追加一项测试，原文件前缀与全部既有
+  测试保持原样。两份源码逐字复用 `deinit_cannot_mutate_fields_or_establish_exclusive_reborrows`
+  的字段赋值和 Inout 实参，不改变原 Single L0135 / Unit L0134 差异见证。
+- MemoryDocument/Rooted 共享同一原 SourceMap/AST/标准环境，各自核入口身份并经过
+  原 basic typed gate。独立源码定位完整 L0134：赋值 primary 为 `this.value`，Inout为
+  `&`；两者 immutable label 指向 class 字段 `value`，Inout 再保留所选参数 label。
+  固定 severity/message/完整 details 及顺序，不从任一分析结果生成另一入口的期望。
+- 同时核 typed/owned 兼容、无 deferred、无可执行 drops，以及 owned validate 拒绝后
+  完整诊断与空 drop 表保全。不扩大到所有失败程序的 loan-end 或清理撤销合同。
+- 首轮新 oracle 错把实际早期 immutable-place 拒绝当成后续 receiver-capability 分支，
+  精确测试真实失败；核 assignment/call-contract 及 marker 来源后纠正新预期并转绿。
+  没有修改生产以迎合预期，也不把该测试构造错误记为已修复编译器缺陷。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 新合同 | `ownership_resource_deinit::unit_plans::readonly_deinit_rejection_keeps_exact_diagnostics_in_both_unit_entries` 精确选择 | 1 passed，两个原输入×双Unit；首轮错误预期失败保留 |
+| 普通正反邻控 | `ownership_resource_deinit` 与 `resource_deinit_type_facts` 的 `deinit` 过滤器，先核list，再 `--no-fail-fast` 实跑 | 4 + 6 passed，零失败/忽略；其余27 + 5项未执行 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、workspace fmt、docs、尺寸、diff | 全通过；863份Markdown、2202份Rust，34项历史超长无增长 |
+| 独立复核 | 原源码保全、真实早期拒绝路径、独立span与完整诊断oracle | 最终修正版无阻断 |
+
+Mac AArch64 / Rust1.96，locked/offline、独立target、默认debug profile，编译jobs=2。
+未运行故障注入、Abort、压力、frontend/workspace全量、native或正式CI。
+候选保持独立本地提交，交后续同PR合批；未推送、未合并，D10/E2仍in-progress。
+
+
+## PR #366 借用运输、临时字段与 deinit 合批（2026-11-08）
+
+以已发布 `d0fb233f` 和 main `59396543` 为基线，在隔离分支顺序接入
+`0c4cb6de`、`6dbc3c7b`、`0adfca46`、`6d3885ab`、`baabbe2e` 的完整借用运输链，
+再接临时父字段 `af2a3443` 与 deinit 合同 `7de99313`，组合头 `2dec24d2`。
+`baabbe2e` 只补撤销，不能单独代替其 API/状态运输前置；旧 main 合流已是当前祖先，
+不重复引入。Rust 冲突仅为 direct 测试模块注册，双方全部保留；七份 Spec 追加记录均
+逐字保留一次。原候选算法与原 #366 owner Return 实现不变，deinit 仍只是新增合同。
+
+独立只读复核确认：call/binding/forward 三类真实 source token 运输与临时完整父字段
+的 direct-end 资格互斥，不会争抢同一 token；`drop_all` 在原清理前交接 forwarded
+source，单臂 Return 只合并继续路径。三表 raw finalize、analysis 与公开成功/deferred
+门控全部保留。上述有界产物不能拼成全局完整 loan-end 流或跨表统一顺序。
+
+本批另在 `borrow_transport::source_transport_and_temporary_field_end_share_a_completed_consumer`
+加入同一 `read(view(owner), Holder("extra").text)` 的双入口组合见证。独立从源码 AST
+固定三条真实 loan 身份、各自终点、唯一临时字段 direct end，以及完整父和来源 owner
+各在 outer CallReturn 清理一次；不改变原输入或承诺跨 API 顺序。首轮新 oracle 错将
+named owner 的 `value_origin` 当成 initializer，0 passed/1 failed；沿 `local_variable`
+的 `marker_span(name)` 及公开“诊断位置”合同核实后，仅改为独立 AST 声明名 Span。
+临时父仍用完整父表达式 Span，修正后通过；这是新测试预期错误，不是生产清理修复。
+最终独立复核无阻断，原候选见证和历史失败记录保留。
+
+| 验收项 | 目标/选择 | 本组合实际结果 |
+|---|---|---|
+| source 运输与临时字段 | `unit_direct_call_loan_ends`，精确排除下述3项 | 90 passed，含新增交叉见证；原89项邻控保留 |
+| 原调用方与范围 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments`、`ownership_range_construction` | 14 + 10 + 14 passed |
+| Unit provider/pending | `multifile_ownership_checking` 的 `iteration::` 与原 pending lifetime，排除下述1项 | 20 + 1 passed |
+| raw 撤销与原 owner 合同 | 6项 `adjacent_borrow_results`、前批23个普通 lib 见证及 Exclusive Return 前缀全产物邻控 | 30 passed；359项未选，不运行注入 |
+| 原 owner 消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit`、原 declaration-order Return | 8 + 2 + 1 passed |
+| deinit 拒绝与正反邻控 | `ownership_resource_deinit`、`resource_deinit_type_facts` 的 `deinit` | 4 + 6 passed；原 Single 差异合同不变 |
+| 静态与跨 crate | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 全通过；863份Markdown、2217份手写Rust、35项超1000，尺寸政策47项重跑通过 |
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、默认debug、复用同一独立
+目标目录且 Cargo 串行。最终相关 Rust 选择200项通过，不累计重复复跑为额外覆盖。
+生产头 `2dec24d2` 上199项已通过，随后只追加上述私有测试；最后90项direct族与
+Clippy/workspace/fmt复跑。`compilation_unit.rs` 回到1009行，沿用既有1156例外；
+独立复核确认仅三类产物接线与临时字段注释，没有父文件算法增长或提高额度，不能把
+35项超限写成原34项未增长。
+
+本机整项不执行 direct 中 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events`、
+`temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent`、
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`，以及 multifile 中
+`iteration::nested_while_jumps_preserve_outer_provider_and_abort_has_no_cleanup_edge`；
+全部只编译。前批两个历史Abort/压力见证与所有CI-only注入也未在本轮本机执行，未跑
+frontend/workspace全量测试、native、Linux或Tree-sitter。前批类型/LSP数字不冒充本轮重跑。
+旧头 `d0fb233f` 的[正式CI](https://github.com/Halckon/Koven/actions/runs/42480287069)
+完整成功后才发布本批，避免中断在途CI；该绿灯不代表本批新头已通过。仍保持同一草稿
+PR #366，等待精确新头正式CI，不自动合并，D10/E2仍in-progress。
+
+
+### 发布前同步 #369 的 CaptureIndex 与 callable 主线（2026-11-08）
+
+交叉见证与上述验收记录保存为 `c4a4ce6b` 后，推送前守卫发现 main 刚由 `59396543`
+推进至 `6d315265`（#369），因此在任何 push 之前停止。随后无冲突合入新 main，
+组合代码头 `0af0949c1716809d9e0188610e7a71d029b08dee`，未反复发布或取消在途CI。
+
+独立只读复核确认13文件主线增量保全：CaptureIndex 按 source-qualified lambda 分组并
+保留 descriptor ordinal；dataflow 的三运输表及两层撤销门未回退，owner 全Analysis
+helper 只迁索引构造。main 的标准error/external两个消费者与本PR三个callable消费者
+均保留，三个helper及模块注册不变；direct `check_types` 调用现为9，不计作任务数。
+原标准error虽已迁Unit，仍按既有本机Abort边界整项不执行。
+
+| 验收项 | 新组合实际选择 | 结果 |
+|---|---|---|
+| 借用/字段与callable直接消费者 | direct-call、callable、continuation、nested-borrow，沿用原Abort排除 | 90 + 20 + 14 + 10 = 134 passed |
+| raw撤销、owner全产物和索引 | 前述30项普通lib，加真实两来源32/64 lambda的 `capture_queries_visit_only_the_requested_lambda_in_each_source` | 31 passed；不是注入，未宽选formed_tests |
+| 捕获形成/错误/替换与loop诊断 | 两个capture身份、3个closure邻控、1个multifile错误邻控、loop_choice八项 | 5 + 1 + 8 = 14 passed |
+| factory身份 | `callable_provenance::contract` 下新source-unit隔离与原capturing-return summary两项，exact | 2 passed；首次错误模块过滤未命中，未把零命中算通过 |
+| 静态质量 | 默认frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、相对新main尺寸、diff | 全通过；863 Markdown、2217 Rust、35项超1000，原额度不变 |
+
+本次新主线组合实跑181项（134 + 31 + 14 + 2），不把原基线200项与本轮重复选择相加
+为381项覆盖。尺寸政策脚本未改，复用本批47项成功结果；未重跑无关类型/Parser/LSP
+全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
+（借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
+通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
