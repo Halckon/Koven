@@ -54,6 +54,8 @@ named 或 temporary 顺序迭代组合。准入仍要求在该 callable 的可�
 同一 callable 的局部解构与 `while` 也可单独组合。仅当该循环通过预检且实际使外层证明
 失效时，才以此作为重试的准入依据。
 其他 provider 与无本地解构的顺序迭代沿用原路由条件。
+顺序迭代的 while 门禁按名称解析的最近 callable 归属判断。内层 lambda 的 while 只影响
+自身。索引按 SourceUnit 懒建一次，函数实例、thunk 和准入重试共用。
 
 名称、discard 与 nongeneric value-class 借用解构支持 fallthrough、continue、break、return 及
 嵌套 for/while；cleanup 按前端完整动作序列执行一次，call/receiver loan 以 fact 身份映射实际

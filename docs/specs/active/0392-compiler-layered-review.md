@@ -2044,3 +2044,22 @@ MoveOnly Guard 前缀另走默认路径，逐次核对释放且无完整对象�
 MoveOnly 构造前缀在基线也返回 UnsupportedNode，本批未扩大该能力。
 最终工作树本机通过 96 项定向检查，覆盖 CLI while、Refine 路由、while SSA、
 短路与 aggregate。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+[PR #356 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42445897440) 在 `7cfe3e8e`
+上通过。conformance 均为 137/154、验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主预览包独立安装与同提交的 5 项本机 LLDB 相关检查均通过。
+已合入 `f3d2857e`。
+
+## 76. R4 内层 lambda 的 while 与外层顺序迭代
+
+具名顺序源在外层函数中可进入 Refine。给同一函数内的 lambda 增加 `while (false)`，
+外层路由错误回退，原生输出仍为 `nested\nkept\n`。原查询按范围遍历 AST，未区分
+最近 callable。改由同源 AST 的 while 节点和名称解析的父作用域建立归属索引。
+查询仅在路由需要时按 SourceUnit 构建一次，函数、泛型实例、thunk 和重试共用。
+索引缺失或名称事实与 AST 不匹配时，保留保守门禁。
+
+回归对照无 while、内层 lambda 的 while、当前函数的 while 和 thunk 自身的 while。
+独立复核核对了同源索引、未包装 AST 的 callable Span、父作用域顺序和重试复用。
+隔离候选实际构建并运行单文件与项目，有无内层 while 均输出 `nested\nkept\n`。
+当前分支本机通过 Refine 路由 38 项、closure 4 项、while SSA 37 项和 while CLI 8 项，
+零失败或忽略。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。

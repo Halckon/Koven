@@ -43,6 +43,9 @@ fn lower_unit_impl(
 ) -> Result<(Program, FunctionId), LoweringError> {
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
+    let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
+        .map(|_| Default::default())
+        .collect();
     // Both sealed views have already checked the complete frontend identity chain.
     // Declarations are validated unconditionally for every unit.
     super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
@@ -515,6 +518,7 @@ fn lower_unit_impl(
             let inputs = crate::ssa::refine::RefineInputs {
                 sources,
                 parsed,
+                while_scopes: &while_scopes[plan.instance.source_unit().index()],
                 source_unit: plan.instance.source_unit(),
                 names,
                 typed,
@@ -793,6 +797,7 @@ fn lower_unit_impl(
         let inputs = crate::ssa::refine::RefineInputs {
             sources,
             parsed,
+            while_scopes: &while_scopes[plan.source_unit.index()],
             source_unit: plan.source_unit,
             names,
             typed,

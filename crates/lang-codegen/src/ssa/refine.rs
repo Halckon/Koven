@@ -84,10 +84,17 @@ pub(in crate::ssa) struct RefineCallable {
     pub(in crate::ssa) captures: Vec<RefineCapture>,
 }
 
+/// Source-local lexical while facts, built at most once when an iteration route needs them.
+#[derive(Default)]
+pub(in crate::ssa) struct WhileScopes(
+    std::cell::OnceCell<Option<std::collections::BTreeMap<(usize, usize), bool>>>,
+);
+
 /// Everything one function or lambda thunk instance needs; all facts come from the same unit.
 pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) sources: &'a SourceMap,
     pub(in crate::ssa) parsed: &'a ParsedFile,
+    pub(in crate::ssa) while_scopes: &'a WhileScopes,
     pub(in crate::ssa) source_unit: SourceUnitId,
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
