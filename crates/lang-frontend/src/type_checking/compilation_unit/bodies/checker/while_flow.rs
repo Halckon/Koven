@@ -193,6 +193,8 @@ impl BodyChecker<'_> {
         check: impl FnOnce(&mut Self) -> Result<T, CompilationUnitTypeError>,
     ) -> Result<T, CompilationUnitTypeError> {
         let previous = self.suppressed_loop_depth;
+        let previous_body_reachability = self.body_path_reachable;
+        self.body_path_reachable &= reachable;
         let previous_return_reachability = self
             .pending_callable_returns
             .as_ref()
@@ -205,6 +207,7 @@ impl BodyChecker<'_> {
         }
         let result = check(self);
         self.suppressed_loop_depth = previous;
+        self.body_path_reachable = previous_body_reachability;
         if let (Some(frame), Some(reachable)) = (
             &mut self.pending_callable_returns,
             previous_return_reachability,

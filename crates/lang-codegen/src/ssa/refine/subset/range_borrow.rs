@@ -140,8 +140,13 @@ impl Checker<'_, '_> {
     }
 
     /// Strips outer proof views for any binding reassigned inside `loop_span`.
-    pub(super) fn strip_reassigned_loop_views(&mut self, loop_span: Span) {
-        if !self.scope_requires_refine() || self.view_symbols.is_empty() {
+    pub(super) fn strip_reassigned_loop_views(&mut self, loop_span: Span, local_route: bool) {
+        if self.view_symbols.is_empty() {
+            return;
+        }
+        let uses_local_route = local_route && self.loop_route != super::LoopRoute::Existing;
+        if !uses_local_route && !self.scope_requires_refine() {
+            self.loop_route_retry |= local_route;
             return;
         }
         let mut reassigned = Vec::new();

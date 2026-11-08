@@ -47,8 +47,11 @@ Array/List/MutableList 的 named owned、Borrow 参数与 temporary source 均�
 运输跨 CFG，复用 single provider 的 snapshot、guard、element 与固定步长 primitive，无 provider 分配。
 
 临时顺序源与局部 `val` 解构在同一 callable 组合时，Refine 完成整个 body 预检后再判断路由。
-已验证的局部解构可满足临时源的额外路由条件，语句先后与 sibling 不改变该判断。单独的临时
-循环保留原路由，`while` 的独立范围限制也保留。
+已验证的局部解构可满足临时源的额外路由条件，也可与同一 callable 的 `while` 和已验证的
+named 或 temporary 顺序迭代组合。准入仍要求在该 callable 的可达 body 内验证解构，
+与语句先后无关。前端已知不可达的解构仍发布类型事实，但不能作为组合的准入依据。
+组合中的 `while` 和顺序 `for` 在头部前结束被重赋值根的外层可空证明，保留其他根的证明。
+其他 provider 与无本地解构的顺序迭代沿用原路由条件。
 
 名称、discard 与 nongeneric value-class 借用解构支持 fallthrough、continue、break、return 及
 嵌套 for/while；cleanup 按前端完整动作序列执行一次，call/receiver loan 以 fact 身份映射实际

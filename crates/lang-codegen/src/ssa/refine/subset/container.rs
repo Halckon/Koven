@@ -655,15 +655,20 @@ impl Checker<'_, '_> {
         statement: lang_frontend::ast::StatementId,
         source: ExpressionId,
         body: lang_frontend::ast::StatementId,
+        span: Span,
     ) -> bool {
         use lang_frontend::{
             ownership_checking::{UnitIterationCleanupAction as Action, UnitIterationSourceAccess},
             type_checking::{IterationProvider, UnitSequentialIterationBinding, UnitStatementId},
         };
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
-        if self.inputs.typed.map_iteration(statement_id).is_some()
-            || (self.scope_has_while_loop() && !self.scope_requires_refine())
-        {
+        if self.inputs.typed.map_iteration(statement_id).is_some() {
+            return false;
+        }
+        let needs_local_destructuring =
+            self.scope_has_while_loop() && !self.scope_requires_refine();
+        if needs_local_destructuring && self.loop_route == super::LoopRoute::Existing {
+            self.loop_route_retry = true;
             return false;
         }
         let Some(plan) = self.inputs.owned.iteration(statement_id) else {
@@ -696,6 +701,9 @@ impl Checker<'_, '_> {
             || self.expression_type(source) != Some(container_ty)
         {
             return false;
+        }
+        if needs_local_destructuring {
+            self.strip_reassigned_loop_views(span, true);
         }
         if is_temporary {
             if !self.expression(source) {
@@ -758,6 +766,9 @@ impl Checker<'_, '_> {
         }
         let ok = self.loop_body(body);
         self.has_temporary_sequential_for |= ok && is_temporary;
+        if ok && needs_local_destructuring {
+            self.loop_route = super::LoopRoute::Verified;
+        }
         self.migrated |= ok;
         ok
     }

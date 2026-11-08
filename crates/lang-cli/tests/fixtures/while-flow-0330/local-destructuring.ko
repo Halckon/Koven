@@ -1,0 +1,32 @@
+value class Pair(val first: Int, val second: Int)
+fun test(limit: Int): Unit {
+    val (second, first) = Pair(20, 22)
+    var outer: String? = "first"
+    val untouched: String? = "kept"
+    var step = 0
+    if (outer != null && untouched != null) {
+        while (step < limit) {
+            step = step + 1
+            outer = "second"
+            if (step < limit) { continue }
+            break
+        }
+        println(untouched)
+    }
+    for ((value, _) in listOf(Pair(20, 22))) {
+        if (value == first) { println("loop") }
+    }
+    if (outer != null && outer == "second") { println("changed") }
+}
+fun testFor(): Unit {
+    val (second, first) = Pair(20, 22)
+    var outer: String? = "first"
+    if (outer != null) {
+        while (false) {}
+        for ((value, _) in listOf(Pair(20, 22))) {
+            if (value == first) { outer = "second" }
+        }
+    }
+    if (outer != null && outer == "second") { println("for-changed") }
+}
+fun main(): Unit { test(0); test(3); testFor() }
