@@ -333,6 +333,19 @@ PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "word_count": ["N02", "N03"],
 }
 
+# Strict per-program marker allowlist: a different marker means the failure stage moved
+# (frontend vs lowering) and must be re-audited instead of staying silently
+# known_unimplemented. Markers reflect the current v0.47 implementation gap, not a
+# promise that the program is expected to fail this way forever.
+PROGRAM_ALLOWED_MARKERS: dict[str, list[str]] = {
+    "config_parse": ["FE:L0080"],
+    "expr_eval": ["FE:L0165"],
+    "linked_stack": ["FE:L0085"],
+    "raii_state_machine": ["BE:UnsupportedNode"],
+    "varint_codec": ["BE:UnsupportedNode"],
+    "word_count": ["FE:L0165"],
+}
+
 PROGRAM_ORACLE_DERIVATIONS: dict[str, str] = {
     "config_parse": "parses key=value config lines via Result<Int, String> and ? propagation, printing host/port/retries/missing/bad-int outcomes",
     "expr_eval": "evaluates recursive Box<Expr> AST with Char/Double/Result error propagation, printing formatted evaluation lines",
@@ -464,7 +477,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
 
 
 def classify_probe_guide_chapter(name: str, src_text: str) -> str:
-    """Return the primary Guide v0.46 chapter filename for a probe."""
+    """Return the primary Guide v0.47 chapter filename for a probe."""
     if name in PROBE_GUIDE_CHAPTERS:
         return PROBE_GUIDE_CHAPTERS[name]
     if any(

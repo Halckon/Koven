@@ -680,6 +680,25 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(verdict_no_frame, "wrong_output")
         self.assertIn("stack frame", reason_no_frame or "")
 
+    def test_17_program_allowed_markers_are_strictly_scoped(self) -> None:
+        """Program marker allowlists must match the audited failure stage.
+
+        A program whose marker moves between frontend and lowering phases would
+        otherwise keep passing as known_unimplemented without any audit signal.
+        """
+        repo_root = Path(__file__).resolve().parents[2]
+        repo_corpus = repo_root / "conformance"
+        loaded = gate.load_expectations(
+            repo_corpus / "expectations.json", corpus_root=repo_corpus
+        )
+        self.assertEqual(set(loaded["programs"]), set(gate.PROGRAM_ALLOWED_MARKERS))
+        for name, expected in gate.PROGRAM_ALLOWED_MARKERS.items():
+            self.assertEqual(
+                loaded["programs"][name]["allowed_markers"],
+                expected,
+                f"program {name} allowed_markers drifted from its audited stage",
+            )
+
     def test_16_conformance_modules_respect_1000_line_srp_budget(self) -> None:
         """Verify all conformance implementation and test modules stay within 1000-line SRP soft limit."""
         repo_root = Path(__file__).resolve().parents[2]
