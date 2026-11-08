@@ -355,3 +355,46 @@ impl UnitDelegationOwnershipPlan {
         &self.forwarders
     }
 }
+
+/// 实际 Return unwind 中结束的 owned 名称根 Shared receiver loan。
+/// 只读观测切片，不覆盖正常返回、reservation、投影、provider 或完整 loan-end 流。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitReceiverCallPrefixEndFact {
+    pub(super) receiver: UnitReceiverOwnershipFact,
+    pub(super) point: super::UnitDropPoint,
+    pub(super) preceding_drops: usize,
+    pub(super) preceding_call_loan_ends: usize,
+    pub(super) preceding_receiver_loan_ends: usize,
+}
+
+impl UnitReceiverCallPrefixEndFact {
+    /// 真实 pending 队列退休的 receiver token，保留独立于 argument 的身份。
+    #[must_use]
+    pub const fn receiver(&self) -> &UnitReceiverOwnershipFact {
+        &self.receiver
+    }
+
+    /// 放弃调用前缀的实际 Return 点，不是 descriptor 的源码结束位置。
+    #[must_use]
+    pub const fn point(&self) -> super::UnitDropPoint {
+        self.point
+    }
+
+    /// 同点此前实际发布的普通 Drop 数量，不含条件 receiver 析构。
+    #[must_use]
+    pub const fn preceding_drops(&self) -> usize {
+        self.preceding_drops
+    }
+
+    /// 同点此前的全部实际 EndCallLoan 数量，包括未被其他观测切片收录的项。
+    #[must_use]
+    pub const fn preceding_call_loan_ends(&self) -> usize {
+        self.preceding_call_loan_ends
+    }
+
+    /// 同点此前的全部实际 EndReceiverLoan 数量，不是全局 cleanup 执行索引。
+    #[must_use]
+    pub const fn preceding_receiver_loan_ends(&self) -> usize {
+        self.preceding_receiver_loan_ends
+    }
+}

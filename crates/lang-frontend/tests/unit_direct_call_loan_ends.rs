@@ -890,3 +890,6 @@ mod temporary_field_ends;
 
 #[path = "unit_direct_call_loan_ends/exclusive_order.rs"]
 mod exclusive_order;
+
+#[path = "unit_direct_call_loan_ends/receiver_prefix.rs"]
+mod receiver_prefix;

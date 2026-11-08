@@ -4559,3 +4559,48 @@ Mac AArch64 / Rust1.96、locked/offline、默认debug profile、jobs=2，协调�
 无阻断；其后仅追加双入口key和原发布顺序断言并实跑转绿。
 未运行全量frontend/workspace测试、native、故障注入、Abort、Linux或正式CI；旧Single
 见证未退休。仅本地切片，不推送或合并，最终组合与正式CI另验，D10/E2仍in-progress。
+
+
+
+## Shared receiver Return 前缀的实际结束观测（2026-11-08）
+
+基于 PR #366 的 `94c1960cda27faa95b57cf516b694b38aa7c781c`，在独立分支
+`feature/spec-0341-receiver-prefix-ends` 实施 Phase 3 有界观测。先核已有运输/撤销和
+临时父字段已纳入基底；独立 `e836a9fa` 的 Exclusive 顺序片没有重复引入。
+
+新 `receiver_call_prefix_ends()` 只读取 planner 实际 `EndReceiverLoan` 动作，保留
+真实 receiver source/call/target identity，不重建 descriptor 结束位置、不修改 cleanup。
+仅 Return 放弃调用前缀、Shared receiver、Owned-result 方法和 owned Name/Group 根准入。
+同点计数涵盖筛选外真实 call/receiver ends；不同 Return 点单独计数。normal return、
+break/continue、reservation、this、temporary、投影、provider、借用绑定和 borrowed-result
+方法仍不由本片覆盖。raw finalize 与公开 success/deferred 门共同撤销失败前缀。
+
+先以缺失新 API 的两条 E0599 取得真实编译红测；共享 target 首轮误用另一 worktree
+旧 lib 导致的额外缺失 API 不计证据，触碰本树入口 mtime 后已重编正确来源，不清理 target。
+追加边界时曾误把 `borrow ... from this` 方法当作已支持输入，8 passed/1 failed；
+保留原源码并按既有两条 L0164 的顺序、消息、source/Span/label 固定拒绝 oracle，未改生产。
+另加入从参数借用的正常准入方法与放弃 initializer 正控，独立验证 Owned-result 过滤，
+不以错误门清空代替过滤证明。上述失败保留，不把首轮当作通过。
+
+| 验收项 | 目标/选择 | 实际结果 |
+|---|---|---|
+| receiver identity、嵌套/同根、过滤外rank、不同Return、排除与撤销；原direct邻控 | `unit_direct_call_loan_ends`，精确排除下述4项 | 101 passed，含11项新增普通双Unit见证；4项只编译 |
+| receiver回边原合同 | `ownership_receiver_backedge` 全目标 | 4 passed |
+| raw非空前缀后真实错误/deferred撤销 | `--lib ownership_checking::compilation_unit::dataflow::formed_tests::adjacent_borrow_results::` | 7 passed，384未选；无故障注入 |
+| 既有receiver准入与两阶段能力 | `multifile_ownership_checking receiver_admission::` | 10 passed |
+| receiver先于provider元素终止 | `multifile_ownership_checking iteration::return_ends_pending_member_receiver_before_its_iteration_element --exact` | 1 passed |
+| 静态与跨crate | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 全通过；863 Markdown、2219 Rust、35项历史超1000，原尺寸额度不变 |
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2，
+复用 `/tmp/koven-d10-batch-target` 且 Cargo 串行。最终行为选择共123项通过，不累加
+同一选择的重复复跑。独立只读审查及末项正常准入过滤正控复核均未发现P1/P2。
+三个历史超长父文件仅增加导出、存储、聚合与发布接线，分别1009→1022、1131→1136、
+1557→1562行，沿用既有上限；筛选算法在独立模块，不提高尺寸额度。
+
+本机整项排除 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events`、
+`temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent`、
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup` 及新增
+`receiver_prefix::abort_does_not_publish_receiver_prefix_ends`，仅编译、交正式CI运行。
+未跑frontend/workspace全量测试、native、Linux、故障注入或新头正式CI；原Single完整流
+见证不变，不能据此证明全局source absence或关闭D10/E2。本候选只本地提交，后续统一
+整合验收，不自行推送、开PR或合并。

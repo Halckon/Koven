@@ -25,6 +25,7 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.borrow_results.range_uses.is_empty());
     assert!(raw.borrow_results.call_uses.is_empty());
     assert!(raw.borrow_forward_transports.is_empty());
+    assert!(raw.receiver_call_prefix_ends.is_empty());
     assert!(raw.borrow_call_transports.is_empty());
     assert!(raw.borrow_binding_transports.is_empty());
 }
@@ -181,5 +182,13 @@ fn real_deferred_and_diagnostic_clear_nonempty_call_and_binding_transports() {
     assert_rejections_clear(text, false, |_, raw| {
         assert_eq!(raw.borrow_call_transports.len(), 1);
         assert_eq!(raw.borrow_binding_transports.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_receiver_prefix_table() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { val node = Node(); node.touch(\"prefix\", return) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
     });
 }
