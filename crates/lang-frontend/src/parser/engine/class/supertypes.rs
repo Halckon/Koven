@@ -31,6 +31,7 @@ impl Parser<'_> {
             if !file_boundary && self.can_start_type_ref(current) {
                 let type_ref = self.parse_type_ref(type_stops)?;
                 let type_span = self.type_span(type_ref)?;
+                let mut trailing_lexical_error = None;
                 let delegation = if self.current_identifier_is("by")? {
                     let by_span = self.bump()?.span();
                     if !matches!(kind, ClassifierKind::Class { .. }) {
@@ -82,7 +83,9 @@ impl Parser<'_> {
                         || (file_header && self.at_class_header_file_boundary(false)?);
                     if !at_entry_boundary {
                         let poison = self.is_poison_kind(current.kind());
-                        if !poison {
+                        if poison {
+                            self.consume_poison_with_closed_type_arguments()?;
+                        } else {
                             self.emit(
                                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                                 "unsupported class-family form",
@@ -90,9 +93,19 @@ impl Parser<'_> {
                             )?;
                         }
                         let _ = self.consume_closed_supertype_group()?;
-                        let end = self.recover_declaration_region(recovery_stops)?;
-                        if poison && let NameMarker::Error(span) = target {
-                            target = NameMarker::Error(self.span(span.start(), end)?);
+                        self.recover_declaration_region(recovery_stops)?;
+                        if poison {
+                            let end = self.previous_significant_end();
+                            match target {
+                                NameMarker::Error(span) => {
+                                    target = NameMarker::Error(self.span(span.start(), end)?);
+                                }
+                                NameMarker::Present(_) => {
+                                    trailing_lexical_error =
+                                        Some(self.span(current.span().start(), end)?);
+                                }
+                                NameMarker::Missing(_) => {}
+                            }
                         }
                     }
                     let target_span = marker_span(target);
@@ -115,12 +128,14 @@ impl Parser<'_> {
                 entries.push(SupertypeEntry {
                     span: self.span(
                         type_span.start(),
-                        delegation
-                            .map(|clause| clause.span.end())
+                        trailing_lexical_error
+                            .or_else(|| delegation.map(|clause| clause.span))
+                            .map(Span::end)
                             .unwrap_or(type_span.end()),
                     )?,
                     type_ref,
                     delegation,
+                    trailing_lexical_error,
                 });
                 if self.current_is_symbol(Symbol::LeftParen) {
                     let primary = self.current()?.span();
@@ -149,7 +164,7 @@ impl Parser<'_> {
                 }
                 if !primary.is_empty() {
                     if poison {
-                        self.consume_poisoned_supertype_head()?;
+                        self.consume_poison_with_closed_type_arguments()?;
                     }
                     self.recover_declaration_region(recovery_stops)?;
                     if poison {
@@ -158,6 +173,7 @@ impl Parser<'_> {
                             span,
                             type_ref: self.add_type_ref(span, TypeRef::Error)?,
                             delegation: None,
+                            trailing_lexical_error: None,
                         });
                     }
                 }
@@ -181,7 +197,7 @@ impl Parser<'_> {
         Ok((Some(colon_span), entries))
     }
 
-    fn consume_poisoned_supertype_head(&mut self) -> Result<(), ParserInternalError> {
+    fn consume_poison_with_closed_type_arguments(&mut self) -> Result<(), ParserInternalError> {
         while self.is_poison() {
             self.bump()?;
         }
