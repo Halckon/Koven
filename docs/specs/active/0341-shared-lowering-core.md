@@ -3621,3 +3621,27 @@ Mac Rust1.96、独立 target、默认 debug profile：`ownership_containers` 全
 Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 diff 检查通过。
 旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
 `60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。
+
+## Resource 与嵌套 capture 身份消费者迁移（2026-11-08）
+
+基于 main `04583bb2`，测试提交 `cbb02ae0` 将 `ownership_closures` 的两个既有正例
+移至 `capture_identity_unit`，原始源码保持逐字一致，两入口逐项执行原 oracle：Resource
+与 Copyable 参数的 Shared/Borrow、Owned/Copy/Move 捕获顺序、三种 closure 的
+Transferability、资源随 capture 清理且不再由原 named binding 清理，以及 nested lambda
+的符号身份与 shadowing 无捕获。新增 MemoryDocument/Rooted、同轮 completion/ownership
+兼容性、完整 source-qualified identity 与无 deferred/可验证检查；不改 producer 或 Guide。
+独立只读复审指出的预期 lambda 身份反取及 names/types 诊断门弱化均已修复并复核。
+
+Mac、locked/offline、独立 target、默认 debug profile，在最终测试代码上实跑：
+
+| 验收项 | 命令或过滤器 | 实际结果 |
+|---|---|---|
+| 双入口 Resource / nested capture 原消费者 | `cargo test -p lang-frontend --test ownership_closures capture_identity_unit -- --nocapture` | 2 passed，72 filtered，零失败/忽略 |
+| 前端静态检查 | `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 |
+| 格式与空白 | `cargo fmt --all -- --check`、`git diff --check` | 通过 |
+| 尺寸门禁 | `python3 scripts/check_rust_sizes.py --base 04583bb2` | 通过，2191份手写Rust、35份历史超长文件，无新增欠账 |
+| 文档后继 | `python3 scripts/check_docs.py`、`git diff --check` | 通过，863份Markdown |
+
+文档后继不冒称重跑测试。此片不证明动态 Choice/循环 capture 传输、全流 loan-end、
+SSA/LLVM/native 或完整复杂所有权；其他 Single owner/loan 见证保留，D10/E2仍进行中。
+未运行全量测试、native、故障注入、校准或正式 CI，不创建 PR、不合并。

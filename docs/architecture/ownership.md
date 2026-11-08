@@ -197,4 +197,4 @@ expression temporary。
 function-value callee 在实参求值期间保持capture；正常CallReturn按活性清理，提前退出沿用ControlTransfer，live shared capture来源随最后closure结束后再清理。
 Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。
 If/When保存实际尾值来源，交接已移动且不再活跃的局部根；释放按活跃根递归，防原binding或重绑定污染快照，并保留已求值callee与replacement保护。
-`map_closure_lifetime_matrix`核同次capture/ASAP事实，原Unit Resource/Pure邻控独立保持；这些前端事实不表示带capture的Map循环已进入native范围。[Unit owner capture 候选](unit-owner-transport.md#capture-formation)另记形成身份观察。 `ownership_map_with` 的泛型callback与loan消费者现仅用双入口Unit，保留原源码和loan数量下界，不代表新的结束事件或native证明。
+`map_closure_lifetime_matrix`核同次capture/ASAP事实，原Unit Resource/Pure邻控独立保持；这些前端事实不表示带capture的Map循环已进入native范围。[Unit owner capture 候选](unit-owner-transport.md#capture-formation)另记形成身份观察。 `ownership_map_with` 的泛型callback与loan消费者现仅用双入口Unit，保留原源码和loan数量下界，不代表新的结束事件或native证明。 `ownership_closures/capture_identity_unit` 的双 Unit 入口保留 Resource 捕获顺序、Copy/Move/Transferability、capture/named drop 责任及 nested/shadowing 原见证；不证明动态 Choice/循环传输，不替代其他 Single 生命周期见证。
