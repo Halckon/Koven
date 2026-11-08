@@ -104,6 +104,12 @@ Shared capture，然后清理 element、provider/source 与临时 owner；最近
 Abort 和 source 自身在 Acquire 前的转移不发布该 provider 的清理。常量入口仅为实际可达
 provider 发布计划，与普通 capability 隔离；两出口均验证模板身份、完整退出及有序动作。
 
+`ownership_iteration::control_exits_unit` 以相同源码分别消费 MemoryDocument 与 Rooted Unit，
+保留临时源 break/continue/return、嵌套跳转、内层 while break 和三类有序退出的原合同。
+嵌套 return 另核 AST Return 身份、两 provider 的完整同点动作及 `iteration_cleanup_at`；
+named source break 与该 named local/outer 用例仍保留 Single owner identity 见证。
+这六项前端合同不替代动态循环 owner/phi、条件清理或 native 释放证明。
+
 实现入口为 frontend `compilation_unit/iteration.rs`、`dataflow/iteration.rs`、
 `dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`。unit native 消费入口为
 `ssa/unit_lower/loop_control/iteration.rs` 与 `iteration_cleanup.rs`；保留上节列明的表示边界。

@@ -4604,3 +4604,34 @@ Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、默认debug、jobs=
 未跑frontend/workspace全量测试、native、Linux、故障注入或新头正式CI；原Single完整流
 见证不变，不能据此证明全局source absence或关闭D10/E2。本候选只本地提交，后续统一
 整合验收，不自行推送、开PR或合并。
+
+## 循环退出消费者的双 Unit 合同（2026-11-08）
+
+基于 main `6d315265`，独立分支 `feature/spec-0341-iteration-exit-contracts`；已核
+#366 合批头 `94c1960c` 与本地 `42715890`，本片不重复双终止观察或借用运输实现。
+仅改 Phase 3 测试消费入口与事实文档，不改生产、Guide、循环准入或 cleanup 算法。
+
+- 从 `ownership_iteration/control_exits.rs` 退休四个纯 temporary/provider 的 Single 消费者，
+  原源码、三种跳转、嵌套清理次序及有序退出 oracle 迁入 `control_exits_unit.rs`。
+  每份源码分别经 MemoryDocument/Rooted 的真实 names/types/completion/ownership；同 typed
+  重查核完整产物确定性，source-qualified ID 由原 AST 和实际 index 构造。
+- 原 helper 对 named drop 的 owner identity 要求不能用 Unit target/Span 替代。因此
+  nested Return 的 local/outer 与 named source break 两个 Single 原见证完整保留，只补
+  双 Unit 正控。前者另核真实 Return、两 provider 的完整同点 actions 及按点查询；
+  “消费一次”只指前端计划合同，不冒称 native 动态执行或析构证明。
+- 四个退休用例新增无 named drop 断言，不误删非空 identity 义务。原 conditional source
+  owner 表、循环 phi/replay 与其它 Single 恢复见证不变；D10/E2 保持 in-progress。
+
+Mac AArch64 / Rust1.96，locked/offline、默认 debug profile、jobs=2，共享 target 串行；
+切换工作树时使当前 frontend 重新编译，核日志中的实际源路径，避免复用另一候选源码。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 原基线六项 | `ownership_iteration::control_exits` 六个精确测试 | main `6d315265` 上 6 passed |
+| 双 Unit 与邻控 | `control_exits_unit`、`conditional_source_unit`、`loop_choice_unit`，以及两个保留 Single 精确测试 | 最终修正版 6+1+8+2=17 passed，零失败/忽略；不重复累加首轮结果 |
+| 静态门禁 | workspace fmt、frontend all-targets Clippy `-D warnings`、docs、diff | 通过；863 份 Markdown |
+| 尺寸门禁 | `python3 scripts/check_rust_sizes.py --base 6d315265` | 通过；2203 份手写 Rust、34 项历史超长，无新增债 |
+
+独立只读复审核原 fixture/oracle、Single 保留范围、source-qualified 身份与同点完整清理；
+新 helper 遗漏的 names 全诊断空断言已补回，独立复核及修改后 17 项复跑通过。未执行全 frontend/workspace、native、Linux、
+损坏产物注入、Abort 或正式 CI；本片只本地保存，不推送、不创建或合并 PR。

@@ -84,3 +84,6 @@ mod conditional_source_unit;
 
 #[path = "ownership_iteration/loop_choice_unit.rs"]
 mod loop_choice_unit;
+
+#[path = "ownership_iteration/control_exits_unit.rs"]
+mod control_exits_unit;
