@@ -3852,3 +3852,20 @@ frontend all-targets Clippy（-D warnings）、workspace fmt、863份Markdown及
 定向，全部通过；frontend all-targets Clippy `-D warnings`、workspace all-targets check
 （已安装LLVM21）、fmt、文档与diff检查通过。未运行CI-only注入、native或Tree-sitter。
 新合流头需取得真正 pull_request 事件的完整CI，原push头的skipped不算通过，不自动合并。
+
+### PR #365 旧 Shared 边界 oracle 迁移（2026-11-08）
+
+`df51f7d9` 的正式双平台 CI 在 `capture_boundaries_discard_the_entire_observation_without_language_errors`
+失败：[Linux原始失败](https://github.com/Halckon/Koven/actions/runs/42466597814/job/128688333691)。
+本机精确复现；根因为 Owned-only 切片仍把纯 Shared String `{ a }` 预期为 Unsupported，
+与本批已准入范围冲突，并非本次修改放宽生产行为。
+
+原完整源码逐字保留为 `REPLACED_SHARED_SOURCE`，新正控固定 replacement 后真实 owner、
+lambda Unit 身份、唯一 End、相邻同点环境 Drop、来源随后释放及非 Owned 消费/V1拒绝。
+该输入也加入 observation on/off 全 Analysis 对照。原负控用仍不支持的 Shared String+Int
+混合类型替换，其他四例和整段清空断言不变；不删除输入、不接受多种结果、不添加ignore。
+
+Mac、locked/offline、默认debug、独立target：新正控、原失败边界、两个原Owned真实来源、
+Owned分支隔离、Shared全产物等价、分支局部形成、双臂退休共8项普通定向通过。
+独立只读复核确认原源码逐字一致且未弱化oracle。未改生产代码或损坏产物负控；
+CI-only注入仍未本地执行，新头仍须取得正式双平台CI，不以此次定向代替全量验收。

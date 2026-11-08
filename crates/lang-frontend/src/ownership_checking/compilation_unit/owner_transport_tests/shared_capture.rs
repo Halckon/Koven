@@ -549,3 +549,83 @@ fn branch_retirement_authenticates_edge_and_keeps_other_loans_live() {
         assert!(!damaged.is_consistent());
     }
 }
+
+// Exact source previously classified as unsupported by the Owned-only boundary test.
+pub(in crate::ownership_checking::compilation_unit) const REPLACED_SHARED_SOURCE: &str =
+    "fun run(): Unit { var a = \"old\"; val old = replace(&a, \"new\"); val callback = { a } }";
+
+#[test]
+fn shared_replaced_source_keeps_real_owner_and_ordered_retirement() {
+    let fixture = Fixture::new(&[("root.ko", REPLACED_SHARED_SOURCE)]);
+    let owned = fixture.shared();
+    assert!(owned.clone().validate().is_ok());
+    let observation = &owned.owner_observations()[0];
+    assert_eq!(observation.status(), UnitOwnerObservationStatus::Complete);
+    assert!(observation.is_consistent());
+    let old = literal_owner(&fixture, 0, observation, "\"old\"");
+    let current = literal_owner(&fixture, 0, observation, "\"new\"");
+    let events = observation.events();
+    let captures = events
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| match event {
+            UnitOwnerTransportEvent::SharedCapture {
+                expression,
+                environment,
+                inputs,
+            } => Some((index, expression, environment, inputs)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(at, expression, environment, inputs)] = captures.as_slice() else {
+        panic!("one Shared environment")
+    };
+    assert_eq!(
+        **expression,
+        UnitExpressionId::new(fixture.source(0), fixture.expression(0, "{ a }"))
+    );
+    assert_eq!(
+        observation
+            .definition((*environment).clone())
+            .unwrap()
+            .origin(),
+        UnitOwnerOrigin::Closure(**expression)
+    );
+    assert_eq!(
+        inputs.as_slice(),
+        &[(fixture.symbol(0, "a"), current.clone())]
+    );
+    assert_ne!(**environment, current);
+    assert_ne!(current, old);
+    let ends = events
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| match event {
+            UnitOwnerTransportEvent::SharedCaptureEnd {
+                environment: actual,
+                source,
+                owner,
+                point,
+            } if actual == *environment => Some((index, *source, owner, point)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(end, source, owner, point)] = ends.as_slice() else {
+        panic!("one exact loan end")
+    };
+    assert!(end > at);
+    assert_eq!(*source, fixture.symbol(0, "a"));
+    assert_eq!(*owner, &current);
+    assert!(
+        matches!(&events[end + 1], UnitOwnerTransportEvent::Drop { owner, point: at, .. } if owner == *environment && at == *point)
+    );
+    assert!(events[end + 2..].iter().any(|event| matches!(event, UnitOwnerTransportEvent::Drop { symbol, owner, .. } if *symbol == fixture.symbol(0, "a") && owner == &current)));
+    assert!(!events.iter().any(|event| matches!(
+        event,
+        UnitOwnerTransportEvent::Capture { .. } | UnitOwnerTransportEvent::CaptureDrop { .. }
+    )));
+    assert!(!events[at + 1..*end].iter().any(
+        |event| matches!(event, UnitOwnerTransportEvent::Move { owner, .. } if owner == &current)
+    ));
+    assert!(observation.value_observation_v1().is_none());
+}
