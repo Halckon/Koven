@@ -2300,3 +2300,15 @@ CLI 单文件由 bootstrap 构造 Unit 描述，project 走 `project_build`，LS
 持有 Unit 名称与类型输入。三者及 frontend `analysis` 未检出旧名字。codegen 的八条
 `lower_scalar_file_with_entry` 匹配分布在四个测试文件，含输入身份负控、可空 Rc 路径与只读
 方法旧路径拒绝见证。仍需按实际测试意图处置剩余消费者，计数下降不代表迁移退出。
+
+
+## 85. R0/R2 错误 lambda 结构的参数模式消费者
+
+原 Single 测试用两个顶层运行时值检查错误 move 约束和参数数量。将两条 initializer
+置于合法函数体，保持原 `inspect(item)`，加同体的合法共享借用 lambda 作为正控。
+实际运行了同一输入的原 Single、MemoryDocument 和 Rooted 检查，三者均报告两条 L0084，
+结构失败的参数均无已采纳模式。双 Unit 测试另核两个真实箭头的精确 Span 及合法参数的
+Borrow 模式。此后只保留双 Unit 测试，继续通过真实名称事实定位参数符号。
+
+三笔合批提交的 `type_callable` 与 `multifile_type_checking` 共 304 项通过，零失败和忽略。
+前端全目标 Clippy、格式、文档及 diff 检查通过，双宿主验收以合批 PR 的精确 head 为准。

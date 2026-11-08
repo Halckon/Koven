@@ -455,24 +455,6 @@ fn implicit_and_explicit_borrow_function_types_share_one_identity() {
 }
 
 #[test]
-fn structurally_invalid_expected_lambda_does_not_publish_a_mode() {
-    let text = "fun inspect(borrow input: Int): Unit {}\n\
-                val wrongMove: move (borrow Int) -> Unit = { item -> inspect(item) }\n\
-                val wrongArity: (borrow Int) -> Unit = { -> }";
-    let (sources, parsed) = parsed(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0084", "L0084"]);
-    let invalid_lambda_parameter = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-        .expect("wrongMove lambda parameter");
-    assert_eq!(typed.parameter_mode(invalid_lambda_parameter.id()), None);
-}
-
-#[test]
 fn named_arity_type_and_target_failures_are_distinct() {
     let text = "fun take(first: Int, second: Int): Unit {}\n\
                 fun use(callback: (Int) -> Unit): Unit {\n\

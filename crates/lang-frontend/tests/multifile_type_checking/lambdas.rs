@@ -350,3 +350,50 @@ fn cross_file_named_lambda_error_labels_the_selected_member_parameter() {
         assert!(typed.calls().is_empty());
     }
 }
+
+#[test]
+fn structurally_invalid_expected_lambda_does_not_publish_a_mode() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "lambda-recovery.ko",
+        concat!(
+            "fun inspect(borrow input: Int): Unit {}\n",
+            "fun invalid(): Unit {\n",
+            "    val wrongMove: move (borrow Int) -> Unit = { item -> inspect(item) }\n",
+            "    val wrongArity: (borrow Int) -> Unit = { -> }\n",
+            "    val accepted: (borrow Int) -> Unit = { valid -> inspect(valid) }\n",
+            "}",
+        ),
+    );
+    let (name_environment, type_environment) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "lambda-recovery.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("recovering lambda types");
+        let [wrong_move, wrong_arity] = typed.diagnostics() else {
+            panic!("two lambda header diagnostics: {:?}", typed.diagnostics());
+        };
+        for (diagnostic, header) in [(wrong_move, "item ->"), (wrong_arity, "{ ->")] {
+            assert_eq!(diagnostic.code().to_string(), "L0084");
+            let text = sources.source_text(source).unwrap();
+            let arrow = text.find(header).unwrap() + header.len() - 2;
+            assert_eq!(
+                diagnostic.primary_span(),
+                sources.span(source, arrow, arrow + 2).unwrap()
+            );
+        }
+        let unit = source_unit(&names, source);
+        let rejected = symbol_named(&typed, &names, unit, "item");
+        let accepted = symbol_named(&typed, &names, unit, "valid");
+        assert_eq!(typed.body_parameter_mode(rejected), None);
+        assert_eq!(
+            typed.body_parameter_mode(accepted),
+            Some(ParameterMode::Borrow)
+        );
+    }
+}
