@@ -150,68 +150,17 @@ impl BodyChecker<'_> {
                 type_arguments,
                 arguments,
                 ..
-            } => {
-                let invalidated = arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(
-                            argument.mode_marker,
-                            Some(crate::parser::ParameterModeMarker::Inout(_))
-                        )
-                    })
-                    .filter_map(|argument| self.stable_flow_key(source, argument.value))
-                    .collect::<Vec<_>>();
-                let result = if let Some(result) = self.check_intrinsic_ownership_primitive_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    return_type,
-                )? {
-                    result
-                } else if let Some(result) = self.check_intrinsic_container_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    expectation,
-                    expected_span,
-                    return_type,
-                )? {
-                    result
-                } else if let Some(result) = self.check_source_construction_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    expectation,
-                    expected_span,
-                    return_type,
-                )? {
-                    result
-                } else {
-                    let result = self.check_call(
-                        source,
-                        expression,
-                        callee,
-                        &type_arguments,
-                        &arguments,
-                        return_type,
-                    )?;
-                    self.record_pending_call_prefix(key, callee, &arguments)?;
-                    result
-                };
-                for key in invalidated {
-                    self.invalidate_flow_key(key);
-                }
-                result
-            }
+            } => self.check_call_expression(
+                source,
+                expression,
+                span,
+                callee,
+                &type_arguments,
+                &arguments,
+                expectation,
+                expected_span,
+                return_type,
+            )?,
             Expression::Return {
                 keyword_span,
                 value,

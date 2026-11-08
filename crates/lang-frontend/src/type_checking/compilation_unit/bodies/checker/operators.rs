@@ -129,93 +129,158 @@ impl BodyChecker<'_> {
             operator,
             BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
         ) {
-            let left_result = self.check_expression(source, left, None, None, return_type)?;
-            let (left_true, left_false) = self.condition_facts(source, left)?;
-            let baseline = self.flow_facts.clone();
-            let baseline_versions = self.flow_versions.clone();
-            let ast = self.file(source).ast();
-            let rhs_required =
-                logical_rhs_is_required(ast, left, operator).map_err(TypeCheckingError::from)?;
-            let left_edges = if self.has_pending_expression_exit(source, left, left_result)? {
-                self.boolean_pending_edges(source, left, &baseline_versions)?
-            } else {
-                PendingBooleanEdges::default()
-            };
-            let (right_entry, rhs_pending, bypass) = if operator == BinaryOperator::LogicalAnd {
-                (&left_true, left_edges.yes, left_edges.no)
-            } else {
-                (&left_false, left_edges.no, left_edges.yes)
-            };
-            self.flow_facts = extend_facts(&baseline, right_entry);
-            if let Some(pending) = &rhs_pending {
-                self.flow_versions.set_pending_keys(pending.iter().copied());
-            }
-            let right_result = self.check_loop_reachable(rhs_pending.is_some(), |checker| {
-                checker.check_expression(source, right, None, None, return_type)
-            });
-            let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
-            let writes = self.expression_flow_writes(source, right)?;
-            self.flow_facts = baseline;
-            for key in writes {
-                self.invalidate_flow_key(key);
-            }
-            let right_result = right_result?;
-            let mut edges = if rhs_pending.is_some()
-                && self.has_pending_expression_exit(source, right, right_result)?
-            {
-                self.boolean_pending_edges(source, right, &right_versions)?
-            } else {
-                PendingBooleanEdges::default()
-            };
-            if let Some(bypass) = bypass {
-                let edge = if operator == BinaryOperator::LogicalAnd {
-                    &mut edges.no
-                } else {
-                    &mut edges.yes
-                };
-                edge.get_or_insert_with(Default::default).extend(bypass);
-            }
-            self.flow_versions.set_pending_keys(
-                edges
-                    .yes
-                    .iter()
-                    .chain(&edges.no)
-                    .flat_map(|keys| keys.iter().copied()),
-            );
-            let boolean = self.builtin(BuiltinType::Boolean);
-            let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)
-                && self.is_builtin(right_result.ty, BuiltinType::Boolean)
-            {
-                boolean
-            } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
-                self.error_type()
-            } else if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
-                self.deferred_type(crate::type_checking::DeferredReason::ControlJoin)
-            } else {
-                self.emit_binary_operand_error(
-                    source,
-                    operator_span,
+            return self.check_logical_binary(
+                source,
+                BinaryExpression {
+                    expression,
                     left,
-                    left_result.ty,
+                    operator,
+                    operator_span,
                     right,
-                    right_result.ty,
-                )?;
-                self.error_type()
-            };
-            let expression = UnitExpressionId::new(source, expression);
-            self.note_pending_exit(
-                PendingControlSite::Expression(expression),
-                edges.yes.is_some() || edges.no.is_some(),
+                },
+                return_type,
             );
-            if ty == boolean {
-                self.pending_boolean_edges.insert(expression, edges);
-            }
-            return Ok(ExpressionCheck {
-                ty,
-                falls_through: left_result.falls_through
-                    && (right_result.falls_through || !rhs_required),
-            });
         }
+        self.check_value_binary(
+            source,
+            BinaryExpression {
+                expression,
+                left,
+                operator,
+                operator_span,
+                right,
+            },
+            return_type,
+        )
+    }
+
+    // Keep non-logical operator temporaries out of the recursive short-circuit path.
+    fn check_logical_binary(
+        &mut self,
+        source: SourceUnitId,
+        expression: BinaryExpression,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        // The left-associated chain must not retain right-side flow temporaries.
+        let left_result =
+            self.check_expression(source, expression.left, None, None, return_type)?;
+        self.check_logical_binary_after_left(source, expression, left_result, return_type)
+    }
+
+    fn check_logical_binary_after_left(
+        &mut self,
+        source: SourceUnitId,
+        expression: BinaryExpression,
+        left_result: ExpressionCheck,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let BinaryExpression {
+            expression,
+            left,
+            operator,
+            operator_span,
+            right,
+        } = expression;
+        let (left_true, left_false) = self.condition_facts(source, left)?;
+        let baseline = self.flow_facts.clone();
+        let baseline_versions = self.flow_versions.clone();
+        let ast = self.file(source).ast();
+        let rhs_required =
+            logical_rhs_is_required(ast, left, operator).map_err(TypeCheckingError::from)?;
+        let left_edges = if self.has_pending_expression_exit(source, left, left_result)? {
+            self.boolean_pending_edges(source, left, &baseline_versions)?
+        } else {
+            PendingBooleanEdges::default()
+        };
+        let (right_entry, rhs_pending, bypass) = if operator == BinaryOperator::LogicalAnd {
+            (&left_true, left_edges.yes, left_edges.no)
+        } else {
+            (&left_false, left_edges.no, left_edges.yes)
+        };
+        self.flow_facts = extend_facts(&baseline, right_entry);
+        if let Some(pending) = &rhs_pending {
+            self.flow_versions.set_pending_keys(pending.iter().copied());
+        }
+        let right_result = self.check_loop_reachable(rhs_pending.is_some(), |checker| {
+            checker.check_expression(source, right, None, None, return_type)
+        });
+        let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
+        let writes = self.expression_flow_writes(source, right)?;
+        self.flow_facts = baseline;
+        for key in writes {
+            self.invalidate_flow_key(key);
+        }
+        let right_result = right_result?;
+        let mut edges = if rhs_pending.is_some()
+            && self.has_pending_expression_exit(source, right, right_result)?
+        {
+            self.boolean_pending_edges(source, right, &right_versions)?
+        } else {
+            PendingBooleanEdges::default()
+        };
+        if let Some(bypass) = bypass {
+            let edge = if operator == BinaryOperator::LogicalAnd {
+                &mut edges.no
+            } else {
+                &mut edges.yes
+            };
+            edge.get_or_insert_with(Default::default).extend(bypass);
+        }
+        self.flow_versions.set_pending_keys(
+            edges
+                .yes
+                .iter()
+                .chain(&edges.no)
+                .flat_map(|keys| keys.iter().copied()),
+        );
+        let boolean = self.builtin(BuiltinType::Boolean);
+        let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)
+            && self.is_builtin(right_result.ty, BuiltinType::Boolean)
+        {
+            boolean
+        } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
+            self.error_type()
+        } else if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
+            self.deferred_type(crate::type_checking::DeferredReason::ControlJoin)
+        } else {
+            self.emit_binary_operand_error(
+                source,
+                operator_span,
+                left,
+                left_result.ty,
+                right,
+                right_result.ty,
+            )?;
+            self.error_type()
+        };
+        let expression = UnitExpressionId::new(source, expression);
+        self.note_pending_exit(
+            PendingControlSite::Expression(expression),
+            edges.yes.is_some() || edges.no.is_some(),
+        );
+        if ty == boolean {
+            self.pending_boolean_edges.insert(expression, edges);
+        }
+        Ok(ExpressionCheck {
+            ty,
+            falls_through: left_result.falls_through
+                && (right_result.falls_through || !rhs_required),
+        })
+    }
+
+    fn check_value_binary(
+        &mut self,
+        source: SourceUnitId,
+        expression: BinaryExpression,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let BinaryExpression {
+            expression,
+            left,
+            operator,
+            operator_span,
+            right,
+        } = expression;
         let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
         let left_null = equality && self.is_null_comparison_literal(source, left)?;
         let right_null = equality && self.is_null_comparison_literal(source, right)?;
