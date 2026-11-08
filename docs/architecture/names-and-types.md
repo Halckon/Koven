@@ -143,7 +143,7 @@ binding。稳定产物按逻辑 source key 和源码身份排序，不以 `Sourc
 validated wrapper 只在对应阶段无诊断且身份链一致时产生。混用另一份 index、names、SourceMap 或
 environment 会在遍历前返回内部错误。
 
-对应覆盖位于 `compilation_unit_index` 与 `multifile_name_resolution` integration suites。
+对应覆盖位于 `compilation_unit_index` 与 `multifile_name_resolution` integration suites。 同文件非空 enum 的两段 TypeRef 复用已绑定 root 补全前向 case 身份；缺 case 保持 L0080，不回退同名顶层类型。遮蔽、双入口及排列覆盖见 `multifile_name_resolution::forward_enum`。
 
 ## Compilation-unit 类型链
 `type_checking::compilation_unit` 保留原身份门，按稳定 root/path 对齐一次 AST 借用供签名与 body 共享；先冻结全 unit 签名图，再检查 body：

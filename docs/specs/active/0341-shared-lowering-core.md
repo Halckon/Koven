@@ -3945,3 +3945,36 @@ workspace fmt、863份Markdown、diff与相对基线尺寸门禁通过；无新�
 独立只读复审未发现 P1/P2。
 前向 enum case terminal reference 缺口仍 open；已解析 case 的 L0114 修复仍属独立候选，
 本片不声称其组合已验。未运行 frontend/workspace 全量、native、Linux 或正式 CI；不合并。
+
+## 独立修复：同文件 enum 前向 case 名称身份（2026-11-08）
+
+基线 main `4ae149a6`。同文件 `Shape.Circle` 使用早于 enum 声明时，局部名称产品尚无
+terminal 引用，Unit 遇到已绑定 lexical root 又跳过补全。另已实测 `Shape.Missing` 会被
+同名顶层 `class Missing` 接管，错误地消除 L0080。六项定向基线4失败/2通过。
+本片仅在 Unit 名称阶段，以 Type namespace 的真实 root SymbolId 及完整 enum case 表
+补齐两段 TypeRef 的 terminal，保留 root、scope、symbol/case ID 和其他引用；不在类型层按拼写猜身份。
+仅 terminal 的局部引用/旧 L0080 被替换，未知 case 发布单条 L0080 和 Type/Unresolved。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 正反声明顺序、精确 root/case 身份及 Span，memory/rooted | `multifile_name_resolution::forward_enum::local_enum_type_paths_preserve_root_and_case_identity_in_both_orders` | 通过；保留局部 symbol/scope/case 表 |
+| 两个 enum 同名 case 由各自 root 选择 | 同模块 `equally_named_cases_are_selected_by_the_bound_root` | 通过 |
+| 类型参数遮蔽、值参数同拼写不遮类型 | 同模块 `type_parameter_shadowing_is_not_rebound_to_the_outer_enum`、`same_spelling_value_parameter_does_not_shadow_the_enum_type` | 通过 |
+| 缺 case 有/无同名顶层类型，普通裸名不受影响 | 同模块 `missing_local_case_cannot_fall_back_to_a_same_named_top_level_type` | 双顺序/双入口均单条精确 L0080，拒绝 validate |
+| 合法前向 is 与完整名称输入排列相等 | 同模块 `forward_enum_type_tests_validate_and_input_permutation_preserves_names` | 名称相等、typed 无诊断并可 validate |
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug profile：`name_resolution` 15、
+`multifile_name_resolution` 19、`unit_name_snapshot` 7、`type_checking` 90、
+`multifile_type_signatures` 19、`multifile_type_checking` 281，共431项；完整 LSP 56项及
+stdio 1项，合计488项通过，零失败/忽略。frontend all-targets Clippy（`-D warnings`）、
+workspace fmt、863份Markdown、尺寸与diff检查通过；独立只读复审未发现阻断问题。
+
+额外一次性组合验证：以同基线及本片 qualified.rs，叠加 `f27960e3` 的 L0114 生产/测试差异、
+`5d5a68bb` 的声明解包生产差异；3项 enum_type_position 和1项跨文件 case 诊断通过。
+嵌套签名探针扩为8种位置×正反声明顺序×默认/public×双入口共64组，均精确 L0114；
+跨文件 public enum 正反输入排列保留 primary/use 与 label/enum 来源。这仅为隔离组合证据，
+不代表三个分支已集成、发布或取得正式 CI。
+
+空 enum 已由 Guide08/parser L0073 拒绝，本片不追加其恢复诊断；超过两段 TypeRef、
+表达式成员路径与 legacy local resolver 不变。未运行 frontend/workspace 全量、native、Linux
+或正式 CI；不合并，D10/E2仍in-progress。
