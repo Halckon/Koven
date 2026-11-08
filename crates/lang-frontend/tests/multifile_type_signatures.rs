@@ -397,3 +397,6 @@ fn assert_signature_product_is_public(_: &CompilationUnitSignatures) {}
 
 #[path = "multifile_type_signatures/container_storage.rs"]
 mod container_storage;
+
+#[path = "multifile_type_signatures/enum_identity.rs"]
+mod enum_identity;

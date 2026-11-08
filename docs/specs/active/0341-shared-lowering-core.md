@@ -3621,3 +3621,25 @@ Mac Rust1.96、独立 target、默认 debug profile：`ownership_containers` 全
 Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 diff 检查通过。
 旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
 `60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。
+
+
+## 独立修复：显式可见性的 inline classifier 身份（2026-11-08）
+
+基线 main `6e5934b5`。跨包 `public enum class Shape { Circle(radius: Int), Point }`
+合法签名原先实测 `MissingDeclarationSymbol`。inline-layout 读取误把 `Item::Modified`
+当 classifier；本片复用既有声明解包，保留原声明/字段/payload 身份，不吞内部错误或绕过布局检查。
+不改名称产物、L0114 位置门或可见性政策，不接入其他候选分支。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 跨包 public enum 的 case、payload、来源身份与完整签名排列相等，body 中合法 is | `multifile_type_signatures::enum_identity::explicit_public_enum_preserves_case_signatures_across_files` | 原版 MissingDeclarationSymbol 红测，修复后通过 |
+| public/internal/private 的 enum 与 value class 有限布局 | `multifile_type_signatures::enum_identity::explicit_visibility_preserves_finite_inline_components_in_both_entries` | memory/rooted 均无诊断，可 validate |
+| 同三可见性的 enum/value class 递归布局 | `multifile_type_signatures::enum_identity::explicit_visibility_does_not_skip_recursive_inline_layout_diagnostics` | 双入口单条 L0116、精确递归 TypeRef 位置，拒绝 validate |
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug profile：`multifile_type_signatures` 22、
+`multifile_type_capability_graph` 10、`multifile_type_checking` 281、`type_checking` 89、
+`type_copyability` 17，共419项通过，零失败/忽略。frontend all-targets Clippy（`-D warnings`）、
+workspace fmt、863份Markdown、diff与相对基线尺寸门禁通过；无新增尺寸欠账。
+独立只读复审未发现 P1/P2。
+前向 enum case terminal reference 缺口仍 open；已解析 case 的 L0114 修复仍属独立候选，
+本片不声称其组合已验。未运行 frontend/workspace 全量、native、Linux 或正式 CI；不合并。
