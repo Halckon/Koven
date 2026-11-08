@@ -814,7 +814,7 @@ fn llvm_emission_failure_is_atomic_and_tls_recovers() {
             let guard = crate::llvm::emission_failure::Guard::new(blocker.join("object.o"));
             let error = handoff
                 .emit(pathway, entry, &object)
-                .expect_err("real LLVM ENOTDIR");
+                .expect_err("real object write ENOTDIR");
             assert_eq!(
                 guard.calls(),
                 1,
