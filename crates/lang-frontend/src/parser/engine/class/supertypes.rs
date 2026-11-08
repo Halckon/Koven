@@ -75,6 +75,9 @@ impl Parser<'_> {
                             NameMarker::Missing(primary)
                         } else if let Some(group) = self.consume_closed_supertype_group()? {
                             NameMarker::Error(group)
+                        } else if self.current_is_symbol(Symbol::Less) {
+                            // Keep the opener available to the error target's suffix scan.
+                            NameMarker::Error(primary)
                         } else {
                             self.bump()?;
                             NameMarker::Error(primary)
@@ -91,9 +94,11 @@ impl Parser<'_> {
                         || (file_header && self.at_class_header_file_boundary(false)?);
                     if !at_entry_boundary {
                         let poison = self.is_supertype_suffix_poison(raw, current);
+                        let invalid_target = matches!(target, NameMarker::Error(_));
+                        let recover_suffix = poison || invalid_target;
                         if poison {
                             self.consume_poison_with_closed_type_arguments(true)?;
-                        } else {
+                        } else if !invalid_target {
                             self.emit(
                                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                                 "unsupported class-family form",
@@ -101,13 +106,15 @@ impl Parser<'_> {
                             )?;
                         }
                         let _ = self.consume_closed_supertype_group()?;
-                        let stops = if poison {
+                        let stops = if invalid_target {
+                            suffix_stops.with(DeclarationStops::DELEGATION_ERROR_TARGET)
+                        } else if poison {
                             suffix_stops.with(DeclarationStops::LEADING_UNPROVED_ANGLE_COMMA)
                         } else {
                             recovery_stops
                         };
                         self.recover_declaration_region(stops)?;
-                        if poison {
+                        if recover_suffix {
                             let end = self.previous_significant_end();
                             match target {
                                 NameMarker::Error(span) => {
@@ -218,6 +225,26 @@ impl Parser<'_> {
             break;
         }
         Ok((Some(colon_span), entries))
+    }
+
+    pub(in crate::parser::engine) fn at_supertype_suffix_boundary(
+        &self,
+        raw: usize,
+        current: Lexeme,
+        owner: ClassifierHeaderOwner,
+        stops: DeclarationStops,
+    ) -> Result<bool, ParserInternalError> {
+        let error_member =
+            owner == ClassifierHeaderOwner::Member && stops.in_delegation_error_target();
+        if error_member
+            && self.current_identifier_is("deinit")?
+            && !self.gap_has_line_break(self.previous_significant_end(), current.span().start())?
+        {
+            return Ok(self.peek_is_symbol(1, Symbol::LeftParen)
+                && self.peek_is_symbol(2, Symbol::RightParen)
+                && self.peek_is_symbol(3, Symbol::LeftBrace));
+        }
+        self.at_supertype_recovery_boundary(raw, current, owner, error_member)
     }
 
     fn is_supertype_suffix_poison(&self, raw: usize, current: Lexeme) -> bool {
