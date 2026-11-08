@@ -238,7 +238,7 @@ pub(super) fn analyze(
     let mut iteration_required_exits = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
-    let exclusive_captures = closure::exclusive_capture_index(closure_inputs.captures, typed);
+    let capture_index = closure::capture_index(closure_inputs.captures, typed);
     let empty_construction_descriptors = BTreeMap::new();
     let field_kinds = traversal::collect_field_mutability(inputs, names)?;
     let range_producers =
@@ -262,8 +262,7 @@ pub(super) fn analyze(
             &field_kinds,
             call_inputs.arguments,
             call_inputs.receivers,
-            closure_inputs.captures,
-            &exclusive_captures,
+            &capture_index,
             closure_inputs.closures,
             closure_inputs.transferabilities,
             construction_descriptors
@@ -353,7 +352,7 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     let callable_provenance = if diagnostics.is_empty() && typed.has_valid_type_facts() {
-        callable_provenance::finish(&callable_sources, typed, closure_inputs.captures)
+        callable_provenance::finish(&callable_sources, typed, &capture_index)
     } else {
         Default::default()
     };
@@ -469,8 +468,7 @@ struct Checker<'a> {
     names: &'a CompilationUnitNames,
     typed: &'a CompilationUnitTypes,
     bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
-    captures: &'a [UnitClosureCaptureDescriptor],
-    exclusive_captures: &'a closure::ExclusiveCaptureIndex,
+    capture_index: &'a closure::CaptureIndex<'a>,
     closures: &'a [UnitClosureDescriptor],
     transferabilities: &'a [Transferability],
     construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
@@ -540,8 +538,7 @@ impl<'a> Checker<'a> {
         field_kinds: &'a BTreeMap<UnitSymbolId, VariableKind>,
         contracts: &[UnitCallArgumentOwnershipContract],
         receiver_contracts: &[UnitCallReceiverOwnershipContract],
-        captures: &'a [UnitClosureCaptureDescriptor],
-        exclusive_captures: &'a closure::ExclusiveCaptureIndex,
+        capture_index: &'a closure::CaptureIndex<'a>,
         closures: &'a [UnitClosureDescriptor],
         transferabilities: &'a [Transferability],
         construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
@@ -630,8 +627,7 @@ impl<'a> Checker<'a> {
             names,
             typed,
             bindings,
-            captures,
-            exclusive_captures,
+            capture_index,
             closures,
             transferabilities,
             construction_descriptors,

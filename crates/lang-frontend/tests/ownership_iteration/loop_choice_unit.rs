@@ -8,7 +8,8 @@ use lang_frontend::{
 };
 
 // This guard is not a replacement for Single conditional owner/phi witnesses.
-fn check(text: &str, rejected: bool) {
+fn check(text: &str, rejected_at: Option<&str>) {
+    let rejected = rejected_at.is_some();
     for rooted in [false, true] {
         let mut sources = SourceMap::new();
         let source = sources.add_source("iteration.ko", text).unwrap();
@@ -53,7 +54,12 @@ fn check(text: &str, rejected: bool) {
             "rooted={rooted}: {text}"
         );
         assert_eq!(owned.clone().validate().is_ok(), !rejected);
-        if rejected {
+        if let Some(origin) = rejected_at {
+            assert_eq!(
+                sources.slice(owned.diagnostics()[0].primary_span()),
+                Ok(origin),
+                "rooted={rooted}: {text}"
+            );
             assert!(owned.drops().is_empty());
             assert!(owned.captures().is_empty());
             assert!(owned.iterations().is_empty());
@@ -73,7 +79,7 @@ fn new_shared_choice_cannot_survive_loop_edges_without_owner_transport() {
             if loop_head == "loop" && transfer != "break" {
                 continue;
             }
-            check(&text, true);
+            check(&text, Some("xs"));
         }
     }
 }
@@ -90,7 +96,7 @@ fn established_and_body_local_closures_keep_their_supported_paths() {
                 let text = format!(
                     "fun read(xs: List<Int>) {{}}\nfun run(own xs: List<Int>, flags: List<Boolean>, flag: Boolean) {{ val f: () -> Unit = {{ read(xs) }}; {loop_head} {{ {body}\n{transfer} }}\nf() }}"
                 );
-                check(&text, false);
+                check(&text, None);
             }
         }
     }
@@ -102,7 +108,7 @@ fn capture_free_and_copyable_rebinding_remain_supported() {
         let text = format!(
             "fun run(flags: List<Boolean>, number: Int) {{ var f: () -> Unit = {{}}; for (flag in flags) {{ f = {rhs} }}\nf() }}"
         );
-        check(&text, false);
+        check(&text, None);
     }
 }
 
@@ -112,7 +118,7 @@ fn borrowed_parameter_capture_does_not_create_a_local_drop_obligation() {
         let text = format!(
             "fun read(xs: List<Int>) {{}}\nfun run({parameter}, flags: List<Boolean>) {{ var f: () -> Unit = {{}}; for (flag in flags) {{ f = {{ read(xs) }} }}\nf() }}"
         );
-        check(&text, false);
+        check(&text, None);
     }
 }
 
@@ -126,7 +132,7 @@ fn nested_and_repeating_environment_transport_is_rejected() {
         let text = format!(
             "fun read(xs: List<Int>) {{}}\nfun run(own xs: List<Int>, flags: List<Boolean>) {{ var f: () -> Unit = {{}}; for (flag in flags) {{ {body} }}\nf() }}"
         );
-        check(&text, true);
+        check(&text, Some("xs"));
     }
 }
 
@@ -134,7 +140,7 @@ fn nested_and_repeating_environment_transport_is_rejected() {
 fn new_environment_ending_inside_the_body_does_not_need_exit_transport() {
     check(
         "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>, flags: List<Boolean>) { var f: () -> Unit = {}; for (flag in flags) { f = { read(xs) }; f() } }",
-        false,
+        None,
     );
 }
 
@@ -150,7 +156,7 @@ fn statically_empty_loops_do_not_reject_unexecuted_capture_transport() {
         let text = format!(
             "fun read(xs: List<Int>) {{}}\nfun run(own xs: List<Int>) {{ var f: () -> Unit = {{}}; {head} {{ f = {{ read(xs) }} }}\nf() }}"
         );
-        check(&text, false);
+        check(&text, None);
     }
 }
 
@@ -164,6 +170,6 @@ fn zero_iteration_exemption_requires_independent_literal_or_intrinsic_proof() {
         let text = format!(
             "fun read(xs: List<Int>) {{}}\nfun falseFlag(): Boolean = false\nfun empty(): List<Boolean> = listOf<Boolean>()\nfun run(own xs: List<Int>) {{ var f: () -> Unit = {{}}; {head} {{ f = {{ read(xs) }} }}\nf() }}"
         );
-        check(&text, true);
+        check(&text, Some("xs"));
     }
 }
