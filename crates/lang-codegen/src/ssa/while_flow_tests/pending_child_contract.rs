@@ -88,17 +88,28 @@ pub(super) fn assert_pending_child(program: &Program, source: &str, unit: bool) 
             .iter()
             .any(|block| matches!(term(block), TerminatorKind::NullableBranch { .. }))
     }));
-    let outer = only(
-        function
-            .blocks
-            .iter()
-            .filter(|block| matches!(term(block), TerminatorKind::NullableBranch { .. })),
-    );
-    assert_span(
-        &outer.terminator.as_ref().unwrap().origin,
-        source.find("while (").unwrap() + offset,
-        source.rfind("\n    return 0").unwrap() + offset,
-    );
+    let outer_start = source.find("while (").unwrap();
+    let if_start = source.find("if (flag)").unwrap();
+    let outer = only(function.blocks.iter().filter(|block| {
+        matches!(term(block), TerminatorKind::NullableBranch { .. })
+            && matches!(
+                block.terminator.as_ref().unwrap().origin,
+                Origin::Source(span)
+                    if (span.start() == outer_start + offset
+                        && span.end() == source.rfind("\n    return 0").unwrap() + offset)
+                        || (span.start() >= outer_start + offset
+                            && span.end() <= if_start + offset)
+            )
+    }));
+    let inner_nullable = function.blocks.iter().find(|block| {
+        block.id != outer.id && matches!(term(block), TerminatorKind::NullableBranch { .. })
+    });
+    let inner_view = inner_nullable.map(|block| {
+        let TerminatorKind::NullableBranch { view, .. } = term(block) else {
+            unreachable!()
+        };
+        *view
+    });
     let TerminatorKind::NullableBranch {
         owner,
         when_null,
@@ -272,6 +283,7 @@ pub(super) fn assert_pending_child(program: &Program, source: &str, unit: bool) 
         projection,
         call,
         &reads,
+        inner_view,
     );
     for owner in &trace.owners {
         assert_eq!(
@@ -335,8 +347,8 @@ pub(super) fn assert_pending_child(program: &Program, source: &str, unit: bool) 
             .iter()
             .filter(|instruction| { matches!(instruction.operation, Operation::BorrowEnd { .. }) })
             .count(),
-        2,
-        "no inner parent retirement or replacement child lifetime"
+        2 + usize::from(inner_view.is_some()),
+        "no unexpected parent retirement or replacement child lifetime"
     );
 
     // Validate with the complete traced identity sets, including IDs discovered on
@@ -382,6 +394,7 @@ fn trace(
     projection: &Instruction,
     call: &Instruction,
     reads: &[&Instruction],
+    inner_view: Option<LoanId>,
 ) -> Trace {
     let dominators = dominators(function);
     let mut trace = Trace::default();
@@ -449,6 +462,9 @@ fn trace(
                             "parent remains active through the last read"
                         );
                         state.stage = Stage::ParentEnded;
+                    }
+                    Operation::BorrowEnd { loan } if Some(loan) == inner_view => {
+                        assert_eq!(state.stage, Stage::Pending);
                     }
                     Operation::BorrowEnd { .. } => panic!("no unpaired or stale proof retirement"),
                     Operation::Drop { owner } if owner == state.owner => {
@@ -542,51 +558,86 @@ fn assert_structure(
     };
     let inner_start = source.rfind("while (").unwrap();
     let inner_end = inner_start + source[inner_start..].find('}').unwrap() + 1;
-    let inner = only(function.blocks.iter().filter(|block| {
-        matches!(term(block), TerminatorKind::Conditional { .. })
-            && block.terminator.as_ref().unwrap().origin.span().start() == inner_start + offset
-    }));
-    assert_span(
-        &inner.terminator.as_ref().unwrap().origin,
-        inner_start + offset,
-        inner_end + offset,
-    );
-    let preheader = function.block(when_true.target).unwrap();
-    let TerminatorKind::Branch(inner_entry) = term(preheader) else {
-        panic!("then arm enters the readonly loop")
-    };
-    assert_eq!(inner_entry.target, inner.id);
-    let TerminatorKind::Conditional {
-        condition,
-        when_true: inner_true,
-        when_false: inner_false,
-    } = term(inner)
-    else {
-        unreachable!()
-    };
-    let negation = only(
-        function
-            .instructions
-            .iter()
-            .filter(|instruction| instruction.results == [EntityId::Value(*condition)]),
-    );
-    let Operation::BooleanNot { operand } = negation.operation else {
-        panic!("the readonly != null test has an actual negated null check")
-    };
-    let null_check = only(
-        function
-            .instructions
-            .iter()
-            .filter(|instruction| instruction.results == [EntityId::Value(operand)]),
-    );
-    for state in trace.entries.get(&inner.id).unwrap() {
-        assert_eq!(state.stage, Stage::Pending);
-        assert!(
-            matches!(null_check.operation, Operation::NullableIsNull { owner } if owner == state.owner)
+    let (preheader_id, inner_id, broken, absent) = if let Some(inner) = function
+        .blocks
+        .iter()
+        .find(|block| {
+            matches!(term(block), TerminatorKind::NullableBranch { .. })
+                && block.terminator.as_ref().unwrap().origin.span().start() >= inner_start + offset
+                && block.terminator.as_ref().unwrap().origin.span().end() <= inner_end + offset
+        })
+    {
+        assert_eq!(when_true.target, inner.id);
+        let TerminatorKind::NullableBranch {
+            owner,
+            when_null,
+            when_non_null,
+            ..
+        } = term(inner)
+        else {
+            unreachable!()
+        };
+        for state in trace.entries.get(&inner.id).unwrap() {
+            assert_eq!(state.stage, Stage::Pending);
+            assert_eq!(*owner, state.owner);
+        }
+        (
+            inner.id,
+            inner.id,
+            function.block(when_non_null.target).unwrap(),
+            function.block(when_null.target).unwrap(),
+        )
+    } else {
+        let inner = only(function.blocks.iter().filter(|block| {
+            matches!(term(block), TerminatorKind::Conditional { .. })
+                && block.terminator.as_ref().unwrap().origin.span().start() == inner_start + offset
+        }));
+        assert_span(
+            &inner.terminator.as_ref().unwrap().origin,
+            inner_start + offset,
+            inner_end + offset,
         );
-    }
-    let broken = function.block(inner_true.target).unwrap();
-    let absent = function.block(inner_false.target).unwrap();
+        let preheader = function.block(when_true.target).unwrap();
+        let TerminatorKind::Branch(inner_entry) = term(preheader) else {
+            panic!("then arm enters the readonly loop")
+        };
+        assert_eq!(inner_entry.target, inner.id);
+        let TerminatorKind::Conditional {
+            condition,
+            when_true: inner_true,
+            when_false: inner_false,
+        } = term(inner)
+        else {
+            unreachable!()
+        };
+        let negation = only(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.results == [EntityId::Value(*condition)]),
+        );
+        let Operation::BooleanNot { operand } = negation.operation else {
+            panic!("the readonly != null test has an actual negated null check")
+        };
+        let null_check = only(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.results == [EntityId::Value(operand)]),
+        );
+        for state in trace.entries.get(&inner.id).unwrap() {
+            assert_eq!(state.stage, Stage::Pending);
+            assert!(
+                matches!(null_check.operation, Operation::NullableIsNull { owner } if owner == state.owner)
+            );
+        }
+        (
+            preheader.id,
+            inner.id,
+            function.block(inner_true.target).unwrap(),
+            function.block(inner_false.target).unwrap(),
+        )
+    };
     let TerminatorKind::Branch(break_edge) = term(broken) else {
         panic!("inner body breaks")
     };
@@ -608,8 +659,8 @@ fn assert_structure(
     assert_eq!(incoming(function, call.block).len(), 2);
     for id in [
         if_block.id,
-        preheader.id,
-        inner.id,
+        preheader_id,
+        inner_id,
         broken.id,
         absent.id,
         then_exit.id,

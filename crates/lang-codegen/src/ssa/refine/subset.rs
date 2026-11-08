@@ -644,11 +644,22 @@ impl Checker<'_, '_> {
                 let cond_ok = self.condition(condition, true);
                 let (reaches_then, reaches_else) = self.condition_outcomes(condition);
                 let then_ok = cond_ok && (!reaches_then || self.statement(then_branch));
+                let then_views = self.view_symbols.clone();
                 self.view_symbols = saved.clone();
                 self.note_else_view(condition);
                 let else_ok =
                     !reaches_else || else_branch.is_none_or(|branch| self.statement(branch));
-                self.view_symbols = saved;
+                let else_views = self.view_symbols.clone();
+                let then_continues = reaches_then && self.statement_may_continue(then_branch);
+                let else_continues = reaches_else
+                    && else_branch.is_none_or(|branch| self.statement_may_continue(branch));
+                self.view_symbols = saved
+                    .into_iter()
+                    .filter(|symbol| {
+                        (!then_continues || then_views.contains(symbol))
+                            && (!else_continues || else_views.contains(symbol))
+                    })
+                    .collect();
                 then_ok
                     && else_ok
                     && (self.unit(ty) || else_branch.is_some())

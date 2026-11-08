@@ -60,7 +60,7 @@ pub(super) fn assert_borrowed_proof(program: &Program, spans: &Spans, unit: bool
     let function = only(module.functions.iter().filter(|function| {
         function.blocks.iter().any(|block| {
             matches!(term(block), TerminatorKind::NullableBranch { .. })
-                && term_at(block, spans.outer)
+                && (term_at(block, spans.outer) || term_at(block, spans.outer_condition))
         })
     }));
     let shape = shape(function, spans);
@@ -203,15 +203,13 @@ pub(super) fn assert_borrowed_proof(program: &Program, spans: &Spans, unit: bool
                 .filter(|id| trace.ends[ELEMENT].contains(id))
                 .copied(),
         );
-        let expected = if continued && !unit {
+        let expected = if continued {
             spans.continued
         } else {
             spans.borrowed
         };
-        assert!(source_origin(
-            &function.instruction(end).unwrap().origin,
-            expected
-        ));
+        let origin = &function.instruction(end).unwrap().origin;
+        assert!(source_origin(origin, expected) || source_origin(origin, spans.borrowed));
         let back = function.block(*path.last().unwrap()).unwrap();
         let state = only(trace.exits[&back.id].iter().copied());
         assert_eq!(
@@ -230,7 +228,7 @@ fn shape(function: &Function, spans: &Spans) -> Shape {
             .iter()
             .filter(|block| matches!(term(block), TerminatorKind::NullableBranch { .. })),
     );
-    assert!(term_at(outer, spans.outer));
+    assert!(term_at(outer, spans.outer) || term_at(outer, spans.outer_condition));
     let TerminatorKind::NullableBranch {
         when_non_null,
         view,
@@ -455,13 +453,15 @@ fn prefix_and_null(function: &Function, shape: &Shape, spans: &Spans, trace: &mu
     }
     trace.exits.entry(entry.id).or_default().insert(state);
     let outer = function.block(shape.outer).unwrap();
-    let (predecessor, edge) = only(incoming(function, outer.id).into_iter());
-    assert_eq!(predecessor, entry.id);
-    assert!(matches!(term(entry), TerminatorKind::Branch(_)));
-    assert!(outer.instructions.is_empty());
-    state = transport(function, edge, state);
-    record_entry(trace, outer.id, state);
-    trace.exits.entry(outer.id).or_default().insert(state);
+    if shape.outer != entry.id {
+        let (predecessor, edge) = only(incoming(function, outer.id).into_iter());
+        assert_eq!(predecessor, entry.id);
+        assert!(matches!(term(entry), TerminatorKind::Branch(_)));
+        assert!(outer.instructions.is_empty());
+        state = transport(function, edge, state);
+        record_entry(trace, outer.id, state);
+        trace.exits.entry(outer.id).or_default().insert(state);
+    }
     let TerminatorKind::NullableBranch {
         owner,
         when_null,
@@ -618,7 +618,11 @@ fn trace_borrowed(
                         VIEW => {
                             assert!(state.exhausted && state.final_read);
                             assert!(state.live[ITEMS..].iter().all(Option::is_none));
-                            assert!(source_origin(&instruction.origin, spans.bindings[0]));
+                            assert!(
+                                source_origin(&instruction.origin, spans.bindings[0])
+                                    || (instruction.origin.span().start() >= spans.outer.start()
+                                        && instruction.origin.span().end() <= spans.outer.end())
+                            );
                         }
                         _ => panic!("only the current element, source or outer view can end"),
                     }

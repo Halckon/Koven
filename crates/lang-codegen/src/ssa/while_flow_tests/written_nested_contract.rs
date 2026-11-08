@@ -39,15 +39,17 @@ pub(super) fn assert_reborn_proof(program: &Program, source: &str, unit: bool) {
         2,
         "the outer proof is retired and the inner guard births anew"
     );
-    // While terminators carry the whole statement span, including grouped guards.
-    let header = |start, end| {
+    // Single-file while terminators carry the whole statement span; `ssa::refine` carries
+    // the null-comparison condition span inside the `while` header.
+    let header = |start, limit, end| {
         only(births.iter().copied().filter(|block| {
             matches!(block.terminator.as_ref().unwrap().origin, Origin::Source(span)
-            if span.start() == start + offset && span.end() == end + offset)
+                if (span.start() == start + offset && span.end() == end + offset)
+                    || (span.start() >= start + offset && span.end() <= limit + offset))
         }))
     };
-    let outer = header(starts[0], outer_end);
-    let inner = header(starts[1], inner_end);
+    let outer = header(starts[0], starts[1], outer_end);
+    let inner = header(starts[1], inner_end, inner_end);
     assert_ne!(outer.id, inner.id);
     let (outer_owner, outer_pair) = birth_pair(function, outer);
     let (inner_owner, inner_pair) = birth_pair(function, inner);

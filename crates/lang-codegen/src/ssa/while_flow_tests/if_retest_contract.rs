@@ -71,8 +71,10 @@ impl Trace {
 
 struct Spans {
     outer: Span,
+    outer_condition: Span,
     first: Span,
     second: Span,
+    second_condition: Span,
     replacement: Span,
     read: Span,
     broken: Span,
@@ -83,22 +85,27 @@ pub(super) fn assert_retest(program: &Program, source: &str, unit: bool) {
     let module = only(program.modules.iter());
     let function = only(module.functions.iter().filter(|function| {
         function.blocks.iter().any(|block| {
-            source_origin(&block.terminator.as_ref().unwrap().origin, spans.outer)
+            (source_origin(&block.terminator.as_ref().unwrap().origin, spans.outer)
+                || source_origin(
+                    &block.terminator.as_ref().unwrap().origin,
+                    spans.outer_condition,
+                ))
                 && matches!(term(block), TerminatorKind::NullableBranch { .. })
         })
     }));
-    let at = |span| {
+    let at = |span, alt| {
         only(function.blocks.iter().filter(|block| {
-            source_origin(&block.terminator.as_ref().unwrap().origin, span)
+            (source_origin(&block.terminator.as_ref().unwrap().origin, span)
+                || source_origin(&block.terminator.as_ref().unwrap().origin, alt))
                 && matches!(
                     term(block),
                     TerminatorKind::NullableBranch { .. } | TerminatorKind::Conditional { .. }
                 )
         }))
     };
-    let outer = at(spans.outer);
-    let first = at(spans.first);
-    let second = at(spans.second);
+    let outer = at(spans.outer, spans.outer_condition);
+    let first = at(spans.first, spans.first);
+    let second = at(spans.second, spans.second_condition);
     let source_id = outer.terminator.as_ref().unwrap().origin.span().source_id();
     for block in [first, second] {
         assert_eq!(
@@ -336,10 +343,13 @@ pub(super) fn assert_retest(program: &Program, source: &str, unit: bool) {
     );
     let break_block = function.block(break_predecessor).unwrap();
     assert!(matches!(term(break_block), TerminatorKind::Branch(edge) if edge.target == loop_exit));
-    assert!(source_origin(
-        &break_block.terminator.as_ref().unwrap().origin,
-        spans.outer
-    ));
+    assert!(
+        source_origin(&break_block.terminator.as_ref().unwrap().origin, spans.outer)
+            || source_origin(
+                &break_block.terminator.as_ref().unwrap().origin,
+                spans.broken
+            )
+    );
     for state in &trace.exits[&break_predecessor] {
         assert_finished(*state);
     }
@@ -628,19 +638,41 @@ fn source_spans(source: &str, unit: bool) -> Spans {
     assert!(lexed.diagnostics().is_empty());
     let file = parse_file(&sources, &lexed).unwrap();
     assert!(file.diagnostics().is_empty());
-    let outer = only(file.ast().statements().iter().filter_map(|(_, node)| {
-        matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+    let (outer, outer_condition) = only(file.ast().statements().iter().filter_map(|(_, node)| {
+        let Statement::While { mut condition, .. } = *node.payload() else {
+            return None;
+        };
+        while let Expression::Group { expression } =
+            file.ast().expressions().get(condition).unwrap().payload()
+        {
+            condition = *expression;
+        }
+        Some((
+            node.span(),
+            file.ast().expressions().get(condition).unwrap().span(),
+        ))
     }));
     let mut branches = file
         .ast()
         .expressions()
         .iter()
         .filter_map(|(_, node)| {
-            matches!(node.payload(), Expression::If { .. }).then_some(node.span())
+            let Expression::If { mut condition, .. } = *node.payload() else {
+                return None;
+            };
+            while let Expression::Group { expression } =
+                file.ast().expressions().get(condition).unwrap().payload()
+            {
+                condition = *expression;
+            }
+            Some((
+                node.span(),
+                file.ast().expressions().get(condition).unwrap().span(),
+            ))
         })
         .collect::<Vec<_>>();
-    branches.sort_by_key(|span| span.start());
-    let [first, second] = branches.as_slice() else {
+    branches.sort_by_key(|(span, _)| span.start());
+    let [(first, _), (second, second_condition)] = branches.as_slice() else {
         panic!("exactly the flag if and nullable re-test")
     };
     let replacement = only(file.ast().expressions().iter().filter_map(|(_, node)| {
@@ -658,8 +690,10 @@ fn source_spans(source: &str, unit: bool) -> Spans {
     }));
     Spans {
         outer,
+        outer_condition,
         first: *first,
         second: *second,
+        second_condition: *second_condition,
         replacement,
         read,
         broken,

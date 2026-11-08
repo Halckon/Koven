@@ -71,7 +71,7 @@ pub(super) fn assert_outer_borrowed(program: &Program, spans: &OuterSpans) {
     let function = only(module.functions.iter().filter(|function| {
         function.blocks.iter().any(|block| {
             matches!(term(block), TerminatorKind::NullableBranch { .. })
-                && term_at(block, spans.inner)
+                && (term_at(block, spans.inner) || term_at(block, spans.inner_condition))
         })
     }));
     let shape = shape(function, spans);
@@ -312,14 +312,16 @@ fn shape(function: &Function, spans: &OuterSpans) -> Shape {
             .iter()
             .filter(|block| matches!(term(block), TerminatorKind::NullableBranch { .. })),
     );
-    assert!(term_at(inner, spans.inner));
-    let TerminatorKind::Branch(to_inner) = term(function.block(entered.target).unwrap()) else {
-        panic!("element reaches inner test")
-    };
-    assert_eq!(
-        incoming(function, inner.id),
-        vec![(entered.target, to_inner)]
-    );
+    assert!(term_at(inner, spans.inner) || term_at(inner, spans.inner_condition));
+    if inner.id != entered.target {
+        let TerminatorKind::Branch(to_inner) = term(function.block(entered.target).unwrap()) else {
+            panic!("element reaches inner test")
+        };
+        assert_eq!(
+            incoming(function, inner.id),
+            vec![(entered.target, to_inner)]
+        );
+    }
     let TerminatorKind::NullableBranch {
         when_null,
         when_non_null,

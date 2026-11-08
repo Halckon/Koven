@@ -343,6 +343,7 @@ impl Builder<'_, '_> {
         loop_body: lang_frontend::ast::StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        self.end_reassigned_loop_views(span)?;
         let statement_id =
             lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
         let plan = self

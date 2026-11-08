@@ -55,6 +55,19 @@ impl Checker<'_, '_> {
             .expressions()
             .iter()
             .any(|(expr_id, node)| self.expr_requires_refine(expr_id, node.payload()))
+            || self
+                .inputs
+                .parsed
+                .ast()
+                .statements()
+                .iter()
+                .any(|(_, node)| {
+                    matches!(
+                        node.payload(),
+                        lang_frontend::parser::Statement::While { condition, .. }
+                            if self.while_requires_refine(*condition)
+                    )
+                })
     }
 
     fn span_requires_refine(&self, scope: Span) -> bool {
@@ -70,6 +83,37 @@ impl Checker<'_, '_> {
                     && span.end() <= scope.end()
                     && self.expr_requires_refine(expr_id, node.payload())
             })
+            || self
+                .inputs
+                .parsed
+                .ast()
+                .statements()
+                .iter()
+                .any(|(_, node)| {
+                    let span = node.span();
+                    scope.source_id() == span.source_id()
+                        && scope.start() <= span.start()
+                        && span.end() <= scope.end()
+                        && matches!(
+                            node.payload(),
+                            lang_frontend::parser::Statement::While { condition, .. }
+                                if self.while_requires_refine(*condition)
+                        )
+                })
+    }
+
+    fn while_requires_refine(&self, condition: ExpressionId) -> bool {
+        let root = self.ungrouped(condition);
+        let Some(fact) = self.inputs.typed.null_comparison(self.id(root)) else {
+            return false;
+        };
+        if !fact.non_null_when_true() {
+            return false;
+        }
+        matches!(
+            self.kind(self.c(fact.nullable_type())),
+            Some(UnitTypeKind::Nullable(inner)) if self.class(*inner)
+        )
     }
 
     fn expr_requires_refine(&self, expr_id: ExpressionId, payload: &Expression) -> bool {

@@ -8,7 +8,6 @@ pub(super) mod guard_tests;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NullableProofScope {
     If(UnitExpressionId),
-    While(UnitStatementId),
     When(super::nullable_when::NullableWhenScope),
 }
 
@@ -31,24 +30,17 @@ impl NullableProof {
         self.origin.birth
     }
 
-    pub(super) fn while_scope(self) -> Option<UnitStatementId> {
-        match self.origin.scope {
-            NullableProofScope::While(scope) => Some(scope),
-            NullableProofScope::If(_) | NullableProofScope::When(_) => None,
-        }
-    }
-
     pub(super) fn if_scope(self) -> Option<UnitExpressionId> {
         match self.origin.scope {
             NullableProofScope::If(scope) => Some(scope),
-            NullableProofScope::While(_) | NullableProofScope::When(_) => None,
+            NullableProofScope::When(_) => None,
         }
     }
 
     pub(super) fn when_scope(self) -> Option<super::nullable_when::NullableWhenScope> {
         match self.origin.scope {
             NullableProofScope::When(scope) => Some(scope),
-            NullableProofScope::If(_) | NullableProofScope::While(_) => None,
+            NullableProofScope::If(_) => None,
         }
     }
 }
@@ -66,25 +58,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         Ok(())
-    }
-
-    /// Only the actual NullableBranch view and its owner column can mint a proof.
-    pub(super) fn introduce_while_proof(
-        &mut self,
-        header: BlockId,
-        owner_column: usize,
-        entry: &loop_control::DirectNullableWhileEntry,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        self.validate_direct_while_entry(entry, span)?;
-        self.introduce_nullable_proof(
-            header,
-            owner_column,
-            entry.root(),
-            entry.inner(),
-            NullableProofScope::While(entry.scope()),
-            span,
-        )
     }
 
     /// Every scope uses the same actual non-null successor and owner-column check.
@@ -221,7 +194,6 @@ impl UnitExpressionLowerer<'_> {
                     NullableProofScope::If(scope) => scope.source_unit() != self.source_unit
                         || !self.parsed.ast().expressions().get(scope.expression())
                             .is_ok_and(|node| matches!(node.payload(), Expression::If { .. })),
-                    NullableProofScope::While(scope) => scope.source_unit() != self.source_unit,
                     NullableProofScope::When(scope) => {
                         !self.valid_nullable_when_scope(*root, scope, proof.inner)
                     }

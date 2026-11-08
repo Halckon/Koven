@@ -62,7 +62,6 @@ impl UnitExpressionLowerer<'_> {
             || receiver.pending_start != 0
             || arguments.pending_start != 1
             || !receiver.created_loans.is_empty()
-            || !receiver.nullable_children.is_empty()
             || !receiver.loan_arguments.is_empty()
             || !receiver.abi_slots.is_empty()
             || !receiver.exclusive_root_owners.is_empty()

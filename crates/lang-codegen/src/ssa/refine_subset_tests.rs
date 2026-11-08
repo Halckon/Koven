@@ -697,6 +697,18 @@ fn range_view_borrow_return_and_borrow_val_route_to_refine() {
              borrow val text = b.text\n\
              println(text)\n\
          }",
+        "class Holder(val text: String, val value: Int)\n\
+         fun f(own initial: Holder?, flag: Boolean): Int {\n\
+             var current: Holder? = initial\n\
+             var total = 0\n\
+             while (current != null) {\n\
+                 println(current.text)\n\
+                 if (flag) { current = null }\n\
+                 if (current != null) { total = total + current.value }\n\
+                 break\n\
+             }\n\
+             return total\n\
+         }",
     ] {
         let (res, routed) = route(source);
         assert!(routed, "expected refine routing for:\n{source}");

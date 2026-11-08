@@ -1,4 +1,4 @@
-//! Bounded nullable entries: root Borrow, While retests and direct Map Ifs.
+//! Bounded nullable entries: root Borrow and direct Map Ifs.
 #[cfg(test)]
 mod guard_tests;
 mod heap;
@@ -26,7 +26,7 @@ pub(super) struct NullableIfEntry {
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Reuse the proof entry only for While retests or a required root Borrow.
+    /// Reuse the proof entry only for a required root Borrow or String/Rc/heap If.
     pub(super) fn prepare_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -61,118 +61,10 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok(Some(entry));
         }
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(control.expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Expression::If {
-            condition: source,
-            else_branch: None,
-            ..
-        } = node.payload()
-        else {
-            return Ok(None);
-        };
-        if *source != condition {
-            return Ok(None);
-        }
-        let Some(while_scope) = self.current_while_proof_scope() else {
-            return Ok(None);
-        };
-        if control.source_unit() != self.source_unit
-            || while_scope.source_unit() != self.source_unit
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let while_node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(while_scope.statement())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Statement::While {
-            condition: while_condition,
-            ..
-        } = while_node.payload()
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let Some((outer, _)) = self.direct_nullable_while_condition(*while_condition, span)? else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let Some((descriptor, mut operand)) =
-            self.direct_nullable_while_condition(condition, span)?
-        else {
-            return Ok(None);
-        };
-        if descriptor.symbol() != outer.symbol() {
-            return Ok(None);
-        }
-        // Even the empty source-call-frame exception belongs only to While.
-        if !self.pending_call_frames.is_empty() || !self.pending_operands.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let (_, inner) = self.direct_nullable_while_entry(descriptor, span)?;
-        let declared = descriptor.nullable_type();
-        if self.typed.copyability(resolve_concrete_type(
-            self.typed,
-            declared,
-            self.substitutions,
-            self.static_self,
-            span,
-        )?) != Copyability::MoveOnly
-            || !matches!(
-                self.ssa_types.get(inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. })
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        loop {
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(operand.expression())
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if operand.source_unit() != self.source_unit
-                || self.typed.expression_type(operand) != Some(declared)
-                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
-                || self.typed.non_null_use(operand).is_some()
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            match node.payload() {
-                Expression::Group { expression } => {
-                    operand = UnitExpressionId::new(self.source_unit, *expression)
-                }
-                Expression::Name
-                    if self.references.get(&span_key(node.span()))
-                        == Some(&descriptor.symbol()) =>
-                {
-                    break;
-                }
-                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            }
-        }
-        self.ensure_no_while_proof_carriers(span)?;
-        let Some(LoweredValue::Value(owner)) = self.bindings.get(&descriptor.symbol()).copied()
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        Ok(Some(NullableIfEntry {
-            root: descriptor.symbol(),
-            owner,
-            inner,
-            scope: control,
-            non_null_when_true: true,
-            consume: None,
-        }))
+        Ok(None)
     }
 
-    /// This Map-only ordinary If entry is separate from the existing While retest.
+    /// This Map-only ordinary If entry is separate from general If proofs.
     pub(super) fn prepare_map_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -247,7 +139,7 @@ impl UnitExpressionLowerer<'_> {
         let mut subject = match (is_null(left)?, is_null(right)?) {
             (true, false) => right,
             (false, true) => left,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let root = descriptor.symbol();
         if control.source_unit() != self.source_unit
@@ -327,7 +219,6 @@ impl UnitExpressionLowerer<'_> {
             }
             Some(witness)
         };
-        // Do not inherit the While-only empty-call-frame or Boolean-provider exceptions.
         self.ensure_no_while_proof_carriers(span)?;
         if !self.pending_call_frames.is_empty()
             || !self.pending_operands.is_empty()
@@ -555,6 +446,37 @@ impl UnitExpressionLowerer<'_> {
         self.emit_direct_nullable_condition_drops(condition, span)
     }
 
+    pub(in super::super) fn emit_direct_nullable_condition_drops(
+        &mut self,
+        condition: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(condition)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        match *node.payload() {
+            Expression::Group { expression } => {
+                self.emit_direct_nullable_condition_drops(expression, span)?
+            }
+            Expression::Binary { left, right, .. } => {
+                self.emit_null_condition_drops(left)?;
+                self.emit_null_condition_drops(right)?;
+                self.emit_drops(UnitDropPoint::AfterBinaryOperands(UnitExpressionId::new(
+                    self.source_unit,
+                    condition,
+                )))?;
+            }
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+        self.emit_drops(UnitDropPoint::AfterExpression(UnitExpressionId::new(
+            self.source_unit,
+            condition,
+        )))
+    }
+
     /// Preflight every retirement against its own complete live exit before emission.
     /// Same-root origin disagreements remain errors, even if another root is absent.
     pub(super) fn retire_if_exit_proofs(
@@ -604,7 +526,7 @@ impl UnitExpressionLowerer<'_> {
                     .nullable_proofs
                     .get(root)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if proof.while_scope().is_none() && proof.if_scope() != Some(control) {
+                if proof.if_scope() != Some(control) {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             }

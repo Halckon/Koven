@@ -2,7 +2,6 @@
 
 mod alias_slots;
 mod nullable;
-mod pending_child;
 mod range;
 mod rebind;
 
@@ -54,7 +53,6 @@ pub(super) struct CarriedBinding {
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
     nullable_proofs: Vec<nullable::CarriedNullableProof>,
-    nullable_children: Vec<pending_child::CarriedNullableChild>,
     range_sources: Vec<(UnitSymbolId, usize)>,
     captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
@@ -206,7 +204,6 @@ impl UnitExpressionLowerer<'_> {
             lowering_error(LoweringErrorKind::InvalidModel, span),
         )?;
         self.bind_nullable_columns(bindings, loans, span)?;
-        self.bind_pending_child_columns(bindings, loans, span)?;
         Ok(())
     }
 
@@ -276,7 +273,6 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         self.validate_nullable_exit_proofs(&exits, span)?;
-        self.validate_pending_child_exits(&exits, span)?;
         if exits.is_empty() {
             self.current_receiver = None;
             self.consumed_receiver = None;
@@ -288,9 +284,6 @@ impl UnitExpressionLowerer<'_> {
             self.result_source_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
-            for frame in &mut self.pending_call_frames {
-                frame.nullable_children.clear();
-            }
             return Ok(LoweredValue::Diverged);
         }
         if exits.len() == 1 {
@@ -492,15 +485,6 @@ impl UnitExpressionLowerer<'_> {
             &pending_indices[proof_offset..],
             span,
         )?;
-        self.validate_pending_child_merge_columns(
-            &exits,
-            &edge_arguments,
-            &value_symbols,
-            usize::from(result_type.is_some()) + usize::from(first.receiver.is_some()),
-            &pending_indices[..first.pending_operands.len()],
-            &pending_indices[proof_offset..],
-            span,
-        )?;
         let merge = self
             .function
             .add_block(parameter_types, Origin::Source(span))
@@ -602,12 +586,6 @@ impl UnitExpressionLowerer<'_> {
             first,
             &bindings,
             proof_parameters.into_iter(),
-            span,
-        )?;
-        self.validate_pending_nullable_children(
-            &self.pending_call_frames,
-            &self.pending_operands,
-            &self.nullable_proofs,
             span,
         )?;
         self.bindings = bindings;
@@ -788,7 +766,6 @@ impl UnitExpressionLowerer<'_> {
             arguments.push(entity);
         }
         self.validate_nullable_edge_columns(carried, loans, state, &arguments, span)?;
-        self.validate_pending_child_edge_columns(carried, loans, state, &arguments, span)?;
         Ok(Edge { target, arguments })
     }
 

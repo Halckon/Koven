@@ -10,7 +10,6 @@ use lang_frontend::{
         UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
     },
 };
-use std::collections::BTreeMap;
 
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
@@ -23,10 +22,7 @@ use crate::ssa::{
 
 pub(super) struct LoweredCallArguments {
     pub(super) arguments: Vec<EntityId>,
-    pub(super) nullable_children:
-        Vec<super::call_lifetimes::nullable_child::CommittedNullableChild>,
     pub(super) created_loans: Vec<(LoanId, Span)>,
-    pub(super) argument_loans: BTreeMap<UnitExpressionId, Vec<LoanId>>,
     pub(super) abi_owners: Vec<crate::ssa::model::ValueId>,
 }
 
@@ -252,7 +248,6 @@ impl UnitExpressionLowerer<'_> {
         if let Some(receiver) = &receiver {
             self.pending_call_frames
                 .push(super::call_lifetimes::PendingCallFrame {
-                    nullable_children: Vec::new(),
                     call,
                     receiver: true,
                     loan_arguments: Vec::new(),
@@ -292,10 +287,7 @@ impl UnitExpressionLowerer<'_> {
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
-            argument_loans,
-            nullable_children,
             abi_owners,
-            ..
         }) = lowered_arguments?
         else {
             self.pending_operands.truncate(receiver_start);
@@ -410,13 +402,16 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        self.end_committed_call_loans(
-            call,
-            created_loans,
-            argument_loans,
-            nullable_children,
-            span,
-        )?;
+        for (loan, end_span) in created_loans.into_iter().rev() {
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(end_span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+        }
         self.drop_abi_call_owners(abi_owners, span)?;
         if let Some(receiver) = receiver {
             for (loan, end_span) in receiver.created_loans.into_iter().rev() {
@@ -499,7 +494,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<LoweredCallArguments>, LoweringError> {
         self.pending_call_frames
             .push(super::call_lifetimes::PendingCallFrame {
-                nullable_children: Vec::new(),
                 call,
                 receiver: false,
                 loan_arguments: Vec::new(),
@@ -737,36 +731,10 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .map(|(owner, _)| require_value(self.pending_operands[*owner], span))
             .collect::<Result<Vec<_>, _>>()?;
-        let argument_loans = self
-            .pending_call_frames
-            .last()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .loan_arguments
-            .iter()
-            .map(|(argument, slots)| {
-                let loans = slots
-                    .iter()
-                    .map(|slot| match self.pending_operands.get(*slot) {
-                        Some(EntityId::Loan(loan)) => Ok(*loan),
-                        _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok((*argument, loans))
-            })
-            .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-        let nullable_children = self.commit_pending_nullable_children(
-            call,
-            &arguments,
-            &argument_loans,
-            &created_loans,
-            span,
-        )?;
         self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,
-            nullable_children,
             created_loans,
-            argument_loans,
             abi_owners,
         }))
     }

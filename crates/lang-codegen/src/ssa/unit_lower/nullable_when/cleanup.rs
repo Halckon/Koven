@@ -55,19 +55,15 @@ impl UnitExpressionLowerer<'_> {
                 .iter()
                 .any(|(other, value)| *other != root && *value == LoweredValue::Value(proof.owner))
             || self.pending_call_frames.iter().any(|frame| {
-                frame
-                    .nullable_children
-                    .iter()
-                    .any(|child| child.parent_origin == proof.origin)
-                    || (self.pending_operands.len() > frame.pending_start
-                        && frame.loan_arguments.iter().any(|(argument, _)| {
-                            self.owned.loans().iter().any(|fact| {
-                                fact.call() == frame.call
-                                    && fact.argument() == *argument
-                                    && matches!(fact.target(), UnitLoanTarget::Place(path)
-                                        if path.root() == root)
-                            })
-                        }))
+                self.pending_operands.len() > frame.pending_start
+                    && frame.loan_arguments.iter().any(|(argument, _)| {
+                        self.owned.loans().iter().any(|fact| {
+                            fact.call() == frame.call
+                                && fact.argument() == *argument
+                                && matches!(fact.target(), UnitLoanTarget::Place(path)
+                                    if path.root() == root)
+                        })
+                    })
             })
         {
             // This checks dependency, not global carrier emptiness. An outer call

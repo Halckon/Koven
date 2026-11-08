@@ -502,7 +502,6 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.retire_nullable_when_transfers(0, span)?;
-        self.retire_while_proofs(true, span)?;
         if string_if_return && !self.nullable_proofs.is_empty() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

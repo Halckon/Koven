@@ -4,10 +4,6 @@ mod iteration;
 mod iteration_cleanup;
 mod map_borrow;
 mod map_iteration;
-mod nullable_while;
-
-pub(super) use nullable_while::DirectNullableWhileEntry;
-use nullable_while::NullableWhileEntry;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -35,9 +31,6 @@ struct LoopJump {
 }
 
 pub(super) struct LoopContext {
-    proof_scope: Option<UnitStatementId>,
-    borrowed_for_while: Option<Box<nullable_while::BorrowedForWhile>>,
-    borrowed_while_body: Option<Box<nullable_while::BorrowedForWhile>>,
     iteration: Option<iteration::IterationContext>,
     header: BlockId,
     carried: Vec<CarriedBinding>,
@@ -53,10 +46,6 @@ pub(super) struct LoopContext {
 }
 
 impl UnitExpressionLowerer<'_> {
-    pub(super) fn current_while_proof_scope(&self) -> Option<UnitStatementId> {
-        self.loops.last().and_then(|context| context.proof_scope)
-    }
-
     pub(super) fn current_loop_exit_counts(&self) -> (usize, usize) {
         self.loops.last().map_or((0, 0), |context| {
             (context.breaks.len(), context.continues.len())
@@ -75,30 +64,15 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         self.reject_live_if_proof(span)?;
-        let descriptor = self.direct_nullable_while_condition(condition, span)?;
-        let inherited = if let Some((descriptor, subject)) = descriptor {
-            match self.prepare_nullable_while_entry(statement, descriptor, subject, span)? {
-                NullableWhileEntry::Readonly(root, proof) => Some((root, proof)),
-                NullableWhileEntry::Direct(entry) => {
-                    return self
-                        .lower_direct_nullable_while(statement, condition, body, entry, span);
-                }
-            }
-        } else {
-            self.reject_nested_while_proof(span)?;
-            None
-        };
+        if !self.nullable_proofs.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
-        let context = if inherited.is_some() {
-            // Only the qualified same-root readonly while may carry an existing proof.
-            self.create_carried_loop_context(&baseline, span)?
-        } else {
-            self.create_loop_context(&baseline, span)?
-        };
+        let context = self.create_loop_context(&baseline, span)?;
         let header = context.header;
         self.function
             .set_terminator(
@@ -193,11 +167,6 @@ impl UnitExpressionLowerer<'_> {
             self.record_natural_continue(span)?;
         }
         let context = self.loops.pop().expect("while context must be balanced");
-        if let Some((root, proof)) = inherited {
-            for jump in &context.continues {
-                self.validate_readonly_while_exit(root, proof, &jump.state, jump.span)?;
-            }
-        }
         self.finish_continues(&context, context.header)?;
 
         let mut exits = context
@@ -209,23 +178,8 @@ impl UnitExpressionLowerer<'_> {
         if exits.is_empty() {
             return self.merge_unit_exits(exits, span);
         }
-        if let Some((root, proof)) = inherited {
-            // Consume each exit's own facts, never a reconstruction from entry or
-            // the state left behind by another exit, before merging inherited pairs.
-            for exit in &mut exits {
-                self.validate_readonly_while_exit(root, proof, exit, span)?;
-                self.restore_loop_state(exit);
-                self.emit_loop_exit(statement)?;
-                *exit = self.loop_state();
-                self.validate_readonly_while_exit(root, proof, exit, span)?;
-            }
-        }
         self.merge_loop_exits(exits, span)?;
-        if let Some((root, proof)) = inherited {
-            self.validate_readonly_while_exit(root, proof, &self.loop_state(), span)?;
-        } else {
-            self.emit_loop_exit(statement)?;
-        }
+        self.emit_loop_exit(statement)?;
         Ok(LoweredValue::Unit)
     }
 
@@ -236,7 +190,9 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         self.reject_live_if_proof(span)?;
-        self.reject_nested_while_proof(span)?;
+        if !self.nullable_proofs.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -305,9 +261,7 @@ impl UnitExpressionLowerer<'_> {
             self.source_unit,
             expression,
         )))?;
-        self.retire_borrowed_for_while_break(expression, span)?;
         self.retire_nullable_when_transfers(self.loops.len(), span)?;
-        self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, true)?;
         let jump = self.current_jump(span)?;
         self.loops
@@ -342,7 +296,6 @@ impl UnitExpressionLowerer<'_> {
         )))?;
         self.advance_iteration(span)?;
         self.retire_nullable_when_transfers(self.loops.len(), span)?;
-        self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
         self.loops
@@ -358,26 +311,15 @@ impl UnitExpressionLowerer<'_> {
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         span: Span,
     ) -> Result<LoopContext, LoweringError> {
-        self.reject_nested_while_proof(span)?;
-        self.create_carried_loop_context(baseline, span)
-    }
-
-    // Shared construction only. The old wrapper keeps its rejection for loop/for
-    // and unqualified proof births; nullable while qualifies an existing proof first.
-    fn create_carried_loop_context(
-        &mut self,
-        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
-        span: Span,
-    ) -> Result<LoopContext, LoweringError> {
+        if !self.nullable_proofs.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let mut carried = self.carried_bindings(baseline, span)?;
         let mut loans = self.carried_loans(&self.borrow_bindings, span)?;
         self.carry_pending_operands(&mut carried, &mut loans, span)?;
         self.separate_loop_pending_copies(&mut carried, span)?;
         let header = self.add_carried_control_block(&carried, &loans, span)?;
         Ok(LoopContext {
-            proof_scope: None,
-            borrowed_for_while: None,
-            borrowed_while_body: None,
             iteration: None,
             header,
             carried,
@@ -430,10 +372,9 @@ impl UnitExpressionLowerer<'_> {
         let mut state = self.loop_state();
         // Cleanup already ended cancelled ordinary call loans. Their Rust frames
         // still unwind in the caller, but must not reappear in the loop successor.
-        // Keep live nullable-child metadata for its existing strict validation.
-        state.pending_call_frames.retain(|frame| {
-            frame.loop_depth < self.loops.len() || !frame.nullable_children.is_empty()
-        });
+        state
+            .pending_call_frames
+            .retain(|frame| frame.loop_depth < self.loops.len());
         Ok(LoopJump { state, span })
     }
 
@@ -487,15 +428,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     fn record_natural_continue(&mut self, span: Span) -> Result<(), LoweringError> {
-        if let Some(token) = self
-            .loops
-            .last()
-            .and_then(|context| context.borrowed_while_body.as_ref())
-        {
-            token.validate_element_end(self, span)?;
-        }
         self.advance_iteration(span)?;
-        self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
         self.loops
@@ -531,9 +464,6 @@ impl UnitExpressionLowerer<'_> {
                 &jump.state,
                 jump.span,
             )?;
-            if let Some(token) = &context.borrowed_while_body {
-                token.validate_backedge(self, context, &jump.state, &edge, jump.span)?;
-            }
             self.function
                 .set_terminator(
                     jump.state.block,

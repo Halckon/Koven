@@ -140,7 +140,9 @@ impl UnitExpressionLowerer<'_> {
         value: ValueId,
         span: Span,
     ) -> Result<(), LoweringError> {
-        self.reject_live_while_proof(symbol, span)?;
+        if self.nullable_proofs.contains_key(&symbol) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         match self.bindings.remove(&symbol) {
             Some(LoweredValue::Value(bound)) if bound == value => {
                 self.closure_bindings.remove(&symbol);
