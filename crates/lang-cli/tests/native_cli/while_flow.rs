@@ -191,18 +191,29 @@ fn single_nullable_while_preserves_outer_borrowed_for_access() {
 
 #[test]
 fn local_destructuring_routes_while_and_temporary_for_in_both_entries() {
+    assert_both_native_entries(
+        include_str!("../fixtures/while-flow-0330/local-destructuring.ko"),
+        b"kept\nloop\nkept\nloop\nchanged\nfor-changed\nwhile-changed\n",
+    );
+}
+
+#[test]
+fn constant_while_preserves_condition_effects_and_terminating_operands_in_both_entries() {
+    assert_both_native_entries(
+        include_str!("../fixtures/while-flow-0330/constant-edges.ko"),
+        b"kept\ncondition\nnormal exit\nprefix released\nprefix released\nfirst argument\nfirst argument\nafter break\n",
+    );
+}
+
+fn assert_both_native_entries(source_text: &str, stdout: &[u8]) {
     let directory = TestDirectory::create();
     fs::create_dir(directory.join("src")).unwrap();
     let source = directory.join("src/main.ko");
-    fs::write(
-        &source,
-        include_str!("../fixtures/while-flow-0330/local-destructuring.ko"),
-    )
-    .unwrap();
+    fs::write(&source, source_text).unwrap();
     let manifest = directory.join("project.toml");
     fs::write(
         &manifest,
-        "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"while-destructuring\"\nsource-roots = [\"src\"]\n",
+        "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"while-flow\"\nsource-roots = [\"src\"]\n",
     )
     .unwrap();
 
@@ -234,10 +245,7 @@ fn local_destructuring_routes_while_and_temporary_for_in_both_entries() {
 
         let launched = bounded_run::run(&executable);
         assert_eq!(launched.status.code(), Some(0), "{label}: {launched:?}");
-        assert_eq!(
-            launched.stdout, b"kept\nloop\nkept\nloop\nchanged\nfor-changed\nwhile-changed\n",
-            "{label}"
-        );
+        assert_eq!(launched.stdout, stdout, "{label}");
         assert!(launched.stderr.is_empty(), "{launched:?}");
     }
 }

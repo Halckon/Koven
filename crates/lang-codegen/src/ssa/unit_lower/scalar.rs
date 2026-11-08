@@ -58,7 +58,11 @@ impl UnitExpressionLowerer<'_> {
             }
         }
 
-        let operand = self.lower_required_value(operand, span)?;
+        let operand = match self.lower(operand)? {
+            LoweredValue::Value(value) => value,
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Unit => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
         match operator {
             PrefixOperator::Plus => Ok(LoweredValue::Value(operand)),
             PrefixOperator::Not => {
@@ -271,19 +275,6 @@ impl UnitExpressionLowerer<'_> {
             LoweredValue::Value(value) => Ok(Some(crate::ssa::model::EntityId::Value(value))),
             LoweredValue::Diverged => Ok(None),
             LoweredValue::Unit => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        }
-    }
-
-    fn lower_required_value(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<ValueId, LoweringError> {
-        match self.lower(expression)? {
-            LoweredValue::Value(value) => Ok(value),
-            LoweredValue::Unit | LoweredValue::Diverged => {
-                Err(lowering_error(LoweringErrorKind::MissingFact, span))
-            }
         }
     }
 

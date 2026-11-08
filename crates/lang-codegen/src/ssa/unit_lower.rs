@@ -517,13 +517,14 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Diverged)
     }
 
-    fn require_expression_value(
+    fn lower_optional_expression_value(
         &mut self,
         expression: ExpressionId,
-    ) -> Result<ValueId, LoweringError> {
+    ) -> Result<Option<ValueId>, LoweringError> {
         match self.lower(expression)? {
-            LoweredValue::Value(value) => Ok(value),
-            LoweredValue::Unit | LoweredValue::Diverged => {
+            LoweredValue::Value(value) => Ok(Some(value)),
+            LoweredValue::Diverged => Ok(None),
+            LoweredValue::Unit => {
                 let span = self
                     .parsed
                     .ast()
