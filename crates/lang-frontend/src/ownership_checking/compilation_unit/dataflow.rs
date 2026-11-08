@@ -370,6 +370,8 @@ pub(super) fn analyze(
         nullable_whens.clear();
         borrow_return_origins.clear();
         borrow_forward_transports.clear();
+        borrow_call_transports.clear();
+        borrow_binding_transports.clear();
         borrow_results = Default::default();
     }
     nullable_whens.sort_by_key(|plan| plan.descriptor().expression());

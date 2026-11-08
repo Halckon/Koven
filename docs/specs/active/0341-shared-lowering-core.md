@@ -4330,3 +4330,25 @@ iteration provider；合法投影仍可有原 forwarded descriptor，却没有�
 dataflow 1127→1132/1248、drop_planner 1564→1572/1669均为有界接线。
 未运行native、Linux、故障注入或官方CI；未同步此后推进的main，不宣称新主线组合验收，
 也不据此关闭D10/E2。本片仅本地提交，不推送或合并PR。
+
+
+### 三类运输表的 raw 撤销一致性（2026-11-08）
+
+基于 `6d3885ab`，用同一合法源码真实形成同步 consumer 与 local binding 运输各1条，
+再按稳定 source 顺序追加独立错误/deferred 来源。红测直接观察 dataflow::Analysis，
+确认旧两张raw表未在finalize失败时撤销；公开层原有门控有效，不是公开产物泄漏。
+仅在现有失败分支追加两次clear，使call、binding与forward三类运输表统一撤销。
+合法路径与既有条件不变，不改变loan lifetime、cleanup或语言准入。
+
+| 验收项 | 目标/过滤器 | 本地实际结果 |
+|---|---|---|
+| 两类真实非空前缀、独立错误/deferred与既有邻接表 | `--lib adjacent_borrow_results` | 6通过；新增案例先红后绿 |
+| 运输/结束事件相关回归 | `unit_direct_call_loan_ends`，同前片skip3项 | 81通过，3项未执行 |
+| 直接调用方 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments` | 14＋10通过 |
+| 质量门禁 | frontend all-targets Clippy（-D warnings）、fmt、文档、尺寸、diff | Mac Rust1.96、locked/offline、独立target、默认debug通过 |
+
+合计111项相关Rust测试通过。独立只读复审确认正例确已形成两条运输，错误/deferred
+精确事实与早期撤销均直接验证；typed无效由既有finalize条件覆盖，本片未新增该状态的
+非空运输前缀动态用例。dataflow 1132→1134/1248，仅失败门清空接线，无额度增长。
+这不是所有raw cleanup表或全局完整流的保证；未运行native、Linux、故障注入、
+Tree-sitter或官方CI，未增加workspace检查。仅本地提交，不推送或合并PR。
