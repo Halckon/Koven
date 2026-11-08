@@ -4525,3 +4525,37 @@ borrow transport 三个 API 缺失，源码均存在，`--lib -vv` 却显示 Fre
 本片28项普通定向通过，不代表 frontend 全量；未跑 workspace、native、Linux、正式CI
 或损坏注入。主线随后新增的 CaptureIndex 合流须在最终组合头重验，不能复用此旧基底
 作为组合证明。V1、动态条件 owner/phi、循环实例及 D10/E2仍未完成；仅本地提交，不推送。
+
+
+## Exclusive Return-prefix 同点顺序（2026-11-08）
+
+基于 main `f83aff80fd565771eb4873ebf8cfa51b5613ad02` 的独立切片，只为已有
+`UnitExclusiveCallPrefixEndFact` 追加 `preceding_call_loan_ends`。从真实 planner 动作
+逐 Return point 计数全部 `EndCallLoan`，再筛选原 Exclusive 准入边界；与已有 direct
+Shared 和 borrow-prefix 的同点序号直接对应，未公开 token 保留序号空隙。
+不改 loan 注册、退休、cleanup、语言准入或 CFG，不把同点序号称为全局动态顺序。
+
+新增 `unit_direct_call_loan_ends::exclusive_order` 保留原 mixed 输入全文，固定三切片的
+完整投影顺序；另覆盖隐藏字段 token、双 Return 独立归零、前序正常 Exclusive 调用不
+泄漏及已形成非空前缀后接错误/deferred 的撤销。原 prefix_order、Exclusive 边界及
+全部 Single witness 保持不变；receiver、result、drop 与完整流仍是后续责任。
+
+旧生产实现配新测试时，精确 target 编译以 E0599 失败，证明原公开 API 不存在；
+补充实现后4项新测试通过，不把编译红测称为原有 cleanup 行为缺陷。原 mixed 源码
+277字节与既有见证逐字一致；独立期望不从任何分析结果反推，归并前另核各切片原发布
+顺序，防止排序掩盖重复或乱序。双入口 key、实参/参数/point Span及原loan身份均核验。
+
+| 验收项 | 命令或选择 | 本地实际结果 |
+|---|---|---|
+| 新三切片顺序合同 | `unit_direct_call_loan_ends::exclusive_order` | 4通过，Rooted/MemoryDocument双入口 |
+| 普通事件整族 | `unit_direct_call_loan_ends`，排除两个 `abort_` 整项及 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup` | 61通过，含上述4新项；3项仅编译 |
+| 直接消费者 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments`，后者排除含Abort的 `inout_receiver_and_nonreturning_sources_do_not_publish_call_uses` 整项 | 14＋9通过；1项仅编译 |
+| API消费者与工程检查 | frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt | 通过，使用已安装LLVM21 |
+| 文档与尺寸 | check_docs.py、相对f83aff80尺寸门、diff | 通过，863份Markdown；34个旧超长文件无增长 |
+
+Mac AArch64 / Rust1.96、locked/offline、默认debug profile、jobs=2，协调后串行复用
+既有target，未创建新target或清理用户文件。84个唯一普通测试通过；不把新项单跑重复
+计入总数。独立只读复审核真实动作计数、source/point桶、oracle、原边界与旧见证保全，
+无阻断；其后仅追加双入口key和原发布顺序断言并实跑转绿。
+未运行全量frontend/workspace测试、native、故障注入、Abort、Linux或正式CI；旧Single
+见证未退休。仅本地切片，不推送或合并，最终组合与正式CI另验，D10/E2仍in-progress。

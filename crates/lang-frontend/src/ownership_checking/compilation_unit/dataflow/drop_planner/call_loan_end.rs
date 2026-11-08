@@ -158,6 +158,7 @@ impl DropPlanner<'_, '_> {
         &self,
     ) -> Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact> {
         let mut preceding_drops = BTreeMap::new();
+        let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
         for (point, action) in &self.iteration_actions {
             let PlannerDropPoint::ControlTransfer(transfer) = point else {
@@ -176,12 +177,20 @@ impl DropPlanner<'_, '_> {
             let count = preceding_drops.entry(transfer.index()).or_insert(0);
             match action {
                 Action::Drop(_) => *count += 1,
-                Action::EndCallLoan(loan) if self.observes_call_loan(loan, LoanKind::Exclusive) => {
-                    ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
-                        loan: loan.clone(),
-                        point: point.into_unit(self.checker.source_unit),
-                        preceding_drops: *count,
-                    });
+                Action::EndCallLoan(loan) => {
+                    // Count every actual end before filtering to the Exclusive slice.
+                    let loan_count = preceding_call_loan_ends
+                        .entry(transfer.index())
+                        .or_default();
+                    if self.observes_call_loan(loan, LoanKind::Exclusive) {
+                        ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
+                            loan: loan.clone(),
+                            point: point.into_unit(self.checker.source_unit),
+                            preceding_drops: *count,
+                            preceding_call_loan_ends: *loan_count,
+                        });
+                    }
+                    *loan_count += 1;
                 }
                 _ => {}
             }
