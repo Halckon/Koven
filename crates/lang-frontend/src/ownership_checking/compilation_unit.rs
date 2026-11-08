@@ -6,8 +6,8 @@ pub use drop_point::{
 
 mod loan;
 pub use loan::{
-    UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact, UnitDirectCallLoanEndFact,
-    UnitExclusiveCallPrefixEndFact, UnitLoanFact, UnitLoanTarget,
+    UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact, UnitBorrowCallTransportFact,
+    UnitDirectCallLoanEndFact, UnitExclusiveCallPrefixEndFact, UnitLoanFact, UnitLoanTarget,
 };
 
 mod analysis;
@@ -415,6 +415,7 @@ pub struct CompilationUnitOwnership {
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
+    borrow_call_transports: Vec<UnitBorrowCallTransportFact>,
     borrow_call_prefix_ends: Vec<UnitBorrowCallPrefixEndFact>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -625,6 +626,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            borrow_call_transports: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_call_transports
+            } else {
+                Vec::new()
+            },
             borrow_call_handoffs: if successful && dataflow.deferred.is_empty() {
                 dataflow.borrow_call_handoffs
             } else {
@@ -773,6 +779,12 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
         &self.direct_call_loan_ends
+    }
+
+    /// 真实 source token 跨 inner return 的有界同步 consumer 运输；不是完整 loan-end 流。
+    #[must_use]
+    pub fn borrow_call_transports(&self) -> &[UnitBorrowCallTransportFact] {
+        &self.borrow_call_transports
     }
 
     /// 已完成的具名 Shared 根实参借用返回交接；不包含完整 loan-end 流。

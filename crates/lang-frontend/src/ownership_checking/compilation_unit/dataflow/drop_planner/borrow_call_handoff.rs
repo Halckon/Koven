@@ -107,7 +107,7 @@ impl DropPlanner<'_, '_> {
                 auxiliary_loan_ends,
             });
     }
-    fn observes_borrow_auxiliary(
+    pub(super) fn observes_borrow_auxiliary(
         &self,
         loan: &crate::ownership_checking::UnitLoanFact,
         state: &ValueState,
