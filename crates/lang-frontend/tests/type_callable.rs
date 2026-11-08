@@ -870,16 +870,21 @@ fn non_lambda_filter_to_one_candidate_preserves_direct_lambda_diagnostic() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("true")
-    );
-    assert!(typed.diagnostics()[0].details().iter().any(|detail| {
-        matches!(detail, DiagnosticDetail::Label(label) if sources.slice(label.span()) == Ok("callback"))
-    }));
+    let callback = text.find("callback:").expect("chosen parameter name");
+    let label_span = sources
+        .span(parsed.source_id(), callback, callback + "callback".len())
+        .unwrap();
+    for unit in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(codes(unit.diagnostics()), ["L0084"]);
+        assert_eq!(
+            sources.slice(unit.diagnostics()[0].primary_span()),
+            Ok("true")
+        );
+        assert!(unit.calls().is_empty());
+        assert!(unit.diagnostics()[0].details().iter().any(|detail| {
+            matches!(detail, DiagnosticDetail::Label(label) if label.span() == label_span)
+        }));
+    }
 }
 
 #[test]
