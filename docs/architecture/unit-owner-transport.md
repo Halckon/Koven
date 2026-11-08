@@ -135,3 +135,16 @@ commit 证据，逐根消费交换后的 token；遗漏、重复、别名和跨�
 Swap 暂不进入 Choice 图，不声明 Resource、字段/索引投影、循环或任意 branch phi
 支持，也不退休 Single owner 见证。
 证据为 `owner_transport_tests/swap.rs`、`choice_model/swap.rs` 和观察开关全 cleanup Analysis 等价测试。
+
+## Shared String capture 槽前置
+
+直线、named environment 的纯 Shared String capture 现在观测形成时的真实命名来源
+owner token；新环境有独立 token，来源不被移走。转移环境 binding 保留同一实例身份。
+真实 EndCaptureLoan 边记录 source token，并与形成时冻结的 slot 比对；逆序 End 组必须
+连续且紧邻同 point 的环境 Drop。多环境可以借同一来源，最后一个 slot 结束前不得消费来源。
+
+独立 loan overlay 与原位置 replay 共同检查身份、成对退休及 Move/Drop/Replace/Swap/
+Owned Capture 旁路。它只认证观测，不更改原 cleanup，不授予 lowering 执行能力。
+借用参数缺 owner、临时/mixed/nested capture、分支内形成及活跃 loan 穿过 If、循环仍不准入；
+已退休环境之前或之后的独立原支持语句不因本片禁用。V1 value 投影仍拒绝 Shared 事件，
+循环 L0164 与 Single 条件 owner/phi 见证保留；条件 slots、循环实例及 native 尚未实现。

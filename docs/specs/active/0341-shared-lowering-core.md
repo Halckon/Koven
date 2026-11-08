@@ -3699,3 +3699,42 @@ Mac、locked/offline、独立 target、默认 debug profile；以下均为最终
 
 未运行其他套件、native、故障注入、校准或正式 CI；未创建 PR、不合并。
 D10/E2仍进行中，完整协议只有设计边界，不声称已实施。
+
+## Shared capture 真实来源 slot 前置（2026-11-08）
+
+基于 `9f38c650`，为 conditional owner/phi 提供前置的真实来源输入，不扩展动态 Choice 或
+循环准入。原基线 Shared String 本地闭包观测为 Unsupported/Syntax，正确过滤的实际测试
+已确认失败；初次误用 exact 导致零项不计通过。新实现仅允许 named environment 的纯
+Shared String capture：形成读取当前命名 owner，不移动来源，环境本地 Move 保持实例 token。
+
+真实 EndCaptureLoan action 与观测在同一 helper 发出；关闭观测时仍执行原 action。
+结束时读取的 token 必须匹配形成 slot，逆序 End 组完整且紧接同 point 的环境 Drop。
+每个环境独立持有 loan 集合，两环境同源不能互相解除保护；活跃 source 不得经 Move、
+Drop、Replace、Swap 或 Owned Capture 消费。独立 overlay 和既有位置 replay 互补，
+新事件的跨分析事实 Eq 与 V1 投影拒绝同步更新。历史超长 planner 净减少6行，无新尺寸豁免。
+
+真实源码覆盖形成前 replace、两个来源逆序结束、两环境同源、环境 binding Move，以及
+closure 结束后的显式 source 使用。借用参数缺 owner、临时/mixed/nested、分支内形成、
+活跃 Shared 穿 If、循环的 observation 保持 Unsupported；不把这些拒绝称为语言错误。
+原 cleanup/diagnostics/deferred 等全部既有 Analysis 通过同输入 observation on/off 对照，
+涵盖准入与拒绝源码。V1 value projection 不接受新事件，循环安全门禁不变。
+
+损坏产品测试已加入 CI：缺/重复/逆序/错point/foreign owner或环境的 End、空/重复 slots、
+组内插入和缺环境 Drop；独立 overlay 另测五类消费旁路及只退休一个环境后的源消费。
+这些为 CI-only 注入，**本地未执行**，不得把正常源码通过当成这些负控已验。
+
+Mac、locked/offline、独立 target、默认 debug profile；最终代码本地验收如下：
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| Shared真实来源槽 | lib `shared_string_environment_has_real_source_owner_slots` | 1 passed，4个真实源码输入 |
+| Shared准入边界 | lib `shared_capture_outside_the_named_straight_line_slice_stays_unsupported` | 1 passed，7个真实源码输入 |
+| 完整旧产物等价 | lib `shared_capture_observation_preserves_all_existing_cleanup_products` | 1 passed，准入与拒绝11个输入 |
+| 原Owned与旧观测邻控 | lib `capture_formation_preserves_replaced_and_forwarded_owner_lineage`、`owner_observation_never_changes_existing_cleanup_products` | 各1 passed |
+| 循环保护与首批消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 工程/消费者编译 | frontend all-targets Clippy `-D warnings`、workspace all-targets check | 通过；LLVM21前缀使用已安装工具链 |
+| 格式/尺寸/文档 | workspace fmt、diff、尺寸相对9f38c650、check_docs.py | 通过；2196份Rust、35份历史超长，863份Markdown |
+
+普通定向共15项通过，零忽略；未运行全量、native、CI-only损坏测试或正式CI。
+独立只读复审核对真实token输入、loan集合、逆序退休、默认cleanup等价及负控静态逻辑。
+本片保存观测协议候选，不宣称 conditional owner/phi 或 D10/E2 完成，不创建PR、不合并。

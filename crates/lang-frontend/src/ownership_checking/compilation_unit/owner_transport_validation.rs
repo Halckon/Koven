@@ -1,4 +1,6 @@
 //! Replay only the emitted transitions to check internal conservation and slot isolation.
+mod shared_capture;
+
 use super::UnitDropPoint;
 use super::owner_transport::*;
 use crate::name_resolution::SourceUnitId;
@@ -49,6 +51,9 @@ impl UnitOwnerObservation {
                 && self.events.is_empty();
         }
         if !matches!(self.callable, UnitOwnerCallable::Function(_)) {
+            return false;
+        }
+        if !shared_capture::consistent(&self.events) {
             return false;
         }
         let mut locations = Vec::new();
@@ -182,6 +187,53 @@ impl UnitOwnerObservation {
                         locations[owner.index] = Location::Captured(environment.index, *symbol);
                     }
                     locations[environment.index] = Location::Result(*expression);
+                }
+                UnitOwnerTransportEvent::SharedCapture {
+                    expression,
+                    environment,
+                    inputs,
+                } => {
+                    if edge.is_some()
+                        || !valid_owner(environment)
+                        || expression.source_unit() != source
+                        || self.definitions[environment.index].origin
+                            != UnitOwnerOrigin::Closure(*expression)
+                        || locations[environment.index] != Location::Uncreated
+                        || inputs.is_empty()
+                    {
+                        return false;
+                    }
+                    for (index, (symbol, owner)) in inputs.iter().enumerate() {
+                        if !valid_owner(owner)
+                            || symbol.source_unit() != source
+                            || !matches!(
+                                self.definitions[owner.index].origin,
+                                UnitOwnerOrigin::String(_) | UnitOwnerOrigin::Parameter(_)
+                            )
+                            || locations[owner.index] != Location::Named(*symbol)
+                            || inputs[..index].iter().any(|(prior, _)| prior == symbol)
+                        {
+                            return false;
+                        }
+                    }
+                    locations[environment.index] = Location::Result(*expression);
+                }
+                UnitOwnerTransportEvent::SharedCaptureEnd {
+                    point,
+                    environment,
+                    source: symbol,
+                    owner,
+                } => {
+                    if edge.is_some()
+                        || !valid_owner(owner)
+                        || !valid_owner(environment)
+                        || point_source(*point) != source
+                        || symbol.source_unit() != source
+                        || !matches!(locations[environment.index], Location::Named(_))
+                        || locations[owner.index] != Location::Named(*symbol)
+                    {
+                        return false;
+                    }
                 }
                 UnitOwnerTransportEvent::CaptureDrop {
                     point,

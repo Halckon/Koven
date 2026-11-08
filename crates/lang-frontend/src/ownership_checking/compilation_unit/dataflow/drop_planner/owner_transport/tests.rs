@@ -139,3 +139,16 @@ fn owner_observation_preserves_exclusive_return_prefix_events() {
     let parts = fixture.parts(&shared);
     compare(&fixture, &parts);
 }
+
+#[test]
+fn shared_capture_observation_preserves_all_existing_cleanup_products() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_capture::{
+        BOUNDARIES, SOURCES,
+    };
+    for source in SOURCES.iter().chain(BOUNDARIES) {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}
