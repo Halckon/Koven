@@ -176,3 +176,8 @@ return 臂局部构造并完整退休的 owner 可保留为静态不可用身份
 终止臂已验证为 Dropped 时归一为 Dropped。继续臂 Named 等存活位置原样保留，两臂都
 未形成仍为 Uncreated，不能凭归一满足完整性。这里不发布额外 runtime Drop，不构造
 动态 phi；合流后该 token 不能 Result/Bind/Move/Drop，created 仍阻止兄弟臂重复形成。
+
+既有 Owned move 环境的单 bare Return 见证沿用完整捕获输入：两臂把同一环境分别移动到
+局部别名，各自按原 AST AfterStatement 点先释放原槽再释放环境，终止臂末尾保留真实
+source-qualified UnitReturn，继续臂不带终止事件。双臂终止仍整体 Unsupported/Syntax；
+观测开关比较完整 Analysis，既有清理身份与顺序不变，不据此扩展 native 或 V1 投影。

@@ -188,3 +188,16 @@ fn unit_return_observation_keeps_full_legacy_analysis() {
     let owned = fixture.shared();
     compare(&fixture, &fixture.parts(&owned));
 }
+
+#[test]
+fn owned_capture_return_preserves_full_cleanup_analysis() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::capture_branch_release::{
+        BOTH_RETURN_RELEASE, RETURN_RELEASE,
+    };
+    for source in [RETURN_RELEASE, BOTH_RETURN_RELEASE] {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}
