@@ -31,6 +31,9 @@ mod unit_entries;
 #[path = "type_checking/scalar_unit.rs"]
 mod scalar_unit;
 
+#[path = "type_checking/rc_unit.rs"]
+mod rc_unit;
+
 #[path = "type_checking/interface_unit.rs"]
 mod interface_unit;
 
@@ -234,69 +237,6 @@ fn enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests() 
         diagnostic_spans(&sources, &typed.diagnostics()[0]),
         ("Shape.Circle", "Shape")
     );
-}
-
-#[test]
-fn intrinsic_rc_publishes_construction_share_and_payload_borrow_facts() {
-    use lang_frontend::type_checking::{
-        ConstructionTarget, Copyability, ParameterMode, RcOperationKind,
-    };
-
-    let text = "value class Point(val x: Int)
-                fun shared(): Int {
-                    val first = Rc(Point(1))
-                    val second = first.share()
-                    val explicit = Rc<Point>(Point(2))
-                    val copied = first.value.x
-                    return second.value.x
-                }";
-    let (_, _, _, typed) = checked(text);
-
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let rc_constructions = typed
-        .constructions()
-        .iter()
-        .filter(|descriptor| descriptor.target() == ConstructionTarget::IntrinsicRc)
-        .collect::<Vec<_>>();
-    assert_eq!(rc_constructions.len(), 2);
-    assert!(rc_constructions.iter().all(|descriptor| {
-        descriptor.arguments().len() == 1
-            && descriptor.arguments()[0].parameter_name() == "value"
-            && descriptor.arguments()[0].mode() == ParameterMode::Value
-            && typed.copyability(descriptor.result_type()) == Some(Copyability::MoveOnly)
-    }));
-    assert_eq!(typed.rc_operations().len(), 3);
-    assert_eq!(typed.rc_operations()[0].kind(), RcOperationKind::Share);
-    assert_eq!(typed.rc_operations()[0].result_mode(), ParameterMode::Value);
-    assert!(typed.rc_operations()[1..].iter().all(|descriptor| {
-        descriptor.kind() == RcOperationKind::Value
-            && descriptor.result_mode() == ParameterMode::Borrow
-    }));
-}
-
-#[test]
-fn rc_shapes_reuse_existing_call_diagnostics_without_partial_facts() {
-    let text = "fun missing(): Unit { val result = Rc() }
-                fun extra(): Unit { val result = Rc<Int>(1, 2) }
-                fun badShare(): Unit {
-                    val owner = Rc(1)
-                    val shared = owner.share(2)
-                }";
-    let (_, _, _, typed) = checked(text);
-
-    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0121"]);
-    assert_eq!(
-        typed
-            .constructions()
-            .iter()
-            .filter(|descriptor| matches!(
-                descriptor.target(),
-                lang_frontend::type_checking::ConstructionTarget::IntrinsicRc
-            ))
-            .count(),
-        1
-    );
-    assert!(typed.rc_operations().is_empty());
 }
 
 #[test]
