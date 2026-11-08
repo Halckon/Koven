@@ -33,7 +33,7 @@
 
 ## 2. 边界与不变量
 
-- `unit_lower/borrow_result.rs` 仅保留编译单元级 `validate_declarations`、`validate_bindings`，以及遗留 `map_iteration/borrowed.rs` 使用的直接根 `Borrow` 参数 `borrow val` 别名；该别名在作用域不需要细化层时仍走旧路径。
+- `unit_lower/borrow_result.rs` 保留编译单元级 `validate_declarations`，以及遗留 `map_iteration/borrowed.rs` 使用的直接根 `Borrow` 参数 `borrow val` 别名；该别名在作用域不需要细化层时仍走旧路径。旧绑定扫描只在该路径已确定拒绝某种绑定形状时用于保留诊断，已迁移绑定与稳定根别名均不经过整函数预拒绝。
 - `unit_lower/rc.rs` 与 `unit_lower/control/nullable_if/rc.rs` 仅保留 `lower_rc_construction`、`validated_rc_operation` 与 `prepare_rc_nullable_if_entry`。
 - 已退役家族经默认入口进入细化层并通过 SSA verifier 与 LLVM IR 生成；`with_per_family_lowering` 强制旧路径时确定性返回 `UnsupportedNode`。
 - 非捕获函数值调用实参内的 `break`/`continue` 仍交旧路径（细化层对“无出口 loop + 实参内 `continue`”会产生 `MissingOwnedExit`，留作后继缺口）。

@@ -234,7 +234,7 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
     assert_eq!(code, Some(0));
     assert_eq!(stdout, "inout-ok\n");
 
-    // Case 1b: Inout call inside borrow_val scope is rejected by legacy validate_bindings at exact span.
+    // Case 1b: The unsupported borrow binding retains its precise legacy diagnostic.
     let inout_reject_source = r#"
     class Holder(val label: String)
     fun read(view: String): Unit {}
@@ -264,12 +264,12 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
     let err =
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
             .err()
-            .expect("legacy validate_bindings must reject inout call within borrow scope");
+            .expect("the legacy borrow binding must reject this inout call");
     assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode);
     let span = err.span.expect("exact span of inout call");
     assert_eq!(sources.slice(span).unwrap(), "flag || change(&n)");
 
-    // Explicit proof that rejection originates specifically from the legacy validate_bindings stage:
+    // The retained legacy diagnostic agrees with the direct boundary check:
     let parsed_files = [&file];
     let view = lang_frontend::ownership_checking::owned_compilation_unit_view(
         &sources, &inputs, &names, &type_env, &typed, &owned,
@@ -281,7 +281,7 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
         view.types(),
         view.ownership(),
     )
-    .expect_err("validate_bindings phase directly rejects this construct");
+    .expect_err("the legacy boundary check rejects this construct");
     assert_eq!(direct_stage_err.kind, LoweringErrorKind::UnsupportedNode);
     assert_eq!(direct_stage_err.span, err.span);
 
@@ -798,5 +798,48 @@ fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary
         assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode, "{source}");
         let span = err.span.expect("exact rejection span");
         assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}
+
+#[test]
+fn refined_field_borrow_binding_does_not_depend_on_an_uncalled_swap() {
+    let source = r#"
+        class Boxed(val text: String)
+        fun main(): Unit {
+            val b = Boxed("hi")
+            borrow val text = b.text
+            println(text)
+            return
+        }
+    "#;
+    let sibling = r#"
+        fun unrelated(): Unit {
+            var a = 1
+            var b = 2
+            swap(&a, &b)
+        }
+    "#;
+    for source in [format!("{source}{sibling}"), source.to_owned()] {
+        let (stdout, code) = run(&source);
+        assert_eq!(code, Some(0));
+        assert_eq!(stdout, "hi\n");
+    }
+}
+
+#[test]
+fn legacy_root_map_borrow_binding_does_not_depend_on_an_uncalled_swap() {
+    let fixture = include_str!("../../../tests/fixtures/map-provider-scope-0331/P05-for.ko");
+    let source = fixture.replace("fun entry()", "fun main()").replace(
+        "Unit{borrow val alias",
+        "Unit{if(flag){println(\"prefix\")};borrow val alias",
+    );
+    let sibling = "\nfun unrelated(): Unit { var a = 1; var b = 2; swap(&a, &b) }";
+    for source in [format!("{source}{sibling}"), source] {
+        let (stdout, code) = run(&source);
+        assert_eq!(code, Some(0));
+        assert_eq!(
+            stdout,
+            "argument\nfactory\nprefix\nkey\nvalue\nargument\nfactory\nkey\nvalue\n"
+        );
     }
 }
