@@ -715,6 +715,7 @@ fn ambiguous_and_failed_overload_lambda_trials_leak_no_candidate_facts() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
+    overload_lambda_unit::failed_trials(&sources, &parsed, &names, &types);
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
     let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");

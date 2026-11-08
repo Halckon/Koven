@@ -844,3 +844,74 @@ fn legacy_root_map_borrow_binding_does_not_depend_on_an_uncalled_swap() {
         );
     }
 }
+
+#[test]
+fn refined_temporary_map_when_for_does_not_depend_on_an_uncalled_swap() {
+    let source = r#"
+        fun create(key: String): Map<String, String> {
+            var map = mutableMapOf<String, String>()
+            map.put(key.clone(), "value")
+            return map.consume()
+        }
+        fun scan(flag: Boolean): Unit {
+            val marker = "entry".clone()
+            for ((key, value) in when (flag) {
+                true -> create("left")
+                false -> create("right")
+            }) {
+                println(key)
+                println(value)
+            }
+            println(marker)
+        }
+        fun main(): Unit { scan(true); scan(false) }
+    "#;
+    let sibling = "\nfun unrelated(): Unit { var a = 1; var b = 2; swap(&a, &b) }";
+    for source in [format!("{source}{sibling}"), source.to_owned()] {
+        let (stdout, code) = run(&source);
+        assert_eq!(code, Some(0));
+        assert_eq!(stdout, "left\nvalue\nentry\nright\nvalue\nentry\n");
+    }
+}
+
+#[test]
+fn map_provider_capability_is_checked_at_the_reached_for() {
+    let provider = r#"
+        class Holder(val entries: Map<String, String>)
+        fun scan(holder: Holder): Unit {
+            for ((key, value) in holder.entries) {
+                println(key)
+                println(value)
+            }
+        }
+    "#;
+    let sibling = "\nfun unrelated(): Unit { var a = 1; var b = 2; swap(&a, &b) }";
+    for suffix in ["", sibling] {
+        let unreachable = format!("{provider}\nfun main(): Unit {{ println(\"entry\") }}{suffix}");
+        let (stdout, code) = run(&unreachable);
+        assert_eq!(code, Some(0));
+        assert_eq!(stdout, "entry\n");
+
+        let text = format!(
+            "package p\n{provider}\nfun main(): Unit {{ val holder = Holder(mapOf<String, String>()); scan(holder) }}{suffix}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let error = lower_scalar_unit_with_entry(
+            &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+        )
+        .err()
+        .expect("reached field provider is unsupported");
+        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+        assert!(
+            sources
+                .slice(error.span.expect("Map for origin"))
+                .unwrap()
+                .starts_with("for ((key, value) in holder.entries)")
+        );
+    }
+}

@@ -848,13 +848,18 @@ impl DeclarationStops {
     const TYPE_ELEMENT: u32 = 1 << 21;
     pub(super) const LEADING_UNPROVED_ANGLE_COMMA: u32 = 1 << 22;
     pub(super) const DELEGATION_ERROR_TARGET: u32 = 1 << 23;
+    pub(super) const DELEGATION_UNSUPPORTED_SUFFIX: u32 = 1 << 24;
 
-    pub(super) const fn in_delegation_error_target(self) -> bool {
-        self.0 & Self::DELEGATION_ERROR_TARGET != 0
+    pub(super) const fn in_delegation_recovery(self) -> bool {
+        self.0 & (Self::DELEGATION_ERROR_TARGET | Self::DELEGATION_UNSUPPORTED_SUFFIX) != 0
+    }
+
+    pub(super) const fn in_unsupported_delegation_suffix(self) -> bool {
+        self.0 & Self::DELEGATION_UNSUPPORTED_SUFFIX != 0
     }
 
     pub(super) const fn keeps_unproved_angle_comma(self, leading: bool) -> bool {
-        self.in_delegation_error_target()
+        self.in_delegation_recovery()
             || (leading && self.0 & Self::LEADING_UNPROVED_ANGLE_COMMA != 0)
     }
 
