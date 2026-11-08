@@ -31,11 +31,12 @@ impl UnitExpressionLowerer<'_> {
     }
 
     /// 按源码求值顺序 lower operand，再按声明参数顺序返回已经完成 Value delivery 的字段。
+    /// 若 operand 已终止，返回 None。已交付的前缀沿实际控制转移边消费清理事实。
     pub(super) fn lower_construction_fields(
         &mut self,
         descriptor: &UnitConstructionDescriptor,
         span: Span,
-    ) -> Result<Vec<ValueId>, LoweringError> {
+    ) -> Result<Option<Vec<ValueId>>, LoweringError> {
         let id = descriptor.expression();
         let mut plans = self
             .owned
@@ -90,7 +91,12 @@ impl UnitExpressionLowerer<'_> {
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
-            let field = self.require_expression_value(argument.argument().expression())?;
+            let Some(field) =
+                self.lower_optional_expression_value(argument.argument().expression())?
+            else {
+                self.pending_operands.truncate(pending_start);
+                return Ok(None);
+            };
             let (mut field, transferred) = self.adapt_owned_value_to_expected(
                 argument.argument().expression(),
                 field,
@@ -139,6 +145,7 @@ impl UnitExpressionLowerer<'_> {
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         self.commit_construction_operands(fields, pending_start, span)
+            .map(Some)
     }
 
     /// The source owner has already been transferred; retain its cleanup identity until commit.

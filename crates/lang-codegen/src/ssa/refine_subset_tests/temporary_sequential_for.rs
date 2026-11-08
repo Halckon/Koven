@@ -117,16 +117,33 @@ fn constant_while_edges_cannot_lend_destructuring_route() {
         );
         let (result, routed) = route(&source);
         assert!(!routed, "{code}");
-        // The retained lowering still builds both constant while edges and has no
-        // local destructuring implementation. This guard tests route authority.
-        let Err(error) = result else {
-            panic!("retained lowering should reject the dead split: {code}");
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        let span = error.span.expect("the rejected statement has a span");
-        let text = format!("package p\n{source}");
-        assert_eq!(&text[span.start()..span.end()], pattern);
+        let program = result.unwrap_or_else(|error| panic!("{code}: {error:?}"));
+        crate::ssa::verify::verify_program(&program).expect("reachable loop edges verify");
     }
+}
+
+#[test]
+fn terminating_constructor_prefix_lowers_on_the_retained_route() {
+    let source = r#"
+        class Plain(val first: Int, val second: Int)
+        fun firstArgument(): Int { println("first argument"); return 1 }
+        fun f(flag: Boolean): Unit {
+            val result = Plain(firstArgument(), if (flag) {
+                while (true) { return }
+                1
+            } else {
+                while (true) { return }
+                2
+            })
+        }
+    "#;
+    let (result, routed) = route(source);
+    assert!(
+        !routed,
+        "the scalar-field construction stays on retained Unit"
+    );
+    crate::ssa::verify::verify_program(&result.expect("the abandoned constructor lowers"))
+        .expect("both return edges and the evaluated prefix verify");
 }
 
 #[test]

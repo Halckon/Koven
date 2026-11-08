@@ -116,7 +116,7 @@ Map callback通用storage与capture见 [Map当前边界](map-native-execution.md
 MapPut自行收集K/V drop glue，MapRemove收集K并交付owned V，不依赖scope Drop。已证ownership primitive优先于普通prefix gate分派。
 常量入口允许外层pending temporary穿过内层loop/while，header、回边和break/false出口携完整owner/loan/pending状态；
 内层跳转仅结束本循环内frame与prefix槽，return清理退出frame，Abort不展开；Copyable binding与已求值实参快照分列，owner/loan alias去重。
-while条件含CFG时从实际条件出口分支；基础入口其余temporary循环边界保留。direct nullable while仅将HeapOwner送专用proof，
+普通 Unit while 从实际条件出口分支，已生成的 SSA 布尔常量可排除不可能边；基础入口其余 temporary 循环边界保留。direct nullable while仅将HeapOwner送专用proof，
 SharedOwner Rc继续普通while，缺映射不回退。[0332](../archive/specs/0332-rc-nullable-while-regression.md)原有bounded done/archive历史不变；
 其§5四Unit payload-reader及体内原owner返回包装债仍OPEN，presence成功或阶段表expected reject不关闭能力债。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
