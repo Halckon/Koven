@@ -277,9 +277,7 @@ impl UnitExpressionLowerer<'_> {
                     })?;
             }
             let Some(fact) = facts.get(index) else { break };
-            if !self.emit_local_map_late_drop(*fact)? {
-                self.emit_drop_fact(*fact)?;
-            }
+            self.emit_drop_fact(*fact)?;
         }
         Ok(())
     }
@@ -362,8 +360,6 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
         };
-        self.validate_formed_map_drop(fact, owner)?;
-        self.validate_pure_map_parameter_drop(fact, owner)?;
         self.function
             .append_instruction(
                 self.block,

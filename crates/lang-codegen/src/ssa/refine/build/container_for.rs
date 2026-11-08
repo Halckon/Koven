@@ -615,6 +615,12 @@ impl Builder<'_, '_> {
                     Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
                 };
                 self.register_temporary(source, owner)?;
+                if let Some(lang_frontend::ownership_checking::UnitLoanTarget::Temporary(
+                    temp_expr,
+                )) = plan.source()
+                {
+                    self.temporaries.insert(temp_expr, owner);
+                }
                 let place =
                     self.value(ROp::RootPlace { owner }, EntityType::Place(container), span)?;
                 self.value(
@@ -763,6 +769,20 @@ impl Builder<'_, '_> {
                         self.consumed_drops.insert(index);
                     } else {
                         self.finish_drops(&item);
+                    }
+                }
+                Action::DropConditionalReceiver(fact) => {
+                    if self.inputs.receiver.is_some_and(|r| {
+                        r.owner == fact.owner()
+                            && r.mode == lang_frontend::type_checking::ParameterMode::Value
+                            && self.move_only(r.ty)
+                    }) {
+                        let item = [(
+                            usize::MAX,
+                            UnitDropTarget::This(fact.owner()),
+                            fact.value_origin(),
+                        )];
+                        self.emit_drops(&item)?;
                     }
                 }
                 Action::EndBinding { statement, symbol } => {

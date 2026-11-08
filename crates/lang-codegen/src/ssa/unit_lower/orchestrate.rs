@@ -54,7 +54,6 @@ fn lower_unit_impl(
     let unit_has_refine_constructs =
         !owned.field_replacements().is_empty() || !typed.ownership_primitives().is_empty();
     if !unit_has_refine_constructs {
-        super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
         super::borrow_result::validate_bindings(&parsed_by_source, names, typed, owned)?;
     }
     // Runtime global initialization is not lowered yet. Check every source root,
@@ -718,7 +717,6 @@ fn lower_unit_impl(
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),
             loops: Vec::new(),
-            map_local_continuation: None,
             return_type: plan.return_type,
         };
         lowerer.emit_drops(UnitDropPoint::FunctionEntry(UnitItemId::new(
@@ -738,7 +736,6 @@ fn lower_unit_impl(
             }
             FunctionPlanBody::Block(statement) => (lowerer.lower_statement(statement)?, None),
         };
-        lowerer.finish_local_map_function(plan.instance.span())?;
         if result == LoweredValue::Diverged {
             continue;
         }
@@ -896,7 +893,6 @@ fn lower_unit_impl(
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),
             loops: Vec::new(),
-            map_local_continuation: None,
             return_type: plan.return_type,
         };
         closure::finish_thunk(&mut lowerer, plan)?;

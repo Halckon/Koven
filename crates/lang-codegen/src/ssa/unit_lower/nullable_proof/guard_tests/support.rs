@@ -353,7 +353,6 @@ impl Fixture {
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),
             loops: Vec::new(),
-            map_local_continuation: None,
             return_type: signature.return_type(),
         };
         check(&mut lowerer)

@@ -23,7 +23,6 @@ mod loop_control;
 mod map;
 mod map_borrow;
 mod map_consume;
-mod map_iteration;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -194,8 +193,6 @@ struct UnitExpressionLowerer<'a> {
     pending_operands: Vec<EntityId>,
     pending_call_frames: Vec<call_lifetimes::PendingCallFrame>,
     loops: Vec<loop_control::LoopContext>,
-    // One bounded normal Map continuation, discharged by its exact size CallReturn.
-    map_local_continuation: Option<map_iteration::LocalContinuation>,
     return_type: UnitTypeId,
 }
 
@@ -492,11 +489,6 @@ impl UnitExpressionLowerer<'_> {
             // discard the bookkeeping so the original root drop can retire its proof.
             self.pending_call_frames.clear();
         }
-        self.record_map_return_delivery(
-            UnitExpressionId::new(self.source_unit, expression),
-            result,
-            span,
-        )?;
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
@@ -577,7 +569,7 @@ impl UnitExpressionLowerer<'_> {
                     .map_iteration(UnitStatementId::new(self.source_unit, statement))
                     .is_some()
                 {
-                    self.lower_map_for(statement, *source, *body, span)
+                    Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 } else {
                     self.lower_for(statement, *source, *body, span)
                 }

@@ -659,9 +659,6 @@ impl Checker<'_, '_> {
             },
             type_checking::UnitStatementId,
         };
-        if !self.scope_requires_refine() {
-            return false;
-        }
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
         let (Some(plan), Some(descriptor)) = (
             self.inputs.owned.map_iteration(statement_id),
@@ -686,10 +683,29 @@ impl Checker<'_, '_> {
         }
         match (plan.source_access(), plan.source_kind()) {
             (
-                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared,
+                UnitIterationSourceAccess::Owned,
                 IterationSource::BorrowedSource(UnitLoanTarget::Place(place)),
             ) if place.is_root() => {
                 if self.named_map_owner(source, container_ty, true) != Some(place.root()) {
+                    return false;
+                }
+            }
+            (
+                UnitIterationSourceAccess::Shared,
+                IterationSource::BorrowedSource(UnitLoanTarget::Place(place)),
+            ) if place.is_root() => {
+                let Some(symbol) = self.named_map_owner(source, container_ty, true) else {
+                    return false;
+                };
+                let origin_matches = symbol == place.root()
+                    || (self.for_borrowed.contains(&symbol)
+                        && self.inputs.owned.borrow_results().bindings().iter().any(
+                            |fact| {
+                                fact.binding() == symbol
+                                    && fact.origin() == UnitLoanTarget::Place(place.clone())
+                            },
+                        ));
+                if !origin_matches {
                     return false;
                 }
             }
@@ -705,6 +721,7 @@ impl Checker<'_, '_> {
                 matches!(
                     action,
                     Action::Drop(_)
+                        | Action::DropConditionalReceiver(_)
                         | Action::EndBinding { .. }
                         | Action::FinishProvider(_)
                         | Action::EndSource(_)

@@ -452,7 +452,6 @@ pub(super) fn finish_thunk(
         lang_frontend::ownership_checking::UnitDropPoint::LambdaEntry(plan.expression),
     )?;
     let result = lowerer.lower_statement(plan.body)?;
-    lowerer.finish_local_map_function(plan.span)?;
     if result == LoweredValue::Diverged {
         return Ok(());
     }

@@ -784,6 +784,10 @@ fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary
             "class Holder(val value: Int)\nfun main(own initial: Holder?): Int { var current: Holder? = initial; while (current != null) { return current.value }; return 0 }",
             "current.value",
         ),
+        (
+            "fun main(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v } }",
+            "for ((k, v) in m) { val x = v }",
+        ),
     ] {
         let mut sources = SourceMap::new();
         let text = format!("package p\n{source}");

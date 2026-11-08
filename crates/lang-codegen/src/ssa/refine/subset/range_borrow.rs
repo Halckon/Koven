@@ -61,13 +61,7 @@ impl Checker<'_, '_> {
                 .ast()
                 .statements()
                 .iter()
-                .any(|(_, node)| {
-                    matches!(
-                        node.payload(),
-                        lang_frontend::parser::Statement::While { condition, .. }
-                            if self.while_requires_refine(*condition)
-                    )
-                })
+                .any(|(stmt_id, node)| self.stmt_requires_refine(stmt_id, node.payload()))
     }
 
     fn span_requires_refine(&self, scope: Span) -> bool {
@@ -89,17 +83,31 @@ impl Checker<'_, '_> {
                 .ast()
                 .statements()
                 .iter()
-                .any(|(_, node)| {
+                .any(|(stmt_id, node)| {
                     let span = node.span();
                     scope.source_id() == span.source_id()
                         && scope.start() <= span.start()
                         && span.end() <= scope.end()
-                        && matches!(
-                            node.payload(),
-                            lang_frontend::parser::Statement::While { condition, .. }
-                                if self.while_requires_refine(*condition)
-                        )
+                        && self.stmt_requires_refine(stmt_id, node.payload())
                 })
+    }
+
+    fn stmt_requires_refine(
+        &self,
+        stmt_id: StatementId,
+        payload: &lang_frontend::parser::Statement,
+    ) -> bool {
+        match payload {
+            lang_frontend::parser::Statement::While { condition, .. } => {
+                self.while_requires_refine(*condition)
+            }
+            lang_frontend::parser::Statement::For { .. } => self
+                .inputs
+                .typed
+                .map_iteration(UnitStatementId::new(self.inputs.source_unit, stmt_id))
+                .is_some(),
+            _ => false,
+        }
     }
 
     fn while_requires_refine(&self, condition: ExpressionId) -> bool {

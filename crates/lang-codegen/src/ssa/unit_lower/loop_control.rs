@@ -3,7 +3,6 @@
 mod iteration;
 mod iteration_cleanup;
 mod map_borrow;
-mod map_iteration;
 
 use std::collections::{BTreeMap, BTreeSet};
 

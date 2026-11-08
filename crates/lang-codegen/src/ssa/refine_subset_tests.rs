@@ -474,10 +474,10 @@ fn map_for_unrelated_scalar_scope_keeps_legacy_routing() {
         );
         let (result, routed) = route(&source);
         assert!(
-            !routed,
-            "unrelated sibling must not expand Map-for routing: {source}"
+            routed,
+            "Map-for now routes directly to ssa::refine (SPEC-0396): {source}"
         );
-        result.expect("original Map-for addition remains supported");
+        result.expect("Map-for addition lowers through ssa::refine");
     }
 }
 

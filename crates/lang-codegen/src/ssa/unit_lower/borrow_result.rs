@@ -47,7 +47,7 @@ pub(super) fn validate_declarations(
 
 pub(super) fn validate_bindings(
     parsed: &[&lang_frontend::parser::ParsedFile],
-    names: &ValidatedCompilationUnitNames,
+    _names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
 ) -> Result<(), LoweringError> {
@@ -159,17 +159,7 @@ pub(super) fn validate_bindings(
                                     })))
                     })
             },
-            |statement| {
-                let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
-                super::map_iteration::stable_borrow_provider(
-                    file,
-                    names,
-                    typed,
-                    owned,
-                    statement,
-                    fact.binding(),
-                )
-            },
+            |_| false,
         )?;
         if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {
             return Err(lowering_error(
