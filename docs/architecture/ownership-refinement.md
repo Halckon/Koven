@@ -23,9 +23,9 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 不改变纯 Map-for 路由。验证范围见 [SPEC-0383 §5](../specs/active/0383-refine-final-legacy-retirement.md#5-map-for-与整数家族的组合路由修复)。
 
 逐实例通过细化准入的 callable 直接进入 refine。若完整 body 仍需兼容 lowering，数值区间
-`for`、`Map.consume` 与委托 receiver 按当前 callable 的路由及实际操作事实判定，
-不依赖编译单元是否另有 Map 迭代。兼容路径仍检查 source-qualified descriptor、资源身份
-及最终 SSA。细化构建出错直接返回结构化错误。
+`for`、`Map.consume`、委托 receiver 和普通类 nullable `if` 均按当前 callable 的路由及实际
+操作事实判定。兼容路径仍检查 source-qualified descriptor、资源身份及最终 SSA。
+细化构建出错直接返回结构化错误。
 
 普通 Unit 的 Borrow nullable 判空读取原 shared storage loan。SSA 验证活跃借用与 nullable
 布局。LLVM 对句柄只加载指针，对内联表示只加载第一个字段，即 String 的 niche 指针或

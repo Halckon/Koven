@@ -2920,3 +2920,17 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 校验输出。LLVM 断言分别锁定字段 0 的 pointer load 与 i1 load，检查函数中其余
 读只对应打印的本地字面量 storage。原普通类句柄的 borrowed nullable temporary
 定向测试 1 项、inline nullable 布局套件 6 项及 codegen 全目标 Clippy 均通过。
+
+
+## 111. R4 普通类 nullable If 的旧路由
+
+主干 `e1b0c2dc` 的 CLI 对照中，含外层 nullable String 循环重赋值的函数自然留在
+旧路径。函数后续对自有 `Node?` 判空并调用普通 Borrow 参数。无关 nullable `when`
+函数存在时原生运行输出 `present`，移除该函数后，合法的收窄实参报 `MissingFact`。
+两种输入均通过前端，基线 Unit 回归精确定位到实参 `node`。
+
+沿用逐 callable 兼容准入，同时保留原 `if` 形状、来源、借用、清理与 verifier。
+两条本机定向回归分别核验原生有无 sibling 对照和有空对臂的强制旧路径拒绝。
+恢复旧整单元 gate 时，新增强制用例可错误构建并使测试失败。修复后两个检查均通过。
+原 `when` 内替换 owner 的 SSA/原生两条检查和原退役检查亦通过。
+带额外 Borrow nullable 形参的组合还涉及旧 proof carrier 资格，另行复审。

@@ -25,6 +25,8 @@ mod generation;
 mod products;
 #[path = "native_nullable_when_tests/replacement_if.rs"]
 mod replacement_if;
+#[path = "native_nullable_when_tests/sibling_route.rs"]
+mod sibling_route;
 #[path = "native_nullable_when_tests/sources.rs"]
 mod sources;
 #[path = "native_nullable_when_tests/support.rs"]
