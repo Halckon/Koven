@@ -3,13 +3,11 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SourceUnitKey, index_compilation_unit, resolve_compilation_unit_names,
     },
     parser::{Expression, parse_file},
     source::SourceMap,
-    type_checking::{
-        UnitExpressionId, check_compilation_unit_types, check_types, standard_environments,
-    },
+    type_checking::{UnitExpressionId, check_compilation_unit_types, standard_environments},
 };
 
 fn check(text: &str, expected_code: Option<&str>) {
@@ -22,53 +20,60 @@ fn check(text: &str, expected_code: Option<&str>) {
         parsed.diagnostics()
     );
     let (name_environment, type_environment) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &name_environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &type_environment).unwrap();
-    let single_codes: Vec<_> = typed
-        .diagnostics()
-        .iter()
-        .map(|diagnostic| diagnostic.code().to_string())
-        .collect();
+    let expected_codes = expected_code.into_iter().collect::<Vec<_>>();
 
-    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
-    let unit_codes: Vec<_> = typed
-        .diagnostics()
-        .iter()
-        .map(|diagnostic| diagnostic.code().to_string())
-        .collect();
-    for (mode, codes) in [("single", single_codes), ("unit", unit_codes)] {
-        if let Some(expected) = expected_code {
-            assert!(
-                codes.iter().any(|code| code == expected),
-                "{mode}: {text}: {codes:?}"
-            );
-        } else {
-            assert!(codes.is_empty(), "{mode}: {text}: {codes:?}");
+    for (mode, input) in [
+        ("memory", SourceUnitInput::memory_document(source, &parsed)),
+        (
+            "rooted",
+            SourceUnitInput::new("root", "main.ko", source, &parsed),
+        ),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let [indexed] = index.source_units() else {
+            panic!("one original source");
+        };
+        assert_eq!(indexed.source_id(), source);
+        assert!(matches!(
+            (mode, indexed.key()),
+            ("memory", SourceUnitKey::MemoryDocument) | ("rooted", SourceUnitKey::Rooted { .. })
+        ));
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed =
+            check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+        let codes = typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(codes, expected_codes, "{mode}: {text}");
+        let mut lambdas = 0;
+        let mut returns = 0;
+        for (id, node) in parsed.ast().expressions().iter() {
+            let id = UnitExpressionId::new(indexed.id(), id);
+            if matches!(node.payload(), Expression::Lambda { .. }) {
+                lambdas += 1;
+                assert_eq!(
+                    typed.expression_falls_through(id),
+                    Some(true),
+                    "creating a lambda continues even when its body returns: {text}"
+                );
+            }
+            if matches!(node.payload(), Expression::Return { .. }) {
+                returns += 1;
+                assert_eq!(
+                    typed.expression_falls_through(id),
+                    Some(false),
+                    "a checked local return still terminates its own callable path: {text}"
+                );
+            }
         }
-    }
-    let unit = names.names().index().source_units()[0].id();
-    for (id, node) in parsed.ast().expressions().iter() {
-        if matches!(node.payload(), Expression::Lambda { .. }) {
-            assert_eq!(
-                typed.expression_falls_through(UnitExpressionId::new(unit, id)),
-                Some(true),
-                "creating a lambda continues even when its body returns: {text}"
-            );
-        }
-        if matches!(node.payload(), Expression::Return { .. }) {
-            assert_eq!(
-                typed.expression_falls_through(UnitExpressionId::new(unit, id)),
-                Some(false),
-                "a checked local return still terminates its own callable path: {text}"
-            );
-        }
+        assert_eq!(lambdas, 1, "{mode}: {text}");
+        assert!(returns > 0, "{mode}: {text}");
     }
 }
 

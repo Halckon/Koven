@@ -49,8 +49,8 @@ fn lower_unit_impl(
     // Both sealed views have already checked the complete frontend identity chain.
     // Declarations are validated unconditionally for every unit.
     super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
-    // Legacy whole-source binding/iteration checks precede instance planning and Module creation
-    // for legacy units; units using ssa::refine-exclusive constructs validate in refine.
+    // Preserve the older Map and borrow-binding CFG frontier where it is still required.
+    // Bindings with dedicated lowering checks bypass only the older binding scan.
     let unit_has_refine_constructs =
         !owned.field_replacements().is_empty() || !typed.ownership_primitives().is_empty();
     if !unit_has_refine_constructs {
