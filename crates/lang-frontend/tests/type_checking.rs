@@ -25,6 +25,9 @@ mod resource_unit;
 #[path = "type_checking/non_null_unit.rs"]
 mod non_null_unit;
 
+#[path = "type_checking/nominal_arity_spans.rs"]
+mod nominal_arity_spans;
+
 #[path = "type_checking/unit_entries.rs"]
 mod unit_entries;
 
