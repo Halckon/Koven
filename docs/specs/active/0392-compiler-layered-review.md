@@ -2582,6 +2582,14 @@ OverloadSelection 与 MemberAccess 原因，无伪造描述符。独立复核核
 封存后的 `Error` 哨兵和重复产物，暂保留。合入主干后的 callable 与 multifile 定向共
 304 项通过，无失败或忽略。
 
+
+后续复核用原歧义及无匹配源码对照 Single、MemoryDocument 与 Rooted。三者都报
+L0124、L0123，且不发布调用描述符。Single 会把未提交 lambda 表达式与参数类型
+封存为 `Error`。两个 Unit 入口均为这两类 lambda 节点保留事实缺失，仅对实际
+失败调用发布 `Error`。因此保留旧封存 oracle，同时让两个 Unit 入口各重复分析
+同一份 names，断言两个真实参数均无类型或模式事实，并核对两个 lambda 与两个调用
+的精确形状。实际 `type_callable` 和 `final_type_admission` 共 84 项通过，零失败和忽略。
+
 ## 99. R4 对象写入路径和失败原子性
 
 独立复审发现 Inkwell 0.11.0 的对象直写先要求输出路径能转换为 UTF-8。在受支持的
