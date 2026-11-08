@@ -47,7 +47,7 @@ impl Parser<'_> {
                         || matches!(current.kind(), LexemeKind::Eof)
                         || self.is_file_declaration_boundary(current)
                         || (file_header && self.at_class_header_file_boundary(true)?);
-                    let target = if self.current_is_identifier() && !target_boundary {
+                    let mut target = if self.current_is_identifier() && !target_boundary {
                         NameMarker::Present(self.bump()?.span())
                     } else if matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart)) {
                         self.recover_string_delegation_target(current.span())?
@@ -73,6 +73,28 @@ impl Parser<'_> {
                             NameMarker::Error(primary)
                         }
                     };
+                    let current = self.current()?;
+                    let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
+                        || self.current_is_symbol(Symbol::LeftBrace)
+                        || self.current_is_symbol(Symbol::RightBrace)
+                        || matches!(current.kind(), LexemeKind::Eof)
+                        || self.is_file_declaration_boundary(current)
+                        || (file_header && self.at_class_header_file_boundary(false)?);
+                    if !at_entry_boundary {
+                        let poison = self.is_poison_kind(current.kind());
+                        if !poison {
+                            self.emit(
+                                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                                "unsupported class-family form",
+                                current.span(),
+                            )?;
+                        }
+                        let _ = self.consume_closed_supertype_group()?;
+                        let end = self.recover_declaration_region(recovery_stops)?;
+                        if poison && let NameMarker::Error(span) = target {
+                            target = NameMarker::Error(self.span(span.start(), end)?);
+                        }
+                    }
                     let target_span = marker_span(target);
                     let delegation = DelegationClause {
                         span: self.span(
@@ -86,24 +108,6 @@ impl Parser<'_> {
                         by_span,
                         target,
                     };
-                    let current = self.current()?;
-                    let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
-                        || self.current_is_symbol(Symbol::LeftBrace)
-                        || self.current_is_symbol(Symbol::RightBrace)
-                        || matches!(current.kind(), LexemeKind::Eof)
-                        || self.is_file_declaration_boundary(current)
-                        || (file_header && self.at_class_header_file_boundary(false)?);
-                    if !at_entry_boundary {
-                        if !self.is_poison_kind(current.kind()) {
-                            self.emit(
-                                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                                "unsupported class-family form",
-                                current.span(),
-                            )?;
-                        }
-                        let _ = self.consume_closed_supertype_group()?;
-                        self.recover_declaration_region(recovery_stops)?;
-                    }
                     Some(delegation)
                 } else {
                     None
@@ -139,11 +143,20 @@ impl Parser<'_> {
                 } else {
                     current.span()
                 };
-                if !self.is_poison_kind(current.kind()) {
+                let poison = self.is_poison_kind(current.kind());
+                if !poison {
                     self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
                 }
                 if !primary.is_empty() {
-                    self.recover_declaration_region(recovery_stops)?;
+                    let end = self.recover_declaration_region(recovery_stops)?;
+                    if poison {
+                        let span = self.span(primary.start(), end)?;
+                        entries.push(SupertypeEntry {
+                            span,
+                            type_ref: self.add_type_ref(span, TypeRef::Error)?,
+                            delegation: None,
+                        });
+                    }
                 }
             }
             if self.current_is_symbol(Symbol::Comma) {

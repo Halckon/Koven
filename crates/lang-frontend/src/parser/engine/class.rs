@@ -56,7 +56,13 @@ impl Parser<'_> {
         };
         let start = classifier_keyword_start(kind);
         let name = self.parse_classifier_name(file_header)?;
-        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters(true)?;
+        let parameter_owner = if file_header {
+            TypeParameterOwner::FileClassifier
+        } else {
+            TypeParameterOwner::Classifier
+        };
+        let (type_parameters, type_parameter_list_span) =
+            self.parse_type_parameters(parameter_owner)?;
         if let (ClassifierKind::Object { .. }, Some(list_span)) = (kind, type_parameter_list_span) {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,

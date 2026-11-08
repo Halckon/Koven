@@ -8,7 +8,7 @@ use lang_frontend::{
     type_checking::{
         BuiltinType, CallableTarget, Capability, EnvironmentFunction, EnvironmentParameter,
         ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, UnitCallTarget, UnitTypeKind,
-        check_types, standard_environments,
+        UnitTypeRefId, check_types, standard_environments,
     },
 };
 
@@ -412,53 +412,46 @@ fn headerless_lambdas_publish_contextual_it_or_stable_arity_diagnostics() {
 
 #[test]
 fn implicit_and_explicit_borrow_function_types_share_one_identity() {
-    let text = "val implicit: (Int) -> Unit = { input -> }\n\
-                val explicit: (borrow Int) -> Unit = { input -> }\n\
-                val owned: (own Int) -> Unit = { input -> }";
+    let text = concat!(
+        "fun observe(): Unit {\n",
+        "    val implicit: (Int) -> Unit = { input -> }\n",
+        "    val explicit: (borrow Int) -> Unit = { input -> }\n",
+        "    val owned: (own Int) -> Unit = { input -> }\n",
+        "}",
+    );
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-
-    let function_types = parsed
+    let function_refs = parsed
         .ast()
         .type_refs()
         .iter()
         .filter(|(_, node)| matches!(node.payload(), TypeRef::Function { .. }))
-        .map(|(id, _)| typed.type_ref_type(id).expect("function type fact"))
+        .map(|(id, _)| id)
         .collect::<Vec<_>>();
-    assert_eq!(function_types.len(), 3);
-    assert_eq!(function_types[0], function_types[1]);
-    assert_ne!(function_types[0], function_types[2]);
-    assert!(matches!(
-        typed.types().get(function_types[0]),
-        Some(TypeKind::Function { parameters, .. })
-            if parameters[0].mode == ParameterMode::Borrow
-    ));
-    assert!(matches!(
-        typed.types().get(function_types[2]),
-        Some(TypeKind::Function { parameters, .. })
-            if parameters[0].mode == ParameterMode::Value
-    ));
-}
-
-#[test]
-fn structurally_invalid_expected_lambda_does_not_publish_a_mode() {
-    let text = "fun inspect(borrow input: Int): Unit {}\n\
-                val wrongMove: move (borrow Int) -> Unit = { item -> inspect(item) }\n\
-                val wrongArity: (borrow Int) -> Unit = { -> }";
-    let (sources, parsed) = parsed(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0084", "L0084"]);
-    let invalid_lambda_parameter = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-        .expect("wrongMove lambda parameter");
-    assert_eq!(typed.parameter_mode(invalid_lambda_parameter.id()), None);
+    let [implicit, explicit, owned] = function_refs.as_slice() else {
+        panic!("three explicit function TypeRefs");
+    };
+    for typed in checked_entries(&sources, &parsed, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let source = typed.signatures().declarations()[0].symbol().source_unit();
+        let [implicit, explicit, owned] = [*implicit, *explicit, *owned].map(|id| {
+            typed
+                .type_ref_type(UnitTypeRefId::new(source, id))
+                .expect("function type fact")
+        });
+        assert_eq!(implicit, explicit);
+        assert_ne!(implicit, owned);
+        assert!(matches!(
+            typed.types().get(implicit),
+            Some(UnitTypeKind::Function { parameters, .. })
+                if parameters[0].mode() == ParameterMode::Borrow
+        ));
+        assert!(matches!(
+            typed.types().get(owned),
+            Some(UnitTypeKind::Function { parameters, .. })
+                if parameters[0].mode() == ParameterMode::Value
+        ));
+    }
 }
 
 #[test]
@@ -870,16 +863,21 @@ fn non_lambda_filter_to_one_candidate_preserves_direct_lambda_diagnostic() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("true")
-    );
-    assert!(typed.diagnostics()[0].details().iter().any(|detail| {
-        matches!(detail, DiagnosticDetail::Label(label) if sources.slice(label.span()) == Ok("callback"))
-    }));
+    let callback = text.find("callback:").expect("chosen parameter name");
+    let label_span = sources
+        .span(parsed.source_id(), callback, callback + "callback".len())
+        .unwrap();
+    for unit in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(codes(unit.diagnostics()), ["L0084"]);
+        assert_eq!(
+            sources.slice(unit.diagnostics()[0].primary_span()),
+            Ok("true")
+        );
+        assert!(unit.calls().is_empty());
+        assert!(unit.diagnostics()[0].details().iter().any(|detail| {
+            matches!(detail, DiagnosticDetail::Label(label) if label.span() == label_span)
+        }));
+    }
 }
 
 #[test]

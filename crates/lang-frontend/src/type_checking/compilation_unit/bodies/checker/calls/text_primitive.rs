@@ -93,6 +93,7 @@ impl BodyChecker<'_> {
             type_parameters: Vec::new(),
             move_only: false,
             parameters,
+            parameter_symbols: Vec::new(),
             return_type: self.text_operand_type(result),
             result_source: crate::type_checking::CallableResultSource::Owned,
             instance_arguments: Vec::new(),

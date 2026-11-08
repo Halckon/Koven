@@ -116,7 +116,8 @@ impl Parser<'_> {
                 primary,
             )?;
         }
-        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters(false)?;
+        let (type_parameters, type_parameter_list_span) =
+            self.parse_type_parameters(TypeParameterOwner::Function)?;
         let (name, extension_receiver) = self.parse_function_head(declaration_stops)?;
         if !allow_extension && let Some(receiver) = extension_receiver {
             self.emit(
@@ -351,15 +352,40 @@ impl Parser<'_> {
 
     pub(super) fn parse_type_parameters(
         &mut self,
-        class_header: bool,
+        owner: TypeParameterOwner,
     ) -> Result<(Vec<TypeParameter>, Option<Span>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Less) {
             return Ok((Vec::new(), None));
         }
+        let file_angle = if matches!(owner, TypeParameterOwner::FileClassifier) {
+            let (raw, opener) = self
+                .significant(0)
+                .ok_or(ParserInternalError::InvalidLexemeStream)?;
+            Some(FileAngleRecovery {
+                groups: std::cell::RefCell::new(
+                    self.lexical_recoveries
+                        .file_angle_groups(raw, opener.span().start()),
+                ),
+                separator: std::cell::Cell::new(None),
+            })
+        } else {
+            None
+        };
+        let previous = std::mem::replace(&mut self.file_angle, file_angle);
+        let result = self.parse_type_parameter_list(owner);
+        self.file_angle = previous;
+        result
+    }
+
+    fn parse_type_parameter_list(
+        &mut self,
+        owner: TypeParameterOwner,
+    ) -> Result<(Vec<TypeParameter>, Option<Span>), ParserInternalError> {
         let opener = self.bump()?.span();
         let mut parameters = Vec::new();
         let mut outer_stops = TypeStops::empty();
         let mut recovery_stops = DeclarationStops::EMPTY;
+        let class_header = !matches!(owner, TypeParameterOwner::Function);
         if class_header {
             outer_stops = outer_stops
                 .with(TypeStops::CLASS_BODY)
@@ -377,7 +403,7 @@ impl Parser<'_> {
             )?;
         } else {
             loop {
-                if class_header && outer_stops.contains(self.current()?) {
+                if class_header && self.at_type_recovery_boundary(self.current()?, outer_stops)? {
                     break;
                 }
                 if self.current_is_symbol(Symbol::Comma) {
@@ -431,7 +457,7 @@ impl Parser<'_> {
                 if self.current_is_symbol(Symbol::Greater) {
                     break;
                 }
-                if class_header && outer_stops.contains(self.current()?) {
+                if class_header && self.at_type_recovery_boundary(self.current()?, outer_stops)? {
                     break;
                 }
                 if self.current_is_identifier()
@@ -471,7 +497,8 @@ impl Parser<'_> {
                     }
                     if matches!(self.current()?.kind(), LexemeKind::Eof)
                         || self.current_is_symbol(Symbol::Greater)
-                        || (class_header && outer_stops.contains(self.current()?))
+                        || (class_header
+                            && self.at_type_recovery_boundary(self.current()?, outer_stops)?)
                     {
                         break;
                     }
@@ -860,6 +887,7 @@ impl Parser<'_> {
                     && (stops.contains_soft(current, symbol)
                         || (stops.has_class_file_boundary()
                             && self.at_class_header_file_boundary(false)?)
+                        || self.at_file_angle_separator(current)?
                         || (stops.stops_at_class_member()
                             && self.class_member_recovery_start()?)))
             {

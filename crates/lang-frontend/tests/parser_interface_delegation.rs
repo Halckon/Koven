@@ -291,3 +291,39 @@ fn by_remains_an_identifier_outside_the_supertype_context() {
     }));
     assert!(parsed.diagnostics().is_empty());
 }
+
+#[test]
+fn consecutive_lexical_errors_remain_in_the_invalid_delegation_target() {
+    let text = "class C: I by β async, J {}";
+    let (sources, parsed) = declaration(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0001", "L0002"]);
+    let classifier = classifier(&parsed);
+    let [first, following] = classifier.supertypes.as_slice() else {
+        panic!("recovered delegation and following supertype");
+    };
+    let clause = first.delegation.unwrap();
+    let NameMarker::Error(span) = clause.target else {
+        panic!("reachable target error");
+    };
+    assert_eq!(sources.slice(span).unwrap(), "β async");
+    assert_eq!(sources.slice(clause.span).unwrap(), "by β async");
+    assert_eq!(sources.slice(first.span).unwrap(), "I by β async");
+    assert_eq!(sources.slice(following.span).unwrap(), "J");
+    assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
+}
+
+#[test]
+fn a_lexical_error_after_a_valid_target_keeps_the_target_name() {
+    let (sources, parsed) = declaration("class C: I by delegate async, J {}");
+    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+    let [first, following] = classifier(&parsed).supertypes.as_slice() else {
+        panic!("delegation and following supertype");
+    };
+    let clause = first.delegation.unwrap();
+    let NameMarker::Present(span) = clause.target else {
+        panic!("delegate name stays available");
+    };
+    assert_eq!(sources.slice(span).unwrap(), "delegate");
+    assert_eq!(sources.slice(clause.span).unwrap(), "by delegate");
+    assert_eq!(sources.slice(following.span).unwrap(), "J");
+}

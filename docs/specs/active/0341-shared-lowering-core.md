@@ -3472,7 +3472,7 @@ ownership 前置，不改生产语义。
 本次等价性探测发现另两项不能退休：nullable overload ambiguity 的 Unit 结果为
 L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L0084 缺原
 `callback` label。保留这两项原 Single 测试及所有断言，不用弱化 oracle 换取迁移。
-初始迁移不改这两处；后续组合中的 nullable bottom 修复见下一节，callback label 精度差异仍保留。
+初始迁移不改这两处。后续组合中的 nullable bottom 修复见下一节，callback label 的后续修复与消费者迁移见 [SPEC-0392 §84](0392-compiler-layered-review.md#84-r0r2-调用参数诊断来源与类型身份消费者)。
 
 | 验收项 | 定向检查 | 结果 |
 |---|---|---|

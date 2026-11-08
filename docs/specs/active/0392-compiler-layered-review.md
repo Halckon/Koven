@@ -108,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–81 | 类型参数的角符号与文件边界、未闭分组、连续词法 poison 的 AST 归属仍开放 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83 | 隐式换行的类型参数边界、混合角符号的分组及剩余词法 poison 的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2209,4 +2209,106 @@ Linux sanitizer、两宿主生成资源及预览包独立安装通过，编辑�
 
 最终隔离候选 frontend 全量 183 组、2742 项通过。逐字接入 `70cdd8d9` 后，实际分支
 106 项定向及 19 项 Parser 内部检查通过，零失败或忽略。frontend 全目标 Clippy、格式、
-文档、Rust 尺寸和 diff 门禁通过。双宿主矩阵待推送后执行。
+文档、Rust 尺寸和 diff 门禁通过。
+
+PR #362 合入最新主干后的精确头 `80cd7fb2` 基于 `4ae149a6`。
+[实际 CI](https://github.com/Halckon/Koven/actions/runs/42461329571) 的两宿主 Check、Clippy、
+定向组合、生成资源、Preview 构建及独立安装通过，Linux native sanitizer 与精确头门禁通过。
+两宿主 conformance 均为 137/154，零回归、入口差异或内部错误，6 个验收程序仍属已登记的未实现。
+Editor job 按路径范围跳过。macOS CI 按既有权限边界忽略的真实 LLDB 断点用例，已在精确头
+本机显式复跑，与 Mach-O 行表及四项 CLI 调试检查合计 6 项通过。PR 已合入 `d5d3c8f5`。
+
+## 82. R1 父类型槽位与非法委托目标的词法错误节点
+
+基线 `80cd7fb2` 的两组红测分别表明，`class C: async, J {}` 的保留字未在父类型列表中
+产生可达错误节点，`class C: I by β async, J {}` 的委托错误 marker 只覆盖 `β`。两条路径
+均复用原声明恢复游标。父类型槽位以 invalid 或保留字起始时，使用原恢复区建立
+`TypeRef::Error`，名称解析跳过它，类型检查不产生接口继承边。非法委托目标已有 Error
+marker 时，其后以词法错误起始的恢复区更新目标、委托子句及父类型项的源码范围。
+
+红绿回归断言词法码、可达错误节点、实际消费范围、后继父类型、类体及文件根。另核对合法
+委托目标的名称 marker 保留，文件根前的多字节 invalid token 具有真实范围。两项独立静态复核
+核对了 owner、诊断及下游读取，未发现新增回退。基于 `80cd7fb2` 的合批候选 frontend 全量
+183 组、2747 项通过，零失败和忽略。frontend 全目标 Clippy、格式、文档及 diff 检查通过。
+接入 `d5d3c8f5` 后，实际分支的类声明和接口委托共 60 项定向检查通过，尺寸门禁通过，
+无新增超限文件。候选双宿主验收随下一批 PR 执行。
+
+合法父类型或合法委托目标后的独立词法错误节点、嵌套角括号内逗号及下一文件声明的恢复
+仍开放。`interface C<T; public val sentinel = 2 > 1` 的基线红测已确认，比较的 `>` 被
+误认为缺失的类型参数闭合符。显式分号的处置见 §83。
+
+
+## 83. R1 文件类型参数的显式分号
+
+在 `bf8e6750` 上，`interface C<T; public val sentinel = 2 > 1` 的首根错误覆盖了比较符。
+文件级 class-family 类型参数在 `;` 后识别明确的文件声明前缀，再确认普通分组与词法 owner
+已回到当前 `<` 的基线，向现有关闭诊断提供分号处零宽 Span，并把分号留给文件循环。
+未完成上界、嵌套 TypeRef 和原声明恢复扫描沿用同一边界。`T;>` 沿用原局部错误恢复，
+带真实 closer 或仍未闭的普通组保留内部分号。函数及独立声明入口没有此作用域。
+
+独立复核先后确认了内层 TypeRef 丢失普通组、逐层重扫分号后注释、以及前根 opener 干扰
+当前错配 closer 的反例。共享普通组处理只从当前 `<` 单向推进，字符串与插值沿原 terminal
+事件规则，上一文件根的栈不会进入此作用域。原构造器/分组委托的全流配对保留。
+缓存当前分号的判定，避免同一分号上嵌套 TypeRef 重扫后继；深度 16→32、注释 64→128
+的操作计数在缓存前 5936→19872 失败，修复后通过线性增幅断言。
+
+显式分号及后继前缀优先确立文件分隔，后续孤立 `>` 不逆向归还。仅有换行的下一声明、
+普通分组内的裸 `>` 与比较运算符角色、以及父类型列表嵌套角符号的恢复仍需分别验证。
+
+同一批候选的 frontend 全量 183 组、2755 项通过，另跑类声明与接口委托 67 项，零失败和
+忽略。最新候选通过独立静态复核，复核者未重复运行 Cargo。格式、文档、尺寸和 diff 门禁
+通过。双宿主实跑以本批 PR 的精确 head 为准。
+
+PR #364 合入 `6d87040b` 后，精确头 `45a5c71f` 的
+[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42470307101) 通过。两宿主 Check、
+Clippy、定向组合、生成资源、Preview 构建与独立安装均通过，Linux native sanitizer 与
+精确头门禁通过。两宿主和本机 conformance 均为 137/154，零回归、入口差异和内部错误，
+6 个验收程序仍属已登记的未实现。Editor job 按范围跳过，macOS CI 已登记的真实 LLDB
+断点在同一提交本机显式补跑，连同 Mach-O 行表与四项 CLI 检查共 6 项通过。
+PR 已合入 `34311941`。
+
+## 84. R0/R2 调用参数诊断来源与类型身份消费者
+
+在 `bf8e6750` 上，非 lambda 实参筛出唯一重载后，两个 Unit 入口均在 `true` 报 L0084，
+但 label 覆盖完整 `callback: (Int) -> Int`。旧 Single oracle 要求所选参数名的精确 Span。
+Unit 源码候选保留声明参数的 source-qualified symbol。按具名或位置映射取得选中参数，lambda
+上下文从现有名称事实读取精确名称范围。普通实参诊断和没有源码 symbol 的外部/函数值路径
+沿用原 label，失败调用继续不发布描述符。
+
+原精确诊断测试迁至 MemoryDocument 和 Rooted。跨文件新增同名重载的成员调用回归，分别
+调换具名实参和源文件输入顺序，验证错误处及 label 的实际源文件、精确 Span 和失败 call
+事实。独立复核核对参数 symbol、替换与实参映射，复用已有 `unit_symbol_span` 查询。
+
+隐式借用、显式 `borrow` 和 `own` 的规范类型身份测试一并迁移。原顶层运行时值用例在 Unit
+会报 L0167，故将声明放入合法函数体，保留三个 TypeRef 及身份/参数模式断言。原 Single 与
+两个 Unit 入口先用同一局部输入核对等价，再将此测试切到两个 Unit 入口。
+
+基于 `45a5c71f` 的合批候选 frontend 全量 183 组、2780 项通过，零失败和忽略。
+前端全目标 Clippy 与格式通过。接入 `34311941` 后，实际分支的 `type_callable` 与
+`multifile_type_checking` 定向共 304 项通过，零失败和忽略。远端验收随下一批 PR 执行。
+
+R0 对 `45a5c71f` 按 §2 的同类源码模式重新计数。排除定义后的匹配行数如下，保留语法计数
+的局限，包含测试或字符串，未覆盖仓外调用和全部别名/宏。
+
+| 旧入口 | frontend 文件 / 匹配行 | codegen 文件 / 匹配行 |
+|---|---|---|
+| `check_types` | 86 / 147 | 15 / 18 |
+| `check_ownership` | 46 / 58 | 14 / 17 |
+| `lower_scalar_file_with_entry` | 无 | 4 / 8 |
+
+CLI 单文件由 bootstrap 构造 Unit 描述，project 走 `project_build`，LSP 由 `unit_session`
+持有 Unit 名称与类型输入。三者及 frontend `analysis` 未检出旧名字。codegen 的八条
+`lower_scalar_file_with_entry` 匹配分布在四个测试文件，含输入身份负控、可空 Rc 路径与只读
+方法旧路径拒绝见证。仍需按实际测试意图处置剩余消费者，计数下降不代表迁移退出。
+
+
+## 85. R0/R2 错误 lambda 结构的参数模式消费者
+
+原 Single 测试用两个顶层运行时值检查错误 move 约束和参数数量。将两条 initializer
+置于合法函数体，保持原 `inspect(item)`，加同体的合法共享借用 lambda 作为正控。
+实际运行了同一输入的原 Single、MemoryDocument 和 Rooted 检查，三者均报告两条 L0084，
+结构失败的参数均无已采纳模式。双 Unit 测试另核两个真实箭头的精确 Span 及合法参数的
+Borrow 模式。此后只保留双 Unit 测试，继续通过真实名称事实定位参数符号。
+
+三笔合批提交的 `type_callable` 与 `multifile_type_checking` 共 304 项通过，零失败和忽略。
+前端全目标 Clippy、格式、文档及 diff 检查通过，双宿主验收以合批 PR 的精确 head 为准。

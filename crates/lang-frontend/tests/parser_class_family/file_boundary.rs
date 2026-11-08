@@ -226,3 +226,184 @@ fn grouped_delegation_preserves_later_lexical_terminal_recovery() {
         "class Sentinel"
     );
 }
+
+#[test]
+fn file_type_parameters_preserve_an_explicit_separator_before_the_next_declaration() {
+    let comparison = "public val sentinel = 2 > 1";
+    for (head, following, closing_count, missing_type) in [
+        ("interface C<T", comparison, 1, false),
+        ("interface C<T break", comparison, 1, false),
+        ("interface C<T: Box<Int", comparison, 2, false),
+        ("interface C<T: Box<", comparison, 2, true),
+        ("interface C<T, U:", comparison, 1, true),
+        (
+            "interface C<T,",
+            "value\nclass Sentinel(val y: Int)",
+            1,
+            false,
+        ),
+    ] {
+        let text = format!("{head}; {following}");
+        let (sources, parsed) = file(&text);
+        let ast = parsed.ast().items();
+        let [classifier, sentinel] = parsed.roots() else {
+            panic!("two file roots for {text}: {:?}", parsed.roots());
+        };
+        assert_eq!(
+            sources.slice(ast.get(*classifier).unwrap().span()).unwrap(),
+            head
+        );
+        assert_eq!(
+            sources.slice(ast.get(*sentinel).unwrap().span()).unwrap(),
+            following
+        );
+        let diagnostics = parsed.diagnostics();
+        for (code, count) in [
+            ("L0010", closing_count),
+            ("L0014", usize::from(missing_type)),
+        ] {
+            let at_boundary: Vec<_> = diagnostics
+                .iter()
+                .filter(|diag| diag.code().to_string() == code)
+                .collect();
+            assert_eq!(at_boundary.len(), count, "{text}: {diagnostics:?}");
+            for diagnostic in at_boundary {
+                assert!(diagnostic.primary_span().is_empty());
+                assert_eq!(diagnostic.primary_span().start(), head.len());
+            }
+        }
+    }
+}
+
+#[test]
+fn type_parameter_recovery_keeps_a_real_closer_and_nested_separators() {
+    for head in [
+        "interface C<T;>",
+        "interface C<T break f(; public val hidden = 2)>",
+        "interface C<T break \"${x; public val hidden = 2}\">",
+        "interface C<T: (Int; public val hidden = 2) -> Int>",
+        "interface C<T: [; public val hidden = 2]>",
+    ] {
+        let text = format!("{head}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let ast = parsed.ast().items();
+        let [classifier, sentinel] = parsed.roots() else {
+            panic!("two file roots for {text}: {:?}", parsed.roots());
+        };
+        assert_eq!(
+            sources.slice(ast.get(*classifier).unwrap().span()).unwrap(),
+            head
+        );
+        assert_eq!(
+            sources.slice(ast.get(*sentinel).unwrap().span()).unwrap(),
+            "class Sentinel"
+        );
+    }
+}
+
+#[test]
+fn unclosed_type_bound_groups_still_own_their_semicolon() {
+    for head in [
+        "interface C<T: [",
+        "interface C<T: (Int",
+        "interface C<T break [",
+    ] {
+        let text = format!("{head}; public val hidden = 2");
+        let (sources, parsed) = file(&text);
+        let [root] = parsed.roots() else {
+            panic!("only the classifier owns {text}");
+        };
+        assert_eq!(
+            sources
+                .slice(parsed.ast().items().get(*root).unwrap().span())
+                .unwrap(),
+            text
+        );
+    }
+}
+
+#[test]
+fn a_group_opened_by_the_previous_root_does_not_own_the_type_parameter_separator() {
+    let (sources, parsed) = file("class C(val x: Int\ninterface I<T; val sentinel = 2 > 1");
+    let ast = parsed.ast().items();
+    let [first, second, third] = parsed.roots() else {
+        panic!("constructor, interface, and following declaration");
+    };
+    for (id, text) in [
+        (*first, "class C(val x: Int"),
+        (*second, "interface I<T"),
+        (*third, "val sentinel = 2 > 1"),
+    ] {
+        assert_eq!(sources.slice(ast.get(id).unwrap().span()).unwrap(), text);
+    }
+}
+
+#[test]
+fn a_mismatched_closer_in_the_type_bound_cannot_match_a_previous_root() {
+    let head = "interface I<T: (Int]; val hidden = 2";
+    for prefix in ["", "val x: [ = 1\n"] {
+        let text = format!("{prefix}{head}");
+        let (sources, parsed) = file(&text);
+        assert_eq!(
+            parsed.roots().len(),
+            1 + usize::from(!prefix.is_empty()),
+            "{text}"
+        );
+        let node = parsed
+            .ast()
+            .items()
+            .get(*parsed.roots().last().unwrap())
+            .unwrap();
+        assert_eq!(sources.slice(node.span()).unwrap(), head);
+    }
+}
+
+#[test]
+fn a_function_bound_closer_releases_its_group_after_an_invalid_parameter() {
+    let head = "interface I<T: (Int, [)";
+    let following = "val sentinel = 2";
+    let (sources, parsed) = file(&format!("{head}; {following}"));
+    let items = parsed.ast().items();
+    let [class, sentinel] = parsed.roots() else {
+        panic!("the real right paren ends the function bound's group");
+    };
+    assert_eq!(
+        sources.slice(items.get(*class).unwrap().span()).unwrap(),
+        head
+    );
+    assert_eq!(
+        sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+        following
+    );
+}
+
+#[test]
+fn terminal_string_events_do_not_leak_into_or_out_of_the_type_parameter_owner() {
+    let text = concat!(
+        "val first = \"bad\n",
+        "interface C<T break \"also bad\n",
+        "; val sentinel = 2 > 1",
+    );
+    let (sources, parsed) = file(text);
+    let items = parsed.ast().items();
+    let [first, classifier, sentinel] = parsed.roots() else {
+        panic!("first declaration, interface, and sentinel");
+    };
+    for (id, expected) in [
+        (*first, "val first = \"bad"),
+        (*classifier, "interface C<T break \"also bad"),
+        (*sentinel, "val sentinel = 2 > 1"),
+    ] {
+        assert_eq!(
+            sources.slice(items.get(id).unwrap().span()).unwrap(),
+            expected
+        );
+    }
+    assert_eq!(
+        codes(parsed.diagnostics())
+            .iter()
+            .filter(|code| *code == "L0004")
+            .count(),
+        2
+    );
+}
