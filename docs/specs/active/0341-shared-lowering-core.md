@@ -3589,3 +3589,22 @@ Mac Rust1.96、locked/offline、独立 target、默认 debug=2：
 frontend all-targets Clippy（-D warnings）、fmt、862 份 Markdown、diff及相对基线尺寸门禁
 通过；2150 份手写 Rust、38 份历史超长文件未增长。未运行全 target、native、Abort、
 故障注入或校准；官方 CI 未运行，D10/E2 仍 in-progress，不合并。
+
+## 容器与借用证据集中交付（2026-11-08）
+
+基于 main `60aa67d1`，组合保留 container-remaining `a44a673e` 与 borrow-evidence
+`2cb692cf`，代码组合头 `24f5a76c`。仅调和 Spec 追加记录冲突，原分支及历史验收保留；
+不包含 #351 的生产修复。独立只读逐项复审未发现可操作 P1/P2，原源码与 oracle 未弱化。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug profile：初始四目标组合编译在
+`unit_direct_call_loan_ends` 链接报 errno=28（No space left on device），exit101，未执行测试。
+该宽目标也包含 Abort 源码测试，后续不重跑宽目标；没有把未运行目标计为通过。
+复用本轮已编译目标后，`ownership_containers` 全45项、
+`ownership_borrow_continuation::results_continue_original_source_loans_and_never_own_the_payload`
+与 `ownership_nested_borrow_arguments::direct_and_grouped_results_are_synchronous_borrow_operands`
+各精确1项通过，共47项。workspace fmt、862份Markdown、diff及相对main尺寸门禁通过，
+2151份手写Rust、38份旧超长文件无新增欠账。
+
+本组合头的 mixed Return 精确测试和 frontend Clippy 因磁盘容量限制未完成；
+未运行 native、故障注入、校准、Linux或官方CI。本地历史通过不能替代本组合头验收。
+D10/E2仍in-progress，发布只保存工作，不自动合并。
