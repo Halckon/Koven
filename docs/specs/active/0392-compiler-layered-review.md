@@ -2003,3 +2003,22 @@ workspace 全目标 Clippy、格式、文档、Rust 尺寸与 diff 门禁通过�
 随后合入更新的主干 `4fd948dd`，无冲突。它带入 SPEC-0341 容器与借用测试迁移，
 合流后 `ownership_containers`、`unit_direct_call_loan_ends`、`ownership_map_with` 和
 `final_type_admission` 共 172 项通过。最终双宿主门禁以合流提交为准。
+
+[PR #353 最终门禁](https://github.com/Halckon/Koven/actions/runs/42440264349) 在 `b09c2f99`
+上通过双宿主定向、生成资源、Linux sanitizer 与两宿主预览包独立安装，conformance 均为
+137/154、验收程序 0/6，零回归、入口差异或内部错误。编辑器按范围跳过，macOS CI
+忽略的后端 LLDB 断点和四条 CLI 调试检查在同一提交上本机通过。已合入 `04583bb2`。
+
+## 74. R4 局部解构与独立 while 的可空证明
+
+从 §73 原生见证去掉顺序 `for` 后，`check` 仍成功，`build` 返回
+`UnsupportedNode`。Refine 重试已可识别 `while` 入口的证明失效，却要等顺序迭代
+才确认路由。现由通过预检且实际移除外层可空证明的 `while` 确认重试，仍要求同一
+callable 的已验证局部解构，保留既有首次准入。独立复核核对了循环资格与 builder 的
+失效位置。数值 `for` 在空 `while` 后仍不能借用此规则。
+
+新增单文件与项目原生见证，核对零轮和重赋值后精确输出。另用真实双文件 Unit 验证普通
+和常量能力入口，覆盖三次重赋值、continue、break 与无关根的读取，两个入口均完成
+7 次分配和 7 次释放。常量 `while` 的死分支 lowering 仍是独立缺口。
+当前分支本机通过 Refine 路由 35 项、while SSA 37 项、原生资源计数 1 项和 while CLI
+7 项，零失败或忽略。codegen 与 CLI 全目标 Clippy、格式、文档、Rust 尺寸和 diff 门禁通过。

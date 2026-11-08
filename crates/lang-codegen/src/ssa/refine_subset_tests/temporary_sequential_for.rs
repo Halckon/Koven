@@ -186,3 +186,47 @@ fn qualified_sequential_for_invalidates_reassigned_nullable_view() {
     crate::ssa::verify::verify_program(&result.expect("sequential loop lowers"))
         .expect("verified program");
 }
+
+#[test]
+fn local_destructuring_qualifies_while_root_reassignment_without_a_for() {
+    let source = r#"
+    value class Pair(val first: Int, val second: Int)
+    fun f(flag: Boolean): Unit {
+        val (second, first) = Pair(20, 22)
+        var outer: String? = "first"
+        if (outer != null) {
+            while (flag && first == 20) {
+                outer = "second"
+                break
+            }
+        }
+        if (outer != null && outer == "second") { println("changed") }
+    }
+    "#;
+    let (result, routed) = route(source);
+    assert!(routed, "{:?}", result.as_ref().err());
+    crate::ssa::verify::verify_program(&result.expect("standalone while lowers"))
+        .expect("verified program");
+}
+
+#[test]
+fn numeric_for_cannot_use_local_destructuring_to_retire_outer_proof() {
+    let source = r#"
+    value class Pair(val first: Int, val second: Int)
+    fun f(own range: IntRange): Unit {
+        val (second, first) = Pair(20, 22)
+        var outer: String? = "first"
+        if (outer != null) {
+            while (false) {}
+            for (item in range) { outer = "second" }
+        }
+        if (outer != null && outer == "second") { println("changed") }
+    }
+    "#;
+    let (result, routed) = route(source);
+    assert!(!routed, "numeric for must retain its own proof policy");
+    let Err(error) = result else {
+        panic!("retained lowering should reject the local split");
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+}

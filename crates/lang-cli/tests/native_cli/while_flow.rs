@@ -235,7 +235,7 @@ fn local_destructuring_routes_while_and_temporary_for_in_both_entries() {
         let launched = bounded_run::run(&executable);
         assert_eq!(launched.status.code(), Some(0), "{label}: {launched:?}");
         assert_eq!(
-            launched.stdout, b"kept\nloop\nkept\nloop\nchanged\nfor-changed\n",
+            launched.stdout, b"kept\nloop\nkept\nloop\nchanged\nfor-changed\nwhile-changed\n",
             "{label}"
         );
         assert!(launched.stderr.is_empty(), "{launched:?}");
