@@ -4020,6 +4020,7 @@ architecture合并本片重复段落保持200行，不删除原事实。政策�
 未运行frontend/workspace全量、native、Linux、损坏注入或新头CI；未改跨crate API，不追加
 workspace check。空enum、超过两段本地TypeRef及错误嵌套case实参恢复不新增覆盖。
 本批只本地准备，不推送、不创建PR、不合并；D10/E2仍in-progress。
+
 ## Unit Return 终止边前置（2026-11-08）
 
 基于已合 #365 的 main `6d87040b`，独立分支 `feature/spec-0341-shared-owner-continuation`。
@@ -4105,3 +4106,37 @@ Mac、locked/offline、独立target、默认debug profile；普通定向24项，
 Mac AArch64 / Rust1.96，locked/offline、独立 target、默认 debug profile，编译 jobs=2。
 本片没有运行故障注入、Abort、压力输入、frontend/workspace全量、native或正式CI；
 测试已编译不代表上述未执行项通过。未推送、未开PR、未合并，D10/E2仍in-progress。
+
+
+## PR #366 类型、终止边与 callable 合批（2026-11-08）
+
+保留 #366 原头 `cb1de268` 的四项类型修复，在独立
+`fix/spec-0341-d10-batch-integration` 分支合入 main `f83aff80`，随后接入
+`9f84e652`、`dcb1ffa5` 的终止边/局部 owner 与 `5cde1d3e` 的 expected lambda
+参数模式消费者。整合代码头为 `197ebf27d4da43ff79d6b072de6d7948f107fec7`；原逻辑
+提交保留，新增切片分别对应 `549a0808`、`27cc5532`、`197ebf27`。
+
+Rust 无冲突，只有本账本的尾部追加冲突，双方完整保留。独立只读复核确认：所有权源码
+与 `dcb1ffa5`、callable 测试/helper 与 `5cde1d3e`、四项类型生产路径与 `cb1de268`
+逐字一致；parser/type body 保留新 main，实现没有回退 #367 的 callback 来源修复。
+原 fixture、诊断/模式 oracle 与 observation on/off 全 Analysis 对照未弱化，未混入其他
+未纳入本批的候选。独立复审未发现新的 P1/P2，静态复核不代替执行验收。
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、默认 debug profile、
+单一独立 target、编译 jobs=2，Cargo 门禁串行运行。组合代码实跑如下：
+
+| 验收项 | 目标/选择 | 实际结果 |
+|---|---|---|
+| 类型、名称与 callable | 前述类型合批9个目标加 `type_callable`，一次 `--no-fail-fast` 调用 | 498 passed，0 failed/ignored；两项历史 Abort witness 精确排除 |
+| 所有权普通 lib 见证 | 前述终止边12项普通过滤器，加真实Shared槽、replace来源、分支局部边界及全旧cleanup等价 | 16 passed；其余367项未选中 |
+| 循环、消费者与原 Return/borrow | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` 及前述两个原 Return/borrow 过滤器 | 8 + 2 + 1 + 1 passed |
+| 名称身份直接下游 | 完整 `cargo test --locked --offline -p lang-lsp --no-fail-fast` | 56 + stdio 1 passed |
+| 跨 crate 与静态质量 | frontend all-targets Clippy `-D warnings`、workspace all-targets check、workspace fmt | 全通过 |
+| 文档与尺寸 | `check_docs.py`、尺寸相对 `f83aff80`、尺寸政策47项、diff | 全通过；863份Markdown，2209份手写Rust/34份历史超长 |
+
+Rust 定向共583项通过，不是 frontend/workspace 全量。历史
+`nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`
+与 `standard_error_has_a_stable_abort_identity_and_nothing_result` 只编译未本机执行；
+不修改源码、规模、ignore、线程栈或默认 profile。所有 CI-only 损坏产物注入也仅编译，
+未跑 native、Linux 或 Tree-sitter。本批继续同一草稿 PR #366 取得新头正式双平台 CI，
+旧 `cb1de268` 的 CI 不能代表本组合已通过；不自动合并，D10/E2 仍 in-progress。
