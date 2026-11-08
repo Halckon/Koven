@@ -148,9 +148,12 @@ impl Parser<'_> {
                     self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
                 }
                 if !primary.is_empty() {
-                    let end = self.recover_declaration_region(recovery_stops)?;
                     if poison {
-                        let span = self.span(primary.start(), end)?;
+                        self.consume_poisoned_supertype_head()?;
+                    }
+                    self.recover_declaration_region(recovery_stops)?;
+                    if poison {
+                        let span = self.span(primary.start(), self.previous_significant_end())?;
                         entries.push(SupertypeEntry {
                             span,
                             type_ref: self.add_type_ref(span, TypeRef::Error)?,
@@ -176,6 +179,18 @@ impl Parser<'_> {
             break;
         }
         Ok((Some(colon_span), entries))
+    }
+
+    fn consume_poisoned_supertype_head(&mut self) -> Result<(), ParserInternalError> {
+        while self.is_poison() {
+            self.bump()?;
+        }
+        if self.current_is_symbol(Symbol::Less)
+            && let Some(closer) = self.strict_trials.closed_type_list(self.current_raw()?)?
+        {
+            self.index = closer + 1;
+        }
+        Ok(())
     }
 
     fn consume_closed_supertype_group(&mut self) -> Result<Option<Span>, ParserInternalError> {
