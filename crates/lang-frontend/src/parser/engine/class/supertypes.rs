@@ -216,7 +216,12 @@ impl Parser<'_> {
             self.bump()?;
         }
         if self.current_is_symbol(Symbol::Less)
-            && let Some(closer) = self.strict_trials.closed_type_list(self.current_raw()?)?
+            && let Some(closer) = self.strict_trials.recovery_type_list_closer(
+                self.sources,
+                self.lexed,
+                self.current_raw()?,
+                true,
+            )?
         {
             self.index = closer + 1;
         }

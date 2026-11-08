@@ -822,8 +822,12 @@ impl Parser<'_> {
                 && !protected_suffix_group
                 && symbol == Some(Symbol::Less)
             {
-                if let Some(closer) = self.strict_trials.closed_type_list(raw_index)?
-                    && proven_type_closer.is_none_or(|limit| closer < limit)
+                if let Some(closer) = self.strict_trials.recovery_type_list_closer(
+                    self.sources,
+                    self.lexed,
+                    raw_index,
+                    !stops.recovers_type_element(),
+                )? && proven_type_closer.is_none_or(|limit| closer < limit)
                 {
                     self.index = closer + 1;
                     end = self.lexed.lexemes()[closer].span().end();
