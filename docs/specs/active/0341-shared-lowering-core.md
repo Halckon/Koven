@@ -3561,3 +3561,7 @@ architecture 记录完整保留，原 Map/容器测试内容不变。Mac Rust1.9
 unit_direct_call_loan_ends 全60项通过，共82项；frontend all-targets Clippy
 （-D warnings）、workspace fmt、862份Markdown及diff检查通过。
 本次未运行全量/native/故障注入/校准；正式CI须以本次新头单独核验，不沿用旧头绿灯。
+
+后续本地整合 #350 的 `d8125323` 后，容器目标已没有 Single helper 调用，删除其入口和 imports。
+原两提交另存已验证 bundle；没有删除或覆盖原分支。45 项容器目标测试全部通过，
+frontend all-targets Clippy 与格式/文档/尺寸检查通过；仍不代表其他 ownership 目标全部退役。

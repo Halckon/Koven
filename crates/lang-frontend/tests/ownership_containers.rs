@@ -2,16 +2,9 @@
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{NameEnvironment, resolve_names},
-    ownership_checking::{
-        DropPoint, DropTarget, ElementIndexIdentity, LoanKind, LoanTarget, OwnershipDeferredReason,
-        check_ownership,
-    },
-    parser::ParsedFile,
-    source::SourceMap,
-    type_checking::{
-        BuiltinType, IntrinsicCallable, IntrinsicTypeConstructor, TypeEnvironment, check_types,
-    },
+    name_resolution::NameEnvironment,
+    ownership_checking::{ElementIndexIdentity, LoanKind, OwnershipDeferredReason},
+    type_checking::{BuiltinType, IntrinsicCallable, IntrinsicTypeConstructor, TypeEnvironment},
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -102,36 +95,6 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             .expect("constructor binding");
     }
     (names, types)
-}
-
-fn checked(
-    text: &str,
-) -> (
-    SourceMap,
-    ParsedFile,
-    lang_frontend::ownership_checking::OwnershipCheckedFile,
-) {
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source("ownership-containers.ko", text)
-        .expect("source");
-    let parsed = parse_file_twice(&sources, source, "container ownership source");
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    assert!(
-        resolution.diagnostics().is_empty(),
-        "{:?}",
-        resolution.diagnostics()
-    );
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &resolution, &typed).expect("ownership");
-    (sources, parsed, owned)
 }
 
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
