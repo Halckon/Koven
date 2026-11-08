@@ -13,3 +13,54 @@ fn missing_separators_and_long_trivia_keep_dispatch_linear() {
         assert!(large_visits <= small_visits * 2 + 64);
     }
 }
+
+fn angle_separator_metrics(depth: usize, trivia: usize) -> usize {
+    use super::*;
+    use crate::lexer::lex;
+
+    let text = format!(
+        "interface C<T: {}Int;{} public val sentinel = 2 > 1",
+        "A<".repeat(depth),
+        "/* comment */ ".repeat(trivia),
+    );
+    let mut sources = SourceMap::new();
+    let source_id = sources.add_source("angle-separator.ko", &text).unwrap();
+    let lexed = lex(&sources, source_id).unwrap();
+    let lexical_recoveries = LexicalRecoveryIndex::new(&text, &lexed).unwrap();
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).unwrap();
+    let lambda_headers =
+        LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events).unwrap();
+    let mut parser = Parser {
+        sources: &sources,
+        lexed: &lexed,
+        lexical_recoveries,
+        file_angle: None,
+        strict_trials,
+        lambda_headers,
+        index: 0,
+        next_terminal_recovery_event: 0,
+        recursion_depth: 0,
+        file_mode: true,
+        ast: ExpressionAst::new(source_id),
+        diagnostics: Vec::new(),
+        declaration_recovery_raw_visits: 0,
+        declaration_recovery_event_queries_and_applications: 0,
+        block_dispatch_iterations: 0,
+        lambda_body_dispatch_iterations: 0,
+        significant_raw_visits: Cell::new(0),
+    };
+    let roots = parser.parse_file_roots().unwrap();
+    assert_eq!(roots.len(), 2);
+    assert_eq!(parser.diagnostics.len(), depth + 1);
+    parser.significant_raw_visits.get()
+}
+
+#[test]
+fn unfinished_nested_types_do_not_rescan_the_file_separator_suffix() {
+    let small = angle_separator_metrics(16, 64);
+    let large = angle_separator_metrics(32, 128);
+    assert!(
+        large <= small * 2 + 64,
+        "raw token visits: {small} -> {large}"
+    );
+}

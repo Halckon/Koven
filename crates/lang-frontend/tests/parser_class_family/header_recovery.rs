@@ -219,3 +219,73 @@ fn member_recovery_preserves_a_contextual_receiver_only_at_owner_baseline() {
         assert!(body.right_brace_span.is_some());
     }
 }
+
+#[test]
+fn lexer_poison_at_a_supertype_slot_is_reachable_without_losing_the_next_entry() {
+    use lang_frontend::parser::TypeRef;
+
+    for (prefix, poison, expected_codes) in [
+        ("", "async", &["L0002"][..]),
+        ("I, ", "async await", &["L0002", "L0002"][..]),
+    ] {
+        let text = format!("class C: {prefix}{poison}, J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), expected_codes, "{text}");
+        let [first, second] = parsed.roots() else {
+            panic!("classifier and following file owner for {text}");
+        };
+        let Item::Classifier(classifier) = parsed.ast().items().get(*first).unwrap().payload()
+        else {
+            panic!("recovered classifier for {text}");
+        };
+        let types = parsed.ast().type_refs();
+        let mut entries = classifier.supertypes.iter();
+        if !prefix.is_empty() {
+            let leading = types.get(entries.next().unwrap().type_ref).unwrap();
+            assert_eq!(sources.slice(leading.span()).unwrap(), "I");
+            assert!(matches!(leading.payload(), TypeRef::Qualified { .. }));
+        }
+        let recovered = entries.next().unwrap();
+        let error = types.get(recovered.type_ref).unwrap();
+        assert_eq!(sources.slice(recovered.span).unwrap(), poison);
+        assert_eq!(error.span(), recovered.span);
+        assert_eq!(error.payload(), &TypeRef::Error);
+        assert!(recovered.delegation.is_none());
+        let following = types.get(entries.next().unwrap().type_ref).unwrap();
+        assert_eq!(sources.slice(following.span()).unwrap(), "J");
+        assert!(matches!(following.payload(), TypeRef::Qualified { .. }));
+        assert!(entries.next().is_none());
+        assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
+        let next_root = parsed.ast().items().get(*second).unwrap();
+        assert_eq!(sources.slice(next_root.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn invalid_supertype_slot_stops_at_the_next_file_declaration_without_a_body() {
+    use lang_frontend::parser::TypeRef;
+
+    let (sources, parsed) = file("interface C: β\nclass Sentinel");
+    assert_eq!(codes(parsed.diagnostics()), ["L0001"]);
+    let items = parsed.ast().items();
+    let [first, second] = parsed.roots() else {
+        panic!("two classifiers");
+    };
+    let classifier = items.get(*first).unwrap();
+    assert_eq!(sources.slice(classifier.span()).unwrap(), "interface C: β");
+    let Item::Classifier(classifier) = classifier.payload() else {
+        panic!("recovered interface");
+    };
+    let [entry] = classifier.supertypes.as_slice() else {
+        panic!("one error entry");
+    };
+    let error = parsed.ast().type_refs().get(entry.type_ref).unwrap();
+    assert_eq!(error.payload(), &TypeRef::Error);
+    assert_eq!(error.span(), entry.span);
+    assert_eq!(error.span(), parsed.diagnostics()[0].primary_span());
+    assert!(classifier.body.is_none());
+    assert_eq!(
+        sources.slice(items.get(*second).unwrap().span()).unwrap(),
+        "class Sentinel"
+    );
+}
