@@ -47,7 +47,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test map_closure_lifetime_matrix \
   --test ownership_rc --test multifile_ownership_checking
 run cargo test --locked -p lang-frontend --no-fail-fast \
-  --test parser_contextual_type_ref --test parser_class_family \
+  --test parser_contextual_type_ref --test parser_class_family --test parser_interface_delegation \
   --test parser_borrow_result --test parser_implicit_unit --test parser_n1a_frontier \
   --test parser_call_argument --test parser_diagnostic_witness_matrix \
   --test parser_super_recovery --test parser_statement_separators \

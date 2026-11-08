@@ -10,13 +10,19 @@ impl Parser<'_> {
         }
         let colon_span = self.bump()?.span();
         let mut entries = Vec::new();
+        let recovery_stops = DeclarationStops::EMPTY
+            .with(DeclarationStops::COMMA)
+            .with(DeclarationStops::LEFT_BRACE)
+            .with(DeclarationStops::RIGHT_BRACE)
+            .union(self.root_declaration_stops());
         loop {
             let current = self.current()?;
             if self.can_start_type_ref(current) {
                 let type_ref = self.parse_type_ref(
                     TypeStops::empty()
                         .with(TypeStops::COMMA)
-                        .with(TypeStops::LEFT_BRACE)
+                        .with(TypeStops::CLASS_BODY)
+                        .with(TypeStops::RIGHT_BRACE)
                         .with(TypeStops::FILE),
                 )?;
                 let type_span = self.type_span(type_ref)?;
@@ -32,6 +38,7 @@ impl Parser<'_> {
                     let current = self.current()?;
                     let target_boundary = self.current_is_symbol(Symbol::Comma)
                         || self.current_is_symbol(Symbol::LeftBrace)
+                        || self.current_is_symbol(Symbol::RightBrace)
                         || matches!(current.kind(), LexemeKind::Eof)
                         || self.is_file_declaration_boundary(current);
                     let target = if self.current_is_identifier() {
@@ -74,6 +81,7 @@ impl Parser<'_> {
                     let current = self.current()?;
                     let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
                         || self.current_is_symbol(Symbol::LeftBrace)
+                        || self.current_is_symbol(Symbol::RightBrace)
                         || matches!(current.kind(), LexemeKind::Eof)
                         || self.is_file_declaration_boundary(current);
                     if !at_entry_boundary {
@@ -84,12 +92,7 @@ impl Parser<'_> {
                                 current.span(),
                             )?;
                         }
-                        self.recover_declaration_region(
-                            DeclarationStops::EMPTY
-                                .with(DeclarationStops::COMMA)
-                                .with(DeclarationStops::LEFT_BRACE)
-                                .union(self.root_declaration_stops()),
-                        )?;
+                        self.recover_declaration_region(recovery_stops)?;
                     }
                     Some(delegation)
                 } else {
@@ -112,15 +115,11 @@ impl Parser<'_> {
                         "unsupported class-family form",
                         primary,
                     )?;
-                    self.recover_declaration_region(
-                        DeclarationStops::EMPTY
-                            .with(DeclarationStops::COMMA)
-                            .with(DeclarationStops::LEFT_BRACE)
-                            .union(self.root_declaration_stops()),
-                    )?;
+                    self.recover_declaration_region(recovery_stops)?;
                 }
             } else {
                 let primary = if self.current_is_symbol(Symbol::LeftBrace)
+                    || self.current_is_symbol(Symbol::RightBrace)
                     || matches!(current.kind(), LexemeKind::Eof)
                     || self.is_file_declaration_boundary(current)
                 {
@@ -132,12 +131,7 @@ impl Parser<'_> {
                     self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
                 }
                 if !primary.is_empty() {
-                    self.recover_declaration_region(
-                        DeclarationStops::EMPTY
-                            .with(DeclarationStops::COMMA)
-                            .with(DeclarationStops::LEFT_BRACE)
-                            .union(self.root_declaration_stops()),
-                    )?;
+                    self.recover_declaration_region(recovery_stops)?;
                 }
             }
             if self.current_is_symbol(Symbol::Comma) {

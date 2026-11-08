@@ -159,7 +159,9 @@ impl Parser<'_> {
                 if !self.is_poison() {
                     self.emit_closing(self.type_boundary_span(current, stops)?, opener)?;
                 }
-                if let Some(last) = arguments.last() {
+                if stops.has_class_body_boundary() {
+                    end = self.previous_significant_end();
+                } else if let Some(last) = arguments.last() {
                     end = self.type_span(*last)?.end();
                 }
             }
@@ -293,8 +295,13 @@ impl Parser<'_> {
             )
         };
         let return_span = self.type_span(return_type)?;
+        let end = if outer_stops.has_class_body_boundary() {
+            self.previous_significant_end()
+        } else {
+            return_span.end().max(last_end)
+        };
         self.add_type_ref(
-            self.span(start, return_span.end().max(last_end))?,
+            self.span(start, end)?,
             TypeRef::Function {
                 move_span,
                 parameters,

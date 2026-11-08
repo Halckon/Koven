@@ -9,6 +9,9 @@ use lang_frontend::{
     source::{SourceId, SourceMap},
 };
 
+#[path = "parser_class_family/header_recovery.rs"]
+mod header_recovery;
+
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
@@ -687,6 +690,51 @@ fn missing_companion_constant_keeps_the_member_separator_in_both_entries() {
             assert_eq!(codes(diagnostics), expected);
         }
     }
+}
+
+#[test]
+fn lexer_poison_in_a_constructor_or_enum_parameter_list_is_reported_once() {
+    for text in [
+        "class C(val x: Int async)",
+        "class C(val x: Int async, val y: Int)",
+        "enum class E { A(x: Int async) }",
+        "enum class E { A(x: Int async, y: Int) }",
+    ] {
+        let (sources, parsed) = declaration(text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0002"], "{text}");
+        assert_eq!(
+            sources
+                .slice(parsed.diagnostics()[0].primary_span())
+                .unwrap(),
+            "async"
+        );
+        assert_eq!(
+            sources
+                .slice(parsed.ast().items().get(parsed.root()).unwrap().span())
+                .unwrap(),
+            text
+        );
+    }
+}
+
+#[test]
+fn a_classifier_cannot_declare_two_companions() {
+    let text = "class C { companion {}; companion {} }";
+    let (sources, parsed) = declaration(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0077"]);
+    let body = classifier(&parsed).body.as_ref().unwrap();
+    assert_eq!(body.members.len(), 2);
+    assert_eq!(
+        sources
+            .slice(parsed.diagnostics()[0].primary_span())
+            .unwrap(),
+        "companion"
+    );
+    assert_eq!(
+        parsed.diagnostics()[0].primary_span().start(),
+        text.rfind("companion").unwrap()
+    );
+    assert_eq!(sources.slice(body.right_brace_span.unwrap()).unwrap(), "}");
 }
 
 #[test]

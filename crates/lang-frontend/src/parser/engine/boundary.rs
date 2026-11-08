@@ -367,6 +367,11 @@ impl TypeStops {
     pub(super) const ARROW: u16 = 1 << 10;
     pub(super) const EXTENSION_NAME: u16 = 1 << 11;
     const SEMICOLON: u16 = 1 << 12;
+    pub(super) const CLASS_BODY: u16 = 1 << 13;
+
+    pub(super) const fn has_class_body_boundary(self) -> bool {
+        self.0 & Self::CLASS_BODY != 0
+    }
 
     pub(super) const fn ends_at_extension_name(self) -> bool {
         self.0 & Self::EXTENSION_NAME != 0
@@ -432,7 +437,7 @@ impl TypeStops {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)) => self.0 & Self::EQUAL != 0,
             LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => self.0 & Self::ARROW != 0,
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) => {
-                self.0 & Self::LEFT_BRACE != 0
+                self.0 & (Self::LEFT_BRACE | Self::CLASS_BODY) != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace)) => {
                 self.0 & Self::RIGHT_BRACE != 0
@@ -542,6 +547,7 @@ impl DeclarationStops {
     const ARROW: u32 = 1 << 15;
     const ELSE: u32 = 1 << 16;
     const CONTROL_EXPRESSION: u32 = 1 << 17;
+    pub(super) const CLASS_BODY: u32 = 1 << 18;
 
     pub(super) const fn from_expression_hard(stops: Stops) -> Self {
         let mut bits = 0;
@@ -622,6 +628,7 @@ impl DeclarationStops {
 
     pub(super) fn contains_soft(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
         matches!(symbol, Some(Symbol::Comma) if self.0 & Self::COMMA != 0)
+            || matches!(symbol, Some(Symbol::LeftBrace) if self.0 & Self::CLASS_BODY != 0)
             || matches!(symbol, Some(Symbol::Colon) if self.0 & Self::COLON != 0)
             || matches!(symbol, Some(Symbol::Equal) if self.0 & Self::EQUAL != 0)
             || matches!(
