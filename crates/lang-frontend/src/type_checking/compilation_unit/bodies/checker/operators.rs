@@ -291,19 +291,25 @@ impl BodyChecker<'_> {
                 self.check_expression(source, left, expected, None, return_type)?,
                 right_result,
             )
-        } else if right_null && !left_null {
-            let left_result = self.check_expression(source, left, None, None, return_type)?;
-            let expected = self.null_comparison_expected(source, left, left_result.ty);
-            (
-                left_result,
-                self.check_expression(source, right, expected, None, return_type)?,
-            )
         } else {
-            (
-                self.check_expression(source, left, None, None, return_type)?,
-                self.check_expression(source, right, None, None, return_type)?,
-            )
+            let left_result = self.check_expression(source, left, None, None, return_type)?;
+            let left_exits = self.has_pending_expression_exit(source, left, left_result)?;
+            let expected = if right_null && !left_null {
+                self.null_comparison_expected(source, left, left_result.ty)
+            } else {
+                None
+            };
+            let right_result = self.check_loop_reachable(left_exits, |checker| {
+                checker.check_expression(source, right, expected, None, return_type)
+            })?;
+            (left_result, right_result)
         };
+        let pending_exit = self.has_pending_expression_exit(source, left, left_result)?
+            && self.has_pending_expression_exit(source, right, right_result)?;
+        self.note_pending_exit(
+            PendingControlSite::Expression(UnitExpressionId::new(source, expression)),
+            pending_exit,
+        );
         if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
             return Ok(ExpressionCheck {
                 ty: self.deferred_type(crate::type_checking::DeferredReason::ControlJoin),

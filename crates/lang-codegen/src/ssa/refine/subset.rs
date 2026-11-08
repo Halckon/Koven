@@ -8,6 +8,9 @@ mod drops;
 mod field;
 mod heap;
 mod inout;
+mod loop_route;
+use loop_route::LoopRoute;
+pub(super) use loop_route::accepts;
 mod map;
 mod range_borrow;
 mod rc;
@@ -55,6 +58,8 @@ struct Checker<'i, 'a> {
     has_local_destructuring: bool,
     /// A temporary sequential source can refine only in an already migrated scope.
     has_temporary_sequential_for: bool,
+    loop_route: LoopRoute,
+    loop_route_retry: bool,
     /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
     /// the replacement itself.
     replacements: BTreeSet<UnitExpressionId>,
@@ -69,7 +74,7 @@ struct Checker<'i, 'a> {
     view_symbols: BTreeSet<UnitSymbolId>,
 }
 
-pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
+fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> (bool, bool) {
     let mut known: BTreeSet<_> = inputs.parameters.iter().copied().collect();
     if let RefineBody::Lambda(thunk) = &inputs.body {
         known.extend(thunk.captures.iter().map(|capture| capture.symbol));
@@ -84,6 +89,8 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         migrated: false,
         has_local_destructuring: false,
         has_temporary_sequential_for: false,
+        loop_route,
+        loop_route_retry: false,
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
@@ -212,13 +219,16 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
     };
     // Check the temporary-source route after the body so statement order does not matter.
-    signature
+    let accepted = signature
         && body_ok
+        && (loop_route == LoopRoute::Existing
+            || checker.loop_route == LoopRoute::Verified && checker.has_local_destructuring)
         && (!checker.has_temporary_sequential_for
             || checker.has_local_destructuring
             || checker.scope_requires_refine())
         && checker.drops_supported()
-        && (checker.nullable || checker.migrated)
+        && (checker.nullable || checker.migrated);
+    (accepted, signature && checker.loop_route_retry)
 }
 
 /// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
@@ -233,6 +243,8 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         migrated: false,
         has_local_destructuring: false,
         has_temporary_sequential_for: false,
+        loop_route: LoopRoute::Existing,
+        loop_route_retry: false,
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
@@ -950,7 +962,7 @@ impl Checker<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => {
-                self.strip_reassigned_loop_views(node.span());
+                self.strip_reassigned_loop_views(node.span(), true);
                 let saved = self.view_symbols.clone();
                 let ok = self.condition(condition, true)
                     && (!self.condition_outcomes(condition).0 || self.loop_body(body));
@@ -958,13 +970,13 @@ impl Checker<'_, '_> {
                 ok
             }
             Statement::Loop { body, .. } => {
-                self.strip_reassigned_loop_views(node.span());
+                self.strip_reassigned_loop_views(node.span(), false);
                 self.loop_body(body)
             }
             Statement::For { source, body, .. } => {
-                self.strip_reassigned_loop_views(node.span());
+                self.strip_reassigned_loop_views(node.span(), false);
                 self.numeric_for(statement, source, body)
-                    || self.sequential_for(statement, source, body)
+                    || self.sequential_for(statement, source, body, node.span())
                     || self.range_view_for(statement, source, body)
                     || self.map_for(statement, source, body)
             }

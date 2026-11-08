@@ -288,6 +288,7 @@ impl BodyChecker<'_> {
         let previous_flow = self.flow_facts.clone();
         let previous_versions = self.flow_versions.clone();
         let previous_callable_returns = self.pending_callable_returns.take();
+        let previous_body_reachability = std::mem::replace(&mut self.body_path_reachable, true);
         if writeback_origin.is_some() {
             self.pending_callable_returns = Some(PendingCallableReturns::for_closure());
         }
@@ -314,6 +315,7 @@ impl BodyChecker<'_> {
         self.flow_facts = previous_flow;
         self.flow_versions = previous_versions;
         self.pending_callable_returns = previous_callable_returns;
+        self.body_path_reachable = previous_body_reachability;
         result
     }
 }

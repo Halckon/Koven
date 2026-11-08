@@ -38,6 +38,8 @@ impl BodyChecker<'_> {
         let errors = self.diagnostics.len();
         let deferred = self.deferred_facts.len();
         let checked = self.check_expression(source, iteration_source, None, None, return_type)?;
+        let source_exits = self.has_pending_expression_exit(source, iteration_source, checked)?;
+        self.note_pending_statement_exit(source, statement, source_exits);
         let source_id = UnitExpressionId::new(source, iteration_source);
         let source_pending = self.storage_value_is_pending(source_id)
             || self.replacement_value_pending(source_id, checked.ty, deferred);
@@ -48,21 +50,23 @@ impl BodyChecker<'_> {
                 .insert(UnitStatementId::new(source, statement));
         }
         if let Some((constructor, key, value)) = self.map_parts(checked.ty) {
-            self.check_map_iteration(
-                source,
-                statement,
-                binding,
-                iteration_source,
-                body,
-                return_type,
-                return_span,
-                checked.ty,
-                constructor,
-                key,
-                value,
-                errors,
-                source_pending,
-            )?;
+            self.check_loop_reachable(source_exits, |checker| {
+                checker.check_map_iteration(
+                    source,
+                    statement,
+                    binding,
+                    iteration_source,
+                    body,
+                    return_type,
+                    return_span,
+                    checked.ty,
+                    constructor,
+                    key,
+                    value,
+                    errors,
+                    source_pending,
+                )
+            })?;
             return Ok(ExpressionCheck {
                 ty: self.builtin(BuiltinType::Unit),
                 falls_through: checked.falls_through,
@@ -130,7 +134,9 @@ impl BodyChecker<'_> {
                 .rejected_iteration_headers
                 .push(UnitStatementId::new(source, statement));
         }
-        self.check_repeating_flow(source, None, body, return_type, return_span, true)?;
+        self.check_loop_reachable(source_exits, |checker| {
+            checker.check_repeating_flow(source, None, body, return_type, return_span, true)
+        })?;
         if header_is_valid
             && let (Some((provider, element_type)), Some(binding)) = (provider, resolved)
         {

@@ -30,10 +30,14 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let deferred = self.deferred_facts.len();
-        let source_type = self
-            .check_expression(source, initializer, None, None, return_type)?
-            .ty;
-        let unit = self.builtin(BuiltinType::Unit);
+        let checked = self.check_expression(source, initializer, None, None, return_type)?;
+        let pending_exit = self.has_pending_expression_exit(source, initializer, checked)?;
+        self.note_pending_statement_exit(source, statement, pending_exit);
+        let source_type = checked.ty;
+        let result = ExpressionCheck {
+            ty: self.builtin(BuiltinType::Unit),
+            falls_through: checked.falls_through,
+        };
         let UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -52,10 +56,7 @@ impl BodyChecker<'_> {
             for &binding in bindings {
                 self.set_marker_symbol(source, binding, fallback);
             }
-            return Ok(ExpressionCheck {
-                ty: unit,
-                falls_through: true,
-            });
+            return Ok(result);
         };
         let Some(nominal) = self
             .signatures
@@ -70,10 +71,7 @@ impl BodyChecker<'_> {
             for &binding in bindings {
                 self.set_marker_symbol(source, binding, deferred);
             }
-            return Ok(ExpressionCheck {
-                ty: unit,
-                falls_through: true,
-            });
+            return Ok(result);
         }
 
         let substitutions = nominal
@@ -170,14 +168,12 @@ impl BodyChecker<'_> {
                         source_type,
                         mode,
                         typed_components.into_iter().flatten().collect(),
+                        self.body_path_reachable && pending_exit,
                     ));
             }
         }
 
-        Ok(ExpressionCheck {
-            ty: unit,
-            falls_through: true,
-        })
+        Ok(result)
     }
 
     pub(super) fn substitute_type(
