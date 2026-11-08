@@ -9,6 +9,7 @@ mod pr120_verifier_diagnostics;
 #[cfg(test)]
 mod registration_tests;
 use super::*;
+use crate::ssa::refine::CallableRoute;
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。
 pub(super) fn lower_unit_from_facts(
@@ -512,6 +513,7 @@ fn lower_unit_impl(
             })
         };
         let refine_callables = closure::refine_callables(&callable_plans, plan.id);
+        let mut compatibility = false;
         if let Some((entry, entities, modes, borrow_return, carrier_return)) = refine_entry {
             let refine_body = match &plan.body {
                 FunctionPlanBody::Expression(expression) => {
@@ -556,7 +558,9 @@ fn lower_unit_impl(
                 borrow_return,
                 carrier_return,
             };
-            if crate::ssa::refine::routes(&inputs) {
+            let route = crate::ssa::refine::route(&inputs);
+            compatibility = matches!(route, CallableRoute::Compatibility);
+            if matches!(route, CallableRoute::Refine) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {
                     types.intern(module, typed, ty, plan.instance.span())?;
                 }
@@ -679,6 +683,7 @@ fn lower_unit_impl(
             }
         }
         let mut lowerer = UnitExpressionLowerer {
+            migrated_family_compatibility: compatibility,
             sources,
             parsed,
             source_unit: plan.instance.source_unit(),
@@ -829,7 +834,8 @@ fn lower_unit_impl(
             borrow_return: None,
             carrier_return: None,
         };
-        if crate::ssa::refine::routes(&inputs) {
+        let route = crate::ssa::refine::route(&inputs);
+        if matches!(route, CallableRoute::Refine) {
             for ty in crate::ssa::refine::type_demands(&inputs) {
                 types.intern(module, typed, ty, plan.span)?;
             }
@@ -857,6 +863,7 @@ fn lower_unit_impl(
             .entry_block()
             .expect("planned unit closure thunk has entry");
         let mut lowerer = UnitExpressionLowerer {
+            migrated_family_compatibility: matches!(route, CallableRoute::Compatibility),
             sources,
             parsed,
             source_unit: plan.source_unit,

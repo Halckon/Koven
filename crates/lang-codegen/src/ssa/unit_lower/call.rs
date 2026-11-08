@@ -222,7 +222,7 @@ impl UnitExpressionLowerer<'_> {
         }
         let receiver = if resolved.delegation().is_empty() {
             receiver
-        } else if !self.typed.map_iterations().is_empty() {
+        } else if self.migrated_family_compatibility {
             self.lower_delegated_call_receiver(call, receiver, resolved.delegation(), span)?
         } else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));

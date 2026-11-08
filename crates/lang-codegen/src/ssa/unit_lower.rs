@@ -147,6 +147,7 @@ impl From<ReceiverBinding> for ConsumedReceiver {
 }
 
 struct UnitExpressionLowerer<'a> {
+    migrated_family_compatibility: bool,
     sources: &'a SourceMap,
     parsed: &'a lang_frontend::parser::ParsedFile,
     source_unit: SourceUnitId,

@@ -169,33 +169,62 @@ pub(in crate::ssa) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     subset::accepts(inputs)
 }
 
-/// Whether the function instance is lowered here; [`accepts`] unless a test pinned the
-/// per-family path.
-pub(in crate::ssa) fn routes(inputs: &RefineInputs<'_>) -> bool {
+pub(in crate::ssa) enum CallableRoute {
+    Refine,
+    Compatibility,
     #[cfg(test)]
-    if PER_FAMILY_ONLY.with(std::cell::Cell::get) {
-        return false;
+    ForcedPerFamily,
+}
+
+/// Qualify the current callable before choosing a lowering path. The compatibility path
+/// supports mixed bodies whose validated facts do not fit the complete refine subset.
+pub(in crate::ssa) fn route(inputs: &RefineInputs<'_>) -> CallableRoute {
+    if !accepts(inputs) {
+        return CallableRoute::Compatibility;
     }
-    accepts(inputs)
+    #[cfg(test)]
+    if let PerFamilyOverride::Forced { except } = PER_FAMILY_OVERRIDE.with(std::cell::Cell::get)
+        && except.is_none_or(|span| inputs.scope_span() != Some(span))
+    {
+        return CallableRoute::ForcedPerFamily;
+    }
+    CallableRoute::Refine
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy)]
+enum PerFamilyOverride {
+    Disabled,
+    Forced { except: Option<Span> },
 }
 
 #[cfg(test)]
 thread_local! {
-    static PER_FAMILY_ONLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static PER_FAMILY_OVERRIDE: std::cell::Cell<PerFamilyOverride> =
+        const { std::cell::Cell::new(PerFamilyOverride::Disabled) };
 }
 
-/// Test-only: runs `lower` with every function on the per-family path, for tests that
-/// inspect or fault-inject that path's private guards.
+/// Test-only: pin the per-family path to observe or fault-inject its private guards.
 #[cfg(test)]
 pub(crate) fn with_per_family_lowering<T>(lower: impl FnOnce() -> T) -> T {
-    struct Reset;
+    with_per_family_lowering_except(None, lower)
+}
+
+/// A fixture producer may retain normal routing while its consumers are pinned.
+#[cfg(test)]
+pub(in crate::ssa) fn with_per_family_lowering_except<T>(
+    except: Option<Span>,
+    lower: impl FnOnce() -> T,
+) -> T {
+    struct Reset(PerFamilyOverride);
     impl Drop for Reset {
         fn drop(&mut self) {
-            PER_FAMILY_ONLY.with(|flag| flag.set(false));
+            PER_FAMILY_OVERRIDE.with(|state| state.set(self.0));
         }
     }
-    PER_FAMILY_ONLY.with(|flag| flag.set(true));
-    let _reset = Reset;
+    let previous =
+        PER_FAMILY_OVERRIDE.with(|state| state.replace(PerFamilyOverride::Forced { except }));
+    let _reset = Reset(previous);
     lower()
 }
 

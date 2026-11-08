@@ -2821,3 +2821,23 @@ lambda 的 `swap` 均不能绕过门禁。只有已证不交叠的完整 `if` �
 结束并支配作用域后的分支。独立复核提出的 nullable receiver 字段投影对照在旧 CLI
 与当前 CLI 的两种布局均为相同的 `UnsupportedNode`。codegen 全目标 Clippy、
 格式、文档和 Rust 尺寸门禁通过。
+
+
+## 109. R4 旧路径中的数值区间、Map consume 与委托 receiver
+
+基线 `59d3c280` 的六条普通 Unit 源码分别组合三种操作与两种真实旧路由形状。
+前者是数值区间 `for`、`Map.consume`、接口委托 receiver。后者是 Borrow
+`String?` 形参或循环内重新赋值外层已收窄的 nullable owner。每组只追加一个未调用、
+含 Map 迭代的函数，前端均成功。有 sibling 时六例原生构建运行且 stdout 匹配，
+去掉 sibling 后六例均在到达的目标操作处报 `UnsupportedNode`。
+
+修复将三个整单元 gate 替换为逐 callable 的细化资格。细化接手后构建失败直接报错。
+当前还需兼容路径的函数与 thunk 使用各操作已存在的 descriptor、来源、layout 和 ownership
+检查，再由整程序 SSA verifier 验证。强制旧路径的退役见证仍要求可细化用例在三个旧
+入口被拒绝。两组嵌套 Map 查询只将不检查函数体的输入工厂恢复默认路由，仍核对原始
+输入、同轮前端事实、调用方和 scan 的所有入边、loan 生命周期、清理与真实 SSA/LLVM。
+
+六条 native 回归在基线均失败。修改后本机六条全部通过，每条分别链接并运行有/无
+sibling 的输入且核对退出、stdout 和 stderr。两组嵌套 Map 查询、九条匹配
+`retired_` 的既有边界测试通过，零失败和忽略。该结果覆盖本机 macOS，双宿主验证
+需在批次 PR 的集成提交上执行。

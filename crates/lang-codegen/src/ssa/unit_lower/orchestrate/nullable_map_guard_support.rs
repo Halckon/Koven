@@ -430,6 +430,7 @@ impl Fixture {
         let field_indices = BTreeMap::new();
         let callable_plans = BTreeMap::new();
         let mut lowerer = UnitExpressionLowerer {
+            migrated_family_compatibility: false,
             sources: &self.sources,
             parsed: self.parsed(),
             source_unit: self.source,
