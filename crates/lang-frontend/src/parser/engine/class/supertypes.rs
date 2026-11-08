@@ -139,11 +139,20 @@ impl Parser<'_> {
                 } else {
                     current.span()
                 };
-                if !self.is_poison_kind(current.kind()) {
+                let poison = self.is_poison_kind(current.kind());
+                if !poison {
                     self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
                 }
                 if !primary.is_empty() {
-                    self.recover_declaration_region(recovery_stops)?;
+                    let end = self.recover_declaration_region(recovery_stops)?;
+                    if poison {
+                        let span = self.span(primary.start(), end)?;
+                        entries.push(SupertypeEntry {
+                            span,
+                            type_ref: self.add_type_ref(span, TypeRef::Error)?,
+                            delegation: None,
+                        });
+                    }
                 }
             }
             if self.current_is_symbol(Symbol::Comma) {
