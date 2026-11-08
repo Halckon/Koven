@@ -107,11 +107,11 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
-| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过；内部旧入口见 §93 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
+| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过。内部旧入口见 §93 和 §105，失败 trial 的三入口事实见 §98 | 全部真实消费者/逐合同清单仍需对账 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§103 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
-| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
+| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；对象发布见 §99，借用和 Map 路由见 §106–108，双宿主预览、Linux sanitizer 与本机 LLDB 的实跑证据已分别记账 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
 
 ## 8. 验收账本
@@ -2787,6 +2787,10 @@ CLI 实测 `6f791a21` 上，字段借用、打印、随后 return 的程序构�
 lambda thunk、Basic/Const 的真实入口仍有阶段检查。SPEC-0331 的历史整源码后端能力
 政策在此退出，整个编译单元的前端验证及旧 Single 的门禁保留。
 本机两条定向回归已通过，覆盖两种布局的真实 native 输出与实际调用时的拒绝位置。
+接入 `59d3c280` 后，前端定向 217 项和 codegen 定向 10 项通过，零失败和忽略。
+codegen 全目标 Clippy 通过。正式 CLI 对照覆盖单文件和拆分项目，8 个正例均构建运行
+且逐字节匹配 stdout。4 个实际到达的字段遍历负例均保留 `UnsupportedNode` 并未生成
+产物。单文件退出 2、项目退出 1 与旧 CLI 的对应入口一致。
 
 本机实际执行 map/refine 路由矩阵 13 项、Map 原别名事实 1 项、multi-borrow 6 项、
 borrow result 5 项、RangeView 路由 1 项、依赖方向 14 项，共 40 项，零失败和忽略。
