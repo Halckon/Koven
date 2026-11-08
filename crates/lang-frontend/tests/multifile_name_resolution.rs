@@ -721,3 +721,6 @@ fn default_package_and_real_long_package_imports_keep_declaration_targets() {
         Some(&UnitReferenceTarget::Declaration(member.id()))
     );
 }
+
+#[path = "multifile_name_resolution/forward_enum.rs"]
+mod forward_enum;

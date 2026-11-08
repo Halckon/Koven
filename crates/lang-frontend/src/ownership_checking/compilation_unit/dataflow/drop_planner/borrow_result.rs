@@ -133,6 +133,7 @@ impl DropPlanner<'_, '_> {
                 continue;
             }
             state.borrow_bindings.remove(index);
+            self.finish_borrow_binding_transport(binding, point, state);
             let fact = BorrowBindingEndFact {
                 binding,
                 point: point.into_unit(self.checker.source_unit),

@@ -1,8 +1,8 @@
 //! 同一原始 AST 与显式环境的双 Unit 入口，不增加 final/ownership 前置。
 use lang_frontend::{
     name_resolution::{
-        NameEnvironment, SourceUnitInput, SourceUnitKey, index_compilation_unit,
-        resolve_compilation_unit_names,
+        CompilationUnitNames, NameEnvironment, SourceUnitInput, SourceUnitKey,
+        index_compilation_unit, resolve_compilation_unit_names,
     },
     parser::ParsedFile,
     source::SourceMap,
@@ -14,6 +14,15 @@ pub(super) fn checked_entries(
     environment: &NameEnvironment,
     types: &TypeEnvironment,
 ) -> [CompilationUnitTypes; 2] {
+    checked_named_entries(sources, parsed, environment, types).map(|(_, typed)| typed)
+}
+
+pub(super) fn checked_named_entries(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    environment: &NameEnvironment,
+    types: &TypeEnvironment,
+) -> [(CompilationUnitNames, CompilationUnitTypes); 2] {
     [false, true].map(|rooted| {
         let input = if rooted {
             SourceUnitInput::new("root", "callable.ko", parsed.source_id(), parsed)
@@ -46,6 +55,6 @@ pub(super) fn checked_entries(
                 .iter()
                 .all(|call| call.expression().source_unit() == source.id())
         );
-        typed
+        (names.into_names(), typed)
     })
 }

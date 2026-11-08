@@ -175,9 +175,135 @@ fn release_replay_rejects_wrong_edge_missing_and_repeated_slot_release() {
     }
 }
 
+// Both real edges terminate: this remains outside the single-return admission.
+pub(in crate::ownership_checking::compilation_unit) const BOTH_RETURN_RELEASE: &str = r#"fun run(flag: Boolean, own text: String): Unit {
+val callback = move { text }
+if (flag) { val first = callback; return } else { val second = callback; return }
+}"#;
+
+#[test]
+fn capture_release_admits_one_bare_return_without_changing_owned_slots() {
+    let fixture = Fixture::new(&[("root.ko", RETURN_RELEASE)]);
+    let owned = fixture.shared();
+    assert!(owned.clone().validate().is_ok());
+    assert_eq!(owned, fixture.shared());
+    let observation = function(&owned);
+    assert_eq!(observation.status(), UnitOwnerObservationStatus::Complete);
+    assert!(observation.is_consistent());
+    assert!(observation.value_observation_v1().is_none());
+    let formations = observation
+        .events()
+        .iter()
+        .filter_map(|event| match event {
+            UnitOwnerTransportEvent::Capture {
+                expression,
+                environment,
+                inputs,
+            } => Some((*expression, environment, inputs)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(expression, environment, inputs)] = formations.as_slice() else {
+        panic!("one pre-fork environment")
+    };
+    assert_eq!(
+        *expression,
+        UnitExpressionId::new(fixture.source(0), fixture.expression(0, "move { text }"))
+    );
+    assert_eq!(
+        observation
+            .definition((*environment).clone())
+            .unwrap()
+            .origin(),
+        UnitOwnerOrigin::Closure(*expression)
+    );
+    let [input] = inputs.as_slice() else {
+        panic!("one owned String slot")
+    };
+    assert_eq!(input.0, fixture.symbol(0, "text"));
+    assert_eq!(
+        observation.definition(input.1.clone()).unwrap().origin(),
+        UnitOwnerOrigin::Parameter(input.0)
+    );
+    assert_eq!(release_paths(observation.events(), environment, input), 2);
+    let forks = observation
+        .events()
+        .iter()
+        .filter_map(|event| match event {
+            UnitOwnerTransportEvent::If {
+                control,
+                then_events,
+                else_events,
+            } => Some((*control, then_events, else_events)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(control, then_events, else_events)] = forks.as_slice() else {
+        panic!("one real fork")
+    };
+    assert_eq!(
+        *control,
+        UnitExpressionId::new(
+            fixture.source(0),
+            fixture.expression(
+                0,
+                "if (flag) { val first = callback; return } else { val second = callback }"
+            )
+        )
+    );
+    let returned = UnitExpressionId::new(fixture.source(0), fixture.expression(0, "return"));
+    assert!(
+        matches!(then_events.last(), Some(UnitOwnerTransportEvent::UnitReturn { expression }) if *expression == returned)
+    );
+    assert_eq!(
+        then_events
+            .iter()
+            .filter(|event| matches!(event, UnitOwnerTransportEvent::UnitReturn { .. }))
+            .count(),
+        1
+    );
+    assert!(
+        !else_events
+            .iter()
+            .any(|event| matches!(event, UnitOwnerTransportEvent::UnitReturn { .. }))
+    );
+    for (edge, alias) in [(then_events, "first"), (else_events, "second")] {
+        let binding = fixture.symbol(0, alias);
+        // These unused aliases retire before return/branch exit at their own AST statement.
+        let expected = super::capture_composition::local_drop_point(&fixture, binding);
+        let releases = edge
+            .iter()
+            .filter_map(|event| match event {
+                UnitOwnerTransportEvent::CaptureDrop { point, .. } => Some(*point),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(releases, vec![expected]);
+        let drops = edge
+            .iter()
+            .filter_map(|event| match event {
+                UnitOwnerTransportEvent::Drop {
+                    symbol,
+                    owner,
+                    point,
+                } => Some((*symbol, owner, *point)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(drops, vec![(binding, *environment, expected)]);
+        assert!(edge.iter().any(|event| matches!(event, UnitOwnerTransportEvent::Binding { symbol, owner, .. } if *symbol == binding && owner == *environment)));
+    }
+    assert!(!observation.events().iter().any(|event| matches!(
+        event,
+        UnitOwnerTransportEvent::Drop { .. }
+            | UnitOwnerTransportEvent::CaptureDrop { .. }
+            | UnitOwnerTransportEvent::UnitReturn { .. }
+    )));
+}
+
 #[test]
 fn capture_release_does_not_admit_noncontinuing_if_edges() {
-    let fixture = Fixture::new(&[("root.ko", RETURN_RELEASE)]);
+    let fixture = Fixture::new(&[("root.ko", BOTH_RETURN_RELEASE)]);
     let owned = fixture.shared();
     assert!(owned.clone().validate().is_ok());
     let observation = function(&owned);
@@ -188,7 +314,7 @@ fn capture_release_does_not_admit_noncontinuing_if_edges() {
                 fixture.source(0),
                 fixture.expression(
                     0,
-                    "if (flag) { val first = callback; return } else { val second = callback }"
+                    "if (flag) { val first = callback; return } else { val second = callback; return }"
                 ),
             )),
             reason: UnitOwnerUnsupportedReason::Syntax,

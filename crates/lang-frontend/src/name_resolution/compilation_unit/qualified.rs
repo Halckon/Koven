@@ -48,6 +48,7 @@ impl UnitResolver<'_> {
         let source = source_unit_id(source_index);
         for spans in paths {
             if self.has_lexical_root(source, spans[0]) {
+                self.resolve_local_enum_type_path(source, &spans)?;
                 continue;
             }
             if !self.try_relative_static_path(source, &spans, Namespace::Type)?
@@ -56,6 +57,59 @@ impl UnitResolver<'_> {
                 self.try_absolute_qualified_path(source, &spans, Namespace::Type)?;
             }
         }
+        Ok(())
+    }
+
+    /// Complete the case identity after every local classifier has been resolved.
+    fn resolve_local_enum_type_path(
+        &mut self,
+        source: SourceUnitId,
+        spans: &[Span],
+    ) -> Result<(), CompilationUnitNameError> {
+        let [head, tail] = spans else {
+            return Ok(());
+        };
+        let resolution = &self.local[source.index()];
+        let Some(root) = resolution.references().iter().find_map(|reference| {
+            if reference.span() != *head || reference.namespace() != Namespace::Type {
+                return None;
+            }
+            match reference.target() {
+                ReferenceTarget::Symbol(symbol) => Some(*symbol),
+                _ => None,
+            }
+        }) else {
+            return Ok(());
+        };
+        if !resolution
+            .enum_cases()
+            .iter()
+            .any(|case| case.root() == root)
+        {
+            return Ok(());
+        }
+        let name = self
+            .sources
+            .slice(*tail)
+            .map_err(NameResolutionError::from)?;
+        let case = resolution.enum_cases().iter().find(|case| {
+            case.root() == root && resolution.symbols()[case.type_symbol().index()].name() == name
+        });
+        let target = case.map_or(UnitReferenceTarget::Unresolved, |case| {
+            UnitReferenceTarget::Symbol(UnitSymbolId::new(source, case.type_symbol()))
+        });
+        // Never let a missing case fall back to an unrelated file-level type.
+        // The already-bound root and all other local references remain unchanged.
+        self.suppressed_unresolved[source.index()].insert(span_key(*tail));
+        if matches!(target, UnitReferenceTarget::Unresolved) {
+            self.push_diagnostic(codes::UNRESOLVED_NAME, "unresolved enum case type", *tail)?;
+        }
+        self.references.push(UnitNameReference::new(
+            source,
+            *tail,
+            Some(Namespace::Type),
+            target,
+        ));
         Ok(())
     }
 

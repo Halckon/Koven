@@ -169,3 +169,33 @@ fn branch_local_shared_capture_preserves_full_cleanup_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn unit_return_observation_keeps_full_legacy_analysis() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_return::{
+        BOUNDARIES, LOCAL_SOURCES, SOURCES,
+    };
+    for source in SOURCES.iter().chain(BOUNDARIES).chain(LOCAL_SOURCES) {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+    let source = crate::ownership_checking::compilation_unit::owner_transport_tests::branch_boundaries::source(r#"if (flag) { return } else { val local = "right" }"#);
+    let fixture = Fixture::new(&[("root.ko", &source)]);
+    let owned = fixture.shared();
+    compare(&fixture, &fixture.parts(&owned));
+}
+
+#[test]
+fn owned_capture_return_preserves_full_cleanup_analysis() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::capture_branch_release::{
+        BOTH_RETURN_RELEASE, RETURN_RELEASE,
+    };
+    for source in [RETURN_RELEASE, BOTH_RETURN_RELEASE] {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}

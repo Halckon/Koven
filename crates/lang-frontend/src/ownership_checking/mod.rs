@@ -56,7 +56,8 @@ pub use cleanup_condition::{
 };
 pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
-    UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact, UnitCallArgumentOwnershipContract,
+    UnitBorrowBindingTransportFact, UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact,
+    UnitBorrowCallTransportFact, UnitBorrowForwardTransportFact, UnitCallArgumentOwnershipContract,
     UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor, UnitClosureCaptureSource,
     UnitClosureDescriptor, UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
     UnitConstantMaterializationPlan, UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,

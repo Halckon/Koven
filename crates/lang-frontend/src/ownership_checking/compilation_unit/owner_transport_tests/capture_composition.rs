@@ -169,7 +169,7 @@ fn assert_live_at_fork(events: &[UnitOwnerTransportEvent], captures: &[ExpectedC
 }
 
 // Unused pure aliases die at their own declaration, not a point read from either product.
-fn local_drop_point(fixture: &Fixture, binding: UnitSymbolId) -> UnitDropPoint {
+pub(super) fn local_drop_point(fixture: &Fixture, binding: UnitSymbolId) -> UnitDropPoint {
     use crate::parser::{Item, NameMarker, Statement};
     let resolution =
         fixture.names.names().source_units()[binding.source_unit().index()].resolution();

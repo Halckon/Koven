@@ -80,18 +80,22 @@ impl DropPlanner<'_, '_> {
         }
         let else_events = self.take_owner_edge(checkpoint);
         if self.owner_observation_active() {
-            if let (Some(then_events), Some(else_events), [left, right]) =
-                (then_events, else_events, branch_states.as_slice())
-            {
-                // Cleanup has run on both paths. Common symbol presence alone is not
-                // evidence that the same owner reaches the continuation.
-                let same_owners = left.values.len() == right.values.len()
-                    && left.values.iter().all(|value| {
-                        value.owner.is_some()
-                            && right
-                                .position(value.symbol)
-                                .is_some_and(|index| right.values[index].owner == value.owner)
-                    });
+            if let (Some(then_events), Some(else_events)) = (then_events, else_events) {
+                // A terminated arm has no continuation state. Its explicit return
+                // event and complete cleanup are checked by both replays.
+                let same_owners = match branch_states.as_slice() {
+                    [_] => true,
+                    [left, right] => {
+                        left.values.len() == right.values.len()
+                            && left.values.iter().all(|value| {
+                                value.owner.is_some()
+                                    && right.position(value.symbol).is_some_and(|index| {
+                                        right.values[index].owner == value.owner
+                                    })
+                            })
+                    }
+                    _ => false,
+                };
                 if same_owners {
                     self.owner_event(UnitOwnerTransportEvent::If {
                         control: self.checker.unit_expression(id),
@@ -102,13 +106,40 @@ impl DropPlanner<'_, '_> {
                     self.reject_owner_expression(id, UnitOwnerUnsupportedReason::MissingOwner);
                 }
             } else {
-                // A return path needs a distinct delivery/exit contract, not a missing edge.
+                // Unsupported edges cannot publish a partial trace.
                 self.reject_owner_expression(id, UnitOwnerUnsupportedReason::Syntax);
             }
         }
         let continues = !branch_states.is_empty();
         *state = self.merge_resource_states(id, branch_states);
         Ok(continues)
+    }
+
+    // Keep legacy Return traversal and cleanup in the same order, independent
+    // of whether this observation is enabled or supported.
+    pub(in super::super) fn owner_return_expression(
+        &mut self,
+        id: ExpressionId,
+        value: Option<ExpressionId>,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        if let Some(value) = value
+            && !self.expression(value, DropExpressionUse::Consume, state)?
+        {
+            return Ok(false);
+        }
+        self.finish_return_iterations(id, state);
+        self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
+        if self.owner_branch_depth != 0 {
+            if value.is_none() {
+                self.owner_event(UnitOwnerTransportEvent::UnitReturn {
+                    expression: self.checker.unit_expression(id),
+                });
+            } else {
+                self.reject_owner_expression(id, UnitOwnerUnsupportedReason::Syntax);
+            }
+        }
+        Ok(false)
     }
 
     fn take_owner_edge(

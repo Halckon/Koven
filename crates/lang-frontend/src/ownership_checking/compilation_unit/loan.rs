@@ -228,3 +228,107 @@ impl UnitBorrowCallPrefixEndFact {
         self.preceding_call_loan_ends
     }
 }
+
+/// Actual source-token transport through a synchronous Borrow consumer.
+/// This bounded normal-return transaction is not a complete loan-end stream.
+/// It does not cover binding/forwarded sources, receivers, providers or unwind.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowCallTransportFact {
+    pub(super) source: UnitLoanFact,
+    pub(super) consumer: UnitLoanFact,
+}
+
+impl UnitBorrowCallTransportFact {
+    /// The inner call completed here, moving its actual source token into transport.
+    /// This is a handoff, not a source end.
+    #[must_use]
+    pub const fn handoff_point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source.call)
+    }
+
+    /// The actual consumer completed here and retired both transported tokens.
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.consumer.call)
+    }
+
+    /// Consumer token ends before its source ancestor, in this transaction only.
+    /// Other transactions and cleanup actions have no shared ordering through this API.
+    #[must_use]
+    pub const fn ended_loans(&self) -> [&UnitLoanFact; 2] {
+        [&self.consumer, &self.source]
+    }
+}
+
+/// Actual source token carried from a direct initializer to local binding termination.
+/// This bounded transaction is not a complete loan-end stream or a shared cleanup order.
+/// Parent/provider/projected sources and forwarded results are not covered.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowBindingTransportFact {
+    pub(super) source: UnitLoanFact,
+    pub(super) binding: crate::name_resolution::UnitSymbolId,
+    pub(super) point: UnitDropPoint,
+}
+
+impl UnitBorrowBindingTransportFact {
+    /// The exact pending source token moved at initializer return, then consumed at termination.
+    #[must_use]
+    pub const fn source_loan(&self) -> &UnitLoanFact {
+        &self.source
+    }
+
+    /// The successfully initialized local result whose actual retirement released the token.
+    #[must_use]
+    pub const fn binding(&self) -> crate::name_resolution::UnitSymbolId {
+        self.binding
+    }
+
+    /// Actual initializer return; this handoff is not a source end.
+    #[must_use]
+    pub const fn handoff_point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source.call)
+    }
+
+    /// Actual binding termination followed by source-token retirement, before owner cleanup.
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+}
+
+/// Actual Shared parameter-source token handed from an inner call to a wrapper return.
+/// This bounded forwarding transaction does not end the source, map it to a caller
+/// instance, or prove absence in a complete loan-end stream.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowForwardTransportFact {
+    pub(super) source: UnitLoanFact,
+    pub(super) returned: UnitExpressionId,
+    pub(super) point: UnitDropPoint,
+}
+
+impl UnitBorrowForwardTransportFact {
+    /// Original pending source token, preserved without reconstructing a loan descriptor.
+    #[must_use]
+    pub const fn source_loan(&self) -> &UnitLoanFact {
+        &self.source
+    }
+
+    /// The complete returned expression, retaining any Group identity.
+    #[must_use]
+    pub const fn returned_expression(&self) -> UnitExpressionId {
+        self.returned
+    }
+
+    /// Normal inner return where the source token moved into forwarding state.
+    #[must_use]
+    pub const fn handoff_point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source.call)
+    }
+
+    /// Actual wrapper return where its result takes over the live source token.
+    /// This is a transfer, not a source end or owner drop.
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+}
