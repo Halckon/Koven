@@ -226,9 +226,12 @@ fn lexer_poison_at_a_supertype_slot_is_reachable_without_losing_the_next_entry()
 
     for (prefix, poison, expected_codes) in [
         ("", "async", &["L0002"][..]),
+        ("", "async<A, B>", &["L0002"][..]),
+        ("I, ", "β /* gap */ <A<B>, C>", &["L0001"][..]),
+        ("", "async await <A, B>", &["L0002", "L0002"][..]),
         ("I, ", "async await", &["L0002", "L0002"][..]),
     ] {
-        let text = format!("class C: {prefix}{poison}, J {{}}\nclass Sentinel");
+        let text = format!("class C: {prefix}{poison} /* outside */, J {{}}\nclass Sentinel");
         let (sources, parsed) = file(&text);
         assert_eq!(codes(parsed.diagnostics()), expected_codes, "{text}");
         let [first, second] = parsed.roots() else {
@@ -288,4 +291,17 @@ fn invalid_supertype_slot_stops_at_the_next_file_declaration_without_a_body() {
         sources.slice(items.get(*second).unwrap().span()).unwrap(),
         "class Sentinel"
     );
+}
+
+#[test]
+fn an_unclosed_poisoned_type_suffix_leaves_the_next_supertype_available() {
+    let (sources, parsed) = declaration("class C: async<A, J {}");
+    let recovered = classifier(&parsed);
+    let [error, next] = recovered.supertypes.as_slice() else {
+        panic!("error region and valid sibling: {:?}", parsed.diagnostics());
+    };
+    assert_eq!(sources.slice(error.span).unwrap(), "async<A");
+    assert_eq!(sources.slice(next.span).unwrap(), "J");
+    assert!(recovered.body.as_ref().unwrap().right_brace_span.is_some());
+    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
 }
