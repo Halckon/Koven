@@ -14,6 +14,7 @@ pub(super) struct LexicalRecoveryIndex {
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
     group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
+    poisoned_string_starts: OnceCell<Vec<bool>>,
     angle_terminal_hint: usize,
     // The same declaration starter can stop several nested TypeRefs during unwinding.
     pub(super) supertype_boundary: Cell<Option<(usize, ClassifierHeaderOwner, bool, bool)>>,
@@ -333,6 +334,7 @@ impl LexicalRecoveryIndex {
             terminal_owner_events: verified_events,
             group_closers: OnceCell::new(),
             angle_group_closers: OnceCell::new(),
+            poisoned_string_starts: OnceCell::new(),
             supertype_boundary: Cell::new(None),
             angle_terminal_hint: 0,
         })
@@ -386,6 +388,23 @@ impl LexicalRecoveryIndex {
             .binary_search_by_key(&start, |(owner, _)| *owner)
             .ok()
             .map(|index| self.string_owner_ends[index].1)
+    }
+
+    pub(super) fn is_poisoned_string_start(&self, lexed: &LexedFile, raw: usize) -> bool {
+        self.poisoned_string_starts.get_or_init(|| {
+            let mut open = self.string_recoveries.iter().peekable();
+            let mut closed = self.lexical_poison_string_recoveries.iter().peekable();
+            lexed
+                .lexemes()
+                .iter()
+                .map(|lexeme| {
+                    let start = lexeme.span().start();
+                    let open = open.next_if(|(opener, _)| *opener == start).is_some();
+                    let closed = closed.next_if(|(opener, _)| *opener == start).is_some();
+                    open || closed
+                })
+                .collect()
+        })[raw]
     }
 
     pub(super) fn lexical_poison_string_recovery_end(&self, start: usize) -> Option<usize> {
@@ -822,8 +841,12 @@ impl Parser<'_> {
                 && !protected_suffix_group
                 && symbol == Some(Symbol::Less)
             {
-                if let Some(closer) = self.strict_trials.closed_type_list(raw_index)?
-                    && proven_type_closer.is_none_or(|limit| closer < limit)
+                if let Some(closer) = self.strict_trials.recovery_type_list_closer(
+                    self.sources,
+                    self.lexed,
+                    raw_index,
+                    !stops.recovers_type_element(),
+                )? && proven_type_closer.is_none_or(|limit| closer < limit)
                 {
                     self.index = closer + 1;
                     end = self.lexed.lexemes()[closer].span().end();
@@ -845,7 +868,8 @@ impl Parser<'_> {
                     if stops.has_greater() {
                         break;
                     }
-                    unclosed_angle = true;
+                    unclosed_angle =
+                        raw_index != first.0 || !stops.keeps_leading_unproved_angle_comma();
                 }
             }
 

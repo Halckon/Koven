@@ -354,10 +354,10 @@ fn a_lexical_error_after_a_valid_target_keeps_the_target_name() {
     assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
 }
 
-fn assert_delegation_suffix(suffix: &str) {
+fn assert_delegation_suffix(suffix: &str, diagnostics: &[&str]) {
     let text = format!("class C: I by delegate {suffix}  , J {{}}");
     let (sources, parsed) = declaration(&text);
-    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+    assert_eq!(codes(parsed.diagnostics()), diagnostics, "{text}");
     let classifier = classifier(&parsed);
     let [first, following] = classifier.supertypes.as_slice() else {
         panic!("delegation and following supertype");
@@ -385,15 +385,99 @@ fn assert_delegation_suffix(suffix: &str) {
 
 #[test]
 fn closed_type_arguments_after_delegation_poison_keep_the_outer_comma() {
-    assert_delegation_suffix("async<A, B>");
+    assert_delegation_suffix("async<A, B>", &["L0002"]);
 }
 
 #[test]
 fn a_closed_group_after_delegation_poison_keeps_its_own_brace() {
-    assert_delegation_suffix("async({ -> 1 })");
+    assert_delegation_suffix("async({ -> 1 })", &["L0002"]);
 }
 
 #[test]
 fn an_unclosed_type_list_after_delegation_poison_keeps_the_outer_comma() {
-    assert_delegation_suffix("async<A");
+    assert_delegation_suffix("async<A", &["L0002"]);
+}
+
+#[test]
+fn lexical_delegation_suffix_keeps_nested_type_and_group_commas_local() {
+    for (suffix, diagnostics) in [
+        ("async Junk<A, β>", &["L0002", "L0001"][..]),
+        ("async Junk(A, { -> 1 })", &["L0002"][..]),
+        ("async(A)<B, C>", &["L0002"][..]),
+        (r#""bad\q""#, &["L0006"][..]),
+    ] {
+        assert_delegation_suffix(suffix, diagnostics);
+    }
+}
+
+#[test]
+fn recovered_delegation_suffix_leaves_the_enclosing_member_to_its_owner() {
+    for (suffix, separator, expected) in [
+        ("async Junk<A, β>", ";", &["L0077", "L0002", "L0001"][..]),
+        ("async<A", "", &["L0077", "L0002"][..]),
+    ] {
+        let text = format!(
+            "class Outer {{\n class Inner: I by delegate {suffix}{separator}\n own fun keep(): Unit {{}}\n}}"
+        );
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("delegation-member.ko", &text).unwrap();
+        let file = parse_file_twice(&sources, source, &text);
+        let declaration = parse_declaration_twice(&sources, source, &text);
+        for (ast, root, diagnostics) in [
+            (file.ast(), file.roots()[0], file.diagnostics()),
+            (
+                declaration.ast(),
+                declaration.root(),
+                declaration.diagnostics(),
+            ),
+        ] {
+            assert_eq!(codes(diagnostics), expected, "{text}");
+            let Item::Classifier(outer) = ast.items().get(root).unwrap().payload() else {
+                panic!("outer classifier");
+            };
+            let [inner, member] = outer.body.as_ref().unwrap().members.as_slice() else {
+                panic!("nested classifier and its outer sibling");
+            };
+            let Item::Classifier(inner) = ast.items().get(*inner).unwrap().payload() else {
+                panic!("nested classifier");
+            };
+            assert!(inner.body.is_none());
+            let [parent] = inner.supertypes.as_slice() else {
+                panic!("one recovered delegation");
+            };
+            assert_eq!(
+                sources.slice(parent.trailing_lexical_error.unwrap()),
+                Ok(suffix)
+            );
+            assert_eq!(
+                sources.slice(parent.delegation.unwrap().span),
+                Ok("by delegate")
+            );
+            assert_eq!(
+                sources.slice(ast.items().get(*member).unwrap().span()),
+                Ok("own fun keep(): Unit {}")
+            );
+        }
+    }
+}
+
+#[test]
+fn lexical_suffix_extends_an_existing_delegation_error_target() {
+    let (sources, parsed) = declaration("class C: I by 42 async Junk<A, β>, J {}");
+    assert_eq!(codes(parsed.diagnostics()), ["L0078", "L0002", "L0001"]);
+    let [parent, following] = classifier(&parsed).supertypes.as_slice() else {
+        panic!("error delegation and original following parent");
+    };
+    let NameMarker::Error(target) = parent.delegation.unwrap().target else {
+        panic!("existing invalid target");
+    };
+    assert_eq!(sources.slice(target), Ok("42 async Junk<A, β>"));
+    assert!(parent.trailing_lexical_error.is_none());
+    assert_eq!(sources.slice(following.span), Ok("J"));
+}
+
+#[test]
+fn poisoned_string_before_unproved_delegation_angle_keeps_the_outer_comma() {
+    assert_delegation_suffix(r#""bad\q"<A"#, &["L0006"]);
+    assert_delegation_suffix(r#"async "bad\q"<A"#, &["L0002", "L0006"]);
 }

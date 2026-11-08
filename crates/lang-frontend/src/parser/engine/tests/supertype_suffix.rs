@@ -34,3 +34,21 @@ fn damaged_nested_types_share_the_member_boundary_lookahead() {
         "{large_visits} vs {small_visits}"
     );
 }
+
+#[test]
+fn consecutive_poisoned_delegation_strings_use_linear_significant_visits() {
+    let metrics = |count| {
+        let entries = (0..count)
+            .map(|index| format!(r#"I{index} by delegate "bad\q""#))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suffix = r#""bad\q" "#.repeat(count);
+        let text = format!("class C: {entries}, Last by delegate {suffix}<A, J {{}}");
+        super::parse_class_family_metrics(&text, 0)
+    };
+    let (small_raw, small_visits, _) = metrics(32);
+    let (large_raw, large_visits, _) = metrics(64);
+    assert!(small_visits <= small_raw * 24);
+    assert!(large_visits <= large_raw * 24);
+    assert!(large_visits <= small_visits * 2 + 64);
+}

@@ -2597,3 +2597,73 @@ Linux 上，非 UTF-8 父目录可合法预留 sibling，随后调用会 panic�
 本机非 UTF-8 注入用例检查结构化 ENOTDIR、保留旧文件及无残留；原 ENOTDIR 矩阵覆盖
 普通/const 与 legacy/view。Linux 新增真非 UTF-8 目录下的 object/link/run，以及
 字符设备 `/dev/full` 的 ENOSPC、旧文件保留、无残留与同路径重试；待该批 PR CI 验收。
+
+[PR #371](https://github.com/Halckon/Koven/pull/371) 已合入 `d2a81954`。
+[正式 CI 42489501602](https://github.com/Halckon/Koven/actions/runs/42489501602) 对
+head `c30d9226`、base `65eaf1a7` 成功。合成提交 `d6f9ea84` 的父为上述两者，
+测试树 `06e49b38932293add9d5dc17a71e3e11f1a6d82d` 与本地 head 及实际合并树一致。
+两宿主 Check/Clippy、定向、预览生产与独立安装、精确 CI 证据均通过。
+
+Linux 日志确认真非 UTF-8 父目录的 object/link/run、`/dev/full` 的 ENOSPC 与重试；
+两端均实际通过非 UTF-8 错误路径注入。本机集成头的前端 304 项和 native 4 项通过，
+相关 all-target Clippy 通过。两宿主 conformance 均 137/154、0/6 既知未实现整程序、
+零 regression，P2 仍为 58/74。Linux ASan 13 个干净样例，generated-owner 16 项且
+总验收 pass；macOS 16 项通过但校准为 partial（ASan 不支持、LSan 仅计数器）。
+Editor lexical 按路径跳过；Linux sanitizer 专项未在 macOS 运行。
+
+## 100. R1 父类型错误区内的损坏角列表
+
+在 `65eaf1a7` 上，`class C: I async Junk<A, β>, J {}` 的严格试探因词法错误
+没有登记真实 `>`，尾随恢复把 `, J` 一并吞入。保留字占据类型原子时也能复现；
+类体和后继文件声明仍保留。先用同一 Parser 的原 AST 和 Lexer 诊断验证最小失败。
+
+声明层父类型槽或尾随错误区在严格证据缺失时，按需复用类型结构识别建立独立 closer
+缓存。仅把单个非法字符或保留字视为损坏类型原子，保留 nullable 及函数参数模式结构；
+候选必须有真实闭合。数值/字符字面量、分号、声明起点和未闭合形状没有新增证据。
+父类型内部 TypeRef 元素继续使用 strict closer，保留外层 `>` 和缺右括号时的
+`->` 恢复机会。typed-call 仍读原 strict 结果，查询前后结果和递归预算不变。
+
+独立复核发现过新 closer 会抢占嵌套 TypeRef 的外层标点，收窄到声明层后复核通过。
+正常和损坏角列表、直接错误父类型槽、精确 lexer 诊断、后继父类型/成员/文件根和
+未证角列表负控分别有测试。64→128 层的反向构建 token 访问数和状态计数在既有
+线性量级门槛内。声明恢复只记录边界，未增加可接受语言语法。
+
+暂时去除嵌套元素护栏时，缺右括号的函数 TypeRef 用例丢失实际返回类型 `B`；
+恢复护栏后同一断言通过。未启用新 Guide。
+
+## 101. R1 委托子句后的词法错误 owner
+
+在 `781b1ab3` 上，`I by delegate async Junk<A, β>, J` 把错误区内部逗号
+提升为父类型分隔符，原 `J` 和类体的归属回归失败。闭合委托的词法尾随错误改用
+同一父类型 suffix owner 和已配对组证据。合法目标保留 `by delegate` 原范围，
+后续词法范围另存；已有 Error 目标仍把后续范围并入该 marker。
+
+委托原有的未闭合 `async<A, J` 逗号停止只作用于第一个未证明的 `<`，
+不回退文件、类成员或组的停止条件。连续 poison 与分段坏字符串先按各自 Lexer
+owner 消费，随后识别的 `<` 同样适用原逗号停止。核对 File/Declaration 嵌套
+classifier 后的 `own fun`、显式分号、分段坏字符串和已有 Error 目标。
+普通非词法错误的表达式拒绝规则保持既有合同；直接无效委托目标后的更宽恢复仍开放。
+仓外探针另确认直接 `I by β<A, B>, J` 仍会提升内部 `B`，产生 L0077/L0017；
+该缺口独立于已闭合委托目标的尾随修复。
+
+独立复核发现过未证角列表回退吞成员、坏字符串后的角列表吞外逗号及反复查表开销，
+修正后复核通过。两个尾随入口及委托前缀复用按 raw token 下标的惰性位图；位图对已排序
+Lexer opener 与 token 单向并进，扫描每次常数查询。32→64 用例覆盖多个独立委托和连续
+坏字符串两种排列。父类型槽仍只预消费普通 poison。
+
+合入 `d2a81954` 的集成树上，Parser 内部 39 项及 class family、接口委托、上下文 TypeRef、
+递归边界与两项词法错误矩阵合计 117 项通过，零失败和忽略。
+
+## 102. R3 Unit 借用运输的 Abort 与不返回边
+
+主干 #366 后的同一工作树上，本机重跑 `unit_direct_call_loan_ends` 93 项及
+`multifile_ownership_checking` 的 `iteration::` 21 项，零失败和忽略；后一个 suite
+有 134 项未选。四个在 #366 本机验收中只编译的 frontend 用例实际运行通过。
+
+- 独占参数前缀的 Abort 不产生回卷或命名 owner 的 drop，普通返回对照仍保留。
+- 临时父字段已取得来源借用时，后继 Abort 不产生父析构；父构造不完成时也不发布来源。
+- 不返回后缀与不可达调用不发布 direct-call loan end 或 drop。
+- 嵌套 while 的 break/continue 不释放外层 for provider，Abort 无 cleanup edge，
+  正常耗尽仍有独立边。
+
+这里执行的是前端事实检查，测试没有运行源程序的 Abort，也未覆盖完整 native 资源矩阵。

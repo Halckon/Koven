@@ -420,19 +420,18 @@ fn malformed_type_arguments_do_not_create_parent_entries_or_delegation() {
 
 #[test]
 fn a_proven_nested_suffix_group_cannot_claim_the_outer_supertype_boundary() {
-    for suffix in [
-        "async Junk<A, B>",
-        "async Junk(A, { -> 1 })",
-        "async Junk(A, { \"bad\n })",
+    for (suffix, expected) in [
+        ("async Junk<A, B>", &["L0002"][..]),
+        ("async Junk(A, { -> 1 })", &["L0002"][..]),
+        ("async Junk(A, { \"bad\n })", &["L0002", "L0004"][..]),
+        ("async Junk<A, β>", &["L0002", "L0001"][..]),
+        ("async Junk<A, async>", &["L0002", "L0002"][..]),
+        ("async Junk<A, β?>", &["L0002", "L0001"][..]),
+        ("async Junk<A, (borrow β) -> R>", &["L0002", "L0001"][..]),
     ] {
         let text =
             format!("class C: I {suffix}  , J {{ fun member(): Unit {{}} }}\nclass Sentinel");
         let (sources, parsed) = file(&text);
-        let expected = if suffix.contains("\"bad") {
-            vec!["L0002", "L0004"]
-        } else {
-            vec!["L0002"]
-        };
         assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
         let [class, sentinel] = parsed.roots() else {
             panic!("expected both file roots for {text}");
@@ -456,6 +455,57 @@ fn a_proven_nested_suffix_group_cannot_claim_the_outer_supertype_boundary() {
         let sentinel = parsed.ast().items().get(*sentinel).unwrap();
         assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
     }
+}
+
+#[test]
+fn poisoned_type_argument_closer_does_not_claim_a_nested_function_arrow() {
+    let text = "class C: (A async Junk<(β) -> B>, J {}";
+    let (sources, parsed) = file(text);
+    let Item::Classifier(class) = parsed
+        .ast()
+        .items()
+        .get(parsed.roots()[0])
+        .unwrap()
+        .payload()
+    else {
+        panic!("recovered classifier");
+    };
+    let types = parsed.ast().type_refs();
+    let lang_frontend::parser::TypeRef::Function { return_type, .. } =
+        types.get(class.supertypes[0].type_ref).unwrap().payload()
+    else {
+        panic!("recovered function TypeRef");
+    };
+    assert_eq!(
+        sources.slice(types.get(*return_type).unwrap().span()),
+        Ok("B")
+    );
+}
+
+#[test]
+fn poisoned_parent_name_retains_its_proven_type_list() {
+    let text = "class C: async<A, β>, J {}";
+    let (sources, parsed) = file(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0002", "L0001"]);
+    let Item::Classifier(class) = parsed
+        .ast()
+        .items()
+        .get(parsed.roots()[0])
+        .unwrap()
+        .payload()
+    else {
+        panic!("recovered classifier");
+    };
+    let [poison, following] = class.supertypes.as_slice() else {
+        panic!("error parent and original following parent");
+    };
+    let ty = parsed.ast().type_refs().get(poison.type_ref).unwrap();
+    assert!(matches!(
+        ty.payload(),
+        lang_frontend::parser::TypeRef::Error
+    ));
+    assert_eq!(sources.slice(ty.span()), Ok("async<A, β>"));
+    assert_eq!(sources.slice(following.span), Ok("J"));
 }
 
 #[test]

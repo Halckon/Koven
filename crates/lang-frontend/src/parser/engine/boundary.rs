@@ -846,6 +846,11 @@ impl DeclarationStops {
     pub(super) const CLASS_FILE: u32 = 1 << 19;
     pub(super) const SUPERTYPE_SUFFIX: u32 = 1 << 20;
     const TYPE_ELEMENT: u32 = 1 << 21;
+    pub(super) const LEADING_UNPROVED_ANGLE_COMMA: u32 = 1 << 22;
+
+    pub(super) const fn keeps_leading_unproved_angle_comma(self) -> bool {
+        self.0 & Self::LEADING_UNPROVED_ANGLE_COMMA != 0
+    }
 
     pub(super) const fn recovers_type_element(self) -> bool {
         self.0 & Self::TYPE_ELEMENT != 0

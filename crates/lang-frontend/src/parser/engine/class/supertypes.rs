@@ -27,6 +27,10 @@ impl Parser<'_> {
             recovery_stops = recovery_stops.with(DeclarationStops::CLASS_FILE);
             type_stops = type_stops.with(TypeStops::CLASS_FILE);
         }
+        let mut suffix_stops = recovery_stops.with(DeclarationStops::SUPERTYPE_SUFFIX);
+        if owner == ClassifierHeaderOwner::Member {
+            suffix_stops = suffix_stops.with(DeclarationStops::CLASS_MEMBER);
+        }
         loop {
             let current = self.current()?;
             let file_boundary = file_header && self.at_class_header_file_boundary(true)?;
@@ -76,7 +80,9 @@ impl Parser<'_> {
                             NameMarker::Error(primary)
                         }
                     };
-                    let current = self.current()?;
+                    let (raw, current) = self
+                        .significant(0)
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
                     let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
                         || self.current_is_symbol(Symbol::LeftBrace)
                         || self.current_is_symbol(Symbol::RightBrace)
@@ -84,9 +90,9 @@ impl Parser<'_> {
                         || self.is_file_declaration_boundary(current)
                         || (file_header && self.at_class_header_file_boundary(false)?);
                     if !at_entry_boundary {
-                        let poison = self.is_poison_kind(current.kind());
+                        let poison = self.is_supertype_suffix_poison(raw, current);
                         if poison {
-                            self.consume_poison_with_closed_type_arguments()?;
+                            self.consume_poison_with_closed_type_arguments(true)?;
                         } else {
                             self.emit(
                                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -95,7 +101,12 @@ impl Parser<'_> {
                             )?;
                         }
                         let _ = self.consume_closed_supertype_group()?;
-                        self.recover_declaration_region(recovery_stops)?;
+                        let stops = if poison {
+                            suffix_stops.with(DeclarationStops::LEADING_UNPROVED_ANGLE_COMMA)
+                        } else {
+                            recovery_stops
+                        };
+                        self.recover_declaration_region(stops)?;
                         if poison {
                             let end = self.previous_significant_end();
                             match target {
@@ -128,14 +139,12 @@ impl Parser<'_> {
                     None
                 };
                 if delegation.is_none() && complete {
-                    let current = self.current()?;
-                    if self.is_declaration_trailing_poison(current) {
+                    let (raw, current) = self
+                        .significant(0)
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    if self.is_supertype_suffix_poison(raw, current) {
                         let start = current.span().start();
-                        let mut stops = recovery_stops.with(DeclarationStops::SUPERTYPE_SUFFIX);
-                        if owner == ClassifierHeaderOwner::Member {
-                            stops = stops.with(DeclarationStops::CLASS_MEMBER);
-                        }
-                        let end = self.recover_declaration_region(stops)?;
+                        let end = self.recover_declaration_region(suffix_stops)?;
                         trailing_lexical_error = Some(self.span(start, end)?);
                     }
                 }
@@ -178,7 +187,7 @@ impl Parser<'_> {
                 }
                 if !primary.is_empty() {
                     if poison {
-                        self.consume_poison_with_closed_type_arguments()?;
+                        self.consume_poison_with_closed_type_arguments(false)?;
                     }
                     self.recover_declaration_region(recovery_stops)?;
                     if poison {
@@ -211,12 +220,37 @@ impl Parser<'_> {
         Ok((Some(colon_span), entries))
     }
 
-    fn consume_poison_with_closed_type_arguments(&mut self) -> Result<(), ParserInternalError> {
-        while self.is_poison() {
-            self.bump()?;
+    fn is_supertype_suffix_poison(&self, raw: usize, current: Lexeme) -> bool {
+        self.is_poison_kind(current.kind())
+            || (matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart))
+                && self
+                    .lexical_recoveries
+                    .is_poisoned_string_start(self.lexed, raw))
+    }
+
+    fn consume_poison_with_closed_type_arguments(
+        &mut self,
+        include_strings: bool,
+    ) -> Result<(), ParserInternalError> {
+        loop {
+            let (raw, current) = self
+                .significant(0)
+                .ok_or(ParserInternalError::InvalidLexemeStream)?;
+            if self.is_poison_kind(current.kind()) {
+                self.bump()?;
+            } else if include_strings && self.is_supertype_suffix_poison(raw, current) {
+                self.recover_declaration_string()?;
+            } else {
+                break;
+            }
         }
         if self.current_is_symbol(Symbol::Less)
-            && let Some(closer) = self.strict_trials.closed_type_list(self.current_raw()?)?
+            && let Some(closer) = self.strict_trials.recovery_type_list_closer(
+                self.sources,
+                self.lexed,
+                self.current_raw()?,
+                true,
+            )?
         {
             self.index = closer + 1;
         }
