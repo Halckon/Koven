@@ -111,7 +111,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽。局部解构的初始化式及分号 owner 已修，见 §60。借用解构内层右括号及外层停止范围已修，见 §63 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
-| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None。局部解构与临时顺序源的路由已修，`while` 的交叉边界仍开放，见 §65 |
+| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None。局部解构与顺序源、`while` 的有界组合见 §65、§73 |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
 
 ## 8. 验收账本
@@ -1959,3 +1959,47 @@ Range SSA 定向三项，均通过。格式、文档、Rust 尺寸和 diff 门�
 合流工作树运行 `final_type_admission`、`ownership_containers`、`ownership_map_with`
 共 112 项，零失败或忽略。双宿主验收以 [PR #351](https://github.com/Halckon/Koven/pull/351)
 的精确新头为准。
+
+[最终 CI](https://github.com/Halckon/Koven/actions/runs/42435006300) 的候选为 `d42768b2`，
+两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+workspace、Clippy、定向测试、Linux sanitizer 和两宿主预览包独立安装均通过；
+编辑器按改动范围跳过，macOS 后端一个 LLDB 进程测试按权限默认忽略。
+PR 已合入主干 `d8c7393a`。用户完成本机授权后，在该主干重跑
+`native_cli final_debug_artifacts`（3 条真实进程断点、1 条 frame 身份负控）及
+`llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame --exact --ignored`，
+共 5 项通过，零失败或忽略。
+
+## 73. R4 顺序迭代、局部解构与 while 的组合
+
+在 `d8c7393a` 上加入原生 CLI 回归。单文件 `build` 退出 2 并报告
+`UnsupportedNode`，与 §71 的 `check` 成功对照一致。单独存在 `while` 时，
+顺序迭代节点在 callable 完成局部解构检查前被原路由拒绝。外层有可空证明时，
+准入对 `while` 重赋值根的证明结束也受旧路由限制，实际 builder 已在 loop header 前执行它。
+
+保留已有接受结果。只在碰到上述限制且本 callable 范围内有 typed 解构候选时重试。
+范围匹配用于预筛。重试同时要求在当前 callable 遍历到已验证且前端未证明不可达的局部解构，
+并验证顺序 provider/source/binding 和清理事实。只对 `while` 和已确认的顺序 `for`
+接入既有证明失效，其他 provider 和专用操作继续使用原路由条件。
+
+独立复审复现常量 while 的不可达解构、无 break 的 loop 后解构及顺序 `for` 重赋值。
+解构事实沿用前端 flow 进入/离开边，lambda body 有独立入口，现有试算同时回滚该描述符。
+解构 initializer、`for` source 和 eager 二元表达式的提前退出按同一流检查传播。
+后端保守生成常量 while 的两条边，旧 lowering 遇到两条负控中的死解构仍报
+`UnsupportedNode`。负控锁定原路由及错误范围，常量边裁剪与其他表达式的可达性合同留待后续。
+旧 scope 门禁仍会按 span 计入内层 thunk 的 while，未扩大该判断的含义。
+
+修复后前端 lib、`multifile_type_checking`、`multifile_ownership_checking`、
+`final_type_admission` 共 854 项通过。Refine 路由 33 项、while SSA 37 项、while CLI 7 项
+均通过，零失败或忽略。CLI 回归真实构建并运行单文件与项目产物，覆盖零轮、多轮、
+continue、break、保留无关根的证明，以及在 while 和顺序 for 中分别重赋值。
+独立复核确认原候选红测及上述前端修正，验证保留 null 上下文类型推导、循环作用域和诊断检查。
+workspace 全目标 Clippy、格式、文档、Rust 尺寸与 diff 门禁通过。
+
+[PR #353 的首个候选](https://github.com/Halckon/Koven/actions/runs/42438293604) `a82a0bb7`
+两宿主定向、生成资源与 conformance 均通过，Linux sanitizer 通过。
+两宿主 conformance 为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+首次 Linux workspace check 因 crates.io 索引下载超时失败，原提交重试后通过。
+本机该候选复跑三条 CLI 真实断点、frame 身份负控和后端默认忽略的 LLDB 断点，共 5 项通过。
+随后合入更新的主干 `4fd948dd`，无冲突。它带入 SPEC-0341 容器与借用测试迁移，
+合流后 `ownership_containers`、`unit_direct_call_loan_ends`、`ownership_map_with` 和
+`final_type_admission` 共 172 项通过。最终双宿主门禁以合流提交为准。

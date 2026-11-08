@@ -11,6 +11,101 @@ fn destructuring_statements(file: &ParsedFile) -> Vec<StatementId> {
 }
 
 #[test]
+fn local_destructuring_reachability_stays_with_its_callable() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "main.ko",
+        r#"
+        value class Pair(val first: Int, val second: Int)
+        fun f(flag: Boolean): Unit {
+            while (false) {
+                { val (first, second) = Pair(1, 2) }
+                val nested: () -> Unit = { val (first, second) = Pair(3, 4) }
+                val (second, first) = Pair(5, 6)
+            }
+            loop { if (flag) { break } }
+            { val (first, second) = Pair(7, 8) }
+            loop {}
+            val (second, first) = Pair(9, 10)
+        }
+        fun sibling(): Unit { val (first, second) = Pair(11, 12) }
+        "#,
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("unit types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let unit = source_unit(&names, source);
+    let statements = destructuring_statements(&file);
+    let expected = [false, true, false, true, false, true];
+    assert_eq!(statements.len(), expected.len());
+    for (statement, reachable) in statements.into_iter().zip(expected) {
+        let descriptor = typed
+            .destructuring(UnitStatementId::new(unit, statement))
+            .expect("dead paths still produce type facts");
+        assert_eq!(descriptor.is_reachable(), reachable, "{statement:?}");
+    }
+}
+
+#[test]
+fn local_destructuring_reachability_respects_abrupt_initializers_and_sources() {
+    for (header, expected) in [
+        (
+            "val (first, second) = if (true) { return } else { Pair(1, 2) }",
+            [false, false],
+        ),
+        (
+            "for (item in if (true) { return } else { listOf(1) }) { val (first, second) = Pair(1, 2) }",
+            [false, false],
+        ),
+        (
+            "for ((key, value) in if (true) { return } else { entries }) { val (first, second) = Pair(1, 2) }",
+            [false, false],
+        ),
+        (
+            "for (item in if (flag) { return } else { listOf(1) }) { val (first, second) = Pair(1, 2) }",
+            [true, true],
+        ),
+        (
+            "val ignored = (if (true) { return } else { 0 }) + (if (flag) { val (first, second) = Pair(1, 2); first } else { 0 })",
+            [false, false],
+        ),
+    ] {
+        let text = format!(
+            "value class Pair(val first: Int, val second: Int)\n\
+             fun f(flag: Boolean, entries: Map<Int, Int>): Unit {{\n\
+                {{ {header} }}\n\
+                val (first, second) = Pair(3, 4)\n\
+             }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("unit types");
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let unit = source_unit(&names, source);
+        let statements = destructuring_statements(&file);
+        assert_eq!(statements.len(), expected.len());
+        for (statement, reachable) in statements.into_iter().zip(expected) {
+            let descriptor = typed
+                .destructuring(UnitStatementId::new(unit, statement))
+                .expect("typed split");
+            assert_eq!(
+                descriptor.is_reachable(),
+                reachable,
+                "{header}: {statement:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn cross_file_value_class_destructuring_publishes_copy_and_consume_facts() {
     let mut sources = SourceMap::new();
     let (types_source, types) = parsed(

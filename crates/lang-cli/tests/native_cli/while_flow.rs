@@ -188,3 +188,56 @@ fn single_nullable_while_preserves_outer_borrowed_for_access() {
     assert!(launched.stderr.is_empty(), "{launched:?}");
     super::assert_build_entry_count(&directory.0, &executable, 2);
 }
+
+#[test]
+fn local_destructuring_routes_while_and_temporary_for_in_both_entries() {
+    let directory = TestDirectory::create();
+    fs::create_dir(directory.join("src")).unwrap();
+    let source = directory.join("src/main.ko");
+    fs::write(
+        &source,
+        include_str!("../fixtures/while-flow-0330/local-destructuring.ko"),
+    )
+    .unwrap();
+    let manifest = directory.join("project.toml");
+    fs::write(
+        &manifest,
+        "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"while-destructuring\"\nsource-roots = [\"src\"]\n",
+    )
+    .unwrap();
+
+    for label in ["single", "project"] {
+        let executable = directory.join(label);
+        let built = if label == "single" {
+            run([
+                OsStr::new("build"),
+                source.as_os_str(),
+                OsStr::new("-o"),
+                executable.as_os_str(),
+            ])
+        } else {
+            run([
+                OsStr::new("build"),
+                OsStr::new("--project"),
+                manifest.as_os_str(),
+                OsStr::new("--entry"),
+                OsStr::new("main"),
+                OsStr::new("-o"),
+                executable.as_os_str(),
+            ])
+        };
+        assert_eq!(built.status.code(), Some(0), "{label}: {built:?}");
+        assert!(
+            built.stdout.is_empty() && built.stderr.is_empty(),
+            "{built:?}"
+        );
+
+        let launched = bounded_run::run(&executable);
+        assert_eq!(launched.status.code(), Some(0), "{label}: {launched:?}");
+        assert_eq!(
+            launched.stdout, b"kept\nloop\nkept\nloop\nchanged\nfor-changed\n",
+            "{label}"
+        );
+        assert!(launched.stderr.is_empty(), "{launched:?}");
+    }
+}

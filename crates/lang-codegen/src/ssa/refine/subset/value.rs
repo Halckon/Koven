@@ -280,7 +280,8 @@ impl Checker<'_, '_> {
             self.known.insert(component.symbol());
             self.symbol_type(component.symbol()) == Some(ty) && self.storage_type(ty)
         });
-        self.has_local_destructuring |= ok;
+        self.has_local_destructuring |=
+            ok && (self.loop_route == super::LoopRoute::Existing || descriptor.is_reachable());
         self.migrated |= ok;
         ok
     }

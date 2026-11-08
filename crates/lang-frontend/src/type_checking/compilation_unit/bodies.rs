@@ -9,9 +9,7 @@ use crate::{
         ValidatedCompilationUnitNames,
     },
     source::{SourceMap, Span},
-    type_checking::{
-        Copyability, DestructuringMode, ExpressionCategory, ParameterMode, TypeEnvironment,
-    },
+    type_checking::{Copyability, ExpressionCategory, ParameterMode, TypeEnvironment},
 };
 
 use super::{
@@ -24,7 +22,9 @@ mod checker;
 mod constants;
 mod container;
 mod control_flow;
+mod destructuring;
 pub use constants::*;
+pub use destructuring::{UnitDestructuringComponent, UnitDestructuringDescriptor};
 mod integer;
 mod integer_range;
 mod map;
@@ -316,40 +316,6 @@ impl UnitConstructionDescriptor {
     }
 }
 
-/// compilation unit 中一个已类型化的结构化解构分量。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UnitDestructuringComponent {
-    symbol: UnitSymbolId,
-    ty: UnitTypeId,
-}
-
-impl UnitDestructuringComponent {
-    pub(crate) const fn new(symbol: UnitSymbolId, ty: UnitTypeId) -> Self {
-        Self { symbol, ty }
-    }
-
-    /// 返回接收分量的 source-qualified binding symbol。
-    #[must_use]
-    pub const fn symbol(self) -> UnitSymbolId {
-        self.symbol
-    }
-
-    /// 返回替换实际泛型实参后的分量类型。
-    #[must_use]
-    pub const fn ty(self) -> UnitTypeId {
-        self.ty
-    }
-}
-
-/// compilation unit 中一次精确、有效的局部 value-class 结构化解构。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UnitDestructuringDescriptor {
-    statement: UnitStatementId,
-    source_type: UnitTypeId,
-    mode: DestructuringMode,
-    components: Vec<UnitDestructuringComponent>,
-}
-
 /// concrete ordinary-class owner 的一个已替换 runtime field。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnitRuntimeFieldLayoutField {
@@ -445,46 +411,6 @@ impl UnitRuntimeFieldLayoutDescriptor {
     #[must_use]
     pub fn fields(&self) -> &[UnitRuntimeFieldLayoutField] {
         &self.fields
-    }
-}
-
-impl UnitDestructuringDescriptor {
-    pub(crate) fn new(
-        statement: UnitStatementId,
-        source_type: UnitTypeId,
-        mode: DestructuringMode,
-        components: Vec<UnitDestructuringComponent>,
-    ) -> Self {
-        Self {
-            statement,
-            source_type,
-            mode,
-            components,
-        }
-    }
-
-    /// 返回带 source-unit 限定的 statement identity。
-    #[must_use]
-    pub const fn statement(&self) -> UnitStatementId {
-        self.statement
-    }
-
-    /// 返回 initializer 的规范化源类型。
-    #[must_use]
-    pub const fn source_type(&self) -> UnitTypeId {
-        self.source_type
-    }
-
-    /// 返回 Copy 或 Consume 原子模式。
-    #[must_use]
-    pub const fn mode(&self) -> DestructuringMode {
-        self.mode
-    }
-
-    /// 返回主构造器字段顺序的 binding / component type。
-    #[must_use]
-    pub fn components(&self) -> &[UnitDestructuringComponent] {
-        &self.components
     }
 }
 
