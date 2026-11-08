@@ -68,9 +68,13 @@ pub(crate) fn emit_verified_object(
     let object_path = crate::llvm::emission_failure::object_path(path);
     #[cfg(test)]
     let path = object_path.as_path();
-    target_machine
-        .write_to_file(&llvm_module, FileType::Object, path)
-        .map_err(|error| LlvmAdapterError::Object(error.to_string()))
+    // Keep the original OS path and return write errors to the sibling
+    // transaction. LLVM's direct file writer can terminate on a write error.
+    let object = target_machine
+        .write_to_memory_buffer(&llvm_module, FileType::Object)
+        .map_err(|error| LlvmAdapterError::Object(error.to_string()))?;
+    std::fs::write(path, object.as_slice())
+        .map_err(|error| LlvmAdapterError::Object(format!("write object: {error}")))
 }
 
 fn lower_verified_module<'ctx>(
