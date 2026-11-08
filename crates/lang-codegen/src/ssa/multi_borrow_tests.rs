@@ -1,7 +1,7 @@
 //! SPEC-0305: inspect only Programs lowered from ordinary source.
 use super::{
-    borrow_memory_test_support::single as memory_unit, borrow_result_contract_tests::single,
-    borrow_storage_contract_tests::unit, model::*, verify::verify_program,
+    borrow_memory_test_support::single as memory_unit, borrow_storage_contract_tests::unit,
+    model::*, verify::verify_program,
 };
 
 fn check(program: &Program, source_index: usize, reused_arguments: bool) {
@@ -131,7 +131,7 @@ fn multi_parameter_borrow_wrapper_control_prefix_remains_unsupported() {
         let text = format!(
             "fun view(other: Int, source: String): borrow String from source = source\nfun wrap(source: String, n: Int): borrow String from source = view({argument}, source)\nfun entry() {{ val source = \"kept\"; val n = 1; borrow val item = wrap(source, n); println(item) }}"
         );
-        for result in [single(&text), unit(&text)] {
+        for result in [memory_unit(&text), unit(&text)] {
             assert_eq!(
                 result.err().unwrap().kind,
                 super::LoweringErrorKind::UnsupportedNode
@@ -142,14 +142,32 @@ fn multi_parameter_borrow_wrapper_control_prefix_remains_unsupported() {
 
 #[test]
 fn multi_parameter_borrow_wrong_source_and_live_source_move_remain_frontend_errors() {
-    for text in [
-        "fun view(other: String, source: String): borrow String from source = other\nfun entry() {}",
-        "fun view(other: String, source: String): borrow String from source = source\nfun consume(own source: String) {}\nfun entry() { val other = \"other\"; val source = \"kept\"; borrow val item = view(other, source); consume(source); println(item) }",
+    use crate::native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource};
+
+    for (text, code, primary) in [
+        (
+            "fun view(other: String, source: String): borrow String from source = other\nfun entry() {}",
+            "L0162",
+            "other",
+        ),
+        (
+            "fun view(other: String, source: String): borrow String from source = source\nfun consume(own source: String) {}\nfun entry() { val other = \"other\"; val source = \"kept\"; borrow val item = view(other, source); consume(source); println(item) }",
+            "L0135",
+            "source",
+        ),
     ] {
-        // unit() validates ownership eagerly; single keeps the diagnostic as a lowering error.
+        let rejected = UnitSource::analyze("multi-borrow.ko", text)
+            .err()
+            .expect("invalid borrow cannot obtain an ownership capability");
+        assert!(matches!(rejected.kind, SourceRejectionKind::Diagnostics));
+        let [(stage, diagnostic)] = rejected.report.diagnostics.as_slice() else {
+            panic!("{:?}", rejected.report);
+        };
+        assert_eq!(*stage, "ownership");
+        assert_eq!(diagnostic.code().to_string(), code);
         assert_eq!(
-            single(text).err().unwrap().kind,
-            super::LoweringErrorKind::FrontendDiagnostics
+            rejected.sources.slice(diagnostic.primary_span()).unwrap(),
+            primary
         );
     }
 }
@@ -157,7 +175,7 @@ fn multi_parameter_borrow_wrong_source_and_live_source_move_remain_frontend_erro
 #[test]
 fn multi_parameter_borrow_concrete_callable_parameter_remains_unsupported() {
     let text = "fun <T> view(source: String, other: T): borrow String from source = source\nfun <T> inspect(source: String, other: T) { borrow val item = view(source, other); println(item) }\nfun entry() { val source = \"kept\".clone(); val action: () -> Unit = { println(source) }; inspect(source, action) }";
-    for result in [single(text), unit(text)] {
+    for result in [memory_unit(text), unit(text)] {
         assert_eq!(
             result.err().unwrap().kind,
             super::LoweringErrorKind::UnsupportedNode
@@ -168,7 +186,7 @@ fn multi_parameter_borrow_concrete_callable_parameter_remains_unsupported() {
 #[test]
 fn multi_parameter_borrow_assertion_argument_remains_unsupported() {
     let text = "class Token\nfun extra(): Token? = Token()\nfun view(other: Token, source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(extra()!!, source)\nfun entry() { val source = \"kept\"; borrow val item = wrap(source); println(item) }";
-    for result in [single(text), unit(text)] {
+    for result in [memory_unit(text), unit(text)] {
         assert_eq!(
             result.err().unwrap().kind,
             super::LoweringErrorKind::UnsupportedNode

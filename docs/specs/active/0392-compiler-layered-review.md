@@ -2063,3 +2063,27 @@ Linux sanitizer、两宿主预览包独立安装与同提交的 5 项本机 LLDB
 隔离候选实际构建并运行单文件与项目，有无内层 while 均输出 `nested\nkept\n`。
 当前分支本机通过 Refine 路由 38 项、closure 4 项、while SSA 37 项和 while CLI 8 项，
 零失败或忽略。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+[PR #357 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42448570108) 在 `6ad9723c`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer 与两宿主预览包独立安装通过，编辑器按范围跳过。已合入 `a884ab8d`。
+本机完成授权后在同一 PR 提交重跑，Mach-O 行表、CI 默认忽略的后端真实 LLDB 断点和
+四项 CLI 调试检查共 6 项通过，零失败或忽略。
+
+## 77. R0/R3 可空容器与借用测试的 Unit 消费者迁移
+
+以 `a884ab8d` 为基线。将 Map promotion、owned-null cleanup、多参数借用、混合借用
+四份测试中的 33 处旧 helper 调用移出 Single。成功路径与后端拒绝路径复用既有
+MemoryDocument helper，与同一测试原有的 Rooted 入口对照，保留原源码及 SSA、
+清理顺序或 `UnsupportedNode` 断言。§12 四项混合借用后端对照的旧入口分支在本批退役，
+当前由 MemoryDocument 与 Rooted 覆盖。
+
+两份非法借用源码通过 Unit 分析检查，分别在 ownership 阶段精确拒绝为 L0162 和 L0135，
+主 Span 分别指向 `other` 和 `source`。保留可空工厂的旧规划拒绝与 Rooted 成功对照，
+以及 Map require 未被 entry 调用的旧整文件见证。没有生产实现改动。
+
+独立复核核对了源码和断言、最终 Unit 准入、Rooted 跨文件来源及保留的旧路径见证。
+本机 `lang-codegen --lib` 依次通过四组迁移测试 23 项、借用结果及 Map require 见证
+7 项、lowering 依赖门禁 14 项，零失败或忽略。codegen 全目标 Clippy、格式、文档、
+尺寸和 diff 检查通过。本批未在本机重跑全量或动态矩阵。
+本批迁移归属 [SPEC-0341](0341-shared-lowering-core.md)。其他旧消费者和 R0–R5 退出条件仍开放。
