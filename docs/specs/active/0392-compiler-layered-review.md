@@ -2934,3 +2934,14 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 恢复旧整单元 gate 时，新增强制用例可错误构建并使测试失败。修复后两个检查均通过。
 原 `when` 内替换 owner 的 SSA/原生两条检查和原退役检查亦通过。
 带额外 Borrow nullable 形参的组合还涉及旧 proof carrier 资格，另行复审。
+
+## 112. R0/R2 成员 receiver 测试消费者
+
+将原 Single `Holder<T>` 的成员 receiver 测试迁到既有 MemoryDocument 和 Rooted Unit
+helper。原 fixture 字节保持一致，四个 receiver mode 按成员名核对。旧用例对顶层
+`use` 无 receiver 的隐含检查改成显式断言。裸字段及隐式调用绑定到确切 Holder
+声明，显式调用绑定到本 source unit 的 `holder` 表达式。既有 Unit 跨成员、默认方法和
+object receiver 对照仍独立保留。
+
+迁移前原 Single 测试及相邻 Unit 测试分别实跑通过。迁移后本机 `type_checking` 95 项、
+`multifile_type_checking` 283 项通过，零失败和忽略。
