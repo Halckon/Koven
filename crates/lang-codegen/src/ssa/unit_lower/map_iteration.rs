@@ -1,4 +1,4 @@
-//! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
+//! Qualify each reached Map provider on the per-family lowering path.
 pub(super) mod binding_choice;
 pub(super) mod borrowed;
 mod conditional;
@@ -52,33 +52,6 @@ pub(super) struct QualifiedConditional {
     pub(super) statement: UnitStatementId,
     pub(super) body: UnitStatementId,
     pub(super) source: SourceIdentity,
-}
-
-pub(super) fn validate(
-    parsed: &[&ParsedFile],
-    names: &ValidatedCompilationUnitNames,
-    typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
-) -> Result<(), LoweringError> {
-    // The sealed ownership view has checked acquisition templates and plans.
-    // Preflight only actual acquisitions; ordinary lowering skips dead tails
-    // and still rejects any reached provider without its source-qualified plan.
-    let mut descriptors = owned
-        .map_iterations()
-        .iter()
-        .map(|plan| plan.descriptor())
-        .collect::<Vec<_>>();
-    descriptors.sort_by_key(|descriptor| descriptor.statement());
-    for descriptor in descriptors {
-        let parsed = parsed
-            .get(descriptor.statement().source_unit().index())
-            .ok_or(LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        qualify(parsed, names, typed, owned, descriptor)?;
-    }
-    Ok(())
 }
 
 /// Only public UnitMapPlan/Drop facts participate. There is no unit closure-phi table.

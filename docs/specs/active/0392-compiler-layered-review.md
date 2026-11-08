@@ -107,11 +107,11 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
-| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过；内部旧入口见 §93 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
+| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过。内部旧入口见 §93 和 §105，失败 trial 的三入口事实见 §98 | 全部真实消费者/逐合同清单仍需对账 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§103 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
-| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
+| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；对象发布见 §99，借用和 Map 路由见 §106–108，双宿主预览、Linux sanitizer 与本机 LLDB 的实跑证据已分别记账 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
 
 ## 8. 验收账本
@@ -2582,6 +2582,14 @@ OverloadSelection 与 MemberAccess 原因，无伪造描述符。独立复核核
 封存后的 `Error` 哨兵和重复产物，暂保留。合入主干后的 callable 与 multifile 定向共
 304 项通过，无失败或忽略。
 
+
+后续复核用原歧义及无匹配源码对照 Single、MemoryDocument 与 Rooted。三者都报
+L0124、L0123，且不发布调用描述符。Single 会把未提交 lambda 表达式与参数类型
+封存为 `Error`。两个 Unit 入口均为这两类 lambda 节点保留事实缺失，仅对实际
+失败调用发布 `Error`。因此保留旧封存 oracle，同时让两个 Unit 入口各重复分析
+同一份 names，断言两个真实参数均无类型或模式事实，并核对两个 lambda 与两个调用
+的精确形状。实际 `type_callable` 和 `final_type_admission` 共 84 项通过，零失败和忽略。
+
 ## 99. R4 对象写入路径和失败原子性
 
 独立复审发现 Inkwell 0.11.0 的对象直写先要求输出路径能转换为 UTF-8。在受支持的
@@ -2697,6 +2705,20 @@ Editor lexical 按路径跳过；Linux sanitizer 专项未在 macOS 运行。
 
 本机复审工作树的 Parser 内部及定向共 160 项通过，零失败和忽略。
 
+
+后续在 `e3c4ace1` 上确认两条独立回归。已有目标的非法角列表或嵌套组会提前结束
+错误区，吞掉真实后继父类型或类体。缺目标或已有目标后的换行成员前缀也会被消费。
+修补复用闭合组、严格角列表和恢复 owner，保留原 L0077 和目标 `Present`，对未证实
+角列表继续保留外逗号。Member 前置识别只交还换行后的可识别前缀，裸 `own` 仍是
+合法目标拼写。普通非法尾部中的 `deinit` 同时要求换行和完整 `() {` 才移交外层。
+
+独立复核锁定两条实际失败的修补中间态。错误尾部的 `deinit(), J` 曾丢掉 `J`，
+同行 `+ deinit() {}` 曾把内层类体误交为外层析构。最终 File 和 Declaration 两入口
+均断言诊断、目标、真实后继成员及分隔符归属。内部操作计数在 32→64 段非法尾部时
+满足原线性门槛。最终 Parser 内部及定向集成共 133 项通过，零失败和忽略。
+随后 `cargo test --locked --offline -p lang-frontend` 完整运行 2898 项，零失败和忽略。
+前端全目标 Clippy、格式、文档及 Rust 尺寸门禁通过。该提交待与下一批合并验收。
+
 ## 104. R0/R2 F1/F2 completion 与流事实测试消费者
 
 `lambda_completion` 四个测试的六份源码保持原样。迁移前，同一 fixture 的旧 Single、
@@ -2753,6 +2775,22 @@ CLI 实测 `6f791a21` 上，字段借用、打印、随后 return 的程序构�
 和 InvalidModel 间变化。普通借用调用结果的局部绑定另在 `c58be8ae` 上复现三种
 `if` 位置（绑定前、存活期间和最后读取后）都受未调用 swap 影响。无 sibling 时
 三者构建退出 2，有 sibling 时构建运行退出 0。局部绑定、转发与 Map 迭代前置分别复审。
+
+
+后续 Map 对照确认，`for` 遍历 `when` 的临时 Map 在前端检查中通过，旧整单元
+后端预检却不接受其源节点。加入未调用的 `swap` 会绕开预检，实际细化路径可运行。
+未调用的 Map 字段遍历也受该开关误拒，而真正调用后两种布局均为 `UnsupportedNode`。
+
+两条红测锁定上述差异。修补删除生产 Unit 的旧 Map 整单元预检，把后端检查留给实际
+规划并到达的路径。旧路径在发出操作前仍核验 provider，细化层核对同一条 typed/owned
+迭代描述符、来源、类型和退出动作，最终 verifier 保留。独立复核确认普通函数、
+lambda thunk、Basic/Const 的真实入口仍有阶段检查。SPEC-0331 的历史整源码后端能力
+政策在此退出，整个编译单元的前端验证及旧 Single 的门禁保留。
+本机两条定向回归已通过，覆盖两种布局的真实 native 输出与实际调用时的拒绝位置。
+接入 `59d3c280` 后，前端定向 217 项和 codegen 定向 10 项通过，零失败和忽略。
+codegen 全目标 Clippy 通过。正式 CLI 对照覆盖单文件和拆分项目，8 个正例均构建运行
+且逐字节匹配 stdout。4 个实际到达的字段遍历负例均保留 `UnsupportedNode` 并未生成
+产物。单文件退出 2、项目退出 1 与旧 CLI 的对应入口一致。
 
 本机实际执行 map/refine 路由矩阵 13 项、Map 原别名事实 1 项、multi-borrow 6 项、
 borrow result 5 项、RangeView 路由 1 项、依赖方向 14 项，共 40 项，零失败和忽略。
@@ -2821,3 +2859,18 @@ lambda 的 `swap` 均不能绕过门禁。只有已证不交叠的完整 `if` �
 结束并支配作用域后的分支。独立复核提出的 nullable receiver 字段投影对照在旧 CLI
 与当前 CLI 的两种布局均为相同的 `UnsupportedNode`。codegen 全目标 Clippy、
 格式、文档和 Rust 尺寸门禁通过。
+
+
+[PR #376](https://github.com/Halckon/Koven/pull/376) 合入 `59d3c280`。候选 `df1afc57`
+合入 base `e3c4ace1`，在 [CI 42500943395](https://github.com/Halckon/Koven/actions/runs/42500943395)
+测试的合成提交 `8bc95356` 与实际主干合入树均为 `ce6b3eb9`。两端 Check/Clippy、
+定向测试、预览包生产与独立安装、CI Passed 与 Code CI Evidence 全部通过。日志
+确认六条新增回归在两端均执行成功。codegen lib 的 Ubuntu 2715 项、macOS 2712 项
+通过，零失败。macOS 因 debugserver 权限忽略一项源码断点测试。双端 conformance
+为 137/154、0/6 已知未实现整程序、零回归，generated-owner 各 16 项通过。
+Ubuntu 专用 sanitizer 通过。编辑器词法门禁与 macOS 上的 Linux 专项按条件跳过。
+
+同候选树的本机 `cargo test --locked --offline -p lang-codegen --lib ssa::` 实跑
+1941 项通过，零失败和忽略，另有 772 项未入该筛选。另行对照普通同步
+`observe(view(source))`，独立语句 `if` 在调用前或后时，两种 sibling 布局都在前端
+以 L0164 拒绝，未进入后端。纯直线版本两种布局均构建运行。

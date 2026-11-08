@@ -1,4 +1,4 @@
-//! 成功 overload trial 的原固定 oracle；双 Unit 入口各重复检查同一名称产物。
+//! Overload trial 的双 Unit 见证，每个入口重复检查同一名称产物。
 use super::*;
 use lang_frontend::{
     name_resolution::{
@@ -220,5 +220,67 @@ pub(super) fn generic_trial(
                 ),
             ]
         );
+    }
+}
+
+pub(super) fn failed_trials(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    environment: &NameEnvironment,
+    types: &TypeEnvironment,
+) {
+    for (names, typed, repeated) in checked_entries(sources, parsed, environment, types) {
+        assert_eq!(codes(typed.diagnostics()), ["L0124", "L0123"]);
+        assert_eq!(typed.diagnostics(), repeated.diagnostics());
+        assert!(typed.calls().is_empty());
+        assert_eq!(typed.calls(), repeated.calls());
+        assert!(typed.body_parameter_modes().is_empty());
+        assert_eq!(
+            typed.body_parameter_modes(),
+            repeated.body_parameter_modes()
+        );
+        assert_eq!(typed.body_symbol_types(), repeated.body_symbol_types());
+
+        let [source] = names.source_units() else {
+            panic!("one original source")
+        };
+        let parameters = source
+            .resolution()
+            .symbols()
+            .iter()
+            .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+            .collect::<Vec<_>>();
+        assert_eq!(parameters.len(), 2);
+        for parameter in parameters {
+            assert!(
+                !typed.body_symbol_types().keys().any(|id| {
+                    id.source_unit() == source.source_unit() && id.symbol() == parameter.id()
+                }),
+                "uncommitted lambda parameter must have no type fact"
+            );
+        }
+
+        let mut observed = [0, 0];
+        for (expression, node) in parsed.ast().expressions().iter() {
+            let expected = match node.payload() {
+                Expression::Lambda { .. } => {
+                    observed[0] += 1;
+                    None
+                }
+                Expression::Call { .. } => {
+                    observed[1] += 1;
+                    Some(&UnitTypeKind::Error)
+                }
+                _ => continue,
+            };
+            let id = UnitExpressionId::new(source.source_unit(), expression);
+            for analysis in [&typed, &repeated] {
+                let actual = analysis
+                    .expression_type(id)
+                    .and_then(|ty| analysis.types().get(ty));
+                assert_eq!(actual, expected, "{:?}", sources.slice(node.span()));
+            }
+        }
+        assert_eq!(observed, [2, 2]);
     }
 }
