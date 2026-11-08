@@ -135,3 +135,27 @@ commit 证据，逐根消费交换后的 token；遗漏、重复、别名和跨�
 Swap 暂不进入 Choice 图，不声明 Resource、字段/索引投影、循环或任意 branch phi
 支持，也不退休 Single owner 见证。
 证据为 `owner_transport_tests/swap.rs`、`choice_model/swap.rs` 和观察开关全 cleanup Analysis 等价测试。
+
+## Shared String capture 槽前置
+
+直线、named environment 的纯 Shared String capture 现在观测形成时的真实命名来源
+owner token；新环境有独立 token，来源不被移走。转移环境 binding 保留同一实例身份。
+真实 EndCaptureLoan 边记录 source token，并与形成时冻结的 slot 比对；逆序 End 组必须
+连续且紧邻同 point 的环境 Drop。多环境可以借同一来源，最后一个 slot 结束前不得消费来源。
+
+独立 loan overlay 与原位置 replay 共同检查身份、成对退休及 Move/Drop/Replace/Swap/
+Owned Capture 旁路。它只认证观测，不更改原 cleanup，不授予 lowering 执行能力。
+借用参数缺 owner、临时/mixed/nested capture、分支逃逸及不一致退休、循环仍不准入；
+已退休环境之前或之后的独立原支持语句不因本片禁用。V1 value 投影仍拒绝 Shared 事件，
+循环 L0164 与 Single 条件 owner/phi 见证保留；条件 slots、循环实例及 native 尚未实现。
+
+既有 Shared slots 可跨显式双臂 Unit If：每臂与嵌套 If 独立继承相同 loan 集合，退出时
+两个完整有序集合须相等，且不能留下部分退休。允许保持原集合，或在两臂一致完成已有
+环境的退休；每个叶边仍核完整逆序 End、同 point 环境 Drop，分支点必须对应当前边。
+根出口仍要求集合为空，位置 replay 继续核对 owner 合流。
+不构造不等状态的条件 slot/phi，不改变 cleanup、循环 L0164 或 V1 投影边界。
+
+纯 Shared String 环境也可在显式 Unit If 臂内形成并在本臂完整退休；单臂产生的环境在
+另一臂保持 Uncreated，在形成臂成为 Dropped，不能把 Named/Result 环境带到合流。
+环境静态定义只允许一次形成，created 状态跨兄弟臂共享验证。Owned/mixed/Exclusive
+分支形成、环境逃逸以及循环仍不准入；既有环境和同源新环境的 loan 分别保护来源。

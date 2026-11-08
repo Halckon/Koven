@@ -544,7 +544,9 @@ impl UnitOwnerObservation {
                 },
                 UnitOwnerTransportEvent::If { .. }
                 | UnitOwnerTransportEvent::Capture { .. }
-                | UnitOwnerTransportEvent::CaptureDrop { .. } => return None,
+                | UnitOwnerTransportEvent::CaptureDrop { .. }
+                | UnitOwnerTransportEvent::SharedCapture { .. }
+                | UnitOwnerTransportEvent::SharedCaptureEnd { .. } => return None,
             };
             if !graph.replay(
                 std::slice::from_ref(&projected),

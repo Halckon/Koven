@@ -1273,13 +1273,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
             for capture in captures.into_iter().rev() {
                 if capture.mode() == ClosureCaptureMode::Shared {
-                    self.iteration_actions.push((
-                        point,
-                        crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan {
-                            closure: self.checker.unit_expression(closure),
-                            source: capture.source(),
-                        },
-                    ));
+                    self.end_shared_capture(point, &value, capture, state);
                 }
                 if capture.mode() == ClosureCaptureMode::Owned
                     && capture.effect() == ClosureCaptureEffect::Move

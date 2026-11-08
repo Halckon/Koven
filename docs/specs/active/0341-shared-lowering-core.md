@@ -3622,6 +3622,187 @@ Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 d
 旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
 `60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。
 
+## Resource 与嵌套 capture 身份消费者迁移（2026-11-08）
+
+基于 main `04583bb2`，测试提交 `cbb02ae0` 将 `ownership_closures` 的两个既有正例
+移至 `capture_identity_unit`，原始源码保持逐字一致，两入口逐项执行原 oracle：Resource
+与 Copyable 参数的 Shared/Borrow、Owned/Copy/Move 捕获顺序、三种 closure 的
+Transferability、资源随 capture 清理且不再由原 named binding 清理，以及 nested lambda
+的符号身份与 shadowing 无捕获。新增 MemoryDocument/Rooted、同轮 completion/ownership
+兼容性、完整 source-qualified identity 与无 deferred/可验证检查；不改 producer 或 Guide。
+独立只读复审指出的预期 lambda 身份反取及 names/types 诊断门弱化均已修复并复核。
+
+Mac、locked/offline、独立 target、默认 debug profile，在最终测试代码上实跑：
+
+| 验收项 | 命令或过滤器 | 实际结果 |
+|---|---|---|
+| 双入口 Resource / nested capture 原消费者 | `cargo test -p lang-frontend --test ownership_closures capture_identity_unit -- --nocapture` | 2 passed，72 filtered，零失败/忽略 |
+| 前端静态检查 | `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 |
+| 格式与空白 | `cargo fmt --all -- --check`、`git diff --check` | 通过 |
+| 尺寸门禁 | `python3 scripts/check_rust_sizes.py --base 04583bb2` | 通过，2191份手写Rust、35份历史超长文件，无新增欠账 |
+| 文档后继 | `python3 scripts/check_docs.py`、`git diff --check` | 通过，863份Markdown |
+
+文档后继不冒称重跑测试。此片不证明动态 Choice/循环 capture 传输、全流 loan-end、
+SSA/LLVM/native 或完整复杂所有权；其他 Single owner/loan 见证保留，D10/E2仍进行中。
+未运行全量测试、native、故障注入、校准或正式 CI，不创建 PR、不合并。
+
+## 循环共享 capture 的有界安全门禁（2026-11-08）
+
+在 `6dc1ff5c` 上探测原循环 Choice 源码，MemoryDocument/Rooted 均无诊断，却在循环后
+`f()` 使用来源之前发布 xs/ys 的 LoopExit drop；break 还出现 BranchExit drop。正确最低
+生命周期断言实跑失败，原 Single 三项条件来源见证通过。根因是 If 结果不能进入 planner
+的单 lambda 槽，且循环 body_state 未运输到出口。不能靠并集延迟所有来源冒充条件 ASAP。
+
+用户批准先对特定无法证明路径报 L0164。新 `dataflow/loop_capture.rs` 在 for/while/loop
+边检查循环外仍 live 的 holder：仅对相对入口新增的环境树中 Shared、MoveOnly、由当前
+callable 拥有的来源拒绝；Borrow/Inout 参数、非 owning binding、已建立环境、body-local
+且已结束的 callback、无捕获与 Copyable 来源不新增拒绝。失败不发布 cleanup/capture/
+iteration 产物。loop 内重新建立且跨边保存的环境仍待完整协议，不提升动态能力。
+
+可独立证明零轮的 literal false（含 Group）及 typed 内建容器 descriptor 确认的零实参
+ListForm/EmptyMutableList 保留旧路径；不靠函数名称判断空容器，不新增一般常量折叠、
+运行时长度求值或任意条件可达性证明。其他未证明零轮的运输仍可报 L0164，属于明确的
+临时精度限制。独立审查发现的 Borrow/Inout 参数误拒已修正并补正控；新模块避免给历史
+953行 traversal 再添加整段算法，不扩大尺寸豁免。
+
+### 完整条件 owner/phi 的下一阶段设计边界
+
+此节是待实施合同方向，不是已启用的新产物或能力。环境实例身份必须与静态 lambda
+分离，并绑定同次 analysis/source；每个实例持有有序 capture slots、source owner 与有效
+条件。Choice 与 loop header/exit phi 必须列全零轮入口、正常/continue 回边及 break/
+exhaustion 入边；条件 EndCaptureLoan 与 Drop 共享唯一有序序列，区分仍可用 named owner
+和仅由环境保留的 owner。validator 验证入边完整、条件互斥覆盖、slot 活性及恰一次清理。
+
+替换先完整形成 RHS 环境，再退休旧环境并提交新 holder；相同来源仍被新环境借用时不得
+出现释放窗口，未选中/旧轮 slot 必须清空。lowering 只消费验证后的 selector、owner、
+capture slot 与 phi 边赋值，不从 AST 重推生命周期，不重复执行平面 drop。
+
+后继成功验收须覆盖零轮、一轮 true/false、两轮 TT/TF/FT/FF、continue/break/exhaustion、
+RHS 提前 return、shared 同来源、多 holder 与 nested wrapper；证明未选中来源及时释放、
+选中来源到最终调用、旧新环境恰一次结束及 loan-before-drop，并补真实 lowering/native。
+原 Single 条件 owner 与两轮 replay 全部保留；两个无条件 CallReturn drop 不是等价 oracle。
+
+### 本片验收账本
+
+Mac、locked/offline、独立 target、默认 debug profile；以下均为最终生产代码定向实跑，
+不是全量测试或动态运输能力证明：
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 双入口 fail-closed 与支持路径矩阵 | `ownership_iteration::loop_choice_unit` | 8 passed，192 filtered；包含五种零轮正控及非空内建/普通函数结果负控 |
+| 保留 Single 条件来源与两轮 replay | `ownership_iteration::loop_carried_choices` | 5 passed，195 filtered |
+| 首批 Resource/nested capture 消费者 | `ownership_closures::capture_identity_unit` | 2 passed，72 filtered |
+| 原 exclusive 回边门禁 | `ownership_closures::exclusive_lifetime::exclusive_capture_loop_backedge_requires_a_proven_loan_state` | 1 passed，73 filtered |
+| 工程门禁 | frontend all-targets Clippy `-D warnings`、workspace fmt、diff | 通过 |
+| 尺寸门禁 | `check_rust_sizes.py --base 04583bb2` | 通过；2193份手写Rust、35份历史超长文件，无新增欠账 |
+| 文档门禁 | `check_docs.py` | 通过，863份Markdown |
+
+未运行其他套件、native、故障注入、校准或正式 CI；未创建 PR、不合并。
+D10/E2仍进行中，完整协议只有设计边界，不声称已实施。
+
+## Shared capture 真实来源 slot 前置（2026-11-08）
+
+基于 `9f38c650`，为 conditional owner/phi 提供前置的真实来源输入，不扩展动态 Choice 或
+循环准入。原基线 Shared String 本地闭包观测为 Unsupported/Syntax，正确过滤的实际测试
+已确认失败；初次误用 exact 导致零项不计通过。新实现仅允许 named environment 的纯
+Shared String capture：形成读取当前命名 owner，不移动来源，环境本地 Move 保持实例 token。
+
+真实 EndCaptureLoan action 与观测在同一 helper 发出；关闭观测时仍执行原 action。
+结束时读取的 token 必须匹配形成 slot，逆序 End 组完整且紧接同 point 的环境 Drop。
+每个环境独立持有 loan 集合，两环境同源不能互相解除保护；活跃 source 不得经 Move、
+Drop、Replace、Swap 或 Owned Capture 消费。独立 overlay 和既有位置 replay 互补，
+新事件的跨分析事实 Eq 与 V1 投影拒绝同步更新。历史超长 planner 净减少6行，无新尺寸豁免。
+
+真实源码覆盖形成前 replace、两个来源逆序结束、两环境同源、环境 binding Move，以及
+closure 结束后的显式 source 使用。借用参数缺 owner、临时/mixed/nested、分支内形成、
+活跃 Shared 穿 If、循环的 observation 保持 Unsupported；不把这些拒绝称为语言错误。
+原 cleanup/diagnostics/deferred 等全部既有 Analysis 通过同输入 observation on/off 对照，
+涵盖准入与拒绝源码。V1 value projection 不接受新事件，循环安全门禁不变。
+
+损坏产品测试已加入 CI：缺/重复/逆序/错point/foreign owner或环境的 End、空/重复 slots、
+组内插入和缺环境 Drop；独立 overlay 另测五类消费旁路及只退休一个环境后的源消费。
+这些为 CI-only 注入，**本地未执行**，不得把正常源码通过当成这些负控已验。
+
+Mac、locked/offline、独立 target、默认 debug profile；最终代码本地验收如下：
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| Shared真实来源槽 | lib `shared_string_environment_has_real_source_owner_slots` | 1 passed，4个真实源码输入 |
+| Shared准入边界 | lib `shared_capture_outside_the_named_straight_line_slice_stays_unsupported` | 1 passed，7个真实源码输入 |
+| 完整旧产物等价 | lib `shared_capture_observation_preserves_all_existing_cleanup_products` | 1 passed，准入与拒绝11个输入 |
+| 原Owned与旧观测邻控 | lib `capture_formation_preserves_replaced_and_forwarded_owner_lineage`、`owner_observation_never_changes_existing_cleanup_products` | 各1 passed |
+| 循环保护与首批消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 工程/消费者编译 | frontend all-targets Clippy `-D warnings`、workspace all-targets check | 通过；LLVM21前缀使用已安装工具链 |
+| 格式/尺寸/文档 | workspace fmt、diff、尺寸相对9f38c650、check_docs.py | 通过；2196份Rust、35份历史超长，863份Markdown |
+
+普通定向共15项通过，零忽略；未运行全量、native、CI-only损坏测试或正式CI。
+独立只读复审核对真实token输入、loan集合、逆序退休、默认cleanup等价及负控静态逻辑。
+本片保存观测协议候选，不宣称 conditional owner/phi 或 D10/E2 完成，不创建PR、不合并。
+
+## Shared slots 跨独立 If（2026-11-08）
+
+基于 `6ba0e742` 的后续片仅放开已有 slots 不变的显式双臂 Unit If。真实源码基线已实跑
+失败为 InconsistentTransport；overlay 现在逐臂复制入口 loans，递归保护所有消费路径，
+要求出口与入口完整相等且无部分退休，顶层仍从空集合开始并归空。原位置 replay、分支
+内形成/退休门禁、cleanup、V1 和循环 L0164 不变；不宣称动态 conditional owner/phi 完成。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 跨 If 身份与退休顺序 | lib `shared_capture_live_across_independent_if_keeps_source_slots` | 1 passed，4真实输入：独立String、嵌套、双环境同源、无关replace/swap |
+| 边界、原槽与全产物等价 | lib `shared_capture_outside_the_named_straight_line_slice_stays_unsupported`、`shared_string_environment_has_real_source_owner_slots`、`shared_capture_observation_preserves_all_existing_cleanup_products`、`owner_observation_never_changes_existing_cleanup_products` | 各1 passed；边界8输入，Shared on/off合计16输入 |
+| 循环与消费者邻控 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 工程检查 | frontend all-targets Clippy `-D warnings`、fmt、相对6ba0e742尺寸、diff | 通过 |
+
+Mac、locked/offline、独立 target、默认 debug profile；普通定向共15项通过。
+五种消费旁路追加双臂和嵌套 overlay 负控，属于 CI-only 注入，只编译未本地执行。
+未运行全量、native、正式CI；未改变公开产物类型，未追加workspace检查。分支内退休及
+单臂return仍拒绝观测；本片仅认证不变的跨边借用身份，不新增语言或lowering执行能力。
+
+## Shared slots 双臂一致退休（2026-11-08）
+
+基于 `50b723aa`，loan overlay 逐臂从相同真实入口状态 replay，仅在完整有序 loan 集合
+相等时合流。SharedEnd 不再一律拒绝 edge，改为核对 BranchEntry/Exit 的 control/branch；
+位置合流、环境 Drop、逆序完整退休和来源保护仍联合成立。真实双臂退休源码先实跑失败
+为 InconsistentTransport，再以最小实现转绿。Shared 形成仍不得进入分支，不实现不等状态
+phi、循环运输或新的 cleanup；观察协议不授予 lowering 能力。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 双臂一致退休 | lib `shared_capture_retires_on_both_if_edges_without_phi` | 1 passed，5输入含嵌套叶边、双环境只退其一、来源后用、多槽逆序 |
+| 既有Shared与边界 | lib `shared_capture_live_across_independent_if_keeps_source_slots`、`shared_capture_outside_the_named_straight_line_slice_stays_unsupported`、`shared_string_environment_has_real_source_owner_slots` | 各1 passed |
+| 全旧产物等价 | lib `shared_capture_observation_preserves_all_existing_cleanup_products` | 1 passed，20份真实源码开关对照 |
+| 循环和消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 工程与文档 | frontend all-targets Clippy `-D warnings`、fmt、尺寸相对50b723aa、diff、check_docs.py | 通过；2196份Rust、35份历史超长，863份Markdown |
+
+Mac、locked/offline、独立 target、默认 debug profile；普通定向15项。正向直接断言每个臂
+及嵌套叶边确实退休原环境，禁止把退休推到合流后；另一仍活跃环境保留独立来源保护。
+CI-only 另加单臂丢失/重复/部分End、缺环境Drop、错误分支点及另一环境仍借用时提前消费
+来源，编译但未本地执行。未跑全量、native或正式CI，未改公开类型；不新增workspace检查。
+
+## 分支内 Shared 环境完整生命周期（2026-11-08）
+
+基于 `fdae3d3a`，只准入显式 Unit If 内纯 Shared named String 环境的形成与本臂完整退休。
+真实源码先实跑失败为 Syntax，最小 planner/replay 修改后转绿。环境定义 created 跨两臂
+共同维护，不能复制同一静态环境形成；既有 loans 与 locations 合流约束不放宽，分支产生
+的环境不可逃逸。cleanup、语言语义、动态 phi、循环 L0164、V1 与 lowering 能力不变。
+
+真实来源见 `owner_transport_tests/shared_branch_local.rs`：六份准入输入覆盖单臂/双臂、
+分支局部String、嵌套、已有外层环境、多来源和同源双环境。逐臂核对形成身份、完整逆序
+End组、紧邻环境Drop及来源晚于环境释放。五份边界覆盖逃逸、Owned、mixed、缺else、循环。
+静态环境复制到兄弟臂的 CI-only 负控先修正分支point，避免其他校验遮蔽 created 检查；
+另有缺End、缺环境Drop、重复End和提前来源Drop。这些注入本地仅编译，未执行。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 分支内生命周期 | lib `shared_capture_formed_and_retired_inside_if_is_observed` | 1 passed，6份真实输入 |
+| 准入边界 | lib `branch_local_shared_capture_does_not_admit_escaping_or_other_kinds` | 1 passed，5份输入 |
+| 新片完整产物等价 | lib `branch_local_shared_capture_preserves_full_cleanup_analysis` | 1 passed，11份输入 |
+| 原Shared槽/跨If/双臂退休/边界/等价 | lib 对应5个正常源码过滤器，见前述切片表 | 各1 passed；旧Shared等价现为19份输入 |
+| 循环与消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 静态检查 | frontend all-targets Clippy `-D warnings`、fmt、diff、check_docs.py | 通过 |
+
+Mac、locked/offline、独立target、默认debug profile；普通定向18项，独立只读复核未发现漏洞。
+未跑全量、native、正式CI或Tree-sitter；未改变公开类型，不追加workspace检查。
 
 ## Unit 栈帧候选适配新主线（2026-11-08）
 
@@ -3662,3 +3843,29 @@ locked/offline：原九个普通目标443项、`ownership_containers` 45项及 m
 合计489项。历史Abort压力输入仍在本机精确排除，不修改源码、输入、ignore或线程栈。
 frontend all-targets Clippy（-D warnings）、workspace fmt、863份Markdown及diff检查通过。
 新组合须重新取得正式PR CI；旧头通过不代替新组合验收，D10/E2仍in-progress。
+
+### PR #365 主线冲突合流（2026-11-08）
+
+保留原合批头 `301dde03`，在独立 worktree 合入 main `d5d3c8f5`。唯一冲突为本账本
+追加记录，双方全文保留；所有权生产代码与其原定向测试相对原头无变化。
+合流代码在 Mac、locked/offline、原独立target、默认debug profile 下复跑上述18项普通
+定向，全部通过；frontend all-targets Clippy `-D warnings`、workspace all-targets check
+（已安装LLVM21）、fmt、文档与diff检查通过。未运行CI-only注入、native或Tree-sitter。
+新合流头需取得真正 pull_request 事件的完整CI，原push头的skipped不算通过，不自动合并。
+
+### PR #365 旧 Shared 边界 oracle 迁移（2026-11-08）
+
+`df51f7d9` 的正式双平台 CI 在 `capture_boundaries_discard_the_entire_observation_without_language_errors`
+失败：[Linux原始失败](https://github.com/Halckon/Koven/actions/runs/42466597814/job/128688333691)。
+本机精确复现；根因为 Owned-only 切片仍把纯 Shared String `{ a }` 预期为 Unsupported，
+与本批已准入范围冲突，并非本次修改放宽生产行为。
+
+原完整源码逐字保留为 `REPLACED_SHARED_SOURCE`，新正控固定 replacement 后真实 owner、
+lambda Unit 身份、唯一 End、相邻同点环境 Drop、来源随后释放及非 Owned 消费/V1拒绝。
+该输入也加入 observation on/off 全 Analysis 对照。原负控用仍不支持的 Shared String+Int
+混合类型替换，其他四例和整段清空断言不变；不删除输入、不接受多种结果、不添加ignore。
+
+Mac、locked/offline、默认debug、独立target：新正控、原失败边界、两个原Owned真实来源、
+Owned分支隔离、Shared全产物等价、分支局部形成、双臂退休共8项普通定向通过。
+独立只读复核确认原源码逐字一致且未弱化oracle。未改生产代码或损坏产物负控；
+CI-only注入仍未本地执行，新头仍须取得正式双平台CI，不以此次定向代替全量验收。
