@@ -106,17 +106,41 @@ impl Parser<'_> {
         if self.classifier_declaration_start()? {
             return Ok(true);
         }
-        if (self.current_identifier_is("borrow")?
-            || self.current_identifier_is("inout")?
-            || self.current_identifier_is("own")?)
-            && self.peek_is_keyword(1, Keyword::Fun)
-        {
+        if self.receiver_modifier_at(0)?.is_some() && self.peek_is_keyword(1, Keyword::Fun) {
             return Ok(true);
         }
         if self.current_identifier_is("deinit")? {
             return Ok(true);
         }
         Ok(class_member_start_kind(self.current()?.kind()))
+    }
+
+    pub(super) fn receiver_modifier_at(
+        &self,
+        ordinal: usize,
+    ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
+        let Some(lexeme) = self.peek(ordinal) else {
+            return Ok(None);
+        };
+        if !matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+            return Ok(None);
+        }
+        let span = lexeme.span();
+        Ok(match self.sources.slice(span)? {
+            "borrow" => Some(ParameterModeMarker::Borrow(span)),
+            "inout" => Some(ParameterModeMarker::Inout(span)),
+            "own" => Some(ParameterModeMarker::Own(span)),
+            _ => None,
+        })
+    }
+
+    pub(super) fn class_member_recovery_start(&self) -> Result<bool, ParserInternalError> {
+        Ok(self.class_member_start()?
+            || (self.receiver_modifier_at(0)?.is_some()
+                && (self.receiver_modifier_at(1)?.is_some()
+                    || self
+                        .peek(1)
+                        .is_some_and(|next| class_member_start_kind(next.kind())))))
     }
 }
 
@@ -643,11 +667,14 @@ impl DeclarationStops {
                     lexeme.kind(),
                     LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
                 ))
-            || (self.0 & Self::CLASS_MEMBER != 0 && class_member_start_kind(lexeme.kind()))
             || (self.0 & Self::ENUM_VARIANT != 0
                 && matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)))
             || (self.0 & Self::CONTROL_EXPRESSION != 0
                 && control_expression_start_kind(lexeme.kind()))
             || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(lexeme.kind()))
+    }
+
+    pub(super) const fn stops_at_class_member(self) -> bool {
+        self.0 & Self::CLASS_MEMBER != 0
     }
 }

@@ -79,6 +79,8 @@ class-family 成员体及非法嵌套 class、companion 的恢复共用该预算
 类声明头的构造器、类型参数和父类型有单独的类体边界。解析到调用方的真实 `{` 或 `}`
 时保留给对应声明体，类型内部仍按 TypeRef 的规则处理。非法构造器默认值保留平衡
 lambda 的闭合符，成员解析按 classifier 分别验证 companion 唯一性。
+类体恢复回到本地 owner baseline 后识别 receiver 软修饰词，交正式成员解析保留 marker
+和顺序诊断。非法嵌套类缺名称时，父类体仍消费真实 `}`。
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
