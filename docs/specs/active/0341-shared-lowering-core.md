@@ -4416,3 +4416,54 @@ Single 消费者退休；不涉及在途 callable/类型组合、capture Return 
 Mac AArch64 / Rust1.96，locked/offline、独立target、默认debug profile，编译jobs=2。
 未运行故障注入、Abort、压力、frontend/workspace全量、native或正式CI。
 候选保持独立本地提交，交后续同PR合批；未推送、未合并，D10/E2仍in-progress。
+
+
+## PR #366 借用运输、临时字段与 deinit 合批（2026-11-08）
+
+以已发布 `d0fb233f` 和 main `59396543` 为基线，在隔离分支顺序接入
+`0c4cb6de`、`6dbc3c7b`、`0adfca46`、`6d3885ab`、`baabbe2e` 的完整借用运输链，
+再接临时父字段 `af2a3443` 与 deinit 合同 `7de99313`，组合头 `2dec24d2`。
+`baabbe2e` 只补撤销，不能单独代替其 API/状态运输前置；旧 main 合流已是当前祖先，
+不重复引入。Rust 冲突仅为 direct 测试模块注册，双方全部保留；七份 Spec 追加记录均
+逐字保留一次。原候选算法与原 #366 owner Return 实现不变，deinit 仍只是新增合同。
+
+独立只读复核确认：call/binding/forward 三类真实 source token 运输与临时完整父字段
+的 direct-end 资格互斥，不会争抢同一 token；`drop_all` 在原清理前交接 forwarded
+source，单臂 Return 只合并继续路径。三表 raw finalize、analysis 与公开成功/deferred
+门控全部保留。上述有界产物不能拼成全局完整 loan-end 流或跨表统一顺序。
+
+本批另在 `borrow_transport::source_transport_and_temporary_field_end_share_a_completed_consumer`
+加入同一 `read(view(owner), Holder("extra").text)` 的双入口组合见证。独立从源码 AST
+固定三条真实 loan 身份、各自终点、唯一临时字段 direct end，以及完整父和来源 owner
+各在 outer CallReturn 清理一次；不改变原输入或承诺跨 API 顺序。首轮新 oracle 错将
+named owner 的 `value_origin` 当成 initializer，0 passed/1 failed；沿 `local_variable`
+的 `marker_span(name)` 及公开“诊断位置”合同核实后，仅改为独立 AST 声明名 Span。
+临时父仍用完整父表达式 Span，修正后通过；这是新测试预期错误，不是生产清理修复。
+最终独立复核无阻断，原候选见证和历史失败记录保留。
+
+| 验收项 | 目标/选择 | 本组合实际结果 |
+|---|---|---|
+| source 运输与临时字段 | `unit_direct_call_loan_ends`，精确排除下述3项 | 90 passed，含新增交叉见证；原89项邻控保留 |
+| 原调用方与范围 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments`、`ownership_range_construction` | 14 + 10 + 14 passed |
+| Unit provider/pending | `multifile_ownership_checking` 的 `iteration::` 与原 pending lifetime，排除下述1项 | 20 + 1 passed |
+| raw 撤销与原 owner 合同 | 6项 `adjacent_borrow_results`、前批23个普通 lib 见证及 Exclusive Return 前缀全产物邻控 | 30 passed；359项未选，不运行注入 |
+| 原 owner 消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit`、原 declaration-order Return | 8 + 2 + 1 passed |
+| deinit 拒绝与正反邻控 | `ownership_resource_deinit`、`resource_deinit_type_facts` 的 `deinit` | 4 + 6 passed；原 Single 差异合同不变 |
+| 静态与跨 crate | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 全通过；863份Markdown、2217份手写Rust、35项超1000，尺寸政策47项重跑通过 |
+
+Mac AArch64、Rust/Cargo1.96、LLVM21.1.8，locked/offline、默认debug、复用同一独立
+目标目录且 Cargo 串行。最终相关 Rust 选择200项通过，不累计重复复跑为额外覆盖。
+生产头 `2dec24d2` 上199项已通过，随后只追加上述私有测试；最后90项direct族与
+Clippy/workspace/fmt复跑。`compilation_unit.rs` 回到1009行，沿用既有1156例外；
+独立复核确认仅三类产物接线与临时字段注释，没有父文件算法增长或提高额度，不能把
+35项超限写成原34项未增长。
+
+本机整项不执行 direct 中 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events`、
+`temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent`、
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`，以及 multifile 中
+`iteration::nested_while_jumps_preserve_outer_provider_and_abort_has_no_cleanup_edge`；
+全部只编译。前批两个历史Abort/压力见证与所有CI-only注入也未在本轮本机执行，未跑
+frontend/workspace全量测试、native、Linux或Tree-sitter。前批类型/LSP数字不冒充本轮重跑。
+旧头 `d0fb233f` 的[正式CI](https://github.com/Halckon/Koven/actions/runs/42480287069)
+完整成功后才发布本批，避免中断在途CI；该绿灯不代表本批新头已通过。仍保持同一草稿
+PR #366，等待精确新头正式CI，不自动合并，D10/E2仍in-progress。
