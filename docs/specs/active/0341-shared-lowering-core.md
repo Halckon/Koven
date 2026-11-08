@@ -3499,6 +3499,20 @@ frontend all-targets Clippy（-D warnings）、fmt、849份Markdown、diff与尺
 组合源码的 callable 过滤器9项、type_graph过滤器1项通过；frontend all-targets Clippy
 （-D warnings）、fmt、849份Markdown与diff检查通过。正式Draft PR的双宿主CI仍待验证。
 
+### 剩余容器普通生命周期消费者（2026-11-07）
+
+基于 main `86430a05`，将 `ownership_containers` 四项原始 fixture 移至 `remaining_unit`：
+field-container parent/element overlap、replacement moved-owner 与 commit cleanup、temporary
+共享/独占借用及重复分析稳定性、post-index field projection Deferred。保持原始源文本与全部
+旧断言，包括 L0135、L0131 的 `list[0]` primary span、AfterReplacement/ReplacedElement、
+AfterExpression/CallReturn temporary cleanup、IndexPlace deferred 与空 drop plan。
+
+每项通过 MemoryDocument / Rooted 实际类型最终准入和 P3 分析；验证 SourceUnit、产物同源性，
+成功/诊断/Deferred 的 validate 结果分别保留。temporary 在每种入口各自重跑并比较完整 loans/drops
+调试快照，不把两入口之间相等当独立 oracle，也不改借用结束 producer 或完整事件见证。
+
+验证：四项 `remaining_unit::` 定向测试通过，frontend all-targets Clippy、fmt、文档及尺寸检查；
+未运行 full/native/Abort、故障注入或校准测试。与待合 #350 为不同测试段落，后续保留两批证据整合。
 ## Map.withValue 泛型借用消费者迁移（2026-11-07）
 
 独立基于 main `78a36f25`，不依赖 callable 或 borrow-prefix 候选合入。
@@ -3547,3 +3561,7 @@ architecture 记录完整保留，原 Map/容器测试内容不变。Mac Rust1.9
 unit_direct_call_loan_ends 全60项通过，共82项；frontend all-targets Clippy
 （-D warnings）、workspace fmt、862份Markdown及diff检查通过。
 本次未运行全量/native/故障注入/校准；正式CI须以本次新头单独核验，不沿用旧头绿灯。
+
+后续本地整合 #350 的 `d8125323` 后，容器目标已没有 Single helper 调用，删除其入口和 imports。
+原两提交另存已验证 bundle；没有删除或覆盖原分支。45 项容器目标测试全部通过，
+frontend all-targets Clippy 与格式/文档/尺寸检查通过；仍不代表其他 ownership 目标全部退役。
