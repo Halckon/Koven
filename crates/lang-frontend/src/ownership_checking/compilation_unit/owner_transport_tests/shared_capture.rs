@@ -140,7 +140,6 @@ fn shared_string_environment_has_real_source_owner_slots() {
 pub(in crate::ownership_checking::compilation_unit) const BOUNDARIES: &[&str] = &[
     r#"fun run(text: String): Unit { val callback = { text == "x" } }"#,
     r#"fun run(): Unit { val text = "x"; val inner = { text == "x" }; val outer = { inner() } }"#,
-    r#"fun run(flag: Boolean): Unit { val text = "x"; if (flag) { val callback = { text == "x" } } else {} }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; while (flag) { val callback = { text == "x" } } }"#,
     r#"fun inspect(callback: () -> Boolean): Unit {}
 fun run(): Unit { val text = "x"; inspect({ text == "x" }) }"#,
@@ -342,7 +341,7 @@ pub(in crate::ownership_checking::compilation_unit) const RETIRE_IF_SOURCES: &[&
 ];
 
 // Enumerate real alternatives for independent per-path order assertions.
-fn paths(events: &[UnitOwnerTransportEvent]) -> Vec<Vec<&UnitOwnerTransportEvent>> {
+pub(super) fn paths(events: &[UnitOwnerTransportEvent]) -> Vec<Vec<&UnitOwnerTransportEvent>> {
     let mut result = vec![Vec::new()];
     for event in events {
         if let UnitOwnerTransportEvent::If {

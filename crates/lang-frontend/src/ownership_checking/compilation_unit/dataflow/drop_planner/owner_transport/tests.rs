@@ -157,3 +157,16 @@ fn shared_capture_observation_preserves_all_existing_cleanup_products() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn branch_local_shared_capture_preserves_full_cleanup_analysis() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_branch_local::{
+        BOUNDARIES, SOURCES,
+    };
+    for source in SOURCES.iter().chain(BOUNDARIES) {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}

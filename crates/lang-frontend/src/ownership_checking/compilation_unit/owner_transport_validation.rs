@@ -193,12 +193,12 @@ impl UnitOwnerObservation {
                     environment,
                     inputs,
                 } => {
-                    if edge.is_some()
-                        || !valid_owner(environment)
+                    if !valid_owner(environment)
                         || expression.source_unit() != source
                         || self.definitions[environment.index].origin
                             != UnitOwnerOrigin::Closure(*expression)
                         || locations[environment.index] != Location::Uncreated
+                        || created[environment.index]
                         || inputs.is_empty()
                     {
                         return false;
@@ -216,6 +216,7 @@ impl UnitOwnerObservation {
                             return false;
                         }
                     }
+                    created[environment.index] = true;
                     locations[environment.index] = Location::Result(*expression);
                 }
                 UnitOwnerTransportEvent::SharedCaptureEnd {

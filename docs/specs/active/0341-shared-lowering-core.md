@@ -3778,3 +3778,28 @@ Mac、locked/offline、独立 target、默认 debug profile；普通定向15项�
 及嵌套叶边确实退休原环境，禁止把退休推到合流后；另一仍活跃环境保留独立来源保护。
 CI-only 另加单臂丢失/重复/部分End、缺环境Drop、错误分支点及另一环境仍借用时提前消费
 来源，编译但未本地执行。未跑全量、native或正式CI，未改公开类型；不新增workspace检查。
+
+## 分支内 Shared 环境完整生命周期（2026-11-08）
+
+基于 `fdae3d3a`，只准入显式 Unit If 内纯 Shared named String 环境的形成与本臂完整退休。
+真实源码先实跑失败为 Syntax，最小 planner/replay 修改后转绿。环境定义 created 跨两臂
+共同维护，不能复制同一静态环境形成；既有 loans 与 locations 合流约束不放宽，分支产生
+的环境不可逃逸。cleanup、语言语义、动态 phi、循环 L0164、V1 与 lowering 能力不变。
+
+真实来源见 `owner_transport_tests/shared_branch_local.rs`：六份准入输入覆盖单臂/双臂、
+分支局部String、嵌套、已有外层环境、多来源和同源双环境。逐臂核对形成身份、完整逆序
+End组、紧邻环境Drop及来源晚于环境释放。五份边界覆盖逃逸、Owned、mixed、缺else、循环。
+静态环境复制到兄弟臂的 CI-only 负控先修正分支point，避免其他校验遮蔽 created 检查；
+另有缺End、缺环境Drop、重复End和提前来源Drop。这些注入本地仅编译，未执行。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 分支内生命周期 | lib `shared_capture_formed_and_retired_inside_if_is_observed` | 1 passed，6份真实输入 |
+| 准入边界 | lib `branch_local_shared_capture_does_not_admit_escaping_or_other_kinds` | 1 passed，5份输入 |
+| 新片完整产物等价 | lib `branch_local_shared_capture_preserves_full_cleanup_analysis` | 1 passed，11份输入 |
+| 原Shared槽/跨If/双臂退休/边界/等价 | lib 对应5个正常源码过滤器，见前述切片表 | 各1 passed；旧Shared等价现为19份输入 |
+| 循环与消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 静态检查 | frontend all-targets Clippy `-D warnings`、fmt、diff、check_docs.py | 通过 |
+
+Mac、locked/offline、独立target、默认debug profile；普通定向18项，独立只读复核未发现漏洞。
+未跑全量、native、正式CI或Tree-sitter；未改变公开类型，不追加workspace检查。
