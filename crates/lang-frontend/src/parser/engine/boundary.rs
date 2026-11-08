@@ -1,4 +1,5 @@
 use super::*;
+use std::cell::{Cell, RefCell};
 
 pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
     matches!(
@@ -92,7 +93,81 @@ pub(super) fn class_member_start_kind(kind: LexemeKind) -> bool {
         )
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum TypeParameterOwner {
+    Function,
+    Classifier,
+    FileClassifier,
+}
+
+pub(super) struct FileAngleRecovery {
+    pub(super) groups: RefCell<recovery::FileAngleGroups>,
+    pub(super) separator: Cell<Option<(usize, bool)>>,
+}
+
 impl Parser<'_> {
+    pub(super) fn at_file_angle_separator(
+        &self,
+        current: Lexeme,
+    ) -> Result<bool, ParserInternalError> {
+        if !matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) {
+            return Ok(false);
+        }
+        let Some(recovery) = &self.file_angle else {
+            return Ok(false);
+        };
+        let offset = current.span().start();
+        let memo = &recovery.separator;
+        if let Some((previous, boundary)) = memo.get()
+            && previous == offset
+        {
+            return Ok(boundary);
+        }
+        // 嵌套 TypeRef 在同一分号逐层退栈，后继 trivia 和声明前缀只读一次。
+        let boundary = self.probe_file_angle_separator(recovery)?;
+        memo.set(Some((offset, boundary)));
+        Ok(boundary)
+    }
+
+    fn probe_file_angle_separator(
+        &self,
+        recovery: &FileAngleRecovery,
+    ) -> Result<bool, ParserInternalError> {
+        let ordinal = if self.peek(1).is_some_and(|token| {
+            matches!(
+                token.kind(),
+                LexemeKind::Token(TokenKind::Keyword(
+                    Keyword::Public | Keyword::Internal | Keyword::Private
+                ))
+            )
+        }) {
+            2
+        } else {
+            1
+        };
+        let next_declaration = self.peek(ordinal).is_some_and(|token| {
+            classifier_declaration_start_kind(token.kind())
+                || matches!(
+                    token.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(
+                        Keyword::Val | Keyword::Var | Keyword::Const | Keyword::Fun
+                    ))
+                )
+        }) || (ordinal == 1
+            && (self.peek_is_keyword(1, Keyword::Package)
+                || self.peek_is_keyword(1, Keyword::Import)))
+            || self.value_class_start_at(ordinal)?;
+        Ok(next_declaration
+            && recovery.groups.borrow_mut().at_semicolon_baseline(
+                self.lexed,
+                &self.lexical_recoveries.terminal_owner_events,
+                self.current_raw()?,
+            )?)
+    }
+
     pub(super) fn value_class_start_at(&self, ordinal: usize) -> Result<bool, ParserInternalError> {
         Ok(self.peek_is_keyword(ordinal + 1, Keyword::Class)
             && self.peek_identifier_is(ordinal, "value")?)

@@ -10,6 +10,7 @@ pub(super) struct LexicalRecoveryIndex {
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
     group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
+    angle_terminal_hint: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -325,6 +326,7 @@ impl LexicalRecoveryIndex {
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
             group_closers: OnceCell::new(),
+            angle_terminal_hint: 0,
         })
     }
 
@@ -335,6 +337,24 @@ impl LexicalRecoveryIndex {
             .copied()
             .flatten()
             .map(NonZeroUsize::get)
+    }
+
+    pub(super) fn file_angle_groups(&mut self, raw: usize, offset: usize) -> FileAngleGroups {
+        // 文件根按源码顺序进入；先略过此前的 terminal events，随后从本次 `<` 建立本地栈。
+        while self
+            .terminal_owner_events
+            .get(self.angle_terminal_hint)
+            .is_some_and(|event| event.offset <= offset)
+        {
+            self.angle_terminal_hint += 1;
+        }
+        FileAngleGroups {
+            next_raw: raw,
+            owners: GroupOwners {
+                next_terminal: self.angle_terminal_hint,
+                ..GroupOwners::default()
+            },
+        }
     }
 
     pub(super) fn string_recovery_end(&self, start: usize) -> Option<usize> {
@@ -431,31 +451,65 @@ fn unterminated_char_at_eof(source: &str, span: Span) -> bool {
 }
 
 /// 在已验证的词法 owner 之外配对普通分组。角符号另有表达式语义。
-fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> Vec<Option<NonZeroUsize>> {
-    let mut matched = vec![None; lexed.lexemes().len()];
-    let mut terminals = terminals.iter().peekable();
-    let mut lexical_depth = 0usize;
-    let mut groups = Vec::new();
-    let mut active = [0usize; 3];
-    for (raw, lexeme) in lexed.lexemes().iter().enumerate() {
+/// 只推进当前 `<` 已经消费的前缀，不继承上一文件根的普通分组。
+pub(super) struct FileAngleGroups {
+    next_raw: usize,
+    owners: GroupOwners,
+}
+
+impl FileAngleGroups {
+    pub(super) fn at_semicolon_baseline(
+        &mut self,
+        lexed: &LexedFile,
+        terminals: &[TerminalOwnerEvent],
+        raw: usize,
+    ) -> Result<bool, ParserInternalError> {
+        let prefix = lexed
+            .lexemes()
+            .get(self.next_raw..=raw)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        for (offset, lexeme) in prefix.iter().enumerate() {
+            self.owners
+                .visit(self.next_raw + offset, *lexeme, terminals);
+        }
+        self.next_raw = raw + 1;
+        Ok(self.owners.lexical_depth == 0 && self.owners.groups.is_empty())
+    }
+}
+
+#[derive(Default)]
+struct GroupOwners {
+    next_terminal: usize,
+    lexical_depth: usize,
+    groups: Vec<(usize, usize)>,
+    active: [usize; 3],
+}
+
+impl GroupOwners {
+    fn visit(
+        &mut self,
+        raw: usize,
+        lexeme: Lexeme,
+        terminals: &[TerminalOwnerEvent],
+    ) -> Option<usize> {
         while terminals
-            .peek()
+            .get(self.next_terminal)
             .is_some_and(|event| event.offset <= lexeme.span().start())
         {
-            lexical_depth -= 1;
-            terminals.next();
+            self.lexical_depth -= 1;
+            self.next_terminal += 1;
         }
         let symbol = match lexeme.kind() {
             LexemeKind::Token(TokenKind::StringStart | TokenKind::InterpolationStart) => {
-                lexical_depth += 1;
-                continue;
+                self.lexical_depth += 1;
+                return None;
             }
             LexemeKind::Token(TokenKind::StringEnd | TokenKind::InterpolationEnd) => {
-                lexical_depth -= 1;
-                continue;
+                self.lexical_depth -= 1;
+                return None;
             }
-            LexemeKind::Token(TokenKind::Symbol(symbol)) if lexical_depth == 0 => symbol,
-            _ => continue,
+            LexemeKind::Token(TokenKind::Symbol(symbol)) if self.lexical_depth == 0 => symbol,
+            _ => return None,
         };
         let (kind, opening) = match symbol {
             Symbol::LeftParen => (0, true),
@@ -464,24 +518,34 @@ fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> Vec<Opt
             Symbol::RightBracket => (1, false),
             Symbol::LeftBrace => (2, true),
             Symbol::RightBrace => (2, false),
-            _ => continue,
+            _ => return None,
         };
         if opening {
-            groups.push((raw, kind));
-            active[kind] += 1;
-        } else if symbol == Symbol::RightBrace && active[kind] == 0 {
+            self.groups.push((raw, kind));
+            self.active[kind] += 1;
+        } else if symbol == Symbol::RightBrace && self.active[kind] == 0 {
             // 构造器和委托都不能跨过调用方的未配对右花括号。
-            groups.clear();
-            active.fill(0);
-        } else if active[kind] != 0 {
+            self.groups.clear();
+            self.active.fill(0);
+        } else if self.active[kind] != 0 {
             // 孤立的异形 closer 不会使另一个已打开的分组丢失其真实 closer。
-            while let Some((opener, owner_kind)) = groups.pop() {
-                active[owner_kind] -= 1;
+            while let Some((opener, owner_kind)) = self.groups.pop() {
+                self.active[owner_kind] -= 1;
                 if owner_kind == kind {
-                    matched[opener] = NonZeroUsize::new(raw);
-                    break;
+                    return Some(opener);
                 }
             }
+        }
+        None
+    }
+}
+
+fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> Vec<Option<NonZeroUsize>> {
+    let mut matched = vec![None; lexed.lexemes().len()];
+    let mut owners = GroupOwners::default();
+    for (raw, lexeme) in lexed.lexemes().iter().copied().enumerate() {
+        if let Some(opener) = owners.visit(raw, lexeme, terminals) {
+            matched[opener] = NonZeroUsize::new(raw);
         }
     }
     matched
