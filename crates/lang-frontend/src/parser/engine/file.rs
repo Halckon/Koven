@@ -1,4 +1,4 @@
-use super::*;
+use super::{class::ClassifierHeaderOwner, *};
 
 impl Parser<'_> {
     pub(super) fn parse_declaration_root(&mut self) -> Result<ItemId, ParserInternalError> {
@@ -311,6 +311,11 @@ impl Parser<'_> {
         &mut self,
     ) -> Result<ItemId, ParserInternalError> {
         let declaration_stops = self.root_expression_stops();
+        let classifier_owner = if self.file_mode {
+            ClassifierHeaderOwner::File
+        } else {
+            ClassifierHeaderOwner::Declaration
+        };
         let is_nocopy_classifier = self.current_identifier_is("nocopy")?
             && (self.peek_identifier_is(1, "value")? && self.peek_is_keyword(2, Keyword::Class)
                 || self
@@ -323,7 +328,7 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            return self.parse_classifier_declaration(self.file_mode);
+            return self.parse_classifier_declaration(classifier_owner);
         }
         Ok(
             if self.local_destructuring_start(Keyword::Val)
@@ -342,7 +347,7 @@ impl Parser<'_> {
             } else if self.current_is_keyword(Keyword::Fun) {
                 self.parse_function_declaration(declaration_stops, true)?
             } else if self.classifier_declaration_start()? {
-                self.parse_classifier_declaration(self.file_mode)?
+                self.parse_classifier_declaration(classifier_owner)?
             } else {
                 let current = self.current()?;
                 let span = if self.file_mode {

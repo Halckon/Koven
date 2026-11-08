@@ -172,6 +172,58 @@ impl Parser<'_> {
             && self.peek_identifier_is(ordinal, "value")?)
     }
 
+    pub(super) fn at_supertype_recovery_boundary(
+        &self,
+        raw: usize,
+        current: Lexeme,
+        owner: super::class::ClassifierHeaderOwner,
+        element_start: bool,
+    ) -> Result<bool, ParserInternalError> {
+        if let Some((previous, mode, start, boundary)) =
+            self.lexical_recoveries.supertype_boundary.get()
+            && (previous, mode, start) == (raw, owner, element_start)
+        {
+            return Ok(boundary);
+        }
+        use super::class::ClassifierHeaderOwner::{Declaration, File, Member};
+        let boundary = self.is_file_declaration_boundary(current)
+            || match owner {
+                File => self.at_class_header_file_boundary(element_start)?,
+                Member if !element_start => {
+                    self.current_is_symbol(Symbol::Semicolon)
+                        || self.class_member_recovery_start()?
+                }
+                Member => {
+                    if self.current_identifier_is("deinit")? {
+                        self.peek_is_symbol(1, Symbol::LeftParen)
+                    } else if self.current_identifier_is("value")? {
+                        match self.peek(1) {
+                            Some(next)
+                                if matches!(
+                                    next.kind(),
+                                    LexemeKind::Token(TokenKind::Keyword(Keyword::Class))
+                                ) =>
+                            {
+                                !self
+                                    .gap_has_line_break(current.span().end(), next.span().start())?
+                            }
+                            _ => false,
+                        }
+                    } else {
+                        class_member_start_kind(current.kind())
+                            || self.current_is_symbol(Symbol::Semicolon)
+                            || (self.receiver_modifier_at(0)?.is_some()
+                                && self.peek_is_keyword(1, Keyword::Fun))
+                    }
+                }
+                Declaration => false,
+            };
+        self.lexical_recoveries
+            .supertype_boundary
+            .set(Some((raw, owner, element_start, boundary)));
+        Ok(boundary)
+    }
+
     pub(super) fn at_class_header_file_boundary(
         &self,
         allow_identifier: bool,
@@ -491,7 +543,11 @@ impl Stops {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct TypeStops(u16);
+pub(super) struct TypeStops {
+    delimiters: u16,
+    supertype_owner: Option<super::class::ClassifierHeaderOwner>,
+    proven_type_closer: Option<usize>,
+}
 
 impl TypeStops {
     pub(super) const EQUAL: u16 = 1 << 5;
@@ -499,7 +555,11 @@ impl TypeStops {
     pub(super) const RIGHT_BRACE: u16 = 1 << 7;
     pub(super) const BLOCK_ELEMENT: u16 = 1 << 8;
     pub(super) const fn empty() -> Self {
-        Self(0)
+        Self {
+            delimiters: 0,
+            supertype_owner: None,
+            proven_type_closer: None,
+        }
     }
 
     pub(super) const COMMA: u16 = 1 << 0;
@@ -514,20 +574,87 @@ impl TypeStops {
     pub(super) const CLASS_BODY: u16 = 1 << 13;
     pub(super) const CLASS_FILE: u16 = 1 << 14;
 
+    pub(super) const fn proven_type_closer(self) -> Option<usize> {
+        self.proven_type_closer
+    }
+
+    pub(super) const fn for_proven_function_parameters(self, closer: usize) -> Self {
+        let outer = Self::GREATER
+            | Self::RIGHT_BRACKET
+            | Self::ARROW
+            | Self::LEFT_BRACE
+            | Self::RIGHT_BRACE
+            | Self::CLASS_BODY;
+        Self {
+            delimiters: self.delimiters & !outer,
+            proven_type_closer: Some(closer),
+            ..self
+        }
+    }
+
+    pub(super) const fn for_supertype(self, owner: super::class::ClassifierHeaderOwner) -> Self {
+        Self {
+            delimiters: self.delimiters | Self::SEMICOLON,
+            supertype_owner: Some(owner),
+            ..self
+        }
+    }
+
+    pub(super) const fn supertype_owner(self) -> Option<super::class::ClassifierHeaderOwner> {
+        self.supertype_owner
+    }
+
+    pub(super) fn supertype_element_recovery(
+        self,
+        owner: super::class::ClassifierHeaderOwner,
+    ) -> DeclarationStops {
+        let mut stops = DeclarationStops::EMPTY
+            .with(DeclarationStops::SUPERTYPE_SUFFIX)
+            .with(DeclarationStops::TYPE_ELEMENT)
+            .with(DeclarationStops::SEMICOLON);
+        for (type_stop, declaration_stop) in [
+            (Self::COMMA, DeclarationStops::COMMA),
+            (Self::GREATER, DeclarationStops::GREATER),
+            (Self::RIGHT_PAREN, DeclarationStops::RIGHT_PAREN),
+            (Self::RIGHT_BRACKET, DeclarationStops::RIGHT_BRACKET),
+            (Self::INTERPOLATION_END, DeclarationStops::INTERPOLATION_END),
+            (Self::ARROW, DeclarationStops::ARROW),
+            (
+                Self::LEFT_BRACE | Self::CLASS_BODY,
+                DeclarationStops::LEFT_BRACE,
+            ),
+            (Self::RIGHT_BRACE, DeclarationStops::RIGHT_BRACE),
+        ] {
+            if self.delimiters & type_stop != 0 {
+                stops = stops.with(declaration_stop);
+            }
+        }
+        match owner {
+            super::class::ClassifierHeaderOwner::File => stops.with(DeclarationStops::CLASS_FILE),
+            super::class::ClassifierHeaderOwner::Member => {
+                stops.with(DeclarationStops::CLASS_MEMBER)
+            }
+            super::class::ClassifierHeaderOwner::Declaration => stops,
+        }
+    }
+
     pub(super) const fn has_class_file_boundary(self) -> bool {
-        self.0 & Self::CLASS_FILE != 0
+        self.delimiters & Self::CLASS_FILE != 0
     }
 
     pub(super) const fn has_class_body_boundary(self) -> bool {
-        self.0 & Self::CLASS_BODY != 0
+        self.delimiters & Self::CLASS_BODY != 0
     }
 
     pub(super) const fn ends_at_extension_name(self) -> bool {
-        self.0 & Self::EXTENSION_NAME != 0
+        self.delimiters & Self::EXTENSION_NAME != 0
     }
 
     pub(super) const fn without_extension_name(self) -> Self {
-        Self(self.0 & !Self::EXTENSION_NAME)
+        Self {
+            delimiters: self.delimiters & !Self::EXTENSION_NAME,
+            ..self
+        }
     }
 
     pub(super) const fn from_expression(stops: Stops) -> Self {
@@ -559,50 +686,69 @@ impl TypeStops {
         if stops.delimiters & Stops::SEMICOLON != 0 {
             bits |= Self::SEMICOLON;
         }
-        Self(bits)
+        Self::empty().with(bits)
     }
 
     pub(super) const fn with(self, flag: u16) -> Self {
-        Self(self.0 | flag)
+        Self {
+            delimiters: self.delimiters | flag,
+            ..self
+        }
     }
 
     pub(super) const fn without_block_elements(self) -> Self {
         // Explicit semicolons belong to the enclosing declaration even inside TypeRefs.
-        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::CLASS_FILE))
+        Self {
+            delimiters: self.delimiters
+                & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::CLASS_FILE),
+            ..self
+        }
     }
 
     pub(super) fn contains(self, lexeme: Lexeme) -> bool {
         match lexeme.kind() {
             LexemeKind::Eof => true,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) => self.0 & Self::COMMA != 0,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Greater)) => self.0 & Self::GREATER != 0,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) => {
+                self.delimiters & Self::COMMA != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Greater)) => {
+                self.delimiters & Self::GREATER != 0
+            }
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen)) => {
-                self.0 & Self::RIGHT_PAREN != 0
+                self.delimiters & Self::RIGHT_PAREN != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket)) => {
-                self.0 & Self::RIGHT_BRACKET != 0
+                self.delimiters & Self::RIGHT_BRACKET != 0
             }
-            LexemeKind::Token(TokenKind::InterpolationEnd) => self.0 & Self::INTERPOLATION_END != 0,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)) => self.0 & Self::EQUAL != 0,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => self.0 & Self::ARROW != 0,
+            LexemeKind::Token(TokenKind::InterpolationEnd) => {
+                self.delimiters & Self::INTERPOLATION_END != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)) => {
+                self.delimiters & Self::EQUAL != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => {
+                self.delimiters & Self::ARROW != 0
+            }
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) => {
-                self.0 & (Self::LEFT_BRACE | Self::CLASS_BODY) != 0
+                self.delimiters & (Self::LEFT_BRACE | Self::CLASS_BODY) != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace)) => {
-                self.0 & Self::RIGHT_BRACE != 0
+                self.delimiters & Self::RIGHT_BRACE != 0
             }
             LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
-                if self.0 & Self::BLOCK_ELEMENT != 0 =>
+                if self.delimiters & Self::BLOCK_ELEMENT != 0 =>
             {
                 true
             }
-            kind if self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(kind) => {
+            kind if self.delimiters & Self::BLOCK_ELEMENT != 0
+                && unsupported_block_element_kind(kind) =>
+            {
                 true
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) => {
-                self.0 & (Self::FILE | Self::SEMICOLON) != 0
+                self.delimiters & (Self::FILE | Self::SEMICOLON) != 0
             }
-            kind if self.0 & Self::FILE != 0 && file_construct_start_kind(kind) => true,
+            kind if self.delimiters & Self::FILE != 0 && file_construct_start_kind(kind) => true,
             _ => false,
         }
     }
@@ -693,11 +839,25 @@ impl DeclarationStops {
     pub(super) const SEMICOLON: u32 = 1 << 12;
     pub(super) const CLASS_MEMBER: u32 = 1 << 13;
     pub(super) const ENUM_VARIANT: u32 = 1 << 14;
-    const ARROW: u32 = 1 << 15;
+    pub(super) const ARROW: u32 = 1 << 15;
     const ELSE: u32 = 1 << 16;
     const CONTROL_EXPRESSION: u32 = 1 << 17;
     pub(super) const CLASS_BODY: u32 = 1 << 18;
     pub(super) const CLASS_FILE: u32 = 1 << 19;
+    pub(super) const SUPERTYPE_SUFFIX: u32 = 1 << 20;
+    const TYPE_ELEMENT: u32 = 1 << 21;
+
+    pub(super) const fn recovers_type_element(self) -> bool {
+        self.0 & Self::TYPE_ELEMENT != 0
+    }
+
+    pub(super) const fn has_semicolon(self) -> bool {
+        self.0 & Self::SEMICOLON != 0
+    }
+
+    pub(super) const fn has_supertype_suffix(self) -> bool {
+        self.0 & Self::SUPERTYPE_SUFFIX != 0
+    }
 
     pub(super) const fn has_greater(self) -> bool {
         self.0 & Self::GREATER != 0

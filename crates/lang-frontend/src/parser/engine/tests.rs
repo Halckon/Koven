@@ -1,3 +1,5 @@
+mod supertype_suffix;
+
 use super::*;
 use crate::{
     lexer::{

@@ -2,11 +2,19 @@ mod supertypes;
 
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ClassifierHeaderOwner {
+    File,
+    Declaration,
+    Member,
+}
+
 impl Parser<'_> {
     pub(super) fn parse_classifier_declaration(
         &mut self,
-        file_header: bool,
+        owner: ClassifierHeaderOwner,
     ) -> Result<ItemId, ParserInternalError> {
+        let file_header = owner == ClassifierHeaderOwner::File;
         let kind = if self.current_identifier_is("value")? {
             let value_span = self.bump()?.span();
             let class_span = if self.current_is_keyword(Keyword::Class) {
@@ -99,7 +107,7 @@ impl Parser<'_> {
             None
         };
 
-        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind, file_header)?;
+        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind, owner)?;
         let body = if self.current_is_symbol(Symbol::LeftBrace) {
             Some(self.parse_classifier_body(kind)?)
         } else {
@@ -570,7 +578,7 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            self.parse_classifier_declaration(false)?
+            self.parse_classifier_declaration(ClassifierHeaderOwner::Member)?
         } else {
             let boundary = self.current_is_symbol(Symbol::RightBrace)
                 || matches!(self.current()?.kind(), LexemeKind::Eof);
