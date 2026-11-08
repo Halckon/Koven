@@ -144,7 +144,6 @@ pub(in crate::ownership_checking::compilation_unit) const BOUNDARIES: &[&str] = 
     r#"fun inspect(callback: () -> Boolean): Unit {}
 fun run(): Unit { val text = "x"; inspect({ text == "x" }) }"#,
     r#"fun run(number: Int): Unit { val text = "x"; val callback = { text == "x" && number == 0 } }"#,
-    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return } else {}; val forwarded = callback }"#,
 ];
 
 pub(in crate::ownership_checking::compilation_unit) const CROSS_IF_SOURCES: &[&str] = &[

@@ -747,16 +747,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::When {
                 subject, entries, ..
             } => self.when_expression(id, subject, &entries, state),
-            Expression::Return { value, .. } => {
-                if let Some(value) = value
-                    && !self.expression(value, DropExpressionUse::Consume, state)?
-                {
-                    return Ok(false);
-                }
-                self.finish_return_iterations(id, state);
-                self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
-                Ok(false)
-            }
+            Expression::Return { value, .. } => self.owner_return_expression(id, value, state),
             Expression::Break { .. } | Expression::Continue { .. } => {
                 let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
                 self.end_iteration_pending_loans(

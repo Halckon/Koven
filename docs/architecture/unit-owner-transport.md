@@ -159,3 +159,15 @@ Owned Capture 旁路。它只认证观测，不更改原 cleanup，不授予 low
 另一臂保持 Uncreated，在形成臂成为 Dropped，不能把 Named/Result 环境带到合流。
 环境静态定义只允许一次形成，created 状态跨兄弟臂共享验证。Owned/mixed/Exclusive
 分支形成、环境逃逸以及循环仍不准入；既有环境和同源新环境的 loan 分别保护来源。
+
+## Unit Return 终止边前置
+
+显式 Unit If 可有一个 bare Return 臂。真实 Return 先按原顺序完成 iteration cleanup 与
+全部 owner cleanup，再发布 UnitReturn；事件记录真实 source-qualified expression，不新建
+owner。主位置 replay 与 Shared loan overlay 分别验证终止状态：无活跃 owner/loan、无
+部分退休、无事件后缀；只把继续臂状态交给后继，不拿终止臂的 Dropped 与继续臂求交。
+V1 投影拒绝新终止事件，默认 cleanup 与诊断不依赖观测开关。
+
+此片保守拒绝双臂终止、带返回值、return 臂新建静态 owner、循环及不支持调用；
+没有动态 owner phi 或循环实例能力。事件一致性校验不重新判断 AST 节点种类；实际
+bare Return 身份由 producer 接线和真实源码的精确 Unit ID / ControlTransfer point 验证。

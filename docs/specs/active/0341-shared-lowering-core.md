@@ -4020,3 +4020,35 @@ architecture合并本片重复段落保持200行，不删除原事实。政策�
 未运行frontend/workspace全量、native、Linux、损坏注入或新头CI；未改跨crate API，不追加
 workspace check。空enum、超过两段本地TypeRef及错误嵌套case实参恢复不新增覆盖。
 本批只本地准备，不推送、不创建PR、不合并；D10/E2仍in-progress。
+## Unit Return 终止边前置（2026-11-08）
+
+基于已合 #365 的 main `6d87040b`，独立分支 `feature/spec-0341-shared-owner-continuation`。
+下一有界合同是显式 Unit If 的单臂 bare Return，另一臂继续。旧真实 Shared 输入本机
+先实跑为 Unsupported/Syntax，再引入真实 UnitReturn 事件及两个 replay 的继续/终止状态。
+真实 Return 求值、iteration cleanup、drop_all 顺序不变，超长 planner 把该语义块委托到
+control helper，净减少行数；观测关闭也执行完整原路径。终止边须清空 owner/loan、无
+部分退休与事件后缀；只采用继续臂状态，不求伪 phi。事件事实 Eq 与 V1 拒绝同步更新。
+
+五份 Shared 正控覆盖正反臂、同源双环境、多来源、嵌套。精确核 bare Return 的 AST Unit
+身份，终止臂所有 End/Drop 为该 Return 的 ControlTransfer，环境先于来源退休；继续路径
+仍实际 Move 环境。原普通 String Return 边界源码完整保留为正控。十二份真实源码做全
+Analysis 开关对照（五准入、六边界、原普通返回输入），不把状态变Complete当作cleanup等价。
+
+边界包括带返回值、双终止、return臂新增静态owner、无else、循环和opaque调用，全部仍
+拒绝观测。尤其 return 臂新增 owner 尚未归一到另一臂的未形成状态，本片不放宽此项。
+CI-only 负控覆盖遗漏End/环境Drop/来源Drop/终止、终止后缀、伪终止、foreign-source Return
+及继续臂提前来源消费；本地只编译，不执行注入。无动态条件owner/phi或循环实例交付，
+不修改Tree-sitter，不自行外发或合并。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 终止边与边界 | lib `shared_capture_unit_return_edge_does_not_retire_the_continuation`、`unit_return_keeps_unsupported_terminal_shapes_fail_closed`、`original_plain_return_boundary_keeps_the_surviving_owner_state`、`unit_return_observation_keeps_full_legacy_analysis` | 各1 passed；五Shared正控、六边界、原普通返回输入 |
+| 旧分支与Shared邻控 | lib 原分支拒绝、Shared拒绝、双臂退休、跨If、分支局部形成及两种全产物等价过滤器 | 7 passed |
+| 循环和消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 原Return与borrow边 | `ownership_checking::return_cleanup_preserves_declaration_order_after_rebinding`、`ownership_borrow_continuation::children_end_before_parents_and_owner_cleanup_on_scope_and_return_edges` | 各1 passed |
+| 工程检查 | frontend all-targets Clippy `-D warnings`、workspace all-targets check（LLVM21）、fmt、diff、尺寸相对6d87040b、check_docs.py | 通过；2203份Rust、34份历史超长，863份Markdown |
+
+Mac、locked/offline、独立target、默认debug profile；普通定向23项通过。独立复核发现并
+修复CI-only多文件fixture按索引误选观察的问题，现按source-qualified callable选择，并
+核原始consistent及foreign-source差异；最终复核闭合。损坏负控仅编译、未本地执行；
+未跑全量、native或正式CI，本片仅本地保存，不推送或创建PR。

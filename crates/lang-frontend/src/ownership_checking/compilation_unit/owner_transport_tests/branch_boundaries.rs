@@ -8,7 +8,6 @@ pub(in crate::ownership_checking::compilation_unit) const BRANCHES: &[&str] = &[
     r#"if (flag) replace(&a, "left") else replace(&a, "right")"#,
     r#"when (flag) { true -> "left"; else -> "right" }"#,
     r#"when { flag -> replace(&a, "left"); else -> replace(&a, "right") }"#,
-    r#"if (flag) { return } else { val local = "right" }"#,
     r#"if (flag) { val local = "left" }"#,
 ];
 
