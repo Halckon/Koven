@@ -867,3 +867,6 @@ mod prefix_order;
 
 #[path = "unit_direct_call_loan_ends/borrow_transport.rs"]
 mod borrow_transport;
+
+#[path = "unit_direct_call_loan_ends/borrow_binding_transport.rs"]
+mod borrow_binding_transport;

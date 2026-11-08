@@ -1,5 +1,6 @@
 mod assignment;
 mod binding;
+mod borrow_binding_transport;
 mod borrow_call_handoff;
 mod borrow_result;
 mod borrow_transport;
@@ -73,6 +74,8 @@ pub(super) struct Analysis {
     pub(super) borrow_call_prefix_ends: Vec<crate::ownership_checking::UnitBorrowCallPrefixEndFact>,
     pub(super) borrow_call_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     pub(super) borrow_call_transports: Vec<crate::ownership_checking::UnitBorrowCallTransportFact>,
+    pub(super) borrow_binding_transports:
+        Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
@@ -163,6 +166,7 @@ fn plan_with_owner_observation(
         borrow_call_prefix_ends,
         borrow_call_handoffs: planner.borrow_call_handoffs,
         borrow_call_transports: planner.borrow_call_transports,
+        borrow_binding_transports: planner.borrow_binding_transports,
         exclusive_call_prefix_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
@@ -192,6 +196,7 @@ struct DropPlanner<'a, 'checker> {
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
     borrow_call_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     borrow_call_transports: Vec<crate::ownership_checking::UnitBorrowCallTransportFact>,
+    borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
     iteration_actions: Vec<(
@@ -234,6 +239,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_actions: Vec::new(),
             borrow_call_handoffs: Vec::new(),
             borrow_call_transports: Vec::new(),
+            borrow_binding_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
             borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
@@ -1073,6 +1079,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.finish_direct_call_loans(id, state);
                 self.observe_borrow_call_handoff(id, state);
                 self.transport_borrow_call_source(id, state);
+                self.transport_borrow_binding_source(id, state);
                 self.finish_borrow_call_transports(id, state);
                 state.pending_loans.retain(|(action, _)| match action {
                     crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) => {

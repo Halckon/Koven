@@ -247,6 +247,8 @@ pub(super) struct ValueState {
     /// 实际已求值的实参loan与建立时loop深度；未求值后缀不得参与退出清理。
     pub(super) pending_loans: Vec<(crate::ownership_checking::UnitIterationCleanupAction, usize)>,
     pub(super) borrow_call_transports: Vec<super::borrow_transport::PendingTransport>,
+    pub(super) borrow_binding_transports:
+        Vec<super::borrow_binding_transport::PendingBindingTransport>,
     pub(super) iterations: Vec<super::iteration::IterationFrame>,
     pub(super) pending_temporaries: Vec<super::pending_call::PendingTemporary>,
     pub(super) values: Vec<OwnedValue>,
@@ -312,6 +314,11 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     let Some(mut merged) = states.pop() else {
         return ValueState::default();
     };
+    merged.borrow_binding_transports.retain(|transport| {
+        states
+            .iter()
+            .all(|state| state.borrow_binding_transports.contains(transport))
+    });
     merged.borrow_call_transports.retain(|transport| {
         states
             .iter()

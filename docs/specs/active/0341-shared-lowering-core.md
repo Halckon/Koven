@@ -4258,3 +4258,37 @@ Mac Rust1.96、locked/offline、独立 target、默认 debug：direct-call 63项
 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`，不计为已通过。
 frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt、文档、
 尺寸和diff检查通过。未运行 native、Linux、故障注入或官方CI，不宣称完整流已完成。
+
+
+### 真实 source token 的 local binding 运输切片（2026-11-08）
+
+接续 `6dbc3c7b`，在同步 main `a884ab8d` 的合流点 `f1c6aea4` 上推进 Phase 3。
+直接借用 initializer 正常返回时，从实际 pending 队列移出 source token，放入随
+ValueState 克隆的 binding 运输状态；实际 initialized binding 终止时消费该 token，
+发布 `UnitBorrowBindingTransportFact`。匹配完整 call、argument 和 origin，保留原 loan
+身份及参数 Span，不从结果 endpoint、最终 descriptor 或 end_span 重建 source end。
+
+首片限无 receiver 的直接 declaration initializer、无 parent 的显式 borrow val 及
+现存 Shared owned 根；复用辅助来源资格，排除 provider、投影、temporary 与借用父根。
+Group initializer 保留关闭边界。已建立的 parent 运输可保留到其子 binding 全部终止；
+子来源本身没有因此取得运输事实。未使用 binding 在初始化后结束；既有 if/while 保守
+作用域规则不变，同一 token 可在互斥 Return 与继续 scope 路径分别结束，合流只保留
+所有继续边共有的 token。未完成 initializer 不发布事务；错误/deferred 清空已完成前缀。
+
+此产物只证明该 source 从真实队列运输到实际 binding 终止，不提供全局 absence、跨事务
+统一顺序、完整 loan-end 流或新增 CFG/NLL 能力。既有 child-before-parent/owner cleanup
+顺序和 iteration/native 动作不变。forwarded return、receiver/provider、完整同步
+consumer unwind 与全部动态路径仍待后续；旧 Single absence/唯一结束见证继续保留。
+
+| 验收项 | 目标/过滤器 | 本组合版本实际结果 |
+|---|---|---|
+| source 身份、具名同根辅助、父子 binding、同根多 binding、Return、未完成 initializer、Group 边界、原子清空、unused 与 if/while 双出口 | `unit_direct_call_loan_ends::borrow_binding_transport` | 9项双 Unit 入口通过；先以缺失 API 得到编译红测 |
+| 直接调用相关回归 | `unit_direct_call_loan_ends`，skip `abort_` 与 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup` | 72通过、0失败；3项明确未执行，不计通过 |
+| 直接调用方 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments` | 14＋10通过 |
+| 公共 API/质量 | frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt | Mac Rust1.96、locked/offline、独立target、默认debug通过 |
+
+独立只读复审未发现可证实P1/P2，已复核真实队列移除、双层原子门、CFG clone/merge和
+最终测试；复审本身未执行Cargo。dataflow 1123→1127/1248、drop_planner
+1557→1564/1669，仅字段、聚合和接线增长；算法留92行子模块，原例外额度与拆分计划不变。
+文档、diff及相对main尺寸门禁随本提交验证；未运行native、Linux、故障注入或官方CI。
+合计96项相关测试通过，不代表D10/E2完成，也不自行合并PR。
