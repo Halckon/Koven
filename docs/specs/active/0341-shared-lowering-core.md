@@ -3869,3 +3869,27 @@ Mac、locked/offline、默认debug、独立target：新正控、原失败边界�
 Owned分支隔离、Shared全产物等价、分支局部形成、双臂退休共8项普通定向通过。
 独立只读复核确认原源码逐字一致且未弱化oracle。未改生产代码或损坏产物负控；
 CI-only注入仍未本地执行，新头仍须取得正式双平台CI，不以此次定向代替全量验收。
+
+## 独立修复：名义签名 L0091 来源锚点（2026-11-08）
+
+基线 main `adba71c3`（含 #351）；#356 为 constant while exits，不与本片改动重叠。
+Guide 03 的 L0091 允许类型实参表或类型名作为 primary；原 Unit signature 错取首实参，
+且用声明 source 解读 use-site TypeRefId。原 `nominal_and_type_parameter_identity_is_known_and_arity_is_exact`
+源码的双入口回归修复前实得 `(Int, Left)` 而非 `(Left, Left)`；跨文件回归实得声明文件
+`Long` 而非使用文件 `Left`。本片令 emitter 显式接收 Span，nominal 传类型名，type parameter
+保持原 argument primary，诊断码、label、错误恢复与 validate 拒绝不变。原 Single 见证完整保留。
+
+| 验收项 | 测试目标/命令 | 实际结果 |
+|---|---|---|
+| 原源码缺失/多余实参诊断，两 raw Unit 入口 | `type_checking::nominal_arity_spans` | 修复前失败，修复后通过 |
+| 跨文件 primary/label source identity、正反输入排列 | `multifile_type_signatures::nominal_arity_primary_stays_in_use_source_under_input_permutation` | 修复前失败，修复后通过 |
+| `T<Int>` / `Int<String>` 原锚点邻控与同文件精确位置 | `type_checking::nominal_arity_spans` | 通过 |
+| 签名/body/原 Single/诊断共享契约 | `cargo test -p lang-frontend --test type_checking --test multifile_type_signatures --test multifile_type_checking --test diagnostic_model` | 401 项通过，0 失败、0 忽略 |
+
+Mac、Rust 1.96、独立 target、默认 debug profile。frontend all-targets Clippy
+（locked/offline、`-D warnings`）、workspace fmt、863份 Markdown、diff 与 Rust 尺寸门禁通过。
+独立复审核对 use-site primary、声明 label 与两入口后，补齐邻控和精确字节身份，最终复跑全绿。
+仅 Phase 2 诊断锚点修复；不宣称原类型
+消费者已整体迁移。enum case TypeRef 的 L0114 差距仍未修复，Single 仍保留；未运行 native、
+full suite 或新头 CI，不开 PR、不合并。signatures.rs 原 1036 行旧债，本次改为1033行，
+不扩大既有例外或增加职责。
