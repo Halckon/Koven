@@ -4205,3 +4205,23 @@ jobs=2，门禁串行。最终相关Rust选择累计670项通过，保留上述�
 私有测试/架构变化，输入等价；23项lib及静态门禁在`7ea84eba`复跑。尺寸政策未改，复用
 前一组合47项政策实跑。两项历史Abort、所有CI-only注入仍仅编译，未跑native、Linux、
 Tree-sitter或frontend/workspace全量。新头需重新取得正式CI，PR仍草稿，不自动合并。
+
+### 嵌套完成与后参放弃的同根顺序合同（2026-11-08）
+
+基于 `04583bb2`，固定一份原源码：outer borrow initializer 的 source、已正常返回的
+`ready(owner)` 与命名参数反排的 `sink(second = owner, first = owner, stop = return)`
+共用同一 owned 根。双 Unit 入口锁定完整有界 direct 向量三项及 source-prefix 单项；
+已完成 token 只在自身 CallReturn 出现一次，pending tokens 按源码逆序在 Return 结束，
+source 的真实同点 rank 为2，owner 只在该 Return 清理一次，未提交 binding/handoff。
+不新增全流 API，不改变 Single witnesses 或既有生产语义。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug：prefix_order 四项、continuation
+14项、nested-borrow 10项全部通过；frontend all-targets Clippy、fmt、863份Markdown、
+diff及尺寸检查通过。未运行 native、Linux、故障注入或官方CI。
+
+完整流下一实现的真实缺口是正常完成调用后的 call-local pending retain：尚未被有界观察
+消费的 token 在此移除；`continue_borrow_call_source` 目前只运输 owner 根保护，不运输
+source loan identity。辅助 loan 又存于 handoff 旁表。因此当前 iteration actions 的全集
+也不是完整 loan-end 流，禁止拼接现有切片或从 end_span/result endpoint 反推全局事件。
+后续应从实际 pending token 建立 continuation 状态，分别闭合同步 consumer、local binding
+和 forwarded return 的生命周期及错误原子发布，再逐项退休 Single 证据。
