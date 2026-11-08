@@ -37,9 +37,9 @@ impl Parser<'_> {
             NameMarker::Present(self.bump()?.span())
         } else {
             let current = self.current()?;
-            let primary = if matches!(current.kind(), LexemeKind::Eof)
-                || self.is_file_declaration_boundary(current)
-            {
+            let boundary =
+                declaration_stops.contains(current) || self.is_file_declaration_boundary(current);
+            let primary = if boundary {
                 self.empty_at(current.span().start())?
             } else {
                 current.span()
@@ -51,15 +51,14 @@ impl Parser<'_> {
                     primary,
                 )?;
             }
-            if self.file_mode && self.is_file_declaration_boundary(current) {
-                NameMarker::Missing(self.empty_at(current.span().start())?)
+            if boundary {
+                NameMarker::Missing(primary)
             } else if self.current_is_keyword(Keyword::Var) {
                 NameMarker::Error(self.bump()?.span())
             } else if self.current_is_identifier()
                 || matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart))
                 || self.current_is_symbol(Symbol::Colon)
                 || self.current_is_symbol(Symbol::Equal)
-                || matches!(current.kind(), LexemeKind::Eof)
             {
                 // 保留 StringStart，让名称恢复一次消费完整 lexical owner。
                 NameMarker::Missing(self.empty_at(current.span().start())?)
@@ -67,8 +66,8 @@ impl Parser<'_> {
                 NameMarker::Error(self.bump()?.span())
             }
         };
-        // 嵌套 constant 的名称恢复不能越过成员调用方拥有的 hard closer。
-        let name_stops = DeclarationStops::from_expression_hard(declaration_stops);
+        // 名称恢复保留外层成员的 closer 与显式 separator。
+        let name_stops = DeclarationStops::from_expression(declaration_stops);
         let name_stops = if self.file_mode {
             name_stops.union(DeclarationStops::FILE)
         } else {
@@ -82,10 +81,7 @@ impl Parser<'_> {
         )?;
         let (colon_span, type_ref) = self.parse_optional_type_annotation(declaration_stops)?;
         let (equals_span, initializer) = self.parse_required_initializer(declaration_stops)?;
-        let end = self
-            .expression_span(initializer)?
-            .end()
-            .max(const_span.end());
+        let end = self.previous_significant_end();
         self.add_item(
             self.span(const_span.start(), end)?,
             Item::Constant {
@@ -120,7 +116,7 @@ impl Parser<'_> {
                 primary,
             )?;
         }
-        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
+        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters(false)?;
         let (name, extension_receiver) = self.parse_function_head(declaration_stops)?;
         if !allow_extension && let Some(receiver) = extension_receiver {
             self.emit(
@@ -263,7 +259,9 @@ impl Parser<'_> {
         context: NameContext,
         additional_stops: DeclarationStops,
     ) -> Result<NameMarker, ParserInternalError> {
-        if self.current_is_identifier() {
+        let file_boundary = additional_stops.has_class_file_boundary()
+            && self.at_class_header_file_boundary(true)?;
+        if self.current_is_identifier() && !file_boundary {
             return Ok(NameMarker::Present(self.bump()?.span()));
         }
         let current = self.current()?;
@@ -274,7 +272,8 @@ impl Parser<'_> {
             LexemeKind::Token(TokenKind::Symbol(symbol)) => Some(symbol),
             _ => None,
         };
-        let boundary = matches!(current.kind(), LexemeKind::Eof)
+        let boundary = file_boundary
+            || matches!(current.kind(), LexemeKind::Eof)
             || context.is_stop(current)
             || additional_stops.contains_hard(current, symbol)
             || additional_stops.contains_soft(current, symbol);
@@ -337,9 +336,12 @@ impl Parser<'_> {
             primary
         } else {
             let start = current.span().start();
-            let recovery_stops = self
+            let mut recovery_stops = self
                 .root_declaration_stops()
                 .union(DeclarationStops::from_expression_hard(declaration_stops));
+            if declaration_stops.delimiters & Stops::SEMICOLON != 0 {
+                recovery_stops = recovery_stops.with(DeclarationStops::SEMICOLON);
+            }
             let end = self.recover_declaration_region(recovery_stops)?;
             self.span(start, end.max(start))?
         };
@@ -349,15 +351,24 @@ impl Parser<'_> {
 
     pub(super) fn parse_type_parameters(
         &mut self,
+        class_header: bool,
     ) -> Result<(Vec<TypeParameter>, Option<Span>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Less) {
             return Ok((Vec::new(), None));
         }
         let opener = self.bump()?.span();
         let mut parameters = Vec::new();
-        let stops = TypeStops::empty()
-            .with(TypeStops::COMMA)
-            .with(TypeStops::GREATER);
+        let mut outer_stops = TypeStops::empty();
+        let mut recovery_stops = DeclarationStops::EMPTY;
+        if class_header {
+            outer_stops = outer_stops
+                .with(TypeStops::CLASS_BODY)
+                .with(TypeStops::RIGHT_BRACE);
+            recovery_stops = recovery_stops
+                .with(DeclarationStops::CLASS_BODY)
+                .with(DeclarationStops::RIGHT_BRACE);
+        }
+        let stops = outer_stops.with(TypeStops::COMMA).with(TypeStops::GREATER);
         if self.current_is_symbol(Symbol::Greater) {
             self.emit(
                 codes::EXPECTED_LIST_ELEMENT,
@@ -366,6 +377,9 @@ impl Parser<'_> {
             )?;
         } else {
             loop {
+                if class_header && outer_stops.contains(self.current()?) {
+                    break;
+                }
                 if self.current_is_symbol(Symbol::Comma) {
                     let comma = self.bump()?.span();
                     self.emit(codes::EXPECTED_LIST_ELEMENT, "expected list element", comma)?;
@@ -374,10 +388,11 @@ impl Parser<'_> {
                     }
                     continue;
                 }
-                let name = self.parse_name_marker(
+                let name = self.parse_name_marker_with_stops(
                     codes::EXPECTED_PARAMETER_NAME,
                     "expected parameter name",
                     NameContext::TypeParameter,
+                    recovery_stops,
                 )?;
                 let start = marker_span(name).start();
                 let (colon_span, bound) = if self.current_is_symbol(Symbol::Colon) {
@@ -387,10 +402,14 @@ impl Parser<'_> {
                 } else {
                     (None, None)
                 };
-                let end = bound
-                    .map(|id| self.type_span(id).map(Span::end))
-                    .transpose()?
-                    .unwrap_or(marker_span(name).end());
+                let end = if class_header {
+                    self.previous_significant_end().max(start)
+                } else {
+                    bound
+                        .map(|id| self.type_span(id).map(Span::end))
+                        .transpose()?
+                        .unwrap_or(marker_span(name).end())
+                };
                 parameters.push(TypeParameter {
                     span: self.span(start, end)?,
                     name,
@@ -410,6 +429,9 @@ impl Parser<'_> {
                     continue;
                 }
                 if self.current_is_symbol(Symbol::Greater) {
+                    break;
+                }
+                if class_header && outer_stops.contains(self.current()?) {
                     break;
                 }
                 if self.current_is_identifier()
@@ -449,6 +471,7 @@ impl Parser<'_> {
                     }
                     if matches!(self.current()?.kind(), LexemeKind::Eof)
                         || self.current_is_symbol(Symbol::Greater)
+                        || (class_header && outer_stops.contains(self.current()?))
                     {
                         break;
                     }
@@ -460,7 +483,7 @@ impl Parser<'_> {
                     primary,
                 )?;
                 self.recover_declaration_region(
-                    DeclarationStops::EMPTY
+                    recovery_stops
                         .with(DeclarationStops::COMMA)
                         .with(DeclarationStops::GREATER),
                 )?;
@@ -476,10 +499,14 @@ impl Parser<'_> {
         } else {
             let current = self.current()?;
             self.emit_closing(self.empty_at(current.span().start())?, opener)?;
-            parameters
-                .last()
-                .map(|parameter| parameter.span.end())
-                .unwrap_or(opener.end())
+            if class_header {
+                self.previous_significant_end()
+            } else {
+                parameters
+                    .last()
+                    .map(|parameter| parameter.span.end())
+                    .unwrap_or(opener.end())
+            }
         };
         Ok((parameters, Some(self.span(opener.start(), end)?)))
     }
@@ -721,6 +748,22 @@ impl Parser<'_> {
         &mut self,
         stops: DeclarationStops,
     ) -> Result<usize, ParserInternalError> {
+        self.recover_declaration_tokens(stops, false)
+            .map(|(end, _)| end)
+    }
+
+    /// 从 StringStart 恢复到该字符串的真实结束或 Lexer 终止事件。
+    pub(super) fn recover_declaration_string(
+        &mut self,
+    ) -> Result<(usize, bool), ParserInternalError> {
+        self.recover_declaration_tokens(DeclarationStops::EMPTY, true)
+    }
+
+    fn recover_declaration_tokens(
+        &mut self,
+        stops: DeclarationStops,
+        stop_at_string_end: bool,
+    ) -> Result<(usize, bool), ParserInternalError> {
         let mut delimiters = Vec::new();
         let mut owners: Vec<(RecoveryOwner, usize)> = Vec::new();
         let first = self
@@ -743,6 +786,7 @@ impl Parser<'_> {
         }
         let mut next_terminal_event = self.next_terminal_recovery_event;
         let mut end = recovery_start;
+        let mut string_poison = false;
         let mut next_significant = Some(first);
 
         'recovery: loop {
@@ -787,6 +831,10 @@ impl Parser<'_> {
                 owners.pop();
                 delimiters.truncate(delimiter_baseline);
                 next_terminal_event += 1;
+                string_poison = true;
+                if stop_at_string_end && owners.is_empty() {
+                    break 'recovery;
+                }
             }
             if matches!(current.kind(), LexemeKind::Eof) {
                 break;
@@ -807,7 +855,13 @@ impl Parser<'_> {
             let outside_owner = owners.is_empty();
             let hard_stop = outside_owner && stops.contains_hard(current, symbol);
             if hard_stop
-                || (outside_owner && delimiters.is_empty() && stops.contains_soft(current, symbol))
+                || (outside_owner
+                    && delimiters.is_empty()
+                    && (stops.contains_soft(current, symbol)
+                        || (stops.has_class_file_boundary()
+                            && self.at_class_header_file_boundary(false)?)
+                        || (stops.stops_at_class_member()
+                            && self.class_member_recovery_start()?)))
             {
                 break;
             }
@@ -843,6 +897,7 @@ impl Parser<'_> {
                     };
                     delimiters.truncate(delimiter_baseline);
                 }
+                LexemeKind::Invalid(InvalidKind::InvalidStringEscape) => string_poison = true,
                 LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
                     delimiters.push(Symbol::RightParen)
                 }
@@ -856,9 +911,12 @@ impl Parser<'_> {
             }
             self.index = raw_index + 1;
             end = current.span().end();
+            if stop_at_string_end && owners.is_empty() {
+                break;
+            }
         }
         self.next_terminal_recovery_event = next_terminal_event;
-        Ok(end)
+        Ok((end, string_poison))
     }
 
     pub(super) fn consume_declaration_tail(

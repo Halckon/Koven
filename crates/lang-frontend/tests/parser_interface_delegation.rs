@@ -10,7 +10,9 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::{lex_and_parse_declaration_twice, parse_declaration_twice};
+use parser_test_assertions::{
+    lex_and_parse_declaration_twice, parse_declaration_twice, parse_file_twice,
+};
 
 fn declaration(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
@@ -117,6 +119,103 @@ fn missing_target_uses_l0078_without_consuming_the_next_owner_boundary() {
 }
 
 #[test]
+fn string_target_preserves_the_delegation_and_file_owners() {
+    for target in [r#""""#, r#""${"nested"}""#] {
+        let text = format!("class C: I by {target}, J {{ fun member(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0078"]);
+        assert_eq!(
+            sources
+                .slice(parsed.diagnostics()[0].primary_span())
+                .unwrap(),
+            "\""
+        );
+        let clause = classifier(&parsed).supertypes[0].delegation.unwrap();
+        let NameMarker::Error(span) = clause.target else {
+            panic!("invalid delegation target")
+        };
+        assert_eq!(sources.slice(span).unwrap(), target);
+        assert_eq!(sources.slice(clause.span).unwrap(), format!("by {target}"));
+
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source("delegation-file.ko", format!("{text}\nclass Sentinel"))
+            .unwrap();
+        let parsed = parse_file_twice(&sources, source, target);
+        assert_eq!(codes(parsed.diagnostics()), ["L0078"]);
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file declarations")
+        };
+        let first = parsed.ast().items().get(*class).unwrap();
+        let Item::Classifier(classifier) = first.payload() else {
+            panic!("class with recovered delegation")
+        };
+        assert_eq!(classifier.supertypes.len(), 2);
+        let body = classifier.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert_eq!(sources.slice(body.right_brace_span.unwrap()).unwrap(), "}");
+        assert_eq!(sources.slice(first.span()).unwrap(), text);
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn poisoned_string_target_keeps_the_lexical_diagnostic_and_next_supertype() {
+    let target = r#""bad\q""#;
+    let text = format!("class C: I by {target}, J {{}}");
+    let (sources, parsed) = declaration(&text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0006"]);
+    let classifier = classifier(&parsed);
+    assert_eq!(classifier.supertypes.len(), 2);
+    let NameMarker::Error(span) = classifier.supertypes[0].delegation.unwrap().target else {
+        panic!("invalid delegation target")
+    };
+    assert_eq!(sources.slice(span).unwrap(), target);
+    assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
+}
+
+#[test]
+fn unterminated_string_target_preserves_the_next_file_declaration() {
+    let text = "class C: I by \"bad\nclass Sentinel";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("delegation-file.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, source, text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0004"]);
+    let [class, sentinel] = parsed.roots() else {
+        panic!("expected both file declarations");
+    };
+    let first = parsed.ast().items().get(*class).unwrap();
+    let Item::Classifier(classifier) = first.payload() else {
+        panic!("class with recovered delegation");
+    };
+    let NameMarker::Error(span) = classifier.supertypes[0].delegation.unwrap().target else {
+        panic!("invalid delegation target");
+    };
+    assert_eq!(sources.slice(span).unwrap(), "\"bad");
+    let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+    assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+}
+
+#[test]
+fn adjacent_unterminated_targets_do_not_consume_each_others_owner_events() {
+    let (sources, parsed) = declaration("class C: I by \"bad\n, J by \"worse\n, K {}");
+    assert_eq!(codes(parsed.diagnostics()), ["L0004", "L0004"]);
+    let classifier = classifier(&parsed);
+    let [first, second, third] = classifier.supertypes.as_slice() else {
+        panic!("expected all three supertypes");
+    };
+    for (entry, target) in [(first, "\"bad"), (second, "\"worse")] {
+        let NameMarker::Error(span) = entry.delegation.unwrap().target else {
+            panic!("invalid delegation target")
+        };
+        assert_eq!(sources.slice(span).unwrap(), target);
+    }
+    assert!(third.delegation.is_none());
+    assert!(classifier.body.as_ref().unwrap().right_brace_span.is_some());
+}
+
+#[test]
 fn unsupported_contexts_and_expression_targets_remain_directionally_rejected() {
     for text in [
         "value class V(val d: D): I by d",
@@ -133,6 +232,8 @@ fn unsupported_contexts_and_expression_targets_remain_directionally_rejected() {
 
     for text in [
         "class C(val d: D): I by make(), J {}",
+        "class C(val d: D): I by make({ -> 1 }), J {}",
+        "class C: I({ -> 1 }), J {}",
         "class C(val d: D): I by d.member, J {}",
         "class C(val d: D): I by d by other, J {}",
     ] {
@@ -140,6 +241,27 @@ fn unsupported_contexts_and_expression_targets_remain_directionally_rejected() {
         assert_eq!(codes(parsed.diagnostics()), ["L0077"], "{text:?}");
         assert_eq!(classifier(&parsed).supertypes.len(), 2, "{text:?}");
         assert!(classifier(&parsed).body.is_some(), "{text:?}");
+    }
+}
+
+#[test]
+fn grouped_invalid_delegation_does_not_promote_inner_tokens_to_supertypes() {
+    for target in ["(x, y)", "[x, y]", "({ -> 1 })", r#"("${x}", y)"#] {
+        let text = format!("class C: I by {target}, J {{ fun member(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0078"], "{text}");
+        let class = classifier(&parsed);
+        let [first, second] = class.supertypes.as_slice() else {
+            panic!("both real supertypes for {text}");
+        };
+        let NameMarker::Error(span) = first.delegation.unwrap().target else {
+            panic!("grouped error target");
+        };
+        assert_eq!(sources.slice(span).unwrap(), target);
+        assert_eq!(sources.slice(second.span).unwrap(), "J");
+        let body = class.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert!(body.right_brace_span.is_some());
     }
 }
 

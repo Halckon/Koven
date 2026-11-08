@@ -44,8 +44,10 @@ impl Parser<'_> {
                 return self.consume_segmented_string_type_poison(owner_end);
             }
         }
-        if !self.current_is_identifier() {
-            if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
+        let file_boundary =
+            stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?;
+        if !self.current_is_identifier() || file_boundary {
+            if stops.contains(current) || file_boundary {
                 let span = self.empty_at(current.span().start())?;
                 let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
                     && self.lexical_recoveries.terminal_error_at_eof;
@@ -113,7 +115,9 @@ impl Parser<'_> {
                 break;
             }
             let dot = self.bump()?.span();
-            if !self.current_is_identifier() {
+            if !self.current_is_identifier()
+                || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
+            {
                 let current = self.current()?;
                 let error_end = if self.is_poison() {
                     self.bump()?.span().end()
@@ -159,7 +163,9 @@ impl Parser<'_> {
                 if !self.is_poison() {
                     self.emit_closing(self.type_boundary_span(current, stops)?, opener)?;
                 }
-                if let Some(last) = arguments.last() {
+                if stops.has_class_body_boundary() {
+                    end = self.previous_significant_end();
+                } else if let Some(last) = arguments.last() {
                     end = self.type_span(*last)?.end();
                 }
             }
@@ -293,8 +299,13 @@ impl Parser<'_> {
             )
         };
         let return_span = self.type_span(return_type)?;
+        let end = if outer_stops.has_class_body_boundary() {
+            self.previous_significant_end()
+        } else {
+            return_span.end().max(last_end)
+        };
         self.add_type_ref(
-            self.span(start, return_span.end().max(last_end))?,
+            self.span(start, end)?,
             TypeRef::Function {
                 move_span,
                 parameters,

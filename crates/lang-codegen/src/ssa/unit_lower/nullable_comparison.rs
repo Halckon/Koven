@@ -163,7 +163,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let owner = self.require_expression_value(operand)?;
+        let Some(owner) = self.lower_optional_expression_value(operand)? else {
+            return Ok(Some(LoweredValue::Diverged));
+        };
         let operation = if aggregate_presence {
             Operation::AggregateProject {
                 aggregate: owner,

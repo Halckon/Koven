@@ -38,7 +38,9 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let descriptor = self.construction_descriptor(expression, span)?;
         self.validate_aggregate_construction_identity(&descriptor, span)?;
-        let fields = self.lower_construction_fields(&descriptor, span)?;
+        let Some(fields) = self.lower_construction_fields(&descriptor, span)? else {
+            return Ok(LoweredValue::Diverged);
+        };
         let result_type = self.expression_ssa_type(expression, span)?;
         let result = match descriptor.target() {
             UnitConstructionTarget::Nominal(declaration) => {
@@ -303,7 +305,11 @@ impl UnitExpressionLowerer<'_> {
                 return self.lower_this_value_field(field, result_type, span);
             }
             let receiver = explicit_receiver.expect("explicit receiver was checked");
-            let receiver_value = self.require_expression_value(receiver.expression())?;
+            let Some(receiver_value) =
+                self.lower_optional_expression_value(receiver.expression())?
+            else {
+                return Ok(LoweredValue::Diverged);
+            };
             let (_, results) = self
                 .function
                 .append_instruction(
@@ -330,7 +336,10 @@ impl UnitExpressionLowerer<'_> {
         if let Some(value) = self.read_borrowed_heap_field(receiver, field, result_type, span)? {
             return Ok(value);
         }
-        let receiver_value = self.require_expression_value(receiver.expression())?;
+        let Some(receiver_value) = self.lower_optional_expression_value(receiver.expression())?
+        else {
+            return Ok(LoweredValue::Diverged);
+        };
         // 当前 SSA alias 合同仍按 parent owner 冲突；同父 sibling 读取不假装已封闭。
         if self.pending_call_frames.iter().any(|frame| {
             frame.field_replace_owner.is_some_and(|slot| {

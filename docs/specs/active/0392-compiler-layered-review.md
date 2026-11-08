@@ -108,10 +108,10 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽。局部解构的初始化式及分号 owner 已修，见 §60。借用解构内层右括号及外层停止范围已修，见 §63 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–81 | 类型参数的角符号与文件边界、未闭分组、连续词法 poison 的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
-| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None。局部解构与顺序源、`while` 的有界组合见 §65、§73 |
+| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
 
 ## 8. 验收账本
@@ -2003,3 +2003,210 @@ workspace 全目标 Clippy、格式、文档、Rust 尺寸与 diff 门禁通过�
 随后合入更新的主干 `4fd948dd`，无冲突。它带入 SPEC-0341 容器与借用测试迁移，
 合流后 `ownership_containers`、`unit_direct_call_loan_ends`、`ownership_map_with` 和
 `final_type_admission` 共 172 项通过。最终双宿主门禁以合流提交为准。
+
+[PR #353 最终门禁](https://github.com/Halckon/Koven/actions/runs/42440264349) 在 `b09c2f99`
+上通过双宿主定向、生成资源、Linux sanitizer 与两宿主预览包独立安装，conformance 均为
+137/154、验收程序 0/6，零回归、入口差异或内部错误。编辑器按范围跳过，macOS CI
+忽略的后端 LLDB 断点和四条 CLI 调试检查在同一提交上本机通过。已合入 `04583bb2`。
+
+## 74. R4 局部解构与独立 while 的可空证明
+
+从 §73 原生见证去掉顺序 `for` 后，`check` 仍成功，`build` 返回
+`UnsupportedNode`。Refine 重试已可识别 `while` 入口的证明失效，却要等顺序迭代
+才确认路由。现由通过预检且实际移除外层可空证明的 `while` 确认重试，仍要求同一
+callable 的已验证局部解构，保留既有首次准入。独立复核核对了循环资格与 builder 的
+失效位置。数值 `for` 在空 `while` 后仍不能借用此规则。
+
+新增单文件与项目原生见证，核对零轮和重赋值后精确输出。另用真实双文件 Unit 验证普通
+和常量能力入口，覆盖三次重赋值、continue、break 与无关根的读取，两个入口均完成
+7 次分配和 7 次释放。常量 `while` 的死分支 lowering 仍是独立缺口。
+当前分支本机通过 Refine 路由 35 项、while SSA 37 项、原生资源计数 1 项和 while CLI
+7 项，零失败或忽略。codegen 与 CLI 全目标 Clippy、格式、文档、Rust 尺寸和 diff 门禁通过。
+
+[PR #355 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42442529470) 在 `48289d95`
+上通过。两宿主 conformance 均为 137/154、验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主预览包独立安装及本机 5 项 LLDB 相关检查均通过。已合入 `adba71c3`。
+
+## 75. R4 常量 while 的可达边与操作数退出
+
+在 `adba71c3` 上，死循环体或无正常出口循环的死后缀含局部解构时，前端接受，
+普通 Unit lowering 仍沿不可能边尝试构建并报 `UnsupportedNode`。改为先求值条件，
+再依据已产生的 SSA 布尔常量保留实际后继。假条件直接消费 LoopExit 清理，真条件保留
+break/continue，无退出时返回 Diverged。动态条件与专用 nullable while 保留原分派。
+
+独立复审及原生对照确认，原型让一元操作数、名义构造参数和方法接收者的已终止求值
+误变为后端错误。普通 Unit 现将终止结果传给外层，未产生结果时不会提交构造或调用，
+已求值的构造前缀沿实际控制转移处理。修订同时覆盖共享取值入口的 Rc、临时可空比较和字段投影。
+
+单文件与项目回归对照条件副作用、死循环体、真条件 break、一元操作数、标量构造前缀
+及方法接收者。SSA 负控核对死解构仍不触发 Refine，标量字段构造由保留的 Unit 路径完成。
+MoveOnly Guard 前缀另走默认路径，逐次核对释放且无完整对象析构。强制保留 Unit 时该
+MoveOnly 构造前缀在基线也返回 UnsupportedNode，本批未扩大该能力。
+最终工作树本机通过 96 项定向检查，覆盖 CLI while、Refine 路由、while SSA、
+短路与 aggregate。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+[PR #356 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42445897440) 在 `7cfe3e8e`
+上通过。conformance 均为 137/154、验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主预览包独立安装与同提交的 5 项本机 LLDB 相关检查均通过。
+已合入 `f3d2857e`。
+
+## 76. R4 内层 lambda 的 while 与外层顺序迭代
+
+具名顺序源在外层函数中可进入 Refine。给同一函数内的 lambda 增加 `while (false)`，
+外层路由错误回退，原生输出仍为 `nested\nkept\n`。原查询按范围遍历 AST，未区分
+最近 callable。改由同源 AST 的 while 节点和名称解析的父作用域建立归属索引。
+查询仅在路由需要时按 SourceUnit 构建一次，函数、泛型实例、thunk 和重试共用。
+索引缺失或名称事实与 AST 不匹配时，保留保守门禁。
+
+回归对照无 while、内层 lambda 的 while、当前函数的 while 和 thunk 自身的 while。
+独立复核核对了同源索引、未包装 AST 的 callable Span、父作用域顺序和重试复用。
+隔离候选实际构建并运行单文件与项目，有无内层 while 均输出 `nested\nkept\n`。
+当前分支本机通过 Refine 路由 38 项、closure 4 项、while SSA 37 项和 while CLI 8 项，
+零失败或忽略。codegen/CLI 全目标 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+[PR #357 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42448570108) 在 `6ad9723c`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer 与两宿主预览包独立安装通过，编辑器按范围跳过。已合入 `a884ab8d`。
+本机完成授权后在同一 PR 提交重跑，Mach-O 行表、CI 默认忽略的后端真实 LLDB 断点和
+四项 CLI 调试检查共 6 项通过，零失败或忽略。
+
+## 77. R0/R3 可空容器与借用测试的 Unit 消费者迁移
+
+以 `a884ab8d` 为基线。将 Map promotion、owned-null cleanup、多参数借用、混合借用
+四份测试中的 33 处旧 helper 调用移出 Single。成功路径与后端拒绝路径复用既有
+MemoryDocument helper，与同一测试原有的 Rooted 入口对照，保留原源码及 SSA、
+清理顺序或 `UnsupportedNode` 断言。§12 四项混合借用后端对照的旧入口分支在本批退役，
+当前由 MemoryDocument 与 Rooted 覆盖。
+
+两份非法借用源码通过 Unit 分析检查，分别在 ownership 阶段精确拒绝为 L0162 和 L0135，
+主 Span 分别指向 `other` 和 `source`。保留可空工厂的旧规划拒绝与 Rooted 成功对照，
+以及 Map require 未被 entry 调用的旧整文件见证。没有生产实现改动。
+
+独立复核核对了源码和断言、最终 Unit 准入、Rooted 跨文件来源及保留的旧路径见证。
+本机 `lang-codegen --lib` 依次通过四组迁移测试 23 项、借用结果及 Map require 见证
+7 项、lowering 依赖门禁 14 项，零失败或忽略。codegen 全目标 Clippy、格式、文档、
+尺寸和 diff 检查通过。本批未在本机重跑全量或动态矩阵。
+本批迁移归属 [SPEC-0341](0341-shared-lowering-core.md)。其他旧消费者和 R0–R5 退出条件仍开放。
+
+[PR #358 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42451131543) 在 `babae5a0`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer 与两宿主预览包独立安装通过，编辑器按范围跳过。已合入 `f129ba39`。
+同一 PR 提交的本机 Mach-O 行表、macOS CI 默认忽略的后端真实 LLDB 断点和四项 CLI
+调试检查共 6 项通过，零失败或忽略。
+
+## 78. R1 类声明的错误恢复与共享递归预算
+
+从 `a884ab8d` 独立复审 class-family。最小字符串委托目标 `by ""` 的原版 Parser 返回
+`InvalidLexemeStream`。原 CLI 单文件 `check` 退出 2。修复复用声明恢复的 owner 栈，只消费
+目标字符串，使用真实关闭引号或已验证的词法终止事件停止。空串、嵌套插值、非法转义及
+相邻终止事件均保留后继 supertype、body 或文件声明。委托分支不逐项二分 owner 索引。
+修复候选对已声明两个接口的单文件和项目均退出 1，输出恰一条 L0078 JSON 诊断。
+
+空变体但有成员的 enum 原本零诊断，现报 L0073 并保留真实成员区。payload 缺 `)` 时
+保留外层分号和右花括号，显式分号穿过嵌套泛型及函数 TypeRef。变体与参数的 Span 止于
+实际消费位置。缺失 companion 常量以及跳过非法初始化 token 时保留调用方的显式分号、
+两个真实 closer 和后继成员。两公开入口用相同 oracle 核对常量诊断、成员与源码范围。
+
+非法嵌套 class 和 companion 的成员体接入既有 Parser 递归预算。class 的第 1025 层
+原来仍可返回 AST，修复后两入口在该深度返回 `NestingLimitExceeded`，第 1024 层
+仍返回带 L0077 的恢复产物。未测原版进程栈溢出阈值。
+
+独立复核先确认了嵌套 TypeRef、单条声明分号与零宽错误子节点的范围缺口，再核对
+修订后的普通 region 路径、终止事件游标与显式 stops。父类型解析移动到同职责子模块，
+除委托字符串恢复外保留原分派。主构造器、interface 的父类型边界、软修饰词、重复
+companion 与 malformed TypeRef 自身范围仍是后续审查项。本批保持 R1 开放。
+
+隔离候选 frontend 全量 183 个结果组、2725 项通过，零失败或忽略。相关源码逐字接入
+`f129ba39` 后，分支复跑 class-family、接口委托和递归边界 43 项，Parser 内部 19 项，
+CLI `check_cli` 6 项，LSP 57 项，零失败或忽略。frontend 全目标 Clippy、格式、文档、
+Rust 尺寸和 diff 门禁通过。`class.rs` 从 1088 降至 943 行，尺寸额度未增加。
+双宿主及 native 发布门禁以 PR 的精确候选为准。
+
+[PR #359 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42452943514) 在 `37ec9d43`
+上通过。两宿主 conformance 均为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主生成资源及预览包独立安装通过，编辑器按范围跳过。已合入 `6e5934b5`。
+本机同提交补跑 6 项 LLDB 检查，含 Mach-O 行表、macOS CI 默认忽略的后端真实断点及
+4 项 CLI 调试检查。`parser_interface_delegation` 的 9 项仅本机执行，见 §79 的补接。
+
+## 79. R1 类声明头的 body 边界与诊断
+
+在 `37ec9d43` 上复现主构造器、类型参数和父类型列表吞类体，以及非法默认值吞外层
+`}`。让真实类体 opener 与外层 closer 穿过对应 header/TypeRef 解析。保留函数类型、
+内层平衡 brace 及非法默认 lambda 的 owner；未闭合的非法父类型调用继续保留原有硬
+brace 规则。独立复核先复现候选把硬 stop 改软后吞类体的回归，已恢复基线并补见证。
+
+Classifier、构造器字段和声明头受影响的 TypeRef 使用真实消费末端，不跨错误节点前的
+trivia。重复 companion 现在在同一 classifier 的第二个关键词报告 L0077。构造器和
+枚举 payload 分隔恢复保留词法 poison 的单一根因，在已恢复的真实逗号处不重报缺字段。
+
+隔离候选的三组定向测试共 49 项，frontend 全量 183 个结果组、2731 项，零失败或忽略。
+frontend 全目标 Clippy 与格式检查通过。后续还需核验无类体时的下一文件声明、软修饰词、
+连续 TypeParameter poison、父类型后继 poison 与非法分组委托目标的 owner。独立最小探针
+已实跑记录上述边界。R1 保持开放。
+
+核对 PR #359 两宿主日志，`parser_interface_delegation` 当时只本机实跑。现在加入既有
+Parser stage Cargo 命令，唯一普通目标从 136 增至 137，Cargo 调用仍为 23。新增静态
+选择先失败再通过，最终两条静态与一条成功路径选择检查、`bash -n` 通过。
+
+从 `6e5934b5` 建立实际分支，逐字接入上述候选。当前分支通过 49 项定向及 19 项
+Parser 内部检查，零失败或忽略。frontend 全目标 Clippy、格式、文档、Rust 尺寸与 diff
+门禁，以及同样三项 CI 选择检查通过。该分支的双宿主矩阵待推送后执行。
+
+[PR #360 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42455437503) 在 `91e6e413`
+上通过，macOS 与 Linux 日志均实际执行接口委托专项。两宿主 conformance 为 137/154，
+验收程序 0/6，零回归、入口差异或内部错误。Linux sanitizer、两宿主生成资源与预览包
+独立安装通过，编辑器按范围跳过。精确提交本机补验 Mach-O 行表、后端真实 LLDB 断点及
+四项 CLI 调试检查，共 6 项通过。已合入 `4b311957`。
+
+## 80. R1 类成员恢复的软起点与外层闭合
+
+在 `91e6e413` 复现两条类体 owner 偏差。错误区后的 `own fun` 被跳过 `own` 并多报
+L0072，`own borrow fun` 还丢失首 marker 和原重复修饰词诊断。成员恢复在本地
+delimiter 和 lexical owner 回到 baseline 时复用正式 receiver 词形，只看固定两个
+token。保留重复／逆序诊断和首 marker，并验证内层组和字符串插值中的同形 token 不提升。
+
+非法嵌套 classifier 缺名称时，真实外层 `}` 保留给父类体，缺名称的 L0067 仍以空 Span
+报告。文件入口精确验证父类体与后一顶层声明的源码范围。
+
+另在隔离候选验证了连续词法 poison 后的类型参数、嵌套父类型实参与函数型参数恢复，
+以及父类型后没有后继时保留文件 Error Item。计数回归捕获早期候选 556 个 raw lexeme
+发生 52626 次查询，最终隔离候选的前向和反向访问均纳入预算并通过。该候选全 frontend
+2739 项通过，复核仍确认部分分隔位置的 poison 没有当前结构内可达 Error node。
+本批分离并保留该候选，继续按 Guide 01 补 AST 表示和下游检查。
+
+无类体时的文件边界另有最小红测。普通类构造器吞 `public class Sentinel`，未闭合的
+interface 类型参数吞 `value class Sentinel`。对照确认合法 `value` 名称、visibility
+字段与平衡非法默认值正常留在其 owner。非法分组委托目标仍有外内逗号归属缺口。
+
+独立复核确认成员候选与原已审阅逻辑一致，未带入 TypeRef 或 poison 游标改动。隔离
+候选 frontend 全量 183 组、2733 项通过。逐字接入 `4b311957` 后，实际分支 97 项
+定向与 19 项 Parser 内部检查通过，零失败或忽略。frontend 全目标 Clippy、格式、
+文档、Rust 尺寸和 diff 检查通过。双宿主矩阵待推送后执行。
+
+[PR #361 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42457860370) 在 `d15fdc69`
+上通过。两宿主 conformance 为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主生成资源及预览包独立安装通过，编辑器按范围跳过。精确提交
+本机补验 Mach-O 行表、后端真实 LLDB 断点及四项 CLI 调试检查，共 6 项通过。
+已合入 `70cdd8d9`。
+
+## 81. R1 类构造器与分组委托的文件 owner
+
+在 `d15fdc69` 上，缺右括号的文件级类构造器会吞后续 `public class`。文件分派显式
+传递 owner，只有没有真实 closer 的构造器才在本地基线交还文件 stop。保留 `public val`
+字段、合法 `value` 名称与平衡默认值。无类名、父类型、委托目标或函数类型返回时，也
+保留同级已识别文件起点和零宽诊断。合法 `value class` 在文件分隔处使用精确双 token
+识别，不把普通 Identifier 当文件起点。
+
+普通分组使用一次惰性扫描，忽略已验证字符串和插值 owner。已配对的非法委托目标和调用
+后缀保留完整括号内区域，诊断后仍交还外部逗号、后继父类型和类体。未配对的右花括号
+切断分组，孤立右方括号不弹无关 opener。回归覆盖缺 closer、真实 closer、嵌套默认值、
+词法终止事件和外层文件根的源码范围。
+
+独立复核先后发现物理配对误把平衡构造器中的非法类提升为文件根、孤立右花括号跨界、
+以及角符号被后继比较运算误闭合。普通分组候选已修复前两条，定向实跑覆盖其红绿结果。
+角符号候选保持隔离，`interface C<T` 仍可能吞下一文件声明，实际红测证明后继
+`val later = 2 > 1` 的 `>` 不能作为类型参数 closer。当前未改类型参数列表流程。
+
+最终隔离候选 frontend 全量 183 组、2742 项通过。逐字接入 `70cdd8d9` 后，实际分支
+106 项定向及 19 项 Parser 内部检查通过，零失败或忽略。frontend 全目标 Clippy、格式、
+文档、Rust 尺寸和 diff 门禁通过。双宿主矩阵待推送后执行。

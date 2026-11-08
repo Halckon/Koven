@@ -9,7 +9,7 @@ use lang_frontend::{
         BorrowBindingStorage, BorrowSourceLoan, RangeUseSite, UnitIterationCleanupAction as Action,
         UnitIterationSourceAccess, UnitLoanTarget,
     },
-    parser::{Expression, Statement},
+    parser::Expression,
     source::Span,
     type_checking::{
         BorrowReturnOrigin, BuiltinType, CallableResultSource, IntrinsicTypeConstructor,
@@ -140,14 +140,19 @@ impl Checker<'_, '_> {
     }
 
     /// Strips outer proof views for any binding reassigned inside `loop_span`.
-    pub(super) fn strip_reassigned_loop_views(&mut self, loop_span: Span, local_route: bool) {
+    /// Returns whether this invalidated a view using the local-destructuring route.
+    pub(super) fn strip_reassigned_loop_views(
+        &mut self,
+        loop_span: Span,
+        local_route: bool,
+    ) -> bool {
         if self.view_symbols.is_empty() {
-            return;
+            return false;
         }
         let uses_local_route = local_route && self.loop_route != super::LoopRoute::Existing;
         if !uses_local_route && !self.scope_requires_refine() {
             self.loop_route_retry |= local_route;
-            return;
+            return false;
         }
         let mut reassigned = Vec::new();
         for (_, node) in self.inputs.parsed.ast().expressions().iter() {
@@ -164,9 +169,11 @@ impl Checker<'_, '_> {
                 reassigned.push(symbol);
             }
         }
+        let mut invalidated = false;
         for symbol in reassigned {
-            self.view_symbols.remove(&symbol);
+            invalidated |= self.view_symbols.remove(&symbol);
         }
+        invalidated && uses_local_route
     }
 
     /// A concrete `View<T>` whose element type `T` is a supported storage type.
@@ -727,23 +734,5 @@ impl Checker<'_, '_> {
         let ok = self.range_call(value_expr);
         self.migrated |= ok;
         ok
-    }
-
-    pub(super) fn scope_has_while_loop(&self) -> bool {
-        let Some(scope) = self.inputs.scope_span() else {
-            return true;
-        };
-        self.inputs
-            .parsed
-            .ast()
-            .statements()
-            .iter()
-            .any(|(_, node)| {
-                let span = node.span();
-                scope.source_id() == span.source_id()
-                    && scope.start() <= span.start()
-                    && span.end() <= scope.end()
-                    && matches!(node.payload(), Statement::While { .. })
-            })
     }
 }

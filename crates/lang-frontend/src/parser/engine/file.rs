@@ -234,7 +234,8 @@ impl Parser<'_> {
                 continue;
             }
 
-            let started_as_declaration = file_construct_start_kind(self.current()?.kind());
+            let started_as_declaration = file_construct_start_kind(self.current()?.kind())
+                || self.value_class_start_at(0)?;
             let before = self.index;
             let root = self.parse_declaration_item()?;
             if self.index <= before {
@@ -251,7 +252,8 @@ impl Parser<'_> {
                 continue;
             }
             if started_as_declaration
-                && self.is_file_declaration_boundary(self.current()?)
+                && (self.is_file_declaration_boundary(self.current()?)
+                    || self.value_class_start_at(0)?)
                 && !separated_by_line_break
             {
                 self.emit(
@@ -321,7 +323,7 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            return self.parse_classifier_declaration();
+            return self.parse_classifier_declaration(self.file_mode);
         }
         Ok(
             if self.local_destructuring_start(Keyword::Val)
@@ -340,7 +342,7 @@ impl Parser<'_> {
             } else if self.current_is_keyword(Keyword::Fun) {
                 self.parse_function_declaration(declaration_stops, true)?
             } else if self.classifier_declaration_start()? {
-                self.parse_classifier_declaration()?
+                self.parse_classifier_declaration(self.file_mode)?
             } else {
                 let current = self.current()?;
                 let span = if self.file_mode {
@@ -410,16 +412,7 @@ impl Parser<'_> {
                 saw_override = true;
                 continue;
             }
-            let receiver = if self.current_identifier_is("borrow")? {
-                Some(ParameterModeMarker::Borrow(self.current()?.span()))
-            } else if self.current_identifier_is("inout")? {
-                Some(ParameterModeMarker::Inout(self.current()?.span()))
-            } else if self.current_identifier_is("own")? {
-                Some(ParameterModeMarker::Own(self.current()?.span()))
-            } else {
-                None
-            };
-            let Some(receiver) = receiver else {
+            let Some(receiver) = self.receiver_modifier_at(0)? else {
                 break;
             };
             if receiver_policy == ReceiverModifierPolicy::NotRecognized {

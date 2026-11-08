@@ -1,7 +1,12 @@
+mod supertypes;
+
 use super::*;
 
 impl Parser<'_> {
-    pub(super) fn parse_classifier_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
+    pub(super) fn parse_classifier_declaration(
+        &mut self,
+        file_header: bool,
+    ) -> Result<ItemId, ParserInternalError> {
         let kind = if self.current_identifier_is("value")? {
             let value_span = self.bump()?.span();
             let class_span = if self.current_is_keyword(Keyword::Class) {
@@ -50,8 +55,8 @@ impl Parser<'_> {
             }
         };
         let start = classifier_keyword_start(kind);
-        let name = self.parse_classifier_name()?;
-        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
+        let name = self.parse_classifier_name(file_header)?;
+        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters(true)?;
         if let (ClassifierKind::Object { .. }, Some(list_span)) = (kind, type_parameter_list_span) {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -65,8 +70,10 @@ impl Parser<'_> {
             ClassifierKind::ValueClass { .. } | ClassifierKind::Class { .. }
         );
         let primary_constructor = if self.current_is_symbol(Symbol::LeftParen) {
-            let constructor =
-                self.parse_primary_constructor(matches!(kind, ClassifierKind::ValueClass { .. }))?;
+            let constructor = self.parse_primary_constructor(
+                matches!(kind, ClassifierKind::ValueClass { .. }),
+                file_header,
+            )?;
             if !supports_constructor {
                 self.emit(
                     codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -86,7 +93,7 @@ impl Parser<'_> {
             None
         };
 
-        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind)?;
+        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind, file_header)?;
         let body = if self.current_is_symbol(Symbol::LeftBrace) {
             Some(self.parse_classifier_body(kind)?)
         } else {
@@ -99,33 +106,9 @@ impl Parser<'_> {
             }
             None
         };
-        let end = body
-            .as_ref()
-            .and_then(|body| body.right_brace_span)
-            .map(Span::end)
-            .or_else(|| {
-                supertypes
-                    .last()
-                    .map(|entry| entry.span.end())
-                    .or_else(|| {
-                        primary_constructor.as_ref().map(|constructor| {
-                            constructor
-                                .right_paren_span
-                                .map(Span::end)
-                                .unwrap_or_else(|| {
-                                    constructor
-                                        .fields
-                                        .last()
-                                        .map(|field| field.span.end())
-                                        .unwrap_or(constructor.left_paren_span.end())
-                                })
-                        })
-                    })
-                    .or_else(|| type_parameter_list_span.map(Span::end))
-            })
-            .unwrap_or(marker_span(name).end().max(start));
+        let end = self.previous_significant_end();
         self.add_item(
-            self.span(start, end.max(start))?,
+            self.span(start, end)?,
             Item::Classifier(Box::new(ClassifierDeclaration {
                 kind,
                 name,
@@ -139,8 +122,12 @@ impl Parser<'_> {
         )
     }
 
-    pub(super) fn parse_classifier_name(&mut self) -> Result<NameMarker, ParserInternalError> {
-        if self.current_is_identifier() {
+    fn parse_classifier_name(
+        &mut self,
+        file_header: bool,
+    ) -> Result<NameMarker, ParserInternalError> {
+        let file_boundary = file_header && self.at_class_header_file_boundary(true)?;
+        if self.current_is_identifier() && !file_boundary {
             return Ok(NameMarker::Present(self.bump()?.span()));
         }
         let current = self.current()?;
@@ -167,11 +154,16 @@ impl Parser<'_> {
                 return Ok(NameMarker::Error(self.span(start, end)?));
             }
         }
-        let is_boundary = matches!(current.kind(), LexemeKind::Eof)
+        let is_boundary = file_boundary
+            || matches!(current.kind(), LexemeKind::Eof)
             || matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(
-                    Symbol::Less | Symbol::LeftParen | Symbol::Colon | Symbol::LeftBrace
+                    Symbol::Less
+                        | Symbol::LeftParen
+                        | Symbol::Colon
+                        | Symbol::LeftBrace
+                        | Symbol::RightBrace
                 ))
             )
             || self.is_file_declaration_boundary(current);
@@ -198,9 +190,28 @@ impl Parser<'_> {
     pub(super) fn parse_primary_constructor(
         &mut self,
         require_nonempty: bool,
+        file_header: bool,
     ) -> Result<PrimaryConstructor, ParserInternalError> {
+        let file_recovery = file_header
+            && self
+                .lexical_recoveries
+                .group_closer(self.lexed, self.current_raw()?)
+                .is_none();
         let left_paren_span = self.bump()?.span();
         let mut fields = Vec::new();
+        let mut boundary = TypeStops::empty()
+            .with(TypeStops::RIGHT_PAREN)
+            .with(TypeStops::RIGHT_BRACE)
+            .with(TypeStops::CLASS_BODY);
+        let mut recovery_stops = DeclarationStops::EMPTY
+            .with(DeclarationStops::COMMA)
+            .with(DeclarationStops::RIGHT_PAREN)
+            .with(DeclarationStops::RIGHT_BRACE)
+            .with(DeclarationStops::CLASS_BODY);
+        if file_recovery {
+            boundary = boundary.with(TypeStops::CLASS_FILE);
+            recovery_stops = recovery_stops.with(DeclarationStops::CLASS_FILE);
+        }
         if self.current_is_symbol(Symbol::RightParen) && require_nonempty {
             self.emit(
                 codes::EXPECTED_CONSTRUCTOR_FIELD,
@@ -208,9 +219,7 @@ impl Parser<'_> {
                 self.current()?.span(),
             )?;
         }
-        while !self.current_is_symbol(Symbol::RightParen)
-            && !matches!(self.current()?.kind(), LexemeKind::Eof)
-        {
+        while !self.at_constructor_field_boundary(boundary)? {
             if self.current_is_symbol(Symbol::Comma) {
                 let comma = self.bump()?.span();
                 self.emit(
@@ -220,8 +229,23 @@ impl Parser<'_> {
                 )?;
                 continue;
             }
-            if let Some(field) = self.parse_class_field()? {
+            if let Some(field) = self.parse_class_field(boundary, recovery_stops)? {
                 fields.push(field);
+            }
+            if !self.at_constructor_field_boundary(boundary)?
+                && !self.current_is_symbol(Symbol::Comma)
+            {
+                if !self.is_poison() {
+                    self.emit(
+                        codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
+                        "expected constructor separator",
+                        self.current()?.span(),
+                    )?;
+                }
+                if class_field_start_kind(self.current()?.kind()) {
+                    continue;
+                }
+                self.recover_declaration_region(recovery_stops)?;
             }
             if self.current_is_symbol(Symbol::Comma) {
                 let comma = self.bump()?.span();
@@ -232,24 +256,7 @@ impl Parser<'_> {
                         comma,
                     )?;
                 }
-                continue;
             }
-            if self.current_is_symbol(Symbol::RightParen) {
-                break;
-            }
-            self.emit(
-                codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
-                "expected constructor separator",
-                self.current()?.span(),
-            )?;
-            if class_field_start_kind(self.current()?.kind()) {
-                continue;
-            }
-            self.recover_declaration_region(
-                DeclarationStops::EMPTY
-                    .with(DeclarationStops::COMMA)
-                    .with(DeclarationStops::RIGHT_PAREN),
-            )?;
         }
         let right_paren_span = if self.current_is_symbol(Symbol::RightParen) {
             Some(self.bump()?.span())
@@ -267,7 +274,16 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_class_field(&mut self) -> Result<Option<ClassField>, ParserInternalError> {
+    fn at_constructor_field_boundary(&self, stops: TypeStops) -> Result<bool, ParserInternalError> {
+        Ok(stops.contains(self.current()?)
+            || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(false)?))
+    }
+
+    fn parse_class_field(
+        &mut self,
+        boundary: TypeStops,
+        recovery_stops: DeclarationStops,
+    ) -> Result<Option<ClassField>, ParserInternalError> {
         let modifiers =
             self.parse_declaration_modifiers(false, ReceiverModifierPolicy::NotRecognized)?;
         let visibility = modifiers.visibility;
@@ -303,17 +319,14 @@ impl Parser<'_> {
                     primary,
                 )?;
             }
-            self.recover_declaration_region(
-                DeclarationStops::EMPTY
-                    .with(DeclarationStops::COMMA)
-                    .with(DeclarationStops::RIGHT_PAREN),
-            )?;
+            self.recover_declaration_region(recovery_stops)?;
             return Ok(None);
         };
-        let name = self.parse_name_marker(
+        let name = self.parse_name_marker_with_stops(
             codes::EXPECTED_PARAMETER_NAME,
             "expected parameter name",
             NameContext::ValueParameter,
+            recovery_stops,
         )?;
         let colon_span = if self.current_is_symbol(Symbol::Colon) {
             self.bump()?.span()
@@ -326,12 +339,8 @@ impl Parser<'_> {
             )?;
             primary
         };
-        let type_ref = self.parse_type_ref(
-            TypeStops::empty()
-                .with(TypeStops::COMMA)
-                .with(TypeStops::RIGHT_PAREN)
-                .with(TypeStops::EQUAL),
-        )?;
+        let type_ref =
+            self.parse_type_ref(boundary.with(TypeStops::COMMA).with(TypeStops::EQUAL))?;
         if self.current_is_symbol(Symbol::Equal) {
             let primary = self.bump()?.span();
             self.emit(
@@ -339,13 +348,16 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            self.recover_declaration_region(
-                DeclarationStops::EMPTY
-                    .with(DeclarationStops::COMMA)
-                    .with(DeclarationStops::RIGHT_PAREN),
-            )?;
+            let mut default_stops = DeclarationStops::EMPTY
+                .with(DeclarationStops::COMMA)
+                .with(DeclarationStops::RIGHT_PAREN)
+                .with(DeclarationStops::RIGHT_BRACE);
+            if recovery_stops.has_class_file_boundary() {
+                default_stops = default_stops.with(DeclarationStops::CLASS_FILE);
+            }
+            self.recover_declaration_region(default_stops)?;
         }
-        let end = self.type_span(type_ref)?.end().max(keyword_span.end());
+        let end = self.previous_significant_end();
         Ok(Some(ClassField {
             span: self.span(start, end.max(start))?,
             visibility,
@@ -355,162 +367,6 @@ impl Parser<'_> {
             colon_span,
             type_ref,
         }))
-    }
-
-    pub(super) fn parse_supertype_list(
-        &mut self,
-        kind: ClassifierKind,
-    ) -> Result<(Option<Span>, Vec<SupertypeEntry>), ParserInternalError> {
-        if !self.current_is_symbol(Symbol::Colon) {
-            return Ok((None, Vec::new()));
-        }
-        let colon_span = self.bump()?.span();
-        let mut entries = Vec::new();
-        loop {
-            let current = self.current()?;
-            if self.can_start_type_ref(current) {
-                let type_ref = self.parse_type_ref(
-                    TypeStops::empty()
-                        .with(TypeStops::COMMA)
-                        .with(TypeStops::LEFT_BRACE)
-                        .with(TypeStops::FILE),
-                )?;
-                let type_span = self.type_span(type_ref)?;
-                let delegation = if self.current_identifier_is("by")? {
-                    let by_span = self.bump()?.span();
-                    if !matches!(kind, ClassifierKind::Class { .. }) {
-                        self.emit(
-                            codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                            "unsupported class-family form",
-                            by_span,
-                        )?;
-                    }
-                    let current = self.current()?;
-                    let target_boundary = self.current_is_symbol(Symbol::Comma)
-                        || self.current_is_symbol(Symbol::LeftBrace)
-                        || matches!(current.kind(), LexemeKind::Eof)
-                        || self.is_file_declaration_boundary(current);
-                    let target = if self.current_is_identifier() {
-                        NameMarker::Present(self.bump()?.span())
-                    } else {
-                        let primary = if target_boundary {
-                            self.empty_at(current.span().start())?
-                        } else {
-                            current.span()
-                        };
-                        if !self.is_poison_kind(current.kind()) {
-                            self.emit(
-                                codes::EXPECTED_DELEGATION_TARGET,
-                                "expected delegation target",
-                                primary,
-                            )?;
-                        }
-                        if target_boundary {
-                            NameMarker::Missing(primary)
-                        } else {
-                            self.bump()?;
-                            NameMarker::Error(primary)
-                        }
-                    };
-                    let target_span = marker_span(target);
-                    let delegation = DelegationClause {
-                        span: self.span(
-                            by_span.start(),
-                            if target_span.is_empty() {
-                                by_span.end()
-                            } else {
-                                target_span.end().max(by_span.end())
-                            },
-                        )?,
-                        by_span,
-                        target,
-                    };
-                    let current = self.current()?;
-                    let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
-                        || self.current_is_symbol(Symbol::LeftBrace)
-                        || matches!(current.kind(), LexemeKind::Eof)
-                        || self.is_file_declaration_boundary(current);
-                    if !at_entry_boundary {
-                        if !self.is_poison_kind(current.kind()) {
-                            self.emit(
-                                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                                "unsupported class-family form",
-                                current.span(),
-                            )?;
-                        }
-                        self.recover_declaration_region(
-                            DeclarationStops::EMPTY
-                                .with(DeclarationStops::COMMA)
-                                .with(DeclarationStops::LEFT_BRACE)
-                                .union(self.root_declaration_stops()),
-                        )?;
-                    }
-                    Some(delegation)
-                } else {
-                    None
-                };
-                entries.push(SupertypeEntry {
-                    span: self.span(
-                        type_span.start(),
-                        delegation
-                            .map(|clause| clause.span.end())
-                            .unwrap_or(type_span.end()),
-                    )?,
-                    type_ref,
-                    delegation,
-                });
-                if self.current_is_symbol(Symbol::LeftParen) {
-                    let primary = self.current()?.span();
-                    self.emit(
-                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                        "unsupported class-family form",
-                        primary,
-                    )?;
-                    self.recover_declaration_region(
-                        DeclarationStops::EMPTY
-                            .with(DeclarationStops::COMMA)
-                            .with(DeclarationStops::LEFT_BRACE)
-                            .union(self.root_declaration_stops()),
-                    )?;
-                }
-            } else {
-                let primary = if self.current_is_symbol(Symbol::LeftBrace)
-                    || matches!(current.kind(), LexemeKind::Eof)
-                    || self.is_file_declaration_boundary(current)
-                {
-                    self.empty_at(current.span().start())?
-                } else {
-                    current.span()
-                };
-                if !self.is_poison_kind(current.kind()) {
-                    self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
-                }
-                if !primary.is_empty() {
-                    self.recover_declaration_region(
-                        DeclarationStops::EMPTY
-                            .with(DeclarationStops::COMMA)
-                            .with(DeclarationStops::LEFT_BRACE)
-                            .union(self.root_declaration_stops()),
-                    )?;
-                }
-            }
-            if self.current_is_symbol(Symbol::Comma) {
-                let comma = self.bump()?.span();
-                if self.current_is_symbol(Symbol::LeftBrace)
-                    || matches!(self.current()?.kind(), LexemeKind::Eof)
-                {
-                    self.emit(
-                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                        "unsupported class-family form",
-                        comma,
-                    )?;
-                    break;
-                }
-                continue;
-            }
-            break;
-        }
-        Ok((Some(colon_span), entries))
     }
 
     pub(super) fn parse_classifier_body(
@@ -551,7 +407,18 @@ impl Parser<'_> {
         &mut self,
         context: ClassMemberContext,
     ) -> Result<Vec<ItemId>, ParserInternalError> {
+        self.enter_recursion()?;
+        let result = self.parse_classifier_members_inner(context);
+        self.recursion_depth -= 1;
+        result
+    }
+
+    fn parse_classifier_members_inner(
+        &mut self,
+        context: ClassMemberContext,
+    ) -> Result<Vec<ItemId>, ParserInternalError> {
         let mut members = Vec::new();
+        let mut companion_seen = false;
         while !self.current_is_symbol(Symbol::RightBrace)
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
@@ -561,7 +428,7 @@ impl Parser<'_> {
                 continue;
             }
             let before = self.index;
-            let member = self.parse_classifier_member(context)?;
+            let member = self.parse_classifier_member(context, &mut companion_seen)?;
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
@@ -603,6 +470,7 @@ impl Parser<'_> {
     pub(super) fn parse_classifier_member(
         &mut self,
         context: ClassMemberContext,
+        companion_seen: &mut bool,
     ) -> Result<ItemId, ParserInternalError> {
         let member_stops = self.root_expression_stops().with(Stops::RIGHT_BRACE);
         let receiver_policy = if matches!(context, ClassMemberContext::Companion) {
@@ -635,13 +503,14 @@ impl Parser<'_> {
             )?;
         }
         let declaration = if self.current_is_keyword(Keyword::Companion) {
-            if !context.allows_companion() {
+            if !context.allows_companion() || *companion_seen {
                 self.emit(
                     codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                     "unsupported class-family form",
                     primary,
                 )?;
             }
+            *companion_seen = true;
             self.parse_companion_object()?
         } else if self.current_is_keyword(Keyword::Fun) {
             self.parse_function_declaration(member_stops, false)?
@@ -675,7 +544,7 @@ impl Parser<'_> {
                     primary,
                 )?;
             }
-            self.parse_constant_declaration(member_stops)?
+            self.parse_constant_declaration(member_stops.with(Stops::SEMICOLON))?
         } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var) {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -695,7 +564,7 @@ impl Parser<'_> {
                 "unsupported class-family form",
                 primary,
             )?;
-            self.parse_classifier_declaration()?
+            self.parse_classifier_declaration(false)?
         } else {
             let boundary = self.current_is_symbol(Symbol::RightBrace)
                 || matches!(self.current()?.kind(), LexemeKind::Eof);
@@ -843,7 +712,7 @@ impl Parser<'_> {
         let left_brace_span = self.bump()?.span();
         let mut variants = Vec::new();
         let mut delimiter = None;
-        if self.current_is_symbol(Symbol::RightBrace) {
+        if self.current_is_symbol(Symbol::RightBrace) || self.current_is_symbol(Symbol::Semicolon) {
             self.emit(
                 codes::EXPECTED_ENUM_VARIANT,
                 "expected enum variant",
@@ -960,9 +829,11 @@ impl Parser<'_> {
                     self.current()?.span(),
                 )?;
             }
-            while !self.current_is_symbol(Symbol::RightParen)
-                && !matches!(self.current()?.kind(), LexemeKind::Eof)
-            {
+            let payload_stops = Stops::ROOT
+                .with(Stops::RIGHT_PAREN)
+                .with(Stops::RIGHT_BRACE)
+                .with(Stops::SEMICOLON);
+            while !payload_stops.contains(self.current()?) {
                 if self.current_is_symbol(Symbol::Comma) {
                     let primary = self.bump()?.span();
                     self.emit(
@@ -972,7 +843,26 @@ impl Parser<'_> {
                     )?;
                     continue;
                 }
-                parameters.push(self.parse_enum_variant_parameter()?);
+                parameters.push(self.parse_enum_variant_parameter(payload_stops)?);
+                if !payload_stops.contains(self.current()?)
+                    && !self.current_is_symbol(Symbol::Comma)
+                {
+                    if !self.is_poison() {
+                        self.emit(
+                            codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
+                            "expected constructor separator",
+                            self.current()?.span(),
+                        )?;
+                    }
+                    if self.current_is_identifier() {
+                        continue;
+                    }
+                    self.recover_declaration_region(
+                        DeclarationStops::EMPTY
+                            .with(DeclarationStops::COMMA)
+                            .union(DeclarationStops::from_expression(payload_stops)),
+                    )?;
+                }
                 if self.current_is_symbol(Symbol::Comma) {
                     let comma = self.bump()?.span();
                     if self.current_is_symbol(Symbol::RightParen) {
@@ -982,22 +872,6 @@ impl Parser<'_> {
                             comma,
                         )?;
                     }
-                    continue;
-                }
-                if !self.current_is_symbol(Symbol::RightParen) {
-                    self.emit(
-                        codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
-                        "expected constructor separator",
-                        self.current()?.span(),
-                    )?;
-                    if self.current_is_identifier() {
-                        continue;
-                    }
-                    self.recover_declaration_region(
-                        DeclarationStops::EMPTY
-                            .with(DeclarationStops::COMMA)
-                            .with(DeclarationStops::RIGHT_PAREN),
-                    )?;
                 }
             }
             if self.current_is_symbol(Symbol::RightParen) {
@@ -1006,10 +880,7 @@ impl Parser<'_> {
                 self.emit_closing(self.empty_at(self.current()?.span().start())?, opener)?;
             }
         }
-        let end = right_paren_span
-            .map(Span::end)
-            .or_else(|| parameters.last().map(|parameter| parameter.span.end()))
-            .unwrap_or(marker_span(name).end());
+        let end = self.previous_significant_end();
         Ok(EnumVariant {
             span: self.span(start, end)?,
             name,
@@ -1021,7 +892,9 @@ impl Parser<'_> {
 
     pub(super) fn parse_enum_variant_parameter(
         &mut self,
+        payload_stops: Stops,
     ) -> Result<EnumVariantParameter, ParserInternalError> {
+        let start = self.current()?.span().start();
         let is_invalid_mode_modifier = (self.current_identifier_is("borrow")?
             || self.current_identifier_is("inout")?
             || self.current_identifier_is("own")?)
@@ -1041,10 +914,11 @@ impl Parser<'_> {
                 primary,
             )?;
         }
-        let name = self.parse_name_marker(
+        let name = self.parse_name_marker_with_stops(
             codes::EXPECTED_PARAMETER_NAME,
             "expected parameter name",
             NameContext::ValueParameter,
+            DeclarationStops::from_expression(payload_stops),
         )?;
         let colon_span = if self.current_is_symbol(Symbol::Colon) {
             self.bump()?.span()
@@ -1057,14 +931,11 @@ impl Parser<'_> {
             )?;
             primary
         };
-        let type_ref = self.parse_type_ref(
-            TypeStops::empty()
-                .with(TypeStops::COMMA)
-                .with(TypeStops::RIGHT_PAREN),
-        )?;
-        let end = self.type_span(type_ref)?.end().max(marker_span(name).end());
+        let type_ref =
+            self.parse_type_ref(TypeStops::from_expression(payload_stops).with(TypeStops::COMMA))?;
+        let end = self.previous_significant_end().max(start);
         Ok(EnumVariantParameter {
-            span: self.span(marker_span(name).start(), end)?,
+            span: self.span(start, end)?,
             name,
             colon_span,
             type_ref,

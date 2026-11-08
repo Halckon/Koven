@@ -150,7 +150,9 @@ impl Parser<'_> {
         current: Lexeme,
         stops: TypeStops,
     ) -> Result<Span, ParserInternalError> {
-        if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
+        if stops.contains(current)
+            || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
+        {
             self.empty_at(current.span().start())
         } else {
             Ok(current.span())

@@ -93,6 +93,52 @@ pub(super) fn class_member_start_kind(kind: LexemeKind) -> bool {
 }
 
 impl Parser<'_> {
+    pub(super) fn value_class_start_at(&self, ordinal: usize) -> Result<bool, ParserInternalError> {
+        Ok(self.peek_is_keyword(ordinal + 1, Keyword::Class)
+            && self.peek_identifier_is(ordinal, "value")?)
+    }
+
+    pub(super) fn at_class_header_file_boundary(
+        &self,
+        allow_identifier: bool,
+    ) -> Result<bool, ParserInternalError> {
+        if self.current_is_symbol(Symbol::Semicolon) {
+            return Ok(true);
+        }
+        let current = self.current()?;
+        let ordinal = usize::from(matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Public | Keyword::Internal | Keyword::Private
+            ))
+        ));
+        if self.peek(ordinal).is_some_and(|token| {
+            classifier_declaration_start_kind(token.kind())
+                || matches!(
+                    token.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(
+                        Keyword::Fun | Keyword::Const | Keyword::Package | Keyword::Import
+                    ))
+                )
+        }) {
+            return Ok(true);
+        }
+        if !self.value_class_start_at(ordinal)? {
+            return Ok(false);
+        }
+        if ordinal != 0 || !allow_identifier {
+            return Ok(true);
+        }
+        let class = self
+            .peek(1)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        // 跨行的裸 `value` 仍可作为名称或类型；仅在下一行的完整前缀处归还文件层。
+        Ok(
+            self.gap_has_line_break(self.previous_significant_end(), current.span().start())?
+                && !self.gap_has_line_break(current.span().end(), class.span().start())?,
+        )
+    }
+
     pub(super) fn classifier_declaration_start(&self) -> Result<bool, ParserInternalError> {
         if self.current_identifier_is("value")?
             && (self.peek_is_keyword(1, Keyword::Class) || self.peek_is_identifier(1))
@@ -106,17 +152,41 @@ impl Parser<'_> {
         if self.classifier_declaration_start()? {
             return Ok(true);
         }
-        if (self.current_identifier_is("borrow")?
-            || self.current_identifier_is("inout")?
-            || self.current_identifier_is("own")?)
-            && self.peek_is_keyword(1, Keyword::Fun)
-        {
+        if self.receiver_modifier_at(0)?.is_some() && self.peek_is_keyword(1, Keyword::Fun) {
             return Ok(true);
         }
         if self.current_identifier_is("deinit")? {
             return Ok(true);
         }
         Ok(class_member_start_kind(self.current()?.kind()))
+    }
+
+    pub(super) fn receiver_modifier_at(
+        &self,
+        ordinal: usize,
+    ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
+        let Some(lexeme) = self.peek(ordinal) else {
+            return Ok(None);
+        };
+        if !matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+            return Ok(None);
+        }
+        let span = lexeme.span();
+        Ok(match self.sources.slice(span)? {
+            "borrow" => Some(ParameterModeMarker::Borrow(span)),
+            "inout" => Some(ParameterModeMarker::Inout(span)),
+            "own" => Some(ParameterModeMarker::Own(span)),
+            _ => None,
+        })
+    }
+
+    pub(super) fn class_member_recovery_start(&self) -> Result<bool, ParserInternalError> {
+        Ok(self.class_member_start()?
+            || (self.receiver_modifier_at(0)?.is_some()
+                && (self.receiver_modifier_at(1)?.is_some()
+                    || self
+                        .peek(1)
+                        .is_some_and(|next| class_member_start_kind(next.kind())))))
     }
 }
 
@@ -367,6 +437,16 @@ impl TypeStops {
     pub(super) const ARROW: u16 = 1 << 10;
     pub(super) const EXTENSION_NAME: u16 = 1 << 11;
     const SEMICOLON: u16 = 1 << 12;
+    pub(super) const CLASS_BODY: u16 = 1 << 13;
+    pub(super) const CLASS_FILE: u16 = 1 << 14;
+
+    pub(super) const fn has_class_file_boundary(self) -> bool {
+        self.0 & Self::CLASS_FILE != 0
+    }
+
+    pub(super) const fn has_class_body_boundary(self) -> bool {
+        self.0 & Self::CLASS_BODY != 0
+    }
 
     pub(super) const fn ends_at_extension_name(self) -> bool {
         self.0 & Self::EXTENSION_NAME != 0
@@ -413,7 +493,8 @@ impl TypeStops {
     }
 
     pub(super) const fn without_block_elements(self) -> Self {
-        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::SEMICOLON))
+        // Explicit semicolons belong to the enclosing declaration even inside TypeRefs.
+        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::CLASS_FILE))
     }
 
     pub(super) fn contains(self, lexeme: Lexeme) -> bool {
@@ -431,7 +512,7 @@ impl TypeStops {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)) => self.0 & Self::EQUAL != 0,
             LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => self.0 & Self::ARROW != 0,
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) => {
-                self.0 & Self::LEFT_BRACE != 0
+                self.0 & (Self::LEFT_BRACE | Self::CLASS_BODY) != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace)) => {
                 self.0 & Self::RIGHT_BRACE != 0
@@ -541,6 +622,12 @@ impl DeclarationStops {
     const ARROW: u32 = 1 << 15;
     const ELSE: u32 = 1 << 16;
     const CONTROL_EXPRESSION: u32 = 1 << 17;
+    pub(super) const CLASS_BODY: u32 = 1 << 18;
+    pub(super) const CLASS_FILE: u32 = 1 << 19;
+
+    pub(super) const fn has_class_file_boundary(self) -> bool {
+        self.0 & Self::CLASS_FILE != 0
+    }
 
     pub(super) const fn from_expression_hard(stops: Stops) -> Self {
         let mut bits = 0;
@@ -621,6 +708,7 @@ impl DeclarationStops {
 
     pub(super) fn contains_soft(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
         matches!(symbol, Some(Symbol::Comma) if self.0 & Self::COMMA != 0)
+            || matches!(symbol, Some(Symbol::LeftBrace) if self.0 & Self::CLASS_BODY != 0)
             || matches!(symbol, Some(Symbol::Colon) if self.0 & Self::COLON != 0)
             || matches!(symbol, Some(Symbol::Equal) if self.0 & Self::EQUAL != 0)
             || matches!(
@@ -635,11 +723,14 @@ impl DeclarationStops {
                     lexeme.kind(),
                     LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
                 ))
-            || (self.0 & Self::CLASS_MEMBER != 0 && class_member_start_kind(lexeme.kind()))
             || (self.0 & Self::ENUM_VARIANT != 0
                 && matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)))
             || (self.0 & Self::CONTROL_EXPRESSION != 0
                 && control_expression_start_kind(lexeme.kind()))
             || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(lexeme.kind()))
+    }
+
+    pub(super) const fn stops_at_class_member(self) -> bool {
+        self.0 & Self::CLASS_MEMBER != 0
     }
 }

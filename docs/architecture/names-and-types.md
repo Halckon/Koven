@@ -12,7 +12,7 @@
 
 `type_checking::check_types` 消费名称产物与显式 `TypeEnvironment`，返回按 AST ID 索引的 `TypedFile`：
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
-raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
+Unit调用与逻辑递归帧隔离保留pending语义（[新主线适配](../specs/active/0341-shared-lowering-core.md#unit-栈帧候选适配新主线2026-11-08)）；raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
 [最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
 `type_callable` 的 println 身份/遮蔽、成员与函数值映射、参数模式三项原测试已由双 Unit 入口承接，其他 Single 覆盖保留。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)。for 与 loop 同样清除回边可能写入的事实，for 先检查 source。Elvis 和 if 按正常出口合并事实与来源版本，见[分层复审 §25](../specs/active/0392-compiler-layered-review.md#25-r2-循环回边和-elvis-出口的流事实)。lambda expected/capture 见[专题](expected-move-literals.md)。
 

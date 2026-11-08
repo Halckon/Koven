@@ -44,6 +44,7 @@ pub(super) enum ReceiverWritebackKind {
 }
 
 impl UnitExpressionLowerer<'_> {
+    /// A present descriptor with no lowered receiver means evaluation terminated.
     pub(super) fn lower_call_receiver(
         &mut self,
         call: UnitExpressionId,
@@ -152,7 +153,8 @@ impl UnitExpressionLowerer<'_> {
         let lowered = self.lower(expression.expression())?;
         let value = match lowered {
             LoweredValue::Value(value) => value,
-            LoweredValue::Unit | LoweredValue::Diverged => {
+            LoweredValue::Diverged => return Ok(None),
+            LoweredValue::Unit => {
                 return Err(lowering_error(
                     LoweringErrorKind::InvalidModel,
                     fact.begin_span(),

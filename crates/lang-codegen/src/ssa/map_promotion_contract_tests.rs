@@ -1,7 +1,7 @@
 //! Nullable Map operand adaptation consumes owners without extending inline ABI.
 use super::{
-    borrow_result_contract_tests::single, borrow_storage_contract_tests::unit, model::*,
-    verify::verify_program,
+    borrow_memory_test_support::single as memory_unit, borrow_storage_contract_tests::unit,
+    model::*, verify::verify_program,
 };
 
 const DIRECT: &str = "class Token(val n: Int)\nfun entry() { var m = mutableMapOf<String, Token?>(); m.put(\"key\", Token(7)) }";
@@ -9,8 +9,8 @@ const DIRECT: &str = "class Token(val n: Int)\nfun entry() { var m = mutableMapO
 const WARMED_INLINE: &str = "fun warm() { var values = mutableMapOf<String, Int>(); val previous = values[\"key\"] }\nfun entry() { warm(); val flag = true; var m = mutableMapOf<String, Int?>(); m.put(\"key\", 7) }";
 
 #[test]
-fn nullable_map_cached_result_single_cannot_enable_inline_storage() {
-    let error = single(WARMED_INLINE)
+fn nullable_map_cached_result_memory_cannot_enable_inline_storage() {
+    let error = memory_unit(WARMED_INLINE)
         .err()
         .expect("Map result identity must not enable inline nullable storage");
     assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
@@ -39,7 +39,7 @@ fn nullable_map_cached_owned_results_cannot_enable_move_only_inline_storage() {
         let source = format!(
             "{declaration}fun warm() {{ var values = mutableMapOf<String, {value}>(); val previous = values.remove(\"key\") }}\nfun entry() {{ warm(); val flag = true; var m = mutableMapOf<String, {value}?>(); m.put(\"key\", {operand}) }}"
         );
-        for (label, result) in [("single", single(&source)), ("unit", unit(&source))] {
+        for (label, result) in [("memory", memory_unit(&source)), ("rooted", unit(&source))] {
             let error = result
                 .err()
                 .unwrap_or_else(|| panic!("{value}/{label}: cached result cannot enable storage"));
@@ -50,8 +50,8 @@ fn nullable_map_cached_owned_results_cannot_enable_move_only_inline_storage() {
 }
 
 #[test]
-fn nullable_map_promotion_single_direct_constructor() {
-    assert_promotion(&single(DIRECT).unwrap());
+fn nullable_map_promotion_memory_direct_constructor() {
+    assert_promotion(&memory_unit(DIRECT).unwrap());
 }
 
 #[test]
@@ -62,7 +62,10 @@ fn nullable_map_promotion_unit_direct_constructor() {
 #[test]
 fn nullable_map_promotion_generic_storage_transfers_constructor_and_local_owners() {
     for case in crate::native_map_promotion_cases::cases() {
-        for (label, result) in [("single", single(case.source)), ("unit", unit(case.source))] {
+        for (label, result) in [
+            ("memory", memory_unit(case.source)),
+            ("rooted", unit(case.source)),
+        ] {
             let program = result.unwrap_or_else(|error| panic!("{}/{label}: {error:?}", case.name));
             assert_promotion(&program);
             let entry = program.modules[0]
@@ -89,7 +92,7 @@ fn nullable_map_promotion_preserves_direct_inline_nullable_rejection() {
         "value class Packet(val text: String)\nfun entry() { var m = mutableMapOf<String, Packet?>(); m.put(\"key\", Packet(\"value\".clone())) }",
         "fun entry() { var m = mutableMapOf<String, Int?>(); m.put(\"key\", 7) }",
     ] {
-        for result in [single(text), unit(text)] {
+        for result in [memory_unit(text), unit(text)] {
             let error = result.err().expect("inline nullable ABI stays unsupported");
             assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
             assert!(error.span.is_some());

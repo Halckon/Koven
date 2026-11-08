@@ -1,0 +1,221 @@
+use super::*;
+
+#[test]
+fn unfinished_classifier_headers_keep_the_body_and_next_file_owner() {
+    for (head, expected) in [
+        ("class C(val x: Int", &["L0010"][..]),
+        ("value class C(val x: Int", &["L0010"][..]),
+        ("interface C<T", &["L0010"][..]),
+        ("interface C: Parent<Int,", &["L0010", "L0014"][..]),
+    ] {
+        let text = format!("{head}   {{ fun member(): Unit {{}} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("classifier and next file owner for {text}");
+        };
+        let classifier = parsed.ast().items().get(*class).unwrap();
+        let Item::Classifier(classifier) = classifier.payload() else {
+            panic!("recovered classifier");
+        };
+        if let Some(constructor) = &classifier.primary_constructor {
+            assert_eq!(constructor.fields.len(), 1);
+            assert!(constructor.right_paren_span.is_none());
+            assert_eq!(
+                sources.slice(constructor.fields[0].span).unwrap(),
+                "val x: Int"
+            );
+        }
+        if let Some(list) = classifier.type_parameter_list_span {
+            assert_eq!(sources.slice(list).unwrap(), "<T");
+        }
+        if let [parent] = classifier.supertypes.as_slice() {
+            assert_eq!(sources.slice(parent.span).unwrap(), "Parent<Int,");
+        }
+        let body = classifier.body.as_ref().unwrap();
+        let [member] = body.members.as_slice() else {
+            panic!("classifier member for {text}");
+        };
+        let member = parsed.ast().items().get(*member).unwrap();
+        assert_eq!(
+            sources.slice(member.span()).unwrap(),
+            "fun member(): Unit {}"
+        );
+        assert_eq!(sources.slice(body.right_brace_span.unwrap()).unwrap(), "}");
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+        assert!(parsed.diagnostics().iter().all(|diagnostic| {
+            let span = diagnostic.primary_span();
+            span.is_empty() && span.start() == body.left_brace_span.start()
+        }));
+    }
+}
+
+#[test]
+fn classifier_header_recovery_distinguishes_nested_braces_and_function_types() {
+    let (_, parsed) = declaration("class C(public val x: move (Int) -> Int)");
+    assert!(parsed.diagnostics().is_empty());
+    assert_eq!(
+        classifier(&parsed)
+            .primary_constructor
+            .as_ref()
+            .unwrap()
+            .fields
+            .len(),
+        1
+    );
+
+    for (field, code) in [
+        ("val x: Int @ ({ 1 })", "L0069"),
+        ("val x: Int = { -> 1 }", "L0077"),
+        ("val x: Int = f({ -> 1 })", "L0077"),
+    ] {
+        let text = format!("class C({field}, val y: Int) {{ fun member(): Unit {{}} }}");
+        let (_, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), [code], "{text}");
+        let classifier = classifier(&parsed);
+        let constructor = classifier.primary_constructor.as_ref().unwrap();
+        assert_eq!(constructor.fields.len(), 2);
+        assert!(constructor.right_paren_span.is_some());
+        let body = classifier.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert!(body.right_brace_span.is_some());
+    }
+
+    for (inner, expected) in [
+        ("class Inner(val x: Int", &["L0077", "L0010"][..]),
+        (
+            "class Inner(val x: Int = 1",
+            &["L0077", "L0077", "L0010"][..],
+        ),
+        ("class Inner: I by", &["L0077", "L0078"][..]),
+        (
+            "interface Inner: Parent<Int,",
+            &["L0077", "L0010", "L0014"][..],
+        ),
+    ] {
+        let text = format!("class Outer {{ {inner} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
+        let [outer, sentinel] = parsed.roots() else {
+            panic!("outer and next classifier");
+        };
+        let Item::Classifier(outer) = parsed.ast().items().get(*outer).unwrap().payload() else {
+            panic!("outer classifier");
+        };
+        let body = outer.body.as_ref().unwrap();
+        let closer = body.right_brace_span.unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert_eq!(sources.slice(closer).unwrap(), "}");
+        assert!(
+            parsed
+                .diagnostics()
+                .iter()
+                .filter(|diagnostic| diagnostic.code().to_string() != "L0077")
+                .all(|diagnostic| {
+                    let primary = diagnostic.primary_span();
+                    primary.is_empty() && primary.start() == closer.start()
+                })
+        );
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn recovered_classifier_span_uses_its_last_consumed_token() {
+    for source in [
+        "class C(val x: Int,",
+        "interface I :",
+        "class C { fun member(): Unit {}",
+    ] {
+        let text = format!("{source}   ");
+        let (sources, parsed) = declaration(&text);
+        assert!(!parsed.diagnostics().is_empty());
+        let classifier = parsed.ast().items().get(parsed.root()).unwrap();
+        assert_eq!(sources.slice(classifier.span()).unwrap(), source);
+    }
+}
+
+#[test]
+fn unsupported_unclosed_supertype_calls_keep_the_existing_body_boundary() {
+    for header in ["class C: I(", "class C: I by make("] {
+        let text = format!("{header}\n{{ fun member(): Unit {{}} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0077"], "{text}");
+        let [first, sentinel] = parsed.roots() else {
+            panic!("class and later classifier");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*first).unwrap().payload() else {
+            panic!("class with recovered body");
+        };
+        let body = class.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert!(body.right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn missing_nested_classifier_name_preserves_the_enclosing_closer() {
+    let text = "class Outer { class }\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0077", "L0067"]);
+    let [outer, sentinel] = parsed.roots() else {
+        panic!("outer class and following file item");
+    };
+    let Item::Classifier(outer) = parsed.ast().items().get(*outer).unwrap().payload() else {
+        panic!("outer class");
+    };
+    let body = outer.body.as_ref().unwrap();
+    let [inner] = body.members.as_slice() else {
+        panic!("one nested classifier");
+    };
+    let Item::Classifier(inner) = parsed.ast().items().get(*inner).unwrap().payload() else {
+        panic!("nested classifier");
+    };
+    let closer = body.right_brace_span.unwrap();
+    let NameMarker::Missing(name) = inner.name else {
+        panic!("missing name");
+    };
+    assert!(name.is_empty());
+    assert_eq!(name.start(), closer.start());
+    assert_eq!(parsed.diagnostics()[1].primary_span(), name);
+    assert_eq!(sources.slice(closer).unwrap(), "}");
+    assert_eq!(
+        sources
+            .slice(parsed.ast().items().get(*sentinel).unwrap().span())
+            .unwrap(),
+        "class Sentinel"
+    );
+}
+
+#[test]
+fn member_recovery_preserves_a_contextual_receiver_only_at_owner_baseline() {
+    for (garbage, prefix, expected) in [
+        ("@", "own", &["L0071"][..]),
+        ("@ (own fun ignored(): Unit {})", "own", &["L0071"][..]),
+        (
+            r#"@ "${own fun ignored(): Unit {}}""#,
+            "own",
+            &["L0071"][..],
+        ),
+        ("@", "own borrow", &["L0071", "L0076"][..]),
+        ("@", "own public", &["L0071", "L0076"][..]),
+    ] {
+        let text = format!("class C {{ {garbage}\n{prefix} fun member(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
+        let body = classifier(&parsed).body.as_ref().unwrap();
+        let [error, member] = body.members.as_slice() else {
+            panic!("error region and recovered member");
+        };
+        assert!(matches!(item(&parsed, *error), Item::Error));
+        let Some(marker @ ParameterModeMarker::Own(_)) = receiver_mode(&parsed, *member) else {
+            panic!("recovered receiver");
+        };
+        assert_eq!(sources.slice(receiver_mode_span(marker)).unwrap(), "own");
+        assert!(body.right_brace_span.is_some());
+    }
+}

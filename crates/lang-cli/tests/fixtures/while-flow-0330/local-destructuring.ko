@@ -29,4 +29,15 @@ fun testFor(): Unit {
     }
     if (outer != null && outer == "second") { println("for-changed") }
 }
-fun main(): Unit { test(0); test(3); testFor() }
+fun testWhile(flag: Boolean): Unit {
+    val (second, first) = Pair(20, 22)
+    var outer: String? = "first"
+    if (outer != null) {
+        while (flag && first == 20) {
+            outer = "second"
+            break
+        }
+    }
+    if (outer != null && outer == "second") { println("while-changed") }
+}
+fun main(): Unit { test(0); test(3); testFor(); testWhile(false); testWhile(true) }

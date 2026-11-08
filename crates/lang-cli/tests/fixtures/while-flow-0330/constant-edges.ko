@@ -1,0 +1,82 @@
+value class Pair(val first: Int, val second: Int)
+class Guard(val name: String) { deinit() { println(this.name) } }
+class Holder(val guard: Guard, val value: Int) { deinit() { println("holder") } }
+class Plain(val first: Int, val second: Int)
+class Sample(val value: Int) { fun read(): Int = 7 }
+
+fun deadBody(): Unit {
+    while (false) {
+        val (second, first) = Pair(20, 22)
+        println("dead body")
+    }
+    for (item in listOf("kept")) { println(item) }
+}
+
+fun condition(flag: Boolean): Unit {
+    while (if (flag) { println("condition"); false } else { return }) {
+        println("dead conditional body")
+    }
+    println("normal exit")
+}
+
+fun prefix(flag: Boolean): Unit {
+    val result = +(if (flag) {
+        while (true) { return }
+        1
+    } else {
+        while (true) { return }
+        2
+    })
+}
+
+fun construction(flag: Boolean): Unit {
+    val result = Holder(Guard("prefix released"), if (flag) {
+        while (true) { return }
+        1
+    } else {
+        while (true) { return }
+        2
+    })
+}
+
+fun firstArgument(): Int {
+    println("first argument")
+    return 1
+}
+
+fun plainConstruction(flag: Boolean): Unit {
+    val result = Plain(firstArgument(), if (flag) {
+        while (true) { return }
+        1
+    } else {
+        while (true) { return }
+        2
+    })
+}
+
+fun receiver(flag: Boolean): Unit {
+    for (_ in listOf(0)) {}
+    val result = (if (flag) {
+        while (true) { return }
+        Sample(1)
+    } else {
+        while (true) { return }
+        Sample(2)
+    }).read()
+}
+
+fun main(): Unit {
+    deadBody()
+    condition(true)
+    condition(false)
+    prefix(true)
+    prefix(false)
+    construction(true)
+    construction(false)
+    plainConstruction(true)
+    plainConstruction(false)
+    receiver(true)
+    receiver(false)
+    while (true) { break }
+    println("after break")
+}
