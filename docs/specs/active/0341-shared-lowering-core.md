@@ -3565,3 +3565,27 @@ unit_direct_call_loan_ends 全60项通过，共82项；frontend all-targets Clip
 后续本地整合 #350 的 `d8125323` 后，容器目标已没有 Single helper 调用，删除其入口和 imports。
 原两提交另存已验证 bundle；没有删除或覆盖原分支。45 项容器目标测试全部通过，
 frontend all-targets Clippy 与格式/文档/尺寸检查通过；仍不代表其他 ownership 目标全部退役。
+
+## 混合 Return 分支的绑定与终止隔离证据（2026-11-07）
+
+基于 #349 后 main `86430a05`，保留原混合分支源码及 prefix 固定完整向量，补 continuing
+分支唯一 binding 的固定字节身份（161–165）、同轮 source qualification、initializer 与
+origin 对接；唯一 result endpoint 必须属于该 binding，且为 AfterStatement，不能冒充
+Return 上的来源 loan 结束。同控制点的实际 call-loan 前序计数为零。两入口均验证。
+
+审计仍保留 direct/forwarded source 的完整 absence、named-source 全流恰一结束及 nested
+outer-end 先于 source-end 的 Single 见证。该混合分支现有 prefix 和 binding 可观察，但
+正常 handoff 单元素探针失败（列表为空），因此不把正常调用 handoff 的能力外推到此输入；
+本片不扩 producer、不改 Guide、不删除任何 Single，也不宣称完整事件流已实现。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug=2：
+`unit_direct_call_loan_ends` 的
+`borrow_handoff::return_during_later_operand_ends_only_the_established_source_prefix` 精确测试
+1 passed、59 filtered。保留证据邻控：`ownership_borrow_continuation` 的
+`results_continue_original_source_loans_and_never_own_the_payload` 与
+`named_source_continues_only_its_loan_and_other_arguments_end_at_call_return` 各 1 passed、
+13 filtered；`ownership_nested_borrow_arguments` 的
+`direct_and_grouped_results_are_synchronous_borrow_operands` 为 1 passed、9 filtered。
+frontend all-targets Clippy（-D warnings）、fmt、862 份 Markdown、diff及相对基线尺寸门禁
+通过；2150 份手写 Rust、38 份历史超长文件未增长。未运行全 target、native、Abort、
+故障注入或校准；官方 CI 未运行，D10/E2 仍 in-progress，不合并。
