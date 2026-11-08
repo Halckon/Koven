@@ -123,49 +123,96 @@ impl BodyChecker<'_> {
             operator,
             BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
         ) {
-            let left_result = self.check_expression(source, left, None, None, return_type)?;
-            let (left_true, left_false) = self.condition_facts(source, left)?;
-            let baseline = self.flow_facts.clone();
-            let baseline_versions = self.flow_versions.clone();
-            let right_entry = if operator == BinaryOperator::LogicalAnd {
-                &left_true
-            } else {
-                &left_false
-            };
-            self.flow_facts = extend_facts(&baseline, right_entry);
-            let right_result = self.check_expression(source, right, None, None, return_type);
-            let writes = self.expression_flow_writes(source, right)?;
-            self.flow_facts = baseline;
-            self.flow_versions = baseline_versions;
-            for key in writes {
-                self.invalidate_flow_key(key);
-            }
-            let right_result = right_result?;
-            let boolean = self.builtin(BuiltinType::Boolean);
-            let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)
-                && self.is_builtin(right_result.ty, BuiltinType::Boolean)
-            {
-                boolean
-            } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
-                self.error_type()
-            } else if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
-                self.deferred_type(crate::type_checking::DeferredReason::ControlJoin)
-            } else {
-                self.emit_binary_operand_error(
-                    source,
-                    operator_span,
-                    left,
-                    left_result.ty,
-                    right,
-                    right_result.ty,
-                )?;
-                self.error_type()
-            };
-            return Ok(ExpressionCheck {
-                ty,
-                falls_through: left_result.falls_through && right_result.falls_through,
-            });
+            return self.check_logical_binary(
+                source,
+                left,
+                operator,
+                operator_span,
+                right,
+                return_type,
+            );
         }
+        self.check_value_binary(
+            source,
+            BinaryExpression {
+                expression,
+                left,
+                operator,
+                operator_span,
+                right,
+            },
+            return_type,
+        )
+    }
+
+    // Keep non-logical operator temporaries out of the recursive short-circuit path.
+    #[allow(clippy::too_many_arguments)]
+    fn check_logical_binary(
+        &mut self,
+        source: SourceUnitId,
+        left: crate::ast::ExpressionId,
+        operator: BinaryOperator,
+        operator_span: Span,
+        right: crate::ast::ExpressionId,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let left_result = self.check_expression(source, left, None, None, return_type)?;
+        let (left_true, left_false) = self.condition_facts(source, left)?;
+        let baseline = self.flow_facts.clone();
+        let baseline_versions = self.flow_versions.clone();
+        let right_entry = if operator == BinaryOperator::LogicalAnd {
+            &left_true
+        } else {
+            &left_false
+        };
+        self.flow_facts = extend_facts(&baseline, right_entry);
+        let right_result = self.check_expression(source, right, None, None, return_type);
+        let writes = self.expression_flow_writes(source, right)?;
+        self.flow_facts = baseline;
+        self.flow_versions = baseline_versions;
+        for key in writes {
+            self.invalidate_flow_key(key);
+        }
+        let right_result = right_result?;
+        let boolean = self.builtin(BuiltinType::Boolean);
+        let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)
+            && self.is_builtin(right_result.ty, BuiltinType::Boolean)
+        {
+            boolean
+        } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
+            self.error_type()
+        } else if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
+            self.deferred_type(crate::type_checking::DeferredReason::ControlJoin)
+        } else {
+            self.emit_binary_operand_error(
+                source,
+                operator_span,
+                left,
+                left_result.ty,
+                right,
+                right_result.ty,
+            )?;
+            self.error_type()
+        };
+        Ok(ExpressionCheck {
+            ty,
+            falls_through: left_result.falls_through && right_result.falls_through,
+        })
+    }
+
+    fn check_value_binary(
+        &mut self,
+        source: SourceUnitId,
+        expression: BinaryExpression,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let BinaryExpression {
+            expression,
+            left,
+            operator,
+            operator_span,
+            right,
+        } = expression;
         let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
         let left_null = equality && self.is_null_comparison_literal(source, left)?;
         let right_null = equality && self.is_null_comparison_literal(source, right)?;

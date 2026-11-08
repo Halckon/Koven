@@ -3547,3 +3547,34 @@ architecture 记录完整保留，原 Map/容器测试内容不变。Mac Rust1.9
 unit_direct_call_loan_ends 全60项通过，共82项；frontend all-targets Clippy
 （-D warnings）、workspace fmt、862份Markdown及diff检查通过。
 本次未运行全量/native/故障注入/校准；正式CI须以本次新头单独核验，不沿用旧头绿灯。
+
+
+## Unit 逻辑表达式栈帧隔离（2026-11-08）
+
+基于 main `60aa67d1`，分支 `fix/spec-0341-unit-stack-frames`。历史 128 enum cases +
+96 smart-cast 条件迁移的 macOS crash 栈指向 Unit `check_expression` / `check_binary`
+交替递归，不是 enum signature、parser 或名称解析。旧 Single 输入和 oracle 完整保留。
+本片只将 Call 分派抽成独立 helper，并将 Elvis、逻辑和普通二元运算分派到互斥帧；
+原求值、诊断、flow facts/versions 恢复、写入失效和表达式记录顺序不变，不修改 flow 算法。
+
+Mac AArch64 / Rust1.96 默认 debug=2 反汇编测得，历史同生产符号产物每层表达式+
+二元运算为 15,952+6,800=22,752 B；本片为 14,288+448+2,688=17,424 B。
+仅96层这条链由2,184,192降为1,672,704 B（不含外层及叶子调用），不是总栈上界证明。
+历史 crash 原二进制已重新链接，旧帧数来自保留的同生产符号产物，非原 UUID。
+没有加栈、改编译 profile、减少输入或引入 ignore；并非无限嵌套栈安全保证。
+
+新增 `type_checking::nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`
+逐字复用原源码构造，在 MemoryDocument/Rooted 各自对同 names/types 重复检查，核无诊断、
+表达式类型与 enum cases 稳定且域大小为128/2。该输入历史上曾 Abort，本机只编译并明确
+用精确 skip 排除执行，正式 `check_stage_integration.sh` 的 type_checking 目标将实际执行。
+因此本片目前只证明帧缩减和普通邻控，尚不能声称原压力失败已运行转绿。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 普通直接及相邻消费者 | `cargo test --locked --offline -p lang-frontend --test type_checking --test type_callable --test type_containers --test type_ownership_primitives --test control_branch_join --test while_flow_facts -- --skip nominal_unit::stress::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 182 passed；仅新增历史 Abort 输入1项未执行 |
+| 静态 Rust | `cargo clippy --locked --offline -p lang-frontend --all-targets -- -D warnings` | 通过 |
+| 原压力双入口 | 默认线程栈、原128/96规模 | 编译通过；仅待正式 CI 实跑 |
+| 静态治理 | fmt、docs、diff、相对60aa67d1的Rust尺寸门禁 | 通过；38个历史超长文件未增长，checker.rs由1151降至1103行 |
+
+文档首轮因入口205行失败，改为现有概述内的一句事实后862份Markdown复核通过。
+不运行 Abort/故障注入、全 workspace 或 native 套件；没有合并。D10/E2仍 in-progress。

@@ -36,6 +36,7 @@ mod control;
 mod control_join;
 pub(super) mod copyability;
 mod destructuring;
+mod expression_call;
 mod expression_facts;
 mod flow;
 mod generic_body_types;
@@ -602,66 +603,17 @@ impl<'a> BodyChecker<'a> {
                 type_arguments,
                 arguments,
                 ..
-            } => {
-                let invalidated = arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(
-                            argument.mode_marker,
-                            Some(crate::parser::ParameterModeMarker::Inout(_))
-                        )
-                    })
-                    .filter_map(|argument| self.stable_flow_key(source, argument.value))
-                    .collect::<Vec<_>>();
-                let result = if let Some(result) = self.check_intrinsic_ownership_primitive_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    return_type,
-                )? {
-                    result
-                } else if let Some(result) = self.check_intrinsic_container_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    expected,
-                    expected_span,
-                    return_type,
-                )? {
-                    result
-                } else if let Some(result) = self.check_source_construction_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    expected,
-                    expected_span,
-                    return_type,
-                )? {
-                    result
-                } else {
-                    self.check_call(
-                        source,
-                        expression,
-                        callee,
-                        &type_arguments,
-                        &arguments,
-                        return_type,
-                    )?
-                };
-                for key in invalidated {
-                    self.invalidate_flow_key(key);
-                }
-                result
-            }
+            } => self.check_call_expression(
+                source,
+                expression,
+                span,
+                callee,
+                &type_arguments,
+                &arguments,
+                expected,
+                expected_span,
+                return_type,
+            )?,
             Expression::Return {
                 keyword_span,
                 value,

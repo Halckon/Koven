@@ -11,6 +11,9 @@ mod identity;
 #[path = "nominal_unit/interface_flow.rs"]
 mod interface_flow;
 
+#[path = "nominal_unit/stress.rs"]
+mod stress;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
