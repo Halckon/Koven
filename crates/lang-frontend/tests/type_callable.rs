@@ -330,11 +330,19 @@ fn overloads_filter_by_type_then_report_no_match_or_ambiguity() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0123", "L0124"]);
+    let callee_spans =
+        [("choose(true)", "choose"), ("nullable(absent)", "nullable")].map(|(call, callee)| {
+            let start = text.find(call).expect("original call");
+            sources
+                .span(parsed.source_id(), start, start + callee.len())
+                .unwrap()
+        });
     for unit in checked_entries(&sources, &parsed, &names, &types) {
         assert_eq!(codes(unit.diagnostics()), ["L0123", "L0124"]);
+        assert!(unit.calls().is_empty());
+        for (diagnostic, callee_span) in unit.diagnostics().iter().zip(callee_spans) {
+            assert_eq!(diagnostic.primary_span(), callee_span);
+        }
     }
 }
 
@@ -348,9 +356,6 @@ fn nullable_bottom_adapts_without_widening_other_nullable_types() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let single = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(single.diagnostics()), ["L0084", "L0084"]);
     for unit in checked_entries(&sources, &parsed, &names, &types) {
         assert_eq!(codes(unit.diagnostics()), ["L0084", "L0084"]);
         assert_eq!(
@@ -766,18 +771,20 @@ fn non_lambda_filter_to_one_candidate_preserves_direct_lambda_diagnostic() {
 
 #[test]
 fn generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order() {
-    let text = "fun <T> dispatch(
+    // The first trial types the first two lambdas with different modes, then
+    // fails on the last lambda. Only the second trial's facts may survive.
+    let text = "fun <T, U> dispatch(
+                    first: (own T) -> T,
+                    second: (borrow String) -> String,
+                    third: (own U) -> U
+                ): String = \"text\"
+                fun <T, U> dispatch(
                     first: (borrow T) -> T,
                     second: (own Int) -> Int,
-                    third: (inout Int) -> Int
+                    third: (inout U) -> U
                 ): Long = 1L
-                fun <T> dispatch(
-                    first: (borrow T) -> T,
-                    second: (own String) -> String,
-                    third: (inout String) -> String
-                ): String = \"text\"
                 fun use(): Unit {
-                    val selected = dispatch<String>(
+                    val selected = dispatch<String, Int>(
                         third = { changed -> changed + 1 },
                         first = { borrowed -> borrowed },
                         second = { owned -> owned + 1 }
@@ -785,34 +792,65 @@ fn generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order()
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let call = typed.calls().last().expect("selected generic overload");
-    assert_eq!(
-        call.arguments()
-            .iter()
-            .map(|argument| argument.parameter_index())
-            .collect::<Vec<_>>(),
-        [2, 0, 1]
-    );
-    assert!(matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Long))
-    ));
-    assert_eq!(
-        resolution
-            .symbols()
-            .iter()
-            .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-            .map(|symbol| typed.parameter_mode(symbol.id()))
-            .collect::<Vec<_>>(),
-        [
-            Some(ParameterMode::Inout),
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Value),
-        ]
-    );
+    for (resolved, unit) in
+        unit_entries::checked_entries_with_names(&sources, &parsed, &names, &types)
+    {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [call] = unit.calls() else {
+            panic!("only the winning dispatch call publishes a descriptor")
+        };
+        assert_eq!(
+            call.arguments()
+                .iter()
+                .map(|argument| argument.parameter_index())
+                .collect::<Vec<_>>(),
+            [2, 0, 1]
+        );
+        assert_eq!(
+            unit.types().get(call.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Long))
+        );
+        assert_eq!(
+            call.instance()
+                .type_arguments()
+                .iter()
+                .map(|&argument| unit.types().get(argument))
+                .collect::<Vec<_>>(),
+            [
+                Some(&UnitTypeKind::Builtin(BuiltinType::String)),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+            ]
+        );
+
+        let source = &resolved.names().source_units()[0];
+        assert_eq!(unit.body_parameter_modes().len(), 3);
+        for (name, mode, builtin) in [
+            ("changed", ParameterMode::Inout, BuiltinType::Int),
+            ("borrowed", ParameterMode::Borrow, BuiltinType::String),
+            ("owned", ParameterMode::Value, BuiltinType::Int),
+        ] {
+            let symbol = source
+                .resolution()
+                .symbols()
+                .iter()
+                .find(|symbol| {
+                    symbol.kind() == SymbolKind::LambdaParameter && symbol.name() == name
+                })
+                .expect("original lambda parameter");
+            let (&id, &actual_mode) = unit
+                .body_parameter_modes()
+                .iter()
+                .find(|(id, _)| {
+                    id.source_unit() == source.source_unit() && id.symbol() == symbol.id()
+                })
+                .expect("committed mode for original lambda parameter");
+            assert_eq!(actual_mode, mode);
+            assert_eq!(
+                unit.symbol_type(id).and_then(|ty| unit.types().get(ty)),
+                Some(&UnitTypeKind::Builtin(builtin))
+            );
+        }
+    }
 }
 
 #[test]
