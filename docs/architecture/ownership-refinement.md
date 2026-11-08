@@ -14,6 +14,10 @@ receiver 只接受 Copyable enum（Value/Borrow）与普通 class（Borrow/Inout
 拒绝（unit planning 已为 `Inout` 参数分配 exclusive loan 实体）。精确子集以
 SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
 
+Map 遍历在已规划函数的实际 lowering 路径校验。旧路径在发出迭代操作前核验 provider，
+细化层核对同一条 typed 和 owned 计划及退出动作。未调用函数不再经过独立的整单元
+Map 后端预检。前端仍验证整个编译单元，已有借用绑定前置合同继续生效。
+
 Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed facts 激活现有
 `scope_requires_refine`，仍逐项校验 Map provider 与完整函数子集；无关 sibling 中的操作
 不改变纯 Map-for 路由。验证范围见 [SPEC-0383 §5](../specs/active/0383-refine-final-legacy-retirement.md#5-map-for-与整数家族的组合路由修复)。
