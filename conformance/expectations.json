@@ -2351,12 +2351,7 @@
       "expected_lines": 10,
       "expected_bytes": 190,
       "allowed_markers": [
-        "FE:L0080",
-        "FE:L0084",
-        "FE:L0085",
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+        "FE:L0080"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
@@ -2378,12 +2373,7 @@
       "expected_lines": 6,
       "expected_bytes": 174,
       "allowed_markers": [
-        "FE:L0080",
-        "FE:L0084",
-        "FE:L0085",
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+        "FE:L0165"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
@@ -2406,12 +2396,7 @@
       "expected_lines": 8,
       "expected_bytes": 242,
       "allowed_markers": [
-        "FE:L0080",
-        "FE:L0084",
-        "FE:L0085",
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+        "FE:L0085"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
@@ -2433,12 +2418,7 @@
       "expected_lines": 28,
       "expected_bytes": 369,
       "allowed_markers": [
-        "FE:L0080",
-        "FE:L0084",
-        "FE:L0085",
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+        "BE:UnsupportedNode"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
@@ -2458,12 +2438,7 @@
       "expected_lines": 17,
       "expected_bytes": 375,
       "allowed_markers": [
-        "FE:L0080",
-        "FE:L0084",
-        "FE:L0085",
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+        "BE:UnsupportedNode"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
@@ -2484,12 +2459,7 @@
       "expected_lines": 16,
       "expected_bytes": 187,
       "allowed_markers": [
-        "FE:L0080",
-        "FE:L0084",
-        "FE:L0085",
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+        "FE:L0165"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [

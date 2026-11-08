@@ -1,10 +1,10 @@
-# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本
+# Conformance 强 Oracle 语义推导与 Guide v0.47 章节覆盖对账账本
 
 > 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。
 
-## 1. Guide v0.46 章节覆盖与正/负向极性汇总（154 Probes）
+## 1. Guide v0.47 章节覆盖与正/负向极性汇总（154 Probes）
 
-| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |
+| Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |
 |---|---:|---:|---:|---:|---:|---:|---|
 | [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 | `positive_only` |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 | `both_positive_and_negative` |
@@ -54,7 +54,7 @@
 | `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 17 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `p42_lambda_mutate`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
 | `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | 0 | 无（零基线退化） |
 
-### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（40 Probes）
+### 1.3 `v046_spec_contract` 历史基线豁免项与 Spec 交付合同溯源矩阵（40 Probes）
 
 | Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |
 |---|---|---|---:|---|---|
@@ -117,13 +117,13 @@
 
 | 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |
 |---|---|---|---:|---:|---:|
-| `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 2 | 6 |
-| `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 6 |
-| `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 6 |
-| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 6 |
-| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 17 | 6 |
+| `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 2 | 1 |
+| `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 0 |
+| `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 1 |
+| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 2 |
+| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 17 | 2 |
 | `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
-| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 16 | 6 |
+| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 16 | 0 |
 
 ### 1.8 初始 85 探针（`p`/`q`/`r`/`s` 批次 A/B/C 三组）与 P2 阶段门槛对账矩阵
 
@@ -179,7 +179,7 @@
 
 ### 1.12 语料库源码规模、LF 尾换行卫生契约与章节源码分布汇总
 
-| Guide v0.46 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |
+| Guide v0.47 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |
 |---|---|---:|---:|---|---:|---:|
 | [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 4 | 10 行 / 398 B | - | 0 行 / 0 B | 10 行 / 398 B |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 名称、文件、Package 与 Import | 7 | 9 行 / 657 B | - | 0 行 / 0 B | 9 行 / 657 B |
@@ -240,12 +240,12 @@
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
 |---|---|---|---|---|---|---|
-| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `N02`, `N08`, `L1`, `L2` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | 10 行 / 190 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | 6 行 / 174 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | 8 行 / 242 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `N02`, `N08`, `L1`, `L2` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | 10 行 / 190 B | `FE:L0080` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | 6 行 / 174 B | `FE:L0165` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | 8 行 / 242 B | `FE:L0085` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B | `BE:UnsupportedNode` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `BE:UnsupportedNode` |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0165` |
 
 ### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（10 Roadmap Blockers）
 
