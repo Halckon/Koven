@@ -94,6 +94,9 @@ lambda 的闭合符，成员解析按 classifier 分别验证 companion 唯一�
 同一文件级恢复在普通组已配对时保留组内 `>`，真实 closer 同步收回本地栈，插值 closer
 只能作用于自己的词法 owner。配对候选按各 opener 的局部上下文惰性索引。
 父类型槽位的词法错误头复用严格类型列表的真实 `>`，外部逗号和类体仍由原解析器接管。
+闭合父类型后，词法错误区由父类型项单独保存。严格角列表和已配对普通组保护内部标点，
+未配对普通组不会占用后继文件或外层成员的起点。嵌套 classifier 显式携带成员 owner，
+成员分号仍交给外层。分段字符串沿用 Lexer 的终止事件。
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。

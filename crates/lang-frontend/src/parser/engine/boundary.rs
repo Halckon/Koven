@@ -698,6 +698,11 @@ impl DeclarationStops {
     const CONTROL_EXPRESSION: u32 = 1 << 17;
     pub(super) const CLASS_BODY: u32 = 1 << 18;
     pub(super) const CLASS_FILE: u32 = 1 << 19;
+    pub(super) const SUPERTYPE_SUFFIX: u32 = 1 << 20;
+
+    pub(super) const fn has_supertype_suffix(self) -> bool {
+        self.0 & Self::SUPERTYPE_SUFFIX != 0
+    }
 
     pub(super) const fn has_greater(self) -> bool {
         self.0 & Self::GREATER != 0

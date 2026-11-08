@@ -4,11 +4,12 @@ impl Parser<'_> {
     pub(super) fn parse_supertype_list(
         &mut self,
         kind: ClassifierKind,
-        file_header: bool,
+        owner: ClassifierHeaderOwner,
     ) -> Result<(Option<Span>, Vec<SupertypeEntry>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Colon) {
             return Ok((None, Vec::new()));
         }
+        let file_header = owner == ClassifierHeaderOwner::File;
         let colon_span = self.bump()?.span();
         let mut entries = Vec::new();
         let mut recovery_stops = DeclarationStops::EMPTY
@@ -29,7 +30,7 @@ impl Parser<'_> {
             let current = self.current()?;
             let file_boundary = file_header && self.at_class_header_file_boundary(true)?;
             if !file_boundary && self.can_start_type_ref(current) {
-                let type_ref = self.parse_type_ref(type_stops)?;
+                let (type_ref, complete) = self.parse_type_ref_with_completion(type_stops)?;
                 let type_span = self.type_span(type_ref)?;
                 let mut trailing_lexical_error = None;
                 let delegation = if self.current_identifier_is("by")? {
@@ -125,6 +126,18 @@ impl Parser<'_> {
                 } else {
                     None
                 };
+                if delegation.is_none() && complete {
+                    let current = self.current()?;
+                    if self.is_declaration_trailing_poison(current) {
+                        let start = current.span().start();
+                        let mut stops = recovery_stops.with(DeclarationStops::SUPERTYPE_SUFFIX);
+                        if owner == ClassifierHeaderOwner::Member {
+                            stops = stops.with(DeclarationStops::CLASS_MEMBER);
+                        }
+                        let end = self.recover_declaration_region(stops)?;
+                        trailing_lexical_error = Some(self.span(start, end)?);
+                    }
+                }
                 entries.push(SupertypeEntry {
                     span: self.span(
                         type_span.start(),

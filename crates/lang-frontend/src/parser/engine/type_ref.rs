@@ -5,16 +5,25 @@ impl Parser<'_> {
         &mut self,
         stops: TypeStops,
     ) -> Result<TypeRefId, ParserInternalError> {
+        self.parse_type_ref_with_completion(stops).map(|(id, _)| id)
+    }
+
+    /// Whether the TypeRef reached its own syntactic end before returning.
+    /// A caller can use this to keep poison inside an incomplete type out of its own suffix.
+    pub(super) fn parse_type_ref_with_completion(
+        &mut self,
+        stops: TypeStops,
+    ) -> Result<(TypeRefId, bool), ParserInternalError> {
         self.enter_recursion()?;
         let result = self.parse_type_ref_inner(stops);
         self.recursion_depth -= 1;
         result
     }
 
-    pub(super) fn parse_type_ref_inner(
+    fn parse_type_ref_inner(
         &mut self,
         stops: TypeStops,
-    ) -> Result<TypeRefId, ParserInternalError> {
+    ) -> Result<(TypeRefId, bool), ParserInternalError> {
         if (self.current_identifier_is("move")? && self.peek_is_symbol(1, Symbol::LeftParen))
             || self.current_is_symbol(Symbol::LeftParen)
         {
@@ -32,7 +41,9 @@ impl Parser<'_> {
                             .lexical_poison_string_recovery_end(opener)
                     });
             if let Some(recovery_end) = lexical_poison_end {
-                return self.consume_segmented_string_type_poison(recovery_end);
+                return self
+                    .consume_segmented_string_type_poison(recovery_end)
+                    .map(|id| (id, false));
             }
             if let Some(owner_end) = self.lexical_recoveries.string_owner_end(opener) {
                 let span = current.span();
@@ -41,7 +52,9 @@ impl Parser<'_> {
                     "expected type reference",
                     span,
                 )?;
-                return self.consume_segmented_string_type_poison(owner_end);
+                return self
+                    .consume_segmented_string_type_poison(owner_end)
+                    .map(|id| (id, false));
             }
         }
         let boundary = self.at_type_recovery_boundary(current, stops)?;
@@ -57,7 +70,9 @@ impl Parser<'_> {
                         span,
                     )?;
                 }
-                return self.add_type_ref(span, TypeRef::Error);
+                return self
+                    .add_type_ref(span, TypeRef::Error)
+                    .map(|id| (id, false));
             }
             let span = self.bump()?.span();
             if !matches!(
@@ -70,7 +85,9 @@ impl Parser<'_> {
                     span,
                 )?;
             }
-            return self.add_type_ref(span, TypeRef::Error);
+            return self
+                .add_type_ref(span, TypeRef::Error)
+                .map(|id| (id, false));
         }
 
         self.parse_qualified_type(stops)
@@ -95,10 +112,10 @@ impl Parser<'_> {
         self.add_type_ref(self.span(start, end)?, TypeRef::Error)
     }
 
-    pub(super) fn parse_qualified_type(
+    fn parse_qualified_type(
         &mut self,
         stops: TypeStops,
-    ) -> Result<TypeRefId, ParserInternalError> {
+    ) -> Result<(TypeRefId, bool), ParserInternalError> {
         let first = self.bump()?.span();
         let mut segments = vec![TypePathSegment {
             name_span: first,
@@ -129,7 +146,9 @@ impl Parser<'_> {
                     )?;
                     dot.end()
                 };
-                return self.add_type_ref(self.span(first.start(), error_end)?, TypeRef::Error);
+                return self
+                    .add_type_ref(self.span(first.start(), error_end)?, TypeRef::Error)
+                    .map(|id| (id, false));
             }
             let name_span = self.bump()?.span();
             end = name_span.end();
@@ -139,6 +158,7 @@ impl Parser<'_> {
             });
         }
 
+        let mut complete = true;
         if self.current_is_symbol(Symbol::Less) {
             let opener = self.bump()?.span();
             let mut arguments = Vec::new();
@@ -158,6 +178,7 @@ impl Parser<'_> {
             if self.current_is_symbol(Symbol::Greater) {
                 end = self.bump()?.span().end();
             } else {
+                complete = false;
                 let current = self.current()?;
                 if !self.is_poison() {
                     self.emit_closing(self.type_boundary_span(current, stops)?, opener)?;
@@ -187,12 +208,13 @@ impl Parser<'_> {
                 nullable_span,
             },
         )
+        .map(|id| (id, complete))
     }
 
-    pub(super) fn parse_function_type(
+    fn parse_function_type(
         &mut self,
         outer_stops: TypeStops,
-    ) -> Result<TypeRefId, ParserInternalError> {
+    ) -> Result<(TypeRefId, bool), ParserInternalError> {
         let move_span = if self.current_identifier_is("move")? {
             Some(self.bump()?.span())
         } else {
@@ -222,7 +244,9 @@ impl Parser<'_> {
                     diagnostic_span,
                 )?;
             }
-            return self.add_type_ref(error_span, TypeRef::Error);
+            return self
+                .add_type_ref(error_span, TypeRef::Error)
+                .map(|id| (id, false));
         }
         let opener = self.bump()?.span();
         let start = move_span.unwrap_or(opener).start();
@@ -266,7 +290,8 @@ impl Parser<'_> {
             .last()
             .map(|parameter| parameter.span.end())
             .unwrap_or(opener.end());
-        if self.current_is_symbol(Symbol::RightParen) {
+        let has_right_paren = self.current_is_symbol(Symbol::RightParen);
+        if has_right_paren {
             last_end = self.bump()?.span().end();
         } else {
             let current = self.current()?;
@@ -275,28 +300,30 @@ impl Parser<'_> {
             }
         }
 
-        let (arrow_span, return_type) = if self.current_is_symbol(Symbol::Arrow) {
-            let span = self.bump()?.span();
-            last_end = span.end();
-            let return_type = self.parse_type_ref(outer_stops)?;
-            (span, return_type)
-        } else {
-            let current = self.current()?;
-            let primary = self.type_boundary_span(current, outer_stops)?;
-            let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
-                && self.lexical_recoveries.terminal_error_at_eof;
-            if !self.is_poison() && !terminal_lexer_root {
-                self.emit(
-                    codes::EXPECTED_TYPE_REFERENCE,
-                    "expected type reference",
-                    primary,
-                )?;
-            }
-            (
-                self.span(last_end, last_end)?,
-                self.add_type_ref(primary, TypeRef::Error)?,
-            )
-        };
+        let (arrow_span, return_type, has_complete_return_type) =
+            if self.current_is_symbol(Symbol::Arrow) {
+                let span = self.bump()?.span();
+                last_end = span.end();
+                let (return_type, complete) = self.parse_type_ref_with_completion(outer_stops)?;
+                (span, return_type, complete)
+            } else {
+                let current = self.current()?;
+                let primary = self.type_boundary_span(current, outer_stops)?;
+                let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
+                    && self.lexical_recoveries.terminal_error_at_eof;
+                if !self.is_poison() && !terminal_lexer_root {
+                    self.emit(
+                        codes::EXPECTED_TYPE_REFERENCE,
+                        "expected type reference",
+                        primary,
+                    )?;
+                }
+                (
+                    self.span(last_end, last_end)?,
+                    self.add_type_ref(primary, TypeRef::Error)?,
+                    false,
+                )
+            };
         let return_span = self.type_span(return_type)?;
         let end = if outer_stops.has_class_body_boundary() {
             self.previous_significant_end()
@@ -312,5 +339,6 @@ impl Parser<'_> {
                 return_type,
             },
         )
+        .map(|id| (id, has_right_paren && has_complete_return_type))
     }
 }

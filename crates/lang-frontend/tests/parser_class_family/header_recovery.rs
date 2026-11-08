@@ -305,3 +305,242 @@ fn an_unclosed_poisoned_type_suffix_leaves_the_next_supertype_available() {
     assert!(recovered.body.as_ref().unwrap().right_brace_span.is_some());
     assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
 }
+
+#[test]
+fn a_lexical_error_after_a_complete_supertype_keeps_its_siblings_and_body() {
+    use lang_frontend::parser::TypeRef;
+
+    for parent in ["I", "pkg.I<A, B>?", "move (A) -> (B) -> I"] {
+        let text = format!("class C: {parent} async β  , J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0002", "L0001"], "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        let type_node = parsed.ast().type_refs().get(first.type_ref).unwrap();
+        assert!(matches!(
+            type_node.payload(),
+            TypeRef::Qualified { .. } | TypeRef::Function { .. }
+        ));
+        assert_eq!(sources.slice(type_node.span()).unwrap(), parent);
+        assert_eq!(
+            sources.slice(first.span).unwrap(),
+            format!("{parent} async β")
+        );
+        assert_eq!(
+            sources
+                .slice(first.trailing_lexical_error.unwrap())
+                .unwrap(),
+            "async β"
+        );
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        assert!(class.body.as_ref().unwrap().right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn a_poison_inside_an_unfinished_supertype_cannot_promote_its_comma() {
+    for parent in ["I<A async, B>", "(A async, B) -> I", "() -> I<A async, B>"] {
+        let text = format!("class C: {parent}, J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let Item::Classifier(class) = parsed
+            .ast()
+            .items()
+            .get(parsed.roots()[0])
+            .unwrap()
+            .payload()
+        else {
+            panic!("recovered classifier");
+        };
+        assert!(
+            class.supertypes[0].trailing_lexical_error.is_none(),
+            "{text}"
+        );
+        assert!(
+            class
+                .supertypes
+                .iter()
+                .all(|entry| sources.slice(entry.span).unwrap() != "B"),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn a_proven_nested_suffix_group_cannot_claim_the_outer_supertype_boundary() {
+    for suffix in [
+        "async Junk<A, B>",
+        "async Junk(A, { -> 1 })",
+        "async Junk(A, { \"bad\n })",
+    ] {
+        let text =
+            format!("class C: I {suffix}  , J {{ fun member(): Unit {{}} }}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let expected = if suffix.contains("\"bad") {
+            vec!["L0002", "L0004"]
+        } else {
+            vec!["L0002"]
+        };
+        assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        assert_eq!(
+            sources
+                .slice(first.trailing_lexical_error.unwrap())
+                .unwrap(),
+            suffix
+        );
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        let body = class.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert!(body.right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn only_a_paired_suffix_group_keeps_a_nested_file_starter() {
+    for suffix in ["async(\nclass Hidden)", "async ("] {
+        let text = format!("class C: I {suffix}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0002"], "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [entry] = class.supertypes.as_slice() else {
+            panic!("one original supertype");
+        };
+        assert_eq!(
+            sources
+                .slice(entry.trailing_lexical_error.unwrap())
+                .unwrap(),
+            suffix
+        );
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn an_unproved_suffix_angle_does_not_turn_its_argument_into_a_parent() {
+    let (sources, parsed) =
+        file("class C: I async Junk<A, B { fun member(): Unit {} }\nclass Sentinel");
+    assert_eq!(codes(parsed.diagnostics()), ["L0002"]);
+    let [class, sentinel] = parsed.roots() else {
+        panic!("expected both file roots");
+    };
+    let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+        panic!("recovered classifier");
+    };
+    let [entry] = class.supertypes.as_slice() else {
+        panic!("ambiguous inner comma cannot establish a parent");
+    };
+    assert_eq!(
+        sources
+            .slice(entry.trailing_lexical_error.unwrap())
+            .unwrap(),
+        "async Junk<A, B"
+    );
+    assert_eq!(class.body.as_ref().unwrap().members.len(), 1);
+    let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+    assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+}
+
+#[test]
+fn a_lexically_poisoned_string_after_a_complete_supertype_keeps_its_owner() {
+    for (suffix, diagnostic, separator) in [("\"bad", "L0004", "\n,"), (r#""bad\q""#, "L0006", ",")]
+    {
+        let text = format!("class C: I {suffix}{separator} J {{}}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        assert_eq!(codes(parsed.diagnostics()), [diagnostic], "{text}");
+        let [class, sentinel] = parsed.roots() else {
+            panic!("expected both file roots for {text}");
+        };
+        let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+            panic!("recovered classifier");
+        };
+        let [first, following] = class.supertypes.as_slice() else {
+            panic!("original and following supertypes for {text}");
+        };
+        assert_eq!(
+            sources
+                .slice(first.trailing_lexical_error.unwrap())
+                .unwrap(),
+            suffix
+        );
+        assert_eq!(sources.slice(following.span).unwrap(), "J");
+        assert!(class.body.as_ref().unwrap().right_brace_span.is_some());
+        let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+    }
+}
+
+#[test]
+fn a_nested_classifier_suffix_preserves_the_enclosing_members() {
+    for member in [
+        "deinit() {}",
+        "companion { fun keep(): Unit {} }",
+        "own fun keep(): Unit {}",
+    ] {
+        for (suffix, separator) in [
+            ("async", "\n"),
+            ("async", "; "),
+            ("async (", "\n"),
+            ("async (deinit() {})", "\n"),
+        ] {
+            let text = format!("class Outer {{\nclass Inner: I {suffix}{separator}{member}\n}}");
+            let mut sources = SourceMap::new();
+            let source = add_source(&mut sources, "nested-suffix.ko", &text);
+            let file = parse_file_twice(&sources, source, &text);
+            let declaration = parse_declaration_twice(&sources, source, &text);
+            for (ast, root, diagnostics) in [
+                (file.ast(), file.roots()[0], file.diagnostics()),
+                (
+                    declaration.ast(),
+                    declaration.root(),
+                    declaration.diagnostics(),
+                ),
+            ] {
+                assert_eq!(codes(diagnostics), ["L0077", "L0002"], "{text}");
+                let Item::Classifier(outer) = ast.items().get(root).unwrap().payload() else {
+                    panic!("outer classifier for {text}");
+                };
+                let [inner, sibling] = outer.body.as_ref().unwrap().members.as_slice() else {
+                    panic!("nested classifier and its outer sibling for {text}");
+                };
+                let inner = ast.items().get(*inner).unwrap();
+                let Item::Classifier(inner) = inner.payload() else {
+                    panic!("nested classifier for {text}");
+                };
+                assert!(inner.body.is_none(), "{text}");
+                assert_eq!(
+                    sources
+                        .slice(inner.supertypes[0].trailing_lexical_error.unwrap())
+                        .unwrap(),
+                    suffix
+                );
+                let sibling = ast.items().get(*sibling).unwrap();
+                assert_eq!(sources.slice(sibling.span()).unwrap(), member, "{text}");
+            }
+        }
+    }
+}

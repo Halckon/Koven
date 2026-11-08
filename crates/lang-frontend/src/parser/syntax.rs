@@ -125,7 +125,7 @@ pub struct SupertypeEntry {
     pub type_ref: TypeRefId,
     /// ordinary class 可选的接口委托子句。
     pub delegation: Option<DelegationClause>,
-    /// 合法委托目标后的词法错误恢复区。目标名称仍由 `delegation` 保留。
+    /// 完整父类型或合法委托目标后的词法错误恢复区。
     pub trailing_lexical_error: Option<Span>,
 }
 

@@ -674,6 +674,8 @@ impl Parser<'_> {
         let mut next_terminal_event = self.next_terminal_recovery_event;
         let mut end = recovery_start;
         let mut string_poison = false;
+        let supertype_suffix = stops.has_supertype_suffix();
+        let mut unclosed_angle = false;
         let mut next_significant = Some(first);
 
         'recovery: loop {
@@ -755,29 +757,62 @@ impl Parser<'_> {
             {
                 recovery.recovered_group_greater = true;
             }
-            let hard_stop =
-                outside_owner && !nested_greater && stops.contains_hard(current, symbol);
+            let protected_suffix_group = supertype_suffix && !paired_groups.is_empty();
+            let hard_stop = outside_owner
+                && !nested_greater
+                && !protected_suffix_group
+                && stops.contains_hard(current, symbol);
             if hard_stop
-                || (outside_owner
-                    && delimiters.is_empty()
-                    && (stops.contains_soft(current, symbol)
+                || (supertype_suffix
+                    && outside_owner
+                    && !protected_suffix_group
+                    && (self.is_file_declaration_boundary(current)
                         || (stops.has_class_file_boundary()
                             && self.at_class_header_file_boundary(false)?)
-                        || self.at_file_angle_boundary(current)?
                         || (stops.stops_at_class_member()
+                            && (symbol == Some(Symbol::Semicolon)
+                                || self.class_member_recovery_start()?))))
+                || (outside_owner
+                    && delimiters.is_empty()
+                    && (((!unclosed_angle || symbol != Some(Symbol::Comma))
+                        && stops.contains_soft(current, symbol))
+                        || (!supertype_suffix
+                            && stops.has_class_file_boundary()
+                            && self.at_class_header_file_boundary(false)?)
+                        || self.at_file_angle_boundary(current)?
+                        || (!supertype_suffix
+                            && stops.stops_at_class_member()
                             && self.class_member_recovery_start()?)))
             {
                 break;
             }
 
-            // 配对普通组内的 `>` 仍属该组。未配对 opener 不覆盖外层硬停止符。
             if outside_owner
-                && self.file_angle.is_some()
+                && supertype_suffix
+                && !protected_suffix_group
+                && symbol == Some(Symbol::Less)
+            {
+                if let Some(closer) = self.strict_trials.closed_type_list(raw_index)? {
+                    self.index = closer + 1;
+                    end = self.lexed.lexemes()[closer].span().end();
+                    continue;
+                }
+                // Without a proven angle closure, an inner comma cannot create a sibling.
+                unclosed_angle = true;
+            }
+
+            // Only proven ordinary groups can shield a caller's hard delimiter.
+            let may_pair_suffix_group = supertype_suffix
+                && paired_groups.is_empty()
+                && matches!(symbol, Some(Symbol::LeftParen | Symbol::LeftBracket));
+            let may_pair_type_parameter_group = self.file_angle.is_some()
                 && stops.has_greater()
                 && matches!(
                     symbol,
                     Some(Symbol::LeftParen | Symbol::LeftBracket | Symbol::LeftBrace)
-                )
+                );
+            if outside_owner
+                && (may_pair_suffix_group || may_pair_type_parameter_group)
                 && let Some(closer) = self
                     .lexical_recoveries
                     .angle_group_closer(self.lexed, raw_index)
