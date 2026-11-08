@@ -4,7 +4,6 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity},
     parser::{Expression, FunctionBody, FunctionForm, Item, Statement, StringPart},
-    type_checking::{Copyability, UnitAggregateProjectionKind},
 };
 
 use super::{
@@ -69,7 +68,21 @@ impl Checker<'_> {
         let repeated_span = self.parsed.ast().statements().get(repeated)?.span();
         let mut moved = std::collections::BTreeMap::new();
         let mut moved_this = None;
+        let mut exclusive_capture = None;
         for state in [&flows.next, &flows.continues].into_iter().flatten() {
+            // Repeating edges have no capture-loan fixed point yet. Do not carry
+            // a newly formed exclusive environment back to an unchecked header.
+            if exclusive_capture.is_none()
+                && let Some(loan) = state.loans.iter().find(|loan| {
+                    matches!(loan.owner, super::ActiveLoanOwner::Closure(_))
+                        && loan.kind == super::LoanKind::Exclusive
+                        && loan.origin.source_id() == repeated_span.source_id()
+                        && loan.origin.start() >= repeated_span.start()
+                        && loan.origin.end() <= repeated_span.end()
+                })
+            {
+                exclusive_capture = Some(loan.origin);
+            }
             for (&symbol, &origin) in &state.moved {
                 if live.contains(&symbol) {
                     moved.entry(symbol).or_insert(origin);
@@ -85,6 +98,13 @@ impl Checker<'_> {
                 moved_this.get_or_insert(origin);
             }
         }
+        if let Some(origin) = exclusive_capture {
+            self.emit_borrow_binding_diagnostic(
+                crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                "exclusive closure capture remains live on a loop backedge",
+                origin,
+            )?;
+        }
         for origin in moved.into_values().chain(moved_this) {
             let mut diagnostic = Diagnostic::new(
                 self.sources,
@@ -95,31 +115,6 @@ impl Checker<'_> {
             )?;
             diagnostic.add_label(self.sources, origin, "value was moved here")?;
             self.diagnostics.push(diagnostic);
-        }
-        Ok(())
-    }
-
-    pub(super) fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
-        match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error | Item::Constant { .. } | Item::Function { .. } | Item::Deinit { .. } => {}
-            Item::Modified { declaration, .. } => self.collect_mutability(declaration)?,
-            Item::Variable { kind, name, .. } => {
-                if let Some(symbol) = self.marker_symbol(name).copied() {
-                    self.variable_kinds.insert(symbol, kind);
-                }
-            }
-            Item::Classifier(classifier) => {
-                if let Some(body) = classifier.body {
-                    for member in body.members {
-                        self.collect_mutability(member)?;
-                    }
-                }
-            }
-            Item::Companion(companion) => {
-                for member in companion.body.members {
-                    self.collect_mutability(member)?;
-                }
-            }
         }
         Ok(())
     }
@@ -175,6 +170,12 @@ impl Checker<'_> {
                     if self.diagnostics.len() == diagnostic_count
                         && let Some(symbol) = self.marker_symbol(name).copied()
                         && !closure.is_empty()
+                        && (kind != super::VariableKind::Var
+                            || self.allow_move_only_capture_transport(
+                                initializer,
+                                next,
+                                &closure,
+                            )?)
                     {
                         next.closures.insert(symbol, closure);
                     }
@@ -305,7 +306,12 @@ impl Checker<'_> {
         id: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
-        match self.parsed.ast().statements().get(id)?.payload().clone() {
+        let statement = self.parsed.ast().statements().get(id)?.payload().clone();
+        let loop_exit = matches!(
+            statement,
+            Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
+        );
+        let checked: Result<Flows, OwnershipCheckingError> = match statement {
             Statement::Error => Ok(Flows::next(state)),
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
@@ -393,12 +399,26 @@ impl Checker<'_> {
                 self.release_last_closure_use(expression, &mut flows)?;
                 Ok(flows)
             }
+        };
+        let mut flows = checked?;
+        if loop_exit && let Some(state) = &mut flows.next {
+            self.release_dead_exclusive_captures(&self.statement_live_after[id.index()], state);
         }
+        Ok(flows)
     }
 
     pub(super) fn check_elements(
         &mut self,
         elements: &[StatementId],
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        self.check_element_prefix(elements, elements.len(), state)
+    }
+
+    pub(super) fn check_element_prefix(
+        &mut self,
+        elements: &[StatementId],
+        prefix_len: usize,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let inherited = state.borrow_bindings.keys().copied().collect();
@@ -408,7 +428,7 @@ impl Checker<'_> {
             |id| self.place(id).map(|place| place.map(|p| p.root())),
         )?;
         let mut flows = Flows::next(state);
-        for &element in elements {
+        for &element in &elements[..prefix_len] {
             let Some(next) = flows.next.take() else {
                 break;
             };
@@ -566,9 +586,9 @@ impl Checker<'_> {
             } => {
                 let branch_usage = self.control_result_usage(id)?;
                 self.check_if(
+                    id,
                     condition,
-                    then_branch,
-                    else_branch,
+                    (then_branch, else_branch),
                     state,
                     branch_usage,
                     false,
@@ -805,6 +825,10 @@ impl Checker<'_> {
         {
             self.apply_receiver_contract(contract, next)?;
         }
+        if let Some(operand) = receiver_expression.or(receiver_contract.is_none().then_some(callee))
+        {
+            self.hold_call_closure(call, operand, receiver_contract.is_none(), &mut flows)?;
+        }
         for (index, argument) in arguments.iter().enumerate() {
             let contract = contracts.get(index).copied();
             if let Some(contract) = contract
@@ -829,11 +853,11 @@ impl Checker<'_> {
                 None => ExpressionUse::Read,
             };
             let diagnostic_count = self.diagnostics.len();
-            if contract.is_some_and(|contract| {
+            let escaping = contract.is_some_and(|contract| {
                 contract.kind() == UnitCallArgumentOwnershipKind::Value
                     && !contract.crosses_thread()
-            }) && let Some(next) = flows.next.as_ref()
-            {
+            });
+            if escaping && let Some(next) = flows.next.as_ref() {
                 self.reject_borrowed_closure_escape(argument.value, next)?;
             }
             let previous = self.allowed_borrow_call;
@@ -878,9 +902,14 @@ impl Checker<'_> {
             {
                 if contract.crosses_thread() {
                     self.check_cross_thread_delivery(argument.value, next)?;
+                } else if escaping {
+                    self.reject_borrowed_closure_escape(argument.value, next)?;
                 }
-                self.apply_contract(contract, next)?;
+                if self.diagnostics.len() == diagnostic_count {
+                    self.apply_contract(contract, next)?;
+                }
             }
+            self.hold_call_closure(call, argument.value, false, &mut flows)?;
         }
         if let Some(next) = flows.next.as_mut() {
             self.activate_receiver(call, next)?;
@@ -915,30 +944,7 @@ impl Checker<'_> {
         {
             self.release_last_closure_use(expression, &mut flows)?;
         }
-        // Automatic components return owned values; a Borrow receiver cannot transfer
-        // a MoveOnly field. Preserve the existing call-error and divergence precedence.
-        if flows.next.is_some()
-            && self.diagnostics.len() == diagnostic_count
-            && let Some(projection) = self.typed.aggregate_projection(call)
-            && projection.kind() == UnitAggregateProjectionKind::StructuralComponent
-            && self.typed.copyability(projection.ty()) == Copyability::MoveOnly
-            && let Expression::Member { name_span, .. } =
-                self.parsed.ast().expressions().get(callee)?.payload()
-        {
-            let mut diagnostic = Diagnostic::new(
-                self.sources,
-                Severity::Error,
-                self.codes.partial_move,
-                "cannot move a non-Copyable component out of its owner",
-                *name_span,
-            )?;
-            diagnostic.add_label(
-                self.sources,
-                self.symbol_span(projection.field())?,
-                "non-Copyable component declared here",
-            )?;
-            self.diagnostics.push(diagnostic);
-        }
+        self.finish_call_closures(call, &mut flows);
         if self.is_nothing_expression(call) {
             flows.next = None;
         }

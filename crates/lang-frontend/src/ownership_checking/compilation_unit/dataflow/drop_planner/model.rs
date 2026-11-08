@@ -38,6 +38,10 @@ pub(super) enum PlannerDropPoint {
     AfterStatement(StatementId),
     CallReturn(ExpressionId),
     ControlTransfer(ExpressionId),
+    BranchEntry {
+        control: ExpressionId,
+        branch: usize,
+    },
     BranchExit {
         control: ExpressionId,
         branch: usize,
@@ -82,6 +86,10 @@ impl PlannerDropPoint {
             Self::AfterStatement(id) => UnitDropPoint::AfterStatement(statement(id)),
             Self::CallReturn(id) => UnitDropPoint::CallReturn(expression(id)),
             Self::ControlTransfer(id) => UnitDropPoint::ControlTransfer(expression(id)),
+            Self::BranchEntry { control, branch } => UnitDropPoint::BranchEntry {
+                control: expression(control),
+                branch,
+            },
             Self::BranchExit { control, branch } => UnitDropPoint::BranchExit {
                 control: expression(control),
                 branch,
@@ -115,6 +123,11 @@ pub(super) enum PlannerDropTarget {
     ReplacedField {
         assignment: ExpressionId,
         field: UnitSymbolId,
+    },
+    ReplacedCapture {
+        closure: ExpressionId,
+        assignment: ExpressionId,
+        symbol: UnitSymbolId,
     },
     Captured {
         closure: ExpressionId,
@@ -187,6 +200,15 @@ impl PlannerDropFact {
                     field,
                 }
             }
+            PlannerDropTarget::ReplacedCapture {
+                closure,
+                assignment,
+                symbol,
+            } => UnitDropTarget::ReplacedCapture {
+                closure: expression(closure),
+                assignment: expression(assignment),
+                symbol,
+            },
             PlannerDropTarget::Captured { closure, source } => UnitDropTarget::Captured {
                 closure: expression(closure),
                 source,
@@ -214,6 +236,7 @@ pub(super) struct OwnedThis {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
+    pub(super) lambda: Option<ExpressionId>,
     pub(super) borrow_bindings: Vec<UnitSymbolId>,
     pub(super) pending_borrow_results: Vec<UnitSymbolId>,
     /// Observational direct initializer/source identities; not an established result.
@@ -230,6 +253,8 @@ pub(super) struct ValueState {
     pub(super) replacements: Vec<UnitSymbolId>,
     /// 已求值调用前缀的借用必须跨越后续实参中的分支与嵌套调用。
     pub(super) pending_borrows: Vec<(ExpressionId, UnitSymbolId)>,
+    /// Protects both the evaluated environment and its borrowed roots across inner loop jumps.
+    pub(super) pending_capture_borrows: Vec<super::pending_call::PendingCaptureBorrow>,
     pub(super) closures: BTreeMap<UnitSymbolId, ExpressionId>,
     /// Concrete current environments only; a proof never grants owner availability.
     pub(super) closure_asap: BTreeMap<UnitSymbolId, bool>,
@@ -237,6 +262,12 @@ pub(super) struct ValueState {
 }
 
 impl ValueState {
+    pub(super) fn capture_borrow_protects(&self, symbol: UnitSymbolId) -> bool {
+        self.pending_capture_borrows
+            .iter()
+            .any(|borrow| borrow.symbol == symbol)
+    }
+
     pub(super) fn position(&self, symbol: UnitSymbolId) -> Option<usize> {
         self.values.iter().position(|value| value.symbol == symbol)
     }

@@ -77,9 +77,7 @@ impl Checker<'_> {
                 "range construction requires source, begin and end",
                 span,
             )?;
-            for argument in arguments {
-                self.check_expression(argument.value, None, None)?;
-            }
+            self.check_construction_operands(arguments)?;
             return Ok(Some(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -97,7 +95,10 @@ impl Checker<'_> {
         }
         let source = arguments[0].value;
         let source_span = self.ast().expressions().get(source)?.span();
-        let source_type = self.check_expression(source, None, None)?.ty;
+        let mut reachable = true;
+        let source_type = self
+            .check_pending_operand(source, None, None, &mut reachable)?
+            .ty;
         let (kind, element) = match self.kind(source_type) {
             TypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::List,
@@ -121,7 +122,8 @@ impl Checker<'_> {
         };
         let int = self.builtin(BuiltinType::Int);
         for argument in &arguments[1..] {
-            let value = self.check_expression(argument.value, Some(int), Some(span))?;
+            let value =
+                self.check_pending_operand(argument.value, Some(int), Some(span), &mut reachable)?;
             valid &= self.assignable(value.ty, int)
                 && !self.is_error(value.ty)
                 && !self.is_deferred(value.ty);

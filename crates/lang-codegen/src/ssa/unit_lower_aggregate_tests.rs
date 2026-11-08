@@ -797,12 +797,12 @@ fn lowers_compilation_unit_copyable_and_move_only_destructuring() {
         "q/consumer.ko",
         "package q\n\
          fun copyableEntry(): Int {\n\
-             val (a, b) = p.makePair()\n\
-             return a + b\n\
+             val (second, first) = p.makePair()\n\
+             return first + second\n\
          }\n\
          fun moveOnlyEntry(): Int {\n\
-             val (x, y) = p.makeResourcePair()\n\
-             return x.id + y.id\n\
+             val (right, left) = p.makeResourcePair()\n\
+             return left.id + right.id\n\
          }",
     );
     let inputs = [

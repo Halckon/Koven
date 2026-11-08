@@ -63,11 +63,18 @@ impl BodyChecker<'_> {
             Ok(mapping) => mapping,
             Err(error) => {
                 self.emit_mapping_error(error)?;
-                self.check_construction_operands(source, arguments, return_type)?;
+                self.check_rejected_construction_operands(
+                    source,
+                    type_arguments,
+                    arguments,
+                    return_type,
+                )?;
                 return Ok(self.failed_construction());
             }
         };
         let operand = arguments[0].value;
+        let diagnostics = self.diagnostics.len();
+        let deferred = self.deferred_facts.len();
         let payload = match type_arguments {
             [] => {
                 self.check_expression(source, operand, None, None, return_type)?
@@ -130,6 +137,8 @@ impl BodyChecker<'_> {
             expected,
             expected_span,
             return_type,
+            diagnostics,
+            deferred,
         )
     }
 
@@ -147,6 +156,8 @@ impl BodyChecker<'_> {
         expected: Option<UnitTypeId>,
         expected_span: Option<Span>,
         return_type: UnitTypeId,
+        diagnostics: usize,
+        deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let argument = &arguments[0];
         let argument_key = UnitExpressionId::new(source, argument.value);
@@ -177,7 +188,9 @@ impl BodyChecker<'_> {
             )?;
             return Ok(self.failed_construction());
         }
-        if self.construction_type_contains_poison(checked.ty) {
+        if self.construction_type_contains_poison(checked.ty)
+            || self.diagnostics.len() != diagnostics
+        {
             return Ok(self.failed_construction());
         }
         let expression_span = self
@@ -194,6 +207,13 @@ impl BodyChecker<'_> {
             expected_span,
         )? {
             return Ok(self.failed_construction());
+        }
+        if self.has_pending_storage_value_since(deferred) {
+            self.note_pending_storage_value(UnitExpressionId::new(source, expression), result_type);
+            return Ok(ExpressionCheck {
+                ty: result_type,
+                falls_through: true,
+            });
         }
         let parameter_index = mapping[0];
         self.parts.constructions.push(UnitConstructionDescriptor {

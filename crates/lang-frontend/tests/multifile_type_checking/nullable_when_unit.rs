@@ -779,3 +779,62 @@ fun rejected(value: Node?): Unit {
     // END GREEN
     assert!(rejected.typed.validate().is_err());
 }
+
+#[test]
+fn conditional_and_repeating_writes_track_the_when_source_separately_from_new_proofs() {
+    let fixture = checked(
+        r#"class Node {}
+fun read(value: Node): Int = 1
+fun preserves(left: Int?, own input: Node?, flag: Boolean): Int {
+    var x = input
+    return when (x) {
+        null -> 0;
+        else -> {
+            val choice = left ?: return if (flag) { x = null; 0 } else { x = null; 0 }
+            read((x))
+        }
+    }
+}
+fun replaces(left: Int?, own input: Node?, own replacement: Node?, flag: Boolean): Int {
+    var y = input
+    return when (y) {
+        null -> 0;
+        else -> {
+            val choice = left ?: if (flag) { y = replacement; 1 } else { 2 }
+            if (y == null) { 0 } else { read((y)) }
+        }
+    }
+}
+fun repeats(own input: Node?, stop: Boolean): Int {
+    var z = input
+    return when (z) {
+        null -> 0;
+        else -> {
+            loop {
+                if (z != null) { val observed = read((z)) }
+                if (stop) { break }
+                z = null
+            }
+            0
+        }
+    }
+}
+"#,
+    );
+    valid(&fixture);
+    // The Group and its canonical Name both carry the new non-null proof. Only the
+    // bypass of a terminating fallback still refers to the original when source.
+    for (text, retains_when_witness) in [("(x)", true), ("(y)", false), ("(z)", false)] {
+        let group = expression_with_text(&fixture.sources, &fixture.file, text);
+        let leaf = canonical_name(&fixture.file, group);
+        for expression in [group, leaf] {
+            let key = UnitExpressionId::new(fixture.unit, expression);
+            assert!(fixture.typed.non_null_use(key).is_some(), "{text}");
+            assert_eq!(
+                fixture.typed.nullable_when_use(key).is_some(),
+                retains_when_witness,
+                "{text}"
+            );
+        }
+    }
+}

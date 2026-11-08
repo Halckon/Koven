@@ -84,6 +84,47 @@ fn return_operand_runs_before_guards_and_source_cleanup() {
 }
 
 #[test]
+fn local_destructuring_and_temporary_list_release_each_owner_on_all_exits() {
+    let source = r#"
+        value class Pair(val first: Int, val second: Int)
+        value class Entry(val index: Int, val label: String)
+        fun source(): List<Entry> {
+            println("source")
+            return listOf(Entry(1, "fi" + "rst"), Entry(2, "sec" + "ond"), Entry(3, "th" + "ird"))
+        }
+        fun run(mode: Int): Int {
+            val (second, first) = Pair(1, 2)
+            for ((index, label) in source()) {
+                println(label)
+                if (index == first) { continue }
+                if (mode == 1) { break }
+                if (mode == 2) { return second }
+            }
+            println("after")
+            return 0
+        }
+        fun entry(): Unit {
+            run(0)
+            run(1)
+            if (run(2) == 2) { println("returned") }
+        }
+    "#;
+    let name = "destructuring_temporary_list_cleanup.ko";
+    let analysis = UnitSource::analyze(name, source).expect("source passes Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("destructuring and temporary iteration lower together");
+    let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Each invocation has three concatenated strings and one list buffer, even on early exit.
+    let run = boxed_enum_tests::run_counted_allocations(&ir, 12);
+    boxed_enum_tests::assert_success(
+        &run,
+        b"source\nfirst\nsecond\nthird\nafter\nsource\nfirst\nsecond\nafter\nsource\nfirst\nsecond\nreturned\n",
+    );
+}
+
+#[test]
 fn conditional_break_rebinds_source_and_drops_unvisited_buffer_once() {
     run_cleanup(
         "conditional_break",

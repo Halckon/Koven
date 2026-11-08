@@ -1,7 +1,10 @@
 //! Control expression 分支 tail 的 usage 与析构规划。
 
+use std::collections::BTreeSet;
+
 use crate::{
     ast::{ExpressionId, StatementId},
+    name_resolution::UnitSymbolId,
     ownership_checking::OwnershipCheckingError,
     parser::{Statement, WhenCondition, WhenEntry},
 };
@@ -14,6 +17,117 @@ use super::{
 };
 
 impl DropPlanner<'_, '_> {
+    /// Execute the release selected by the loan checker against concrete planner owners.
+    pub(super) fn drop_branch_entry(
+        &mut self,
+        control: ExpressionId,
+        branch: usize,
+        settled: &[UnitSymbolId],
+        state: &mut ValueState,
+    ) {
+        let Some(required) = self
+            .checker
+            .branch_capture_releases
+            .get(&(self.checker.unit_expression(control), branch))
+        else {
+            return;
+        };
+        if required.values().any(|origins| origins.len() != 1) {
+            self.defer_resource(control);
+            return;
+        }
+        let point = PlannerDropPoint::BranchEntry { control, branch };
+        let first_fact = self.facts.len();
+        let candidates = state
+            .values
+            .iter()
+            .rev()
+            .filter(|value| required.contains_key(&value.symbol))
+            .map(|value| value.symbol)
+            .collect::<Vec<_>>();
+        if candidates
+            .iter()
+            .any(|&symbol| !self.branch_release_matches(control, branch, symbol, state))
+        {
+            self.defer_resource(control);
+            return;
+        }
+        for symbol in candidates {
+            self.drop_named_asap(point, symbol, state);
+        }
+        let released = self.facts[first_fact..]
+            .iter()
+            .filter_map(|fact| match (fact.point(), fact.target()) {
+                (emitted, PlannerDropTarget::Named(symbol)) if emitted == point => Some(symbol),
+                _ => None,
+            })
+            .chain(settled.iter().copied())
+            .collect::<BTreeSet<_>>();
+        if required.keys().any(|symbol| !released.contains(symbol)) {
+            self.defer_resource(control);
+        }
+    }
+
+    fn branch_release_matches(
+        &self,
+        control: ExpressionId,
+        branch: usize,
+        symbol: UnitSymbolId,
+        state: &ValueState,
+    ) -> bool {
+        let Some(origins) = self
+            .checker
+            .branch_capture_releases
+            .get(&(self.checker.unit_expression(control), branch))
+            .and_then(|required| required.get(&symbol))
+        else {
+            return true;
+        };
+        origins.len() == 1
+            && state
+                .closures
+                .get(&symbol)
+                .is_some_and(|&closure| origins.contains(&self.checker.unit_expression(closure)))
+    }
+
+    fn settled_alternative_releases(
+        &self,
+        control: ExpressionId,
+        entry: usize,
+        states: &[ValueState],
+        match_facts: &[PlannerDropFact],
+    ) -> Vec<UnitSymbolId> {
+        let Some(required) = self
+            .checker
+            .branch_capture_releases
+            .get(&(self.checker.unit_expression(control), entry))
+        else {
+            return Vec::new();
+        };
+        let released = match_facts
+            .iter()
+            .filter_map(|fact| match (fact.point(), fact.target()) {
+                (
+                    PlannerDropPoint::WhenAlternativeMatch {
+                        control: id,
+                        entry: arm,
+                        ..
+                    },
+                    PlannerDropTarget::Named(symbol),
+                ) if id == control && arm == entry => Some(symbol),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        required
+            .keys()
+            .copied()
+            .filter(|symbol| {
+                released.contains(symbol)
+                    && states.iter().all(|state| state.position(*symbol).is_none())
+            })
+            .collect()
+    }
+
     /// Each condition is evaluated only on the preceding fallthrough path.
     pub(super) fn when_expression(
         &mut self,
@@ -80,6 +194,7 @@ impl DropPlanner<'_, '_> {
                 })
                 .map(|value| value.symbol)
                 .collect::<std::collections::BTreeSet<_>>();
+            let first_match_fact = self.facts.len();
             for (alternative, incoming) in alternatives.into_iter().zip(&mut matched) {
                 let exclusive = incoming
                     .values
@@ -89,6 +204,10 @@ impl DropPlanner<'_, '_> {
                     .map(|value| value.symbol)
                     .collect::<Vec<_>>();
                 for symbol in exclusive {
+                    if !self.branch_release_matches(id, entry_index, symbol, incoming) {
+                        self.defer_resource(id);
+                        continue;
+                    }
                     self.drop_named_asap(
                         PlannerDropPoint::WhenAlternativeMatch {
                             control: id,
@@ -101,7 +220,14 @@ impl DropPlanner<'_, '_> {
                 }
             }
             // Conditional resource obligations remain deferred, never silently intersected.
+            let settled = self.settled_alternative_releases(
+                id,
+                entry_index,
+                &matched,
+                &self.facts[first_match_fact..],
+            );
             let mut branch = self.merge_resource_states(id, matched);
+            self.drop_branch_entry(id, entry_index, &settled, &mut branch);
             if self.control_body(entry.body, usage, &mut branch)? {
                 self.drop_branch_exit(id, entry_index, &mut branch);
                 self.finish_pending_temporaries(
@@ -113,6 +239,7 @@ impl DropPlanner<'_, '_> {
             }
         }
         if let Some(mut implicit) = remaining {
+            self.drop_branch_entry(id, entries.len(), &[], &mut implicit);
             self.drop_branch_exit(id, entries.len(), &mut implicit);
             self.finish_pending_temporaries(
                 id,

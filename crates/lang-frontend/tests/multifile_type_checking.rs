@@ -15,10 +15,10 @@ use lang_frontend::{
         BuiltinType, CompilationUnitTypes, ConstValue, ContainerConstructionKind, DeferredReason,
         DestructuringMode, EnvironmentFunction, EnvironmentFunctionEffect, EnvironmentParameter,
         EnvironmentType, ExpressionCategory, IntrinsicTypeConstructor, ParameterMode,
-        RcOperationKind, SequentialContainerKind, TypeEnvironment, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitCallReceiverOrigin, UnitCallTarget,
-        UnitConstructionTarget, UnitExpressionId, UnitStatementId, UnitTypeKind, UnitTypeRefId,
-        check_compilation_unit_types, standard_environments,
+        RcOperationKind, SequentialContainerKind, TypeEnvironment, UnitAggregateProjectionReceiver,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
+        UnitStatementId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -160,6 +160,8 @@ mod nullable_flow;
 mod nullable_when;
 #[path = "multifile_type_checking/nullable_when_unit.rs"]
 mod nullable_when_unit;
+#[path = "multifile_type_checking/rejected_call_recovery.rs"]
+mod rejected_call_recovery;
 #[path = "multifile_type_checking/runtime_layout.rs"]
 mod runtime_layout;
 #[path = "multifile_type_checking/source_construction.rs"]

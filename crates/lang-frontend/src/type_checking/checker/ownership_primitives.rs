@@ -126,9 +126,7 @@ impl Checker<'_> {
                 "intrinsic 'replace' requires exactly 2 arguments",
                 call_span,
             )?;
-            for argument in arguments {
-                self.check_expression(argument.value, None, None)?;
-            }
+            self.check_construction_operands(arguments)?;
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -153,7 +151,8 @@ impl Checker<'_> {
             )?;
             valid = false;
         }
-        let arg0_result = self.check_expression(arg0.value, None, None)?;
+        let mut reachable = true;
+        let arg0_result = self.check_pending_operand(arg0.value, None, None, &mut reachable)?;
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
@@ -205,8 +204,12 @@ impl Checker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result =
-            self.check_expression(arg1.value, (!self.is_deferred(t)).then_some(t), None)?;
+        let arg1_result = self.check_pending_operand(
+            arg1.value,
+            (!self.is_deferred(t)).then_some(t),
+            None,
+            &mut reachable,
+        )?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         } else if !self.is_deferred(arg1_result.ty)
@@ -318,9 +321,7 @@ impl Checker<'_> {
                 "intrinsic 'swap' requires exactly 2 arguments",
                 call_span,
             )?;
-            for argument in arguments {
-                self.check_expression(argument.value, None, None)?;
-            }
+            self.check_construction_operands(arguments)?;
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -345,7 +346,8 @@ impl Checker<'_> {
             )?;
             valid = false;
         }
-        let arg0_result = self.check_expression(arg0.value, None, None)?;
+        let mut reachable = true;
+        let arg0_result = self.check_pending_operand(arg0.value, None, None, &mut reachable)?;
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
@@ -370,7 +372,7 @@ impl Checker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result = self.check_expression(arg1.value, None, None)?;
+        let arg1_result = self.check_pending_operand(arg1.value, None, None, &mut reachable)?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         }

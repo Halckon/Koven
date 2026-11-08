@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticDetail},
     parser::{Expression, ForBinding, ParsedBlock, ParsedExpression, Statement, WhenCondition},
     source::{SourceId, SourceMap},
 };
@@ -347,4 +347,102 @@ fn missing_control_components_use_the_published_codes() {
             "{text:?}: {diagnostics:?}"
         );
     }
+}
+
+#[test]
+fn missing_for_pattern_closer_leaves_in_source_body_and_following_statement() {
+    let text = "{ for ((first, second in entries) { consume(first) }; sentinel() }";
+    let (sources, parsed) = block(text);
+    let [diagnostic] = parsed.diagnostics() else {
+        panic!("one missing inner closer: {:?}", parsed.diagnostics());
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0010");
+    let offset = text.find("in entries").unwrap();
+    assert_eq!(diagnostic.primary_span().start(), offset);
+    assert_eq!(diagnostic.primary_span().end(), offset);
+    let inner = text.find("(first").unwrap();
+    assert!(
+        matches!(diagnostic.details(), [DiagnosticDetail::Label(label)]
+        if label.span().start() == inner && label.span().end() == inner + 1)
+    );
+    let [iteration, sentinel] = root_elements(&parsed) else {
+        panic!("the loop and the following statement must both survive");
+    };
+    let Statement::For {
+        binding:
+            ForBinding::Destructuring {
+                names,
+                right_paren_span: None,
+                ..
+            },
+        in_span,
+        source,
+        body,
+        ..
+    } = statement_payload(&parsed, *iteration)
+    else {
+        panic!("recovered for statement");
+    };
+    assert_eq!(names.len(), 2);
+    assert_eq!(sources.slice(*in_span), Ok("in"));
+    assert_eq!(
+        sources.slice(parsed.ast().expressions().get(*source).unwrap().span()),
+        Ok("entries")
+    );
+    assert_eq!(
+        sources.slice(parsed.ast().statements().get(*body).unwrap().span()),
+        Ok("{ consume(first) }")
+    );
+    assert_eq!(
+        sources.slice(parsed.ast().statements().get(*sentinel).unwrap().span()),
+        Ok("sentinel()")
+    );
+}
+
+#[test]
+fn unfinished_for_binding_preserves_block_and_index_closers() {
+    for (text, boundary) in [
+        ("{ { for ((first, /* gap */ }; sentinel() }", '}'),
+        ("{ { for ((first, /* gap */ ; }; sentinel() }", ';'),
+    ] {
+        let (sources, parsed) = block(text);
+        let [inner, sentinel] = root_elements(&parsed) else {
+            panic!("the inner block must preserve the following statement");
+        };
+        let Statement::Block { elements } = statement_payload(&parsed, *inner) else {
+            panic!("inner block");
+        };
+        let [iteration] = elements.as_slice() else {
+            panic!("recovered for statement");
+        };
+        let iteration = parsed.ast().statements().get(*iteration).unwrap();
+        let Statement::For { source, body, .. } = iteration.payload() else {
+            panic!("for statement");
+        };
+        let offset = text.find(boundary).unwrap();
+        assert_eq!(iteration.span().end(), text.find("first,").unwrap() + 6);
+        let source = parsed.ast().expressions().get(*source).unwrap();
+        let body = parsed.ast().statements().get(*body).unwrap();
+        assert!(matches!(source.payload(), Expression::Error));
+        assert!(matches!(body.payload(), Statement::Error));
+        for span in [source.span(), body.span()] {
+            assert_eq!((span.start(), span.end()), (offset, offset));
+        }
+        let sentinel = parsed.ast().statements().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()), Ok("sentinel()"));
+    }
+
+    let text = "owner[{ for ((first, ]";
+    let (_, parsed) = expression(text);
+    let node = parsed.ast().expressions().get(parsed.root()).unwrap();
+    let Expression::Index { index, .. } = node.payload() else {
+        panic!("outer index");
+    };
+    assert_eq!(node.span().end(), text.len());
+    let index = parsed.ast().expressions().get(*index).unwrap();
+    assert!(
+        index.span().end() <= text.find(']').unwrap(),
+        "{:?}",
+        index.span()
+    );
 }

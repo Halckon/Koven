@@ -1,15 +1,44 @@
 //! 只读取语法的潜在写入收集；稳定来源解析与流事实失效由各类型检查入口负责。
 
+use std::collections::BTreeMap;
+
 use crate::{
     ast::{AstError, ExpressionId, StatementId},
     parser::{
-        Expression, Item, ParameterModeMarker, Statement, StringPart, SyntaxAst, WhenCondition,
+        BinaryOperator, Expression, Item, LiteralKind, ParameterModeMarker, PrefixOperator,
+        Statement, StringPart, SyntaxAst, WhenCondition,
     },
 };
 
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
+}
+
+/// Recognize an unconditional RHS without running constant evaluation in flow checking.
+pub(super) fn logical_rhs_is_required(
+    ast: &SyntaxAst,
+    mut left: ExpressionId,
+    operator: BinaryOperator,
+) -> Result<bool, AstError> {
+    let mut required_value = operator == BinaryOperator::LogicalAnd;
+    loop {
+        match ast.expressions().get(left)?.payload() {
+            Expression::Group { expression } => left = *expression,
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => {
+                required_value = !required_value;
+                left = *operand;
+            }
+            Expression::Literal(LiteralKind::Boolean(value)) => {
+                return Ok(*value == required_value);
+            }
+            _ => return Ok(false),
+        }
+    }
 }
 
 pub(super) fn collect_expression_mutation_targets(
@@ -182,4 +211,17 @@ fn collect_mutation_targets(ast: &SyntaxAst, root: Pending) -> Result<Vec<Expres
         }
     }
     Ok(targets)
+}
+
+/// Preserve invalidation on any incoming normal control edge.
+pub(super) fn merge_flow_versions<K: Copy + Ord>(
+    left: &BTreeMap<K, u64>,
+    right: &BTreeMap<K, u64>,
+) -> BTreeMap<K, u64> {
+    let mut merged = left.clone();
+    for (&key, &version) in right {
+        let previous = merged.entry(key).or_default();
+        *previous = (*previous).max(version);
+    }
+    merged
 }

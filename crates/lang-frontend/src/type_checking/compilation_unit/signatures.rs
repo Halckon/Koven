@@ -743,6 +743,9 @@ impl<'a> SignatureCollector<'a> {
                     Ok(self.error_type())
                 }
             }
+            None => Ok(self
+                .types
+                .intern(UnitTypeKind::Deferred(DeferredReason::UnboundExternalType))),
             _ => Ok(self.error_type()),
         }
     }

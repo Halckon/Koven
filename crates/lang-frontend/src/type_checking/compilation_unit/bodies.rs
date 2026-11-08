@@ -63,8 +63,6 @@ pub enum UnitCallTarget {
     External(ExternalSymbolId),
     /// 由函数类型值提供的调用目标。
     FunctionValue,
-    /// `value class` 自动结构分量。
-    StructuralComponent(UnitSymbolId),
 }
 
 /// unit call 的静态 target 与完整类型实参 identity。
@@ -502,6 +500,9 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     pub(crate) expression_falls_through: BTreeMap<UnitExpressionId, bool>,
+    storage_recovery: recovery::StorageRecoveryFacts,
+    repeated_storage_diagnostics: BTreeMap<usize, Span>,
+    contextual_argument_requirements: BTreeMap<UnitExpressionId, UnitTypeId>,
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
@@ -556,6 +557,7 @@ pub struct CompilationUnitTypes {
     expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     expression_falls_through: BTreeMap<UnitExpressionId, bool>,
+    storage_recovery: recovery::StorageRecoveryFacts,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
@@ -627,6 +629,7 @@ impl CompilationUnitTypes {
             expression_types: parts.expression_types,
             expression_categories: parts.expression_categories,
             expression_falls_through: parts.expression_falls_through,
+            storage_recovery: parts.storage_recovery,
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
             parameter_modes: parts.parameter_modes,
@@ -981,6 +984,7 @@ impl CompilationUnitTypes {
     /// 同一完整判据供能力验证与后续 producer 继承；原 required-fact 校验不缩减。
     pub(crate) fn has_valid_type_facts(&self) -> bool {
         self.signatures.is_valid()
+            && self.storage_recovery.pending_iterations.is_empty()
             && !self
                 .diagnostics
                 .iter()

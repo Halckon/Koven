@@ -660,7 +660,7 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_declaration_stop();
+        let outer_stops = outer_stops.without_file_and_semicolon_stops();
         let opener = self.bump()?.span();
         let mut inner = self.parse_expression_bp(
             0,

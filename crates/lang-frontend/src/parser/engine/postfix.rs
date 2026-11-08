@@ -237,7 +237,7 @@ impl Parser<'_> {
         type_arguments_span: Option<Span>,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_declaration_stop();
+        let outer_stops = outer_stops.without_file_and_semicolon_stops();
         let opener = self.bump()?.span();
         let callee_span = self.expression_span(callee)?;
         let argument_stops = outer_stops
@@ -619,7 +619,7 @@ impl Parser<'_> {
         receiver: ExpressionId,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_declaration_stop();
+        let outer_stops = outer_stops.without_file_and_semicolon_stops();
         let opener = self.bump()?.span();
         let receiver_span = self.expression_span(receiver)?;
         let inner_stops = outer_stops

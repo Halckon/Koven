@@ -3,6 +3,8 @@
 use super::*;
 use crate::ssa::model::{LoanId, PlaceId};
 
+mod capture_transport_tests;
+
 #[derive(Clone, Copy, Debug)]
 enum Commit {
     Take,

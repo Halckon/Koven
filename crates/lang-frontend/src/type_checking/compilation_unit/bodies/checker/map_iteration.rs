@@ -19,6 +19,7 @@ impl BodyChecker<'_> {
         key_type: UnitTypeId,
         value_type: UnitTypeId,
         diagnostic_start: usize,
+        source_pending: bool,
     ) -> Result<(), CompilationUnitTypeError> {
         let type_status = self.iteration_type_status([source_type]);
         let symbols = if type_status != IterationTypeStatus::Ready {
@@ -27,8 +28,10 @@ impl BodyChecker<'_> {
             self.map_iteration_symbols(source_unit, binding)?
         };
         if let Some([key, value]) = symbols {
-            self.parts.symbol_types.insert(key, key_type);
-            self.parts.symbol_types.insert(value, value_type);
+            self.record_symbol_type(key, key_type);
+            self.record_symbol_type(value, value_type);
+            self.set_immutable_binding_pending(key, source_pending);
+            self.set_immutable_binding_pending(value, source_pending);
         } else {
             let error = self.error_type();
             match binding {
@@ -40,13 +43,13 @@ impl BodyChecker<'_> {
                 }
             }
         }
-        let header_is_valid = self.diagnostics.len() == diagnostic_start;
+        let header_is_valid = self.can_publish_iteration(binding, diagnostic_start, source_pending);
         if self.iteration_header_rejected(binding, type_status, diagnostic_start) {
             self.parts
                 .rejected_iteration_headers
                 .push(UnitStatementId::new(source_unit, statement));
         }
-        self.check_loop_body(source_unit, body, return_type, return_span)?;
+        self.check_repeating_flow(source_unit, None, body, return_type, return_span, true)?;
         if header_is_valid
             && let Some([key_binding, value_binding]) = symbols
             && let Some(kind) = MapIterationKind::from_constructor(constructor)

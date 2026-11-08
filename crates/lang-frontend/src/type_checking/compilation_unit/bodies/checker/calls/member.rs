@@ -1,4 +1,4 @@
-//! SPEC-0197 compilation-unit source member callable 与自动结构分量选择。
+//! SPEC-0197 compilation-unit source member callable 选择。
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -8,19 +8,15 @@ use crate::{
         DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, UnitReferenceTarget,
         UnitSymbolId,
     },
-    parser::{CallArgument, Expression},
     source::Span,
     type_checking::{
-        BuiltinType, Capability, CompilationUnitTypeError, ExpressionCategory,
-        IntrinsicTypeConstructor, NominalKind, TypeCheckingError,
-        UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallReceiverDescriptor,
-        UnitCallReceiverOrigin, UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature,
-        UnitCallableTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        BuiltinType, Capability, CompilationUnitTypeError, IntrinsicTypeConstructor, NominalKind,
+        TypeCheckingError, UnitCallTarget, UnitCallableSignature, UnitCallableTarget,
+        UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
-use super::{super::BodyChecker, super::ExpressionCheck, CallCandidate};
+use super::{super::BodyChecker, CallCandidate, candidate::MemberOwner};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum MemberCallShapeType {
@@ -66,8 +62,10 @@ impl BodyChecker<'_> {
         let receiver = self
             .current_receiver
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        let inherited = self.satisfies_interface(receiver, interface)?;
-        if !inherited {
+        let checkpoint = self.signatures.types().len();
+        let inherited = self.satisfies_interface(receiver, interface);
+        self.signatures.types_mut().discard_after(checkpoint);
+        if !inherited? {
             self.emit(
                 crate::diagnostic::codes::INTERFACE_MEMBER_MISMATCH,
                 "super qualifier must name an inherited interface",
@@ -79,22 +77,10 @@ impl BodyChecker<'_> {
             .sources
             .slice(name_span)
             .map_err(TypeCheckingError::from)?;
-        let substitutions = nominal
-            .type_parameters()
-            .iter()
-            .copied()
-            .zip(arguments.iter().copied())
-            .collect::<BTreeMap<_, _>>();
-        let mut instances = vec![(declaration, arguments)];
-        for inherited in nominal.interfaces() {
-            let inherited = self.substitute_type(*inherited, &substitutions)?;
-            if let Some(instance) = self.nominal_type_parts(inherited) {
-                instances.push(instance);
-            }
-        }
+        let instances = self.member_owners(interface, &nominal, arguments);
         let mut candidates = Vec::new();
         let mut seen_shapes = BTreeSet::new();
-        for (owner, arguments) in instances {
+        for (owner, instance) in instances {
             let owner = self
                 .signatures
                 .declaration(owner)
@@ -106,14 +92,11 @@ impl BodyChecker<'_> {
                 .iter()
                 .filter(|callable| callable.name() == name && callable.has_body())
             {
-                let mut candidate =
-                    self.source_member_candidate(callable, &owner, arguments.clone())?;
+                let mut candidate = self.source_member_candidate(callable, instance.clone())?;
                 if let Some((mode, _)) = candidate.receiver {
                     candidate.receiver = Some((mode, receiver));
                 }
-                if candidate.owner_storage_failure.is_some()
-                    || seen_shapes.insert(self.member_call_shape(&candidate))
-                {
+                if self.keep_member_candidate(&candidate, &mut seen_shapes)? {
                     candidates.push(candidate);
                 }
             }
@@ -162,8 +145,13 @@ impl BodyChecker<'_> {
                         .filter_map(|parameter| self.signatures.symbol_type(*parameter))
                         .collect()
                 });
-            let mut candidate =
-                self.source_member_candidate(&callable, nominal, owner_arguments)?;
+            let mut candidate = self.source_member_candidate(
+                &callable,
+                MemberOwner::Direct {
+                    declaration: nominal.declaration(),
+                    arguments: owner_arguments,
+                },
+            )?;
             if let Some((mode, _)) = candidate.receiver {
                 let receiver = self
                     .current_receiver
@@ -229,22 +217,10 @@ impl BodyChecker<'_> {
                 })
                 .collect());
         }
-        let substitutions = owner
-            .type_parameters()
-            .iter()
-            .copied()
-            .zip(owner_arguments.iter().copied())
-            .collect::<BTreeMap<_, _>>();
-        let mut instances = vec![(owner_declaration, owner_arguments)];
-        for interface in owner.interfaces() {
-            let interface = self.substitute_type(*interface, &substitutions)?;
-            if let Some(instance) = self.nominal_type_parts(interface) {
-                instances.push(instance);
-            }
-        }
+        let instances = self.member_owners(receiver_type, &owner, owner_arguments);
         let mut candidates = Vec::new();
         let mut seen_shapes = BTreeSet::new();
-        for (declaration, arguments) in instances {
+        for (declaration, instance) in instances {
             let nominal = self
                 .signatures
                 .declaration(declaration)
@@ -259,14 +235,11 @@ impl BodyChecker<'_> {
                 .cloned()
                 .collect::<Vec<_>>();
             for callable in &callables {
-                let mut candidate =
-                    self.source_member_candidate(callable, &nominal, arguments.clone())?;
+                let mut candidate = self.source_member_candidate(callable, instance.clone())?;
                 if let Some((mode, _)) = candidate.receiver {
                     candidate.receiver = Some((mode, receiver_type));
                 }
-                if candidate.owner_storage_failure.is_some()
-                    || seen_shapes.insert(self.member_call_shape(&candidate))
-                {
+                if self.keep_member_candidate(&candidate, &mut seen_shapes)? {
                     candidates.push(candidate);
                 }
             }
@@ -274,32 +247,112 @@ impl BodyChecker<'_> {
         Ok(candidates)
     }
 
+    fn member_owners(
+        &self,
+        receiver: UnitTypeId,
+        nominal: &UnitNominalSignature,
+        arguments: Vec<UnitTypeId>,
+    ) -> Vec<(DeclarationId, MemberOwner)> {
+        let declaration = nominal.declaration();
+        let direct = (
+            declaration,
+            MemberOwner::Direct {
+                declaration,
+                arguments,
+            },
+        );
+        std::iter::once(direct)
+            .chain(nominal.interfaces().iter().filter_map(|&template| {
+                let (declaration, _) = self.nominal_type_parts(template)?;
+                Some((declaration, MemberOwner::Inherited { receiver, template }))
+            }))
+            .collect()
+    }
+
     fn source_member_candidate(
-        &mut self,
+        &self,
         callable: &UnitCallableSignature,
-        owner: &UnitNominalSignature,
-        owner_arguments: Vec<UnitTypeId>,
+        owner: MemberOwner,
     ) -> Result<CallCandidate, CompilationUnitTypeError> {
         let UnitCallableTarget::Symbol(symbol) = callable.target() else {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         };
-        let substitutions = owner
+        let mut candidate = CallCandidate::from_source(UnitCallTarget::Symbol(symbol), callable);
+        if !matches!(&owner, MemberOwner::Direct { arguments, .. } if arguments.is_empty()) {
+            candidate.member_owner = Some(owner);
+        }
+        Ok(candidate)
+    }
+
+    /// Resolve the owner only within the caller's type-table checkpoint.
+    pub(super) fn specialize_member_owner(
+        &mut self,
+        candidate: &mut CallCandidate,
+    ) -> Result<BTreeMap<UnitSymbolId, UnitTypeId>, CompilationUnitTypeError> {
+        let Some(owner) = candidate.member_owner.take() else {
+            return Ok(BTreeMap::new());
+        };
+        let (declaration, arguments) = match owner {
+            MemberOwner::Direct {
+                declaration,
+                arguments,
+            } => (declaration, arguments),
+            MemberOwner::Inherited { receiver, template } => {
+                let (declaration, arguments) = self
+                    .nominal_type_parts(receiver)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                let receiver_substitutions =
+                    self.member_owner_substitutions(declaration, &arguments)?;
+                let owner = self.substitute_type(template, &receiver_substitutions)?;
+                self.nominal_type_parts(owner)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
+            }
+        };
+        let substitutions = self.member_owner_substitutions(declaration, &arguments)?;
+        candidate.instance_arguments = arguments;
+        Ok(substitutions)
+    }
+
+    fn member_owner_substitutions(
+        &self,
+        declaration: DeclarationId,
+        arguments: &[UnitTypeId],
+    ) -> Result<BTreeMap<UnitSymbolId, UnitTypeId>, CompilationUnitTypeError> {
+        let owner = self
+            .signatures
+            .declaration(declaration)
+            .and_then(|signature| signature.nominal())
+            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        Ok(owner
             .type_parameters()
             .iter()
             .copied()
-            .zip(owner_arguments.iter().copied())
-            .collect::<BTreeMap<_, _>>();
-        let mut candidate = CallCandidate::from_source(UnitCallTarget::Symbol(symbol), callable);
-        candidate.owner_storage_failure =
-            self.substitute_candidate_types(&mut candidate, &substitutions)?;
-        if candidate.owner_storage_failure.is_none()
-            && let Some((mode, ty)) = candidate.receiver
-        {
-            candidate.receiver = Some((mode, self.substitute_type(ty, &substitutions)?));
+            .zip(arguments.iter().copied())
+            .collect())
+    }
+
+    fn keep_member_candidate(
+        &mut self,
+        candidate: &CallCandidate,
+        seen_shapes: &mut BTreeSet<(usize, Vec<MemberCallShapeType>)>,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        if candidate.member_owner.is_none() {
+            return Ok(seen_shapes.insert(self.member_call_shape(candidate)));
         }
-        candidate.instance_arguments = owner_arguments;
-        candidate.owner_substitutions = substitutions;
-        Ok(candidate)
+        // Compare owner-specialized shapes without publishing their temporary type IDs.
+        let checkpoint = self.signatures.types().len();
+        let mut specialized = candidate.clone();
+        let result = self
+            .specialize_member_owner(&mut specialized)
+            .and_then(|substitutions| {
+                self.substitute_candidate_types(&mut specialized, &substitutions)
+            })
+            .map(|failure| {
+                // Keep invalid candidates for the existing storage diagnostic path.
+                failure.is_some() || seen_shapes.insert(self.member_call_shape(&specialized))
+            });
+        self.signatures.types_mut().discard_after(checkpoint);
+        result
     }
 
     fn member_visible(&self, callable: &UnitCallableSignature, owner: DeclarationId) -> bool {
@@ -398,135 +451,5 @@ impl BodyChecker<'_> {
             return None;
         };
         Some((*declaration, arguments.clone()))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_structural_component_call(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
-    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
-        if !type_arguments.is_empty() || !arguments.is_empty() {
-            return Ok(None);
-        }
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe: false,
-            ..
-        } = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(TypeCheckingError::from)?
-            .payload()
-            .clone()
-        else {
-            return Ok(None);
-        };
-        let name = self
-            .sources
-            .slice(name_span)
-            .map_err(TypeCheckingError::from)?;
-        let Some(component) = parse_component_name(name) else {
-            return Ok(None);
-        };
-        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
-        let Some((declaration, owner_arguments)) = self.nominal_type_parts(receiver_result.ty)
-        else {
-            return Ok(None);
-        };
-        let owner = self
-            .signatures
-            .declaration(declaration)
-            .and_then(|signature| signature.nominal())
-            .cloned()
-            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        if owner.kind() != NominalKind::ValueClass {
-            return Ok(None);
-        }
-        let Some(field) = owner.fields().get(component - 1).cloned() else {
-            return Ok(None);
-        };
-        let substitutions = owner
-            .type_parameters()
-            .iter()
-            .copied()
-            .zip(owner_arguments)
-            .collect::<BTreeMap<_, _>>();
-        let ty = self.substitute_type(field.ty(), &substitutions)?;
-        let function_type = self.signatures.types_mut().intern(UnitTypeKind::Function {
-            move_only: false,
-            parameters: Vec::new(),
-            return_type: ty,
-        });
-        let callee = UnitExpressionId::new(source, callee);
-        self.parts.expression_types.insert(callee, function_type);
-        self.parts
-            .expression_categories
-            .insert(callee, ExpressionCategory::Temporary);
-        self.parts.calls.push(UnitCallDescriptor {
-            text_primitive: None,
-            expression: UnitExpressionId::new(source, expression),
-            instance: UnitCallableInstanceKey {
-                target: UnitCallTarget::StructuralComponent(field.symbol()),
-                type_arguments: Vec::new(),
-            },
-            return_type: ty,
-            receiver: Some(UnitCallReceiverDescriptor {
-                origin: UnitCallReceiverOrigin::Expression(UnitExpressionId::new(source, receiver)),
-                mode: crate::type_checking::ParameterMode::Borrow,
-                category: self.expression_category(source, receiver),
-                ty: receiver_result.ty,
-            }),
-            arguments: Vec::new(),
-            result_source: crate::type_checking::CallableResultSource::Owned,
-            range_construction: None,
-            aborts: false,
-            prints_line: false,
-        });
-        self.parts
-            .aggregate_projections
-            .push(UnitAggregateProjectionDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitAggregateProjectionReceiver::Expression(UnitExpressionId::new(
-                    source, receiver,
-                )),
-                field.symbol(),
-                ty,
-                UnitAggregateProjectionKind::StructuralComponent,
-            ));
-        Ok(Some(ExpressionCheck {
-            ty,
-            falls_through: receiver_result.falls_through,
-        }))
-    }
-}
-
-fn parse_component_name(name: &str) -> Option<usize> {
-    let digits = name.strip_prefix("component")?;
-    if digits.is_empty() || digits.starts_with('0') {
-        return None;
-    }
-    let component = digits.parse::<usize>().ok()?;
-    (component > 0 && component.to_string() == digits).then_some(component)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::parse_component_name;
-
-    #[test]
-    fn component_names_are_positive_canonical_decimal_indices() {
-        assert_eq!(parse_component_name("component1"), Some(1));
-        assert_eq!(parse_component_name("component42"), Some(42));
-        for invalid in ["component", "component0", "component01", "componentA", "x1"] {
-            assert_eq!(parse_component_name(invalid), None, "{invalid}");
-        }
     }
 }

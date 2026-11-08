@@ -1,12 +1,11 @@
 use crate::{
     diagnostic::Diagnostic,
     name_resolution::{Namespace, ReferenceTarget},
-    parser::{
-        BinaryOperator, Expression, IntegerLiteralKind, LiteralKind, PrefixOperator, StringPart,
-    },
+    parser::{BinaryOperator, Expression, IntegerLiteralKind, LiteralKind, PrefixOperator},
 };
 
 use super::{flow::extend_facts, *};
+use crate::type_checking::flow_effects::logical_rhs_is_required;
 
 struct LambdaSyntax {
     span: Span,
@@ -25,14 +24,19 @@ impl Checker<'_> {
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
         if let Some(ty) = self.expression_types[id.index()] {
+            if self.iteration_recovery.is_pending(id) || self.is_deferred(ty) {
+                self.iteration_recovery.observe(id);
+            }
             return Ok(ExprCheck {
                 ty,
                 falls_through: !matches!(self.kind(ty), TypeKind::Builtin(BuiltinType::Nothing)),
             });
         }
+        let recovery_before = self.iteration_recovery.revision;
         let node = self.ast().expressions().get(id)?;
         let span = node.span();
         let payload = node.payload().clone();
+        let unary_operand = super::pending_operands::unconditional_operand(&payload);
         let mut result = match payload {
             Expression::Error => ExprCheck {
                 ty: self.error_type(),
@@ -67,22 +71,7 @@ impl Checker<'_> {
             Expression::Group { expression } => {
                 self.check_expression(expression, expected, expected_span)?
             }
-            Expression::String { parts } => {
-                if let Some(diagnostic) =
-                    crate::type_checking::string_length::check_literal(self.sources, span, &parts)?
-                {
-                    self.diagnostics.push(diagnostic);
-                }
-                for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part {
-                        self.check_expression(expression, None, None)?;
-                    }
-                }
-                ExprCheck {
-                    ty: self.builtin(BuiltinType::String),
-                    falls_through: true,
-                }
-            }
+            Expression::String { parts } => self.check_string_operands(id, span, &parts)?,
             Expression::Lambda {
                 move_span,
                 opener_span,
@@ -108,6 +97,7 @@ impl Checker<'_> {
                 else_branch,
                 ..
             } => self.check_if(
+                id,
                 condition,
                 then_branch,
                 else_span,
@@ -127,10 +117,12 @@ impl Checker<'_> {
             Expression::Break { keyword_span } => self.check_jump(
                 keyword_span,
                 "break is not inside an enclosing loop in this callable",
+                true,
             )?,
             Expression::Continue { keyword_span } => self.check_jump(
                 keyword_span,
                 "continue is not inside an enclosing loop in this callable",
+                false,
             )?,
             Expression::SuperMember { interface, .. } => {
                 self.resolve_static_type_ref(interface)?;
@@ -222,7 +214,7 @@ impl Checker<'_> {
                 operator,
                 operator_span,
                 value,
-            } => self.check_assignment_expression(target, operator, operator_span, value)?,
+            } => self.check_assignment_expression(id, target, operator, operator_span, value)?,
             Expression::Member {
                 receiver,
                 name_span,
@@ -277,6 +269,11 @@ impl Checker<'_> {
                 }
             }
         };
+        let reaches_exit = match unary_operand {
+            Some(operand) => self.pending_checked_exit(operand),
+            None => true,
+        };
+        self.note_pending_exit(id, result.falls_through && reaches_exit);
         if let Some(expected) = expected
             && !self.assignable(result.ty, expected)
             && !self.is_deferred(result.ty)
@@ -289,6 +286,9 @@ impl Checker<'_> {
         let category = self.classify_expression_category(id, result.ty);
         self.set_expression_category(id, category);
         self.set_expression(id, result.ty);
+        if self.iteration_recovery.revision != recovery_before || self.is_deferred(result.ty) {
+            self.iteration_recovery.observe(id);
+        }
         Ok(result)
     }
 
@@ -365,12 +365,17 @@ impl Checker<'_> {
         id: ExpressionId,
         span: Span,
     ) -> Result<TypeId, TypeCheckingError> {
+        let target = self.reference(span, Namespace::Value).cloned();
+        if let Some(ReferenceTarget::Symbol(symbol)) = &target
+            && self.iteration_recovery.bindings.contains(symbol)
+        {
+            self.iteration_recovery.observe(id);
+        }
         if let Some(key) = self.stable_flow_key(id)
             && let Some(ty) = self.flow_facts.get(&key).copied()
         {
             return Ok(ty);
         }
-        let target = self.reference(span, Namespace::Value).cloned();
         match target {
             Some(ReferenceTarget::Symbol(symbol)) => {
                 let ty = self
@@ -598,9 +603,12 @@ impl Checker<'_> {
         // Checking a closure body does not execute it in the creation-site flow.
         let outer_facts = self.flow_facts.clone();
         let outer_versions = self.flow_versions.clone();
+        let outer_pending = self.iteration_recovery.bindings.clone();
         let result = self.check_lambda_inner(syntax, expected, expected_span);
         self.flow_facts = outer_facts;
         self.flow_versions = outer_versions;
+        // Closure creation cannot clear a pending binding in its enclosing flow.
+        self.iteration_recovery.bindings.extend(outer_pending);
         result
     }
 
@@ -812,12 +820,14 @@ impl Checker<'_> {
         &mut self,
         keyword_span: Span,
         message: &'static str,
+        breaks: bool,
     ) -> Result<ExprCheck, TypeCheckingError> {
         let loop_base = self
             .callables
             .last()
             .map_or(0, |callable| callable.loop_base);
         let ty = if self.loop_depth > loop_base {
+            self.note_pending_loop_jump(breaks);
             self.builtin(BuiltinType::Nothing)
         } else {
             self.emit(self.jump_outside_loop_code, message, keyword_span)?;
@@ -927,7 +937,14 @@ impl Checker<'_> {
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
         if operator == BinaryOperator::Elvis {
-            return self.check_elvis(left, operator_span, right, expected, expected_span);
+            return self.check_elvis(
+                expression,
+                left,
+                operator_span,
+                right,
+                expected,
+                expected_span,
+            );
         }
         if matches!(
             operator,
@@ -942,7 +959,9 @@ impl Checker<'_> {
                 &left_false
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
-            let right_result = self.check_expression(right, None, None)?;
+            let required = logical_rhs_is_required(self.ast(), left, operator)?;
+            let right_result =
+                self.check_pending_logical_rhs(expression, left, operator, right, left_result)?;
             let writes = self.expression_flow_writes(right)?;
             baseline.retain(|key, _| !writes.contains(key));
             self.flow_facts = baseline;
@@ -966,34 +985,12 @@ impl Checker<'_> {
             };
             return Ok(ExprCheck {
                 ty,
-                falls_through: left_result.falls_through && right_result.falls_through,
+                falls_through: left_result.falls_through
+                    && (right_result.falls_through || !required),
             });
         }
-        let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
-        let left_null = equality
-            && matches!(
-                self.ast().expressions().get(left)?.payload(),
-                Expression::Literal(LiteralKind::Null)
-            );
-        let right_null = equality
-            && matches!(
-                self.ast().expressions().get(right)?.payload(),
-                Expression::Literal(LiteralKind::Null)
-            );
-        let (left_result, right_result) = if left_null && !right_null {
-            let right_result = self.check_expression(right, None, None)?;
-            let expected = self.null_comparison_expected(right, right_result.ty);
-            (self.check_expression(left, expected, None)?, right_result)
-        } else if right_null && !left_null {
-            let left_result = self.check_expression(left, None, None)?;
-            let expected = self.null_comparison_expected(left, left_result.ty);
-            (left_result, self.check_expression(right, expected, None)?)
-        } else {
-            (
-                self.check_expression(left, None, None)?,
-                self.check_expression(right, None, None)?,
-            )
-        };
+        let (left_result, right_result) =
+            self.check_eager_binary_operands(expression, left, operator, right)?;
         if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::ControlJoin),
@@ -1070,57 +1067,6 @@ impl Checker<'_> {
         Ok(ExprCheck {
             ty,
             falls_through: left_result.falls_through && right_result.falls_through,
-        })
-    }
-
-    fn check_elvis(
-        &mut self,
-        left: ExpressionId,
-        operator_span: Span,
-        right: ExpressionId,
-        expected: Option<TypeId>,
-        expected_span: Option<Span>,
-    ) -> Result<ExprCheck, TypeCheckingError> {
-        let left_result = self.check_expression(left, None, None)?;
-        let (inner, left_can_bypass_right) = match self.kind(left_result.ty) {
-            TypeKind::Nullable(inner) => (
-                Some(*inner),
-                !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)),
-            ),
-            TypeKind::Error => (None, false),
-            TypeKind::Deferred(_) => (None, true),
-            _ => {
-                let right_result = self.check_expression(right, expected, expected_span)?;
-                self.emit_binary_operand_error(
-                    operator_span,
-                    left,
-                    left_result.ty,
-                    right,
-                    right_result.ty,
-                )?;
-                return Ok(ExprCheck {
-                    ty: self.error_type(),
-                    falls_through: left_result.falls_through,
-                });
-            }
-        };
-        let right_expected = inner
-            .filter(|inner| !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)));
-        let right_result =
-            self.check_expression(right, right_expected.or(expected), expected_span)?;
-        let ty = if let Some(inner) = inner {
-            if matches!(self.kind(inner), TypeKind::Builtin(BuiltinType::Nothing)) {
-                right_result.ty
-            } else {
-                inner
-            }
-        } else {
-            self.deferred(DeferredReason::ControlJoin)
-        };
-        Ok(ExprCheck {
-            ty,
-            falls_through: left_result.falls_through
-                && (left_can_bypass_right || right_result.falls_through),
         })
     }
 

@@ -507,3 +507,389 @@ fn non_null_assertion_descriptor_member_parameter_group_and_implicit_field() {
         ]
     );
 }
+
+#[test]
+fn stale_nullable_member_does_not_poison_an_explicit_assignment_target() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    for (access, expect_stale) in [
+        ("total = current.value", true),
+        ("if (current != null) { total = current.value }", false),
+    ] {
+        let text = format!(
+            "class Holder(val value: Int)\n\
+             fun entry(own initial: Holder?, flag: Boolean): Int {{\n\
+                 var current: Holder? = initial\n\
+                 var total: Int = 0\n\
+                 while (current != null) {{\n\
+                     if (flag) {{ current = null }}\n\
+                     {access}\n\
+                     break\n\
+                 }}\n\
+                 return total\n\
+             }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "nullable-assignment.ko", &text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "nullable-assignment.ko",
+            source,
+            &file,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("type analysis remains inspectable");
+        let completed =
+            complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed);
+        let unit = source_unit(&names, source);
+        let member = expression_with_text(&sources, &file, "current.value");
+        let member_key = UnitExpressionId::new(unit, member);
+        if expect_stale {
+            let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = completed else {
+                panic!("stale receiver must be rejected");
+            };
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            let diagnostic = &diagnostics[0];
+            assert_eq!(diagnostic.code().to_string(), "L0165");
+            assert_eq!(
+                sources.slice(diagnostic.primary_span()),
+                Ok("current.value")
+            );
+            assert_eq!(
+                diagnostic.primary_span(),
+                file.ast().expressions().get(member).unwrap().span()
+            );
+            assert!(
+                !typed
+                    .assignments()
+                    .iter()
+                    .any(|fact| fact.value() == member_key)
+            );
+        } else {
+            assert!(completed.is_ok(), "{completed:?}");
+            assert!(
+                typed
+                    .assignments()
+                    .iter()
+                    .any(|fact| fact.value() == member_key)
+            );
+        }
+    }
+}
+
+#[test]
+fn nullable_member_with_pending_receiver_condition_stays_deferred() {
+    use lang_frontend::type_checking::complete_compilation_unit_types;
+
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "pending-nullable-receiver.ko",
+        "class Holder(val value: Int)\n\
+         fun probe(p: Holder?): Int = (if (outside()) p else p).value",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "pending-nullable-receiver.ko",
+        source,
+        &file,
+    )];
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment
+        .declare_function("outside")
+        .expect("name binding");
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("pending analysis");
+    assert!(
+        typed.body_diagnostics().is_empty(),
+        "{:?}",
+        typed.body_diagnostics()
+    );
+    let unit = source_unit(&names, source);
+    let access = expression_with_text(&sources, &file, "(if (outside()) p else p).value");
+    let kind = typed
+        .expression_type(UnitExpressionId::new(unit, access))
+        .and_then(|ty| typed.types().get(ty));
+    assert_eq!(
+        kind,
+        Some(&UnitTypeKind::Deferred(DeferredReason::MemberAccess))
+    );
+    assert!(
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed)
+            .is_err()
+    );
+}
+
+#[test]
+fn explicit_member_call_keeps_the_failed_callee_and_checks_independent_arguments() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let argument = "if (true) { val independent = null; 0 } else 0";
+    let call = format!("p.read<Int>({argument})");
+    let text = format!(
+        "class Holder(val value: Int) {{ fun <T> read(arg: T): Int = value }}\n\
+         fun probe(p: Holder?): Int = {call}"
+    );
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "nullable-generic-member.ko", &text);
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "nullable-generic-member.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("recovery analysis");
+    let unit = source_unit(&names, source);
+    let call = UnitExpressionId::new(unit, expression_with_text(&sources, &file, &call));
+    assert_eq!(
+        typed
+            .expression_type(call)
+            .and_then(|ty| typed.types().get(ty)),
+        Some(&UnitTypeKind::Error)
+    );
+    assert!(typed.call(call).is_none());
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed)
+    else {
+        panic!("invalid member call must be rejected");
+    };
+    assert_eq!(
+        diagnostics
+            .iter()
+            .map(|diagnostic| (
+                diagnostic.code().to_string(),
+                sources.slice(diagnostic.primary_span()).unwrap(),
+            ))
+            .collect::<Vec<_>>(),
+        [("L0165".to_owned(), "p.read"), ("L0083".to_owned(), "null")]
+    );
+}
+
+#[test]
+fn cached_field_receivers_preserve_pending_values_without_publishing_call_facts() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "cached-field-receivers.ko",
+        "class Leaf(val value: Int) { fun read(arg: Int): Int = value }\n\
+         class Holder(val child: Leaf?, val ready: Leaf)\n\
+         fun nullable(p: Holder): Int = (if (outside()) p else p).child.read(1)\n\
+         fun pending(p: Holder): Int = (if (outside()) p else p).ready.read(1)\n\
+         fun stable(p: Holder): Int = p.ready.read(1)",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "cached-field-receivers.ko",
+        source,
+        &file,
+    )];
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment
+        .declare_function("outside")
+        .expect("name binding");
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("pending analysis");
+    assert!(
+        typed.body_diagnostics().is_empty(),
+        "{:?}",
+        typed.body_diagnostics()
+    );
+    let unit = source_unit(&names, source);
+    let key = |text| UnitExpressionId::new(unit, expression_with_text(&sources, &file, text));
+    for text in [
+        "(if (outside()) p else p).child",
+        "(if (outside()) p else p).ready",
+    ] {
+        let projection = key(text);
+        assert!(typed.aggregate_projection(projection).is_none(), "{text}");
+    }
+    let callee = key("(if (outside()) p else p).child.read");
+    assert_eq!(
+        typed
+            .expression_type(callee)
+            .and_then(|ty| typed.types().get(ty)),
+        Some(&UnitTypeKind::Deferred(DeferredReason::MemberAccess))
+    );
+    for text in [
+        "(if (outside()) p else p).child.read(1)",
+        "(if (outside()) p else p).ready.read(1)",
+    ] {
+        let call = key(text);
+        assert!(typed.call(call).is_none(), "{text}");
+        assert!(
+            matches!(
+                typed
+                    .expression_type(call)
+                    .and_then(|ty| typed.types().get(ty)),
+                Some(UnitTypeKind::Deferred(_))
+            ),
+            "{text}"
+        );
+    }
+    assert!(typed.aggregate_projection(key("p.ready")).is_some());
+    assert!(typed.call(key("p.ready.read(1)")).is_some());
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed)
+    else {
+        panic!("pending receivers must reject admission with source diagnostics");
+    };
+    assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.code().to_string() == "L0165"
+                && matches!(
+                    sources.slice(diagnostic.primary_span()),
+                    Ok("outside" | "outside()")
+                )
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn pending_field_keeps_known_assignment_and_callable_contracts() {
+    let text = "class Leaf(val value: Int)\n\
+        value class Pair(val amount: Int) { fun component1(): Int = this.amount }\n\
+        value class Named(val amount: Int, val component1: Int)\n\
+        class Bundle(val callback: (Int) -> Int, val pair: Pair, val named: Named, var child: Leaf?)\n\
+        fun callback(p: Bundle): Int = (if (outside()) p else p).callback(1)\n\
+        fun component(p: Bundle): Int = (if (outside()) p else p).pair.component1()\n\
+        fun shadowed(p: Bundle): Int = (if (outside()) p else p).named.component1()\n\
+        fun stable(p: Bundle): Int = p.pair.component1()\n\
+        fun assign(p: Bundle): Unit {\n\
+            (if (outside()) p else p).child = null\n\
+            (if (outside()) p else p).child = 1\n\
+        }";
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "pending-field-contract.ko", text);
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "pending-field-contract.ko",
+        source,
+        &file,
+    )];
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment
+        .declare_function("outside")
+        .expect("name binding");
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("pending analysis");
+    let unit = source_unit(&names, source);
+    let key = |text| UnitExpressionId::new(unit, expression_with_text(&sources, &file, text));
+    for text in [
+        "(if (outside()) p else p).callback(1)",
+        "(if (outside()) p else p).pair.component1()",
+        "(if (outside()) p else p).named.component1()",
+    ] {
+        assert!(typed.call(key(text)).is_none(), "{text}");
+        assert!(typed.aggregate_projection(key(text)).is_none(), "{text}");
+    }
+    assert!(typed.call(key("p.pair.component1()")).is_some());
+    assert!(typed.assignments().is_empty());
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| (
+                diagnostic.code().to_string(),
+                sources.slice(diagnostic.primary_span()).unwrap(),
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (
+                "L0119".to_owned(),
+                "(if (outside()) p else p).named.component1"
+            ),
+            ("L0084".to_owned(), "1"),
+        ]
+    );
+}
+
+#[test]
+fn pending_field_blocks_assertion_and_rc_execution_facts() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "pending-field-consumers.ko",
+        "class Leaf(val value: Int)\n\
+         class Bundle(val child: Leaf?, val shared: Rc<Int>)\n\
+         fun assertPending(p: Bundle): Int = (if (outside()) p else p).child!!.value\n\
+         fun readPending(p: Bundle): Int = (if (outside()) p else p).shared.value\n\
+         fun sharePending(p: Bundle): Rc<Int> = (if (outside()) p else p).shared.share()\n\
+         fun assertKnown(p: Bundle): Int = p.child!!.value\n\
+         fun readKnown(p: Bundle): Int = p.shared.value\n\
+         fun shareKnown(p: Bundle): Rc<Int> = p.shared.share()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "pending-field-consumers.ko",
+        source,
+        &file,
+    )];
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment
+        .declare_function("outside")
+        .expect("name binding");
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("pending analysis");
+    assert!(
+        typed.body_diagnostics().is_empty(),
+        "{:?}",
+        typed.body_diagnostics()
+    );
+    let unit = source_unit(&names, source);
+    let key = |text| UnitExpressionId::new(unit, expression_with_text(&sources, &file, text));
+    assert!(
+        typed
+            .non_null_assertion(key("(if (outside()) p else p).child!!"))
+            .is_none()
+    );
+    assert!(
+        typed
+            .aggregate_projection(key("(if (outside()) p else p).child!!.value"))
+            .is_none()
+    );
+    assert!(
+        typed
+            .rc_operation(key("(if (outside()) p else p).shared.value"))
+            .is_none()
+    );
+    assert!(
+        typed
+            .rc_operation(key("(if (outside()) p else p).shared.share()"))
+            .is_none()
+    );
+    assert!(typed.non_null_assertion(key("p.child!!")).is_some());
+    assert!(typed.aggregate_projection(key("p.child!!.value")).is_some());
+    assert!(typed.rc_operation(key("p.shared.value")).is_some());
+    assert!(typed.rc_operation(key("p.shared.share()")).is_some());
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed)
+    else {
+        panic!("pending receivers must reject admission with source diagnostics");
+    };
+    assert_eq!(diagnostics.len(), 3, "{diagnostics:?}");
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.code().to_string() == "L0165"
+                && matches!(
+                    sources.slice(diagnostic.primary_span()),
+                    Ok("outside" | "outside()")
+                )
+        }),
+        "{diagnostics:?}"
+    );
+}

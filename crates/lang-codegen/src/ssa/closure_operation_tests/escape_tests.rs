@@ -159,7 +159,84 @@ fn entry_closure_value_call() -> (Program, VerifyLocation, Origin) {
     (program, VerifyLocation::Instruction(call), delivery)
 }
 
-fn entry_container_return() -> (Program, VerifyLocation, Origin) {
+#[test]
+fn borrowed_closure_escape_rejects_a_value_argument_to_a_borrow_return_call() {
+    let formation = origin();
+    let delivery = delivery_origin("consume(closure)");
+    let mut program = Program::default();
+    let module_id = program.add_module("borrow-call-owned-escape");
+    let module = program.module_mut(module_id).expect("module");
+    let (integer, _, closure) = shared_closure_type(module);
+    let source_type = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: integer,
+    };
+    let parameters = vec![EntityType::Value(closure), source_type];
+    let callee = module
+        .add_function("borrow_result", vec![integer], formation.clone())
+        .expect("callee");
+    let function = module.function_mut(callee).expect("callee");
+    function.borrow_return = Some(1);
+    let entry = function
+        .add_block(parameters.clone(), formation.clone())
+        .expect("entry");
+    let arguments = &function.block(entry).expect("entry").parameters;
+    let owner = value(arguments[0]);
+    let EntityId::Loan(source) = arguments[1] else {
+        panic!("source loan")
+    };
+    append_values(function, entry, Operation::Drop { owner }, &[], &formation);
+    function
+        .set_terminator(
+            entry,
+            TerminatorKind::BorrowReturn { loan: source },
+            formation.clone(),
+        )
+        .expect("return");
+
+    let caller = module
+        .add_function("forward", vec![], formation.clone())
+        .expect("caller");
+    let function = module.function_mut(caller).expect("caller");
+    let entry = function
+        .add_block(parameters, formation.clone())
+        .expect("entry");
+    let arguments = function.block(entry).expect("entry").parameters.clone();
+    let EntityId::Loan(source) = arguments[1] else {
+        panic!("source loan")
+    };
+    let (call, results) = function
+        .append_instruction(
+            entry,
+            Operation::BorrowCall {
+                callee,
+                arguments,
+                source,
+            },
+            vec![source_type],
+            delivery.clone(),
+        )
+        .expect("call");
+    let EntityId::Loan(result) = results[0] else {
+        panic!("result loan")
+    };
+    append_values(
+        function,
+        entry,
+        Operation::BorrowEnd { loan: result },
+        &[],
+        &formation,
+    );
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: vec![] }, formation)
+        .expect("return");
+    assert_owned_escape_rejected((program, VerifyLocation::Instruction(call), delivery));
+}
+
+fn entry_container_return(
+    inline_nullable: bool,
+    known_empty: bool,
+) -> (Program, VerifyLocation, Origin) {
     let formation = origin();
     let delivery = delivery_origin("return wrapper");
     let mut program = Program::default();
@@ -169,19 +246,59 @@ fn entry_container_return() -> (Program, VerifyLocation, Origin) {
     let wrapper = module
         .add_sequential_container_type(SequentialContainerKind::List, closure)
         .expect("List storage must retain its concrete closure element type");
-    let (function_id, entry, parameters) =
-        add_function(module, "forward", &[wrapper], vec![wrapper], &formation);
-    module
-        .function_mut(function_id)
-        .expect("function must exist")
+    let returned_type = if inline_nullable {
+        module
+            .add_inline_nullable_type(wrapper)
+            .expect("inline List nullable")
+    } else {
+        wrapper
+    };
+    let parameters = if known_empty { vec![] } else { vec![wrapper] };
+    let (function_id, entry, parameters) = add_function(
+        module,
+        "forward",
+        &parameters,
+        vec![returned_type],
+        &formation,
+    );
+    let function = module.function_mut(function_id).expect("function");
+    let inner = if known_empty {
+        append_values(
+            function,
+            entry,
+            Operation::ContainerConstruct {
+                container: wrapper,
+                elements: vec![],
+            },
+            &[wrapper],
+            &formation,
+        )[0]
+    } else {
+        parameters[0]
+    };
+    let returned = if inline_nullable {
+        append_values(
+            function,
+            entry,
+            Operation::NullableWrap {
+                nullable: returned_type,
+                owner: inner,
+            },
+            &[returned_type],
+            &formation,
+        )[0]
+    } else {
+        inner
+    };
+    function
         .set_terminator(
             entry,
             TerminatorKind::Return {
-                values: vec![parameters[0]],
+                values: vec![returned],
             },
             delivery.clone(),
         )
-        .expect("Return must match the List signature and consume its entry owner once");
+        .expect("Return consumes the owner once");
     (program, VerifyLocation::Terminator(entry), delivery)
 }
 
@@ -213,7 +330,14 @@ fn borrowed_closure_escape_rejects_entry_value_call_at_delivery_origin() {
 
 #[test]
 fn borrowed_closure_escape_rejects_entry_container_return_at_delivery_origin() {
-    assert_owned_escape_rejected(entry_container_return());
+    assert_owned_escape_rejected(entry_container_return(false, false));
+}
+
+#[test]
+fn inline_nullable_wrap_preserves_actual_owned_capture_contents() {
+    verify_program(&entry_container_return(true, true).0)
+        .expect("an empty list remains capture-free inside the inline wrapper");
+    assert_owned_escape_rejected(entry_container_return(true, false));
 }
 
 #[derive(Clone, Copy, Debug)]

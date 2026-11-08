@@ -1,4 +1,7 @@
 //! AST 消费角色和选中事实共同决定 roots；仅在这些 roots 上闭合类型图。
+mod bindings;
+mod call;
+
 use super::{
     FinalTypeAdmissionInternalError as Internal,
     adapters::{Facts, Shape},
@@ -76,6 +79,7 @@ fn check_roots<F: Facts>(
             expressions: &mut state.expressions,
             items: &mut state.items,
             visited_for: &mut state.visited_for,
+            contextual_type_reported: false,
         };
         for &item in items {
             if !checker.item(item)? && first_incomplete.is_none() {
@@ -128,6 +132,7 @@ struct Checker<'a, F: Facts> {
     expressions: &'a mut [Option<bool>],
     items: &'a mut [Option<bool>],
     visited_for: &'a mut BTreeMap<usize, StatementId>,
+    contextual_type_reported: bool,
 }
 impl<F: Facts> Checker<'_, F> {
     fn missing(&self, span: Span, kind: &'static str) -> Internal {
@@ -180,6 +185,9 @@ impl<F: Facts> Checker<'_, F> {
                 Ok(complete)
             }
             Shape::Deferred(DeferredReason::AnyValueRepresentation) if bound => Ok(true),
+            Shape::Deferred(
+                DeferredReason::ContextualArgument | DeferredReason::ContextualInteger { .. },
+            ) if self.contextual_type_reported => Ok(false),
             Shape::Deferred(reason) => self.emit(
                 codes::FINAL_TYPE_ANALYSIS_INCOMPLETE,
                 super::message::deferred_message(reason),
@@ -227,37 +235,6 @@ impl<F: Facts> Checker<'_, F> {
             .ok_or_else(|| self.missing(node.span(), "type-reference type"))?;
         self.type_root(ty, node.span(), bound)
     }
-    fn binding(
-        &mut self,
-        marker: NameMarker,
-        complete: bool,
-        discard_allowed: bool,
-    ) -> Result<bool> {
-        let NameMarker::Present(span) = marker else {
-            return Ok(false);
-        };
-        let Some((symbol, ty)) = self.facts.declaration(span) else {
-            // 只有 for/解构的无 binding discard 可免除值事实；普通 val _ 仍是真 symbol。
-            if discard_allowed && self.sources.slice(span).map_err(TypeCheckingError::from)? == "_"
-            {
-                return Ok(complete);
-            }
-            return if !complete || self.existing_error(span) {
-                Ok(false)
-            } else {
-                Err(self.missing(span, "declaration type"))
-            };
-        };
-        if !complete {
-            self.poisoned.insert(symbol);
-            return Ok(false);
-        }
-        let complete = self.type_root(ty, span, false)?;
-        if !complete {
-            self.poisoned.insert(symbol);
-        }
-        Ok(complete)
-    }
     fn item(&mut self, id: ItemId) -> Result<bool> {
         if let Some(complete) = self.items[id.index()] {
             return Ok(complete);
@@ -284,10 +261,16 @@ impl<F: Facts> Checker<'_, F> {
                 initializer,
                 ..
             } => {
-                complete &= self.expression(*initializer, false)?;
-                if let Some(type_ref) = type_ref {
-                    complete &= self.type_ref(*type_ref, false)?;
-                }
+                let annotation_complete = match type_ref {
+                    Some(type_ref) => self.type_ref(*type_ref, false)?,
+                    None => true,
+                };
+                let previous_context = self.contextual_type_reported;
+                self.contextual_type_reported |= !annotation_complete;
+                let initializer_complete = self.expression(*initializer, false);
+                self.contextual_type_reported = previous_context;
+                complete &= initializer_complete?;
+                complete &= annotation_complete;
                 complete &= self.binding(*name, complete, false)?;
             }
             Item::Function {
@@ -379,12 +362,19 @@ impl<F: Facts> Checker<'_, F> {
             Statement::LocalDestructuring {
                 initializer,
                 bindings,
+                left_paren_span,
+                right_paren_span,
+                equals_span,
                 ..
             } => {
                 complete &= self.expression(*initializer, false)?;
-                for binding in bindings {
-                    complete &= self.binding(*binding, complete, true)?;
-                }
+                complete &= self.local_destructuring_bindings(
+                    bindings,
+                    *left_paren_span,
+                    *right_paren_span,
+                    *equals_span,
+                    complete,
+                )?;
             }
             Statement::Expression { expression } => {
                 complete &= self.expression(*expression, false)?
@@ -410,21 +400,19 @@ impl<F: Facts> Checker<'_, F> {
                         left_paren_span,
                         right_paren_span,
                     } => {
-                        if let Some(right_paren_span) = right_paren_span {
-                            let pattern = self
-                                .sources
-                                .span(
-                                    left_paren_span.source_id(),
-                                    left_paren_span.start(),
-                                    right_paren_span.end(),
-                                )
-                                .map_err(TypeCheckingError::from)?;
-                            // 完整 pattern 的原根因恢复其 bindings；不扩大单个 marker 的错误。
-                            complete &= !self.diagnostics.iter().any(|diagnostic| {
-                                diagnostic.severity() == Severity::Error
-                                    && diagnostic.primary_span() == pattern
-                            });
-                        }
+                        let pattern = self
+                            .sources
+                            .span(
+                                left_paren_span.source_id(),
+                                left_paren_span.start(),
+                                right_paren_span.map_or(left_paren_span.end(), Span::end),
+                            )
+                            .map_err(TypeCheckingError::from)?;
+                        // Match the typed header's diagnostic span, including recovery without a closer.
+                        complete &= !self.diagnostics.iter().any(|diagnostic| {
+                            diagnostic.severity() == Severity::Error
+                                && diagnostic.primary_span() == pattern
+                        });
                         let binding_complete = complete;
                         for name in names {
                             complete &= self.binding(*name, binding_complete, true)?;
@@ -480,14 +468,6 @@ impl<F: Facts> Checker<'_, F> {
                 && diagnostic.primary_span() == name_span
         }))
     }
-    fn rejected_bare_enum_case(&self, expression: ExpressionId, name_span: Span) -> Result<bool> {
-        let code = codes::catalog()
-            .and_then(|catalog| catalog.resolve(codes::CONSTRUCTION_INFERENCE))
-            .map_err(TypeCheckingError::from)?;
-        Ok(self
-            .facts
-            .rejected_bare_enum_case(expression, name_span, code))
-    }
     fn rejected_contextual_call(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
         if self.facts.selection(call).is_some()
             || !matches!(
@@ -505,7 +485,7 @@ impl<F: Facts> Checker<'_, F> {
             .expressions()
             .get(callee)
             .map_err(TypeCheckingError::from)?;
-        // 只认真实源函数 overload 名称与其原 typed L0123/L0124；
+        // 只认真实函数 overload 名称与其原 typed L0123/L0124；
         // 两者都会回滚 contextual trial，静态候选或祖先错误不足以授权。
         if !matches!(callee.payload(), Expression::Name) {
             return Ok(false);
@@ -519,7 +499,7 @@ impl<F: Facts> Checker<'_, F> {
         }
         Ok(false)
     }
-    fn uncommitted_lambda_argument(&self, mut id: ExpressionId) -> Result<bool> {
+    fn uncommitted_lambda_argument(&self, mut id: ExpressionId, allow_error: bool) -> Result<bool> {
         loop {
             let node = self
                 .parsed
@@ -529,7 +509,7 @@ impl<F: Facts> Checker<'_, F> {
                 .map_err(TypeCheckingError::from)?;
             // None 只表示没有发布类型；已发布但缺 canonical type 不能冒充未提交事实。
             if let Some(ty) = self.facts.expression_type(id)
-                && !matches!(self.facts.shape(ty), Some(Shape::Error))
+                && (!allow_error || !matches!(self.facts.shape(ty), Some(Shape::Error)))
             {
                 return Ok(false);
             }
@@ -622,6 +602,24 @@ impl<F: Facts> Checker<'_, F> {
         match node.payload() {
             Expression::Name => Ok(self.facts.static_candidate(node.span())),
             Expression::Group { expression } => self.static_candidate(*expression),
+            Expression::Member {
+                receiver,
+                name_span,
+                safe: false,
+                ..
+            } if self.facts.static_candidate(*name_span) => {
+                let receiver = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(*receiver)
+                    .map_err(TypeCheckingError::from)?;
+                let qualifier = match receiver.payload() {
+                    Expression::Member { name_span, .. } => *name_span,
+                    _ => receiver.span(),
+                };
+                Ok(self.facts.static_qualifier(qualifier))
+            }
             _ => Ok(false),
         }
     }
@@ -664,6 +662,16 @@ impl<F: Facts> Checker<'_, F> {
         complete &= self.expression(write.receiver, false)?;
         complete &= self.expression(write.key, false)?;
         complete &= self.expression(value, false)?;
+        if complete && write.unpublished {
+            if self.existing_error(span) {
+                return Ok(false);
+            }
+            return self.emit(
+                codes::FINAL_TYPE_ANALYSIS_INCOMPLETE,
+                super::message::deferred_message(DeferredReason::ContextualArgument),
+                span,
+            );
+        }
         if complete {
             complete &= self.type_root(write.key_type, target_node.span(), false)?;
             complete &= self.type_root(write.value_type, target_node.span(), false)?;
@@ -808,7 +816,7 @@ impl<F: Facts> Checker<'_, F> {
                     Expression::Member { name_span, .. } => *name_span,
                     _ => receiver_node.span(),
                 };
-                // 本 Member 的原 L0144 只恢复静态壳；complete 仍为 false，
+                // 枚举构造的原推导或上界诊断只恢复静态壳；complete 仍为 false，
                 // 没有成功 descriptor，也不压制其他 runtime 子树或声明的诊断。
                 let rejected_case = !complete
                     && selection.is_none()
@@ -822,6 +830,8 @@ impl<F: Facts> Checker<'_, F> {
                 let failed_static_member = selection.is_none()
                     && (recovery
                         || matches!(member_shape, Some(Shape::Deferred(_)))
+                        || (self.facts.is_pending_storage_value(id)
+                            && self.static_candidate(id)?)
                         || (matches!(member_shape, Some(Shape::Error))
                             && self.rejected_static_member(*name_span)?));
                 if (selection.as_ref().is_some_and(|s| s.qualifier)
@@ -862,43 +872,15 @@ impl<F: Facts> Checker<'_, F> {
                 type_arguments,
                 ..
             } => {
-                let rejected_contextual_call = self.rejected_contextual_call(id, *callee)?;
-                for argument in arguments {
-                    if rejected_contextual_call
-                        && self.uncommitted_lambda_argument(argument.value)?
-                    {
-                        // 失败 trial 已回滚的 lambda body 不是已提交的消费 root；call 仍失败。
-                        // 其他实参、callee receiver 与 type arguments 继续按各自角色检查。
-                        complete = false;
-                    } else {
-                        complete &= self.expression(argument.value, false)?;
-                    }
-                }
-                let rejected_type_arguments = self.rejected_type_arguments(id, *callee)?;
-                for (index, type_ref) in type_arguments.iter().enumerate() {
-                    let rejected = rejected_type_arguments.is_some_and(|first| index >= first);
-                    complete &= self.call_type_ref(*type_ref, rejected)?;
-                }
-                // 参数已失败时，真实静态候选只是选择器，不消费其恢复值类型。
-                // Single 的容器 callee 可带 Deferred(Call)，Unit 可没有值事实；
-                // 两者都不能在同一 child 根因之后制造静态壳级联。运行时 callee 仍遍历。
-                let failed_static_callee =
-                    selection.is_none() && !complete && self.static_candidate(*callee)?;
-                if selection.as_ref().is_some_and(|s| s.static_callee) || failed_static_callee {
-                    complete &= self.selector(*callee)?;
-                } else {
-                    let deferred_call = matches!(
-                        self.facts
-                            .expression_type(id)
-                            .and_then(|ty| self.facts.shape(ty)),
-                        Some(Shape::Deferred(_))
-                    );
-                    // 已选 FunctionValue callee 必须具有自己的值事实。失败候选的缺值
-                    // 只在已有 child 根因，或具名静态候选对应真实 Deferred 时抑制级联。
-                    let failed_callee = selection.is_none()
-                        && (!complete || (deferred_call && self.static_candidate(*callee)?));
-                    complete &= self.expression(*callee, failed_callee)?;
-                }
+                complete = self.call_expression(
+                    id,
+                    span,
+                    *callee,
+                    arguments,
+                    type_arguments,
+                    selection.as_ref(),
+                    complete,
+                )?;
             }
             Expression::Propagate {
                 value,
@@ -945,8 +927,24 @@ impl<F: Facts> Checker<'_, F> {
         if complete {
             let ty = self.facts.expression_type(id);
             let shape = ty.and_then(|ty| self.facts.shape(ty));
-            if matches!(node.payload(), Expression::Call { .. })
-                && !has_selection
+            let unselected_call =
+                matches!(node.payload(), Expression::Call { .. }) && !has_selection;
+            if self.facts.is_pending_storage_value(id) {
+                if has_selection {
+                    return Err(
+                        self.missing(span, "pending storage value without selected descriptor")
+                    );
+                }
+                complete = if self.contextual_type_reported {
+                    false
+                } else {
+                    self.emit(
+                        codes::FINAL_TYPE_ANALYSIS_INCOMPLETE,
+                        super::message::deferred_message(DeferredReason::ContextualArgument),
+                        span,
+                    )?
+                };
+            } else if unselected_call
                 && !matches!(shape, Some(Shape::Deferred(_) | Shape::Error) | None)
             {
                 return Err(
@@ -957,7 +955,7 @@ impl<F: Facts> Checker<'_, F> {
                 && self.uses[id.index()] == ExpressionUse::Statement
                 && matches!(node.payload(), Expression::Assignment { .. })
                 && matches!(shape, Some(Shape::Deferred(DeferredReason::Assignment)));
-            if !statement_assignment {
+            if complete && !statement_assignment {
                 if recovery && matches!(shape, None | Some(Shape::Error)) {
                     return Ok(true);
                 }

@@ -467,11 +467,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .typed
                     .destructuring(UnitStatementId::new(self.checker.source_unit, id))
                 {
-                    for component in descriptor.components() {
-                        let symbol = component.symbol();
+                    // The typed descriptor follows layout order. Locals are declared in pattern order.
+                    let mut bindings = descriptor
+                        .components()
+                        .iter()
+                        .map(|component| {
+                            let symbol = component.symbol();
+                            Ok((self.checker.symbol_span(symbol)?, symbol))
+                        })
+                        .collect::<Result<Vec<_>, OwnershipCheckingError>>()?;
+                    bindings.sort_unstable_by_key(|(span, _)| span.start());
+                    for (origin, symbol) in bindings {
                         if self.checker.is_move_only_variable(symbol) {
                             self.binding_depths.insert(symbol, self.scope_depth);
-                            let origin = self.checker.symbol_span(symbol)?;
                             state.insert(OwnedValue {
                                 owner: None,
                                 symbol,
@@ -756,7 +764,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     state,
                     self.loop_boundaries.len(),
                 );
-                self.drop_deeper_than(boundary, PlannerDropPoint::ControlTransfer(id), state);
+                self.drop_deeper_than(
+                    boundary,
+                    self.loop_boundaries.len(),
+                    PlannerDropPoint::ControlTransfer(id),
+                    state,
+                );
                 self.finish_jump_iteration(id, state)?;
                 Ok(false)
             }
@@ -791,12 +804,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 operator,
                 right,
                 ..
-            } if matches!(
-                operator,
-                BinaryOperator::Add | BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && self.is_string_expression(left)
-                && self.is_string_expression(right) =>
-            {
+            } if self.uses_string_binary_operands(left, operator, right) => {
                 self.string_binary(left, right, id, state)
             }
             Expression::Binary {
@@ -903,6 +911,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                         if state.position(place.root()).is_some() {
                                             borrowed_roots.push(place.root());
                                             state.pending_borrows.push((id, place.root()));
+                                            self.hold_pending_capture_borrows(
+                                                id,
+                                                receiver,
+                                                Some(place.root()),
+                                                state,
+                                            );
                                         }
                                     } else {
                                         if !self.expression(
@@ -929,6 +943,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                                 .expressions()
                                                 .get(temporary)?
                                                 .span();
+                                            self.hold_pending_capture_borrows(
+                                                id, receiver, None, state,
+                                            );
                                             self.register_pending_temporary(
                                                 id, temporary, origin, false, state,
                                             )?;
@@ -960,9 +977,20 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     if state.position(place.root()).is_some() {
                         borrowed_roots.push(place.root());
                         state.pending_borrows.push((id, place.root()));
+                        self.hold_pending_capture_borrows(id, callee, Some(place.root()), state);
                     }
-                } else if !self.expression(callee, DropExpressionUse::Read, state)? {
-                    return Ok(false);
+                } else {
+                    if !self.expression(callee, DropExpressionUse::Read, state)? {
+                        return Ok(false);
+                    }
+                    if self.capture_sources_at_call(id, callee).is_some() {
+                        self.register_borrow_temporary_argument(
+                            id,
+                            callee,
+                            UnitCallArgumentOwnershipKind::SharedLoan,
+                            state,
+                        )?;
+                    }
                 }
                 for (index, argument) in arguments.into_iter().enumerate() {
                     let kind = contracts
@@ -997,6 +1025,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 {
                                     borrowed_roots.push(root);
                                     state.pending_borrows.push((id, root));
+                                    self.hold_pending_capture_borrows(
+                                        id,
+                                        argument.value,
+                                        Some(root),
+                                        state,
+                                    );
                                 }
                             } else {
                                 if !self.expression(
@@ -1174,7 +1208,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
-        if self.borrow_source_protected(symbol, state) {
+        if self.borrow_source_protected(symbol, state) || state.capture_borrow_protects(symbol) {
             return;
         }
         // A provider keeps its source even without a later explicit source read.
@@ -1324,6 +1358,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         self.end_borrow_bindings(point, state, |_| true);
         // callable 已退出，不能再由尚未提交的调用前缀阻止 owner 清理。
         state.pending_borrows.clear();
+        state.pending_capture_borrows.clear();
         self.drop_pending_temporaries(point, state, |_| true);
         while let Some(symbol) = state.values.last().map(|value| value.symbol) {
             self.drop_named(point, symbol, state);
@@ -1390,9 +1425,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn drop_deeper_than(&mut self, depth: usize, point: PlannerDropPoint, state: &mut ValueState) {
+    fn drop_deeper_than(
+        &mut self,
+        depth: usize,
+        loop_depth: usize,
+        point: PlannerDropPoint,
+        state: &mut ValueState,
+    ) {
         self.end_borrow_bindings(point, state, |binding_depth| binding_depth > depth);
-        let loop_depth = self.loop_boundaries.len();
+        state
+            .pending_capture_borrows
+            .retain(|borrow| borrow.loop_depth < loop_depth);
         self.drop_pending_temporaries(point, state, |pending| pending.loop_depth >= loop_depth);
         let mut index = state.values.len();
         while index > 0 {
@@ -1462,6 +1505,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
 
     fn live_after(&self, point: PlannerDropPoint) -> &std::collections::BTreeSet<UnitSymbolId> {
         match point {
+            PlannerDropPoint::BranchEntry { control, branch } => self
+                .liveness
+                .if_branch_live_in
+                .get(&control.index())
+                .and_then(|arms| arms.get(branch))
+                .or_else(|| {
+                    self.liveness
+                        .when_entry_live_in
+                        .get(&(control.index(), branch))
+                })
+                .unwrap_or(&self.liveness.expression_after[control.index()]),
             PlannerDropPoint::AfterExpression(expression)
             | PlannerDropPoint::AfterBinaryOperands(expression)
             | PlannerDropPoint::CallReturn(expression)

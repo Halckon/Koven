@@ -1,4 +1,4 @@
-//! Success assertions for the two unchanged direct-call sources in the original whole.
+//! Success assertions for direct-call prefixes cancelled by source control flow.
 //! Only inspect the real returned Program; no synthetic facts, IDs, or SSA are constructed.
 
 use lang_frontend::{
@@ -97,6 +97,63 @@ pub(super) fn assert_cancelled_scalar_call(
     }
     crate::llvm::render_verified_program(program)
         .expect("original migrated source emits verified LLVM");
+}
+
+pub(super) fn assert_cancelled_nested_break(
+    program: &Program,
+    entry: FunctionId,
+    sources: &SourceMap,
+) {
+    verify_program(program).expect("nested break source verifies");
+    let function = program
+        .module(entry.module())
+        .unwrap()
+        .function(entry)
+        .unwrap();
+    let endings: Vec<_> = function
+        .instructions
+        .iter()
+        .filter_map(
+            |instruction| match (&instruction.operation, &instruction.origin) {
+                (Operation::BorrowEnd { loan }, Origin::Source(span))
+                    if sources.slice(*span) == Ok("break") =>
+                {
+                    Some((instruction, *loan))
+                }
+                _ => None,
+            },
+        )
+        .collect();
+    let [(ending, loan)] = endings.as_slice() else {
+        panic!(
+            "expected one borrow end on the nested break edge: {}",
+            super::render_program(program)
+        );
+    };
+    let begins: Vec<_> = function
+        .instructions
+        .iter()
+        .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. }))
+        .collect();
+    let [begin] = begins.as_slice() else {
+        panic!("the nested break creates only the scalar prefix loan");
+    };
+    // The verifier checks the provenance of the loan transported through
+    // block parameters before the actual break cleanup.
+    let ended = EntityId::Loan(*loan);
+    assert!(
+        begin.results == [ended]
+            || function
+                .blocks
+                .iter()
+                .any(|block| { block.parameters.contains(&ended) })
+    );
+    let block = function.block(ending.block).unwrap();
+    assert_eq!(block.instructions.last(), Some(&ending.id));
+    assert!(!function.instructions.iter().any(|instruction| {
+        instruction.block == ending.block && is_direct_call(&instruction.operation)
+    }));
+    crate::llvm::render_verified_program(program).expect("nested break emits verified LLVM");
 }
 
 // The original single-exit loop reuses its break block, then returns Unit naturally.

@@ -10,7 +10,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         CallableTarget, FinalTypeAdmissionError, IntrinsicTypeConstructor, IterationProvider,
-        ParameterMode, SequentialContainerKind, SequentialIterationBinding, UnitCallTarget,
+        ParameterMode, SequentialContainerKind, SequentialIterationBinding,
         UnitSequentialIterationBinding, complete_compilation_unit_types, complete_file_types,
     },
 };
@@ -631,7 +631,7 @@ fun run() { val choose = ::identity; choose(::identity, ::identity) }";
 }
 
 #[test]
-fn selected_function_value_callee_is_checked_with_its_ordinary_argument() {
+fn function_value_callee_is_checked_with_its_unresolved_argument() {
     let text = "fun choose(callback: (Int) -> Int): Int = 1
 fun choose(callback: (String) -> String): String = \"text\"
 fun run(choose: (Int) -> Int): Int = choose(if (true) { val n = 1; val bad = n.fooBar(); 1 } else { 1 })";
@@ -675,10 +675,13 @@ fun run(choose: (Int) -> Int): Int = choose(if (true) { val n = 1; val bad = n.f
         let unit_id = |local| UnitExpressionId::new(unit_source, local);
         let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        assert_eq!(
-            typed.call(unit_id(call)).unwrap().target(),
-            UnitCallTarget::FunctionValue
-        );
+        assert!(typed.call(unit_id(call)).is_none());
+        assert!(matches!(
+            typed
+                .expression_type(unit_id(call))
+                .and_then(|ty| typed.types().get(ty)),
+            Some(UnitTypeKind::Deferred(DeferredReason::Call))
+        ));
         assert!(matches!(
             typed
                 .types()

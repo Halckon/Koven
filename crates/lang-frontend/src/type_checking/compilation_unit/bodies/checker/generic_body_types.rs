@@ -1,5 +1,6 @@
 //! Finite canonical publication from committed ordinary source calls, without rechecking bodies.
 
+use super::dispatch_owner_types::StaticDispatchOwners;
 use super::type_graph::{ConcreteTypes, substitute};
 use super::*;
 use crate::parser::NameMarker;
@@ -33,12 +34,13 @@ impl BodyChecker<'_> {
             return Ok(());
         }
         let templates = self.generic_body_templates()?;
-        if templates.is_empty() {
-            return Ok(());
-        }
+        let mut dispatch = StaticDispatchOwners::new(&self.signatures);
         let mut concrete = ConcreteTypes::for_closed_arguments();
         let mut seeds = BTreeMap::new();
         for call in &self.parts.calls {
+            if let Some((receiver, target)) = dispatch.call(call) {
+                dispatch.record(self.signatures.types(), receiver, target);
+            }
             let target = call.target();
             if !templates.contains_key(&target) {
                 continue;
@@ -71,12 +73,17 @@ impl BodyChecker<'_> {
                 if !key.1.is_empty() && count >= limit {
                     // The original planner owns budget/recipe arbitration. Publish only its finite frontier.
                     if self
-                        .materialize_body_instance(&templates, &key, call_span)?
+                        .materialize_body_instance(&templates, &key, call_span, &mut dispatch)?
                         .is_some()
                     {
                         for next in pending.difference(&planned) {
                             if self
-                                .materialize_body_instance(&templates, next, call_span)?
+                                .materialize_body_instance(
+                                    &templates,
+                                    next,
+                                    call_span,
+                                    &mut dispatch,
+                                )?
                                 .is_none()
                             {
                                 break;
@@ -85,7 +92,8 @@ impl BodyChecker<'_> {
                     }
                     break;
                 }
-                let Some(callees) = self.materialize_body_instance(&templates, &key, call_span)?
+                let Some(callees) =
+                    self.materialize_body_instance(&templates, &key, call_span, &mut dispatch)?
                 else {
                     break;
                 };
@@ -104,7 +112,7 @@ impl BodyChecker<'_> {
                 planned.insert(key);
             }
         }
-        Ok(())
+        dispatch.publish(&mut self.signatures, limit)
     }
 
     fn materialize_body_instance(
@@ -112,6 +120,7 @@ impl BodyChecker<'_> {
         templates: &BTreeMap<UnitCallTarget, Template>,
         key: &Instance,
         call_span: Span,
+        dispatch: &mut StaticDispatchOwners,
     ) -> Result<Option<Vec<Instance>>, CompilationUnitTypeError> {
         let template = templates
             .get(&key.0)
@@ -147,6 +156,15 @@ impl BodyChecker<'_> {
             self.signatures.types_mut().discard_after(checkpoint);
             self.emit(codes::INVALID_CONTAINER_ELEMENT, message, call_span)?;
             return Ok(None);
+        }
+        for &index in &template.calls {
+            if let Some((receiver, target)) = dispatch.call(&self.parts.calls[index]) {
+                // Template.types includes each committed call's receiver type.
+                let receiver = memo
+                    .get(&receiver)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                dispatch.record(self.signatures.types(), *receiver, target);
+            }
         }
         Ok(Some(callees))
     }
@@ -203,7 +221,7 @@ impl BodyChecker<'_> {
             }
             (!self.is_error(*argument)
                 && !self.is_deferred(*argument)
-                && !self.is_structurally_storable_type(*argument))
+                && !self.could_be_structurally_storable_type(*argument))
             .then_some(message)
         })
     }
@@ -231,7 +249,7 @@ impl BodyChecker<'_> {
                         ))
                     ) || (!self.is_error(*argument)
                         && !self.is_deferred(*argument)
-                        && !self.is_structurally_storable_type(*argument))))
+                        && !self.could_be_structurally_storable_type(*argument))))
                 .then_some(*parameter)
             })
     }

@@ -460,9 +460,7 @@ pub(super) fn plan_unit_instances_from_facts(
                     UnitCallableTarget::Declaration(declaration)
                 }
                 UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
-                UnitCallTarget::External(_)
-                | UnitCallTarget::FunctionValue
-                | UnitCallTarget::StructuralComponent(_) => continue,
+                UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => continue,
             };
             let mut call_recipe_failures = Vec::new();
             preflight_unit_call_recipes(

@@ -93,7 +93,7 @@ impl DropPlanner<'_, '_> {
         let assignment = UnitExpressionId::new(self.checker.source_unit, id);
         let assignment_target = UnitExpressionId::new(self.checker.source_unit, target);
         let assignment_value = UnitExpressionId::new(self.checker.source_unit, value);
-        if operator == AssignmentOperator::Assign
+        let replacement = operator == AssignmentOperator::Assign
             && self
                 .checker
                 .typed
@@ -104,7 +104,8 @@ impl DropPlanner<'_, '_> {
                         && descriptor.value() == assignment_value
                         && descriptor.operator() == AssignmentOperator::Assign
                         && descriptor.falls_through()
-                })
+                });
+        if replacement
             && let Some(projection) = self.checker.typed.aggregate_projection(assignment_target)
             && projection.kind() == UnitAggregateProjectionKind::Field
             && self.checker.typed.copyability(projection.ty()) == Copyability::MoveOnly
@@ -124,6 +125,27 @@ impl DropPlanner<'_, '_> {
             let symbol = place.root();
             if operator != AssignmentOperator::Assign {
                 self.expression(target, DropExpressionUse::Read, state)?;
+            }
+            if let Some(lambda) = state.lambda
+                && self
+                    .checker
+                    .exclusive_captures
+                    .roots
+                    .get(&self.checker.unit_expression(lambda))
+                    .is_some_and(|roots| roots.contains(&symbol))
+            {
+                if replacement && self.checker.is_move_only_variable(symbol) {
+                    self.push_fact(PlannerDropFact::new(
+                        PlannerDropPoint::BeforeReplacement(id),
+                        PlannerDropTarget::ReplacedCapture {
+                            closure: lambda,
+                            assignment: id,
+                            symbol,
+                        },
+                        self.checker.parsed.ast().expressions().get(target)?.span(),
+                    ));
+                }
+                return Ok(true);
             }
             let old = state.remove_value(symbol);
             let old_closure = state.take_closure(symbol);

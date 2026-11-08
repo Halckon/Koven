@@ -72,6 +72,15 @@ where
         }
     }
 
+    /// Detach a private suffix for later selective replay.
+    pub(super) fn take_after(&mut self, checkpoint: usize) -> Vec<K> {
+        let suffix = self.kinds.split_off(checkpoint);
+        for kind in &suffix {
+            self.ids.remove(kind);
+        }
+        suffix
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.kinds.is_empty()
     }

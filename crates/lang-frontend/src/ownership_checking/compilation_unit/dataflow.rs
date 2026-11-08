@@ -237,6 +237,7 @@ pub(super) fn analyze(
     let mut iteration_required_exits = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
+    let exclusive_captures = closure::exclusive_capture_index(closure_inputs.captures, typed);
     let empty_construction_descriptors = BTreeMap::new();
     let field_kinds = traversal::collect_field_mutability(inputs, names)?;
     let range_producers =
@@ -261,6 +262,7 @@ pub(super) fn analyze(
             call_inputs.arguments,
             call_inputs.receivers,
             closure_inputs.captures,
+            &exclusive_captures,
             closure_inputs.closures,
             closure_inputs.transferabilities,
             construction_descriptors
@@ -467,6 +469,7 @@ struct Checker<'a> {
     typed: &'a CompilationUnitTypes,
     bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
     captures: &'a [UnitClosureCaptureDescriptor],
+    exclusive_captures: &'a closure::ExclusiveCaptureIndex,
     closures: &'a [UnitClosureDescriptor],
     transferabilities: &'a [Transferability],
     construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
@@ -486,6 +489,10 @@ struct Checker<'a> {
     borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     expression_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
+    branch_capture_releases: closure::BranchCaptureReleases,
+    call_capture_sources: closure::CallCaptureSources,
+    if_branch_live_in: BTreeMap<usize, [std::collections::BTreeSet<UnitSymbolId>; 2]>,
+    when_entry_live_in: BTreeMap<(usize, usize), std::collections::BTreeSet<UnitSymbolId>>,
     statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     codes: Codes,
     diagnostics: &'a mut Vec<Diagnostic>,
@@ -533,6 +540,7 @@ impl<'a> Checker<'a> {
         contracts: &[UnitCallArgumentOwnershipContract],
         receiver_contracts: &[UnitCallReceiverOwnershipContract],
         captures: &'a [UnitClosureCaptureDescriptor],
+        exclusive_captures: &'a closure::ExclusiveCaptureIndex,
         closures: &'a [UnitClosureDescriptor],
         transferabilities: &'a [Transferability],
         construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
@@ -622,6 +630,7 @@ impl<'a> Checker<'a> {
             typed,
             bindings,
             captures,
+            exclusive_captures,
             closures,
             transferabilities,
             construction_descriptors,
@@ -639,6 +648,10 @@ impl<'a> Checker<'a> {
             current_borrow_return: None,
             borrow_return_origins: Vec::new(),
             expression_live_after: Vec::new(),
+            branch_capture_releases: BTreeMap::new(),
+            call_capture_sources: BTreeMap::new(),
+            if_branch_live_in: BTreeMap::new(),
+            when_entry_live_in: BTreeMap::new(),
             statement_live_after: Vec::new(),
             codes,
             diagnostics,
@@ -677,23 +690,6 @@ impl<'a> Checker<'a> {
                         })
                 })
             })
-    }
-
-    fn run(&mut self) -> Result<drop_planner::Analysis, OwnershipCheckingError> {
-        for (item, _) in self.parsed.ast().items().iter() {
-            self.collect_mutability(item)?;
-        }
-        let liveness = liveness::build(self, false)?;
-        self.expression_live_after = liveness.expression_after;
-        self.statement_live_after = liveness.statement_after;
-        for &root in self.parsed.roots() {
-            self.check_item(root, State::default())?;
-        }
-        if self.diagnostics.is_empty() && self.typed.has_valid_type_facts() {
-            drop_planner::plan(self)
-        } else {
-            Ok(drop_planner::Analysis::default())
-        }
     }
 
     fn chain_expression(
@@ -910,7 +906,7 @@ impl<'a> Checker<'a> {
         if (access == AccessKind::Mutation
             || (access == AccessKind::ExclusiveLoan
                 && state.non_owning.contains_key(&place.root())))
-            && let Some(origin) = state.immutable_captures.get(&place.root()).copied()
+            && let Some(origin) = state.immutable_capture_origin(place.root())
         {
             let mut diagnostic = Diagnostic::new(
                 self.sources,

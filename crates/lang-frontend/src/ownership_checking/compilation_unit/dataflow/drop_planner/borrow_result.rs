@@ -59,6 +59,15 @@ impl DropPlanner<'_, '_> {
         borrowed_roots: &mut Vec<UnitSymbolId>,
         state: &mut ValueState,
     ) {
+        state.pending_capture_borrows.retain(|borrow| {
+            if borrow.call != id {
+                return true;
+            }
+            if !borrowed_roots.contains(&borrow.symbol) {
+                borrowed_roots.push(borrow.symbol);
+            }
+            false
+        });
         state.pending_borrows.retain(|(call, root)| {
             if *call != id {
                 return true;

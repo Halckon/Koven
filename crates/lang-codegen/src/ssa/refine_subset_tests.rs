@@ -325,6 +325,9 @@ fn sequential_for_temporary_container_scope_has_field_replace_routing_pairs() {
     assert!(res.is_ok());
 }
 
+#[path = "refine_subset_tests/temporary_sequential_for.rs"]
+mod temporary_sequential_for;
+
 #[test]
 fn call_has_field_replace_admission_pairs() {
     // Direct call with control transfer in argument tree:
@@ -573,9 +576,9 @@ fn inout_receiver_delegation_object_and_destructuring_route_to_refine() {
          fun f(): Int = (Registry).ping()",
         "value class Pair(val a: Int, val b: String)\n\
          fun f(): Int {\n\
-             val (x, y) = Pair(10, \"ok\")\n\
-             println(y)\n\
-             return x\n\
+             val (b, a) = Pair(10, \"ok\")\n\
+             println(b)\n\
+             return a\n\
          }",
     ] {
         let (res, routed) = route(source);

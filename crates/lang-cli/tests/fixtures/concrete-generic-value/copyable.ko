@@ -6,8 +6,8 @@ enum class Choice<T, E> { Yes(item: T), No(reason: E) }
 fun main(): Unit {
     val inferred = Duo(11, 17)
     val copied = inferred
-    val (left, right) = inferred
-    if (left == 11 && right == 17 && copied.first == 11 && copied.second == 17) {
+    val (second, first) = inferred
+    if (first == 11 && second == 17 && copied.first == 11 && copied.second == 17) {
         println("copy-and-destructure")
     } else {
         println("bad-copy-and-destructure")

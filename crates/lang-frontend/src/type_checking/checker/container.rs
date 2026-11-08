@@ -210,6 +210,7 @@ impl Checker<'_> {
                 .filter(|(expected_kind, _)| *expected_kind == kind)
                 .map(|(_, element)| element)
         });
+        let mut reachable = true;
         let element = if let Some(element) = explicit.or(contextual) {
             element
         } else if let Some(first) = arguments.first() {
@@ -219,9 +220,14 @@ impl Checker<'_> {
             ) {
                 let nothing = self.builtin(BuiltinType::Nothing);
                 let nullable_nothing = self.types.intern(TypeKind::Nullable(nothing));
-                self.check_expression(first.value, Some(nullable_nothing), None)?
+                self.check_pending_operand(
+                    first.value,
+                    Some(nullable_nothing),
+                    None,
+                    &mut reachable,
+                )?
             } else {
-                self.check_expression(first.value, None, None)?
+                self.check_pending_operand(first.value, None, None, &mut reachable)?
             };
             if self.is_builtin(first_result.ty, BuiltinType::Nothing)
                 || matches!(self.kind(first_result.ty), TypeKind::Nullable(inner) if self.is_builtin(*inner, BuiltinType::Nothing))
@@ -251,7 +257,7 @@ impl Checker<'_> {
                 continue;
             }
             valid &= !self
-                .check_expression(argument.value, Some(element), None)
+                .check_pending_operand(argument.value, Some(element), None, &mut reachable)
                 .map(|result| self.is_error(result.ty))?;
         }
         if arguments
@@ -325,6 +331,7 @@ impl Checker<'_> {
                 }],
                 return_type: element,
             });
+            let mut reachable = true;
             for (index, argument) in arguments.iter().enumerate() {
                 if argument.named_prefix.is_some()
                     || !matches!(
@@ -342,7 +349,7 @@ impl Checker<'_> {
                 }
                 let expected = if index == 0 { int } else { initializer };
                 valid &= !self
-                    .check_expression(argument.value, Some(expected), None)
+                    .check_pending_operand(argument.value, Some(expected), None, &mut reachable)
                     .map(|result| self.is_error(result.ty))?;
             }
         }
@@ -402,10 +409,7 @@ impl Checker<'_> {
     ) -> Result<(), TypeCheckingError> {
         let deferred = self.deferred(DeferredReason::Call);
         self.set_expression(callee, deferred);
-        for argument in arguments {
-            self.check_expression(argument.value, None, None)?;
-        }
-        Ok(())
+        self.check_construction_operands(arguments)
     }
 
     pub(super) fn check_container_index(
@@ -418,15 +422,16 @@ impl Checker<'_> {
         if let Some(res) = self.check_map_index(expression, receiver, receiver_result, index)? {
             return Ok(res);
         }
+        let mut reachable = self.pending_expression_exit(receiver, receiver_result.falls_through);
+        let index_result = self.check_pending_operand(index, None, None, &mut reachable)?;
+        self.note_pending_exit(expression, reachable);
         let Some((container, element)) = self.container_parts(receiver_result.ty) else {
-            self.check_expression(index, None, None)?;
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Index),
                 falls_through: receiver_result.falls_through,
             });
         };
         let int = self.builtin(BuiltinType::Int);
-        let index_result = self.check_expression(index, None, None)?;
         if !self.assignable(index_result.ty, int)
             && !self.is_error(index_result.ty)
             && !self.is_deferred(index_result.ty)
@@ -482,7 +487,8 @@ impl Checker<'_> {
                     operator_span,
                 )?;
             }
-            let value_result = self.check_expression(value, Some(place.element_type()), None)?;
+            let value_result =
+                self.check_pending_receiver_operand(target, value, place.element_type())?;
             valid &= !self.is_error(value_result.ty);
             if operator != AssignmentOperator::Assign && !self.is_numeric(place.element_type()) {
                 self.emit(
@@ -502,7 +508,8 @@ impl Checker<'_> {
             }));
         }
         if self.is_read_only_container_size(target)? {
-            self.check_expression(value, None, None)?;
+            let mut reachable = self.pending_checked_exit(target);
+            self.check_pending_operand(value, None, None, &mut reachable)?;
             self.emit(
                 self.immutable_container_place_code,
                 "sequential container size is read-only",
@@ -777,7 +784,8 @@ impl Checker<'_> {
             }));
         }
         let element_arg = &arguments[0];
-        let element_result = self.check_expression(element_arg.value, Some(element_type), None)?;
+        let element_result =
+            self.check_pending_receiver_operand(receiver, element_arg.value, element_type)?;
         if !self.is_error(element_result.ty)
             && !self.is_deferred(element_result.ty)
             && !self.assignable(element_result.ty, element_type)
@@ -902,7 +910,8 @@ impl Checker<'_> {
             }));
         }
         let index_arg = &arguments[0];
-        let index_result = self.check_expression(index_arg.value, Some(int_type), None)?;
+        let index_result =
+            self.check_pending_receiver_operand(receiver, index_arg.value, int_type)?;
         if !self.is_error(index_result.ty)
             && !self.is_deferred(index_result.ty)
             && !self.assignable(index_result.ty, int_type)
@@ -1099,7 +1108,9 @@ impl Checker<'_> {
             }));
         }
         let index_arg = &arguments[0];
-        let index_result = self.check_expression(index_arg.value, Some(int_type), None)?;
+        let mut reachable = self.pending_expression_exit(receiver, falls_through);
+        let index_result =
+            self.check_pending_operand(index_arg.value, Some(int_type), None, &mut reachable)?;
         if !self.is_error(index_result.ty)
             && !self.is_deferred(index_result.ty)
             && !self.assignable(index_result.ty, int_type)
@@ -1112,7 +1123,12 @@ impl Checker<'_> {
             )?;
         }
         let element_arg = &arguments[1];
-        let element_result = self.check_expression(element_arg.value, Some(element_type), None)?;
+        let element_result = self.check_pending_operand(
+            element_arg.value,
+            Some(element_type),
+            None,
+            &mut reachable,
+        )?;
         if !self.is_error(element_result.ty)
             && !self.is_deferred(element_result.ty)
             && !self.assignable(element_result.ty, element_type)

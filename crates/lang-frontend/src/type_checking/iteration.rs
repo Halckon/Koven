@@ -1,9 +1,25 @@
 //! 封闭 for provider 的交付事实；不证明 Phase 3 loan 或 native 可执行性。
-use super::{BuiltinType, ParameterMode, SequentialContainerKind, TypeId};
+use std::collections::BTreeSet;
+
+use super::{BuiltinType, ParameterMode, SequentialContainerKind, TypeId, TypedFile};
 use crate::{
     ast::{ExpressionId, StatementId},
     name_resolution::SymbolId,
 };
+
+#[derive(Clone, Debug)]
+pub(crate) struct FileIterations {
+    pub(super) sequential: Vec<SequentialIterationDescriptor>,
+    pub(super) pending_sources: BTreeSet<usize>,
+}
+
+impl TypedFile {
+    /// Only the recovery ownership walk can use this marker. Final admission
+    /// still demands the source diagnostic or a complete provider fact.
+    pub(crate) fn iteration_source_pending(&self, source: ExpressionId) -> bool {
+        self.iterations.pending_sources.contains(&source.index())
+    }
+}
 
 /// 编译器绑定的只读迭代来源；View 不取得元素所有权。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

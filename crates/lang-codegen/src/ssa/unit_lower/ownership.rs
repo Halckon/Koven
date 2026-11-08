@@ -351,7 +351,9 @@ impl UnitExpressionLowerer<'_> {
                 value
             }
             UnitDropTarget::Captured { .. } => return Ok(()),
-            UnitDropTarget::ReplacedElement(_) | UnitDropTarget::ReplacedField { .. } => {
+            UnitDropTarget::ReplacedElement(_)
+            | UnitDropTarget::ReplacedField { .. }
+            | UnitDropTarget::ReplacedCapture { .. } => {
                 return Err(lowering_error(
                     LoweringErrorKind::UnsupportedNode,
                     fact.value_origin(),
@@ -492,7 +494,8 @@ impl UnitExpressionLowerer<'_> {
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::Captured { .. }
                 | UnitDropTarget::ReplacedElement(_)
-                | UnitDropTarget::ReplacedField { .. } => None,
+                | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedCapture { .. } => None,
             })
             .collect::<Vec<_>>();
         let live_closure_facts = facts
@@ -504,7 +507,8 @@ impl UnitExpressionLowerer<'_> {
                 UnitDropTarget::This(_)
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::ReplacedElement(_)
-                | UnitDropTarget::ReplacedField { .. } => false,
+                | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedCapture { .. } => false,
             })
             .collect::<Vec<_>>();
         self.validate_closure_drop_facts(&live_closure_facts)?;
@@ -515,7 +519,8 @@ impl UnitExpressionLowerer<'_> {
                 UnitDropTarget::This(_)
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::ReplacedElement(_)
-                | UnitDropTarget::ReplacedField { .. } => {
+                | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedCapture { .. } => {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             };

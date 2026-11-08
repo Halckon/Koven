@@ -102,12 +102,10 @@ pub(super) fn static_recovery_probes() -> [Probe; 2] {
 
 pub(super) fn assignment_capture_probe() -> Probe {
     Probe {
-        name: "p42_lambda_mutate.ko",
-        text: include_str!(
-            "../../../lang-frontend/tests/fixtures/simple-assignment-0325/p42_lambda_mutate.ko"
-        ),
+        name: "assignment_capture_conflict.ko",
+        text: include_str!("../fixtures/simple-assignment-0325/assignment_capture_conflict.ko"),
         code: "L0135",
-        primary: 129..132,
+        primary: 139..142,
         token: "sum",
     }
 }

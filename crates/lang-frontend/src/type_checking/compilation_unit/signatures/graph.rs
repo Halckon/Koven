@@ -5,8 +5,8 @@ use crate::{
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
     parser::{ClassifierDeclaration, Item, NameMarker, TypeParameter, TypeRef},
     type_checking::{
-        BuiltinType, Capability, IntrinsicTypeConstructor, NominalKind, TypeCheckingError,
-        UnitTypeRefId,
+        BuiltinType, Capability, DeferredReason, IntrinsicTypeConstructor, NominalKind,
+        TypeCheckingError, UnitTypeRefId,
     },
 };
 
@@ -22,6 +22,13 @@ mod members;
 mod capabilities;
 
 impl SignatureCollector<'_> {
+    pub(super) fn has_unbound_external_head(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.types.get(ty),
+            Some(UnitTypeKind::Deferred(DeferredReason::UnboundExternalType))
+        )
+    }
+
     pub(super) fn collect_direct_interfaces(
         &mut self,
         source: SourceUnitId,
@@ -32,7 +39,7 @@ impl SignatureCollector<'_> {
         let mut first_by_declaration = BTreeMap::new();
         for entry in &classifier.supertypes {
             let ty = self.resolve_type_ref(source, entry.type_ref)?;
-            if self.is_error(ty) {
+            if self.is_error(ty) || self.has_unbound_external_head(ty) {
                 continue;
             }
             let span = self.inputs[source.index()]
@@ -126,7 +133,10 @@ impl SignatureCollector<'_> {
             {
                 UnitTypeParameterBound::Interface(ty)
             }
-            Some(UnitTypeKind::Error) | None => UnitTypeParameterBound::Error,
+            Some(
+                UnitTypeKind::Error | UnitTypeKind::Deferred(DeferredReason::UnboundExternalType),
+            )
+            | None => UnitTypeParameterBound::Error,
             _ => {
                 let primary = self.inputs[source.index()]
                     .ast()
@@ -378,7 +388,10 @@ impl SignatureCollector<'_> {
                         continue;
                     };
                     let (key, value) = (*key, *value);
-                    if !self.is_error(key) && !self.is_hashable_type(key) {
+                    if !self.is_error(key)
+                        && !self.has_unbound_external_head(key)
+                        && !self.is_hashable_type(key)
+                    {
                         let span = self.inputs[source_index]
                             .ast()
                             .type_refs()
@@ -452,6 +465,8 @@ impl SignatureCollector<'_> {
                         UnitTypeParameterBound::Interface(bound) => {
                             let bound = self.substitute_type(bound, &substitutions)?;
                             if !self.is_error(argument)
+                                && !self.has_unbound_external_head(argument)
+                                && !self.has_unbound_external_head(bound)
                                 && !self.satisfies_interface(argument, bound)?
                             {
                                 self.emit_with_label(
@@ -517,7 +532,8 @@ impl SignatureCollector<'_> {
                 UnitTypeKind::Builtin(_)
                 | UnitTypeKind::Function { .. }
                 | UnitTypeKind::Intrinsic { .. }
-                | UnitTypeKind::TypeParameter(_),
+                | UnitTypeKind::TypeParameter(_)
+                | UnitTypeKind::Deferred(DeferredReason::UnboundExternalType),
             ) => true,
             Some(
                 UnitTypeKind::Nullable(inner)

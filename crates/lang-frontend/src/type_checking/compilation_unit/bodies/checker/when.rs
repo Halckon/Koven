@@ -9,8 +9,8 @@ use crate::{
     parser::{Expression, LiteralKind, WhenCondition, WhenEntry},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, ExpressionUse, NominalKind, TypeCheckingError,
-        UnitTypeId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionUse, NominalKind,
+        TypeCheckingError, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -44,6 +44,8 @@ impl BodyChecker<'_> {
         expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let value_use = self.expression_use(source, expression) == ExpressionUse::Value;
+        let deferred = self.deferred_facts.len();
         let subject_type = if let Some(subject) = subject {
             Some(
                 self.check_expression(source, subject, None, None, return_type)?
@@ -52,6 +54,10 @@ impl BodyChecker<'_> {
         } else {
             None
         };
+        let mut replacement_pending = value_use
+            && subject.zip(subject_type).is_some_and(|(subject, ty)| {
+                self.replacement_value_pending(UnitExpressionId::new(source, subject), ty, deferred)
+            });
         let subject_key = subject.and_then(|subject| self.stable_flow_key(source, subject));
         let domain = subject_type.and_then(|ty| self.closed_domain(ty));
         let nullable_inner = subject_type.and_then(|ty| match self.signatures.types().get(ty) {
@@ -123,15 +129,23 @@ impl BodyChecker<'_> {
                 }
             } else {
                 for condition in &entry.conditions {
+                    let deferred = self.deferred_facts.len();
                     let condition_span = self.when_condition_span(source, condition)?;
-                    let checked = self.check_when_condition(
-                        source,
-                        subject_type,
-                        subject_key,
-                        domain.as_deref(),
-                        condition,
-                        return_type,
-                    )?;
+                    let checked =
+                        self.check_loop_reachable(!remaining_domain.is_empty(), |checker| {
+                            checker.check_when_condition(
+                                source,
+                                subject_type,
+                                subject_key,
+                                domain.as_deref(),
+                                condition,
+                                return_type,
+                            )
+                        })?;
+                    if value_use && !remaining_domain.is_empty() {
+                        replacement_pending |= !checked.valid
+                            || self.when_selector_pending(source, condition, deferred);
+                    }
                     let source_valid = self.when_source_valid(subject_source);
                     let (matched, missed) = split_domain(
                         &remaining_domain,
@@ -219,8 +233,7 @@ impl BodyChecker<'_> {
                 let facts = self.facts_for_single_case(subject_type, subject_key, atoms)?;
                 self.flow_facts.extend(facts);
             }
-            let branch_expected = if self.expression_use(source, expression) == ExpressionUse::Value
-            {
+            let branch_expected = if value_use {
                 self.control_branch_expected(source, entry.body, expected)?
             } else {
                 expected
@@ -232,13 +245,17 @@ impl BodyChecker<'_> {
                 &body_domain,
                 entry_source_valid,
             );
-            let result = self.check_value_body(
-                source,
-                entry.body,
-                branch_expected,
-                expected_span,
-                return_type,
-            );
+            let mut branch_pending = false;
+            let result = self.check_loop_reachable(!body_domain.is_empty(), |checker| {
+                checker.check_value_body_with_replacement(
+                    source,
+                    entry.body,
+                    branch_expected,
+                    expected_span,
+                    return_type,
+                    value_use.then_some(&mut branch_pending),
+                )
+            });
             self.active_nullable_whens.truncate(frame_base);
             let result = result?;
             super::nullable_when::finish_entry(
@@ -249,6 +266,7 @@ impl BodyChecker<'_> {
                 result.falls_through,
             );
             if !body_domain.is_empty() && result.falls_through {
+                replacement_pending |= branch_pending;
                 exits.push((self.flow_facts.clone(), self.flow_versions.clone()));
             }
             branches.push(result);
@@ -258,7 +276,6 @@ impl BodyChecker<'_> {
             || domain
                 .as_ref()
                 .is_some_and(|domain| domain.iter().all(|atom| covered.contains_key(atom)));
-        let value_use = self.expression_use(source, expression) == ExpressionUse::Value;
         if value_use && !exhaustive {
             self.emit_non_exhaustive_when(keyword_span, domain.as_deref(), &covered)?;
         }
@@ -287,13 +304,48 @@ impl BodyChecker<'_> {
         } else if let Some(expected) = expected.filter(|ty| !self.is_deferred(*ty)) {
             expected
         } else {
-            self.join_when_branches(source, entries, &branches)?
+            self.join_when_branches(
+                UnitExpressionId::new(source, expression),
+                entries,
+                &branches,
+                expected,
+            )?
         };
         if let Some(mut descriptor) = nullable_when {
             descriptor.falls_through = falls_through;
             self.parts.nullable.whens.push(descriptor);
         }
+        if value_use && exhaustive {
+            self.replacement_values.insert(
+                UnitExpressionId::new(source, expression),
+                replacement_pending,
+            );
+        }
         Ok(ExpressionCheck { ty, falls_through })
+    }
+
+    fn when_selector_pending(
+        &self,
+        source: SourceUnitId,
+        condition: &WhenCondition,
+        deferred: usize,
+    ) -> bool {
+        match condition {
+            WhenCondition::Expression(expression) | WhenCondition::Contains { expression, .. } => {
+                let key = UnitExpressionId::new(source, *expression);
+                self.parts
+                    .expression_types
+                    .get(&key)
+                    .is_some_and(|&ty| self.replacement_value_pending(key, ty, deferred))
+            }
+            WhenCondition::TypeTest { type_ref, .. } => {
+                let key = UnitTypeRefId::new(source, *type_ref);
+                self.parts
+                    .type_ref_types
+                    .get(&key)
+                    .is_some_and(|&ty| self.contains_unresolved_call_type(ty))
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -662,26 +714,76 @@ impl BodyChecker<'_> {
 
     fn join_when_branches(
         &mut self,
-        source: SourceUnitId,
+        expression: UnitExpressionId,
         entries: &[WhenEntry],
         branches: &[ExpressionCheck],
+        expected: Option<UnitTypeId>,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        let source = expression.source_unit();
         let mut joined: Option<(UnitTypeId, usize)> = None;
+        let contextual = matches!(
+            expected.and_then(|ty| self.signatures.types().get(ty)),
+            Some(UnitTypeKind::Deferred(
+                DeferredReason::Call | DeferredReason::ContextualArgument
+            ))
+        );
+        let mut unresolved = None;
         let mut failed = false;
         for (index, (entry, branch)) in entries.iter().zip(branches).enumerate() {
             if self.is_error(branch.ty) || failed {
                 continue;
             }
-            let Some((current, origin)) = joined else {
-                joined = Some((branch.ty, index));
+            let requirement = self.contextual_branch_requirement(source, entry.body)?;
+            let mut branch_ty =
+                self.contextual_when_branch_type(source, entry.body, branch.ty, expected)?;
+            // A wholly unknown branch cannot erase a requirement proved by
+            // another branch, but the result still depends on its resolution.
+            if contextual
+                && self.is_unresolved_call_type(branch_ty)
+                && !self.has_contextual_integer(branch_ty)
+            {
+                unresolved.get_or_insert(branch_ty);
+                let Some(required) = requirement else {
+                    continue;
+                };
+                branch_ty = required;
+            }
+            let Some((current, origin)) =
+                joined.filter(|&(current, _)| !self.is_builtin(current, BuiltinType::Nothing))
+            else {
+                if let Some(required) = requirement {
+                    self.parts
+                        .contextual_argument_requirements
+                        .insert(expression, required);
+                }
+                joined = Some((branch_ty, index));
                 continue;
             };
-            if let Some(ty) = self.join_control_types(current, branch.ty) {
-                let origin = if self.is_builtin(current, BuiltinType::Nothing) && ty != current {
-                    index
-                } else {
-                    origin
-                };
+            if self.is_builtin(branch.ty, BuiltinType::Nothing) {
+                continue;
+            }
+            let previous = self
+                .parts
+                .contextual_argument_requirements
+                .get(&expression)
+                .copied();
+            if let Some(ty) = self.join_value_branches(
+                expression,
+                (entries[origin].body, current),
+                (entry.body, branch_ty),
+                expected,
+            )? {
+                let required = self
+                    .parts
+                    .contextual_argument_requirements
+                    .get(&expression)
+                    .copied();
+                let origin =
+                    if required != previous && required == Some(requirement.unwrap_or(branch_ty)) {
+                        index
+                    } else {
+                        origin
+                    };
                 joined = Some((ty, origin));
             } else {
                 let primary = self
@@ -712,9 +814,23 @@ impl BodyChecker<'_> {
             }
         }
         Ok(if failed {
+            self.parts
+                .contextual_argument_requirements
+                .remove(&expression);
             self.error_type()
+        } else if let Some((ty, _)) = joined {
+            if let Some(deferred) = unresolved
+                && !self.contains_unresolved_call_type(ty)
+            {
+                self.parts
+                    .contextual_argument_requirements
+                    .insert(expression, ty);
+                deferred
+            } else {
+                ty
+            }
         } else {
-            joined.map_or_else(|| self.builtin(BuiltinType::Unit), |(ty, _)| ty)
+            unresolved.unwrap_or_else(|| self.builtin(BuiltinType::Unit))
         })
     }
 }

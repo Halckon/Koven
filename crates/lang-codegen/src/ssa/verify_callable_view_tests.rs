@@ -1,5 +1,7 @@
 //! ADR-0034 callable views at the SSA layer (SPEC-0364 step 1): the positive shapes verify
 //! and render, and every escape or lifetime violation is rejected by the verifier itself.
+mod capture_reads;
+
 use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 

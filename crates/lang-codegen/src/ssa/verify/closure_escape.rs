@@ -3,7 +3,7 @@
 pub(in crate::ssa::verify) mod proof;
 mod types;
 
-pub(super) use types::TypeCaptures;
+pub(in crate::ssa) use types::TypeCaptures;
 
 use super::{VerifyError, VerifyErrorKind, VerifyLocation};
 use crate::ssa::model::{EntityId, Function, Operation, TerminatorKind};
@@ -34,7 +34,9 @@ pub(super) fn verify(function: &Function, types: &TypeCaptures, errors: &mut Vec
                     .iter()
                     .chain(arguments)
                     .any(|argument| matches!(argument, EntityId::Value(value) if may(*value))),
-                Operation::CallableInvoke { arguments, .. }
+                Operation::BorrowCall { arguments, .. }
+                | Operation::RangeCall { arguments, .. }
+                | Operation::CallableInvoke { arguments, .. }
                 | Operation::CallableInvokeView { arguments, .. } => arguments
                     .iter()
                     .any(|argument| matches!(argument, EntityId::Value(value) if may(*value))),

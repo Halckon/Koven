@@ -26,6 +26,12 @@ use parser_test_assertions::parse_file_twice;
 #[path = "ownership_closures/callable_provenance.rs"]
 mod callable_provenance;
 
+#[path = "ownership_closures/exclusive_lifetime.rs"]
+mod exclusive_lifetime;
+
+#[path = "ownership_closures/capture_replacement.rs"]
+mod capture_replacement;
+
 #[path = "support/borrow_rejection_unit.rs"]
 mod borrow_rejection_unit;
 
@@ -583,7 +589,7 @@ fn implicit_member_call_captures_this_instead_of_creating_a_capture_free_closure
 }
 
 #[test]
-fn captured_names_cannot_be_moved_from_shared_or_assigned() {
+fn shared_capture_moves_are_rejected_and_copyable_exclusive_assignments_are_admitted() {
     for rooted in [false, true] {
         let moved = "class Resource {}\n\
                  fun take(own item: Resource): Unit {}\n\
@@ -596,7 +602,15 @@ fn captured_names_cannot_be_moved_from_shared_or_assigned() {
                         var number = 1\n\
                         val closure: () -> Unit = { number = 2 }\n\
                     }";
-        assert_eq!(unit_codes(&analyzed_unit(assigned, rooted)), ["L0135"]);
+        let owned = analyzed_unit(assigned, rooted);
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert_eq!(owned.captures().len(), 1);
+        assert_eq!(owned.captures()[0].borrow_kind(), Some(LoanKind::Exclusive));
+        assert_eq!(
+            owned.closures()[0].transferability(),
+            Transferability::NotTransferable
+        );
+        assert!(owned.validate().is_ok());
     }
 }
 

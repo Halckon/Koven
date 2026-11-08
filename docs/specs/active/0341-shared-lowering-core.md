@@ -1512,6 +1512,9 @@ call 的 External `replace` symbol 身份，避免仅由空 primitive 表推断�
 
 ## 74. Automatic component L0132 保全候选（2026-11-03）
 
+本节和 §82 的自动 component 观察属于历史迁移证据。现行 Guide 合同及保留的真实字段
+L0132 回归见 [SPEC-0392 §64](0392-compiler-layered-review.md#64-r2-退役自动-componentn)。
+
 独立分支 `fix/spec-0341-component-partial-move` 基于远端 main
 `041e8238fb8793ee7837fbbccdc704a77e83c1fd`，不叠加未合入的 L0082 或 owner 候选。
 
@@ -3608,3 +3611,13 @@ Mac Rust1.96、locked/offline、独立 target、默认 debug profile：初始四
 本组合头的 mixed Return 精确测试和 frontend Clippy 因磁盘容量限制未完成；
 未运行 native、故障注入、校准、Linux或官方CI。本地历史通过不能替代本组合头验收。
 D10/E2仍in-progress，发布只保存工作，不自动合并。
+
+### 合入候选同步（2026-11-08）
+
+#351 已合入后，将当前 main `d8c7393a` 无冲突合入 #352 的 `77b9e727`，保留双方代码与验收。
+相对新主干的前端 patch-id 与原 #352 一致，不修改 producer 或扩大 D10/E2 完成范围。
+Mac Rust1.96、独立 target、默认 debug profile：`ownership_containers` 全45项和
+`unit_direct_call_loan_ends` 全60项通过（合计105项，零失败、零忽略），frontend all-targets
+Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 diff 检查通过。
+旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
+`60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。

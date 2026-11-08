@@ -402,7 +402,7 @@ impl Checker<'_> {
         }
 
         let arg = &arguments[0];
-        let arg_result = self.check_expression(arg.value, Some(key_type), None)?;
+        let arg_result = self.check_pending_receiver_operand(receiver, arg.value, key_type)?;
         if !self.is_error(arg_result.ty)
             && !self.is_deferred(arg_result.ty)
             && !self.assignable(arg_result.ty, key_type)
@@ -481,7 +481,7 @@ impl Checker<'_> {
         }
 
         let arg = &arguments[0];
-        let arg_result = self.check_expression(arg.value, Some(key_type), None)?;
+        let arg_result = self.check_pending_receiver_operand(receiver, arg.value, key_type)?;
         if !self.is_error(arg_result.ty)
             && !self.is_deferred(arg_result.ty)
             && !self.assignable(arg_result.ty, key_type)
@@ -534,8 +534,11 @@ impl Checker<'_> {
 
         let key_arg = &arguments[0];
         let val_arg = &arguments[1];
-        let key_result = self.check_expression(key_arg.value, Some(key_type), None)?;
-        let val_result = self.check_expression(val_arg.value, Some(value_type), None)?;
+        let mut reachable = self.pending_expression_exit(receiver, receiver_falls_through);
+        let key_result =
+            self.check_pending_operand(key_arg.value, Some(key_type), None, &mut reachable)?;
+        let val_result =
+            self.check_pending_operand(val_arg.value, Some(value_type), None, &mut reachable)?;
 
         if !self.is_error(key_result.ty)
             && !self.is_deferred(key_result.ty)
@@ -604,7 +607,7 @@ impl Checker<'_> {
         }
 
         let key_arg = &arguments[0];
-        let key_result = self.check_expression(key_arg.value, Some(key_type), None)?;
+        let key_result = self.check_pending_receiver_operand(receiver, key_arg.value, key_type)?;
         if !self.is_error(key_result.ty)
             && !self.is_deferred(key_result.ty)
             && !self.assignable(key_result.ty, key_type)
@@ -650,7 +653,10 @@ impl Checker<'_> {
             return Ok(None);
         };
 
-        let index_result = self.check_expression(index, Some(key_type), None)?;
+        let mut reachable = self.pending_expression_exit(receiver, receiver_result.falls_through);
+        let index_result =
+            self.check_pending_operand(index, Some(key_type), None, &mut reachable)?;
+        self.note_pending_exit(expression, reachable);
         if !self.assignable(index_result.ty, key_type)
             && !self.is_error(index_result.ty)
             && !self.is_deferred(index_result.ty)
@@ -735,14 +741,16 @@ impl Checker<'_> {
             return Ok(None);
         };
 
+        let mut reachable = self.pending_expression_exit(receiver, receiver_result.falls_through);
         if constructor != IntrinsicTypeConstructor::MutableMap {
             self.emit(
                 self.immutable_container_place_code,
                 "cannot mutate read-only Map; use MutableMap",
                 operator_span,
             )?;
-            self.check_expression(index, Some(key_type), None)?;
-            self.check_expression(value, Some(value_type), None)?;
+            self.check_pending_operand(index, Some(key_type), None, &mut reachable)?;
+            self.note_pending_exit(target, reachable);
+            self.check_pending_operand(value, Some(value_type), None, &mut reachable)?;
             return Ok(Some(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -757,7 +765,9 @@ impl Checker<'_> {
             )?;
         }
 
-        let index_result = self.check_expression(index, Some(key_type), None)?;
+        let index_result =
+            self.check_pending_operand(index, Some(key_type), None, &mut reachable)?;
+        self.note_pending_exit(target, reachable);
         if !self.assignable(index_result.ty, key_type)
             && !self.is_error(index_result.ty)
             && !self.is_deferred(index_result.ty)
@@ -769,7 +779,8 @@ impl Checker<'_> {
             )?;
         }
 
-        let val_result = self.check_expression(value, Some(value_type), None)?;
+        let val_result =
+            self.check_pending_operand(value, Some(value_type), None, &mut reachable)?;
         if !self.assignable(val_result.ty, value_type)
             && !self.is_error(val_result.ty)
             && !self.is_deferred(val_result.ty)

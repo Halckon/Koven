@@ -16,6 +16,9 @@ use lang_frontend::{
     },
 };
 
+#[path = "final_type_admission/pending_iteration_source.rs"]
+mod pending_iteration_source;
+
 const FROZEN: &[(&str, &str, Option<DeferredReason>)] = &[
     (
         include_str!("fixtures/final-type-admission-0319/r01_bogus_member.ko"),

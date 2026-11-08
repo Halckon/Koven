@@ -8,6 +8,10 @@
 规范化 `T`、源码顺序两个 operand；unit 身份包含 source unit。同名源码函数仍走普通调用。
 普通调用的 Inout 参数立即建立 exclusive loan，不采用仅限方法 receiver 的 two-phase 模型。
 
+Unit 类型恢复跟踪可写局部绑定在原语正常出口上的值状态。replace 分别保留旧值结果和
+新值写回，swap 交换两个位置的状态。待定求值不会发布原语描述符；私有完成状态阻止
+提前退出提交写回，发散原语原有的公开静态身份仍供后续阶段核对。
+
 Phase 3 只为正常继续到 commit 的 owned mutable `var` whole-root 发布
 `OwnershipPrimitiveOwnershipPlan` / `UnitOwnershipPrimitiveOwnershipPlan`。plan 关联原 typed
 identity、root place 与新值 Copy / Move / Temporary 交付；temporary 分类也可为 Copyable，

@@ -28,6 +28,7 @@ impl Checker<'_> {
         if self
             .typed
             .diagnostic_iteration_header_rejected(statement_id)
+            || self.typed.diagnostic_iteration_source_pending(statement_id)
         {
             let errors = self.diagnostics.len();
             let mut prefix = self.check_expression(source, state, ExpressionUse::Read)?;

@@ -34,10 +34,14 @@ impl UnitExpressionLowerer<'_> {
             };
         let guard = self.map_borrow_condition(condition, span)?;
         let baseline_guards = self.map_borrow_guards.clone();
-        let condition_value = nullable_if
-            .is_none()
-            .then(|| self.require_expression_value(condition))
-            .transpose()?;
+        let condition_value = if nullable_if.is_none() {
+            let Some(value) = self.lower_optional_condition_value(condition, span)? else {
+                return Ok(LoweredValue::Diverged);
+            };
+            Some(value)
+        } else {
+            None
+        };
         let map_checkpoint =
             self.checkpoint_map_conditional(control, result_required, else_branch.is_some(), span)?;
         let baseline = self.bindings.clone();

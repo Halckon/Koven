@@ -581,3 +581,192 @@ fn destructuring_spans_keep_the_selected_source_map_identity() {
         source_id
     );
 }
+
+#[test]
+fn destructuring_initializer_admits_control_and_lambda_primaries_at_the_block_boundary() {
+    for (initializer, expected) in [
+        ("if (flag) first else second", "if"),
+        ("when (flag) { true -> first; else -> second }", "when"),
+        ("{ -> pair }", "lambda"),
+    ] {
+        let body = format!("val (left, right) =\n{initializer}\nval sentinel = 1");
+        for in_lambda in [false, true] {
+            let text = if in_lambda {
+                format!("{{ -> {body} }}")
+            } else {
+                format!("{{ {body} }}")
+            };
+            let (sources, block_result, lambda_result);
+            let (ast, elements) = if in_lambda {
+                (sources, lambda_result) = parsed_expression(&text);
+                assert!(
+                    lambda_result.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    lambda_result.diagnostics()
+                );
+                let ast = lambda_result.ast();
+                let Expression::Lambda { body, .. } = ast
+                    .expressions()
+                    .get(lambda_result.root())
+                    .unwrap()
+                    .payload()
+                else {
+                    panic!("lambda root");
+                };
+                let Statement::LambdaBody { elements } =
+                    ast.statements().get(*body).unwrap().payload()
+                else {
+                    panic!("lambda body");
+                };
+                (ast, elements.as_slice())
+            } else {
+                (sources, block_result) = parsed_block(&text);
+                assert!(
+                    block_result.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    block_result.diagnostics()
+                );
+                (block_result.ast(), root_elements(&block_result))
+            };
+            let [destructuring, sentinel] = elements else {
+                panic!("one destructuring and one local declaration: {text}");
+            };
+            let Statement::LocalDestructuring {
+                initializer: id,
+                equals_span: Some(equals),
+                ..
+            } = ast.statements().get(*destructuring).unwrap().payload()
+            else {
+                panic!("local destructuring: {text}");
+            };
+            assert_eq!(sources.slice(*equals), Ok("="));
+            let node = ast.expressions().get(*id).unwrap();
+            assert_eq!(sources.slice(node.span()), Ok(initializer));
+            assert!(
+                matches!(
+                    (expected, node.payload()),
+                    ("if", Expression::If { .. })
+                        | ("when", Expression::When { .. })
+                        | ("lambda", Expression::Lambda { .. })
+                ),
+                "{text}: {:?}",
+                node.payload()
+            );
+            let sentinel = ast.statements().get(*sentinel).unwrap();
+            assert!(matches!(
+                sentinel.payload(),
+                Statement::LocalVariable { .. }
+            ));
+            assert_eq!(sources.slice(sentinel.span()), Ok("val sentinel = 1"));
+        }
+    }
+}
+
+#[test]
+fn destructuring_missing_initializer_preserves_the_next_declaration() {
+    let text = "{ val (left, right) = val sentinel = 1 }";
+    let (sources, parsed) = parsed_block(text);
+    let offset = text.find("val sentinel").unwrap();
+    assert_eq!(
+        fingerprints(parsed.diagnostics()),
+        [(
+            "L0046".into(),
+            "expected destructuring initializer".into(),
+            offset,
+            offset
+        )]
+    );
+    let [destructuring, sentinel] = root_elements(&parsed) else {
+        panic!("the next declaration must survive initializer recovery");
+    };
+    let Statement::LocalDestructuring { initializer, .. } = statement(&parsed, *destructuring)
+    else {
+        panic!("local destructuring");
+    };
+    assert!(matches!(
+        expression(&parsed, *initializer),
+        Expression::Error
+    ));
+    let sentinel = parsed.ast().statements().get(*sentinel).unwrap();
+    assert_eq!(sources.slice(sentinel.span()), Ok("val sentinel = 1"));
+}
+
+#[test]
+fn destructuring_initializer_recovery_leaves_semicolons_to_the_block_owner() {
+    for (text, code, message) in [
+        (
+            "{ val (left, right) = ; sentinel() }",
+            "L0046",
+            "expected destructuring initializer",
+        ),
+        (
+            "{ val (left, right); sentinel() }",
+            "L0045",
+            "expected destructuring initializer separator",
+        ),
+    ] {
+        let (sources, parsed) = parsed_block(text);
+        let [destructuring, sentinel] = root_elements(&parsed) else {
+            panic!("the next expression must survive initializer recovery: {text}");
+        };
+        let offset = text.find(';').unwrap();
+        assert_eq!(
+            fingerprints(parsed.diagnostics()),
+            [(code.into(), message.into(), offset, offset)],
+            "{text}",
+        );
+        let Statement::LocalDestructuring { initializer, .. } = statement(&parsed, *destructuring)
+        else {
+            panic!("local destructuring");
+        };
+        assert!(matches!(
+            expression(&parsed, *initializer),
+            Expression::Error
+        ));
+        let sentinel = parsed.ast().statements().get(*sentinel).unwrap();
+        assert_eq!(sources.slice(sentinel.span()), Ok("sentinel()"));
+    }
+}
+
+#[test]
+fn destructuring_malformed_initializer_recovers_at_the_outer_semicolon() {
+    for (fragment, code) in [
+        ("= : nested(1; 2)", "L0046"),
+        ("? nested(1; 2)", "L0045"),
+        ("= item : ignored", "L0013"),
+        ("= +", "L0009"),
+        ("= item as", "L0014"),
+        ("= item is", "L0014"),
+        ("= f(1; 2)", "L0034"),
+        ("= items[1, 2; 3]", "L0010"),
+    ] {
+        let text = format!("{{ val (left, right) {fragment}; sentinel() }}");
+        let (sources, parsed) = parsed_block(&text);
+        let [destructuring, sentinel] = root_elements(&parsed) else {
+            panic!(
+                "one malformed declaration and one intact expression: {text}: {:?}",
+                parsed.diagnostics()
+            );
+        };
+        let Statement::LocalDestructuring { initializer, .. } = statement(&parsed, *destructuring)
+        else {
+            panic!("local destructuring");
+        };
+        let initializer = parsed.ast().expressions().get(*initializer).unwrap();
+        assert_eq!(initializer.span().end(), text.rfind(';').unwrap(), "{text}");
+        assert_eq!(
+            sources.slice(parsed.ast().statements().get(*sentinel).unwrap().span()),
+            Ok("sentinel()")
+        );
+        assert_eq!(
+            parsed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>(),
+            [code],
+            "{text}: {:?}",
+            parsed.diagnostics()
+        );
+    }
+}

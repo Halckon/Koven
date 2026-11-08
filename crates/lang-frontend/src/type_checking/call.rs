@@ -68,8 +68,6 @@ pub enum CallableTarget {
     External(ExternalSymbolId),
     /// 只由函数类型描述的普通函数值。
     FunctionValue,
-    /// `value class` 自动结构分量；payload 是对应字段 symbol。
-    StructuralComponent(SymbolId),
 }
 
 /// 一个已实例化 callable 的稳定类型层 identity。

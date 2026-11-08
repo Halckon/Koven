@@ -2,6 +2,19 @@
 use super::*;
 use crate::{name_resolution::ExternalSymbolId, type_checking::EnvironmentFunctionEffect};
 
+/// Receiver-derived inputs kept in the canonical table before candidate discovery.
+#[derive(Clone)]
+pub(super) enum MemberOwner {
+    Direct {
+        declaration: DeclarationId,
+        arguments: Vec<UnitTypeId>,
+    },
+    Inherited {
+        receiver: UnitTypeId,
+        template: UnitTypeId,
+    },
+}
+
 #[derive(Clone)]
 pub(super) struct CallCandidate {
     pub(super) target: UnitCallTarget,
@@ -13,8 +26,7 @@ pub(super) struct CallCandidate {
     pub(super) result_source: crate::type_checking::CallableResultSource,
     pub(super) instance_arguments: Vec<UnitTypeId>,
     pub(super) receiver: Option<(ParameterMode, UnitTypeId)>,
-    pub(super) owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
-    pub(super) owner_storage_failure: Option<&'static str>,
+    pub(super) member_owner: Option<MemberOwner>,
     pub(super) cross_thread_parameters: BTreeSet<usize>,
     pub(super) aborts: bool,
     pub(super) prints_line: bool,
@@ -50,8 +62,7 @@ impl CallCandidate {
             receiver: callable
                 .receiver()
                 .map(|receiver| (receiver.mode(), receiver.ty())),
-            owner_substitutions: BTreeMap::new(),
-            owner_storage_failure: None,
+            member_owner: None,
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
@@ -88,8 +99,7 @@ impl BodyChecker<'_> {
             result_source: crate::type_checking::CallableResultSource::Owned,
             instance_arguments: Vec::new(),
             receiver: None,
-            owner_substitutions: BTreeMap::new(),
-            owner_storage_failure: None,
+            member_owner: None,
             cross_thread_parameters: signature
                 .effects
                 .iter()

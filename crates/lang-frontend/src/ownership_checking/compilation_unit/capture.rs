@@ -17,9 +17,11 @@ use crate::{
 };
 
 use super::super::{
-    ClosureCaptureEffect, ClosureCaptureMode, OwnershipCheckingError, Transferability,
+    ClosureCaptureEffect, ClosureCaptureMode, LoanKind, OwnershipCheckingError, Transferability,
     capture_rules::{ancestors, combine, contains, is_descendant},
 };
+
+mod assignment_demands;
 
 /// compilation-unit closure 捕获来源的稳定身份。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -39,6 +41,7 @@ pub struct UnitClosureCaptureDescriptor {
     mode: ClosureCaptureMode,
     effect: ClosureCaptureEffect,
     reference_span: Span,
+    exclusive_assignment: Option<Span>,
 }
 
 impl UnitClosureCaptureDescriptor {
@@ -49,6 +52,7 @@ impl UnitClosureCaptureDescriptor {
         mode: ClosureCaptureMode,
         effect: ClosureCaptureEffect,
         reference_span: Span,
+        exclusive_assignment: Option<Span>,
     ) -> Self {
         Self {
             lambda,
@@ -57,7 +61,12 @@ impl UnitClosureCaptureDescriptor {
             mode,
             effect,
             reference_span,
+            exclusive_assignment,
         }
+    }
+
+    pub(super) const fn exclusive_assignment(self) -> Option<Span> {
+        self.exclusive_assignment
     }
 
     /// 返回拥有 environment 的 source-qualified lambda。
@@ -78,10 +87,22 @@ impl UnitClosureCaptureDescriptor {
         self.ty
     }
 
-    /// 返回 shared/owned capture mode。
+    /// 返回借用/自有环境布局类别。借用权限由 `borrow_kind` 给出。
     #[must_use]
     pub const fn mode(self) -> ClosureCaptureMode {
         self.mode
+    }
+
+    /// 返回借用 capture 所需的实际权限。
+    #[must_use]
+    pub const fn borrow_kind(self) -> Option<LoanKind> {
+        match self.mode {
+            ClosureCaptureMode::Shared if self.exclusive_assignment.is_some() => {
+                Some(LoanKind::Exclusive)
+            }
+            ClosureCaptureMode::Shared => Some(LoanKind::Shared),
+            ClosureCaptureMode::Owned => None,
+        }
     }
 
     /// 返回 borrow/copy/move formation effect。
@@ -143,6 +164,28 @@ pub(super) struct Analysis {
     pub(super) transferabilities: Vec<Transferability>,
 }
 
+impl Analysis {
+    pub(super) fn filter_unvisited(
+        &mut self,
+        visited: &BTreeSet<UnitExpressionId>,
+        constant_control: bool,
+    ) {
+        let blocked: BTreeSet<_> = self
+            .captures
+            .iter()
+            .filter_map(|capture| {
+                (capture.exclusive_assignment().is_some() && !visited.contains(&capture.lambda()))
+                    .then_some(capture.lambda())
+            })
+            .collect();
+        let retain = |lambda: UnitExpressionId| {
+            (!constant_control || visited.contains(&lambda)) && !blocked.contains(&lambda)
+        };
+        self.captures.retain(|capture| retain(capture.lambda()));
+        self.closures.retain(|closure| retain(closure.expression()));
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Lambda {
     expression: ExpressionId,
@@ -169,11 +212,27 @@ pub(super) fn analyze(
         .collect::<Vec<_>>();
     let mut captures = Vec::new();
     let mut closures = Vec::new();
+    let mut assignments_by_source = BTreeMap::<_, Vec<_>>::new();
+    for assignment in typed.assignments() {
+        assignments_by_source
+            .entry(assignment.expression().source_unit())
+            .or_default()
+            .push(*assignment);
+    }
     for source in names.source_units() {
         let source_unit = source.source_unit();
         let parsed = input_for_source(inputs, names, source_unit)?;
         let resolution = source.resolution();
-        for lambda in lambdas(parsed, resolution, source_unit)? {
+        let lambdas = lambdas(parsed, resolution, source_unit)?;
+        let demands = assignment_demands::collect(
+            parsed,
+            resolution,
+            &lambdas,
+            assignments_by_source
+                .get(&source_unit)
+                .map_or(&[], Vec::as_slice),
+        );
+        for lambda in lambdas {
             let mut candidates = symbol_candidates(lambda, source_unit, resolution, typed)?;
             candidates.extend(this_candidates(lambda, source_unit, parsed, typed)?);
             candidates.sort_by_key(|candidate| {
@@ -209,6 +268,12 @@ pub(super) fn analyze(
                     mode,
                     effect,
                     candidate.span,
+                    match candidate.source {
+                        UnitClosureCaptureSource::Symbol(symbol) => {
+                            demands.get(&(lambda.scope, symbol.symbol())).copied()
+                        }
+                        UnitClosureCaptureSource::This => None,
+                    },
                 ));
             }
             let lambda_captures = &captures[first_capture..];

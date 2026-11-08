@@ -34,6 +34,15 @@ LLVM shift 先对 count 与 W-1 相与；signed shr 使用算术右移，unsigne
 
 两 native 入口各以 304 个二元、40 个取反边界检查结果，六组 eager operand 验证顺序与一次求值；48 组三方对照核验 const/runtime 与独立十进制 oracle。Guide Litmus12 原样提取并通过两 native 入口运行。
 
+## 比较操作数的提前退出
+
+相等比较按左、右顺序降低。左侧退出时不求值右侧，右侧退出时保留已经完成的左侧效果。
+已终止的求值边不生成比较结果。String 比较中已求值的临时 owner 由前端规划至实际
+`ControlTransfer` 清理点。
+
+细化层按实际前驱进入短路、条件和循环分支。前端保守发布的清理事实按执行点核对，
+只排除已证明不可达的子树或边，继续核验可达路径。 [复审见证](../specs/active/0392-compiler-layered-review.md#26-r4-比较操作数提前退出)
+
 ## Checked 整数转换（SPEC-0327）
 
 `integer_operations` 另发布 CheckedConvert 与独立 receiver/result type；完整8×8及identity

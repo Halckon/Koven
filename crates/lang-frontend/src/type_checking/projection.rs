@@ -16,8 +16,6 @@ pub enum AggregateProjectionReceiver {
 pub enum AggregateProjectionKind {
     /// 普通主构造器字段访问。
     Field,
-    /// `value class` 自动提供的 `componentN()` 调用。
-    StructuralComponent,
 }
 
 /// 一个已完成泛型替换的聚合分量投影。
@@ -47,7 +45,7 @@ impl AggregateProjectionDescriptor {
         }
     }
 
-    /// 返回字段访问或 call expression identity。
+    /// 返回字段投影的 expression identity。
     #[must_use]
     pub const fn expression(self) -> ExpressionId {
         self.expression
@@ -71,7 +69,7 @@ impl AggregateProjectionDescriptor {
         self.ty
     }
 
-    /// 返回普通字段或自动结构分量类别。
+    /// 返回字段投影类别。
     #[must_use]
     pub const fn kind(self) -> AggregateProjectionKind {
         self.kind

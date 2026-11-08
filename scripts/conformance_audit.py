@@ -360,7 +360,7 @@ def summarize_program_roadmap_blockers(
 
 
 def summarize_foundational_cohort(expectations: dict[str, Any]) -> dict[str, Any]:
-    """Classify the 85 foundational p/q/r/s probes into Groups A (74), B (8), and C (3) for P2 gate tracking."""
+    """Classify the foundational p/q/r/s probes for P2 gate tracking."""
     groups: dict[str, dict[str, Any]] = {
         "A": {
             "label": "A 组：合法基础程序（P2 门槛基数）",
@@ -381,7 +381,7 @@ def summarize_foundational_cohort(expectations: dict[str, Any]) -> dict[str, Any
             "known_unimplemented": [],
         },
         "C": {
-            "label": "C 组：v0.44 待裁决项（已在 v0.46 规范定案）",
+            "label": "C 组：旧版待裁决或现行规范调整项",
             "total": 0,
             "runnable": 0,
             "run_ok": [],
@@ -536,7 +536,7 @@ def summarize_blocker_unlock_impact(
 
 ROADMAP_STAGE_CATALOG: dict[str, str] = {
     "P2": "Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派）",
-    "P3": "语言糖、协议与标准库收口（Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to）",
+    "P3": "语言糖、协议与标准库收口（闭包可变捕获、Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to）",
     "P4": "并发与扩展（原生线程 thread 与 JoinHandle）",
 }
 

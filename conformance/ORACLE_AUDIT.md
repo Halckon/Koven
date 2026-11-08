@@ -12,19 +12,19 @@
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 | `both_positive_and_negative` |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 | `both_positive_and_negative` |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 | `both_positive_and_negative` |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 1 | 0 | 1 | 7 / 8 | `both_positive_and_negative` |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 0 | 0 | 2 | 6 / 8 | `positive_only` |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 | `positive_only` |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 12 | 1 | 1 | 2 | 14 / 16 | `both_positive_and_negative` |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 | `both_positive_and_negative` |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 | `positive_only` |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 | `both_positive_and_negative` |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 | `positive_only` |
-| **合计** | **154** | **121** | **14** | **3** | **16** | **138 / 154** | **9 双极性 / 4 仅正向** |
+| **合计** | **154** | **121** | **13** | **3** | **17** | **137 / 154** | **8 双极性 / 5 仅正向** |
 
-- **正/负向双极性覆盖章节（9 / 13）**：`02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `07-calls-lambdas-closures.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `12-collections-destructuring.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
-- **仅正向覆盖章节（4 / 13，待后续补充独立负向诊断探针）**：`01-lexical.md`, `08-class-family-members.md`, `11-copyability-layout-construction.md`, `13-program-runtime-standard-library.md`（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
+- **正/负向双极性覆盖章节（8 / 13）**：`02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `12-collections-destructuring.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
+- **仅正向覆盖章节（5 / 13，待后续补充独立负向诊断探针）**：`01-lexical.md`, `07-calls-lambdas-closures.md`, `08-class-family-members.md`, `11-copyability-layout-construction.md`, `13-program-runtime-standard-library.md`（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
 
-### 1.1 负向诊断码与运行时中止契约矩阵（14 `compile_fail` + 3 `runtime_abort`）
+### 1.1 负向诊断码与运行时中止契约矩阵（13 `compile_fail` + 3 `runtime_abort`）
 
 | 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |
 |---|---|---|---:|---|
@@ -35,7 +35,7 @@
 | `FE:L0112` | `WHEN_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `p43_if_join_any` |
 | `FE:L0132` | `PARTIAL_MOVE` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
 | `FE:L0133` | `MOVE_FROM_BORROWED_BINDING` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
-| `FE:L0135` | `LOAN_CONFLICT` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md), [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 2 | `p42_lambda_mutate`, `w06_map_mutate_in_loop` |
+| `FE:L0135` | `LOAN_CONFLICT` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 1 | `w06_map_mutate_in_loop` |
 | `FE:L0164` | `UNSUPPORTED_BORROW_FLOW` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `q17_generic_class` |
 | `FE:L0167` | `UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 1 | `p23_global_var` |
 | `abort:integer overflow in +` | `SIGABRT (exit 134)` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 1 | `p04_overflow` |
@@ -50,11 +50,11 @@
 | `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | 32 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p12b_class_field_assign`, `p12c_inout_param`, `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `p16b_result_string`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p22_rc`, `p37_is_generic_case`, `p41_when_string`, `p49_when_enum_no_payload`, `p50_enum_method`, `q02_lambda_arg_inline`, `q05_nullable_param`, `q09_inout_class_param`, `s01_result_builtin`, `t03_vmethod_generic`, `u01_enum_case_borrow_arg`, `v03_join_nullable`, `v13_while_nullable_int`, `v16_when_in_range`, `v19_stmt_when_mixed`, `x02_string_nullable_return`, `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
 | `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | 3 | `p04_overflow`, `p45_abort_message`, `v12_convert_abort` |
 | `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | 1 | `p23_global_var` |
-| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | 13 | `p01_int_print`, `p03b_byte_literal_cmp`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
-| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 16 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
+| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | 12 | `p01_int_print`, `p03b_byte_literal_cmp`, `p25_linked_iter`, `p43_if_join_any`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
+| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 17 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `p42_lambda_mutate`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
 | `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | 0 | 无（零基线退化） |
 
-### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（35 Probes）
+### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（40 Probes）
 
 | Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |
 |---|---|---|---:|---|---|
@@ -74,6 +74,7 @@
 | `SPEC-0361` | [0361-refine-generic-value-class.md](../docs/archive/specs/0361-refine-generic-value-class.md) | `archived` | 1 | `run_ok`: 1 | `t03_vmethod_generic` |
 | `SPEC-0364` | [0364-refine-closures.md](../docs/archive/specs/0364-refine-closures.md) | `archived` | 4 | `run_ok`: 4 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `q02_lambda_arg_inline` |
 | `SPEC-0368` | [0368-text-byte-foundation.md](../docs/specs/active/0368-text-byte-foundation.md) | `active` | 1 | `run_ok`: 1 | `p16b_result_string` |
+| `SPEC-0392` | [0392-compiler-layered-review.md](../docs/specs/active/0392-compiler-layered-review.md) | `active` | 1 | `known_unimplemented`: 1 | `p42_lambda_mutate` |
 
 ### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）
 
@@ -81,8 +82,8 @@
 |---|---|---:|---:|---|
 | `single_println_literal` | 单条无循环/无插值 `println("...")` 静态字面量精确推导 | 31 | 0 | `run_ok`: 31 |
 | `source_trace_audited` | 控制流、循环、集合或 `deinit` 多语句源码级人工追踪确认（`CONFIRMED_STDOUT_ORACLES`） | 57 | 0 | `run_ok`: 57 |
-| `v046_spec_contract` | Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`） | 39 | 0 | `compile_fail`: 1, `known_unimplemented`: 2, `run_ok`: 33, `runtime_abort`: 3 |
-| `baseline_diagnostic_audited` | 前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配） | 13 | 0 | `compile_fail`: 13 |
+| `v046_spec_contract` | Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`） | 40 | 0 | `compile_fail`: 1, `known_unimplemented`: 3, `run_ok`: 33, `runtime_abort`: 3 |
+| `baseline_diagnostic_audited` | 前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配） | 12 | 0 | `compile_fail`: 12 |
 | `baseline_unimplemented_audited` | 已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项） | 14 | 0 | `known_unimplemented`: 14 |
 | `expected_txt_file` | V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验） | 0 | 6 | `known_unimplemented`: 6 |
 
@@ -90,16 +91,16 @@
 
 | 输出形态分类 | 适用范围 | 条目数量 | 累计期望行数 | 累计期望字节数 | 代表性 / 完整条目明细 |
 |---|---|---:|---:|---:|---|
-| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 117 | 117 | 992 B | 单行精确字节匹配（全部以 `\n` 结尾） |
+| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 118 | 118 | 1004 B | 单行精确字节匹配（全部以 `\n` 结尾） |
 | `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | 20 | 42 | 151 B | `p10_generic_fn` (2L/12B), `p14_nullable` (2L/15B), `p32_deinit` (3L/9B), `p38_list_of_strings` (2L/4B), `q05_nullable_param` (2L/14B), `q08_enum_string_payload` (2L/8B), `q19_deep_return_cleanup` (3L/6B), `q20_replace_field` (2L/8B), `u02_list_add_loop_string` (2L/4B), `v15_map_for` (2L/4B), `w08_map_string_values` (2L/8B), `w12` (2L/8B), `w13` (2L/9B), `w15` (2L/9B), `w17` (2L/6B), `w19` (2L/6B), `x03_if_call_borrow_arg` (2L/9B), `y04_take_for_println` (2L/4B), `y05_take_borrow_val_call` (2L/4B), `y06_take_borrow_val_for` (2L/4B) |
-| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 17 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
+| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 16 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
 | `acceptance_programs` | V1 验收程序 (`expected.txt`) | 6 | 85 | 1537 B | `config_parse` (10L/190B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `raii_state_machine` (28L/369B), `varint_codec` (17L/375B), `word_count` (16L/187B) |
 
 ### 1.6 Probe 批次前缀与演进关注面分布矩阵（11 Batches，154 Probes）
 
 | 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 39 | 6 | 2 | 12 | 47 / 59 | `partial` |
+| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 39 | 5 | 2 | 13 | 46 / 59 | `partial` |
 | `q` | 对 `p` 中失败项的变体复测，缩小失败条件 | 20 | 17 | 1 | 0 | 2 | 18 / 20 | `partial` |
 | `r` | 未知成员访问，期望前端诊断 | 2 | 0 | 2 | 0 | 0 | 2 / 2 | `all_passed` |
 | `s` | 标准环境：内建 `Result`、`Pair`/`to` 与 `?` 的边界 | 4 | 1 | 1 | 0 | 2 | 2 / 4 | `partial` |
@@ -110,7 +111,7 @@
 | `x` | nullable class、String nullable 返回与条件中的借用实参复测 | 3 | 3 | 0 | 0 | 0 | 3 / 3 | `all_passed` |
 | `y` | `koven.algorithms` 的 `take` 与 N1a 范围借用 | 6 | 5 | 1 | 0 | 0 | 6 / 6 | `all_passed` |
 | `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
-| **合计** | **11 个演进批次** | **154** | **121** | **14** | **3** | **16** | **138 / 154** | **8 全通过 / 3 部分通过** |
+| **合计** | **11 个演进批次** | **154** | **121** | **13** | **3** | **17** | **137 / 154** | **8 全通过 / 3 部分通过** |
 
 ### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）
 
@@ -120,7 +121,7 @@
 | `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 6 |
 | `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 6 |
 | `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 6 |
-| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 16 | 6 |
+| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 17 | 6 |
 | `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
 | `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 16 | 6 |
 
@@ -129,8 +130,8 @@
 | 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |
 |---|---|---:|---:|---:|---:|---|
 | **A 组** | A 组：合法基础程序（P2 门槛基数） | 74 | 58 (56 + 2) | 1 (`q17_generic_class`) | 15 | P2 门槛 `≥ 70 / 74`（当前 `58 / 74`，距门槛差 `12` 项） |
-| **B 组** | B 组：应拒基础探针（静态/借用/类型拒绝） | 8 | 0 | 8 | 0 | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |
-| **C 组** | C 组：v0.44 待裁决项（已在 v0.46 规范定案） | 3 | 1 (`p37_is_generic_case`) | 1 (`p23_global_var`) | 1 (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |
+| **B 组** | B 组：应拒基础探针（静态/借用/类型拒绝） | 7 | 0 | 7 | 0 | 要求 `7 / 7` 精确命中期望前端诊断码 (`pass_diagnostic`) |
+| **C 组** | C 组：旧版待裁决或现行规范调整项 | 4 | 1 (`p37_is_generic_case`) | 1 (`p23_global_var`) | 2 (`p35_value_eq`, `p42_lambda_mutate`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1`、`p42` 待 `S1` |
 
 ### 1.9 Guide 13 章 V2 终态完备性（正反例双极性 + 零未实现）差距矩阵
 
@@ -142,7 +143,7 @@
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 表达式与运算符 | 3 | 2 (`abort:integer overflow in +`, `FE:L0084`) | 0 | - | - | `v2_probe_ready` |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 声明与 Callable | 2 | 2 (`FE:L0084`, `FE:L0167`) | 0 | - | - | `v2_probe_ready` |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | Block 与控制流 | 16 | 2 (`FE:L0112`, `FE:L0089`) | 1 (`q08_enum_string_payload`) | `L7`, `N02` | - | `blocked_by_roadmap` |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 6 | 1 (`FE:L0135`) | 1 (`q03_fn_ref`) | `N04` | - | `blocked_by_roadmap` |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 6 | 0（待补反例） | 2 (`p42_lambda_mutate`, `q03_fn_ref`) | `N04`, `S1` | - | `needs_negative_and_roadmap` |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 15 | 0（待补反例） | 1 (`p28_companion`) | `N06` | `raii_state_machine` | `needs_negative_and_roadmap` |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 空安全与错误值 | 12 | 2 (`abort:boom`, `FE:L0085`) | 2 (`p15_elvis`, `p16_result_q`) | `N03`, `N08` | `config_parse` | `blocked_by_roadmap` |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 6 | 2 (`FE:L0133`, `FE:L0132`, `FE:L0164`) | 1 (`p25b_linked_recursive`) | `N03` | `linked_stack` | `blocked_by_roadmap` |
@@ -163,7 +164,7 @@
 | **Litmus 7**：线性所有权与移动语义 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p21_box_enum`, `p25_linked_iter`, `p32_deinit`, `q19_deep_return_cleanup` | 3 / 4 | `p21_box_enum` (`L7`, `N07`) | `partial` |
 | **Litmus 8**：借用检查与在位可变引用 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p12c_inout_param`, `p26_borrow_return`, `q09_inout_class_param`, `q20_replace_field` | 4 / 4 | - | `all_passed` |
 | **Litmus 9**：空安全、流类型与非空断言 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `p14_nullable`, `p14b_nullable_simple`, `q05_nullable_param`, `q06_nullable_return_bang`, `x02_string_nullable_return` | 5 / 5 | - | `all_passed` |
-| **Litmus 10**：函数类型与闭包捕获 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p42_lambda_mutate`, `q01_lambda_local`, `q02_lambda_arg_inline` | 6 / 6 | - | `all_passed` |
+| **Litmus 10**：函数类型与闭包捕获 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p42_lambda_mutate`, `q01_lambda_local`, `q02_lambda_arg_inline` | 5 / 6 | `p42_lambda_mutate` (`S1`) | `partial` |
 | **Litmus 11**：顺序集合遍历与结构解构 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `p19_mutablelist`, `p34_for_range`, `p38_list_of_strings`, `q15_borrow_param_string_list`, `w01_map_for_sum` | 5 / 5 | - | `all_passed` |
 | **Litmus 12**：关联常量与标准库互操作 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `p31_string_ops`, `q12_companion_const`, `s01_result_builtin` | 3 / 3 | - | `all_passed` |
 
@@ -216,7 +217,7 @@
 | **表达式** | 3 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | primary/bound reference、postfix/调用/索引、运算符优先级与结合性 | 5 / 5 | `all_passed` |
 | **声明** | 3 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md), [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `val`/`var`/`const val`/`fun`、callable 参数 marker 与函数 body 三形态 | 22 / 23 | `partial` |
 | **控制流** | 2 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | block/block element 与 `if`/`when`/`while`/`for`/`loop`/jump | 18 / 19 | `partial` |
-| **调用与 Lambda** | 4 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | lambda literal、尾 lambda、隐式 `it` 与自动 Borrow/`&` 调用实参 | 7 / 8 | `partial` |
+| **调用与 Lambda** | 4 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | lambda literal、尾 lambda、隐式 `it` 与自动 Borrow/`&` 调用实参 | 6 / 8 | `partial` |
 | **类型声明** | 3 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | class/value/interface/enum/object/companion、receiver marker 与 `by` 委托 | 15 / 16 | `partial` |
 | **空安全与错误** | 2 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `?:`/`!!`/nullable/`error()` 与 postfix `?`/`Result<T, E>` | 14 / 16 | `partial` |
 | **所有权** | 1 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | Value/Borrow/Inout、loan 与调用期借用/ASAP 析构 | 8 / 9 | `partial` |
@@ -231,7 +232,7 @@
 
 | 双模式变换分组 (`cohort`) | 分组语义与文件头特征 | 条目数量 | 双模式能力通过 (`capability_passed`) | 关联条目 / 代表性样本 |
 |---|---|---:|---:|---|
-| `probes_default_prelude` | 无显式 `import` 探针（默认内建环境） | 149 | 133 / 149 | `p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080) |
+| `probes_default_prelude` | 无显式 `import` 探针（默认内建环境） | 149 | 132 / 149 | `p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080) |
 | `probes_explicit_import` | 含显式 `import koven.algorithms.take` 探针 | 5 | 5 / 5 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println`, `y05_take_borrow_val_call`, `y06_take_borrow_val_for` |
 | `acceptance_programs` | V1 多函数/多类型验收程序（`programs/<name>/main.ko`） | 6 | 0 / 6 | `config_parse`, `expr_eval`, `linked_stack`, `raii_state_machine`, `varint_codec`, `word_count` |
 
@@ -272,7 +273,7 @@
 | `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 5 / 7 | `p03_long_uint`, `p19_mutablelist`, `s01_result_builtin`, `v11_convert_ok`, `v12_convert_abort` | `p16_result_q`, `p40_nested_generic_class` | `N01`, `N08`, `L3b` |
 | `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 5 / 7 | `p19_mutablelist`, `p31_string_ops`, `w01_map_for_sum`, `w02_map_for_order`, `w11_word_count` | `p15_elvis`, `q08_enum_string_payload` | `N02`, `N03` |
 
-## 3. 16 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
+## 3. 17 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |
 |---|---|---|---:|---|
@@ -287,10 +288,11 @@
 | `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 2 | `p11_interface_bound`, `p28_companion` |
 | `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 1 | `p21_box_enum` |
 | `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 1 | `p16_result_q` |
+| `S1` | 非逃逸闭包以 exclusive loan 可变捕获 var | `todo` | 1 | `p42_lambda_mutate` |
 | `S6` | Map 带初值构造 mapOf("a" to 1) | `todo` | 2 | `s02_pair_builtin`, `s03_to_pair` |
 | `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `p27_thread` |
 
-### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，14 Blockers）
+### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，15 Blockers）
 
 | 路线图条目 | 阶段 | 状态 | 独立解封 Probe (`sole_probes`) | 联合阻塞 Probe (`co_probes`) | P2 A 组贡献数 | 关联 V1 验收程序 |
 |---|---|---|---|---|---:|---|
@@ -306,6 +308,7 @@
 | `N06` | `P2` | `partial` | 2 (`p11_interface_bound`, `p28_companion`) | 0 | 2 | - |
 | `N07` | `P2` | `partial` | 0 | 1 (`p21_box_enum`) | 1 | `expr_eval`, `linked_stack` |
 | `N08` | `P2` | `todo` | 1 (`p16_result_q`) | 0 | 1 | `config_parse`, `expr_eval`, `varint_codec` |
+| `S1` | `P3` | `todo` | 1 (`p42_lambda_mutate`) | 0 | 0 | - |
 | `S6` | `P3` | `todo` | 2 (`s02_pair_builtin`, `s03_to_pair`) | 0 | 2 | - |
 | `T1` | `P4` | `todo` | 0 | 1 (`p27_thread`) | 1 | - |
 
@@ -313,8 +316,8 @@
 
 | 阶段里程碑 | 阶段核心目标 | 本阶段清零阻塞项 | 本阶段新增解封 Probe | 累计能力通过 (`capability_passed`) | P2 A 组可运行 (`≥ 70 / 74`) | V1 验收程序就绪 |
 |---|---|---|---|---:|---:|---:|
-| **P2 完成** | Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派） | `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08` | +9 (`p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p25b_linked_recursive`, `p28_companion`, `p40_nested_generic_class`, `q03_fn_ref`) | **147 / 154** | **67 / 74** | **2 / 6** |
-| **P3 完成** | 语言糖、协议与标准库收口（Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to） | `L1`, `L2`, `L3b`, `L7`, `S6` | +6 (`p02_interp`, `p21_box_enum`, `p35_value_eq`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`) | **153 / 154** | **72 / 74** | **6 / 6** |
+| **P2 完成** | Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派） | `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08` | +9 (`p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p25b_linked_recursive`, `p28_companion`, `p40_nested_generic_class`, `q03_fn_ref`) | **146 / 154** | **67 / 74** | **2 / 6** |
+| **P3 完成** | 语言糖、协议与标准库收口（闭包可变捕获、Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to） | `L1`, `L2`, `L3b`, `L7`, `S1`, `S6` | +7 (`p02_interp`, `p21_box_enum`, `p35_value_eq`, `p42_lambda_mutate`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`) | **153 / 154** | **72 / 74** | **6 / 6** |
 | **P4 完成** | 并发与扩展（原生线程 thread 与 JoinHandle） | `T1` | +1 (`p27_thread`) | **154 / 154** | **73 / 74** | **6 / 6** |
 
 ### 3.3 路线图领域（`area`）与编译器阶段（`phases`）阻塞分布矩阵（9 Areas）
@@ -323,7 +326,7 @@
 |---|---|---|---|---:|---:|
 | `types` | 类型系统、标量字面量 (`Double`/`Char`)、位运算与 `Equatable`/`Comparable` 协议 (`L1`, `L3b`, `N05`) | `Phase 2`, `Phase 4`, `Phase 5` | `L1`, `L3b`, `N05` | 4 | 3 |
 | `control` | 多载荷与递归 enum 构造及 `when` 解构分派 (`L7`, `N02`) | `Phase 2`, `Phase 3`, `Phase 4` | `L7`, `N02` | 2 | 5 |
-| `closures` | 函数引用 `::fn` 与移动闭包调用 (`N04`) | `Phase 2`, `Phase 3`, `Phase 4` | `N04` | 2 | 0 |
+| `closures` | 函数引用 `::fn` 与移动闭包调用 (`N04`) | `Phase 2`, `Phase 3`, `Phase 4` | `N04`, `S1` | 3 | 0 |
 | `classes` | 泛型 Interface 上界分派与匿名 `companion` 关联调用 (`N06`) | `Phase 2`, `Phase 3`, `Phase 4` | `N06` | 2 | 0 |
 | `errors` | 可空链式访问、Elvis `?:` 与 `Result` `?` 传播 (`N03`, `N08`) | `Phase 2`, `Phase 3`, `Phase 4` | `N03`, `N08` | 3 | 5 |
 | `ownership` | 嵌套泛型 class 字段借用、可变写入与所有权证明 (`N01`) | `Phase 2`, `Phase 3`, `Phase 4` | `N01` | 1 | 3 |
@@ -331,7 +334,7 @@
 | `text-io` | `Display` 协议与字符串插值求值 (`L2`) | `Phase 2`, `Phase 4` | `L2` | 1 | 1 |
 | `stdlib` | 递归堆分配容器 `Box<T>` 与原生线程 `thread`/`JoinHandle` (`N07`, `T1`) | `Phase 2`, `Phase 3`, `Phase 4`, `Phase 5` | `N07`, `T1` | 2 | 2 |
 
-### 3.4 16 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表
+### 3.4 17 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表
 
 | Probe | Guide 章节 | P2 分组 | 基线记号 | 允许记号 (`allowed_markers`) | 路线图阻塞项 | 目标输出 (`target_stdout`) | 规模 |
 |---|---|:---:|---|---|---|---|---:|
@@ -347,6 +350,7 @@
 | `p28_companion` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `A` | `ERR` | `BE:UnsupportedNode`, `BE:UnsupportedSource`, `BE:MissingFact`, `FE:L0165` | `N06` | `companion\n` | 1L / 10B |
 | `p35_value_eq` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `C` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `L1` | `veq\n` | 1L / 4B |
 | `p40_nested_generic_class` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N01` | `stack\n` | 1L / 6B |
+| `p42_lambda_mutate` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `C` | `FE:L0135` | `BE:UnsupportedNode` | `S1` | `mut-capture\n` | 1L / 12B |
 | `q03_fn_ref` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N04` | `fnref\n` | 1L / 6B |
 | `q08_enum_string_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N02`, `L7` | `hi\nquit\n` | 2L / 8B |
 | `s02_pair_builtin` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `A` | `FE:L0080` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | `S6` | `pair\n` | 1L / 5B |
@@ -356,9 +360,9 @@
 
 | 编译器阶段 | 阶段职责范围 | 已生效负向 Probe 数 | 覆盖负向契约 (`FE:Lxxxx` / `abort`) | 关联路线图阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |
 |---|---|---:|---|---|---:|---:|
-| **Phase 2 前端类型与解析** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 10 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S6`, `T1` | 14 | 6 |
-| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 4 | `FE:L0133`, `FE:L0132`, `FE:L0135`, `FE:L0164` | `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S6`, `T1` | 12 | 6 |
-| **Phase 4 SSA / LLVM / Runtime** | SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`) | 3 | `abort:integer overflow in +`, `abort:boom`, `abort:value out of range for ULong` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08`, `S6`, `T1` | 16 | 6 |
+| **Phase 2 前端类型与解析** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 10 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 15 | 6 |
+| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 3 | `FE:L0133`, `FE:L0132`, `FE:L0164`, `FE:L0135` | `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 13 | 6 |
+| **Phase 4 SSA / LLVM / Runtime** | SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`) | 3 | `abort:integer overflow in +`, `abort:boom`, `abort:value out of range for ULong` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 17 | 6 |
 | **Phase 5 标准库与并发** | 内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`) | 0 | - | `L1`, `T1` | 3 | 1 |
 
 ## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
@@ -418,7 +422,7 @@
 | `p39_removeAt` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `removeAt\n` | single literal println('removeAt') |
 | `p40_nested_generic_class` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `stack\n` | Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01) |
 | `p41_when_string` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `when-str\n` | single literal println('when-str') |
-| `p42_lambda_mutate` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0135` | mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135 |
+| `p42_lambda_mutate` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode` → target `mut-capture\n` | Guide 07 permits a synchronous non-escaping closure to update a captured local var; the completed native call prints 'mut-capture' |
 | `p43_if_join_any` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0112` | when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3) |
 | `p44_method_on_value` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod\n` | single literal println('vmethod') |
 | `p44b_method_on_class` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `cmethod\n` | single literal println('cmethod') |

@@ -126,10 +126,10 @@ drop facts 管理；这不代表 Phase 4 lowering 已接入。
 ## Capture、Transferability 与 drop
 
 Single/Unit capture 共用私有 scope、同来源 Span 包含与 Transferability 合并规则，保留类型求值和身份适配；按 lambda identity/source binding 发布。普通 closure 借用 capture；`move` closure
-按 Copy/Move 获取 owner。跨线程 effect 检查完整环境的 `Transferability`，不从语法形状猜测。
+按 Copy/Move 获取 owner。跨线程 effect 检查完整环境的 `Transferability`，不从语法形状猜测。Unit 为可达的 Copyable 局部根和可验证的具体 MoveOnly 根建立独占 capture loan，冲突报 L0135。MoveOnly 根在 RHS 正常完成后发布 `BeforeReplacement/ReplacedCapture`，捕获根由调用者持有。未证明的环境运输由 L0164 限制，SSA 入口拒绝独占环境布局。[捕获根替换](../specs/active/0392-compiler-layered-review.md#50-r3-moveonly-捕获根替换)
 
 反向 liveness 产生 source-qualified drop plan，覆盖参数、local、temporary、replaced value、container
-element、constructor root 和 closure environment。drop point 包括最后使用后、replacement 前、
+element、constructor root 和 closure environment。独占捕获入口按已验证的来源在 BranchEntry 清理。drop point 还包括最后使用后、replacement 前、
 branch/loop/control transfer、return 和 callable 退出；复合 owner 按逆构造顺序析构。
 
 两入口的 `when` 条件沿未匹配路径检查；`WhenAlternativeMatch` 在真实匹配边清理独有 owner，

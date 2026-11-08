@@ -2,12 +2,37 @@
 use super::*;
 
 impl DropPlanner<'_, '_> {
-    pub(super) fn is_string_expression(&self, expression: ExpressionId) -> bool {
+    fn is_string_expression(&self, expression: ExpressionId) -> bool {
         self.checker
             .typed
             .expression_type(expression)
             .and_then(|ty| self.checker.typed.types().get(ty))
             == Some(&TypeKind::Builtin(BuiltinType::String))
+    }
+
+    pub(super) fn uses_string_binary_operands(
+        &self,
+        left: ExpressionId,
+        operator: BinaryOperator,
+        right: ExpressionId,
+    ) -> bool {
+        if !matches!(
+            operator,
+            BinaryOperator::Add | BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) || !self.is_string_expression(left)
+        {
+            return false;
+        }
+        let right = self
+            .checker
+            .typed
+            .expression_type(right)
+            .and_then(|ty| self.checker.typed.types().get(ty));
+        right == Some(&TypeKind::Builtin(BuiltinType::String))
+            // A bottom RHS never reaches the operation, but its return still owns
+            // the cleanup of the String temporary from the already evaluated left.
+            || (matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+                && right == Some(&TypeKind::Builtin(BuiltinType::Nothing)))
     }
 
     pub(super) fn string_binary(

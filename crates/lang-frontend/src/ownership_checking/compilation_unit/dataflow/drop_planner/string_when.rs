@@ -212,12 +212,14 @@ impl DropPlanner<'_, '_> {
                 continue;
             }
             let mut branch = self.merge_resource_states(id, matched);
+            self.drop_branch_entry(id, entry_index, &[], &mut branch);
             if self.control_body(entry.body, usage, &mut branch)? {
                 self.drop_branch_exit(id, entry_index, &mut branch);
                 exits.push(branch);
             }
         }
         if let Some(mut implicit) = remaining {
+            self.drop_branch_entry(id, entries.len(), &[], &mut implicit);
             self.drop_branch_exit(id, entries.len(), &mut implicit);
             exits.push(implicit);
         }
@@ -340,6 +342,7 @@ impl DropPlanner<'_, '_> {
                 if live.contains(&symbol)
                     || !self.is_asap_owner(symbol, state)
                     || self.borrow_source_protected(symbol, state)
+                    || state.capture_borrow_protects(symbol)
                     || state
                         .iterations
                         .iter()

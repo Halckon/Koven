@@ -63,9 +63,7 @@ pub(super) fn preflight_unit_call_recipes(
     let target = match call.target() {
         UnitCallTarget::Declaration(declaration) => UnitCallableTarget::Declaration(declaration),
         UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
-        UnitCallTarget::External(_)
-        | UnitCallTarget::FunctionValue
-        | UnitCallTarget::StructuralComponent(_) => return Ok(None),
+        UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => return Ok(None),
     };
     let specialized_type_arguments = call
         .instance()

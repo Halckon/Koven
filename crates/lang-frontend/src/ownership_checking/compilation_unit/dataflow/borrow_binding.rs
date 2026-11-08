@@ -68,6 +68,30 @@ impl Checker<'_> {
             return Ok(Flows::next(state));
         }
         let call = self.borrow_result_call(initializer);
+        let actual = origin_expression(self.parsed, initializer, |call| {
+            self.borrowed_call_source(call)
+        })?;
+        // Borrow-return calls check the actual source after earlier arguments run.
+        if call.is_none()
+            && let Some(actual) = actual
+            && let Some(place) = self.place(actual)?
+            && self.has_exclusive_capture(
+                &state,
+                state
+                    .closures
+                    .get(&place.root())
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+        {
+            self.emit_borrow_binding_diagnostic(
+                codes::UNSUPPORTED_BORROW_FLOW,
+                "borrow binding cannot yet retain an exclusive closure environment",
+                marker,
+            )?;
+            return Ok(Flows::next(state));
+        }
         let before = self.diagnostics.len();
         let previous = std::mem::replace(&mut self.allowed_borrow_call, call);
         let checked = self.check_expression(initializer, state, ExpressionUse::Read);
@@ -82,9 +106,6 @@ impl Checker<'_> {
         let Some(binding) = self.marker_symbol(name).copied() else {
             return Ok(flows);
         };
-        let actual = origin_expression(self.parsed, initializer, |call| {
-            self.borrowed_call_source(call)
-        })?;
         let Some(place) = actual
             .map(|origin| self.place(origin))
             .transpose()?

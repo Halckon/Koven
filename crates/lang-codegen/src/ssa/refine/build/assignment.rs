@@ -302,6 +302,8 @@ impl Builder<'_, '_> {
                 let slot = self.required(value)?;
                 self.expected_nullable = saved_expected;
                 let Some(slot) = slot else {
+                    self.unreachable_drop_points
+                        .push(UnitDropPoint::ControlTransfer(self.unit(expression)));
                     return Ok(Lowered::Diverged);
                 };
                 let slot = self.adapt(slot, value, self.inputs.return_type)?;

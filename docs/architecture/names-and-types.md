@@ -14,7 +14,7 @@
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
 raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
 [最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
-`type_callable` 的 println 身份/遮蔽、成员与函数值映射、参数模式三项原测试已由双 Unit 入口承接，其他 Single 覆盖保留。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)；lambda expected/capture 见[专题](expected-move-literals.md)。
+`type_callable` 的 println 身份/遮蔽、成员与函数值映射、参数模式三项原测试已由双 Unit 入口承接，其他 Single 覆盖保留。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)。for 与 loop 同样清除回边可能写入的事实，for 先检查 source。Elvis 和 if 按正常出口合并事实与来源版本，见[分层复审 §25](../specs/active/0392-compiler-layered-review.md#25-r2-循环回边和-elvis-出口的流事实)。lambda expected/capture 见[专题](expected-move-literals.md)。
 
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
 final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。 `type_checking::raw_followup` 的11项构造/smart-cast/when 原消费者现走双 Unit raw type 入口；顶层溢出保留 L0167 与 L0090 并存及原 Single witness，范围见 [迁移验收](../specs/active/0341-shared-lowering-core.md#独立批次构造与控制类型消费者2026-11-07)。
@@ -32,10 +32,10 @@ final仅沿已选case的静态qualifier准入；无descriptor的零payload推导
 `TypedFile::sequential_iterations` / `sequential_iteration` 按 StatementId 发布 intrinsic
 Array/List/MutableList provider 交付 Borrow；NumericRange 按 IntRange/LongRange 身份交付 Int/Long Value。
 名称 binding 获得 element 类型，discard 不创建 symbol；value-class 解构按字段声明顺序替换
-泛型参数，保留 discard 分量位置。该 projection 独立于局部 owned destructuring。
+泛型参数，保留 discard 分量位置。局部 owned 解构按字段名匹配，描述符按布局顺序发布。局部解构、具名迭代分量和字段访问共用 declaring classifier 的私有边界。待定值保留分量恢复类型，资源释放按绑定声明顺序逆序规划。
 计划参与 callable trial 快照；错误输入与最终后置约束失败不发布计划。
 unit 同名查询以 `UnitStatementId` 发布跨文件 provider/binding/projection，body 前精确化类型，
-trial 回滚与错误原子性一致；借用与数值 provider 的不同实施阶段见[迭代事实](finite-sequential-iteration.md)。
+trial 回滚与错误原子性一致。Unit 中待定 List、数值 Range、View 和 Map 源保留已知绑定类型，依赖这些绑定的存储操作随之待定。循环头恢复标记只供诊断使用，不发布迭代计划或授予执行资格。借用与数值 provider 的不同实施阶段见[迭代事实](finite-sequential-iteration.md)。
 
 ## 单文件常量类型资格
 
@@ -155,7 +155,7 @@ environment 会在遍历前返回内部错误。
 5. 无类型诊断且无阻塞 deferred fact 时产生 validated typed unit。
 callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不按名称重新选择 target。名义类型、
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
-canonical type identity；Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名、成员与顶层函数体的有界实例化拒绝不可存储的具体实参；名义字段、payload 与接口上界通过有限参数义务传播至类型引用及构造入口，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
+canonical type identity；Unit 签名和 body 的结构能力保留确定否决，泛型调用与名义构造在字段能力待定时延迟发布描述符；构造的部分推断仅用于诊断。Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名、成员与顶层函数体的有界实例化拒绝不可存储的具体实参；名义字段、payload 与接口上界通过有限参数义务传播至类型引用及构造入口，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
 两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
 Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。 `type_checking::nominal_unit` 的12项原enum/构造、静态接口及返回流消费者已迁至双Unit raw type入口，15份原源码与原oracle保留，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次名义构造与接口类型消费者2026-11-07)。
@@ -197,4 +197,4 @@ String clone 的 typed identity 与后续阶段运输见 [String clone 链路](s
 - TypeRef、call target、member target 和 receiver 选择必须可追溯到唯一源码或显式 external identity。
 - expected type 只能按语义允许的方向约束 child；不能用后端布局反向决定语言类型。
 - 条件 `Copyable`、layout recipe 与 runtime type identity 使用同一 canonical 类型图。
-- 诊断存在时可保留 recovery 数据，但 executable facts 必须原子失效。
+- 诊断存在时可保留 recovery 数据，但 executable facts 必须原子失效。Unit 普通成员读取确认接收者仍可空且没有待定依赖时记录根因 Error，显式类型实参的调用回退保留该 Error 并检查独立实参。缓存的待定字段保留类型和诊断所需的身份；六个 `MutableList` 修改方法保留实参检查及已知结果类型，在接收者或实参待定时暂缓发布描述符。

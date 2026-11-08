@@ -35,10 +35,17 @@ pub(super) struct MapWriteTarget {
     pub key_type: usize,
     pub value_type: usize,
     pub coherent: bool,
+    pub unpublished: bool,
 }
 pub(super) trait Facts {
     type Symbol: Copy + Ord;
     fn expression_type(&self, expression: ExpressionId) -> Option<usize>;
+    fn rejected_storage_origin(&self, _expression: ExpressionId) -> Option<Span> {
+        None
+    }
+    fn is_pending_storage_value(&self, _expression: ExpressionId) -> bool {
+        false
+    }
     fn type_ref_type(&self, type_ref: TypeRefId) -> Option<usize>;
     fn shape(&self, ty: usize) -> Option<Shape>;
     fn selection(&self, expression: ExpressionId) -> Option<Selection>;
@@ -386,6 +393,7 @@ impl Facts for Single<'_> {
             value: put.value(),
             key_type: put.key_type().index(),
             value_type: put.value_type().index(),
+            unpublished: false,
             coherent: put.expression() == target
                 && matches!(receiver,
                     Some(TypeKind::Intrinsic {
@@ -559,7 +567,9 @@ impl Facts for Single<'_> {
 impl Facts for Unit<'_> {
     fn map_write_target(&self, target: ExpressionId) -> Option<MapWriteTarget> {
         let id = UnitExpressionId::new(self.source, target);
-        let put = self.typed.map_put(id)?;
+        let selected = self.typed.map_put(id);
+        let unpublished = self.typed.unpublished_map_write(id);
+        let put = selected.or(unpublished)?;
         let receiver = self
             .typed
             .expression_type(put.receiver())
@@ -570,14 +580,17 @@ impl Facts for Unit<'_> {
             value: put.value().expression(),
             key_type: put.key_type().index(),
             value_type: put.value_type().index(),
-            coherent: put.expression() == id
+            unpublished: unpublished.is_some(),
+            coherent: (selected.is_none() || unpublished.is_none())
+                && put.expression() == id
                 && [put.receiver(), put.key(), put.value()]
                     .iter()
                     .all(|expression| expression.source_unit() == self.source)
                 && matches!(receiver,
-                    Some(UnitTypeKind::Intrinsic {
-                        constructor: IntrinsicTypeConstructor::MutableMap, arguments
-                    }) if arguments.as_slice() == [put.key_type(), put.value_type()]),
+                    Some(UnitTypeKind::Intrinsic { constructor, arguments })
+                        if (*constructor == IntrinsicTypeConstructor::MutableMap
+                            || unpublished.is_some() && *constructor == IntrinsicTypeConstructor::Map)
+                            && arguments.as_slice() == [put.key_type(), put.value_type()]),
         })
     }
     type Symbol = UnitSymbolId;
@@ -600,16 +613,38 @@ impl Facts for Unit<'_> {
             .expression_type(UnitExpressionId::new(self.source, expression))
             .map(UnitTypeId::index)
     }
+    fn rejected_storage_origin(&self, expression: ExpressionId) -> Option<Span> {
+        self.typed
+            .rejected_storage_origin(UnitExpressionId::new(self.source, expression))
+    }
+    fn is_pending_storage_value(&self, expression: ExpressionId) -> bool {
+        self.typed
+            .is_pending_storage_value(UnitExpressionId::new(self.source, expression))
+    }
     fn type_ref_type(&self, type_ref: TypeRefId) -> Option<usize> {
         self.typed
             .type_ref_type(UnitTypeRefId::new(self.source, type_ref))
             .map(UnitTypeId::index)
     }
     fn shape(&self, ty: usize) -> Option<Shape> {
-        Some(shape!(
-            self.typed.types().get(UnitTypeId::new(ty)),
-            UnitTypeKind
-        ))
+        let types = self.typed.types();
+        let kind = types.get(UnitTypeId::new(ty));
+        if let Some(UnitTypeKind::Intrinsic {
+            constructor:
+                IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList,
+            arguments,
+        }) = kind
+            && let [element] = arguments.as_slice()
+            && matches!(
+                types.get(*element),
+                Some(UnitTypeKind::Deferred(DeferredReason::ContextualArgument))
+            )
+        {
+            return Some(Shape::Deferred(DeferredReason::ContextualArgument));
+        }
+        Some(shape!(kind, UnitTypeKind))
     }
     fn selection(&self, expression: ExpressionId) -> Option<Selection> {
         let id = UnitExpressionId::new(self.source, expression);
@@ -670,6 +705,15 @@ impl Facts for Unit<'_> {
                                         source.resolution().symbols().get(id.symbol().index())
                                     })
                                     .is_some_and(|symbol| symbol.kind() == SymbolKind::Function)
+                            })
+                    }
+                    UnitReferenceTarget::ExternalOverloadSet(symbols) => {
+                        symbols.len() > 1
+                            && symbols.iter().all(|id| {
+                                matches!(
+                                    self.environment.binding(*id),
+                                    Some(ExternalTypeBinding::Function(_))
+                                )
                             })
                     }
                     _ => false,

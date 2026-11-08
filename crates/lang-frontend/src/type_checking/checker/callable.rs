@@ -1,4 +1,5 @@
 mod candidate;
+mod pending_arguments;
 mod range_extension;
 mod special_call;
 mod text_extension;
@@ -51,8 +52,23 @@ impl Checker<'_> {
             &arguments,
             expected,
         )? {
+            self.note_pending_call_exit(expression, callee, &arguments)?;
             return Ok(result);
         }
+        let result =
+            self.check_ordinary_call(expression, call_span, callee, &type_arguments, &arguments)?;
+        self.note_pending_call_exit(expression, callee, &arguments)?;
+        Ok(result)
+    }
+
+    fn check_ordinary_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<ExprCheck, TypeCheckingError> {
         let explicit_types = type_arguments
             .iter()
             .map(|&type_argument| self.resolve_type_ref(type_argument))
@@ -69,7 +85,7 @@ impl Checker<'_> {
                 .any(|candidate| !candidate.type_parameters.is_empty()))
             && !handles_source_instantiation
         {
-            self.check_deferred_arguments(callee, &arguments)?;
+            self.check_deferred_arguments(callee, arguments)?;
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),
                 falls_through: true,
@@ -105,27 +121,14 @@ impl Checker<'_> {
                     aborts: false,
                     prints_line: false,
                 });
-            } else if self.aggregate_projection_for(callee).is_none()
-                && let Some(result) = self.check_structural_component_call(
-                    expression,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                )?
-            {
-                return Ok(result);
             } else if self.is_error(callee_result.ty) || self.is_deferred(callee_result.ty) {
-                for argument in &arguments {
-                    self.check_expression(argument.value, None, None)?;
-                }
+                self.check_pending_untyped_arguments(callee, arguments)?;
                 return Ok(ExprCheck {
                     ty: callee_result.ty,
                     falls_through: true,
                 });
             } else {
-                for argument in &arguments {
-                    self.check_expression(argument.value, None, None)?;
-                }
+                self.check_pending_untyped_arguments(callee, arguments)?;
                 self.emit(
                     self.non_callable_target_code,
                     "call target does not have a callable type",
@@ -142,7 +145,7 @@ impl Checker<'_> {
         let mut mapped = Vec::new();
         let mut first_error = None;
         for candidate in candidates {
-            match self.map_arguments(&candidate.parameters, &arguments, call_span)? {
+            match self.map_arguments(&candidate.parameters, arguments, call_span)? {
                 Ok(mapping) => mapped.push((candidate, mapping)),
                 Err(error) => {
                     first_error.get_or_insert(error);
@@ -153,9 +156,7 @@ impl Checker<'_> {
             if let Some(error) = first_error {
                 self.emit_mapping_error(error)?;
             }
-            for argument in &arguments {
-                self.check_expression(argument.value, None, None)?;
-            }
+            self.check_pending_untyped_arguments(callee, arguments)?;
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -167,7 +168,7 @@ impl Checker<'_> {
                 .iter()
                 .any(|(candidate, _)| !candidate.type_parameters.is_empty());
         let inference_types = if needs_inference {
-            self.check_inference_arguments(&arguments)?
+            self.check_inference_arguments(callee, arguments)?
         } else {
             vec![None; arguments.len()]
         };
@@ -177,9 +178,9 @@ impl Checker<'_> {
             match self.instantiate_candidate(
                 candidate,
                 &mapping,
-                &arguments,
+                arguments,
                 &inference_types,
-                (&type_arguments, &explicit_types),
+                (type_arguments, &explicit_types),
                 self.ast().expressions().get(callee)?.span(),
             )? {
                 Ok(candidate) => instantiated.push((candidate, mapping)),
@@ -191,7 +192,7 @@ impl Checker<'_> {
         if instantiated.is_empty() {
             return self.reject_instantiation(
                 callee,
-                &arguments,
+                arguments,
                 initial_candidate_count,
                 first_failure,
             );
@@ -200,7 +201,7 @@ impl Checker<'_> {
 
         if mapped.len() == 1 {
             let (candidate, mapping) = mapped.pop().expect("one mapped candidate");
-            return self.finish_unique_call(expression, callee, &arguments, candidate, mapping);
+            return self.finish_unique_call(expression, callee, arguments, candidate, mapping);
         }
 
         let lambda_arguments = arguments
@@ -211,7 +212,7 @@ impl Checker<'_> {
             return self.finish_overload_lambda_call(
                 expression,
                 callee,
-                &arguments,
+                arguments,
                 mapped,
                 &lambda_arguments,
             );
@@ -219,8 +220,10 @@ impl Checker<'_> {
 
         let mut argument_types = Vec::with_capacity(arguments.len());
         let mut poisoned = false;
-        for argument in &arguments {
-            let result = self.check_expression(argument.value, None, None)?;
+        let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
+        for argument in arguments {
+            let result =
+                self.check_pending_operand(argument.value, None, None, &mut reaches_argument)?;
             poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
             argument_types.push(result.ty);
         }
@@ -246,7 +249,7 @@ impl Checker<'_> {
             1 => {
                 let (candidate, mapping) = mapped.pop().expect("one matching candidate");
                 // 初始映射只看到语法形态；类型过滤之后仍须检查真实的 inout place。
-                self.finish_unique_call(expression, callee, &arguments, candidate, mapping)
+                self.finish_unique_call(expression, callee, arguments, candidate, mapping)
             }
             _ => {
                 let spans = mapped
@@ -269,11 +272,14 @@ impl Checker<'_> {
     ) -> Result<ExprCheck, TypeCheckingError> {
         let mut argument_types = vec![None; arguments.len()];
         let mut poisoned = false;
+        let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for (index, argument) in arguments.iter().enumerate() {
             if lambda_arguments[index] {
+                self.note_deferred_argument_entry(argument.value);
                 continue;
             }
-            let result = self.check_expression(argument.value, None, None)?;
+            let result =
+                self.check_pending_operand(argument.value, None, None, &mut reaches_argument)?;
             poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
             argument_types[index] = Some(result.ty);
         }
@@ -380,18 +386,6 @@ impl Checker<'_> {
             ty: self.error_type(),
             falls_through: true,
         })
-    }
-
-    fn check_deferred_arguments(
-        &mut self,
-        callee: ExpressionId,
-        arguments: &[CallArgument],
-    ) -> Result<(), TypeCheckingError> {
-        self.check_expression(callee, None, None)?;
-        for argument in arguments {
-            self.check_expression(argument.value, None, None)?;
-        }
-        Ok(())
     }
 
     fn call_candidates(
@@ -824,66 +818,6 @@ impl Checker<'_> {
                 .effects
                 .contains(&EnvironmentFunctionEffect::PrintLine),
         }))
-    }
-
-    fn finish_unique_call(
-        &mut self,
-        expression: ExpressionId,
-        callee: ExpressionId,
-        arguments: &[CallArgument],
-        candidate: CallCandidate,
-        mapping: Vec<usize>,
-    ) -> Result<ExprCheck, TypeCheckingError> {
-        let mut valid = true;
-        let mut deferred = false;
-        for (argument_index, argument) in arguments.iter().enumerate() {
-            let parameter = &candidate.parameters[mapping[argument_index]];
-            let was_checked = self.expression_types[argument.value.index()].is_some();
-            let result =
-                self.check_expression(argument.value, Some(parameter.ty), parameter.span)?;
-            valid &= !self.is_error(result.ty);
-            deferred |= self.is_deferred(result.ty);
-            if was_checked
-                && !self.is_error(result.ty)
-                && !self.is_deferred(result.ty)
-                && !self.assignable(result.ty, parameter.ty)
-            {
-                self.mismatch(
-                    self.ast().expressions().get(argument.value)?.span(),
-                    parameter.span,
-                    result.ty,
-                    parameter.ty,
-                )?;
-                valid = false;
-            }
-            if !deferred
-                && matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
-                && (self.expression_categories[argument.value.index()] != ExpressionCategory::Place
-                    || self.is_mutable_element_place(argument.value) == Some(false))
-            {
-                self.emit_mapping_error(MappingError::Mode {
-                    primary: argument
-                        .mode_marker
-                        .map(parameter_mode_span)
-                        .unwrap_or(argument.span),
-                    parameter: parameter.span,
-                })?;
-                valid = false;
-            }
-        }
-        if deferred {
-            return Ok(ExprCheck {
-                ty: self.deferred(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        if !valid {
-            return Ok(ExprCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-        self.record_call(expression, callee, arguments, candidate, mapping)
     }
 
     fn record_call(

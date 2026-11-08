@@ -31,6 +31,62 @@ mod parser_test_assertions;
 
 use parser_test_assertions::parse_file_twice;
 
+#[test]
+fn value_class_does_not_supply_an_undeclared_component_method() {
+    use lang_frontend::type_checking::{
+        FinalTypeAdmissionError, complete_compilation_unit_types, complete_file_types,
+    };
+
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(
+            "component.ko",
+            "class Resource {}\n\
+        value class Pair<T>(val first: T)\n\
+        fun read(pair: Pair<Int>): Int = pair.component1()\n\
+        fun movePart(pair: Pair<Resource>): Resource = pair.component1()",
+        )
+        .unwrap();
+    let parsed = parse_file_twice(&sources, source, "undeclared component method");
+    let (environment, types) = environments();
+    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    let Err(FinalTypeAdmissionError::Diagnostics(single)) =
+        complete_file_types(&sources, &parsed, &names, &types, &typed)
+    else {
+        panic!("single-file analysis must reject undeclared methods with source diagnostics");
+    };
+    assert!(typed.calls().is_empty());
+    assert!(typed.aggregate_projections().is_empty());
+
+    for input in [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "component.ko", source, &parsed),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        let Err(FinalTypeAdmissionError::Diagnostics(unit)) =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+        else {
+            panic!("unit analysis must reject undeclared methods with source diagnostics");
+        };
+        assert!(typed.calls().is_empty());
+        assert!(typed.aggregate_projections().is_empty());
+        for diagnostics in [&single, &unit] {
+            assert_eq!(codes(diagnostics), ["L0165", "L0165"]);
+            assert!(diagnostics.iter().all(|diagnostic| {
+                sources.slice(diagnostic.primary_span()) == Ok("pair.component1")
+                    && diagnostic.details().is_empty()
+            }));
+        }
+    }
+}
+
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,
@@ -99,9 +155,7 @@ fn checked(
     (sources, parsed, names, typed, owned)
 }
 
-// Only the first two supported contracts retire Single observations. The complete
-// projection and fixture tests below retain Single; the component_partial_move module
-// adds independent Unit rejection evidence without retiring those original witnesses.
+// Retain the Single projection and fixture oracles alongside the Unit ownership checks.
 fn checked_each(
     text: &str,
     mut inspect: impl FnMut(
@@ -201,15 +255,15 @@ fn destructuring_copies_or_atomically_consumes_the_source_and_enables_bindings()
                     val stillAvailable = pair\n\
                 }\n\
                 fun consume(own pair: Pair<Resource, Int>): Unit {\n\
-                    val (resource, count) = pair\n\
+                    val (second, first) = pair\n\
                     val movedSource = pair\n\
-                    val firstUse = take(resource)\n\
-                    val secondUse = take(resource)\n\
+                    val firstUse = take(first)\n\
+                    val secondUse = take(first)\n\
                 }\n\
                 fun temporary(): Unit {\n\
-                    val (resource, count) = make()\n\
-                    val firstUse = take(resource)\n\
-                    val secondUse = take(resource)\n\
+                    val (second, first) = make()\n\
+                    val firstUse = take(first)\n\
+                    val secondUse = take(first)\n\
                 }";
     checked_each(text, |sources, _, _, checked| {
         assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 3]);
@@ -219,13 +273,13 @@ fn destructuring_copies_or_atomically_consumes_the_source_and_enables_bindings()
                 .iter()
                 .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
                 .collect::<Vec<_>>(),
-            ["pair", "resource", "resource"]
+            ["pair", "first", "first"]
         );
     });
 }
 
 #[test]
-fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() {
+fn field_projection_and_explicit_methods_preserve_ownership_contracts() {
     let text = "class Resource {}\n\
                 value class Bundle<T>(var payload: T, val count: Int)\n\
                 value class Custom(val payload: Resource) {\n\
@@ -242,9 +296,7 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
                     val borrowed = inspect(bundle.payload)\n\
                     val mutated = mutate(&bundle.payload)\n\
                     val copiedField = bundle.count\n\
-                    val copiedComponent = bundle.component2()\n\
                     val invalidField = take(bundle.payload)\n\
-                    val invalidComponent = bundle.component1()\n\
                     val explicitComponent = custom.component1()\n\
                     val whole = takeBundle(bundle)\n\
                     val moved = takeBundle(bundle)\n\
@@ -257,7 +309,7 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
     let (sources, _, names, typed, checked) = checked(text);
     assert_eq!(
         codes(checked.diagnostics()),
-        ["L0134", "L0132", "L0132", "L0131", "L0132", "L0131"]
+        ["L0134", "L0132", "L0131", "L0132", "L0131"]
     );
     assert_eq!(
         checked
@@ -265,7 +317,7 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
             .iter()
             .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
             .collect::<Vec<_>>(),
-        ["&", "payload", "component1", "bundle", "payload", "holder"]
+        ["&", "payload", "bundle", "payload", "holder"]
     );
     for diagnostic in checked
         .diagnostics()
@@ -312,17 +364,7 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
                 Copyability::Copyable,
             ),
             (
-                AggregateProjectionKind::StructuralComponent,
-                "count",
-                Copyability::Copyable,
-            ),
-            (
                 AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::StructuralComponent,
                 "payload",
                 Copyability::MoveOnly,
             ),
@@ -348,11 +390,6 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
             Some(projection.ty())
         );
     }
-    assert!(typed.calls().iter().any(|call| matches!(
-        call.target(),
-        CallableTarget::StructuralComponent(field)
-            if names.symbols()[field.index()].name() == "payload"
-    )));
     assert!(
         typed
             .calls()
@@ -393,4 +430,132 @@ fn checked_in_phase3_structural_fixtures_execute_pass_and_fail_cases() {
             }
         }
     }
+}
+
+#[test]
+fn legacy_destructuring_keeps_named_bindings_aligned_with_their_field_types() {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(
+            "legacy-named-split.ko",
+            "value class Pair(val first: Int, val second: String)\n\
+         fun reversed(own pair: Pair): Int { val (second, first) = pair; return first }\n\
+         fun unknown(own pair: Pair): Unit { val (first, arbitrary) = pair }",
+        )
+        .unwrap();
+    let parsed = parse_file_twice(&sources, source, "legacy named split");
+    let (names_env, types_env) = environments();
+    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
+    assert_eq!(codes(typed.diagnostics()), ["L0080"]);
+    assert_eq!(
+        sources.slice(typed.diagnostics()[0].primary_span()),
+        Ok("arbitrary")
+    );
+    let [descriptor] = typed.destructurings() else {
+        panic!("only the complete named split publishes facts");
+    };
+    let bindings = descriptor
+        .components()
+        .iter()
+        .map(|component| {
+            let symbol = &names.symbols()[component.symbol().index()];
+            sources.slice(symbol.span()).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(bindings, ["first", "second"]);
+}
+
+#[test]
+fn legacy_private_fields_require_the_lexical_classifier() {
+    let mut sources = SourceMap::new();
+    let text = "value class Vault(private val hidden: Int, val open: Int) {\n\
+                    fun unpack(other: Vault): Int { val (hidden, open) = other; return hidden }\n\
+                    fun field(other: Vault): Int = other.hidden\n\
+                }\n\
+                fun unpack(v: Vault): Int { val (open, hidden) = v; return open }\n\
+                fun field(v: Vault): Int = v.hidden\n\
+                fun safe(v: Vault?): Int? = v?.hidden";
+    let source = sources.add_source("legacy-private-field.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, source, "legacy private field");
+    let (names_env, types_env) = environments();
+    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
+    assert_eq!(codes(typed.diagnostics()), ["L0080"; 3]);
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|d| sources.slice(d.primary_span()).unwrap())
+            .collect::<Vec<_>>(),
+        ["hidden", "hidden", "hidden"],
+    );
+    assert_eq!(typed.destructurings().len(), 1);
+    assert_eq!(typed.aggregate_projections().len(), 1);
+    assert!(typed.calls().is_empty());
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_file_types};
+    let admission = complete_file_types(&sources, &parsed, &names, &types_env, &typed);
+    let Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics)) = admission else {
+        panic!("private patterns must reject with source diagnostics: {admission:?}");
+    };
+    assert_eq!(final_diagnostics, typed.diagnostics());
+}
+
+#[test]
+fn legacy_borrowed_destructuring_does_not_read_discarded_private_fields() {
+    use lang_frontend::type_checking::standard_environments;
+
+    for (binding, result, expected) in [
+        ("secret", "secret", &["L0160"][..]),
+        ("_", "visible", &[][..]),
+    ] {
+        let text = format!(
+            "value class Vault(private val hidden: Int, val open: Int)\n\
+             fun inspect(items: List<Vault>): Int {{\n\
+                 for (({binding}, visible) in items) {{ return {result} }}\n\
+                 return 0\n\
+             }}"
+        );
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("legacy-private-for.ko", text).unwrap();
+        let parsed = parse_file_twice(&sources, source, "legacy private for");
+        let (names_env, types_env) = standard_environments();
+        let names = resolve_names(&sources, &parsed, &names_env).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
+        assert_eq!(codes(typed.diagnostics()), expected);
+        assert_eq!(
+            typed.sequential_iterations().len(),
+            usize::from(expected.is_empty())
+        );
+    }
+}
+
+#[test]
+fn legacy_private_destructuring_recovers_after_a_missing_pattern_closer() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_file_types};
+
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(
+            "legacy-private-missing-closer.ko",
+            "value class Vault(private val hidden: Int, val open: Int)\n\
+         fun reject(v: Vault): Int { val (open, hidden = v; return open }",
+        )
+        .unwrap();
+    let parsed = parse_file_twice(&sources, source, "legacy private missing closer");
+    assert_eq!(codes(parsed.diagnostics()), ["L0010"]);
+    let (names_env, types_env) = environments();
+    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
+    assert_eq!(codes(typed.diagnostics()), ["L0080"]);
+    assert!(typed.destructurings().is_empty());
+    let result = complete_file_types(&sources, &parsed, &names, &types_env, &typed);
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+        panic!("expected parser and private-field diagnostics: {result:?}");
+    };
+    assert_eq!(codes(&diagnostics), ["L0080", "L0010"]);
 }

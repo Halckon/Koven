@@ -269,14 +269,15 @@ fn independent_roots_are_ordered_without_poison_cascades() {
 }
 
 #[test]
-fn selected_outer_calls_do_not_hide_illegal_argument_subtrees() {
+fn outer_call_recovery_preserves_illegal_argument_subtrees() {
     for (body, marker, code) in [
         ("val n = 1; val bad = n.fooBar(); 1", "fooBar", "L0080"),
         ("val bad = nullable?; 1", "?;", "L0085"),
     ] {
         let call = format!("take(if (true) {{ {body} }} else {{ 2 }})");
         let text = format!("fun take(n: Int): Int = n\nfun inspect(nullable: Int?): Int = {call}");
-        // The outer descriptor is genuinely selected despite an unused invalid inner local.
+        // Raw Unit leaves the outer call unresolved. Final admission must
+        // still diagnose the unused invalid local inside the argument.
         with_types(&text, |sources, file, single, unit, source| {
             assert!(
                 single.diagnostics().is_empty(),
@@ -286,10 +287,12 @@ fn selected_outer_calls_do_not_hide_illegal_argument_subtrees() {
             assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
             let id = expression(sources, file, &call);
             assert!(single.call(id).is_some(), "selected outer single call");
-            assert!(
-                unit.call(UnitExpressionId::new(source, id)).is_some(),
-                "selected outer unit call"
-            );
+            let id = UnitExpressionId::new(source, id);
+            assert!(unit.call(id).is_none());
+            assert!(matches!(
+                unit.expression_type(id).and_then(|ty| unit.types().get(ty)),
+                Some(UnitTypeKind::Deferred(DeferredReason::Call))
+            ));
         });
         let start = text.find(marker).unwrap();
         let token = if code == "L0085" { "?" } else { marker };

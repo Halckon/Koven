@@ -21,5 +21,20 @@ heap/shared/container/tagged payload投影不能凭alias overlap视作被替换�
 直接测试先确认旧 verifier 接受合法夹具，再记录真实拒绝测试失败；独立审发现的 Loan retain
 及预创建inline字段证明误拒已真实复现并修复。新 guard 已通过41个逃逸正反例，类型分类通过4个类型图测试。
 完整消费者及交付验证以 Spec 验收账本为准。
-此防线不传播嵌套 capture 的 LoanId 生命周期，相关局部清理问题仍未封闭；也不代表
-Array/List runtime-length 源码构造器已经接入。
+独立的 ownership verifier 在 `ClosureConstruct` 的 Owned slot 移入内层环境时，把捕获
+LoanId 交给外层 owner。Owned slot 和 CFG block 参数在同一固定点传播。显式 loan 参数逐入边
+核对实际归属，未显式重绑的捕获仍随 owner 运输。外层析构结束嵌套借用，独立 loan 仍需按原合同结束。
+`RootPlaceTake` 将当前物理槽中的捕获 loan 交给取出结果。同一槽经 raw `Mutate` 时选最后写入值，
+核对其捕获仍活跃且无第三方 owner，并拒绝新旧捕获集合重叠的归属冲突。被覆盖的原捕获沿既有
+raw 清理显式结束。
+不同物理槽的写入不影响该判定。`NullableTake`
+结束非空 proof 时执行与 `BorrowEnd` 一致的 holder 和派生 loan 检查。InlineNullable 沿内层
+存储保留逃逸分类，已知空值仍由内容证明放行。
+
+可调用内容证明在 `CallableViewOf`、`SharedReborrow` 和 CFG 重绑时运输实际捕获。调用 view、
+调用捕获 view 的外层闭包及同步 Borrow 交付会核对依赖仍活跃。raw 槽写入更新对应物理槽，
+保留原 SSA 值和其他直接 `RootPlace` 的内容。thunk 只在模块内所有构造者的对应槽均为 Shared
+view 且没有普通调用或地址入口时信任环境投影。
+
+闭包 root replace/swap 延续[既有准入边界](root-ownership-primitives.md)。入口 Borrow loan 的
+直接捕获重绑和 raw `SharedReference<CallableView>` 值的逃逸另行复审。

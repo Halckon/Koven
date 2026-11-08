@@ -15,6 +15,11 @@ impl Checker<'_> {
         initializer: ExpressionId,
     ) -> Result<StatementCheck, TypeCheckingError> {
         let source = self.check_expression(initializer, None, None)?.ty;
+        if self.iteration_recovery.is_pending(initializer) {
+            for &binding in bindings {
+                self.note_pending_iteration_binding(binding);
+            }
+        }
         let unit = self.builtin(BuiltinType::Unit);
         let TypeKind::Nominal { nominal, arguments } = self.kind(source).clone() else {
             let fallback = if self.is_error(source) {
@@ -63,23 +68,57 @@ impl Checker<'_> {
                 self.substitute_type(ty, &substitutions)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let error = self.error_type();
-        let mut typed_components = Vec::new();
-        let mut markers_valid = true;
-        for (index, &binding) in bindings.iter().enumerate() {
-            let ty = component_types.get(index).copied().unwrap_or(error);
-            self.set_marker_symbol(binding, ty);
-            let NameMarker::Present(span) = binding else {
-                markers_valid = false;
-                continue;
-            };
+        let declaration_span = self.symbol_spans[nominal.symbol().index()];
+        let fields = descriptor
+            .fields()
+            .iter()
+            .map(|field| self.sources.slice(self.symbol_spans[field.index()]))
+            .collect::<Result<Vec<_>, _>>()?;
+        let matches = crate::type_checking::destructuring::local_field_matches(
+            self.sources,
+            bindings,
+            fields,
+        )?;
+        let private_pattern = matches.iter().any(|(span, index)| {
+            index.is_some_and(|index| {
+                self.private_field_inaccessible(descriptor.fields()[index], *span)
+            })
+        });
+        let mut typed_components = vec![None; component_types.len()];
+        let mut markers_valid = matches.len() == bindings.len();
+        for (span, index) in matches {
             let Some(symbol) = self.symbol_at(span) else {
                 markers_valid = false;
                 continue;
             };
-            if index < component_types.len() {
-                typed_components.push(DestructuringComponent::new(symbol, ty));
+            let Some(index) = index else {
+                markers_valid = false;
+                let error = self.error_type();
+                self.set_marker_symbol(NameMarker::Present(span), error);
+                self.emit_with_label(
+                    self.unresolved_name_code,
+                    "unknown value class destructuring field",
+                    span,
+                    declaration_span,
+                    "field must be declared by this value class",
+                )?;
+                continue;
+            };
+            let field = descriptor.fields()[index];
+            if self.private_field_inaccessible(field, span) {
+                self.emit_private_field_access(field, span)?;
             }
+            if private_pattern {
+                // No binding receives a value when the complete split is inaccessible.
+                let error = self.error_type();
+                self.set_marker_symbol(NameMarker::Present(span), error);
+                continue;
+            }
+            let ty = component_types[index];
+            self.set_marker_symbol(NameMarker::Present(span), ty);
+            markers_valid &= typed_components[index]
+                .replace(DestructuringComponent::new(symbol, ty))
+                .is_none();
         }
 
         if bindings.len() != component_types.len() {
@@ -91,10 +130,10 @@ impl Checker<'_> {
                 self.destructuring_arity_code,
                 "value class destructuring must bind every component exactly once",
                 pattern,
-                self.symbol_spans[nominal.symbol().index()],
+                declaration_span,
                 format!("expected {} bindings", component_types.len()),
             )?;
-        } else if markers_valid {
+        } else if markers_valid && !private_pattern {
             let mode = match self.copyability_of(source) {
                 Copyability::Copyable => Some(DestructuringMode::Copy),
                 Copyability::MoveOnly => Some(DestructuringMode::Consume),
@@ -105,7 +144,7 @@ impl Checker<'_> {
                     statement,
                     source,
                     mode,
-                    typed_components,
+                    typed_components.into_iter().flatten().collect(),
                 ));
             }
         }

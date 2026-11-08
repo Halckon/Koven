@@ -9,6 +9,7 @@ use super::*;
 impl Checker<'_> {
     pub(super) fn check_assignment_expression(
         &mut self,
+        expression: ExpressionId,
         target: ExpressionId,
         operator: AssignmentOperator,
         operator_span: Span,
@@ -17,8 +18,12 @@ impl Checker<'_> {
         let result = if let Some(result) =
             self.check_container_assignment(target, operator, operator_span, value)?
         {
+            let reachable = self.pending_checked_exit(target) && self.pending_checked_exit(value);
+            self.note_pending_exit(expression, reachable);
             result
-        } else if let Some(result) = self.check_variable_assignment(target, operator, value)? {
+        } else if let Some(result) =
+            self.check_variable_assignment(expression, target, operator, value)?
+        {
             result
         } else {
             self.check_expression(target, None, None)?;
@@ -49,8 +54,9 @@ impl Checker<'_> {
         Ok(result)
     }
 
-    pub(super) fn check_variable_assignment(
+    fn check_variable_assignment(
         &mut self,
+        expression: ExpressionId,
         target: ExpressionId,
         operator: AssignmentOperator,
         value: ExpressionId,
@@ -61,13 +67,29 @@ impl Checker<'_> {
         let Some(symbol) = self.assignment_variable(target)? else {
             return Ok(None);
         };
+        let before_target = self.iteration_recovery.revision;
         let target_result = self.check_expression(target, None, None)?;
+        // Evaluating a root write target does not read its previous value.
+        self.iteration_recovery.revision = before_target;
         let storage_type = self.symbol_type(symbol);
-        let value_result = self.check_expression(
-            value,
-            storage_type,
-            storage_type.map(|_| self.symbol_spans[symbol.index()]),
-        )?;
+        let storage_span = storage_type.map(|_| self.symbol_spans[symbol.index()]);
+        let reaches_value = self.pending_expression_exit(target, target_result.falls_through);
+        let value_result = self.check_pending_path(reaches_value, |checker| {
+            checker.check_expression(value, storage_type, storage_span)
+        })?;
+        if reaches_value && self.pending_expression_exit(value, value_result.falls_through) {
+            if self.iteration_recovery.is_pending(value) {
+                self.iteration_recovery.bindings.insert(symbol);
+            } else if self.mutable_symbols.contains(&symbol)
+                && !self.captured_mutable_symbols.contains(&symbol)
+            {
+                self.iteration_recovery.bindings.remove(&symbol);
+            }
+        } else {
+            self.iteration_recovery
+                .abrupt_expressions
+                .insert(expression.index());
+        }
         let ty = if self.is_error(target_result.ty) || self.is_error(value_result.ty) {
             self.error_type()
         } else if storage_type.is_none()
@@ -84,7 +106,7 @@ impl Checker<'_> {
         }))
     }
 
-    fn assignment_variable(
+    pub(super) fn assignment_variable(
         &self,
         target: ExpressionId,
     ) -> Result<Option<SymbolId>, TypeCheckingError> {

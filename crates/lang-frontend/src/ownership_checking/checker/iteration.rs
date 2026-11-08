@@ -14,6 +14,16 @@ use crate::{
 use std::collections::BTreeSet;
 
 impl Checker<'_> {
+    pub(super) fn iteration_in_recovery(
+        &self,
+        statement: StatementId,
+        source: ExpressionId,
+    ) -> bool {
+        self.typed.iteration_source_pending(source)
+            && self.typed.map_iteration(statement).is_none()
+            && self.typed.sequential_iteration(statement).is_none()
+    }
+
     pub(super) fn check_iteration(
         &mut self,
         statement: StatementId,
@@ -21,6 +31,11 @@ impl Checker<'_> {
         body: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if self.iteration_in_recovery(statement, source) {
+            let errors = self.diagnostics.len();
+            let prefix = self.check_expression(source, state, ExpressionUse::Read)?;
+            return self.check_maybe_loop(prefix, body, errors);
+        }
         if (self.map_iteration_inputs_valid() || self.typed.map_iteration(statement).is_some())
             && !crate::type_checking::map_iteration_validation::validate_file_map_iteration(
                 self.parsed,

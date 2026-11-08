@@ -18,6 +18,7 @@ type LiveSet = BTreeSet<UnitSymbolId>;
 
 pub(super) struct Liveness {
     pub(super) expression_after: Vec<LiveSet>,
+    pub(super) if_branch_live_in: BTreeMap<usize, [LiveSet; 2]>,
     pub(super) when_entry_live_in: BTreeMap<(usize, usize), LiveSet>,
     pub(super) statement_after: Vec<LiveSet>,
     pub(super) skipped_functions: BTreeSet<usize>,
@@ -29,6 +30,7 @@ pub(super) struct Liveness {
 struct Builder<'a, 'checker> {
     checker: &'a Checker<'checker>,
     expression_after: Vec<LiveSet>,
+    if_branch_live_in: BTreeMap<usize, [LiveSet; 2]>,
     when_entry_live_in: BTreeMap<(usize, usize), LiveSet>,
     statement_after: Vec<LiveSet>,
     loop_stack: Vec<(LiveSet, LiveSet)>,
@@ -45,6 +47,7 @@ pub(super) fn build(
     let mut builder = Builder {
         checker,
         expression_after: vec![LiveSet::new(); checker.parsed.ast().expressions().len()],
+        if_branch_live_in: BTreeMap::new(),
         when_entry_live_in: BTreeMap::new(),
         statement_after: vec![LiveSet::new(); checker.parsed.ast().statements().len()],
         loop_stack: Vec::new(),
@@ -69,6 +72,7 @@ pub(super) fn build(
     }
     Ok(Liveness {
         expression_after: builder.expression_after,
+        if_branch_live_in: builder.if_branch_live_in,
         when_entry_live_in: builder.when_entry_live_in,
         statement_after: builder.statement_after,
         skipped_functions: builder.skipped_functions,
@@ -76,6 +80,27 @@ pub(super) fn build(
         lambda_live_in: builder.lambda_live_in,
         deferred: builder.deferred,
     })
+}
+
+impl Checker<'_> {
+    pub(super) fn run(&mut self) -> Result<super::drop_planner::Analysis, OwnershipCheckingError> {
+        for (item, _) in self.parsed.ast().items().iter() {
+            self.collect_mutability(item)?;
+        }
+        let liveness = build(self, false)?;
+        self.expression_live_after = liveness.expression_after;
+        self.if_branch_live_in = liveness.if_branch_live_in;
+        self.when_entry_live_in = liveness.when_entry_live_in;
+        self.statement_live_after = liveness.statement_after;
+        for &root in self.parsed.roots() {
+            self.check_item(root, super::State::default())?;
+        }
+        if self.diagnostics.is_empty() && self.typed.has_valid_type_facts() {
+            super::drop_planner::plan(self)
+        } else {
+            Ok(super::drop_planner::Analysis::default())
+        }
+    }
 }
 
 impl Builder<'_, '_> {
@@ -409,12 +434,15 @@ impl Builder<'_, '_> {
                 else_branch,
                 ..
             } => {
-                let mut branches = self.statement(then_branch, live_after.clone())?;
-                branches.extend(if let Some(else_branch) = else_branch {
+                let then_live = self.statement(then_branch, live_after.clone())?;
+                let else_live = if let Some(else_branch) = else_branch {
                     self.statement(else_branch, live_after)?
                 } else {
                     live_after
-                });
+                };
+                let branches = then_live.union(&else_live).copied().collect();
+                self.if_branch_live_in
+                    .insert(id.index(), [then_live, else_live]);
                 self.expression(condition, ExpressionUse::Read, branches)
             }
             Expression::When {

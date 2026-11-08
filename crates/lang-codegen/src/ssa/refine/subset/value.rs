@@ -257,7 +257,6 @@ impl Checker<'_, '_> {
         statement: lang_frontend::ast::StatementId,
         initializer: ExpressionId,
     ) -> bool {
-        self.migrated = true;
         let statement_id =
             lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
         let Some(descriptor) = self.inputs.typed.destructuring(statement_id).cloned() else {
@@ -275,12 +274,15 @@ impl Checker<'_, '_> {
         if descriptor.statement() != statement_id || !mode_ok || !self.expression(initializer) {
             return false;
         }
-        descriptor.components().iter().all(|component| {
+        let ok = descriptor.components().iter().all(|component| {
             let ty = self.c(component.ty());
             self.note_nullable(ty);
             self.known.insert(component.symbol());
             self.symbol_type(component.symbol()) == Some(ty) && self.storage_type(ty)
-        })
+        });
+        self.has_local_destructuring |= ok;
+        self.migrated |= ok;
+        ok
     }
 
     /// The value-class owner of a projection, read by copy: a known name or the current

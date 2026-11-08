@@ -473,7 +473,9 @@ impl SignatureCollector<'_> {
                                 invalid_inline,
                             ),
                         UnitTypeParameterBound::Capability(Capability::Hashable) => {
-                            if self.is_hashable_type(argument) {
+                            if self.has_unbound_external_head(argument) {
+                                CapabilityState::Unknown
+                            } else if self.is_hashable_type(argument) {
                                 CapabilityState::Yes
                             } else {
                                 CapabilityState::No
@@ -770,8 +772,9 @@ impl SignatureCollector<'_> {
 fn combine(left: CapabilityState, right: CapabilityState) -> CapabilityState {
     match (left, right) {
         (CapabilityState::Error, _) | (_, CapabilityState::Error) => CapabilityState::Error,
-        (CapabilityState::Unknown, _) | (_, CapabilityState::Unknown) => CapabilityState::Unknown,
+        // A known negative field rules out the capability for every completion.
         (CapabilityState::No, _) | (_, CapabilityState::No) => CapabilityState::No,
+        (CapabilityState::Unknown, _) | (_, CapabilityState::Unknown) => CapabilityState::Unknown,
         (CapabilityState::Yes, CapabilityState::Yes) => CapabilityState::Yes,
     }
 }

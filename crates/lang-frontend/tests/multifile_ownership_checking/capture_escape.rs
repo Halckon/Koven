@@ -517,7 +517,7 @@ fn ownership_diagnostics_clear_capture_and_executable_facts_atomically() {
 }
 
 #[test]
-fn closure_formation_matches_single_file_move_borrow_and_immutability_rules() {
+fn unit_capture_formation_distinguishes_move_borrow_and_exclusive_requirements() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(
         &mut sources,
@@ -565,7 +565,7 @@ fn closure_formation_matches_single_file_move_borrow_and_immutability_rules() {
 
     assert_eq!(
         diagnostic_codes(&ownership),
-        ["L0131", "L0138", "L0133", "L0135", "L0138"]
+        ["L0131", "L0138", "L0133", "L0138"]
     );
     assert!(ownership.captures().is_empty());
     assert!(ownership.loans().is_empty());

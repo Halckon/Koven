@@ -82,7 +82,7 @@ impl BodyChecker<'_> {
         let result =
             self.check_expression(source, initializer, expected, expected_span, return_type)?;
         let ty = expected.unwrap_or(result.ty);
-        self.parts.symbol_types.insert(symbol, ty);
+        self.record_symbol_type(symbol, ty);
         let constant = self.names.source_units()[source.index()]
             .resolution()
             .symbols()[symbol.symbol().index()]
