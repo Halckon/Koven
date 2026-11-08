@@ -81,3 +81,6 @@ mod map_borrowed;
 
 #[path = "ownership_iteration/conditional_source_unit.rs"]
 mod conditional_source_unit;
+
+#[path = "ownership_iteration/loop_choice_unit.rs"]
+mod loop_choice_unit;

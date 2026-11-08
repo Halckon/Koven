@@ -3645,3 +3645,57 @@ Mac、locked/offline、独立 target、默认 debug profile，在最终测试代
 文档后继不冒称重跑测试。此片不证明动态 Choice/循环 capture 传输、全流 loan-end、
 SSA/LLVM/native 或完整复杂所有权；其他 Single owner/loan 见证保留，D10/E2仍进行中。
 未运行全量测试、native、故障注入、校准或正式 CI，不创建 PR、不合并。
+
+## 循环共享 capture 的有界安全门禁（2026-11-08）
+
+在 `6dc1ff5c` 上探测原循环 Choice 源码，MemoryDocument/Rooted 均无诊断，却在循环后
+`f()` 使用来源之前发布 xs/ys 的 LoopExit drop；break 还出现 BranchExit drop。正确最低
+生命周期断言实跑失败，原 Single 三项条件来源见证通过。根因是 If 结果不能进入 planner
+的单 lambda 槽，且循环 body_state 未运输到出口。不能靠并集延迟所有来源冒充条件 ASAP。
+
+用户批准先对特定无法证明路径报 L0164。新 `dataflow/loop_capture.rs` 在 for/while/loop
+边检查循环外仍 live 的 holder：仅对相对入口新增的环境树中 Shared、MoveOnly、由当前
+callable 拥有的来源拒绝；Borrow/Inout 参数、非 owning binding、已建立环境、body-local
+且已结束的 callback、无捕获与 Copyable 来源不新增拒绝。失败不发布 cleanup/capture/
+iteration 产物。loop 内重新建立且跨边保存的环境仍待完整协议，不提升动态能力。
+
+可独立证明零轮的 literal false（含 Group）及 typed 内建容器 descriptor 确认的零实参
+ListForm/EmptyMutableList 保留旧路径；不靠函数名称判断空容器，不新增一般常量折叠、
+运行时长度求值或任意条件可达性证明。其他未证明零轮的运输仍可报 L0164，属于明确的
+临时精度限制。独立审查发现的 Borrow/Inout 参数误拒已修正并补正控；新模块避免给历史
+953行 traversal 再添加整段算法，不扩大尺寸豁免。
+
+### 完整条件 owner/phi 的下一阶段设计边界
+
+此节是待实施合同方向，不是已启用的新产物或能力。环境实例身份必须与静态 lambda
+分离，并绑定同次 analysis/source；每个实例持有有序 capture slots、source owner 与有效
+条件。Choice 与 loop header/exit phi 必须列全零轮入口、正常/continue 回边及 break/
+exhaustion 入边；条件 EndCaptureLoan 与 Drop 共享唯一有序序列，区分仍可用 named owner
+和仅由环境保留的 owner。validator 验证入边完整、条件互斥覆盖、slot 活性及恰一次清理。
+
+替换先完整形成 RHS 环境，再退休旧环境并提交新 holder；相同来源仍被新环境借用时不得
+出现释放窗口，未选中/旧轮 slot 必须清空。lowering 只消费验证后的 selector、owner、
+capture slot 与 phi 边赋值，不从 AST 重推生命周期，不重复执行平面 drop。
+
+后继成功验收须覆盖零轮、一轮 true/false、两轮 TT/TF/FT/FF、continue/break/exhaustion、
+RHS 提前 return、shared 同来源、多 holder 与 nested wrapper；证明未选中来源及时释放、
+选中来源到最终调用、旧新环境恰一次结束及 loan-before-drop，并补真实 lowering/native。
+原 Single 条件 owner 与两轮 replay 全部保留；两个无条件 CallReturn drop 不是等价 oracle。
+
+### 本片验收账本
+
+Mac、locked/offline、独立 target、默认 debug profile；以下均为最终生产代码定向实跑，
+不是全量测试或动态运输能力证明：
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 双入口 fail-closed 与支持路径矩阵 | `ownership_iteration::loop_choice_unit` | 8 passed，192 filtered；包含五种零轮正控及非空内建/普通函数结果负控 |
+| 保留 Single 条件来源与两轮 replay | `ownership_iteration::loop_carried_choices` | 5 passed，195 filtered |
+| 首批 Resource/nested capture 消费者 | `ownership_closures::capture_identity_unit` | 2 passed，72 filtered |
+| 原 exclusive 回边门禁 | `ownership_closures::exclusive_lifetime::exclusive_capture_loop_backedge_requires_a_proven_loan_state` | 1 passed，73 filtered |
+| 工程门禁 | frontend all-targets Clippy `-D warnings`、workspace fmt、diff | 通过 |
+| 尺寸门禁 | `check_rust_sizes.py --base 04583bb2` | 通过；2193份手写Rust、35份历史超长文件，无新增欠账 |
+| 文档门禁 | `check_docs.py` | 通过，863份Markdown |
+
+未运行其他套件、native、故障注入、校准或正式 CI；未创建 PR、不合并。
+D10/E2仍进行中，完整协议只有设计边界，不声称已实施。
