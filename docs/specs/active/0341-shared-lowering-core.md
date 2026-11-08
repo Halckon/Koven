@@ -4635,3 +4635,40 @@ Mac AArch64 / Rust1.96，locked/offline、默认 debug profile、jobs=2，共享
 独立只读复审核原 fixture/oracle、Single 保留范围、source-qualified 身份与同点完整清理；
 新 helper 遗漏的 names 全诊断空断言已补回，独立复核及修改后 17 项复跑通过。未执行全 frontend/workspace、native、Linux、
 损坏产物注入、Abort 或正式 CI；本片只本地保存，不推送、不创建或合并 PR。
+
+## 终止 owner 与借用顺序候选复用整合（2026-11-08）
+
+本轮输入为 main `65eaf1a736b7060416ff25ffc5233eb6ee473855` 上的组合头 `da0f99cd`，
+加下述混合交叉测试；复用 `42715890`、`e836a9fa`、`a470460b`、`0f03952f`。
+既有 #366 运输/临时父字段和 #369 CaptureIndex 已在基底，不重复实现；类型消费者
+另批交付。本轮结果只证明该输入，后继 main 变化仍须重新核对与验证。
+
+Exclusive冲突保留当前 `observes_call_loan`，不恢复旧root-only helper：Shared临时字段
+继续准入，Exclusive仍仅owned根；序号先计全部实际EndCallLoan，再筛选公开切片。
+新增 `exclusive_order::temporary_field_and_receiver_ends_preserve_the_shared_call_rank`
+用固定原源码和期望验证临时父字段、Exclusive、direct、隐藏方法实参、receiver及borrow
+source同Return的次序与唯一父owner清理。原borrow/receiver/Single见证和CI-only负控不删。
+
+独立逐候选range-diff及完整逻辑复审未发现P1/P2：CaptureIndex接线、双终止传播与后缀
+拒绝、receiver三层撤销门、四项iteration原oracle与两项named Single保留均已核对。
+三个历史超长父文件仅增加接线，分别1009→1022、1131→1136、1557→1562行，沿用
+原例外、未提高额度；算法仍在各自模块。原工作区及未跟踪脚本、未提交文档保持不变。
+
+| 验收项 | 组合实际选择 | 本机结果 |
+|---|---|---|
+| 原借用与混合新见证 | direct-call、continuation、nested-borrow、receiver-backedge，保留下述排除 | 106 + 14 + 9 + 4 = 133 passed |
+| 终止owner、开关全Analysis与raw撤销 | 23个普通lib精确测试：7个owner全产物、3个terminal源、2个shared-return、3个capture-release、7个raw相邻结果、1个CaptureIndex双来源 | 23 passed，378未选；全部lib负控另以no-run编译 |
+| receiver/provider与capture邻控 | multifile的receiver_admission与iteration；capture_identity_unit | 30 + 2 passed |
+| 退出迁移及保留Single | control_exits_unit、conditional_source_unit、loop_choice_unit、两个named Single精确测试 | 6 + 1 + 8 + 2 = 17 passed |
+| 严格静态与跨crate | frontend all-targets Clippy，locked/offline，`-W clippy::all -D warnings`；workspace all-targets check、fmt、diff | 通过 |
+| 文档与尺寸 | `check_docs.py`；`check_rust_sizes.py --base 65eaf1a7` | 863 Markdown；2224 Rust、35项既有超长，未提高额度 |
+
+Mac AArch64、Rust1.96、LLVM21.1.8、locked/offline、默认debug、jobs=2；复用同一target，
+跨工作区先刷新当前入口mtime并核编译来源，不清理数据。205项不同普通测试通过，不将
+交叉用例单跑和所在目标复跑重复累计。D10/E2与动态条件owner/phi仍in-progress。
+
+本机不执行direct族四项Abort整项、nested-borrow的
+`inout_receiver_and_nonreturning_sources_do_not_publish_call_uses`、multifile iteration的
+`nested_while_jumps_preserve_outer_provider_and_abort_has_no_cleanup_edge`，均仅编译；
+所有损坏产物注入、历史压力、native、Linux与frontend/workspace全量测试未运行。
+上述候选历史通过不能替代本组合正式CI；最终发布头双宿主CI仍待运行，不自动合并。

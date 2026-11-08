@@ -330,3 +330,73 @@ fn later_error_or_deferred_work_revokes_the_ranked_event_slices() {
         }
     }
 }
+
+#[test]
+fn temporary_field_and_receiver_ends_preserve_the_shared_call_rank() {
+    let text = "class Holder(val text: String)\nclass Node { fun touch(text: String, own next: Unit): Unit {} }\nfun select(source: String, tail: Unit): borrow String from source = source\nfun sink(first: String, inout count: Int, last: String, stop: Unit): Unit {}\nfun run(): Unit { val owner = \"kept\"; val node = Node(); var count = 0; borrow val item = select(owner, node.touch(\"receiver\", sink(\"first\", &count, Holder(\"field\").text, return))) }";
+    let point = unique_span(text, "return");
+    let sink = "sink(\"first\", &count, Holder(\"field\").text, return)";
+    let observed = assert_events(
+        text,
+        vec![
+            expected(
+                text,
+                point,
+                0,
+                "direct",
+                sink,
+                "Holder(\"field\").text",
+                "last: String",
+            ),
+            expected(
+                text,
+                point,
+                1,
+                "exclusive",
+                sink,
+                "count",
+                "inout count: Int",
+            ),
+            expected(text, point, 2, "direct", sink, "\"first\"", "first: String"),
+            // The method argument also ends, but remains outside the direct-call slice.
+            expected(
+                text,
+                point,
+                4,
+                "source",
+                "select(owner, node.touch(\"receiver\", sink(\"first\", &count, Holder(\"field\").text, return)))",
+                "owner",
+                "source: String",
+            ),
+        ],
+    );
+    for unit in &observed.units {
+        let [receiver] = unit.receiver_call_prefix_ends() else {
+            panic!("one actual receiver end")
+        };
+        assert_eq!(receiver.preceding_call_loan_ends(), 4);
+        assert_eq!(receiver.preceding_receiver_loan_ends(), 0);
+        assert_eq!(receiver.preceding_drops(), 0);
+        assert!(unit.receiver_facts().contains(receiver.receiver()));
+        let field = &unit.direct_call_loan_ends()[0];
+        assert_eq!(field.point(), receiver.point());
+        let UnitLoanTarget::Temporary(parent) = field.loan().target() else {
+            panic!("field loan retains its actual temporary parent")
+        };
+        let parent_span = observed
+            .parsed
+            .ast()
+            .expressions()
+            .get(parent.expression())
+            .unwrap()
+            .span();
+        assert_eq!(observed.sources.slice(parent_span), Ok("Holder(\"field\")"));
+        let drops: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == UnitDropTarget::Temporary(*parent))
+            .collect();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].point(), receiver.point());
+    }
+}
