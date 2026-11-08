@@ -4494,3 +4494,30 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+
+### 独立批次：Rc raw type 消费者双入口（2026-11-08）
+
+基于 main `60aa67d165c7419a596a06c4e69a61e06cc95716`，分支
+`feature/spec-0341-rc-type-consumers` 仅迁移 `type_checking` 两项原 Rc 消费者到
+`rc_unit`。不依赖 #351/#352，不修改生产代码、Guide、CI selector 或准入条件。
+
+- 两份原始 source 字节保留；原2项构造、3项操作、参数名/value模式、MoveOnly、share顺序、
+  payload Borrow，以及三条L0121、唯一有效构造和失败不发布Rc操作断言全部保留。
+- 使用既有 `checked_entries`，同一重复解析AST与自定义环境分别经MemoryDocument/Rooted，
+  保留真实source_id/root/path校验，补构造与操作/receiver的source-qualified身份。
+  只消费raw typed facts，不增加final或ownership前置。
+- 作者在单独复核步骤逐项对照原断言及原源码，确认其余87项测试不变、原89项测试总数不变。
+  该小范围测试迁移未更改共享helper或生产逻辑。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 原提交基线 | 原main根测试文件，`type_checking rc_` | 4 passed，85 filtered；含原2项与2项邻控 |
+| 最终完整消费者目标 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 89 passed，0 filtered |
+| Rc共享合同邻控 | `cargo test --locked --offline -p lang-frontend --test multifile_type_checking intrinsic_box_rc::` | 10 passed，156 filtered |
+| 编译与格式 | frontend all-targets Clippy（locked/offline，`-D warnings`）、`cargo fmt --all -- --check` | 通过 |
+| 文档 | `python3 scripts/check_docs.py` | 862份Markdown通过 |
+| 尺寸与差异 | `python3 scripts/check_rust_sizes.py --base 60aa67d1`、`git diff --check` | 通过；38项历史超限不变，新模块87行 |
+
+上述测试在Mac AArch64、Rust1.96.0、默认debug=2、locked/offline、独立Cargo target串行运行。
+未运行workspace全量、Abort/故障注入/校准、native、Linux或本分支官方CI；不得替代精确发布头
+双宿主CI。D10/E2保持in-progress，不创建PR或自动合并。
