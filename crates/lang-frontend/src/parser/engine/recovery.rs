@@ -1,4 +1,5 @@
 use super::*;
+use std::{cell::OnceCell, num::NonZeroUsize};
 
 pub(super) struct LexicalRecoveryIndex {
     pub(super) source_len: usize,
@@ -8,6 +9,7 @@ pub(super) struct LexicalRecoveryIndex {
     pub(super) unterminated_interpolation_starts: Vec<usize>,
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
+    group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -322,7 +324,17 @@ impl LexicalRecoveryIndex {
             unterminated_interpolation_starts,
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
+            group_closers: OnceCell::new(),
         })
+    }
+
+    pub(super) fn group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
+        self.group_closers
+            .get_or_init(|| group_closers(lexed, &self.terminal_owner_events))
+            .get(opener)
+            .copied()
+            .flatten()
+            .map(NonZeroUsize::get)
     }
 
     pub(super) fn string_recovery_end(&self, start: usize) -> Option<usize> {
@@ -416,4 +428,61 @@ fn unterminated_char_at_eof(source: &str, span: Span) -> bool {
         }
     }
     true
+}
+
+/// 在已验证的词法 owner 之外配对普通分组。角符号另有表达式语义。
+fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> Vec<Option<NonZeroUsize>> {
+    let mut matched = vec![None; lexed.lexemes().len()];
+    let mut terminals = terminals.iter().peekable();
+    let mut lexical_depth = 0usize;
+    let mut groups = Vec::new();
+    let mut active = [0usize; 3];
+    for (raw, lexeme) in lexed.lexemes().iter().enumerate() {
+        while terminals
+            .peek()
+            .is_some_and(|event| event.offset <= lexeme.span().start())
+        {
+            lexical_depth -= 1;
+            terminals.next();
+        }
+        let symbol = match lexeme.kind() {
+            LexemeKind::Token(TokenKind::StringStart | TokenKind::InterpolationStart) => {
+                lexical_depth += 1;
+                continue;
+            }
+            LexemeKind::Token(TokenKind::StringEnd | TokenKind::InterpolationEnd) => {
+                lexical_depth -= 1;
+                continue;
+            }
+            LexemeKind::Token(TokenKind::Symbol(symbol)) if lexical_depth == 0 => symbol,
+            _ => continue,
+        };
+        let (kind, opening) = match symbol {
+            Symbol::LeftParen => (0, true),
+            Symbol::RightParen => (0, false),
+            Symbol::LeftBracket => (1, true),
+            Symbol::RightBracket => (1, false),
+            Symbol::LeftBrace => (2, true),
+            Symbol::RightBrace => (2, false),
+            _ => continue,
+        };
+        if opening {
+            groups.push((raw, kind));
+            active[kind] += 1;
+        } else if symbol == Symbol::RightBrace && active[kind] == 0 {
+            // 构造器和委托都不能跨过调用方的未配对右花括号。
+            groups.clear();
+            active.fill(0);
+        } else if active[kind] != 0 {
+            // 孤立的异形 closer 不会使另一个已打开的分组丢失其真实 closer。
+            while let Some((opener, owner_kind)) = groups.pop() {
+                active[owner_kind] -= 1;
+                if owner_kind == kind {
+                    matched[opener] = NonZeroUsize::new(raw);
+                    break;
+                }
+            }
+        }
+    }
+    matched
 }

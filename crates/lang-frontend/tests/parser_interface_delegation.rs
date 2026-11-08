@@ -232,6 +232,8 @@ fn unsupported_contexts_and_expression_targets_remain_directionally_rejected() {
 
     for text in [
         "class C(val d: D): I by make(), J {}",
+        "class C(val d: D): I by make({ -> 1 }), J {}",
+        "class C: I({ -> 1 }), J {}",
         "class C(val d: D): I by d.member, J {}",
         "class C(val d: D): I by d by other, J {}",
     ] {
@@ -239,6 +241,27 @@ fn unsupported_contexts_and_expression_targets_remain_directionally_rejected() {
         assert_eq!(codes(parsed.diagnostics()), ["L0077"], "{text:?}");
         assert_eq!(classifier(&parsed).supertypes.len(), 2, "{text:?}");
         assert!(classifier(&parsed).body.is_some(), "{text:?}");
+    }
+}
+
+#[test]
+fn grouped_invalid_delegation_does_not_promote_inner_tokens_to_supertypes() {
+    for target in ["(x, y)", "[x, y]", "({ -> 1 })", r#"("${x}", y)"#] {
+        let text = format!("class C: I by {target}, J {{ fun member(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0078"], "{text}");
+        let class = classifier(&parsed);
+        let [first, second] = class.supertypes.as_slice() else {
+            panic!("both real supertypes for {text}");
+        };
+        let NameMarker::Error(span) = first.delegation.unwrap().target else {
+            panic!("grouped error target");
+        };
+        assert_eq!(sources.slice(span).unwrap(), target);
+        assert_eq!(sources.slice(second.span).unwrap(), "J");
+        let body = class.body.as_ref().unwrap();
+        assert_eq!(body.members.len(), 1);
+        assert!(body.right_brace_span.is_some());
     }
 }
 

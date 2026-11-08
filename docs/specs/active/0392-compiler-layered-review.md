@@ -108,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–80 | 缺类体时的文件边界、分组委托与连续词法 poison 的 AST 归属仍开放 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–81 | 类型参数的角符号与文件边界、未闭分组、连续词法 poison 的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2182,3 +2182,31 @@ interface 类型参数吞 `value class Sentinel`。对照确认合法 `value` �
 候选 frontend 全量 183 组、2733 项通过。逐字接入 `4b311957` 后，实际分支 97 项
 定向与 19 项 Parser 内部检查通过，零失败或忽略。frontend 全目标 Clippy、格式、
 文档、Rust 尺寸和 diff 检查通过。双宿主矩阵待推送后执行。
+
+[PR #361 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42457860370) 在 `d15fdc69`
+上通过。两宿主 conformance 为 137/154，验收程序 0/6，零回归、入口差异或内部错误。
+Linux sanitizer、两宿主生成资源及预览包独立安装通过，编辑器按范围跳过。精确提交
+本机补验 Mach-O 行表、后端真实 LLDB 断点及四项 CLI 调试检查，共 6 项通过。
+已合入 `70cdd8d9`。
+
+## 81. R1 类构造器与分组委托的文件 owner
+
+在 `d15fdc69` 上，缺右括号的文件级类构造器会吞后续 `public class`。文件分派显式
+传递 owner，只有没有真实 closer 的构造器才在本地基线交还文件 stop。保留 `public val`
+字段、合法 `value` 名称与平衡默认值。无类名、父类型、委托目标或函数类型返回时，也
+保留同级已识别文件起点和零宽诊断。合法 `value class` 在文件分隔处使用精确双 token
+识别，不把普通 Identifier 当文件起点。
+
+普通分组使用一次惰性扫描，忽略已验证字符串和插值 owner。已配对的非法委托目标和调用
+后缀保留完整括号内区域，诊断后仍交还外部逗号、后继父类型和类体。未配对的右花括号
+切断分组，孤立右方括号不弹无关 opener。回归覆盖缺 closer、真实 closer、嵌套默认值、
+词法终止事件和外层文件根的源码范围。
+
+独立复核先后发现物理配对误把平衡构造器中的非法类提升为文件根、孤立右花括号跨界、
+以及角符号被后继比较运算误闭合。普通分组候选已修复前两条，定向实跑覆盖其红绿结果。
+角符号候选保持隔离，`interface C<T` 仍可能吞下一文件声明，实际红测证明后继
+`val later = 2 > 1` 的 `>` 不能作为类型参数 closer。当前未改类型参数列表流程。
+
+最终隔离候选 frontend 全量 183 组、2742 项通过。逐字接入 `70cdd8d9` 后，实际分支
+106 项定向及 19 项 Parser 内部检查通过，零失败或忽略。frontend 全目标 Clippy、格式、
+文档、Rust 尺寸和 diff 门禁通过。双宿主矩阵待推送后执行。
