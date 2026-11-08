@@ -4672,3 +4672,22 @@ Mac AArch64、Rust1.96、LLVM21.1.8、locked/offline、默认debug、jobs=2；�
 `nested_while_jumps_preserve_outer_provider_and_abort_has_no_cleanup_edge`，均仅编译；
 所有损坏产物注入、历史压力、native、Linux与frontend/workspace全量测试未运行。
 上述候选历史通过不能替代本组合正式CI；最终发布头双宿主CI仍待运行，不自动合并。
+
+### Owner 复用批同步 #371 后主线（2026-11-08）
+
+原205项验收及交叉测试保存为 `4c741ba0` 后，无冲突合入 main
+`d2a8195468c172957eb789f347b6af82831ecd44`，组合头 `562c2ffa`。
+独立复核确认main新增10文件逐字保全，包括native object-write错误返回修复；
+原owner生产、cross测试及旧账本与4c741ba0逐字一致，不沿用旧基底CI证明新组合。
+
+本次重新运行原205个普通合同，并加入 `type_callable` 20项，共225项不同测试通过：
+原借用/receiver四目标133项、callable 20项、普通lib精确23项、multifile receiver/iteration
+30项、capture identity 2项、iteration退出与保留Single 17项。lib其他378项未运行；
+同一测试二进制已完整编译。沿用原六项Abort整项排除，并排除callable标准error身份
+整项；不运行损坏注入或历史压力，不改变测试断言、规模、ignore或native边界。
+
+frontend all-targets Clippy（locked/offline，`-W clippy::all -D warnings`）、workspace
+all-targets check、fmt、文档、diff通过；相对d2a81954尺寸门禁为2225 Rust、35项既有
+超长，原额度不变。Mac/Rust1.96/LLVM21.1.8、默认debug、jobs=2，共享target串行。
+未运行frontend/workspace全量测试、native、Linux或正式CI。文档后继不冒称再次运行
+测试；新头正式CI待验证，草稿发布不表示D10/E2完成，不自动合并。
