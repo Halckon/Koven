@@ -289,8 +289,7 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
             None,
         ),
         (
-            "fun apply(action: (Int) -> Unit, value: Int): Unit { action(value) }\n\
-             fun main(): Unit { var sum = 0; apply({ value -> sum = sum + value }, sum) }",
+            include_str!("fixtures/simple-assignment-0325/assignment_capture_conflict.ko"),
             Some("L0135"),
         ),
         ("class R { own fun noop(): Unit {} }", None),

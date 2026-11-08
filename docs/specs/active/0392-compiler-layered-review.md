@@ -1842,3 +1842,9 @@ GitHub 核实的 `86430a05`，两处冲突分别保留 `FlowVersions` 与 `unit_
 草稿 [PR #351](https://github.com/Halckon/Koven/pull/351) 首轮 Rust 行数门禁发现合流后的
 `refine_subset_tests.rs` 为 1008 行。将两条临时顺序源路由回归按职责移到子模块，父文件
 974 行，以 `origin/main` 为 base 的本机行数门禁及两条原回归通过。
+
+首轮 Linux Targeted Tests 的单文件与项目 `build` 仍沿用 SPEC-0325 的历史 p42 拒绝
+预期。两入口实际到达 S1 的 `UnsupportedNode`。将 R66 的真实独占借用冲突负控提取为
+共用 fixture，两个 `build` 入口继续核验 human/JSON 的 L0135、主范围、退出码和产物
+原子性。历史 p42 源码与 conformance 分类保持原样。以相同 `crates/` 隔离副本执行
+`check_cli` 6 项和两个 `build` 回归，均通过。独立复审核对字节范围及入口断言。
