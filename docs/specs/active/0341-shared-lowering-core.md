@@ -3502,6 +3502,20 @@ frontend all-targets Clippy（-D warnings）、fmt、849份Markdown、diff与尺
 组合源码的 callable 过滤器9项、type_graph过滤器1项通过；frontend all-targets Clippy
 （-D warnings）、fmt、849份Markdown与diff检查通过。正式Draft PR的双宿主CI仍待验证。
 
+### 剩余容器普通生命周期消费者（2026-11-07）
+
+基于 main `86430a05`，将 `ownership_containers` 四项原始 fixture 移至 `remaining_unit`：
+field-container parent/element overlap、replacement moved-owner 与 commit cleanup、temporary
+共享/独占借用及重复分析稳定性、post-index field projection Deferred。保持原始源文本与全部
+旧断言，包括 L0135、L0131 的 `list[0]` primary span、AfterReplacement/ReplacedElement、
+AfterExpression/CallReturn temporary cleanup、IndexPlace deferred 与空 drop plan。
+
+每项通过 MemoryDocument / Rooted 实际类型最终准入和 P3 分析；验证 SourceUnit、产物同源性，
+成功/诊断/Deferred 的 validate 结果分别保留。temporary 在每种入口各自重跑并比较完整 loans/drops
+调试快照，不把两入口之间相等当独立 oracle，也不改借用结束 producer 或完整事件见证。
+
+验证：四项 `remaining_unit::` 定向测试通过，frontend all-targets Clippy、fmt、文档及尺寸检查；
+未运行 full/native/Abort、故障注入或校准测试。与待合 #350 为不同测试段落，后续保留两批证据整合。
 ## Map.withValue 泛型借用消费者迁移（2026-11-07）
 
 独立基于 main `78a36f25`，不依赖 callable 或 borrow-prefix 候选合入。
@@ -3551,6 +3565,63 @@ unit_direct_call_loan_ends 全60项通过，共82项；frontend all-targets Clip
 （-D warnings）、workspace fmt、862份Markdown及diff检查通过。
 本次未运行全量/native/故障注入/校准；正式CI须以本次新头单独核验，不沿用旧头绿灯。
 
+后续本地整合 #350 的 `d8125323` 后，容器目标已没有 Single helper 调用，删除其入口和 imports。
+原两提交另存已验证 bundle；没有删除或覆盖原分支。45 项容器目标测试全部通过，
+frontend all-targets Clippy 与格式/文档/尺寸检查通过；仍不代表其他 ownership 目标全部退役。
+
+## 混合 Return 分支的绑定与终止隔离证据（2026-11-07）
+
+基于 #349 后 main `86430a05`，保留原混合分支源码及 prefix 固定完整向量，补 continuing
+分支唯一 binding 的固定字节身份（161–165）、同轮 source qualification、initializer 与
+origin 对接；唯一 result endpoint 必须属于该 binding，且为 AfterStatement，不能冒充
+Return 上的来源 loan 结束。同控制点的实际 call-loan 前序计数为零。两入口均验证。
+
+审计仍保留 direct/forwarded source 的完整 absence、named-source 全流恰一结束及 nested
+outer-end 先于 source-end 的 Single 见证。该混合分支现有 prefix 和 binding 可观察，但
+正常 handoff 单元素探针失败（列表为空），因此不把正常调用 handoff 的能力外推到此输入；
+本片不扩 producer、不改 Guide、不删除任何 Single，也不宣称完整事件流已实现。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug=2：
+`unit_direct_call_loan_ends` 的
+`borrow_handoff::return_during_later_operand_ends_only_the_established_source_prefix` 精确测试
+1 passed、59 filtered。保留证据邻控：`ownership_borrow_continuation` 的
+`results_continue_original_source_loans_and_never_own_the_payload` 与
+`named_source_continues_only_its_loan_and_other_arguments_end_at_call_return` 各 1 passed、
+13 filtered；`ownership_nested_borrow_arguments` 的
+`direct_and_grouped_results_are_synchronous_borrow_operands` 为 1 passed、9 filtered。
+frontend all-targets Clippy（-D warnings）、fmt、862 份 Markdown、diff及相对基线尺寸门禁
+通过；2150 份手写 Rust、38 份历史超长文件未增长。未运行全 target、native、Abort、
+故障注入或校准；官方 CI 未运行，D10/E2 仍 in-progress，不合并。
+
+## 容器与借用证据集中交付（2026-11-08）
+
+基于 main `60aa67d1`，组合保留 container-remaining `a44a673e` 与 borrow-evidence
+`2cb692cf`，代码组合头 `24f5a76c`。仅调和 Spec 追加记录冲突，原分支及历史验收保留；
+不包含 #351 的生产修复。独立只读逐项复审未发现可操作 P1/P2，原源码与 oracle 未弱化。
+
+Mac Rust1.96、locked/offline、独立 target、默认 debug profile：初始四目标组合编译在
+`unit_direct_call_loan_ends` 链接报 errno=28（No space left on device），exit101，未执行测试。
+该宽目标也包含 Abort 源码测试，后续不重跑宽目标；没有把未运行目标计为通过。
+复用本轮已编译目标后，`ownership_containers` 全45项、
+`ownership_borrow_continuation::results_continue_original_source_loans_and_never_own_the_payload`
+与 `ownership_nested_borrow_arguments::direct_and_grouped_results_are_synchronous_borrow_operands`
+各精确1项通过，共47项。workspace fmt、862份Markdown、diff及相对main尺寸门禁通过，
+2151份手写Rust、38份旧超长文件无新增欠账。
+
+本组合头的 mixed Return 精确测试和 frontend Clippy 因磁盘容量限制未完成；
+未运行 native、故障注入、校准、Linux或官方CI。本地历史通过不能替代本组合头验收。
+D10/E2仍in-progress，发布只保存工作，不自动合并。
+
+### 合入候选同步（2026-11-08）
+
+#351 已合入后，将当前 main `d8c7393a` 无冲突合入 #352 的 `77b9e727`，保留双方代码与验收。
+相对新主干的前端 patch-id 与原 #352 一致，不修改 producer 或扩大 D10/E2 完成范围。
+Mac Rust1.96、独立 target、默认 debug profile：`ownership_containers` 全45项和
+`unit_direct_call_loan_ends` 全60项通过（合计105项，零失败、零忽略），frontend all-targets
+Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 diff 检查通过。
+旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
+`60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。
+
 
 ## Unit 栈帧候选适配新主线（2026-11-08）
 
@@ -3580,3 +3651,14 @@ main 左结合逻辑链每层为192+16,192+9,776=26,160 B；本片为
 
 没有执行故障注入、Abort、全workspace或native套件；不以旧候选或#351的CI代替本头验证。
 未开PR、未合并，D10/E2仍in-progress。
+
+### 栈帧候选与容器借用主干合流（2026-11-08）
+
+#354 原头 `36c0df3c` 的[正式 CI](https://github.com/Halckon/Koven/actions/runs/42438608336)
+通过后，合入已含 #352 的 main `4fd948dd`；仅调和本账本追加记录，双方内容保留。
+相对新主干的前端 patch-id 与原 #354 一致。Mac Rust1.96、独立 target、默认 debug profile、
+locked/offline：原九个普通目标443项、`ownership_containers` 45项及 mixed Return
+`borrow_handoff::return_during_later_operand_ends_only_the_established_source_prefix` 精确1项通过，
+合计489项。历史Abort压力输入仍在本机精确排除，不修改源码、输入、ignore或线程栈。
+frontend all-targets Clippy（-D warnings）、workspace fmt、863份Markdown及diff检查通过。
+新组合须重新取得正式PR CI；旧头通过不代替新组合验收，D10/E2仍in-progress。

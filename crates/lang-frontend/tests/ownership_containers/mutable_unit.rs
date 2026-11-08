@@ -1,5 +1,5 @@
 //! Same-source MutableList and size-RHS contracts, with final admission before actual P3.
-//! The remaining legacy helper and its deeper place/lifetime witnesses stay independent.
+//! Deferred and deeper place/lifetime contracts are observed separately in remaining_unit.
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
