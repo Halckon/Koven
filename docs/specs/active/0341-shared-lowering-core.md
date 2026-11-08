@@ -4077,3 +4077,31 @@ Mac、locked/offline、独立target、默认debug profile；普通定向23项通
 Mac、locked/offline、独立target、默认debug profile；普通定向24项，独立只读复核无生产漏洞。
 未改公开类型，不重复workspace检查；未跑全量/native/CI-only注入/正式CI或Tree-sitter。
 此片仍不实现动态owner phi或循环实例，仅本地保存，不接触借用线补片、不外发或合并。
+
+## Callable expected 参数模式消费者迁移（2026-11-08）
+
+基于 main `f83aff80fd565771eb4873ebf8cfa51b5613ad02`，独立分支
+`feature/spec-0341-callable-lambda-mode-consumers`。仅迁移 Phase 2 测试消费入口，
+不修改生产、Guide、ownership、lowering 或仍保留的 Single 恢复见证。
+
+- `expected_lambdas_adopt_and_publish_all_parameter_modes` 保持原名称、完整源码、自定义
+  十六 builtin/两能力环境及三组固定 oracle。原一次 Single 类型分析由同一 AST 与环境的
+  MemoryDocument/Rooted 两次真实 Unit 分析承接；无新增 final/ownership 准入前置。
+- 六个命名参数通过真实 source-unit/local symbol 对应唯一 callable signature parameter；
+  七个 lambda 参数由同源 body mode 映射取值；七个 lambda function type 使用原 AST
+  expression 加真实 unit identity 查询。保留原顺序和 Borrow/Inout/Value 预期，另核唯一
+  来源和函数参数 arity，不按参数同名文本配对，也不把缺事实默认为成功。
+- 私有 `unit_entries` 提供保留名称结果的窄 helper，原 `checked_entries` 返回结构与检查
+  不变；其他顶层测试正文逐字保留。`type_callable` 直接 `check_types` 调用17→16，
+  仅说明这一消费者退休，不代表剩余 Single witness 或 D10/E2 已完成。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 原入口基线 | 原测试完整名称加 `--exact` | 1 passed |
+| 双入口及共享 helper 消费者 | `type_callable`，排除 `standard_error_has_a_stable_abort_identity_and_nothing_result` | 20 passed，1项原Abort witness未执行 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、workspace fmt、docs、尺寸、diff | 全通过；863份Markdown、2203份Rust，34项历史超长无增长 |
+| 独立复核 | 原源码与固定 oracle、来源身份、共享 helper | 无阻断，确认原契约完整保全 |
+
+Mac AArch64 / Rust1.96，locked/offline、独立 target、默认 debug profile，编译 jobs=2。
+本片没有运行故障注入、Abort、压力输入、frontend/workspace全量、native或正式CI；
+测试已编译不代表上述未执行项通过。未推送、未开PR、未合并，D10/E2仍in-progress。

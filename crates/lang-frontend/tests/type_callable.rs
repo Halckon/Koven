@@ -21,6 +21,9 @@ use parser_test_assertions::parse_file_twice;
 mod unit_entries;
 use unit_entries::checked_entries;
 
+#[path = "type_callable/expected_parameter_modes.rs"]
+mod expected_parameter_modes;
+
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,
@@ -264,74 +267,7 @@ fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-
-    let named_modes = resolution
-        .symbols()
-        .iter()
-        .filter(|symbol| symbol.kind() == SymbolKind::ValueParameter)
-        .map(|symbol| (symbol.name(), typed.parameter_mode(symbol.id())))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        named_modes,
-        [
-            ("input", Some(ParameterMode::Borrow)),
-            ("input", Some(ParameterMode::Inout)),
-            ("input", Some(ParameterMode::Value)),
-            ("callback", Some(ParameterMode::Borrow)),
-            ("callback", Some(ParameterMode::Borrow)),
-            ("callback", Some(ParameterMode::Borrow)),
-        ]
-    );
-
-    let lambda_modes = resolution
-        .symbols()
-        .iter()
-        .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
-        .map(|symbol| typed.parameter_mode(symbol.id()))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        lambda_modes,
-        [
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Inout),
-            Some(ParameterMode::Value),
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Value),
-            Some(ParameterMode::Inout),
-        ]
-    );
-
-    let lambda_type_modes = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .filter_map(|(id, node)| matches!(node.payload(), Expression::Lambda { .. }).then_some(id))
-        .map(|id| {
-            match typed
-                .expression_type(id)
-                .and_then(|ty| typed.types().get(ty))
-            {
-                Some(TypeKind::Function { parameters, .. }) => parameters[0].mode,
-                other => panic!("expected typed lambda function, got {other:?}"),
-            }
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        lambda_type_modes,
-        [
-            ParameterMode::Borrow,
-            ParameterMode::Inout,
-            ParameterMode::Value,
-            ParameterMode::Borrow,
-            ParameterMode::Borrow,
-            ParameterMode::Value,
-            ParameterMode::Inout,
-        ]
-    );
+    expected_parameter_modes::check(&sources, &parsed, &names, &types);
 }
 
 #[test]
