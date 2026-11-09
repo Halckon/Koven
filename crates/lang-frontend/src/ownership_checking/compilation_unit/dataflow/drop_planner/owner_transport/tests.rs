@@ -23,6 +23,7 @@ mod control_tail;
 mod invariant_break;
 mod invariant_continue;
 mod invariant_split_continue;
+mod invariant_split_exits;
 mod invariant_while;
 mod loop_boundaries;
 

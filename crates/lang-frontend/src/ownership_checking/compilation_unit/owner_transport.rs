@@ -7,7 +7,8 @@ pub(super) use loops::{
 pub use loops::{
     UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantBreakObservationV1,
     UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
-    UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1,
+    UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
+    UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1,
 };
 pub(super) mod values;
 pub use values::{

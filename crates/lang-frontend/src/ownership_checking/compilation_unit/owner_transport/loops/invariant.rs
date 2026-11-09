@@ -2,6 +2,7 @@
 mod boundaries;
 mod breaks;
 mod split_continue;
+mod split_exits;
 use super::super::{UnitOwnerId, UnitOwnerProducerCatalogV1, UnitOwnerValueObservationV1};
 use super::{UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerObservation};
 use crate::name_resolution::UnitSymbolId;
@@ -11,6 +12,7 @@ pub use breaks::UnitOwnerInvariantBreakObservationV1;
 pub use split_continue::{
     UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantSplitContinueObservationV1,
 };
+pub use split_exits::{UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1};
 
 /// One binding read from the actual planner state at a loop boundary.
 #[derive(Clone, Debug, PartialEq, Eq)]
