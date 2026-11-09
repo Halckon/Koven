@@ -82,8 +82,10 @@ impl BodyChecker<'_> {
             )?;
             result
         };
-        for key in invalidated {
-            self.invalidate_flow_key(key);
+        if result.falls_through {
+            for key in invalidated {
+                self.invalidate_flow_key(key);
+            }
         }
         Ok(result)
     }

@@ -132,3 +132,86 @@ fn when_context_and_coverage_diagnostics_are_deterministic() {
         );
     }
 }
+
+#[test]
+fn unfinished_inout_call_keeps_the_other_paths_narrowed() {
+    let overloads = "
+        fun <T> choose(seed: T, inout x: Int?, stop: Int, cb: (Int) -> Int): Unit { x = null }
+        fun <T> choose(seed: T, inout x: Int?, stop: Int, cb: (Boolean) -> Boolean): Unit { x = null }
+    ";
+    for (argument, expected) in [
+        ("(return 1)", [].as_slice()),
+        ("(if (return 1) 2 else 3)", [].as_slice()),
+        ("1", ["L0084"].as_slice()),
+    ] {
+        let text = format!(
+            "{overloads}
+            fun test(seed: Int?, flag: Boolean): Int {{
+                var x = seed
+                if (x != null) {{
+                    if (flag) {{ choose(0, &x, {argument}, {{ it - 1 }}) }}
+                    return x
+                }}
+                return 0
+            }}"
+        );
+        let (sources, _, entries) = checked_entries(&text);
+        for (_, typed) in entries {
+            assert_eq!(codes(typed.diagnostics()), expected, "{argument}");
+            for diagnostic in typed.diagnostics() {
+                assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), "x");
+            }
+        }
+    }
+}
+
+#[test]
+fn unfinished_call_argument_is_bottom_in_a_value_branch() {
+    let text = "
+        fun <T> choose(seed: T, inout x: Int?, stop: Int, cb: (Int) -> Int): Unit { x = null }
+        fun <T> choose(seed: T, inout x: Int?, stop: Int, cb: (Boolean) -> Boolean): Unit { x = null }
+        fun test(flag: Boolean): Int {
+            var x: Int? = 0
+            return if (flag) { choose(0, &x, (return 1), { it - 1 }) } else { 2 }
+        }
+    ";
+    let (_, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        typed.validate().expect("valid unit types");
+    }
+}
+
+#[test]
+fn unfinished_call_retains_the_static_shape_for_a_chained_call() {
+    for (declaration, use_site) in [
+        (
+            "fun factory(value: Int): () -> Int = { 7 }",
+            "factory(return 1)()",
+        ),
+        (
+            "class C { fun method(): Unit {} }\nfun factory(value: Int): C = C()",
+            "factory(return 1).method()",
+        ),
+        (
+            "fun build(value: Int): Int = value
+             fun sink(value: Int): Unit {}
+             fun sink(value: Boolean): Unit {}",
+            "sink(build(return 1))",
+        ),
+    ] {
+        let text = format!(
+            "{declaration}
+             fun test(): Int {{
+                 {use_site}
+                 return 2
+             }}"
+        );
+        let (_, _, entries) = checked_entries(&text);
+        for (_, typed) in entries {
+            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+            assert_eq!(typed.calls().len(), 2, "{use_site}: {:?}", typed.calls());
+            typed.validate().expect("valid unit types");
+        }
+    }
+}

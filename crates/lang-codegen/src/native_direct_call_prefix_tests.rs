@@ -945,3 +945,23 @@ fn ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections() {
         assert_eq!(source.sources.slice(span), Ok(call.as_str()));
     }
 }
+
+#[test]
+fn direct_call_with_early_argument_return_contributes_no_value_to_the_branch() {
+    let output = emit_link_and_run(
+        "direct-call-bottom-value.ko",
+        r#"
+fun skip(ignored: Int): Unit { println("callee must not run") }
+fun test(flag: Boolean): Int {
+    return if (flag) { skip(return 1) } else { 2 }
+}
+fun main(): Unit {
+    if (test(true) != 1 || test(false) != 2) { error("wrong result") }
+    println("ok")
+}
+"#,
+        "main",
+    );
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"ok\n");
+}

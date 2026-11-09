@@ -740,7 +740,8 @@ impl BodyChecker<'_> {
         self.record_call(source, expression, callee, arguments, &candidate, mapping);
         Ok(ExpressionCheck {
             ty: candidate.return_type,
-            falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
+            falls_through: self.call_operands_fall_through(source, callee, arguments)?
+                && !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
     }
 
