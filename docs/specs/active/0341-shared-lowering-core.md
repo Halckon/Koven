@@ -4494,3 +4494,183 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+
+### 独立批次：Rc raw type 消费者双入口（2026-11-08）
+
+基于 main `60aa67d165c7419a596a06c4e69a61e06cc95716`，分支
+`feature/spec-0341-rc-type-consumers` 仅迁移 `type_checking` 两项原 Rc 消费者到
+`rc_unit`。不依赖 #351/#352，不修改生产代码、Guide、CI selector 或准入条件。
+
+- 两份原始 source 字节保留；原2项构造、3项操作、参数名/value模式、MoveOnly、share顺序、
+  payload Borrow，以及三条L0121、唯一有效构造和失败不发布Rc操作断言全部保留。
+- 使用既有 `checked_entries`，同一重复解析AST与自定义环境分别经MemoryDocument/Rooted，
+  保留真实source_id/root/path校验，补构造与操作/receiver的source-qualified身份。
+  只消费raw typed facts，不增加final或ownership前置。
+- 作者在单独复核步骤逐项对照原断言及原源码，确认其余87项测试不变、原89项测试总数不变。
+  该小范围测试迁移未更改共享helper或生产逻辑。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 原提交基线 | 原main根测试文件，`type_checking rc_` | 4 passed，85 filtered；含原2项与2项邻控 |
+| 最终完整消费者目标 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 89 passed，0 filtered |
+| Rc共享合同邻控 | `cargo test --locked --offline -p lang-frontend --test multifile_type_checking intrinsic_box_rc::` | 10 passed，156 filtered |
+| 编译与格式 | frontend all-targets Clippy（locked/offline，`-D warnings`）、`cargo fmt --all -- --check` | 通过 |
+| 文档 | `python3 scripts/check_docs.py` | 862份Markdown通过 |
+| 尺寸与差异 | `python3 scripts/check_rust_sizes.py --base 60aa67d1`、`git diff --check` | 通过；38项历史超限不变，新模块87行 |
+
+上述测试在Mac AArch64、Rust1.96.0、默认debug=2、locked/offline、独立Cargo target串行运行。
+未运行workspace全量、Abort/故障注入/校准、native、Linux或本分支官方CI；不得替代精确发布头
+双宿主CI。D10/E2保持in-progress，不创建PR或自动合并。
+
+
+### 独立后续：接口闭包与泛型签名消费者（2026-11-08）
+
+基于已合并 #351 的 main `d8c7393a`，分支 `feature/spec-0341-signature-type-consumers`
+集中承接 Rc 原发布头 `97ac6070` 的两项提交为 `622da63d` / `cc0f666f`；唯一文档冲突
+同时保留主线循环/Elvis流事实和Rc范围说明，原Rc分支不改。不依赖 #352 或CI等待。
+
+- `nominal_unit::signatures` 迁移接口闭包、泛型签名与合法this两项原消费者；两份源码字节
+  保留，L0093及Wrong/T双span、Good直接/传递接口数量、identity函数类型/泛型参数、
+  顶层与成员归属及Nominal/StaticSelf顺序断言保留。归属读取Unit顶层declaration与
+  nominal.members，receiver模式额外核验；不以函数名推断Unit symbol。
+- 既有helper提供同一重复解析AST、自定义环境和MemoryDocument/Rooted两入口，查询真实
+  source-qualified symbol/expression。不改helper、生产代码、Guide、selector或准入。
+- 两项尝试迁移的原见证完整恢复：`enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests`
+  原Single为L0114，Unit当前无诊断；`nominal_and_type_parameter_identity_is_known_and_arity_is_exact`
+  第二条L0091的主span在Single为Left、Unit为Int，label同为Left。这是本机原source探针
+  的明确差距，不改oracle或source强行迁移，不宣称已修复或Single退休。
+- 单独作者复核逐项核原断言与Unit结构映射，脚本确认两份source字节及其余根测试/helper
+  全部保留，type_checking测试数仍89。新增测试模块小于1000行。
+
+| 验收项 | 目标/命令 | 实际结果 |
+|---|---|---|
+| 集中基线 | main加Rc两提交后的 `type_checking` | 89 passed |
+| 最终消费者 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 89 passed，0 filtered |
+| 签名共享邻控 | `cargo test --locked --offline -p lang-frontend --test multifile_type_signatures` | 19 passed，0 filtered |
+| 编译与格式 | frontend all-targets Clippy（locked/offline，`-D warnings`）、fmt check | 通过 |
+| 文档、尺寸与差异 | check_docs、check_rust_sizes（base `d8c7393a`）、diff check | 863份Markdown、尺寸及差异通过；35项旧尺寸欠账不变 |
+
+本机Mac AArch64、Rust1.96.0、默认debug=2，独立Cargo target串行执行；不把历史Rc基线
+当作本分支官方CI。workspace全量、Abort/故障注入/校准、native、Linux及本头官方CI未运行。
+D10/E2继续in-progress，未创建PR或合并。
+
+## 深泛型与接口图消费者后续（2026-11-08）
+
+基于 main `78a36f25`，独立分支 `feature/spec-0341-type-stress-consumers`，
+只迁移 Phase 2 raw type 压力测试，不修改生产实现、共享 helper 或 #351 的复审修复。
+原 `deep_generic_and_long_interface_graphs_stay_deterministic` 的源码构造逐字保留，
+复用 nominal_unit 的真实 MemoryDocument/Rooted 入口；两入口各自核无诊断、Leaf 身份
+与64个继承接口，96层Box输入不降规模。原Single重复消费者退休，target仍89项。
+
+尝试迁移原128个enum case + 96层smart-cast测试时，默认测试线程栈发生stack overflow
+及SIGABRT。失败发生于调用双入口helper，未得到两入口完成证据，不能归因到某个具体
+producer。已撤销该测试的迁移，原Single源码和全部oracle逐字保留并实跑通过；不调大
+线程栈、不缩小输入、不以ignore掩盖，也不在本片竞争修复生产代码。
+失败输入身份为本节基线的 `type_checking::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`；
+复现尝试将其原源码传给 `nominal_unit::checked_entries`，默认debug=2和默认线程栈。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 迁移消费者 | `cargo test --locked --offline -p lang-frontend --test type_checking deep_generic_and_long_interface_graphs_stay_deterministic` | 1 passed，88 filtered |
+| 名义类型邻控 | 同target `nominal_unit::` | 13 passed，76 filtered，包含迁移项 |
+| 保留Single差异见证 | 同target `long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 1 passed，88 filtered |
+| 静态检查 | frontend all-targets Clippy `-D warnings`，fmt，docs，diff与Rust尺寸门禁 | 通过 |
+
+本机Mac AArch64/Rust1.96、locked/offline、默认debug=2，独占target串行验证。
+共14项不同测试通过。独立复查步骤核原输入逐字保全、Single完整恢复和原oracle对等迁移。
+未运行完整target、workspace、native、Linux或官方CI；没有推送或自动合并，D10/E2仍in-progress。
+
+## Signature 与深类型图候选复用整合（2026-11-08）
+
+以远端 main `65eaf1a736b7060416ff25ffc5233eb6ee473855` 为基线，隔离分支复用
+`40df03a9` 的 Rc/signature 四提交链及 `cd86f515`，不重复 Rc，不改生产实现。
+主线 `nominal_unit/stress.rs` 的128个枚举分支/96层smart-cast及其Single见证逐字保留；
+深泛型候选原stress另存 `deep_graph_stress.rs`，96层Box与64接口输入不降规模。
+原候选工作区和其未提交文档不变。上述历史signature/Rc验收仅属于各节旧基线；
+旧Unit L0114缺失及L0091定位差异已由当前主线修复，不作为当前缺口或新头通过证据。
+
+独立逐项复审核五份原输入、oracle、helper source/analysis身份与两份stress字节保全。
+首次整合把stress模块重复注册，实际编译报E0428；修正后两模块各注册一次并重跑。
+文档首次超过200行入口限制，已将新事实放回原消费者概览，未删除历史记录或提高额度。
+
+| 验收项 | 本组合实际选择 | 结果 |
+|---|---|---|
+| 类型消费者 | `type_checking`，排除两个同名 `long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 93 passed，2 filtered；历史压力整项只编译，交正式CI |
+| 签名共享邻控 | `multifile_type_signatures` 全目标 | 24 passed |
+| 静态检查 | frontend all-targets Clippy，locked/offline，`-W clippy::all -D warnings`；workspace fmt、diff | 通过 |
+| 文档与尺寸 | `check_docs.py`、`check_rust_sizes.py --base 65eaf1a7` | 863 Markdown；2221 Rust、35项既有超长，无新额度 |
+
+Mac AArch64、Rust1.96、默认debug，独占复用target且Cargo串行。117项不同普通测试通过；
+没有执行历史Abort/长枚举压力、故障注入、frontend全量、native或Linux。当前头正式CI
+仍待运行，不沿用原候选绿灯；不自动合并，D10/E2仍in-progress。
+
+### Signature 复用批同步 #371 后主线（2026-11-08）
+
+#371 合入后，main 为 `d2a8195468c172957eb789f347b6af82831ecd44`；本批在
+`b3d90ac2` 合入该基底。唯一冲突是名称类型概览第17行：保留main的lambda模式、
+泛型实例与Single封存哨兵/§98链接，再接回Rc、signature和deep graph消费者事实。
+nullable bottom更新保持main正文，概览仍200行。独立复核确认其余9个main文件
+逐字保全，原类型测试和见证未变，不将旧基底CI当作新组合验收。
+
+新组合实际重跑 `type_checking` 93项、`multifile_type_signatures` 24项与
+`type_callable` 20项，共137项普通测试通过。两个长枚举/deep-smart-cast历史压力
+整项及标准error的Abort身份整项只编译，未执行。frontend all-targets Clippy
+（locked/offline，`-W clippy::all -D warnings`）、workspace all-targets check、fmt、
+文档和diff通过；相对d2a81954尺寸门禁为2222 Rust、35项既有超长，额度不变。
+Mac/Rust1.96/LLVM21.1.8、默认debug、jobs=2，共享target串行；未运行损坏注入、
+frontend全量、native或Linux。文档后继不冒称再次运行测试，最终新头正式CI待验证。
+
+### Signature 复用批整合 #377 后主线（2026-11-08）
+
+以已核远端 main `e1b0c2dc656ec5a94f4e4bce26b30fd20029aa46` 建隔离分支
+`fix/spec-0341-signature-main-integration`，合入 #372 精确头
+`bcd12e1ed14e029a14fd3078e1590e04b6f953fe`，代码整合头 `14992e8a`。
+保留既有 Rc/signature/deep graph 提交链，不重新实现或重复 cherry-pick；原 main、
+候选工作树及未提交改动未动。唯一冲突为名称类型概览一行，保留新主线的双 Unit
+`lambda_completion` 与全部候选事实，概览仍200行。独立只读复审确认 main 新增26个
+变更文件中的25个逐字保全，唯一交集即该概览；五项原输入与全部原oracle、两个helper、
+主线stress及其Single见证、#372完整历史账本均保留，模块各注册一次，无生产代码差异。
+
+| 验收项 | 本组合实际选择 | 结果 |
+|---|---|---|
+| 类型消费者 | `type_checking`，仅排除两个同名 `long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 93 passed，2 filtered |
+| 签名与Rc共享邻控 | `multifile_type_signatures` 全目标、`multifile_type_checking intrinsic_box_rc::` | 24 + 10 passed |
+| callable与新主线消费者 | `type_callable`、`lambda_completion` 全目标 | 21 + 4 passed |
+| 静态质量 | frontend all-targets Clippy（`-W clippy::all -D warnings`）、workspace fmt、docs、相对 `e1b0c2dc` 尺寸、diff | 通过；863 Markdown、2223 Rust、35项既有超长，无新增额度 |
+
+Mac AArch64 / Rust1.96.0，locked/offline、默认debug、jobs=2，新独占target串行Cargo。
+合计152项不同测试通过。本轮实际执行了 `standard_error_has_a_stable_abort_identity_and_nothing_result`
+这一raw类型事实测试，不沿用旧账本的“只编译”描述；没有执行native Abort。两个长枚举/
+deep-smart-cast压力整项仅编译，未执行故障注入、frontend/workspace全量、native或Linux；
+本片未改公开API/生产代码，未追加workspace check。旧基底或#372 CI不能替代本整合头正式CI。
+本地分步提交并保存恢复备份，发布仍待用户后续审批；没有推送、修改PR或合入main，D10/E2保持in-progress。
+
+### Signature 复用批保留 #380 主线后的四项增量（2026-11-09）
+
+基于 main `4243ebe57b7b0e5c821a15876daf944c55d7ca39` 建独立分支
+`fix/spec-0341-reconcile-type-consumers-20261109`，只复用 #372 精确头
+`22fd4967191dd885adeb8b795d2db89d205ccd5c` 中仍独有的 Rc 两项与 signature 两项。
+两个代码切片来自 `580cf21b` 和 `7b1774c0`，当前代码提交为 `25af1ffb`。
+唯一代码冲突发生在 generic signature 与已退役的旧 deep graph 相邻区域；保留 main 的
+`nominal_unit/stress.rs`，不恢复旧 Single 图测试，也不重复注册 `deep_graph_stress`。
+主线逐层验证96层 Box 身份/实参、最内层 Int、64接口集合及双入口顺序的更强 oracle 不变。
+
+独立只读复审确认两个新增模块与 #372 逐字一致，四份原源码与 main 逐字一致，原断言
+保留。主线两个 helper、stress 和其余测试文件逐字保全；根测试扣除四项迁移与注册后，
+其余非空白 token 完全一致。#372 的150行历史记录原样追加，不把旧基底验收改写成新头
+证据。原 main、#372 分支、所有既有工作树及未提交文件保持不变，无生产代码或公开 API 修改。
+
+| 验收项 | 本组合实际选择 | 结果 |
+|---|---|---|
+| 类型消费者及压力 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 95 passed，0 failed/ignored/filtered；两个长枚举/smart-cast整项及更强deep graph均实际执行 |
+| 签名与callable邻控 | 同包 `multifile_type_signatures`、`type_callable`、`lambda_completion` 三个完整target | 24 + 21 + 4 passed，0 failed/ignored/filtered |
+| Rc共享合同 | 同包 `multifile_type_checking intrinsic_box_rc::` | 10 passed，273 filtered，0 failed/ignored |
+| 编译与格式 | frontend all-targets Clippy（locked/offline，`-W clippy::all -D warnings`）、workspace fmt、diff check | 通过 |
+| 文档与尺寸 | `check_docs.py`、`check_rust_sizes.py --base 4243ebe57b7b0e5c821a15876daf944c55d7ca39` | 863 Markdown、2224 Rust、35项既有超长；通过，无新增额度 |
+
+Mac AArch64、Rust1.96.0、默认debug、jobs=2，独立worktree target内串行Cargo，共154项
+不同测试通过。此前账本只编译的两个历史压力整项在本组合已实际通过，不沿用旧限制描述。
+`standard_error_has_a_stable_abort_identity_and_nothing_result` 也实际通过，但它不是native Abort。
+未运行frontend全量、workspace check、故障注入、native或Linux；本片无生产/API变化，
+未扩大到无关全量门禁。正式双宿主CI仍须对发布的新头验收，不复用旧#372绿灯。
+保留原候选分支，不强推、不关闭旧PR、不自动合并，D10/E2继续in-progress。
