@@ -165,8 +165,7 @@ pub(super) struct BodyChecker<'a> {
     current_receiver_mode: Option<ParameterMode>,
     current_owner: Option<DeclarationId>,
     constant_prechecked: BTreeSet<UnitSymbolId>,
-    constant_recovery_only: BTreeSet<UnitSymbolId>,
-    checking_constants: bool,
+    constant_recovery_nodes: BTreeMap<UnitSymbolId, BTreeSet<UnitExpressionId>>,
     constant_inputs: super::constants::ConstantInputs,
     constant_values: BTreeMap<UnitSymbolId, crate::type_checking::ConstValue>,
 }
@@ -259,8 +258,7 @@ impl<'a> BodyChecker<'a> {
             current_receiver_mode: None,
             current_owner: None,
             constant_prechecked: BTreeSet::new(),
-            constant_recovery_only: BTreeSet::new(),
-            checking_constants: false,
+            constant_recovery_nodes: BTreeMap::new(),
             constant_inputs: BTreeMap::new(),
             constant_values: BTreeMap::new(),
         };
