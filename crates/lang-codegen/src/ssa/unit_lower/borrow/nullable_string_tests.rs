@@ -210,11 +210,13 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
                 Fault::PendingFrame => lowerer.pending_call_frames.push(PendingCallFrame {
                     call: fact.call(),
                     receiver: true,
+                    nullable_children: Vec::new(),
                     loan_arguments: Vec::new(),
                     loop_depth: 0,
                     pending_start: 0,
                     created_loans: Vec::new(),
                     abi_slots: Vec::new(),
+                    control_prefix_temporaries: Vec::new(),
                     field_replace_owner: None,
                     shared_field_roots: Vec::new(),
                     exclusive_root_owners: Vec::new(),

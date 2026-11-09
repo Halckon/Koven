@@ -71,13 +71,25 @@ impl Checker<'_, '_> {
             && (self.scope_requires_refine()
                 || !values
                     .iter()
-                    .any(|value| self.argument_has_loop_jump(*value)))
+                    .any(|value| self.argument_has_bare_loop_jump(*value)))
             && self.reference(callee).is_some_and(|symbol| {
                 self.known.contains(&symbol)
                     && (self.view_parameter(symbol) || self.callables.contains(&symbol))
             });
         self.migrated |= supported;
         supported
+    }
+
+    /// Whether the argument *is* a bare `break`/`continue`; an `if`/`when` wrapper
+    /// lowers as a diverging branch value in the refinement layer.
+    fn argument_has_bare_loop_jump(&self, argument: ExpressionId) -> bool {
+        let Ok(argument) = self.inputs.parsed.ast().expressions().get(argument) else {
+            return true;
+        };
+        matches!(
+            argument.payload(),
+            Expression::Break { .. } | Expression::Continue { .. }
+        )
     }
 
     /// A `break` or `continue` out of a function-value call argument (not inside a lambda in

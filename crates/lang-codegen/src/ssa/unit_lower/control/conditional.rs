@@ -35,6 +35,34 @@ impl UnitExpressionLowerer<'_> {
         } else {
             None
         };
+        if ordinary_if && nullable_if.is_none() && self.constant_owned.is_none() {
+            let (yes, no) = self
+                .typed
+                .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, condition));
+            if yes != no {
+                let (branch, index) = if yes {
+                    (Some(then_branch), then_index)
+                } else {
+                    (else_branch, else_index)
+                };
+                let point = UnitDropPoint::BranchExit {
+                    control,
+                    branch: index,
+                };
+                let exit = if let Some(branch) = branch {
+                    self.lower_current_if_branch(branch, point, result)?
+                } else {
+                    if result_required {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
+                    self.emit_drops(point)?;
+                    Some(self.loop_state())
+                };
+                let mut exits: Vec<_> = exit.into_iter().collect();
+                self.retire_if_exit_proofs(control, &mut exits, span)?;
+                return self.merge_unit_exits(exits, span);
+            }
+        }
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();

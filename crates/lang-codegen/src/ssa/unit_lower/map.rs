@@ -6,7 +6,7 @@ use lang_frontend::{
     ownership_checking::UnitDropPoint,
     parser::Expression,
     source::Span,
-    type_checking::UnitExpressionId,
+    type_checking::{IntrinsicTypeConstructor, UnitExpressionId, UnitTypeKind},
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, span_key};
@@ -88,6 +88,27 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .map_size(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        // A nullable Map proof view is lowered only by ssa::refine (SPEC-0397).
+        if self
+            .typed
+            .non_null_use(descriptor.receiver())
+            .is_some_and(|fact| {
+                matches!(
+                    self.typed.types().get(fact.declared_type()),
+                    Some(UnitTypeKind::Nullable(inner))
+                        if matches!(
+                            self.typed.types().get(*inner),
+                            Some(UnitTypeKind::Intrinsic {
+                                constructor: IntrinsicTypeConstructor::Map
+                                    | IntrinsicTypeConstructor::MutableMap,
+                                ..
+                            })
+                        )
+                )
+            })
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let owner = self
             .map_owner_operand(descriptor.receiver().expression(), span)?
             .0;

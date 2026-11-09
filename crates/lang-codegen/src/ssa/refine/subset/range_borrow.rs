@@ -101,11 +101,17 @@ impl Checker<'_, '_> {
             lang_frontend::parser::Statement::While { condition, .. } => {
                 self.while_requires_refine(*condition)
             }
-            lang_frontend::parser::Statement::For { .. } => self
-                .inputs
-                .typed
-                .map_iteration(UnitStatementId::new(self.inputs.source_unit, stmt_id))
-                .is_some(),
+            lang_frontend::parser::Statement::For { .. } => {
+                let statement = UnitStatementId::new(self.inputs.source_unit, stmt_id);
+                // Numeric ranges no longer lower on the legacy path (SPEC-0388).
+                self.inputs.typed.map_iteration(statement).is_some()
+                    || self.inputs.owned.iteration(statement).is_some_and(|plan| {
+                        matches!(
+                            plan.descriptor().provider(),
+                            IterationProvider::NumericRange(_)
+                        )
+                    })
+            }
             _ => false,
         }
     }
@@ -141,10 +147,11 @@ impl Checker<'_, '_> {
             // `RangeView.size` (SPEC-0393) and `String.clone()` (SPEC-0394) lower only here.
             || typed.range_size(id).is_some()
             || typed.string_operation(id).is_some()
-            // Borrow-result, `RangeView`, and `FunctionValue` calls lower only here.
+            // Borrow-result and `RangeView` calls lower only here. A `FunctionValue`
+            // call qualifies through `function_callee`, which keeps loop-jump
+            // arguments on the explicit unsupported boundary.
             || typed.call(id).is_some_and(|call| {
-                call.target() == UnitCallTarget::FunctionValue
-                    || call.borrow_return().is_some()
+                call.borrow_return().is_some()
                     || matches!(call.result_source(), CallableResultSource::Carrier(_))
             })
             || typed.integer_operation(id).is_some()

@@ -790,7 +790,7 @@ fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary
             "for ((k, v) in m) { val x = v }",
         ),
         (
-            "fun main(own m: MutableMap<Int, Int>?): Unit { if (m != null) { val copy = m.consume() } }",
+            "fun main(): Unit { var m: MutableMap<Int, Int>? = mutableMapOf<Int, Int>(); if (m != null) { val copy = m.consume() } }",
             "m.consume()",
         ),
         (

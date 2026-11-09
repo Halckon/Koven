@@ -909,6 +909,10 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
                 &sources,
                 &parsed,
             );
+        } else if path.ends_with("callable-argument-internal-loop.ko") {
+            // SPEC-0397 routes callable arguments to the refinement layer, which now
+            // lowers an argument-internal loop instead of rejecting the surface.
+            assert!(result.is_ok(), "{path}");
         } else {
             let error = match result {
                 Ok(_) => {

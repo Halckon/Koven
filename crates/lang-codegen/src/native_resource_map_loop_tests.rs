@@ -656,13 +656,19 @@ fn resource_remove_loop_pending_early_exits_preserve_native_cleanup() {
 
 #[test]
 fn resource_remove_loop_unqualified_loop_and_payload_remain_precise_boundaries() {
-    for text in [
-        ORIGINAL
-            .replace("for (key in arrayOf(1, 2, 3))", "loop")
-            .replace("values.remove(key)", "values.remove(1)")
-            .replace("println(\"iteration\")", "println(\"iteration\"); break"),
-        ORIGINAL.replace("deinit() { println(\"drop\") }", ""),
-        interrupted("loop { break }; 0"),
+    for (text, expected) in [
+        (
+            ORIGINAL
+                .replace("for (key in arrayOf(1, 2, 3))", "loop")
+                .replace("values.remove(key)", "values.remove(1)")
+                .replace("println(\"iteration\")", "println(\"iteration\"); break"),
+            "values.remove(1)",
+        ),
+        (
+            ORIGINAL.replace("deinit() { println(\"drop\") }", ""),
+            "values.remove(key)",
+        ),
+        (interrupted("loop { break }; 0"), "values.remove(key)"),
     ] {
         let source = analyzed(&crate::test_support::per_family_source(&text));
         let error = crate::ssa::with_per_family_lowering(|| source.lower_entry(source.entry()))
@@ -674,7 +680,7 @@ fn resource_remove_loop_unqualified_loop_and_payload_remain_precise_boundaries()
                 .sources
                 .slice(error.span.expect("source-located boundary"))
                 .unwrap(),
-            "removed"
+            expected
         );
     }
 }

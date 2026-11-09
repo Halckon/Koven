@@ -1,16 +1,20 @@
 //! 未提交的同步调用前缀；ABI 地址槽随本帧结束，源码 owner 由 frontend drop facts 决定。
 use super::*;
 
+pub(super) mod nullable_child;
 mod nullable_text;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PendingCallFrame {
+    pub(super) nullable_children: Vec<nullable_child::PendingNullableChild>,
     pub(super) call: UnitExpressionId,
     pub(super) receiver: bool,
     pub(super) loan_arguments: Vec<(UnitExpressionId, Vec<usize>)>,
     pub(super) loop_depth: usize,
     pub(super) pending_start: usize,
     pub(super) created_loans: Vec<usize>,
+    /// Argument temporaries whose ordinary direct-call prefix was validated.
+    pub(super) control_prefix_temporaries: Vec<UnitExpressionId>,
     /// (owner, shared-loan) slots for sealed source addresses with no user storage LoanFact.
     pub(super) abi_slots: Vec<(usize, usize)>,
     /// 字段置换的父 owner 槽位；整体借用与控制退出仍核对其身份。
@@ -58,6 +62,19 @@ impl UnitExpressionLowerer<'_> {
                                 || (span.start() <= iteration.start()
                                     && iteration.end() <= span.end())
                         })
+            })
+    }
+
+    pub(super) fn supports_loop_control_prefix(&self, span: Span) -> bool {
+        self.supports_control_prefix(span)
+            || self.temporaries.values().all(|owner| {
+                // A Group may record multiple source IDs for the same carried owner.
+                self.pending_call_frames.iter().any(|frame| {
+                    frame
+                        .control_prefix_temporaries
+                        .iter()
+                        .any(|argument| self.temporaries.get(argument) == Some(owner))
+                })
             })
     }
 
@@ -116,7 +133,9 @@ impl UnitExpressionLowerer<'_> {
             .call_site(self.source_token, call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if route.key().target() != UnitCallableTarget::Declaration(target)
-            || !self.function_ids.contains_key(route.key())
+            || route
+                .dispatch_key()
+                .is_some_and(|key| !self.function_ids.contains_key(key))
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -375,6 +394,12 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
+        self.validate_pending_nullable_children(
+            &self.pending_call_frames,
+            &self.pending_operands,
+            &self.nullable_proofs,
+            span,
+        )?;
         let mut retained = self.pending_operands.len();
         for frame_index in (0..self.pending_call_frames.len()).rev() {
             let frame = &self.pending_call_frames[frame_index];
@@ -400,6 +425,9 @@ impl UnitExpressionLowerer<'_> {
                         Origin::Source(span),
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                self.pending_call_frames[frame_index]
+                    .nullable_children
+                    .retain(|child| child.slot != index);
             }
             for &(owner, _) in self.pending_call_frames[frame_index].abi_slots.iter().rev() {
                 let value = require_value(

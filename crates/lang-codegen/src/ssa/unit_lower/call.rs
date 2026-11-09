@@ -10,6 +10,7 @@ use lang_frontend::{
         UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
     },
 };
+use std::collections::BTreeMap;
 
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
@@ -22,7 +23,10 @@ use crate::ssa::{
 
 pub(super) struct LoweredCallArguments {
     pub(super) arguments: Vec<EntityId>,
+    pub(super) nullable_children:
+        Vec<super::call_lifetimes::nullable_child::CommittedNullableChild>,
     pub(super) created_loans: Vec<(LoanId, Span)>,
+    pub(super) argument_loans: BTreeMap<UnitExpressionId, Vec<LoanId>>,
     pub(super) abi_owners: Vec<crate::ssa::model::ValueId>,
 }
 
@@ -82,6 +86,17 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if self.typed.ownership_primitive(call).is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if let Some(receiver) =
+            crate::ssa::unit_source_query::non_completing_call_receiver(self.typed, call)
+        {
+            if receiver.source_unit() != self.source_unit {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return match self.lower(receiver.expression())? {
+                LoweredValue::Diverged => Ok(LoweredValue::Diverged),
+                _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            };
         }
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if !self.supports_control_prefix(span)
@@ -179,11 +194,6 @@ impl UnitExpressionLowerer<'_> {
             .source_plan
             .call_site(self.source_token, call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let callee = self
-            .function_ids
-            .get(resolved.key())
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let pending_this = self.supports_control_prefix(span)
             && receiver.is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
             && descriptor.receiver().is_some_and(|receiver| {
@@ -209,7 +219,7 @@ impl UnitExpressionLowerer<'_> {
         }
         let receiver = if resolved.delegation().is_empty() {
             receiver
-        } else if !self.typed.map_iterations().is_empty() {
+        } else if self.migrated_family_compatibility {
             self.lower_delegated_call_receiver(call, receiver, resolved.delegation(), span)?
         } else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -239,6 +249,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(receiver) = &receiver {
             self.pending_call_frames
                 .push(super::call_lifetimes::PendingCallFrame {
+                    nullable_children: Vec::new(),
                     call,
                     receiver: true,
                     loan_arguments: Vec::new(),
@@ -266,6 +277,7 @@ impl UnitExpressionLowerer<'_> {
                         })
                         .collect(),
                     abi_slots: Vec::new(),
+                    control_prefix_temporaries: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
                         .collect(),
@@ -278,12 +290,23 @@ impl UnitExpressionLowerer<'_> {
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
+            argument_loans,
+            nullable_children,
             abi_owners,
+            ..
         }) = lowered_arguments?
         else {
             self.pending_operands.truncate(receiver_start);
             return Ok(LoweredValue::Diverged);
         };
+        let key = resolved
+            .dispatch_key()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let callee = self
+            .function_ids
+            .get(key)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if let Some(receiver) = &mut receiver {
             let mut rebound = self.pending_operands[receiver_start..].iter().copied();
             receiver.entity = rebound
@@ -407,16 +430,13 @@ impl UnitExpressionLowerer<'_> {
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             return Ok(LoweredValue::Diverged);
         }
-        for (loan, end_span) in created_loans.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(end_span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
-        }
+        self.end_committed_call_loans(
+            call,
+            created_loans,
+            argument_loans,
+            nullable_children,
+            span,
+        )?;
         self.drop_abi_call_owners(abi_owners, span)?;
         if let Some(receiver) = receiver {
             for (loan, end_span) in receiver.created_loans.into_iter().rev() {
@@ -499,6 +519,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<LoweredCallArguments>, LoweringError> {
         self.pending_call_frames
             .push(super::call_lifetimes::PendingCallFrame {
+                nullable_children: Vec::new(),
                 call,
                 receiver: false,
                 loan_arguments: Vec::new(),
@@ -509,6 +530,7 @@ impl UnitExpressionLowerer<'_> {
                 shared_field_roots: Vec::new(),
                 created_loans: Vec::new(),
                 abi_slots: Vec::new(),
+                control_prefix_temporaries: Vec::new(),
             });
         let result = self.lower_call_arguments_in_frame(call, arguments, descriptor, span);
         self.pending_call_frames.pop();
@@ -526,8 +548,10 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let pending_start = self.pending_operands.len();
-        let control_prefix = self.supports_control_prefix(span)
-            || self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
+        let general_prefix = self.supports_control_prefix(span);
+        let direct_prefix = !general_prefix
+            && self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
+        let control_prefix = general_prefix || direct_prefix;
         let range_receiver = matches!(descriptor.result_source(),
             lang_frontend::type_checking::CallableResultSource::Carrier(contract)
                 if contract.origin() == lang_frontend::type_checking::BorrowReturnOrigin::Receiver);
@@ -694,6 +718,14 @@ impl UnitExpressionLowerer<'_> {
                     ));
                 }
             };
+            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+            if direct_prefix && self.temporaries.contains_key(&argument_id) {
+                self.pending_call_frames
+                    .last_mut()
+                    .expect("call frame is active")
+                    .control_prefix_temporaries
+                    .push(argument_id);
+            }
             let pending_index = self.pending_operands.len();
             self.pending_operands.push(entity);
             let slot = ordered
@@ -736,10 +768,36 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .map(|(owner, _)| require_value(self.pending_operands[*owner], span))
             .collect::<Result<Vec<_>, _>>()?;
+        let argument_loans = self
+            .pending_call_frames
+            .last()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+            .loan_arguments
+            .iter()
+            .map(|(argument, slots)| {
+                let loans = slots
+                    .iter()
+                    .map(|slot| match self.pending_operands.get(*slot) {
+                        Some(EntityId::Loan(loan)) => Ok(*loan),
+                        _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((*argument, loans))
+            })
+            .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+        let nullable_children = self.commit_pending_nullable_children(
+            call,
+            &arguments,
+            &argument_loans,
+            &created_loans,
+            span,
+        )?;
         self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,
+            nullable_children,
             created_loans,
+            argument_loans,
             abi_owners,
         }))
     }

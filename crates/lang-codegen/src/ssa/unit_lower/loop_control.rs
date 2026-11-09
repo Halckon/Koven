@@ -2,7 +2,6 @@
 
 mod iteration;
 mod iteration_cleanup;
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
@@ -62,10 +61,11 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         self.reject_live_if_proof(span)?;
+        // Nullable `while` proofs lower only in `ssa::refine` (SPEC-0395).
         if !self.nullable_proofs.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
+        if !self.supports_loop_control_prefix(span) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
@@ -89,10 +89,14 @@ impl UnitExpressionLowerer<'_> {
         self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_loop(&baseline, header, &context, span)?;
         self.closure_bindings = baseline_closures;
+        let ordinary_condition = self.constant_owned.is_none().then(|| {
+            self.typed
+                .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, condition))
+        });
         let Some(condition) = self.lower_optional_condition_value(condition, span)? else {
             return Ok(LoweredValue::Diverged);
         };
-        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
+        if !self.supports_loop_control_prefix(span) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let constant_condition = if let Some(entity) =
@@ -103,7 +107,11 @@ impl UnitExpressionLowerer<'_> {
         {
             Some(value)
         } else {
-            None
+            match ordinary_condition {
+                Some((true, false)) => Some(true),
+                Some((false, true)) => Some(false),
+                _ => None,
+            }
         };
         if constant_condition == Some(false) {
             self.emit_loop_exit(statement)?;
@@ -191,7 +199,7 @@ impl UnitExpressionLowerer<'_> {
         if !self.nullable_proofs.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
+        if !self.supports_loop_control_prefix(span) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
@@ -309,9 +317,16 @@ impl UnitExpressionLowerer<'_> {
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         span: Span,
     ) -> Result<LoopContext, LoweringError> {
-        if !self.nullable_proofs.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
+        self.create_carried_loop_context(baseline, span)
+    }
+
+    // Shared construction only. The old wrapper keeps its rejection for loop/for
+    // and unqualified proof births; nullable while qualifies an existing proof first.
+    fn create_carried_loop_context(
+        &mut self,
+        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
+        span: Span,
+    ) -> Result<LoopContext, LoweringError> {
         let mut carried = self.carried_bindings(baseline, span)?;
         let mut loans = self.carried_loans(&self.borrow_bindings, span)?;
         self.carry_pending_operands(&mut carried, &mut loans, span)?;
@@ -370,9 +385,10 @@ impl UnitExpressionLowerer<'_> {
         let mut state = self.loop_state();
         // Cleanup already ended cancelled ordinary call loans. Their Rust frames
         // still unwind in the caller, but must not reappear in the loop successor.
-        state
-            .pending_call_frames
-            .retain(|frame| frame.loop_depth < self.loops.len());
+        // Keep live nullable-child metadata for its existing strict validation.
+        state.pending_call_frames.retain(|frame| {
+            frame.loop_depth < self.loops.len() || !frame.nullable_children.is_empty()
+        });
         Ok(LoopJump { state, span })
     }
 
