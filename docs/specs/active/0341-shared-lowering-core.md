@@ -4908,3 +4908,47 @@ replace 路径不进入这条 post-insert 推进，仍按各输出真实 Drop �
 D10/E2 继续 in-progress；真实循环实例/phi、incoming Choice、通用后续消费、Phase 4/native
 与 E3 仍未开放。未跑全量、手工模型/故障注入、native、Linux、最新main组合或正式精确头CI。
 不新增备份，分步提交后仅用connector发布独立新分支，不覆盖已有ref、不强推或合并。
+
+
+## 140. 双 Boolean 输入的纯短路 Choice 条件（2026-11-09）
+
+基于已发布 `7b9aa46f`（§138），先核远端 main `14297820`（#384）与 Choice 分支，
+没有同范围实现；既有32提交 Choice 链仍未合主线。本片保持该依赖，未做最新main组合
+验收。Phase 3 沿用现行 Boolean 短路与 move/drop 合同，不改 Guide、公开 API、V1事件/
+validator、cleanup、通用遍历或任何运行期 Choice/replace/alias 守卫。
+
+准入允许顶层非泛型 Unit 函数有一至两个参数，逐一要求无mode marker且精确Boolean，
+即使未被条件引用也检查；零参数、第三参数及其它类型/模式仍拒绝。条件仅这些真实
+UnitSymbolId 的 Name，以及 Group、Not、LogicalAnd/LogicalOr 树；每节点均检查
+非constant-use与精确Boolean。迭代worklist检查两侧全部语法，不只检查当前可能求值
+的一侧，不按名称拼写授权；literal、比较、普通call、If及其它节点均不放行。
+
+条件不产生owner、loan、调用或退出，实际短路仍由原planner求值；本片不展开或重写
+求值顺序。外层String If的真实then/else继续作为Choice输入0/1，Not或短路结构不改变
+owner边序，也不增加producer。旧String If观察仍原子Unsupported，新事务只发布既有
+已证完整的有界结果；全部Group、alias及replace输出运输合同保持。
+
+真实红测在 `flag && flag` 条件缺V1上1 failed（`e773c368`）；最小实现为`1cb51b35`。
+44种条件/边形态组合逐项核真实AST双边、完整Bind/Drop、两个producer及无参数清理，
+含两个原拒绝样例的正例迁移。32种组合覆盖4条件×8既有消费者：无/一/两alias、
+replace无后继、旧/新单输出及双输出两种次序，核真实分支事件、Choice/Definition移动数、
+精确Drop point/symbol与producer数量。19种合法拒绝覆盖literal、call、comparison、
+nested If、nullable/非Boolean、参数模式及超限，包括未引用非法第二参数/第三参数。
+全部保留独立sibling与观测开关完整旧Analysis等价。
+
+首轮组合测试误用固定两producer helper，replace真实三producer触发失败；独立静审
+也指出同一问题，改用既有完整分支事件helper，再按每种消费者精确核producer数量，
+不降低断言。独审建议补的未引用非法参数反例已纳入。未发现生产blocker。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_predicates` 三个 ordinary exact | 3 passed，0 failed/ignored |
+| 既有邻控 | §138 同一46项 ordinary exact | 46 passed，0 failed/ignored |
+| 独立复验 | `1cb51b35` 三个新完整名 ordinary exact，各命中1项 | 3 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2232 Rust、35项既有超限 |
+
+生产choice990行，新测试245行，架构200行，无尺寸例外变化；没有新增手工trace。
+未跑全量、既有手工模型/故障注入、native、Linux、最新main组合或正式精确头CI。
+真实循环动态实例/phi、incoming/nested Choice、任意消费者、Phase4/native、Single见证
+退休与E3仍未闭合，D10/E2继续in-progress。不新增备份，分步提交后只用connector
+发布新的独立分支，不覆盖已有ref，不强推或合并。

@@ -100,10 +100,10 @@ Control body 的私有结果通道保留实际尾表达式与既有求值帧 own
 
 V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
 定义最终 named Drop 的直线观察可按需投影；有界 Choice 另由真实 planner 事务收集。
-仅顶层无修饰、非泛型 Unit 函数，一个无模式 marker 的 Boolean 参数；初始 binding
+仅顶层无修饰、非泛型 Unit 函数，一至两个无模式 marker 的精确 Boolean 参数；初始 binding
 必须精确 String/MoveOnly，initializer 为显式 If 或整个 If 的 Group 链。
-条件仅同一参数的 Group/Not 链，每节点为非 constant-use 的精确 Boolean；原 planner
-先求条件，再按真实 then/else 记边，不因 Not 交换输入。调用、常量、比较和短路仍拒绝。
+条件仅这些参数的 Name/Group/Not/&&/|| 树，每节点非 constant-use 且精确 Boolean；完整检查两侧（§140）。
+原 planner 先求纯条件，再按真实 then/else 记边；不交换输入。调用、常量、比较及其它条件形状仍拒绝。
 每边允许无插值 String literal/Group（可包单尾 ControlBody），或一个精确 String/
 MoveOnly 的局部 `val` 后接唯一 Name/Group 消费尾；局部 initializer 仅 literal/Group。
 两边可混搭；函数体仅初始 binding 及下述有界后续，不接受其它语句或使用。
@@ -137,7 +137,7 @@ BranchExit、控制退出、When 等未覆盖 point 仍不准入；图守恒不�
 绑定 observation 的 product/callable，旧 Eq 仅比旧事实，新协议须独立验收。不从事件、
 cleanup 或 owner=None 重建身份；任意退出、遗漏、重复或错误交付均清空新事务。
 nullable、普通调用、capture、二次 replace/任意转交、退出、真实循环/phi、通用后续消费及 Phase 4 仍未开放。
-本机证据见 §120/§122/§124/§126/§128/§130/§132/§134/§136/§138；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
+本机证据见 §120/§122/§124/§126/§128/§130/§132/§134/§136/§138/§140；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
 
 ## String 根 swap 观察
 
