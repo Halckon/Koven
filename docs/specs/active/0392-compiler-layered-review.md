@@ -3545,3 +3545,18 @@ return 和调用实际交付三条边。间接 Nothing 原生 7 项、旧 Unit �
 while proof 4 项通过，均零失败、零忽略。独立复核确认透明 alias 重绑定与无关 owner
 拒绝，格式、文档与 Rust 尺寸门禁通过。
 同一候选的全工作区全目标 Clippy 和 CLI 构建通过。
+
+## 138. R4 值分支没有语法尾表达式时的终止交接
+
+在 `498b4b6b` 上，前端接受后续实参中的
+`if (outer) { loop { return } } else { true }`。原生红测在 loop span 报 MissingFact。
+兼容层在构建值分支前就要求尾表达式身份，尚未获知该分支是否正常继续。
+
+兼容层现将语法尾表达式读取为可选项，继续用已知尾身份识别 String? 的 null
+物化。实际 lowering 得到 Diverged 时不生成分支正常出口或尾值交付。正常继续并
+交付值时仍需原表达式身份，正常 Unit 仍无法交付要求的值。
+独立复核核对了退出、继续、null 尾值桥接、临时值边界和 nullable 专用准入。
+
+强化后的原生回归在默认与强制兼容路径通过，验证退出边不分派、继续边传入正确
+Boolean 并打印前序借用的 String。另有 19 项 return-control 测试及 String? guard
+定向测试通过。lang-codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
