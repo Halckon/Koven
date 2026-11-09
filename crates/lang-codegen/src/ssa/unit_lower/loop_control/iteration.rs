@@ -67,10 +67,10 @@ impl UnitExpressionLowerer<'_> {
             descriptor.provider(),
             lang_frontend::type_checking::IterationProvider::NumericRange(_)
         ) {
-            if self.typed.map_iterations().is_empty() {
+            if !self.migrated_family_compatibility {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
-            return self.lower_map_unit_numeric_for(&plan, body, span);
+            return self.lower_numeric_for(&plan, body, span);
         }
         let container = self.iteration_type(descriptor.source_type(), span)?;
         let element_type = self.iteration_type(descriptor.element_type(), span)?;
@@ -467,7 +467,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn lower_map_unit_numeric_for(
+    fn lower_numeric_for(
         &mut self,
         plan: &lang_frontend::ownership_checking::UnitIterationOwnershipPlan,
         body: StatementId,

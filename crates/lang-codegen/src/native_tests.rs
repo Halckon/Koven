@@ -41,6 +41,8 @@ pub(crate) mod boxed_enum_tests;
 #[path = "native_map_tests.rs"]
 mod map_tests;
 
+mod map_sibling_route_tests;
+
 #[path = "native_ordered_map_tests.rs"]
 mod ordered_map_tests;
 

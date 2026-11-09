@@ -36,7 +36,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.map_consume(id).is_some() {
-            if self.typed.map_iterations().is_empty() {
+            if !self.migrated_family_compatibility {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             return self.lower_map_consume(expression, span).map(Some);

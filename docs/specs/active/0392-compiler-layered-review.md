@@ -2874,3 +2874,49 @@ Ubuntu 专用 sanitizer 通过。编辑器词法门禁与 macOS 上的 Linux 专
 1941 项通过，零失败和忽略，另有 772 项未入该筛选。另行对照普通同步
 `observe(view(source))`，独立语句 `if` 在调用前或后时，两种 sibling 布局都在前端
 以 L0164 拒绝，未进入后端。纯直线版本两种布局均构建运行。
+
+[PR #377](https://github.com/Halckon/Koven/pull/377) 合入 `e1b0c2dc`。主干基线
+`59d3c280` 和 head `5ce6512f` 在 [CI 42504367608](https://github.com/Halckon/Koven/actions/runs/42504367608)
+验证，合成提交 `accf6e86` 和实际合入树均匹配 `5430b7f2`。双宿主 Check/Clippy、
+定向测试、预览包生产与独立安装、CI Passed 和 Code CI Evidence 通过。
+双宿主日志均实际运行委托后缀、overload trial、临时 Map sibling 与到达字段 provider
+的五条指定回归。本机前一生产切片的扩大 Map 套件 629 项通过，零失败和忽略。
+Editor lexical 按改动范围跳过。Linux native sanitizer 专项通过，macOS 按平台跳过。
+
+
+## 109. R4 旧路径中的数值区间、Map consume 与委托 receiver
+
+基线 `59d3c280` 的六条普通 Unit 源码分别组合三种操作与两种真实旧路由形状。
+前者是数值区间 `for`、`Map.consume`、接口委托 receiver。后者是 Borrow
+`String?` 形参或循环内重新赋值外层已收窄的 nullable owner。每组只追加一个未调用、
+含 Map 迭代的函数，前端均成功。有 sibling 时六例原生构建运行且 stdout 匹配，
+去掉 sibling 后六例均在到达的目标操作处报 `UnsupportedNode`。
+
+修复将三个整单元 gate 替换为逐 callable 的细化资格。细化接手后构建失败直接报错。
+当前还需兼容路径的函数与 thunk 使用各操作已存在的 descriptor、来源、layout 和 ownership
+检查，再由整程序 SSA verifier 验证。强制旧路径的退役见证仍要求可细化用例在三个旧
+入口被拒绝。两组嵌套 Map 查询只将不检查函数体的输入工厂恢复默认路由，仍核对原始
+输入、同轮前端事实、调用方和 scan 的所有入边、loan 生命周期、清理与真实 SSA/LLVM。
+
+六条 native 回归在基线均失败。修改后本机六条全部通过，每条分别链接并运行有/无
+sibling 的输入且核对退出、stdout 和 stderr。两组嵌套 Map 查询、九条匹配
+`retired_` 的既有边界测试通过，零失败和忽略。该结果覆盖本机 macOS，双宿主验证
+需在批次 PR 的集成提交上执行。首版扩大 SSA 验证为 1939 项通过、2 项失败；
+失败均为上述嵌套查询全量 pin 所致。修正 pin 后两条逐项复跑通过，未将首版记为全绿。
+
+## 110. R4 Borrow 内联 nullable 的只读判空
+
+`5ce6512f` 的 CLI 对照中，Borrow `String?` 判空在有无 Map sibling 时均报
+`InvalidModel`。直接返回比较结果也复现。以同样方式比较普通类句柄可以运行，
+对 Borrow MoveOnly value class 的内联 nullable 则同样报 `InvalidModel`。
+
+Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布局。
+现有 verifier 继续要求活动 Shared loan 和 Boolean 结果。LLVM 依据已验证的表示
+读取同一 storage，句柄读指针，内联表示读 niche 指针或显式 tag，缺席分支不读 payload。
+不新增 proof view、take 或 ownership 转移。
+
+本机原生回归覆盖 null、空 String（非空 niche）、已有 String owner 的借用，以及
+显式 tag 的 MoveOnly value class。两条均先有 CLI 失败证据，修复后链接、运行并逐字节
+校验输出。LLVM 断言分别锁定字段 0 的 pointer load 与 i1 load，检查函数中其余
+读只对应打印的本地字面量 storage。原普通类句柄的 borrowed nullable temporary
+定向测试 1 项、inline nullable 布局套件 6 项及 codegen 全目标 Clippy 均通过。
