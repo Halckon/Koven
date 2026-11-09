@@ -905,3 +905,6 @@ mod borrowed_receiver_return;
 
 #[path = "unit_direct_call_loan_ends/borrowed_receiver_prefix.rs"]
 mod borrowed_receiver_prefix;
+
+#[path = "unit_direct_call_loan_ends/inout_receiver_reborrow.rs"]
+mod inout_receiver_reborrow;
