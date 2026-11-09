@@ -118,7 +118,15 @@ impl Parser<'_> {
         let mut end = first.span().end();
         match first.kind() {
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen | Symbol::LeftBracket)) => {
-                if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw) {
+                let preserve_block_separator = stops.block_elements
+                    || stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR)
+                        != 0;
+                if let Some(closer) = self.lexical_recoveries.postfix_recovery_closer(
+                    self.lexed,
+                    opener_raw,
+                    opener_raw,
+                    preserve_block_separator,
+                ) {
                     self.index = closer + 1;
                     end = self.lexed.lexemes()[closer].span().end();
                 } else {
