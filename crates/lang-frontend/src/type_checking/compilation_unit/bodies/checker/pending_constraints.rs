@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ast::{ExpressionId, TypeRefId},
     name_resolution::{ExternalSymbolId, SourceUnitId, UnitSymbolId},
-    parser::{BinaryOperator, CallArgument, Expression},
+    parser::{BinaryOperator, CallArgument, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{BuiltinType, DeferredReason, TypeCheckingError, UnitTypeId, UnitTypeKind},
 };
@@ -149,13 +149,20 @@ impl PendingConstraints {
                 continue;
             }
             let formal = materialize(checker, private_types, self.formal_types[parameter])?;
-            let literal_widths = match checker.signatures.types().get(formal) {
-                Some(UnitTypeKind::TypeParameter(parameter))
-                    if self.substitutions.contains_key(parameter) =>
-                {
-                    checker.contextual_integer_types(source, arguments[index].value)?
-                }
-                _ => Vec::new(),
+            let literal_widths = if matches!(
+                arguments[index].mode_marker,
+                Some(ParameterModeMarker::Inout(_))
+            ) {
+                None
+            } else {
+                Some(match checker.signatures.types().get(formal) {
+                    Some(UnitTypeKind::TypeParameter(parameter))
+                        if self.substitutions.contains_key(parameter) =>
+                    {
+                        checker.contextual_integer_types(source, arguments[index].value)?
+                    }
+                    _ => Vec::new(),
+                })
             };
             if !checker.add_argument_evidence(
                 formal,
@@ -220,7 +227,7 @@ impl BodyChecker<'_> {
         &mut self,
         formal: UnitTypeId,
         actual: UnitTypeId,
-        literal_widths: Vec<UnitTypeId>,
+        literal_widths: Option<Vec<UnitTypeId>>,
         patterns: &BTreeMap<UnitSymbolId, UnitTypeId>,
         evidence: &mut Evidence,
         merged: &mut MergeMemo,
@@ -231,14 +238,17 @@ impl BodyChecker<'_> {
         {
             return Ok(true);
         }
-        // Only the argument root admits a promotion. Once a root alternative
-        // is chosen, all its child positions compare invariantly.
+        // Inout storage has no root promotion. Other modes may select one root
+        // alternative, but all child positions still compare invariantly.
+        let options = if let Some(literal_widths) = literal_widths {
+            let mut options = self.argument_type_options(actual);
+            options.extend(literal_widths);
+            options
+        } else {
+            vec![actual]
+        };
         let mut alternatives = Vec::new();
-        for option in self
-            .argument_type_options(actual)
-            .into_iter()
-            .chain(literal_widths)
-        {
+        for option in options {
             if let Some(narrowed) =
                 self.invariant_argument_evidence(formal, option, patterns, evidence, merged)?
             {

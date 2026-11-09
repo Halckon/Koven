@@ -18,7 +18,7 @@ impl Checker<'_> {
         crate::ownership_checking::borrow_result::borrow_result_call(
             self.parsed,
             expression,
-            |call| self.borrowed_call_source(call).is_some(),
+            |call| self.borrowed_call_source_operand(call).is_some(),
         )
     }
 
@@ -106,14 +106,28 @@ impl Checker<'_> {
         let Some(binding) = self.marker_symbol(name).copied() else {
             return Ok(flows);
         };
+        let needs_conversion = self
+            .typed
+            .symbol_type(binding)
+            .is_some_and(|expected| self.borrow_needs_nullable_conversion(initializer, expected));
+        if needs_conversion && let Some(call) = call {
+            // A rejected binding does not take over the initializer's source loan.
+            next.loans
+                .retain(|loan| loan.owner != ActiveLoanOwner::Call(self.unit_expression(call)));
+        }
         let Some(place) = actual
             .map(|origin| self.place(origin))
             .transpose()?
             .flatten()
+            .filter(|_| !needs_conversion)
         else {
             self.emit_borrow_binding_diagnostic(
                 codes::INVALID_BORROW_CONTRACT,
-                "borrow binding requires a stable source place",
+                if needs_conversion {
+                    "borrow binding requires existing nullable storage"
+                } else {
+                    "borrow binding requires a stable source place"
+                },
                 marker,
             )?;
             return Ok(flows);

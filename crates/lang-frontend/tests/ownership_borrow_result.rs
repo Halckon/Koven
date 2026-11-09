@@ -2,11 +2,16 @@
 
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
-    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
+    name_resolution::{
+        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+    },
+    ownership_checking::{
+        CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
+        check_ownership,
+    },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
 fn checked(text: &str) -> [CompilationUnitOwnership; 2] {
@@ -110,6 +115,186 @@ fn ordinary_val_does_not_implicitly_own_a_borrowed_call_result() {
                 .any(|d| d.code().to_string() == "L0163"),
             "{:?}",
             result.diagnostics()
+        );
+    }
+}
+
+fn checked_single(text: &str) -> OwnershipCheckedFile {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("borrow_result.ko", text).unwrap();
+    let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &file, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &file, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    check_ownership(&sources, &file, &names, &typed).unwrap()
+}
+
+#[test]
+fn nullable_conversion_cannot_supply_existing_borrow_result_storage() {
+    for text in [
+        "fun run() { val n: Int = 7; borrow val item: Int? = n }",
+        "fun view(source: Int): borrow Int from source = source\nfun run() { var n: Int = 7; borrow val item: Int? = view(n); n = 8 }",
+        "fun wrap(source: Int): borrow Int? from source = source",
+        "fun view(aux: Int, source: Int?): borrow Int? from source = source\nfun run() { val n: Int = 7; borrow val item = view(source = (n), aux = 0) }",
+        "fun view(source: Int?): borrow Int? from source = source\nfun wrap(source: Int): borrow Int? from source = view(source)",
+        "enum class E { A, B }\nfun run() { val n = E.A; borrow val item: E? = n }",
+        "fun wrap(source: Nothing?): borrow Int? from source = source",
+    ] {
+        let file = checked_single(text);
+        let units = checked(text);
+        for diagnostics in
+            std::iter::once(file.diagnostics()).chain(units.iter().map(|unit| unit.diagnostics()))
+        {
+            let [diagnostic] = diagnostics else {
+                panic!("{text}: expected a single diagnostic, got {diagnostics:?}");
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0162", "{text}");
+        }
+        assert!(file.borrow_return_origins().is_empty(), "{text}");
+        assert!(file.borrow_results().bindings().is_empty(), "{text}");
+        assert!(
+            file.borrow_results().forwarded_source_loans().is_empty(),
+            "{text}"
+        );
+        for unit in units {
+            assert!(unit.borrow_return_origins().is_empty(), "{text}");
+            assert!(unit.borrow_results().bindings().is_empty(), "{text}");
+            assert!(
+                unit.borrow_results().forwarded_source_loans().is_empty(),
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn actual_nullable_storage_remains_a_borrow_source_after_narrowing() {
+    let text = "fun view(source: Int?): borrow Int? from source = source\nfun run() { val n: Int? = 7; if (n != null) { borrow val item = view((n)); borrow val direct: Int? = (n) } }";
+    let file = checked_single(text);
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    assert_eq!(file.borrow_results().bindings().len(), 2);
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert_eq!(unit.borrow_results().bindings().len(), 2);
+    }
+}
+
+#[test]
+fn matching_nullable_borrow_sources_still_forward_and_handoff() {
+    let text = "fun view(source: Int?): borrow Int? from source = source\nfun wrap(source: Int?): borrow Int? from source { if (source != null) { return view((source)) }; return source }\nfun observe(value: Int?): Unit {}\nfun run(source: Int?) { observe(wrap((source))) }";
+    let file = checked_single(text);
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    assert_eq!(file.borrow_results().forwarded_source_loans().len(), 1);
+    assert_eq!(file.borrow_results().call_uses().len(), 1);
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert_eq!(unit.borrow_results().forwarded_source_loans().len(), 1);
+        assert_eq!(unit.borrow_results().call_uses().len(), 1);
+    }
+}
+
+#[test]
+fn enum_case_read_keeps_its_declared_nullable_borrow_storage() {
+    let text = "enum class E { A, B }\nfun run(source: E?): Unit { when (source) { is E.A -> { borrow val item: E? = (source) }; else -> {} } }";
+    let file = checked_single(text);
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    assert_eq!(file.borrow_results().bindings().len(), 1);
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert_eq!(unit.borrow_results().bindings().len(), 1);
+    }
+}
+
+#[test]
+fn synchronous_borrow_continuation_cannot_alias_a_promoted_source() {
+    let text = "fun view(source: Int?): borrow Int? from source = source\nfun observe(value: Int?): Unit {}\nfun run() { val n: Int = 7; observe(view(n)) }";
+    let file = checked_single(text);
+    let units = checked(text);
+    for diagnostics in
+        std::iter::once(file.diagnostics()).chain(units.iter().map(|unit| unit.diagnostics()))
+    {
+        let [diagnostic] = diagnostics else {
+            panic!("expected an unsupported source handoff, got {diagnostics:?}");
+        };
+        assert_eq!(diagnostic.code().to_string(), "L0164");
+    }
+    assert!(file.borrow_results().call_uses().is_empty());
+    for unit in units {
+        assert!(unit.borrow_results().call_uses().is_empty());
+    }
+}
+
+#[test]
+fn copyable_nullable_borrow_uses_a_temporary_instead_of_lending_the_source() {
+    use lang_frontend::ownership_checking::{LoanKind, LoanTarget, UnitLoanTarget};
+
+    let text = "fun deliver(value: Int?, inout output: Int): Unit { output = 9 }\nfun run() { var n: Int = 7; deliver(value = (n), output = &n) }";
+    let file = checked_single(text);
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    let [shared, exclusive] = file.loans() else {
+        panic!("expected two operand loans")
+    };
+    assert_eq!(shared.kind(), LoanKind::Shared);
+    assert_eq!(shared.target(), &LoanTarget::Temporary(shared.argument()));
+    assert_eq!(exclusive.kind(), LoanKind::Exclusive);
+    assert!(matches!(exclusive.target(), LoanTarget::Place(place) if place.is_root()));
+
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [shared, exclusive] = unit.loans() else {
+            panic!("expected two operand loans")
+        };
+        assert_eq!(shared.kind(), LoanKind::Shared);
+        assert_eq!(
+            shared.target(),
+            &UnitLoanTarget::Temporary(shared.argument())
+        );
+        assert_eq!(exclusive.kind(), LoanKind::Exclusive);
+        assert!(matches!(exclusive.target(), UnitLoanTarget::Place(place) if place.is_root()));
+    }
+}
+
+#[test]
+fn nullable_borrow_copies_preserve_real_storage_conflicts() {
+    for text in [
+        "fun deliver(value: Int?, inout output: Int?): Unit { output = null }\nfun run() { var n: Int? = 7; if (n != null) { deliver(value = (n), output = &n) } }",
+        "fun deliver(inout output: Int, value: Int?): Unit { output = 9 }\nfun run() { var n: Int = 7; deliver(output = &n, value = (n)) }",
+    ] {
+        let file = checked_single(text);
+        let units = checked(text);
+        for diagnostics in
+            std::iter::once(file.diagnostics()).chain(units.iter().map(|unit| unit.diagnostics()))
+        {
+            let [diagnostic] = diagnostics else {
+                panic!("{text}: expected an overlap, got {diagnostics:?}");
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0135");
+        }
+    }
+}
+
+#[test]
+fn nullable_copy_loan_end_witness_covers_call_return_and_later_argument_exit() {
+    use lang_frontend::ownership_checking::{UnitDropPoint, UnitLoanTarget};
+
+    let text = "fun accept(value: Int?, own marker: Int): Unit {}\nfun exercise(own flag: Boolean): Unit { val n: Int = 7; accept((n), if (flag) { return } else 8) }";
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let ends = unit.direct_call_loan_ends();
+        assert_eq!(ends.len(), 2, "{ends:?}");
+        assert_eq!(ends[0].loan(), ends[1].loan());
+        let loan = ends[0].loan();
+        assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+        assert!(
+            ends.iter()
+                .any(|end| end.point() == UnitDropPoint::CallReturn(loan.call()))
+        );
+        assert!(
+            ends.iter()
+                .any(|end| matches!(end.point(), UnitDropPoint::ControlTransfer(_)))
         );
     }
 }

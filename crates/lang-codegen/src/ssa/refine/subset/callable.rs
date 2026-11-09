@@ -824,6 +824,38 @@ impl Checker<'_, '_> {
         ok
     }
 
+    /// Completed operands can require storage even if there is no callee instance.
+    pub(super) fn demand_prefix_nullable_arguments(
+        &self,
+        id: UnitExpressionId,
+        expression: &Expression,
+        demands: &mut Vec<UnitTypeId>,
+    ) {
+        if self.inputs.owned.call_may_dispatch(id) != Some(false) {
+            return;
+        }
+        let (Some(call), Expression::Call { arguments, .. }) =
+            (self.inputs.typed.call(id), expression)
+        else {
+            return;
+        };
+        for argument in call.arguments() {
+            if arguments
+                .get(argument.argument_index())
+                .is_some_and(|operand| {
+                    self.inputs
+                        .owned
+                        .call_argument_completed(self.id(operand.value))
+                })
+            {
+                let parameter = self.c(argument.parameter_type());
+                if matches!(self.kind(parameter), Some(UnitTypeKind::Nullable(_))) {
+                    demands.push(parameter);
+                }
+            }
+        }
+    }
+
     /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
     /// non-null name read through its proof view.
     pub(super) fn arguments(&mut self, call: ExpressionId, values: &[ExpressionId]) -> bool {
@@ -831,6 +863,7 @@ impl Checker<'_, '_> {
             return false;
         };
         let is_extension = self.is_extension_call(descriptor);
+        let prefix_only = self.inputs.owned.call_may_dispatch(self.id(call)) == Some(false);
         let mut modes: Vec<_> = descriptor
             .arguments()
             .iter()
@@ -867,11 +900,29 @@ impl Checker<'_, '_> {
                 reaches_operand = false;
                 return self.expression(value);
             }
+            if prefix_only && self.inputs.owned.call_argument_completed(self.id(value)) {
+                self.note_nullable(parameter);
+            }
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);
             }
             if mode == ParameterMode::Borrow
-                && (self.nested_borrow_argument(call, value)
+                && let Some((parent, _)) =
+                    self.inputs
+                        .temporary_field_argument(self.id(call), value, parameter)
+            {
+                let ok = self
+                    .expression_type(parent)
+                    .is_some_and(|ty| self.class(ty))
+                    && self.expression(parent);
+                if ok {
+                    self.temporary_field_parents.insert(self.id(parent));
+                }
+                self.migrated |= ok;
+                return ok;
+            }
+            if mode == ParameterMode::Borrow
+                && (self.nested_borrow_argument(call, value, parameter)
                     || self.short_range_argument(value, parameter)
                     || self.borrowed_move_only_name(value, parameter)
                     || self.borrowed_string_field(call, value, parameter)

@@ -108,8 +108,8 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 公共流水线和阶段准入已定位。§93、§105 区分旧测试入口与 Unit 生产回退，§151 固定 `369fff4c` 的直接调用清单并确认共享 `resolve_names` 的生产依赖 | 逐消费者核完保留或迁移理由，仓外 API 和间接调用另记边界 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA，F4–F6 已修。文件级类型参数换行恢复见 §114，L0088 闭合身份见 §139，委托 lambda 恢复及预算见 §143–144 | 未闭合普通分组和缺少可靠归属证据的错误输入仍需按公共入口复审 |
-| R2 | F1/F2/F8–F11 的已列复现有修复证据，F11 验收见 §16–18。失败试探和流事实见 §22–25、§98、§104，常量失效与独立诊断见 §141–142 | 逐消费者处置、剩余流事实组合及 Unit/Single 的完整差异仍待验收 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA，F4–F6 已修。文件级类型参数换行恢复见 §114，L0088 闭合身份见 §139，委托 lambda 恢复及预算见 §143–144，普通分组、下标与错误后缀归属见 §164–165、§167–168 | 未闭合普通分组和缺少可靠归属证据的错误输入仍需按公共入口复审 |
+| R2 | F1/F2/F8–F11 的已列复现有修复证据，F11 验收见 §16–18。失败试探和流事实见 §22–25、§98、§104，常量失效与独立诊断见 §141–142，短路写回见 §170–171 | 逐消费者处置、剩余流事实组合及 Unit/Single 的完整差异仍待验收 |
 | R3 | basic/const 交接身份、临时父 owner、两阶段借用已独审。F3 已修，F7 已加旧入口能力门。§145–147 核验观测索引身份，§151–153 核验 nullable 清理及构造 loan 结束 | 继续分流旧事件见证，复审循环、部分构造、各退出边和动态资源矩阵 |
 | R4 | 已独立核对 subset/build、部分路由、SSA/LLVM 验证及资源用例。§148–150 的借用初始化交接经 #394 双宿主验收并合入，§153 有构造实参跨包本机运行证据 | 生产 Unit 仍有兼容准入，需对账剩余家族、非法 SSA、资源故障与双宿主动态证据。第一轮冻结 SHA 的纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
 | R5 | 已明确两轮触发门槛 | v1 尚未冻结，第二轮发布验收待启动 |
@@ -3038,6 +3038,62 @@ SIGABRT，没有析构输出。原生资源套件 18 项及最终加强后的新
 Code CI Evidence 均通过。两端原始日志均核对六条关键回归实际通过，覆盖文件恢复、
 软前缀、操作计数、名义类型压力、实参清理事实及原生退出顺序。Editor lexical 按改动范围跳过。
 
+### R3 复制字段实参的临时父对象
+
+以 `53f1227f` 为基线，`read(Holder(1).number, ...)` 把 Copyable
+字段转换为 `Borrow Int?` 后，Unit 发布包装槽的 Shared loan，却在正常返回
+与后续实参提前退出时都遗漏完整父 owner 的析构。定向回归在修改前实际失败。
+
+调用清理复用 Field/Group 父对象定位和原 pending temporary 机制。
+只有已检查的同调用、同实参 Shared loan 和 nullable 转换合同可以把
+父对象加入调用清理。真实 loan 目标仍是包装槽，字段父观测只消费
+目标确为父对象的 loan。MemoryDocument 与 Rooted 覆盖裸父和分组父、
+正常返回、`return`、`break`、`continue` 及 Abort 不析构。
+独立复核额外验证混合精确/复制实参按完成顺序逆序清理，未求值的父不登记。
+
+最终前端单元及三组集成共 895 项通过，零失败、忽略或过滤。前端严格
+Clippy 通过。旧 Single 两种字段参数均缺少临时父支持，单列为旧入口
+能力边界。Unit 清理事实与后端验收分别记录。
+
+### R4 临时父字段的借用与原生清理
+
+以 `b9672e4c` 为基线。精确 Borrow 和 nullable 复制的公共检查通过，
+原生构建报 `UnsupportedNode`。已有父析构事实因 borrowed temporary
+准入限制无法进入 Refine，普通调用与借用结果调用也需要同一字段处理。
+
+准入和构建共同核对 source-qualified 调用、实参、字段链及父清理。
+精确路径保留实际字段 loan；nullable 路径读取 Copyable 字段，
+结束整条字段 loan 链，再借用新的包装槽。分组父保留原清理身份。
+正常返回与提前退出先结束活动 loan，再消费前端的父析构计划。
+借用结果调用的辅助字段只由内层调用清理，真正来源继续交付给外层。
+
+最终 SSA 借用、资源析构、Range 调用前缀和 Refine 路由四组共 93 项
+通过，零失败或忽略。SSA 直接核对嵌套 inline 字段的真实 loan、
+子到父结束顺序，以及包装值到实际调用槽的关联。六组公开程序在
+单文件和项目入口均构建并执行，覆盖正常返回、`return`、`break`、
+`continue` 及具名辅助参数。严格 workspace Clippy、格式、尺寸、
+文档及 CLI build 通过。独立复核覆盖准入和构建接线及清理边。
+
+### R4 无分派调用的已完成前缀
+
+以 `736a49ed` 为基线，调用的后继实参必然 `return` 或 Abort 时，
+公开检查接受，原生可因缺少 nullable 参数的 SSA 类型报 `MissingFact`。
+无 callee 实例时，已完成的 Borrow/Value 实参仍按已选参数类型求值。
+Refine 只补这些实际前缀实参的 nullable 类型需求，未求值后缀
+不引入参数 ABI 类型。SSA 回归核对前缀包装、callee 实例缺席及
+后缀 Boolean nullable 类型缺席。
+
+临时字段的已完成前缀以同源 loan 和无分派事实进入 Refine。
+Return 仍消费前端父析构，Abort 允许无析构事实。独立复核确认
+普通返回仍由 SSA verifier 拒绝残存 MoveOnly owner。原生回归实际
+对照精确字段、nullable 字段，以及 Return 与 Abort 的构造、退出和
+析构行为。
+
+最终 SSA 借用、调用前缀及 Refine 路由集合分别通过 7、55 和 41 项，
+零失败或忽略。四组公开程序在单文件和项目入口均实际构建、执行，
+核对正常退出、Abort 信号和资源输出。严格 workspace Clippy、
+CLI build、格式、文档及尺寸检查通过。
+
 ## 117. R0/R3 二元操作结束与重绑后的退出析构
 
 以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else
@@ -4098,3 +4154,539 @@ L0085 可因另一成员先提交资格结果而伴随派生 L0156。此处只�
 Code CI Evidence 全部成功，Editor lexical 按范围跳过。实际合入树
 `4b4530ed` 与验收候选相同。[前一合入的实际 main CI](https://github.com/Halckon/Koven/actions/runs/42647893879)
 也已完成，双宿主独立安装分别验证了对应于 `9369cc72` 的预览包。
+
+## 164. R1 普通分组的词法错误归属
+
+在 `fe1f47f8` 上，`(value async)` 的分组先结束，File 把
+`async)` 提升为文件根。嵌套调用还会错用该右括号并丢掉后续实参，
+产生 L0034 和 L0013。红测先锁定文件根和调用实参。普通分组在前置
+或尾随 lexer poison 且存在同作用域的实际配对时，按索引收回错误区。
+组内分号、伪声明及异形 closer 保持原 owner，诊断保留实际 Lexer 根因。
+
+独立复核补出组内分号、异形 closer、插值作用域和前置 poison 的失配。
+普通配对规则拆成独立模块，每个插值隔离其 delimiter 栈。文件角列表
+的外层基线保持原有查询。未配对时保留外层声明，已消费前置 poison 的
+缺右括号诊断在后一声明起点使用零宽范围。最终复核通过。
+
+四个公共入口实测 AST 和诊断。覆盖插值内外的坏字符串终止事件、UTF-8
+字节范围、组内逗号及外层后继。32→64 组的显著 token 访问计数满足
+原线性门槛，另核未闭插值分组不能借用外层右括号。六个相关集成套件
+234 项、前端单元 410 项通过，零失败和忽略。Clippy、格式、文档与
+Rust 尺寸门禁通过。其他无可靠归属的分组形状仍保留在 R1 复审范围。
+
+### R1 普通分组的语法尾部与调用方停止点
+
+以 `1af615f0` 为基线，`f((value, other), next)` 的内层逗号被错交给
+外层调用，后继实参丢失。裸相邻表达式同样复现。两处右括号完整时只报
+内部 L0013。若只有一个右括号，继续把有歧义的分隔符留给调用方。
+
+普通分组与最近外层均有配对时，才能考虑跳到分组右括号。按需线性
+索引同时记录停止点，未闭合的异形子组不能遮住其停止点。已配对子组
+仍可能包含调用方等待的 `else` 或块边界。按当前 caller Stops 保守
+拒绝越过，配对花括号内部的局部声明留在该块。词法 poison 继续消费
+原有的配对与 Lexer 诊断，插值隔离保留。
+
+独立复核实际确认并补充了后继文件声明、`else`、块内 `val` 及独立
+花括号块反例。已配对非法逗号的旧插值语料改为核对单 L0013 的真实
+逗号 Span，同时核对外层字符串末段与后继文件声明。
+带分号的独立下标探针仍暴露旧 `parse_index` 的 caller 边界遗漏。
+普通分组已交还控制，该下标路径的既有跳转另行复审。
+
+最终前端单元及 Parser 集成共 910 项通过，零失败、忽略或过滤。
+新增 32→64 组显著 token 访问计数满足线性门槛。三组公开 CLI
+输入在单文件和项目入口的退出码与唯一诊断一致。严格 workspace
+Clippy、CLI build、格式、文档和尺寸门禁通过。
+
+## 165. R1 下标恢复的右方括号与调用方边界
+
+在 `2f49f39d` 上，`f(xs[key, "${nested[item]}"], next)` 的公共表达式入口
+返回 `InvalidLexemeStream`。同一批红测复现嵌套 `]` 被误用、词法错误尾部
+冒充调用实参或文件根。独立复核另复现无配对时吞调用逗号、未闭合局部
+`(` 吞后继声明，以及坏 TypeRef 留下的 `]` 被误作下标 closer。
+
+已配对下标收回真实 closer 前的错误尾部。禁用的额外 key 保留首个逗号诊断，
+独立 stray 保留其自身诊断。无配对时交还调用方逗号，文件逗号后的恢复只让
+已配对局部分组遮蔽外层边界。子表达式已报错且 cursor 在 `]` 时校验配对
+身份，正常下标保留直接消费。无可靠配对的尾随 poison 仍需复审，已见
+`f(xs[key β, next)` 可产生额外实参。
+
+最终九个相关集成套件共 244 项、前端单元 411 项通过，零失败和忽略。
+32→64 个坏下标的显著 token 访问计数满足线性门槛。独立复核实际检查
+未闭合与已闭合局部分组、字符串终止、插值尾部、错位 closer 和合法下标，
+另以同版 rlib 跑了 16,384 个确定性组合，未见 Parser 内部错误。
+前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+### R1 下标恢复保留块分号
+
+在 `1b6d63a5` 上，配对的坏下标可以越过外层块分号并吞掉后续
+`val saved`。直接下标、词法错误后的嵌套下标、逗号后的成对恢复
+分别用失败回归确认。嵌套两例在初版直接修复后仍实际失败。
+
+下标把显式块分号停止位传给嵌套 key，直接到达的分号交回块分派，
+相邻普通词法错误后也适用。坏 key 的配对跳转和逗号后的局部组恢复
+查询同一配对索引，以分号后的明确语句起点确认外层块归属。
+公共 Parser 探针另证实只识别 `val` / `var` 会遗漏 `borrow val`
+及三种循环。预索引最多看两个显著 token，辨别同名普通标识符。
+扩大检查发现将任何内部分号视作外层边界会破坏既有局部解构
+夹具。已配对的逗号错误尾部 `items[1, 2; 3]` 仍保有内侧分号。
+配对花括号的分号留在本地，字符串和插值保留各自词法作用域。
+回归逐项核对错误下标范围和后续声明身份。普通分组的既有 poison
+跳转及调用参数的停止点传递继续按各自合同复审。
+
+独立复核核对词法作用域、花括号证据隔离和 lookahead 的线性界限。
+下标恢复及局部解构各 18 项实际通过，零失败、忽略或过滤。
+三组公开输入在 CLI 单文件与项目入口均以同组语法诊断退出 1，
+且没有 `saved` 未解析的次生诊断。
+
+后继复审探针 `inspect(items[0; val saved = 1 … ])` 的单文件检查
+仍报告 L0010 及后续读取 `saved` 的 L0080。调用实参的独立 stops
+路径会清除继承的分号边界，后续须与已配对坏实参的恢复合同对照。
+
+## 166. R2 循环常量批次合并验收
+
+[PR #397](https://github.com/Halckon/Koven/pull/397) 以 `fe1f47f8` 经
+[双宿主候选 CI](https://github.com/Halckon/Koven/actions/runs/42656885729)
+合入 `74851679`。双宿主 Check、Clippy、定向测试、预览构建和独立安装成功。
+合成提交 `f2754e41` 与实际合入树同为 `0e2977af`。CI Passed 和 Code CI Evidence
+均成功。Editor lexical 按范围跳过。macOS 定向测试的既有真实 LLDB 用例因
+debugserver 权限忽略。独立安装证据的源码树和二进制哈希与各自生产端一致。
+[实际 main CI](https://github.com/Halckon/Koven/actions/runs/42663516800) 单独追踪。
+
+## 167. R1 已有错误接收者的后缀边界
+
+`8bfc8d8d` 上的公共入口红测确认 `f(a.async[x, next)` 丢失第二实参。
+文件中 `a.async[nested(` 可吞掉下一条声明，块中 `a.async[x; next` 可
+吞掉分号和后继语句。原扫描只识别硬分隔符，无法证明后缀自己拥有哪个 closer。
+
+有真实配对时，错误后缀以其 closer 收束。无配对时沿用普通下标的已证分组恢复，
+调用逗号、块分号、文件 starter 和插值结束留给调用方。严格 header 与真实
+配对同时存在的 lambda 留在局部，普通调用方块仍单独分派。红测另确认
+`f(a.async[g<T, U>(x), next)` 可把类型实参误作调用实参。恢复只复用严格
+typed-call 的已闭合列表和后缀证明，并复用正式的尾随 lambda 同行规则。
+仅从本恢复区的近邻 token 确认可用的 callee 末端，孤立 postfix 标记不算
+callee。比较与无局部前缀的形态仍归还外层逗号。同行无 header 的局部 lambda
+逐 token 扫描至配对结束，保留词法终止事件与单一 Lexer 根因。单个同形 closer
+在坏嵌套中的归属仍依最近 opener 规则。
+
+最终源码经独立复核。直接用同一 `rustc` 构建前端 rlib 和 11 个 Parser
+集成套件，178 项通过，零失败和忽略。覆盖普通下标共享 fallback、调用方
+分号与块、插值、类型逗号、词法插入、截断和 trivia 矩阵。格式、文档和
+Rust 尺寸门禁通过。Cargo 与远端 CI 另行验收。
+
+## 168. R1 未配对下标在调用方边界前的词法错误
+
+在 PR #398 候选 `8952321a` 上，`f(xs[key β, next)` 把 β 暴露为第三个
+实参，`val x = xs[key β` 后接文件声明时则出现独立错误根。公共入口两条
+红测分别核对实参和文件根。
+
+有真实配对仍以配对为准。未配对时只收回同一行相邻的普通词法错误，且
+下一个 token 须是当前调用方拥有的停止点。调用方 token 保持在 cursor，
+缺方括号在该起点报空 L0010。终止性 Lexer 错误保持原归属。复核另复现
+同行左花括号会被 Pratt 改挂成尾随 lambda，因而该形状不提供停止证据，
+换行后的真实块仍可作为调用方边界。
+
+缓存只记录同一 raw cursor 上的候选结果，调用方的停止判定仍逐层执行。
+32→64 层坏下标的访问量通过线性门槛。用仓外副本去掉缓存命中路径后，
+同一测试以 3796→11508 次访问确实失败。独立复核和公开入口实跑覆盖
+逗号、块分号、真实块、插值、EOF 与终止性词法诊断。
+
+九个前端集成套件 130 项、前端单元 412 项通过，零失败和忽略。
+前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 169. R0 下标公共入口回归接入双宿主矩阵
+
+PR #398 的双宿主工作区门禁会编译 `parser_index_recovery`，原定向
+矩阵实际执行 `parser_super_recovery`、`parser_block_line_continuation`
+及前端单元测试。下标专用 suite 原本仅有本地执行证据。将其加入两个
+宿主共用的 `check_stage_integration.sh`，与相邻 Parser suite 一起运行。
+
+用 shell 语法检查及替代 Cargo 的命令跟踪确认新 suite 恰好入选一次。
+§168 对应的本地 Cargo 已实际执行 14 项下标回归。另保留前批精确证据：
+`8bfc8d8d` 全前端 184 组 2994 项，`8952321a` 的 11 个定向集成套件
+178 项和前端单元 411 项均通过，零失败和忽略。后者全目标 Clippy 通过。
+本项实际双宿主矩阵随本批 PR 验收。
+
+合批后的 [PR 作业](https://github.com/Halckon/Koven/actions/runs/42674832105)
+在 Docs gate 暴露目标清单断言未同步。将下标 suite 加入显式新增清单，
+保留原 135 个目标，确保下标 suite 恰好入选一次，定向目标总数为 138。
+
+## 170. R2 字面短路的流事实与来源版本
+
+在 `a90019c0` 上，旧 Single、MemoryDocument 和 Rooted Unit 都会把
+`false && mutate(&x)` / `true || mutate(&x)` 的死右侧当作实际写入，
+使后继已收窄的 `x` 误报 L0084。外层逻辑条件和 while 预扫描还能重新
+引入嵌套死写。源码探针和新增公共入口回归均复现。
+
+复用既有字面布尔量、分组及取反的语法证明，区分必须执行、确定跳过和未知。
+死右侧仍静态检查，写入不撤销可达出口的事实。Single 还恢复右侧检查之前
+的来源版本。共享扫描只排除已证明跳过的右侧，仍扫描左侧以及可能执行的右侧。
+复合左操作数不参与新的常量求值。
+
+同一夹具覆盖三个类型入口。检查已证短路、嵌套条件重建、while 条件和循环体、
+when 来源见证、死右侧静态错误，以及未知、必执行和混合路径上的真实写回。
+独立复核确认保留现有完成性及 pending 边。
+
+最终六个前端集成套件 395 项、前端单元 412 项通过，零失败和忽略。
+前端全目标 Clippy、格式、文档及 Rust 尺寸门禁通过。只在仓外副本
+移除 Single 版本恢复后，两个 Unit 仍通过，Single 的 when 来源
+见证重新报 L0084，证明该回归独立约束版本。
+另在修后实测 `(false && flag) && mutate(&x)` 的三个入口仍误报
+后继 L0084，作为复合短路证明的下一处复审边界。
+
+## 171. R2 复合布尔左式的可能写入
+
+在 `0b5c2b25` 上，`(false && flag) && mutate(&x)` 已证明不执行外层
+右侧，但三个类型入口仍会撤销 `x` 的非空事实。复合回归分别覆盖确定为假、
+确定为真、取反、嵌套条件、循环预扫描及 when 的来源版本。反向控制保留
+复合左式内部实际执行的写入。
+
+复用既有结构布尔组合函数，并在可能写入使用的语法视图中加入字面真值。
+按表达式子节点先于父节点的顺序构表，一次线性扫描后按 AST ID 查询。
+Single 的重放共用同一 AST 的惰性表，Unit 每个 source 分开持有。
+两份 rooted 文件交换输入顺序，复用相同局部 AST 编号和字节位置，
+只有可能写入的文件报 L0084。真实写入路径保留，普通及 Const 完成性、
+死源码的静态检查和条件重建沿用已有合同。
+
+最终六个前端集成套件 397 项、前端单元 412 项、后端短路隔离与提前退出
+定向 1 项均通过，零失败和忽略。前端全目标 Clippy、格式、文档和 Rust
+尺寸门禁通过。独立复核确认缓存重放和源码身份，枚举 3280 棵小型布尔树
+未见可达正常值被遗漏。本机 single 和 project 短路对照均实际执行，
+只输出一次左侧效果和 ok，未调用跳过的写入函数。字面短路提交
+`0b5c2b25` 的后端短路集合 80 项通过，零失败和忽略。
+
+## 172. R2/R4 非空读取与可写存储交接的独立反例
+
+用 §170 和 §171 的真实源码尝试 single/project native build，nullable
+收窄后续读取夹具遭遇 lowering 拒绝。公共 native API 已将两条路径区分：
+
+- `fun read(x: Int?): Int = 7` 的调用 `read(7)` 在实参 `7` 处报
+  `MissingFact`。最小例没有非空判断，普通 nullable 参数的临时 Borrow
+  注入与后端路由需单独复审。
+- `if (x != null)` 内对 `inout Int?` 调用 `mutate(&x)`，在 call span
+  报 `UnsupportedNode`。Unit 将 `&x` 的 operand 发布为 `Int` 和
+  non-null use，而声明存储为 `Int?`。移除调用后的同一可变局部和非空
+  读取能生成并执行本机产物。
+
+当前 `kovenc check` 还接受了两种错误可写交付：用收窄后的 `Int?` 变量
+交付 `inout Int`，以及用 `Int` 变量交付 `inout Int?`。两例 exit 0，
+无诊断。待复审可写 place 的声明存储类型及其匹配。上述 native 反例均
+保留，短路的动态执行对照不代替 nullable 交接验收。
+
+## 173. R2/R3 可写实参与普通读取的类型事实
+
+基线 `de94e7e3` 的三条类型入口均接受两种 nullable 存储错配。新增
+`type_callable` 回归在修前实际失败；待定调用 `take<Unbound>(&x, &y)`
+在同一基线也未对不同的 `Int` / `Int?` 存储报 L0084。
+
+在源码实参中只把 `&` 直接使用的名称标记为可写存储，透明分组继续传递该
+类型，成员接收者和索引仍按值读取。最终实参匹配和重载试探核验 place 的
+存储类型相等。Unit 复用已记录的 place 分类，待定泛型证据只用存储类型，
+避免用 nullable 或字面量转换把两个类型当作同一 `T`。普通读取仍能使用
+收窄后的类型和 non-null 事实。
+
+三个类型入口均核验直接和函数值调用、分组具名实参、泛型及普通和 lambda
+重载。七个前端集成套件和前端单元共 853 项通过，零失败、忽略或过滤。
+后端 `--lib inout` 39 项通过，零失败或忽略，2760 项过滤。原生回归在
+`if (x != null)` 中先读取非空值，再实际调用 `inout Int?` 清空同一变量。
+CLI 单文件和项目的本机运行均依次输出 `narrowed`、`mutated` 和 `null`，
+退出 0。旧编译器对该合法调用仍报 `UnsupportedNode`。独立复核核对了
+试探回滚、缓存和发布的实参类型。
+
+组合反例仍开放。两次字面短路跳过 `mutate(&x)` 后再读取 `x` 时，原生
+构建由原调用处的 `UnsupportedNode` 转为在后继非空读取处报 `MissingFact`。
+去掉短路可运行上述写回，去掉后继读取时短路也可生成对象。需要继续对账
+Basic 的可达前驱和收窄证明。§172 的普通 nullable Borrow 注入仍未修复。
+旧 Single 对被拒绝的 `inout` 调用仍可能撤销已有非空事实并产生额外诊断；
+该调用未发布有效描述符。
+
+## 174. R4 Basic 短路与后端收窄证明
+
+在 `31d36974` 上，字面 `false && clear(&x)` 与复合左式
+`!(left() && false) || clear(&x)` 后的非空读取均通过前端，原生生成
+却在后续 `x` 处报 `MissingFact`。两个原生回归均实际失败。Basic
+lowering 为已知跳过的 RHS 建了写回边，该边在合流时撤销了已有证明。
+
+类型检查复用按源隔离的语法证明，只发布逻辑 RHS 必跳过的事实。
+refine 和兼容 lowering 在左侧完成后消费 Basic 跳过边，保留左侧副作用
+和提前退出。refine 准入继续核验保守 ownership 的 RHS 事实；builder
+只按执行点将未进入的 RHS 与对应退出边标为不可达。独立复核发现提前
+剪枝准入会漏登记字段替换清理，最终候选保留原准入检查，并用带
+`inout` 的函数验证字段替换计划仍能生成原生程序。Const 入口继续
+消费其原有执行计划，未知和必执行 RHS 仍沿用既有路径。
+
+五组前端单元和集成测试共 894 项通过，零失败、忽略或过滤。最终后端
+`short_circuit` 83 项通过，零失败或忽略，2719 项过滤。组内的
+早退见证也单独通过，覆盖 refine 与兼容路线。既有资源计数用例继续
+核对 Basic skip cleanup。旧候选的后端全量已停止，结果不计入验收。
+严格 workspace Clippy、格式和差异检查通过。原组合反例通过 CLI
+单文件与项目构建及执行，跳过两次写入，保留非空读取，随后实际写入
+一次，依次输出 `narrowed`、`mutated` 和 `null`。最终独立复核确认
+原准入路径、清理执行点及早退均保留。
+
+Basic 所有权和实例规划仍保守处理死 RHS；本批仅调整执行路径。
+§172 的 nullable Borrow 临时注入仍待复审。另实测普通
+`mutate(target = &(x))` 通过公共检查，但在原生生成时报
+`UnsupportedNode`，待核对分组实参的 loan 事实与 lowering 准入。
+
+## 175. R4 分组 Inout 实参的原始 loan 身份
+
+在 `79196577` 上，`forward(target = &((x)))` 与函数内的
+`clear(value = &((target)))` 通过公共检查，但原生构建报
+`UnsupportedNode`。refine 的准入与构建各自要求 operand 本身是 Name。
+
+复用两侧已有的直接 place 名称解析，只为定位存储穿过透明分组。
+类型、exclusive loan、源码位置及调用均继续使用原实参身份。转发参数
+沿用已有的独占借用，调用者的局部变量继续在借用结束后读回存储。
+字段、索引和临时值仍受原有准入限制。
+
+后端 `--lib inout` 40 项通过，零失败或忽略，2763 项过滤。
+严格 codegen Clippy 通过。CLI 单文件与项目均执行两级调用并输出
+`cleared`，退出 0。独立复核核对了原外层 operand loan、转发与
+局部写回的不同路径。以同一代码树显式运行本机 LLDB 源码断点及
+栈帧回归，1 项通过，零失败或忽略，2802 项过滤。
+
+## 176. R3/R4 Nullable Borrow 注入的路由和来源核对
+
+以 `b2f8e7f3` 的本机 CLI 和 Basic Unit API 核对 §172 的剩余反例。
+`fun read(x: Int?): Int = if (x == null) 0 else x` 的调用 `read(7)`
+与 `val n: Int = 7; read(n)` 都通过检查，原生构建分别在 `7` 和
+`n` 处报 `MissingFact`。前者的 Shared loan 指向源码合格的 Temporary，
+后者指向 `n` 的根 Place。给调用方加无关 `val anchor: Int? = null`
+后两种实参均可运行；值参数对照和 `read(null)` 也能运行。应同时复审
+临时包装和具名值的拷贝，不能依靠无关声明选择后端路径。
+
+另实测 `fun view(source: Int?): borrow Int? from source = source`。
+`borrow val item = view(n)` 在 `n: Int` 与 `n: Int?` 两种情况下均
+通过检查、在当前 native 路径均报 `UnsupportedNode`；`view(7)`
+作为同一绑定的初始化则报告 L0162。这里必须另行核对来源是原存储
+还是 nullable 转换生成的临时。已有 nullable 存储上的非空读取也不能
+仅凭表达式收窄类型判成转换。暂未修复这组反例，现有原生拒绝不能
+充当前端来源正确性的证据。
+
+## 177. R0 旧入口直接调用增量核对
+
+沿用 §151 的四个范围及五个调用名，在 `b2f8e7f3` 重跑直接调用清点。
+frontend src、codegen src 与其他 crates 的数值均一致。frontend tests
+的 `resolve_names` 为 66 文件 / 134 匹配行，`check_types` 为
+55 文件 / 88 匹配行，各增加 1。差异唯一来自 §173
+`type_callable/inout_storage.rs` 的显式 Single 对照。其 MemoryDocument
+和 Rooted Unit 实跑同一输入，Single 见证可暴露旧检查器的诊断或存储
+事实偏差。其余三个入口计数不变。仍需逐个处置保留测试见证，不能
+从直接调用计数推断仓外 API 或间接调用已经迁移。
+
+在 #402 合入后的 `fae780dc` 按同一口径复查。frontend tests 的
+`resolve_names`、`check_types`、`check_ownership` 分别为
+67/135、56/89、34/46，其余行列不变。三项增量均来自
+`ownership_borrow_result.rs` 的 `checked_single`。该见证直接核对旧
+Single 与两种 Unit 输入是否都拒绝把 nullable 转换当作已有借用
+结果存储。已查看测试调用方，保留为有意的旧入口对照。
+
+## 178. R1/R2 合批合并验收
+
+[PR #398](https://github.com/Halckon/Koven/pull/398) 的最终 head
+`b6cb2bb7` 经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42675895710)
+通过。双宿主 Check/Clippy、定向测试、预览生产与独立消费、CI Passed
+及 Code CI Evidence 共 15 个作业成功。Editor lexical 按变更范围跳过。
+逐宿主核验新增 Parser/Inout 回归均实际执行。macOS 定向套件的既有
+LLDB 用例因 debugserver task-port 权限忽略，§175 另有后继本机实跑。
+
+两端产物均核对归档 SHA256、生产与消费清单及 12 项独立执行命令。
+基线 `74851679`、合成提交 `3a6c4bad`、实际合入 `94768a91`，
+合成和合入树均为 `25cf3ece844d7b6b344b104ab00812085d1718a2`。
+合并时无未决审阅线程；上述验收限于该 PR 候选。
+
+## 179. R3 普通借用结果必须引用已有 nullable 存储
+
+在 `3110cfa5` 上，公共检查接受将 `Int` 来源转换为 `Int?` 后的
+借用绑定、返回和具名实参转发。新增三入口回归在修改前实际失败。
+显式 `Nothing?` 到 `Int?` 以及枚举 case 到 nullable 枚举的转换也
+复现。同步 `observe(view(n))` 在 `view` 的来源实参需要转换时，
+原来同样会接受并把原 place 当作可延续的 loan。
+
+Single 与 Unit 在识别借用调用之后，分开核验实际映射参数的存储。
+已知类型不同且目标为 nullable 时，按原有 Name/Group 引用查声明
+存储，不把收窄读值当作新存储，也不扫描整张非空事实表。声明类型
+相同的真实 nullable、`when` 的枚举单 case 收窄和普通非空分支
+均保留绑定、转发或同步 handoff。显式结果绑定及返回同样核对
+目标类型；失败绑定释放初始化调用保留的 loan，后续赋值无级联诊断。
+
+最终七组前端单元和集成测试共 719 项通过，零失败、忽略或过滤。
+负例精确区分 L0162 与同步 L0164，并核对拒绝后无借用结果事实。
+严格前端 Clippy 和 CLI build 通过。公共 CLI 单文件与项目均复核
+来源错误拒绝，独立审查覆盖来源、诊断、释放和调用扫描边界。
+
+普通 `Borrow Int?` 的临时包装仍另行处理。若内层合法返回
+`borrow Int` 而外层同步消费者参数为 `Int?`，转换发生在外层，
+现有直接同步交接事实仍有表示差异，不能复用本节结论。
+
+## 180. R3/R4 普通 Borrow 的 Copyable nullable 临时值
+
+在 `3992f39b` 上，`Borrow Int?` 接受字面量、具名 `Int` 及转发
+的 `Borrow Int`，但原生构建因路由报 `MissingFact` 或
+`InvalidModel`。具名转换后在同一次调用借用 `&n` 原本还报 L0135。
+先复现这两个失败，再以真实 nullable 存储和先借用 `&n` 的反向顺序
+作负控。
+
+普通调用对需要 nullable 转换的 Copyable place 先检查并执行普通
+读取，再发布同一 operand 身份的 Shared Temporary loan。后续实参可
+借用原变量，反向顺序仍会拒绝读取。真实 nullable 的 place 在收窄
+后仍有原 loan。Direct 对已发布的 Temporary 核验 inline payload
+与 Copyable，再借用新包装槽；refine 仅在目标相等时复用原参数 loan，
+目标不同则要求同源 Temporary 事实并从原 loan 读值。原句柄
+MoveOnly temporary 的唯一析构义务继续转给 wrapper。
+
+初版修复后，带后续提前返回的 Direct 前缀仍因实参类别是 Place 报
+`UnsupportedNode`。准入与构建改用同一 Copyable inline 判据，实际
+pending loan 的观测记录覆盖 CallReturn 和 ControlTransfer。
+两条原生路线均验证提前退出不分派、继续路径只调用一次。
+独立复核先发现该缺口，再复核修复后的实际 loan 和来源校验。
+
+最终六组前端单元和集成测试 732 项通过。三个后端定向集合分别
+通过 4、5 和 5 项，均无失败或忽略，分别过滤 2802、2801 和 2801 项。
+严格 workspace Clippy、CLI build 通过。普通参数、先读后写和后续早退
+三组程序均通过实际 CLI single/project 构建及输出对照。本次原生覆盖
+`Int?` 与 `Boolean?`，并保留旧 MoveOnly 句柄回归。精确类型的
+nullable 枚举及 `Char?` 探针仍报 UnsupportedNode。§179 的内层
+合法借用结果被外层转换为 nullable 的组合仍另行复审。
+
+## 181. R4 短路与分组 Inout 批次合并验收
+
+[PR #399](https://github.com/Halckon/Koven/pull/399) 的 head `3110cfa5`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42682599112)
+通过双宿主 Check/Clippy、定向、预览生产和独立消费。CI Passed 与 Code
+CI Evidence 实际执行并通过。共 15 个成功作业，Editor lexical 按范围
+跳过。双端日志分别核对五个 SSA 回归均实际通过，包含两条路线的早退。
+macOS CI 的既有 LLDB 用例按 debugserver 权限忽略，§175 有本机证据。
+
+两端预览归档实算 SHA256 与生产和消费清单相符，各 12 项独立命令、
+哨兵及清理成功。基线 `94768a91`、合成提交 `0292e636`、实际合入
+`2b1e8f1e`，合成和实际合入树均为
+`49021804d6a2d2c9bf397422b520334d1d15fe4b`，无未决审阅线程。
+
+前一主干 [push CI](https://github.com/Halckon/Koven/actions/runs/42682434283)
+中 macOS Check/Clippy 被标记取消且无步骤记录，随后定向与预览跳过。
+该记录仍缺少主干验收，不能以 #398 或 #399 的 PR 结果代替。
+
+另以 §180 候选实跑 §179 的镜像边界。精确 `Borrow Int` 参数消费
+`borrow Int` 结果能原生运行；只把外层改为 `Borrow Int?` 后，
+公开检查仍通过，原生报 `InvalidModel`。下一轮须分别核对内层
+来源 lease、实际复制点及外层临时 loan 的结束。
+
+## 182. R3/R4 嵌套借用结果的 nullable 复制边
+
+在 `4879cf78` 上，外层 `Borrow Int?` 消费合法的 `borrow Int` 结果时，
+公开检查接受而原生生成报 `InvalidModel`。若后续实参再独占借用同一根，
+前端也会误报 L0135。精确 `Borrow Int` 保留直接续借合同。
+
+Single 与 Unit 只允许将 Copyable payload 复制到外层 nullable 临时槽。
+原始来源 loan 保持到读取完成，已有父借用继续有效。外层 Shared loan
+使用原 operand 身份并指向新槽。普通借用结果仍不允许从包装临时槽
+转发来源。旧文件 lowering 对这项 inline nullable 交接显式拒绝。
+
+独立复核发现两条清理边偏差。内层无关实参须在其 CallReturn 先清理，
+来源最后使用的析构才移到实参 AfterExpression，发布顺序与执行一致。
+捕获来源的闭包清理也可能递归释放同一根。两个 planner 在整个内层清理
+批次保护该根，再按实参完成边清理。两条前端回归在修复前实际失败。
+SSA 断言追踪内层调用的结果与来源 loan，验证无关析构先于读取，
+来源析构在两项 loan 都结束之后。
+
+最终六组前端单元和集成测试 723 项通过，零失败、忽略或过滤。
+原生定向 3 项与 SSA/既有借用调用回归 6 项通过，零失败或忽略，
+分别过滤 2807 和 2804 项。四组程序经 CLI 单文件和项目实际构建并
+运行，分别核对基本复制、后续写回、资源作用域析构及无关实参析构。
+独立探针另核对具名、分组和临时闭包、已有父借用和后续活跃来源。
+严格 workspace Clippy、CLI build、格式、尺寸及文档结构检查通过。
+
+闭包回归只验收前端清理事实，原生仍受既有函数值实参路径限制。
+Unit 通用 direct loan-end 观测仍不覆盖嵌套借用结果实参，此处动态验收
+使用实际 Refine SSA 与 CLI。另以本机探针确认，内层借用结果生产者
+的其他 `Borrow Int?` 参数接收 `Int` 时仍报 `InvalidModel`，即使
+外层是精确 Borrow。传 `null` 或已有 nullable 槽的对照可运行，
+这一独立的参数包装遗漏留后续处理。
+
+## 183. R3/R4 普通 nullable 借用存储批次合并验收
+
+[PR #400](https://github.com/Halckon/Koven/pull/400) 的 head `4879cf78`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42689614938)
+通过 15 个作业，Editor lexical 按范围跳过。两宿主的定向日志分别
+确认本批 11 项借用回归实际执行并通过。macOS 的既有 LLDB 用例因
+debugserver 权限忽略，§175 另有前一代码树的本机运行证据。
+
+两端预览归档实算哈希与生产、消费清单相符，各 12 项独立命令、
+哨兵及清理通过。基线 `2b1e8f1e`、合成提交 `7cac65d6`、实际合入
+`53f1227f`，合成和实际合入树均为
+`8c55319f1396a98f0b0ed27047f6cac051f7b94a`，无未决审阅线程。
+§181 的 [#399 合入后主干 CI](https://github.com/Halckon/Koven/actions/runs/42689444198)
+随后成功。另启动了 [#400 合入后主干 CI](https://github.com/Halckon/Koven/actions/runs/42694684754)。
+
+## 184. R4 借用结果生产者的辅助 nullable 实参
+
+在 `c314c867` 上，`view(source: Int, aux: Int?): borrow Int from source`
+的非来源实参接收 `Int` 时通过公开检查，原生构建报 `InvalidModel`。
+外层精确 Borrow 和 nullable 消费者均复现。把辅助实参换成已有
+nullable 存储或 `null` 后可运行。新增原生回归在修改前实际失败。
+
+来源调用 lowering 继续按源码顺序读取每个实参，并用已选描述符
+填充 ABI 参数槽。只有非来源槽、Copyable payload 和同一调用实参
+的同源 Shared Temporary 事实同时成立，才复用普通 nullable 包装，
+借用新槽并在内层调用返回时结束该 loan。具名映射或分组常量可有
+不同 operand/backing ID；实际来源槽和已有 nullable Place 保留原路径。
+
+最终原生矩阵含六种实参组合，覆盖外层精确与 nullable 结果、具名
+求值顺序、转发借用、已有 nullable 存储、`null` 和分组常量。
+最终 SSA 借用调用与 Range 调用前缀各六项通过，零失败或忽略，
+各过滤 2805 项。加入分组常量前的扩大借用结果集合 43 项通过，
+零失败或忽略，2768 项过滤。严格 workspace Clippy 和 CLI build
+通过。八组公开程序在单文件和项目入口均实际构建、执行并核对
+输出，另包括具名类字段读取。
+
+独立复核确认匿名临时类的字段投影仍有另一条前端边界。精确
+`Borrow Int` 会发布 backing owner 的 CallReturn drop；转换为
+`Borrow Int?` 时没有该事实。两种匿名投影在基线原生路径均报
+`UnsupportedNode`，该资源边另行复审。
+
+## 185. R3/R4 嵌套 nullable 借用批次合并验收
+
+[PR #401](https://github.com/Halckon/Koven/pull/401) 的 head `03b885ce`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42695805642)
+通过 15 个作业。两宿主分别执行并通过本批 9 项指定回归。
+Editor lexical 按范围跳过，macOS 的既有 LLDB 用例因 debugserver
+权限忽略，§175 另有前一代码树的本机运行证据。
+
+两端预览生产、独立消费清单与归档实算哈希匹配，各 12 项命令、
+哨兵及清理通过。基线 `53f1227f`、合成提交 `eb5f8eb8`、实际合入
+`1af615f0`，合成与实际合入树均为
+`7f7508857236850ccbc0b8ee18a983ed2cfca0f8`，无未决审阅线程。
+[#400 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42694684754)
+已成功，另已启动 [#401 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42701685162)。
+
+下一批临时字段及无分派前缀的主干合流树为
+`e4e9944c1380a0802bddb39bb70205910da40dda`，与隔离预演一致。
+合流后复跑 SSA 借用、临时字段、嵌套 nullable 和标量前缀，分别
+通过 8、2、4 和 1 项，零失败或忽略。严格 workspace Clippy 通过。
+早一预演另核对 131 项前端合同和两组组合程序的双 CLI 入口实跑。
+
+## 186. R3/R4 临时字段和无分派前缀批次合并验收
+
+[PR #402](https://github.com/Halckon/Koven/pull/402) 的 head `8ae8f772`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42701973621)
+通过 15 个作业。双宿主各执行并通过本批 7 项指定回归。Editor lexical
+按范围跳过，macOS 的既有 LLDB 用例因 debugserver 权限忽略。
+
+六份预览产物经独立下载，双宿主生产与消费清单同实算归档哈希一致，
+各 12 项命令、哨兵及清理通过。基线 `1af615f0`、合成提交
+`ae0e1478`、实际合入 `fae780dc`，合成与实际合入树均为
+`0e786d14becbdd314ea5bd7e3f2c715c50b20155`，无未决审阅线程。
+[#401 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42701685162)
+已成功。另已启动 [#402 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42707291414)。
+
+## 187. R1 普通分组和下标批次合流验收
+
+普通分组 `1b6d63a5` 与下标 `09f66d06` 在 `fae780dc` 上合流为
+`1a3e5ca5`，实际树 `7b60f770b07f58a6e391e2e36252ff04afcfbbf4`
+与三方合并预演一致。两片的 Parser 源码在合流前后相同。
+
+合流树前端单元及全部 Parser 集成 72 个套件共 914 项通过，零失败、
+忽略或过滤。严格 workspace Clippy 与 CLI build 通过。六组输入分别
+通过单文件与项目实跑核对诊断，覆盖普通分组及错误下标。已配对的
+错误下标保留局部解构的旧 oracle，含内部数字和普通 contextual 名称。

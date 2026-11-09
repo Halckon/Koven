@@ -861,7 +861,12 @@ impl Checker<'_> {
                     argument: index,
                 });
             }
+            let copy_to_nullable =
+                contract.is_some_and(|contract| self.copy_to_nullable_borrow(contract));
             let usage = match contract.map(UnitCallArgumentOwnershipContract::kind) {
+                Some(UnitCallArgumentOwnershipKind::SharedLoan) if copy_to_nullable => {
+                    ExpressionUse::Read
+                }
                 Some(UnitCallArgumentOwnershipKind::Value) => ExpressionUse::Consume {
                     parameter_span: contract.and_then(|contract| contract.parameter_span()),
                 },
@@ -890,8 +895,10 @@ impl Checker<'_> {
                     contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
                         && !contract.crosses_thread()
                 })
-                .and_then(|_| self.borrow_call_argument(id, argument.value));
-            if let Some(expression) = borrow_call {
+                .and_then(|contract| {
+                    self.borrow_call_argument(id, argument.value, contract.parameter_type())
+                });
+            if let Some((expression, _)) = borrow_call {
                 self.allowed_borrow_call = Some(expression);
             } else if range {
                 self.allowed_borrow_call = Some(argument.value);
@@ -910,9 +917,9 @@ impl Checker<'_> {
                 );
             }
             if self.diagnostics.len() == diagnostic_count
-                && let Some(expression) = borrow_call
+                && let Some((expression, copies)) = borrow_call
             {
-                self.record_borrow_call_use(id, argument.value, expression, &mut flows)?;
+                self.record_borrow_call_use(id, argument.value, expression, copies, &mut flows)?;
             }
             let operand = self.unit_expression(argument.value);
             if self.is_nothing_expression(operand) {
@@ -931,7 +938,7 @@ impl Checker<'_> {
                     self.reject_borrowed_closure_escape(argument.value, next)?;
                 }
                 if self.diagnostics.len() == diagnostic_count {
-                    self.apply_contract(contract, next)?;
+                    self.apply_contract(contract, copy_to_nullable, next)?;
                 }
             }
             self.hold_call_closure(call, argument.value, false, &mut flows)?;
@@ -944,22 +951,23 @@ impl Checker<'_> {
         {
             self.record_ownership_primitive(id, arguments, next)?;
         }
+        let source_origin = (self.allowed_borrow_call == Some(id))
+            .then(|| self.borrowed_call_source(id))
+            .flatten()
+            .and_then(|argument| {
+                let argument = self.unit_expression(argument);
+                self.loans
+                    .iter()
+                    .find(|fact| fact.call() == call && fact.argument() == argument)
+                    .map(|fact| fact.begin_span())
+            });
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
         {
             state.loans.retain(|loan| {
                 loan.owner != super::ActiveLoanOwner::Call(call)
-                    || (self.allowed_borrow_call == Some(id)
-                        && self.borrowed_call_source(id).and_then(|argument| {
-                            self.loans
-                                .iter()
-                                .find(|fact| {
-                                    fact.call() == call
-                                        && fact.argument() == self.unit_expression(argument)
-                                })
-                                .map(|fact| fact.begin_span())
-                        }) == Some(loan.origin))
+                    || source_origin == Some(loan.origin)
             });
         }
         for expression in receiver_expression

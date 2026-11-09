@@ -254,7 +254,7 @@ impl BodyChecker<'_> {
         expression: ExpressionId,
     ) -> Result<BTreeSet<FlowKey>, CompilationUnitTypeError> {
         Ok(collect_expression_mutation_targets_with_inout_filter(
-            self.file(source).ast(),
+            &self.syntactic_boolean_outcomes[source.index()],
             expression,
             |call| {
                 !self
@@ -277,12 +277,12 @@ impl BodyChecker<'_> {
         return_span: Option<Span>,
         can_exhaust: bool,
     ) -> Result<LoopCompletion, CompilationUnitTypeError> {
-        let ast = self.file(source).ast();
+        let outcomes = &self.syntactic_boolean_outcomes[source.index()];
         let mut targets =
-            collect_statement_mutation_targets(ast, body).map_err(TypeCheckingError::from)?;
+            collect_statement_mutation_targets(outcomes, body).map_err(TypeCheckingError::from)?;
         if let Some(condition) = condition {
             targets.extend(
-                collect_expression_mutation_targets(ast, condition)
+                collect_expression_mutation_targets(outcomes, condition)
                     .map_err(TypeCheckingError::from)?,
             );
         }

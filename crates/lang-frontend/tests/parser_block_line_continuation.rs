@@ -2,10 +2,15 @@
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    parser::{BinaryOperator, Expression, Item, ParsedBlock, PrefixOperator, Statement, SyntaxAst},
+    parser::{
+        BinaryOperator, Expression, Item, ParsedBlock, PrefixOperator, Statement, StringPart,
+        SyntaxAst,
+    },
     source::{SourceMap, Span},
 };
 
+#[path = "parser_block_line_continuation/group_boundary.rs"]
+mod group_boundary;
 #[path = "support/parser_line_break_carriers.rs"]
 mod parser_line_break_carriers;
 #[path = "support/parser_test_assertions.rs"]
@@ -14,6 +19,7 @@ mod parser_test_assertions;
 use parser_line_break_carriers::{NON_BREAK_TRIVIA, STRUCTURAL_BREAKS, validate_carrier_lexemes};
 use parser_test_assertions::{
     lex_parser_source_twice, parse_block_twice, parse_declaration_twice, parse_expression_twice,
+    parse_file_twice,
 };
 
 fn parsed(text: &str) -> (SourceMap, ParsedBlock) {
@@ -689,4 +695,238 @@ fn for_header_delimiters_suspend_inherited_block_line_breaks() {
             }
         }
     }
+}
+
+fn assert_error_group(sources: &SourceMap, ast: &SyntaxAst, expression: ExpressionId, text: &str) {
+    let group = ast.expressions().get(expression).expect("group");
+    assert_eq!(sources.slice(group.span()), Ok(text));
+    let Expression::Group { expression: inner } = group.payload() else {
+        panic!("expected group, got {:?}", group.payload());
+    };
+    let inner = ast.expressions().get(*inner).expect("inner");
+    assert_eq!(inner.payload(), &Expression::Error);
+    assert_eq!(
+        sources.slice(inner.span()),
+        Ok(text[1..text.len() - 1].trim_end())
+    );
+}
+
+fn assert_error_group_initializer(
+    sources: &SourceMap,
+    ast: &SyntaxAst,
+    item: lang_frontend::ast::ItemId,
+    group: &str,
+) {
+    let item = ast.items().get(item).expect("variable");
+    let Item::Variable { initializer, .. } = item.payload() else {
+        panic!("expected variable, got {:?}", item.payload());
+    };
+    let initializer = ast.expressions().get(*initializer).expect("initializer");
+    let Expression::Binary {
+        operator: BinaryOperator::Add,
+        left,
+        right,
+        ..
+    } = initializer.payload()
+    else {
+        panic!(
+            "expected binary initializer, got {:?}",
+            initializer.payload()
+        );
+    };
+    assert_error_group(sources, ast, *left, group);
+    let tail = ast.expressions().get(*right).expect("tail");
+    assert_eq!(sources.slice(tail.span()), Ok("tail"));
+}
+
+fn assert_group_diagnostics(
+    sources: &SourceMap,
+    diagnostics: &[lang_frontend::diagnostic::Diagnostic],
+    expected: &[(&str, &str)],
+) {
+    assert_eq!(
+        diagnostics
+            .iter()
+            .map(|diagnostic| (
+                diagnostic.code().to_string(),
+                sources
+                    .slice(diagnostic.primary_span())
+                    .expect("source span"),
+            ))
+            .collect::<Vec<_>>(),
+        expected
+            .iter()
+            .map(|(code, span)| (code.to_string(), *span))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn paired_group_errors_keep_their_initializer_in_file_declaration_and_block() {
+    for (group, diagnostics) in [
+        ("(value, other)", &[("L0013", ",")][..]),
+        ("(value other)", &[("L0013", "other")][..]),
+        ("(value async (other, nested))", &[("L0002", "async")][..]),
+        ("(value β; val phantom = 0)", &[("L0001", "β")][..]),
+        ("(value β { nested })", &[("L0001", "β")][..]),
+        ("(β other)", &[("L0001", "β")][..]),
+        ("(β + value stray)", &[("L0001", "β")][..]),
+        (
+            "(value β \"bad\n)",
+            &[("L0001", "β"), ("L0004", "\"bad")][..],
+        ),
+    ] {
+        let variable = format!("val x = {group} + tail");
+        let mut sources = SourceMap::new();
+        let file_source = sources
+            .add_source("group-file.ko", format!("{variable}\nval next = 1"))
+            .unwrap();
+        let file = parse_file_twice(&sources, file_source, "group file");
+        assert_group_diagnostics(&sources, file.diagnostics(), diagnostics);
+        let [first, next] = file.roots() else {
+            panic!("expected exactly two real roots, got {:?}", file.roots());
+        };
+        assert_error_group_initializer(&sources, file.ast(), *first, group);
+        assert_eq!(
+            sources.slice(file.ast().items().get(*next).unwrap().span()),
+            Ok("val next = 1")
+        );
+
+        let decl_source = sources
+            .add_source("group-declaration.ko", &variable)
+            .unwrap();
+        let declaration = parse_declaration_twice(&sources, decl_source, "group declaration");
+        assert_group_diagnostics(&sources, declaration.diagnostics(), diagnostics);
+        assert_error_group_initializer(&sources, declaration.ast(), declaration.root(), group);
+
+        let block_source = sources
+            .add_source("group-block.ko", format!("{{ {variable}\nval next = 1 }}"))
+            .unwrap();
+        let block = parse_block_twice(&sources, block_source, "group block");
+        assert_group_diagnostics(&sources, block.diagnostics(), diagnostics);
+        let [first, next] = block_elements(block.ast(), block.root()) else {
+            panic!("expected two local variables");
+        };
+        let first = block.ast().statements().get(*first).unwrap();
+        let Statement::LocalVariable { declaration } = first.payload() else {
+            panic!("expected local variable");
+        };
+        assert_error_group_initializer(&sources, block.ast(), *declaration, group);
+        assert_eq!(
+            sources.slice(block.ast().statements().get(*next).unwrap().span()),
+            Ok("val next = 1")
+        );
+    }
+}
+
+fn assert_error_group_call(
+    sources: &SourceMap,
+    ast: &SyntaxAst,
+    expression: ExpressionId,
+    group: &str,
+) {
+    let root = ast.expressions().get(expression).unwrap();
+    let Expression::Call { arguments, .. } = root.payload() else {
+        panic!("expected outer call, got {:?}", root.payload());
+    };
+    let [first, next] = arguments.as_slice() else {
+        panic!("expected two arguments, got {arguments:?}");
+    };
+    assert_error_group(sources, ast, first.value, group);
+    assert_eq!(sources.slice(next.span), Ok("next"));
+}
+
+#[test]
+fn paired_poisoned_group_preserves_the_next_call_argument() {
+    for group in ["(value β, other)", "(value β ([other), tail)"] {
+        let text = format!("f({group}, next)");
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("group-argument.ko", &text).unwrap();
+        let parsed = parse_expression_twice(&sources, source, &text);
+        assert_group_diagnostics(&sources, parsed.diagnostics(), &[("L0001", "β")]);
+        let root = parsed.ast().expressions().get(parsed.root()).unwrap();
+        assert_eq!(sources.slice(root.span()), Ok(text.as_str()));
+        assert_error_group_call(&sources, parsed.ast(), parsed.root(), group);
+    }
+}
+
+#[test]
+fn paired_poisoned_group_is_local_to_its_interpolation() {
+    for (group, diagnostics) in [
+        ("(value β, other)", &[("L0001", "β")][..]),
+        (
+            "(value β \"bad\n)",
+            &[("L0001", "β"), ("L0004", "\"bad")][..],
+        ),
+    ] {
+        let text = format!(r#""${{f({group}, next)}}tail""#);
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("group-interpolation.ko", &text).unwrap();
+        let parsed = parse_expression_twice(&sources, source, &text);
+        assert_group_diagnostics(&sources, parsed.diagnostics(), diagnostics);
+        let root = parsed.ast().expressions().get(parsed.root()).unwrap();
+        let Expression::String { parts } = root.payload() else {
+            panic!("expected string");
+        };
+        let [
+            StringPart::Interpolation { expression, .. },
+            StringPart::Text(tail),
+        ] = parts.as_slice()
+        else {
+            panic!("expected interpolation and tail, got {parts:?}");
+        };
+        assert_error_group_call(&sources, parsed.ast(), *expression, group);
+        assert_eq!(sources.slice(*tail), Ok("tail"));
+    }
+}
+
+#[test]
+fn unpaired_poisoned_group_leaves_the_next_file_declaration_reachable() {
+    let text = "val x = (value async\nval next = 1";
+    let mut sources = SourceMap::new();
+    let id = sources
+        .add_source("unpaired-poisoned-group.ko", text)
+        .unwrap();
+    let file = parse_file_twice(&sources, id, text);
+    assert_group_diagnostics(&sources, file.diagnostics(), &[("L0002", "async")]);
+    let roots = file
+        .roots()
+        .iter()
+        .map(|id| {
+            sources
+                .slice(file.ast().items().get(*id).unwrap().span())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(roots, ["val x = (value", "async", "val next = 1"]);
+}
+
+#[test]
+fn unpaired_leading_poison_keeps_the_next_file_declaration() {
+    let text = "val x = (β\nval next = 1";
+    let mut sources = SourceMap::new();
+    let id = sources
+        .add_source("unpaired-leading-poison.ko", text)
+        .unwrap();
+    let file = parse_file_twice(&sources, id, text);
+    assert_group_diagnostics(
+        &sources,
+        file.diagnostics(),
+        &[("L0001", "β"), ("L0010", "")],
+    );
+    assert_span(
+        file.diagnostics()[1].primary_span(),
+        text.find("val next").unwrap(),
+        "",
+    );
+    let roots = file
+        .roots()
+        .iter()
+        .map(|id| {
+            sources
+                .slice(file.ast().items().get(*id).unwrap().span())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(roots, ["val x = (β", "val next = 1"]);
 }

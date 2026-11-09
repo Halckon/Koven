@@ -1,10 +1,13 @@
-use super::{class::ClassifierHeaderOwner, *};
-use std::{
-    cell::{Cell, OnceCell},
-    num::NonZeroUsize,
-};
+use super::{class::ClassifierHeaderOwner, postfix::IndexPoisonTail, *};
+use std::cell::{Cell, OnceCell};
+use std::num::NonZeroUsize;
 
-pub(super) struct LexicalRecoveryIndex {
+mod ordinary_groups;
+
+use ordinary_groups::{GroupClosers, OrdinaryGroups, group_delimiter};
+
+pub(super) struct LexicalRecoveryIndex<'source> {
+    source: &'source str,
     pub(super) source_len: usize,
     string_owner_ends: Vec<(usize, usize)>,
     string_recoveries: Vec<(usize, usize)>,
@@ -12,7 +15,8 @@ pub(super) struct LexicalRecoveryIndex {
     pub(super) unterminated_interpolation_starts: Vec<usize>,
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
-    group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
+    pub(super) index_poison_tail: Cell<Option<IndexPoisonTail>>,
+    group_closers: OnceCell<GroupClosers>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     poisoned_string_starts: OnceCell<Vec<bool>>,
     angle_terminal_hint: usize,
@@ -41,8 +45,11 @@ enum LexicalDiagnosticAnchor {
     InterpolationStart,
 }
 
-impl LexicalRecoveryIndex {
-    pub(super) fn new(source: &str, lexed: &LexedFile) -> Result<Self, ParserInternalError> {
+impl<'source> LexicalRecoveryIndex<'source> {
+    pub(super) fn new(
+        source: &'source str,
+        lexed: &LexedFile,
+    ) -> Result<Self, ParserInternalError> {
         let catalog = codes::catalog()?;
         let unexpected_character = catalog.resolve(codes::UNEXPECTED_CHARACTER)?;
         let reserved_word = catalog.resolve(codes::RESERVED_WORD)?;
@@ -325,6 +332,7 @@ impl LexicalRecoveryIndex {
         lexical_poison_string_recoveries.sort_unstable();
         lexical_poison_string_recoveries.dedup_by_key(|(start, _)| *start);
         Ok(Self {
+            source,
             source_len: source.len(),
             string_owner_ends,
             string_recoveries,
@@ -332,21 +340,13 @@ impl LexicalRecoveryIndex {
             unterminated_interpolation_starts,
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
+            index_poison_tail: Cell::new(None),
             group_closers: OnceCell::new(),
             angle_group_closers: OnceCell::new(),
             poisoned_string_starts: OnceCell::new(),
             supertype_boundary: Cell::new(None),
             angle_terminal_hint: 0,
         })
-    }
-
-    pub(super) fn group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
-        self.group_closers
-            .get_or_init(|| group_closers(lexed, &self.terminal_owner_events))
-            .get(opener)
-            .copied()
-            .flatten()
-            .map(NonZeroUsize::get)
     }
 
     pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
@@ -509,7 +509,7 @@ impl FileAngleGroups {
                 .visit(self.next_raw + offset, *lexeme, terminals);
         }
         self.next_raw = raw + 1;
-        Ok(self.owners.lexical_depth == 0 && self.owners.groups.is_empty())
+        Ok(self.owners.lexical_depth == 0 && self.owners.delimiters.is_empty())
     }
 }
 
@@ -517,8 +517,7 @@ impl FileAngleGroups {
 struct GroupOwners {
     next_terminal: usize,
     lexical_depth: usize,
-    groups: Vec<(usize, usize)>,
-    active: [usize; 3],
+    delimiters: OrdinaryGroups,
 }
 
 impl GroupOwners {
@@ -555,37 +554,8 @@ impl GroupOwners {
         terminals: &[TerminalOwnerEvent],
     ) -> Option<usize> {
         let symbol = self.outside_lexical_symbol(lexeme, terminals)?;
-        let (kind, opening) = group_delimiter(symbol)?;
-        if opening {
-            self.groups.push((raw, kind));
-            self.active[kind] += 1;
-        } else if symbol == Symbol::RightBrace && self.active[kind] == 0 {
-            // 构造器和委托都不能跨过调用方的未配对右花括号。
-            self.groups.clear();
-            self.active.fill(0);
-        } else if self.active[kind] != 0 {
-            // 孤立的异形 closer 不会使另一个已打开的分组丢失其真实 closer。
-            while let Some((opener, owner_kind)) = self.groups.pop() {
-                self.active[owner_kind] -= 1;
-                if owner_kind == kind {
-                    return Some(opener);
-                }
-            }
-        }
-        None
+        self.delimiters.visit(raw, symbol)
     }
-}
-
-fn group_delimiter(symbol: Symbol) -> Option<(usize, bool)> {
-    Some(match symbol {
-        Symbol::LeftParen => (0, true),
-        Symbol::RightParen => (0, false),
-        Symbol::LeftBracket => (1, true),
-        Symbol::RightBracket => (1, false),
-        Symbol::LeftBrace => (2, true),
-        Symbol::RightBrace => (2, false),
-        _ => return None,
-    })
 }
 
 // 每个 opener 都从自己的普通分组开始。计算后缀在八种祖先形状集合下
@@ -636,17 +606,6 @@ fn angle_group_closers(
             if closes(end, kind) {
                 matched[raw] = NonZeroUsize::new(delimiters[end].0);
             }
-        }
-    }
-    matched
-}
-
-fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> Vec<Option<NonZeroUsize>> {
-    let mut matched = vec![None; lexed.lexemes().len()];
-    let mut owners = GroupOwners::default();
-    for (raw, lexeme) in lexed.lexemes().iter().copied().enumerate() {
-        if let Some(opener) = owners.visit(raw, lexeme, terminals) {
-            matched[opener] = NonZeroUsize::new(raw);
         }
     }
     matched
@@ -709,6 +668,7 @@ impl Parser<'_> {
         let mut end = recovery_start;
         let mut string_poison = false;
         let supertype_suffix = stops.has_supertype_suffix();
+        let proven_groups = stops.requires_proven_groups();
         let supertype_owner = if stops.has_class_file_boundary() {
             ClassifierHeaderOwner::File
         } else if stops.stops_at_class_member() {
@@ -803,21 +763,24 @@ impl Parser<'_> {
                 paired_groups.push((closer, delimiters.len()));
             }
             let nested_greater = symbol == Some(Symbol::Greater) && !paired_groups.is_empty();
-            let protected_suffix_group = supertype_suffix && !paired_groups.is_empty();
+            let protected_suffix = (supertype_suffix || proven_groups) && !paired_groups.is_empty();
             let hard_stop = outside_owner
                 && !nested_greater
-                && !protected_suffix_group
-                && stops.contains_hard(current, symbol);
+                && !protected_suffix
+                && stops.contains_hard(current, symbol)
+                && !(proven_groups
+                    && symbol == Some(Symbol::LeftBrace)
+                    && self.has_paired_lambda_header(raw_index)?);
             if hard_stop
                 || (supertype_suffix
                     && outside_owner
-                    && !protected_suffix_group
+                    && !protected_suffix
                     && stops.has_semicolon()
                     && symbol == Some(Symbol::Semicolon))
                 || (supertype_suffix
                     && proven_type_closer.is_none()
                     && outside_owner
-                    && !protected_suffix_group
+                    && !protected_suffix
                     && self.at_supertype_suffix_boundary(
                         raw_index,
                         current,
@@ -826,6 +789,7 @@ impl Parser<'_> {
                     )?)
                 || (outside_owner
                     && delimiters.is_empty()
+                    && (!proven_groups || paired_groups.is_empty())
                     && (((!unclosed_angle || symbol != Some(Symbol::Comma))
                         && stops.contains_soft(current, symbol))
                         || (!supertype_suffix
@@ -839,9 +803,31 @@ impl Parser<'_> {
                 break;
             }
 
+            // Only proven local groups can hide the caller's stops.
+            if outside_owner
+                && proven_groups
+                && let Some((last, closer)) = self.proven_postfix_recovery_step(
+                    raw_index,
+                    symbol,
+                    first.0,
+                    stops.has_semicolon(),
+                )?
+            {
+                if let Some(closer) = closer
+                    && paired_groups
+                        .last()
+                        .is_none_or(|&(active, _)| active != closer)
+                {
+                    paired_groups.push((closer, delimiters.len()));
+                }
+                self.index = last + 1;
+                end = self.lexed.lexemes()[last].span().end();
+                continue;
+            }
+
             if outside_owner
                 && supertype_suffix
-                && !protected_suffix_group
+                && !protected_suffix
                 && symbol == Some(Symbol::Less)
             {
                 if let Some(closer) = self.strict_trials.recovery_type_list_closer(

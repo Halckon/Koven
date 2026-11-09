@@ -112,12 +112,21 @@ MoveOnly 载荷字段借用实参。`deinit` 析构体、多层字段借用、�
 也可跳过原整函数扫描，由旧 lowering 核对直接来源、活动 shared loan 与 provider 交接。
 RangeView、carrier 别名和其他绑定保留原有前置边界。
 
+临时 class 的字段实参按同源 Shared loan 与父对象清理事实进入细化层。
+精确 Borrow 传递实际字段 loan；Copyable nullable 转换读取字段并结束原借用链，
+再借用包装槽。正常返回与提前退出由调用清理消费完整临时父对象的析构事实。
+
 ## inline nullable 布局
 
 `SsaTypeKind::InlineNullable { inner, niche }`：String 与顺序容器用 bytes/buffer 指针 niche（空串与
 空容器使用非 null 的 `koven.zst.sentinel`），其余 inner 用 `{i1, T}`。复用 NullableWrap/Null/IsNull/
 Take 与 `NullableBranch`；drop glue 只在 present 时释放 payload。旧 `unit_lower` 的存储能力仍只到
 pointer-like nullable。
+
+普通借用结果作为同步 Borrow 实参时，refine 按前端交接事实选择直接续借或复制。
+对 Copyable payload 的 nullable 包装，内层调用先完成无关实参清理，再读取结果、结束
+新建的来源借用并执行来源的实参完成边清理。外层调用借用单独的 nullable 槽。
+借用结果生产者的辅助参数也可使用同源 Shared Temporary 事实包装 Copyable 值。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、
 `llvm/runtime/inline_nullable.rs`；测试在 `ssa/refine_tests.rs` 与 `llvm/inline_nullable_tests.rs`。

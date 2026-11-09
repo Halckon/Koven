@@ -660,21 +660,51 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let group_stops = outer_stops.without_file_and_semicolon_stops();
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
+        let leading_poison = self.is_poison();
+        let diagnostic_count = self.diagnostics.len();
         let mut inner = self.parse_expression_bp(
             0,
-            outer_stops
+            group_stops
                 .without_lambda_body_soft_stops()
                 .with(Stops::RIGHT_PAREN),
         )?;
         let current = self.current()?;
-        if !self.current_is_symbol(Symbol::RightParen)
+        let poisoned = leading_poison || self.is_poison();
+        let at_right_paren = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen))
+        );
+        let declaration_tail = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) || (self.file_mode && file_construct_start_kind(current.kind()));
+        let skipped = if poisoned {
+            self.skip_to_group_closer(opener_raw)?
+        } else if !at_right_paren
+            && !declaration_tail
             && (matches!(
                 current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-            ) || (self.file_mode && file_construct_start_kind(current.kind())))
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
+            ) || !outer_stops.contains(current))
         {
+            self.skip_to_confirmed_group_closer(opener_raw, outer_stops)?
+        } else {
+            None
+        };
+        if let Some(end) = skipped {
+            if !poisoned && self.diagnostics.len() == diagnostic_count {
+                self.emit(
+                    codes::UNEXPECTED_TRAILING_TOKEN,
+                    "unexpected trailing token",
+                    current.span(),
+                )?;
+            }
+            let start = self.expression_span(inner)?.start();
+            inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
+        } else if !poisoned && !at_right_paren && declaration_tail {
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,
                 "unexpected trailing token",
@@ -682,7 +712,7 @@ impl Parser<'_> {
             )?;
             let start = self.expression_span(inner)?.start();
             let end = self.recover_declaration_region(
-                DeclarationStops::from_expression_hard(outer_stops)
+                DeclarationStops::from_expression_hard(group_stops)
                     .with(DeclarationStops::RIGHT_PAREN),
             )?;
             inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
@@ -693,7 +723,8 @@ impl Parser<'_> {
         } else {
             let current = self.current()?;
             if !self.is_poison() {
-                self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
+                let stops = if poisoned { outer_stops } else { group_stops };
+                self.emit_closing(self.boundary_span(current, stops)?, opener)?;
             }
             inner_span.end().max(opener.end())
         };

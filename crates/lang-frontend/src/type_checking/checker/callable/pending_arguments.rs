@@ -88,10 +88,10 @@ impl Checker<'_> {
             )?;
             valid &= !self.is_error(result.ty);
             deferred |= self.is_deferred(result.ty);
-            if was_checked
+            if (was_checked || parameter.mode == ParameterMode::Inout)
                 && !self.is_error(result.ty)
                 && !self.is_deferred(result.ty)
-                && !self.assignable(result.ty, parameter.ty)
+                && !self.call_parameter_matches(argument.value, result.ty, parameter)
             {
                 self.mismatch(
                     self.ast().expressions().get(argument.value)?.span(),

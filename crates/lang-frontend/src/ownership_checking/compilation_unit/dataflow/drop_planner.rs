@@ -229,6 +229,7 @@ struct DropPlanner<'a, 'checker> {
     )>,
     planned_iterations: std::collections::BTreeSet<UnitStatementId>,
     resource_deferred: Vec<UnitOwnershipDeferredFact>,
+    call_return_copy_source: Option<UnitSymbolId>,
     checker: &'a Checker<'checker>,
     loan_provenance: std::cell::OnceCell<loan_provenance::LoanProvenance>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
@@ -270,6 +271,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_exits: Vec::new(),
             planned_iterations: std::collections::BTreeSet::new(),
             resource_deferred: Vec::new(),
+            call_return_copy_source: None,
             checker,
             loan_provenance: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),
@@ -1084,7 +1086,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     self.commit_choice_primitive(id, state);
                 }
-                self.continue_borrow_call_source(id, state);
+                let copied_source = self.continue_borrow_call_source(id, state);
                 self.finish_call_borrows(id, &mut borrowed_roots, state);
                 self.finish_direct_call_loans(id, state);
                 self.observe_borrow_call_handoff(id, state);
@@ -1094,11 +1096,22 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.finish_borrow_call_transports(id, state);
                 self.finish_call_pending_loans(id, state);
                 self.continue_range_source(id, state);
+                // Closure cleanup can recursively try to drop the borrowed source.
+                self.call_return_copy_source = copied_source.map(|(root, _)| root);
                 self.finish_pending_temporaries(id, PlannerDropPoint::CallReturn(id), state);
+                let mut copied_drop = None;
                 for root in borrowed_roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
-                        self.drop_named_asap(PlannerDropPoint::CallReturn(id), root, state);
+                        if let Some(copy) = copied_source.filter(|(source, _)| *source == root) {
+                            copied_drop = Some(copy);
+                        } else {
+                            self.drop_named_asap(PlannerDropPoint::CallReturn(id), root, state);
+                        }
                     }
+                }
+                self.call_return_copy_source = None;
+                if let Some((root, point)) = copied_drop {
+                    self.drop_named_asap(point, root, state);
                 }
                 Ok(true)
             }
@@ -1216,7 +1229,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
-        if self.borrow_source_protected(symbol, state) || state.capture_borrow_protects(symbol) {
+        if self.call_return_copy_source == Some(symbol)
+            || self.borrow_source_protected(symbol, state)
+            || state.capture_borrow_protects(symbol)
+        {
             return;
         }
         // A provider keeps its source even without a later explicit source read.

@@ -89,6 +89,9 @@ impl Checker<'_, '_> {
     /// lower only here), a `RangeView` carrier call, or a borrow-result call proven not to
     /// dispatch. The ordinary exit ends those loans before dropping the temporary.
     fn pending_owner(&self, expression: UnitExpressionId) -> bool {
+        if self.temporary_field_parents.contains(&expression) {
+            return true;
+        }
         if expression.source_unit() != self.inputs.source_unit {
             return false;
         }

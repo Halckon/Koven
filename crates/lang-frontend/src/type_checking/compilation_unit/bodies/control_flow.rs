@@ -4,8 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ast::ExpressionId,
     name_resolution::SourceUnitId,
-    parser::{BinaryOperator, Expression, ParsedFile, PrefixOperator},
-    type_checking::flow_effects::logical_rhs_is_required,
+    parser::{BinaryOperator, Expression, ParsedFile},
+    type_checking::flow_effects::{
+        SyntacticBooleanOutcomes, logical_rhs_is_required, structural_outcomes,
+    },
 };
 
 use super::{CompilationUnitTypeParts, CompilationUnitTypes, UnitExpressionId, UnitStatementId};
@@ -15,6 +17,7 @@ pub(super) struct OrdinaryBooleanFlow {
     outcomes: BTreeMap<UnitExpressionId, (bool, bool)>,
     structural_outcomes: BTreeMap<UnitExpressionId, (bool, bool)>,
     required_rhs: BTreeSet<UnitExpressionId>,
+    bypassed_rhs: BTreeSet<UnitExpressionId>,
 }
 
 impl CompilationUnitTypes {
@@ -77,6 +80,15 @@ impl CompilationUnitTypes {
         }
     }
 
+    /// The logical left operand proves the RHS is skipped after any normal exit.
+    /// Its own effects and possible early exits still have to be lowered.
+    #[must_use]
+    pub fn ordinary_rhs_bypassed(&self, expression: UnitExpressionId) -> bool {
+        self.ordinary_boolean_flow
+            .bypassed_rhs
+            .contains(&expression)
+    }
+
     /// A Boolean literal (possibly grouped or negated) makes the logical RHS mandatory.
     #[must_use]
     pub fn ordinary_rhs_required(&self, expression: UnitExpressionId) -> bool {
@@ -91,8 +103,20 @@ impl CompilationUnitTypeParts {
         &mut self,
         unit: SourceUnitId,
         file: &ParsedFile,
+        syntactic_outcomes: &SyntacticBooleanOutcomes<'_>,
     ) {
         let flow = &mut self.ordinary_boolean_flow;
+        for (id, node) in file.ast().expressions().iter() {
+            if let Expression::Binary {
+                left,
+                operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
+                ..
+            } = node.payload()
+                && syntactic_outcomes.rhs_is_bypassed(*left, *operator)
+            {
+                flow.bypassed_rhs.insert(UnitExpressionId::new(unit, id));
+            }
+        }
         Self::record_boolean_outcomes(
             unit,
             file,
@@ -173,37 +197,5 @@ impl CompilationUnitTypeParts {
                 recorded.insert(expression, possible);
             }
         }
-    }
-}
-
-fn structural_outcomes(
-    expression: &Expression,
-    outcomes: impl Fn(ExpressionId) -> (bool, bool),
-) -> (bool, bool) {
-    match expression {
-        Expression::Group { expression } => outcomes(*expression),
-        Expression::Prefix {
-            operator: PrefixOperator::Not,
-            operand,
-            ..
-        } => {
-            let (yes, no) = outcomes(*operand);
-            (no, yes)
-        }
-        Expression::Binary {
-            left,
-            operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
-            right,
-            ..
-        } => {
-            let (yes, no) = outcomes(*left);
-            let (rhs_yes, rhs_no) = outcomes(*right);
-            if *operator == BinaryOperator::LogicalAnd {
-                (yes && rhs_yes, no || (yes && rhs_no))
-            } else {
-                (yes || (no && rhs_yes), no && rhs_no)
-            }
-        }
-        _ => (true, true),
     }
 }

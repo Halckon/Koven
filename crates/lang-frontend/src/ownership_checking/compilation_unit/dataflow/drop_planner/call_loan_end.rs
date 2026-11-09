@@ -7,7 +7,7 @@ use crate::{
         UnitLoanTarget,
     },
     parser::{Expression, StringPart},
-    type_checking::{CallableResultSource, UnitCallTarget},
+    type_checking::{CallableResultSource, ExpressionCategory, UnitCallTarget},
 };
 use std::collections::BTreeMap;
 
@@ -42,6 +42,14 @@ impl DropPlanner<'_, '_> {
             match node.payload() {
                 Expression::Group { expression } => operand = *expression,
                 Expression::Name => {
+                    if kind == LoanKind::Shared
+                        && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument())
+                        && self.checker.typed.expression_category(loan.argument())
+                            == Some(ExpressionCategory::Place)
+                    {
+                        // A Copyable nullable conversion of the name has its own temporary loan.
+                        return true;
+                    }
                     let Ok(Some(place)) = self.checker.place(operand) else {
                         return false;
                     };
@@ -50,11 +58,11 @@ impl DropPlanner<'_, '_> {
                         && matches!(loan.target(), UnitLoanTarget::Place(target) if target == &place);
                 }
                 Expression::Member { .. } => {
-                    // Reuse the pending-owner proof: typed Field/Group chain, actual Shared
-                    // Temporary(parent) token, and the complete parent's MoveOnly category.
+                    // The field parent's cleanup obligation is independent of the loan target.
+                    // Only a loan of the actual parent is observed by this field path.
                     return kind == LoanKind::Shared
                         && self
-                            .borrowed_temporary_field_owner(
+                            .call_temporary_field_parent(
                                 loan.call().expression(),
                                 loan.argument().expression(),
                                 super::UnitCallArgumentOwnershipKind::SharedLoan,

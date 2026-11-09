@@ -322,7 +322,7 @@ fn validate_lexemes(
 struct Parser<'source> {
     sources: &'source SourceMap,
     lexed: &'source LexedFile,
-    lexical_recoveries: LexicalRecoveryIndex,
+    lexical_recoveries: LexicalRecoveryIndex<'source>,
     file_angle: Option<FileAngleRecovery>,
     strict_trials: StrictCallTrialIndex,
     lambda_headers: LambdaHeaderIndex,

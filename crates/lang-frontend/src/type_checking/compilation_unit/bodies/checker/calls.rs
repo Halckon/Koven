@@ -615,9 +615,11 @@ impl BodyChecker<'_> {
                 // The source facts already exist. Any remaining use of the
                 // expected type is local to compatibility or the diagnostic.
                 valid &= expected.probe(self, |checker, expected| {
-                    let assignable = checker.call_argument_could_match(
+                    let assignable = checker.call_argument_matches_mode(
+                        UnitExpressionId::new(source, argument.value),
                         required,
                         expected,
+                        parameter.mode,
                         pending_instance || unresolved_actual,
                     );
                     if !assignable {
