@@ -4322,3 +4322,19 @@ Basic 所有权和实例规划仍保守处理死 RHS；本批仅调整执行路�
 §172 的 nullable Borrow 临时注入仍待复审。另实测普通
 `mutate(target = &(x))` 通过公共检查，但在原生生成时报
 `UnsupportedNode`，待核对分组实参的 loan 事实与 lowering 准入。
+
+## 175. R4 分组 Inout 实参的原始 loan 身份
+
+在 `79196577` 上，`forward(target = &((x)))` 与函数内的
+`clear(value = &((target)))` 通过公共检查，但原生构建报
+`UnsupportedNode`。refine 的准入与构建各自要求 operand 本身是 Name。
+
+复用两侧已有的直接 place 名称解析，只为定位存储穿过透明分组。
+类型、exclusive loan、源码位置及调用均继续使用原实参身份。转发参数
+沿用已有的独占借用，调用者的局部变量继续在借用结束后读回存储。
+字段、索引和临时值仍受原有准入限制。
+
+后端 `--lib inout` 40 项通过，零失败或忽略，2763 项过滤。
+严格 codegen Clippy 通过。CLI 单文件与项目均执行两级调用并输出
+`cleared`，退出 0。独立复核核对了原外层 operand loan、转发与
+局部写回的不同路径。

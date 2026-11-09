@@ -56,6 +56,18 @@ fn skipped_short_circuit_still_accepts_a_conservative_field_drop_plan() {
 }
 
 #[test]
+fn grouped_inout_arguments_reborrow_the_same_nullable_storage() {
+    let source = r#"fun clear(inout value: Int?): Unit { value = null }
+    fun forward(inout target: Int?): Unit { clear(value = &((target))) }
+    fun main(): Unit {
+        var x: Int? = 7
+        if (x != null) { forward(target = &((x))) }
+        if (x == null) { println("cleared") }
+    }"#;
+    assert_eq!(run(source), ("cleared\n".to_owned(), Some(0)));
+}
+
+#[test]
 fn inout_writes_nullable_storage_even_after_a_nonnull_read() {
     let source = r#"fun clear(inout target: Int?): Unit { target = null }
     fun main(): Unit {
