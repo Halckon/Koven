@@ -164,10 +164,30 @@ source-qualified，不新增普通 body 回边或移动原 ASAP Drop。私有单
 最终 successful/无 deferred 门保持；中途失败无法形成完整产物。此为两条互斥控制边的
 静态检查证据，不是正常合流、header/exit phi、suffix 消费、每轮换臂或动态实例运输。
 
+## 不变输入 owner 的条件 Break 出口
+
+`invariant_split_exit_observation_v1()` 返回独立 `UnitOwnerInvariantSplitExitObservationV1`，
+仅接 Continue/Break、Break/Continue、Break/Break。三语句与独立 Boolean 条件合同不变，
+两臂仍各一个裸跳转；空臂、臂内 owner、其它控制及外层输入操作不准入。双 Continue
+继续只走上一节能力，原 `UnitOwnerContinueArmBoundaryV1` 与 `after_continue()` 不变。
+
+私有 terminal split 收集器在实际 jump cleanup 后保存真实 kind、expression 与 binding，
+不在 finish 时根据 AST expected 补造 kind。中性 `UnitOwnerJumpArmBoundaryV1` 提供
+entry、`after_jump()`、completion 和 `edge()`；Continue 精确回到 While condition，Break
+精确到该 While 的 LoopExit。仅实际两条 Continue 边可转换旧 Continue-only 类型；新 seal
+明确要求全为 Continue/Break 且至少一 Break，再核实际 edge、closed completion 与完整六边。
+两种 getter 由私有枚举互斥，source、arm 次序、端点、catalog/analysis/body Arc 门均保持。
+
+九份真实 binding、完整 singleton/OwnedValue 与其它16空槽要求不变。三种组合都没有
+正常 continuation，整体 body 只核真实 false、完整空 merge 与完成封印，不生成共同 body
+binding。LoopExit 仍清理原 condition state，未把 Break state 合流进去；这仅证明窄范围的
+完整不变状态，不是一般出口运输或 exit phi。原 merge、branch/jump cleanup、ASAP 与
+body-local Drop 顺序不变；本片不提供 suffix 消费、运行实例或有限 runtime trace。
+
 ## 保留边界
 
 除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。

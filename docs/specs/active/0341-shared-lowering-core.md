@@ -6874,3 +6874,71 @@ workspace全量测试、Linux、native或精确头正式CI，不能将124项称�
 loop-carried owner、一般header/exit phi、动态多实例capture/释放与Phase 4/native。
 未删除旧工作、缓存或oracle，按用户要求只本地分步提交，不推送、不改PR、不合main。
 D10/E2与本Spec保持in-progress；事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。
+
+
+## 160. 非空 owner 条件终端边的真实 Break 目的地（2026-11-09）
+
+本片先核 main `748516795812a1946b2fd9e3ca0f8046dc2e560b`、在途#390 `734dde83`、
+#398 `8952321a`及本地parser后续a90019c0，owner路径历史没有重复的混合终端能力。
+新隔离分支从main建立，仅ff-only复用§158 `c475c2dba6104b309fed8e614abbe803edf1570f`，
+不增加merge或重放已交付提交。#398和parser后续不含本片owner producer，未吸纳它们；
+不改已完成工作树、远端或PR，§158的完整依赖链与旧oracle保留。
+
+新增 `UnitOwnerInvariantSplitExitObservationV1` 与独立 getter，只接末尾If的三种终端
+组合：Continue/Break、Break/Continue、Break/Break。仍为单个精确String val输入、While、
+精确suffix三语句，两个不同Boolean参数的Name/Group条件，body前缀复用闭合本地String/
+move/Group/root Replace。每臂只能一个裸跳转，拒绝空臂、臂内owner、嵌套、外层输入操作
+及其它carrier。双Continue仍只取得§158能力；normal/单Continue/单Break接口范围不变。
+
+私有收集器由split_continue更名为split_terminal，保留九次实际singleton快照与一次性槽。
+实际jump cleanup后把真实Continue/Break kind、expression、binding一起保存；最终先据
+该实际kind形成中性 `UnitOwnerJumpArmBoundaryV1` 的edge，不从expected补造执行。
+新arm公开entry、after_jump、completion及edge：ContinueBackedge的目标为真实While
+condition，BreakExit的目标为该While LoopExit。仅实际两条Continue边可转换旧公开
+ContinueArm，再经过旧seal；旧公开类型文件字节未改，新旧两getter互斥。
+
+新seal显式要求两臂皆终端且至少一Break，实际edge、closed completion和完整六边三方
+对照，同时核control/condition/arm序号/body/jump/source、catalog及analysis/body Arc。
+完整OwnedValue与ValueState17字段检查保持，values之外16槽为空。三种组合都没有正常
+continuation，body仍真实Ok(false)与完整空merge，不制造共同backedge/body binding。
+LoopExit仍清理原condition state，没有合入Break state；窄范围完整不变状态不等于一般
+出口运输、header/exit phi或最终消费。原branch、conditional hook、merge与jump cleanup
+字节不变，Guide、ASAP和普通V1/Choice均未放宽。
+
+红提交 `99bf845f1c69b0b7f66c024d06e80e57cbcb022a` 使用合法C/B完整源码，typed/ownership
+成功后因缺新能力1 failed；最小实现后同测试1 passed，精确原红源码仍在最终正例中。
+实现与最终测试提交 `0b08d01f375a825fe57720c0add9329b83ee775e`，tree
+`429013ceff3a3f77ac7d3b54a95b7d235209ca58`；下表对应该Rust内容，后续文档不改受测源码。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 三种真实终端组合 | `invariant_split_exits::actual_split_exits_preserve_nonempty_owners_at_each_real_destination` | 1 passed，3×2×2×2×4＝96矩阵输入+精确原红1例 |
+| 拒绝与旧能力保全 | 同模块 `split_exits_reject_unproved_paths_and_preserve_prior_capabilities` | 1 passed，25合法否例，另复核旧C/C能力；normal/单Continue/单Break保持 |
+| 来源与错误边界 | 同模块 `split_exit_sources_and_failures_keep_capabilities_separate` | 1 passed，双source/二次analysis隔离；3输入错误/未闭合body、2非法arm不泄露能力，sibling错误清空观察 |
+| 公开两入口 | `invariant_split_exits_owner_unit::split_exit_destinations_match_actual_sources_in_both_unit_inputs` | 1 passed，20片段×MemoryDocument单源/Rooted双源，共40分析、60 source inputs，36准入/24拒绝 |
+| owner及共享hook组合 | §158的86 lib exact + 本片3项；19 iteration + 本片公开1项；原5 multifile、2 closures、1 borrow-continuation | 89 + 20 + 5 + 2 + 1 passed，0 failed/ignored |
+| main常量邻控 | §158保留的multifile_constant_qualification新增11项，各完整名exact | 11 passed，不借用旧main CI |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、LLVM21 workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2284 Rust、37历史超限，尺寸基底c475c2db，无新豁免 |
+| 独立复审与复跑 | 实际kind/expected/edge封印、旧C/C转换、九快照/空body及测试oracle；新3 lib和1公开exact | 无blocker；4项各1 passed，前后HEAD/tree、binary SHA256和clean状态相同 |
+
+合计128项不同ordinary测试，即117项owner相关与11项main常量邻控，全部从本片74851679
+依赖组合重建后执行；红绿、初验和独立复跑不重复累计。新3 lib带完整前缀
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+正例独立从index/AST核jump实际kind与六边、九份binding；B/B无ContinueBackedge，混合
+组合恰一条，均无普通body回边。每producer核实际AST String及body span、Create、唯一
+真实Drop，producer数1/1/2/3与Replace数0/0/1/2独立给定，输入/body catalog隔离。
+单源各正例与合法否例比较完整cleanup Analysis开关等值；共享compare固定source 0，
+双source测试另核能力与二次analysis身份隔离，不能称两个source都完成开关对照。
+
+两个非法arm源码含额外语句，admission已提前拒绝，不是第一臂记录后的中途撤销证据。
+实际C/C配mixed completion、实际C/B配自洽B/B completion、自洽完整C/C放入新类型、
+Break错指另一实际While、Continue错指If condition以及foreign snapshot/Arc/catalog、
+重排/重复arm、deferred守卫均已编译，未本机执行；旧model/Abort/故障注入也只编译。
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target。
+未跑frontend/workspace全量测试、Linux、native或精确头正式CI，128项不是统一队列整批验收。
+
+收尾main、#390及#398头未变；本地旁线已出现0b5c2b25短路flow修复，仅改类型flow、测试
+和对应文档，无owner producer重叠，未吸纳或验证该组合。仍缺非空正常臂合流、可变
+loop-carried owner、一般phi、动态多实例capture/释放、外层运输闭合与Phase 4/native。
+按用户要求仅本地分步提交，不推送、不改PR、不合main，未删除旧工作或oracle；D10/E2
+与本Spec保持in-progress。事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。
