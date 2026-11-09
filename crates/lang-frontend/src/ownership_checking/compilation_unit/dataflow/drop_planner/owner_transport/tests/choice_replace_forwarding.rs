@@ -222,9 +222,8 @@ fn replaced_choice_forwarding_keeps_other_consumers_and_extra_steps_closed() {
         );
         compare(&fixture, &fixture.parts(&owned));
     }
-    for body in [format!(
-        "while (flag) {{ {prefix} val forwarded = previous; break }}"
-    )] {
+    {
+        let body = format!("while (flag) {{ {prefix} val forwarded = previous; break }}");
         let source = format!("fun run(flag: Boolean): Unit {{ {body} }}");
         let fixture = Fixture::new(&[("root.ko", &source)]);
         let owned = fixture.shared();
