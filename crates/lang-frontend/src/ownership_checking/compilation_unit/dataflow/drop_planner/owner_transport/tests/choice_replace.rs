@@ -157,7 +157,6 @@ fn choice_root_replace_keeps_unproven_consumers_closed() {
     for body in [
         r#"var chosen = if (flag) "left" else "right""#,
         r#"var chosen = if (flag) "left" else "right"; val previous = chosen"#,
-        r#"var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, "next"))"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, make())"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, "${flag}")"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, if (flag) "next" else "other")"#,

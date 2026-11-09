@@ -8,6 +8,7 @@ mod choice_conditions;
 mod choice_forwarding;
 mod choice_replace;
 mod choice_replace_forwarding;
+mod choice_replace_groups;
 mod choice_result_groups;
 mod combination;
 mod control_tail;
