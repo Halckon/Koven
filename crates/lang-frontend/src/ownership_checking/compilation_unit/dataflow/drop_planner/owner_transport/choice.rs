@@ -1,4 +1,6 @@
 //! Bounded Choice collection at real planner transitions, separate from legacy IDs.
+mod replace;
+
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
@@ -6,7 +8,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::values::{
 };
 use crate::parser::{PrefixOperator, VariableKind};
 
-/// One Choice binding, optionally moved once; each edge has a single String tail.
+/// One Choice binding with at most one transfer/replace; each edge has one String tail.
 struct Admission {
     callable: UnitOwnerCallable,
     control: UnitExpressionId,
@@ -15,6 +17,7 @@ struct Admission {
     drop_point: crate::ownership_checking::UnitDropPoint,
     arms: [Arm; 2],
     transfer: Option<Transfer>,
+    replacement: Option<replace::Admission>,
 }
 
 struct Transfer {
@@ -57,6 +60,7 @@ pub(in super::super) struct ChoiceTransaction {
     events: [Vec<Event>; 2],
     edges: [Edge; 2],
     transfer: TransferFrame,
+    replacement: replace::Frame,
     control_completed: bool,
     result: Option<UnitExpressionId>,
     result_completed: usize,
@@ -64,6 +68,42 @@ pub(in super::super) struct ChoiceTransaction {
     bound: bool,
     dropped: bool,
     valid: bool,
+}
+
+fn chain(
+    checker: &Checker<'_>,
+    expression: ExpressionId,
+    local: Option<UnitSymbolId>,
+) -> Option<Vec<UnitExpressionId>> {
+    let ast = checker.parsed.ast();
+    let mut ids = Vec::new();
+    let mut current = expression;
+    loop {
+        if checker.is_constant_use(current) {
+            return None;
+        }
+        ids.push(checker.unit_expression(current));
+        let node = ast.expressions().get(current).ok()?;
+        match node.payload() {
+            Expression::Group { expression } => current = *expression,
+            Expression::Name
+                if local.is_some() && checker.reference_symbol(node.span()) == local =>
+            {
+                break;
+            }
+            Expression::String { parts }
+                if local.is_none()
+                    && !parts
+                        .iter()
+                        .any(|part| matches!(part, StringPart::Interpolation { .. })) =>
+            {
+                break;
+            }
+            _ => return None,
+        }
+    }
+    ids.reverse();
+    Some(ids)
 }
 
 fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
@@ -130,7 +170,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         return None;
     };
     let Item::Variable {
-        kind: VariableKind::Val,
+        kind,
         name,
         initializer,
         ..
@@ -139,6 +179,9 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         return None;
     };
     let symbol = *checker.marker_symbol(*name)?;
+    if !matches!(kind, VariableKind::Val | VariableKind::Var) {
+        return None;
+    }
     if checker
         .typed
         .symbol_type(symbol)
@@ -205,41 +248,6 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             _ => return None,
         }
     }
-    fn chain(
-        checker: &Checker<'_>,
-        expression: ExpressionId,
-        local: Option<UnitSymbolId>,
-    ) -> Option<Vec<UnitExpressionId>> {
-        let ast = checker.parsed.ast();
-        let mut ids = Vec::new();
-        let mut current = expression;
-        loop {
-            if checker.is_constant_use(current) {
-                return None;
-            }
-            ids.push(checker.unit_expression(current));
-            let node = ast.expressions().get(current).ok()?;
-            match node.payload() {
-                Expression::Group { expression } => current = *expression,
-                Expression::Name
-                    if local.is_some() && checker.reference_symbol(node.span()) == local =>
-                {
-                    break;
-                }
-                Expression::String { parts }
-                    if local.is_none()
-                        && !parts
-                            .iter()
-                            .any(|part| matches!(part, StringPart::Interpolation { .. })) =>
-                {
-                    break;
-                }
-                _ => return None,
-            }
-        }
-        ids.reverse();
-        Some(ids)
-    }
     fn arm(checker: &Checker<'_>, body: StatementId) -> Option<Arm> {
         let ast = checker.parsed.ast();
         let (binding, tail) = match ast.statements().get(body).ok()?.payload() {
@@ -293,6 +301,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             local,
         })
     }
+    let mut replacement = None;
     let transfer = if let Some(statement) = transfer_statement {
         let Statement::LocalVariable { declaration } =
             ast.statements().get(statement).ok()?.payload()
@@ -319,11 +328,19 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         {
             return None;
         }
-        Some(Transfer {
-            symbol: target,
-            chain: chain(checker, *initializer, Some(symbol))?,
-        })
+        if *kind == VariableKind::Var {
+            replacement = Some(replace::admit(checker, symbol, target, *initializer)?);
+            None
+        } else {
+            Some(Transfer {
+                symbol: target,
+                chain: chain(checker, *initializer, Some(symbol))?,
+            })
+        }
     } else {
+        if *kind != VariableKind::Val {
+            return None;
+        }
         None
     };
     Some(Admission {
@@ -337,6 +354,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         )),
         arms: [arm(checker, *then_branch)?, arm(checker, *else_branch)?],
         transfer,
+        replacement,
     })
 }
 
@@ -357,6 +375,7 @@ impl ChoiceTransaction {
             events: [Vec::new(), Vec::new()],
             edges: [Edge::default(), Edge::default()],
             transfer: TransferFrame::default(),
+            replacement: replace::Frame::default(),
             control_completed: false,
             result: None,
             result_completed: 0,
@@ -372,6 +391,7 @@ impl ChoiceTransaction {
         self.events.iter_mut().for_each(Vec::clear);
         self.edges = [Edge::default(), Edge::default()];
         self.transfer = TransferFrame::default();
+        self.replacement = replace::Frame::default();
         self.control_completed = false;
         self.result = None;
         self.result_completed = 0;
@@ -381,6 +401,9 @@ impl ChoiceTransaction {
     }
     pub(in super::super) fn string_completed(&mut self, expression: UnitExpressionId) {
         if !self.valid {
+            return;
+        }
+        if self.replacement_string(expression) {
             return;
         }
         let Some(edge) = self.admission.arms.iter().position(|arm| {
@@ -429,6 +452,9 @@ impl ChoiceTransaction {
         }
         if !continues {
             self.abort();
+            return;
+        }
+        if self.replacement_expression(expression, consuming) {
             return;
         }
         if let Some(transfer) = &self.admission.transfer
@@ -659,6 +685,9 @@ impl ChoiceTransaction {
         if !self.valid {
             return;
         }
+        if self.replacement_bound(symbol, initializer) {
+            return;
+        }
         if let Some(edge) = self.admission.arms.iter().position(|arm| {
             arm.local
                 .as_ref()
@@ -740,6 +769,9 @@ impl ChoiceTransaction {
         symbol: UnitSymbolId,
     ) {
         if !self.valid {
+            return;
+        }
+        if self.replacement_dropped(point, symbol) {
             return;
         }
         let expected = self

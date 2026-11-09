@@ -159,6 +159,7 @@ fn choice_root_replace_keeps_unproven_consumers_closed() {
         r#"var chosen = if (flag) "left" else "right"; val previous = chosen"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, "next"))"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, make())"#,
+        r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, "${flag}")"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, if (flag) "next" else "other")"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, "next"); val again = replace(&chosen, "last")"#,
         r#"val incoming = "next"; var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, incoming)"#,
@@ -191,4 +192,115 @@ fn choice_root_replace_keeps_unproven_consumers_closed() {
         );
         compare(&fixture, &fixture.parts(&owned));
     }
+}
+
+#[test]
+fn choice_replace_does_not_erase_immutable_root_diagnostic() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        r#"fun run(flag: Boolean): Unit { val chosen = if (flag) "left" else "right"; val previous = replace(&chosen, "next") }"#,
+    )]);
+    let owned = fixture.shared();
+    let code = codes::catalog()
+        .unwrap()
+        .resolve(codes::IMMUTABLE_INOUT_PLACE)
+        .unwrap();
+    assert!(
+        owned
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == code)
+    );
+    assert!(
+        owned
+            .owner_observations()
+            .iter()
+            .all(|observation| observation.value_observation_v1().is_none())
+    );
+}
+
+#[test]
+fn replacement_frames_require_actual_pending_commit_and_ordered_cleanup() {
+    let control = r#"if (flag) "left" else "right""#;
+    let call = r#"replace(&chosen, ("next"))"#;
+    let source =
+        format!("fun run(flag: Boolean): Unit {{ var chosen = {control}; val previous = {call} }}");
+    let fixture = Fixture::new(&[("root.ko", &source)]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let id = |text| checker.unit_expression(fixture.expression(0, text));
+        let control = id(control);
+        let call = id(call);
+        let left = id("\"left\"");
+        let right = id("\"right\"");
+        let next = id("\"next\"");
+        let argument = id("(\"next\")");
+        let root = fixture.symbol(0, "chosen");
+        let previous = fixture.symbol(0, "previous");
+        // Supplemental hand traces; ordinary source tests above are the behavior evidence.
+        for mutation in 0..20 {
+            let mut tx = super::super::choice::ChoiceTransaction::begin(
+                checker,
+                checker.parsed.roots()[0],
+                std::sync::Arc::new(()),
+            )
+            .unwrap();
+            tx.string_completed(left);
+            tx.expression_completed(left, true, true);
+            tx.edge_completed(control, 0, Some(left), true);
+            tx.string_completed(right);
+            tx.expression_completed(right, true, true);
+            tx.edge_completed(control, 1, Some(right), true);
+            tx.expression_completed(control, true, true);
+            tx.bound(root, control);
+            tx.string_completed(next);
+            tx.expression_completed(next, mutation != 1, true);
+            if mutation != 2 {
+                tx.expression_completed(argument, true, true);
+            }
+            if mutation != 3 {
+                tx.replacement_pending(call, argument, mutation != 4);
+            }
+            if mutation == 5 {
+                tx.replacement_pending(call, argument, true);
+            }
+            if mutation != 6 {
+                tx.replacement_committed(
+                    call,
+                    (mutation != 7).then_some(root),
+                    Some(argument),
+                    mutation != 8,
+                );
+            }
+            if mutation == 9 {
+                tx.replacement_committed(call, Some(root), Some(argument), true);
+            }
+            if mutation == 10 {
+                tx.expression_completed(call, true, true);
+            }
+            tx.dropped(
+                if mutation == 11 {
+                    UnitDropPoint::AfterExpression(call)
+                } else {
+                    UnitDropPoint::CallReturn(call)
+                },
+                if mutation == 12 { previous } else { root },
+            );
+            if mutation == 13 {
+                tx.dropped(UnitDropPoint::CallReturn(call), root);
+            }
+            if mutation != 14 {
+                tx.expression_completed(call, mutation != 15, mutation != 16);
+            }
+            tx.bound(previous, if mutation == 17 { argument } else { call });
+            tx.dropped(declaration(&fixture, call), previous);
+            if mutation == 18 {
+                tx.dropped(declaration(&fixture, call), previous);
+            }
+            if mutation == 19 {
+                tx.string_completed(next);
+            }
+            assert_eq!(tx.finish().is_some(), mutation == 0, "mutation {mutation}");
+        }
+    });
 }

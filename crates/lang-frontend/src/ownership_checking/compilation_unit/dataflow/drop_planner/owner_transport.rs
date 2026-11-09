@@ -351,6 +351,42 @@ impl DropPlanner<'_, '_> {
         Ok(EvaluatedOwner { continues, owner })
     }
 
+    // Independent of the legacy observation, which rejects the preceding String If.
+    // Called only after the real checked primitive commit and root-origin update.
+    pub(super) fn commit_choice_primitive(&mut self, call: ExpressionId, state: &ValueState) {
+        if self.owner_choice.is_none() {
+            return;
+        }
+        let plan = self.checker.ownership_primitives.iter().find(|plan| {
+            plan.descriptor().expression() == self.checker.unit_expression(call)
+                && plan.descriptor().kind() == OwnershipPrimitiveKind::Replace
+                && plan.places().len() == 1
+                && plan.places()[0].is_root()
+                && plan.descriptor().operands().len() == 2
+                && self
+                    .checker
+                    .typed
+                    .types()
+                    .get(plan.descriptor().value_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        });
+        let root = plan
+            .map(|plan| plan.places()[0].root())
+            .filter(|root| state.position(*root).is_some());
+        let argument = plan.map(|plan| plan.descriptor().operands()[1]);
+        let pending = argument.is_some_and(|argument| {
+            self.pending_value_registered(call, argument.expression(), state)
+        });
+        if let Some(choice) = &mut self.owner_choice {
+            choice.replacement_committed(
+                self.checker.unit_expression(call),
+                root,
+                argument,
+                pending,
+            );
+        }
+    }
+
     pub(super) fn commit_owner_primitive(
         &mut self,
         call: ExpressionId,
