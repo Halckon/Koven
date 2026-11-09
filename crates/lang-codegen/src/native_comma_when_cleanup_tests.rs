@@ -427,3 +427,77 @@ fun main(): Unit {
     assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
     assert_eq!(output.stdout, b"endpoint\nendpoint\nendpoint\nok\n");
 }
+
+#[test]
+fn native_plans_only_calls_in_reachable_when_arms() {
+    let source = r#"
+fun apply(action: () -> Unit): Unit { action() }
+fun pred(value: Int): Boolean = value == 7
+fun choose(flag: Boolean): Int {
+    return when {
+        flag -> { apply({ println("live") }); 2 }
+        pred(return 7) -> { apply({ println("dead") }); 3 }
+        else -> { apply({ println("unmatched") }); 4 }
+    }
+}
+fun main(): Unit {
+    if (choose(true) != 2 || choose(false) != 7) { error("wrong result") }
+    println("ok")
+}
+"#;
+    let constant = format!(
+        "const val Banner: String = \"ok\"\n{}",
+        source.replace("println(\"ok\")", "println(Banner)")
+    );
+    for text in [source, constant.as_str()] {
+        let output = emit_link_and_run("when-callable-reachability.ko", text, "main");
+        assert_diagnostic!(output.status.success(), "{output:?}");
+        assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
+        assert_eq!(output.stdout, b"live\nok\n");
+    }
+}
+
+#[test]
+fn native_skips_a_dead_callable_on_the_unit_compatibility_route() {
+    let source = r#"
+fun apply(action: () -> Unit): Unit { action() }
+fun pred(value: Int): Boolean = value == 7
+fun choose(): Int {
+    if (pred(return 7)) { apply({ println("dead") }) }
+    return 2
+}
+fun main(): Unit {
+    if (choose() != 7) { error("wrong result") }
+    println("ok")
+}
+"#;
+    let output = crate::ssa::with_per_family_lowering(|| {
+        emit_link_and_run("if-callable-reachability.ko", source, "main")
+    });
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
+    assert_eq!(output.stdout, b"ok\n");
+}
+
+#[test]
+fn native_skips_deinit_planning_inside_an_unentered_lambda() {
+    let source = r#"
+class Guard { deinit() { println("drop") } }
+fun pred(value: Int): Boolean = value == 7
+fun choose(): Int {
+    if (pred(return 7)) {
+        val action: () -> Unit = { val guard = Guard(); println("dead") }
+        action()
+    }
+    return 2
+}
+fun main(): Unit {
+    if (choose() != 7) { error("wrong result") }
+    println("ok")
+}
+"#;
+    let output = emit_link_and_run("lambda-deinit-reachability.ko", source, "main");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
+    assert_eq!(output.stdout, b"ok\n");
+}

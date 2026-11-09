@@ -560,7 +560,14 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
-            callable_provenance: dataflow.callable_provenance,
+            callable_provenance: super::callable_provenance::UnitCallableFacts {
+                entered_lambdas: if successful {
+                    dataflow.visited_lambdas
+                } else {
+                    Default::default()
+                },
+                ..dataflow.callable_provenance
+            },
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 typed_basic_is_valid: typed.has_valid_basic_types(),

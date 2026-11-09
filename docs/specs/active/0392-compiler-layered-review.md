@@ -3192,3 +3192,24 @@ canonical nullable 两组实测 typed/owned entry 完成性分别对齐为 `[fal
 原 readonly 否决沿用相同阶段和空 drop 断言。独立复核指出验证需消费 ownership
 产物，修为回调接收产物本身。最终 `ownership_resource_deinit` 31 项通过，
 零失败与忽略。
+
+## 129. R4 实例规划的调用与 lambda 进入事实
+
+独立仓外探针在 `ec8a7b9f` 证实死分支的 callback 调用通过前端后于 native
+UnsupportedNode，活分支对照原生输出 live 和 ok。在 `f324b736` 的 when 组合中，
+定向红测同样在死 callback 报 UnsupportedNode。另一个红测在死 lambda 的资源构造
+处被析构实例规划拒绝。
+
+Unit 所有权产物保存实际进入求值的 source-qualified call 和实际检查 body 的 lambda。
+实例索引先校验 source/AST ID，随后跳过未进入的调用。实参或 receiver 退出之前已进入的
+调用仍保留 route，实际调用的 Nothing 目标也不被当作死调用。活调用继续检查原 callback
+来源和完整实例。析构规划排除未进入 lambda 内的资源根，已形成的 lambda 仍受原资源
+与 hidden deinit 限制。Basic 与 Const 消费各自通过准入的同一份所有权分析。
+
+本机 182 项前端所有权与 Const、13 项 callable 规划及 7 项 comma-when 测试通过。
+新原生回归覆盖 Basic、Const、强制兼容及死资源 lambda。选中活 Resource callback 的
+SSA 和 LLVM 对照仍调度 hidden deinit。活来源不明的规划负控保留。独立复核未发现
+本片阻断。旧大文件只增长进入事实字段与交接，Rust 尺寸检查另核。
+
+在实参求值中退出且后续仍有 callback 的已进入调用，会在既有特化流程中索要后续来源；
+已单列前缀路由复审。其他词法扫描型类型规划仍按自身能力边界验收。
