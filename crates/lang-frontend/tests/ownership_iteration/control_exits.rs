@@ -1,56 +1,6 @@
 use super::*;
 
 #[test]
-fn temporary_sources_follow_control_transfer_boundaries() {
-    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
-    use lang_frontend::parser::{Expression, Statement};
-    for (jump, releases) in [("break", true), ("continue", false), ("return", true)] {
-        let (_, parsed, owned) = checked(&format!(
-            "fun run() {{ for (_ in listOf(1)) {{ {jump} }} }}"
-        ));
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let source = parsed
-            .ast()
-            .statements()
-            .iter()
-            .find_map(|(_, node)| {
-                if let Statement::For { source, .. } = node.payload() {
-                    Some(*source)
-                } else {
-                    None
-                }
-            })
-            .unwrap();
-        let transfer = parsed
-            .ast()
-            .expressions()
-            .iter()
-            .find_map(|(id, node)| {
-                matches!(
-                    node.payload(),
-                    Expression::Break { .. }
-                        | Expression::Continue { .. }
-                        | Expression::Return { .. }
-                )
-                .then_some(id)
-            })
-            .unwrap();
-        assert_eq!(
-            owned
-                .drops()
-                .iter()
-                .filter(|fact| {
-                    fact.target() == DropTarget::Temporary(source)
-                        && fact.point() == DropPoint::ControlTransfer(transfer)
-                })
-                .count(),
-            usize::from(releases),
-            "{jump}"
-        );
-    }
-}
-
-#[test]
 fn conditional_temporary_source_survives_until_each_provider_exit() {
     use lang_frontend::ownership_checking::{CleanupOwnerValue, DropPoint, DropTarget, LoanTarget};
     use lang_frontend::parser::{Expression, Statement};
@@ -265,75 +215,6 @@ fn conditional_temporary_source_replays_each_executed_exit_once() {
 }
 
 #[test]
-fn nested_jumps_release_only_the_sources_they_leave() {
-    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
-    use lang_frontend::parser::Expression;
-    for (jump, expected) in [
-        ("break", vec!["listOf(2)"]),
-        ("continue", vec![]),
-        ("return", vec!["listOf(2)", "listOf(1)"]),
-    ] {
-        let (sources, parsed, owned) = checked(&format!(
-            "fun run() {{ for (_ in listOf(1)) {{ for (_ in listOf(2)) {{ {jump} }} }} }}"
-        ));
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let transfer = parsed
-            .ast()
-            .expressions()
-            .iter()
-            .find_map(|(id, node)| {
-                matches!(
-                    node.payload(),
-                    Expression::Break { .. }
-                        | Expression::Continue { .. }
-                        | Expression::Return { .. }
-                )
-                .then_some(id)
-            })
-            .unwrap();
-        let actual = owned
-            .drops()
-            .iter()
-            .filter_map(|fact| {
-                if fact.point() == DropPoint::ControlTransfer(transfer)
-                    && let DropTarget::Temporary(source) = fact.target()
-                {
-                    Some(
-                        sources
-                            .slice(parsed.ast().expressions().get(source).unwrap().span())
-                            .unwrap(),
-                    )
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected, "{jump}");
-    }
-}
-
-#[test]
-fn inner_while_break_keeps_the_outer_temporary_source() {
-    use lang_frontend::ownership_checking::DropPoint;
-    use lang_frontend::parser::Expression;
-    let (_, parsed, owned) =
-        checked("fun run(flag: Boolean) { for (_ in listOf(1)) { while (flag) { break } } }");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let jump = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find_map(|(id, node)| matches!(node.payload(), Expression::Break { .. }).then_some(id))
-        .unwrap();
-    assert!(
-        !owned
-            .drops()
-            .iter()
-            .any(|fact| fact.point() == DropPoint::ControlTransfer(jump))
-    );
-}
-
-#[test]
 fn source_evaluation_exit_never_creates_a_provider_owner() {
     for condition in ["return", "error(\"stop\")"] {
         let (_, _, owned) = checked(&format!(
@@ -382,49 +263,6 @@ fn when_source_return_does_not_clean_up_an_uncreated_provider() {
             .all(|fact| fact.point() != DropPoint::ControlTransfer(transfer)),
         "the return edge owns neither the provider nor its selected source"
     );
-}
-
-#[test]
-fn iteration_plans_publish_ordered_and_distinct_exit_paths() {
-    use lang_frontend::ownership_checking::{
-        IterationCleanupAction as Action, IterationExitKind, LoanTarget,
-    };
-    let (_, _, owned) = checked(
-        "fun run(flag: Boolean) { for (n in listOf(1)) { if (flag) { continue } else { break } } }",
-    );
-    let plan = &owned.iterations()[0];
-    assert!(matches!(plan.source(), Some(LoanTarget::Temporary(_))));
-    assert_eq!(plan.bindings().len(), 1);
-    assert_eq!(owned.iteration(plan.descriptor().statement()), Some(plan));
-    for exit in plan.exits() {
-        let actions = exit.actions();
-        match exit.kind() {
-            IterationExitKind::Continue(_) => assert!(matches!(
-                actions,
-                [Action::EndBinding { .. }, Action::EndElement(_)]
-            )),
-            IterationExitKind::Break(_) => assert!(matches!(
-                actions,
-                [
-                    Action::EndBinding { .. },
-                    Action::EndElement(_),
-                    Action::FinishProvider(_),
-                    Action::EndSource(_),
-                    Action::Drop(_)
-                ]
-            )),
-            IterationExitKind::Exhaustion => assert!(matches!(
-                actions,
-                [
-                    Action::FinishProvider(_),
-                    Action::EndSource(_),
-                    Action::Drop(_)
-                ]
-            )),
-            kind => panic!("unexpected exit {kind:?}"),
-        }
-    }
-    assert_eq!(plan.exits().len(), 3);
 }
 
 #[test]

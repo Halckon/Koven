@@ -11,14 +11,13 @@ pub(in crate::ownership_checking::compilation_unit) const SOURCES: &[&str] = &[
 
 pub(in crate::ownership_checking::compilation_unit) const BOUNDARIES: &[&str] = &[
     r#"fun run(flag: Boolean): String { val text = "x"; if (flag) { return text } else {}; return "y" }"#,
-    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return } else { return } }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return }; val forwarded = callback }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; while (flag) { return }; val forwarded = callback }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return } else {}; callback() }"#,
 ];
 
 // Unlike the ordinary paths helper, stop at a real UnitReturn, never append suffix events.
-fn paths(events: &[UnitOwnerTransportEvent]) -> Vec<Vec<&UnitOwnerTransportEvent>> {
+pub(super) fn paths(events: &[UnitOwnerTransportEvent]) -> Vec<Vec<&UnitOwnerTransportEvent>> {
     let mut result: Vec<Vec<&UnitOwnerTransportEvent>> = vec![Vec::new()];
     for event in events {
         let mut next = Vec::new();

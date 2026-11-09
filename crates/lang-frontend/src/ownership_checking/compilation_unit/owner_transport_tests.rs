@@ -13,6 +13,7 @@ pub(super) mod shared_branch_local;
 pub(super) mod shared_capture;
 pub(super) mod shared_return;
 mod swap;
+pub(super) mod terminal_return;
 
 use super::formed_tests::Fixture;
 use super::*;

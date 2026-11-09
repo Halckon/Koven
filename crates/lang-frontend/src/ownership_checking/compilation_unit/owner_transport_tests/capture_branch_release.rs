@@ -175,7 +175,7 @@ fn release_replay_rejects_wrong_edge_missing_and_repeated_slot_release() {
     }
 }
 
-// Both real edges terminate: this remains outside the single-return admission.
+// Original both-terminal input is preserved by terminal_return positive contracts.
 pub(in crate::ownership_checking::compilation_unit) const BOTH_RETURN_RELEASE: &str = r#"fun run(flag: Boolean, own text: String): Unit {
 val callback = move { text }
 if (flag) { val first = callback; return } else { val second = callback; return }
@@ -299,30 +299,6 @@ fn capture_release_admits_one_bare_return_without_changing_owned_slots() {
             | UnitOwnerTransportEvent::CaptureDrop { .. }
             | UnitOwnerTransportEvent::UnitReturn { .. }
     )));
-}
-
-#[test]
-fn capture_release_does_not_admit_noncontinuing_if_edges() {
-    let fixture = Fixture::new(&[("root.ko", BOTH_RETURN_RELEASE)]);
-    let owned = fixture.shared();
-    assert!(owned.clone().validate().is_ok());
-    let observation = function(&owned);
-    assert_eq!(
-        observation.status(),
-        UnitOwnerObservationStatus::Unsupported {
-            point: UnitDropPoint::AfterExpression(UnitExpressionId::new(
-                fixture.source(0),
-                fixture.expression(
-                    0,
-                    "if (flag) { val first = callback; return } else { val second = callback; return }"
-                ),
-            )),
-            reason: UnitOwnerUnsupportedReason::Syntax,
-        }
-    );
-    assert!(observation.definitions().is_empty());
-    assert!(observation.events().is_empty());
-    assert!(observation.is_consistent());
 }
 
 #[test]

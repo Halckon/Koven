@@ -62,8 +62,8 @@ pub use construction::{
 pub use non_null_assertion::UnitNonNullAssertionOwnershipPlan;
 pub use receiver::{
     UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
-    UnitDelegationOwnershipPlan, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget,
+    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
 use std::sync::Arc;
@@ -413,6 +413,7 @@ pub struct CompilationUnitOwnership {
     conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     delegations: Vec<UnitDelegationOwnershipPlan>,
     owner_observations: Vec<UnitOwnerObservation>,
+    receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
@@ -623,6 +624,11 @@ impl CompilationUnitOwnership {
             },
             owner_observations: if successful {
                 dataflow.owner_observations
+            } else {
+                Vec::new()
+            },
+            receiver_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.receiver_call_prefix_ends
             } else {
                 Vec::new()
             },
@@ -839,6 +845,13 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn exclusive_call_prefix_ends(&self) -> &[UnitExclusiveCallPrefixEndFact] {
         &self.exclusive_call_prefix_ends
+    }
+
+    /// owned 名称根 Shared receiver 在实际 Return unwind 中的有界结束观测。
+    /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
+    #[must_use]
+    pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
+        &self.receiver_call_prefix_ends
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。

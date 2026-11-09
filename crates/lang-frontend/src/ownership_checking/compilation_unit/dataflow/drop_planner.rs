@@ -14,6 +14,7 @@ mod model;
 mod nullable_comparison;
 mod owner_transport;
 mod pending_call;
+mod receiver_loan_end;
 mod resource;
 mod short_circuit;
 mod string;
@@ -70,6 +71,8 @@ pub(super) struct Analysis {
         >,
     >,
     pub(super) owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
+    pub(super) receiver_call_prefix_ends:
+        Vec<crate::ownership_checking::UnitReceiverCallPrefixEndFact>,
     pub(super) exclusive_call_prefix_ends:
         Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact>,
     pub(super) borrow_call_prefix_ends: Vec<crate::ownership_checking::UnitBorrowCallPrefixEndFact>,
@@ -153,6 +156,7 @@ fn plan_with_owner_observation(
     let direct_call_loan_ends = planner.direct_call_loan_ends();
     let borrow_call_prefix_ends = planner.borrow_call_prefix_ends();
     let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
+    let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -172,6 +176,7 @@ fn plan_with_owner_observation(
         borrow_binding_transports: planner.borrow_binding_transports,
         borrow_forward_transports: planner.borrow_forward_transports,
         exclusive_call_prefix_ends,
+        receiver_call_prefix_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,

@@ -133,6 +133,7 @@ pub struct UnitExclusiveCallPrefixEndFact {
     pub(super) loan: UnitLoanFact,
     pub(super) point: UnitDropPoint,
     pub(super) preceding_drops: usize,
+    pub(super) preceding_call_loan_ends: usize,
 }
 
 impl UnitExclusiveCallPrefixEndFact {
@@ -153,6 +154,14 @@ impl UnitExclusiveCallPrefixEndFact {
     #[must_use]
     pub const fn preceding_drops(&self) -> usize {
         self.preceding_drops
+    }
+
+    /// 同一分析、同 source-qualified Return point 中先行的实际 EndCallLoan 动作数。
+    /// 与 direct/borrow-prefix 切片共用同点顺序，含未公开的动作，编号可能有空隙。
+    /// 不含 receiver/result/drop 动作，不是全局执行索引或完整 loan-end 流。
+    #[must_use]
+    pub const fn preceding_call_loan_ends(&self) -> usize {
+        self.preceding_call_loan_ends
     }
 }
 

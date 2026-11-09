@@ -73,9 +73,9 @@ pub use compilation_unit::{
     UnitOwnerTransportEvent, UnitOwnerUnsupportedReason, UnitOwnerValueEventV1,
     UnitOwnerValueObservationV1, UnitOwnerValueV1, UnitOwnershipBindingDescriptor,
     UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
-    UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind,
-    UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
+    UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
+    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
     check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
