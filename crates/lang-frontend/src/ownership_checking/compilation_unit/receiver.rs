@@ -356,7 +356,7 @@ impl UnitDelegationOwnershipPlan {
     }
 }
 
-/// 实际 Return unwind 中结束的 owned 名称根 Shared receiver loan。
+/// 实际 return/break/continue unwind 中结束的 owned 名称根 Shared receiver loan。
 /// 只读观测切片，不覆盖正常返回、reservation、投影、provider 或完整 loan-end 流。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitReceiverCallPrefixEndFact {
@@ -374,7 +374,7 @@ impl UnitReceiverCallPrefixEndFact {
         &self.receiver
     }
 
-    /// 放弃调用前缀的实际 Return 点，不是 descriptor 的源码结束位置。
+    /// 放弃调用前缀的实际 return/break/continue 点，不是 descriptor 的源码结束位置。
     #[must_use]
     pub const fn point(&self) -> super::UnitDropPoint {
         self.point

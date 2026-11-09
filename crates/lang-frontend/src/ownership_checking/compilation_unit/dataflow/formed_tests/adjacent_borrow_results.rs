@@ -192,3 +192,15 @@ fn real_deferred_and_diagnostic_clear_nonempty_receiver_prefix_table() {
         assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
     });
 }
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_receiver_loop_prefix_table() {
+    for (loop_start, jump) in [("loop", "break"), ("while (flag)", "continue")] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(flag: Boolean): Unit {{ {loop_start} {{ val node = Node(); node.touch(\"prefix\", {jump}) }} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+        });
+    }
+}

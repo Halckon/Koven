@@ -1,4 +1,4 @@
-//! Return-only Shared receiver observation; existing argument and Single slices stay intact.
+//! Shared receiver Return-prefix contracts; existing argument and Single slices stay intact.
 use super::*;
 use lang_frontend::{
     ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
@@ -129,12 +129,10 @@ fn distinct_receiver_tokens_for_the_same_owner_are_not_deduplicated() {
 }
 
 #[test]
-fn normal_calls_unvisited_calls_and_loop_jumps_are_not_return_prefixes() {
+fn normal_calls_unvisited_calls_and_nested_loop_jumps_do_not_end_a_prefix() {
     for body in [
         "node.touch(\"normal\", 0); return",
         "return; node.touch(\"unreachable\", 0)",
-        "loop { node.touch(\"break\", break) }",
-        "while (flag) { node.touch(\"continue\", continue) }",
         "node.touch(\"outer\", if (flag) { loop { break }; 0 } else { 0 })",
     ] {
         assert_prefixes(

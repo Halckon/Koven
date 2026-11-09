@@ -1,4 +1,4 @@
-//! 只投影实际 Return unwind 的 receiver token，不重建或改变 cleanup。
+//! 只投影实际 return/break/continue unwind 的 receiver token，不重建或改变 cleanup。
 use super::{DropPlanner, PlannerDropPoint};
 use crate::{
     name_resolution::SymbolKind,
@@ -87,7 +87,14 @@ impl DropPlanner<'_, '_> {
                 .ast()
                 .expressions()
                 .get(*transfer)
-                .is_ok_and(|node| matches!(node.payload(), Expression::Return { .. }))
+                .is_ok_and(|node| {
+                    matches!(
+                        node.payload(),
+                        Expression::Return { .. }
+                            | Expression::Break { .. }
+                            | Expression::Continue { .. }
+                    )
+                })
             {
                 continue;
             }

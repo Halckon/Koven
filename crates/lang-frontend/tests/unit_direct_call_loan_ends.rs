@@ -893,3 +893,6 @@ mod exclusive_order;
 
 #[path = "unit_direct_call_loan_ends/receiver_prefix.rs"]
 mod receiver_prefix;
+
+#[path = "unit_direct_call_loan_ends/receiver_cfg_prefix.rs"]
+mod receiver_cfg_prefix;

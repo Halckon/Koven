@@ -840,7 +840,7 @@ impl CompilationUnitOwnership {
         &self.exclusive_call_prefix_ends
     }
 
-    /// owned 名称根 Shared receiver 在实际 Return unwind 中的有界结束观测。
+    /// owned 名称根 Shared receiver 在实际 return/break/continue unwind 中的有界结束观测。
     /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
     #[must_use]
     pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
