@@ -14,11 +14,7 @@ use crate::{
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
-    fn observes_root_receiver(
-        &self,
-        receiver: &UnitReceiverOwnershipFact,
-        allow_shared_parameter: bool,
-    ) -> bool {
+    fn observes_root_receiver(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
         let Some(call) = self.checker.typed.call(receiver.call()) else {
             return false;
         };
@@ -58,8 +54,7 @@ impl DropPlanner<'_, '_> {
         // A nested Shared receiver reborrow may end while the caller's parameter
         // loan and owner remain live. Admit only a declared Borrow parameter;
         // explicit borrow bindings and Exclusive parameters remain outside this slice.
-        let shared_parameter = allow_shared_parameter
-            && self.checker.symbol_kind(root) == Some(SymbolKind::ValueParameter)
+        let shared_parameter = self.checker.symbol_kind(root) == Some(SymbolKind::ValueParameter)
             && self
                 .checker
                 .bindings
@@ -103,7 +98,7 @@ impl DropPlanner<'_, '_> {
             })
         {
             if let Action::EndReceiverLoan(receiver) = action
-                && self.observes_root_receiver(&receiver, true)
+                && self.observes_root_receiver(&receiver)
             {
                 self.receiver_call_return_ends
                     .push(UnitReceiverCallReturnEndFact { receiver });
@@ -140,7 +135,7 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *drops += 1,
                 Action::EndCallLoan(_) => *calls += 1,
                 Action::EndReceiverLoan(receiver) => {
-                    if self.observes_root_receiver(receiver, false) {
+                    if self.observes_root_receiver(receiver) {
                         ends.push(UnitReceiverCallPrefixEndFact {
                             receiver: receiver.clone(),
                             point: point.into_unit(self.checker.source_unit),

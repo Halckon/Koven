@@ -259,3 +259,63 @@ fn real_deferred_and_diagnostic_clear_nonempty_borrowed_receiver_return_table() 
         assert_eq!(raw.receiver_call_return_ends.len(), 1);
     });
 }
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_borrowed_receiver_prefix_table() {
+    for (opener, closer, jump) in [
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(node: Node, flag: Boolean): Unit {{ {opener} node.touch(\"prefix\", {jump}) {closer} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+        });
+    }
+}
+
+#[test]
+fn borrowed_receiver_prefixes_keep_identical_ast_indices_in_distinct_sources_separate() {
+    let accepted = Fixture::new(&[
+        (
+            "a.ko",
+            "class Left { fun read(own next: Int): Int = next }\nfun first(node: Left): Unit { node.read(return) }",
+        ),
+        (
+            "b.ko",
+            "class Rght { fun read(own next: Int): Int = next }\nfun other(node: Rght): Unit { node.read(return) }",
+        ),
+    ]);
+    let shared = accepted.shared();
+    assert!(
+        shared.diagnostics().is_empty(),
+        "{:?}",
+        shared.diagnostics()
+    );
+    assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+    shared.clone().validate().unwrap();
+    let [left, right] = shared.receiver_call_prefix_ends() else {
+        panic!("one abandoned reborrow per source")
+    };
+    assert_eq!(
+        left.receiver().call().expression(),
+        right.receiver().call().expression()
+    );
+    assert_eq!(left.receiver().call().source_unit(), accepted.source(0));
+    assert_eq!(right.receiver().call().source_unit(), accepted.source(1));
+    assert_ne!(left.receiver().call(), right.receiver().call());
+    assert_ne!(left.receiver().target(), right.receiver().target());
+    assert_ne!(left.point(), right.point());
+    for event in [left, right] {
+        assert_eq!(event.preceding_drops(), 0);
+        assert_eq!(event.preceding_call_loan_ends(), 0);
+        assert_eq!(event.preceding_receiver_loan_ends(), 0);
+    }
+    let raw = accepted.dataflow(&accepted.parts(&shared));
+    assert_eq!(
+        raw.receiver_call_prefix_ends,
+        shared.receiver_call_prefix_ends()
+    );
+}

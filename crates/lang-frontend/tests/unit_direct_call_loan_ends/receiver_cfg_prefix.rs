@@ -208,21 +208,31 @@ fn inner_loop_jump_does_not_end_the_outer_pending_receiver() {
 }
 
 #[test]
-fn continue_preserves_the_outer_owner_and_counts_excluded_borrowed_receivers() {
+fn continue_preserves_the_outer_owner_and_observes_both_receiver_reborrows() {
     let inner = "borrowed.touch(\"inner\", continue)";
     let outer = format!("owned.touch(\"outer\", {inner})");
     assert_prefixes(
         &format!(
             "{NODE}fun run(own owned: Node, borrowed: Node, flag: Boolean): Unit {{ while (flag) {{ {outer} }} }}"
         ),
-        &[Prefix {
-            call: &outer,
-            operand: "owned",
-            jump: "continue",
-            calls_before: 2,
-            receivers_before: 1,
-            drop_at_jump: false,
-        }],
+        &[
+            Prefix {
+                call: inner,
+                operand: "borrowed",
+                jump: "continue",
+                calls_before: 1,
+                receivers_before: 0,
+                drop_at_jump: false,
+            },
+            Prefix {
+                call: &outer,
+                operand: "owned",
+                jump: "continue",
+                calls_before: 2,
+                receivers_before: 1,
+                drop_at_jump: false,
+            },
+        ],
     );
 }
 
@@ -345,12 +355,9 @@ fn for_body_receiver_prefix_precedes_provider_cleanup_without_changing_it() {
 }
 
 #[test]
-fn loop_prefixes_preserve_borrowed_temporary_projection_provider_and_reservation_boundaries() {
+fn loop_prefixes_preserve_temporary_projection_provider_and_reservation_boundaries() {
     for (loop_start, jump) in [("loop", "break"), ("while (flag)", "continue")] {
         for text in [
-            format!(
-                "{NODE}fun run(node: Node, flag: Boolean): Unit {{ {loop_start} {{ node.touch(\"borrowed\", {jump}) }} }}"
-            ),
             format!(
                 "{NODE}fun run(flag: Boolean): Unit {{ {loop_start} {{ Node().touch(\"temporary\", {jump}) }} }}"
             ),

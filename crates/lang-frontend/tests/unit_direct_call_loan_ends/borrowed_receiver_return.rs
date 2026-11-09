@@ -92,9 +92,27 @@ fn completed_parameter_reborrow_is_not_repeated_in_abandoned_outer_prefixes() {
         );
         assert_parameter_unowned(&observed);
         for unit in &observed.units {
-            assert!(
-                unit.receiver_call_prefix_ends().is_empty(),
-                "Borrow parameters remain outside the prefix slice"
+            let [prefix] = unit.receiver_call_prefix_ends() else {
+                panic!("only the abandoned outer receiver")
+            };
+            let outer = observed
+                .parsed
+                .ast()
+                .expressions()
+                .get(prefix.receiver().call().expression())
+                .unwrap();
+            assert_eq!(
+                observed.sources.slice(outer.span()),
+                Ok(format!("node.touch(node.ready(), {jump})").as_str())
+            );
+            assert_ne!(
+                prefix.receiver().call(),
+                unit.receiver_call_return_ends()[0].receiver().call()
+            );
+            assert_eq!(
+                prefix.preceding_receiver_loan_ends(),
+                0,
+                "completed inner token is already retired"
             );
         }
     }
@@ -160,7 +178,14 @@ fn borrowed_parameter_cfg_has_only_the_actual_normal_static_successors() {
     );
     assert_parameter_unowned(&observed);
     for unit in &observed.units {
-        assert!(unit.receiver_call_prefix_ends().is_empty());
+        let [prefix] = unit.receiver_call_prefix_ends() else {
+            panic!("only the mixed call's Return path")
+        };
+        assert_eq!(
+            prefix.receiver(),
+            unit.receiver_call_return_ends()[1].receiver()
+        );
+        assert!(matches!(prefix.point(), UnitDropPoint::ControlTransfer(_)));
     }
 }
 

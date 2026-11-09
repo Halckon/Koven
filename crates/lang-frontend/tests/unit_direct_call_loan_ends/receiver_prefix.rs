@@ -143,9 +143,8 @@ fn normal_calls_unvisited_calls_and_nested_loop_jumps_do_not_end_a_prefix() {
 }
 
 #[test]
-fn borrowed_temporary_projected_this_and_reserved_receivers_remain_excluded() {
+fn temporary_projected_this_and_reserved_receivers_remain_excluded() {
     for text in [
-        format!("{NODE}fun run(node: Node): Unit {{ node.touch(\"borrowed\", return) }}"),
         format!("{NODE}fun run(): Unit {{ Node().touch(\"temporary\", return) }}"),
         format!("{NODE}class Holder(val node: Node)\nfun run(own holder: Holder): Unit {{ holder.node.touch(\"field\", return) }}"),
         format!("{NODE}fun run(own nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", return) }} }}"),
@@ -191,18 +190,45 @@ fn later_error_or_deferred_source_revokes_a_nonempty_receiver_prefix() {
 }
 
 #[test]
-fn order_counts_a_real_borrowed_receiver_outside_the_published_slice() {
-    assert_prefixes(
+fn order_keeps_the_original_mixed_owned_and_borrowed_receiver_source() {
+    use super::receiver_cfg_prefix::{Prefix, assert_prefixes};
+    let observed = assert_prefixes(
         &format!(
             "{NODE}fun run(own outer: Node, inner: Node): Unit {{ outer.touch(\"outer\", inner.touch(\"inner\", return)) }}"
         ),
-        &[(
-            "outer.touch(\"outer\", inner.touch(\"inner\", return))",
-            "outer",
-            2,
-            1,
-        )],
+        &[
+            Prefix {
+                call: "inner.touch(\"inner\", return)",
+                operand: "inner",
+                jump: "return",
+                calls_before: 1,
+                receivers_before: 0,
+                drop_at_jump: false,
+            },
+            Prefix {
+                call: "outer.touch(\"outer\", inner.touch(\"inner\", return))",
+                operand: "outer",
+                jump: "return",
+                calls_before: 2,
+                receivers_before: 1,
+                drop_at_jump: true,
+            },
+        ],
     );
+    for unit in &observed.units {
+        for (event, count) in unit.receiver_call_prefix_ends().iter().zip([0, 1]) {
+            let UnitReceiverOwnershipTarget::Place(place) = event.receiver().target() else {
+                panic!("root")
+            };
+            assert_eq!(
+                unit.drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+                    .count(),
+                count
+            );
+        }
+    }
 }
 
 #[test]
