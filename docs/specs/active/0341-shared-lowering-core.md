@@ -5024,3 +5024,39 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+
+### 普通 codegen frontend 边界消费者迁移（2026-11-09）
+
+隔离基底 `a4b72d350f9616115a9d5fbed13ca761828ba728`，未叠入资源闭包候选或修改
+在途 nullable/借用工作。只迁移 `lower_frontend_tests` 的三个真实 frontend 拒绝输入
+（整数越界、missing name、非法 break）和两个原成功输入（for-loop、String泛型identity）。
+两个原测试中的全部7份源码逐字核对相同；numeric when/Elvis 的原Legacy拒绝及其余
+mixed-analysis、guarded-cleanup见证保持。文件内 `lower_scalar_file` 调用21→16，
+旧 `analyze` 调用22→17，净退休5个真实消费者；不删除仍有调用方的旧helper或checker。
+
+先在原路线仅追加临时诊断打印，实际运行原两项exact，冻结4条完整诊断；临时打印已移除。
+新helper核对severity、code、完整message、source名/原字节、primary和label Span、
+全部有序details：两条L0090各带原expected-type标签，L0080/L0142无附加detail。
+strict Unit分别在names/types门禁拒绝，不能取得可执行Unit capability；本片不再测试
+Legacy lowerer的FrontendDiagnostics枚举，也不冒称拒绝后的阶段能力或后端行为等价。
+
+正例仍用原MemoryDocument及真实声明，不添加wrapper、package或own。for-loop保留
+唯一iteration fact、verified SSA并追加LLVM、一份容器owner与一次Drop；String泛型
+锁实际identity声明、两个具体函数、owned String参数/返回、唯一调用及无Drop的owner交付。
+首轮旧显示名 `identity<String>` 在Unit不相同；改用精确declaration origin与String ABI
+验证原实例语义，不制造兼容名字或改源。所有生产代码、共享harness和公开API不变。
+
+| 验收项 | codegen `--lib` exact目标或命令 | 本地实际结果 |
+|---|---|---|
+| 5个迁移消费者及保留的2个旧边界 | `rejects_out_of_range_integer_literals_before_ssa_construction`、`diagnostics_and_unsupported_bodies_fail_without_partial_programs` | 2项通过 |
+| 既有Unit相邻合同 | `lowers_real_scalar_expression_functions_through_verified_ssa`、`lowers_straight_line_blocks_locals_assignments_and_returns`、`non_null_assertion_does_not_register_unreachable_inline_types` | 3项通过 |
+| 原插值拒绝门 | `rejects_nested_interpolation_in_error_at_whole_file_boundary`、`rejects_nested_interpolation_in_println_at_whole_file_boundary` | 2项通过 |
+| 工程门禁 | fmt、codegen all-targets严格Clippy | 通过；新测试clone告警已修复并重跑 |
+
+以上目标均使用完整 `ssa::lower_frontend_tests::` 前缀、
+`cargo test --locked -p lang-codegen --lib ... -- --exact`。合计7个唯一测试，旧基线与重复执行不累加；Mac AArch64、
+Rust1.96.0、LLVM21.1.8、独占本工作树target串行、默认debug。原始日志及仅观测diff保留
+Git忽略的`.local-artifacts/`而不入Git。独立只读审查与最终docs/sizes/diff结果在本地交付核对；
+未跑整个mixed目标、全量codegen/workspace、native进程、Linux、故障/计数/sanitizer或
+精确新头官方CI。未推送、新开PR或合并；仅交统一批次，D10/E2及本Spec保持in-progress。
