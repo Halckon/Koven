@@ -4817,3 +4817,48 @@ drop_planner1562→1559/1669，算法留receiver子模块。原例外、owner及
 本片只本地分步提交，不推送或合并；备份包含从已发布11c93d62起的前片及本片patch链和
 增量bundle，避免仅依赖未合本地父提交。恢复/私有Drive字节校验独立记录于包内说明；
 不以备份或定向门禁宣称完整事件流或D10/E2完成。
+
+## 125. Borrow 参数 receiver 的正常 reborrow 结束（2026-11-09）
+
+精确基底为已由 connector 发布的 `36b84bd069a63209b82a6d9120df937043e37b37`，与
+本地前片 `11c3d796` 的完整树一致；独立分支 `feature/spec-0341-borrowed-receiver-return`。
+已核在途 receiver/借用分支，不重复正常完成 producer 或 String.clone，也不触碰 Choice。
+
+依现行 Guide10 的 Borrow 参数能力：参数允许 nested Shared reborrow，caller 保持 owner，
+callee 不得析构借入值。此片只让 `OwnershipBindingKind::Shared` 的 `ValueParameter`
+Name/Group 根进入已有正常完成查询；真实 Shared receiver token 仍在原 CallReturn 点
+退休。owned-result、完整 place identity 及原 provenance 排除继续约束，不新增或重建 token，
+不修改队列退休、loop depth、owner/drop、借用准入、阶段或 native 行为。
+
+prefix 查询传入 false，继续 owned-only；Inout 参数、显式 borrow val、provider来源/绑定、
+投影、temporary、this、borrowed-result receiver 不扩张。新事件只结束此次 nested
+receiver reborrow，不表示调用者参数 loan 已结束，不提供跨事务全序、完整动态生命周期、
+caller/callee 动态实例映射或全局 absence 证明。既有 Single 见证保持原样。
+
+失败先行逐字保留原 `receiver_return` 排除数组里的 borrowed 源码，新增非空预期运行
+失败（0事件对1事件）；最小资格变更后转绿，并将该原源码从旧空向量测试转为新正控。
+首次新增两个fixture误写 `deinit(): Unit` 及 `List.size()`，分别被Parser/类型合同拒绝；
+按现行 `deinit() {}` 及真实provider binding源码修正测试，没有改生产去放行错误源码。
+
+9项新双Unit入口测试核原源码、default/显式Borrow、Group、嵌套/重复不同call token、
+inner完成后outer return/break/continue、混合CFG、caller后续使用及唯一Drop、资源与被
+捕获参数的无Drop义务、Inout/provider排除和公开撤销。新raw案例先形成真实非空表，再
+叠加独立错误/deferred来源，要求整表撤销。独立只读复审确认新准入严格限Shared参数、
+prefix false与原判定等价、正常continuation门及真实token运输不变，无实现阻断。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 新reborrow与原receiver/borrow合同 | `unit_direct_call_loan_ends`，沿用前片5项Abort整项排除 | 136 passed，含9项新合同 |
+| 原借用与receiver回边 | continuation、nested、backedge三targets，nested沿用1项Abort整项排除 | 14 + 9 + 4 passed |
+| 原Unit iteration退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| raw撤销与跨source邻控 | `--lib adjacent_borrow_results` | 11 passed，396项未选 |
+| 静态与跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 全部通过 |
+| 文档及尺寸 | `check_docs.py`、`check_rust_sizes.py --base 36b84bd0`、diff | 通过；863 Markdown、2228 Rust、35项既有超长 |
+
+共180项不同普通测试通过，不重复累计先行复跑。
+Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2、独立target串行。
+现有6项Abort整项仅编译，未运行故障注入、压力、native、Linux、frontend/workspace全量
+测试或正式CI。未增加新的超长文件或提高尺寸额度；父文件仅一行公开合同注释更新。
+
+按用户最新指令不再生成备份；本片分步本地提交，准备通过connector发布，不强推、不合并。
+本地定向结果不替代发布头官方CI，也不宣称完整借用流或D10/E2完成。

@@ -87,9 +87,11 @@ pending receiver；continue 保留仍 live 的循环外 owner，for 的 provider
 
 Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pending 队列移出完整
 receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
-反推执行。它与 prefix 查询公用 owned-result、Shared、owned Name/Group 根资格，保留
-借入根、this、投影、temporary、provider、借用绑定、reservation 与 borrowed-result
-receiver 的排除边界；String.clone intrinsic 的独立完成路径不在此查询内。
+反推执行。正常完成准入 owned 名称根及声明端 Borrow 参数的 Name/Group 根；两者都
+要求 Shared receiver 与 owned-result 方法。Borrow 参数只结束本次 nested reborrow，
+原参数能力与 caller owner 不被结束或析构；prefix 查询仍只覆盖 owned 根。
+Inout 参数、this、投影、temporary、provider、显式借用绑定、reservation 与 borrowed-result
+receiver 继续排除；String.clone intrinsic 的独立完成路径不在此查询内。
 
 正常完成仍移除原 retain 所选的 call/receiver tokens，其他调用及 action 的顺序和 loop
 depth 不变，不新增 iteration action 或改变 owner 清理。已完成 inner token 不在后续
@@ -97,3 +99,7 @@ outer unwind 再出现；分支两侧的同一 receiver 可分别有 CallReturn 
 事实，两者互斥，不是重复动态执行。事件只证明相应静态完成点，不承诺参数/receiver/drop
 全序、全局 absence 或完整借用流。错误/deferred 与无效 typed 输入撤销新表；证据见
 [SPEC-0341 正常完成切片](../specs/active/0341-shared-lowering-core.md#123-shared-receiver-正常调用完成2026-11-09)。
+
+声明端默认/显式 Borrow、嵌套及重复 reborrow、分支/循环静态点、被捕获的参数及资源参数
+的无析构义务由 [Borrow 参数切片](../specs/active/0341-shared-lowering-core.md#125-borrow-参数-receiver-的正常-reborrow-结束2026-11-09)固定。
+调用者后续读取和其唯一 owner drop 另有源码正控；静态 caller/callee 参数身份不充当动态别名映射。
