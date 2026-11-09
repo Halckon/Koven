@@ -4436,3 +4436,26 @@ pending loan 的观测记录覆盖 CallReturn 和 ControlTransfer。
 `Int?` 与 `Boolean?`，并保留旧 MoveOnly 句柄回归。精确类型的
 nullable 枚举及 `Char?` 探针仍报 UnsupportedNode。§179 的内层
 合法借用结果被外层转换为 nullable 的组合仍另行复审。
+
+## 181. R4 短路与分组 Inout 批次合并验收
+
+[PR #399](https://github.com/Halckon/Koven/pull/399) 的 head `3110cfa5`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42682599112)
+通过双宿主 Check/Clippy、定向、预览生产和独立消费。CI Passed 与 Code
+CI Evidence 实际执行并通过。共 15 个成功作业，Editor lexical 按范围
+跳过。双端日志分别核对五个 SSA 回归均实际通过，包含两条路线的早退。
+macOS CI 的既有 LLDB 用例按 debugserver 权限忽略，§175 有本机证据。
+
+两端预览归档实算 SHA256 与生产和消费清单相符，各 12 项独立命令、
+哨兵及清理成功。基线 `94768a91`、合成提交 `0292e636`、实际合入
+`2b1e8f1e`，合成和实际合入树均为
+`49021804d6a2d2c9bf397422b520334d1d15fe4b`，无未决审阅线程。
+
+前一主干 [push CI](https://github.com/Halckon/Koven/actions/runs/42682434283)
+中 macOS Check/Clippy 被标记取消且无步骤记录，随后定向与预览跳过。
+该记录仍缺少主干验收，不能以 #398 或 #399 的 PR 结果代替。
+
+另以 §180 候选实跑 §179 的镜像边界。精确 `Borrow Int` 参数消费
+`borrow Int` 结果能原生运行；只把外层改为 `Borrow Int?` 后，
+公开检查仍通过，原生报 `InvalidModel`。下一轮须分别核对内层
+来源 lease、实际复制点及外层临时 loan 的结束。
