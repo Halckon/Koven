@@ -1,23 +1,6 @@
 use super::*;
 use std::cell::{Cell, RefCell};
 
-pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
-    matches!(
-        kind,
-        LexemeKind::Token(TokenKind::Keyword(
-            Keyword::Const
-                | Keyword::Fun
-                | Keyword::For
-                | Keyword::While
-                | Keyword::Class
-                | Keyword::Interface
-                | Keyword::Enum
-                | Keyword::Object
-                | Keyword::Companion
-        ))
-    )
-}
-
 pub(super) fn control_expression_start_kind(kind: LexemeKind) -> bool {
     matches!(
         kind,
@@ -426,6 +409,7 @@ impl Stops {
     pub(super) const FILE_DECLARATION: u16 = 1 << 7;
     pub(super) const ELSE: u16 = 1 << 8;
     pub(super) const SEMICOLON: u16 = 1 << 9;
+    pub(super) const BLOCK_STATEMENT_SEPARATOR: u16 = 1 << 10;
     pub(super) const HARD_DELIMITERS: u16 =
         Self::RIGHT_PAREN | Self::RIGHT_BRACKET | Self::INTERPOLATION_END;
 
@@ -572,6 +556,11 @@ impl TypeStops {
     const SEMICOLON: u16 = 1 << 12;
     pub(super) const CLASS_BODY: u16 = 1 << 13;
     pub(super) const CLASS_FILE: u16 = 1 << 14;
+    const BLOCK_STATEMENT_SEPARATOR: u16 = 1 << 15;
+
+    pub(super) const fn has_block_statement_separator(self) -> bool {
+        self.delimiters & Self::BLOCK_STATEMENT_SEPARATOR != 0
+    }
 
     pub(super) const fn proven_type_closer(self) -> Option<usize> {
         self.proven_type_closer
@@ -684,6 +673,9 @@ impl TypeStops {
         }
         if stops.delimiters & Stops::SEMICOLON != 0 {
             bits |= Self::SEMICOLON;
+        }
+        if stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0 {
+            bits |= Self::BLOCK_STATEMENT_SEPARATOR;
         }
         Self::empty().with(bits)
     }
@@ -849,6 +841,11 @@ impl DeclarationStops {
     pub(super) const DELEGATION_ERROR_TARGET: u32 = 1 << 23;
     pub(super) const DELEGATION_UNSUPPORTED_SUFFIX: u32 = 1 << 24;
     pub(super) const PROVEN_GROUPS: u32 = 1 << 25;
+    pub(super) const BLOCK_STATEMENT_SEPARATOR: u32 = 1 << 26;
+
+    pub(super) const fn has_block_statement_separator(self) -> bool {
+        self.0 & Self::BLOCK_STATEMENT_SEPARATOR != 0
+    }
 
     pub(super) const fn requires_proven_groups(self) -> bool {
         self.0 & Self::PROVEN_GROUPS != 0
@@ -900,6 +897,9 @@ impl DeclarationStops {
         }
         if stops.delimiters & Stops::INTERPOLATION_END != 0 {
             bits |= Self::INTERPOLATION_END;
+        }
+        if stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0 {
+            bits |= Self::BLOCK_STATEMENT_SEPARATOR;
         }
         Self(bits)
     }

@@ -169,7 +169,9 @@ impl Parser<'_> {
             let move_span = self.bump()?.span();
             return self.parse_lambda(Some(move_span), stops);
         }
-        if stops.contains(current) && !control_expression_start_kind(current.kind()) {
+        if (stops.contains(current) && !control_expression_start_kind(current.kind()))
+            || self.at_block_statement_separator(current, stops)?
+        {
             let span = self.empty_at(current.span().start())?;
             self.emit(codes::EXPECTED_EXPRESSION, "expected expression", span)?;
             return self.add_expression(span, Expression::Error);
@@ -682,7 +684,22 @@ impl Parser<'_> {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
         ) || (self.file_mode && file_construct_start_kind(current.kind()));
         let skipped = if poisoned {
-            self.skip_to_group_closer(opener_raw)?
+            let preserve_block_separator =
+                outer_stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0;
+            let skipped = self.skip_to_group_closer(opener_raw, preserve_block_separator)?;
+            if skipped.is_none()
+                && preserve_block_separator
+                && self.is_poison()
+                && let Some((separator, end)) = self.adjacent_poison_tail_boundary()?
+                && self
+                    .lexical_recoveries
+                    .block_statement_follows(self.lexed, separator)
+            {
+                self.index = separator;
+                Some(end)
+            } else {
+                skipped
+            }
         } else if !at_right_paren
             && !declaration_tail
             && (matches!(
