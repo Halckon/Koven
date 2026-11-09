@@ -7,16 +7,16 @@ use lang_frontend::{
 
 const NODE: &str = "class Node { fun touch(text: String, own next: Int): Int = next }\n";
 
-struct Prefix<'a> {
-    call: &'a str,
-    operand: &'a str,
-    jump: &'a str,
-    calls_before: usize,
-    receivers_before: usize,
-    drop_at_jump: bool,
+pub(super) struct Prefix<'a> {
+    pub(super) call: &'a str,
+    pub(super) operand: &'a str,
+    pub(super) jump: &'a str,
+    pub(super) calls_before: usize,
+    pub(super) receivers_before: usize,
+    pub(super) drop_at_jump: bool,
 }
 
-fn assert_prefixes(text: &str, expected: &[Prefix<'_>]) -> Observed {
+pub(super) fn assert_prefixes(text: &str, expected: &[Prefix<'_>]) -> Observed {
     let observed = observe(text);
     assert_units_admitted(&observed);
     for (entry, (unit, names)) in observed.units.iter().zip(&observed.unit_names).enumerate() {
@@ -87,7 +87,8 @@ fn assert_prefixes(text: &str, expected: &[Prefix<'_>]) -> Observed {
             match expected.jump {
                 "break" => assert!(matches!(jump.payload(), Expression::Break { .. })),
                 "continue" => assert!(matches!(jump.payload(), Expression::Continue { .. })),
-                _ => panic!("fixed loop jump"),
+                "return" => assert!(matches!(jump.payload(), Expression::Return { .. })),
+                _ => panic!("fixed control transfer"),
             }
             assert_eq!(observed.sources.slice(jump.span()), Ok(expected.jump));
             let jump_start = start + expected.call.rfind(expected.jump).unwrap();

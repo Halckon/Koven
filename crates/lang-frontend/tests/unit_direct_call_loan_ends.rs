@@ -902,3 +902,6 @@ mod receiver_return;
 
 #[path = "unit_direct_call_loan_ends/borrowed_receiver_return.rs"]
 mod borrowed_receiver_return;
+
+#[path = "unit_direct_call_loan_ends/borrowed_receiver_prefix.rs"]
+mod borrowed_receiver_prefix;
