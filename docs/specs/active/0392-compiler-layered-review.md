@@ -3691,3 +3691,26 @@ head `e25f3aa0`、base `d193a65f` 有 15 个实际成功作业，编辑器门禁
 新合并树本机执行前端单元 408 项及 11 个集成套件 846 项，均零失败、零忽略。
 集成范围覆盖 Parser、常量、Unit 类型与所有权、直接调用 loan end。包含 32→64
 组带调用链的显著 token 访问计数。前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 148. R3/R4 未分派的借用结果初始化前缀
+
+在 `7de209f7` 上，公共 CLI 接受 `borrow val item = view(owner, return)`，
+native build 报 UnsupportedNode。真实前端产物保留 String 调用类型，同时发布
+expression falls_through=false、call_may_dispatch=false，且没有 borrow binding。
+原生红测在含可观察前置实参的同形用例复现，直线借用正控已构建并输出 `kept`。
+
+Refine 仅在普通返回 caller、无 receiver 的实际声明或符号调用上，联合 typed、
+owned 与空 dispatch key 准入该前缀。已执行实参走原求值与退出清理；未完成的
+borrow val 不查找或建立绑定，后继语句不进入 lowering。ControlTransfer 上被
+该调用借用的 MoveOnly 临时量使用同一判定，先结束 pending loan，再执行原析构。
+
+独立复核发现外层 borrow/carrier 返回和借用临时量的不同清理门。外层 borrow
+块体探针前端接纳，但仍在原声明门禁 UnsupportedNode，未到 verifier。循环内
+普通 borrow val 仍由前端 L0164 拒绝。本批保留这两类边界，也不扩展仍有正常
+分派的实参 CFG。原生回归检查已完成前置输出、未访问的后继实参、临时 owner
+以及正常借用正控，各核对真实分配与释放。复核确认普通退出顺序和准入证明一致。
+
+本机 LLVM 21.1.8 上，原生套件中的三个源码样例均完成真实 object、link、run 和
+分配释放计数。borrow result SSA 合同 10 项通过，新增回归在 MemoryDocument 与
+Rooted 两入口均过 verifier 与 LLVM，并验证无 BorrowCall、无不可达 callee 实例。
+执行项零失败、零忽略。codegen 全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。

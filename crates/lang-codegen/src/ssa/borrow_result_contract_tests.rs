@@ -84,6 +84,41 @@ fn assert_flow(program: &Program) {
 }
 
 #[test]
+fn abandoned_borrow_result_has_no_result_operation_or_callee_instance() {
+    let source = r#"fun view(source: String, own n: Int): borrow String from source = source
+fun entry() {
+    val owner = "kept".clone()
+    borrow val item = view(owner, return)
+    println(item)
+}"#;
+    for lower in [memory_unit, super::borrow_storage_contract_tests::unit] {
+        let program = lower(source).unwrap();
+        verify_program(&program).unwrap();
+        crate::llvm::render_verified_program(&program).unwrap();
+        let mut functions = program.modules.iter().flat_map(|module| &module.functions);
+        assert!(
+            functions
+                .clone()
+                .all(|function| !function.name.contains(".view."))
+        );
+        let entry = functions
+            .find(|function| function.name.contains(".entry."))
+            .expect("entry lowered");
+        assert!(
+            entry.instructions.iter().any(|instruction| {
+                matches!(instruction.operation, Operation::BorrowEnd { .. })
+            })
+        );
+        assert!(entry.instructions.iter().all(|instruction| {
+            !matches!(
+                instruction.operation,
+                Operation::BorrowCall { .. } | Operation::PrintString { .. }
+            )
+        }));
+    }
+}
+
+#[test]
 fn borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move() {
     assert_flow(&memory_unit(&format!("{PROVIDER}{ENTRY}")).unwrap());
 }

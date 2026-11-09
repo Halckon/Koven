@@ -7,6 +7,49 @@ fn native_borrow_last_use_unit_preserves_permissions_and_owner_cleanup() {
 }
 
 #[test]
+fn native_borrow_initializer_prefix_exits_without_forming_a_result() {
+    use crate::native_borrow_last_use_cases::Case;
+
+    check_normal_cases([
+        Case {
+            name: "borrow-initializer-prefix-return",
+            source: r#"fun view(source: String, own before: Int, own stop: Int, own after: Int): borrow String from source = source
+fun tick(): Int { println("prefix"); return 0 }
+fun unreached(): Int { println("unreachable"); return 0 }
+fun entry() {
+    val owner = "kept".clone()
+    borrow val item = view(owner, tick(), return, unreached())
+    println(item)
+}"#,
+            stdout: b"prefix\n",
+            allocations: 1,
+        },
+        Case {
+            name: "borrow-initializer-temporary-prefix-return",
+            source: r#"fun view(source: String, own n: Int): borrow String from source = source
+fun entry() {
+    borrow val item = view("scratch".clone(), return)
+    println(item)
+}"#,
+            stdout: b"",
+            allocations: 1,
+        },
+        Case {
+            name: "borrow-initializer-normal-return",
+            source: r#"fun view(source: String, own before: Int, own after: Int): borrow String from source = source
+fun tick(): Int { println("prefix"); return 0 }
+fun entry() {
+    val owner = "kept".clone()
+    borrow val item = view(owner, tick(), 1)
+    println(item)
+}"#,
+            stdout: b"prefix\nkept\n",
+            allocations: 1,
+        },
+    ]);
+}
+
+#[test]
 fn native_borrow_direct_alias_unit_preserves_real_storage_and_owner_cleanup() {
     check_normal_cases(crate::native_borrow_last_use_cases::alias_cases());
 }
