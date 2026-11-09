@@ -74,7 +74,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | Diagnostic、fixture、矩阵与压力测试 | [诊断与测试](diagnostics-and-tests.md) |
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |
 
-- [Unit 不变循环输入后缀](unit-invariant-loop-suffix.md)：正常 While 退出路径的真实输入 Move/Bind/Drop
+- [Unit 不变循环输入后缀](unit-invariant-loop-suffix.md)：正常或裸 Break While 退出路径的真实输入 Move/Bind/Drop
 - [Owned root 原子所有权置换](root-ownership-primitives.md)：replace / swap 的正常 commit、SSA 与 native 边界
 - [Owned local 一级字段 replace](direct-field-replace.md)：独立 field facts、显式字段交换与有界直接验证
 

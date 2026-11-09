@@ -4,7 +4,7 @@
 
 基础协议见 [Unit owner transport](unit-owner-transport.md)，受限条件值见 [Choice](unit-choice-transport.md)。
 不变输入的基础能力只证明实际边界及 Continue/Break 清理点的同一 owner；不授予 header/exit phi、完整外层运输、
-实例级释放或 Phase 4/native 能力。正常直线输入的独立[后缀消费](unit-invariant-loop-suffix.md)另封闭实际退出路径。
+实例级释放或 Phase 4/native 能力。正常或裸 Break 输入的独立[后缀消费](unit-invariant-loop-suffix.md)另封闭实际退出路径。
 
 ## 空入边闭合 body 的准入与真实执行边界
 

@@ -64,8 +64,9 @@ BreakExit(ControlTransfer(jump), LoopExit(While))、ConditionFalseExit，没有�
 Unsupported、callable、analysis Arc 与自身 control seal。共同私有边界复用身份、闭合 body
 及结构边一致性检查，不单独授予控制能力；回边 seal 只接 Fallthrough/Continue，出口 seal 只接实际 Break。同一最终
 successful/无 deferred 门清空或保留该槽。不能将完整自洽的另一种控制证据换入对应类型。
-这仍是静态检查器的真实边界证据，不发布 suffix 事件、最终消费、有限运行轨迹、动态实例
-或完整外层守恒；条件 false 的零轮路径也不等于实际执行过 Break。
+基础边界仍是静态检查器证据，不单独发布 suffix 事件或最终消费；裸 Break 现可另取
+[后缀消费能力](unit-invariant-loop-suffix.md)。两者不证明有限运行轨迹、动态实例或完整外层守恒；
+条件 false 的零轮路径也不等于实际执行过 Break。
 
 ## 不变输入 owner 的双 Continue 条件边
 

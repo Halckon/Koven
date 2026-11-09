@@ -7,18 +7,15 @@ use super::{
 
 /// An invariant outer owner witnessed through a real terminal Break and loop exit.
 /// The body completion state is independently checked before the original condition
-/// state is used at LoopExit. This is not a phi, runtime trace or final consumption.
+/// state is used at LoopExit. Basic boundaries alone do not prove final consumption;
+/// an optional post-loop transport seals it separately. Neither capability is a phi or runtime trace.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerInvariantBreakObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) evidence: InvariantLoopBoundaries,
+    pub(in crate::ownership_checking::compilation_unit) post_loop:
+        Option<Box<super::suffix::PostLoopTransport>>,
 }
 impl UnitOwnerInvariantBreakObservationV1 {
-    /// Actual prefix and post-loop consumption, together with this unchanged Break
-    /// and condition-false exit evidence. Not a general exit phi or runtime trace.
-    pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
-        None
-    }
-
     /// Actual While statement targeted by the terminal Break.
     pub fn statement(&self) -> UnitStatementId {
         self.evidence.closed.statement()

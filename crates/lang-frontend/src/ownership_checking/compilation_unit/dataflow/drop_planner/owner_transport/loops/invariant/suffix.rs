@@ -25,8 +25,7 @@ impl DropPlanner<'_, '_> {
                     .expected
                     .as_ref()
                     .is_some_and(|value| value.scope_depth == self.scope_depth)
-                && let Some(InvariantLoopValueV1::Backedge(boundaries)) =
-                    &mut transaction.invariant_result
+                && let Some(boundaries) = &mut transaction.invariant_result
                 && let Some(graph) =
                     collected.and_then(|observation| observation.value_observation_v1())
             {
@@ -56,14 +55,9 @@ impl DropPlanner<'_, '_> {
         }
         let transaction = self.owner_loop.as_mut()?;
         let input = transaction.invariant.as_mut()?;
-        let InvariantLoopValueV1::Backedge(boundaries) = transaction.invariant_result.as_ref()?
-        else {
-            return None;
-        };
+        let boundaries = transaction.invariant_result.as_ref()?.suffix_boundaries()?;
         if id != input.suffix
-            || transaction.expected != LoopBodyCompletion::Fallthrough
-            || !boundaries.is_consistent()
-            || boundaries.post_loop.is_some()
+            || transaction.expected != boundaries.closed.completion
             || input
                 .expected
                 .as_ref()
@@ -72,14 +66,14 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         let entry = input.snapshot(state)?;
-        if entry != *boundaries.exit() {
+        if entry != boundaries.exit {
             return None;
         }
         let ordinary = self.owner_observation.as_mut()?;
         if !matches!(ordinary.status, UnitOwnerObservationStatus::Unsupported {
             point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),
             reason: UnitOwnerUnsupportedReason::Syntax,
-        } if statement == boundaries.statement())
+        } if statement == boundaries.closed.statement())
             || ordinary.callable != transaction.callable
             || !std::sync::Arc::ptr_eq(&ordinary.identity, &transaction.identity)
             || !ordinary.definitions.is_empty()

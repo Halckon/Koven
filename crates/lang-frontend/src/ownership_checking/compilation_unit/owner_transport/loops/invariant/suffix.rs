@@ -13,14 +13,11 @@ pub(in crate::ownership_checking::compilation_unit) struct PostLoopTransport {
     pub(in crate::ownership_checking::compilation_unit) transport: UnitOwnerValueObservationV1,
 }
 
-impl UnitOwnerInvariantLoopObservationV1 {
-    /// Actual prefix and post-loop consumption on the normal exit path, together with
-    /// this observation's unchanged loop boundaries. Not a phi or runtime trace.
-    /// Only straight-line normal bodies provide this optional capability.
-    pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
-        let suffix = self.post_loop.as_ref()?;
-        let graph = &suffix.transport;
-        let source = self.statement().source_unit();
+impl PostLoopTransport {
+    // Shared consumption checks do not independently grant a control capability.
+    fn validate(&self, evidence: &InvariantLoopBoundaries) -> Option<&UnitOwnerValueObservationV1> {
+        let graph = &self.transport;
+        let source = evidence.closed.statement().source_unit();
         let [
             Event::Create(initializer, created),
             Event::Bind(held, bound, Value::Definition(input)),
@@ -31,41 +28,83 @@ impl UnitOwnerInvariantLoopObservationV1 {
         else {
             return None;
         };
-        (self.is_consistent()
-            && self.evidence.closed.completion == super::super::LoopBodyCompletion::Fallthrough
+        (evidence.is_consistent()
             && graph.is_consistent()
             && graph.choice().is_none()
             && graph.suffix().is_empty()
             && graph.producers().definitions().len() == 1
-            && graph.producers().callable() == self.input_producers().callable()
-            && std::sync::Arc::ptr_eq(&graph.catalog.identity, &self.evidence.inputs.identity)
+            && graph.producers().callable() == evidence.inputs.callable()
+            && std::sync::Arc::ptr_eq(&graph.catalog.identity, &evidence.inputs.identity)
             && graph
                 .producers()
-                .definition(self.entry().owner())
+                .definition(evidence.entry.owner())
                 .is_some_and(|definition| {
-                    self.input_producers().definition(self.entry().owner()) == Some(definition)
+                    evidence.inputs.definition(evidence.entry.owner()) == Some(definition)
                 })
-            && suffix.entry == *self.exit()
-            && suffix.statement.source_unit() == source
-            && suffix.statement != self.statement()
-            && suffix.statement != self.body()
-            && suffix.expression.source_unit() == source
-            && suffix.retired.source_unit() == source
-            && suffix.retired != self.entry().symbol()
+            && self.entry == evidence.exit
+            && self.statement.source_unit() == source
+            && self.statement != evidence.closed.statement()
+            && self.statement != evidence.closed.body()
+            && self.expression.source_unit() == source
+            && self.retired.source_unit() == source
+            && self.retired != evidence.entry.symbol()
             && *initializer == *bound
-            && *held == self.entry().symbol()
+            && *held == evidence.entry.symbol()
             && *moved_from == *held
-            && *expression == suffix.expression
+            && *expression == self.expression
             && *used == *expression
-            && *retired == suffix.retired
+            && *retired == self.retired
             && *dropped == *retired
-            && *point == UnitDropPoint::AfterStatement(suffix.statement)
+            && *point == UnitDropPoint::AfterStatement(self.statement)
             && [created, input, moved, installed, consumed]
                 .into_iter()
-                .all(|owner| *owner == self.entry().owner()))
+                .all(|owner| *owner == evidence.entry.owner()))
         .then_some(graph)
     }
+}
 
+impl UnitOwnerInvariantLoopObservationV1 {
+    /// Actual prefix and post-loop consumption on the normal exit path, together with
+    /// this observation's unchanged loop boundaries. Not a phi or runtime trace.
+    /// Only straight-line normal bodies provide this optional capability.
+    pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
+        if !self.is_consistent()
+            || self.evidence.closed.completion != super::super::LoopBodyCompletion::Fallthrough
+        {
+            return None;
+        }
+        self.post_loop.as_deref()?.validate(&self.evidence)
+    }
+}
+impl UnitOwnerInvariantBreakObservationV1 {
+    /// Actual prefix and post-loop consumption, together with this unchanged Break
+    /// and condition-false exit evidence. Not a general exit phi or runtime trace.
+    pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
+        if !self.is_consistent() {
+            return None;
+        }
+        self.post_loop.as_deref()?.validate(&self.evidence)
+    }
+}
+impl InvariantLoopValueV1 {
+    pub(in crate::ownership_checking::compilation_unit) fn suffix_boundaries(
+        &self,
+    ) -> Option<&InvariantLoopBoundaries> {
+        match self {
+            Self::Backedge(value)
+                if value.is_consistent()
+                    && value.evidence.closed.completion
+                        == super::super::LoopBodyCompletion::Fallthrough
+                    && value.post_loop.is_none() =>
+            {
+                Some(&value.evidence)
+            }
+            Self::Break(value) if value.is_consistent() && value.post_loop.is_none() => {
+                Some(&value.evidence)
+            }
+            _ => None,
+        }
+    }
     pub(in crate::ownership_checking::compilation_unit) fn observe_post_loop(
         &mut self,
         statement: UnitStatementId,
@@ -74,18 +113,30 @@ impl UnitOwnerInvariantLoopObservationV1 {
         entry: UnitOwnerLoopBindingV1,
         transport: UnitOwnerValueObservationV1,
     ) {
-        if self.post_loop.is_some() {
+        if self.suffix_boundaries().is_none() {
             return;
         }
-        self.post_loop = Some(Box::new(PostLoopTransport {
+        let suffix = Box::new(PostLoopTransport {
             statement,
             expression,
             retired,
             entry,
             transport,
-        }));
-        if self.post_loop_transport_v1().is_none() {
-            self.post_loop = None;
+        });
+        match self {
+            Self::Backedge(value) => {
+                value.post_loop = Some(suffix);
+                if value.post_loop_transport_v1().is_none() {
+                    value.post_loop = None;
+                }
+            }
+            Self::Break(value) => {
+                value.post_loop = Some(suffix);
+                if value.post_loop_transport_v1().is_none() {
+                    value.post_loop = None;
+                }
+            }
+            _ => {}
         }
     }
 }

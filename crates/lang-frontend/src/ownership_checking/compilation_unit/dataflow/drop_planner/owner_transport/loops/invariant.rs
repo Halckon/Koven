@@ -193,7 +193,10 @@ impl InvariantInput {
         };
         match evidence.closed.completion {
             LoopBodyCompletion::Break(_) => {
-                let value = UnitOwnerInvariantBreakObservationV1 { evidence };
+                let value = UnitOwnerInvariantBreakObservationV1 {
+                    evidence,
+                    post_loop: None,
+                };
                 value
                     .is_consistent()
                     .then_some(InvariantLoopValueV1::Break(value))

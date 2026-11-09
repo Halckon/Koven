@@ -8,7 +8,7 @@ use crate::ownership_checking::{
 use crate::parser::Statement;
 use crate::type_checking::UnitStatementId;
 
-fn check_break(
+pub(super) fn check_break(
     fixture: &Fixture,
     index: usize,
     owned: &crate::ownership_checking::CompilationUnitOwnership,
@@ -430,6 +430,7 @@ fn break_exit_seal_rejects_wrong_snapshots_variants_and_deferred_products() {
     assert!(continued.is_consistent() && continued.evidence.closed.is_consistent());
     let wrong_wrapper = crate::ownership_checking::UnitOwnerInvariantBreakObservationV1 {
         evidence: continued.evidence.clone(),
+        post_loop: None,
     };
     assert!(
         !wrong_wrapper.is_consistent(),
