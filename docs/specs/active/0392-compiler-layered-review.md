@@ -4238,6 +4238,10 @@ Clippy、CLI build、格式、文档和尺寸门禁通过。
 三组公开输入在 CLI 单文件与项目入口均以同组语法诊断退出 1，
 且没有 `saved` 未解析的次生诊断。
 
+后继复审探针 `inspect(items[0; val saved = 1 … ])` 的单文件检查
+仍报告 L0010 及后续读取 `saved` 的 L0080。调用实参的独立 stops
+路径会清除继承的分号边界，后续须与已配对坏实参的恢复合同对照。
+
 ## 166. R2 循环常量批次合并验收
 
 [PR #397](https://github.com/Halckon/Koven/pull/397) 以 `fe1f47f8` 经
@@ -4470,6 +4474,13 @@ frontend src、codegen src 与其他 crates 的数值均一致。frontend tests
 事实偏差。其余三个入口计数不变。仍需逐个处置保留测试见证，不能
 从直接调用计数推断仓外 API 或间接调用已经迁移。
 
+在 #402 合入后的 `fae780dc` 按同一口径复查。frontend tests 的
+`resolve_names`、`check_types`、`check_ownership` 分别为
+67/135、56/89、34/46，其余行列不变。三项增量均来自
+`ownership_borrow_result.rs` 的 `checked_single`。该见证直接核对旧
+Single 与两种 Unit 输入是否都拒绝把 nullable 转换当作已有借用
+结果存储。已查看测试调用方，保留为有意的旧入口对照。
+
 ## 178. R1/R2 合批合并验收
 
 [PR #398](https://github.com/Halckon/Koven/pull/398) 的最终 head
@@ -4654,3 +4665,28 @@ Editor lexical 按范围跳过，macOS 的既有 LLDB 用例因 debugserver
 合流后复跑 SSA 借用、临时字段、嵌套 nullable 和标量前缀，分别
 通过 8、2、4 和 1 项，零失败或忽略。严格 workspace Clippy 通过。
 早一预演另核对 131 项前端合同和两组组合程序的双 CLI 入口实跑。
+
+## 186. R3/R4 临时字段和无分派前缀批次合并验收
+
+[PR #402](https://github.com/Halckon/Koven/pull/402) 的 head `8ae8f772`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42701973621)
+通过 15 个作业。双宿主各执行并通过本批 7 项指定回归。Editor lexical
+按范围跳过，macOS 的既有 LLDB 用例因 debugserver 权限忽略。
+
+六份预览产物经独立下载，双宿主生产与消费清单同实算归档哈希一致，
+各 12 项命令、哨兵及清理通过。基线 `1af615f0`、合成提交
+`ae0e1478`、实际合入 `fae780dc`，合成与实际合入树均为
+`0e786d14becbdd314ea5bd7e3f2c715c50b20155`，无未决审阅线程。
+[#401 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42701685162)
+已成功。另已启动 [#402 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42707291414)。
+
+## 187. R1 普通分组和下标批次合流验收
+
+普通分组 `1b6d63a5` 与下标 `09f66d06` 在 `fae780dc` 上合流为
+`1a3e5ca5`，实际树 `7b60f770b07f58a6e391e2e36252ff04afcfbbf4`
+与三方合并预演一致。两片的 Parser 源码在合流前后相同。
+
+合流树前端单元及全部 Parser 集成 72 个套件共 914 项通过，零失败、
+忽略或过滤。严格 workspace Clippy 与 CLI build 通过。六组输入分别
+通过单文件与项目实跑核对诊断，覆盖普通分组及错误下标。已配对的
+错误下标保留局部解构的旧 oracle，含内部数字和普通 contextual 名称。
