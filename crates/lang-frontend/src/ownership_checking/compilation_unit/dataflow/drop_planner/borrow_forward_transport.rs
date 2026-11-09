@@ -30,20 +30,7 @@ impl DropPlanner<'_, '_> {
         {
             return;
         }
-        let Some(forwarded) = self
-            .checker
-            .borrow_results
-            .forwarded_source_loans()
-            .iter()
-            .find(|forwarded| forwarded.call() == source_call)
-        else {
-            return;
-        };
-        let Some(origin) = self.checker.borrow_return_origins.iter().find(|origin| {
-            self.checker
-                .borrow_result_call(origin.expression().expression())
-                == Some(id)
-        }) else {
+        let Some((forwarded, origin)) = self.forwarded_borrow_source(source_call) else {
             return;
         };
         let UnitLoanTarget::Place(place) = origin.origin() else {

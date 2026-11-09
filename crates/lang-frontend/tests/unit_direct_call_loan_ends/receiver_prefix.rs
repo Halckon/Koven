@@ -93,6 +93,45 @@ fn owned_root_receiver_ends_after_its_argument_before_owner_drop() {
 }
 
 #[test]
+fn repeated_receiver_names_keep_each_functions_root_identity() {
+    use std::fmt::Write;
+
+    let calls: Vec<_> = (0..32)
+        .map(|index| format!(r#"node.touch("prefix{index}", return)"#))
+        .collect();
+    let mut text = NODE.to_owned();
+    for (index, call) in calls.iter().enumerate() {
+        writeln!(
+            text,
+            "fun run{index}(): Unit {{ val node = Node(); {call} }}"
+        )
+        .unwrap();
+    }
+    let expected: Vec<_> = calls
+        .iter()
+        .map(|call| (call.as_str(), "node", 1, 0))
+        .collect();
+    let observed = assert_prefixes(&text, &expected);
+    for unit in &observed.units {
+        let roots: std::collections::BTreeSet<_> = unit
+            .receiver_call_prefix_ends()
+            .iter()
+            .map(|event| match event.receiver().target() {
+                UnitReceiverOwnershipTarget::Place(place) => place.root(),
+                _ => panic!("explicit receiver root"),
+            })
+            .collect();
+        assert_eq!(roots.len(), calls.len());
+        assert_eq!(unit.formed_owned_locals().len(), roots.len());
+        assert!(
+            unit.formed_owned_locals()
+                .iter()
+                .all(|root| roots.contains(root))
+        );
+    }
+}
+
+#[test]
 fn nested_receivers_follow_actual_reverse_unwind_order() {
     assert_prefixes(
         &format!(
