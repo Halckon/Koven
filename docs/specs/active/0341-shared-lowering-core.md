@@ -7082,3 +7082,72 @@ If正常/Continue/Break九种双臂完成组合之最后四种，不代表变更
 动态多实例capture/释放、suffix最终消费、完整外层运输或Phase 4/native已闭合。
 本Spec与D10/E2仍in-progress；仅本地分步提交，不推送、不改PR、不合main。当前事实见
 [不变输入循环边界](../../architecture/unit-invariant-loop-owner.md)。
+
+
+## 166. 正常不变循环输入的真实 suffix 消费（2026-11-09）
+
+去重核 main `748516795812a1946b2fd9e3ca0f8046dc2e560b`、#390 `734dde83`、#398
+`b6cb2bb7`及183个远端分支和本地在途链，无重复owner实现。新隔离分支从main建立，仅
+ff-only复用§164 `4aa8eb7645ac84061db845945a2320fa83b27683`；没有新merge或重放旧提交。
+统一队列4dfeda9e、codegen c356d70d不混入。收尾新增本地类型/codegen链99e16a82含flow、
+nullable/inout与SPEC-0392记录，未触owner producer，本片未吸纳或验证该组合。
+
+新增 `UnitOwnerInvariantLoopObservationV1::post_loop_transport_v1()` optional能力，不替换
+原边界getter或改变其is_consistent。只限正常直线While，复用精确三语句immutable String
+prefix/Name suffix与body-local String/move/Group/root Replace合同；Continue、Break及
+九种末尾If组合仍保留各自原边界能力，但不取得本片suffix消费，不能泛化到changing owner。
+
+prefix实际Complete collector被保留，suffix只在精确StatementId、真实正常循环产物完整、
+scope/loop/branch/Choice与旧While/Syntax Unsupported身份门通过时激活。实际singleton再按
+完整OwnedValue及17槽检查，保存独立suffix entry，与旧exit相等；prefix取出一次即消费。
+临时换回同Arc collector，原statement连同borrow ends执行一次，保存Result后无条件恢复
+旧sink再传播错误。只有实际Ok(true)、scope等门保持且17槽全空，才保存optional证据。
+原borrow_result method只重命名，正文逐字保全；不改变ASAP、borrow或loop清理次序。
+
+原真实六raw事件Result/Binding/Move/Result/Binding/Drop，经既有V1投影成五项
+Create/Bind/Move/Bind/Drop。新seal另核正常Fallthrough、单producer、同input catalog/Arc/
+callable、held→retired同token、真实suffix expression/statement与精确AfterStatement Drop，
+无Choice或额外suffix events。body catalog隔离，旧ordinary仍Unsupported且定义/事件空。
+末态失败不影响旧基础边界合同，最终unsuccessful/deferred则仍清除整个invariant产物。
+
+原红例typed/ownership及旧loop边界均成功，仅optional缺失而1 failed；红提交
+`be6bf4306675b45a3308d07bfc4871dece40109f`。接线后同一源码与断言1 passed，原例保留。
+最终源码/架构提交 `f913d6dfc0533ecd5bd7d5b920a7db547a90dc0b`，tree
+`85cfcb3efb45768f882967474d82386d46527f51`；下列运行对应其Rust字节，后续仅补文档。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 正常消费 | `invariant_suffix::actual_suffix_closes_the_input_owner_after_normal_while` | 1 passed，24唯一正例含原红；3条件拼写×2Unit拼写×4body，producer 1/1/2/3、Replace 0/0/1/2 |
+| 拒绝及旧能力 | 同模块 `suffix_admission_preserves_prior_control_capabilities` | 1 passed，12合法否例、2裸跳转和9条件组合；原能力保留，新suffix不扩张 |
+| 来源/失败 | 同模块 `suffix_sources_and_failed_analyses_do_not_leak_transport` | 1 passed，双source/二次analysis隔离，重复消费、body移动输入及sibling错误3例全撤销 |
+| 双公开入口 | `invariant_suffix_owner_unit::actual_suffix_consumption_matches_both_public_unit_inputs` | 1 passed，17片段×2入口＝34分析/51 source inputs，12准入/39拒绝 |
+| owner/共享hook回归 | §164的95 lib+本片3、22 iteration+公开1、5 multifile/2 closures/1 borrow-continuation | 98+23+5+2+1 passed |
+| 常量邻控 | §164原multifile_constant_qualification 11 exact | 11 passed |
+| statement wrapper邻控 | unit_direct_call_loan_ends的下列4 exact | 4 passed，保receiver前缀/borrow与clone结束 |
+| 工程门禁 | frontend all-targets严格Clippy、LLVM21 workspace all-targets check、fmt/docs/尺寸/diff | 全过；Clippy19.77s/check38.56s，867 Markdown、2295 Rust、37历史超长，base4aa8eb76，无新豁免 |
+| 独立复审 | 新3 lib+1公开exact，production/架构/guard静审 | 无blocker；各1 passed、0 failed/ignored，前后HEAD/tree/clean和两binary SHA256一致，borrow wrapper仅rename逐字核对通过 |
+
+合计144不同ordinary＝133 owner相关+11常量；重复红绿/复跑不计新增。lib完整前缀为
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+4个邻控为 `receiver_cfg_prefix::local_receiver_prefix_ends_on_break_and_continue_before_its_owner`、
+`borrowed_receiver_prefix::original_borrowed_receiver_return_source_now_observes_its_abandoned_reborrow`、
+同模块 `original_borrowed_loop_sources_now_observe_their_abandoned_reborrow`、
+`lifecycle_combination::completed_clones_survive_receiver_prefixes_without_visiting_unreachable_suffixes`。
+七target先统一--no-run编译，再逐exact核每项1 passed/0 failed/0 ignored；没有依赖宽filter命中。
+
+新单源正反矩阵比较完整Analysis开关等值；双source只核全部来源身份，不称全部源开关对照。
+普通输入错误在准入/整体分析门撤销，不伪称测试了suffix激活后的异常注入。损坏封印只编译：
+foreign graph/entry、缺失/重复/重排、错误消费点/表达式/退休symbol与deferred；精确点守卫
+把Drop换为真实body AfterStatement，通用V1仍一致而新seal拒绝。Continue守卫保原graph/
+catalog身份，仅换为同source helper的真实jump及自洽completion/edges/transfer，旧边界
+is_consistent成立而新Fallthrough门拒绝。两项早期oracle问题已独审修正，未本机执行守卫。
+严格Clippy初轮发现optional大对象及布尔条件问题，Box/等价条件修复后全部144与工程门禁
+重跑通过，无allow豁免。其它model/Abort/故障注入同样未执行。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target。
+未跑frontend/workspace全量测试、Linux、native或精确头正式CI，不是统一队列组合验收。
+outer graph只含prefix/suffix，须与原三处loop边界、独立第四份suffix entry及闭合body模板
+联合使用；条件是body不改变的Boolean参数，不能称为实际运行若干轮后退出。本片只闭合
+正常条件false路径的输入转移和最终消费，不证明终止、动态实例、一般header/exit phi、
+变化owner或Phase 4/native。当前事实见[后缀消费](../../architecture/unit-invariant-loop-suffix.md)。
+本Spec及D10/E2仍in-progress；仅本地分步提交，不推送、不改PR、不合main，保护旧链和oracle。

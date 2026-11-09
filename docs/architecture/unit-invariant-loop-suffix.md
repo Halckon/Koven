@@ -36,5 +36,7 @@ Create(literal)、Bind(held)、Move(held)、Bind(retired)、Drop(retired)。新 
 
 返回的图只含 outer prefix/suffix，须与本对象原 entry/backedge/exit 及闭合 body 模板联合使用。
 它证明正常退出路径上的输入转移与最终消费，不能把省略循环执行的线性图当作整个程序轨迹。
+条件是 body 不改变的 Boolean 参数；不能将静态 checker 的边界见证描述成实际运行若干轮
+后退出。suffix 是条件 false 路径的规划，不证明有限 runtime 轨迹。
 这不证明循环终止、每轮动态实例、changing owner、header/exit phi、一般控制合流或 Phase 4/native。
 普通源码、双入口、精确门禁与未执行守卫范围见 SPEC-0341 §166。
