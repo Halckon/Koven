@@ -25,6 +25,10 @@ ordinary static call 直接查询该路由。lambda 内调用继承所属 source
 拥有自己的 source token。两入口 source callback ABI 的消费见[源码 ABI](callable-source-abi.md)。
 Unit 在实例索引中读取同一所有权产物的 call 进入事实，保留已开始求值的调用前缀。
 析构实例规划跳过未进入 lambda 的内部资源根，已进入的 lambda 继续核对原有 ABI。
+直接 FunctionValue 调用仅在已发布的可派发事实为真、callee 来源为同源 Lambda 时，
+将该实际 lambda 的 Resource/deinit 需求加入当前实例的既有 nominal worklist。
+本地 alias/Group 和重复调用复用同一来源；未调用或后参退出的 lambda 不由本片新增准入。
+原 Legacy 资源闭包成功见证保留，Unit 对照核验 body Resource 与 owned String 环境的独立清理。
 
 pointer factory 的摘要按具体 factory source memo，核对声明及调用位置的具体 Fn 类型，
 无捕获返回 lambda 归属 factory source；named function 依赖进入原 worklist。

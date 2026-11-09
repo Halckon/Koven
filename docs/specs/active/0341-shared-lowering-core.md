@@ -5024,3 +5024,41 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+
+### 直属资源闭包的 Unit 规划前置（2026-11-09）
+
+隔离基底 `369fff4c0e8cf60b20d2937ef1041f65579a04bd`。原
+`single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup` 先实跑通过；
+完整146字节原源经 strict Unit 四阶段零诊断，却在 `Resource()` 的 `[120,130)` 返回
+`UnsupportedNode`。原源 SHA256 为
+`ed4f27c12d1017ce5df15f917d0c154bbfcde6f52fab97dc4fdb307938aa67b0`；不改源、
+不把原成功换为双方拒绝。Legacy 成功见证保留，本片旧入口净退休0。
+
+最小生产改动在 Unit instance planner：消费实际 FunctionValue call 的可派发事实与
+callee 的 sealed Lambda 来源，将已进入的同源 lambda 加入当前实例的 resource 集合；
+其 deinit 继续使用原 nominal worklist、具体类型及 ABI 验证。不从 AST 名称猜来源，
+不放开 unused lambda、后参退出、嵌套 lambda 或任意 closure ABI。
+
+新增 Unit 对照保留 body 一次 Resource allocation/drop、一次 callable invoke 与独立
+owned String 环境 drop，并把 thunk、deinit 注册和 capture 类型绑定到真实产物。
+另验 Group/alias 的两次调用共用原 thunk，以及无调用和 `callback(return)` 两个
+真实源保持精确 Resource construction 拒绝。普通 native 核原源 `keep\n`，及两轮
+`keep/body/released` 后 `after` 的完整 stdout、exit 0 与空 stderr；不把此输出当作 allocator 计数。
+
+| 验收项 | 命令或过滤器（`cargo test --locked -p lang-codegen --lib`） | 实际结果 |
+|---|---|---|
+| 原成功见证、Unit资源清理与边界 | `ssa::lower_frontend_tests::resource_deinit_tests::` | 21通过 |
+| frozen callable routes | `ssa::unit_plan_tests::callable_identity::` | 16通过 |
+| 直接closure下游 | `ssa::unit_lower_closure_tests::` | 10通过 |
+| 原源与重复资源析构native | `native_tests::resource_deinit_tests::direct_resource_closure_native_keeps_original_output_and_repeated_drop_order` | 1测试、2程序通过 |
+| 既有owned String环境native | `native_tests::move_closure_drops_or_invokes_its_owned_string_capture_once` | 1通过 |
+| 工程门禁 | fmt、codegen all-targets严格Clippy、docs、相对基底sizes与diff | 全部通过；docs863页，sizes2235个Rust文件及37项既有超长，未加例外 |
+
+合计49个唯一Rust测试，baseline、红测与修复后的重复exact不重复累计。Mac AArch64、
+Rust1.96.0、LLVM21.1.8，独占本工作树target串行执行，默认debug。完整原始日志留
+`.local-artifacts/`，不入Git；本段仅记录稳定输入与简要结果。独立只读复审未发现阻断项，
+核对dispatch/provenance、模板作用域、原Legacy与新Unit资源oracle；复审不冒称重跑Cargo。
+同函数双lambda只选一个的额外隔离负控为非阻断建议，本片未新增。未运行完整codegen/
+workspace测试、Linux、故障/计数/sanitizer或新头官方CI。用户已批准本地提交交统一批次，
+本片未推送、未创建PR、未合并；D10/E2与本Spec保持in-progress。

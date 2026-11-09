@@ -453,6 +453,7 @@ pub(super) fn plan_unit_instances_from_facts(
         let instance_recipe_facts =
             recipe_root_facts_for_instance(typed, &template.type_parameters, key.type_arguments())?;
 
+        let mut resource_lambdas = BTreeSet::new();
         for (call_index, span) in &calls_by_template[template_index] {
             let call = &typed.calls()[*call_index];
             let target = match call.target() {
@@ -460,7 +461,17 @@ pub(super) fn plan_unit_instances_from_facts(
                     UnitCallableTarget::Declaration(declaration)
                 }
                 UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
-                UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => continue,
+                UnitCallTarget::External(_) => continue,
+                UnitCallTarget::FunctionValue => {
+                    if let Some(lambda) = deinit::directly_invoked_lambda(
+                        owned,
+                        parsed_by_source[template.source_unit.index()],
+                        call,
+                    )? {
+                        resource_lambdas.insert(lambda);
+                    }
+                    continue;
+                }
             };
             let mut call_recipe_failures = Vec::new();
             preflight_unit_call_recipes(
@@ -567,7 +578,7 @@ pub(super) fn plan_unit_instances_from_facts(
             &mut pending,
             template.span,
         )?;
-        let resource_lambdas = callables.selected_resource_lambdas(source_token);
+        resource_lambdas.extend(callables.selected_resource_lambdas(source_token));
         deinit::plan_instance_deinits(
             typed,
             owned,
