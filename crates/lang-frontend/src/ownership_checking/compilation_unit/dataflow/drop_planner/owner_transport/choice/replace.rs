@@ -5,7 +5,7 @@ use crate::ownership_checking::UnitDropPoint;
 pub(super) struct Admission {
     call: UnitExpressionId,
     argument: Vec<UnitExpressionId>,
-    symbol: UnitSymbolId,
+    pub(super) symbol: UnitSymbolId,
 }
 
 #[derive(Default)]
@@ -287,6 +287,18 @@ impl ChoiceTransaction {
         true
     }
 
+    pub(super) fn replacement_transfer_ready(&self, source: UnitSymbolId) -> bool {
+        let Some(admission) = &self.admission.replacement else {
+            return source == self.admission.symbol;
+        };
+        source == admission.symbol
+            && self.replacement.committed
+            && self.replacement.root_dropped
+            && self.replacement.completed
+            && self.replacement.bound
+            && self.replacement.returned.is_none()
+    }
+
     pub(super) fn replacement_dropped(
         &mut self,
         point: UnitDropPoint,
@@ -318,6 +330,7 @@ impl ChoiceTransaction {
                 .push(Event::Drop(point, symbol, Value::Definition(owner)));
             self.replacement.root_dropped = true;
         } else if symbol == admission.symbol
+            && self.admission.transfer.is_none()
             && !self.dropped
             && frame.bound
             && frame.root_dropped
@@ -327,6 +340,14 @@ impl ChoiceTransaction {
             self.suffix
                 .push(Event::Drop(point, symbol, Value::Choice(self.choice_id())));
             self.dropped = true;
+        } else if self
+            .admission
+            .transfer
+            .as_ref()
+            .is_some_and(|transfer| transfer.symbol == symbol)
+        {
+            // The same Choice is now owned by the separately verified transfer frame.
+            return false;
         } else {
             self.abort();
         }

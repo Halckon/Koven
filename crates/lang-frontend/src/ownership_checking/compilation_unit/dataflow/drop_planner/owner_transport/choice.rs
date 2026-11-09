@@ -8,7 +8,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::values::{
 };
 use crate::parser::{PrefixOperator, VariableKind};
 
-/// One Choice binding with at most one transfer/replace; each edge has one String tail.
+/// One Choice binding, optionally replaced then transferred once; one String tail per edge.
 struct Admission {
     callable: UnitOwnerCallable,
     control: UnitExpressionId,
@@ -21,6 +21,7 @@ struct Admission {
 }
 
 struct Transfer {
+    source: UnitSymbolId,
     symbol: UnitSymbolId,
     chain: Vec<UnitExpressionId>,
 }
@@ -106,6 +107,37 @@ fn chain(
     Some(ids)
 }
 
+fn immutable_string_binding(
+    checker: &Checker<'_>,
+    statement: StatementId,
+) -> Option<(UnitSymbolId, ExpressionId)> {
+    let ast = checker.parsed.ast();
+    let Statement::LocalVariable { declaration } = ast.statements().get(statement).ok()?.payload()
+    else {
+        return None;
+    };
+    let Item::Variable {
+        kind: VariableKind::Val,
+        name,
+        initializer,
+        ..
+    } = ast.items().get(*declaration).ok()?.payload()
+    else {
+        return None;
+    };
+    let symbol = *checker.marker_symbol(*name)?;
+    if checker
+        .typed
+        .symbol_type(symbol)
+        .and_then(|ty| checker.typed.types().get(ty))
+        != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        || !checker.is_move_only_variable(symbol)
+    {
+        return None;
+    }
+    Some((symbol, *initializer))
+}
+
 fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     let ast = checker.parsed.ast();
     let Item::Function {
@@ -160,9 +192,10 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
-    let (statement, transfer_statement) = match elements.as_slice() {
-        [statement] => (*statement, None),
-        [statement, transfer] => (*statement, Some(*transfer)),
+    let (statement, transfer_statement, final_statement) = match elements.as_slice() {
+        [statement] => (*statement, None, None),
+        [statement, transfer] => (*statement, Some(*transfer), None),
+        [statement, replacement, transfer] => (*statement, Some(*replacement), Some(*transfer)),
         _ => return None,
     };
     let Statement::LocalVariable { declaration } = ast.statements().get(statement).ok()?.payload()
@@ -302,39 +335,19 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         })
     }
     let mut replacement = None;
-    let transfer = if let Some(statement) = transfer_statement {
-        let Statement::LocalVariable { declaration } =
-            ast.statements().get(statement).ok()?.payload()
-        else {
-            return None;
-        };
-        let Item::Variable {
-            kind: VariableKind::Val,
-            name,
-            initializer,
-            ..
-        } = ast.items().get(*declaration).ok()?.payload()
-        else {
-            return None;
-        };
-        let target = *checker.marker_symbol(*name)?;
-        if target == symbol
-            || checker
-                .typed
-                .symbol_type(target)
-                .and_then(|ty| checker.typed.types().get(ty))
-                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-            || !checker.is_move_only_variable(target)
-        {
+    let mut transfer = if let Some(statement) = transfer_statement {
+        let (target, initializer) = immutable_string_binding(checker, statement)?;
+        if target == symbol {
             return None;
         }
         if *kind == VariableKind::Var {
-            replacement = Some(replace::admit(checker, symbol, target, *initializer)?);
+            replacement = Some(replace::admit(checker, symbol, target, initializer)?);
             None
         } else {
             Some(Transfer {
+                source: symbol,
                 symbol: target,
-                chain: chain(checker, *initializer, Some(symbol))?,
+                chain: chain(checker, initializer, Some(symbol))?,
             })
         }
     } else {
@@ -343,6 +356,19 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         }
         None
     };
+    if let Some(statement) = final_statement {
+        // A third declaration is only the selected old result of this checked replace.
+        let source = replacement.as_ref()?.symbol;
+        let (target, initializer) = immutable_string_binding(checker, statement)?;
+        if target == source || target == symbol {
+            return None;
+        }
+        transfer = Some(Transfer {
+            source,
+            symbol: target,
+            chain: chain(checker, initializer, Some(source))?,
+        });
+    }
     Some(Admission {
         callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
         control: checker.unit_expression(control),
@@ -350,7 +376,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         symbol,
         drop_point: crate::ownership_checking::UnitDropPoint::AfterStatement(UnitStatementId::new(
             checker.source_unit,
-            transfer_statement.unwrap_or(statement),
+            final_statement.or(transfer_statement).unwrap_or(statement),
         )),
         arms: [arm(checker, *then_branch)?, arm(checker, *else_branch)?],
         transfer,
@@ -588,25 +614,24 @@ impl ChoiceTransaction {
         if !self.valid {
             return;
         }
-        if self
-            .admission
-            .transfer
-            .as_ref()
-            .is_some_and(|transfer| transfer.chain.first() == Some(&expression))
+        if let Some(transfer) = &self.admission.transfer
+            && transfer.chain.first() == Some(&expression)
         {
+            let source = transfer.source;
             if !self.bound
                 || self.dropped
                 || self.transfer.bound
                 || self.transfer.result.is_some()
                 || self.transfer.completed != 0
-                || taken != Some(self.admission.symbol)
+                || taken != Some(source)
+                || !self.replacement_transfer_ready(source)
             {
                 self.abort();
                 return;
             }
             self.suffix.push(Event::Move(
                 expression,
-                self.admission.symbol,
+                source,
                 Value::Choice(self.choice_id()),
             ));
             self.transfer.result = Some(expression);

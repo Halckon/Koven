@@ -236,3 +236,100 @@ fn replaced_choice_forwarding_keeps_other_consumers_and_extra_steps_closed() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn replaced_transfer_requires_bound_source_and_exact_final_cleanup() {
+    let control = r#"if (flag) "left" else "right""#;
+    let call = r#"replace(&chosen, "next")"#;
+    let source = format!(
+        "fun run(flag: Boolean): Unit {{ var chosen = {control}; val previous = {call}; val forwarded = (previous) }}"
+    );
+    let fixture = Fixture::new(&[("root.ko", &source)]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let id = |text| checker.unit_expression(fixture.expression(0, text));
+        let control = id(control);
+        let call = id(call);
+        let left = id("\"left\"");
+        let right = id("\"right\"");
+        let incoming = id("\"next\"");
+        let name = id("previous");
+        let group = id("(previous)");
+        let root = fixture.symbol(0, "chosen");
+        let previous = fixture.symbol(0, "previous");
+        let final_symbol = fixture.symbol(0, "forwarded");
+        // Hand traces supplement the ordinary source matrix; not a producer shortcut.
+        for mutation in 0..18 {
+            let mut tx = super::super::choice::ChoiceTransaction::begin(
+                checker,
+                checker.parsed.roots()[0],
+                std::sync::Arc::new(()),
+            )
+            .unwrap();
+            tx.string_completed(left);
+            tx.expression_completed(left, true, true);
+            tx.edge_completed(control, 0, Some(left), true);
+            tx.string_completed(right);
+            tx.expression_completed(right, true, true);
+            tx.edge_completed(control, 1, Some(right), true);
+            tx.expression_completed(control, true, true);
+            tx.bound(root, control);
+            tx.string_completed(incoming);
+            tx.expression_completed(incoming, true, true);
+            tx.replacement_pending(call, incoming, true);
+            if mutation == 15 {
+                tx.moved(name, Some(previous));
+            }
+            tx.replacement_committed(call, Some(root), Some(incoming), true);
+            tx.dropped(UnitDropPoint::CallReturn(call), root);
+            if mutation == 2 {
+                tx.moved(name, Some(previous));
+            }
+            tx.expression_completed(call, true, true);
+            if mutation != 1 {
+                tx.bound(previous, call);
+            }
+            if mutation == 12 {
+                tx.dropped(declaration(&fixture, call), previous);
+            }
+            if mutation == 16 {
+                tx.bound(final_symbol, group);
+            }
+            tx.moved(
+                name,
+                if mutation == 3 {
+                    None
+                } else if mutation == 4 {
+                    Some(root)
+                } else {
+                    Some(previous)
+                },
+            );
+            if mutation == 5 {
+                tx.moved(name, Some(previous));
+            }
+            if mutation != 7 {
+                tx.expression_completed(name, mutation != 6, mutation != 17);
+            }
+            if mutation == 10 {
+                tx.bound(final_symbol, group);
+            }
+            if mutation != 9 {
+                tx.expression_completed(group, mutation != 8, true);
+            }
+            tx.bound(final_symbol, if mutation == 11 { name } else { group });
+            tx.dropped(
+                if mutation == 13 {
+                    declaration(&fixture, call)
+                } else {
+                    declaration(&fixture, group)
+                },
+                final_symbol,
+            );
+            if mutation == 14 {
+                tx.dropped(declaration(&fixture, group), final_symbol);
+            }
+            assert_eq!(tx.finish().is_some(), mutation == 0, "mutation {mutation}");
+        }
+    });
+}
