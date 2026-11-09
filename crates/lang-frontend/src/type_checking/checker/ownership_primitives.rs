@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-use super::{Checker, ExprCheck, TypeCheckingError};
+use super::{CallRecovery, Checker, ExprCheck, TypeCheckingError};
 
 impl Checker<'_> {
     pub(super) fn check_intrinsic_ownership_primitive_call(
@@ -230,7 +230,8 @@ impl Checker<'_> {
             || self.is_deferred(arg1_result.ty)
         {
             if !valid || self.is_error(t) {
-                self.inout_call_may_write.insert(expression.index(), false);
+                self.call_recoveries
+                    .insert(expression.index(), CallRecovery::Rejected);
             }
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),
@@ -452,7 +453,8 @@ impl Checker<'_> {
             || self.is_deferred(arg1_result.ty)
         {
             if !valid || self.is_error(t) {
-                self.inout_call_may_write.insert(expression.index(), false);
+                self.call_recoveries
+                    .insert(expression.index(), CallRecovery::Rejected);
             }
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),

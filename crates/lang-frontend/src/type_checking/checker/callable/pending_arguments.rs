@@ -2,6 +2,35 @@
 use super::*;
 
 impl Checker<'_> {
+    pub(in crate::type_checking::checker) fn call_operand_recovery(
+        &self,
+        mut expression: ExpressionId,
+        ty: TypeId,
+    ) -> Option<CallRecovery> {
+        let fallback = if self.is_error(ty) {
+            CallRecovery::Rejected
+        } else if self.is_deferred(ty) {
+            CallRecovery::Pending
+        } else {
+            return None;
+        };
+        loop {
+            if let Some(&recovery) = self.call_recoveries.get(&expression.index()) {
+                return Some(recovery);
+            }
+            let Some(Expression::Group { expression: inner }) = self
+                .ast()
+                .expressions()
+                .get(expression)
+                .ok()
+                .map(|node| node.payload())
+            else {
+                return Some(fallback);
+            };
+            expression = *inner;
+        }
+    }
+
     pub(super) fn pending_call_receiver_exit(
         &self,
         callee: ExpressionId,
@@ -76,6 +105,7 @@ impl Checker<'_> {
     ) -> Result<ExprCheck, TypeCheckingError> {
         let mut valid = true;
         let mut deferred = false;
+        let mut rejected = false;
         let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for (argument_index, argument) in arguments.iter().enumerate() {
             let parameter = &candidate.parameters[mapping[argument_index]];
@@ -88,6 +118,8 @@ impl Checker<'_> {
             )?;
             valid &= !self.is_error(result.ty);
             deferred |= self.is_deferred(result.ty);
+            rejected |= self.call_operand_recovery(argument.value, result.ty)
+                == Some(CallRecovery::Rejected);
             if (was_checked || parameter.mode == ParameterMode::Inout)
                 && !self.is_error(result.ty)
                 && !self.is_deferred(result.ty)
@@ -100,6 +132,7 @@ impl Checker<'_> {
                     parameter.ty,
                 )?;
                 valid = false;
+                rejected = true;
             }
             if !deferred
                 && matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
@@ -114,20 +147,22 @@ impl Checker<'_> {
                     parameter: parameter.span,
                 })?;
                 valid = false;
+                rejected = true;
             }
         }
-        if deferred {
-            if !valid {
-                self.inout_call_may_write.insert(expression.index(), false);
-            }
+        if deferred || !valid {
+            let recovery = if rejected {
+                CallRecovery::Rejected
+            } else {
+                CallRecovery::Pending
+            };
+            self.call_recoveries.insert(expression.index(), recovery);
             return Ok(ExprCheck {
-                ty: self.deferred(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        if !valid {
-            return Ok(ExprCheck {
-                ty: self.error_type(),
+                ty: if deferred {
+                    self.deferred(DeferredReason::Call)
+                } else {
+                    self.error_type()
+                },
                 falls_through: true,
             });
         }

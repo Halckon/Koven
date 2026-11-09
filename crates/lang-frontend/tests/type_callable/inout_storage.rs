@@ -234,3 +234,33 @@ fn pending_ownership_intrinsics_do_not_write_after_a_proven_rejection() {
         &[("L0084", "x"), ("L0122", "&produce<Int>()")],
     );
 }
+
+#[test]
+fn rejected_recovery_values_do_not_enable_outer_inout_writes() {
+    let declarations = "fun build(inout target: Int, input: Int, cb: (inout Int?) -> Boolean): (inout Int?) -> Boolean = cb\nfun outer(inout target: Int?, cb: (inout Int?) -> Boolean): Boolean { target = null; return true }";
+    for call in [
+        "build(&y, produce<Int>(), cb)(&x)",
+        "(build(&y, produce<Int>(), cb))(&x)",
+        "outer(&x, build(&y, produce<Int>(), cb))",
+    ] {
+        let text = format!(
+            "{declarations}\nfun run(produce: () -> Int, cb: (inout Int?) -> Boolean): Unit {{ var y: Int? = 7; var x: Int? = 7; if (x != null) {{ {call}; val after: Int = x }} }}"
+        );
+        assert_inout_diagnostic_spans(&text, &[("L0084", "y")]);
+    }
+}
+
+#[test]
+fn pending_recovery_values_keep_outer_inout_writes_conservative() {
+    let declarations = "fun choose(value: Int, cb: (inout Int?) -> Boolean): (inout Int?) -> Boolean = cb\nfun choose(value: Boolean, cb: (inout Int?) -> Boolean): (inout Int?) -> Boolean = cb\nfun outer(inout target: Int?, cb: (inout Int?) -> Boolean): Boolean { target = null; return true }";
+    for call in [
+        "choose(produce<Int>(), cb)(&x)",
+        "(choose(produce<Int>(), cb))(&x)",
+        "outer(&x, choose(produce<Int>(), cb))",
+    ] {
+        let text = format!(
+            "{declarations}\nfun run(produce: () -> Int, cb: (inout Int?) -> Boolean): Unit {{ var x: Int? = 7; if (x != null) {{ {call}; val after: Int = x }} }}"
+        );
+        assert_inout_diagnostic_spans(&text, &[("L0084", "x")]);
+    }
+}

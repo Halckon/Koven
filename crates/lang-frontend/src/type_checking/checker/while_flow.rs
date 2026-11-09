@@ -97,12 +97,7 @@ impl Checker<'_> {
         Ok(collect_expression_mutation_targets_with_inout_filter(
             self.syntactic_boolean_outcomes,
             expression,
-            |call| {
-                self.inout_call_may_write
-                    .get(&call.index())
-                    .copied()
-                    .unwrap_or(true)
-            },
+            |call| self.call_recoveries.get(&call.index()) != Some(&CallRecovery::Rejected),
         )?
         .into_iter()
         .filter_map(|target| self.stable_flow_key(target))
