@@ -117,6 +117,10 @@ impl UnitExpressionLowerer<'_> {
         self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_loop(&baseline, header, &context, span)?;
         self.closure_bindings = baseline_closures;
+        let ordinary_condition = self.constant_owned.is_none().then(|| {
+            self.typed
+                .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, condition))
+        });
         let Some(condition) = self.lower_optional_condition_value(condition, span)? else {
             return Ok(LoweredValue::Diverged);
         };
@@ -131,7 +135,11 @@ impl UnitExpressionLowerer<'_> {
         {
             Some(value)
         } else {
-            None
+            match ordinary_condition {
+                Some((true, false)) => Some(true),
+                Some((false, true)) => Some(false),
+                _ => None,
+            }
         };
         if constant_condition == Some(false) {
             self.emit_loop_exit(statement)?;

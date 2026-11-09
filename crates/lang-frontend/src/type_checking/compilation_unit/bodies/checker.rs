@@ -394,6 +394,11 @@ impl<'a> BodyChecker<'a> {
             .integer_operations
             .sort_by_key(|fact| fact.expression());
         self.finish_nullable_when_facts();
+        for source in source_units {
+            let unit = source.id();
+            self.parts
+                .record_ordinary_boolean_outcomes(unit, self.files[unit.index()]);
+        }
         // 排序与全部 trial 完成后才分流。诊断候选仍属原 owner，不重新发布执行表。
         if !self.signatures.is_valid()
             || diagnostics

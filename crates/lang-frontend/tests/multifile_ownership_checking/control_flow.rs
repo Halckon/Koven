@@ -427,3 +427,149 @@ fn while_liveness_converges_when_the_condition_replaces_the_live_out_owner() {
         owned.validate().expect("valid ownership");
     }
 }
+
+#[test]
+fn ordinary_short_circuit_bypass_checks_uses_after_move_when_rhs_returns() {
+    for (body, bypass_live) in [
+        (
+            "return when { flag && pred(return 7) -> 2; else -> { observe(x); 3 } }",
+            true,
+        ),
+        (
+            "return when { flag || pred(return 7) -> { observe(x); 2 }; else -> 3 }",
+            true,
+        ),
+        (
+            "val ignored = true && pred(return 7)\nobserve(x)\nreturn 2",
+            false,
+        ),
+        (
+            "val ignored = !true || pred(return 7)\nobserve(x)\nreturn 2",
+            false,
+        ),
+        (
+            "return when { flag && pred(return 7) -> { observe(x); 2 }; else -> 3 }",
+            false,
+        ),
+        (
+            "return when { flag || pred(return 7) -> 2; else -> { observe(x); 3 } }",
+            false,
+        ),
+        (
+            "if (flag && pred(return 7)) { observe(x) }\nreturn 3",
+            false,
+        ),
+        (
+            "while (flag && pred(return 7)) { observe(x) }\nreturn 3",
+            false,
+        ),
+        (
+            "while (flag || pred(return 7)) { return 2 }\nobserve(x)\nreturn 3",
+            false,
+        ),
+        (
+            "while (flag || pred(return 7)) { break }\nobserve(x)\nreturn 3",
+            true,
+        ),
+        (
+            "return when { (flag && pred(return 7)) && reads(x) -> 2; else -> 3 }",
+            false,
+        ),
+        (
+            "return when { (flag || pred(return 7)) || reads(x) -> 2; else -> 3 }",
+            false,
+        ),
+    ] {
+        for prefix in ["consume(x)", ""] {
+            let expected = if bypass_live && !prefix.is_empty() {
+                ["L0131"].as_slice()
+            } else {
+                [].as_slice()
+            };
+            let text = format!(
+                "class Node(val tag: Int)
+                 fun observe(borrow value: Node): Unit {{ val tag = value.tag }}
+                 fun reads(borrow value: Node): Boolean = value.tag == 1
+                 fun consume(own value: Node): Unit {{}}
+                 fun pred(value: Int): Boolean = true
+                 fun test(flag: Boolean, own x: Node): Int {{
+                     {prefix}
+                     {body}
+                 }}"
+            );
+            let mut sources = SourceMap::new();
+            let (source, file) = parsed(&mut sources, "when-short-circuit-owner.ko", &text);
+            let (name_environment, type_environment) = standard_environments();
+            for input in [
+                SourceUnitInput::memory_document(source, &file),
+                SourceUnitInput::new("root", "when-short-circuit-owner.ko", source, &file),
+            ] {
+                let inputs = [input];
+                let names = validated_names(&sources, &inputs, &name_environment);
+                let typed = validated_types(&sources, &inputs, &names, &type_environment);
+                let owned = check_compilation_unit_ownership(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &type_environment,
+                    &typed,
+                )
+                .expect("ownership product");
+                assert_eq!(diagnostic_codes(&owned), expected, "{body}: {prefix}");
+                if expected.is_empty() {
+                    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+                    owned.validate().expect("valid ownership");
+                } else {
+                    assert_eq!(
+                        sources.slice(owned.diagnostics()[0].primary_span()),
+                        Ok("x")
+                    );
+                    assert!(owned.validate().is_err());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_short_circuit_required_rhs_reinitializes_moved_owner() {
+    for (selector, expected) in [
+        ("true &&", [].as_slice()),
+        ("!true ||", [].as_slice()),
+        ("flag &&", ["L0131"].as_slice()),
+        ("flag ||", ["L0131"].as_slice()),
+    ] {
+        let text = format!(
+            "class Node(val tag: Int)
+             fun observe(borrow value: Node): Unit {{ val tag = value.tag }}
+             fun consume(own value: Node): Unit {{}}
+             fun test(flag: Boolean): Unit {{
+                 var x = Node(0)
+                 consume(x)
+                 val ignored = {selector} (if (flag) {{ x = Node(1); true }} else {{ x = Node(2); true }})
+                 observe(x)
+             }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "short-circuit-reinitialize.ko", &text);
+        let (name_environment, type_environment) = standard_environments();
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "short-circuit-reinitialize.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let names = validated_names(&sources, &inputs, &name_environment);
+            let typed = validated_types(&sources, &inputs, &names, &type_environment);
+            let owned = check_compilation_unit_ownership(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+            )
+            .expect("ownership product");
+            assert_eq!(diagnostic_codes(&owned), expected, "{selector}");
+            assert_eq!(owned.validate().is_ok(), expected.is_empty(), "{selector}");
+        }
+    }
+}

@@ -24,17 +24,25 @@ impl Checker<'_> {
             return Ok(prefix);
         };
         let (then_branch, else_branch) = arms;
-        let mut then_state = base.clone();
-        self.release_exclusive_branch(control, 0, &mut then_state);
-        self.release_exclusive_branch(control, 1, &mut base);
-        let mut branches =
-            self.check_control_body(then_branch, then_state, branch_usage, escaping)?;
-        branches.merge(if let Some(else_branch) = else_branch {
-            self.check_control_body(else_branch, base, branch_usage, escaping)?
-        } else {
-            Flows::next(base)
-        });
-        prefix.merge(branches);
+        let (reaches_then, reaches_else) = self.ordinary_condition_outcomes(condition);
+        if reaches_then {
+            let mut then_state = base.clone();
+            self.release_exclusive_branch(control, 0, &mut then_state);
+            prefix.merge(self.check_control_body(
+                then_branch,
+                then_state,
+                branch_usage,
+                escaping,
+            )?);
+        }
+        if reaches_else {
+            self.release_exclusive_branch(control, 1, &mut base);
+            prefix.merge(if let Some(else_branch) = else_branch {
+                self.check_control_body(else_branch, base, branch_usage, escaping)?
+            } else {
+                Flows::next(base)
+            });
+        }
         Ok(prefix)
     }
 
@@ -83,8 +91,18 @@ impl Checker<'_> {
                 if let Some(expression) = expression {
                     let mut flows =
                         self.check_expression(expression, current, ExpressionUse::Read)?;
-                    merge_optional_state(&mut body_state, flows.next.clone());
-                    condition_state = flows.next.take();
+                    let (can_match, can_miss) = if subject.is_none() {
+                        self.ordinary_condition_outcomes(expression)
+                    } else {
+                        (true, true)
+                    };
+                    let next = flows.next.take();
+                    if can_match {
+                        merge_optional_state(&mut body_state, next.clone());
+                    }
+                    if can_miss {
+                        condition_state = next;
+                    }
                     prefix.merge(flows);
                 } else {
                     merge_optional_state(&mut body_state, Some(current.clone()));

@@ -373,7 +373,17 @@ impl Checker<'_> {
                 state.origins.attach(&self.callable_sources.arena);
                 let headers = state.origins.begin_loop();
                 let prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(prefix, body, id, errors, &headers)
+                let (can_enter, can_skip) = self.ordinary_condition_outcomes(condition);
+                if can_enter {
+                    let flows =
+                        self.check_maybe_loop(prefix, body, id, errors, &headers, can_skip)?;
+                    if !can_skip && flows.next.is_none() {
+                        self.non_fallthrough_whiles.insert(id.index());
+                    }
+                    Ok(flows)
+                } else {
+                    Ok(prefix)
+                }
             }
             Statement::For { source, body, .. } => self.check_iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
@@ -451,6 +461,7 @@ impl Checker<'_> {
             super::UnitSymbolId,
             crate::ownership_checking::callable_provenance::graph::NodeId,
         )],
+        can_skip: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
@@ -460,6 +471,13 @@ impl Checker<'_> {
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, repeated, &body)?;
             self.check_loop_capture_transport(repeated, body_id, &base, &body)?;
+        }
+        if !can_skip {
+            for state in [&body.next, &body.continues].into_iter().flatten() {
+                state.origins.backedge(headers);
+            }
+            prefix.next = body.breaks;
+            return Ok(prefix);
         }
         let origins = base.origins.loop_exit(
             headers,

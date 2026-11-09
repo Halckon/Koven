@@ -537,11 +537,18 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Statement::While {
                 condition, body, ..
             } => {
-                self.expression(condition, DropExpressionUse::Read, state)?;
-                let mut body_state = state.clone();
-                self.loop_boundaries.push(self.scope_depth);
-                self.statement(body, &mut body_state)?;
-                self.loop_boundaries.pop();
+                if !self.expression(condition, DropExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
+                if self.checker.ordinary_condition_outcomes(condition).0 {
+                    let mut body_state = state.clone();
+                    self.loop_boundaries.push(self.scope_depth);
+                    self.statement(body, &mut body_state)?;
+                    self.loop_boundaries.pop();
+                }
+                if self.checker.non_fallthrough_whiles.contains(&id.index()) {
+                    return Ok(false);
+                }
                 self.drop_loop_exit(id, state);
                 Ok(true)
             }
@@ -658,6 +665,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         if let Some(plan) = self.checker.short_circuit_plan(id)? {
             use super::super::constant::UnitShortCircuitRhs;
+            if !self.checker.constant_control
+                && self
+                    .checker
+                    .typed
+                    .expression_falls_through(self.checker.unit_expression(id))
+                    != Some(false)
+            {
+                return self.short_circuit(id, plan, state);
+            }
             if !self.expression(plan.left.expression(), DropExpressionUse::Read, state)? {
                 return Ok(false);
             }
@@ -815,12 +831,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             } if self.uses_string_binary_operands(left, operator, right) => {
                 self.string_binary(left, right, id, state)
             }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
-                right,
-                ..
-            } => self.short_circuit(id, left, right, state),
             Expression::Binary {
                 left,
                 operator,

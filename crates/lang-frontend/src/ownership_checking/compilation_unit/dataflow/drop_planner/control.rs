@@ -169,15 +169,27 @@ impl DropPlanner<'_, '_> {
                 let Some(mut input) = remaining.take() else {
                     break;
                 };
-                if let WhenCondition::Expression(expression)
-                | WhenCondition::Contains { expression, .. } = condition
-                    && !self.expression(*expression, DropExpressionUse::Read, &mut input)?
-                {
-                    break;
+                let (can_match, can_miss) = match condition {
+                    WhenCondition::Expression(expression)
+                    | WhenCondition::Contains { expression, .. } => {
+                        if !self.expression(*expression, DropExpressionUse::Read, &mut input)? {
+                            break;
+                        }
+                        if subject.is_none() {
+                            self.checker.ordinary_condition_outcomes(*expression)
+                        } else {
+                            (true, true)
+                        }
+                    }
+                    WhenCondition::TypeTest { .. } => (true, true),
+                };
+                if can_match {
+                    matched.push(input.clone());
+                    alternatives.push(alternative);
                 }
-                matched.push(input.clone());
-                alternatives.push(alternative);
-                remaining = Some(input);
+                if can_miss {
+                    remaining = Some(input);
+                }
             }
             if matched.is_empty() {
                 continue;

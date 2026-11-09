@@ -230,13 +230,20 @@ impl Builder<'_, '_> {
                 condition, body, ..
             } => {
                 // The condition can kill exit-live values before control reaches either edge.
+                let (can_enter, can_skip) = self.checker.ordinary_condition_outcomes(condition);
                 let mut header = LiveSet::new();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
-                    let body_in = self.statement(body, header.clone())?;
+                    let body_in = if can_enter {
+                        self.statement(body, header.clone())?
+                    } else {
+                        LiveSet::new()
+                    };
                     self.loop_stack.pop();
-                    let mut condition_after = live_after.clone();
-                    condition_after.extend(body_in);
+                    let mut condition_after = body_in;
+                    if can_skip {
+                        condition_after.extend(live_after.iter().copied());
+                    }
                     let next = self.expression(condition, ExpressionUse::Read, condition_after)?;
                     if next == header {
                         return Ok(next);
@@ -435,8 +442,16 @@ impl Builder<'_, '_> {
                 else_branch,
                 ..
             } => {
-                let then_live = self.statement(then_branch, live_after.clone())?;
-                let else_live = if let Some(else_branch) = else_branch {
+                let (reaches_then, reaches_else) =
+                    self.checker.ordinary_condition_outcomes(condition);
+                let then_live = if reaches_then {
+                    self.statement(then_branch, live_after.clone())?
+                } else {
+                    LiveSet::new()
+                };
+                let else_live = if !reaches_else {
+                    LiveSet::new()
+                } else if let Some(else_branch) = else_branch {
                     self.statement(else_branch, live_after)?
                 } else {
                     live_after
@@ -489,12 +504,24 @@ impl Builder<'_, '_> {
                     }
                     for condition in entry.conditions.into_iter().rev() {
                         // Only this selector's normal exits can match the body or try the next one.
-                        live.extend(body.iter().copied());
                         if let WhenCondition::Expression(expression)
                         | WhenCondition::Contains { expression, .. } = condition
                         {
+                            let (can_match, can_miss) = if subject.is_none() {
+                                self.checker.ordinary_condition_outcomes(expression)
+                            } else {
+                                (true, true)
+                            };
+                            if !can_miss {
+                                live.clear();
+                            }
+                            if can_match {
+                                live.extend(body.iter().copied());
+                            }
                             live.extend(string_subject);
                             live = self.expression(expression, ExpressionUse::Read, live)?;
+                        } else {
+                            live.extend(body.iter().copied());
                         }
                     }
                     self.when_entry_live_in.insert((id.index(), index), body);
