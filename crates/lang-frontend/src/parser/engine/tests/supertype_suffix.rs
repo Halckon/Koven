@@ -67,6 +67,7 @@ fn unsupported_delegation_suffixes_use_linear_significant_visits() {
         " + Junk<A, B>([A, B], { -> 1 })",
         " { value -> value } /* closer trivia */",
         " +\n { -> 1 } /* closer trivia */",
+        " { -> 1 } /* lambda gap */ (1, 2) /* call gap */ (3) /* closer trivia */",
     ] {
         let (small_raw, small_visits, small_items) = metrics(32, suffix);
         let (large_raw, large_visits, large_items) = metrics(64, suffix);

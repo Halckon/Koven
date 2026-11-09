@@ -337,27 +337,42 @@ impl Parser<'_> {
         ) {
             return Ok(None);
         }
-        // Require a header continuation before spending a brace that might close
-        // an enclosing classifier in incomplete source.
-        Ok(self
-            .lexical_recoveries
-            .angle_group_closer(self.lexed, raw)
-            .filter(|closer| {
-                self.lexed.lexemes()[closer + 1..]
-                    .iter()
-                    .find(|lexeme| {
-                        #[cfg(test)]
-                        self.significant_raw_visits
-                            .set(self.significant_raw_visits.get() + 1);
-                        !matches!(lexeme.kind(), LexemeKind::Trivia(_))
-                    })
-                    .is_some_and(|lexeme| {
-                        matches!(
-                            lexeme.kind(),
-                            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::LeftBrace))
-                        )
-                    })
-            }))
+        let Some(lambda_closer) = self.lexical_recoveries.angle_group_closer(self.lexed, raw)
+        else {
+            return Ok(None);
+        };
+        // A paired call may follow the lambda. Still require an outer header
+        // delimiter before spending a brace that might close the classifier.
+        let mut previous_closer = lambda_closer;
+        let mut next = lambda_closer + 1;
+        while let Some(lexeme) = self.lexed.lexemes().get(next) {
+            #[cfg(test)]
+            self.significant_raw_visits
+                .set(self.significant_raw_visits.get() + 1);
+            match lexeme.kind() {
+                LexemeKind::Trivia(_) => next += 1,
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
+                    if self.gap_has_line_break(
+                        self.lexed.lexemes()[previous_closer].span().end(),
+                        lexeme.span().start(),
+                    )? {
+                        break;
+                    }
+                    let Some(call_closer) =
+                        self.lexical_recoveries.angle_group_closer(self.lexed, next)
+                    else {
+                        break;
+                    };
+                    previous_closer = call_closer;
+                    next = call_closer + 1;
+                }
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::LeftBrace)) => {
+                    return Ok(Some(lambda_closer));
+                }
+                _ => break,
+            }
+        }
+        Ok(None)
     }
 
     fn consume_closed_supertype_group(&mut self) -> Result<Option<Span>, ParserInternalError> {

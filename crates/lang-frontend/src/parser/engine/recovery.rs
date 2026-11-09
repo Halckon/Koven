@@ -794,6 +794,7 @@ impl Parser<'_> {
             }
             let outside_owner = owners.is_empty();
             if outside_owner
+                && delimiters.is_empty()
                 && paired_groups.is_empty()
                 && stops.in_unsupported_delegation_suffix()
                 && symbol == Some(Symbol::LeftBrace)

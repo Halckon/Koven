@@ -643,6 +643,8 @@ fn unsupported_delegation_suffix_keeps_proven_delimiters_with_the_original_targe
         (" { -> 1 }", "{"),
         (" + { -> 1 }", "+"),
         (" + { value, other -> value }", "+"),
+        (" { -> 1 }()", "{"),
+        (" + { value, other -> value }(1, 2)(3)", "+"),
         (" +\n { -> 1 }", "+"),
         ("<A", "<"),
     ] {
@@ -689,6 +691,7 @@ fn delegation_lambda_suffix_keeps_the_real_classifier_body() {
     for (suffix, expected) in [
         ("+", &["L0077"][..]),
         ("+ { -> 1 }", &["L0077"][..]),
+        ("+ { -> 1 }(2)(3)", &["L0077"][..]),
         ("+ { -> \"bad\n }", &["L0077", "L0004"][..]),
     ] {
         let member = "fun keep(callback: () -> Int): Unit {}";
@@ -727,38 +730,66 @@ fn delegation_lambda_suffix_keeps_the_real_classifier_body() {
 }
 
 #[test]
-fn newline_after_the_delegation_target_keeps_the_class_body_owner() {
+fn unproved_delegation_lambda_continuations_keep_the_class_body_owner() {
     let member = "fun keep(): Unit {}";
-    let text = format!("class C: I by delegate\n{{ ->\n {member}\n}}, J {{}}");
-    let (sources, parsed) = declaration(&text);
-    let file = parse_file_twice(&sources, parsed.source_id(), &text);
-    let Item::Classifier(file_class) = file.ast().items().get(file.roots()[0]).unwrap().payload()
-    else {
-        panic!("file classifier");
-    };
-    for (ast, class, diagnostics) in [
-        (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
-        (file.ast(), file_class, file.diagnostics()),
+    for (text, first_code) in [
+        (
+            format!("class C: I by delegate\n{{ ->\n {member}\n}}, J {{}}"),
+            "L0071",
+        ),
+        (
+            format!("class C: I by delegate\n{{ ->\n {member}\n}}(1), J {{}}"),
+            "L0071",
+        ),
+        (
+            format!("class C: I by delegate {{ ->\n {member}\n}}(1, J {{}}"),
+            "L0071",
+        ),
+        (
+            format!("class C: I by delegate {{ ->\n {member}\n}}\n(1), J {{}}"),
+            "L0071",
+        ),
+        (
+            format!("class C: I by delegate {{ ->\n {member}\n}}(1) /*\n*/ (2), J {{}}"),
+            "L0071",
+        ),
+        (
+            format!("class C: I by delegate + ( {{ ->\n {member}\n}}(1), J {{}}"),
+            "L0077",
+        ),
     ] {
-        assert_eq!(
-            codes(diagnostics).first().map(String::as_str),
-            Some("L0071")
-        );
-        let [parent] = class.supertypes.as_slice() else {
-            panic!("the comma after the class body is not a parent separator");
+        let (sources, parsed) = declaration(&text);
+        let file = parse_file_twice(&sources, parsed.source_id(), &text);
+        let Item::Classifier(file_class) =
+            file.ast().items().get(file.roots()[0]).unwrap().payload()
+        else {
+            panic!("file classifier");
         };
-        assert_eq!(
-            sources.slice(parent.delegation.unwrap().span),
-            Ok("by delegate")
-        );
-        let body = class.body.as_ref().unwrap();
-        assert!(
-            body.members
-                .iter()
-                .any(|item| sources.slice(ast.items().get(*item).unwrap().span()) == Ok(member)),
-            "the original class body still owns the member"
-        );
-        assert!(body.right_brace_span.is_some());
+        for (ast, class, diagnostics) in [
+            (parsed.ast(), classifier(&parsed), parsed.diagnostics()),
+            (file.ast(), file_class, file.diagnostics()),
+        ] {
+            assert_eq!(
+                codes(diagnostics).first().map(String::as_str),
+                Some(first_code),
+                "{text}"
+            );
+            let [parent] = class.supertypes.as_slice() else {
+                panic!("the comma after the class body is not a parent separator");
+            };
+            assert_eq!(
+                sources.slice(parent.delegation.unwrap().span),
+                Ok("by delegate")
+            );
+            let body = class.body.as_ref().unwrap();
+            assert!(
+                body.members
+                    .iter()
+                    .any(|item| sources.slice(ast.items().get(*item).unwrap().span()) == Ok(member)),
+                "the original class body still owns the member"
+            );
+            assert!(body.right_brace_span.is_some());
+        }
     }
 }
 
