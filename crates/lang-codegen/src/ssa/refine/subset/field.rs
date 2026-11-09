@@ -3,7 +3,7 @@
 use lang_frontend::{
     ast::{ExpressionId, ItemId},
     name_resolution::SymbolKind,
-    parser::{AssignmentOperator, Expression, Item, NameMarker},
+    parser::{AssignmentOperator, Expression, Item, NameMarker, VariableKind},
     type_checking::{
         Copyability, ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
     },
@@ -29,12 +29,19 @@ impl Checker<'_, '_> {
         let Item::Variable {
             name: NameMarker::Present(name_span),
             initializer,
+            kind,
             ..
         } = node.payload().clone()
         else {
             return false;
         };
         let initializer_id = self.id(initializer);
+        if matches!(kind, VariableKind::BorrowVal(_))
+            && self.inputs.typed.expression_falls_through(initializer_id) == Some(false)
+        {
+            // The initializer never establishes the binding or its result loan.
+            return self.expression(initializer);
+        }
         if let Some(fact) = self
             .inputs
             .owned

@@ -84,6 +84,41 @@ fn assert_flow(program: &Program) {
 }
 
 #[test]
+fn abandoned_borrow_result_has_no_result_operation_or_callee_instance() {
+    let source = r#"fun view(source: String, own n: Int): borrow String from source = source
+fun entry() {
+    val owner = "kept".clone()
+    borrow val item = view(owner, return)
+    println(item)
+}"#;
+    for lower in [memory_unit, super::borrow_storage_contract_tests::unit] {
+        let program = lower(source).unwrap();
+        verify_program(&program).unwrap();
+        crate::llvm::render_verified_program(&program).unwrap();
+        let mut functions = program.modules.iter().flat_map(|module| &module.functions);
+        assert!(
+            functions
+                .clone()
+                .all(|function| !function.name.contains(".view."))
+        );
+        let entry = functions
+            .find(|function| function.name.contains(".entry."))
+            .expect("entry lowered");
+        assert!(
+            entry.instructions.iter().any(|instruction| {
+                matches!(instruction.operation, Operation::BorrowEnd { .. })
+            })
+        );
+        assert!(entry.instructions.iter().all(|instruction| {
+            !matches!(
+                instruction.operation,
+                Operation::BorrowCall { .. } | Operation::PrintString { .. }
+            )
+        }));
+    }
+}
+
+#[test]
 fn borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move() {
     assert_flow(&memory_unit(&format!("{PROVIDER}{ENTRY}")).unwrap());
 }
@@ -337,22 +372,153 @@ fn ordinary_result_local_rejects_control_while_scope_still_owns_the_loan() {
     }
 }
 
+fn with_extra_value_parameter(source: &str) -> String {
+    source
+        .replacen(
+            "fun view(source: String)",
+            "fun view(source: String, own extra: Int)",
+            1,
+        )
+        .replacen(
+            "= view(source)\nfun consume",
+            "= view(source, 1)\nfun consume",
+            1,
+        )
+}
+
+#[test]
+fn ordinary_result_local_ends_source_before_dropping_owner_on_argument_return() {
+    let body = format!(
+        "borrow val item = view(source, if (flag) {{ return }} else {{ 1 }})\n    {LOCAL_RESULT_READ}"
+    );
+    for source in local_result_control_sources(&body) {
+        let source = with_extra_value_parameter(&source);
+        for lower in [memory_unit, super::borrow_storage_contract_tests::unit] {
+            let program = lower(&source).unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            let probe = program.modules[0]
+                .functions
+                .iter()
+                .find(|function| function.name.contains(".probe."))
+                .unwrap();
+            let (return_edge, normal_edge) = probe
+                .blocks
+                .iter()
+                .find_map(|block| {
+                    let TerminatorKind::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } = &block.terminator.as_ref()?.kind
+                    else {
+                        return None;
+                    };
+                    Some((when_true, when_false))
+                })
+                .expect("argument conditional");
+            assert_eq!(return_edge.arguments, normal_edge.arguments);
+            let returning = &probe.blocks[return_edge.target.index()];
+            let normal = &probe.blocks[normal_edge.target.index()];
+            let [EntityId::Value(owner), EntityId::Loan(returning_loan)] =
+                returning.parameters.as_slice()
+            else {
+                panic!("exit arm receives owner and source loan");
+            };
+            let [EntityId::Value(_), EntityId::Loan(normal_loan)] = normal.parameters.as_slice()
+            else {
+                panic!("normal arm receives owner and source loan");
+            };
+            assert!(matches!(
+                returning.terminator.as_ref().unwrap().kind,
+                TerminatorKind::Return { .. }
+            ));
+            let dispatches: Vec<_> = probe
+                .instructions
+                .iter()
+                .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
+                .collect();
+            let [dispatch] = dispatches.as_slice() else {
+                panic!("only the normal arm dispatches");
+            };
+            assert_eq!(dispatch.block, normal.id);
+            assert!(
+                matches!(dispatch.operation, Operation::BorrowCall { source, .. } if source == *normal_loan)
+            );
+            let mut exit = returning
+                .instructions
+                .iter()
+                .map(|id| &probe.instructions[id.index()]);
+            assert!(exit.any(|i| i.operation
+                == Operation::BorrowEnd {
+                    loan: *returning_loan
+                }));
+            assert!(exit.any(|i| i.operation == Operation::Drop { owner: *owner }));
+        }
+    }
+}
+
+#[test]
+fn ordinary_result_argument_return_shares_only_proved_disjoint_controls() {
+    let conditional =
+        "borrow val item = view(source, if (flag) { return } else { 1 }); println(item)";
+    let disjoint = format!(
+        "{{ borrow val before = view(source, 0); println(before) }}\n    {{ {conditional} }}\n    {{ borrow val after = view(source, 2); println(after) }}"
+    );
+    let overlapping = format!(
+        "borrow val before = view(source, 0)\n    {{ {conditional} }}\n    println(before)"
+    );
+    let missing_prefix = format!(
+        "{{ {conditional} }}\n    {{ borrow val unproved = view(extra = if (flag) {{ return }} else {{ 1 }}, source = source); println(unproved) }}"
+    );
+    for (body, accepted) in [
+        (disjoint, true),
+        (overlapping, false),
+        (missing_prefix, false),
+    ] {
+        for source in local_result_control_sources(&body) {
+            let source = with_extra_value_parameter(&source);
+            for (lower, prefix_len) in [
+                (memory_unit as fn(&str) -> _, 0),
+                (
+                    super::borrow_storage_contract_tests::unit,
+                    "package p\n".len(),
+                ),
+            ] {
+                if accepted {
+                    let program = lower(&source).unwrap();
+                    verify_program(&program).unwrap();
+                    crate::llvm::render_verified_program(&program).unwrap();
+                } else {
+                    let error = lower(&source)
+                        .err()
+                        .expect("sibling has no applicable control proof");
+                    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+                    let span = error.span.expect("exact unsupported control boundary");
+                    let start = source.rfind("return").unwrap() + prefix_len;
+                    assert_eq!((span.start(), span.end()), (start, start + "return".len()));
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn ordinary_result_local_preserves_argument_boundary() {
-    for argument in ["if (flag) { 1 } else { 2 }", "-1"] {
-        let body = format!("borrow val item = view(source, {argument})\n    {LOCAL_RESULT_READ}");
+    for (arguments, rejected) in [
+        (
+            "source, if (flag) { 1 } else { 2 }",
+            "if (flag) { 1 } else { 2 }",
+        ),
+        ("source, -1", "-1"),
+        (
+            "extra = if (flag) { return } else { 1 }, source = source",
+            "return",
+        ),
+    ] {
+        let body = format!("borrow val item = view({arguments})\n    {LOCAL_RESULT_READ}");
         for source in local_result_control_sources(&body) {
-            let source = source
-                .replacen(
-                    "fun view(source: String)",
-                    "fun view(source: String, own extra: Int)",
-                    1,
-                )
-                .replacen(
-                    "= view(source)\nfun consume",
-                    "= view(source, 1)\nfun consume",
-                    1,
-                );
+            let source = with_extra_value_parameter(&source);
             for (lower, prefix_len) in [
                 (memory_unit as fn(&str) -> _, 0),
                 (
@@ -365,8 +531,8 @@ fn ordinary_result_local_preserves_argument_boundary() {
                     .expect("borrowed call argument rejected");
                 assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
                 let span = error.span.expect("exact argument boundary");
-                let start = source.find(argument).unwrap() + prefix_len;
-                assert_eq!((span.start(), span.end()), (start, start + argument.len()));
+                let start = source.find(rejected).unwrap() + prefix_len;
+                assert_eq!((span.start(), span.end()), (start, start + rejected.len()));
             }
         }
     }

@@ -75,7 +75,7 @@ pub(super) fn binding(
     marker: Span,
     range: bool,
     range_prefixes: &[Span],
-    disjoint_ifs: Option<&BTreeSet<usize>>,
+    allowed_controls: Option<&BTreeSet<usize>>,
     scope: Option<StatementId>,
     builtin: impl Fn(ExpressionId) -> Option<BuiltinType>,
     call_allowed: impl Fn(ExpressionId, CallAccess) -> bool,
@@ -92,7 +92,7 @@ pub(super) fn binding(
         .min_by_key(|span| span.end() - span.start())
         .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, marker))?;
     for (expression, node) in parsed.ast().expressions().iter() {
-        if disjoint_ifs.is_some_and(|ifs| ifs.contains(&expression.index())) {
+        if allowed_controls.is_some_and(|controls| controls.contains(&expression.index())) {
             continue;
         }
         // Checked Int arithmetic uses the existing success/Abort edges and their
@@ -191,8 +191,7 @@ pub(super) fn source_index(
     }
 }
 
-/// An ordinary result call does not transport its source chain through argument CFG.
-/// Restrict only this argument subtree; unrelated earlier straight-line work is unchanged.
+/// Reject checked unary operations in an ordinary result call's argument subtree.
 pub(super) fn argument(parsed: &ParsedFile, span: Span) -> Result<(), LoweringError> {
     for (_, node) in parsed.ast().expressions().iter() {
         if contains(span, node.span())
