@@ -52,14 +52,16 @@ impl DropPlanner<'_, '_> {
                 .get(&root)
                 .is_some_and(|binding| binding.kind() == OwnershipBindingKind::Owned);
         // A nested Shared receiver reborrow may end while the caller's parameter
-        // loan and owner remain live. Admit only a declared Borrow parameter;
-        // explicit borrow bindings and Exclusive parameters remain outside this slice.
-        let shared_parameter = self.checker.symbol_kind(root) == Some(SymbolKind::ValueParameter)
-            && self
-                .checker
-                .bindings
-                .get(&root)
-                .is_some_and(|binding| binding.kind() == OwnershipBindingKind::Shared);
+        // loan and owner remain live. Borrow/Inout parameters may both establish
+        // Shared reborrows; this does not admit an Exclusive receiver reservation.
+        let nonowning_parameter = self.checker.symbol_kind(root)
+            == Some(SymbolKind::ValueParameter)
+            && self.checker.bindings.get(&root).is_some_and(|binding| {
+                matches!(
+                    binding.kind(),
+                    OwnershipBindingKind::Shared | OwnershipBindingKind::Exclusive
+                )
+            });
         // A root descriptor alone cannot distinguish provider/binding provenance.
         let provider = self.checker.iterations.values().any(|plan| {
             plan.bindings().iter().any(|binding| binding.symbol() == root)
@@ -68,7 +70,7 @@ impl DropPlanner<'_, '_> {
             plan.bindings().iter().any(|binding| binding.symbol() == root)
                 || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
         });
-        (owned || shared_parameter)
+        (owned || nonowning_parameter)
             && !provider
             && place.is_root()
             && matches!(

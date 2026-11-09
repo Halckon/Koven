@@ -233,7 +233,7 @@ fn loop_jump_releases_only_this_reborrow_and_parameter_remains_usable() {
 }
 
 #[test]
-fn excluded_exclusive_reborrow_still_counts_before_a_shared_parameter_end() {
+fn original_borrow_and_inout_parameter_source_observes_both_shared_reborrows() {
     for (opener, closer, jump) in [
         ("", "", "return"),
         ("loop {", "}", "break"),
@@ -245,11 +245,27 @@ fn excluded_exclusive_reborrow_still_counts_before_a_shared_parameter_end() {
             &format!(
                 "{NODE}fun run(node: Node, inout excluded: Node, flag: Boolean): Unit {{ {opener} {outer} {closer} }}"
             ),
-            &[prefix(&outer, "node", jump, 2, 1)],
+            &[
+                prefix(&inner, "excluded", jump, 1, 0),
+                prefix(&outer, "node", jump, 2, 1),
+            ],
         );
-        assert_parameter_unowned(&observed);
         for unit in &observed.units {
             assert_eq!(unit.receiver_facts().len(), 2);
+            for (event, kind) in unit.receiver_call_prefix_ends().iter().zip([
+                OwnershipBindingKind::Exclusive,
+                OwnershipBindingKind::Shared,
+            ]) {
+                let UnitReceiverOwnershipTarget::Place(place) = event.receiver().target() else {
+                    panic!("parameter root")
+                };
+                assert_eq!(unit.binding_kind(place.root()), Some(kind));
+                assert!(
+                    unit.drops()
+                        .iter()
+                        .all(|drop| drop.target() != UnitDropTarget::Named(place.root()))
+                );
+            }
         }
     }
 }
@@ -290,9 +306,6 @@ fn original_provenance_exclusions_still_hold_for_parameter_roots() {
         let mut texts = vec![
             format!(
                 "{NODE}fun alias(source: Node): borrow Node from source = source\nfun run(node: Node, flag: Boolean): Unit {{ borrow val borrowed = alias(node); {opener} borrowed.touch(\"binding\", {jump}) {closer} }}"
-            ),
-            format!(
-                "{NODE}fun run(inout node: Node, flag: Boolean): Unit {{ {opener} node.touch(\"excluded\", {jump}) {closer} }}"
             ),
             format!(
                 "{NODE}fun run(nodes: List<Node>, flag: Boolean): Unit {{ for (node in nodes) {{ {opener} node.touch(\"provider\", {jump}) {closer} }} }}"

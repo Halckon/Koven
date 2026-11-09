@@ -846,14 +846,14 @@ impl CompilationUnitOwnership {
         &self.exclusive_call_prefix_ends
     }
 
-    /// owned 根或 Borrow 参数根 Shared receiver 在实际 return/break/continue unwind 中的有界观测。
+    /// owned 根或 Borrow/Inout 参数根 Shared receiver 在实际 return/break/continue unwind 中的有界观测。
     /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
     #[must_use]
     pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
         &self.receiver_call_prefix_ends
     }
 
-    /// owned 名称根或 Borrow 参数根 Shared receiver 正常完成时退休的实际 pending token。
+    /// owned 名称根或 Borrow/Inout 参数根 Shared receiver 正常完成时退休的实际 pending token。
     /// 不提供跨事务顺序、完整 receiver 流或动态执行次数；前缀退出另行查询。
     #[must_use]
     pub fn receiver_call_return_ends(&self) -> &[UnitReceiverCallReturnEndFact] {

@@ -190,20 +190,16 @@ fn borrowed_parameter_cfg_has_only_the_actual_normal_static_successors() {
 }
 
 #[test]
-fn exclusive_parameters_and_borrowed_loop_bindings_remain_excluded() {
-    for text in [
-        format!("{NODE}fun run(inout node: Node): Unit {{ node.touch(\"exclusive-root\", 0) }}"),
-        format!(
-            "{NODE}fun run(nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider-binding\", 0) }} }}"
-        ),
-    ] {
-        let observed = assert_returns(&text, &[]);
-        for unit in &observed.units {
-            assert!(
-                !unit.receiver_facts().is_empty(),
-                "real receiver descriptors remain"
-            );
-        }
+fn borrowed_loop_bindings_remain_excluded() {
+    let text = format!(
+        "{NODE}fun run(nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider-binding\", 0) }} }}"
+    );
+    let observed = assert_returns(&text, &[]);
+    for unit in &observed.units {
+        assert!(
+            !unit.receiver_facts().is_empty(),
+            "real receiver descriptors remain"
+        );
     }
 }
 
