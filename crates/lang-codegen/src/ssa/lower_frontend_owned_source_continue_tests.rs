@@ -3,7 +3,55 @@
 mod structure;
 use super::owned_source_return_tests::unit_contract::{self, Control, Expected};
 use super::{analyze, lower_scalar_file};
-use lang_frontend::type_checking::SequentialContainerKind;
+use lang_frontend::{
+    diagnostic::{Diagnostic, Severity, codes},
+    source::SourceMap,
+    type_checking::SequentialContainerKind,
+};
+
+struct ExpectedDiagnostic<'a> {
+    code: &'a str,
+    message: &'a str,
+    primary: (usize, usize, &'a str),
+    labels: &'a [(usize, usize, &'a str, &'a str)],
+}
+
+// Complete ordinary-source observations frozen on main 94768a91 before migration.
+// Construct every expected field explicitly, including the absence of notes/help.
+fn assert_original_diagnostic(
+    text: &str,
+    sources: &SourceMap,
+    actual: &[Diagnostic],
+    expected: ExpectedDiagnostic<'_>,
+) {
+    let [diagnostic] = actual else {
+        panic!("exactly one original ownership diagnostic");
+    };
+    let source = diagnostic.primary_span().source_id();
+    assert_eq!(sources.source_name(source), Ok("lowering.ko"));
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (start, end, spelling) = expected.primary;
+    let primary = sources.span(source, start, end).unwrap();
+    assert_eq!(sources.slice(primary), Ok(spelling));
+    let mut complete = Diagnostic::new(
+        sources,
+        Severity::Error,
+        codes::catalog().unwrap().resolve(expected.code).unwrap(),
+        expected.message,
+        primary,
+    )
+    .unwrap();
+    for &(start, end, spelling, message) in expected.labels {
+        let span = sources.span(source, start, end).unwrap();
+        assert_eq!(sources.slice(span), Ok(spelling));
+        complete.add_label(sources, span, message).unwrap();
+    }
+    crate::test_support::diagnostics::assert_eq_diagnostic!(
+        actual,
+        [complete],
+        "complete original diagnostic, source identity and ordered details"
+    );
+}
 
 fn check(live: bool, factory: &str) {
     check_with_decoy(live, factory, false);
@@ -183,11 +231,21 @@ fn owned_source_continue_nested_scope_boundaries() {
 
 #[test]
 fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation() {
-    for (factory, operation) in [
-        ("arrayOf", "consume(keys)"),
-        ("arrayOf", "keys[0] = 9"),
-        ("mutableListOf", "keys.add(4)"),
-        ("mutableListOf", "keys.removeLast()"),
+    for (factory, operation, primary, loan) in [
+        ("arrayOf", "consume(keys)", (119, 123, "keys"), (103, 107)),
+        ("arrayOf", "keys[0] = 9", (111, 118, "keys[0]"), (103, 107)),
+        (
+            "mutableListOf",
+            "keys.add(4)",
+            (117, 121, "keys"),
+            (109, 113),
+        ),
+        (
+            "mutableListOf",
+            "keys.removeLast()",
+            (117, 121, "keys"),
+            (109, 113),
+        ),
     ] {
         let text = format!(
             "fun consume(own keys: Array<Int>): Unit {{}}\nfun main(): Unit {{ var keys = {factory}(1, 2, 3); for (key in keys) {{ {operation}; if (key == 2) {{ continue }} }} }}"
@@ -196,14 +254,16 @@ fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation()
         assert!(analysis.parsed.diagnostics().is_empty());
         assert!(analysis.names.diagnostics().is_empty());
         assert!(analysis.typed.diagnostics().is_empty());
-        assert!(
-            analysis
-                .owned
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0135"),
-            "{:?}",
-            analysis.owned.diagnostics()
+        assert_original_diagnostic(
+            &text,
+            &analysis.sources,
+            analysis.owned.diagnostics(),
+            ExpectedDiagnostic {
+                code: "L0135",
+                message: "access conflicts with the active iteration source loan",
+                primary,
+                labels: &[(loan.0, loan.1, "keys", "conflicting loan starts here")],
+            },
         );
     }
 }
@@ -381,12 +441,16 @@ fn owned_source_continue_borrowed_element_cannot_be_owned() {
     assert!(analysis.parsed.diagnostics().is_empty());
     assert!(analysis.names.diagnostics().is_empty());
     assert!(analysis.typed.diagnostics().is_empty());
-    assert!(
-        analysis
-            .owned
-            .diagnostics()
-            .iter()
-            .any(|diagnostic| diagnostic.code().to_string() == "L0133")
+    assert_original_diagnostic(
+        text,
+        &analysis.sources,
+        analysis.owned.diagnostics(),
+        ExpectedDiagnostic {
+            code: "L0133",
+            message: "cannot move a non-Copyable value out of a borrowed binding",
+            primary: (120, 123, "key"),
+            labels: &[(97, 100, "key", "non-owning binding established here")],
+        },
     );
 }
 
