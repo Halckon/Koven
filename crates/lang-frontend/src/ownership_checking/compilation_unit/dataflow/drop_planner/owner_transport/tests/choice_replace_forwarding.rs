@@ -187,7 +187,6 @@ fn replaced_choice_forwarding_keeps_other_consumers_and_extra_steps_closed() {
         "val forwarded = previous + \"suffix\"",
         "val forwarded = move { previous }",
         "val forwarded = make(previous)",
-        "val forwarded = chosen",
         "val forwarded = if (flag) previous else previous",
         "val forwarded = replace(&chosen, previous)",
     ] {

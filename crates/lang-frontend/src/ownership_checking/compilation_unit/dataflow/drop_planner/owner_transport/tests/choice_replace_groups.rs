@@ -215,7 +215,6 @@ fn grouped_replacement_keeps_other_expressions_and_consumers_closed() {
         r#"var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, make()))"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, if (flag) "next" else "other"))"#,
         r#"var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, "next")); val forwarded = previous; val again = forwarded"#,
-        r#"var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, "next")); val forwarded = chosen"#,
         r#"var chosen = if (flag) "left" else "right"; val previous: String? = (replace(&chosen, "next"))"#,
         r#"while (flag) { var chosen = if (flag) "left" else "right"; val previous = (replace(&chosen, "next")); break }"#,
     ] {
