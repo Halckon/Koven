@@ -6738,3 +6738,69 @@ workspace全量测试、Linux、native或精确头正式CI；不把main原CI或�
 验收。收尾复核main/#390/#397头未变；仍需统一批次组合，不把105项称为整批验收。按用户
 要求只本地分步提交，不推送、不改PR、不合main，D10/E2与本Spec仍in-progress。事实见
 [While边界观察](../../architecture/unit-loop-owner-transport.md)。
+
+
+## 156. 不变输入 owner 的真实 Break 出口能力（2026-11-09）
+
+本片先核 main `36d381e342c195f6c6a4718b098cd9b224f3f549`、#390 `734dde83`、#397
+`fe1f47f8`、本地统一队列 `4dfeda9e` 与 parser 分支 `2f49f39d` 及其在途 index recovery。
+这些在途改动均无本片 owner producer，未重复实现。新隔离分支从main起步，ff-only复用
+§154 `dc56394a1eb9bbfcef0c4036037fc6a6ae26132c`，保留其有序依赖父链，不增加合流提交。
+
+仅在原单个精确String val输入、闭合body及精确suffix合同上增加末尾裸Break。新增独立
+`UnitOwnerInvariantBreakObservationV1` / `invariant_break_observation_v1()`，其新增专属公开
+方法为 `break_boundary()` 与 `body_completion()`，没有 `backedge()`。旧normal/Continue
+类型和签名不变，旧getter仍拒绝Break。非空If、Group/非末尾/嵌套跳转、其它carrier及输入
+owner读取/move/replace继续拒绝。普通V1、Choice、Single见证、ASAP和Guide均不变。
+
+真实Break清理后独立读取jump binding，body实际Ok(false)后再独立读取body completion，
+condition entry和实际LoopExit后exit仍分别读取。实际hook保留精确expression/kind、最近
+loop、scope、fresh sink Arc及一次性expected/completed门，body仍须通过原闭合V1。四次
+读取均穷尽ValueState的17字段，values外16槽为空，完整OwnedValue身份/来源/声明/scope
+等于原真实输入；不从entry复制其它边界，不从AST、symbol或drop虚构owner。
+
+原planner丢弃body state并对原condition state作LoopExit cleanup，未在此改为合流。仅
+完整单例状态在上述四处相等的窄合同使该观察可成立，不是一般出口merge、exit/header phi
+或更新后的loop-carried owner。三条真实结构边只有EnterBody、BreakExit与ConditionFalseExit，
+无Backedge或ContinueBackedge。body locals仍按原ASAP退休，没有伪造ControlTransfer Drop。
+私有单槽枚举区分Backedge/Break；共同边界检查不授予控制能力，两种seal分别限定实际
+completion，外层getter继续核While Unsupported/callable/analysis Arc和最终发布门。
+
+真实红提交 `75bbc90a0bc992ac97697d1c6f5aacb903f7d77f` 包含独立API框架和合法源码，
+typed/ownership成功后因缺Break能力1 failed；最小接线后同测试1 passed。实现与最终测试
+提交 `10bc9b8fdfda0c62705461ea7d4d5a4a3d2d0de5`，tree
+`e493dbf6f40c39921460c47a7fa0bc78b1cb1f31`；后续文档不改变该受测Rust。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| Break真实生产者 | `invariant_break::actual_break_preserves_the_owner_through_distinct_exit_states` | 1 passed，24种condition/Unit/body组合+§152原完整Break拒绝源码1例 |
+| 控制与输入边界 | 同模块 `break_exit_rejects_unproved_control_and_input_shapes` | 1 passed，20合法否例，含独立第二Boolean的If双Break；normal/Continue仍保留旧能力 |
+| 来源与错误原子性 | 同模块 `break_exit_catalogs_keep_source_analysis_and_error_identity` | 1 passed，两source两成功analysis；3错误/未闭合body不泄露能力，实际sibling错误清空观察 |
+| 公开两入口 | `invariant_break_owner_unit::invariant_break_exits_have_no_backedge_in_both_unit_inputs` | 1 passed，9片段×MemoryDocument单源/Rooted双源，共18分析、27 source inputs，12准入/15拒绝 |
+| owner与共享hook组合 | §154的80 lib exact + 本片3项 | 83 passed，0 failed/ignored |
+| 循环与相邻合同 | §154的17 iteration + 本片公开1项；原5 multifile、2 closures、1 borrow-continuation | 18 + 5 + 2 + 1 passed |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、LLVM21 workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2277 Rust、37历史超限，尺寸基底dc56394a，无新尺寸豁免 |
+| 独立复审及复跑 | 真实四边界、body丢弃前检查、互斥API seal及测试oracle；新3 lib与公开1项exact | 无blocker；4项各1 passed，HEAD/tree及两binary SHA256前后不变，工作树clean |
+
+合计109项不同ordinary测试，全部在本片36d381e3依赖组合重新执行；独立复跑和中途红绿、
+补强不重复累计。新3 lib带完整前缀
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+正例从实际AST核While/condition/body/Break与完整三边，四份binding、input/body catalog隔离、
+producer数1/1/2/3、Replace数0/0/1/2及每producer唯一真实Drop；完整Analysis开关等值。
+实际suffix Drop只用于兼容性核对，不成为新能力的suffix运输或最终消费证据。合法否例
+先核成功和观察数，公开source预期由index与原source_id独立建立。§152/154原Break拒绝
+源码和旧getter断言均保留，新API另加完整正例；normal/Continue正例显式拒绝新Break能力。
+
+独审建议的独立Boolean负控已补并纳入最终109项；完整自洽Break证据不能包装成旧回边、
+完整自洽Continue证据不能包装成Break的类型封印守卫已编译。新缺失/foreign snapshot、
+错jump/body Arc/catalog/edges、外层identity和deferred守卫及旧model/Abort/故障注入只编译，
+未本机运行。Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2，
+独占target串行。未跑frontend/workspace全量测试、Linux、native或精确头正式CI。
+
+收尾复核 #397 已合入，新main `748516795812a1946b2fd9e3ca0f8046dc2e560b`，#390头未变。
+main相对36d381e3的7文件是constant资格/SCC及对应测试文档，未触owner producer；本地
+parser后续 `8bfc8d8d` 同样不含owner改动。本片保留已验证链，尚未整合或测试74851679，
+上述109项与门禁不能代替最新main或统一队列整批验收。未删除缓存、旧oracle、分支或用户
+工作；按用户要求只本地分步提交，不推送、不改PR、不合main。仍无一般phi、非空分支
+合流、动态多实例capture/释放、外层运输闭合或Phase 4/native，D10/E2与本Spec保持
+in-progress。事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。

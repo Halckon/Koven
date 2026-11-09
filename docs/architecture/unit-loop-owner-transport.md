@@ -3,7 +3,7 @@
 > **性质**：实现事实 · **状态**：current · **读取时机**：核对真实 While body 运输、完成边与不变输入 owner · **唯一真源**：drop planner 的 owner transport loops 收集器、loop 只读产物与 V1 validator
 
 基础协议见 [Unit owner transport](unit-owner-transport.md)，受限条件值见 [Choice](unit-choice-transport.md)。
-独立不变输入能力只证明实际边界及可选 Continue 清理点的同一 owner；不授予 header/exit phi、完整外层运输、
+独立不变输入能力只证明实际边界及 Continue/Break 清理点的同一 owner；不授予 header/exit phi、完整外层运输、
 实例级释放或 Phase 4/native 能力。
 
 ## 空入边闭合 body 的准入与真实执行边界
@@ -80,7 +80,8 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 Boolean 参数，函数恰三句：精确 String 的 `val held = "outer"`、直线闭合 While、精确 String
 的 `val retired = held`。前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
 Group/var/nullable。body 复用上述 String 本地构造、move、Group、root Replace，可在末尾
-追加唯一裸 Continue；仍拒绝 Break 或任何 If。locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
+追加唯一裸 Continue；此回边能力仍拒绝 Break 或任何 If，Break 另见下节的独立出口能力。
+locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
 liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点。
 
 普通 While rejection 清空前，核真实 prefix collector Complete、唯一 String producer 与
@@ -108,10 +109,37 @@ body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 o
 最终成功且无 deferred 才保留能力，错误分析整体清除。它是非空入边的身份前置，不是 phi、
 不同路径 owner 的 join、运行实例追踪、外层运输闭合或终止证明。
 
+## 单个不变输入 owner 的真实 Break 出口
+
+`invariant_break_observation_v1()` 返回独立 `UnitOwnerInvariantBreakObservationV1`，
+不提供 `backedge()`。准入复用同一个三语句 String 输入合同，body 只能以唯一裸 Break
+结束；不接收 If、Group/非末尾/嵌套跳转、其它 carrier 或对外层输入的读取/move/replace。
+旧回边类型、方法签名及 normal/Continue 的范围不变，其 getter 不接收 Break。
+
+实际 Break 的 pending loan、deeper-scope owner 和 iteration cleanup 后，经过同一精确
+expression/kind、最近 loop、scope、fresh sink Arc 与一次性门，独立读取 post-jump
+binding。body 实际返回 Ok(false) 后再次读取 `body_completion()`，同时核真实 completed
+与原闭合 V1；不执行或伪称正常 body scope cleanup。`break_boundary()` 必须包含真实
+Break expression 及其独立 binding。实际 condition 完成后的 entry 与实际 LoopExit 清理后
+的 exit 仍各自读取，四处均完整核17字段，values 外16槽为空，完整 OwnedValue 身份一致。
+
+原 planner 仍丢弃 body state，并对原 condition state 执行 LoopExit cleanup。本片不改
+这一路径；仅在 post-Break、post-body、entry、exit 的完整单例状态相等时发布能力，不能把
+它扩称为一般出口合流或 exit phi。输入 producer catalog 与闭合 body-local transport 分离，
+保留既有 ASAP Drop，不制造 ControlTransfer Drop；边为 EnterBody、真实
+BreakExit(ControlTransfer(jump), LoopExit(While))、ConditionFalseExit，没有任何回边。
+
+私有非空槽用 Backedge/Break 枚举互斥存储，两类公开 getter 分别核精确变体、原 While
+Unsupported、callable、analysis Arc 与自身 control seal。共同私有边界复用身份、闭合 body
+及结构边一致性检查，不单独授予控制能力；回边 seal 只接 Fallthrough/Continue，出口 seal 只接实际 Break。同一最终
+successful/无 deferred 门清空或保留该槽。不能将完整自洽的另一种控制证据换入对应类型。
+这仍是静态检查器的真实边界证据，不发布 suffix 事件、最终消费、有限运行轨迹、动态实例
+或完整外层守恒；条件 false 的零轮路径也不等于实际执行过 Break。
+
 ## 保留边界
 
 除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。
