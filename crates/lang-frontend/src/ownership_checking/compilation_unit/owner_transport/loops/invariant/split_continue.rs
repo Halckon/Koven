@@ -56,6 +56,8 @@ impl UnitOwnerContinueArmBoundaryV1 {
 #[derive(Clone, Debug)]
 pub struct UnitOwnerInvariantSplitContinueObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) closed: UnitOwnerLoopObservationV1,
+    pub(in crate::ownership_checking::compilation_unit) control: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) branch_condition: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) inputs: UnitOwnerProducerCatalogV1,
     pub(in crate::ownership_checking::compilation_unit) entry: UnitOwnerLoopBindingV1,
     pub(in crate::ownership_checking::compilation_unit) split_identity: std::sync::Arc<()>,
@@ -75,6 +77,14 @@ impl UnitOwnerInvariantSplitContinueObservationV1 {
     /// Actual body that returned false with no continuing If state.
     pub fn body(&self) -> UnitStatementId {
         self.closed.body()
+    }
+    /// Actual terminal If control.
+    pub fn control(&self) -> UnitExpressionId {
+        self.control
+    }
+    /// Actual independent Boolean condition of the If.
+    pub fn branch_condition(&self) -> UnitExpressionId {
+        self.branch_condition
     }
     /// Real input producers, not final consumption evidence.
     pub fn input_producers(&self) -> &UnitOwnerProducerCatalogV1 {
@@ -107,12 +117,16 @@ impl UnitOwnerInvariantSplitContinueObservationV1 {
     /// Identity and real-edge seal, not a join or full owner conservation proof.
     pub fn is_consistent(&self) -> bool {
         let LoopBodyCompletion::Conditional {
-            control, branches, ..
+            control,
+            condition,
+            branches,
         } = self.closed.completion
         else {
             return false;
         };
-        self.closed.is_consistent()
+        control == self.control
+            && condition == self.branch_condition
+            && self.closed.is_consistent()
             && self.inputs.is_consistent()
             && self.inputs.definitions().len() == 1
             && self.inputs.callable() == self.closed.callable
@@ -144,6 +158,18 @@ impl UnitOwnerObservation {
     pub fn invariant_split_continue_observation_v1(
         &self,
     ) -> Option<&UnitOwnerInvariantSplitContinueObservationV1> {
-        None
+        let super::InvariantLoopValueV1::SplitContinue(value) =
+            self.invariant_loop_value.as_deref()?
+        else {
+            return None;
+        };
+        (self.loop_value.is_none()
+            && matches!(self.status, crate::ownership_checking::UnitOwnerObservationStatus::Unsupported {
+                point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),
+                reason: crate::ownership_checking::UnitOwnerUnsupportedReason::Syntax
+            } if statement == value.statement())
+            && value.closed.callable == self.callable
+            && std::sync::Arc::ptr_eq(&value.closed.identity, &self.identity)
+            && value.is_consistent()).then_some(value)
     }
 }

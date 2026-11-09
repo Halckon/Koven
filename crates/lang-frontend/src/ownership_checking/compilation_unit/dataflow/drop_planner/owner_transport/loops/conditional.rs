@@ -1,4 +1,4 @@
-//! A terminal If has two actual empty-boundary arms; no owner phi or synthetic replay.
+//! A terminal If has two actual arms; owner snapshots precede state discard, never a phi.
 use super::*;
 
 pub(super) fn boolean_parameter(
@@ -121,7 +121,7 @@ impl DropPlanner<'_, '_> {
         outcomes: (bool, bool),
         state: &ValueState,
     ) {
-        if !empty_boundary(state) || outcomes != (true, true) || self.owner_branch_depth != 0 {
+        if outcomes != (true, true) || self.owner_branch_depth != 0 {
             return;
         }
         let Some(transaction) = &mut self.owner_loop else {
@@ -150,7 +150,8 @@ impl DropPlanner<'_, '_> {
         if self.owner_observation.as_ref().is_some_and(|observation| {
             std::sync::Arc::ptr_eq(&observation.identity, identity)
                 && observation.value_observation_v1().is_some()
-        }) {
+        }) && transaction.split_input_boundary(state)
+        {
             transaction.split_entered = true;
         }
     }
@@ -162,7 +163,7 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &ValueState,
     ) {
-        if !empty_boundary(state) || self.owner_branch_depth != 1 {
+        if self.owner_branch_depth != 1 {
             return;
         }
         let Some(transaction) = &mut self.owner_loop else {
@@ -185,6 +186,12 @@ impl DropPlanner<'_, '_> {
             && !transaction.branch_completed[branch]
             && expected == self.checker.unit_expression(control)
             && expected_branch.body == UnitStatementId::new(self.checker.source_unit, body)
+            && transaction.split_arm_entry_boundary(
+                branch,
+                self.checker.unit_expression(control),
+                UnitStatementId::new(self.checker.source_unit, body),
+                state,
+            )
         {
             transaction.active_branch = Some(branch);
         }
@@ -234,7 +241,6 @@ impl DropPlanner<'_, '_> {
         };
         if completion_matches
             && result.owner.is_none()
-            && empty_boundary(state)
             && self.scope_depth == boundary + 1
             && self.owner_branch_depth == 1
             && self.loop_boundaries.as_slice() == [*boundary]
@@ -242,6 +248,7 @@ impl DropPlanner<'_, '_> {
                 observation.status == UnitOwnerObservationStatus::Complete
                     && std::sync::Arc::ptr_eq(active, &observation.identity)
             })
+            && transaction.split_arm_completion_boundary(branch, state)
         {
             transaction.branch_completed[branch] = true;
         }
@@ -274,6 +281,7 @@ impl DropPlanner<'_, '_> {
         if transaction.split_entered
             && continuations == branches.iter().filter(|branch| branch.continues()).count()
             && transaction.branch_completed == [true, true]
+            && transaction.split_inputs_complete()
             && transaction.active_branch.is_none()
             && transaction.pending_jump.is_none()
             && transaction.completed.is_none()

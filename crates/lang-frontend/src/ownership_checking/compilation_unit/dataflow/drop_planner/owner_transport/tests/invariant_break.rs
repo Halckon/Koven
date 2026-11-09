@@ -42,6 +42,7 @@ fn check_break(
     );
     assert!(legacy.events().is_empty() && legacy.definitions().is_empty());
     assert!(legacy.value_observation_v1().is_none());
+    assert!(legacy.invariant_split_continue_observation_v1().is_none());
     assert!(legacy.loop_observation_v1().is_none());
     assert!(legacy.invariant_loop_observation_v1().is_none());
     let observed = legacy

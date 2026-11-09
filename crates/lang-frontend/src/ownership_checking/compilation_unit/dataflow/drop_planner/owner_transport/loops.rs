@@ -153,7 +153,7 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let (statement, invariant) = match elements.as_slice() {
+        let (statement, mut invariant) = match elements.as_slice() {
             [statement] => (*statement, None),
             [prefix, statement, suffix] => (
                 *statement,
@@ -237,16 +237,23 @@ impl LoopTransaction {
         } else {
             1
         };
-        if (invariant.is_some()
-            && !matches!(
-                expected,
-                LoopBodyCompletion::Fallthrough
-                    | LoopBodyCompletion::Continue(_)
-                    | LoopBodyCompletion::Break(_)
-            ))
-            || parameter_symbols.len() != required_parameters
-        {
+        if parameter_symbols.len() != required_parameters {
             return None;
+        }
+        if let Some(input) = &mut invariant {
+            match expected {
+                LoopBodyCompletion::Fallthrough
+                | LoopBodyCompletion::Continue(_)
+                | LoopBodyCompletion::Break(_) => {}
+                LoopBodyCompletion::Conditional { branches, .. }
+                    if branches
+                        .iter()
+                        .all(|branch| matches!(branch.exit, LoopBranchExit::Continue(_))) =>
+                {
+                    input.enable_split_continue()
+                }
+                _ => return None,
+            }
         }
         Some(Self {
             statement,
