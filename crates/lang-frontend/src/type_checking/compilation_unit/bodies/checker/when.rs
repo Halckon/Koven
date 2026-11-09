@@ -15,20 +15,19 @@ use crate::{
 };
 
 use super::flow::{intersect_facts, merge_flow_versions};
-use super::{BodyChecker, ExpressionCheck, flow::FlowKey, while_flow::PendingControlSite};
+use super::{
+    BodyChecker, ExpressionCheck,
+    flow::FlowKey,
+    while_flow::{PendingBooleanEdges, PendingControlSite},
+};
+
+mod selector;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum CoverageAtom {
     Boolean(bool),
     Null,
     Case(UnitSymbolId),
-}
-
-struct WhenConditionCheck {
-    coverage: Vec<CoverageAtom>,
-    facts: BTreeMap<FlowKey, UnitTypeId>,
-    valid: bool,
-    non_null: bool,
 }
 
 impl BodyChecker<'_> {
@@ -84,6 +83,8 @@ impl BodyChecker<'_> {
         let baseline_versions = self.flow_versions.clone();
         let mut remaining_facts = baseline.clone();
         let mut remaining_versions = baseline_versions.clone();
+        let mut remaining_pending =
+            subject_reaches_arms.then(|| baseline_versions.pending_keys().collect::<BTreeSet<_>>());
         let mut remaining_domain = domain
             .clone()
             .map(WhenFlowDomain::Finite)
@@ -94,6 +95,8 @@ impl BodyChecker<'_> {
         let mut branches = Vec::new();
         let mut exits = Vec::new();
         let mut pending_exits = None::<BTreeSet<_>>;
+        let mut boolean_exits = value_use.then(PendingBooleanEdges::default);
+        let mut selector_stops_miss = false;
 
         for (entry_index, entry) in entries.iter().enumerate() {
             let mut nullable_entry = super::nullable_when::begin_entry(
@@ -106,12 +109,14 @@ impl BodyChecker<'_> {
             self.flow_versions = remaining_versions.clone();
             let mut entry_facts = None;
             let mut entry_versions = None;
+            let mut entry_pending = None::<BTreeSet<_>>;
             let mut body_domain = WhenFlowDomain::Empty;
             let mut entry_source_valid = self.when_source_valid(subject_source);
             if let Some(else_span) = entry.else_span {
                 has_else = true;
                 body_domain = remaining_domain.clone();
                 remaining_domain = WhenFlowDomain::Empty;
+                entry_pending = remaining_pending.take();
                 entry_facts = Some(self.flow_facts.clone());
                 entry_versions = Some(self.flow_versions.clone());
                 if let Some(first) = first_else {
@@ -138,30 +143,45 @@ impl BodyChecker<'_> {
                 for condition in &entry.conditions {
                     let deferred = self.deferred_facts.len();
                     let condition_span = self.when_condition_span(source, condition)?;
-                    let checked = self.check_loop_reachable(
-                        subject_reaches_arms && !remaining_domain.is_empty(),
-                        |checker| {
-                            checker.check_when_condition(
-                                source,
-                                subject_type,
-                                subject_key,
-                                domain.as_deref(),
-                                condition,
-                                return_type,
-                            )
-                        },
-                    )?;
-                    if value_use && subject_reaches_arms && !remaining_domain.is_empty() {
+                    self.flow_versions
+                        .set_pending_keys(remaining_pending.iter().flatten().copied());
+                    let reachable = remaining_pending.is_some() && !remaining_domain.is_empty();
+                    let checked = self.check_loop_reachable(reachable, |checker| {
+                        checker.check_when_condition(
+                            source,
+                            subject_type,
+                            subject_key,
+                            domain.as_deref(),
+                            condition,
+                            return_type,
+                        )
+                    })?;
+                    if value_use && reachable {
                         replacement_pending |= !checked.valid
                             || self.when_selector_pending(source, condition, deferred);
                     }
                     let source_valid = self.when_source_valid(subject_source);
-                    let (matched, missed) = split_domain(
-                        &remaining_domain,
-                        &checked.coverage,
-                        checked.non_null,
-                        checked.valid,
-                    );
+                    let (matched, missed) = if checked
+                        .operand
+                        .is_none_or(|(_, result)| result.falls_through)
+                    {
+                        split_domain(
+                            &remaining_domain,
+                            &checked.coverage,
+                            checked.non_null,
+                            checked.valid,
+                        )
+                    } else {
+                        // A selector exit stops the unmatched path. Earlier alternatives
+                        // have already contributed their independent match paths.
+                        selector_stops_miss |= !remaining_domain.is_empty();
+                        (WhenFlowDomain::Empty, WhenFlowDomain::Empty)
+                    };
+                    let pending = if reachable {
+                        self.pending_when_selector_edges(source, subject.is_none(), &checked)?
+                    } else {
+                        PendingBooleanEdges::default()
+                    };
                     super::nullable_when::record_alternative(
                         &mut nullable_entry,
                         source,
@@ -172,6 +192,9 @@ impl BodyChecker<'_> {
                         &missed,
                     );
                     if !matched.is_empty() {
+                        if let Some(keys) = pending.yes {
+                            entry_pending.get_or_insert_default().extend(keys);
+                        }
                         let mut matched_facts = self.flow_facts.clone();
                         entry_source_valid &= source_valid;
                         if source_valid {
@@ -194,6 +217,7 @@ impl BodyChecker<'_> {
                     }
                     // Condition effects remain on the miss edge; a selected body never runs here.
                     remaining_domain = missed;
+                    remaining_pending = pending.no.filter(|_| !remaining_domain.is_empty());
                     if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
                         && source_valid
                         && remaining_domain.is_non_null()
@@ -227,6 +251,9 @@ impl BodyChecker<'_> {
             remaining_versions = self.flow_versions.clone();
             self.flow_facts = entry_facts.unwrap_or_else(|| remaining_facts.clone());
             self.flow_versions = entry_versions.unwrap_or_else(|| remaining_versions.clone());
+            let body_reachable = entry_pending.is_some();
+            self.flow_versions
+                .set_pending_keys(entry_pending.into_iter().flatten());
             if entry_source_valid
                 && let (Some(key), Some(inner)) = (subject_key, nullable_inner)
                 && body_domain.is_non_null()
@@ -255,19 +282,16 @@ impl BodyChecker<'_> {
                 entry_source_valid,
             );
             let mut branch_pending = false;
-            let result = self.check_loop_reachable(
-                subject_reaches_arms && !body_domain.is_empty(),
-                |checker| {
-                    checker.check_value_body_with_replacement(
-                        source,
-                        entry.body,
-                        branch_expected,
-                        expected_span,
-                        return_type,
-                        value_use.then_some(&mut branch_pending),
-                    )
-                },
-            );
+            let result = self.check_loop_reachable(body_reachable, |checker| {
+                checker.check_value_body_with_replacement(
+                    source,
+                    entry.body,
+                    branch_expected,
+                    expected_span,
+                    return_type,
+                    value_use.then_some(&mut branch_pending),
+                )
+            });
             self.active_nullable_whens.truncate(frame_base);
             let result = result?;
             super::nullable_when::finish_entry(
@@ -277,14 +301,18 @@ impl BodyChecker<'_> {
                 &remaining_domain,
                 result.falls_through,
             );
-            if subject_reaches_arms
-                && !body_domain.is_empty()
-                && self.has_pending_statement_exit(source, entry.body, result)
-            {
+            if body_reachable && self.has_pending_statement_exit(source, entry.body, result) {
                 replacement_pending |= branch_pending;
                 pending_exits
                     .get_or_insert_default()
                     .extend(self.flow_versions.pending_keys());
+                if let Some(edges) = &mut boolean_exits {
+                    if self.is_builtin(result.ty, BuiltinType::Boolean) {
+                        self.merge_boolean_branch(edges, source, entry.body, &self.flow_versions)?;
+                    } else {
+                        boolean_exits = None;
+                    }
+                }
             }
             if subject_completes && !body_domain.is_empty() && result.falls_through {
                 exits.push((self.flow_facts.clone(), self.flow_versions.clone()));
@@ -299,21 +327,28 @@ impl BodyChecker<'_> {
         if value_use && !exhaustive {
             self.emit_non_exhaustive_when(keyword_span, domain.as_deref(), &covered)?;
         }
-        if !exhaustive {
-            if subject_reaches_arms {
-                pending_exits
-                    .get_or_insert_default()
-                    .extend(remaining_versions.pending_keys());
+        if !exhaustive && !remaining_domain.is_empty() {
+            if let Some(keys) = remaining_pending {
+                pending_exits.get_or_insert_default().extend(keys);
             }
             if subject_completes {
                 exits.push((remaining_facts, remaining_versions));
             }
         }
         let falls_through = !exits.is_empty();
+        let control = UnitExpressionId::new(source, expression);
         self.note_pending_exit(
-            PendingControlSite::Expression(UnitExpressionId::new(source, expression)),
+            PendingControlSite::Expression(control),
             pending_exits.is_some(),
         );
+        if exhaustive
+            && pending_exits.is_some()
+            && let Some(edges) = boolean_exits
+        {
+            self.pending_boolean_edges.insert(control, edges);
+        } else {
+            self.pending_boolean_edges.remove(&control);
+        }
         (self.flow_facts, self.flow_versions) = exits
             .into_iter()
             .reduce(
@@ -344,6 +379,20 @@ impl BodyChecker<'_> {
                 expected,
             )?
         };
+        // Keep lexical branch diagnostics and the existing static shape of an
+        // abrupt subject. A selector that stops the miss path delivers no value.
+        let ty = if value_use
+            && exhaustive
+            && subject_completes
+            && selector_stops_miss
+            && !falls_through
+            && !self.is_error(ty)
+            && !self.is_deferred(ty)
+        {
+            self.builtin(BuiltinType::Nothing)
+        } else {
+            ty
+        };
         if let Some(mut descriptor) = nullable_when {
             descriptor.falls_through = falls_through;
             self.parts.nullable.whens.push(descriptor);
@@ -355,230 +404,6 @@ impl BodyChecker<'_> {
             );
         }
         Ok(ExpressionCheck { ty, falls_through })
-    }
-
-    fn when_selector_pending(
-        &self,
-        source: SourceUnitId,
-        condition: &WhenCondition,
-        deferred: usize,
-    ) -> bool {
-        match condition {
-            WhenCondition::Expression(expression) | WhenCondition::Contains { expression, .. } => {
-                let key = UnitExpressionId::new(source, *expression);
-                self.parts
-                    .expression_types
-                    .get(&key)
-                    .is_some_and(|&ty| self.replacement_value_pending(key, ty, deferred))
-            }
-            WhenCondition::TypeTest { type_ref, .. } => {
-                let key = UnitTypeRefId::new(source, *type_ref);
-                self.parts
-                    .type_ref_types
-                    .get(&key)
-                    .is_some_and(|&ty| self.contains_unresolved_call_type(ty))
-            }
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn check_when_condition(
-        &mut self,
-        source: SourceUnitId,
-        subject: Option<UnitTypeId>,
-        subject_key: Option<FlowKey>,
-        domain: Option<&[CoverageAtom]>,
-        condition: &WhenCondition,
-        return_type: UnitTypeId,
-    ) -> Result<WhenConditionCheck, CompilationUnitTypeError> {
-        match condition {
-            WhenCondition::Expression(expression) => {
-                let expected = subject.filter(|ty| {
-                    matches!(
-                        self.file(source)
-                            .ast()
-                            .expressions()
-                            .get(*expression)
-                            .map(|node| node.payload()),
-                        Ok(Expression::Literal(LiteralKind::Null))
-                    ) && matches!(
-                        self.signatures.types().get(*ty),
-                        Some(UnitTypeKind::Nullable(_))
-                    )
-                });
-                let is_null = matches!(
-                    self.file(source)
-                        .ast()
-                        .expressions()
-                        .get(*expression)
-                        .map(|node| node.payload()),
-                    Ok(Expression::Literal(LiteralKind::Null))
-                );
-                let result = if is_null {
-                    let ty = if let Some(expected) = expected {
-                        expected
-                    } else {
-                        let span = self
-                            .file(source)
-                            .ast()
-                            .expressions()
-                            .get(*expression)
-                            .map_err(TypeCheckingError::from)?
-                            .span();
-                        self.emit(
-                            codes::CANNOT_INFER_TYPE,
-                            "cannot infer the type of null without a nullable expected type",
-                            span,
-                        )?;
-                        self.error_type()
-                    };
-                    self.record_expression(source, *expression, ty);
-                    ExpressionCheck {
-                        ty,
-                        falls_through: true,
-                    }
-                } else {
-                    self.check_expression(source, *expression, expected, None, return_type)?
-                };
-                let valid = if let Some(subject) = subject {
-                    self.assignable(result.ty, subject) || self.assignable(subject, result.ty)
-                } else {
-                    self.is_builtin(result.ty, BuiltinType::Boolean)
-                };
-                if !valid && !self.is_error(result.ty) && !self.is_deferred(result.ty) {
-                    let primary = self
-                        .file(source)
-                        .ast()
-                        .expressions()
-                        .get(*expression)
-                        .map_err(TypeCheckingError::from)?
-                        .span();
-                    self.emit(
-                        codes::INVALID_WHEN_CONDITION,
-                        "when condition does not match its subject form or type",
-                        primary,
-                    )?;
-                }
-                let valid = valid && !self.is_error(result.ty) && !self.is_deferred(result.ty);
-                let non_null = valid
-                    && !is_null
-                    && !matches!(
-                        self.signatures.types().get(result.ty),
-                        Some(UnitTypeKind::Nullable(_))
-                    );
-                let coverage = if subject.is_some() && valid {
-                    self.coverage_for_expression(source, *expression)?
-                        .into_iter()
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-                let facts = self.facts_for_single_case(subject, subject_key, &coverage)?;
-                Ok(WhenConditionCheck {
-                    coverage,
-                    facts,
-                    valid,
-                    non_null,
-                })
-            }
-            WhenCondition::TypeTest {
-                operator_span,
-                negated,
-                type_ref,
-            } => {
-                let target = self.resolve_type_test_ref(source, *type_ref, subject)?;
-                let Some(subject) = subject else {
-                    let target_span = self
-                        .file(source)
-                        .ast()
-                        .type_refs()
-                        .get(*type_ref)
-                        .map_err(TypeCheckingError::from)?
-                        .span();
-                    self.emit_maybe_label(
-                        codes::INVALID_WHEN_CONDITION,
-                        "subjectless when cannot use an omitted-subject type test",
-                        *operator_span,
-                        Some(target_span),
-                        "type-test target appears here",
-                    )?;
-                    return Ok(WhenConditionCheck {
-                        coverage: Vec::new(),
-                        facts: BTreeMap::new(),
-                        valid: false,
-                        non_null: false,
-                    });
-                };
-                let valid = self.is_error(target) || self.valid_type_test_relation(subject, target);
-                if !valid {
-                    let target_span = self
-                        .file(source)
-                        .ast()
-                        .type_refs()
-                        .get(*type_ref)
-                        .map_err(TypeCheckingError::from)?
-                        .span();
-                    self.emit_maybe_label(
-                        codes::INVALID_TYPE_TEST,
-                        "type test target is not runtime-testable from the when subject",
-                        *operator_span,
-                        Some(target_span),
-                        "invalid type-test target",
-                    )?;
-                }
-                let valid = valid && !self.is_error(target) && !self.is_deferred(target);
-                let non_null = valid
-                    && !*negated
-                    && !matches!(
-                        self.signatures.types().get(target),
-                        Some(UnitTypeKind::Nullable(_))
-                    );
-                let mut coverage = match self.signatures.types().get(target) {
-                    Some(UnitTypeKind::EnumCase { case, .. }) if valid => {
-                        vec![CoverageAtom::Case(*case)]
-                    }
-                    _ => Vec::new(),
-                };
-                if *negated
-                    && let Some(domain) = domain
-                    && !coverage.is_empty()
-                {
-                    coverage = domain
-                        .iter()
-                        .copied()
-                        .filter(|atom| !coverage.contains(atom))
-                        .collect();
-                }
-                let facts = self.facts_for_single_case(Some(subject), subject_key, &coverage)?;
-                Ok(WhenConditionCheck {
-                    coverage,
-                    facts,
-                    valid,
-                    non_null,
-                })
-            }
-            WhenCondition::Contains {
-                operator_span,
-                expression,
-                ..
-            } => {
-                self.check_expression(source, *expression, None, None, return_type)?;
-                let valid = subject.is_some();
-                if !valid {
-                    self.emit(
-                        codes::INVALID_WHEN_CONDITION,
-                        "subjectless when cannot use an omitted-subject contains condition",
-                        *operator_span,
-                    )?;
-                }
-                Ok(WhenConditionCheck {
-                    coverage: Vec::new(),
-                    facts: BTreeMap::new(),
-                    valid,
-                    non_null: false,
-                })
-            }
-        }
     }
 
     fn when_source_valid(&self, source: Option<(FlowKey, u64)>) -> bool {

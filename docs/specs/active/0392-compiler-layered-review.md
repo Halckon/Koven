@@ -3268,3 +3268,82 @@ Basic 正常求值 RHS 使用 BranchExit 0，旁路使用 1。已知不完成的
 括号在解析失败，修正后两路均输出相同的两组 take/drop 和最终 ok。
 最终逻辑差异经过独立复核。最后一轮完整前端本机运行因复核新发现而提前停止，
 本节以修复后的定向实跑和后续双宿主候选证据为准。
+
+[PR #382](https://github.com/Halckon/Koven/pull/382) 已合入 `ac9a7d81`。
+[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42562208549) 的合成提交
+`964e977e` 与实际合入树均为 `0fd9108e`。Check/Clippy、定向、预览生产和独立安装、
+CI Passed 与 Code CI Evidence 均通过，Editor lexical 按范围跳过。两端原始日志
+各核实 11 条指定回归通过，包括调用退出、写回、析构和本批新增短路用例。
+
+## 127. R2/R3 when selector 的完成性与写回
+
+在 `ec8a7b9f` 上，两种 Unit 入口均把逗号后 selector 提前 return 的路径误计为
+可继续，导致 L0088。新红测直接比较公开 expression completion。修复在 selector
+停止时仅截断尚未匹配的路径，保留前序 alternative 已送达的 arm。普通匹配仍
+可进入有值 arm，正常未匹配出口仍要求后续 return。value-context 仍执行语法穷尽
+和原分支类型检查，再为新增无正常结果的 selector 形状发布 Nothing。提前退出的
+subject 保留已有静态类型。
+
+私有写回单独跟踪 match/miss 待定键。subjectless selector 复用现有 Boolean 真/假
+边，穷尽且正常返回 Boolean 的 when 也向外发布实际 arm 的真假待定出口。短路
+死 arm 和嵌套 when 死 arm 原错误污染调用者的 L0165，修后只保留源头 Unbound。
+活 arm 仍传播写回，公开 nullable smart-cast 的有写入和无写入对照保持原合同。
+独立复核核对试探快照、Const 和非穷尽边界。
+
+refine 准入接受已验证不完成的 Nothing when，构建不分配结果槽。Range selector
+以已验证的端点求值顺序传播退出。旧原生红测报 MissingFact，修后下限提前退出不求值
+上限，上限提前退出保留已完成的下限调用，正常范围匹配仍返回原值。独立原生探针
+使用带析构的端点和外层 owner，验证 `in ..`、`!in ..<` 的实际释放顺序。
+canonical nullable 两组实测 typed/owned entry 完成性分别对齐为 `[false,false]`
+和 `[false,true]`。独立对照保留死源码 L0112、L0084 和缺 else 的 L0111。
+
+本机 types 两套 384 项、Unit 所有权两套 181 项和两条新增原生回归通过，零失败与
+忽略。前端与 codegen 全目标 Clippy 通过。原生对照使用默认路由，动态 selector 的
+兼容 lowering 仍按既有能力边界审查。
+后端 nullable when 定向 18 项通过，零失败与忽略。旧大文件拆出 selector 检查和
+私有边归并，Rust 尺寸检查通过。
+
+## 128. R0/R3 循环资源待定的 Unit 消费者
+
+原循环夹具逐字保留。迁移前原 Single/Rooted 断言实跑通过，另以已构建的 Unit
+前端直接验证 MemoryDocument 与 Rooted 都发布 ResourceLifetime。迁移后循环夹具
+只走这两种 Unit，分别要求无诊断、ResourceLifetime、无 drop，并拒绝所有权准入。
+相邻条件资源差异见证仍核对 Single 不待定，同时将 Unit 观察补为两入口。
+
+原 readonly 否决沿用相同阶段和空 drop 断言。独立复核指出验证需消费 ownership
+产物，修为回调接收产物本身。最终 `ownership_resource_deinit` 31 项通过，
+零失败与忽略。
+
+## 129. R4 实例规划的调用与 lambda 进入事实
+
+独立仓外探针在 `ec8a7b9f` 证实死分支的 callback 调用通过前端后于 native
+UnsupportedNode，活分支对照原生输出 live 和 ok。在 `f324b736` 的 when 组合中，
+定向红测同样在死 callback 报 UnsupportedNode。另一个红测在死 lambda 的资源构造
+处被析构实例规划拒绝。
+
+Unit 所有权产物保存实际进入求值的 source-qualified call 和实际检查 body 的 lambda。
+实例索引先校验 source/AST ID，随后跳过未进入的调用。实参或 receiver 退出之前已进入的
+调用仍保留 route，实际调用的 Nothing 目标也不被当作死调用。活调用继续检查原 callback
+来源和完整实例。析构规划排除未进入 lambda 内的资源根，已形成的 lambda 仍受原资源
+与 hidden deinit 限制。Basic 与 Const 消费各自通过准入的同一份所有权分析。
+
+本机 182 项前端所有权与 Const、13 项 callable 规划及 7 项 comma-when 测试通过。
+新原生回归覆盖 Basic、Const、强制兼容及死资源 lambda。选中活 Resource callback 的
+SSA 和 LLVM 对照仍调度 hidden deinit。活来源不明的规划负控保留。独立复核未发现
+本片阻断。旧大文件只增长进入事实字段与交接，Rust 尺寸检查另核。
+
+在实参求值中退出且后续仍有 callback 的已进入调用，会在既有特化流程中索要后续来源；
+已单列前缀路由复审。其他词法扫描型类型规划仍按自身能力边界验收。
+
+与 `ac9a7d81` 合流后，五套前端 605 项通过。后端 comma-when 8 项、callable
+规划 13 项、Unit 短路与前缀 3 项通过，均零失败与忽略。前端与 codegen 全目标 Clippy、
+格式、文档和 Rust 尺寸门禁通过。
+
+PR #383 首轮 [Linux 定向门禁](https://github.com/Halckon/Koven/actions/runs/42565646073)
+的 codegen 全量有 10 项失败。三项 Range 为真实准入回归。refine 准入仍会检查 Const
+计划为 Never 的 RHS，因死调用无 route 而改走兼容路径。准入现与构建读取同一份 Const
+计划，并继续核验左项和活 RHS。六项 Map 与一项 sequential 的旧 SSA 断言仍要求发出
+只被死调用引用的函数。改按原声明 Origin 精确核验函数有无，保留活调用身份、Map owner
+传递、逐返回析构、Unit 紧随调用及 Abort 的断言。Linux 首轮相应原生 Map 正控仍通过。
+本机 Range 定向 6 项、Map 定向 42 项及 sequential 前缀 1 项通过，零失败、零忽略。
+修复后分别复核了 Const 准入和 SSA 断言。

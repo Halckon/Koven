@@ -280,3 +280,31 @@ fn callable_provenance_preflight_type_error_and_analysis_witness() {
         "P2 error cannot produce the unit P3 capability"
     );
 }
+
+#[test]
+fn call_entry_facts_distinguish_an_exiting_prefix_from_a_dead_operand() {
+    let fixture = preflight(
+        PROVIDER,
+        r#"package q
+fun tick(value: Int): Int = value
+fun sink(first: Int, second: Int, third: Int): Unit {}
+fun stop(): Nothing = error("stop")
+fun prefix(): Int {
+    sink(tick(1), return 7, tick(2))
+}
+fun exits(): Int { stop() }
+"#,
+    );
+    let unit = source_unit(&fixture.names, fixture.consumer_source);
+    for (text, entered) in [
+        ("sink(tick(1), return 7, tick(2))", true),
+        ("tick(1)", true),
+        ("tick(2)", false),
+        ("stop()", true),
+    ] {
+        let expression = expression_with_text(&fixture.sources, &fixture.consumer, text);
+        let call = UnitExpressionId::new(unit, expression);
+        assert!(fixture.typed.types().call(call).is_some(), "{text}");
+        assert_eq!(fixture.owned.call_site_was_entered(call), entered, "{text}");
+    }
+}

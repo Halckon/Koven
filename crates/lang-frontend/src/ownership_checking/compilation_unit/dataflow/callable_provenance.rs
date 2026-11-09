@@ -1,5 +1,7 @@
 //! Source-qualified adapters reuse validated declarations, body types and capture descriptors.
 
+use std::collections::BTreeSet;
+
 use super::{Checker, ExpressionUse, Flows, State, closure::CaptureIndex};
 use crate::{
     ast::ExpressionId,
@@ -157,6 +159,9 @@ impl Checker<'_> {
         let ast = self.parsed.ast().expressions().get(id)?;
         let span = ast.span();
         let expression = ast.payload().clone();
+        if matches!(expression, Expression::Call { .. }) {
+            self.entered_calls.insert(self.unit_expression(id));
+        }
         let name = if matches!(expression, Expression::Name) {
             if let Some(target) = self.named_callable(id) {
                 Some(
@@ -323,6 +328,7 @@ pub(super) fn finish(
     collection: &Collection,
     typed: &crate::type_checking::CompilationUnitTypes,
     capture_index: &CaptureIndex<'_>,
+    entered_calls: BTreeSet<UnitExpressionId>,
 ) -> UnitCallableFacts {
     let graph = collection.arena.borrow();
     let initial = graph.solve(|origin| !matches!(origin, UnitCallableOrigin::FactoryResult(_)));
@@ -384,8 +390,10 @@ pub(super) fn finish(
         })
         .collect();
     UnitCallableFacts {
+        entered_calls,
         origins,
         returns,
         closure_returns,
+        ..UnitCallableFacts::default()
     }
 }

@@ -523,7 +523,9 @@ impl Checker<'_, '_> {
                 | Expression::Continue { .. }
                 | Expression::If { .. }
                 | Expression::Group { .. }
-        ) || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
+        ) || matches!(node.payload(), Expression::When { .. })
+            && self.inputs.typed.expression_falls_through(id) == Some(false)
+            || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
             && matches!(
                 self.kind(ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
@@ -914,7 +916,8 @@ impl Checker<'_, '_> {
                 let ok = boolean
                     && self.plain(expression)
                     && self.condition(left, views)
-                    && (!self.logical_reaches_rhs(left, operator) || self.condition(right, views));
+                    && (!self.logical_reaches_rhs(id, left, operator)
+                        || self.condition(right, views));
                 if !views {
                     self.view_symbols = saved;
                 }

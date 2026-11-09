@@ -590,15 +590,13 @@ fn unit_diverged_operand_preserves_only_evaluated_prefix() {
         );
         let analysis = analyze_case("unit_diverged_operand.ko", &source, "source");
         let factory = analysis.entry();
-        let second = analysis.function("second").id;
-        let first = only(
-            factory,
-            |op| matches!(op, Operation::DirectCall { callee, .. } if *callee == analysis.function("first").id),
-        );
-        assert!(first.results.is_empty());
-        assert!(!factory.instructions.iter().any(
-            |i| matches!(i.operation, Operation::DirectCall { callee, .. } if callee == second)
+        assert!(analysis.function_if_emitted("second").is_none());
+        let first = only(factory, |op| matches!(op, Operation::DirectCall { .. }));
+        assert!(matches!(
+            first.operation,
+            Operation::DirectCall { callee, .. } if callee == analysis.function("first").id
         ));
+        assert!(first.results.is_empty());
         assert!(
             !factory
                 .instructions
