@@ -17,6 +17,7 @@ mod choice_replace_groups;
 mod choice_result_groups;
 mod closed_while;
 mod closed_while_conditional;
+mod closed_while_fallthrough;
 mod combination;
 mod control_tail;
 mod loop_boundaries;
