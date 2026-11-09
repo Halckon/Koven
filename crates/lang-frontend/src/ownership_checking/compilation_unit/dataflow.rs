@@ -213,6 +213,8 @@ pub(super) fn analyze(
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
     let mut entered_calls = std::collections::BTreeSet::new();
+    let mut call_dispatch = BTreeMap::new();
+    let mut completed_arguments = std::collections::BTreeSet::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
     let mut borrow_call_prefix_ends = Vec::new();
@@ -311,6 +313,8 @@ pub(super) fn analyze(
         iteration_required_exits.extend(drop_analysis.iteration_required_exits);
         short_circuits.extend(checker.short_circuits.into_values());
         entered_calls.extend(checker.entered_calls);
+        call_dispatch.extend(checker.call_dispatch);
+        completed_arguments.extend(checker.completed_arguments);
         visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
@@ -363,7 +367,14 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     let callable_provenance = if diagnostics.is_empty() && typed.has_valid_type_facts() {
-        callable_provenance::finish(&callable_sources, typed, &capture_index, entered_calls)
+        callable_provenance::finish(
+            &callable_sources,
+            typed,
+            &capture_index,
+            entered_calls,
+            call_dispatch,
+            completed_arguments,
+        )
     } else {
         Default::default()
     };
@@ -475,6 +486,8 @@ struct Checker<'a> {
         crate::ownership_checking::UnitMapIterationOwnershipPlan,
     >,
     entered_calls: std::collections::BTreeSet<UnitExpressionId>,
+    call_dispatch: BTreeMap<UnitExpressionId, bool>,
+    completed_arguments: std::collections::BTreeSet<UnitExpressionId>,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     constant_control: bool,
     short_circuits: BTreeMap<UnitExpressionId, super::constant::UnitShortCircuitPlan>,
@@ -637,6 +650,8 @@ impl<'a> Checker<'a> {
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
             entered_calls: std::collections::BTreeSet::new(),
+            call_dispatch: BTreeMap::new(),
+            completed_arguments: std::collections::BTreeSet::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
             short_circuits: BTreeMap::new(),

@@ -617,6 +617,20 @@ impl Builder<'_, '_> {
         if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if let Some(receiver) =
+            crate::ssa::unit_source_query::non_completing_call_receiver(self.inputs.typed, call)
+        {
+            if receiver.source_unit() != self.inputs.source_unit {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            if self.expression(receiver.expression())? != Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            for argument in arguments {
+                self.unreachable_drop_scopes.push(self.span(argument.value));
+            }
+            return Ok(Lowered::Diverged);
+        }
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs
@@ -712,6 +726,11 @@ impl Builder<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
+                && self
+                    .inputs
+                    .typed
+                    .expression_falls_through(self.unit(value_expression))
+                    != Some(false)
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
                 let (lent, created, read_argument) =
@@ -916,10 +935,13 @@ impl Builder<'_, '_> {
                 .source_plan
                 .call_site(self.inputs.source_token, call)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let key = resolved
+                .dispatch_key()
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
             let callee = self
                 .inputs
                 .function_ids
-                .get(resolved.key())
+                .get(key)
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             let (receiver, r_loans) = match receiver {

@@ -914,9 +914,13 @@ impl Checker<'_> {
             {
                 self.record_borrow_call_use(id, argument.value, expression, &mut flows)?;
             }
-            if self.is_nothing_expression(self.unit_expression(argument.value)) {
+            let operand = self.unit_expression(argument.value);
+            if self.is_nothing_expression(operand) {
                 flows.next = None;
                 continue;
+            }
+            if flows.next.is_some() {
+                self.completed_arguments.insert(operand);
             }
             if self.diagnostics.len() == diagnostic_count
                 && let (Some(contract), Some(next)) = (contract, flows.next.as_mut())
@@ -966,6 +970,8 @@ impl Checker<'_> {
             self.release_last_closure_use(expression, &mut flows)?;
         }
         self.finish_call_closures(call, &mut flows);
+        // The callee may itself return Nothing. Only the operand prefix controls entry.
+        *self.call_dispatch.entry(call).or_default() |= flows.next.is_some();
         if self.is_nothing_expression(call) {
             flows.next = None;
         }

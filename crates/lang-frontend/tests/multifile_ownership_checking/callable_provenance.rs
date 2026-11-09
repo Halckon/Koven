@@ -296,15 +296,25 @@ fun exits(): Int { stop() }
 "#,
     );
     let unit = source_unit(&fixture.names, fixture.consumer_source);
-    for (text, entered) in [
-        ("sink(tick(1), return 7, tick(2))", true),
-        ("tick(1)", true),
-        ("tick(2)", false),
-        ("stop()", true),
+    for (text, entered, dispatches) in [
+        ("sink(tick(1), return 7, tick(2))", true, Some(false)),
+        ("tick(1)", true, Some(true)),
+        ("tick(2)", false, None),
+        ("stop()", true, Some(true)),
     ] {
         let expression = expression_with_text(&fixture.sources, &fixture.consumer, text);
         let call = UnitExpressionId::new(unit, expression);
         assert!(fixture.typed.types().call(call).is_some(), "{text}");
         assert_eq!(fixture.owned.call_site_was_entered(call), entered, "{text}");
+        assert_eq!(fixture.owned.call_may_dispatch(call), dispatches, "{text}");
+    }
+    for (text, completed) in [("tick(1)", true), ("return 7", false), ("tick(2)", false)] {
+        let expression = expression_with_text(&fixture.sources, &fixture.consumer, text);
+        let argument = UnitExpressionId::new(unit, expression);
+        assert_eq!(
+            fixture.owned.call_argument_completed(argument),
+            completed,
+            "{text}"
+        );
     }
 }

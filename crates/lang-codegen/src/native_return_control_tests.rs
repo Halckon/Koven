@@ -198,3 +198,200 @@ fun main(): Unit {
     assert_success(&run(), expected);
     assert_success(&crate::ssa::with_per_family_lowering(run), expected);
 }
+
+#[test]
+fn constant_short_circuit_when_cleans_the_actual_skipped_owner() {
+    for (operator, taken, skipped) in [("||", false, true), ("&&", true, false)] {
+        let skipped_result = if skipped { 2 } else { 3 };
+        let source = format!(
+            r#"const val Answer: Int = 2
+fun take(own text: String): Boolean {{ println(text); return true }}
+fun takeAfter(own text: String, value: Int): Boolean {{ println("unexpected"); return true }}
+fun choose(flag: Boolean, own text: String): Int {{
+    return when {{ flag {operator} take(text) -> Answer; else -> 3 }}
+}}
+fun chooseExit(flag: Boolean, own text: String): Int {{
+    return when {{ flag {operator} takeAfter(text, return 7) -> Answer; else -> 3 }}
+}}
+fun main(): Unit {{
+    if (chooseExit({skipped}, "skipped exit") != {skipped_result}) {{ error("wrong skip result") }}
+    if (chooseExit({taken}, "RHS exit") != 7) {{ error("wrong early RHS result") }}
+    if (choose({skipped}, "skipped") != {skipped_result}) {{ error("wrong skip result") }}
+    if (choose({taken}, "taken") != Answer) {{ error("wrong RHS result") }}
+    println("ok")
+}}
+"#
+        );
+        assert_success(
+            &emit_link_and_run("const-when-short-circuit-owner.ko", &source, "main"),
+            b"taken\nok\n",
+        );
+    }
+}
+
+#[test]
+fn an_entered_call_keeps_the_named_prefix_before_a_dead_callback() {
+    let source = r#"
+fun tick(value: Int): Int { println("prefix"); return value }
+fun apply(first: Int, second: Int, action: () -> Unit): Boolean { action(); return true }
+fun choose(): Int {
+    apply(second = tick(1), first = return 7, action = { println("dead") })
+    return 3
+}
+fun chooseCallbackExit(): Int {
+    return when {
+        apply(second = tick(3), first = 1, action = return 9) -> 2
+        else -> 3
+    }
+}
+fun applyInout(inout item: Int, first: Int, second: Int, action: () -> Unit): Unit {
+    item = 9
+    action()
+}
+fun chooseInout(): Int {
+    var item = 1
+    applyInout(item = &item, second = tick(4), first = return 11, action = { println("dead inout") })
+    return 4
+}
+fun invokeLive(): Unit {
+    apply(second = tick(2), first = 1, action = { println("live") })
+}
+fun main(): Unit {
+    if (choose() != 7 || chooseCallbackExit() != 9 || chooseInout() != 11) {
+        error("wrong result")
+    }
+    invokeLive()
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("call-exiting-before-callback.ko", source, "main"),
+        b"prefix\nprefix\nprefix\nprefix\nlive\nok\n",
+    );
+}
+
+#[test]
+fn method_receiver_exit_precedes_callback_argument_evaluation() {
+    let source = r#"
+class Worker {
+    fun apply(value: Int, action: () -> Unit): Unit { action() }
+    fun ack(value: Int): Unit { println("unexpected ack") }
+}
+fun receiverPrefix(): Int { println("receiver prefix"); return 1 }
+fun argument(): Int { println("argument"); return 2 }
+fun make(first: Int, second: Int): Worker { println("receiver"); return Worker() }
+fun choose(): Int {
+    make(receiverPrefix(), return 7).apply(argument(), { println("dead") })
+    return 3
+}
+fun legacyChoose(): Int {
+    make(receiverPrefix(), return 7).ack(argument())
+    return 3
+}
+fun legacy(): Unit {
+    if (legacyChoose() != 7) { error("wrong result") }
+    println("ok")
+}
+fun main(): Unit {
+    if (choose() != 7) { error("wrong result") }
+    make(1, 2).apply(argument(), { println("live") })
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("method-receiver-exit.ko", source, "main"),
+        b"receiver prefix\nreceiver\nargument\nlive\nok\n",
+    );
+    let compatibility = crate::ssa::with_per_family_lowering(|| {
+        emit_link_and_run("method-receiver-exit.ko", source, "legacy")
+    });
+    assert_success(&compatibility, b"receiver prefix\nok\n");
+}
+
+#[test]
+fn an_exiting_call_prefix_does_not_emit_a_dormant_callback_callee() {
+    use super::boxed_enum_tests::unit_source::UnitSource;
+    use crate::ssa::model::Origin;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let source = r#"
+fun tick(): Int { println("prefix"); return 1 }
+fun dormant(first: Int, second: Int, callback: () -> Unit): Unit { callback() }
+fun choose(): Int {
+    dormant(tick(), return 7, { println("dead") })
+    return 3
+}
+fun main(): Unit {
+    if (choose() != 7) { error("wrong result") }
+    println("ok")
+}
+"#;
+    let unit = UnitSource::analyze("dormant-callback-callee.ko", source).unwrap();
+    unit.assert_frontend_clean();
+    let dormant = unit.declaration("dormant", SymbolKind::Function);
+    let origin = Origin::Source(unit.declaration_span(dormant));
+    let (program, _) = unit
+        .lower_entry(unit.declaration("main", SymbolKind::Function))
+        .unwrap();
+    assert!(
+        program
+            .modules
+            .iter()
+            .flat_map(|module| &module.functions)
+            .all(|function| function.origin != origin),
+        "an exiting operand prefix must not require the callee body"
+    );
+    let output = crate::ssa::with_per_family_lowering(|| {
+        emit_link_and_run("dormant-callback-callee.ko", source, "main")
+    });
+    assert_success(&output, b"prefix\nok\n");
+}
+
+#[test]
+fn an_exiting_call_prefix_can_form_a_callable_view_before_returning() {
+    for operand in ["{ println(marker) }", "({ println(marker) })"] {
+        let source = format!(
+            r#"
+fun dormant(callback: () -> Unit, second: Int): Unit {{ callback() }}
+fun choose(): Int {{
+    val marker = "callback body"
+    dormant({operand}, return 7)
+    return 3
+}}
+fun main(): Unit {{
+    if (choose() != 7) {{ error("wrong result") }}
+    println("ok")
+}}
+"#
+        );
+        assert_success(
+            &emit_link_and_run("completed-callback-prefix.ko", &source, "main"),
+            b"ok\n",
+        );
+    }
+}
+
+#[test]
+fn an_exiting_call_prefix_drops_a_consumed_nullable_when_subject() {
+    let source = r#"
+class Node { deinit() { println("drop") } }
+fun dormant(own value: Node, own result: Int): Unit { println("dispatched") }
+fun choose(own subject: Node?): Unit {
+    when (subject) {
+        null -> {};
+        else -> { dormant((subject), return) }
+    }
+    println("after")
+}
+fun main(): Unit {
+    val present: Node? = Node()
+    choose(present)
+    choose(null)
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("nullable-when-operand-exit.ko", source, "main"),
+        b"drop\nafter\nok\n",
+    );
+}
