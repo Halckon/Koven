@@ -1,11 +1,9 @@
 //! 只投影实际 Return unwind 的 receiver token，不重建或改变 cleanup。
 use super::{DropPlanner, PlannerDropPoint};
 use crate::{
-    name_resolution::SymbolKind,
     ownership_checking::{
-        OwnershipBindingKind, UnitIterationCleanupAction as Action, UnitLoanTarget,
-        UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-        UnitReceiverOwnershipTarget,
+        UnitIterationCleanupAction as Action, UnitReceiverCallPrefixEndFact,
+        UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
     },
     parser::Expression,
     type_checking::{CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget},
@@ -43,34 +41,8 @@ impl DropPlanner<'_, '_> {
         let Ok(Some(place)) = self.checker.place(operand) else {
             return false;
         };
-        let root = place.root();
-        let owned = self.checker.formed_owned_locals.contains(&root)
-            || self
-                .checker
-                .bindings
-                .get(&root)
-                .is_some_and(|binding| binding.kind() == OwnershipBindingKind::Owned);
-        // A root descriptor alone cannot distinguish provider/binding provenance.
-        let provider = self.checker.iterations.values().any(|plan| {
-            plan.bindings().iter().any(|binding| binding.symbol() == root)
-                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-        }) || self.checker.map_iterations.values().any(|plan| {
-            plan.bindings().iter().any(|binding| binding.symbol() == root)
-                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-        });
-        owned
-            && !provider
-            && place.is_root()
-            && matches!(
-                self.checker.symbol_kind(root),
-                Some(SymbolKind::Variable | SymbolKind::ValueParameter)
-            )
-            && !self
-                .checker
-                .borrow_results
-                .bindings
-                .iter()
-                .any(|binding| binding.binding() == root)
+        place.is_root()
+            && self.is_observable_owned_loan_root(place.root())
             && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == &place)
     }
 

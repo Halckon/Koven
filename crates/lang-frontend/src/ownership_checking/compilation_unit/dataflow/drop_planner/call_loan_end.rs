@@ -2,10 +2,9 @@
 use super::{DropPlanner, PlannerDropPoint, ValueState};
 use crate::{
     ast::ExpressionId,
-    name_resolution::SymbolKind,
     ownership_checking::{
-        LoanKind, OwnershipBindingKind, UnitDirectCallLoanEndFact,
-        UnitIterationCleanupAction as Action, UnitLoanFact, UnitLoanTarget,
+        LoanKind, UnitDirectCallLoanEndFact, UnitIterationCleanupAction as Action, UnitLoanFact,
+        UnitLoanTarget,
     },
     parser::{Expression, StringPart},
     type_checking::{CallableResultSource, UnitCallTarget},
@@ -46,32 +45,8 @@ impl DropPlanner<'_, '_> {
                     let Ok(Some(place)) = self.checker.place(operand) else {
                         return false;
                     };
-                    let root = place.root();
-                    let owned =
-                        self.checker.formed_owned_locals.contains(&root)
-                            || self.checker.bindings.get(&root).is_some_and(|binding| {
-                                binding.kind() == OwnershipBindingKind::Owned
-                            });
-                    let provider = self.checker.iterations.values().any(|plan| {
-                        plan.bindings().iter().any(|binding| binding.symbol() == root)
-                            || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-                    }) || self.checker.map_iterations.values().any(|plan| {
-                        plan.bindings().iter().any(|binding| binding.symbol() == root)
-                            || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-                    });
-                    return owned
-                        && !provider
-                        && matches!(
-                            self.checker.symbol_kind(root),
-                            Some(SymbolKind::Variable | SymbolKind::ValueParameter)
-                        )
-                        && place.is_root()
-                        && !self
-                            .checker
-                            .borrow_results
-                            .bindings
-                            .iter()
-                            .any(|binding| binding.binding() == root)
+                    return place.is_root()
+                        && self.is_observable_owned_loan_root(place.root())
                         && matches!(loan.target(), UnitLoanTarget::Place(target) if target == &place);
                 }
                 Expression::Member { .. } => {

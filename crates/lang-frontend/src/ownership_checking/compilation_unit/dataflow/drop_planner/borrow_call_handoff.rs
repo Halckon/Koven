@@ -69,7 +69,10 @@ impl DropPlanner<'_, '_> {
         let UnitLoanTarget::Place(place) = source_loan.target() else {
             return;
         };
-        if !self.checker.formed_owned_locals.contains(&place.root())
+        if !self
+            .loan_root_provenance()
+            .formed_owned
+            .contains(&place.root())
             || state.position(place.root()).is_none()
         {
             return;
@@ -116,17 +119,11 @@ impl DropPlanner<'_, '_> {
             return false;
         };
         let root = place.root();
-        let provider = self.checker.iterations.values().any(|plan| {
-            plan.bindings().iter().any(|binding| binding.symbol() == root)
-                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-        }) || self.checker.map_iterations.values().any(|plan| {
-            plan.bindings().iter().any(|binding| binding.symbol() == root)
-                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-        });
+        let provenance = self.loan_root_provenance();
         loan.kind() == LoanKind::Shared
             && place.is_root()
-            && !provider
-            && self.checker.formed_owned_locals.contains(&root)
+            && !provenance.iteration_providers.contains(&root)
+            && provenance.formed_owned.contains(&root)
             && state.position(root).is_some()
             && !state.borrow_bindings.contains(&root)
             && self
@@ -206,7 +203,10 @@ impl DropPlanner<'_, '_> {
             };
             if loan.kind() != LoanKind::Shared
                 || !place.is_root()
-                || !self.checker.formed_owned_locals.contains(&place.root())
+                || !self
+                    .loan_root_provenance()
+                    .formed_owned
+                    .contains(&place.root())
                 || call.receiver().is_some()
                 || !matches!(call.target(), UnitCallTarget::Declaration(_))
                 || !matches!(call.result_source(), CallableResultSource::Borrow(_))
@@ -282,7 +282,10 @@ impl DropPlanner<'_, '_> {
         // Typed argument mapping selects the candidate only. The actual evaluated
         // token, original operand place and still-live owner prove this observation.
         place.is_root()
-            && self.checker.formed_owned_locals.contains(&place.root())
+            && self
+                .loan_root_provenance()
+                .formed_owned
+                .contains(&place.root())
             && state.position(place.root()).is_some()
             && !state.borrow_bindings.contains(&place.root())
             && self
