@@ -442,7 +442,6 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
     for source in [
         "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}",
         "class Resource<T>(val value: T) { deinit() {} }\nfun run(): Unit { val resource = Resource(1) }",
-        "class Resource { deinit() {} }\nclass Holder<T>(val value: T)\nfun run(): Unit { val wrapped = Holder(Resource()) }",
     ] {
         let analysis = analyze_legacy(source);
         assert!(
@@ -468,6 +467,36 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
         assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode, "{source}");
         assert!(failure.span.is_some());
     }
+
+    // This original generic wrapper has the same complete rejection on both routes.
+    // Nullable resources and generic deinit declarations above retain their Legacy witnesses.
+    let source = "class Resource { deinit() {} }\nclass Holder<T>(val value: T)\nfun run(): Unit { val wrapped = Holder(Resource()) }";
+    let unit = UnitSource::analyze("lowering.ko", source)
+        .expect("the original resource wrapper passes strict Unit frontend admission");
+    unit.assert_frontend_clean();
+    assert!(unit.ownership().deferred().is_empty());
+    assert_eq!(unit.parsed().roots().len(), 3);
+    let source_id = unit.parsed().source_id();
+    assert_eq!(unit.sources().source_name(source_id), Ok("lowering.ko"));
+    assert_eq!(unit.sources().source_text(source_id), Ok(source));
+    let run = unit.declaration("run", SymbolKind::Function);
+    assert_eq!(
+        unit.sources().slice(unit.declaration_span(run)),
+        Ok("fun run(): Unit { val wrapped = Holder(Resource()) }")
+    );
+    let failure = unit
+        .lower_entry(run)
+        .err()
+        .expect("the unsupported generic resource wrapper cannot produce a Program");
+    let span = unit.sources().span(source_id, 93, 111).unwrap();
+    assert_eq!(unit.sources().slice(span), Ok("Holder(Resource())"));
+    assert_eq!(
+        failure,
+        crate::ssa::LoweringError {
+            kind: LoweringErrorKind::UnsupportedNode,
+            span: Some(span)
+        }
+    );
 }
 
 #[test]
