@@ -5,6 +5,7 @@ mod mixed_join;
 mod normal_join;
 mod split_continue;
 mod split_exits;
+mod suffix;
 use super::super::{UnitOwnerId, UnitOwnerProducerCatalogV1, UnitOwnerValueObservationV1};
 use super::{UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerObservation};
 use crate::name_resolution::UnitSymbolId;
@@ -41,6 +42,8 @@ impl UnitOwnerLoopBindingV1 {
 #[derive(Clone, Debug)]
 pub struct UnitOwnerInvariantLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) evidence: InvariantLoopBoundaries,
+    pub(in crate::ownership_checking::compilation_unit) post_loop:
+        Option<suffix::PostLoopTransport>,
 }
 
 #[derive(Clone, Debug)]

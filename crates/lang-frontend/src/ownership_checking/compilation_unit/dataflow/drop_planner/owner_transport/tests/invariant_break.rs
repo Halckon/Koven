@@ -439,6 +439,7 @@ fn break_exit_seal_rejects_wrong_snapshots_variants_and_deferred_products() {
     legacy.invariant_loop_value = Some(Box::new(InvariantLoopValueV1::Backedge(
         crate::ownership_checking::UnitOwnerInvariantLoopObservationV1 {
             evidence: original.evidence.clone(),
+            post_loop: None,
         },
     )));
     assert!(

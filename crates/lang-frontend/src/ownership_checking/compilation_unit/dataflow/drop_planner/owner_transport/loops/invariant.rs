@@ -189,7 +189,10 @@ impl InvariantInput {
                     .then_some(InvariantLoopValueV1::Break(value))
             }
             LoopBodyCompletion::Fallthrough | LoopBodyCompletion::Continue(_) => {
-                let value = UnitOwnerInvariantLoopObservationV1 { evidence };
+                let value = UnitOwnerInvariantLoopObservationV1 {
+                    evidence,
+                    post_loop: None,
+                };
                 value
                     .is_consistent()
                     .then_some(InvariantLoopValueV1::Backedge(value))

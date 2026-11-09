@@ -26,6 +26,7 @@ mod invariant_mixed_join;
 mod invariant_normal_join;
 mod invariant_split_continue;
 mod invariant_split_exits;
+mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
 
