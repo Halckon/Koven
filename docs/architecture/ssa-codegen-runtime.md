@@ -61,7 +61,7 @@ unit native 计数覆盖前序 Rc Borrow temporary 与七类控制流 operand、
 共 28 次分配与 28 次释放，并核对 live pointer 身份。它验证调用交付与 owner 释放，不包含
 借用 Rc 参数的 payload projection；该路径仍为现有 unsupported 边界。
 
-实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
+实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。 未使用的 value class/class/interface/enum 四类声明与单一 entry 的原正例已改走 strict Unit，锁定仅 entry、无运行时类型或初始化动作；多根实例共享与旧拒绝见证保留。
 
 SSA 使用独立 `Char` 类型与 `Char(u32)` 常量；verifier 只接受 Unicode scalar，并拒绝把它与
 UInt32 常量/类型互换。Char 为 Copyable，支持相等/不等而不进入整数算术或排序契约；LLVM
