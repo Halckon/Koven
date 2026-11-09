@@ -712,6 +712,11 @@ impl Builder<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
+                && self
+                    .inputs
+                    .typed
+                    .expression_falls_through(self.unit(value_expression))
+                    != Some(false)
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
                 let (lent, created, read_argument) =

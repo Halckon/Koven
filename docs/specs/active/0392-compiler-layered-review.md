@@ -3280,3 +3280,21 @@ Basic 正常求值 RHS 使用 BranchExit 0，旁路使用 1。已知不完成的
 提前 return，精确断言结果和输出。提前退出的 RHS 不调用 callee。Const SSA 套件
 27 项、前端 Const 所有权 23 项通过，零失败与忽略。codegen 全目标 Clippy 通过，
 独立复核核对真实清理点、Const 提前退出及 Basic 隔离。
+
+## 131. R3/R4 已进入调用的 callback 实参前缀
+
+在 `ac9a7d81` 上，具名实参按源码顺序执行 tick、return，再遇到未求值 lambda 的
+原生红测于实例规划报 UnsupportedNode。所有权在源码实参产生正常值时记录该实参，
+planner 仅为完成的 callback 登记来源，已进入的外层调用仍保留 route。活但来源不明
+的 callback 沿用原 UnsupportedNode，独立原生正控核对方法 receiver 与正常具名调用。
+
+callback 实参本身提前 return 且外层为 subjectless when 时，第二个原生红测复现
+refine 准入失败。refine 现在按源码实参顺序检查实际前缀，已知不完成的实参本身仍
+求值，不检查后继实参的 lowering。没有正常值的 callback 走既有的退出求值，不构造
+view。保留实参借用与临时值的原退出清理路径。
+
+本机原生验证后续 lambda 未形成、callback 实参自身 return、已建立 inout 的前缀退出
+以及活 callback 正常执行。13 项 callable 规划与 185 项 Unit/Const 所有权通过，零失败、
+零忽略。前端与 codegen 全目标 Clippy 通过。独立对照实跑 Basic、Const 与活 receiver，
+并核对源码实参顺序与 ABI 槽位分离。已进入但不 invoke 的通用实例调度、receiver 自身
+退出以及已形成 callable view 的兼容前缀仍需复审。

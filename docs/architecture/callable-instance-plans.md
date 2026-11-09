@@ -28,6 +28,8 @@ pointer factory 的摘要按具体 factory source memo，核对声明及调用�
 无捕获返回 lambda 归属 factory source；named function 依赖进入原 worklist。
 普通非 Fn 数据参数保持原规划路径，不因 callback discovery 增加 concrete layout 门禁。
 捕获 Fn 的环境缺少本片 concrete ABI，在 capture 引用位置返回 UnsupportedNode。
+Unit 实参求值发布正常完成事实。已进入的调用仍保留静态路由，Borrow Fn 来源仅为完成的
+实参冻结。refine 保留源码顺序，并将无正常结果的实参交给原控制转移清理。
 
 实现位于 `ssa/lowering_support/callable_instances.rs`、`lower_frontend/instances/` 与
 `unit_plan/callable_instances.rs`。本页描述 planner 事实；source runtime constructor、helper

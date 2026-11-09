@@ -806,12 +806,20 @@ impl Checker<'_, '_> {
             extension_rec = Some(expression.expression());
             modes.insert(0, (None, receiver.mode(), self.c(receiver.ty())));
         }
+        let mut reaches_operand = true;
         modes.into_iter().all(|(index, mode, parameter)| {
+            if !reaches_operand {
+                return true;
+            }
             let Some(value) = index.map_or(extension_rec, |i| values.get(i).copied()) else {
                 return false;
             };
             if mode == ParameterMode::Inout {
                 return self.inout_argument(call, value);
+            }
+            if self.inputs.typed.expression_falls_through(self.id(value)) == Some(false) {
+                reaches_operand = false;
+                return self.expression(value);
             }
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);

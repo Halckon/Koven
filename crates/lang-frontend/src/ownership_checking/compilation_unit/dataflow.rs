@@ -212,6 +212,7 @@ pub(super) fn analyze(
     let mut formed_owned_locals = Vec::new();
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
+    let mut completed_arguments = std::collections::BTreeSet::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
     let mut borrow_call_prefix_ends = Vec::new();
@@ -309,6 +310,7 @@ pub(super) fn analyze(
         iteration_loan_ends.extend(drop_analysis.iteration_loan_ends);
         iteration_required_exits.extend(drop_analysis.iteration_required_exits);
         short_circuits.extend(checker.short_circuits.into_values());
+        completed_arguments.extend(checker.completed_arguments);
         visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
@@ -361,7 +363,12 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     let callable_provenance = if diagnostics.is_empty() && typed.has_valid_type_facts() {
-        callable_provenance::finish(&callable_sources, typed, &capture_index)
+        callable_provenance::finish(
+            &callable_sources,
+            typed,
+            &capture_index,
+            completed_arguments,
+        )
     } else {
         Default::default()
     };
@@ -472,6 +479,7 @@ struct Checker<'a> {
         crate::type_checking::UnitStatementId,
         crate::ownership_checking::UnitMapIterationOwnershipPlan,
     >,
+    completed_arguments: std::collections::BTreeSet<UnitExpressionId>,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     constant_control: bool,
     short_circuits: BTreeMap<UnitExpressionId, super::constant::UnitShortCircuitPlan>,
@@ -633,6 +641,7 @@ impl<'a> Checker<'a> {
             callable_sources,
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
+            completed_arguments: std::collections::BTreeSet::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
             short_circuits: BTreeMap::new(),

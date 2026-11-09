@@ -446,6 +446,12 @@ impl<'a> CallablePlanner<'a> {
                     operand_span,
                 ));
             }
+            let expression = UnitExpressionId::new(call.expression().source_unit(), argument.value);
+            // A call prefix can exit before forming this callback. Other
+            // completed operands still need their normal view bindings.
+            if !self.owned.call_argument_completed(expression) {
+                continue;
+            }
             let mapped = resolve_concrete_type(
                 self.typed,
                 mapping.parameter_type(),
@@ -453,7 +459,6 @@ impl<'a> CallablePlanner<'a> {
                 current.static_self(),
                 operand_span,
             )?;
-            let expression = UnitExpressionId::new(call.expression().source_unit(), argument.value);
             let actual = self
                 .typed
                 .expression_type(expression)

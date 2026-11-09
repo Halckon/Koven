@@ -2,6 +2,8 @@
 
 pub(super) mod graph;
 
+use std::collections::BTreeSet;
+
 use super::{CompilationUnitOwnership, OwnershipCheckedFile};
 use crate::{
     ast::ExpressionId,
@@ -179,6 +181,7 @@ pub(super) struct FileCallableFacts {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct UnitCallableFacts {
+    pub(super) completed_arguments: BTreeSet<UnitExpressionId>,
     pub(super) origins: Vec<UnitCallableOriginFact>,
     pub(super) returns: Vec<UnitPointerCallableReturnSummary>,
     pub(super) closure_returns: Vec<UnitClosureCallableReturnSummary>,
@@ -216,6 +219,14 @@ impl OwnershipCheckedFile {
 }
 
 impl CompilationUnitOwnership {
+    /// Reports whether evaluating the source call argument produced a normal value.
+    #[must_use]
+    pub fn call_argument_completed(&self, expression: UnitExpressionId) -> bool {
+        self.callable_provenance
+            .completed_arguments
+            .contains(&expression)
+    }
+
     /// Deterministic, source-qualified callable facts from this successful analysis.
     #[must_use]
     pub fn callable_origins(&self) -> &[UnitCallableOriginFact] {

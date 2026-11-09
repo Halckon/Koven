@@ -228,3 +228,44 @@ fun main(): Unit {{
         );
     }
 }
+
+#[test]
+fn an_entered_call_keeps_the_named_prefix_before_a_dead_callback() {
+    let source = r#"
+fun tick(value: Int): Int { println("prefix"); return value }
+fun apply(first: Int, second: Int, action: () -> Unit): Boolean { action(); return true }
+fun choose(): Int {
+    apply(second = tick(1), first = return 7, action = { println("dead") })
+    return 3
+}
+fun chooseCallbackExit(): Int {
+    return when {
+        apply(second = tick(3), first = 1, action = return 9) -> 2
+        else -> 3
+    }
+}
+fun applyInout(inout item: Int, first: Int, second: Int, action: () -> Unit): Unit {
+    item = 9
+    action()
+}
+fun chooseInout(): Int {
+    var item = 1
+    applyInout(item = &item, second = tick(4), first = return 11, action = { println("dead inout") })
+    return 4
+}
+fun invokeLive(): Unit {
+    apply(second = tick(2), first = 1, action = { println("live") })
+}
+fun main(): Unit {
+    if (choose() != 7 || chooseCallbackExit() != 9 || chooseInout() != 11) {
+        error("wrong result")
+    }
+    invokeLive()
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("call-exiting-before-callback.ko", source, "main"),
+        b"prefix\nprefix\nprefix\nprefix\nlive\nok\n",
+    );
+}
