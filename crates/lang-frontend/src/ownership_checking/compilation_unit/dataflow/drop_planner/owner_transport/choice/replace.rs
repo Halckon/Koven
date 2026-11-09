@@ -5,6 +5,7 @@ use crate::ownership_checking::UnitDropPoint;
 pub(super) struct Admission {
     call: UnitExpressionId,
     argument: Vec<UnitExpressionId>,
+    result_chain: Vec<UnitExpressionId>,
     pub(super) symbol: UnitSymbolId,
 }
 
@@ -15,7 +16,7 @@ pub(super) struct Frame {
     pending: bool,
     committed: bool,
     returned: Option<UnitExpressionId>,
-    completed: bool,
+    completed: usize,
     bound: bool,
     root_dropped: bool,
 }
@@ -26,21 +27,42 @@ pub(super) fn admit(
     symbol: UnitSymbolId,
     initializer: ExpressionId,
 ) -> Option<Admission> {
-    let call = checker.unit_expression(initializer);
-    if checker.is_constant_use(initializer)
-        || checker
-            .typed
-            .expression_type(call)
-            .and_then(|ty| checker.typed.types().get(ty))
-            != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-    {
-        return None;
+    // The checked call remains the primitive and cleanup identity. Groups only
+    // transport its returned Choice through their own actual Consume frames.
+    let mut current = initializer;
+    let mut result_chain = Vec::new();
+    loop {
+        let expression = checker.unit_expression(current);
+        if checker.is_constant_use(current)
+            || checker
+                .typed
+                .expression_type(expression)
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        {
+            return None;
+        }
+        result_chain.push(expression);
+        match checker
+            .parsed
+            .ast()
+            .expressions()
+            .get(current)
+            .ok()?
+            .payload()
+        {
+            Expression::Group { expression } => current = *expression,
+            Expression::Call { .. } => break,
+            _ => return None,
+        }
     }
+    result_chain.reverse();
+    let call = checker.unit_expression(current);
     let Expression::Call { arguments, .. } = checker
         .parsed
         .ast()
         .expressions()
-        .get(initializer)
+        .get(current)
         .ok()?
         .payload()
     else {
@@ -77,6 +99,7 @@ pub(super) fn admit(
     Some(Admission {
         call,
         argument,
+        result_chain,
         symbol,
     })
 }
@@ -120,19 +143,36 @@ impl ChoiceTransaction {
         let Some(admission) = &self.admission.replacement else {
             return false;
         };
-        if expression == admission.call {
-            let frame = &mut self.replacement;
+        if let Some(position) = admission
+            .result_chain
+            .iter()
+            .position(|id| *id == expression)
+        {
+            let from = if position == 0 {
+                expression
+            } else {
+                admission.result_chain[position - 1]
+            };
+            let frame = &self.replacement;
             if !consuming
                 || !frame.committed
                 || !frame.root_dropped
-                || frame.completed
+                || frame.completed != position
                 || frame.bound
-                || frame.returned != Some(expression)
+                || frame.returned != Some(from)
                 || self.dropped
             {
                 self.abort();
             } else {
-                frame.completed = true;
+                if position != 0 {
+                    self.suffix.push(Event::Forward(
+                        from,
+                        expression,
+                        Value::Choice(self.choice_id()),
+                    ));
+                    self.replacement.returned = Some(expression);
+                }
+                self.replacement.completed += 1;
             }
             return true;
         }
@@ -269,10 +309,10 @@ impl ChoiceTransaction {
             || self.dropped
             || !frame.committed
             || !frame.root_dropped
-            || !frame.completed
+            || frame.completed != admission.result_chain.len()
             || frame.bound
             || frame.returned != Some(initializer)
-            || initializer != admission.call
+            || admission.result_chain.last() != Some(&initializer)
         {
             self.abort();
             return true;
@@ -294,7 +334,7 @@ impl ChoiceTransaction {
         source == admission.symbol
             && self.replacement.committed
             && self.replacement.root_dropped
-            && self.replacement.completed
+            && self.replacement.completed == admission.result_chain.len()
             && self.replacement.bound
             && self.replacement.returned.is_none()
     }
@@ -314,7 +354,7 @@ impl ChoiceTransaction {
                 || !frame.committed
                 || frame.pending
                 || frame.root_dropped
-                || frame.completed
+                || frame.completed != 0
                 || frame.bound
                 || frame.returned != Some(admission.call)
                 || point != UnitDropPoint::CallReturn(admission.call)
