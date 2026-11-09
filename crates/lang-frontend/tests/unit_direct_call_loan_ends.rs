@@ -911,3 +911,6 @@ mod inout_receiver_reborrow;
 
 #[path = "unit_direct_call_loan_ends/this_receiver_reborrow.rs"]
 mod this_receiver_reborrow;
+
+#[path = "unit_direct_call_loan_ends/field_receiver_reborrow.rs"]
+mod field_receiver_reborrow;
