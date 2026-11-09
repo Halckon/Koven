@@ -73,9 +73,10 @@ Unit `receiver_call_prefix_ends()` 只投影实际 return/break/continue unwind 
 receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end 的数量。计数
 包含被切片排除的真实动作，按不同控制转移点重置，不提供全局执行索引或完整结束流。
 
-仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow/Inout 参数的 Name/Group 根准入；
+仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow/Inout 参数的 Name/Group 根，
+以及具体 nominal 的 this 准入；
 参数的 nested reborrow 结束不结束原参数能力，也不析构 caller owner。正常返回、
-Exclusive receiver reservation、this、投影、temporary、provider、显式借用绑定与 borrowed-result
+Exclusive receiver reservation、StaticSelf this、投影、temporary、provider、显式借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
 
@@ -92,10 +93,10 @@ Borrow、Group、同根嵌套逆序、for 清理顺序、后续参数使用、�
 
 Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pending 队列移出完整
 receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
-反推执行。正常完成准入 owned 名称根及声明端 Borrow/Inout 参数的 Name/Group 根；两者都
-要求 Shared receiver 与 owned-result 方法。非 owning 参数只结束本次 nested Shared reborrow，
+反推执行。正常完成准入 owned 名称根、声明端 Borrow/Inout 参数的 Name/Group 根及具体 nominal 的 this；
+都要求 Shared receiver 与 owned-result 方法。非 owning 参数只结束本次 nested Shared reborrow，
 原参数能力与 caller owner 不被结束或析构；prefix 查询使用相同根资格。
-Exclusive receiver reservation、this、投影、temporary、provider、显式借用绑定与 borrowed-result
+Exclusive receiver reservation、StaticSelf this、投影、temporary、provider、显式借用绑定与 borrowed-result
 receiver 继续排除；String.clone intrinsic 的独立完成路径不在此查询内。
 
 正常完成仍移除原 retain 所选的 call/receiver tokens，其他调用及 action 的顺序和 loop
@@ -115,3 +116,13 @@ Inout 参数的根 binding 为 Exclusive，不改变其内部普通方法的 Sha
 能力。后续变异准入、callee 无参数 drop、caller 唯一 owner drop 与未激活 reservation
 继续排除的证据见 [Inout 子借用切片](../specs/active/0341-shared-lowering-core.md#129-inout-参数的-shared-receiver-reborrow-结束2026-11-09)。
 这些是 frontend 静态事实及源码准入证据，不是 native 动态权限恢复或完整生命周期证明。
+
+
+具体 class/value class 的隐式、显式和 Group this 现使用同一真实退休 token 查询；
+nominal 声明须与 This target 相同，隐式来源核 owner，显式来源核 source-qualified this。
+查询不依赖收集前缀时已切换的 callable context。正常完成、控制转移、循环深度、两阶段
+activation 与原 owner 清理均未改动；子 Shared 结束不移出或析构 non-owning this。
+StaticSelf、provider this、Exclusive receiver 和 borrowed-result 仍不进入此切片；
+未支持的 from-this 结果延续仍 L0164，存活 Shared 下的新 Exclusive 仍 L0135。
+四份旧 this 排除源码原样转为非空 oracle，完整身份、模式、跨 source 及撤销证据见
+[this 子借用切片](../specs/active/0341-shared-lowering-core.md#131-具体-this-的-shared-receiver-reborrow-结束2026-11-09)。

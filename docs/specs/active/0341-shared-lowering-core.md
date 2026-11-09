@@ -4967,3 +4967,54 @@ Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2；�
 
 遵循用户持续开发、分步提交与connector推送授权，不再备份，不强推、不合并。发布头CI
 与后续主线集成须独立核验；本片不宣称D10/E2或完整借用流完成。
+
+
+## 131. 具体 this 的 Shared receiver reborrow 结束（2026-11-09）
+
+本片接续已发布 Inout 头 `3e452ede5eb3d5a11a6ea14b6a6209b123a63ce4`，在独立
+`feature/spec-0341-this-receiver-reborrow` 分支实现。开工核对远端 main `4243ebe5`，
+其尚无 receiver 结束观察表；已有 receiver/Inout、String.clone 与动态 owner 分支不重复。
+这是一条尚未集成主线的有界链，不把其检查计为最新 main 验收。与并行 owner §130 分开，
+不触碰 Choice、共同 pending/commit 生产者或原主工作树。
+
+依据 guide §10 的调用期 loan 与 receiver mode 合同，只有已检查的 Shared receiver、
+Declaration/Symbol 方法及 owned result 才继续筛选。具体 nominal 类型声明须等于原 token
+的 This target；ImplicitThis 核同一 owner，显式来源核同一 source 的 This/Group。仍从
+既有正常 pending 移出或真实 Return/Break/Continue cleanup 读取，不从最终 descriptor
+反推执行，不读取事后 callable context，也不新增 token。provider this、StaticSelf、
+Exclusive、borrowed-result 保留排除，原具名根及 provider/binding 排除不变。
+
+red 提交 `eb651f08` 保留四份旧 this 源码；两项测试实际在各自隐式正常/Return 首例
+得到0事件而预期1，显式子例未在红测失败后继续运行。最小观察资格改动后四份均转绿。
+扩展夹具的首次执行为9过3失败：无构造字段 value class 为L0077，同 this 的 Shared
+outer/Exclusive inner 为L0135，from-this borrow continuation 为L0164。修正合法构造及
+预留 Exclusive outer/Shared inner 正控；原非法借用来源保留为明确拒绝负控。另一次
+borrowed-result 前缀仍L0164，也保留该来源而非放宽准入；测试代码的诊断显示API编译错误
+在执行前修正。生产修改不因这些夹具失败而扩大语言能力。
+
+15项新双Unit入口合同覆盖隐式/显式/Group、class/value class、Borrow/Inout/own callable、
+嵌套正常及逆序prefix、inner完成不重发、内层loop jump保留外层token、for真实cleanup、
+两阶段正常激活及前缀未激活、caller后续变异与唯一drop、non-owning this无drop、同一call
+互斥正常/prefix点、StaticSelf与borrowed-result排除、L0133/L0135/L0164拒绝。2项raw合同
+由真实非空正常和三类退出表验证后置L0134/deferred撤销，并核相同AST index的双source、
+不同nominal owner与公开/raw完整相等。既有Single见证不退役。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| this与既有直接借用合同 | `unit_direct_call_loan_ends`，沿用前片5项Abort整项排除 | 177 passed，含15项新合同 |
+| raw撤销与跨source身份 | `--lib adjacent_borrow_results` | 17 passed，396项未选 |
+| 既有借用与receiver回边 | continuation、nested、backedge三个targets，nested沿用1项Abort排除 | 14 + 9 + 4 passed |
+| Unit iteration退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| 相邻两阶段合同 | `multifile_two_phase_borrows`，沿用2项Abort排除 | 25 passed，2项未选 |
+| 静态及跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 全部通过 |
+| 文档及尺寸 | `check_docs.py`、`check_rust_sizes.py --base 3e452ede`、diff | 通过；863 Markdown、2231 Rust、35项既有超长 |
+
+Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2，同worker隔离target
+串行执行；本片无native、Linux、故障注入、压力或frontend/workspace全量运行。继承§129
+八项Abort整项仅编译，不把未运行项计为通过。共252项不同普通测试通过，不重复累计先行
+复跑。独立fresh-context复审完整10文件、Architecture与本节及实际日志，无P1/P2；
+复审不重跑Cargo。不改尺寸额度。
+
+本片只观察静态实际结束事实，不承诺跨表全序、动态this/caller别名、完整生命周期或
+native权限恢复；完整D10/E2仍未完成。不再备份，不强推、不覆盖已有工作、不合并；
+connector发布与精确头CI另外核验。
