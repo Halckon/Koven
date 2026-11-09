@@ -137,7 +137,10 @@ impl StrictCallTrialIndex {
         })
     }
 
-    fn trial_at_raw(&self, raw_start: usize) -> Result<Option<CallTrial>, ParserInternalError> {
+    pub(super) fn trial_at_raw(
+        &self,
+        raw_start: usize,
+    ) -> Result<Option<CallTrial>, ParserInternalError> {
         let significant = self
             .raw_to_significant
             .get(raw_start)

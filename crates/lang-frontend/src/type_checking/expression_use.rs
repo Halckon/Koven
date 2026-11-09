@@ -2,13 +2,14 @@
 
 use crate::{
     ast::{ExpressionId, StatementId},
-    parser::{Expression, ParsedFile, Statement},
+    parser::{Expression, ParameterModeMarker, ParsedFile, Statement},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ExpressionUse {
     Value,
     Statement,
+    InoutStorage,
 }
 
 pub(crate) fn collect_expression_uses(parsed: &ParsedFile) -> Vec<ExpressionUse> {
@@ -35,7 +36,30 @@ pub(crate) fn collect_expression_uses(parsed: &ParsedFile) -> Vec<ExpressionUse>
             }
         }
     }
+    for (_, node) in parsed.ast().expressions().iter() {
+        if let Expression::Call { arguments, .. } = node.payload() {
+            for argument in arguments {
+                if matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_))) {
+                    mark_inout_storage_name(parsed, argument.value, &mut uses);
+                }
+            }
+        }
+    }
     uses
+}
+
+fn mark_inout_storage_name(parsed: &ParsedFile, mut id: ExpressionId, uses: &mut [ExpressionUse]) {
+    // Only the direct place changes use. Field receivers and index operands still read values.
+    while let Ok(node) = parsed.ast().expressions().get(id) {
+        match node.payload() {
+            Expression::Group { expression } => id = *expression,
+            Expression::Name => {
+                uses[id.index()] = ExpressionUse::InoutStorage;
+                break;
+            }
+            _ => break,
+        }
+    }
 }
 
 fn mark_statement_expression(parsed: &ParsedFile, id: ExpressionId, uses: &mut [ExpressionUse]) {

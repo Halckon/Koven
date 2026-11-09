@@ -371,7 +371,8 @@ impl Checker<'_> {
         {
             self.iteration_recovery.observe(id);
         }
-        if let Some(key) = self.stable_flow_key(id)
+        if self.expression_use(id) != ExpressionUse::InoutStorage
+            && let Some(key) = self.stable_flow_key(id)
             && let Some(ty) = self.flow_facts.get(&key).copied()
         {
             return Ok(ty);
@@ -959,11 +960,19 @@ impl Checker<'_> {
                 &left_false
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
-            let required = logical_rhs_is_required(self.ast(), left, operator)?;
+            let rhs_required = logical_rhs_is_required(self.ast(), left, operator)?;
+            let bypass_versions = self
+                .syntactic_boolean_outcomes
+                .rhs_is_bypassed(left, operator)
+                .then(|| self.flow_versions.clone());
             let right_result =
                 self.check_pending_logical_rhs(expression, left, operator, right, left_result)?;
-            let writes = self.expression_flow_writes(right)?;
-            baseline.retain(|key, _| !writes.contains(key));
+            if let Some(versions) = bypass_versions {
+                self.flow_versions = versions;
+            } else {
+                let writes = self.expression_flow_writes(right)?;
+                baseline.retain(|key, _| !writes.contains(key));
+            }
             self.flow_facts = baseline;
             let valid = self.is_builtin(left_result.ty, BuiltinType::Boolean)
                 && self.is_builtin(right_result.ty, BuiltinType::Boolean);
@@ -986,7 +995,7 @@ impl Checker<'_> {
             return Ok(ExprCheck {
                 ty,
                 falls_through: left_result.falls_through
-                    && (right_result.falls_through || !required),
+                    && (right_result.falls_through || !rhs_required),
             });
         }
         let (left_result, right_result) =
