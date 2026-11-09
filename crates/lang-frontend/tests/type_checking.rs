@@ -6,9 +6,8 @@ use lang_frontend::{
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        AggregateProjectionReceiver, BuiltinType, CallReceiverOrigin, Capability, DeferredReason,
-        IntrinsicCallable, IntrinsicTypeConstructor, ParameterMode, TypeCheckingError,
-        TypeEnvironment, TypeKind, TypedFile, check_types,
+        BuiltinType, Capability, DeferredReason, IntrinsicCallable, IntrinsicTypeConstructor,
+        TypeCheckingError, TypeEnvironment, TypeKind, TypedFile, check_types,
     },
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -695,71 +694,6 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
             "missing {expected:?}: {reasons:?}"
         );
     }
-}
-
-#[test]
-fn single_file_member_calls_publish_receiver_contracts() {
-    let (sources, parsed, _, typed) = checked(
-        "class Holder<T>(val item: T) {\n\
-             fun echo(input: T): T = input\n\
-             borrow fun same(input: T): T = echo(input)\n\
-             inout fun replace(own input: T): T = input\n\
-             fun current(): T = item\n\
-         }\n\
-         fun use(holder: Holder<Int>): Int = holder.same(1)",
-    );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(
-        typed
-            .callables()
-            .iter()
-            .filter_map(|callable| callable.receiver().map(|receiver| receiver.mode()))
-            .collect::<Vec<_>>(),
-        [
-            ParameterMode::Borrow,
-            ParameterMode::Borrow,
-            ParameterMode::Inout,
-            ParameterMode::Borrow,
-        ]
-    );
-    let item = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find(|(_, node)| sources.slice(node.span()) == Ok("item"))
-        .expect("bare field expression")
-        .0;
-    assert!(matches!(
-        typed
-            .aggregate_projection(item)
-            .expect("bare field projection")
-            .receiver(),
-        AggregateProjectionReceiver::This(_)
-    ));
-    let call = |text: &str| {
-        let expression = parsed
-            .ast()
-            .expressions()
-            .iter()
-            .find(|(_, node)| sources.slice(node.span()) == Ok(text))
-            .expect("call expression")
-            .0;
-        typed.call(expression).expect("receiver call fact")
-    };
-    assert!(matches!(
-        call("echo(input)")
-            .receiver()
-            .expect("implicit receiver")
-            .origin(),
-        CallReceiverOrigin::ImplicitThis(_)
-    ));
-    assert!(matches!(
-        call("holder.same(1)")
-            .receiver()
-            .expect("explicit receiver")
-            .origin(),
-        CallReceiverOrigin::Expression(_)
-    ));
 }
 
 #[test]

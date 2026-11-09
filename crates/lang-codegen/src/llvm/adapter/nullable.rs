@@ -68,7 +68,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         let ty = access_type(self.function, source)?;
         let storage = self.access(source)?;
         let llvm_type = self.dependencies.type_map.basic_type(ty)?;
-        let Some((_, niche)) = self.module.inline_nullable(ty) else {
+        let presence_niche = self
+            .module
+            .inline_nullable(ty)
+            .map(|(_, niche)| niche)
+            .or_else(|| self.module.map_result_value(ty).map(|_| false));
+        let Some(niche) = presence_niche else {
             let handle = self
                 .builder
                 .build_load(llvm_type, storage, "nullable.borrowed.handle")?;

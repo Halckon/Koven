@@ -162,9 +162,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
                                         || checker.box_enum_type(ty)
                                         || checker.map_kv(ty).is_some()
                                         || checker.rc_payload(ty).is_some()
-                                        || ((matches!(inputs.body, RefineBody::Lambda(_))
-                                            || inputs.borrow_return.is_some())
-                                            && checker.nullable_storage(ty))
+                                        || checker.nullable_storage(ty)
                                 }
                                 ParameterMode::Inout => {
                                     checker.copyability_of(ty) == Copyability::Copyable
@@ -859,8 +857,12 @@ impl Checker<'_, '_> {
         });
         if let Some(fact) = self.inputs.typed.null_comparison(id) {
             self.branch_form.insert(id);
-            self.note_nullable(self.c(fact.nullable_type()));
-            let inner_ok = match self.kind(self.c(fact.nullable_type())) {
+            let nullable = self.c(fact.nullable_type());
+            self.note_nullable(nullable);
+            if let Some(supported) = self.borrowed_nullable_presence(fact.symbol(), nullable) {
+                return boolean && supported && self.known.contains(&fact.symbol());
+            }
+            let inner_ok = match self.kind(nullable) {
                 Some(UnitTypeKind::Nullable(inner))
                     if self.scalar(*inner)
                         || self.range_type(*inner)
@@ -918,6 +920,7 @@ impl Checker<'_, '_> {
         let id = self.id(root);
         if let Some(fact) = self.inputs.typed.null_comparison(id)
             && !fact.non_null_when_true()
+            && self.parameter_mode(fact.symbol()) != Some(ParameterMode::Borrow)
             && self.known.contains(&fact.symbol())
             && (self.scope_requires_refine()
                 || self.is_map_remove_symbol(fact.symbol())

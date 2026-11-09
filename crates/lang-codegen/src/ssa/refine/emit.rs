@@ -458,6 +458,9 @@ impl Emitter<'_> {
             ROp::NullableIsNull { owner } => Operation::NullableIsNull {
                 owner: self.value(*owner, span)?,
             },
+            ROp::NullableLoanIsNull { source } => Operation::NullableLoanIsNull {
+                source: loan(self.get(*source, span)?, span)?,
+            },
             ROp::NullableTake { owner, proof } => Operation::NullableTake {
                 owner: self.value(*owner, span)?,
                 proof: loan(self.get(*proof, span)?, span)?,

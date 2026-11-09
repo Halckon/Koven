@@ -48,6 +48,7 @@ fn nullable_functions_inside_the_subset_are_routed() {
         "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
         "fun f(s: String): Int = when ((s)) { (\"a\") -> 1\n else -> 0 }",
         "fun f(own x: Int?): Int { if (x != null) { return x }; return 0 }",
+        "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
         "fun f(own x: Int?): Int = when { x == null -> 0\n else -> 1 }",
         "fun f(own x: Int?): Int { while (x != null) { break }; var i = 0\n\
          loop { i = i + 1; if (i > 2) break else continue }; return i }",
@@ -140,8 +141,8 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
              fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })",
         ),
         (
-            "MoveOnly Borrow parameter",
-            "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
+            "MoveOnly Borrow parameter needs a payload view",
+            "fun f(s: String?): Unit { if (s != null) { println(s) } }",
         ),
         (
             "MoveOnly Inout parameter",
