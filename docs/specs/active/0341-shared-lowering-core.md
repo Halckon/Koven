@@ -6545,3 +6545,68 @@ Phase 4消费者仍缺，不由本片闭合模板宣称解决。当前事实见[
 #390仍为734dde83。该增量未改本片owner文件，但涉及共享call-loan产物；本片93项与独立
 4项是上述已发布基线加本地切片的结果，尚非9369cc72整合验收。保留现有提交，后续统一
 本地合流须验证精确组合，不把旧结果改记为新主线结果。
+
+
+## 150. 闭合 While 的空臂正常完成与共享 body 回边（2026-11-09）
+
+先核远端main `9369cc7279c268385a19f41a10a54c7cc31ea2ce`、#390 `734dde83`及本地在途
+owner链，无重复空臂实现。隔离分支从最新main建立，复用已独立保全审查的依赖合流
+`3580baa09b0563e351e81768a1f227505bd32835`（有序父main9369、#390734dde83），避免
+重复处理#395注册冲突。随后以 `587d24960878eef485eb56194377d32cafbe3515` 保留父链
+合入§148本地头 `d4a8d7a1`，无冲突；该片10个文件逐blob等同原owner头，main构造借用
+与注册见证等同3580baa0。本地合流不代表行为验证，以下结果才对应本片精确组合。
+
+本片仅扩Phase 3控制前置：闭合String前缀、两个独立Boolean参数及唯一末尾显式If不变，
+每臂允许空ControlBody或一个裸Continue/Break。新增空/Break、Break/空、空/Continue、
+Continue/空、空/空五种组合；原四个双跳转组合不变。正常臂存在时If必须精确Unit，否则
+仍为Nothing，不能整体放宽jump类型。隐式else、非空正常臂、声明、其它尾值、嵌套、
+Return、Group跳转、后缀、同参数/常量条件及外来/跨轮owner继续拒绝。
+
+空臂原控制遍历只恢复scope并返回true/None tail，不执行drop_scope。本片不添加清理，
+只在真实drop_branch_exit之后、状态push/merge之前，核actual arm、None tail、true、
+无owner result、无pending jump、完整空ValueState及同Arc/control/scope/depth，形成
+正常臂见证。跳转仍需要原cleanup之后的kind/expression/Arc pending见证；各臂独立消费，
+不从merged空状态推定。split只在两臂完成、事件为空且实际continuation数精确等于空臂
+数时完成；最后仍须实际statement(body)返回值匹配私有expected.continues，完整body
+空且原V1封闭，才能封存回边。原错误传播前恢复/清空事务的顺序保持。
+
+公开IfFallthrough(arm body, control)表示实际空臂正常返回If，不是Drop或arm scope
+cleanup点。有空臂时七条边为EnterBody、两个IfBranch及各自后继、唯一共享body Backedge、
+ConditionFalseExit。共享回边只能来自实际body正常完成及scope cleanup，空/空不重复
+生成两条body回边。旧直线三边与双跳转六边不变；私有三态arm completion与公开边顺序、
+来源身份分别核验，没有不存在的jump ID哨兵。ASAP、V1、Choice及普通callable的
+Unsupported行为均不变，没有owner join、header/exit phi、动态实例或Phase 4能力。
+
+真实红测试 `c67be20f710c18d78a87047baef8d10bcfaef088` 使用合法Break/空臂完整源码，
+typed/ownership成功后因缺循环观察1 failed。最小实现后同测试1 passed；中途脚本路径
+笔误造成三处调用签名未接齐的编译失败，补齐后重新通过，不把编译失败算作行为红证据。
+实现与完整测试提交 `ab84893aad720601b5ac8e35bd712abad0c5218c`，tree
+`98a1b7d123346b0d329266383a6c5ee72783521a`；后续文档不改受测Rust。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 正常臂真实生产者 | `closed_while_fallthrough::real_empty_arm_completion_retains_a_separate_body_backedge` | 1 passed，40矩阵输入及原§148完整拒绝源码迁入的1输入 |
+| 拒绝、来源与原子发布 | 同模块 `normal_arm_rejects_unproved_tails_and_suffixes_without_partial_capability`、`normal_arm_catalogs_keep_actual_sources_and_error_atomicity` | 2 passed，12合法拒绝、跨文件两次成功分析及真实错误清空 |
+| owner与共享hook组合 | §148的71 lib exact + 本片3项 | 74 passed，0 failed/ignored |
+| 公开双入口与循环邻控 | §148的14 iteration exact + `closed_while_owner_unit::empty_while_arms_share_one_actual_body_backedge_in_both_inputs` | 15 passed，新入口MemoryDocument/Rooted共14输入组合 |
+| 主线相邻合同 | §148的5 control/drop、2 capture、1 scope/return借用清理 | 5 + 2 + 1 passed |
+| 无伪造空scope Drop | 上述新3 lib及公开1项补强后复跑 | 3 + 1 passed，重复不累加；actual empty arm的AfterStatement在真实drop facts与transport Drop均不存在 |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2268 Rust、37项旧超限，尺寸基底587d2496 |
+| 独立复审 | scope早退与branch_exit顺序、逐臂取证、body完成、封印及测试oracle | 无blocker；上述新3 lib与公开1项独立exact各1 passed，HEAD/tree及二进制SHA256前后不变 |
+
+合计97项不同ordinary测试，全部以本片main9369依赖组合重新执行；旧日志仅供选名，
+13项初验、3项公开初验与补强复跑不重复累计。新增3 lib使用完整
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`
+前缀，其余保留各自模块路径，均按完整名exact。正例直接读取While/If/ControlBody实际AST
+建立三种后继及完整七边期望，核来源、唯一body回边、producer/move/replace、唯一真实Drop
+及完整Analysis开关不变。跨文件先核非空产物、两个成功analysis和实际callable，再验foreign
+token拒绝。公开入口从index独立核SourceUnitId/source_id；旧空臂输入完整迁为正例，其余
+旧17个条件拒绝与四个双跳转组合保留，不把新增能力伪装成旧测试放宽。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2，专属target
+串行。测试选择与命令输出留本机临时验收目录，不入Git。新损坏seal守卫（缺失/重复body
+回边、交换正常臂、错误control、伪Continue）及既有model/Abort/故障注入仅编译，未本机
+执行；未跑frontend/workspace全量测试、Linux、native或精确头正式CI。没有删除缓存、
+Single见证、旧分支或改Guide；按用户要求只本地分步提交，留明早统一发布，不推送或改PR。
+一般有owner入边的header/exit phi、非空臂合流、动态多实例capture/释放、通用消费者及
+Phase 4/native仍未闭合，D10/E2与本Spec保持in-progress。事实见[闭合While观察](../../architecture/unit-loop-owner-transport.md)。

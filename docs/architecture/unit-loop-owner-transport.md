@@ -13,8 +13,8 @@ symbol。条件只能参数的 Name/Group 链，每层精确 Boolean 且非 cons
 必须同时保留 true/false 两条边。函数、循环和 body 均保留 source-qualified 身份。
 
 body 至少一个精确 String/MoveOnly 的局部 val/var 声明，可接唯一末尾裸 Continue、Break
-或显式双臂 If。If 每臂只能一个裸 Continue/Break，不接受臂内声明、嵌套、fallthrough、
-Return、Group 跳转或不可达后缀。initializer 可为无插值 String、
+或显式双臂 If。If 每臂只能空 ControlBody 或一个裸 Continue/Break，不接受臂内声明、
+其它正常尾值、嵌套、Return、Group 跳转或不可达后缀。initializer 可为无插值 String、
 已有本地 symbol 的 Name、Group 或真实 checked 完整根 Replace 的嵌套组合。每层精确 String、
 非 constant-use；替换根必须已在 body 声明，descriptor、操作数顺序和 root 形态都核对，
 根可变性仍由原 checked primitive 生产者证明。成员身份用有序集合，initializer 检查通过后才加入本地 symbol 集合。
@@ -25,7 +25,8 @@ body sink；保存旧 observer、Choice 事务和 branch depth，body 使用全�
 登记；不从 drop facts 或 span 反推 owner，不重新遍历 body，也不改变实际 cleanup。
 
 实际 `statement(body)` 的 Result 先保存，恢复全部旧 sink 后再传播错误。正常 fallthrough
-必须实际返回 true 并完成 scope cleanup；末尾跳转必须实际返回 false，且持有对应完成见证。
+必须实际返回 true 并完成 scope cleanup；全跳转必须实际返回 false。末尾 If 的实际返回值
+须与独立分臂见证一致，不能由合并后状态猜测；有空臂须真实完成 body scope 后才发布回边。
 两条路径都要求完整 body state 为空，再用原无 Choice V1 投影封闭 body。该 validator
 要求每个真实 definition 最终为 Dropped；旧 `is_consistent` 或单独检查 values 为空均不够。
 
@@ -38,8 +39,10 @@ body sink；保存旧 observer、Choice 事务和 branch depth，body 使用全�
 
 末尾 If 在真实 condition 完成、完整空状态且原 V1 已封闭整个 owner 前缀后，才开启分臂
 观察。每臂在原遍历入口记录精确 control、branch 和 body，实际 jump cleanup 后保存独立
-pending 见证；该臂 Result 返回后、状态被合并或丢弃前，核对实际 tail、false、空状态、
-同 Arc、kind、scope 和最近 loop，再消费一次见证。两臂都实际完成且事件为空，才只抑制
+pending 见证；跳转臂实际返回后核 tail、false、空状态、同 Arc、kind、scope 和最近 loop，
+再消费一次见证。空臂走原早退路径，只恢复 scope，不调用 drop_scope；在原 drop_branch_exit
+之后、状态 push/merge 之前核 None tail、true、无 owner result、无 pending jump 及完整空
+边界和同一身份。两臂都完成、事件为空且实际 continuation 数与空臂数精确相等，才只抑制
 私有 body sink 的空 If 事件。普通 observer 的 If 事件和 V1 拒绝规则不变；错误恢复时清空
 split、active arm、pending 与 completed 标记，不从丢弃后的合并状态倒推各臂成功。
 
@@ -54,11 +57,13 @@ statement 原子 Unsupported，定义和事件为空；私有 body catalog 不�
 分析的完整 catalog 被替换进来。只在 successful 且无 deferred 的最终产物保留新能力。
 
 直线完成的三条结构边包含条件 true 进入实际 body、body 实际完成边及条件 false 到 While
-LoopExit。末尾 If 为六边：进入 body、then IfBranch 与其实际跳转、else IfBranch 与其实际
-跳转、条件 false 退出；两个 IfBranch 保存真实 control、condition、序号及 arm body。
+LoopExit。全跳转 If 保持六边：进入 body、then IfBranch 与其实际跳转、else IfBranch 与其
+实际跳转、条件 false 退出。有空臂时为七边：对应后继为 IfFallthrough(arm body, control)，
+只表示实际空臂正常返回 If，不是 drop 点；两臂后另加唯一共享 body Backedge，它仅在实际
+body scope 完成后封存。两个 IfBranch 保存真实 control、condition、序号及 arm body。
 完成边由私有 completion 独立核对：Backedge 从 body scope cleanup 回条件；ContinueBackedge
 从实际 ControlTransfer(jump) 回条件；BreakExit 从实际 ControlTransfer(jump) 到该循环
-LoopExit。公开 edges 返回只读 slice，私有 completion 重建并核对三边或六边的完整顺序。
+LoopExit。公开 edges 返回只读 slice，私有 completion 重建并核对三、六或七边的完整顺序。
 不能用 Break 冒充条件 false 或回边。它们是控制关系，不是已发生的有限运行
 轨迹；body 无外来 owner、未完成交付或存活后继值。
 
@@ -73,5 +78,5 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 普通调用、外来/跨轮 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。
