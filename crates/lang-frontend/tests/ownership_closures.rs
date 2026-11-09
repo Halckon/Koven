@@ -617,24 +617,32 @@ fn checked_in_phase3_closure_fixtures_execute_pass_and_fail_cases() {
         assert_eq!(files.len(), 1, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 closure fixture");
-            let owned = analyzed(&text).4;
-            if should_pass {
-                assert!(owned.diagnostics().is_empty(), "{path:?}");
-                continue;
+            let expected = (!should_pass).then(|| {
+                fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar")
+            });
+            for rooted in [false, true] {
+                let (sources, owned) =
+                    borrow_rejection_unit::checked(&text, "closures.ko", rooted, environments());
+                if let Some(expected) = &expected {
+                    let actual = owned
+                        .diagnostics()
+                        .iter()
+                        .map(|diagnostic| {
+                            let span = diagnostic.primary_span();
+                            assert_eq!(sources.source_name(span.source_id()), Ok("closures.ko"));
+                            format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        + "\n";
+                    assert_eq!(&actual, expected, "{path:?} (rooted: {rooted})");
+                } else {
+                    assert!(
+                        owned.diagnostics().is_empty(),
+                        "{path:?} (rooted: {rooted})"
+                    );
+                }
             }
-            let expected =
-                fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar");
-            let actual = owned
-                .diagnostics()
-                .iter()
-                .map(|diagnostic| {
-                    let span = diagnostic.primary_span();
-                    format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-                + "\n";
-            assert_eq!(actual, expected, "{path:?}");
         }
     }
 }
