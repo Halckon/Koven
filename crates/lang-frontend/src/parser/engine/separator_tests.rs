@@ -170,3 +170,18 @@ fn an_unclosed_interpolation_group_cannot_take_an_outer_closer() {
     assert_eq!(recovery.group_closer(&lexed, 0), Some(outer_closer));
     assert_eq!(recovery.group_closer(&lexed, inner), None);
 }
+
+#[test]
+fn unpaired_indexes_do_not_rescan_a_rejected_poison_run() {
+    let metrics = |count| {
+        let text = format!(
+            "{{ {}key {}+ tail }}",
+            "xs[".repeat(count),
+            "β ".repeat(count)
+        );
+        super::tests::block_dispatch_metrics(text).2
+    };
+    let small = metrics(32);
+    let large = metrics(64);
+    assert!(large <= small * 2 + 64, "{small} -> {large}");
+}

@@ -1,5 +1,11 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+pub(super) struct IndexPoisonTail {
+    cursor: usize,
+    boundary: Option<(usize, usize)>,
+}
+
 impl Parser<'_> {
     pub(super) fn parse_postfix(
         &mut self,
@@ -720,6 +726,11 @@ impl Parser<'_> {
                 None
             };
 
+            let poison_end = if paired_end.is_none() && self.is_poison_kind(current.kind()) {
+                self.recover_index_poison_tail(outer_stops, opener)?
+            } else {
+                None
+            };
             let already_diagnosed = self.is_poison_kind(current.kind())
                 || (paired_end.is_some() && !comma && (leading_poison || at_bracket));
             if !already_diagnosed {
@@ -730,9 +741,9 @@ impl Parser<'_> {
                 };
                 self.emit_closing(diagnostic_span, opener)?;
             }
-            if let Some(end) = paired_end {
+            if let Some(end) = paired_end.or(poison_end) {
                 last_consumed_end = end;
-                at_index_closer = true;
+                at_index_closer = paired_end.is_some();
                 if !comma {
                     index = self
                         .add_expression(self.span(index_span.start(), end)?, Expression::Error)?;
@@ -760,6 +771,75 @@ impl Parser<'_> {
             self.span(receiver_span.start(), end)?,
             Expression::Index { receiver, index },
         )
+    }
+
+    fn recover_index_poison_tail(
+        &mut self,
+        mut stops: Stops,
+        opener: Span,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        let Some((boundary_raw, end)) = self.index_poison_tail_boundary()? else {
+            return Ok(None);
+        };
+        let boundary = self.lexed.lexemes()[boundary_raw];
+        if stops.block_elements {
+            stops = stops.with(Stops::SEMICOLON);
+        }
+        if matches!(boundary.kind(), LexemeKind::Eof) || !stops.contains(boundary) {
+            return Ok(None);
+        }
+        self.emit_closing(self.empty_at(boundary.span().start())?, opener)?;
+        self.index = boundary_raw;
+        Ok(Some(end))
+    }
+
+    fn index_poison_tail_boundary(&self) -> Result<Option<(usize, usize)>, ParserInternalError> {
+        let cache = &self.lexical_recoveries.index_poison_tail;
+        if let Some(tail) = cache.get()
+            && tail.cursor == self.index
+        {
+            return Ok(tail.boundary);
+        }
+
+        // The next owner must be visible after an adjacent run of ordinary Lexer errors.
+        // A new line can start another statement, and terminal/string errors keep their owners.
+        let start = self.previous_significant_end();
+        let mut end = start;
+        for (offset, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
+            #[cfg(test)]
+            self.significant_raw_visits
+                .set(self.significant_raw_visits.get() + 1);
+            if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
+                continue;
+            }
+            if !matches!(
+                lexeme.kind(),
+                LexemeKind::Invalid(
+                    InvalidKind::UnexpectedCharacter
+                        | InvalidKind::InvalidCharLiteral
+                        | InvalidKind::InvalidNumericLiteral
+                ) | LexemeKind::Token(TokenKind::ReservedWord(_))
+            ) || self.gap_has_line_break(end, lexeme.span().start())?
+            {
+                // A same-line brace can become a trailing lambda if handed to Pratt.
+                let trailing_lambda = end > start
+                    && matches!(
+                        lexeme.kind(),
+                        LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+                    )
+                    && !self.gap_has_line_break(end, lexeme.span().start())?;
+                let boundary =
+                    (end > start && !trailing_lambda).then_some((self.index + offset, end));
+                // Several unpaired indexes may unwind at the same rejected suffix.
+                cache.set(Some(IndexPoisonTail {
+                    cursor: self.index,
+                    boundary,
+                }));
+                return Ok(boundary);
+            }
+            end = lexeme.span().end();
+        }
+        Err(ParserInternalError::InvalidLexemeStream)
     }
 }
 

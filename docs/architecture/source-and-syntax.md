@@ -140,6 +140,8 @@ L0057。相关结构、范围和资源回归见 `parser_return_control` 与 pars
 没有配对时把外层逗号交回调用方，文件内恢复仅允许已配对的局部分组遮蔽声明边界。
 Error 接收者的后缀恢复共享这些边界。块分号留给块分派，明确 header 且配对的 lambda
 留在局部。严格确认的 typed-call 类型参数列表可整体跳过，其中的逗号留在局部。
+未配对下标只在相邻普通词法错误之后能确认外层停止点时收回该错误段。
+缺右方括号在外层起点使用零宽范围，同行左花括号不作为这条恢复的归属证据。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。

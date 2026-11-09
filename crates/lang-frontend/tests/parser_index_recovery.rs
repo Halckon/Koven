@@ -276,3 +276,150 @@ fn unpaired_index_keeps_a_proven_lambda_local_and_the_block_separator_outer() {
     assert_eq!(diagnostic.code().to_string(), "L0010");
     assert_eq!(sources.slice(diagnostic.primary_span()), Ok(","));
 }
+
+#[test]
+fn adjacent_poison_stays_with_the_unpaired_key_before_a_caller_comma() {
+    for (text, indexed, key, diagnostics) in [
+        (
+            "f(xs[key β, next)",
+            "xs[key β",
+            "key β",
+            &[("L0001", "β"), ("L0010", "")][..],
+        ),
+        (
+            "f(xs[key async, next)",
+            "xs[key async",
+            "key async",
+            &[("L0002", "async"), ("L0010", "")][..],
+        ),
+        (
+            "f(xs[key β async, next)",
+            "xs[key β async",
+            "key β async",
+            &[("L0001", "β"), ("L0002", "async"), ("L0010", "")][..],
+        ),
+        (
+            r#""${f(xs[key β, next)}tail""#,
+            "xs[key β",
+            "key β",
+            &[("L0001", "β"), ("L0010", "")][..],
+        ),
+    ] {
+        assert_call_with_index(text, indexed, key, true, diagnostics);
+    }
+}
+
+#[test]
+fn adjacent_poison_before_a_file_boundary_does_not_become_a_file_root() {
+    let mut sources = SourceMap::new();
+    let text = "val x = xs[key β\nval next = 1";
+    let id = sources.add_source("index-recovery.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, id, text);
+    let ast = parsed.ast();
+    let [first, next] = parsed.roots() else {
+        panic!("expected two declarations, got {:?}", parsed.roots());
+    };
+    let first = ast.items().get(*first).unwrap();
+    let Item::Variable { initializer, .. } = first.payload() else {
+        panic!("expected first variable");
+    };
+    assert_index(&sources, ast, *initializer, "xs[key β", "key β", true);
+    assert_eq!(
+        sources.slice(ast.items().get(*next).unwrap().span()),
+        Ok("val next = 1")
+    );
+    let [lexical, closing] = parsed.diagnostics() else {
+        panic!("expected lexical and missing bracket diagnostics");
+    };
+    assert_eq!(lexical.code().to_string(), "L0001");
+    assert_eq!(closing.code().to_string(), "L0010");
+    assert_eq!(
+        closing.primary_span().start(),
+        text.find("val next").unwrap()
+    );
+    assert!(closing.primary_span().is_empty());
+}
+
+#[test]
+fn unpaired_index_leaves_the_block_separator_and_respects_structural_line_breaks() {
+    for (text, adjacent) in [
+        ("{ xs[key β; next }", true),
+        ("{ xs[key\nβ; next }", false),
+        ("{ xs[key /*\n*/ β; next }", false),
+    ] {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("index-recovery.ko", text).unwrap();
+        let parsed = parse_block_twice(&sources, id, text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let first = ast.statements().get(elements[0]).unwrap();
+        let Statement::Expression { expression } = first.payload() else {
+            panic!("expected index statement");
+        };
+        if adjacent {
+            assert_eq!(elements.len(), 2, "{text}");
+            assert_index(&sources, ast, *expression, "xs[key β", "key β", true);
+            let [lexical, closing] = parsed.diagnostics() else {
+                panic!("expected lexical and missing bracket diagnostics: {text}");
+            };
+            assert_eq!(lexical.code().to_string(), "L0001");
+            assert_eq!(closing.code().to_string(), "L0010");
+            assert_eq!(closing.primary_span().start(), text.find(';').unwrap());
+            assert!(closing.primary_span().is_empty());
+        } else {
+            assert_eq!(elements.len(), 3, "{text}");
+            assert_index(&sources, ast, *expression, "xs[key", "key", false);
+            let second = ast.statements().get(elements[1]).unwrap();
+            assert_eq!(second.payload(), &Statement::Error);
+            assert_eq!(sources.slice(second.span()), Ok("β"));
+            let [lexical] = parsed.diagnostics() else {
+                panic!("expected the lexical diagnostic only: {text}");
+            };
+            assert_eq!(lexical.code().to_string(), "L0001");
+        }
+        let next = ast.statements().get(*elements.last().unwrap()).unwrap();
+        assert_eq!(sources.slice(next.span()), Ok("next"));
+    }
+}
+
+#[test]
+fn an_unterminated_interpolation_keeps_its_terminal_lexer_diagnostics() {
+    let mut sources = SourceMap::new();
+    let text = r#""${xs[key β"#;
+    let id = sources.add_source("index-recovery.ko", text).unwrap();
+    let lexed = parser_test_assertions::lex_parser_source_twice(&sources, id, text);
+    let parsed = parse_expression_twice(&sources, id, text);
+    assert_eq!(parsed.diagnostics(), lexed.diagnostics());
+}
+
+#[test]
+fn adjacent_poison_does_not_turn_a_caller_block_into_a_trailing_lambda() {
+    for separator in [" ", "\n"] {
+        let mut sources = SourceMap::new();
+        let text = format!("{{ xs[key β{separator}{{ next }}; tail }}");
+        let id = sources.add_source("index-recovery.ko", &text).unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected outer block");
+        };
+        let [first, next, tail] = elements.as_slice() else {
+            panic!("expected a bad expression and two siblings: {text:?}");
+        };
+        assert_eq!(
+            sources.slice(ast.statements().get(*first).unwrap().span()),
+            Ok("xs[key β")
+        );
+        let next = ast.statements().get(*next).unwrap();
+        assert!(matches!(next.payload(), Statement::Block { .. }));
+        assert_eq!(sources.slice(next.span()), Ok("{ next }"));
+        assert_eq!(
+            sources.slice(ast.statements().get(*tail).unwrap().span()),
+            Ok("tail")
+        );
+    }
+}
