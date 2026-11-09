@@ -1615,6 +1615,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             TerminatorKind::Abort => {
                 self.lower_abort(None)?;
             }
+            TerminatorKind::Unreachable => {
+                self.builder.build_unreachable()?;
+            }
             TerminatorKind::RangeReturn { view, .. } => {
                 self.builder.build_return(Some(&self.value(*view)?))?;
             }

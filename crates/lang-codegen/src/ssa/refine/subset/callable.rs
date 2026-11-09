@@ -9,7 +9,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         Copyability, ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitCallTarget, UnitTypeId, UnitTypeKind,
+        UnitCallDescriptor, UnitCallTarget, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -715,6 +715,14 @@ impl Checker<'_, '_> {
         }
     }
 
+    pub(super) fn named_nothing_call(&self, call: &UnitCallDescriptor) -> bool {
+        matches!(
+            call.target(),
+            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+        ) && !call.aborts()
+            && self.nothing(self.c(call.return_type()))
+    }
+
     pub(super) fn call(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
@@ -774,7 +782,10 @@ impl Checker<'_, '_> {
                     delegation_ok && self.inputs.function_ids.contains_key(site.key())
                 }));
         let ok = simple && target;
-        self.migrated |= ok && (is_extension || descriptor.text_primitive().is_some());
+        self.migrated |= ok
+            && (is_extension
+                || descriptor.text_primitive().is_some()
+                || self.named_nothing_call(descriptor));
         ok
     }
 

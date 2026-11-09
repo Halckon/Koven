@@ -358,7 +358,8 @@ fn incoming_edges(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)>
                 TerminatorKind::Return { .. }
                 | TerminatorKind::RangeReturn { .. }
                 | TerminatorKind::BorrowReturn { .. }
-                | TerminatorKind::Abort => Vec::new(),
+                | TerminatorKind::Abort
+                | TerminatorKind::Unreachable => Vec::new(),
             };
             edges.into_iter().map(move |edge| (block.id, edge))
         })

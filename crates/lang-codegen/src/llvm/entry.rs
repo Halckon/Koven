@@ -53,7 +53,7 @@ pub(super) fn validate(module: &Module, plan: NativeEntryPlan) -> Result<(), Llv
     let entry_block = function.blocks.first().ok_or_else(|| {
         LlvmAdapterError::InvalidEntry("native entry function has no entry block".to_owned())
     })?;
-    if !function.return_types.is_empty() {
+    if function.never_returns || !function.return_types.is_empty() {
         return Err(LlvmAdapterError::InvalidEntry(
             "native entry must return Koven Unit".to_owned(),
         ));

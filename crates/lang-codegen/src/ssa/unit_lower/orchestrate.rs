@@ -311,7 +311,11 @@ fn lower_unit_impl(
             instance.span(),
         )?;
         let mut callable_return = None;
-        let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
+        let result_builtin = builtin_type(typed, return_type);
+        let return_types = if matches!(
+            result_builtin,
+            Some(BuiltinType::Unit | BuiltinType::Nothing)
+        ) {
             Vec::new()
         } else {
             vec![if matches!(
@@ -344,9 +348,11 @@ fn lower_unit_impl(
         if let Some(returned) = callable_return {
             callable_returns.insert(id, returned);
         }
-        module
+        let function = module
             .function_mut(id)
-            .expect("new unit function must exist")
+            .expect("new unit function must exist");
+        function.never_returns = result_builtin == Some(BuiltinType::Nothing);
+        function
             .add_block(parameter_types, Origin::Source(instance.span()))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
         if let Some(contract) = callable.borrow_return() {

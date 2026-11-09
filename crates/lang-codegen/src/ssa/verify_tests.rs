@@ -711,3 +711,91 @@ fn borrowed_map_result_presence_requires_registered_shape_and_shared_loan() {
         }
     }
 }
+
+#[test]
+fn non_returning_calls_and_functions_require_an_explicit_dead_end() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("noreturn");
+    let module = program.module_mut(module_id).unwrap();
+    let callee = module.add_function("stop", vec![], origin.clone()).unwrap();
+    let function = module.function_mut(callee).unwrap();
+    function.never_returns = true;
+    let block = function.add_block(vec![], origin.clone()).unwrap();
+    function
+        .set_terminator(block, TerminatorKind::Abort, origin.clone())
+        .unwrap();
+
+    let caller = module
+        .add_function("caller", vec![], origin.clone())
+        .unwrap();
+    let function = module.function_mut(caller).unwrap();
+    let block = function.add_block(vec![], origin.clone()).unwrap();
+    let (call, _) = function
+        .append_instruction(
+            block,
+            Operation::DirectCall {
+                callee,
+                receiver: None,
+                arguments: vec![],
+            },
+            vec![],
+            origin.clone(),
+        )
+        .unwrap();
+    function
+        .set_terminator(block, TerminatorKind::Unreachable, origin)
+        .unwrap();
+    verify_program(&program).unwrap();
+
+    program
+        .module_mut(module_id)
+        .unwrap()
+        .function_mut(caller)
+        .unwrap()
+        .blocks[0]
+        .terminator
+        .as_mut()
+        .unwrap()
+        .kind = TerminatorKind::Return { values: vec![] };
+    assert!(
+        verify_program(&program)
+            .unwrap_err()
+            .errors
+            .iter()
+            .any(|error| error.location == VerifyLocation::Instruction(call)
+                && matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
+    );
+
+    let module = program.module_mut(module_id).unwrap();
+    module.function_mut(caller).unwrap().blocks[0]
+        .terminator
+        .as_mut()
+        .unwrap()
+        .kind = TerminatorKind::Unreachable;
+    module.function_mut(callee).unwrap().never_returns = false;
+    assert!(
+        verify_program(&program)
+            .unwrap_err()
+            .errors
+            .iter()
+            .any(|error| error.location == VerifyLocation::Terminator(block)
+                && matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
+    );
+
+    let function = program
+        .module_mut(module_id)
+        .unwrap()
+        .function_mut(callee)
+        .unwrap();
+    function.never_returns = true;
+    function.blocks[0].terminator.as_mut().unwrap().kind =
+        TerminatorKind::Return { values: vec![] };
+    assert!(
+        verify_program(&program)
+            .unwrap_err()
+            .errors
+            .iter()
+            .any(|error| matches!(error.kind, VerifyErrorKind::ReturnType { .. }))
+    );
+}

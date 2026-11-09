@@ -116,6 +116,23 @@ fn deinit_verifier_rechecks_mutated_signature_and_extra_parameters() {
 }
 
 #[test]
+fn deinit_rejects_a_non_returning_signature_even_with_the_right_receiver() {
+    let (mut program, owner, deinit) = fixture();
+    let module = program.module_mut(owner.module()).unwrap();
+    let body = module.function_mut(deinit).unwrap();
+    body.never_returns = true;
+    body.blocks[0].terminator.as_mut().unwrap().kind = TerminatorKind::Abort;
+    assert!(module.set_deinit(owner, deinit).is_err());
+    module.deinits.insert(owner, deinit);
+    let errors = verify_program(&program).unwrap_err();
+    assert!(errors.errors.iter().any(|error| matches!(
+        error.kind,
+        super::verify::VerifyErrorKind::InvalidTypeDefinition { reason }
+            if reason.contains("deinit requires")
+    )));
+}
+
+#[test]
 fn llvm_deinit_calls_body_before_reverse_field_cleanup_and_free() {
     let (mut program, owner, deinit) = fixture();
     let module = program.module_mut(owner.module()).unwrap();

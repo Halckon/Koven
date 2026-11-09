@@ -390,6 +390,8 @@ pub(crate) enum TerminatorKind {
         source: LoanId,
     },
     Abort,
+    /// The final instruction calls a function without a normal return edge.
+    Unreachable,
 }
 
 impl TerminatorKind {
@@ -422,7 +424,7 @@ impl TerminatorKind {
             Self::RangeReturn { view, source } => {
                 vec![EntityId::Value(*view), EntityId::Loan(*source)]
             }
-            Self::Abort => Vec::new(),
+            Self::Abort | Self::Unreachable => Vec::new(),
         }
     }
 
@@ -442,7 +444,8 @@ impl TerminatorKind {
             Self::Return { .. }
             | Self::BorrowReturn { .. }
             | Self::RangeReturn { .. }
-            | Self::Abort => Vec::new(),
+            | Self::Abort
+            | Self::Unreachable => Vec::new(),
         }
     }
 }
@@ -486,6 +489,8 @@ pub(crate) struct Function {
     pub(crate) id: FunctionId,
     pub(crate) name: String,
     pub(crate) return_types: Vec<SsaTypeId>,
+    /// A source Nothing result uses a void ABI and has no normal return.
+    pub(crate) never_returns: bool,
     /// 唯一参数来源；返回 ABI 为指向 return_types[0] storage 的 shared pointer。
     pub(crate) borrow_return: Option<usize>,
     /// Range result returns inline metadata and continues this caller source loan.
@@ -831,6 +836,7 @@ impl Module {
             id,
             name: name.into(),
             return_types,
+            never_returns: false,
             receiver,
             borrow_return: None,
             carrier_return: None,

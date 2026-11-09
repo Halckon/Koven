@@ -22,7 +22,8 @@ pub(super) fn edges(block: &Block) -> Outcome<Vec<&Edge>> {
         TerminatorKind::Return { .. }
         | TerminatorKind::BorrowReturn { .. }
         | TerminatorKind::RangeReturn { .. }
-        | TerminatorKind::Abort => Vec::new(),
+        | TerminatorKind::Abort
+        | TerminatorKind::Unreachable => Vec::new(),
     })
 }
 

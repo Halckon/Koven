@@ -3347,3 +3347,24 @@ PR #383 首轮 [Linux 定向门禁](https://github.com/Halckon/Koven/actions/run
 传递、逐返回析构、Unit 紧随调用及 Abort 的断言。Linux 首轮相应原生 Map 正控仍通过。
 本机 Range 定向 6 项、Map 定向 42 项及 sequential 前缀 1 项通过，零失败、零忽略。
 修复后分别复核了 Const 准入和 SSA 断言。
+
+## 134. R4 具名 Nothing 的普通直接调用
+
+在 `62ca42cf` 上，公共类型阶段接受具名 `Nothing`，实例计划保留真实调用；
+原生红测在声明返回 ABI 时报 UnsupportedNode。typed SSA 现在区分普通无值返回和
+无正常返回。直接调用沿原路径求值、激活 receiver 并交付实参，随后以 Unreachable
+终止该块。LLVM 发出实际 call 与 unreachable，abort 的消息和源码位置仍由 callee 产生。
+
+verifier 要求无返回 call 是块的最后一条指令，且仅该形状可接 Unreachable。
+无返回的声明不能有正常 Return、存储结果或借用结果。函数地址、thunk、进程入口和
+析构钩子不能以空返回槽将其作为普通 Unit 签名接收。独立复核发现析构钩子旁路和 Refine
+提前拒绝；新增负例复现注册旁路，现注册与 verifier 重检共用修正，Refine 准入和路由共用
+具名调用判断。普通 `error()` 保持原路由。
+
+本机 3 项具名回归通过。顶层调用在默认和强制 Unit 兼容路由保留前缀输出，方法保留
+receiver、实参与 callee 的顺序，均核对 SIGABRT、stderr 源位置和未执行的后续副作用。
+另以递归具名调用核对 Refine 路由与 SSA 无正常后继。52 项 deinit 相关测试、109 项 SSA
+验证测试和 1 项内建 error 原生对照通过，零失败、零忽略。全工作区全目标 Clippy 通过。
+
+独立探针 `fun stop(): Nothing { loop { continue } }` 在进入后端前于 Unit 类型阶段
+报 L0088。循环完成性需单列 R2 核对，间接 `Nothing` 的 callable ABI 仍需复审。

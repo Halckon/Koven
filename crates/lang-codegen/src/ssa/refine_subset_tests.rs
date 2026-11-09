@@ -43,6 +43,21 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
 }
 
 #[test]
+fn named_nothing_call_uses_refine_and_stops_at_the_call() {
+    for callee in [
+        r#"fun stop(): Nothing = error("stop")"#,
+        "fun stop(): Nothing = stop()",
+    ] {
+        let (result, routed) = route(&format!("{callee}\nfun f(): Int = stop()"));
+        assert!(routed, "a direct Nothing result must qualify for refine");
+        let program = result.unwrap();
+        let rendered = render_program(&program);
+        assert!(rendered.contains("noreturn"));
+        assert!(rendered.contains("unreachable"));
+    }
+}
+
+#[test]
 fn nullable_functions_inside_the_subset_are_routed() {
     for source in [
         "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",

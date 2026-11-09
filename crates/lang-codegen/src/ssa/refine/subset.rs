@@ -172,6 +172,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
                 })
             })
         && (checker.unit(inputs.return_type)
+            || checker.nothing(inputs.return_type)
             || checker.storage_type(inputs.return_type)
             // A borrow-result function forwards a loan of a nullable owner unchanged.
             || (inputs.borrow_return.is_some() && checker.nullable_storage(inputs.return_type))
@@ -195,7 +196,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         });
     // An Inout parameter or receiver, a MoveOnly Value receiver, or a StaticSelf/object
     // specialization belongs to the migrated subset.
-    checker.migrated |= inputs.modes.contains(&ParameterMode::Inout)
+    checker.migrated |= checker.nothing(inputs.return_type)
+        || inputs.modes.contains(&ParameterMode::Inout)
         || inputs.static_self.is_some()
         || inputs.receiver.is_some_and(|receiver| {
             receiver.mode == ParameterMode::Inout
@@ -525,7 +527,11 @@ impl Checker<'_, '_> {
                 | Expression::Group { .. }
         ) || matches!(node.payload(), Expression::When { .. })
             && self.inputs.typed.expression_falls_through(id) == Some(false)
-            || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
+            || self
+                .inputs
+                .typed
+                .call(id)
+                .is_some_and(|desc| desc.aborts() || self.named_nothing_call(desc)))
             && matches!(
                 self.kind(ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
