@@ -4782,3 +4782,22 @@ poison、尾随 poison 及缺操作数均可越过后接局部声明的分号。
 下标和包含显式 lambda 的四组源码，分别通过 CLI 单文件和项目
 入口核验。两入口的语法诊断一致，词法根因各一条，无后继
 `saved` 未解析诊断。
+
+## 192. R1 普通分组批次合并及调用恢复合流
+
+[PR #403](https://github.com/Halckon/Koven/pull/403) 的 head `8dc4f167`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42709905397)
+通过 15 个作业。双宿主各实际通过 13 项指定下标、普通分组、资源
+及既有回归。Editor lexical 按范围跳过，macOS 既有 LLDB 用例因
+debugserver 权限忽略。
+
+六份预览产物经独立下载，双宿主生产和消费清单同实算归档哈希
+一致，各 12 项命令、哨兵及清理通过。基线 `fae780dc`、合成
+提交 `7f448a26`、实际合入 `c97c5a9b`，合成与合入树均为
+`7303ee1fecb7461ae5473df09cdfac07a3671f45`，无未决审阅线程。
+[合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42714892193)
+已启动。
+
+§188–191 调用恢复四片随 `d031ea14` 合流为 `5ed61b8e`。
+三方合并预演、实际合流及本机 923 项测试所覆盖的完整树均为
+`6a1ef0cf979cbea1221c75f1b1a034cd365ed291`。
