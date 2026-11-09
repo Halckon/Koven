@@ -6610,3 +6610,69 @@ Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2，
 Single见证、旧分支或改Guide；按用户要求只本地分步提交，留明早统一发布，不推送或改PR。
 一般有owner入边的header/exit phi、非空臂合流、动态多实例capture/释放、通用消费者及
 Phase 4/native仍未闭合，D10/E2与本Spec保持in-progress。事实见[闭合While观察](../../architecture/unit-loop-owner-transport.md)。
+
+
+## 152. 单个不变 String owner 的真实 While 非空边界（2026-11-09）
+
+本片在新隔离分支从远端 main `9369cc7279c268385a19f41a10a54c7cc31ea2ce` 起步，
+ff-only 复用 §150 `df9ef024a898498feeca3da4db802edada81631f`，保留 §148 与既有依赖父链。
+开工核对 #390 `734dde83`、新 #396 `66886a08` 及本地统一队列 `4dfeda9e`：后两者分别为
+借用路由/Guide litmus 与构造借用交叉测试，不含本片 owner producer；本片未复做这些工作，
+也未把队列的757+74测试算为自身验收。用户主 checkout 的14297820仅为旧本地ref，未改动。
+
+新增独立 `UnitOwnerInvariantLoopObservationV1` 与 getter；旧空入边loop、Choice、普通
+V1及Single见证保持。准入为一个Boolean参数、三个精确语句：无插值String literal的
+val绑定、直线闭合While、同symbol的Name移入另一个精确String val。body复用闭合本地
+String/move/Group/root Replace；不接收输入owner的读取/move/replace、任何If或跳转，
+不接受prefix/suffix的Group、var、nullable、额外语句、多循环或其它carrier。
+
+真实前缀被普通While清空前，核Complete、唯一String producer、实际Result与Binding事件
+及实际单个OwnedValue；保留其producer catalog，原legacy仍在While原子Unsupported。
+condition完成后、body实际Ok(true)和scope cleanup后、实际LoopExit cleanup后三处各自
+读取singleton状态，完整比较owner/token、symbol、origin、declaration、scope。ValueState
+全部17字段穷尽处理，其它槽为空；新能力不从symbol或drop造owner，不复制entry作为回边。
+body有独立Arc，原V1仍要求body-local definitions最终Dropped；公开三条结构边对应实际
+statement/condition/body。整个分析成功且无deferred才发布，两种loop getter互斥。
+
+输入catalog只证明真实producer；三份实际快照证明边界身份，不提供suffix事件、最终消费或外层闭合trace。
+现有真实retired Drop只在兼容性测试核对，不拼入新能力。此为非空owner入边/phi前置，
+不实现phi、一般loop-carried owner更新、动态实例释放、完整CFG合流或Phase 4/native。
+
+红提交 `988771517232c7d5b8436d3bde479cd8aa71181b` 包含未接线只读API框架及真实源码：
+typed/ownership成功后因新getter缺能力而1 failed。接线后同测试1 passed。实现/测试提交
+`cace500bae741c47ca0b50435e9fd9d56301c73c`，tree
+`67a742b91b9f8b1bed6ba5acbadf85959bfb3092`；下表均针对该Rust内容，后续文档不改Rust。
+初始API导入及公开测试私有symbol构造器有编译错误，修正后重跑；公开MemoryDocument
+误用多输入被既有索引拒绝，改为单源后通过，没有放宽索引。borrow-binding body被原所有权
+拒绝，转入真实失败组，不将其计入合法否例。独审发现suffix符号类型未严格核String，已补
+声明类型检查及合法nullable拒绝输入；这些开发中失败不计为最终通过或行为红证据。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 非空边界真实生产者 | `invariant_while::actual_outer_owner_survives_three_while_boundaries` | 1 passed，3种condition Group形态×2种Unit写法×4种body，共24输入 |
+| 准入与拒绝 | 同模块 `nonempty_loop_rejects_unproved_carriers_and_control_atomically` | 1 passed，18合法否例，最终观察非空且新/旧loop与普通V1均拒绝 |
+| 来源与原子性 | 同模块 `invariant_loop_sources_and_analyses_do_not_share_owner_tokens` | 1 passed，两source、两成功analysis的catalog互斥；实际sibling错误与3种非法/未闭合body拒绝 |
+| 公开Unit入口 | `invariant_while_owner_unit::invariant_while_boundaries_match_actual_sources_in_both_unit_inputs` | 1 passed，6片段×MemoryDocument单源/Rooted双源，共12分析、18 source inputs；9准入/9拒绝 |
+| owner共享hook组合 | §150的74 lib exact + 本片3项 | 77 passed，0 failed/ignored |
+| 循环与主线邻控 | §150的15 iteration + 本片公开1项；原5 multifile、2 closures、1 borrow-continuation | 16 + 5 + 2 + 1 passed |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、LLVM21 workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2272 Rust、37项历史超限，尺寸基底df9ef024，大planner物理行数不增 |
+| 独立复审及复跑 | before-reject prefix、实际三边界、完整state、catalog隔离、原子发布及测试oracle；新3 lib+1公开 exact | 无剩余blocker；四项各1 passed，HEAD/tree及两二进制SHA256运行前后相同，树clean |
+
+合计101项不同ordinary测试，均在本片main9369依赖组合重新执行。lib新增名带完整前缀
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`；
+其余使用各自完整模块名exact。独立复跑及中途红绿/补强不重复累计。正例精确核四body
+producer数1/1/2/3、Replace数0/0/1/2、input与body catalog隔离、真实AST三条边及实际
+suffix Drop；on/off比较完整原Analysis。公开source预期从index独立读取并核原source_id，
+合法否例先核最终观察数1，避免空集合通过。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target串行。
+新手工损坏seal/deferred守卫及旧model/Abort/故障注入只编译、未本机执行；未跑frontend/
+workspace全量测试、Linux、native或精确头正式CI。没有改Guide或删除缓存/旧见证/用户工作，
+按用户要求只本地分步提交，不推送、不改现有PR。后续仍须与统一队列组合并验证，不能将
+本片101项视为整批验收。D10/E2与本Spec仍in-progress；事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。
+
+收尾只读复核时 #396 已合入，远端 main 更新为
+`36d381e342c195f6c6a4718b098cd9b224f3f549`（父9369cc72+66886a08）。本次18文件差异
+不含owner observer/loop producer，本片无重复实现；它含codegen borrow routes、Guide
+litmus与SPEC-0392文档，仍须统一组合复验。上述101+4和workspace门禁只证明本片9369
+基线，未整合或测试新main，不能替代36d381e3组合验收；保留受测链，交统一批次处理。

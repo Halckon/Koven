@@ -1,11 +1,12 @@
-# Unit 闭合 While owner 观察
+# Unit While owner 边界观察
 
-> **性质**：实现事实 · **状态**：current · **读取时机**：核对真实 While body 的闭合运输和完成边 · **唯一真源**：drop planner 的 owner transport loops 收集器、loop 只读产物与 V1 validator
+> **性质**：实现事实 · **状态**：current · **读取时机**：核对真实 While body 运输、完成边与不变输入 owner · **唯一真源**：drop planner 的 owner transport loops 收集器、loop 只读产物与 V1 validator
 
 基础协议见 [Unit owner transport](unit-owner-transport.md)，受限条件值见 [Choice](unit-choice-transport.md)。
-本页不授予循环携带 owner/phi、实例级释放或 Phase 4/native 能力。
+独立不变输入能力只证明三个实际边界的同一 owner；不授予 header/exit phi、完整外层运输、
+实例级释放或 Phase 4/native 能力。
 
-## 准入与真实执行边界
+## 空入边闭合 body 的准入与真实执行边界
 
 仅顶层普通、非泛型 Unit 函数，整个函数体仅一个 While。直线完成使用一个无 mode marker
 的精确 Boolean 参数；末尾条件跳转使用两个这样的参数，While 与 If 必须读取不同真实
@@ -73,10 +74,34 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 循环，在末尾 Break 路径经一轮退出。末尾 If 的另一个参数也不变，同次调用选择同一臂，
 并非每轮任意换臂。有限前缀不是终止证明，不发布动态运行计数。
 
+## 单个不变输入 owner 的非空边界
+
+独立 `invariant_loop_observation_v1()` 不放宽旧空入边 getter；两者互斥。仅一个无 mode marker
+Boolean 参数，函数恰三句：精确 String 的 `val held = "outer"`、直线闭合 While、精确 String
+的 `val retired = held`。前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
+Group/var/nullable。body 复用上述 String 本地构造、move、Group、root Replace，但无末尾
+跳转或 If。locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
+liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点。
+
+普通 While rejection 清空前，核真实 prefix collector Complete、唯一 String producer 与
+恰好 Result/Binding 两事件，token、initializer、symbol 都对应实际单个 OwnedValue。
+只从该 collector 保留 producer catalog，不从 AST、drop 或 symbol 反造 owner。随后照常
+拒绝普通观察，旧定义和事件为空。新能力不恢复 suffix collector，也不提供后缀事件或
+最终消费证明；输入 catalog 自身只验证 producer 身份，不能代替闭合运输。
+
+entry 在实际 condition 正常完成后读取；backedge 在实际 body scope cleanup 后读取，
+且必须返回 Ok(true) 并通过原闭合 V1；exit 在实际 drop_loop_exit 后读取原 condition state。
+三份快照分别来自三个实际状态，不复制 entry 冒充其它边。每次完整 ValueState 除唯一
+OwnedValue 外均为空，且 owner/token、symbol、origin、declaration、scope depth 全部相等。
+body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 owner 不进入该模板。
+公开 binding 可查询真实 symbol/token，三条结构边仍核实际 While/condition/body 身份。
+最终成功且无 deferred 才保留能力，错误分析整体清除。它是非空入边的身份前置，不是 phi、
+不同路径 owner 的 join、运行实例追踪、外层运输闭合或终止证明。
+
 ## 保留边界
 
-普通调用、外来/跨轮 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
+除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。
