@@ -240,3 +240,53 @@ fn field_return_unit_preserves_projected_source_loan() {
         "forwarded source must remain live through BorrowReturn"
     );
 }
+
+#[test]
+fn nested_nullable_copy_keeps_unrelated_drop_before_the_read() {
+    let text = "class Boxed(val value: Int)\nclass Aux() { deinit() { println(\"aux\") } }\nfun view(source: Boxed, aux: Aux): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun entry() { val boxed = Boxed(7); observe(view(boxed, Aux())) }";
+    let program = unit(text).unwrap();
+    verify_program(&program).unwrap();
+    let entry = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains("entry"))
+        .unwrap();
+    let (call, result, source) = entry
+        .instructions
+        .iter()
+        .enumerate()
+        .find_map(|(index, instruction)| {
+            match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::BorrowCall { source, .. }, [EntityId::Loan(result)]) => {
+                    Some((index, *result, *source))
+                }
+                _ => None,
+            }
+        })
+        .unwrap();
+    let position = |operation| {
+        entry
+            .instructions
+            .iter()
+            .position(|i| i.operation == operation)
+            .unwrap()
+    };
+    let read = position(Operation::Read {
+        source: PlaceAccess::Loan(result),
+    });
+    let end_result = position(Operation::BorrowEnd { loan: result });
+    let end_source = position(Operation::BorrowEnd { loan: source });
+    let drops = entry
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| {
+            matches!(instruction.operation, Operation::Drop { .. }).then_some(index)
+        })
+        .collect::<Vec<_>>();
+    let [drop_aux, drop_source] = drops.as_slice() else {
+        panic!("expected one auxiliary and one source drop, got {drops:?}");
+    };
+    assert!(call < *drop_aux && *drop_aux < read);
+    assert!(read < end_result && end_result < end_source && end_source < *drop_source);
+}

@@ -151,10 +151,13 @@ impl Checker<'_> {
             let range = mode == Some(ParameterMode::Borrow)
                 && !crosses_thread
                 && self.range_expression_is_proven(argument.value);
-            let borrow_call = (mode == Some(ParameterMode::Borrow) && !crosses_thread)
-                .then(|| self.borrow_call_argument(id, argument.value))
-                .flatten();
-            if let Some(expression) = borrow_call {
+            let borrow_call = descriptor
+                .and_then(|call| call.arguments().get(index))
+                .filter(|_| mode == Some(ParameterMode::Borrow) && !crosses_thread)
+                .and_then(|mapping| {
+                    self.borrow_call_argument(id, argument.value, mapping.parameter_type())
+                });
+            if let Some((expression, _)) = borrow_call {
                 self.allowed_borrow_call = Some(expression);
             } else if range {
                 self.allowed_borrow_call = Some(argument.value);
@@ -177,9 +180,9 @@ impl Checker<'_> {
                 );
             }
             if self.diagnostics.len() == argument_diagnostics
-                && let Some(expression) = borrow_call
+                && let Some((expression, copies)) = borrow_call
             {
-                self.record_borrow_call_use(id, argument.value, expression, &mut flows)?;
+                self.record_borrow_call_use(id, argument.value, expression, copies, &mut flows)?;
             }
             self.hold_call_closures(id, argument.value, &mut flows)?;
             if crosses_thread

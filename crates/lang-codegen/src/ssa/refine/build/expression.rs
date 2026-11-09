@@ -712,8 +712,12 @@ impl Builder<'_, '_> {
                 continue;
             }
             if mode == ParameterMode::Borrow
-                && let Some((loan, created)) =
-                    self.lower_nested_borrow_argument(call, value_expression, call_arg_span)?
+                && let Some((loan, created)) = self.lower_nested_borrow_argument(
+                    call,
+                    value_expression,
+                    parameter_type,
+                    call_arg_span,
+                )?
             {
                 loans.extend(created.iter().copied());
                 loans.push(loan);

@@ -411,8 +411,16 @@ impl Checker<'_> {
         match mode {
             ParameterMode::Value => {}
             ParameterMode::Borrow => {
-                if let Some(target) = self
-                    .borrow_call_use(call, argument.value)
+                let borrow_use = self.borrow_call_use(call, argument.value);
+                let copy_to_nullable = copy_to_nullable
+                    || borrow_use.is_some_and(|fact| {
+                        fact.end_point()
+                            == crate::ownership_checking::DropPoint::AfterExpression(argument.value)
+                    });
+                if let Some(target) = borrow_use
+                    .filter(|fact| {
+                        fact.end_point() == crate::ownership_checking::DropPoint::CallReturn(call)
+                    })
                     .map(|fact| fact.origin().clone())
                     .or_else(|| {
                         self.range_use(argument.value)

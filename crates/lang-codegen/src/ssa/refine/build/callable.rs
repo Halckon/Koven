@@ -28,6 +28,80 @@ use crate::ssa::{
 pub(super) type LentArgument = (Slot, Vec<Slot>, Option<ExpressionId>);
 
 impl Builder<'_, '_> {
+    pub(super) fn lower_nested_borrow_argument(
+        &mut self,
+        call: lang_frontend::type_checking::UnitExpressionId,
+        argument: ExpressionId,
+        parameter: UnitTypeId,
+        span: Span,
+    ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
+        let argument_id = self.unit(argument);
+        let Some(fact) = self
+            .inputs
+            .owned
+            .borrow_results()
+            .call_uses()
+            .iter()
+            .find(|fact| fact.call() == call && fact.argument() == argument_id)
+        else {
+            return Ok(None);
+        };
+        let actual = self.ungrouped_expr(argument)?;
+        let source = fact.source_loan();
+        let copies = fact.end_point() == UnitDropPoint::AfterExpression(argument_id);
+        if fact.expression() != self.unit(actual)
+            || (!copies && fact.end_point() != UnitDropPoint::CallReturn(call))
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if !copies {
+            return self.lower_result_call(actual, source, span, None);
+        }
+
+        let payload = self.expression_type(argument)?;
+        let parameter = self.c(parameter);
+        if self.copyability_of(payload) != Copyability::Copyable
+            || !matches!(self.inputs.typed.types().get(parameter), Some(UnitTypeKind::Nullable(inner)) if *inner == payload)
+            || !self.inputs.owned.loans().iter().any(|loan| {
+                loan.call() == call
+                    && loan.argument() == argument_id
+                    && loan.kind() == FrontendLoanKind::Shared
+                    && loan.target() == &UnitLoanTarget::Temporary(argument_id)
+            })
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let Some((loan, source_loans)) = self.lower_result_call(actual, source, span, None)? else {
+            return Ok(None);
+        };
+        let value = self.value(
+            ROp::ReadLoan { loan },
+            EntityType::Value(self.ssa_type(payload, span)?),
+            span,
+        )?;
+        self.end_short_call_loan(loan, span)?;
+        for loan in source_loans.into_iter().rev() {
+            self.end_short_call_loan(loan, span)?;
+        }
+        self.drops(UnitDropPoint::AfterExpression(argument_id))?;
+
+        let owner = self.adapt(value, argument, parameter)?;
+        let target = self.ssa_type(parameter, span)?;
+        let place = self.value(ROp::RootPlace { owner }, EntityType::Place(target), span)?;
+        let loan = self.value(
+            ROp::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
+            },
+            span,
+        )?;
+        Ok(Some((loan, Vec::new())))
+    }
+
     pub(super) fn lower_temporary_field_argument(
         &mut self,
         call: UnitExpressionId,

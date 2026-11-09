@@ -6,15 +6,16 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::{
-        BorrowBindingStorage, BorrowSourceLoan, RangeUseSite, UnitIterationCleanupAction as Action,
-        UnitIterationSourceAccess, UnitLoanTarget,
+        BorrowBindingStorage, BorrowSourceLoan, RangeUseSite, UnitDropPoint,
+        UnitIterationCleanupAction as Action, UnitIterationSourceAccess, UnitLoanTarget,
     },
     parser::Expression,
     source::Span,
     type_checking::{
-        BorrowReturnOrigin, BuiltinType, CallableResultSource, IntrinsicTypeConstructor,
-        IterationProvider, ParameterMode, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
-        UnitSequentialIterationBinding, UnitStatementId, UnitTypeId, UnitTypeKind,
+        BorrowReturnOrigin, BuiltinType, CallableResultSource, Copyability,
+        IntrinsicTypeConstructor, IterationProvider, ParameterMode, UnitCallTarget,
+        UnitConstructionTarget, UnitExpressionId, UnitSequentialIterationBinding, UnitStatementId,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -627,6 +628,7 @@ impl Checker<'_, '_> {
         &mut self,
         call: ExpressionId,
         argument: ExpressionId,
+        parameter: UnitTypeId,
     ) -> bool {
         let call_id = self.id(call);
         let argument_id = self.id(argument);
@@ -642,7 +644,28 @@ impl Checker<'_, '_> {
             return false;
         };
         let actual = self.ungrouped(argument);
-        let ok = self.result_call(actual, fact.source_loan());
+        if fact.expression() != self.id(actual) {
+            return false;
+        }
+        let eligible = match fact.end_point() {
+            UnitDropPoint::CallReturn(id) => id == call_id,
+            UnitDropPoint::AfterExpression(id) => {
+                id == argument_id
+                    && self.storage_type(parameter)
+                    && self.expression_type(argument).is_some_and(|payload| {
+                        self.copyability_of(payload) == Copyability::Copyable
+                            && matches!(self.kind(parameter), Some(UnitTypeKind::Nullable(inner)) if *inner == payload)
+                    })
+                    && self.inputs.owned.loans().iter().any(|loan| {
+                        loan.call() == call_id
+                            && loan.argument() == argument_id
+                            && loan.kind() == lang_frontend::ownership_checking::LoanKind::Shared
+                            && loan.target() == &UnitLoanTarget::Temporary(argument_id)
+                    })
+            }
+            _ => false,
+        };
+        let ok = eligible && self.result_call(actual, fact.source_loan());
         self.migrated |= ok;
         ok
     }

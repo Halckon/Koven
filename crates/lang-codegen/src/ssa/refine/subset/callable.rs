@@ -922,7 +922,7 @@ impl Checker<'_, '_> {
                 return ok;
             }
             if mode == ParameterMode::Borrow
-                && (self.nested_borrow_argument(call, value)
+                && (self.nested_borrow_argument(call, value, parameter)
                     || self.short_range_argument(value, parameter)
                     || self.borrowed_move_only_name(value, parameter)
                     || self.borrowed_string_field(call, value, parameter)

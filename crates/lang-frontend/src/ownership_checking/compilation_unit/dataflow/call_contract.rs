@@ -69,17 +69,29 @@ impl Checker<'_> {
                     self.diagnostics.push(diagnostic);
                     return Ok(());
                 }
-                let range_root = (kind == LoanKind::Shared)
+                let borrow_use = (kind == LoanKind::Shared)
                     .then(|| {
                         self.borrow_call_use(
                             contract.call().expression(),
                             contract.argument().expression(),
                         )
-                        .map(|fact| fact.origin().clone())
-                        .or_else(|| {
-                            self.range_use(contract.argument().expression())
-                                .map(|fact| fact.origin().clone())
-                        })
+                    })
+                    .flatten();
+                let copied_borrow = borrow_use.is_some_and(|fact| {
+                    fact.end_point()
+                        == crate::ownership_checking::UnitDropPoint::AfterExpression(
+                            contract.argument(),
+                        )
+                });
+                let range_root = (kind == LoanKind::Shared)
+                    .then(|| {
+                        borrow_use
+                            .filter(|_| !copied_borrow)
+                            .map(|fact| fact.origin().clone())
+                            .or_else(|| {
+                                self.range_use(contract.argument().expression())
+                                    .map(|fact| fact.origin().clone())
+                            })
                     })
                     .flatten();
                 let target = if let Some(target) = range_root {
@@ -102,7 +114,7 @@ impl Checker<'_> {
                         });
                     }
                     target
-                } else if copy_to_nullable {
+                } else if copy_to_nullable || copied_borrow {
                     // The operand has already been read. The shared loan is of the wrapper.
                     UnitLoanTarget::Temporary(contract.argument())
                 } else {
