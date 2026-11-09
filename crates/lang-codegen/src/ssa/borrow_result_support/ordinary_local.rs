@@ -110,12 +110,17 @@ pub(in crate::ssa) fn allowed_controls(
         .get(&fact.initializer())
         .cloned()
         .unwrap_or_default();
+    let range = matches!(
+        fact.storage(),
+        BorrowBindingStorage::NewRangeDescriptor | BorrowBindingStorage::BorrowedCarrierMetadata
+    );
     let collect = |statements: &[StatementId], allowed: &mut BTreeSet<usize>| {
         collect_disjoint_controls(
             file,
             statements,
             fact.binding().source_unit(),
             argument_controls,
+            range,
             allowed,
         );
     };
@@ -137,11 +142,12 @@ pub(in crate::ssa) fn allowed_controls(
     };
     collect(&elements[..binding_index], &mut allowed);
 
-    let mut ends = owned
-        .borrow_results()
-        .ends()
-        .iter()
-        .filter(|end| end.binding() == fact.binding());
+    let mut ends = owned.borrow_results().ends().iter().filter(|end| {
+        end.binding() == fact.binding()
+            && !(range
+                && matches!(end.point(), UnitDropPoint::ControlTransfer(expression)
+                    if expression.source_unit() == fact.binding().source_unit()))
+    });
     let end = match (ends.next().map(|end| end.point()), ends.next()) {
         (Some(UnitDropPoint::AfterStatement(end)), None)
             if end.source_unit() == fact.binding().source_unit() =>
@@ -233,7 +239,7 @@ pub(in crate::ssa) fn argument_returns(
     (!allowed.is_empty()).then_some(allowed)
 }
 
-fn bare_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
+pub(super) fn bare_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
     let statements = file.ast().statements();
     let node = statements.get(statement).ok()?;
     let tail = match node.payload() {
@@ -258,6 +264,7 @@ fn collect_disjoint_controls(
     statements: &[StatementId],
     source_unit: SourceUnitId,
     argument_controls: &BTreeMap<UnitExpressionId, BTreeSet<usize>>,
+    range: bool,
     allowed: &mut BTreeSet<usize>,
 ) {
     let mut pending = statements.to_vec();
@@ -269,13 +276,21 @@ fn collect_disjoint_controls(
             Statement::Block { elements } => pending.extend_from_slice(elements),
             Statement::Expression { expression } => {
                 if let Ok(expression) = ungroup(file, *expression, node.span())
-                    && file
-                        .ast()
-                        .expressions()
-                        .get(expression)
-                        .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }))
+                    && let Ok(control) = file.ast().expressions().get(expression)
+                    && let Expression::If {
+                        then_branch,
+                        else_branch,
+                        ..
+                    } = control.payload()
                 {
                     allowed.insert(expression.index());
+                    if range {
+                        for branch in std::iter::once(*then_branch).chain(*else_branch) {
+                            if let Some(returned) = bare_return(file, branch) {
+                                allowed.insert(returned.index());
+                            }
+                        }
+                    }
                 }
             }
             Statement::LocalVariable { declaration } => {

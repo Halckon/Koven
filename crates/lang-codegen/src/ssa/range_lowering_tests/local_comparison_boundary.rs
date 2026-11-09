@@ -78,13 +78,11 @@ fn range_comparison_boundary_concat() {
 }
 
 #[test]
-fn range_comparison_boundary_ordinary_and_metadata_alias() {
-    for binding in [
-        "val text=\"kept\";borrow val alias=text;println(alias)",
-        "borrow val alias=part;read(alias)",
-    ] {
-        for expression in ["n!=0", "n<=0", "n>0", "n>=0"] {
-            reject(&format!("{binding};check({expression})"), expression);
-        }
+fn range_comparison_boundary_metadata_alias() {
+    for expression in ["n!=0", "n<=0", "n>0", "n>=0"] {
+        reject(
+            &format!("borrow val alias=part;read(alias);check({expression})"),
+            expression,
+        );
     }
 }

@@ -181,15 +181,27 @@ fn range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates() {
 }
 
 #[test]
-fn range_scalar_counts_do_not_widen_ordinary_borrow_or_metadata_alias_bindings() {
-    for binding in [
-        "val text=\"kept\";borrow val alias=text;println(alias)",
-        "borrow val alias=part;read(alias)",
-    ] {
-        let consumer = format!(
-            "fun read(view:View<String>):Unit{{}}\nfun scan(n:Int):Unit{{val root=listOf(\"a\");borrow val part=take(root,1);{binding};read(take(part,n-1));read(part)}}\nfun main():Unit{{scan(1)}}"
-        );
-        assert_source_rejected(&consumer, "n-1");
+fn range_scalar_counts_keep_metadata_alias_boundary() {
+    let consumer = r#"
+fun read(view:View<String>):Unit{}
+fun scan(n:Int):Unit{val root=listOf("a");borrow val part=take(root,1);borrow val alias=part;read(alias);read(take(part,n-1));read(part)}
+fun main():Unit{scan(1)}
+"#;
+    assert_source_rejected(consumer, "n-1");
+}
+
+#[test]
+fn range_scalar_counts_compose_with_ordinary_root_alias() {
+    let consumer = r#"
+fun read(view:View<String>):Unit{for(item in view){println(item)}}
+fun scan(n:Int):Unit{val root=listOf("a");borrow val part=take(root,1);val text="kept";borrow val alias=text;println(alias);read(take(part,n-1));read(part)}
+fun main():Unit{scan(1);scan(2)}
+"#;
+    for (index, (program, entry)) in programs(consumer).into_iter().enumerate() {
+        let run = run_unmodified(&program, entry, &format!("ordinary-alias-{index}"));
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        assert_eq!(run.stdout, b"kept\na\nkept\na\na\n", "{run:?}");
+        assert!(run.stderr.is_empty(), "{run:?}");
     }
 }
 

@@ -1,12 +1,13 @@
 //! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
 use super::*;
-use crate::ssa::borrow_result_support::ordinary_local;
+use crate::ssa::borrow_result_support::{CallAccess, local_if, ordinary_local};
 use lang_frontend::{
     ownership_checking::{
         BorrowBindingFact, BorrowBindingStorage, OwnershipBindingKind, UnitLoanTarget,
     },
     type_checking::{
-        BorrowReturnOrigin, IntrinsicTypeConstructor, UnitAggregateProjectionReceiver,
+        BorrowReturnOrigin, CallableResultSource, IntrinsicTypeConstructor,
+        UnitAggregateProjectionReceiver,
     },
 };
 
@@ -161,13 +162,84 @@ fn has_dedicated_binding_path(
     }))
 }
 
+// The lexical exception applies only to descriptor owners and direct metadata
+// children that the refine range builder can recognize.
+fn is_local_range_binding(
+    file: &lang_frontend::parser::ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+) -> bool {
+    let source_unit = fact.binding().source_unit();
+    if fact.initializer().source_unit() != source_unit
+        || !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.is_root())
+    {
+        return false;
+    }
+    let Ok(expression) = crate::ssa::borrow_result_support::ungroup(
+        file,
+        fact.initializer().expression(),
+        fact.marker_span(),
+    ) else {
+        return false;
+    };
+    let id = UnitExpressionId::new(source_unit, expression);
+    let ty = typed.expression_type(id);
+    if ty != typed.symbol_type(fact.binding())
+        || !matches!(
+            ty.and_then(|ty| typed.types().get(ty)),
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::View,
+                ..
+            })
+        )
+    {
+        return false;
+    }
+    match fact.storage() {
+        BorrowBindingStorage::NewRangeDescriptor => {
+            fact.source_loan().is_some_and(|loan| loan.call() == id)
+                && typed.call(id).is_some_and(|call| {
+                    matches!(call.result_source(), CallableResultSource::Carrier(_))
+                })
+        }
+        BorrowBindingStorage::BorrowedCarrierMetadata if fact.source_loan().is_none() => {
+            let Some(parent) = fact
+                .parent()
+                .filter(|parent| parent.source_unit() == source_unit)
+            else {
+                return false;
+            };
+            let bindings = owned.borrow_results().bindings();
+            let Ok(index) = bindings.binary_search_by_key(&parent, |binding| binding.binding())
+            else {
+                return false;
+            };
+            let parent_fact = &bindings[index];
+            parent_fact.storage() == BorrowBindingStorage::NewRangeDescriptor
+                && parent_fact.origin() == fact.origin()
+                && typed.symbol_type(parent) == ty
+                && file.ast().expressions().get(expression).is_ok_and(|node| {
+                    matches!(node.payload(), Expression::Name)
+                        && names.names().references().iter().any(|reference| {
+                            reference.source_unit() == source_unit
+                                && reference.span() == node.span()
+                                && reference.target() == &UnitReferenceTarget::Symbol(parent)
+                        })
+                })
+        }
+        _ => false,
+    }
+}
+
 fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
-    allowed_controls: Option<&std::collections::BTreeSet<usize>>,
+    mut allowed_controls: Option<std::collections::BTreeSet<usize>>,
 ) -> Result<(), LoweringError> {
     if file.source_id() != fact.marker_span().source_id() {
         return Err(lowering_error(
@@ -226,55 +298,81 @@ fn validate_binding(
                 && ends.next().is_none()
         },
     );
+    let builtin = |expression| match typed
+        .expression_type(UnitExpressionId::new(
+            fact.binding().source_unit(),
+            expression,
+        ))
+        .and_then(|ty| typed.types().get(ty))
+    {
+        Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+        _ => None,
+    };
+    let call_allowed = |expression, access| {
+        typed
+            .call(UnitExpressionId::new(
+                fact.binding().source_unit(),
+                expression,
+            ))
+            .is_some_and(|call| {
+                let mode_allowed = |mode, ty| {
+                    mode == ParameterMode::Borrow
+                        || (mode == ParameterMode::Value
+                            && typed.copyability(ty)
+                                == lang_frontend::type_checking::Copyability::Copyable)
+                };
+                call.result_source() == lang_frontend::type_checking::CallableResultSource::Owned
+                    && (access == CallAccess::OwnedResult
+                        || (!call.aborts()
+                            && !matches!(
+                                call.target(),
+                                lang_frontend::type_checking::UnitCallTarget::FunctionValue
+                            )
+                            && call.arguments().iter().all(|argument| {
+                                !argument.crosses_thread()
+                                    && mode_allowed(argument.mode(), argument.parameter_type())
+                            })
+                            && call.receiver().is_none_or(|receiver| {
+                                mode_allowed(receiver.mode(), receiver.ty())
+                            })))
+            })
+    };
+    if let Some(allowed) = &mut allowed_controls
+        && matches!(
+            fact.storage(),
+            BorrowBindingStorage::NewRangeDescriptor
+                | BorrowBindingStorage::BorrowedCarrierMetadata
+        )
+    {
+        local_if::return_controls(
+            file,
+            fact.marker_span(),
+            &builtin,
+            &|id| call_allowed(id, CallAccess::ReadOnly),
+            |returned| {
+                let point = UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                    fact.binding().source_unit(),
+                    returned,
+                ));
+                owned
+                    .borrow_results()
+                    .ends()
+                    .iter()
+                    .any(|end| end.binding() == fact.binding() && end.point() == point)
+            },
+            allowed,
+        );
+    }
     crate::ssa::borrow_result_support::binding(
         file,
         fact.marker_span(),
         fact.storage()
             == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
         &prefixes,
-        allowed_controls,
+        allowed_controls.as_ref(),
         scope,
-        |expression| match typed
-            .expression_type(UnitExpressionId::new(
-                fact.binding().source_unit(),
-                expression,
-            ))
-            .and_then(|ty| typed.types().get(ty))
-        {
-            Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
-            _ => None,
-        },
-        |expression, access| {
-            typed
-                .call(UnitExpressionId::new(
-                    fact.binding().source_unit(),
-                    expression,
-                ))
-                .is_some_and(|call| {
-                    use crate::ssa::borrow_result_support::CallAccess;
-                    let mode_allowed = |mode, ty| {
-                        mode == ParameterMode::Borrow
-                            || (mode == ParameterMode::Value
-                                && typed.copyability(ty)
-                                    == lang_frontend::type_checking::Copyability::Copyable)
-                    };
-                    call.result_source()
-                        == lang_frontend::type_checking::CallableResultSource::Owned
-                        && (access == CallAccess::OwnedResult
-                            || (!call.aborts()
-                                && !matches!(
-                                    call.target(),
-                                    lang_frontend::type_checking::UnitCallTarget::FunctionValue
-                                )
-                                && call.arguments().iter().all(|argument| {
-                                    !argument.crosses_thread()
-                                        && mode_allowed(argument.mode(), argument.parameter_type())
-                                })
-                                && call.receiver().is_none_or(|receiver| {
-                                    mode_allowed(receiver.mode(), receiver.ty())
-                                })))
-                })
-        },
+        builtin,
+        call_allowed,
         |statement| {
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
             super::map_iteration::stable_borrow_provider(
@@ -439,12 +537,15 @@ pub(crate) fn validate_bindings(
             Some(ordinary_local::Policy::Scoped) => {
                 let allowed =
                     ordinary_local::allowed_controls(file, owned, fact, &argument_controls);
-                validate_binding(file, names, typed, owned, fact, Some(&allowed))?;
+                validate_binding(file, names, typed, owned, fact, Some(allowed))?;
             }
             None if legacy_gate
                 && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
             {
-                validate_binding(file, names, typed, owned, fact, None)?;
+                let allowed = is_local_range_binding(file, names, typed, owned, fact).then(|| {
+                    ordinary_local::allowed_controls(file, owned, fact, &argument_controls)
+                });
+                validate_binding(file, names, typed, owned, fact, allowed)?;
             }
             _ => {}
         }

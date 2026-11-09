@@ -3864,3 +3864,28 @@ Refine subset 对任意 Borrow 参数别名偏好 per-family 路由，而后者�
 根别名/存储 11 项、原生 2 项、借用结果 12 项、Map 路由 15 项、RangeView 12 项
 及旧 Map 借用 provider 观察 1 项通过，共 53 项，零失败、零忽略，按套件名过滤。
 独立复核完成，codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 156. R4 局部 RangeView 与直接控制流
+
+实际 CLI 对照中，`take` 建立的 descriptor、其直接 metadata child 在内层块结束，
+以及 child 活跃时的提前 `return`，均通过前端检查。默认 build 在对应 `if` 或
+`return` 报 UnsupportedNode。加入未调用的 `swap` 后三者均能原生构建并运行。
+在 `e53d0755` 上，三条独立回归在相同位置失败。
+
+Unit 借用预检对 typed carrier call 和直接同源 metadata child 复用词法证明。正常
+`AfterStatement` 结束点与 `ControlTransfer` 分开判断，活跃绑定必须具有该
+`return` 的精确 end，正常路径继续使用原状态。独立复核要求增加返回与正常结束
+组合、晚建 child 和无花括号裸 return。已有活跃分支的 Abort、metadata 比较、
+值位置、嵌套控制及循环负例保留。普通 String 根别名的旧 Int 比较负例因 §154
+的准入变化改为六种原生比较对照，顺序范围的 checked Int count 也有实际原生对照。
+普通别名的未经证明活跃 if 和 metadata count 仍拒绝。
+
+八条新增 RangeView 原生测试已通过，在 Memory 和 Rooted provider 正逆序核对
+有无 sibling 的 SSA 与实际输出，同时核对提前返回及正常继续的逆序析构。
+一般 carrier alias、循环及其余 legacy 路由仍属 R4 对账范围，阶段保持开放。
+
+本机扩大 Range 运行 384 项通过，三项旧普通根别名负例失败。迁移夹具后在最终
+测试二进制重跑 14 项，包含八条新回归、迁移的正负例及值位置拒绝，全部通过。
+borrow-result 70 项与 Map 路由 15 项通过，零失败和忽略。lang-codegen 全目标
+Clippy、格式、文档和 Rust 尺寸门禁通过。完整 Range 集合未在最终二进制重跑，
+双宿主证据留待批量候选。
