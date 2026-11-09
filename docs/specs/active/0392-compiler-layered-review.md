@@ -3779,3 +3779,28 @@ owner 的见证。独立复核后的能力和调用身份断言覆盖只查诊�
 
 候选四个集成套件共 85 项通过，覆盖 Single/Unit 名称解析、basic Unit 所有权及
 nullable when。零失败、零忽略。前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 152. R0/R3 nullable when 清理与构造实参 loan 结束
+
+沿用 [SPEC-0341 的同点结束观察](0341-shared-lowering-core.md#同控制点-call-loan-结束顺序观察2026-11-07)。
+在 `fb5a8dcb` 上，六项旧 nullable when 清理用例中，`outer(Node(), when (...))`
+的 Return 候选在原地查不到结束事件。旧 Single 见证通过，Unit 已形成实际 loan 和
+临时 owner 析构义务。现有 direct 观察谓词没有纳入已完成的构造调用。
+
+同轮已验证构造索引、MoveOnly temporary 类别和实际 Shared loan target 共同准入。
+透明 Group 只解包以查构造 identity，事件继续保留真实实参和 owner。正常返回用现有
+pending token 退休，Return、Break、Continue 从实际 unwind 动作投影。两种情况均
+核对 loan 在同点普通 drop 前结束。普通工厂调用的析构事实可存在，公开事件沿用原
+准入。Abort 没有正常结束或展开析构。
+
+六项迁移保留十条原源码。双入口核对 while 根仅在 LoopExit 析构，早期具名 Borrow
+在外层 CallReturn 结束，先于同点根析构。两条正常分支无局部清理。临时 subject 在正常路径共享唯一
+AfterExpression 析构，在三个显式转移各有唯一真实出口析构。Abort 只保留 null 臂的
+正常清理。较早的构造 Borrow 参数在退出和正常返回路径分别与实际 owner 清理配对。
+其他提取、条件 owner 和原 Single 专用产物测试保留。
+
+独立复核确认新增 CallReturn 动作保持既有 provider 退出点和同点计数。按复核补回
+两条原分支空清理断言、Null/NonNull 域与公开 Rustdoc。分组构造和普通工厂形成的
+owner 均保留真实析构，只有构造发布结束。Abort 负控使用同一实际前缀 loan，正常
+臂只发布一条 CallReturn end 与同点 drop。五个集成套件共 515 项通过，零失败、
+零忽略。前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。

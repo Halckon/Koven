@@ -16,7 +16,7 @@ impl DropPlanner<'_, '_> {
         self.observes_call_loan(loan, LoanKind::Shared)
     }
 
-    // Shared admits proven temporary field parents in addition to roots. Exclusive
+    // Shared also admits proven temporary owners and field parents. Exclusive
     // remains root-only; both reuse registered tokens and the existing unwind traversal.
     fn observes_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
         let Some(call) = self.checker.typed.call(loan.call()) else {
@@ -66,8 +66,19 @@ impl DropPlanner<'_, '_> {
                                 })
                             });
                 }
+                Expression::Call { .. } => {
+                    // A checked construction forms its own owner. Other call
+                    // results still need a dedicated ownership-source proof.
+                    return kind == LoanKind::Shared
+                        && self
+                            .checker
+                            .construction_descriptors
+                            .contains_key(&self.checker.unit_expression(operand))
+                        && self.is_move_only_temporary(loan.argument().expression())
+                        && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
+                }
                 Expression::String { parts } => {
-                    // plain String 自己求值成 owner；不接受 interpolation、投影或构造调用。
+                    // plain String 自己求值成 owner；不接受 interpolation 或投影。
                     return kind == LoanKind::Shared
                         && parts.iter().all(|part| matches!(part, StringPart::Text(_)))
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
