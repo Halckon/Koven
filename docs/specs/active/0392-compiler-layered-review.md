@@ -107,12 +107,12 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
-| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过。内部旧入口见 §93 和 §105，失败 trial 的三入口事实见 §98 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§100–101、§103，当前复跑见 §143 | 文件级类型参数换行交接见 §114；其它未闭合分组及词法错误的 AST 归属仍开放 |
-| R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
-| R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
-| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；对象发布见 §99，借用和 Map 路由见 §106–108，双宿主预览、Linux sanitizer 与本机 LLDB 的实跑证据已分别记账 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
-| R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
+| R0 | 公共流水线和阶段准入已定位。§93、§105 区分旧测试入口与 Unit 生产回退，§151 固定 `369fff4c` 的直接调用清单并确认共享 `resolve_names` 的生产依赖 | 逐消费者核完保留或迁移理由，仓外 API 和间接调用另记边界 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA，F4–F6 已修。文件级类型参数换行恢复见 §114，L0088 闭合身份见 §139，委托 lambda 恢复及预算见 §143–144 | 未闭合普通分组和缺少可靠归属证据的错误输入仍需按公共入口复审 |
+| R2 | F1/F2/F8–F11 的已列复现有修复证据，F11 验收见 §16–18。失败试探和流事实见 §22–25、§98、§104，常量失效与独立诊断见 §141–142 | 逐消费者处置、剩余流事实组合及 Unit/Single 的完整差异仍待验收 |
+| R3 | basic/const 交接身份、临时父 owner、两阶段借用已独审。F3 已修，F7 已加旧入口能力门。§145–147 核验观测索引身份，§151–153 核验 nullable 清理及构造 loan 结束 | 继续分流旧事件见证，复审循环、部分构造、各退出边和动态资源矩阵 |
+| R4 | 已独立核对 subset/build、部分路由、SSA/LLVM 验证及资源用例。§148–150 的借用初始化交接经 #394 双宿主验收并合入，§153 有构造实参跨包本机运行证据 | 生产 Unit 仍有兼容准入，需对账剩余家族、非法 SSA、资源故障与双宿主动态证据。第一轮冻结 SHA 的纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
+| R5 | 已明确两轮触发门槛 | v1 尚未冻结，第二轮发布验收待启动 |
 
 ## 8. 验收账本
 
@@ -3817,3 +3817,94 @@ codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
 合并后的本批源码实跑 `unit_direct_call_loan_ends` 113 项、SSA 借用结果合同 12 项和
 原生借用初始化 3 项，均零失败、零忽略。SSA 与原生测试按套件名过滤。
 同一源码树的 codegen 全目标 Clippy、格式、文档和差异检查通过。
+
+## 151. R0/R3 生产名称原语与 nullable when 消费者
+
+以 #392 合入后的 `369fff4c` 为基线，按已跟踪 Rust 源码直接调用形状计文件数及
+匹配行。排除同一行的函数定义，包含测试及字符串。范围不解释宏、间接调用或仓外 API。
+
+| 范围 | resolve_names | check_types | check_ownership | complete_file_types | lower_scalar_file_with_entry |
+|---|---:|---:|---:|---:|---:|
+| frontend src | 34 / 44 | 31 / 41 | 13 / 13 | 3 / 3 | 0 |
+| frontend tests | 65 / 133 | 54 / 87 | 33 / 45 | 22 / 31 | 0 |
+| codegen src | 15 / 18 | 15 / 18 | 14 / 17 | 7 / 7 | 4 / 8 |
+| 其他 crates | 0 | 0 | 0 | 0 | 0 |
+
+五名未检出显式 `as` 别名。UnitResolver 按源文件使用 `resolve_names` 生成 local
+scope/symbol/reference，再建立跨文件引用和声明身份。CLI 与 LSP 的公开入口经 Unit
+消费该共享生产步骤。`complete_file_types` 的十处 crate src 调用均注册在测试链。
+旧类型、所有权和 codegen 测试入口的归属仍见 §93、§105。保留这组公开 API 的仓外
+兼容性边界，生产 Unit legacy lowering 仍属 R4。
+
+沿用 [SPEC-0341](0341-shared-lowering-core.md) 的消费者迁移。旧 Single 基线
+`ownership_nullable_when` 26 项通过。将四项原用例的七条原源码原样转到
+MemoryDocument 和 Rooted。核对真实 Abort body 无正常或循环后继、Copyable
+形参保留 Shared/Exclusive 权限和无 owner drop、合流前后两个不同调用的 Shared
+loan 与后一 CallReturn 上唯一根析构。早逗号匹配直接核对 `WhenAlternativeMatch`
+与两名不同 owner。多 alternative 原例没有完整 nullable descriptor，此处消费实际
+drop fact。其余 22 个用例函数保留原文，包含 Single 独立 loan-end、提取位置和条件
+owner 的见证。独立复核后的能力和调用身份断言覆盖只查诊断无法发现的回归。
+
+候选四个集成套件共 85 项通过，覆盖 Single/Unit 名称解析、basic Unit 所有权及
+nullable when。零失败、零忽略。前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 152. R0/R3 nullable when 清理与构造实参 loan 结束
+
+沿用 [SPEC-0341 的同点结束观察](0341-shared-lowering-core.md#同控制点-call-loan-结束顺序观察2026-11-07)。
+在 `fb5a8dcb` 上，六项旧 nullable when 清理用例中，`outer(Node(), when (...))`
+的 Return 候选在原地查不到结束事件。旧 Single 见证通过，Unit 已形成实际 loan 和
+临时 owner 析构义务。现有 direct 观察谓词没有纳入已完成的构造调用。
+
+同轮已验证构造索引、MoveOnly temporary 类别和实际 Shared loan target 共同准入。
+透明 Group 只解包以查构造 identity，事件继续保留真实实参和 owner。正常返回用现有
+pending token 退休，Return、Break、Continue 从实际 unwind 动作投影。两种情况均
+核对 loan 在同点普通 drop 前结束。普通工厂调用的析构事实可存在，公开事件沿用原
+准入。Abort 没有正常结束或展开析构。
+
+六项迁移保留十条原源码。双入口核对 while 根仅在 LoopExit 析构，早期具名 Borrow
+在外层 CallReturn 结束，先于同点根析构。两条正常分支无局部清理。临时 subject 在正常路径共享唯一
+AfterExpression 析构，在三个显式转移各有唯一真实出口析构。Abort 只保留 null 臂的
+正常清理。较早的构造 Borrow 参数在退出和正常返回路径分别与实际 owner 清理配对。
+其他提取、条件 owner 和原 Single 专用产物测试保留。
+
+独立复核确认新增 CallReturn 动作保持既有 provider 退出点和同点计数。按复核补回
+两条原分支空清理断言、Null/NonNull 域与公开 Rustdoc。分组构造和普通工厂形成的
+owner 均保留真实析构，只有构造发布结束。Abort 负控使用同一实际前缀 loan，正常
+臂只发布一条 CallReturn end 与同点 drop。五个集成套件共 515 项通过，零失败、
+零忽略。前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 153. R3 跨文件构造 Borrow 的求值与来源身份
+
+在 `39181c78` 上，使用两个包中的实际 class、声明和调用验证 §152 的构造实参合同。
+形参 ABI 顺序为 Int、Node，正控在源码中先写分组构造、后写有 Return 的值实参。
+相同调用的对照交换具名实参位置。只有先完成构造的退出边有 loan-end 和同点析构，
+两条正常路径各有一个 CallReturn。跨文件输入重排仍保留 caller 的 call、argument、
+temporary、Return 和 value origin，以及 callee 的声明与精确参数 Span。
+三条事件均在同点普通 drop 前发生，跳过构造的边没有相应析构。
+
+原构造和 Abort 两项测试原样迁至 `constructed_argument` 子模块，保留相同 suite。
+此次仅增加跨文件见证，没有改动编译器实现。`unit_direct_call_loan_ends` 116 项通过，
+零失败、零忽略。前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+独立复核后，借用结束事实逐条与原 loan 描述符及调用 AST 实参匹配，并按 owner
+核对完整析构点序列和来源，避免错标来源掩盖额外析构。用本轮构建的 kovenc 在
+macOS arm64 对同形双包输入执行 project check、object build、link 与本机运行。
+两条提前路径中只有已构造的 owner 打印析构。两条正常路径均先打印 callee 标记，
+再各打印一次 owner 析构，stdout 逐字节符合预期。该探针使用 deinit 输出，未测
+实际分配次数。
+
+[PR #392 实际 main CI](https://github.com/Halckon/Koven/actions/runs/42624664615)
+在 `369fff4c` 通过双宿主 Check/Clippy、定向、预览生产与独立消费。15 项成功，
+只跳过 PR 专用的 Code CI Evidence。
+
+同步 [PR #394](https://github.com/Halckon/Koven/pull/394) 合入后的 `a4b72d35`。
+[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42625817187) 的合成提交
+`649d8a5e` 与实际合并提交的有序双亲和树一致。双宿主定向、预览生产、独立安装及
+最终门禁通过，15 项成功，编辑器词法检查按改动范围跳过。
+合流仅需合并账本追加段。完整前端测试所用 frontend 源码树为
+`8f91d54d020d2bf6461d995b3f189cc37a82539d`，本次同步保持该树、Guide、
+标准库、编辑器夹具和 workspace manifest/lock 不变。
+本机 `cargo test --locked -p lang-frontend` 183 组、2967 项通过，零失败、零忽略、
+零过滤。合流后同一源码树复跑 SSA 借用结果合同 12 项、原生借用初始化 3 项，零失败、
+零忽略，其余按过滤条件排除。前端及 codegen 全目标 Clippy 通过。本机重新构建的
+kovenc 通过原双包探针的 CLI check、build、link、run，stdout 逐字节一致。
