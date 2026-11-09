@@ -100,6 +100,7 @@ pub(super) struct Analysis {
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) formed_owned_locals: Vec<UnitSymbolId>,
     pub(super) owner_observations: Vec<super::UnitOwnerObservation>,
+    pub(super) receiver_call_prefix_ends: Vec<super::UnitReceiverCallPrefixEndFact>,
     pub(super) exclusive_call_prefix_ends: Vec<super::UnitExclusiveCallPrefixEndFact>,
     pub(super) borrow_call_prefix_ends: Vec<super::UnitBorrowCallPrefixEndFact>,
     pub(super) borrow_call_handoffs: Vec<super::UnitBorrowCallHandoffFact>,
@@ -224,6 +225,7 @@ pub(super) fn analyze(
     let mut borrow_forward_transports = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
+    let mut receiver_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
@@ -325,6 +327,7 @@ pub(super) fn analyze(
         borrow_forward_transports.extend(drop_analysis.borrow_forward_transports);
         borrow_call_prefix_ends.extend(drop_analysis.borrow_call_prefix_ends);
         exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
+        receiver_call_prefix_ends.extend(drop_analysis.receiver_call_prefix_ends);
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
         deferred.extend(drop_analysis.deferred);
@@ -382,6 +385,7 @@ pub(super) fn analyze(
         nullable_whens.clear();
         borrow_return_origins.clear();
         borrow_forward_transports.clear();
+        receiver_call_prefix_ends.clear();
         borrow_call_transports.clear();
         borrow_binding_transports.clear();
         borrow_results = Default::default();
@@ -422,6 +426,7 @@ pub(super) fn analyze(
         borrow_forward_transports,
         borrow_call_prefix_ends,
         exclusive_call_prefix_ends,
+        receiver_call_prefix_ends,
         value_deliveries,
         receiver_facts,
         conditional_receiver_deliveries,

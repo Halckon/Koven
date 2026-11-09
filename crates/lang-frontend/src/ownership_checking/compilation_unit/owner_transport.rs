@@ -109,7 +109,7 @@ pub enum UnitOwnerObservationStatus {
 /// Events emitted at real evaluation/registration/commit transitions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnitOwnerTransportEvent {
-    /// A Unit-valued If; continuing paths must have identical surviving identities.
+    /// A Unit-valued or both-terminal If; continuing paths preserve surviving identities.
     /// The condition precedes this event. Each ordered arm includes its real cleanup;
     /// arm 0 is true and arm 1 is false. These are alternatives, never a linear trace.
     If {

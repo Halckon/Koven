@@ -141,7 +141,28 @@ impl UnitOwnerObservation {
                         Some((*control, 1)),
                     )?;
                     match (left_continues, right_continues) {
-                        (false, false) => return None, // Both-terminal control is not admitted yet.
+                        (false, false) => {
+                            if event_index + 1 != events.len() {
+                                return None;
+                            }
+                            // Neither edge reaches a join. Preserve only static
+                            // retirement, including definitions formed on one arm.
+                            for ((joined, left), right) in locations.iter_mut().zip(left).zip(right)
+                            {
+                                *joined = match (left, right) {
+                                    (
+                                        Location::Dropped,
+                                        Location::Dropped | Location::Uncreated,
+                                    )
+                                    | (Location::Uncreated, Location::Dropped) => Location::Dropped,
+                                    (Location::Uncreated, Location::Uncreated) => {
+                                        Location::Uncreated
+                                    }
+                                    _ => return None,
+                                };
+                            }
+                            return Some(false);
+                        }
                         (false, true) | (true, false) => {
                             let (continuing, terminated) = if left_continues {
                                 (&left, &right)
@@ -428,3 +449,6 @@ impl UnitOwnerObservation {
         Some(true)
     }
 }
+
+#[cfg(test)]
+mod terminal_tests;
