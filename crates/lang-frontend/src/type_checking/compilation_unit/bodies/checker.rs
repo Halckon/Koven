@@ -672,7 +672,8 @@ impl<'a> BodyChecker<'a> {
             return Ok(ty);
         }
         let target = self.reference(source, span, Namespace::Value);
-        if let Some(UnitReferenceTarget::Symbol(symbol)) = target
+        if self.expression_use(source, expression) != ExpressionUse::InoutStorage
+            && let Some(UnitReferenceTarget::Symbol(symbol)) = target
             && let Some(ty) = self.flow_facts.get(&FlowKey::Symbol(*symbol)).copied()
         {
             self.note_pending_binding_read(UnitExpressionId::new(source, expression), *symbol, ty);

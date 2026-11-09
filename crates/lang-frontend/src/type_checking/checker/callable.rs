@@ -238,9 +238,10 @@ impl Checker<'_> {
                 .iter()
                 .enumerate()
                 .all(|(argument_index, &parameter_index)| {
-                    self.assignable(
+                    self.call_parameter_matches(
+                        arguments[argument_index].value,
                         argument_types[argument_index],
-                        candidate.parameters[parameter_index].ty,
+                        &candidate.parameters[parameter_index],
                     )
                 })
         });
@@ -259,6 +260,24 @@ impl Checker<'_> {
                     .collect::<Vec<_>>();
                 self.ambiguous_overload(callee, &spans)
             }
+        }
+    }
+
+    fn call_parameter_matches(
+        &self,
+        value: ExpressionId,
+        actual: TypeId,
+        parameter: &MappedParameter<TypeId>,
+    ) -> bool {
+        if parameter.mode == ParameterMode::Inout
+            && self.expression_categories[value.index()] == ExpressionCategory::Place
+            && !self.is_error(actual)
+            && !self.is_error(parameter.ty)
+            && !self.is_deferred(parameter.ty)
+        {
+            actual == parameter.ty
+        } else {
+            self.assignable(actual, parameter.ty)
         }
     }
 
@@ -296,9 +315,10 @@ impl Checker<'_> {
                 .enumerate()
                 .all(|(argument_index, argument_type)| {
                     argument_type.is_none_or(|argument_type| {
-                        self.assignable(
+                        self.call_parameter_matches(
+                            arguments[argument_index].value,
                             argument_type,
-                            candidate.parameters[mapping[argument_index]].ty,
+                            &candidate.parameters[mapping[argument_index]],
                         )
                     })
                 })

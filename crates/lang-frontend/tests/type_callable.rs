@@ -21,6 +21,9 @@ use parser_test_assertions::parse_file_twice;
 mod unit_entries;
 use unit_entries::checked_entries;
 
+#[path = "type_callable/inout_storage.rs"]
+mod inout_storage;
+
 #[path = "type_callable/lambda_modes.rs"]
 mod lambda_modes;
 

@@ -2,6 +2,21 @@ use super::*;
 use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
+fn inout_writes_nullable_storage_even_after_a_nonnull_read() {
+    let source = r#"fun clear(inout target: Int?): Unit { target = null }
+    fun main(): Unit {
+        var x: Int? = 7
+        if (x != null) {
+            val before: Int = x
+            if (before == 7) { println("narrowed") }
+            clear(&x)
+        }
+        if (x == null) { println("cleared") }
+    }"#;
+    assert_eq!(run(source), ("narrowed\ncleared\n".to_owned(), Some(0)));
+}
+
+#[test]
 fn checked_division_by_zero_with_sibling_slot_reassignment() {
     let source = r#"fun test_div(opt: Int?, flag: Boolean, input: Int): Int {
         var d = input

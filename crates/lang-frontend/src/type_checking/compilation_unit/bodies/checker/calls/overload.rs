@@ -8,7 +8,7 @@ use crate::{
     name_resolution::SourceUnitId,
     parser::CallArgument,
     source::Span,
-    type_checking::{CompilationUnitTypeError, DeferredReason, UnitTypeId},
+    type_checking::{CompilationUnitTypeError, DeferredReason, UnitExpressionId, UnitTypeId},
 };
 
 use super::super::type_graph::CandidateTypes;
@@ -88,9 +88,11 @@ impl CallSite<'_> {
                             .unwrap_or(actual);
                         if (!checker.is_deferred(required)
                             || checker.has_contextual_integer(required))
-                            && !checker.call_argument_could_match(
+                            && !checker.call_argument_matches_mode(
+                                UnitExpressionId::new(self.source, argument.value),
                                 required,
                                 candidate.call.parameters[parameter].ty,
+                                candidate.call.parameters[parameter].mode,
                                 candidate.pending || unresolved,
                             )
                         {

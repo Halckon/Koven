@@ -371,7 +371,8 @@ impl Checker<'_> {
         {
             self.iteration_recovery.observe(id);
         }
-        if let Some(key) = self.stable_flow_key(id)
+        if self.expression_use(id) != ExpressionUse::InoutStorage
+            && let Some(key) = self.stable_flow_key(id)
             && let Some(ty) = self.flow_facts.get(&key).copied()
         {
             return Ok(ty);
