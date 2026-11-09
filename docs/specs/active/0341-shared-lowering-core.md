@@ -4619,3 +4619,28 @@ nullable bottom更新保持main正文，概览仍200行。独立复核确认其�
 文档和diff通过；相对d2a81954尺寸门禁为2222 Rust、35项既有超长，额度不变。
 Mac/Rust1.96/LLVM21.1.8、默认debug、jobs=2，共享target串行；未运行损坏注入、
 frontend全量、native或Linux。文档后继不冒称再次运行测试，最终新头正式CI待验证。
+
+### Signature 复用批整合 #377 后主线（2026-11-08）
+
+以已核远端 main `e1b0c2dc656ec5a94f4e4bce26b30fd20029aa46` 建隔离分支
+`fix/spec-0341-signature-main-integration`，合入 #372 精确头
+`bcd12e1ed14e029a14fd3078e1590e04b6f953fe`，代码整合头 `14992e8a`。
+保留既有 Rc/signature/deep graph 提交链，不重新实现或重复 cherry-pick；原 main、
+候选工作树及未提交改动未动。唯一冲突为名称类型概览一行，保留新主线的双 Unit
+`lambda_completion` 与全部候选事实，概览仍200行。独立只读复审确认 main 新增26个
+变更文件中的25个逐字保全，唯一交集即该概览；五项原输入与全部原oracle、两个helper、
+主线stress及其Single见证、#372完整历史账本均保留，模块各注册一次，无生产代码差异。
+
+| 验收项 | 本组合实际选择 | 结果 |
+|---|---|---|
+| 类型消费者 | `type_checking`，仅排除两个同名 `long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 93 passed，2 filtered |
+| 签名与Rc共享邻控 | `multifile_type_signatures` 全目标、`multifile_type_checking intrinsic_box_rc::` | 24 + 10 passed |
+| callable与新主线消费者 | `type_callable`、`lambda_completion` 全目标 | 21 + 4 passed |
+| 静态质量 | frontend all-targets Clippy（`-W clippy::all -D warnings`）、workspace fmt、docs、相对 `e1b0c2dc` 尺寸、diff | 通过；863 Markdown、2223 Rust、35项既有超长，无新增额度 |
+
+Mac AArch64 / Rust1.96.0，locked/offline、默认debug、jobs=2，新独占target串行Cargo。
+合计152项不同测试通过。本轮实际执行了 `standard_error_has_a_stable_abort_identity_and_nothing_result`
+这一raw类型事实测试，不沿用旧账本的“只编译”描述；没有执行native Abort。两个长枚举/
+deep-smart-cast压力整项仅编译，未执行故障注入、frontend/workspace全量、native或Linux；
+本片未改公开API/生产代码，未追加workspace check。旧基底或#372 CI不能替代本整合头正式CI。
+本地分步提交并保存恢复备份，发布仍待用户后续审批；没有推送、修改PR或合入main，D10/E2保持in-progress。
