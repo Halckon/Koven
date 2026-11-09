@@ -6,6 +6,7 @@ mod choice_branch_local;
 mod choice_capture_isolation;
 mod choice_conditions;
 mod choice_forwarding;
+mod choice_replace;
 mod choice_result_groups;
 mod combination;
 mod control_tail;

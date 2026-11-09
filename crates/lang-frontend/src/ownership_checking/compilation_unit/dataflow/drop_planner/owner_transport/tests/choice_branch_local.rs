@@ -58,6 +58,15 @@ pub(super) fn assert_ast_edges(
     control_text: &str,
     graph: &UnitOwnerValueObservationV1,
 ) {
+    assert_eq!(graph.producers().definitions().len(), 2);
+    assert_ast_branch_events(fixture, control_text, graph);
+}
+
+pub(super) fn assert_ast_branch_events(
+    fixture: &Fixture,
+    control_text: &str,
+    graph: &UnitOwnerValueObservationV1,
+) {
     let ast = fixture.parsed[0].ast();
     let control = fixture.expression(0, control_text);
     let unit_control = UnitExpressionId::new(fixture.source(0), control);
@@ -71,7 +80,6 @@ pub(super) fn assert_ast_edges(
     };
     assert!(graph.is_consistent());
     assert!(graph.prefix().is_empty());
-    assert_eq!(graph.producers().definitions().len(), 2);
     let choice = graph.choice().unwrap();
     assert_eq!(choice.id().control(), unit_control);
     for (edge, body) in [*then_branch, *else_branch].into_iter().enumerate() {
