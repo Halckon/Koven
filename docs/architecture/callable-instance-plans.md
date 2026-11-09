@@ -30,6 +30,11 @@ pointer factory 的摘要按具体 factory source memo，核对声明及调用�
 无捕获返回 lambda 归属 factory source；named function 依赖进入原 worklist。
 普通非 Fn 数据参数保持原规划路径，不因 callback discovery 增加 concrete layout 门禁。
 捕获 Fn 的环境缺少本片 concrete ABI，在 capture 引用位置返回 UnsupportedNode。
+Unit 所有权发布实参正常完成和调用能否进入 callee 的事实。已进入求值的调用保留
+静态路由和委托信息，已证无法进入 callee 的路由只用于求值前缀，实例队列省略其函数体。
+返回 `Nothing` 的 callee 若能实际进入，仍需规划其实例。Borrow Fn 来源仅为完成的实参冻结，
+前缀中已经形成的 callable view 有独立 ABI 声明。refine 按源码顺序求值，沿控制转移先结束
+已形成的借用，再消费临时 owner 的析构事实。
 
 实现位于 `ssa/lowering_support/callable_instances.rs`、`lower_frontend/instances/` 与
 `unit_plan/callable_instances.rs`。本页描述 planner 事实；source runtime constructor、helper

@@ -357,6 +357,9 @@ fn collect_reachable_unit_recipe_failures(
                 continue;
             };
 
+            if owned.call_may_dispatch(typed.calls()[*call_index].expression()) == Some(false) {
+                continue;
+            }
             let Some(&target_template) = template_by_target.get(&resolved.key().target()) else {
                 continue;
             };

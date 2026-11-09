@@ -3,6 +3,7 @@ use super::{LoweringError, LoweringErrorKind};
 use lang_frontend::{
     name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
     parser::ParsedFile,
+    type_checking::{CompilationUnitTypes, UnitCallReceiverOrigin, UnitExpressionId},
 };
 
 pub(super) fn parsed_by_source_unit<'a>(
@@ -26,4 +27,16 @@ pub(super) fn parsed_by_source_unit<'a>(
                 })
         })
         .collect()
+}
+
+/// Return the typed receiver operand only when it cannot reach receiver delivery.
+pub(super) fn non_completing_call_receiver(
+    typed: &CompilationUnitTypes,
+    call: UnitExpressionId,
+) -> Option<UnitExpressionId> {
+    let UnitCallReceiverOrigin::Expression(receiver) = typed.call(call)?.receiver()?.origin()
+    else {
+        return None;
+    };
+    (typed.expression_falls_through(receiver) == Some(false)).then_some(receiver)
 }

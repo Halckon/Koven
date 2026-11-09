@@ -4955,3 +4955,21 @@ Linux x86_64/Rust1.96、默认debug、jobs=2，独占target串行，共1452项�
 零失败/忽略/过滤；不将上节1144项重复加总。无LLVM21，未跑本地workspace/native/LLVM
 或frontend全量；以上检查不能替代发布新头的正式双宿主、Preview及CI Passed。
 须以包含62ca42cf的精确新组合验收，不沿用cdf5a410的旧base绿灯；D10/E2继续in-progress。
+
+### #384 保留 #385 调用前缀新主线（2026-11-09）
+
+上轮正式CI执行期间，main 再合入 #385，成为
+`415ba2779f0d7588239ac7abbd234d117a9d0000`。从 #384 远端
+`de26bdd2a15b30f61bc25651747a187846dc237b` 另建隔离工作树，普通 merge 新main，
+组合代码头 `181e1188`，无冲突；全部原PR/合流头与主线祖先保留，不改写已有分支。
+独立静态复核确认27个新main文件中25个blob逐字相同，`dataflow.rs` 与
+`ownership.md` 的主线新增/删除行完整保留。调用开始求值、正常完成实参和实际dispatch
+三种事实保持分离；owner/receiver观察不反向改变callable事实，未发现合流P1/P2。
+
+本组合重新运行上一节的完整frontend lib与13个integration目标，1452项全部通过，
+零失败/忽略/过滤，不沿用或重复累计旧结果。frontend全目标Clippy
+（locked/offline、`-W clippy::all -D warnings`）、workspace fmt、docs、diff及相对
+415ba277的尺寸门禁通过：863 Markdown、2231 Rust、36项既有超长，额度不变。
+Linux x86_64/Rust1.96、默认debug、jobs=2、独占target串行；LLVM21缺失，未执行
+本地workspace/native/LLVM或frontend全量。须以包含415ba277的新发布头完成正式CI，
+62ca42cf组合的进行中门禁不作为本次合并证据；SPEC-0341与D10/E2仍in-progress。

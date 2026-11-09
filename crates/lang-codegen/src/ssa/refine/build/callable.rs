@@ -247,6 +247,10 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::UnsupportedNode, root_span));
         }
         let owner = self.form_callable(root, root_span)?;
+        if value != root {
+            // Exit drops refer to the original argument, including any parentheses.
+            self.register_temporary(value, owner)?;
+        }
         let callable = self
             .inputs
             .callables

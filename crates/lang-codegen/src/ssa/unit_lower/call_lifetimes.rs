@@ -118,7 +118,9 @@ impl UnitExpressionLowerer<'_> {
             .call_site(self.source_token, call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if route.key().target() != UnitCallableTarget::Declaration(target)
-            || !self.function_ids.contains_key(route.key())
+            || route
+                .dispatch_key()
+                .is_some_and(|key| !self.function_ids.contains_key(key))
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

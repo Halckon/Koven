@@ -41,7 +41,7 @@ return/break/continue 清理已求值前缀，Abort 不展开。
 `short_circuit_plan` 供遍历、活性和析构共用。常量模式以 Boolean literal、typed 常量值或
 Group 决定 RHS，无需再次求值 initializer。动态计划保留可达旁路，编号为 0=true、1=false。
 仅常量入口发布实际访问的 source-qualified `UnitShortCircuitPlan`，与物化计划一起通过
-错误/deferred 原子门禁。专用 owned 支持按 expression 查询，专用 native 消费这些计划。
+错误/deferred 原子门禁。专用 owned 支持按 expression 查询，refine 与兼容 lowering 按计划编号消费清理。
 
 专用模式由主遍历记录实际访问的 source-qualified lambda 集合；drop 前的 lambda liveness
 预扫描、lambda body 清理及公开 closure/capture 入口均按此集合筛选，避免不可达 lambda

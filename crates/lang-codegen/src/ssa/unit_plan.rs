@@ -543,7 +543,7 @@ pub(super) fn plan_unit_instances_from_facts(
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
-            callables.specialize_call(
+            let dispatches = callables.specialize_call(
                 source_token,
                 &substitutions,
                 call,
@@ -556,7 +556,9 @@ pub(super) fn plan_unit_instances_from_facts(
                     .entry(dependent)
                     .or_insert(UnitRuntimeTypeDemand::InstanceKeyOnly);
             }
-            pending.insert(target_key.key);
+            if dispatches {
+                pending.insert(target_key.key);
+            }
         }
 
         callables.freeze_runtime_callbacks(
