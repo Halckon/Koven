@@ -4821,3 +4821,46 @@ condition/callee/inout-root 回调不变。既有退休重复 trace 与新增提
 与 E3 仍未开放。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
 D10/E2 继续 in-progress。不新增备份，分步提交后 connector 创建独立新分支，
 不覆盖已有 ref、不强推或合并。
+
+## 136. Checked replace 双输出的新根优先顺序（2026-11-09）
+
+基于已发布 `ab3cfa84`（与 §134 本地 `c75c6bbb` 同树），先核 main `ec8a7b9f`
+及远端 Choice 分支，没有重复新根优先消费者。依赖未合 Choice 链，分支验证不等于
+最新 main 组合验收。Phase 3 沿用 replace 的两个独立 owned 输出与原 move/cleanup
+合同，不改 Guide、公开 API、V1 validator、cleanup 或通用 planner hook。
+
+四句入口现在也允许新根先、旧 Choice 后：chosen 接初始 Choice，previous 接 checked
+replace 返回值，第三句不可变精确 String/MoveOnly binding 取 Name/Group chosen，
+第四句同类 binding 取 Name/Group previous。第二段必须是第一段尚未消费的另一个
+输出，不得取第一段 alias、重复同源或重用目标；仍至多两段，不接纳任意链或第五句。
+
+只有活动索引为0、previous 尚未退休、准入序列恰为 root→previous 两段时，允许新根
+在旧 Choice 仍 Named 的情况下实际 move。原 commit、完整返回链 Consume、previous
+post-insert 绑定、returned 槽清空及原根 cleanup 前置全部保留，不凭源码形状单独发值。
+single-root 路径不满足两段门禁，仍须 previous 实际退休；原旧先新路径继续原合同。
+
+新 definition 沿第一段真实 take/Consume/Group/bind 运输，在第三声明精确 Drop 后
+整帧清空、活动索引才推进。第二段才可消费仍 Named 的旧 Choice，在第四声明退休。
+索引是实际清理完成证据，不从事件历史重建；原根和 previous 原 binding 的提前 Drop、
+非活动/已退休表达式及其它错误回调继续撤销。两输出均无多余 producer 或 named Drop。
+
+真实红测在四句裸 Name 源码缺 V1 上 1 failed，测试提交 `351294cc`；
+实现 `c56040cd` 后256组合（2条件×4边形态×2整个If分组×2 RHS分组
+×2返回Group深度×2旧输出Name/Group×2新输出Name/Group）逐项核真实 AST 边、
+三 producer、完整有序 suffix、first Definition Drop→second Choice Move 和准确
+两次 alias cleanup；独立 sibling 与 observation 开关完整旧 Analysis 保持。
+原新先旧后拒绝样例迁入正例，另9种合法拒绝覆盖alias链、concat、var/nullable、
+调用、第五句、capture与循环。23条补充手工trace仅编译，未本机执行。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_installed_first` 两个 ordinary exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §134 同一42项 ordinary exact，保留旧先新和单根路径 | 42 passed，0 failed/ignored |
+| 独立复验 | `c56040cd` 两个新完整名 ordinary exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2230 Rust、35项既有超限 |
+
+独立静审无 blocker，确认单根限制、第一退休证据及所有非活动回调门禁未放宽。
+生产 choice/replace 分别942/459行，新测试420行，架构200行，无尺寸例外变化。
+同值多次运输、任意消费、incoming Choice、真实循环实例/phi、Phase 4/native 与 E3
+仍未开放。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+D10/E2 继续 in-progress。不新增备份，分步提交后仅发布独立新分支，不覆盖、强推或合并。

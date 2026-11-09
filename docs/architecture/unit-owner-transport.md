@@ -120,13 +120,13 @@ Consume/Forward，再 post-insert 清空帧；最后仅清理 forwarded，chosen
 失败 take、Read、错序、重复或错误清理均撤销；多次转交仍拒绝（SPEC-0341 §122）。
 
 初始 `var` 须紧跟 `val previous = replace(&chosen, literal/Group)` 或其整个 Group 链；
-后继须不可变、精确 String/MoveOnly 的 Name/Group；单个源为 previous 或 chosen，两个只许前旧后新。
+后继须不可变、精确 String/MoveOnly 的 Name/Group；单个源为 previous 或 chosen，两个须分别消费二者。
 必须是真实 checked String root Replace，非投影，RHS 精确 String 且无插值；独立帧
 完整 Consume 后注册真实唯一 pending，再于 checked primitive 完成和 root 更新后发 Replace。
 返回旧 Choice 沿实际 call/各层 Group 按序 Consume/Forward，末帧才 post-insert 绑定 previous（§130）。
 无后继或仅转交 previous 时，新 definition 在真实 CallReturn 释放；旧 Choice 按 §126/§128 释放。
-若转交 chosen，旧 Choice 须先在 previous 或其唯一 alias 声明后退休，原根保持新 definition。
-每段实际 take 后沿 value 帧运输/绑定，在自身声明 Drop 后清空才推进下一段；不重建身份（§132/§134）。
+仅转交 chosen 须 previous 先退休；双输出可任一顺序，各在自身 alias 声明后退休（§136）。
+每段实际 take 后沿 value 帧运输/绑定，在自身声明 Drop 后清空才推进下一段；不重建身份（§132/§134/§136）。
 
 Choice 图的 CallReturn Drop 必须承接紧邻同 call/root/incoming 的 Replace；连续 cleanup 保留
 该 commit 见证，仍验证 Named→Dropped；Swap 仍仅无 Choice。公开事件 API 不变。
@@ -137,7 +137,7 @@ BranchExit、控制退出、When 等未覆盖 point 仍不准入；图守恒不�
 绑定 observation 的 product/callable，旧 Eq 仅比旧事实，新协议须独立验收。不从事件、
 cleanup 或 owner=None 重建身份；任意退出、遗漏、重复或错误交付均清空新事务。
 nullable、普通调用、capture、二次 replace/同值转交、退出、真实循环/phi、通用后续消费及 Phase 4 仍未开放。
-本机证据见 §120/§122/§124/§126/§128/§130/§132/§134；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
+本机证据见 §120/§122/§124/§126/§128/§130/§132/§134/§136；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
 
 ## String 根 swap 观察
 
