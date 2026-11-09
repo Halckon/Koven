@@ -62,8 +62,8 @@ pub use construction::{
 pub use non_null_assertion::UnitNonNullAssertionOwnershipPlan;
 pub use receiver::{
     UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
-    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
+    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
 use std::sync::Arc;
@@ -414,6 +414,7 @@ pub struct CompilationUnitOwnership {
     delegations: Vec<UnitDelegationOwnershipPlan>,
     owner_observations: Vec<UnitOwnerObservation>,
     receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
+    receiver_call_return_ends: Vec<UnitReceiverCallReturnEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
@@ -622,6 +623,11 @@ impl CompilationUnitOwnership {
             },
             receiver_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.receiver_call_prefix_ends
+            } else {
+                Vec::new()
+            },
+            receiver_call_return_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.receiver_call_return_ends
             } else {
                 Vec::new()
             },
@@ -845,6 +851,13 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
         &self.receiver_call_prefix_ends
+    }
+
+    /// owned 名称根 Shared receiver 正常完成时，从实际 pending 队列退休的 token。
+    /// 不提供跨事务顺序、完整 receiver 流或动态执行次数；前缀退出另行查询。
+    #[must_use]
+    pub fn receiver_call_return_ends(&self) -> &[UnitReceiverCallReturnEndFact] {
+        &self.receiver_call_return_ends
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。

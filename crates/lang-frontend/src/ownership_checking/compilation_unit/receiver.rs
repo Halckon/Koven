@@ -398,3 +398,24 @@ impl UnitReceiverCallPrefixEndFact {
         self.preceding_receiver_loan_ends
     }
 }
+
+/// 正常调用完成时从真实 pending 队列退休的 owned 根 Shared receiver。
+/// 与前缀退出分开观察，不声明参数/receiver/drop 全序或完整借用事件流。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitReceiverCallReturnEndFact {
+    pub(super) receiver: UnitReceiverOwnershipFact,
+}
+
+impl UnitReceiverCallReturnEndFact {
+    /// 返回已退休的原 source-qualified receiver token。
+    #[must_use]
+    pub const fn receiver(&self) -> &UnitReceiverOwnershipFact {
+        &self.receiver
+    }
+
+    /// 返回实际正常完成的调用点，不代表 receiver owner 已析构。
+    #[must_use]
+    pub const fn point(&self) -> super::UnitDropPoint {
+        super::UnitDropPoint::CallReturn(self.receiver.call())
+    }
+}

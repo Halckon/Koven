@@ -896,3 +896,6 @@ mod receiver_prefix;
 
 #[path = "unit_direct_call_loan_ends/receiver_cfg_prefix.rs"]
 mod receiver_cfg_prefix;
+
+#[path = "unit_direct_call_loan_ends/receiver_return.rs"]
+mod receiver_return;

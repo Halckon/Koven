@@ -26,6 +26,7 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.borrow_results.call_uses.is_empty());
     assert!(raw.borrow_forward_transports.is_empty());
     assert!(raw.receiver_call_prefix_ends.is_empty());
+    assert!(raw.receiver_call_return_ends.is_empty());
     assert!(raw.borrow_call_transports.is_empty());
     assert!(raw.borrow_binding_transports.is_empty());
 }
@@ -203,4 +204,50 @@ fn real_deferred_and_diagnostic_clear_nonempty_receiver_loop_prefix_table() {
             assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
         });
     }
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_receiver_return_table() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { val node = Node(); node.touch(\"ready\", 0) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.receiver_call_return_ends.len(), 1);
+    });
+}
+
+#[test]
+fn normal_receiver_ends_keep_identical_ast_indices_in_distinct_sources_separate() {
+    let accepted = Fixture::new(&[
+        (
+            "a.ko",
+            "class Left { fun read(): Int = 1 }\nfun first(own node: Left): Unit { node.read() }",
+        ),
+        (
+            "b.ko",
+            "class Rght { fun read(): Int = 1 }\nfun other(own node: Rght): Unit { node.read() }",
+        ),
+    ]);
+    let shared = accepted.shared();
+    assert!(
+        shared.diagnostics().is_empty(),
+        "{:?}",
+        shared.diagnostics()
+    );
+    assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+    shared.clone().validate().unwrap();
+    let [left, right] = shared.receiver_call_return_ends() else {
+        panic!("one normal end per source")
+    };
+    assert_eq!(
+        left.receiver().call().expression(),
+        right.receiver().call().expression()
+    );
+    assert_eq!(left.receiver().call().source_unit(), accepted.source(0));
+    assert_eq!(right.receiver().call().source_unit(), accepted.source(1));
+    assert_ne!(left.receiver().call(), right.receiver().call());
+    assert_ne!(left.receiver().target(), right.receiver().target());
+    let raw = accepted.dataflow(&accepted.parts(&shared));
+    assert_eq!(
+        raw.receiver_call_return_ends,
+        shared.receiver_call_return_ends()
+    );
 }

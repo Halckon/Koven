@@ -1,11 +1,12 @@
-//! 只投影实际 return/break/continue unwind 的 receiver token，不重建或改变 cleanup。
-use super::{DropPlanner, PlannerDropPoint};
+//! 观察正常完成及 return/break/continue 前缀中真实退休的 receiver token；不重建或改变 cleanup。
+use super::{DropPlanner, PlannerDropPoint, ValueState};
 use crate::{
+    ast::ExpressionId,
     name_resolution::SymbolKind,
     ownership_checking::{
         OwnershipBindingKind, UnitIterationCleanupAction as Action, UnitLoanTarget,
-        UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-        UnitReceiverOwnershipTarget,
+        UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
+        UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
     },
     parser::Expression,
     type_checking::{CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget},
@@ -13,7 +14,7 @@ use crate::{
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
-    fn observes_receiver_prefix(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
+    fn observes_owned_root_receiver(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
         let Some(call) = self.checker.typed.call(receiver.call()) else {
             return false;
         };
@@ -74,6 +75,28 @@ impl DropPlanner<'_, '_> {
             && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == &place)
     }
 
+    /// Retire exactly the tokens removed by the old normal-return retain. Move the
+    /// qualifying receiver token into its own observation, never synthesize it from
+    /// final descriptors. This does not add iteration actions or claim cross-table order.
+    pub(super) fn finish_call_pending_loans(&mut self, call: ExpressionId, state: &mut ValueState) {
+        let call = self.checker.unit_expression(call);
+        for (action, _) in state
+            .pending_loans
+            .extract_if(.., |(action, _)| match action {
+                Action::EndCallLoan(loan) => loan.call() == call,
+                Action::EndReceiverLoan(receiver) => receiver.call() == call,
+                _ => false,
+            })
+        {
+            if let Action::EndReceiverLoan(receiver) = action
+                && self.observes_owned_root_receiver(&receiver)
+            {
+                self.receiver_call_return_ends
+                    .push(UnitReceiverCallReturnEndFact { receiver });
+            }
+        }
+    }
+
     pub(super) fn receiver_call_prefix_ends(&self) -> Vec<UnitReceiverCallPrefixEndFact> {
         let mut counts = BTreeMap::<_, (usize, usize, usize)>::new();
         let mut ends = Vec::new();
@@ -103,7 +126,7 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *drops += 1,
                 Action::EndCallLoan(_) => *calls += 1,
                 Action::EndReceiverLoan(receiver) => {
-                    if self.observes_receiver_prefix(receiver) {
+                    if self.observes_owned_root_receiver(receiver) {
                         ends.push(UnitReceiverCallPrefixEndFact {
                             receiver: receiver.clone(),
                             point: point.into_unit(self.checker.source_unit),
