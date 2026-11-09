@@ -53,7 +53,7 @@ impl BorrowForwardIndex {
 pub(super) struct LoanProvenance {
     pub(super) formed_owned: BTreeSet<UnitSymbolId>,
     pub(super) iteration_providers: BTreeSet<UnitSymbolId>,
-    borrow_bindings: BTreeSet<UnitSymbolId>,
+    pub(super) borrow_bindings: BTreeSet<UnitSymbolId>,
     bindings_by_initializer: BTreeMap<UnitExpressionId, Vec<usize>>,
 }
 

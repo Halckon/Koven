@@ -87,3 +87,9 @@ mod loop_choice_unit;
 
 #[path = "ownership_iteration/control_exits_unit.rs"]
 mod control_exits_unit;
+
+#[path = "ownership_iteration/closed_while_owner_unit.rs"]
+mod closed_while_owner_unit;
+
+#[path = "ownership_iteration/invariant_while_owner_unit.rs"]
+mod invariant_while_owner_unit;

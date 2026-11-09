@@ -2,6 +2,34 @@
 use super::*;
 
 impl DropPlanner<'_, '_> {
+    /// Append only after the receiver's live traversal has completed normally.
+    /// This observation does not participate in pending loans or owner cleanup.
+    pub(super) fn observe_string_clone_return(&mut self, expression: ExpressionId) {
+        let call = self.checker.unit_expression(expression);
+        let Some(operation) = self
+            .checker
+            .typed
+            .string_operation(call)
+            .filter(|operation| {
+                operation.kind() == crate::type_checking::StringOperationKind::Clone
+            })
+        else {
+            return;
+        };
+        self.string_clone_loan_ends.extend(
+            self.checker
+                .loans
+                .iter()
+                .filter(|loan| {
+                    loan.call() == call
+                        && loan.argument() == operation.receiver()
+                        && loan.kind() == crate::ownership_checking::LoanKind::Shared
+                })
+                .cloned()
+                .map(crate::ownership_checking::UnitStringCloneLoanEndFact::new),
+        );
+    }
+
     pub(super) fn is_string_expression(&self, expression: ExpressionId) -> bool {
         self.checker
             .typed

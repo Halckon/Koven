@@ -1,4 +1,12 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
+mod loops;
+pub(super) use loops::{
+    LoopBodyCompletion, LoopBranchCompletion, LoopBranchExit, publish_observations,
+};
+pub use loops::{
+    UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
+    UnitOwnerLoopObservationV1,
+};
 pub(super) mod values;
 pub use values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
@@ -236,7 +244,8 @@ pub enum UnitOwnerTransportEvent {
     },
 }
 
-/// Whole-callable atomic observation. Unsupported observations expose no prefix facts.
+/// Whole-callable atomic legacy observation; unsupported definitions/events are empty.
+/// Separately sealed capabilities have their own bounded contracts.
 /// Equality compares complete structural facts across analyses, not token interchangeability.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerObservation {
@@ -246,6 +255,8 @@ pub struct UnitOwnerObservation {
     pub(super) definitions: Vec<UnitOwnerDefinition>,
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
+    pub(super) loop_value: Option<Box<UnitOwnerLoopObservationV1>>,
+    pub(super) invariant_loop_value: Option<Box<UnitOwnerInvariantLoopObservationV1>>,
 }
 impl UnitOwnerObservation {
     /// Source-qualified callable.

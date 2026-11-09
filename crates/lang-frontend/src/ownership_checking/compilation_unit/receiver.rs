@@ -356,8 +356,9 @@ impl UnitDelegationOwnershipPlan {
     }
 }
 
-/// 实际 Return unwind 中结束的 owned 名称根 Shared receiver loan。
-/// 只读观测切片，不覆盖正常返回、reservation、投影、provider 或完整 loan-end 流。
+/// 实际 return/break/continue unwind 中结束的具名根/字段、具体 this 或首层直接根/字段来源借用绑定的 Shared receiver。
+/// 绑定保留原 canonical source lease，不将子 token 结束解释成父 binding 或 source loan 结束。
+/// 只读观测切片，不覆盖正常返回、reservation、索引/temporary/this 字段投影、provider 或完整 loan-end 流。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitReceiverCallPrefixEndFact {
     pub(super) receiver: UnitReceiverOwnershipFact,
@@ -374,7 +375,7 @@ impl UnitReceiverCallPrefixEndFact {
         &self.receiver
     }
 
-    /// 放弃调用前缀的实际 Return 点，不是 descriptor 的源码结束位置。
+    /// 放弃调用前缀的实际 return/break/continue 点，不是 descriptor 的源码结束位置。
     #[must_use]
     pub const fn point(&self) -> super::UnitDropPoint {
         self.point
@@ -396,5 +397,27 @@ impl UnitReceiverCallPrefixEndFact {
     #[must_use]
     pub const fn preceding_receiver_loan_ends(&self) -> usize {
         self.preceding_receiver_loan_ends
+    }
+}
+
+/// 正常调用完成时从真实 pending 队列退休的具名根/字段、具体 this 或首层直接根/字段来源借用绑定的 Shared receiver。
+/// 直接绑定仅限 BorrowedStorage、无 parent/source loan，initializer 与完整来源 place 相同。
+/// 与前缀退出分开观察，不声明参数/receiver/drop 全序或完整借用事件流。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitReceiverCallReturnEndFact {
+    pub(super) receiver: UnitReceiverOwnershipFact,
+}
+
+impl UnitReceiverCallReturnEndFact {
+    /// 返回已退休的原 source-qualified receiver token。
+    #[must_use]
+    pub const fn receiver(&self) -> &UnitReceiverOwnershipFact {
+        &self.receiver
+    }
+
+    /// 返回实际正常完成的调用点，不代表 receiver owner 已析构。
+    #[must_use]
+    pub const fn point(&self) -> super::UnitDropPoint {
+        super::UnitDropPoint::CallReturn(self.receiver.call())
     }
 }

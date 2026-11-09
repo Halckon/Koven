@@ -518,3 +518,43 @@ fun main(): Unit {{ println("before abort"); run(true) }}
     assert_eq!(output.stdout, b"before abort\nmade outer\nmade pending\n");
     assert!(output.stderr.starts_with(b"abort: stop\n"), "{output:?}");
 }
+
+#[test]
+fn direct_resource_closure_native_keeps_original_output_and_repeated_drop_order() {
+    for (source, expected) in [
+        (
+            "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
+            "keep\n",
+        ),
+        (
+            "class Resource { deinit() { println(\"released\") } }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource(); println(\"body\") }; val alias = callback; (alias)(); (alias)(); println(\"after\") }",
+            "keep\nbody\nreleased\nkeep\nbody\nreleased\nafter\n",
+        ),
+    ] {
+        let output = emit_link_and_run("resource-direct-closure.ko", source, "run");
+        assert_eq_diagnostic!(output.status.code(), Some(0), "{output:?}");
+        assert_eq_diagnostic!(output.stdout, expected.as_bytes(), "{output:?}");
+        assert_eq_diagnostic!(output.stderr, b"", "{output:?}");
+    }
+}
+
+#[test]
+fn resource_closure_native_composes_with_borrow_initializer_return() {
+    let source = r#"class Resource { deinit() { println("released") } }
+fun view(source: String, own n: Int): borrow String from source = source
+fun probe(own flag: Boolean): Unit {
+    val text = "capture".clone()
+    val callback = move { println(text); val resource = Resource(); println("body") }
+    callback()
+    val owner = "kept".clone()
+    borrow val item = view(owner, if (flag) { return } else { 1 })
+    println(item)
+}
+fun entry(): Unit { probe(true); println("first done"); probe(false) }
+"#;
+    let expected = b"capture\nbody\nreleased\nfirst done\ncapture\nbody\nreleased\nkept\n";
+    let output = emit_link_and_run("resource-borrow-prefix.ko", source, "entry");
+    assert_eq_diagnostic!(output.status.code(), Some(0), "{output:?}");
+    assert_eq_diagnostic!(output.stdout, expected, "{output:?}");
+    assert_eq_diagnostic!(output.stderr, b"", "{output:?}");
+}
