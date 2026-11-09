@@ -2922,6 +2922,12 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 定向测试 1 项、inline nullable 布局套件 6 项及 codegen 全目标 Clippy 均通过。
 
 
+[PR #378](https://github.com/Halckon/Koven/pull/378) 合入 `a8657f58`。主干基线
+`e1b0c2dc` 和 head `e0ffd973` 在 [CI 42507181254](https://github.com/Halckon/Koven/actions/runs/42507181254)
+验证，合成提交 `0f8fa2de` 和实际合入树均匹配 `8f043aaf`。双宿主 Check/Clippy、定向测试、
+预览包生产和独立安装、CI Passed 及 Code CI Evidence 通过。Editor lexical 按变更范围跳过。
+该集成提交本机 SSA 扩大套件 1943 项通过，零失败或忽略。
+
 ## 111. R4 普通类 nullable If 的旧路由
 
 主干 `e1b0c2dc` 的 CLI 对照中，含外层 nullable String 循环重赋值的函数自然留在
