@@ -16,9 +16,9 @@ struct ExpectedDiagnostic<'a> {
     labels: &'a [(usize, usize, &'a str, &'a str)],
 }
 
-// Complete ordinary-source observations frozen on main 94768a91 before migration.
+// Complete ordinary-source observations frozen on main 94768a91 before this comparison.
 // Construct every expected field explicitly, including the absence of notes/help.
-fn assert_original_diagnostic(
+fn assert_complete_diagnostic(
     text: &str,
     sources: &SourceMap,
     actual: &[Diagnostic],
@@ -50,6 +50,31 @@ fn assert_original_diagnostic(
         actual,
         [complete],
         "complete original diagnostic, source identity and ordered details"
+    );
+}
+
+// Unit has the same rejection and source locations, but more specific conflict messages
+// and selected-parameter context. Keep the complete Legacy oracle beside this one.
+fn assert_unit_diagnostic(text: &str, expected: ExpectedDiagnostic<'_>) {
+    use crate::native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource};
+
+    let rejected = UnitSource::analyze("lowering.ko", text)
+        .err()
+        .expect("an original illegal source cannot acquire executable Unit capability");
+    assert!(matches!(rejected.kind, SourceRejectionKind::Diagnostics));
+    assert_eq!(
+        rejected.report.stages,
+        [("parse", 0), ("names", 0), ("types", 0), ("ownership", 1)]
+    );
+    let [(stage, diagnostic)] = rejected.report.diagnostics.as_slice() else {
+        panic!("exactly the original ownership rejection");
+    };
+    assert_eq!(*stage, "ownership");
+    assert_complete_diagnostic(
+        text,
+        &rejected.sources,
+        std::slice::from_ref(diagnostic),
+        expected,
     );
 }
 
@@ -254,7 +279,7 @@ fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation()
         assert!(analysis.parsed.diagnostics().is_empty());
         assert!(analysis.names.diagnostics().is_empty());
         assert!(analysis.typed.diagnostics().is_empty());
-        assert_original_diagnostic(
+        assert_complete_diagnostic(
             &text,
             &analysis.sources,
             analysis.owned.diagnostics(),
@@ -263,6 +288,30 @@ fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation()
                 message: "access conflicts with the active iteration source loan",
                 primary,
                 labels: &[(loan.0, loan.1, "keys", "conflicting loan starts here")],
+            },
+        );
+        let message = match operation {
+            "consume(keys)" => "move conflicts with an active loan",
+            "keys[0] = 9" => "mutation conflicts with an active loan",
+            "keys.add(4)" | "keys.removeLast()" => "new loan conflicts with an active loan",
+            _ => panic!("one frozen original operation"),
+        };
+        let mut labels = vec![(loan.0, loan.1, "keys", "conflicting loan starts here")];
+        if operation == "consume(keys)" {
+            labels.push((
+                12,
+                32,
+                "own keys: Array<Int>",
+                "selected parameter declared here",
+            ));
+        }
+        assert_unit_diagnostic(
+            &text,
+            ExpectedDiagnostic {
+                code: "L0135",
+                message,
+                primary,
+                labels: &labels,
             },
         );
     }
@@ -441,7 +490,7 @@ fn owned_source_continue_borrowed_element_cannot_be_owned() {
     assert!(analysis.parsed.diagnostics().is_empty());
     assert!(analysis.names.diagnostics().is_empty());
     assert!(analysis.typed.diagnostics().is_empty());
-    assert_original_diagnostic(
+    assert_complete_diagnostic(
         text,
         &analysis.sources,
         analysis.owned.diagnostics(),
@@ -450,6 +499,23 @@ fn owned_source_continue_borrowed_element_cannot_be_owned() {
             message: "cannot move a non-Copyable value out of a borrowed binding",
             primary: (120, 123, "key"),
             labels: &[(97, 100, "key", "non-owning binding established here")],
+        },
+    );
+    assert_unit_diagnostic(
+        text,
+        ExpectedDiagnostic {
+            code: "L0133",
+            message: "cannot move a non-Copyable value out of a borrowed binding",
+            primary: (120, 123, "key"),
+            labels: &[
+                (97, 100, "key", "non-owning binding established here"),
+                (
+                    12,
+                    28,
+                    "own text: String",
+                    "selected parameter declared here",
+                ),
+            ],
         },
     );
 }

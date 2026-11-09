@@ -110,6 +110,12 @@ provider 发布计划，与普通 capability 隔离；两出口均验证模板�
 named source break 与该 named local/outer 用例仍保留 Single owner identity 见证。
 这六项前端合同不替代动态循环 owner/phi、条件清理或 native 释放证明。
 
+普通 owned-source continue 的五个非法源码另在 codegen 消费者核对完整 Legacy 与 strict
+MemoryDocument Unit 诊断：source move、索引写入、MutableList add/removeLast 及元素移出。
+两路保留同一错误码、primary 和原冲突标签；Unit 的 L0135 文案区分 move/mutation/new loan，
+move 与元素移出另带选中参数标签。差异分别固定为完整 oracle，旧 Legacy 见证未退休；
+这些 Phase 3 拒绝合同不产生 SSA/native capability，也不证明动态 owner 或借用全序闭合。
+
 实现入口为 frontend `compilation_unit/iteration.rs`、`dataflow/iteration.rs`、
 `dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`。unit native 消费入口为
 `ssa/unit_lower/loop_control/iteration.rs` 与 `iteration_cleanup.rs`；保留上节列明的表示边界。
