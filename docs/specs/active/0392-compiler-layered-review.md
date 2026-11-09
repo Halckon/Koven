@@ -4588,3 +4588,24 @@ nullable 存储或 `null` 后可运行。新增原生回归在修改前实际失
 `Borrow Int` 会发布 backing owner 的 CallReturn drop；转换为
 `Borrow Int?` 时没有该事实。两种匿名投影在基线原生路径均报
 `UnsupportedNode`，该资源边另行复审。
+
+## 185. R3/R4 嵌套 nullable 借用批次合并验收
+
+[PR #401](https://github.com/Halckon/Koven/pull/401) 的 head `03b885ce`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42695805642)
+通过 15 个作业。两宿主分别执行并通过本批 9 项指定回归。
+Editor lexical 按范围跳过，macOS 的既有 LLDB 用例因 debugserver
+权限忽略，§175 另有前一代码树的本机运行证据。
+
+两端预览生产、独立消费清单与归档实算哈希匹配，各 12 项命令、
+哨兵及清理通过。基线 `53f1227f`、合成提交 `eb5f8eb8`、实际合入
+`1af615f0`，合成与实际合入树均为
+`7f7508857236850ccbc0b8ee18a983ed2cfca0f8`，无未决审阅线程。
+[#400 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42694684754)
+已成功，另已启动 [#401 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42701685162)。
+
+下一批临时字段及无分派前缀的主干合流树为
+`e4e9944c1380a0802bddb39bb70205910da40dda`，与隔离预演一致。
+合流后复跑 SSA 借用、临时字段、嵌套 nullable 和标量前缀，分别
+通过 8、2、4 和 1 项，零失败或忽略。严格 workspace Clippy 通过。
+早一预演另核对 131 项前端合同和两组组合程序的双 CLI 入口实跑。
