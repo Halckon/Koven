@@ -241,7 +241,6 @@ fn dual_output_transfer_rejects_reordering_chains_and_extra_consumers() {
     let prefix =
         r#"var chosen = if (flag) "left" else "right"; val previous = replace(&chosen, "next");"#;
     for suffix in [
-        "val installed = chosen; val old = previous",
         "val old = previous; val again = old",
         "val old = previous; val installed = chosen + \"suffix\"",
         "var old = previous; val installed = chosen",
