@@ -14,10 +14,17 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
-    ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit},
-    parser::ParsedFile,
+    ownership_checking::{
+        CompilationUnitOwnership, ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget,
+        UnitLoanTarget,
+    },
+    parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
-    type_checking::{CompilationUnitTypes, ParameterMode, UnitTypeId},
+    type_checking::{
+        CompilationUnitTypes, Copyability, ExpressionCategory, NominalKind, ParameterMode,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitExpressionId, UnitTypeId,
+        UnitTypeKind,
+    },
 };
 
 use super::{
@@ -161,6 +168,103 @@ impl RefineInputs<'_> {
             self.span,
         )
         .ok()
+    }
+
+    /// Qualifies the shared field loan and the complete temporary that the call must clean up.
+    fn temporary_field_argument(
+        &self,
+        call: UnitExpressionId,
+        operand: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> Option<(ExpressionId, bool)> {
+        if call.source_unit() != self.source_unit {
+            return None;
+        }
+        let nodes = self.parsed.ast().expressions();
+        let argument = UnitExpressionId::new(self.source_unit, operand);
+        let mut field = operand;
+        let parent = 'projection: loop {
+            while let Expression::Group { expression } = nodes.get(field).ok()?.payload() {
+                field = *expression;
+            }
+            let id = UnitExpressionId::new(self.source_unit, field);
+            let projection = self.typed.aggregate_projection(id)?;
+            let UnitAggregateProjectionReceiver::Expression(mut receiver) = projection.receiver()
+            else {
+                return None;
+            };
+            if projection.expression() != id
+                || projection.kind() != UnitAggregateProjectionKind::Field
+                || receiver.source_unit() != self.source_unit
+            {
+                return None;
+            }
+            let receiver_ty = self.concrete(self.typed.expression_type(receiver)?)?;
+            let UnitTypeKind::Nominal { declaration, .. } = self.typed.types().get(receiver_ty)?
+            else {
+                return None;
+            };
+            let kind = self
+                .typed
+                .signatures()
+                .declaration(*declaration)?
+                .nominal()?
+                .kind();
+            if !matches!(kind, NominalKind::Class | NominalKind::ValueClass) {
+                return None;
+            }
+            loop {
+                if self.typed.expression_category(receiver) == Some(ExpressionCategory::Temporary) {
+                    break 'projection receiver;
+                }
+                let Expression::Group { expression } =
+                    nodes.get(receiver.expression()).ok()?.payload()
+                else {
+                    break;
+                };
+                receiver = UnitExpressionId::new(self.source_unit, *expression);
+            }
+            field = receiver.expression();
+        };
+        let loan = self.owned.loans().iter().find(|loan| {
+            loan.call() == call && loan.argument() == argument && loan.kind() == LoanKind::Shared
+        })?;
+        let UnitLoanTarget::Temporary(target) = loan.target() else {
+            return None;
+        };
+        let actual = self.concrete(self.typed.expression_type(argument)?)?;
+        let copied = actual != parameter;
+        if copied
+            && (*target != argument
+                || self.typed.copyability(actual) != Copyability::Copyable
+                || !matches!(self.typed.types().get(parameter), Some(UnitTypeKind::Nullable(inner)) if *inner == actual))
+        {
+            return None;
+        }
+        if !copied && *target != parent {
+            return None;
+        }
+        let call_span = nodes.get(call.expression()).ok()?.span();
+        let operand_span = nodes.get(operand).ok()?.span();
+        self.owned
+            .drops()
+            .iter()
+            .any(|drop| {
+                drop.target() == UnitDropTarget::Temporary(parent)
+                    && match drop.point() {
+                        UnitDropPoint::CallReturn(id) => id == call,
+                        UnitDropPoint::ControlTransfer(id) => {
+                            id.source_unit() == self.source_unit
+                                && nodes.get(id.expression()).is_ok_and(|node| {
+                                    let span = node.span();
+                                    operand_span.end() <= span.start()
+                                        && span.end() <= call_span.end()
+                                })
+                        }
+                        _ => false,
+                    }
+            })
+            .then_some((parent.expression(), copied))
     }
 }
 

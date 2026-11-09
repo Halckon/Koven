@@ -10,8 +10,8 @@ use lang_frontend::{
     parser::Expression,
     source::Span,
     type_checking::{
-        BuiltinType, Copyability, NominalKind, UnitAggregateProjectionKind, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, Copyability, NominalKind, UnitAggregateProjectionKind, UnitExpressionId,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -28,6 +28,41 @@ use crate::ssa::{
 pub(super) type LentArgument = (Slot, Vec<Slot>, Option<ExpressionId>);
 
 impl Builder<'_, '_> {
+    pub(super) fn lower_temporary_field_argument(
+        &mut self,
+        call: UnitExpressionId,
+        argument: ExpressionId,
+        parameter: UnitTypeId,
+        span: Span,
+    ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
+        let parameter = self.c(parameter);
+        let Some((_, copied)) = self
+            .inputs
+            .temporary_field_argument(call, argument, parameter)
+        else {
+            return Ok(None);
+        };
+        let mut loans = Vec::new();
+        let field = self
+            .clone_field_loan(argument, &mut loans, span)?
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if !copied {
+            return Ok(Some((field, loans)));
+        }
+        let payload = self.ssa_type(self.expression_type(argument)?, span)?;
+        let value = self.value(
+            ROp::ReadLoan { loan: field },
+            EntityType::Value(payload),
+            span,
+        )?;
+        for loan in loans.into_iter().rev() {
+            self.end_short_call_loan(loan, span)?;
+        }
+        let owner = self.adapt_borrowed(value, argument, parameter)?;
+        let loan = self.lend(owner, LoanKind::Shared, span)?.loan;
+        Ok(Some((loan, vec![loan])))
+    }
+
     /// A borrowed binding can be reborrowed directly only when its storage matches the ABI.
     pub(super) fn reborrow_call_argument(
         &mut self,

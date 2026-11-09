@@ -259,7 +259,7 @@ impl Builder<'_, '_> {
                 return Ok(Some(loan));
             }
         }
-        let Some(owner) = self.required(root)? else {
+        let Some(owner) = self.required(expression)? else {
             return Ok(None);
         };
         let place = self.value(ROp::RootPlace { owner }, EntityType::Place(target), span)?;
@@ -633,9 +633,16 @@ impl Builder<'_, '_> {
                     lowered_slots[param_slot] = Some(loan);
                     continue;
                 }
-                let Some((loan, created, read_expr)) =
-                    self.borrow_call_operand_loan(value_expr, call_arg_span)?
-                else {
+                let operand = match self.lower_temporary_field_argument(
+                    call,
+                    value_expr,
+                    param_ty,
+                    call_arg_span,
+                )? {
+                    Some((loan, created)) => Some((loan, created, None)),
+                    None => self.borrow_call_operand_loan(value_expr, call_arg_span)?,
+                };
+                let Some((loan, created, read_expr)) = operand else {
                     return Ok(None);
                 };
                 for &c in &created {

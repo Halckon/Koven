@@ -871,6 +871,21 @@ impl Checker<'_, '_> {
                 return self.callable_argument(value);
             }
             if mode == ParameterMode::Borrow
+                && let Some((parent, _)) =
+                    self.inputs
+                        .temporary_field_argument(self.id(call), value, parameter)
+            {
+                let ok = self
+                    .expression_type(parent)
+                    .is_some_and(|ty| self.class(ty))
+                    && self.expression(parent);
+                if ok {
+                    self.temporary_field_parents.insert(self.id(parent));
+                }
+                self.migrated |= ok;
+                return ok;
+            }
+            if mode == ParameterMode::Borrow
                 && (self.nested_borrow_argument(call, value)
                     || self.short_range_argument(value, parameter)
                     || self.borrowed_move_only_name(value, parameter)

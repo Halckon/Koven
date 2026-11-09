@@ -48,6 +48,8 @@ struct Checker<'i, 'a> {
     callables: BTreeSet<UnitSymbolId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
+    /// Temporary field parents whose pending loan and cleanup lower together.
+    temporary_field_parents: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
     nullable: bool,
     /// Enclosing `while`/`loop` statements; `break`/`continue` need one.
@@ -84,6 +86,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         known,
         callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
+        temporary_field_parents: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
@@ -238,6 +241,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         known: BTreeSet::new(),
         callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
+        temporary_field_parents: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
