@@ -6302,3 +6302,39 @@ native及统一整合后的精确头CI尚未执行，不能由本片83项替代�
 loop-carried header/exit phi、一般跳转合流、动态多实例capture/释放、通用消费者、Single
 见证退休及Phase 4/native仍未闭合；D10/E2保持in-progress，不归档。当前准入与边界见
 [闭合While架构页](../../architecture/unit-loop-owner-transport.md)。
+
+
+## 单一 PR 的 owner、借用与消费者保全整合（2026-11-09）
+
+以现有 #390 为统一交付入口，保留 #391、#393 的原分支、Draft 与提交历史。
+输入为实际 main `369fff4c0e8cf60b20d2937ef1041f65579a04bd`、已发布 owner
+`5cd44ae66104bf046260e3e1620333ba8d880d00`、borrow
+`a94a83d7202e7c23c302f66d9efa17e71cb56832`、consumers
+`60e24f4042d949ed008763cff310cb316f53da55`，及 §146 的已完成跳转链
+`1b10670c → a8a01329 → 4e4c0d90`。全部输入以父链保留，不 cherry-pick 重放、
+不强推、不覆盖原工作树、不关闭原 PR，也不合入 main。未提交的一跳 parent-binding
+后继不在本批范围内。
+
+独立复审先核四路保全，随后核 §146 和最新 main #392 的合流：单侧文件逐 blob
+相同，共同文件保留两侧独立变更；导出及测试注册无缺失或重复，SPEC 原附录完整且
+各出现一次。#392 的只读 provenance 索引保留，receiver 的三个根成员查询替换为同一
+不可变 checker 的集合查询；Borrow/Inout、字段、具体 this、首层 binding 与真实
+正常/前缀退休资格不缩窄。alias 先归一为 canonical source，This provider 原检查保留。
+
+最终源码候选为本地 `5756101f26ffd360a330184346f95c839cdc996f`，完整树
+`f57443531e7908bfa19e16a507a36b35030efd06`；下列验收均针对该组合，本文追加仅改文档。
+Mac AArch64、Rust 1.96.0、LLVM 21.1.8、locked/offline、debug=0、jobs=2，独占新 target
+串行执行；按 target 与完整测试名去重，不累计前两轮旧 main 候选的重复运行。
+
+| 验收项 | 实际范围 | 结果 |
+|---|---|---|
+| 组合 ordinary lib | §139/144 的原普通选择、§146 新3项及 raw 撤销 | 101 passed |
+| receiver 与借用运输 | `unit_direct_call_loan_ends` 原231项加 #392 新3项身份隔离 | 234 passed |
+| 其他普通消费者与邻控 | canonical_type_tables、clone_primitive_integration、control_branch_join、final_type_admission、multifile_constant_qualification、multifile_ownership_checking、multifile_two_phase_borrows、ownership_borrow_continuation、ownership_checking、ownership_closures、ownership_iteration、ownership_nested_borrow_arguments、ownership_receiver_backedge、ownership_structural、parser_interface_delegation、string_clone、type_callable、while_flow_facts 的既有普通选择 | 394 passed |
+| 静态与跨 crate | frontend all-targets Clippy `-W clippy::all -D warnings`、workspace all-targets check、fmt、diff | 全通过 |
+| 独立保全与结构 | 三阶段逐 diff/父链复审、docs、相对 `369fff4c` Rust 尺寸 | 无 blocker；865 Markdown、2262 Rust、37项历史超长，不改额度 |
+
+合计729项不同普通测试通过，20个 target，全部实际命中。手工模型、故障注入和 Abort
+整项仅编译，未在本机执行；未运行 frontend/workspace 全量测试、native 或 Linux。
+既有 CI selector 不变；本地组合通过不代替更新后 #390 精确头的正式双平台及 Preview CI。
+Draft 与 SPEC-0341、D10/E2 的 in-progress 状态保持，不据此归档或宣称一般动态生命周期闭合。
