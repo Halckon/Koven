@@ -660,16 +660,30 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let group_stops = outer_stops.without_file_and_semicolon_stops();
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
+        let leading_poison = self.is_poison();
         let mut inner = self.parse_expression_bp(
             0,
-            outer_stops
+            group_stops
                 .without_lambda_body_soft_stops()
                 .with(Stops::RIGHT_PAREN),
         )?;
         let current = self.current()?;
-        if !self.current_is_symbol(Symbol::RightParen)
+        let poisoned = leading_poison || self.is_poison();
+        if poisoned
+            && let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw)
+            && self.current_raw()? < closer
+        {
+            // The index proves this closer belongs to the group in its own
+            // lexical scope. No token in the skipped suffix becomes a sibling.
+            let start = self.expression_span(inner)?.start();
+            self.index = closer;
+            let end = self.previous_significant_end();
+            inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
+        } else if !poisoned
+            && !self.current_is_symbol(Symbol::RightParen)
             && (matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
@@ -682,7 +696,7 @@ impl Parser<'_> {
             )?;
             let start = self.expression_span(inner)?.start();
             let end = self.recover_declaration_region(
-                DeclarationStops::from_expression_hard(outer_stops)
+                DeclarationStops::from_expression_hard(group_stops)
                     .with(DeclarationStops::RIGHT_PAREN),
             )?;
             inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
@@ -693,7 +707,8 @@ impl Parser<'_> {
         } else {
             let current = self.current()?;
             if !self.is_poison() {
-                self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
+                let stops = if poisoned { outer_stops } else { group_stops };
+                self.emit_closing(self.boundary_span(current, stops)?, opener)?;
             }
             inner_span.end().max(opener.end())
         };

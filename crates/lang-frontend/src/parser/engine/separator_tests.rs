@@ -123,3 +123,38 @@ fn block_dispatch_legal_error_and_nested_families_stay_linear() {
         assert!(large_visits <= small_visits * 2 + 64);
     }
 }
+
+#[test]
+fn paired_poisoned_expression_groups_keep_linear_significant_visits() {
+    let metrics = |count| {
+        let groups = "(x async /* trivia */ (a, b)) + ".repeat(count);
+        let text = format!("val value = {groups}tail\nval sentinel = 1");
+        angle_separator_metrics(&text, 0).0
+    };
+    let small = metrics(32);
+    let large = metrics(64);
+    assert!(large <= small * 2 + 64, "{small} -> {large}");
+}
+
+#[test]
+fn an_unclosed_interpolation_group_cannot_take_an_outer_closer() {
+    use super::*;
+    use crate::lexer::lex;
+
+    let text = r#"("${(value β}tail")"#;
+    let mut sources = SourceMap::new();
+    let id = sources.add_source("group-scopes.ko", text).unwrap();
+    let lexed = lex(&sources, id).unwrap();
+    let recovery = LexicalRecoveryIndex::new(text, &lexed).unwrap();
+    let raw_at = |offset| {
+        lexed
+            .lexemes()
+            .iter()
+            .position(|lexeme| lexeme.span().start() == offset)
+            .unwrap()
+    };
+    let inner = raw_at(text.find("${(").unwrap() + 2);
+    let outer_closer = raw_at(text.rfind(')').unwrap());
+    assert_eq!(recovery.group_closer(&lexed, 0), Some(outer_closer));
+    assert_eq!(recovery.group_closer(&lexed, inner), None);
+}

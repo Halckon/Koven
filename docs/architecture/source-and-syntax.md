@@ -133,6 +133,10 @@ initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 
 `else`、caller delimiter 与 EOF 保留原 owner 边界，缺 else 的 returned if 仍为 value-context
 L0057。相关结构、范围和资源回归见 `parser_return_control` 与 parser 内部预算测试。
 
+普通表达式分组遇到前置或尾随 lexer poison 时，只在同一词法作用域证明真实右括号后
+收回错误尾部。分号、声明 starter 和嵌套异形 closer 仍在实际分组的 Error 子节点内。
+每个插值拥有独立配对栈。缺少配对证明时保留外层恢复边界。
+
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。
 

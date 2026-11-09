@@ -4,6 +4,10 @@ use std::{
     num::NonZeroUsize,
 };
 
+mod ordinary_groups;
+
+use ordinary_groups::{OrdinaryGroups, group_closers, group_delimiter};
+
 pub(super) struct LexicalRecoveryIndex {
     pub(super) source_len: usize,
     string_owner_ends: Vec<(usize, usize)>,
@@ -509,7 +513,7 @@ impl FileAngleGroups {
                 .visit(self.next_raw + offset, *lexeme, terminals);
         }
         self.next_raw = raw + 1;
-        Ok(self.owners.lexical_depth == 0 && self.owners.groups.is_empty())
+        Ok(self.owners.lexical_depth == 0 && self.owners.delimiters.is_empty())
     }
 }
 
@@ -517,8 +521,7 @@ impl FileAngleGroups {
 struct GroupOwners {
     next_terminal: usize,
     lexical_depth: usize,
-    groups: Vec<(usize, usize)>,
-    active: [usize; 3],
+    delimiters: OrdinaryGroups,
 }
 
 impl GroupOwners {
@@ -555,37 +558,8 @@ impl GroupOwners {
         terminals: &[TerminalOwnerEvent],
     ) -> Option<usize> {
         let symbol = self.outside_lexical_symbol(lexeme, terminals)?;
-        let (kind, opening) = group_delimiter(symbol)?;
-        if opening {
-            self.groups.push((raw, kind));
-            self.active[kind] += 1;
-        } else if symbol == Symbol::RightBrace && self.active[kind] == 0 {
-            // 构造器和委托都不能跨过调用方的未配对右花括号。
-            self.groups.clear();
-            self.active.fill(0);
-        } else if self.active[kind] != 0 {
-            // 孤立的异形 closer 不会使另一个已打开的分组丢失其真实 closer。
-            while let Some((opener, owner_kind)) = self.groups.pop() {
-                self.active[owner_kind] -= 1;
-                if owner_kind == kind {
-                    return Some(opener);
-                }
-            }
-        }
-        None
+        self.delimiters.visit(raw, symbol)
     }
-}
-
-fn group_delimiter(symbol: Symbol) -> Option<(usize, bool)> {
-    Some(match symbol {
-        Symbol::LeftParen => (0, true),
-        Symbol::RightParen => (0, false),
-        Symbol::LeftBracket => (1, true),
-        Symbol::RightBracket => (1, false),
-        Symbol::LeftBrace => (2, true),
-        Symbol::RightBrace => (2, false),
-        _ => return None,
-    })
 }
 
 // 每个 opener 都从自己的普通分组开始。计算后缀在八种祖先形状集合下
@@ -636,17 +610,6 @@ fn angle_group_closers(
             if closes(end, kind) {
                 matched[raw] = NonZeroUsize::new(delimiters[end].0);
             }
-        }
-    }
-    matched
-}
-
-fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> Vec<Option<NonZeroUsize>> {
-    let mut matched = vec![None; lexed.lexemes().len()];
-    let mut owners = GroupOwners::default();
-    for (raw, lexeme) in lexed.lexemes().iter().copied().enumerate() {
-        if let Some(opener) = owners.visit(raw, lexeme, terminals) {
-            matched[opener] = NonZeroUsize::new(raw);
         }
     }
     matched
