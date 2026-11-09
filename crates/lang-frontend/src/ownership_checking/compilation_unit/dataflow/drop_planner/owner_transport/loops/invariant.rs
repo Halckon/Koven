@@ -1,6 +1,7 @@
 //! Retain real prefix identity and independently read loop and optional jump states.
 mod joining;
 mod split_terminal;
+mod suffix;
 use super::*;
 use crate::ownership_checking::{
     UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
@@ -10,6 +11,10 @@ use crate::ownership_checking::{
 pub(super) struct InvariantInput {
     symbol: UnitSymbolId,
     initializer: ExpressionId,
+    suffix: StatementId,
+    use_expression: ExpressionId,
+    retired: UnitSymbolId,
+    prefix: Option<UnitOwnerObservation>,
     expected: Option<OwnedValue>,
     catalog: Option<UnitOwnerProducerCatalogV1>,
     entry: Option<UnitOwnerLoopBindingV1>,
@@ -72,6 +77,10 @@ impl InvariantInput {
         Some(Self {
             symbol,
             initializer,
+            suffix,
+            use_expression,
+            retired,
+            prefix: None,
             expected: None,
             catalog: None,
             entry: None,
@@ -131,6 +140,7 @@ impl InvariantInput {
         {
             return;
         }
+        self.prefix = Some(observation.clone());
         self.expected = Some(value.clone());
         self.catalog = Some(catalog);
     }

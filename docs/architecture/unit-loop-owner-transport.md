@@ -3,8 +3,8 @@
 > **性质**：实现事实 · **状态**：current · **读取时机**：核对真实 While body 运输、完成边与不变输入 owner · **唯一真源**：drop planner 的 owner transport loops 收集器、loop 只读产物与 V1 validator
 
 基础协议见 [Unit owner transport](unit-owner-transport.md)，受限条件值见 [Choice](unit-choice-transport.md)。
-独立不变输入能力只证明实际边界及 Continue/Break 清理点的同一 owner；不授予 header/exit phi、完整外层运输、
-实例级释放或 Phase 4/native 能力。
+不变输入的基础能力只证明实际边界及 Continue/Break 清理点的同一 owner；不授予 header/exit phi、完整外层运输、
+实例级释放或 Phase 4/native 能力。正常直线输入的独立[后缀消费](unit-invariant-loop-suffix.md)另封闭实际退出路径。
 
 ## 空入边闭合 body 的准入与真实执行边界
 

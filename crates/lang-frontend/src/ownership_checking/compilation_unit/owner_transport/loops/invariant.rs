@@ -37,13 +37,14 @@ impl UnitOwnerLoopBindingV1 {
 }
 
 /// An unchanged outer String owner at independently observed While boundaries.
-/// The body transport owns only its fresh local producers. This does not supply outer
-/// suffix events, final consumption, a phi, dynamic instances, or a termination proof.
+/// The body transport owns only its fresh local producers. Basic boundaries alone do not
+/// prove final consumption; the optional post-loop transport seals it separately. Neither
+/// capability supplies a phi, dynamic instances, or a termination proof.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerInvariantLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) evidence: InvariantLoopBoundaries,
     pub(in crate::ownership_checking::compilation_unit) post_loop:
-        Option<suffix::PostLoopTransport>,
+        Option<Box<suffix::PostLoopTransport>>,
 }
 
 #[derive(Clone, Debug)]
