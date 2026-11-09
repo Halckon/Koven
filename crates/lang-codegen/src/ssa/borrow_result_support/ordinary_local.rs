@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 
 use super::{contains, local_if::binding_marker, ungroup};
 use lang_frontend::{
-    ast::StatementId,
+    ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::{
         BorrowBindingFact, BorrowBindingStorage, CompilationUnitOwnership, UnitDropPoint,
@@ -11,7 +11,7 @@ use lang_frontend::{
     },
     parser::{Expression, Item, ParsedFile, Statement},
     source::Span,
-    type_checking::{CompilationUnitTypes, UnitExpressionId},
+    type_checking::{CompilationUnitTypes, Copyability, ParameterMode, UnitExpressionId},
 };
 
 type Binding = BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>;
@@ -98,14 +98,16 @@ fn callable(file: &ParsedFile, span: Span) -> Option<Span> {
         .min_by_key(|candidate| candidate.end() - candidate.start())
 }
 
-/// Only follow statement order through ordinary blocks. An end on a branch,
-/// loop or control transfer cannot establish that a later statement sees no loan.
-pub(in crate::ssa) fn disjoint_ifs(
+/// Admit exact argument returns proved by the source loan's unwind.
+/// For disjoint lexical controls, only follow statement order through ordinary blocks.
+pub(in crate::ssa) fn allowed_controls(
     file: &ParsedFile,
+    typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &Binding,
 ) -> BTreeSet<usize> {
     let mut allowed = BTreeSet::new();
+    collect_argument_returns(file, typed, owned, fact, &mut allowed);
     let mut parents = vec![None; file.ast().statements().len()];
     let mut acquisition = None;
     for (block, node) in file.ast().statements().iter() {
@@ -154,6 +156,91 @@ pub(in crate::ssa) fn disjoint_ifs(
         block = parent;
     }
     allowed
+}
+
+// The binding does not exist yet on a Return from an argument. Require the
+// actual end of this call's source token there, independently of its normal path.
+fn collect_argument_returns(
+    file: &ParsedFile,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    fact: &Binding,
+    allowed: &mut BTreeSet<usize>,
+) {
+    let Some(source) = fact.source_loan() else {
+        return;
+    };
+    let Some(descriptor) = typed.call(source.call()) else {
+        return;
+    };
+    let Ok(call) = file.ast().expressions().get(source.call().expression()) else {
+        return;
+    };
+    let Expression::Call { arguments, .. } = call.payload() else {
+        return;
+    };
+    let unit = |id| UnitExpressionId::new(source.call().source_unit(), id);
+    for mapping in descriptor.arguments() {
+        if mapping.mode() != ParameterMode::Value
+            || typed.copyability(mapping.parameter_type()) != Copyability::Copyable
+        {
+            continue;
+        }
+        let Some(argument) = arguments.get(mapping.argument_index()) else {
+            continue;
+        };
+        let Ok(control) = ungroup(file, argument.value, argument.span) else {
+            continue;
+        };
+        let Ok(node) = file.ast().expressions().get(control) else {
+            continue;
+        };
+        let Expression::If {
+            then_branch,
+            else_branch: Some(else_branch),
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        if typed.expression_falls_through(unit(control)) != Some(true) {
+            continue;
+        }
+        let Some(returned) =
+            bare_return(file, *then_branch).or_else(|| bare_return(file, *else_branch))
+        else {
+            continue;
+        };
+        if owned.borrow_call_prefix_ends().iter().any(|end| {
+            end.point() == UnitDropPoint::ControlTransfer(unit(returned))
+                && end.loan().call() == source.call()
+                && end.loan().argument() == source.argument()
+                && end.loan().target() == fact.origin()
+        }) {
+            allowed.insert(control.index());
+            allowed.insert(returned.index());
+        }
+    }
+}
+
+fn bare_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
+    let statements = file.ast().statements();
+    let node = statements.get(statement).ok()?;
+    let tail = match node.payload() {
+        Statement::Block { elements } | Statement::ControlBody { elements } => {
+            statements.get(*elements.last()?).ok()?
+        }
+        _ => node,
+    };
+    let Statement::Expression { expression } = tail.payload() else {
+        return None;
+    };
+    let expression = ungroup(file, *expression, tail.span()).ok()?;
+    matches!(
+        file.ast().expressions().get(expression).ok()?.payload(),
+        Expression::Return { value: None, .. }
+    )
+    .then_some(expression)
 }
 
 fn collect_ifs(file: &ParsedFile, statements: &[StatementId], allowed: &mut BTreeSet<usize>) {

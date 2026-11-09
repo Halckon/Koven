@@ -3714,3 +3714,22 @@ borrow val 不查找或建立绑定，后继语句不进入 lowering。ControlTr
 分配释放计数。borrow result SSA 合同 10 项通过，新增回归在 MemoryDocument 与
 Rooted 两入口均过 verifier 与 LLVM，并验证无 BorrowCall、无不可达 callee 实例。
 执行项零失败、零忽略。codegen 全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 149. R3/R4 单臂提前返回的借用初始化实参
+
+在 `ac3628bf` 上，`view(source, if (flag) { return } else { 1 })` 的
+普通 `borrow val` 初始化通过前端，原生红测在 Return 范围报 UnsupportedNode。
+正常路径发布结果绑定和分派，提前返回同时发布同一调用的来源 prefix end。
+准入只认可 Copyable 值参数中带 else 的显式 If 和直接无值 Return，核对实际
+调用、来源实参、来源目标与 ControlTransfer。控制流构建沿用已有实参求值与
+loan 清理。具名实参顺序把 Return 放在来源之前时，缺少 prefix end，仍精确
+拒绝。双正常臂和检查负号也维持原准入结果。
+
+独立复核确认准入使用前端实际已求值的 Shared owned-root 事实，正常臂恢复
+pending loan，提前臂先结束 loan 再析构。普通函数内另一个借用绑定仍会受到
+既有整函数检查，外层借用返回与循环仍受各自门禁约束。
+本机原生回归核对两次调用的 stdout 和两次实际分配、释放。SSA 双入口回归从
+条件的实参跟踪两臂的块参数，核对退出臂的来源 loan 结束、owner 析构及唯一
+正常臂的 BorrowCall。
+原生回归 1 项与 SSA 合同 11 项通过，均零失败、零忽略，其他项按套件名过滤。
+codegen 全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。

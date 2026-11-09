@@ -72,5 +72,11 @@ owned root 身份与 provider 的参数 Span；两条兄弟 return 边分别保�
 
 Refine 支持普通调用者中已证明不能分派的借用结果调用前缀。typed 无正常继续、owned
 不分派及实际调用计划的空 dispatch key 共同准入。已完成实参保留原 loan，退出先结束
-这些 loan，再执行原析构。未完成的 `borrow val` 不建立绑定或结果 loan。外层借用返回
-和 carrier 返回、能正常分派的借用调用及循环内普通借用绑定沿用各自门禁。
+这些 loan，再执行原析构。未完成的 `borrow val` 不建立绑定或结果 loan。
+
+普通局部 `borrow val` 的 Copyable 值实参中，显式 `if` 的一臂可直接执行无值
+`return`，另一臂可继续分派。准入要求正常路径的绑定事实和该 Return 上属于同一
+调用、来源实参与来源目标的 prefix end。退出臂结束来源 loan 后析构，正常臂保留
+来源 loan 并建立结果绑定。来源实参在退出实参之后求值时缺少该证明，沿用原准入
+结果。双正常臂的实参 CFG、外层借用或 carrier 返回及循环内普通借用绑定沿用
+各自门禁。

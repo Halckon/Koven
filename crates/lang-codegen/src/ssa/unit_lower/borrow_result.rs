@@ -104,7 +104,7 @@ fn validate_binding(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
-    disjoint_ifs: Option<&std::collections::BTreeSet<usize>>,
+    allowed_controls: Option<&std::collections::BTreeSet<usize>>,
 ) -> Result<(), LoweringError> {
     if file.source_id() != fact.marker_span().source_id() {
         return Err(lowering_error(
@@ -169,7 +169,7 @@ fn validate_binding(
         fact.storage()
             == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
         &prefixes,
-        disjoint_ifs,
+        allowed_controls,
         scope,
         |expression| match typed
             .expression_type(UnitExpressionId::new(
@@ -351,8 +351,8 @@ pub(crate) fn validate_bindings(
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
         match ordinary_local::policy(file, typed, owned, fact) {
             Some(ordinary_local::Policy::Scoped) => {
-                let disjoint_ifs = ordinary_local::disjoint_ifs(file, owned, fact);
-                validate_binding(file, names, typed, owned, fact, Some(&disjoint_ifs))?;
+                let allowed = ordinary_local::allowed_controls(file, typed, owned, fact);
+                validate_binding(file, names, typed, owned, fact, Some(&allowed))?;
             }
             None if legacy_gate
                 && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
