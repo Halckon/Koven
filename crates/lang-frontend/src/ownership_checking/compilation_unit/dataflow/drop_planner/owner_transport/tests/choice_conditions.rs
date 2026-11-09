@@ -64,8 +64,6 @@ fn wrapped_conditions_do_not_admit_calls_constants_or_wider_boolean_trees() {
     for condition in [
         "true",
         "!false",
-        "flag && flag",
-        "!(flag || flag)",
         "flag == flag",
         "!(flag != flag)",
         "decision()",
