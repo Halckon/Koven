@@ -166,10 +166,11 @@ impl Parser<'_> {
                 break;
             }
             let dot = self.bump()?.span();
-            if !self.current_is_identifier()
+            let current = self.current()?;
+            if !matches!(current.kind(), LexemeKind::Token(TokenKind::Identifier))
                 || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
+                || self.at_file_angle_boundary(current)?
             {
-                let current = self.current()?;
                 let error_end = if self.is_poison() {
                     self.bump()?.span().end()
                 } else {

@@ -108,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过。内部旧入口见 §93 和 §105，失败 trial 的三入口事实见 §98 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§103 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§103 | 文件级类型参数换行交接见 §114；其它未闭合分组及词法错误的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；对象发布见 §99，借用和 Map 路由见 §106–108，双宿主预览、Linux sanitizer 与本机 LLDB 的实跑证据已分别记账 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2974,6 +2974,70 @@ MapResult 比较受 nullable `when` 影响的拒绝。兼容路径对 MoveOnly M
 合流后 codegen 定向 52 项及两个 frontend 套件 378 项通过，均零失败和忽略。
 codegen 全目标 Clippy、格式和文档门禁通过。
 
+[PR #379](https://github.com/Halckon/Koven/pull/379) 合入 `edaaa9b2`。基线
+`a8657f58` 和 head `09f68669` 在 [CI 42548767914](https://github.com/Halckon/Koven/actions/runs/42548767914)
+验证，合成提交 `8146b057` 与实际合入树均匹配 `fb3e860b`。双宿主 Check/Clippy、
+定向测试、预览包生产与独立安装、CI Passed 及 Code CI Evidence 通过。两边日志均
+实际执行四条 heap nullable If、MapResult verifier 及 Unit 成员 receiver 测试。
+本机精确 head 的 nullable 扩大套件 209 项通过，零失败和忽略。Editor lexical 按变更范围跳过。
+
+## 114. R1 文件类型参数的隐式换行
+
+主干 `a8657f58` 上，文件级缺失 `>` 的 `interface C<T` 会吞入下一行常量声明，
+并将比较符当成类型参数 closer。真实 CLI 中，显式分号对照保留下一声明；
+合法多行类型参数与同一常量比较可以通过完整前端。
+
+文件类型参数的恢复按显式分号或当前 token 前的换行识别完整文件前缀。普通分组和
+词法 owner 须先回到当前 `<` 的基线。限定类型路径在 `.` 后还未取得段名时也查询
+同一边界。保留显式分号、真实 closer、分组内比较和普通软标识符的对照。
+
+独立复审核对了 `pkg.`、分行 `value class`、`borrow fun` 和缺少比较符的尾部恢复。
+新用例先失败再通过，并核对文件根的完整范围。换行的嵌套退栈曾重复扫描同段 trivia，
+深度 16→32、注释 64→128 的实测访问次数由 14476 增至 49196。只在当前文件
+类型参数作用域缓存真实游标对应的首个 significant raw 位置后，分号和换行两组
+均通过相同的线性倍增断言。原 token 位置、trivia 与 lexical owner 保留。
+本机类声明、上下文 TypeRef 与接口委托三个定向套件共 125 项，另加倍增检查 1 项，
+全部通过，零失败或忽略。
+最终 R1 生产代码的完整 frontend 套件实跑 183 组、2903 项通过，零失败或忽略；
+该次编译保留迁移前的类型消费者，迁移后结果见 §115。前端全目标 Clippy 通过。
+同一生产代码构建的 `kovenc` 实跑三份源码，换行和分号缺 closer 均只报零宽 L0010，
+合法多行列表与后继常量比较退出 0 且无诊断。
+
+## 115. R0/R2 名义类型深度与接口闭包的测试消费者
+
+原 Single 压力用例的源码生成代码逐字节保留。相同 AST 和环境进入 MemoryDocument
+及 Rooted Unit。原无诊断、Leaf 传递接口闭包 64 项的断言迁移到两个入口，并核对
+接口集合和两入口顺序。沿 `deep` 形参的实际类型，逐层核对 96 层 Box 声明身份和
+单实参，再确认最内层是 Int。保留各入口原有 nominal 与 enum 压力测试。
+
+原 Single 和新增双 Unit 压力用例先在同一快照各自运行通过。移除旧测试后，本机
+`type_checking` 95 项及 `multifile_type_checking` 283 项全部通过，零失败或忽略。
+
+## 116. R0/R3 待交付 owned 实参的退出验收
+
+原 Single 的五份源码和生成模板逐字保留，迁至 MemoryDocument 与 Rooted Unit。
+检查实际待交付临时值对应的 source-qualified ID，逐项锁定后继实参内部
+`return`、`break`、`continue` 的析构边。普通提交、`Nothing` 调用及新增的
+显式 `error()` 各自验证无该临时值的额外析构事实。原 Single 与迁移对照先同时
+实跑通过，随后两套所有权测试共 186 项通过，零失败或忽略。
+
+五个 CLI 探针实际通过前端、构建及运行，核对普通提交与各控制转移的资源析构顺序。
+正式 native 用例复用真实 `deinit` 标记，对 break 和 continue 分别核对一轮和两轮，
+并以尾部标记检测误续行。Abort 先核对两个资源的构造完成标记，随后仅报告错误及
+SIGABRT，没有析构输出。原生资源套件 18 项及最终加强后的新增定向用例均通过，
+零失败或忽略。此处验证用户可观察的析构次数与顺序。
+
+下一批与 `edaaa9b2` 合流后，本机前端定向套件及操作计数共 690 项，原生资源、
+待完成构造及循环资源套件共 30 项，均通过且零失败、零忽略。前端和 codegen
+全目标 Clippy、格式及文档检查通过。双宿主证据以本批实际 PR 为准。
+
+[PR #380](https://github.com/Halckon/Koven/pull/380) 合入 `4243ebe5`。基线
+`edaaa9b2` 与 head `0d86e1d4` 在 [CI 42551850856](https://github.com/Halckon/Koven/actions/runs/42551850856)
+验证。合成提交 `4de11f94` 的父提交匹配该基线和 head，CI 树与实际合入树同为
+`f51ba611`。双宿主 Check/Clippy、定向测试、预览生产及独立安装、CI Passed 和
+Code CI Evidence 均通过。两端原始日志均核对六条关键回归实际通过，覆盖文件恢复、
+软前缀、操作计数、名义类型压力、实参清理事实及原生退出顺序。Editor lexical 按改动范围跳过。
+
 ## 117. R0/R3 二元操作结束与重绑后的退出析构
 
 以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else
@@ -3068,3 +3132,24 @@ when，均把死 arm 的待定赋值错误带到调用者。三条红测实际�
 直接 return、带完整 null/else 形状的 nullable 返回类型，以及同一函数先执行活的
 owned nullable when 后再提前退出，均只输出 ok。用于构造兼容路径的 nullable Boolean
 局部夹具先在既有初始化边界失败，最终换用已支持的 nullable 类参数。
+
+## 121. R0 合批后的剩余直接调用
+
+以合入 `4243ebe5` 后的候选 Rust 树清点。按已跟踪 `.rs` 中的直接调用形状计
+文件数和匹配行，排除同一行的定义。引用可能来自测试字符串。注册边界见 §93、§105。
+
+| 范围 | check_types | check_ownership | lower_scalar_file_with_entry |
+|---|---:|---:|---:|
+| frontend src | 31 / 41 | 13 / 13 | 0 |
+| frontend tests | 54 / 87 | 33 / 45 | 0 |
+| codegen src | 15 / 18 | 14 / 17 | 4 / 8 |
+| 其他 crates | 0 | 0 | 0 |
+
+这三名未检出显式 as alias。此范围未覆盖宏展开、跨行间接引用或仓外调用。
+两条普通析构用例已移除旧路径。后续按真实断言分流测试消费者，现有旧身份负控和
+正常 Exclusive 结束事件保留。生产 Unit 兼容 lowering 仍按各路由合同复审。
+
+同树本机合流验收运行完整前端 183 组、2906 项。后端运行直接调用前缀 5 项、
+nullable when 18 项、Map provider 退出 76 项和原生资源 19 项。以上均零失败、
+零忽略。nullable when 首次过滤没有匹配，验收以更正过滤后的 18 项为准。
+前端与 codegen 全目标 Clippy、格式与文档检查通过。

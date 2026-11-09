@@ -794,12 +794,6 @@ impl Parser<'_> {
             }
             let outside_owner = owners.is_empty();
             let nested_greater = symbol == Some(Symbol::Greater) && !paired_groups.is_empty();
-            if outside_owner
-                && nested_greater
-                && let Some(recovery) = &mut self.file_angle
-            {
-                recovery.recovered_group_greater = true;
-            }
             let protected_suffix_group = supertype_suffix && !paired_groups.is_empty();
             let hard_stop = outside_owner
                 && !nested_greater
