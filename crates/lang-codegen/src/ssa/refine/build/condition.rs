@@ -259,20 +259,6 @@ impl Builder<'_, '_> {
             _ => {}
         }
         if let Some(fact) = self.inputs.typed.null_comparison(self.unit(expression)) {
-            let owner = match self.bindings.get(&fact.symbol()) {
-                Some(owner) => *owner,
-                // A Copyable Borrow parameter is tested on a copy read through its loan.
-                None => {
-                    let loan = *self
-                        .borrowed
-                        .get(&fact.symbol())
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                    let EntityType::Loan { target, .. } = self.body.slots[loan.0] else {
-                        return Err(error(LoweringErrorKind::InvalidModel, span));
-                    };
-                    self.value(ROp::ReadLoan { loan }, EntityType::Value(target), span)?
-                }
-            };
             // The operands are read by the branch itself; their drop points follow it on
             // both edges.
             let Expression::Binary { left, right, .. } = payload else {
@@ -312,6 +298,40 @@ impl Builder<'_, '_> {
                 (when_true, when_false)
             } else {
                 (when_false, when_true)
+            };
+            if self.move_only(nullable_ty)
+                && let Some(&source) = self.borrowed.get(&fact.symbol())
+            {
+                let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+                let is_null = self.value(
+                    ROp::NullableLoanIsNull { source },
+                    EntityType::Value(bool_ty),
+                    span,
+                )?;
+                self.emit_drops(&operand_drops)?;
+                self.finish_drops(&operand_drops);
+                return self.terminate(
+                    RTerm::Branch {
+                        condition: is_null,
+                        when_true: on_null,
+                        when_false: on_non_null,
+                    },
+                    control_span.unwrap_or(span),
+                );
+            }
+            let owner = match self.bindings.get(&fact.symbol()) {
+                Some(owner) => *owner,
+                // A Copyable Borrow parameter is tested on a copy read through its loan.
+                None => {
+                    let loan = *self
+                        .borrowed
+                        .get(&fact.symbol())
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    let EntityType::Loan { target, .. } = self.body.slots[loan.0] else {
+                        return Err(error(LoweringErrorKind::InvalidModel, span));
+                    };
+                    self.value(ROp::ReadLoan { loan }, EntityType::Value(target), span)?
+                }
             };
             let null_block = self.body.block();
             let non_null_block = self.body.block();

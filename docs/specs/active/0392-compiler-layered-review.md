@@ -2920,3 +2920,56 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 校验输出。LLVM 断言分别锁定字段 0 的 pointer load 与 i1 load，检查函数中其余
 读只对应打印的本地字面量 storage。原普通类句柄的 borrowed nullable temporary
 定向测试 1 项、inline nullable 布局套件 6 项及 codegen 全目标 Clippy 均通过。
+
+
+[PR #378](https://github.com/Halckon/Koven/pull/378) 合入 `a8657f58`。主干基线
+`e1b0c2dc` 和 head `e0ffd973` 在 [CI 42507181254](https://github.com/Halckon/Koven/actions/runs/42507181254)
+验证，合成提交 `0f8fa2de` 和实际合入树均匹配 `8f043aaf`。双宿主 Check/Clippy、定向测试、
+预览包生产和独立安装、CI Passed 及 Code CI Evidence 通过。Editor lexical 按变更范围跳过。
+该集成提交本机 SSA 扩大套件 1943 项通过，零失败或忽略。
+
+## 111. R4 普通类 nullable If 的旧路由
+
+主干 `e1b0c2dc` 的 CLI 对照中，含外层 nullable String 循环重赋值的函数自然留在
+旧路径。函数后续对自有 `Node?` 判空并调用普通 Borrow 参数。无关 nullable `when`
+函数存在时原生运行输出 `present`，移除该函数后，合法的收窄实参报 `MissingFact`。
+两种输入均通过前端，基线 Unit 回归精确定位到实参 `node`。
+
+沿用逐 callable 兼容准入，同时保留原 `if` 形状、来源、借用、清理与 verifier。
+两条本机定向回归分别核验原生有无 sibling 对照和有空对臂的强制旧路径拒绝。
+恢复旧整单元 gate 时，新增强制用例可错误构建并使测试失败。修复后两个检查均通过。
+原 `when` 内替换 owner 的 SSA/原生两条检查和原退役检查亦通过。
+带额外 Borrow nullable 形参的组合还涉及旧 proof carrier 资格，另行复审。
+
+## 112. R0/R2 成员 receiver 测试消费者
+
+将原 Single `Holder<T>` 的成员 receiver 测试迁到既有 MemoryDocument 和 Rooted Unit
+helper。原 fixture 字节保持一致，四个 receiver mode 按成员名核对。旧用例对顶层
+`use` 无 receiver 的隐含检查改成显式断言。裸字段及隐式调用绑定到确切 Holder
+声明，显式调用绑定到本 source unit 的 `holder` 表达式。既有 Unit 跨成员、默认方法和
+object receiver 对照仍独立保留。
+
+迁移前原 Single 测试及相邻 Unit 测试分别实跑通过。迁移后本机 `type_checking` 95 项、
+`multifile_type_checking` 283 项通过，零失败和忽略。
+
+
+## 113. R4 细化层的 MoveOnly Borrow nullable 判空
+
+普通类 `Node?` 的自有证明与另一 Borrow `String?` 的存在性比较同处一个 callable
+时，前端通过，旧路径在普通类 `if` 的 proof carrier 处拒绝。保留真实 source 和
+loan，细化层接受该签名，通过 `NullableLoanIsNull` 只读原 Borrow storage。
+判空不建立借用 payload 的 view。原 MoveOnly Borrow presence 负路由源码移到
+正例，另用实际需要 payload view 的源码保持负路由断言。
+
+独立审查发现可达 `Map.remove` 会为同型 `String?` 登记 MapResult 布局，初版
+候选在此组合被 verifier 拒绝。最终实现对已登记 MapResult 只读字段 0，仍要求
+活动 Shared loan 和 Boolean 结果。原生回归覆盖 MapResult 的存在/缺席、普通
+Borrow 读取和短路 RHS，另有同形未登记聚合及独占 loan 的 SSA 负控。
+
+初版全 codegen 2724 项通过、1 项有记录的 LLDB 权限忽略，原生有序 Map 碰撞
+测试一次超时。该项在最终候选单独复跑通过；初版全量不计为全绿。
+细化候选的 nullable 扩大套件 209 项通过。集成复核另复现普通 Unit 中同一
+MapResult 比较受 nullable `when` 影响的拒绝。兼容路径对 MoveOnly MapResult 也读取
+原 loan 的缺席状态，并保留 Copyable MapResult 的原路径。两路原生均通过。
+合流后 codegen 定向 52 项及两个 frontend 套件 378 项通过，均零失败和忽略。
+codegen 全目标 Clippy、格式和文档门禁通过。

@@ -23,13 +23,14 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 不改变纯 Map-for 路由。验证范围见 [SPEC-0383 §5](../specs/active/0383-refine-final-legacy-retirement.md#5-map-for-与整数家族的组合路由修复)。
 
 逐实例通过细化准入的 callable 直接进入 refine。若完整 body 仍需兼容 lowering，数值区间
-`for`、`Map.consume` 与委托 receiver 按当前 callable 的路由及实际操作事实判定，
-不依赖编译单元是否另有 Map 迭代。兼容路径仍检查 source-qualified descriptor、资源身份
-及最终 SSA。细化构建出错直接返回结构化错误。
+`for`、`Map.consume`、委托 receiver 和普通类 nullable `if` 均按当前 callable 的路由及实际
+操作事实判定。兼容路径仍检查 source-qualified descriptor、资源身份及最终 SSA。
+细化构建出错直接返回结构化错误。
 
-普通 Unit 的 Borrow nullable 判空读取原 shared storage loan。SSA 验证活跃借用与 nullable
-布局。LLVM 对句柄只加载指针，对内联表示只加载第一个字段，即 String 的 niche 指针或
-value class 的显式 presence tag。该操作不触及 payload 或其所有权。
+普通 Unit 与细化层的 MoveOnly Borrow nullable 判空读取原 shared storage loan。SSA
+验证活跃借用与 nullable 布局。LLVM 对句柄只加载指针，对内联表示只加载第一个字段，
+即 String 的 niche 指针或显式 presence tag。可达 Map 查询或移除导致同型值采用
+已登记 MapResult 表示时，同样只读其 tag。借用判空产生 Boolean，原 loan 持续存活。
 
 普通借用返回转发按本次调用实参实际产生的 CFG 判定。直线求值与可合并的无条件跳转
 保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到实际分支的源码范围。
