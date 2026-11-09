@@ -5,7 +5,9 @@ use lang_frontend::{
     ownership_checking::{
         BorrowBindingFact, BorrowBindingStorage, OwnershipBindingKind, UnitLoanTarget,
     },
-    type_checking::{BorrowReturnOrigin, UnitAggregateProjectionReceiver},
+    type_checking::{
+        BorrowReturnOrigin, IntrinsicTypeConstructor, UnitAggregateProjectionReceiver,
+    },
 };
 
 pub(super) fn validate_declarations(
@@ -65,13 +67,16 @@ fn has_dedicated_binding_path(
     };
     if fact.storage() != BorrowBindingStorage::BorrowedStorage
         || fact.source_loan().is_some()
-        || fact.parent().is_some()
         || place.element().is_some()
     {
         return Ok(false);
     }
     let source_unit = fact.binding().source_unit();
+    let parent = fact.parent();
     if !place.is_root() {
+        if parent.is_some() {
+            return Ok(false);
+        }
         let expression = crate::ssa::borrow_result_support::ungroup(
             file,
             fact.initializer().expression(),
@@ -87,7 +92,9 @@ fn has_dedicated_binding_path(
     }
     let root = place.root();
     let initializer = fact.initializer();
+    let source_symbol = parent.unwrap_or(root);
     if root.source_unit() == source_unit
+        && source_symbol.source_unit() == source_unit
         && initializer.source_unit() == source_unit
         && (owned.formed_owned_locals().binary_search(&root).is_ok()
             || matches!(
@@ -104,6 +111,7 @@ fn has_dedicated_binding_path(
         // The sealed frontend fact establishes the root. The reached lowerer
         // and verifier check storage and the actual loan extent.
         if let Some(ty) = typed.symbol_type(root)
+            && typed.symbol_type(source_symbol) == Some(ty)
             && typed.expression_type(source) == Some(ty)
             && file
                 .ast()
@@ -111,8 +119,32 @@ fn has_dedicated_binding_path(
                 .get(expression)
                 .is_ok_and(|node| matches!(node.payload(), Expression::Name))
         {
+            if let Some(parent) = parent {
+                if matches!(
+                    typed.types().get(ty),
+                    Some(UnitTypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::Map
+                            | IntrinsicTypeConstructor::MutableMap,
+                        ..
+                    })
+                ) {
+                    return Ok(false);
+                }
+                // Unit publishes these facts ordered by their source-qualified binding.
+                let bindings = owned.borrow_results().bindings();
+                return Ok(bindings
+                    .binary_search_by_key(&parent, |binding| binding.binding())
+                    .is_ok_and(|index| {
+                        let parent = &bindings[index];
+                        parent.storage() == BorrowBindingStorage::BorrowedStorage
+                            && parent.origin() == fact.origin()
+                    }));
+            }
             return Ok(true);
         }
+    }
+    if parent.is_some() {
+        return Ok(false);
     }
     Ok(owned.map_iterations().iter().any(|plan| {
         let statement = plan.descriptor().statement();

@@ -131,6 +131,38 @@ fun entry() {
 }
 
 #[test]
+fn native_stable_child_aliases_release_before_the_parent() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "stable-child-alias-branch",
+        source: r#"fun view(source: String): borrow String from source = source
+fun ended(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    {
+        borrow val parent = view(owner)
+        borrow val item = ((parent))
+        println(item)
+    }
+    if (flag) { println("after") }
+}
+fun live(owner: String, own flag: Boolean): Unit {
+    borrow val parent = owner
+    borrow val child = ((parent))
+    borrow val item = child
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() {
+    ended(true)
+    ended(false)
+    live("early".clone(), true)
+    live("normal".clone(), false)
+}"#,
+        stdout: b"kept\nafter\nkept\nearly\nnormal\n",
+        allocations: 4,
+    }]);
+}
+
+#[test]
 fn native_borrow_stable_place_unit_preserves_storage_and_cleanup() {
     check_normal_cases(crate::native_borrow_place_cases::cases());
 }

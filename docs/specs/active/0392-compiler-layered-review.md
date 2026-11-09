@@ -3841,3 +3841,26 @@ SSA 验证规则和 Inout 能力。
 新增原生运行 1 项，共 49 项通过，零失败、零忽略，按套件名过滤。Inout 负控核对
 拒绝类别，未锁诊断 Span。Const 与 Basic 共用前置校验，新增正控直接覆盖 Basic。
 codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 155. R4 直接子别名与 Borrow 参数的实际路由
+
+在 `d130e4d6` 上，普通借用结果父绑定及同块子别名已结束，后继 If 仍报
+UnsupportedNode。实际 CLI 另用直接根父绑定，两种布局均通过前端，有无关
+`swap` 时通过构建并运行。候选修过此门后，Borrow 参数三层
+子别名仍在 Return 报 UnsupportedNode。CLI 在有无 sibling 时均复现后一问题。
+Refine subset 对任意 Borrow 参数别名偏好 per-family 路由，而后者只处理直接根。
+
+直接子别名沿用同源同类型的 stable root 准入，另以原 Unit binding ID 二分查找
+真实父事实，要求 BorrowedStorage 和完整 origin 相等。Name 的实际父身份来自同轮
+前端已解析的绑定事实。Refine 中 Borrow 参数的 per-family 偏好限于 Map/MutableMap。
+独立复核发现前置 gate 也须排除 Map 子别名，避免改变未达旧路径的拒绝。已补同一
+前置排除及未调用的显式 Map/MutableMap 子别名负控，两入口均核对原 If 范围。投影、carrier、Inout 与普通借用结果各走原边界。
+
+双 Unit 入口测试有无无关 sibling，覆盖真实 BorrowCall 父、三层 SharedReborrow
+链和显式 Return。逐条对照 SSA 父子 LoanID，由 verifier 检查实际清理次序。
+原生测试覆盖四次调用和配对分配释放，stdout 逐字节匹配。Const 与 Basic 共享
+前置和 subset 路由，新增正控直接运行 Basic。
+
+根别名/存储 11 项、原生 2 项、借用结果 12 项、Map 路由 15 项、RangeView 12 项
+及旧 Map 借用 provider 观察 1 项通过，共 53 项，零失败、零忽略，按套件名过滤。
+独立复核完成，codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。

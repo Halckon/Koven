@@ -85,5 +85,6 @@ Refine 支持普通调用者中已证明不能分派的借用结果调用前缀�
 
 Unit 的直接根别名由已验证的绑定事实匹配同源、同类型的普通名称。已形成的 owned
 local 和 Owned/Shared 参数走到达的别名 lowering，按实际结束点处理 loan，再由 SSA
-verifier 检查跨块存活。此准入与其他 callable 的所有权原语无关。父子重借用、借用
-返回调用、投影、carrier 与 Inout 根分别沿用原入口。
+verifier 检查跨块存活。直接子别名须匹配同源同类型的真实父绑定和同一根。
+符合 subset 的普通 Borrow 参数父子链由 Refine 消费，Map/MutableMap 保留对应兼容路由。
+借用返回调用、投影、carrier 与 Inout 根分别由各自入口处理。
