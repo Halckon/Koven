@@ -708,3 +708,54 @@ fn borrow_value_field_unit_native_matrix() {
         assert!(run.stderr.is_empty(), "{name}: {run:?}");
     }
 }
+
+#[test]
+fn nested_nullable_borrow_copies_before_a_later_inout() {
+    let source = r#"fun view(source: Int): borrow Int from source = source
+fun observe(value: Int?, inout changed: Int): Unit {
+    changed = 9
+    if (value != null) { if (value == 7) { println("copied") } }
+}
+fun report(value: Int): Unit { if (value == 9) { println("changed") } }
+fun main(): Unit {
+    var n: Int = 7
+    observe(value = ((view(n))), changed = &n)
+    report(n)
+}"#;
+    let output = crate::native_tests::emit_link_and_run("nested_nullable_copy.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"copied\nchanged\n");
+}
+
+#[test]
+fn nested_nullable_borrow_keeps_the_resource_until_its_scope_exit() {
+    let source = r#"class Bucket(val value: Int) {
+    deinit() { println("released") }
+}
+fun view(source: Bucket): borrow Int from source = source.value
+fun observe(value: Int?): Unit { if (value != null) { if (value == 7) { println("copied") } } }
+fun main(): Unit {
+    val bucket = Bucket(7)
+    observe(view(bucket))
+}"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nested_nullable_resource.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"copied\nreleased\n");
+}
+
+#[test]
+fn nested_nullable_borrow_preserves_other_inner_cleanup_edges() {
+    let source = r#"class Boxed(val value: Int)
+class Aux() { deinit() { println("aux") } }
+fun view(source: Boxed, aux: Aux): borrow Int from source = source.value
+fun later(): Int { println("later"); return 1 }
+fun observe(value: Int?, own marker: Int): Unit {
+    if (value != null) { if (value == 7 && marker == 1) { println("copied") } }
+}
+fun main(): Unit {
+    val boxed = Boxed(7)
+    observe(value = ((view(boxed, Aux()))), marker = later())
+}"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nested_nullable_cleanup.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"aux\nlater\ncopied\n");
+}

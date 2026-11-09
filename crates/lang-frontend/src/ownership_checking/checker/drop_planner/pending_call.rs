@@ -242,20 +242,27 @@ impl DropPlanner<'_, '_> {
             // 本次参数结果先结束，转交而来的来源祖先随后结束；同类保持源码顺序。
             loans.sort_by_key(|loan| loan.call() != frame.call);
             for loan in loans {
-                // 来源在 inner 返回交接给 outer frame，保留原 call/argument identity。
+                // Direct handoff preserves the source token. A copy ends it at operand completion.
+                let mut point = point;
                 if point == LoanEndPoint::CallReturn(loan.call())
                     && let Some(consumer) =
                         self.checker.borrow_results.call_uses.iter().find(|fact| {
                             fact.source_loan().call() == loan.call()
                                 && fact.source_loan().argument() == loan.argument()
                         })
-                    && let Some(outer) = state
+                {
+                    if consumer.end_point()
+                        == super::DropPoint::AfterExpression(consumer.argument())
+                    {
+                        point = LoanEndPoint::AfterExpression(consumer.argument());
+                    } else if let Some(outer) = state
                         .pending_calls
                         .iter_mut()
                         .find(|pending| pending.call == consumer.call())
-                {
-                    outer.loans.push(loan);
-                    continue;
+                    {
+                        outer.loans.push(loan);
+                        continue;
+                    }
                 }
                 if point == LoanEndPoint::CallReturn(loan.call())
                     && self
@@ -271,6 +278,9 @@ impl DropPlanner<'_, '_> {
                 };
                 if !self.loan_ends.contains(&fact) {
                     let drop_point = match point {
+                        LoanEndPoint::AfterExpression(expression) => {
+                            super::DropPoint::AfterExpression(expression)
+                        }
                         LoanEndPoint::CallReturn(expression) => {
                             super::DropPoint::CallReturn(expression)
                         }

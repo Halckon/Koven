@@ -607,7 +607,7 @@ impl Builder<'_, '_> {
             let arg_id = self.unit(value_expr);
             if mode == ParameterMode::Borrow {
                 if let Some((loan, created)) =
-                    self.lower_nested_borrow_argument(call, value_expr, call_arg_span)?
+                    self.lower_nested_borrow_argument(call, value_expr, param_ty, call_arg_span)?
                 {
                     for &c in &created {
                         created_loans.push((c, call_arg_span));
@@ -664,28 +664,6 @@ impl Builder<'_, '_> {
             self.deliver(expr);
         }
         Ok(Some((lowered, arg_loans, created_loans, view_reads)))
-    }
-
-    pub(super) fn lower_nested_borrow_argument(
-        &mut self,
-        call: UnitExpressionId,
-        argument: ExpressionId,
-        span: Span,
-    ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
-        let argument_id = self.unit(argument);
-        let Some(fact) = self
-            .inputs
-            .owned
-            .borrow_results()
-            .call_uses()
-            .iter()
-            .find(|fact| fact.call() == call && fact.argument() == argument_id)
-            .cloned()
-        else {
-            return Ok(None);
-        };
-        let actual = self.ungrouped_expr(argument)?;
-        self.lower_result_call(actual, fact.source_loan(), span, None)
     }
 
     pub(super) fn lower_range_call(

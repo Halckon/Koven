@@ -297,7 +297,7 @@ impl<E: Copy, S: Copy, T, P: Copy> BorrowCallUseFact<E, S, T, P> {
     pub const fn parent(&self) -> Option<S> {
         self.parent
     }
-    /// 结果及本次来源链的正常终止边，只能是外层 CallReturn。
+    /// 结果及来源链在直接交付时于外层 CallReturn 结束，在复制时于外层实参完成后结束。
     pub const fn end_point(&self) -> P {
         self.end_point
     }

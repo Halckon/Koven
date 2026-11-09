@@ -2,7 +2,12 @@
 use super::*;
 use crate::ownership_checking::BorrowBindingEndFact;
 impl DropPlanner<'_, '_> {
-    pub(super) fn continue_borrow_call_source(&self, id: ExpressionId, state: &mut ValueState) {
+    pub(super) fn continue_borrow_call_source(
+        &self,
+        id: ExpressionId,
+        state: &mut ValueState,
+    ) -> Option<(UnitSymbolId, PlannerDropPoint)> {
+        let mut copied_source = None;
         for fact in self
             .checker
             .borrow_results
@@ -10,8 +15,17 @@ impl DropPlanner<'_, '_> {
             .iter()
             .filter(|fact| fact.expression() == self.checker.unit_expression(id))
         {
-            if let crate::ownership_checking::UnitLoanTarget::Place(place) = fact.origin()
-                && state.position(place.root()).is_some()
+            let crate::ownership_checking::UnitLoanTarget::Place(place) = fact.origin() else {
+                continue;
+            };
+            if fact.end_point()
+                == crate::ownership_checking::UnitDropPoint::AfterExpression(fact.argument())
+            {
+                copied_source = Some((
+                    place.root(),
+                    PlannerDropPoint::AfterExpression(fact.argument().expression()),
+                ));
+            } else if state.position(place.root()).is_some()
                 && !state
                     .pending_borrows
                     .contains(&(fact.call().expression(), place.root()))
@@ -21,6 +35,7 @@ impl DropPlanner<'_, '_> {
                     .push((fact.call().expression(), place.root()));
             }
         }
+        copied_source
     }
 
     pub(super) fn continue_range_source(&self, id: ExpressionId, state: &mut ValueState) {

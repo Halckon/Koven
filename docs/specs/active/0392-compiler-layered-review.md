@@ -4459,3 +4459,35 @@ macOS CI 的既有 LLDB 用例按 debugserver 权限忽略，§175 有本机证�
 `borrow Int` 结果能原生运行；只把外层改为 `Borrow Int?` 后，
 公开检查仍通过，原生报 `InvalidModel`。下一轮须分别核对内层
 来源 lease、实际复制点及外层临时 loan 的结束。
+
+## 182. R3/R4 嵌套借用结果的 nullable 复制边
+
+在 `4879cf78` 上，外层 `Borrow Int?` 消费合法的 `borrow Int` 结果时，
+公开检查接受而原生生成报 `InvalidModel`。若后续实参再独占借用同一根，
+前端也会误报 L0135。精确 `Borrow Int` 保留直接续借合同。
+
+Single 与 Unit 只允许将 Copyable payload 复制到外层 nullable 临时槽。
+原始来源 loan 保持到读取完成，已有父借用继续有效。外层 Shared loan
+使用原 operand 身份并指向新槽。普通借用结果仍不允许从包装临时槽
+转发来源。旧文件 lowering 对这项 inline nullable 交接显式拒绝。
+
+独立复核发现两条清理边偏差。内层无关实参须在其 CallReturn 先清理，
+来源最后使用的析构才移到实参 AfterExpression，发布顺序与执行一致。
+捕获来源的闭包清理也可能递归释放同一根。两个 planner 在整个内层清理
+批次保护该根，再按实参完成边清理。两条前端回归在修复前实际失败。
+SSA 断言追踪内层调用的结果与来源 loan，验证无关析构先于读取，
+来源析构在两项 loan 都结束之后。
+
+最终六组前端单元和集成测试 723 项通过，零失败、忽略或过滤。
+原生定向 3 项与 SSA/既有借用调用回归 6 项通过，零失败或忽略，
+分别过滤 2807 和 2804 项。四组程序经 CLI 单文件和项目实际构建并
+运行，分别核对基本复制、后续写回、资源作用域析构及无关实参析构。
+独立探针另核对具名、分组和临时闭包、已有父借用和后续活跃来源。
+严格 workspace Clippy、CLI build、格式、尺寸及文档结构检查通过。
+
+闭包回归只验收前端清理事实，原生仍受既有函数值实参路径限制。
+Unit 通用 direct loan-end 观测仍不覆盖嵌套借用结果实参，此处动态验收
+使用实际 Refine SSA 与 CLI。另以本机探针确认，内层借用结果生产者
+的其他 `Borrow Int?` 参数接收 `Int` 时仍报 `InvalidModel`，即使
+外层是精确 Borrow。传 `null` 或已有 nullable 槽的对照可运行，
+这一独立的参数包装遗漏留后续处理。
