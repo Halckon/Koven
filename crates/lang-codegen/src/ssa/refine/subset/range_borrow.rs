@@ -222,12 +222,20 @@ impl Checker<'_, '_> {
         if place.element().is_some() {
             return false;
         }
-        // A direct alias of a Borrow parameter stays on the per-family path that the legacy
-        // `Map` borrowed iteration shares, unless the scope already needs this layer.
+        // Borrowed Map aliases share the per-family iteration path when the
+        // scope does not already require refinement.
         if fact.storage() == BorrowBindingStorage::BorrowedStorage
             && fact.source_loan().is_none()
             && place.is_root()
             && self.parameter_mode(place.root()) == Some(ParameterMode::Borrow)
+            && matches!(
+                self.symbol_type(place.root()).and_then(|ty| self.kind(ty)),
+                Some(UnitTypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap,
+                    ..
+                })
+            )
             && !self.scope_requires_refine()
         {
             return false;

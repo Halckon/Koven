@@ -47,6 +47,7 @@ pub(super) fn allows(
     expression: ExpressionId,
     builtin: &impl Fn(ExpressionId) -> Option<BuiltinType>,
     owned_call: &impl Fn(ExpressionId) -> bool,
+    returned: Option<ExpressionId>,
 ) -> bool {
     let Ok(node) = parsed.ast().expressions().get(expression) else {
         return false;
@@ -54,13 +55,14 @@ pub(super) fn allows(
     let Expression::If {
         condition,
         then_branch,
-        else_branch: Some(else_branch),
+        else_branch,
         ..
     } = node.payload()
     else {
         return false;
     };
-    if builtin(*condition) != Some(BuiltinType::Boolean)
+    if (else_branch.is_none() && returned.is_none())
+        || builtin(*condition) != Some(BuiltinType::Boolean)
         || builtin(expression) != Some(BuiltinType::Unit)
     {
         return false;
@@ -84,10 +86,11 @@ pub(super) fn allows(
             })
     });
     if !is_statement
-        || elements
-            .iter()
-            .filter_map(|statement| binding_marker(parsed, *statement))
-            .any(|marker| marker.end() > node.span().start())
+        || (returned.is_none()
+            && elements
+                .iter()
+                .filter_map(|statement| binding_marker(parsed, *statement))
+                .any(|marker| marker.end() > node.span().start()))
         || parsed.ast().statements().iter().any(|(_, statement)| {
             contains(statement.span(), node.span())
                 && matches!(
@@ -102,12 +105,14 @@ pub(super) fn allows(
     {
         return false;
     }
-    if ![*then_branch, *else_branch].into_iter().all(|branch| {
-        let Ok(branch) = parsed.ast().statements().get(branch) else {
+    let arm_allowed = |branch_id| {
+        let Ok(branch) = parsed.ast().statements().get(branch_id) else {
             return false;
         };
         let Statement::ControlBody { elements } = branch.payload() else {
-            return false;
+            return matches!(branch.payload(), Statement::Expression { .. })
+                && returned.is_some()
+                && ordinary_local::bare_return(parsed, branch_id) == returned;
         };
         !elements.is_empty()
             && elements.iter().all(|statement| {
@@ -120,21 +125,26 @@ pub(super) fn allows(
                 let Ok(expression) = ungroup(parsed, *expression, statement.span()) else {
                     return false;
                 };
-                builtin(expression) == Some(BuiltinType::Unit)
-                    && owned_call(expression)
-                    && parsed
-                        .ast()
-                        .expressions()
-                        .get(expression)
-                        .is_ok_and(|node| matches!(node.payload(), Expression::Call { .. }))
+                Some(expression) == returned
+                    || (builtin(expression) == Some(BuiltinType::Unit)
+                        && owned_call(expression)
+                        && parsed
+                            .ast()
+                            .expressions()
+                            .get(expression)
+                            .is_ok_and(|node| matches!(node.payload(), Expression::Call { .. })))
             })
-    }) {
+    };
+    if !std::iter::once(*then_branch)
+        .chain(*else_branch)
+        .all(arm_allowed)
+    {
         return false;
     }
-    // Check the entire candidate, including its condition. Existing call-prefix
-    // exceptions must not smuggle an early exit into this new normal-arm slice.
+    // Check the entire candidate, including its condition. Only the direct
+    // return selected by the caller may terminate this branch.
     parsed.ast().expressions().iter().all(|(id, child)| {
-        if !contains(node.span(), child.span()) || id == expression {
+        if !contains(node.span(), child.span()) || id == expression || Some(id) == returned {
             return true;
         }
         if builtin(id) == Some(BuiltinType::Nothing) {
@@ -162,4 +172,68 @@ pub(super) fn allows(
             _ => false,
         }
     })
+}
+
+/// A direct return statement or selected return arm needs an exact end fact
+/// for this binding. A selected arm still uses the bounded if condition and body.
+pub(in crate::ssa) fn return_controls(
+    parsed: &ParsedFile,
+    marker: Span,
+    builtin: &impl Fn(ExpressionId) -> Option<BuiltinType>,
+    owned_call: &impl Fn(ExpressionId) -> bool,
+    ends_on_return: impl Fn(ExpressionId) -> bool,
+    allowed: &mut BTreeSet<usize>,
+) {
+    let Some(scope) = scope(parsed, marker, |_, _| true) else {
+        return;
+    };
+    let Ok(node) = parsed.ast().statements().get(scope) else {
+        return;
+    };
+    let Statement::Block { elements } = node.payload() else {
+        return;
+    };
+    for statement in elements {
+        let Ok(node) = parsed.ast().statements().get(*statement) else {
+            continue;
+        };
+        let Statement::Expression { expression } = node.payload() else {
+            continue;
+        };
+        let Ok(control) = ungroup(parsed, *expression, node.span()) else {
+            continue;
+        };
+        let Ok(node) = parsed.ast().expressions().get(control) else {
+            continue;
+        };
+        if marker.end() > node.span().start() {
+            continue;
+        }
+        if matches!(node.payload(), Expression::Return { .. }) {
+            if ends_on_return(control) {
+                allowed.insert(control.index());
+            }
+            continue;
+        }
+        let Expression::If {
+            then_branch,
+            else_branch,
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        let Some(returned) = std::iter::once(*then_branch)
+            .chain(*else_branch)
+            .find_map(|branch| ordinary_local::bare_return(parsed, branch))
+        else {
+            continue;
+        };
+        if ends_on_return(returned)
+            && allows(parsed, scope, control, builtin, owned_call, Some(returned))
+        {
+            allowed.insert(control.index());
+            allowed.insert(returned.index());
+        }
+    }
 }

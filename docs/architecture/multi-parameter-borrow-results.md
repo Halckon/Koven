@@ -82,3 +82,9 @@ Refine 支持普通调用者中已证明不能分派的借用结果调用前缀�
 建立时，才复用该 initializer 的退出证明。证明按 source-qualified initializer 索引，
 越过分支或 lambda 时不传递。双正常臂的实参 CFG、外层借用或 carrier 返回及
 循环内普通借用绑定沿用各自门禁。
+
+Unit 的直接根别名由已验证的绑定事实匹配同源、同类型的普通名称。已形成的 owned
+local 和 Owned/Shared 参数走到达的别名 lowering，按实际结束点处理 loan，再由 SSA
+verifier 检查跨块存活。直接子别名须匹配同源同类型的真实父绑定和同一根。
+符合 subset 的普通 Borrow 参数父子链由 Refine 消费，Map/MutableMap 保留对应兼容路由。
+借用返回调用、投影、carrier 与 Inout 根分别由各自入口处理。

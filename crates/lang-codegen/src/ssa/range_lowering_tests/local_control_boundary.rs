@@ -42,7 +42,6 @@ fn scoped(statement: &str) -> String {
     format!(
         r#"
 fun check(flag:Boolean):Unit{{if(flag){{println("true")}}else{{println("false")}}}}
-fun sink(value:Unit):Unit{{}}
 fun read(view:View<String>):Unit{{}}
 fun consume(own root:List<String>):Unit{{}}
 fun scan(flag:Boolean,n:Int):Unit{{
@@ -68,9 +67,10 @@ fn range_local_control_rejects_if_without_else() {
 #[test]
 fn range_local_control_rejects_value_context_if() {
     let expression = "if(flag){read(part)}else{read(part)}";
+    let consumer = scoped(&format!("sink({expression})"));
     reject(
         "unit-argument",
-        &scoped(&format!("sink({expression})")),
+        &format!("fun sink(value:Unit):Unit{{}}\n{consumer}"),
         expression,
     );
 }
@@ -83,21 +83,9 @@ fn range_local_control_rejects_nested_if_at_inner_expression() {
 }
 
 #[test]
-fn range_local_control_rejects_non_normal_arms() {
-    for (label, statement, fragment) in [
-        (
-            "return-arm",
-            "if(flag){read(part);return}else{read(part)}",
-            "return",
-        ),
-        (
-            "abort-arm",
-            "if(flag){error(\"stop\")}else{read(part)}",
-            "if(flag){error(\"stop\")}else{read(part)}",
-        ),
-    ] {
-        reject(label, &scoped(statement), fragment);
-    }
+fn range_local_control_rejects_abort_arm() {
+    let expression = "if(flag){error(\"stop\")}else{read(part)}";
+    reject("abort-arm", &scoped(expression), expression);
 }
 
 #[test]
@@ -144,28 +132,54 @@ fun main():Unit{{scan(true)}}
 }
 
 #[test]
-fn range_local_control_keeps_ordinary_and_metadata_alias_whole_function_gates() {
-    for (binding_kind, binding) in [
-        (
-            "ordinary",
-            "val text=\"kept\";borrow val alias=text;println(alias)",
-        ),
-        ("metadata", "borrow val alias=part;read(alias)"),
+fn range_local_control_keeps_unproved_alias_control_gates() {
+    let branch = "if(flag){read(part)}else{read(part)}";
+    let ordinary = "val text=\"kept\";borrow val alias=text;println(alias)";
+    reject(
+        "ordinary-if",
+        &scoped(&format!("{ordinary};{branch}")),
+        branch,
+    );
+
+    let metadata = "borrow val alias=part;read(alias)";
+    for (kind, statement, fragment) in [
+        ("eq", "check(n==2)", "n==2"),
+        ("lt", "check(n<3)", "n<3"),
+        ("if", branch, branch),
     ] {
-        for (expression_kind, statement, fragment) in [
-            ("eq", "check(n==2)", "n==2"),
-            ("lt", "check(n<3)", "n<3"),
-            (
-                "if",
-                "if(flag){read(part)}else{read(part)}",
-                "if(flag){read(part)}else{read(part)}",
-            ),
+        reject(
+            &format!("metadata-{kind}"),
+            &scoped(&format!("{metadata};{statement}")),
+            fragment,
+        );
+    }
+}
+
+#[test]
+fn range_local_control_accepts_int_comparisons_with_ordinary_root_alias() {
+    let binding = "val text=\"kept\";borrow val alias=text;println(alias)";
+    for (label, expression, expected) in [
+        ("eq", "n==2", "true"),
+        ("lt", "n<3", "true"),
+        ("ne", "n!=0", "true"),
+        ("le", "n<=0", "false"),
+        ("gt", "n>0", "true"),
+        ("ge", "n>=0", "true"),
+    ] {
+        let source = scoped(&format!("{binding};check({expression})"));
+        let expected = format!("kept\n{expected}\n");
+        for pipeline in [
+            Pipeline::Single,
+            Pipeline::Unit,
+            Pipeline::UnitReversed,
+            Pipeline::SingleConstant,
+            Pipeline::UnitConstant,
+            Pipeline::UnitConstantReversed,
         ] {
-            reject(
-                &format!("{binding_kind}-{expression_kind}"),
-                &scoped(&format!("{binding};{statement}")),
-                fragment,
-            );
+            let label = format!("ordinary-alias-{label}-{pipeline:?}");
+            let lowered = lower_positive(&source, expression, pipeline);
+            let (program, entry) = lowered.require_success(&label);
+            run_unmodified(&program, entry, &label, expected.as_bytes());
         }
     }
 }
@@ -177,30 +191,6 @@ fn range_local_control_keeps_unselected_binary_gates() {
         ("long-equality", "check(2L==4L)", "2L==4L"),
     ] {
         reject(label, &scoped(statement), fragment);
-    }
-}
-
-#[test]
-fn range_local_control_rejects_if_outside_the_live_lexical_scope() {
-    let expression = "if(flag){println(\"left\")}else{println(\"right\")}";
-    let binding = "{borrow val part=take(root,1);read(part)}";
-    for (label, body) in [
-        ("before-binding", format!("{expression}\n{binding}")),
-        ("after-scope", format!("{binding}\n{expression}")),
-    ] {
-        let consumer = format!(
-            r#"
-fun read(view:View<String>):Unit{{}}
-fun consume(own root:List<String>):Unit{{}}
-fun scan(flag:Boolean):Unit{{
-    val root=listOf("kept")
-    {body}
-    consume(root)
-}}
-fun main():Unit{{scan(true)}}
-"#
-        );
-        reject(label, &consumer, expression);
     }
 }
 

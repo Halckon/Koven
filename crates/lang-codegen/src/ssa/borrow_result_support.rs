@@ -9,7 +9,7 @@ use lang_frontend::{
     type_checking::BuiltinType,
 };
 
-mod local_if;
+pub(super) mod local_if;
 pub(super) mod ordinary_local;
 mod short_circuit;
 pub(super) mod stable_map;
@@ -140,9 +140,14 @@ pub(super) fn binding(
         }
         if range
             && scope.is_some_and(|scope| {
-                local_if::allows(parsed, scope, expression, &builtin, &|id| {
-                    call_allowed(id, CallAccess::OwnedResult)
-                }) || short_circuit::allows(parsed, scope, expression, &builtin, &call_allowed)
+                local_if::allows(
+                    parsed,
+                    scope,
+                    expression,
+                    &builtin,
+                    &|id| call_allowed(id, CallAccess::OwnedResult),
+                    None,
+                ) || short_circuit::allows(parsed, scope, expression, &builtin, &call_allowed)
             })
         {
             continue;

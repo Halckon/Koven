@@ -3908,3 +3908,123 @@ macOS arm64 对同形双包输入执行 project check、object build、link 与�
 零过滤。合流后同一源码树复跑 SSA 借用结果合同 12 项、原生借用初始化 3 项，零失败、
 零忽略，其余按过滤条件排除。前端及 codegen 全目标 Clippy 通过。本机重新构建的
 kovenc 通过原双包探针的 CLI check、build、link、run，stdout 逐字节一致。
+
+## 154. R4 直接根别名的分支准入
+
+在 `a4b72d35` 上，普通 owned local 的词法借用块结束后再进入 `if`，MemoryDocument
+红测在 If 范围报 UnsupportedNode。使用同形 CLI 输入复核，前端均接受。
+无关未调用 `swap` 使后端全单元开关绕过旧扫描，加入后实际运行输出正确。
+实际 CLI 还核到 owned 参数和 Borrow 参数的活跃别名穿过 Return 时同类差异，
+Inout 参数的有无 sibling 对照均为 UnsupportedNode。
+
+BorrowedStorage 的直接名根要求无来源调用 loan、无父绑定、无字段或元素投影、
+同源且类型一致。依据同轮已验证绑定确定真实根，仅放行已形成 owned local、
+Owned 参数或 Shared 参数。真正到达的 builder 与 verifier 仍核存储和生命周期。
+RangeView、carrier、直接字段和 Map provider 沿各自入口。没有改变构建器、
+SSA 验证规则和 Inout 能力。
+
+独立复核确认 Name 的实际来源来自已验证 ownership 产物，formed 历史仅用于分类，
+存活由原消费者核对。两个 Unit 入口核对无 sibling、无关函数和未用 lambda，
+覆盖提前结束的 local、穿过显式 Return 的 owned/Borrow 参数和 Inout 负控。
+本机原生用例覆盖六次调用、正常与提前返回的精确 stdout 和六次实际分配释放。
+
+根别名/存储合同 9 项、普通借用结果 12 项、Map 路由 15 项、RangeView 12 项及
+新增原生运行 1 项，共 49 项通过，零失败、零忽略，按套件名过滤。Inout 负控核对
+拒绝类别，未锁诊断 Span。Const 与 Basic 共用前置校验，新增正控直接覆盖 Basic。
+codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 155. R4 直接子别名与 Borrow 参数的实际路由
+
+在 `d130e4d6` 上，普通借用结果父绑定及同块子别名已结束，后继 If 仍报
+UnsupportedNode。实际 CLI 另用直接根父绑定，两种布局均通过前端，有无关
+`swap` 时通过构建并运行。候选修过此门后，Borrow 参数三层
+子别名仍在 Return 报 UnsupportedNode。CLI 在有无 sibling 时均复现后一问题。
+Refine subset 对任意 Borrow 参数别名偏好 per-family 路由，而后者只处理直接根。
+
+直接子别名沿用同源同类型的 stable root 准入，另以原 Unit binding ID 二分查找
+真实父事实，要求 BorrowedStorage 和完整 origin 相等。Name 的实际父身份来自同轮
+前端已解析的绑定事实。Refine 中 Borrow 参数的 per-family 偏好限于 Map/MutableMap。
+独立复核发现前置 gate 也须排除 Map 子别名，避免改变未达旧路径的拒绝。已补同一
+前置排除及未调用的显式 Map/MutableMap 子别名负控，两入口均核对原 If 范围。投影、carrier、Inout 与普通借用结果各走原边界。
+
+双 Unit 入口测试有无无关 sibling，覆盖真实 BorrowCall 父、三层 SharedReborrow
+链和显式 Return。逐条对照 SSA 父子 LoanID，由 verifier 检查实际清理次序。
+原生测试覆盖四次调用和配对分配释放，stdout 逐字节匹配。Const 与 Basic 共享
+前置和 subset 路由，新增正控直接运行 Basic。
+
+根别名/存储 11 项、原生 2 项、借用结果 12 项、Map 路由 15 项、RangeView 12 项
+及旧 Map 借用 provider 观察 1 项通过，共 53 项，零失败、零忽略，按套件名过滤。
+独立复核完成，codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 156. R4 局部 RangeView 与直接控制流
+
+实际 CLI 对照中，`take` 建立的 descriptor、其直接 metadata child 在内层块结束，
+以及 child 活跃时的提前 `return`，均通过前端检查。默认 build 在对应 `if` 或
+`return` 报 UnsupportedNode。加入未调用的 `swap` 后三者均能原生构建并运行。
+在 `e53d0755` 上，三条独立回归在相同位置失败。
+
+Unit 借用预检对 typed carrier call 和直接同源 metadata child 复用词法证明。正常
+`AfterStatement` 结束点与 `ControlTransfer` 分开判断，活跃绑定必须具有该
+`return` 的精确 end，正常路径继续使用原状态。独立复核要求增加返回与正常结束
+组合、晚建 child 和无花括号裸 return。已有活跃分支的 Abort、metadata 比较、
+值位置、嵌套控制及循环负例保留。普通 String 根别名的旧 Int 比较负例因 §154
+的准入变化改为六种原生比较对照，顺序范围的 checked Int count 也有实际原生对照。
+普通别名的未经证明活跃 if 和 metadata count 仍拒绝。
+
+八条新增 RangeView 原生测试已通过，在 Memory 和 Rooted provider 正逆序核对
+有无 sibling 的 SSA 与实际输出，同时核对提前返回及正常继续的逆序析构。
+一般 carrier alias、循环及其余 legacy 路由仍属 R4 对账范围，阶段保持开放。
+
+本机扩大 Range 运行 384 项通过，三项旧普通根别名负例失败。迁移夹具后在最终
+测试二进制重跑 14 项，包含八条新回归、迁移的正负例及值位置拒绝，全部通过。
+borrow-result 70 项与 Map 路由 15 项通过，零失败和忽略。lang-codegen 全目标
+Clippy、格式、文档和 Rust 尺寸门禁通过。完整 Range 集合未在最终二进制重跑，
+双宿主证据留待批量候选。
+
+## 157. R4 RangeView 独立 return
+
+用 `fd641223` 的实际 CLI 核对三种输入。局部 carrier scope 后的裸返回、
+同一块中的裸返回、以及活跃 child 上的 `return count(child)` 均通过前端。
+默认原生构建退出 2 且报 UnsupportedNode，未调用的 `swap` 会使三种变体
+构建运行成功。三个定向回归均在原实现的对应 Return span 失败。
+
+词法相离路径允许独立的 Return 表达式。活跃绑定还要求同一直接词法块和
+该 binding 对应的精确 `ControlTransfer` end。只放行 Return 本身，操作数
+继续通过原检查。Refine 先完成返回值求值与交付，再按事实结束借用并析构。
+独立复审核对了调用方、顺序和原冻结边界。旧裸返回负例迁移到带不可达
+后继读取的原生正例；返回值内部的 `if` 仍在精确表达式处拒绝。
+
+最终定向 25 项通过，零失败和忽略。实际 CLI 的六种输入都 check/build/run
+成功并逐字节匹配 stdout，其中带值返回核对 child 读取、逆序析构、调用者
+读取返回值。lang-codegen 全目标 Clippy、fmt、文档和 Rust 尺寸门禁通过。
+更宽的嵌套控制流、循环及 legacy 兼容路由继续记在 R4。
+
+## 158. R0 Guide Litmus 消费者的双 Unit 入口
+
+在 `51aebc0c` 的原套件实跑 23 项。Guide15 的 12 段源代码和派生场景
+分别走 MemoryDocument 与 Rooted Unit，核对 source ID、输入 key 和 package。
+MemoryDocument 的展示名独立于声明包。两个输入仍核对诊断阶段、有序代码、
+字节范围与源码切片，以及常量和所有权能力。纯 Parser 样例在公共入口检查。
+
+旧 checker 仅在显式见证中运行。六条规范样例和两个派生输入保留原 typed
+快照，Counter 保留旧 L0135、Unit L0134 与同一字段范围的独立断言。
+独立复审核对各入口身份、原快照和精确诊断。更新后的 Guide 和相关前端
+七个套件共 276 项通过，零失败和忽略。前端全目标 Clippy、格式、文档
+和 Rust 尺寸门禁通过。本次验证覆盖前端套件，原 native 门禁不变。
+
+## 159. R0/R3/R4 批次对齐与本机验收
+
+[PR #395](https://github.com/Halckon/Koven/pull/395) 合入 `9369cc72`。
+[第三轮 PR CI](https://github.com/Halckon/Koven/actions/runs/42633574473/attempts/3)
+的双宿主 Check、Clippy、定向测试、预览构建和独立安装均通过。前两轮
+macOS 独立安装因托管 runner 未分配而取消。第三轮实际下载并安装原产物
+`13684479638`。CI Passed 与 Code CI Evidence 成功，Editor lexical 按范围跳过。
+合入树 `aa9b8f84` 与已验候选一致。
+
+批次 §154–158 与该 main 对齐为 `86ba8476`。独立复核确认代码各取唯一变更侧，
+Spec 保留 main 的 §7、§151–153 并追加原 §154–158。共享架构页保留两侧事实。
+对齐前 `51aebc0c` 的 Range 定向集合 395 项全部通过，零失败和忽略。
+
+对齐候选的 Guide、nullable when、直接调用 loan-end 共 165 项通过。别名、
+RangeView、nullable when 与 Map 的后端定向组合共 61 项通过，零失败和忽略。
+前端与 codegen 全目标 Clippy、格式、文档结构及 Rust 尺寸门禁通过。

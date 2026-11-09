@@ -5,10 +5,10 @@
 [SPEC-0298](../archive/specs/0298-range-binding-local-control-flow.md)冻结首片只新增真实Int
 `==`/`<`与有界statement-if。[SPEC-0315](../archive/specs/0315-range-int-comparisons.md)
 补齐`!= <= > >=`；两操作数必须由typed facts证明为Int，比较结果另核Boolean；
-五种既有Int算术保持原合同。gate仍扫描包含显式binding的最小完整函数，不限loan活跃区间；
-普通borrow与借用既有metadata不随NewRangeDescriptor放宽。
+五种既有Int算术保持原合同。gate仍扫描包含显式binding的最小完整函数。Unit 对已核实的局部 descriptor 和直接 metadata
+child 另用词法及退出事实选择例外。普通 borrow 使用自身准入。
 
-新if必须是直接词法Block中的完整语句、有显式双ControlBody，且两arm只含Owned Unit
+活跃绑定上的正常if必须是直接词法Block中的完整语句、有显式双ControlBody，且两arm只含Owned Unit
 调用语句。该Block的全部直接borrow声明先于if，均须有NewRangeDescriptor、相同精确
 origin、source continuation以及唯一`AfterStatement(Block)` end。scope选择只限定能力形状，
 不从AST或最后一次read重算loan；构造处仍执行原call/argument/origin校验。
@@ -56,6 +56,16 @@ pending loan同时逐边运输，在合流外层调用后、RangeEnd前结束。
 unit basic/constant及provider正逆序、literal/const Never/Always、两op动态真值、String/
 MoveOnly/Resource父子兄弟，公开project CLI也有basic/constant正常build/run。
 
-binding前/结束后及嵌套短路、String拼接及复杂RHS、value-if、分支新binding、条件/多来源、一般NLL、借用存储/
+binding前或结束后的短路、嵌套短路、String拼接及复杂RHS、value-if、分支新binding、条件/多来源、一般NLL、借用存储/
 逃逸和更广循环组合仍是开放后继。0299专用nullable proof suffix、0300 Map owner carrier与
 frontend/LLVM ABI未改；冻结首片不宣称整个0298广义目标完成。
+
+Unit 的局部 descriptor 从 typed carrier call 和同源 source-loan 事实识别；直接 metadata
+child 还要匹配真实父名称、同源同类型和相同根。两者可与取得前或正常结束后的直接
+statement `if` 或独立 `return` 组合。正常路径须有唯一同源 `AfterStatement`，
+控制转移的结束事实单独核对。活跃绑定只放行同一词法块中有精确 `ControlTransfer`
+end 的独立 `return` 或受限 `if` 的裸 `return` 分支。独立 `return` 可带返回值，
+操作数仍经过原能力检查。裸返回分支可用有或无花括号的写法，条件和正常调用仍受
+有界控制流检查。每个绑定独立核对，
+较晚建立的 child 可用取得前的词法证明。Refine 消费原结束事实并经 SSA verifier，
+返回边依次结束子 loan、父 descriptor、来源 loan 和 owner，正常边保留继续使用所需状态。
