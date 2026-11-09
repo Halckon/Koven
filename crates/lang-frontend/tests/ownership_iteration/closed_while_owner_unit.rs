@@ -2,12 +2,13 @@
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        UnitOwnerLoopEdgeV1 as Edge, UnitOwnerObservationStatus, UnitOwnerValueEventV1 as Event,
-        check_compilation_unit_ownership,
+        UnitDropPoint, UnitOwnerLoopEdgeV1 as Edge, UnitOwnerObservationStatus,
+        UnitOwnerValueEventV1 as Event, check_compilation_unit_ownership,
     },
     source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+        UnitExpressionId, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -56,19 +57,42 @@ fn closed_while_owner_template_has_the_same_contract_in_both_unit_inputs() {
             ));
             assert!(legacy.events().is_empty() && legacy.definitions().is_empty());
             assert!(legacy.value_observation_v1().is_none());
-            if suffix.is_empty() {
+            if suffix != "; return" {
                 let observation = legacy
                     .loop_observation_v1()
-                    .expect("actual fallthrough only");
+                    .expect("actual closed body completion");
                 assert!(observation.is_consistent());
+                assert!(matches!(observation.edges()[0], Edge::EnterBody(..)));
                 assert!(matches!(
-                    observation.edges(),
-                    [
-                        Edge::EnterBody(..),
-                        Edge::Backedge(..),
-                        Edge::ConditionFalseExit(..)
-                    ]
+                    observation.edges()[2],
+                    Edge::ConditionFalseExit(..)
                 ));
+                let expected = if suffix.is_empty() {
+                    Edge::Backedge(
+                        UnitDropPoint::AfterStatement(observation.body()),
+                        observation.condition(),
+                    )
+                } else {
+                    let jump = parsed
+                        .ast()
+                        .expressions()
+                        .iter()
+                        .find_map(|(id, node)| {
+                            (sources.slice(node.span()).unwrap() == suffix.trim_start_matches("; "))
+                                .then_some(id)
+                        })
+                        .expect("actual terminal jump");
+                    let point = UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                        observation.condition().source_unit(),
+                        jump,
+                    ));
+                    if suffix == "; continue" {
+                        Edge::ContinueBackedge(point, observation.condition())
+                    } else {
+                        Edge::BreakExit(point, UnitDropPoint::LoopExit(observation.statement()))
+                    }
+                };
+                assert_eq!(observation.edges()[1], expected);
                 let graph = observation.body_transport();
                 assert_eq!(graph.producers().definitions().len(), 2);
                 assert_eq!(
@@ -91,7 +115,7 @@ fn closed_while_owner_template_has_the_same_contract_in_both_unit_inputs() {
             } else {
                 assert!(
                     legacy.loop_observation_v1().is_none(),
-                    "{suffix} is not a backedge"
+                    "Return is not a loop completion"
                 );
             }
         }

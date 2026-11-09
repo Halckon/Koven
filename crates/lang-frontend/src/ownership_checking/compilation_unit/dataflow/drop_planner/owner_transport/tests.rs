@@ -272,3 +272,5 @@ fn owner_observation_preserves_simultaneously_nonempty_receiver_and_clone_end_ta
         2
     );
 }
+
+mod closed_while_transfers;

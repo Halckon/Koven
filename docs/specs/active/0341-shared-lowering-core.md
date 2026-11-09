@@ -6248,3 +6248,57 @@ Linux x86_64、Rust1.96.0、默认debug、locked/offline。首轮fmt只发现局
 应为单行，修正后重新通过；首次被fmt阻止的测试不计运行。未执行frontend全量、
 workspace check、native、故障注入、macOS或正式PR CI。按本轮授权仅本地分步提交，
 不生成补丁备份、不上传、不推送、不合并；D10/E2仍in-progress。
+
+
+## 146. 闭合 While 的真实末尾 Continue/Break 完成边（2026-11-09）
+
+先核全部178个远端分支、9个开放PR及最新main `7de209f7`；旧loop边界/条件路由已在main，
+#392借用索引及#393独立消费者没有本片实现。隔离分支从main新建，以 `254988d4` 组合
+已发布owner #390 `5cd44ae6`，父级依次为main和#390，无冲突；原#390及其它分支未修改。
+按用户合批要求，完成后将本地提交交统一整合，不自行另开PR，不强推或合入main。
+本节只扩§144的Phase 3只读观察，不改Guide语义、owner运输validator或普通cleanup行为。
+
+合同允许原本地String声明序列后接唯一末尾裸Continue/Break。至少一个局部声明，精确
+Nothing类型、同一body最后statement和实际expression身份均须成立；Group跳转、不可达
+后缀、Return、分支、嵌套/多循环、外来或跨轮owner、capture及其它原拒绝范围不准入。
+
+AST预筛仅保存期望。实际jump路径仍依次结束pending loan、drop_deeper_than及
+finish_jump_iteration，随后观察hook核对fresh body Arc、精确jump、实际kind、唯一最近
+loop boundary、scope及完整空状态，才记录一次性completion。旧body返回false时必须有
+同Arc/同kind/同expression见证；单独false加空状态不能生成边。错误传播前恢复所有sink并
+清除active标记、消费见证。fallback路径和普通iteration/provider清理不改变。
+
+新增ContinueBackedge从实际ControlTransfer(jump)回condition；BreakExit从实际
+ControlTransfer(jump)到该While的LoopExit，不冒充fallthrough或condition-false。
+公开三边与私有completion分别保存并核对，保留outer/body双identity封印。原V1投影仍
+要求全部真实definition最终Dropped，仍拒绝ControlTransfer Drop；现准入String已按ASAP
+在jump前退休，本片不搬动drop点，也不宣称增加跳转点owner析构能力。false条件零轮，
+true条件在Continue/fallthrough可持续循环，在末尾Break路径一轮退出；没有运行计数或phi。
+
+真实红测试提交 `1b10670c`：合法Continue源码因缺少循环产物失败（0 passed/1 failed）；
+最小生产接线后同测试的Continue/Break两输入通过。完整实现和补强测试提交 `a8a01329`，
+tree `b73b83e5de2524fb597abc55a239a881e088215b`。后续文档不改变受测Rust。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 真实jump生产者 | `closed_while_transfers` 三项ordinary；32正例、17合法拒绝、跨文件/分析隔离及真实错误清空 | 3 passed，0 failed/ignored |
+| 已有owner组合 | §144的59项普通lib exact，连同新3项执行 | 62 passed；独审补强后新3项再次通过，不重复计数 |
+| 公开双入口与循环邻控 | `closed_while_owner_unit`、8项`loop_choice_unit`、4项原`loop_carried_choices`真实源码 | 13 passed；公开双入口含8个完成/拒绝组合 |
+| 主线邻控 | 5项control/drop、2项capture、1项scope/return借用清理 | 5 + 2 + 1 passed |
+| 质量门禁 | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2250 Rust、37项既有超限 |
+| 独立复审 | 实际cleanup同序、active/witness/restore、封印、测试非空及当前架构 | 无blocker；新3项lib与公开双入口1项独立exact复跑各1 passed，HEAD/tree及二进制SHA256前后不变 |
+
+合计83项不同ordinary测试；Cargo使用 `--locked --offline`、专属target串行，Mac AArch64
+Rust1.96、LLVM21.1.8。32正例核实际AST jump/condition/body、边kind/target、move/replace
+及真实drop facts，完整Analysis观察开关对照不变。两种旧jump拒绝源码明确迁为正例；原
+Return在内的其余25个拒绝输入保持拒绝。跨文件用例在两次validate成功、均恰有两个观察项后
+核token隔离，修复独审指出的空集合假通过风险。双公开入口逐expression核实际jump及目标。
+
+新损坏seal守卫（kind/point/target/catalog、伪造ControlTransfer Drop）与既有故障注入、
+手工模型、Abort仅编译，未本机执行。原jump完整处理移至所属loop模块后，旧大planner
+从1560行降到1546行；新collector465行，无尺寸例外或baseline扩额。完整测试、Linux、
+native及统一整合后的精确头CI尚未执行，不能由本片83项替代。
+
+loop-carried header/exit phi、一般跳转合流、动态多实例capture/释放、通用消费者、Single
+见证退休及Phase 4/native仍未闭合；D10/E2保持in-progress，不归档。当前准入与边界见
+[闭合While架构页](../../architecture/unit-loop-owner-transport.md)。

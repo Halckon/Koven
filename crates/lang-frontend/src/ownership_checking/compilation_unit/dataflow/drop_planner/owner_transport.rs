@@ -268,6 +268,9 @@ impl DropPlanner<'_, '_> {
         }
         let supported = match self.checker.parsed.ast().expressions().get(id)?.payload() {
             Expression::Name | Expression::Group { .. } | Expression::Return { .. } => true,
+            Expression::Break { .. } | Expression::Continue { .. } => {
+                self.owner_loop_jump_supported(id)
+            }
             Expression::If {
                 else_branch: Some(_),
                 ..

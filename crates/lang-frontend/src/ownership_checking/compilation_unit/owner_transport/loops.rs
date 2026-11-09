@@ -12,12 +12,47 @@ pub enum UnitOwnerLoopEdgeV1 {
     ConditionFalseExit(UnitExpressionId, UnitDropPoint),
     /// Actual body fallthrough after scope cleanup returns to this condition.
     Backedge(UnitDropPoint, UnitExpressionId),
+    /// A real terminal Continue reaches this condition after jump cleanup.
+    ContinueBackedge(UnitDropPoint, UnitExpressionId),
+    /// A real terminal Break reaches this loop exit after jump cleanup.
+    BreakExit(UnitDropPoint, UnitDropPoint),
+}
+
+// Kept separately from public edges: only actual completion supplies the sealed endpoint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
+    Fallthrough,
+    Continue(UnitExpressionId),
+    Break(UnitExpressionId),
+}
+impl LoopBodyCompletion {
+    pub(in crate::ownership_checking::compilation_unit) fn edge(
+        self,
+        statement: UnitStatementId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+    ) -> UnitOwnerLoopEdgeV1 {
+        match self {
+            Self::Fallthrough => {
+                UnitOwnerLoopEdgeV1::Backedge(UnitDropPoint::AfterStatement(body), condition)
+            }
+            Self::Continue(jump) => UnitOwnerLoopEdgeV1::ContinueBackedge(
+                UnitDropPoint::ControlTransfer(jump),
+                condition,
+            ),
+            Self::Break(jump) => UnitOwnerLoopEdgeV1::BreakExit(
+                UnitDropPoint::ControlTransfer(jump),
+                UnitDropPoint::LoopExit(statement),
+            ),
+        }
+    }
 }
 
 /// A real closed While body whose definitions are fresh on every activation.
 /// Definition tokens identify static producers in this template, not runtime instances.
 /// The initial pure Boolean parameter is unchanged: false means zero activations;
-/// true may repeat forever. Finite prefixes do not establish a terminating execution.
+/// true may repeat forever for fallthrough/Continue, while a terminal Break exits after
+/// one activation. No runtime iteration trace or carried owner is represented.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) identity: std::sync::Arc<()>,
@@ -26,6 +61,7 @@ pub struct UnitOwnerLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) completion: LoopBodyCompletion,
     pub(in crate::ownership_checking::compilation_unit) transport: UnitOwnerValueObservationV1,
     pub(in crate::ownership_checking::compilation_unit) edges: [UnitOwnerLoopEdgeV1; 3],
 }
@@ -38,7 +74,7 @@ impl UnitOwnerLoopObservationV1 {
     pub fn condition(&self) -> UnitExpressionId {
         self.condition
     }
-    /// Actual body statement whose cleanup precedes the backedge.
+    /// Actual body statement whose cleanup precedes its fallthrough or jump edge.
     pub fn body(&self) -> UnitStatementId {
         self.body
     }
@@ -56,7 +92,14 @@ impl UnitOwnerLoopObservationV1 {
             return false;
         };
         let source = function.source_unit();
-        self.statement.source_unit() == source
+        let completion_source = match self.completion {
+            LoopBodyCompletion::Fallthrough => source,
+            LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump) => {
+                jump.source_unit()
+            }
+        };
+        completion_source == source
+            && self.statement.source_unit() == source
             && self.condition.source_unit() == source
             && self.body.source_unit() == source
             && self.statement != self.body
@@ -70,10 +113,8 @@ impl UnitOwnerLoopObservationV1 {
             && self.edges
                 == [
                     UnitOwnerLoopEdgeV1::EnterBody(self.condition, self.body),
-                    UnitOwnerLoopEdgeV1::Backedge(
-                        UnitDropPoint::AfterStatement(self.body),
-                        self.condition,
-                    ),
+                    self.completion
+                        .edge(self.statement, self.condition, self.body),
                     UnitOwnerLoopEdgeV1::ConditionFalseExit(
                         self.condition,
                         UnitDropPoint::LoopExit(self.statement),

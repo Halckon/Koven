@@ -181,8 +181,6 @@ fn closed_while_rejects_open_boundaries_and_unsupported_suffixes() {
         r#"fun run(flag: Boolean) { while (flag == flag) { val local = "x" } }"#,
         r#"fun run(flag: Boolean) { while (test()) { val local = "x" } }"#,
         r#"fun run(flag: Boolean) { while (flag) { val local = "x"; return } }"#,
-        r#"fun run(flag: Boolean) { while (flag) { val local = "x"; break } }"#,
-        r#"fun run(flag: Boolean) { while (flag) { val local = "x"; continue } }"#,
         r#"fun run(flag: Boolean) { while (flag) { val local = "x"; while (flag) { val nested = "y" } } }"#,
         r#"fun run(flag: Boolean) { while (flag) { val local = "x"; if (flag) { val left = "y" } else { val right = "z" } } }"#,
         r#"fun run(flag: Boolean) { while (flag) { val local = "x"; val callback = move { local } } }"#,
