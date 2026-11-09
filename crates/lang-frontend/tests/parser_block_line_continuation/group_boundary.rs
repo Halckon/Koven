@@ -111,3 +111,109 @@ fn ambiguous_group_closer_leaves_the_caller_separator() {
     assert_eq!(sources.slice(first.span), Ok("(value"));
     assert_eq!(sources.slice(next.span), Ok("next"));
 }
+
+fn assert_call_recovery_keeps_saved_and_later(sources: &SourceMap, block: &ParsedBlock) {
+    let ast = block.ast();
+    let names = block_elements(ast, block.root())
+        .iter()
+        .filter_map(|id| {
+            let Statement::LocalVariable { declaration } =
+                ast.statements().get(*id).unwrap().payload()
+            else {
+                return None;
+            };
+            let Item::Variable {
+                name: NameMarker::Present(name),
+                ..
+            } = ast.items().get(*declaration).unwrap().payload()
+            else {
+                return None;
+            };
+            Some(sources.slice(*name).unwrap())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(names, ["saved", "later"]);
+}
+
+#[test]
+fn a_malformed_call_group_leaves_a_declaration_after_a_paired_nested_index() {
+    let head = "f((value, junk[key";
+    let text = format!("{{ {head}; val saved = 1\n]))\nval later = saved }}");
+    let (sources, block) = parsed(&text);
+    let ast = block.ast();
+    let first = ast
+        .statements()
+        .get(block_elements(ast, block.root())[0])
+        .unwrap();
+    assert_eq!(sources.slice(first.span()), Ok(head));
+    assert_call_recovery_keeps_saved_and_later(&sources, &block);
+}
+
+#[test]
+fn a_poisoned_call_group_leaves_the_proven_block_separator() {
+    for key in ["β", "value β", "β +"] {
+        let head = format!("f(({key}");
+        let text = format!("{{ {head}; val saved = 1\n))\nval later = saved }}");
+        let (sources, block) = parsed(&text);
+        let ast = block.ast();
+        let elements: Vec<_> = block_elements(ast, block.root())
+            .iter()
+            .map(|id| {
+                sources
+                    .slice(ast.statements().get(*id).unwrap().span())
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(elements.first().copied(), Some(head.as_str()), "{text}");
+        assert_call_recovery_keeps_saved_and_later(&sources, &block);
+        let poison = block
+            .diagnostics()
+            .iter()
+            .filter(|diagnostic| sources.slice(diagnostic.primary_span()) == Ok("β"))
+            .collect::<Vec<_>>();
+        let [poison] = poison.as_slice() else {
+            panic!(
+                "expected one lexical root: {text}: {:?}",
+                block.diagnostics()
+            );
+        };
+        assert_eq!(poison.code().to_string(), "L0001");
+        assert!(block.diagnostics().iter().any(|diagnostic| {
+            diagnostic.code().to_string() == "L0010"
+                && diagnostic.primary_span().is_empty()
+                && diagnostic.primary_span().start() == text.find(';').unwrap()
+        }));
+    }
+}
+
+#[test]
+fn a_call_group_keeps_local_semicolons_and_the_next_argument() {
+    for (group, expected) in [
+        ("(value β; 2)", ("L0001", "β")),
+        (
+            "(value β { -> val first = 1; val second = 2 })",
+            ("L0001", "β"),
+        ),
+        (
+            "(value, nested({ -> val first = 1; val second = 2 }))",
+            ("L0013", ","),
+        ),
+    ] {
+        let text = format!("{{ f({group}, next); tail }}");
+        let (sources, block) = parsed(&text);
+        let ast = block.ast();
+        assert_group_diagnostics(&sources, block.diagnostics(), &[expected]);
+        let [call, tail] = block_elements(ast, block.root()) else {
+            panic!("expected call and tail: {text}");
+        };
+        let Statement::Expression { expression } = ast.statements().get(*call).unwrap().payload()
+        else {
+            panic!("expected call expression: {text}");
+        };
+        assert_error_group_call(&sources, ast, *expression, group);
+        assert_eq!(
+            sources.slice(ast.statements().get(*tail).unwrap().span()),
+            Ok("tail")
+        );
+    }
+}

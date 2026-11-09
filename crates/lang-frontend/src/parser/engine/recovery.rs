@@ -1,8 +1,11 @@
-use super::{class::ClassifierHeaderOwner, postfix::IndexPoisonTail, *};
+use super::{class::ClassifierHeaderOwner, *};
 use std::cell::{Cell, OnceCell};
 use std::num::NonZeroUsize;
 
+mod adjacent_poison;
 mod ordinary_groups;
+
+use adjacent_poison::AdjacentPoisonTail;
 
 use ordinary_groups::{GroupClosers, OrdinaryGroups, group_delimiter};
 
@@ -15,7 +18,7 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     pub(super) unterminated_interpolation_starts: Vec<usize>,
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
-    pub(super) index_poison_tail: Cell<Option<IndexPoisonTail>>,
+    adjacent_poison_tail: Cell<Option<AdjacentPoisonTail>>,
     group_closers: OnceCell<GroupClosers>,
     block_statement_after_separator: Cell<Option<(usize, bool)>>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
@@ -341,7 +344,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             unterminated_interpolation_starts,
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
-            index_poison_tail: Cell::new(None),
+            adjacent_poison_tail: Cell::new(None),
             group_closers: OnceCell::new(),
             block_statement_after_separator: Cell::new(None),
             angle_group_closers: OnceCell::new(),

@@ -1,11 +1,5 @@
 use super::*;
 
-#[derive(Clone, Copy)]
-pub(super) struct IndexPoisonTail {
-    cursor: usize,
-    boundary: Option<(usize, usize)>,
-}
-
 impl Parser<'_> {
     pub(super) fn parse_postfix(
         &mut self,
@@ -752,7 +746,7 @@ impl Parser<'_> {
                 || (preserve_separator
                     && self.is_poison_kind(current.kind())
                     && self
-                        .index_poison_tail_boundary()?
+                        .adjacent_poison_tail_boundary()?
                         .is_some_and(|(raw, _)| self.is_index_block_separator(outer_stops, raw)));
             let paired_end = if !at_block_separator
                 && (comma || at_bracket || leading_poison || !caller_boundary)
@@ -820,7 +814,7 @@ impl Parser<'_> {
         stops: Stops,
         opener: Span,
     ) -> Result<Option<usize>, ParserInternalError> {
-        let Some((boundary_raw, end)) = self.index_poison_tail_boundary()? else {
+        let Some((boundary_raw, end)) = self.adjacent_poison_tail_boundary()? else {
             return Ok(None);
         };
         let boundary = self.lexed.lexemes()[boundary_raw];
@@ -843,55 +837,6 @@ impl Parser<'_> {
                 && self
                     .lexical_recoveries
                     .block_statement_follows(self.lexed, raw)))
-    }
-
-    fn index_poison_tail_boundary(&self) -> Result<Option<(usize, usize)>, ParserInternalError> {
-        let cache = &self.lexical_recoveries.index_poison_tail;
-        if let Some(tail) = cache.get()
-            && tail.cursor == self.index
-        {
-            return Ok(tail.boundary);
-        }
-
-        // The next owner must be visible after an adjacent run of ordinary Lexer errors.
-        // A new line can start another statement, and terminal/string errors keep their owners.
-        let start = self.previous_significant_end();
-        let mut end = start;
-        for (offset, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
-            #[cfg(test)]
-            self.significant_raw_visits
-                .set(self.significant_raw_visits.get() + 1);
-            if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
-                continue;
-            }
-            if !matches!(
-                lexeme.kind(),
-                LexemeKind::Invalid(
-                    InvalidKind::UnexpectedCharacter
-                        | InvalidKind::InvalidCharLiteral
-                        | InvalidKind::InvalidNumericLiteral
-                ) | LexemeKind::Token(TokenKind::ReservedWord(_))
-            ) || self.gap_has_line_break(end, lexeme.span().start())?
-            {
-                // A same-line brace can become a trailing lambda if handed to Pratt.
-                let trailing_lambda = end > start
-                    && matches!(
-                        lexeme.kind(),
-                        LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
-                    )
-                    && !self.gap_has_line_break(end, lexeme.span().start())?;
-                let boundary =
-                    (end > start && !trailing_lambda).then_some((self.index + offset, end));
-                // Several unpaired indexes may unwind at the same rejected suffix.
-                cache.set(Some(IndexPoisonTail {
-                    cursor: self.index,
-                    boundary,
-                }));
-                return Ok(boundary);
-            }
-            end = lexeme.span().end();
-        }
-        Err(ParserInternalError::InvalidLexemeStream)
     }
 }
 
