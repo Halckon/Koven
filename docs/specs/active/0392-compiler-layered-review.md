@@ -4201,6 +4201,10 @@ PR #398 的双宿主工作区门禁会编译 `parser_index_recovery`，原定向
 178 项和前端单元 411 项均通过，零失败和忽略。后者全目标 Clippy 通过。
 本项实际双宿主矩阵随本批 PR 验收。
 
+合批后的 [PR 作业](https://github.com/Halckon/Koven/actions/runs/42674832105)
+在 Docs gate 暴露目标清单断言未同步。将下标 suite 加入显式新增清单，
+保留原 135 个目标，确保下标 suite 恰好入选一次，定向目标总数为 138。
+
 ## 170. R2 字面短路的流事实与来源版本
 
 在 `a90019c0` 上，旧 Single、MemoryDocument 和 Rooted Unit 都会把
