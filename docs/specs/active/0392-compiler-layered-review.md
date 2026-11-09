@@ -3338,3 +3338,12 @@ SSA 和 LLVM 对照仍调度 hidden deinit。活来源不明的规划负控保�
 与 `ac9a7d81` 合流后，五套前端 605 项通过。后端 comma-when 8 项、callable
 规划 13 项、Unit 短路与前缀 3 项通过，均零失败与忽略。前端与 codegen 全目标 Clippy、
 格式、文档和 Rust 尺寸门禁通过。
+
+PR #383 首轮 [Linux 定向门禁](https://github.com/Halckon/Koven/actions/runs/42565646073)
+的 codegen 全量有 10 项失败。三项 Range 为真实准入回归。refine 准入仍会检查 Const
+计划为 Never 的 RHS，因死调用无 route 而改走兼容路径。准入现与构建读取同一份 Const
+计划，并继续核验左项和活 RHS。六项 Map 与一项 sequential 的旧 SSA 断言仍要求发出
+只被死调用引用的函数。改按原声明 Origin 精确核验函数有无，保留活调用身份、Map owner
+传递、逐返回析构、Unit 紧随调用及 Abort 的断言。Linux 首轮相应原生 Map 正控仍通过。
+本机 Range 定向 6 项、Map 定向 42 项及 sequential 前缀 1 项通过，零失败、零忽略。
+修复后分别复核了 Const 准入和 SSA 断言。
