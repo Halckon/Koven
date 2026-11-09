@@ -514,6 +514,14 @@ impl Checker<'_, '_> {
             return self.expression(subject);
         }
         let id = self.id(expression);
+        if matches!(node.payload(), Expression::Call { .. })
+            && let Some(receiver) =
+                crate::ssa::unit_source_query::non_completing_call_receiver(self.inputs.typed, id)
+        {
+            self.migrated = true;
+            return receiver.source_unit() == self.inputs.source_unit
+                && self.expression(receiver.expression());
+        }
         // Jumps and abort calls are typed `Nothing`. An if or group can carry that
         // divergence; the inner expression still has to pass its own admission.
         let returns = (matches!(

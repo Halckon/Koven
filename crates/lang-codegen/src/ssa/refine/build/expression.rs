@@ -617,6 +617,20 @@ impl Builder<'_, '_> {
         if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if let Some(receiver) =
+            crate::ssa::unit_source_query::non_completing_call_receiver(self.inputs.typed, call)
+        {
+            if receiver.source_unit() != self.inputs.source_unit {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            if self.expression(receiver.expression())? != Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            for argument in arguments {
+                self.unreachable_drop_scopes.push(self.span(argument.value));
+            }
+            return Ok(Lowered::Diverged);
+        }
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs

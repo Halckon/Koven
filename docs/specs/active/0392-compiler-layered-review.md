@@ -3298,3 +3298,15 @@ view。保留实参借用与临时值的原退出清理路径。
 零忽略。前端与 codegen 全目标 Clippy 通过。独立对照实跑 Basic、Const 与活 receiver，
 并核对源码实参顺序与 ABI 槽位分离。已进入但不 invoke 的通用实例调度、receiver 自身
 退出以及已形成 callable view 的兼容前缀仍需复审。
+
+## 132. R3/R4 普通成员 receiver 先退出
+
+在 `cad9f6de`，`make(return 7).apply(lambda)` 通过前端后于原生构建报 MissingFact。
+同源 typed receiver 已明确无正常结果，所有权没有建立 receiver loan。refine 准入、
+构建与 Unit 兼容调用现先消费该事实，实际求值 receiver 并核对退出，不进入成员分派。
+
+原生测试分别核对默认 refine 与强制 Unit 兼容路由。receiver 前缀确实打印，早退路径
+不调用 make、普通实参函数或 callback；正常 receiver 对照依次打印 receiver、argument
+与活 callback。13 项 callable 规划和 3 项 Unit 短路与前缀测试通过，零失败、零忽略，
+codegen 全目标 Clippy 通过。独立复核核对了阶段身份和活 receiver 原准入。Range carrier、
+borrow-return 专用入口与 nullable proof 仍按各自原有边界。

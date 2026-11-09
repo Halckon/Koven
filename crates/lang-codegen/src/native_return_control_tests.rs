@@ -269,3 +269,41 @@ fun main(): Unit {
         b"prefix\nprefix\nprefix\nprefix\nlive\nok\n",
     );
 }
+
+#[test]
+fn method_receiver_exit_precedes_callback_argument_evaluation() {
+    let source = r#"
+class Worker {
+    fun apply(value: Int, action: () -> Unit): Unit { action() }
+    fun ack(value: Int): Unit { println("unexpected ack") }
+}
+fun receiverPrefix(): Int { println("receiver prefix"); return 1 }
+fun argument(): Int { println("argument"); return 2 }
+fun make(first: Int, second: Int): Worker { println("receiver"); return Worker() }
+fun choose(): Int {
+    make(receiverPrefix(), return 7).apply(argument(), { println("dead") })
+    return 3
+}
+fun legacyChoose(): Int {
+    make(receiverPrefix(), return 7).ack(argument())
+    return 3
+}
+fun legacy(): Unit {
+    if (legacyChoose() != 7) { error("wrong result") }
+    println("ok")
+}
+fun main(): Unit {
+    if (choose() != 7) { error("wrong result") }
+    make(1, 2).apply(argument(), { println("live") })
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("method-receiver-exit.ko", source, "main"),
+        b"receiver prefix\nreceiver\nargument\nlive\nok\n",
+    );
+    let compatibility = crate::ssa::with_per_family_lowering(|| {
+        emit_link_and_run("method-receiver-exit.ko", source, "legacy")
+    });
+    assert_success(&compatibility, b"receiver prefix\nok\n");
+}

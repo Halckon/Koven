@@ -87,6 +87,17 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.ownership_primitive(call).is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if let Some(receiver) =
+            crate::ssa::unit_source_query::non_completing_call_receiver(self.typed, call)
+        {
+            if receiver.source_unit() != self.source_unit {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return match self.lower(receiver.expression())? {
+                LoweredValue::Diverged => Ok(LoweredValue::Diverged),
+                _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if !self.supports_control_prefix(span)
             && !self.supports_direct_control_prefix(call, arguments, descriptor, span)?
