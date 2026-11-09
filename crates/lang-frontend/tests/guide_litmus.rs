@@ -1,11 +1,12 @@
-//! SPEC-0238: execute current Guide examples through both frontend entry points.
+//! SPEC-0238: execute current Guide examples through MemoryDocument and Rooted Unit.
 //! This is a diagnostic/ownership regression gate, not SSA or native conformance.
 
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SourceUnitKey, index_compilation_unit, resolve_compilation_unit_names,
+        resolve_names,
     },
     ownership_checking::{check_compilation_unit_constant_ownership, check_ownership},
     parser::parse_file,
@@ -17,6 +18,15 @@ use lang_frontend::{
 };
 
 const GUIDE: &str = include_str!("../../../docs/guide/15-conformance-and-staging.md");
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Entry {
+    Memory,
+    Rooted,
+    Legacy,
+}
+
+const UNIT_ENTRIES: [Entry; 2] = [Entry::Memory, Entry::Rooted];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Stage {
@@ -98,23 +108,56 @@ fn examples(guide: &str) -> Vec<&str> {
         .collect()
 }
 
-fn check(text: &str, unit: bool, expected_facts: &[(&str, &str)]) -> Option<Failure> {
+fn check(text: &str, entry: Entry, expected_facts: &[(&str, &str)]) -> Option<Failure> {
     let package = text.lines().find_map(|line| line.strip_prefix("package "));
     let path = package.map_or_else(
         || "litmus.ko".to_owned(),
         |package| format!("{}/litmus.ko", package.trim().replace('.', "/")),
     );
+    let display_name = if entry == Entry::Memory {
+        "guide-litmus-memory.ko"
+    } else {
+        &path
+    };
     let mut sources = SourceMap::new();
-    let source = sources.add_source(&path, text).expect("source");
+    let source = sources.add_source(display_name, text).expect("source");
     let lexed = lex(&sources, source).expect("lex");
     let parsed = parse_file(&sources, &lexed).expect("parse");
     if let Some(failure) = failure(Stage::Parse, &sources, parsed.diagnostics()) {
         return Some(failure);
     }
     let (names, environment) = standard_environments();
-    if unit {
-        let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
+    let input = match entry {
+        Entry::Memory => Some(SourceUnitInput::memory_document(source, &parsed)),
+        Entry::Rooted => Some(SourceUnitInput::new("root", &path, source, &parsed)),
+        Entry::Legacy => None,
+    };
+    if let Some(input) = input {
+        let inputs = [input];
         let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+        let [indexed] = index.source_units() else {
+            panic!("one source in the litmus");
+        };
+        assert_eq!(indexed.source_id(), source);
+        match (entry, indexed.key()) {
+            (Entry::Memory, SourceUnitKey::MemoryDocument) => {}
+            (Entry::Rooted, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), path);
+            }
+            _ => panic!("expected {entry:?} source identity"),
+        }
+        let indexed_package = index
+            .packages()
+            .iter()
+            .find(|record| record.id() == indexed.package())
+            .and_then(|record| record.name())
+            .expect("resolved package identity");
+        assert_eq!(
+            indexed_package.segments().join("."),
+            package.unwrap_or_default().trim(),
+            "{entry:?} package"
+        );
         let names =
             resolve_compilation_unit_names(&sources, &inputs, &index, &names).expect("unit names");
         if let Some(failure) = failure(Stage::Names, &sources, names.diagnostics()) {
@@ -126,7 +169,7 @@ fn check(text: &str, unit: bool, expected_facts: &[(&str, &str)]) -> Option<Fail
         if let Some(failure) = failure(Stage::Types, &sources, typed.diagnostics()) {
             return Some(failure);
         }
-        let source_unit = names.names().index().source_units()[0].id();
+        let source_unit = indexed.id();
         let expressions = parsed.ast().expressions().iter().map(|(id, node)| {
             (
                 node.span(),
@@ -235,34 +278,51 @@ fn check(text: &str, unit: bool, expected_facts: &[(&str, &str)]) -> Option<Fail
 
 // Exact per-entry-point typed snapshots: no blanket allowance for Deferred, Error, or missing facts.
 // A source type target is not a runtime expression value. Other deferred entries remain stage gaps.
-fn assert_both_with_facts(
+fn assert_unit_with_facts(
     text: &str,
     stage: Stage,
     diagnostics: &[(&str, &str)],
-    facts: [&[(&str, &str)]; 2],
+    facts: &[(&str, &str)],
 ) {
-    for (unit, facts) in [(false, facts[0]), (true, facts[1])] {
+    for entry in UNIT_ENTRIES {
         assert_eq!(
-            check(text, unit, facts),
+            check(text, entry, facts),
             expected(text, stage, diagnostics),
-            "unit={unit}"
+            "{entry:?}"
         );
     }
 }
 
-fn assert_both(text: &str, stage: Stage, diagnostics: &[(&str, &str)]) {
-    assert_both_with_facts(text, stage, diagnostics, [&[], &[]]);
+fn assert_with_legacy_facts(
+    text: &str,
+    stage: Stage,
+    diagnostics: &[(&str, &str)],
+    [legacy, unit]: [&[(&str, &str)]; 2],
+) {
+    assert_unit_with_facts(text, stage, diagnostics, unit);
+    assert_eq!(
+        check(text, Entry::Legacy, legacy),
+        expected(text, stage, diagnostics),
+        "legacy typed snapshot"
+    );
+}
+
+fn assert_unit(text: &str, stage: Stage, diagnostics: &[(&str, &str)]) {
+    assert_unit_with_facts(text, stage, diagnostics, &[]);
 }
 
 macro_rules! litmus {
     ($name:ident, $id:literal, [$($diagnostic:expr),*]) => {
-        litmus!($name, $id, [$($diagnostic),*], [], []);
+        #[test]
+        fn $name() {
+            assert_unit(examples(GUIDE)[$id - 1], Stage::Types, &[$($diagnostic),*]);
+        }
     };
     ($name:ident, $id:literal, [$($diagnostic:expr),*], [$($single:expr),*], [$($unit:expr),*]) => {
         #[test]
         fn $name() {
             let source = examples(GUIDE)[$id - 1];
-            assert_both_with_facts(source, Stage::Types, &[$($diagnostic),*], [&[$($single),*], &[$($unit),*]]);
+            assert_with_legacy_facts(source, Stage::Types, &[$($diagnostic),*], [&[$($single),*], &[$($unit),*]]);
         }
     };
 }
@@ -341,7 +401,7 @@ fn parenthesized_return_when_preserves_the_same_frontend_facts() {
         "        Shape.Point -> 0\n    }",
         "        Shape.Point -> 0\n    })",
     );
-    assert_both_with_facts(
+    assert_with_legacy_facts(
         &source,
         Stage::Types,
         &[],
@@ -366,7 +426,7 @@ fn runtime_bitwise_keeps_masked_count_contract() {
         "val mask = BitMasks.READ or BitMasks.WRITE",
         "val shifted = BitMasks.READ shl 32\n    val mask = shifted or BitMasks.WRITE",
     );
-    assert_both_with_facts(
+    assert_with_legacy_facts(
         &source,
         Stage::Types,
         &[],
@@ -380,7 +440,11 @@ fn runtime_bitwise_keeps_masked_count_contract() {
 #[test]
 fn counter_requires_inout_receiver() {
     let source = replace_once(examples(GUIDE)[4], "inout fun increment", "fun increment");
-    for (unit, code) in [(false, "L0135"), (true, "L0134")] {
+    for (entry, code) in [
+        (Entry::Memory, "L0134"),
+        (Entry::Rooted, "L0134"),
+        (Entry::Legacy, "L0135"),
+    ] {
         // The primary span is the assignment's field use, not the constructor declaration.
         let start = source.find("count = count").expect("field assignment");
         let expected = Some(Failure {
@@ -392,12 +456,12 @@ fn counter_requires_inout_receiver() {
                 "count".to_owned(),
             )],
         });
-        let facts = if unit {
-            &[][..]
-        } else {
+        let facts = if entry == Entry::Legacy {
             &[("count = count + 1", "Some(Deferred(Assignment))")][..]
+        } else {
+            &[][..]
         };
-        assert_eq!(check(&source, unit, facts), expected, "unit={unit}");
+        assert_eq!(check(&source, entry, facts), expected, "{entry:?}");
     }
 }
 
@@ -406,7 +470,7 @@ fn const_bitwise_accepts_all_six_normative_operators() {
     for operator in ["shl", "shr", "ushr", "and", "or", "xor"] {
         let expression = format!("3 {operator} 1");
         let source = format!("const val MASK: Int = {expression}");
-        assert_both(&source, Stage::Types, &[]);
+        assert_unit(&source, Stage::Types, &[]);
     }
 }
 
@@ -451,13 +515,13 @@ fn recursive_enum_example_uses_payloads_without_field_markers() {
         "enum class Expr {{{}",
         source.split_once('`').expect("inline source").0
     );
-    assert_both(&source, Stage::Types, &[]);
+    assert_unit(&source, Stage::Types, &[]);
 }
 
 #[test]
 fn raw_pointer_name_is_unresolved_not_proven_copyable() {
     let source = "value class Pointer(val pointer: RawPtr<Int>)";
-    assert_both(source, Stage::Names, &[("L0080", "RawPtr")]);
+    assert_unit(source, Stage::Names, &[("L0080", "RawPtr")]);
 }
 
 #[test]
@@ -465,10 +529,10 @@ fn overlapping_borrow_passed_to_callee_conflicts_with_exclusive_receiver() {
     let source = "class Worker { inout fun update(other: Worker): Unit {} }\n\
                   fun invalid(own worker: Worker): Unit { worker.update(worker) }";
     // Select the actual argument's occurrence rather than the earlier parameter name.
-    for unit in [false, true] {
+    for entry in UNIT_ENTRIES {
         let start = source.rfind("worker)").expect("overlapping argument");
         assert_eq!(
-            check(source, unit, &[]),
+            check(source, entry, &[]),
             Some(Failure {
                 stage: Stage::Ownership,
                 diagnostics: vec![(
@@ -478,7 +542,7 @@ fn overlapping_borrow_passed_to_callee_conflicts_with_exclusive_receiver() {
                     "worker".into()
                 )],
             }),
-            "unit={unit}"
+            "{entry:?}"
         );
     }
 }
@@ -490,12 +554,12 @@ fn two_phase_receiver_reservation_allows_completed_nested_reads() {
                       inout fun update(own count: Int): Unit {}\n\
                   }\n\
                   fun example(own worker: Worker): Unit { worker.update(worker.read()) }";
-    assert_both(source, Stage::Ownership, &[]);
+    assert_unit(source, Stage::Ownership, &[]);
 }
 
 #[test]
 fn returned_if_and_nested_when_pass_both_frontend_entry_points() {
-    assert_both(
+    assert_unit(
         "fun choose(flag: Boolean): Int { return if (flag) { return 7 } else when (flag) { true -> 8; false -> 9 } }",
         Stage::Types,
         &[],
@@ -505,17 +569,17 @@ fn returned_if_and_nested_when_pass_both_frontend_entry_points() {
 #[test]
 fn return_control_newline_and_missing_else_keep_exact_diagnostics() {
     let newline = "fun choose(): Int { return\nif (true) 1 else 0 }";
-    assert_both(newline, Stage::Types, &[("L0087", "return")]);
+    assert_unit(newline, Stage::Types, &[("L0087", "return")]);
     let incomplete = "fun choose(): Int { return if (true) 1 }";
     let end = incomplete.find("1 }").unwrap() + 1;
-    for unit in [false, true] {
+    for entry in UNIT_ENTRIES {
         assert_eq!(
-            check(incomplete, unit, &[]),
+            check(incomplete, entry, &[]),
             Some(Failure {
                 stage: Stage::Parse,
                 diagnostics: vec![("L0057".into(), end, end, String::new())],
             }),
-            "unit={unit}"
+            "{entry:?}"
         );
     }
 }

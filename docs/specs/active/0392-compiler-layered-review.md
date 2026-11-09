@@ -3907,3 +3907,16 @@ Clippy、格式、文档和 Rust 尺寸门禁通过。完整 Range 集合未在�
 成功并逐字节匹配 stdout，其中带值返回核对 child 读取、逆序析构、调用者
 读取返回值。lang-codegen 全目标 Clippy、fmt、文档和 Rust 尺寸门禁通过。
 更宽的嵌套控制流、循环及 legacy 兼容路由继续记在 R4。
+
+## 158. R0 Guide Litmus 消费者的双 Unit 入口
+
+在 `51aebc0c` 的原套件实跑 23 项。Guide15 的 12 段源代码和派生场景
+分别走 MemoryDocument 与 Rooted Unit，核对 source ID、输入 key 和 package。
+MemoryDocument 的展示名独立于声明包。两个输入仍核对诊断阶段、有序代码、
+字节范围与源码切片，以及常量和所有权能力。纯 Parser 样例在公共入口检查。
+
+旧 checker 仅在显式见证中运行。六条规范样例和两个派生输入保留原 typed
+快照，Counter 保留旧 L0135、Unit L0134 与同一字段范围的独立断言。
+独立复审核对各入口身份、原快照和精确诊断。更新后的 Guide 和相关前端
+七个套件共 276 项通过，零失败和忽略。前端全目标 Clippy、格式、文档
+和 Rust 尺寸门禁通过。本次验证覆盖前端套件，原 native 门禁不变。
