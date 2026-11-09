@@ -7364,3 +7364,32 @@ Mac AArch64、Rust1.96.0、LLVM21.1.8、debug=0、jobs=2，独占本片 target �
 未运行完整 codegen/frontend/workspace 测试、native 进程、Linux、故障注入或 sanitizer。
 本片仅本地提交待统一队列，不推送、开PR、合并或吸纳其他未发布候选；正式精确头CI待后续。
 动态 owner、完整借用全序、全部 Single 消费者退休及 Phase 4 仍未闭合，D10/E2保持in-progress。
+
+
+### 统一批次发布前组合验收（2026-11-10）
+
+在原统一 `4dfeda9e` 上保留父链合入已完成 owner `7820cc9f`、消费者
+`78755fa5` / `79d90070` / `cc3d27da` / `e2d9a02d`，以及实际 main
+`6ce85b07f9e36fcd322544c93f33274d6ba15c1b`（含 #404）。`94c1960c` 已在原历史中，
+未重复开发或重放；其他未提交工作树不纳入。本次合流没有新增生产实现，所有原分支保留。
+唯一架构文案冲突保全双方新增事实，四处 SPEC 冲突均验证共同基底为双方完整前缀后，
+逐字保留两侧追加正文各一次。独立复核确认各父链、单侧文件及关键自动合并无遗漏。
+
+测试源码为 `32128e78c93b869c414dd6d42632ca834e94e229`，完整树
+`c876c822b1cdde20a3fc1160307df4d1f55a9f5c`；本段为之后的纯文档追加。
+Mac AArch64、Rust 1.96.0、LLVM 21.1.8，locked/offline、debug=0、jobs=2，
+复用独占统一 target，Cargo 命令串行；先编译目标，再逐完整名称 `--exact` 实际执行。
+
+| 验收项 | 最终组合实际范围与结果 |
+|---|---|
+| frontend lib | 原 owner 101项、adjacent_borrow_results 25项、angle_group_tests 1项，共127 passed |
+| frontend integration | multifile_ownership_checking 5、ownership_iteration 24、ownership_closures 2、ownership_borrow_continuation 1、multifile_constant_qualification 11、unit_direct_call_loan_ends 245、while_flow_facts 16、ownership_borrow_result 12、ownership_nested_borrow_arguments 14、canonical_type_tables 1、control_branch_join 9、string_clone 19、parser_block_line_continuation 24、parser_index_recovery 22、parser_super_recovery 10、type_callable 的 inout/overload 6，共421 passed |
+| codegen lib | 声明根/诊断消费者、continue 19项、资源闭包、callable identity、closure lowering、借用合同/调用、nullable temporary、short-circuit及相关 native，共119 passed，其中14项实际 native |
+| 静态与结构 | frontend/codegen all-targets Clippy `-W clippy::all -D warnings`、workspace all-targets check、fmt、docs、相对6ce85b07尺寸、diff均通过；867 Markdown、2306 Rust、36项既有超长，未新增豁免 |
+| 独立证据核验 | 17个frontend目标与1个codegen目标的选择、COMMAND及成功集合完全相等，无重复、遗漏或零命中；每项1 passed、0 failed/ignored |
+
+合计667项不同测试通过，不累计旧头仅编译或选择器校正，也不重复累计旧切片证据。
+完整选择、逐项输出、二进制SHA256和输入身份保留本机临时验收目录，不入Git。
+未运行完整frontend/codegen/workspace测试、Linux或额外sanitizer；本地结果不代替正式CI。
+发布继续使用既有 #390 的快进更新，不新建PR、不合并main；远端精确头及其双平台与Preview
+CI须在发布后另核。SPEC-0341、D10/E2保持in-progress，不据此宣称一般动态生命周期或Phase 4闭合。
