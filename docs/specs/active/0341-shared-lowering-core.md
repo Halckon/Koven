@@ -6942,3 +6942,76 @@ Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、
 loop-carried owner、一般phi、动态多实例capture/释放、外层运输闭合与Phase 4/native。
 按用户要求仅本地分步提交，不推送、不改PR、不合main，未删除旧工作或oracle；D10/E2
 与本Spec保持in-progress。事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。
+
+
+## 162. 不变输入 owner 的真实双正常臂合流（2026-11-09）
+
+本片核 main `748516795812a1946b2fd9e3ca0f8046dc2e560b`、在途#390 `734dde83`、
+#398 `8952321a`、所有远端分支与本地owner链后，在新隔离分支从main建立并ff-only复用
+§160 `b9b1a9f73786b4b0666424a79ab7d3998b813ddd`；无重复实现、无新merge或提交重放。
+统一队列4dfeda9e保持独立，本地类型flow de94e7e3未吸纳；不能把本片结果算作其组合验收。
+
+新增独立 `UnitOwnerInvariantNormalJoinObservationV1`、`invariant_normal_join_observation_v1()`
+与 `UnitOwnerNormalArmBoundaryV1`。仅接三语句immutable String literal输入、While、
+Name suffix，两个不同普通Boolean参数的Name/Group条件；body前缀复用闭合本地String/
+move/Group/root Replace，唯一末尾If两臂都为正常空ControlBody。正常/跳转混合、臂内
+owner、其它尾值/嵌套/外层输入操作仍拒绝，不放宽旧空入边、直线/裸Continue、裸Break、
+双Continue或含Break终端能力，私有枚举与各公开getter互斥。
+
+While entry、If split、两臂各entry/completion、If join、body backedge、LoopExit共九份
+binding分别读取实际state，复用完整OwnedValue相等与ValueState17字段核验，其它16槽空。
+空ControlBody实际evaluator返回true，None tail、无owner result/pending jump，随后原
+branch-exit cleanup；空臂本身不执行drop_scope。两臂完成门要求精确control/序号/body、
+同active Arc、两个continuations和空事件。新增join hook只放在原merge_resource_states
+完成后，重新核scope、最近loop、completed及observer Arc再独立snapshot，不复制entry。
+
+原merge只按symbol相交并可能调整origin，不用它或same_owners代替完整输入证明：两臂
+completion与join各自完整核验。whole-body正常scope cleanup后独立读取backedge，并须
+实际Ok(true)、相同completed/collected Arc及原闭合V1。公开arm仅含entry/completion与
+IfFallthrough，七边包含两臂正常完成及唯一body Backedge；不冒充jump或臂内drop_scope。
+新seal限定全Fallthrough，核九binding、全部七边和catalog/analysis/split/join/arm身份。
+旧terminal的空merge要求、普通If/Choice、merge算法、cleanup顺序与Guide ASAP保持。
+
+红提交 `a37b74d64fe20bca8d2be16ca802c16bb235db42`：合法完整源码typed/ownership成功，
+因缺nonempty normal join观察而1 failed；最小实现后同例1 passed，原红源码保留于最终
+矩阵。实现、最终测试与架构提交 `16604b87cde3ddffebafabf6ccf03b4e72e4d54f`，tree
+`bfb7e80b9649978da0472c094cdb87b9f627d79b`；下表对应其Rust字节，后续仅追加本账本。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 真实正常臂、join与body回边 | `invariant_normal_join::actual_normal_arms_preserve_owner_through_the_real_join` | 1 passed，2×2×2×4＝32矩阵输入+精确原红1例 |
+| 拒绝与旧能力 | 同模块 `normal_join_rejects_unproved_paths_and_preserves_prior_capabilities` | 1 passed，29合法否例；另复核四种旧终端组合，空输入正常If仍取得旧loop能力 |
+| 来源与错误边界 | 同模块 `normal_join_sources_and_failures_keep_capabilities_separate` | 1 passed，双source/二次analysis隔离；3输入错误/未闭合body、2非法arm无泄露，sibling错误清空观察 |
+| 公开两入口 | `invariant_normal_join_owner_unit::normal_join_matches_actual_sources_in_both_unit_inputs` | 1 passed，15片段×两入口，共30分析、45 source inputs，12准入/33拒绝 |
+| owner与共享hook组合 | §160的89 lib exact +本片3；20 iteration +本片公开1；原5 multifile、2 closures、1 borrow-continuation | 92 + 21 + 5 + 2 + 1 passed，0 failed/ignored |
+| main常量邻控 | §160保留的multifile_constant_qualification 11项完整名exact | 11 passed，未借用旧main CI |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、LLVM21 workspace all-targets check、fmt、docs、尺寸、diff | 通过；866 Markdown、2288 Rust、37历史超限，尺寸基底b9b1a9f7，无新豁免 |
+| 独立复审与复跑 | 两臂/真实merge/body三处区分、九次snapshot、旧能力互斥及源码oracle；新3 lib与1公开exact | 无剩余blocker；4项各1 passed，前后HEAD/tree/clean及binary SHA256相同 |
+
+合计132项不同ordinary，即121项owner相关与11项main常量邻控，全部在本片依赖组合
+重建后执行；红绿、初验与独立复跑不重复累计。lib完整名前缀仍为
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+正例从index/AST独立核两实际空ControlBody、source、七边与九份binding，body producer
+数1/1/2/3与Replace数0/0/1/2独立给定；逐producer核实际String/body span、Create及唯一
+真实Drop，输入/body catalog互不接受foreign token，无虚构ControlTransfer Drop。
+单源正反例比较完整Analysis开关等值；共享compare只构造source 0 Checker，双source
+另核来源及分析身份，不能称两个source均已开关对照。非法arm含额外语句，准入时已拒绝，
+不是首臂完成后发生的运行中撤销证明。
+
+损坏封印的join/backedge binding、join/split/arm Arc、catalog、重排/重复arm、错误边、
+完整自洽异类completion与deferred守卫已编译，未本机执行。独审发现其中曾用control作
+jump导致旧closed seal先拒绝，已改同文件真实terminal Continue ID后静审确认对照成立；
+不把编译或静审当作守卫运行通过。旧model/Abort/故障注入同样只编译。
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target；
+未跑frontend/workspace全量测试、Linux、native或精确头正式CI，132项不是统一队列验收。
+
+为保持架构页主题边界，将旧页四个不变输入章节保全迁至
+[不变输入循环边界](../../architecture/unit-invariant-loop-owner.md)，仅一处上下文“上述”
+替换为闭合body链接；脚本逐字比对旧章节保全。旧页仍为闭合body入口并链接新页，目录同步，
+两页分别89/146行；本片正常join事实写入新页，不压行绕过页面护栏。
+
+收尾main/#390/#398头未变；另见本地SPEC-0398后续c356d70d，仅4个codegen文件，无本片
+producer重叠，未吸纳或验证该组合。仍缺正常/跳转混合臂的非空状态、变更owner、一般
+header/exit phi、动态多实例capture/释放、suffix最终消费与Phase 4/native；LoopExit
+仍清理原condition state，不是实际body回灌或一般出口运输。本Spec与D10/E2仍in-progress。
+按用户要求仅本地分步提交，不推送、不改PR、不合main，保留全部旧链、工作树和oracle。
