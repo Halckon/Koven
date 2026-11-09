@@ -42,6 +42,38 @@ impl UnitExpressionLowerer<'_> {
         } else {
             None
         };
+        if ordinary_if && nullable_if.is_none() && self.constant_owned.is_none() {
+            let (yes, no) = self
+                .typed
+                .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, condition));
+            if yes != no {
+                let (branch, index) = if yes {
+                    (Some(then_branch), then_index)
+                } else {
+                    (else_branch, else_index)
+                };
+                let point = UnitDropPoint::BranchExit {
+                    control,
+                    branch: index,
+                };
+                if let Some(guard) = guard.filter(|guard| guard.non_null_when_true() == yes) {
+                    self.map_borrow_guards.insert(guard.symbol(), guard);
+                }
+                let exit = if let Some(branch) = branch {
+                    self.lower_current_if_branch(branch, point, result)?
+                } else {
+                    if result_required {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
+                    self.emit_drops(point)?;
+                    Some(self.loop_state())
+                };
+                self.map_borrow_guards = baseline_guards;
+                let mut exits: Vec<_> = exit.into_iter().collect();
+                self.retire_if_exit_proofs(control, &mut exits, span)?;
+                return self.merge_unit_exits(exits, span);
+            }
+        }
         let map_checkpoint =
             self.checkpoint_map_conditional(control, result_required, else_branch.is_some(), span)?;
         let baseline = self.bindings.clone();

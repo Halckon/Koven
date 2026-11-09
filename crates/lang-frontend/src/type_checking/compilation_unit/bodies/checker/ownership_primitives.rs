@@ -306,6 +306,9 @@ impl BodyChecker<'_> {
             // block publication of the call even when the old value is known.
             self.replacement_values.insert(expression_id, old_pending);
         }
+        if deferred_operand && !valid {
+            return Ok(self.rejected_call_recovery(source, expression));
+        }
         if deferred_operand || !valid {
             let ty = if deferred_operand {
                 self.deferred_type(DeferredReason::Call)
@@ -609,6 +612,9 @@ impl BodyChecker<'_> {
                 let pending = arg0_pending || self.contains_unresolved_call_type(arg1_result.ty);
                 self.flow_versions.replace_pending(second, pending);
             }
+        }
+        if deferred_operand && !valid {
+            return Ok(self.rejected_call_recovery(source, expression));
         }
         if deferred_operand || !valid {
             let ty = if deferred_operand {

@@ -1,7 +1,7 @@
 //! Conservative condition outcomes from published completion facts and short-circuit structure.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    parser::{BinaryOperator, Expression, PrefixOperator, Statement},
+    parser::{BinaryOperator, Expression, Statement},
 };
 
 use super::Checker;
@@ -16,49 +16,11 @@ impl Checker<'_, '_> {
 
     /// A Boolean leaf may take either normal edge unless the frontend proved it exits.
     pub(super) fn condition_outcomes(&self, expression: ExpressionId) -> (bool, bool) {
-        if !self.expression_may_continue(expression) {
-            return (false, false);
-        }
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return (true, true);
-        };
-        match node.payload() {
-            Expression::Group { expression } => self.condition_outcomes(*expression),
-            Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand,
-                ..
-            } => {
-                let (yes, no) = self.condition_outcomes(*operand);
-                (no, yes)
-            }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalAnd,
-                right,
-                ..
-            } => {
-                let (left_true, left_false) = self.condition_outcomes(*left);
-                let (right_true, right_false) = self.condition_outcomes(*right);
-                (
-                    left_true && right_true,
-                    left_false || (left_true && right_false),
-                )
-            }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalOr,
-                right,
-                ..
-            } => {
-                let (left_true, left_false) = self.condition_outcomes(*left);
-                let (right_true, right_false) = self.condition_outcomes(*right);
-                (
-                    left_true || (left_false && right_true),
-                    left_false && right_false,
-                )
-            }
-            _ => (true, true),
+        let expression = self.id(expression);
+        if self.inputs.constant_owned.is_some() {
+            self.inputs.typed.structural_boolean_outcomes(expression)
+        } else {
+            self.inputs.typed.ordinary_boolean_outcomes(expression)
         }
     }
 

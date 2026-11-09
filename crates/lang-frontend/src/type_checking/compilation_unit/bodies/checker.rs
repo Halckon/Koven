@@ -135,6 +135,7 @@ pub(super) struct BodyChecker<'a> {
     stable_flow_symbols: BTreeSet<UnitSymbolId>,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
     flow_versions: FlowVersions,
+    inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,
     replacement_values: BTreeMap<UnitExpressionId, bool>,
     parts: CompilationUnitTypeParts,
@@ -227,6 +228,7 @@ impl<'a> BodyChecker<'a> {
             stable_flow_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
             flow_versions: FlowVersions::default(),
+            inactive_inout_calls: BTreeSet::new(),
             pending_immutable_bindings: BTreeSet::new(),
             replacement_values: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
@@ -392,6 +394,11 @@ impl<'a> BodyChecker<'a> {
             .integer_operations
             .sort_by_key(|fact| fact.expression());
         self.finish_nullable_when_facts();
+        for source in source_units {
+            let unit = source.id();
+            self.parts
+                .record_ordinary_boolean_outcomes(unit, self.files[unit.index()]);
+        }
         // 排序与全部 trial 完成后才分流。诊断候选仍属原 owner，不重新发布执行表。
         if !self.signatures.is_valid()
             || diagnostics

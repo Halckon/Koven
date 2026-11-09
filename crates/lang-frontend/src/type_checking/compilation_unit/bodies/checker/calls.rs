@@ -45,6 +45,17 @@ impl BodyChecker<'_> {
         }
     }
 
+    pub(super) fn rejected_call_recovery(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+    ) -> ExpressionCheck {
+        // Final admission still needs the Deferred anchor for uncommitted children.
+        self.inactive_inout_calls
+            .insert(UnitExpressionId::new(source, expression));
+        self.unresolved_call()
+    }
+
     fn argument_check_start(&self) -> ArgumentCheckStart {
         ArgumentCheckStart {
             diagnostics: self.diagnostics.len(),
@@ -247,14 +258,10 @@ impl BodyChecker<'_> {
                 Some(self.check_expression(source, callee, None, None, return_type)?)
             };
             self.check_recovery_call_arguments(source, callee, arguments, return_type)?;
-            if let Some(result) = callee_result
-                && self.is_error(result.ty)
-            {
-                return Ok(result);
-            }
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
-                falls_through: true,
+            return Ok(match callee_result {
+                Some(result) if self.is_error(result.ty) => result,
+                Some(result) if self.is_deferred(result.ty) => self.unresolved_call(),
+                _ => self.rejected_call_recovery(source, expression),
             });
         }
         if candidates.is_empty() {
@@ -650,7 +657,7 @@ impl BodyChecker<'_> {
             if uncommitted_context {
                 // Final admission needs the unresolved call root to identify
                 // the uncommitted lambda. Independent errors are already recorded.
-                return Ok(self.unresolved_call());
+                return Ok(self.rejected_call_recovery(source, expression));
             }
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
@@ -691,7 +698,7 @@ impl BodyChecker<'_> {
             })
         {
             if call_pending {
-                return Ok(self.unresolved_call());
+                return Ok(self.rejected_call_recovery(source, expression));
             }
             self.emit(
                 codes::INVALID_OVERRIDE,

@@ -77,3 +77,124 @@ fun entry(): Unit {
         b"7\n9\n",
     );
 }
+
+#[test]
+fn ordinary_short_circuit_return_keeps_the_when_bypass_owner() {
+    for (selector, arms, when_true, when_false) in [
+        (
+            "flag && pred(return 7)",
+            "-> 2; else -> { observe(x); 3 }",
+            7,
+            3,
+        ),
+        (
+            "flag || pred(return 7)",
+            "-> { observe(x); 2 }; else -> 3",
+            2,
+            7,
+        ),
+    ] {
+        let source = format!(
+            r#"class Node(val tag: Int)
+fun observe(borrow value: Node): Unit {{ if (value.tag == 1) {{ println("observe") }} }}
+fun pred(value: Int): Boolean {{ println("pred must not run"); return true }}
+fun test(flag: Boolean, own x: Node): Int {{
+    return when {{ {selector} {arms} }}
+}}
+fun main(): Unit {{
+    if (test(true, Node(1)) != {when_true} || test(false, Node(1)) != {when_false}) {{
+        error("wrong result")
+    }}
+    println("ok")
+}}
+"#
+        );
+        let output = emit_link_and_run("when-short-circuit-owner.ko", &source, "main");
+        assert_success(&output, b"observe\nok\n");
+    }
+}
+
+#[test]
+fn ordinary_short_circuit_return_prunes_unreachable_native_edges() {
+    for (body, when_true, when_false) in [
+        (
+            "return if (flag && pred(return 7)) { reads(x); 2 } else 3",
+            7,
+            3,
+        ),
+        (
+            "while (flag && pred(return 7)) { reads(x) }\nreturn 3",
+            7,
+            3,
+        ),
+        (
+            "while (flag || pred(return 7)) { return 2 }\nreads(x)\nreturn 3",
+            2,
+            7,
+        ),
+        ("while (flag || pred(return 7)) { break }\nreturn 3", 3, 7),
+        (
+            "if ((flag && pred(return 7)) && reads(x)) { return 2 }\nreturn 3",
+            7,
+            3,
+        ),
+        (
+            "if ((flag || pred(return 7)) && pred(9)) { return 2 }\nreturn 3",
+            2,
+            7,
+        ),
+    ] {
+        let source = format!(
+            r#"class Node(val tag: Int)
+fun reads(borrow value: Node): Boolean = value.tag == 1
+fun consume(own value: Node): Unit {{}}
+fun pred(value: Int): Boolean {{ println("pred"); return true }}
+fun test(flag: Boolean, own x: Node): Int {{
+    consume(x)
+    {body}
+}}
+fun main(): Unit {{
+    if (test(true, Node(1)) != {when_true} || test(false, Node(1)) != {when_false}) {{
+        error("wrong result")
+    }}
+    println("ok")
+}}
+"#
+        );
+        let expected = if body.contains("pred(9)") {
+            b"pred\nok\n".as_slice()
+        } else {
+            b"ok\n".as_slice()
+        };
+        let run = || emit_link_and_run("ordinary-short-circuit-edges.ko", &source, "main");
+        assert_success(&run(), expected);
+        assert_success(&crate::ssa::with_per_family_lowering(run), expected);
+    }
+}
+
+#[test]
+fn ordinary_short_circuit_required_rhs_consumes_each_owner_once() {
+    let source = r#"
+class Node(val tag: Int) {
+    deinit() { println("drop") }
+}
+fun take(own value: Node): Boolean {
+    if (value.tag != 1) { error("wrong owner") }
+    println("take")
+    return true
+}
+fun test(own x: Node, own y: Node): Unit {
+    val a = (true) && take(x)
+    val b = !true || take(y)
+    if (!(a && b)) { error("wrong result") }
+}
+fun main(): Unit {
+    test(Node(1), Node(1))
+    println("ok")
+}
+"#;
+    let run = || emit_link_and_run("ordinary-required-rhs.ko", source, "main");
+    let expected = b"take\ndrop\ntake\ndrop\nok\n";
+    assert_success(&run(), expected);
+    assert_success(&crate::ssa::with_per_family_lowering(run), expected);
+}
