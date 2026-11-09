@@ -4,31 +4,59 @@ use super::*;
 impl Checker<'_> {
     pub(in crate::type_checking::checker) fn call_operand_recovery(
         &self,
-        mut expression: ExpressionId,
+        expression: ExpressionId,
         ty: TypeId,
     ) -> Option<CallRecovery> {
-        let fallback = if self.is_error(ty) {
-            CallRecovery::Rejected
-        } else if self.is_deferred(ty) {
-            CallRecovery::Pending
-        } else {
-            return None;
-        };
-        loop {
-            if let Some(&recovery) = self.call_recoveries.get(&expression.index()) {
-                return Some(recovery);
+        let recovery_for_type = |ty| {
+            if self.is_error(ty) {
+                Some(CallRecovery::Rejected)
+            } else if self.is_deferred(ty) {
+                Some(CallRecovery::Pending)
+            } else {
+                None
             }
-            let Some(Expression::Group { expression: inner }) = self
-                .ast()
-                .expressions()
-                .get(expression)
-                .ok()
-                .map(|node| node.payload())
-            else {
-                return Some(fallback);
-            };
-            expression = *inner;
+        };
+        let mut operands = vec![(expression, recovery_for_type(ty)?)];
+        let mut recovery = None;
+        while let Some((operand, fallback)) = operands.pop() {
+            if let Some(&known) = self.call_recoveries.get(&operand.index()) {
+                recovery = recovery.max(Some(known));
+            } else {
+                let children = match self
+                    .ast()
+                    .expressions()
+                    .get(operand)
+                    .ok()
+                    .map(|node| node.payload())
+                {
+                    Some(
+                        Expression::Group { expression }
+                        | Expression::Member {
+                            receiver: expression,
+                            ..
+                        },
+                    ) => [Some(*expression), None],
+                    Some(Expression::Index { receiver, index }) => [Some(*receiver), Some(*index)],
+                    _ => [None, None],
+                };
+                let before = operands.len();
+                // A concrete operand has no recovery to forward. Keep the
+                // projection's own result when neither checked input supplies one.
+                operands.extend(children.into_iter().flatten().filter_map(|child| {
+                    let child_recovery = recovery_for_type(self.expression_types[child.index()]?)?;
+                    // A merely deferred input cannot explain a diagnosed
+                    // projection error. An Error input may itself wrap Pending.
+                    (child_recovery >= fallback).then_some((child, child_recovery))
+                }));
+                if operands.len() == before {
+                    recovery = recovery.max(Some(fallback));
+                }
+            }
+            if recovery == Some(CallRecovery::Rejected) {
+                break;
+            }
         }
+        recovery
     }
 
     pub(super) fn pending_call_receiver_exit(

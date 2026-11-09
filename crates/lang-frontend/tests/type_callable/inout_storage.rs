@@ -264,3 +264,57 @@ fn pending_recovery_values_keep_outer_inout_writes_conservative() {
         assert_inout_diagnostic_spans(&text, &[("L0084", "x")]);
     }
 }
+
+#[test]
+fn rejected_recovery_values_through_projections_do_not_enable_outer_writes() {
+    let declarations = "class Device { fun touch(inout target: Int?): Boolean { target = null; return true } }\nfun build(inout target: Int, input: Int, device: Device): Device = device\nfun reject(inout target: Int, input: Int): Int = input";
+    for (parameter, call) in [
+        (
+            "device: Device",
+            "build(&y, produce<Int>(), device).touch(&x)",
+        ),
+        (
+            "values: List<(inout Int?) -> Boolean>",
+            "values[reject(&y, produce<Int>())](&x)",
+        ),
+    ] {
+        let text = format!(
+            "{declarations}\nfun run(produce: () -> Int, {parameter}): Unit {{ var y: Int? = 7; var x: Int? = 7; if (x != null) {{ {call}; val after: Int = x }} }}"
+        );
+        assert_inout_diagnostic_spans(&text, &[("L0084", "y")]);
+    }
+}
+
+#[test]
+fn replace_distinguishes_rejected_and_pending_recovery_operands() {
+    let declarations = "fun reject(inout target: Int, input: Int): Int = input\nfun choose(input: Int): Int = input\nfun choose(input: Boolean): Int = 7";
+    for (value, expected) in [
+        ("reject(&y, produce<Int>())", "y"),
+        ("choose(produce<Int>())", "x"),
+    ] {
+        let text = format!(
+            "{declarations}\nfun run(produce: () -> Int): Unit {{ var y: Int? = 7; var x: Int? = 7; if (x != null) {{ replace(&x, {value}); val after: Int = x }} }}"
+        );
+        assert_inout_diagnostic_spans(&text, &[("L0084", expected)]);
+    }
+}
+
+#[test]
+fn projection_recovery_preserves_local_index_errors_and_pending_inputs() {
+    for (text, expected) in [
+        (
+            "fun run(values: List<(inout Int?) -> Boolean>): Unit { var x: Int? = 7; if (x != null) { values[false](&x); val after: Int = x } }",
+            ("L0128", "false"),
+        ),
+        (
+            "fun outer(inout target: Int?, value: Int): Boolean = true\nfun run(produce: () -> Int, table: Map<Int, Int?>): Unit { var x: Int? = 7; if (x != null) { outer(&x, table[produce<Int>()]); val after: Int = x } }",
+            ("L0130", "table[produce<Int>()]"),
+        ),
+        (
+            "fun choose(input: Int): Int = input\nfun choose(input: Boolean): Int = 7\nfun run(produce: () -> Int, values: List<(inout Int?) -> Boolean>): Unit { var x: Int? = 7; if (x != null) { values[choose(produce<Int>())](&x); val after: Int = x } }",
+            ("L0084", "x"),
+        ),
+    ] {
+        assert_inout_diagnostic_spans(text, &[expected]);
+    }
+}

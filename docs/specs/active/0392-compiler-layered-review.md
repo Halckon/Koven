@@ -4744,3 +4744,36 @@ Single 用明确的 Pending / Rejected 状态取代写回布尔判定，保留
 实参两组，前者唯一 L0084 位于内层原始实参，后者唯一 L0084 位于
 后续读取。公共入口使用 Unit，Single 的实际状态由同源码 Rust
 回归直接核验。
+
+## 195. R2 投影与所有权原语传播恢复状态
+
+在 `28f2cd06` 上，Member 接收者、Index 的待定下标及
+`replace` 的待定实参均实跑复现丢失已确认拒绝。纯待定重载传入
+`replace` 则会被误当作拒绝。公共类型 API 探针和定向红测已固定
+两类差异，两种 Unit 入口提供同源码对照。
+
+投影查询只沿已经检查且带恢复类型的操作数读取状态。已确认拒绝
+优先，独立产生的 Error 不由仅 Deferred 的输入解释。顺序下标
+自身的 L0128 与 nullable Map 查询自身的 L0130 均保留，Error
+包装下的 Pending 下标仍保守。两种所有权原语共享收尾判定，形状
+和显式类型的本地硬错优先，保留原恢复类型和实际内层写回。
+独立复核通过。三个定向套件共 151 项通过，零失败、忽略或过滤。
+
+另一个实跑边界是 `Map<Int, Int>` 的 Deferred key。Single 仍
+发布具体 `V?` 和 MapGet，后继调用看不到拒绝的来源。两种 Unit
+入口仅报原始错配，Single 还多报后继 L0084。公开描述符探针
+实跑确认，具体 key 三入口都有 MapGet，纯待定与已拒 key 仅
+Single 有 MapGet。Unit 对纯待定保留暂定 `V?`，对已拒 key
+返回 Error。后续需核对 MapGet 准入，保留暂定类型和已知
+nullable 或 MoveOnly value 的本地诊断。
+
+[#403 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42714892193)
+已完成，双宿主定向、预览生产与独立消费、Editor lexical 和最终
+汇总均通过。PR 专用 Evidence 按范围跳过。
+
+完整 frontend 184 个测试目标共 3046 项通过，零失败、忽略或
+过滤，含 12 项文档测试。严格 workspace Clippy、CLI 构建、格式、
+文档及尺寸检查通过。CLI 单文件与项目各实跑 Member、`replace`
+和 Map 本地硬错三组，分别只在原始操作数或 Map 查询报 L0084
+或 L0130。公共入口使用 Unit，Single 的效果由同源码 Rust 回归
+直接核验。
