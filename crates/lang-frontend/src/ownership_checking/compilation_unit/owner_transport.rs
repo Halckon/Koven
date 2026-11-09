@@ -1,4 +1,7 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
+mod loops;
+pub(super) use loops::publish_observations;
+pub use loops::{UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1};
 pub(super) mod values;
 pub use values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
@@ -246,6 +249,7 @@ pub struct UnitOwnerObservation {
     pub(super) definitions: Vec<UnitOwnerDefinition>,
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
+    pub(super) loop_value: Option<Box<UnitOwnerLoopObservationV1>>,
 }
 impl UnitOwnerObservation {
     /// Source-qualified callable.

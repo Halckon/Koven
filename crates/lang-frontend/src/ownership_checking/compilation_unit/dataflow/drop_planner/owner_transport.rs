@@ -2,6 +2,7 @@
 mod branch;
 mod capture;
 pub(super) mod choice;
+pub(super) mod loops;
 #[cfg(test)]
 mod tests;
 
@@ -32,6 +33,7 @@ impl DropPlanner<'_, '_> {
         }
         let identity = std::sync::Arc::new(());
         self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
+        self.owner_loop = loops::LoopTransaction::begin(self.checker, item, identity.clone());
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity,
@@ -40,6 +42,7 @@ impl DropPlanner<'_, '_> {
             definitions: Vec::new(),
             events: Vec::new(),
             choice_value: None,
+            loop_value: None,
         });
     }
 
@@ -52,6 +55,7 @@ impl DropPlanner<'_, '_> {
             return;
         }
         self.owner_choice = None;
+        self.owner_loop = None;
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
@@ -63,6 +67,7 @@ impl DropPlanner<'_, '_> {
             definitions: Vec::new(),
             events: Vec::new(),
             choice_value: None,
+            loop_value: None,
         });
     }
 
@@ -71,7 +76,12 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
+        let loop_value = self
+            .owner_loop
+            .take()
+            .and_then(loops::LoopTransaction::finish);
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.loop_value = loop_value.map(Box::new);
             observation.choice_value = choice.map(Box::new);
             if !observation.is_consistent() {
                 let point = match observation.callable {
@@ -355,6 +365,42 @@ impl DropPlanner<'_, '_> {
             });
         }
         Ok(EvaluatedOwner { continues, owner })
+    }
+
+    // Independent of the legacy observation, which rejects the preceding String If.
+    // Called only after the real checked primitive commit and root-origin update.
+    pub(super) fn commit_choice_primitive(&mut self, call: ExpressionId, state: &ValueState) {
+        if self.owner_choice.is_none() {
+            return;
+        }
+        let plan = self.checker.ownership_primitives.iter().find(|plan| {
+            plan.descriptor().expression() == self.checker.unit_expression(call)
+                && plan.descriptor().kind() == OwnershipPrimitiveKind::Replace
+                && plan.places().len() == 1
+                && plan.places()[0].is_root()
+                && plan.descriptor().operands().len() == 2
+                && self
+                    .checker
+                    .typed
+                    .types()
+                    .get(plan.descriptor().value_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        });
+        let root = plan
+            .map(|plan| plan.places()[0].root())
+            .filter(|root| state.position(*root).is_some());
+        let argument = plan.map(|plan| plan.descriptor().operands()[1]);
+        let pending = argument.is_some_and(|argument| {
+            self.pending_value_registered(call, argument.expression(), state)
+        });
+        if let Some(choice) = &mut self.owner_choice {
+            choice.replacement_committed(
+                self.checker.unit_expression(call),
+                root,
+                argument,
+                pending,
+            );
+        }
     }
 
     pub(super) fn commit_owner_primitive(

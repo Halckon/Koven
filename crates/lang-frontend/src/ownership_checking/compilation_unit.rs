@@ -622,11 +622,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
-            owner_observations: if successful {
-                dataflow.owner_observations
-            } else {
-                Vec::new()
-            },
+            owner_observations: owner_transport::publish_observations(
+                dataflow.owner_observations,
+                successful,
+                dataflow.deferred.is_empty(),
+            ),
             receiver_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.receiver_call_prefix_ends
             } else {

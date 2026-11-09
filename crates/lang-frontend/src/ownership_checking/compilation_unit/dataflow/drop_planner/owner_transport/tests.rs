@@ -1,9 +1,21 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
 mod choice_admission;
+mod choice_alias_chain;
 mod choice_boundaries;
 mod choice_branch_local;
 mod choice_capture_isolation;
+mod choice_conditions;
+mod choice_dual_forwarding;
+mod choice_forwarding;
+mod choice_installed_first;
+mod choice_installed_forwarding;
+mod choice_predicates;
+mod choice_replace;
+mod choice_replace_forwarding;
+mod choice_replace_groups;
+mod choice_result_groups;
+mod closed_while;
 mod combination;
 mod control_tail;
 mod loop_boundaries;
