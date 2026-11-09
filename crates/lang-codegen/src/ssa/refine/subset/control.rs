@@ -97,6 +97,12 @@ impl Checker<'_, '_> {
             && (self.scope_requires_refine()
                 || self.map_kv(*inner).is_some()
                 || self.is_map_remove_symbol(fact.symbol())
+                || self
+                    .inputs
+                    .typed
+                    .non_null_uses()
+                    .iter()
+                    .any(|use_fact| use_fact.symbol() == fact.symbol())
                 || self.inputs.owned.loans().iter().any(|loan| {
                     matches!(
                         loan.target(),

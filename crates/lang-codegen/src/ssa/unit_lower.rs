@@ -194,7 +194,6 @@ struct UnitExpressionLowerer<'a> {
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
-    entry_string_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
     result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
     temporary_range_slots: BTreeMap<UnitExpressionId, Vec<usize>>,
@@ -274,18 +273,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 _ => false,
             };
-            // A plain literal owns static bytes and cannot invalidate a String If view.
-            // Interpolation still uses the ordinary carrier/transfer gate.
-            let plain_string = self.has_only_string_if_proofs()
-                && matches!(node.payload(), Expression::String { parts, .. }
-                    if parts.iter().all(|part| matches!(part, lang_frontend::parser::StringPart::Text(_))));
-            let string_if_return = match node.payload() {
-                Expression::Return { value, .. } => {
-                    self.can_return_from_nullable_string_if(unit_expression, *value, span)?
-                }
-                _ => false,
-            };
-            if !root_borrow_call && !plain_string && !string_if_return {
+            if !root_borrow_call {
                 self.reject_live_if_proof(span)?;
             }
         }
@@ -447,35 +435,24 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let string_if_return = self.can_return_from_nullable_string_if(
-            UnitExpressionId::new(self.source_unit, expression),
-            value,
-            span,
-        )?;
-        if !string_if_return {
-            self.reject_live_if_proof(span)?;
-        }
+        self.reject_live_if_proof(span)?;
         if self.function.carrier_return.is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let (mut result, nullable_owner_return) = match value {
-            Some(value) => self.lower_proven_owner_return(expression, value, span)?,
-            None => (LoweredValue::Unit, false),
+        let mut result = match value {
+            Some(value) => self.lower(value)?,
+            None => LoweredValue::Unit,
         };
         if result == LoweredValue::Diverged {
             return Ok(result);
         }
         if let (Some(value_expression), LoweredValue::Value(lowered)) = (value, result) {
-            let (lowered, transferred) = if nullable_owner_return {
-                (lowered, false)
-            } else {
-                self.adapt_owned_value_to_expected(
-                    value_expression,
-                    lowered,
-                    self.return_type,
-                    span,
-                )?
-            };
+            let (lowered, transferred) = self.adapt_owned_value_to_expected(
+                value_expression,
+                lowered,
+                self.return_type,
+                span,
+            )?;
             if !transferred {
                 self.transfer_owned_expression(value_expression, lowered, span)?;
             }
@@ -493,19 +470,11 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
-        if string_if_return {
-            // Return cancels any qualified text frames. Loans are already ended above;
-            // discard the bookkeeping so the original root drop can retire its proof.
-            self.pending_call_frames.clear();
-        }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
         )))?;
         self.retire_nullable_when_transfers(0, span)?;
-        if string_if_return && !self.nullable_proofs.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(

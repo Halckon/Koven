@@ -1,7 +1,8 @@
-//! Bounded nullable entries: root Borrow and String/Rc/heap Ifs.
+//! Bounded nullable entries: root Borrow and Rc/heap Ifs.
+#[cfg(test)]
+mod field_tests;
 mod heap;
 mod rc;
-mod string;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
@@ -23,7 +24,7 @@ pub(super) struct NullableIfEntry {
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Reuse the proof entry only for a required root Borrow or String/Rc/heap If.
+    /// Reuse the proof entry only for a required root Borrow or Rc/heap If.
     pub(super) fn prepare_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -31,26 +32,10 @@ impl UnitExpressionLowerer<'_> {
         result_required: bool,
         span: Span,
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
-        if !self.nullable_proofs.is_empty() {
-            return Ok(None);
-        }
-        let diverges = self
-            .typed
-            .expression_type(control)
-            .is_some_and(|ty| builtin_type(self.typed, ty) == Some(BuiltinType::Nothing));
-        // Nothing has no normal result to deliver, but its return arms still need proofs.
-        if (!result_required || diverges)
-            && let Some(entry) = self.prepare_string_nullable_if_entry(control, condition, span)?
-        {
-            return Ok(Some(entry));
-        }
-        if result_required {
+        if !self.nullable_proofs.is_empty() || result_required {
             return Ok(None);
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
-            return Ok(Some(entry));
-        }
-        if let Some(entry) = self.prepare_heap_field_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));
         }
         if self.migrated_family_compatibility

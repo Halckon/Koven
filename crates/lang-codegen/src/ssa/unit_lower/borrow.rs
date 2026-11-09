@@ -1,7 +1,5 @@
 //! 同步 shared 实参的 frontend loan 验证与 place 准备。
 #[cfg(test)]
-mod nullable_string_tests;
-#[cfg(test)]
 mod nullable_temporary_tests;
 
 use super::*;
@@ -167,12 +165,7 @@ impl UnitExpressionLowerer<'_> {
             || !self.pending_call_frames.is_empty()
             || !self.pending_operands.is_empty()
             || !self.temporaries.is_empty()
-            || (if self.has_only_string_if_proofs() {
-                self.ensure_string_if_proof_carriers(span)
-            } else {
-                self.ensure_while_proof_non_call_carriers(span)
-            })
-            .is_err()
+            || self.ensure_while_proof_non_call_carriers(span).is_err()
             || self.typed.construction(call).is_some()
             || self.typed.ownership_primitive(call).is_some()
         {
@@ -181,13 +174,6 @@ impl UnitExpressionLowerer<'_> {
         let Some(descriptor) = self.typed.call(call) else {
             return Ok(false);
         };
-        if self.has_only_string_if_proofs()
-            && self
-                .nullable_string_receiver_loan(call, descriptor, span)?
-                .is_some()
-        {
-            return self.supports_direct_control_prefix(call, arguments, descriptor, span);
-        }
         let print = descriptor.prints_line();
         if descriptor.receiver().is_some()
             || descriptor.aborts()
@@ -343,10 +329,7 @@ impl UnitExpressionLowerer<'_> {
         let supported_storage = matches!(owner_type, Some(EntityType::Value(storage))
             if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::NullableHandle { inner })
                 if matches!(self.ssa_types.get(inner.index()), Some(SsaTypeKind::HeapOwner { .. }))))
-            || (proof.if_scope().is_some()
-                && matches!(owner_type, Some(EntityType::Value(storage))
-                if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::InlineNullable { inner, niche: true })
-                    if self.ssa_types.get(inner.index()) == Some(&SsaTypeKind::StringOwner))));
+            ;
         if !supported_storage {
             return Ok(None);
         }

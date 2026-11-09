@@ -386,6 +386,7 @@ subgraph Gactive["现行 active"]
   S0395["S0395<br/>可空 while 证明视图与借用子项旧路径退役"]
   S0396["S0396<br/>Map / MutableMap 迭代与关联延续旧路径退役"]
   S0397["S0397<br/>可空 Map 分支/消费、Map.remove 借用与闭包回退旧路径退役"]
+  S0398["S0398<br/>可空 String if 与同根可空堆对象字段 if 旧路径退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1843,6 +1844,7 @@ S0366 --> S0367
 | SPEC-0395 | active | [0395-refine-nullable-while-retirement.md](../../specs/active/0395-refine-nullable-while-retirement.md) |
 | SPEC-0396 | active | [0396-refine-map-iteration-retirement.md](../../specs/active/0396-refine-map-iteration-retirement.md) |
 | SPEC-0397 | active | [0397-refine-nullable-map-and-closure-retirement.md](../../specs/active/0397-refine-nullable-map-and-closure-retirement.md) |
+| SPEC-0398 | active | [0398-refine-nullable-string-and-field-if-retirement.md](../../specs/active/0398-refine-nullable-string-and-field-if-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

@@ -279,7 +279,6 @@ impl Fixture {
         let mut bindings = BTreeMap::new();
         let mut borrow_bindings = BTreeMap::new();
         let mut entry_boolean_roots = std::collections::BTreeSet::new();
-        let mut entry_string_roots = std::collections::BTreeSet::new();
         for (parameter, entity) in signature
             .parameters()
             .iter()
@@ -296,12 +295,6 @@ impl Fixture {
                         == Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
                     {
                         entry_boolean_roots.insert(symbol);
-                    }
-                    if matches!(function.entity(EntityId::Loan(loan)).map(|data| data.ty),
-                        Some(EntityType::Loan { kind: LoanKind::Shared, target })
-                            if matches!(module.types.get(target.index()), Some(crate::ssa::model::SsaTypeKind::StringOwner)))
-                    {
-                        entry_string_roots.insert(symbol);
                     }
                 }
                 EntityId::Place(_) => panic!("no Place entry ABI"),
@@ -336,7 +329,6 @@ impl Fixture {
             bindings,
             borrow_bindings,
             entry_boolean_roots,
-            entry_string_roots,
             nullable_proofs: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),
             temporary_range_slots: BTreeMap::new(),

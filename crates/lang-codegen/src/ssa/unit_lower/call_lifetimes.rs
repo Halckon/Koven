@@ -1,8 +1,6 @@
 //! 未提交的同步调用前缀；ABI 地址槽随本帧结束，源码 owner 由 frontend drop facts 决定。
 use super::*;
 
-mod nullable_text;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PendingCallFrame {
     pub(super) call: UnitExpressionId,

@@ -619,6 +619,23 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
+    /// Drops the tracked active views of `symbol` already consumed by `NullableTake`.
+    pub(super) fn consume_views_of(&mut self, symbol: UnitSymbolId) {
+        let mut kept = Vec::new();
+        for view in self.active_views.drain(..) {
+            if view.symbol == symbol {
+                for frame in &mut self.loops {
+                    if frame.views > kept.len() {
+                        frame.views -= 1;
+                    }
+                }
+            } else {
+                kept.push(view);
+            }
+        }
+        self.active_views = kept;
+    }
+
     /// Views must not outlive their owner: end them before it is dropped or moved.
     pub(super) fn end_views_of(
         &mut self,

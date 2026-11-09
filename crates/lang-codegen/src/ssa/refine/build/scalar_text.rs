@@ -3,7 +3,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
-    parser::{Expression, LiteralKind, PrefixOperator},
+    parser::{BinaryOperator, Expression, LiteralKind, PrefixOperator},
     source::Span,
     type_checking::{
         BuiltinType, IntegerOperationKind, IntegerRangeOperationKind, ParameterMode,
@@ -14,9 +14,33 @@ use lang_frontend::{
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{CheckedArithmeticOperator, EntityType, LoanKind, ScalarConstant},
+    model::{
+        CheckedArithmeticOperator, ComparisonOperator, EntityType, LoanKind, ScalarConstant,
+    },
     refine::body::{RAbort, ROp, RTerm, Slot},
 };
+
+pub(super) fn checked_operator(operator: BinaryOperator) -> Option<CheckedArithmeticOperator> {
+    match operator {
+        BinaryOperator::Add => Some(CheckedArithmeticOperator::Add),
+        BinaryOperator::Subtract => Some(CheckedArithmeticOperator::Subtract),
+        BinaryOperator::Multiply => Some(CheckedArithmeticOperator::Multiply),
+        BinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
+        BinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
+        _ => None,
+    }
+}
+pub(super) fn comparison_operator(operator: BinaryOperator) -> Option<ComparisonOperator> {
+    match operator {
+        BinaryOperator::Equal => Some(ComparisonOperator::Equal),
+        BinaryOperator::NotEqual => Some(ComparisonOperator::NotEqual),
+        BinaryOperator::Less => Some(ComparisonOperator::LessThan),
+        BinaryOperator::LessEqual => Some(ComparisonOperator::LessThanOrEqual),
+        BinaryOperator::Greater => Some(ComparisonOperator::GreaterThan),
+        BinaryOperator::GreaterEqual => Some(ComparisonOperator::GreaterThanOrEqual),
+        _ => None,
+    }
+}
 
 impl Builder<'_, '_> {
     pub(super) fn prefix(

@@ -7,34 +7,13 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
 };
 
+pub(super) use super::scalar_text::{checked_operator, comparison_operator};
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
-    model::{CheckedArithmeticOperator, ComparisonOperator, EntityType, LoanKind, ScalarConstant},
+    model::{EntityType, LoanKind, ScalarConstant},
     refine::body::{RAbort, ROp, RTerm, Slot},
 };
-
-pub(super) fn checked_operator(operator: BinaryOperator) -> Option<CheckedArithmeticOperator> {
-    match operator {
-        BinaryOperator::Add => Some(CheckedArithmeticOperator::Add),
-        BinaryOperator::Subtract => Some(CheckedArithmeticOperator::Subtract),
-        BinaryOperator::Multiply => Some(CheckedArithmeticOperator::Multiply),
-        BinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
-        BinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
-        _ => None,
-    }
-}
-pub(super) fn comparison_operator(operator: BinaryOperator) -> Option<ComparisonOperator> {
-    match operator {
-        BinaryOperator::Equal => Some(ComparisonOperator::Equal),
-        BinaryOperator::NotEqual => Some(ComparisonOperator::NotEqual),
-        BinaryOperator::Less => Some(ComparisonOperator::LessThan),
-        BinaryOperator::LessEqual => Some(ComparisonOperator::LessThanOrEqual),
-        BinaryOperator::Greater => Some(ComparisonOperator::GreaterThan),
-        BinaryOperator::GreaterEqual => Some(ComparisonOperator::GreaterThanOrEqual),
-        _ => None,
-    }
-}
 
 impl Builder<'_, '_> {
     pub(super) fn expression(
@@ -324,15 +303,32 @@ impl Builder<'_, '_> {
             if let Some(slot) = self.narrowed.get(&symbol).copied() {
                 return Ok(slot);
             }
-            if self.move_only(self.c(fact.narrowed_type()))
-                && self.active_view(symbol).is_some()
-                && self.c(fact.declared_type()) == self.inputs.return_type
-            {
-                return self
-                    .bindings
-                    .get(&symbol)
-                    .copied()
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+            let narrowed = self.c(fact.narrowed_type());
+            if self.move_only(narrowed) && self.active_view(symbol).is_some() {
+                if self.c(fact.declared_type()) == self.inputs.return_type {
+                    return self
+                        .bindings
+                        .get(&symbol)
+                        .copied()
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+                }
+                if narrowed == self.inputs.return_type {
+                    let owner = self
+                        .bindings
+                        .get(&symbol)
+                        .copied()
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    let proof = self
+                        .active_view(symbol)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    let ty = self.ssa_type(narrowed, span)?;
+                    self.consume_views_of(symbol);
+                    return self.value(
+                        ROp::NullableTake { owner, proof },
+                        EntityType::Value(ty),
+                        span,
+                    );
+                }
             }
             return Err(error(LoweringErrorKind::MissingFact, span));
         }

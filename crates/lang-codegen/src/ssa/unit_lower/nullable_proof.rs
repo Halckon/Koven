@@ -1,6 +1,6 @@
 //! Private proof identity, distinct from the nullable root's owned storage.
 use super::*;
-use crate::ssa::model::{Ownership, SsaTypeKind};
+use crate::ssa::model::SsaTypeKind;
 
 #[cfg(test)]
 pub(super) mod guard_tests;
@@ -162,29 +162,9 @@ impl UnitExpressionLowerer<'_> {
                 .function
                 .entity(EntityId::Value(proof.owner))
                 .map(|entity| entity.ty);
-            let valid_storage = match owner_type {
-                Some(EntityType::Value(storage)) => match self.ssa_types.get(storage.index()) {
-                    Some(SsaTypeKind::NullableHandle { inner }) => *inner == proof.inner,
-                    Some(SsaTypeKind::InlineNullable { inner, niche: true }) => {
-                        proof.if_scope().is_some()
-                            && *inner == proof.inner
-                            && self.ssa_types.get(inner.index()) == Some(&SsaTypeKind::StringOwner)
-                    }
-                    Some(SsaTypeKind::Aggregate {
-                        ownership: Ownership::MoveOnly,
-                        ..
-                    }) if proof.if_scope().is_some() => {
-                        // Only registered nullable Map storage gains this ordinary If view.
-                        self.nullable_maps.get(&storage) == Some(&proof.inner)
-                            && matches!(
-                                self.ssa_types.get(proof.inner.index()),
-                                Some(SsaTypeKind::MapContainer { .. })
-                            )
-                    }
-                    _ => false,
-                },
-                _ => false,
-            };
+            let valid_storage = matches!(owner_type, Some(EntityType::Value(storage))
+                if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::NullableHandle { inner })
+                    if *inner == proof.inner));
             let identity = (proof.owner, proof.inner);
             if identities
                 .insert(proof.loan, identity)

@@ -773,6 +773,7 @@ impl Checker<'_, '_> {
             return false;
         };
         let symbol = fact.symbol();
+        let narrowed = self.c(fact.narrowed_type());
         self.reference(root) == Some(symbol)
             && self.known.contains(&symbol)
             && !self.callables.contains(&symbol)
@@ -781,8 +782,11 @@ impl Checker<'_, '_> {
                 Some(ParameterMode::Borrow | ParameterMode::Inout)
             )
             && self.view_symbols.contains(&symbol)
-            && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
-            && self.c(fact.declared_type()) == self.inputs.return_type
+            && self.copyability_of(narrowed) == Copyability::MoveOnly
+            && (self.c(fact.declared_type()) == self.inputs.return_type
+                || (narrowed == self.inputs.return_type
+                    && self.string(narrowed)
+                    && !self.is_map_remove_symbol(symbol)))
     }
 
     fn name(&mut self, expression: ExpressionId) -> bool {
