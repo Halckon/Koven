@@ -11,6 +11,7 @@ fn grouped_and_negated_parameter_conditions_keep_actual_choice_edges() {
         "(flag)",
         "((flag))",
         "!flag",
+        "(!flag)",
         "!(flag)",
         "!(!((flag)))",
     ] {

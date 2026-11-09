@@ -4,7 +4,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
     UnitOwnerValueEventV1 as Event, UnitOwnerValueObservationV1, UnitOwnerValueV1 as Value,
 };
-use crate::parser::VariableKind;
+use crate::parser::{PrefixOperator, VariableKind};
 
 /// One outer binding; each edge is a literal or a single consumed immutable local.
 struct Admission {
@@ -145,11 +145,31 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     {
         return None;
     }
-    let condition_node = ast.expressions().get(*condition).ok()?;
-    if !matches!(condition_node.payload(), Expression::Name)
-        || checker.reference_symbol(condition_node.span()) != Some(parameter)
-    {
-        return None;
+    // Only pure wrappers around the same checked Boolean parameter are admitted.
+    // The existing traversal evaluates them before the fork. Keep inputs keyed by
+    // the actual If edges; a Not changes the predicate, not the owner edge order.
+    let mut condition = *condition;
+    loop {
+        if checker.is_constant_use(condition)
+            || checker
+                .typed
+                .expression_type(checker.unit_expression(condition))
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
+        {
+            return None;
+        }
+        let node = ast.expressions().get(condition).ok()?;
+        match node.payload() {
+            Expression::Group { expression } => condition = *expression,
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => condition = *operand,
+            Expression::Name if checker.reference_symbol(node.span()) == Some(parameter) => break,
+            _ => return None,
+        }
     }
     fn chain(
         checker: &Checker<'_>,
