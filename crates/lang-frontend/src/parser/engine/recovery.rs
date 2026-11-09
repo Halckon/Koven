@@ -4,9 +4,10 @@ use std::num::NonZeroUsize;
 
 mod ordinary_groups;
 
-use ordinary_groups::{OrdinaryGroups, group_closers, group_delimiter};
+use ordinary_groups::{GroupClosers, OrdinaryGroups, group_delimiter};
 
-pub(super) struct LexicalRecoveryIndex {
+pub(super) struct LexicalRecoveryIndex<'source> {
+    source: &'source str,
     pub(super) source_len: usize,
     string_owner_ends: Vec<(usize, usize)>,
     string_recoveries: Vec<(usize, usize)>,
@@ -15,7 +16,7 @@ pub(super) struct LexicalRecoveryIndex {
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
     pub(super) index_poison_tail: Cell<Option<IndexPoisonTail>>,
-    group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
+    group_closers: OnceCell<GroupClosers>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     poisoned_string_starts: OnceCell<Vec<bool>>,
     angle_terminal_hint: usize,
@@ -44,8 +45,11 @@ enum LexicalDiagnosticAnchor {
     InterpolationStart,
 }
 
-impl LexicalRecoveryIndex {
-    pub(super) fn new(source: &str, lexed: &LexedFile) -> Result<Self, ParserInternalError> {
+impl<'source> LexicalRecoveryIndex<'source> {
+    pub(super) fn new(
+        source: &'source str,
+        lexed: &LexedFile,
+    ) -> Result<Self, ParserInternalError> {
         let catalog = codes::catalog()?;
         let unexpected_character = catalog.resolve(codes::UNEXPECTED_CHARACTER)?;
         let reserved_word = catalog.resolve(codes::RESERVED_WORD)?;
@@ -328,6 +332,7 @@ impl LexicalRecoveryIndex {
         lexical_poison_string_recoveries.sort_unstable();
         lexical_poison_string_recoveries.dedup_by_key(|(start, _)| *start);
         Ok(Self {
+            source,
             source_len: source.len(),
             string_owner_ends,
             string_recoveries,
@@ -342,15 +347,6 @@ impl LexicalRecoveryIndex {
             supertype_boundary: Cell::new(None),
             angle_terminal_hint: 0,
         })
-    }
-
-    pub(super) fn group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
-        self.group_closers
-            .get_or_init(|| group_closers(lexed, &self.terminal_owner_events))
-            .get(opener)
-            .copied()
-            .flatten()
-            .map(NonZeroUsize::get)
     }
 
     pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
@@ -616,20 +612,6 @@ fn angle_group_closers(
 }
 
 impl Parser<'_> {
-    /// Leave a proven closer in place for its group to consume.
-    pub(super) fn skip_to_group_closer(
-        &mut self,
-        opener_raw: usize,
-    ) -> Result<Option<usize>, ParserInternalError> {
-        if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw)
-            && self.current_raw()? < closer
-        {
-            self.index = closer;
-            return Ok(Some(self.previous_significant_end()));
-        }
-        Ok(None)
-    }
-
     /// 消费声明恢复区，保留调用方拥有的 hard closer，并只在局部 delimiter / owner
     /// 回到 baseline 后识别逗号 soft stop。
     pub(super) fn recover_declaration_region(
@@ -824,8 +806,12 @@ impl Parser<'_> {
             // Only proven local groups can hide the caller's stops.
             if outside_owner
                 && proven_groups
-                && let Some((last, closer)) =
-                    self.proven_postfix_recovery_step(raw_index, symbol, first.0)?
+                && let Some((last, closer)) = self.proven_postfix_recovery_step(
+                    raw_index,
+                    symbol,
+                    first.0,
+                    stops.has_semicolon(),
+                )?
             {
                 if let Some(closer) = closer
                     && paired_groups

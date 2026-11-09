@@ -739,6 +739,8 @@ fn destructuring_malformed_initializer_recovers_at_the_outer_semicolon() {
         ("= item is", "L0014"),
         ("= f(1; 2)", "L0034"),
         ("= items[1, 2; 3]", "L0010"),
+        ("= items[1, 2; borrow]", "L0010"),
+        ("= items[1, 2; loop()]", "L0010"),
     ] {
         let text = format!("{{ val (left, right) {fragment}; sentinel() }}");
         let (sources, parsed) = parsed_block(&text);

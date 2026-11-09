@@ -1,7 +1,7 @@
 //! SPEC-0080 / SPEC-0111 的合法完整语法逐显著 token 缺失恢复矩阵。
 
 use lang_frontend::{
-    parser::ParsedFile,
+    parser::{Expression, Item, ParsedFile, StringPart},
     source::{SourceMap, Span},
 };
 
@@ -127,12 +127,25 @@ fn expression_tail_recovery_skips_nested_lexical_owner_closers() {
 val sentinel = 0"#;
     let (sources, parsed) = parse_mutation(source, "nested lexical owner in expression tail");
     assert_sentinel(&sources, &parsed, "nested lexical owner in expression tail");
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0010", "L0013"]
+    let [diagnostic] = parsed.diagnostics() else {
+        panic!(
+            "one diagnostic for the malformed group: {:?}",
+            parsed.diagnostics()
+        );
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0013");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok(","));
+
+    let ast = parsed.ast();
+    let declaration = ast.items().get(parsed.roots()[0]).unwrap();
+    let Item::Variable { initializer, .. } = declaration.payload() else {
+        panic!("expected the original declaration");
+    };
+    let initializer = ast.expressions().get(*initializer).unwrap();
+    let Expression::String { parts } = initializer.payload() else {
+        panic!("expected the enclosing string");
+    };
+    assert!(
+        matches!(parts.last(), Some(StringPart::Text(span)) if sources.slice(*span) == Ok("后"))
     );
 }

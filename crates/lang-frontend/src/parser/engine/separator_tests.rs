@@ -137,6 +137,18 @@ fn paired_poisoned_expression_groups_keep_linear_significant_visits() {
 }
 
 #[test]
+fn paired_malformed_expression_groups_keep_linear_significant_visits() {
+    let metrics = |count| {
+        let groups = "f((x, /* trivia */ other), next) + ".repeat(count);
+        let text = format!("val value = {groups}tail\nval sentinel = 1");
+        angle_separator_metrics(&text, count).0
+    };
+    let small = metrics(32);
+    let large = metrics(64);
+    assert!(large <= small * 2 + 64, "{small} -> {large}");
+}
+
+#[test]
 fn paired_index_recovery_keeps_linear_significant_visits() {
     let metrics = |count| {
         let groups = "xs[key, nested[item]] + ".repeat(count);
