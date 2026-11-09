@@ -49,7 +49,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | workspace、crate 边界、编译流水线 | [流水线与 Workspace](pipeline-and-workspace.md) |
 | Source、Span、Lexer、Parser、AST | [Source 与语法前端](source-and-syntax.md) |
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
-| loan、move、capture、drop facts | [所有权](ownership.md)、[Unit owner transport 观察](unit-owner-transport.md)、[受限 Choice value](unit-choice-transport.md) |
+| loan、move、capture、drop facts | [所有权](ownership.md)、[Unit owner transport 观察](unit-owner-transport.md)、[受限 Choice value](unit-choice-transport.md)、[闭合 While body](unit-loop-owner-transport.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
 | 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md) |

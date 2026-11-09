@@ -5519,3 +5519,58 @@ Unsupported 与独立 V1 有界准入不是同一通道，不改变实现或历�
 本次未跑全量、native、Linux 或 Phase 4；真实循环动态实例/owner phi、incoming/nested
 Choice、任意消费者、Single 见证退休、Phase 4/native 与 E3 仍未闭合。Spec 不归档，
 不把有界 V1 观察或图守恒升级为这些能力。
+
+
+## 144. 真实 While 的闭合 String body 与结构回边（2026-11-09）
+
+先核远端 main `14297820`、owner draft #390 `b0bafd01` 及全部在途 owner/loop 分支，
+未有同范围生产实现。新隔离工作树复用本地 `c41a288d`，其完整 tree `2b6583ca` 与
+#390 头相同；不重复已发布 Choice 链，不覆盖旧工作。本片保持 Phase 3 只读观察，
+不改 Guide、既有 cleanup、Choice 准入或 Single 循环见证。用户已明确批准本批源码、
+测试和文档通过 connector 快进追加至 owner #390；发布须先核精确头、有序父链与完整树，
+不另开 PR，不强推、覆盖已有工作或合入 main。
+
+合同限定整个顶层非泛型 Unit 函数仅一个 While、一个无 mode marker 的精确 Boolean
+参数；条件仅该真实 symbol 的 Name/Group，非 constant-use，原分析保留两结局。
+body 只含本地精确 String/MoveOnly val/var，initializer 可为 literal、Name/Group 或
+完整根 checked Replace 的递归组合；每层类型、根和操作数 descriptor 均核对。
+其它条件、普通调用、capture、分支、跳转、外来/携带 owner、嵌套或多循环均拒绝。
+
+真实 While 只遍历一次 body。入口为空时临时建立 fresh body catalog，保存全部旧 sink，
+真实 body Result 保存后先恢复 observer/Choice/depth 再传播错误；不调用普通 function
+begin/finish，不额外发布 callable。真实 fallthrough、scope cleanup 及完整 ValueState
+空边界成立后复用无 Choice V1 seal，要求每个 producer 最终真实 Drop；LoopExit 后再核空。
+新产物保存实际 statement/condition/body 和 true-entry、fallthrough-backedge、false-exit
+三条结构边。旧观察仍原子 Unsupported；最终诊断或 deferred 阻止新 sealed 能力发布。
+
+独审发现整份同源码二次分析的 body transport 可替换的身份缺口，已增加独立 body Arc
+与 catalog 的绑定；outer Arc 继续绑定原观察，且核 Unsupported statement。未以单 token
+内部一致性代替整份 catalog 身份。Body 定义属于每次激活的新实例模板，不是 runtime handle；
+不变 Boolean 参数的实际行为为零轮或持续循环，有限前缀不证明耗尽、终止或动态 phi。
+
+真实红测在合法 While body 缺产物处失败，提交 `18fdbae7`；生产与扩展测试提交 `6c9aec66`，
+tree `44380f8ea1abf6bf1702399eb687c4bd52c662c9`。24个正例组合核真实 AST、参数/循环/body
+身份、构造/移动/嵌套 replace、每个 owner 的唯一 Drop 及实际 drop facts。27个合法拒绝
+源码核前缀/后缀原子性，另核跨 callable/跨分析隔离及真实所有权错误清空。负例首轮错选
+末尾 lambda 为 sibling，已改为真实函数 item 身份后全组复绿，未降低断言。
+公开测试在 MemoryDocument/Rooted 各核正常 body 与 return/break/continue，后者不冒充回边。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新实际生产者 | `closed_while` 四项 ordinary exact，不含损坏产物测试 | 4 passed，0 failed/ignored |
+| owner 组合邻控 | §142 同一55项普通 lib exact | 55 passed，0 failed/ignored |
+| 公开双入口与循环边界 | `closed_while_owner_unit` 一项、`loop_choice_unit` 八项 | 1 + 8 passed，0 failed/ignored |
+| 主线邻控 | 公开 control/drop 五项、capture 两项、scope/return 子先父借用清理一项 | 5 + 2 + 1 passed，0 failed/ignored |
+| 保留 Single 见证 | `loop_carried_choices` nullable、exit-call、continue、break 四个实际源码测试 | 4 passed；手工两轮 replay 未运行 |
+| 质量门禁 | frontend all-targets Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2249 Rust、37项既有超限 |
+| 独立复审 | 生产接线、边界、身份与最终代码静审 | 无 blocker；独立5项二进制复跑因权限拒绝未执行，不计通过 |
+
+合计80项不同普通测试，Cargo 使用 `--locked --offline`；workspace 编译使用已安装
+LLVM21.1.8，不运行 native。两个新增损坏/最终 deferred 注入守卫及既有手工模型仅编译，
+未本机执行。新生产/API/测试文件均低于1000行，原超限 compilation_unit 不增长，
+drop_planner 因提取原 While 路由缩短；不新增尺寸例外。
+
+最终文档不改变受测 Rust。精确发布头正式 CI、独立二进制复跑、Linux/native 尚未验收；
+本地80项不代替这些证据。循环 header/exit 携带 phi、跳转合流、多实例 closure/capture
+运输与释放、通用消费者、Phase 4/native、Single 见证退休及 E3 仍未闭合，D10/E2 继续
+in-progress，Spec 不归档。实现边界见[闭合 While 架构页](../../architecture/unit-loop-owner-transport.md)。
