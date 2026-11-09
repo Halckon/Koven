@@ -1,6 +1,6 @@
 //! Versioned value projection. Choice is not a producer definition.
 //! Legacy projection is closed straight-line String transport; a separate sealed
-//! planner transaction can publish the narrow single-binding Choice slice.
+//! planner transaction can publish the bounded Choice binding/transfer slice.
 //! A structurally valid choice graph does not establish typed AST admission.
 mod catalog;
 pub use catalog::UnitOwnerProducerCatalogV1;
@@ -207,7 +207,7 @@ impl UnitOwnerValueObservationV1 {
                             | UnitDropPoint::FunctionEntry(_) => true,
                             // A contiguous call-return cleanup group retains its checked
                             // commit witness, including both swapped roots.
-                            UnitDropPoint::CallReturn(call) if self.choice.is_none() => {
+                            UnitDropPoint::CallReturn(call) => {
                                 let installed = match preceding {
                                     Some(UnitOwnerValueEventV1::Replace {
                                         call: c,
@@ -221,7 +221,7 @@ impl UnitOwnerValueObservationV1 {
                                         right,
                                         left_value,
                                         right_value,
-                                    }) if c == call => {
+                                    }) if c == call && self.choice.is_none() => {
                                         if left == symbol {
                                             Some(right_value)
                                         } else if right == symbol {

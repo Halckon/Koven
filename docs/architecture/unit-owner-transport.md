@@ -98,29 +98,8 @@ Control body 的私有结果通道保留实际尾表达式与既有求值帧 own
 
 ## V1 value 投影与受限 Choice
 
-V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
-定义最终 named Drop 的直线观察可按需投影；另有真实 planner 事务接纳严格限定的
-单绑定 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
-函数体唯一 `val`、initializer 是以该参数为条件的显式 If，目标 binding 必须精确
-String/MoveOnly。每边独立允许 String literal/Group literal（可包单尾 ControlBody），
-或恰一条不可变、精确 String/MoveOnly 局部 `val` 后接唯一 Name/Group 消费尾。局部
-initializer 仅无插值 literal/Group；两种边可以混搭，不接受额外语句或后续使用。
-
-String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 交付必须唯一且有序，
-局部 initializer 与 tail 各有独立结果帧和完成计数；每边独立 symbol→value 槽仅在
-真实 state.insert 返回后接收 Binding，实际 take_named 返回 Some 后才转移到 Name
-结果并清空局部槽。边出口不得残留 initializer 或 named owner，不复用旧 owner=None、
-不从事件或 cleanup 重建 token。chosen 同样在实际插入后绑定，最后由真实移除后的
-精确 AfterStatement drop 闭合。任意退出、遗漏、重复、
-错误交付/cleanup 清空新事务。旧观察仍原子 Unsupported，不接收新定义或 Choice；
-原 cleanup/Single 见证保持。新能力与旧 observation 的 product/callable 绑定，旧 Eq
-只比较旧协议事实，新能力必须单独验证。新 Drop 带实际 point；未覆盖的 BranchExit、
-控制退出、When 等 point 不被 V1 图 validator 接受。
-
-图守恒不等于 typed AST 准入。生产能力只由上述私有门禁和实际事件构造；手工图测试
-仍可测试更一般的 Binding/Pending/Replace 守恒，不意味着这些 Choice 消费者已接线。
-本地仅静态检查，编译与行为待官方精确头 CI；范围见 SPEC-0341 §87/§88/§101。
-branch-local 是未发布生产代码候选，§89 的前置验收依赖保留，不表示动态准入或 D10 完成。
+受限 String Choice 的 typed 准入、Group/alias/replace 真实运输及拒绝边界见[专页](unit-choice-transport.md)。
+旧观察和 V1 协议分立，不将有界观察或图守恒当作通用动态 owner/phi 与 native 能力。
 
 ## String 根 swap 观察
 

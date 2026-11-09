@@ -5024,3 +5024,460 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+## 120. Choice 分组与逻辑非条件切片（2026-11-09）
+
+基于 main `e1b0c2dc` 的独立分支，不复用未合入的双终止 owner/consumer 候选。
+Phase 3 的 V1 Choice 仅扩展条件准入：同一 Boolean 参数外可有分组或逻辑非链，
+每层须为精确 Boolean 且不是 constant-use；最终 Name 必须解析到原参数 symbol。
+原 planner 仍在分叉前求值条件，真实 then/else 固定为输入边 0/1，不根据参数值或
+逻辑非重排 owner。未更改 producer catalog、事件协议、Binding/Drop 或旧 cleanup。
+
+现有唯一 chosen、双 literal/单局部尾、完整消费与清理约束保持。常量、调用、比较、
+短路、其它参数、后续 owner 使用、capture 和真实循环不因本片获得 Choice 准入；
+不新增循环实例、loop phi、动态分支通用支持、Phase 4/native 或 E3 能力。
+
+红测试提交 `b1d78957` 在旧生产准入上真实执行一项，新正例在 `if ((flag))` 缺 V1
+能力处失败；裸参数的四组控制已通过。最小实现 `05197df7` 后，新三项覆盖七种条件
+乘四种边形态，含两向混搭和同名不同 symbol；AST 独立期望核完整逐边事件、输入身份
+及 chosen 的 Bind/Drop，另核旧 Unsupported 空 trace、sibling 和观察开关完整 Analysis。
+拒绝矩阵另含八种条件和四种外围使用/循环源码，不从有限模型推断循环支持。
+
+| 验收项 | 实际选择 | 本机结果 |
+|---|---|---|
+| 新条件正反例 | `owner_transport::tests::choice_conditions` 三项 | 3 passed，0 failed/ignored |
+| Choice 邻控 | admission 两项实际源码、branch_local 两项实际源码、boundaries 三项、capture_isolation 一项 | 8 passed，保持原 oracle |
+| 循环/旧 owner 边界 | loop cleanup 一项、If 三项、owned capture 一项、swap 一项 | 6 passed，未开放循环 |
+| 独立复验 | 在 `05197df7` 重跑新条件三项 | 3 passed，精确头未变 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全通过；863 Markdown、2221 Rust、35项既有超限，无新增例外 |
+
+共17项独立普通测试选择，实际各命中一次；编译目标与其它工作树隔离。没有运行
+frontend/workspace 全量、模型/故障注入、native、Linux 或正式精确头 CI。独立只读
+复审未见 blocker，确认逐层类型/身份限制和真实边序；不得把本机通过当作完整 D10/E2
+验收。本分支仅本地分步提交及 format-patch/bundle 备份，不 push、发布 PR 或合并。
+
+
+## 122. Choice 结果的一次具名转交（2026-11-09）
+
+本片依赖 §120 本地头 `53dd1599`，其主干基线仍为 `e1b0c2dc`；未合并其它 owner 或
+借用分支。Phase 3 只扩一个已明确定义的后继：原唯一 chosen 后允许一条不可变、
+精确 String/MoveOnly 的 `val forwarded = chosen` 或 Group 链，不允许第三条语句。
+initializer 的叶 Name 必须是原 chosen symbol；原条件、双边完整尾交付和局部边合同
+不变。V1 既有 Move/Forward/Bind validator 与公开协议原样复用，不新建 Choice producer。
+
+实际 take_named 返回原 symbol 后，事务把同一 Choice 放入独立结果帧；每层实际
+Consume 完成按顺序发布 Forward，post-insert 后绑定目标并清空帧。最终只接受真实
+后继声明 AfterStatement 的目标 Drop，chosen 不再被 named cleanup。失败 take、Read、
+未完成/重复/错序/提前绑定、结果残留或错误清理均原子清空事务。不从旧 owner=None、
+最后事件或 cleanup 重建 owner。只有一次转交，不开放 Pending/Replace、var/nullable、
+调用、capture、二次转交、Return/Abort、真实循环实例/phi、Phase 4/native 或 E3。
+
+测试先提交 `3fa1aebf`，首项在旧生产准入缺 V1 处真实失败。实现 `649790c6` 后，
+三种条件 × 四种边形态 × 三种 Name/Group 后继共36组合保完整 AST oracle；两条旧
+后续使用拒绝源码逐字迁为新正例，未删除覆盖。原 helper 仅拆出逐边部分，原直达 Drop
+断言保留，新 helper 独立核每个 Choice ID、所有 suffix 事件、最终声明/cleanup、
+零 chosen drop、旧 Unsupported 空表、sibling 和 observation on/off 全 Analysis。
+十一种真实拒绝后继包括调用、mutable/nullable、额外转交、binary、capture、控制与
+循环。新增单项20条手工 guard trace（1正19负）只编译未本机执行，不作真实生产证据。
+
+| 验收项 | 实际选择 | 本机结果 |
+|---|---|---|
+| 新真实源码 | `choice_forwarding` 三个普通 exact，不含手工 transaction 项 | 3 passed，0 failed/ignored |
+| 已有邻控 | §120 同一17项普通 exact，保留原 oracle及拒绝源码迁移 | 17 passed，0 failed/ignored |
+| 独立复验 | 在 `649790c6` 重跑新普通源码三个 exact | 各命中1项，3 passed，无 blocker |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全通过；863 Markdown、2222 Rust、35项既有超限；手工 guard 仅编译 |
+
+未跑 frontend/workspace 全量、手工 guard/模型/故障注入、native、Linux 或正式精确头 CI。
+只读独立复审未见 blocker，逐点核实际 hook 和 fail-closed；本片不 push、发布 PR 或
+合并。format-patch 与增量 bundle 按私有备份流程保留；完整 D10/E2 和循环 phi 仍未完成。
+
+
+## 124. 整个 If 的 Choice 结果分组运输（2026-11-09）
+
+基于已发布 `853249b6`（tree `02b6b99d`，与 §122 本地 `de1b113c` 相同），只扩展
+§89 留待独立合同的整个 If 外层 Group，不等候或复用前片的 CI 结果。Phase 3 保持
+原条件、两条完整正常尾交付和最多一次具名转交；不修改 Guide、公开 API 或 V1 validator。
+
+准入只剥离精确 String、非 constant-use 的 Group 链，终点必须是原显式 If；每层
+保留真实表达式身份，不能把整个 initializer 当作 If control。双边实际完成后，同一
+Choice 进入独立结果帧，只有实际 Consume 完成且当前位置/完成序号吻合才发布下一层
+Forward。chosen 的 post-insert 只接完整末层 initializer 并清空结果；遗漏、Read、
+非继续、重复、错序或提前/错误 Bind 均清空事务。无 Group 时沿长度1的相同合同；
+后继 transfer 使用独立帧，不再制造 producer，不从 trace 或 cleanup 重建身份。
+
+红测试 `7201bd9b` 在旧生产准入上实际一项失败，缺口是 `(if (flag) ... else ...)`
+没有 V1。实现 `145572c9` 后，32组合（2条件×4边形态×2深度×2转交）全部符合独立
+AST 期望：真实 control/逐边源、每层同一 Choice Forward、准确 Bind/Drop 及完整旧
+Analysis不变。九种合法源码拒绝边界保留 nullable/var、nested Choice、退出、调用、
+binary、二次转交、capture、loop。首轮负例的 sibling 选择错误命中了末尾 lambda，
+已改为 source-qualified function 身份，未放宽 Complete 断言，随后两项全绿。
+
+新增16条手工guard trace（1正15负）只编译未本机运行；它们不是32组合的运行证明。
+调用、nested Choice、控制退出、真实循环实例/loop phi、二次转交、Phase 4/native 与
+E3 均不开放。完整 D10/E2 继续 in-progress。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_result_groups` 两个普通 exact，不含手工guard | 2 passed，0 failed/ignored |
+| 前片邻控 | §122 同一20项普通 exact | 20 passed，0 failed/ignored |
+| 独立复验 | `145572c9` 上重跑两个新普通 exact | 2 passed，0 failed，精确头不变 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全通过；863 Markdown、2223 Rust、35项既有超限；新增guard仅编译 |
+
+独立只读复审无 blocker，核完整初始结果帧和已有 transfer 隔离。未跑全量、手工
+模型/故障注入、native、Linux 或正式精确头 CI。按用户最新方向不新增 format-patch、
+bundle 或 Drive 备份；本地分步提交后准备 connector 发布，不强推或合并。
+
+## 126. Choice 根的 checked replace 消费者（2026-11-09）
+
+基于已发布 `01a159a1`（与 §124 本地 `eac11275` 同树），先核远端 Choice model 与
+complex-consumers 均为祖先，未重复未合能力。main 后续推进到 `a8657f58`，本片不声称
+在该新主线组合验收。Phase 3 依 Guide §10 的既有原子 replace/mutable-root 合同，
+不改语言语义、公开事件 API、旧 cleanup 或 Single 见证，不等候前片 CI。
+
+仅开放两句形状：`var chosen = If/Group If` 后跟 `val previous = replace(&chosen, RHS)`。
+两根均须精确 String/MoveOnly，首 binding 显式 Val|Var 分流；var 无此后继仍拒绝。
+后继必须对应实际 checked String root Replace，非字段/索引，实参与 descriptor 同序；
+RHS 仅精确 String、非 constant-use 的无插值 literal/Group。既有 val 与一次 alias 不变。
+分支局部、条件/整个 If 分组仍沿前片合同；新返回值不接受 call 外 Group 或额外使用。
+
+私有 replace 子模块用独立 RHS 帧和结果/退休标志：逐层实际 Consume 后，只有真实唯一
+transfers_at_call pending tuple 可发布 Pending。checked primitive 完成、root origin
+更新且实际 root/pending 仍存在后才发 Replace；不受旧观察 Unsupported 早返屏蔽。
+旧 Choice 成为 call 返回结果，新 definition 安装到原根；原根先在真实 CallReturn
+释放，新结果经 Consume 完成与 post-insert 绑定 previous，声明后释放旧 Choice。
+任意遗漏、错误身份、Read、提前/重复 commit、绑定或清理清空新事务，不从 cleanup、
+事件历史或旧 owner=None 重建 token；全部旧 Analysis 字段及序列保持观察开关一致。
+
+V1 validator 只取消 Choice 对 CallReturn 的总禁令，仍要求紧邻同 call/root/incoming
+Replace 见证及 Named→Dropped；Swap 保持无 Choice。原模型的匹配邻接正例同步，
+错 call/root/value、非邻接、无 Replace 与重复清理六负例保留。图可验证更一般的
+Replace，但不授权相应 AST 消费者。新20条手工事务 trace（1正19负）与模型改动仅
+编译，未在本机执行，不作真实生产证明。真实循环实例/phi、nested Choice、任意调用、
+投影、插值/Name RHS、二次 replace、返回值额外运输、Phase 4/native 与 E3 均不开放。
+
+真实红测 `57e8b96b` 在旧实现缺 V1 上一项失败；实现 `64f97a3e` 后，32组合
+（2条件×4边形态×2整个If分组×2 RHS分组）独立核 AST 双边事件、三 producer、
+每个 Choice/Definition 身份、Pending/Replace、准确两次 Drop 及完整旧 Analysis。
+11种合法源码拒绝保留 sibling，另精确核不可变根原有诊断，不把拒绝观测误作语言错误。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_replace` 三个普通 exact，排除手工trace | 3 passed，0 failed/ignored |
+| Choice及旧边界 | §124 同一22项普通 exact | 22 passed，0 failed/ignored |
+| 共享hook邻控 | 旧swap/V1两项、nested replace一项、完整Analysis六项 | 9 passed，0 failed/ignored |
+| 独立复验 | `64f97a3e` 上新三个普通 exact，各命中1项 | 3 passed，0 failed；运行前后头及源码tree不变 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、尺寸 | 通过；863 Markdown、2225 Rust、35项既有超限；新增trace仅编译 |
+
+独立静审无 blocker：确认真实 pending/commit/cleanup 隔离和准入边界；
+`drop_planner.rs` 1557→1558 仅新增 checked commit 后一条委托，算法/状态留子模块，
+现存 max_lines=1669 不变，本次增长已独立审阅，不批准后续增长。架构同节精简至199行，
+保留旧边界与证据依赖。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+D10/E2 仍 in-progress。按用户最新要求不新增备份，本地分步提交后准备 connector 发布，
+不强推、不合并。
+
+## 128. Replace 返回 Choice 的一次具名转交（2026-11-09）
+
+基于已发布 `38f278d9`（与 §126 本地 `a2edabe4` 同树），先核 main `edaaa9b2` 与
+远端 Choice 分支；相关生产路径没有额外新主线修改或重复的后续消费者。本片依赖未合
+Choice 链，不表示已在最新 main 组合验收，不等待前片 CI。Phase 3 组合 §122 和 §126
+既有移动/原子置换合同，不改 Guide、公开 API、V1 validator 或通用 pending/commit hook。
+
+仅在 `var chosen = If/Group If; val previous = checked replace(...)` 后允许恰一条
+不可变、精确 String/MoveOnly 的 Name/Group 转交。叶 Name 必须解析到 previous，
+不能是安装新值的 chosen；三句入口必须已通过原 checked replace 准入。原两句 val
+alias 和 replace 路径保留，普通 val 连续转交不会因三句入口而放开。
+
+Transfer 记录真实 source symbol，复用原独立结果帧。实际 take_named 返回 previous
+后仍须确认 replace 已提交、原根 CallReturn 清理完成、调用 Consume 完成且 previous
+已 post-insert 绑定、返回帧已清空，才记录同一 Choice Move。各层 Consume/Forward、
+最终 post-insert/Drop 继续沿原门禁；失败 take、Read、漏层、错序、重复或早绑定均撤销。
+previous 不再 named Drop，最终清理点严格取第三句声明 AfterStatement；原根仍在
+真实 CallReturn 释放新 definition。replace 的 Drop 回调仅向已准入最终 symbol 委托
+既有 transfer 检查，提前/错误 previous Drop 仍撤销，不能仅按 symbol 合并两个所有者。
+
+真实红测 `bd81859c` 在旧生产缺 V1 上一项失败；实现 `d205529c` 后，64组合
+（2条件×4边形态×2整个If分组×2 RHS分组×2末尾转交分组）独立核完整 AST 边事件、
+三 producer、准确同一 Choice Move/Forward/Bind、两次清理点与 previous 零 Drop。
+11种合法拒绝覆盖四句、var/nullable、concat、capture、调用、新根、If、第二次replace、
+循环及旧 val 两次转交；包含独立 sibling 隔离和观察开关完整旧 Analysis 比较。
+新增18条手工trace（1正17负）仅编译未本机执行，不能代替上述真实源码证据。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_replace_forwarding` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §126 同一34项普通 exact | 34 passed，0 failed/ignored |
+| 独立复验 | `d205529c` 上重跑两个新普通 exact，各命中1项 | 2 passed，0 failed；运行前后HEAD/tree一致 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2226 Rust、35项既有超限；新增trace仅编译 |
+
+独立生产静审未见 blocker；两个私有模块分别858/356行，无尺寸例外上限变化。
+二次转交、任意调用/投影、返回值复杂消费、真实循环实例/phi、Phase 4/native 与 E3
+保持拒绝；未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI。
+架构同节200行，D10/E2 仍 in-progress；不新增备份，分步提交后使用 connector 发布，
+不强推、不合并。
+
+## 130. Checked replace 返回 Choice 的整表达式分组（2026-11-09）
+
+基于已发布 `4b7f8132`（与 §128 本地 `977752ee` 同树），核实远端 main `4243ebe5`
+及现有 Choice 分支，没有重复消费者或此生产路径的新主线改动。仍依赖未合 Choice 链，
+不是最新 main 组合验收。Phase 3 沿用 Guide §10 原子 replace 与既有 Group 运输语义，
+不改语言、公开 API、validator、普通 pending/commit hook 或借用线。
+
+仅将 `val previous = checked replace(...)` 扩到整个调用的 Group 链；每个节点须
+精确 String、非 constant-use，叶仍通过原 checked String root Replace 与 RHS 合同。
+可接 §128 已有的一次不可变 Name/Group 转交；nullable、其它表达式、普通调用、
+incoming Choice、二次转交及真实循环/phi 仍拒绝。这里没有新增 String producer。
+
+准入保存由实际 call 到最外 Group 的有序结果链；原布尔 completed 改为消费计数。
+每次实际 Consume 同时核位置、前驱 returned 身份、commit 和原根清理完成状态；
+非首层才发同一 Choice Forward。末层完成后才允许 post-insert 绑定 previous 并清空帧，
+一次具名转交还须确认整链完成。漏层、Read、错序、重复、过早绑定或清理均撤销。
+Pending/Replace/原根 CallReturn 仍指向实际 call，不替换成 Group；新 definition
+仍先在 call 释放，旧 Choice 在第二声明或唯一转交后的第三声明 AfterStatement 释放。
+
+真实红测在旧生产的一层 Group 源码缺 V1 上 1 failed，随后提交 `88036aa1`；
+实现 `aabc4d78` 后新2项普通 exact 全绿。128组合（2条件×4边形态×2整个If分组
+×2 RHS分组×2返回Group深度×2是否转交）独立核 AST 双边事件、三 producer、
+完整有序 suffix、真实 call/末帧身份、两清理点、sibling 与开关完整旧 Analysis。
+原 §126 的单层返回 Group 拒绝样例迁入正例；另8种合法拒绝保留 concat、其它call、
+非literal/Choice RHS、四句消费、新根转交、nullable及循环，并核 sibling 隔离。
+16条补充手工trace（1正15负）仅编译未本机运行，不充当真实生产行为证据。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_replace_groups` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §128 同一36项普通 exact，包含不分组的旧replace与转交 | 36 passed，0 failed/ignored |
+| 独立复验 | `aabc4d78` 上新两个普通 exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2227 Rust、35项既有超限；新trace仅编译 |
+
+独立静审无 blocker，确认真实 planner 内层 call/外层 Group 回调顺序符合帧合同。
+唯一生产改动为 `choice/replace.rs` 356→396行；新增测试327行，无尺寸例外变化。
+架构保持200行。不运行全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+这些本机检查不代表主线整合、Phase 4/E3 或完整 D10/E2 完成。状态继续 in-progress。
+依用户最新方向不新增备份，分步提交后 connector 仅发布独立新分支，不覆盖或合并。
+
+## 132. Replace 新安装根值的一次继续运输（2026-11-09）
+
+基于已发布 `82e99797`（与 §130 本地 `a48ae39f` 同树），先核 main `4243ebe5`
+及现有 Choice 分支，未发现重复消费者；相关生产路径没有额外主线改动。本片仍依赖
+未合 Choice 链，不表示新 main 组合验收。Phase 3 沿用现行 replace、move 与 ASAP
+cleanup 合同；不改 Guide、公开 API、V1 validator、通用 hook、旧 cleanup 或 Single 见证。
+
+三句形状现在允许 `var chosen = If/Group If; val previous = replace(...);
+val forwarded = Name/Group chosen`。最后 binding 仍须不可变、精确 String/MoveOnly；
+第二句可用 §130 整调用 Group，RHS 沿原 literal/Group 合同。它是对两个独立输出的
+受限消费：旧 Choice 由 previous 接收，新 definition 继续留在原 chosen，不得混同。
+原三句转交 previous、两句 replace 与 val Choice 一次转交保持原门禁。
+
+replace admission 保存第二声明的精确 AfterStatement 点。新根继续路径不等待或发出
+原根 CallReturn Drop，任何原根提前 Drop 都撤销；旧返回仍须逐层 Consume 完成并
+post-insert 绑定 previous。只有 previous 的真实第二声明 Drop 已退休旧 Choice，
+actual take_named 又成功移出 chosen 后，才将原 RHS producer 的 Definition 存入
+独立 transfer value 槽；不从 symbol、cleanup 或事件历史重建。旧 previous 转交则仍
+要求原根已清理且 previous 未退休；裸 Choice 转交仍运输原 Choice。
+
+transfer 的 result/value/completed/bound 各自跟踪表达式位置、值身份、顺序和绑定。
+Consume/Forward、post-insert 与最终第三声明 Drop 均消费同一 value；Drop 清空槽，
+finish 拒绝残余 value，并保留双边 replay 守恒。漏旧退休、失败 take、错误 source、
+Read、漏层、错序、早/重复绑定或 Drop 均清空整个事务，不影响原合法性和 cleanup。
+
+真实红测在裸 `val forwarded = chosen` 缺 V1 上 1 failed，测试提交 `f0d53095`。
+实现 `a877c251` 的128组合（2条件×4边形态×2整个If分组×2 RHS分组×2返回Group
+深度×2末尾转交分组）逐项核 AST 两边、三 producer、同一 incoming Definition、
+完整 suffix、previous 第二声明 Drop 与 forwarded 第三声明 Drop，chosen 零 Drop；
+独立 sibling 与 observation 开关完整旧 Analysis 保持。9种合法拒绝保留四句、
+var/nullable、concat、capture、调用、If、二次 replace 和循环。旧两条新根拒绝迁入正例。
+21条补充手工trace（1正20负）仅编译未本机执行，不能替代真实源码证据。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_installed_forwarding` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §130 同一38项普通 exact，含旧返回Choice/裸Choice运输 | 38 passed，0 failed/ignored |
+| 独立复验 | `a877c251` 上两个新普通 exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2228 Rust、35项既有超限；新trace仅编译 |
+
+Clippy 首轮定位测试同类型 cast，删除冗余 cast 后严格门禁和40项普通 exact 全部重跑
+通过，未放宽断言。独立静审无 blocker；生产 choice/replace 分别881/436行，新测试383行，
+无尺寸例外变化，架构200行。任意后续、投影、incoming Choice、真实循环/phi、
+Phase 4/native 与 E3 仍未开放；未跑全量、手工模型/故障注入、native、Linux 或正式
+精确头 CI。D10/E2 继续 in-progress；不新增备份，不覆盖已有分支或合并。
+
+## 134. Checked replace 两个输出的顺序运输（2026-11-09）
+
+基于已发布 `d4e183a0`（与 §132 本地 `3ba0f136` 同树），先核最新 main
+`ec8a7b9f` 及远端 Choice 分支，相关 Choice 生产路径没有额外主线改动或重复能力。
+依赖未合 Choice 链，不把分支测试算作最新 main 整合。Phase 3 沿用已启用的
+replace/move/cleanup 合同，不改 Guide、公开 API、V1 validator 或通用 planner hook。
+
+新增恰四句形状：初始 chosen 接 Choice、previous 接 checked replace 返回值，
+第三句不可变精确 String/MoveOnly binding 只接 Name/Group previous，
+第四句同类 binding 只接 Name/Group chosen。两个目标须与原根、previous 及彼此不同；
+只准旧输出在前、新根在后，不是任意 alias 链。零/单 transfer 的既有路径不变。
+
+准入保存至多两段 source/target/chain/精确 AfterStatement 点，运行时只处理活动段。
+实际 take 后保存的 value 沿原 Consume/Forward/post-insert 门禁运输；只有该目标
+真正按自身声明点 Drop、result 已清空、bound 成立且 value 仍在，才清空整帧并推进
+活动索引。第二段从全新 result/value/completed/bound 状态开始，不能继承上一段进度。
+finish 要求所有段均完成；这不是两个同时存活的临时值槽或从历史事件重建身份。
+
+双输出路径不允许原根 CallReturn Drop，也不允许 previous 原 binding 提前 Drop。
+旧输出 alias 第三声明真实退休后才建立 previous_dropped，新根 actual take 才能拿到
+原 incoming Definition，最后在第四声明退休；每个值恰一个真实清理点，根与 previous
+都不再额外 Drop。错误源、Read、漏层、错序、提前/重复绑定和清理均原子撤销。
+
+真实红测在四句源码缺 V1 上 1 failed，测试提交 `3422d4dd`。实现 `825d70a9`
+后补全256组合（2条件×4边形态×2整个If分组×2 RHS分组×2返回Group深度
+×2旧输出Name/Group×2新输出Name/Group），独立核 AST 两边、三 producer、
+全部 suffix 身份/顺序与准确两次 alias cleanup，比较 observation 开关完整旧 Analysis。
+9种合法拒绝覆盖新先旧后、同值alias链、concat、var/nullable、调用、第五句与循环；
+保留 sibling 隔离及全部旧零/单 transfer 邻控。22条补充手工trace仅编译未本机执行。
+
+独立静审曾发现：切段后旧表达式或尚未开始的第二段表达式落入 unknown callback 路径，
+会被忽略而非撤销；普通合法源码绿灯不能证明这条故障边界。`754c94c7` 单独修正为
+先识别全部 transfer.chain，非活动段一律 abort，包含全部完成后的退休链；真正无关
+condition/callee/inout-root 回调不变。既有退休重复 trace 与新增提前第二段 trace 静态
+核对该 guard，但未声称运行过这些trace。独立复审确认缺口闭合，没有其它 blocker。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_dual_forwarding` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §132 同一40项普通 exact | 40 passed，0 failed/ignored |
+| 修正后重跑 | `754c94c7` 相同42项普通 exact及strict Clippy | 全部通过，未省略邻控 |
+| 独立复验 | `754c94c7` 新两个完整名 ordinary exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2229 Rust、35项既有超限 |
+
+生产 choice/replace 分别938/453行，新测试422行，无尺寸例外变化，架构200行。
+反向双输出、同值反复运输、任意后续、incoming Choice、真实循环实例/phi、Phase 4/native
+与 E3 仍未开放。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+D10/E2 继续 in-progress。不新增备份，分步提交后 connector 创建独立新分支，
+不覆盖已有 ref、不强推或合并。
+
+## 136. Checked replace 双输出的新根优先顺序（2026-11-09）
+
+基于已发布 `ab3cfa84`（与 §134 本地 `c75c6bbb` 同树），先核 main `ec8a7b9f`
+及远端 Choice 分支，没有重复新根优先消费者。依赖未合 Choice 链，分支验证不等于
+最新 main 组合验收。Phase 3 沿用 replace 的两个独立 owned 输出与原 move/cleanup
+合同，不改 Guide、公开 API、V1 validator、cleanup 或通用 planner hook。
+
+四句入口现在也允许新根先、旧 Choice 后：chosen 接初始 Choice，previous 接 checked
+replace 返回值，第三句不可变精确 String/MoveOnly binding 取 Name/Group chosen，
+第四句同类 binding 取 Name/Group previous。第二段必须是第一段尚未消费的另一个
+输出，不得取第一段 alias、重复同源或重用目标；仍至多两段，不接纳任意链或第五句。
+
+只有活动索引为0、previous 尚未退休、准入序列恰为 root→previous 两段时，允许新根
+在旧 Choice 仍 Named 的情况下实际 move。原 commit、完整返回链 Consume、previous
+post-insert 绑定、returned 槽清空及原根 cleanup 前置全部保留，不凭源码形状单独发值。
+single-root 路径不满足两段门禁，仍须 previous 实际退休；原旧先新路径继续原合同。
+
+新 definition 沿第一段真实 take/Consume/Group/bind 运输，在第三声明精确 Drop 后
+整帧清空、活动索引才推进。第二段才可消费仍 Named 的旧 Choice，在第四声明退休。
+索引是实际清理完成证据，不从事件历史重建；原根和 previous 原 binding 的提前 Drop、
+非活动/已退休表达式及其它错误回调继续撤销。两输出均无多余 producer 或 named Drop。
+
+真实红测在四句裸 Name 源码缺 V1 上 1 failed，测试提交 `351294cc`；
+实现 `c56040cd` 后256组合（2条件×4边形态×2整个If分组×2 RHS分组
+×2返回Group深度×2旧输出Name/Group×2新输出Name/Group）逐项核真实 AST 边、
+三 producer、完整有序 suffix、first Definition Drop→second Choice Move 和准确
+两次 alias cleanup；独立 sibling 与 observation 开关完整旧 Analysis 保持。
+原新先旧后拒绝样例迁入正例，另9种合法拒绝覆盖alias链、concat、var/nullable、
+调用、第五句、capture与循环。23条补充手工trace仅编译，未本机执行。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_installed_first` 两个 ordinary exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §134 同一42项 ordinary exact，保留旧先新和单根路径 | 42 passed，0 failed/ignored |
+| 独立复验 | `c56040cd` 两个新完整名 ordinary exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2230 Rust、35项既有超限 |
+
+独立静审无 blocker，确认单根限制、第一退休证据及所有非活动回调门禁未放宽。
+生产 choice/replace 分别942/459行，新测试420行，架构200行，无尺寸例外变化。
+同值多次运输、任意消费、incoming Choice、真实循环实例/phi、Phase 4/native 与 E3
+仍未开放。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+D10/E2 继续 in-progress。不新增备份，分步提交后仅发布独立新分支，不覆盖、强推或合并。
+
+
+## 138. 初始 Choice 的两级具名 alias 运输（2026-11-09）
+
+基于已发布 `86d50628`（§136），核对远端 Choice 与 alias 分支，无重复实现。
+最新 main 为 `ac9a7d81`（#382）；其通用 flow/branch 改动尚未与本未合依赖链组合验收，
+本片分支测试不能替代最新 main 验收。Phase 3 沿用既有 move/ASAP 合同，只改 Choice
+私有事务收集，不改 Guide、公开 API、V1 validator、cleanup 或通用 planner hook。
+
+准入仅新增三句形态：初始不可变精确 String/MoveOnly chosen 接既有显式 If/Group If，
+不可变 forwarded 接 Name/Group chosen，再由同类 again 接 Name/Group forwarded。
+第三句只能消费第一 alias，不能重新消费初始根；仍至多两级，不开放 replace 输出
+alias 链、第四句、普通调用、capture、退出或循环。原三个合法拒绝样例完整迁入正例。
+
+第一段必须由真实 take、逐层 Consume/Forward 和完整 post-insert binding 交付；
+同一 Value 才从结果帧移入独立的 symbol/value named 槽，清空帧并推进活动段。
+这不是退休：第一 alias 不产生 Drop，第二段必须实际 take 成功且源 symbol 精确匹配，
+才唯一取走槽值并沿第二结果帧运输。仅末 alias 在自身声明的精确 AfterStatement Drop。
+不从事件、cleanup 或 owner=None 重建身份；未绑定、重复/提前 take、Read、错序、
+中间 Drop、非活动/退休回调和遗漏末清理均撤销，abort/finish 覆盖新 named 槽。
+replace 路径不进入这条 post-insert 推进，仍按各输出真实 Drop 推进，旧合同保持。
+
+真实红测在裸三句源码缺 V1 上 1 failed，测试提交 `0904158f`；实现 `33c46d05`
+后216组合（3条件×4边形态×2整个If分组×3第一alias深度×3第二alias深度）逐项
+核真实 AST 双边、两个producer、完整有序 suffix、同一Choice身份、原根/中间alias
+无Drop及末alias准确清理。10种合法拒绝覆盖第三次转交、var/nullable、concat、
+普通调用、capture、循环和两种replace输出链；sibling及开关完整旧Analysis保持。
+26条补充手工守卫trace仅编译，未本机执行，不替代真实planner证据。
+
+迁移旧拒绝样例后，strict Clippy 报单元素循环；`9718dfbe` 单独改为普通块，
+没有跳过检查或改变断言，随后重跑全部46项和严格Clippy。独立静审无blocker。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_alias_chain` 两个 ordinary exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §136 同一44项 ordinary exact，含replace双输出与单alias | 44 passed，0 failed/ignored |
+| lint修正后 | 同一46项 ordinary exact及frontend all-targets Clippy `-D warnings` | 全部通过 |
+| 独立复验 | `9718dfbe` 两个新完整名 ordinary exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | fmt、docs、尺寸、diff | 通过；863 Markdown、2231 Rust、35项既有超限 |
+
+生产 choice 为973行，replace未改；新测试332行，架构200行，无尺寸例外变化。
+D10/E2 继续 in-progress；真实循环实例/phi、incoming Choice、通用后续消费、Phase 4/native
+与 E3 仍未开放。未跑全量、手工模型/故障注入、native、Linux、最新main组合或正式精确头CI。
+不新增备份，分步提交后仅用connector发布独立新分支，不覆盖已有ref、不强推或合并。
+
+
+## 140. 双 Boolean 输入的纯短路 Choice 条件（2026-11-09）
+
+基于已发布 `7b9aa46f`（§138），先核远端 main `14297820`（#384）与 Choice 分支，
+没有同范围实现；既有32提交 Choice 链仍未合主线。本片保持该依赖，未做最新main组合
+验收。Phase 3 沿用现行 Boolean 短路与 move/drop 合同，不改 Guide、公开 API、V1事件/
+validator、cleanup、通用遍历或任何运行期 Choice/replace/alias 守卫。
+
+准入允许顶层非泛型 Unit 函数有一至两个参数，逐一要求无mode marker且精确Boolean，
+即使未被条件引用也检查；零参数、第三参数及其它类型/模式仍拒绝。条件仅这些真实
+UnitSymbolId 的 Name，以及 Group、Not、LogicalAnd/LogicalOr 树；每节点均检查
+非constant-use与精确Boolean。迭代worklist检查两侧全部语法，不只检查当前可能求值
+的一侧，不按名称拼写授权；literal、比较、普通call、If及其它节点均不放行。
+
+条件不产生owner、loan、调用或退出，实际短路仍由原planner求值；本片不展开或重写
+求值顺序。外层String If的真实then/else继续作为Choice输入0/1，Not或短路结构不改变
+owner边序，也不增加producer。旧String If观察仍原子Unsupported，新事务只发布既有
+已证完整的有界结果；全部Group、alias及replace输出运输合同保持。
+
+真实红测在 `flag && flag` 条件缺V1上1 failed（`e773c368`）；最小实现为`1cb51b35`。
+44种条件/边形态组合逐项核真实AST双边、完整Bind/Drop、两个producer及无参数清理，
+含两个原拒绝样例的正例迁移。32种组合覆盖4条件×8既有消费者：无/一/两alias、
+replace无后继、旧/新单输出及双输出两种次序，核真实分支事件、Choice/Definition移动数、
+精确Drop point/symbol与producer数量。19种合法拒绝覆盖literal、call、comparison、
+nested If、nullable/非Boolean、参数模式及超限，包括未引用非法第二参数/第三参数。
+全部保留独立sibling与观测开关完整旧Analysis等价。
+
+首轮组合测试误用固定两producer helper，replace真实三producer触发失败；独立静审
+也指出同一问题，改用既有完整分支事件helper，再按每种消费者精确核producer数量，
+不降低断言。独审建议补的未引用非法参数反例已纳入。未发现生产blocker。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_predicates` 三个 ordinary exact | 3 passed，0 failed/ignored |
+| 既有邻控 | §138 同一46项 ordinary exact | 46 passed，0 failed/ignored |
+| 独立复验 | `1cb51b35` 三个新完整名 ordinary exact，各命中1项 | 3 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2232 Rust、35项既有超限 |
+
+生产choice990行，新测试245行，架构200行，无尺寸例外变化；没有新增手工trace。
+未跑全量、既有手工模型/故障注入、native、Linux、最新main组合或正式精确头CI。
+真实循环动态实例/phi、incoming/nested Choice、任意消费者、Phase4/native、Single见证
+退休与E3仍未闭合，D10/E2继续in-progress。不新增备份，分步提交后只用connector
+发布新的独立分支，不覆盖已有ref，不强推或合并。

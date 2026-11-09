@@ -1094,6 +1094,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             state.values[index].origin = node.span();
                         }
                     }
+                    self.commit_choice_primitive(id, state);
                 }
                 self.continue_borrow_call_source(id, state);
                 self.finish_call_borrows(id, &mut borrowed_roots, state);
