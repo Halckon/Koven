@@ -505,6 +505,166 @@ fn a_paired_index_comma_tail_leaves_recognizable_block_statements() {
 }
 
 #[test]
+fn an_index_in_a_call_argument_leaves_the_enclosing_block_declaration() {
+    for (prefix, key, closers) in [
+        ("f(xs[", "key", "])"),
+        ("f(g(xs[", "β", "]))"),
+        ("f(input = xs[", "", "])"),
+        ("f(xs[", "key β", "])"),
+        ("f(xs[", "key +", "])"),
+        ("f(xs[", "key as", "])"),
+        ("f(xs[", "key is", "])"),
+        ("f(xs[", "key as List<", "])"),
+        ("f(xs[", "key, junk[other", "]])"),
+    ] {
+        let before_separator = format!("{prefix}{key}");
+        let text = format!("{{ {before_separator}; val saved = 1\n{closers}\nval later = saved }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("index-argument-boundary.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        assert_eq!(
+            local_names(&sources, ast, elements),
+            ["saved", "later"],
+            "{text}"
+        );
+        assert_eq!(
+            sources.slice(ast.statements().get(elements[0]).unwrap().span()),
+            Ok(before_separator.as_str())
+        );
+    }
+}
+
+#[test]
+fn an_index_in_a_call_argument_keeps_an_internal_invalid_semicolon() {
+    for key in ["key", "key as"] {
+        let text = format!("{{ f(xs[{key}; 2], next); tail }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("index-argument-local-tail.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let [call, tail] = elements.as_slice() else {
+            panic!("expected call and following statement: {elements:?}");
+        };
+        let Statement::Expression { expression } = ast.statements().get(*call).unwrap().payload()
+        else {
+            panic!("expected expression");
+        };
+        let Expression::Call { arguments, .. } =
+            ast.expressions().get(*expression).unwrap().payload()
+        else {
+            panic!("expected call");
+        };
+        assert_eq!(arguments.len(), 2);
+        assert_eq!(
+            sources.slice(arguments[0].span),
+            Ok(format!("xs[{key}; 2]").as_str())
+        );
+        assert_eq!(sources.slice(arguments[1].span), Ok("next"));
+        assert_eq!(
+            sources.slice(ast.statements().get(*tail).unwrap().span()),
+            Ok("tail")
+        );
+    }
+}
+
+#[test]
+fn raw_call_recovery_leaves_a_block_declaration_after_a_damaged_nested_group() {
+    for (head, closers) in [
+        ("f(: junk[key", "])"),
+        ("f(1 : junk[key", "])"),
+        ("f(: junk[key", ")"),
+        ("f(: junk(key", "))"),
+        ("f(: junk[{ -> val local = 1; val inner = 2 }", "])"),
+    ] {
+        let text = format!("{{ {head}; val saved = 1\n{closers}\nval later = saved }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("call-recovery-block-boundary.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        assert_eq!(
+            local_names(&sources, ast, elements),
+            ["saved", "later"],
+            "{text}"
+        );
+        assert_eq!(
+            sources.slice(ast.statements().get(elements[0]).unwrap().span()),
+            Ok(head)
+        );
+    }
+}
+
+#[test]
+fn raw_call_recovery_preserves_paired_local_owners_and_unclosed_comma_behavior() {
+    for (arguments_text, expected) in [
+        (
+            ": { -> val first = 1; val second = 2 }, next",
+            vec![": { -> val first = 1; val second = 2 }", "next"],
+        ),
+        (": junk[key; 2], next", vec![": junk[key; 2]", "next"]),
+        (
+            r#": "${{ -> val first = 1; val second = 2 }}", next"#,
+            vec![r#": "${{ -> val first = 1; val second = 2 }}""#, "next"],
+        ),
+        (": junk[key, ignored", vec![": junk[key, ignored"]),
+    ] {
+        let text = format!("{{ f({arguments_text}); tail }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("call-recovery-local-owner.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let [call, tail] = elements.as_slice() else {
+            panic!("expected call and tail: {text}");
+        };
+        let Statement::Expression { expression } = ast.statements().get(*call).unwrap().payload()
+        else {
+            panic!("expected expression");
+        };
+        let Expression::Call { arguments, .. } =
+            ast.expressions().get(*expression).unwrap().payload()
+        else {
+            panic!("expected call");
+        };
+        assert_eq!(
+            arguments
+                .iter()
+                .map(|arg| sources.slice(arg.span).unwrap())
+                .collect::<Vec<_>>(),
+            expected,
+            "{text}"
+        );
+        assert_eq!(
+            sources.slice(ast.statements().get(*tail).unwrap().span()),
+            Ok("tail")
+        );
+    }
+}
+
+#[test]
 fn unpaired_index_leaves_the_block_separator_and_respects_structural_line_breaks() {
     for (text, adjacent) in [
         ("{ xs[key β; next }", true),

@@ -2,7 +2,10 @@
 
 use lang_frontend::{
     lexer::lex,
-    parser::{Expression, Statement, StringPart, parse_block, parse_expression, parse_file},
+    parser::{
+        Expression, Item, NameMarker, Statement, StringPart, parse_block, parse_expression,
+        parse_file,
+    },
     source::SourceMap,
 };
 
@@ -305,6 +308,103 @@ fn only_a_local_contiguous_typed_call_can_hide_a_recovery_comma() {
             .map(|arg| sources.slice(arg.span).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(spans, [first, middle, "next"], "{text}");
+        assert_eq!(
+            parsed.diagnostics().len(),
+            1,
+            "{text}: {:?}",
+            parsed.diagnostics()
+        );
+        assert_eq!(parsed.diagnostics()[0].code().to_string(), "L0002");
+    }
+}
+
+#[test]
+fn paired_error_postfix_leaves_a_proven_block_declaration() {
+    for (head, closers) in [
+        ("f(a.async[key", "])"),
+        ("f(a.async(key", "))"),
+        ("a.async[key", "]"),
+        ("super<I>.async(key", ")"),
+    ] {
+        let text = format!("{{ {head}; val saved = 1\n{closers}\nval later = saved }}");
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("error-postfix.ko", &text).unwrap();
+        let parsed = parse_block(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        assert_eq!(
+            sources.slice(ast.statements().get(elements[0]).unwrap().span()),
+            Ok(head)
+        );
+        let names = elements
+            .iter()
+            .filter_map(|id| {
+                let Statement::LocalVariable { declaration } =
+                    ast.statements().get(*id).unwrap().payload()
+                else {
+                    return None;
+                };
+                let Item::Variable {
+                    name: NameMarker::Present(name),
+                    ..
+                } = ast.items().get(*declaration).unwrap().payload()
+                else {
+                    return None;
+                };
+                Some(sources.slice(*name).unwrap())
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["saved", "later"], "{text}");
+        let poison = parsed
+            .diagnostics()
+            .iter()
+            .filter(|d| sources.slice(d.primary_span()) == Ok("async"))
+            .collect::<Vec<_>>();
+        assert_eq!(poison.len(), 1, "{text}: {:?}", parsed.diagnostics());
+        assert_eq!(poison[0].code().to_string(), "L0002");
+    }
+}
+
+#[test]
+fn paired_error_postfix_keeps_its_local_group_and_the_next_call_argument() {
+    for suffix in [
+        "a.async[key; 2]",
+        "a.async({ -> val first = 1; val second = 2 })",
+        r#"a.async["${{ -> val first = 1; val second = 2 }}"]"#,
+    ] {
+        let text = format!("{{ f({suffix}, next); tail }}");
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("error-postfix.ko", &text).unwrap();
+        let parsed = parse_block(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let [call, tail] = elements.as_slice() else {
+            panic!("expected call and tail");
+        };
+        let Statement::Expression { expression } = ast.statements().get(*call).unwrap().payload()
+        else {
+            panic!("expected call");
+        };
+        let Expression::Call { arguments, .. } =
+            ast.expressions().get(*expression).unwrap().payload()
+        else {
+            panic!("expected outer call");
+        };
+        let [first, next] = arguments.as_slice() else {
+            panic!("expected both arguments: {text}");
+        };
+        assert_eq!(sources.slice(first.span), Ok(suffix));
+        assert_eq!(sources.slice(next.span), Ok("next"));
+        assert_eq!(
+            sources.slice(ast.statements().get(*tail).unwrap().span()),
+            Ok("tail")
+        );
         assert_eq!(
             parsed.diagnostics().len(),
             1,

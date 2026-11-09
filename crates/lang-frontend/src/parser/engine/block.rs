@@ -1,5 +1,22 @@
 use super::*;
 
+pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Keyword(
+            Keyword::Const
+                | Keyword::Fun
+                | Keyword::For
+                | Keyword::While
+                | Keyword::Class
+                | Keyword::Interface
+                | Keyword::Enum
+                | Keyword::Object
+                | Keyword::Companion
+        ))
+    )
+}
+
 impl Parser<'_> {
     pub(super) fn root_expression_stops(&self) -> Stops {
         if self.file_mode {
