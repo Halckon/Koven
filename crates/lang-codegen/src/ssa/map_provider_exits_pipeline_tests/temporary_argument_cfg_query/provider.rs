@@ -10,18 +10,34 @@ fn via(
 ) -> Result<([EntityId; 3], Option<EntityId>), Failure> {
     let expected = frame.into_iter().chain(flag).collect::<BTreeSet<_>>();
     need(
-        edge.arguments.len() == expected.len()
-            && edge.arguments.iter().copied().collect::<BTreeSet<_>>() == expected,
+        edge.arguments
+            .iter()
+            .all(|argument| expected.contains(argument))
+            && edge
+                .arguments
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len()
+                == edge.arguments.len(),
         "complete actual owner/source/cursor and original flag edge",
         (edge, frame, flag),
     )?;
+    let carry = |entity: EntityId| -> Result<EntityId, Failure> {
+        if edge.arguments.contains(&entity) {
+            g.transported(edge, entity)
+        } else {
+            need(
+                inherits(g, entity, edge.target)?,
+                "argument CFG inherited provider role still dominates target",
+                (edge, entity),
+            )?;
+            Ok(entity)
+        }
+    };
     Ok((
-        [
-            g.transported(edge, frame[0])?,
-            g.transported(edge, frame[1])?,
-            g.transported(edge, frame[2])?,
-        ],
-        flag.map(|e| g.transported(edge, e)).transpose()?,
+        [carry(frame[0])?, carry(frame[1])?, carry(frame[2])?],
+        flag.map(carry).transpose()?,
     ))
 }
 #[allow(clippy::too_many_arguments)]
@@ -96,11 +112,14 @@ pub(super) fn check<'p>(
         .copied()
         .filter(|e| flags.contains(e))
         .collect::<Vec<_>>();
-    // Both input routes now use Unit: the current argument-merge flag is mandatory.
-    let initial_flag = Some(one(
-        current_flags.into_iter(),
-        "Unit provider starts with the exact current argument-merge flag",
-    )?);
+    // Both input routes now use Unit. Refinement SSA threads the merge flag only when
+    // the provider actually reads it again; otherwise it stays a dominating definition.
+    need(
+        current_flags.len() <= 1,
+        "Unit provider has one current argument-merge flag",
+        &current_flags,
+    )?;
+    let initial_flag = current_flags.first().copied();
     let entry = g.branch(first.block)?;
     let (header, header_flag) = via(g, entry, initial, initial_flag)?;
     let has = at(g, site.span, |o| {

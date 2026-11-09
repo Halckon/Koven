@@ -159,7 +159,14 @@ pub(super) fn validate_bindings(
                                     })))
                     })
             },
-            |_| false,
+            |statement| {
+                typed
+                    .map_iteration(lang_frontend::type_checking::UnitStatementId::new(
+                        fact.binding().source_unit(),
+                        statement,
+                    ))
+                    .is_some()
+            },
         )?;
         if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {
             return Err(lowering_error(

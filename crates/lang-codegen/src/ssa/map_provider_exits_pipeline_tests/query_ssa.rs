@@ -439,16 +439,33 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
                 body_seed.zip(false_seed)
             };
             if let Some((b, f)) = carried_borrow {
-                need(
-                    from_body.arguments.as_slice() == [b]
-                        && from_false.arguments.as_slice() == [f]
-                        && graph.transported(from_body, b)? == graph.transported(from_false, f)?,
-                    "identity SSA all merge incoming preserve same caller Borrow",
-                    (from_body, from_false),
-                )?;
-                let merged = graph.transported(from_body, b)?;
-                uses.protect(merged);
-                seeds.push(merged);
+                // A caller Borrow is only threaded when the merged tail reads it again.
+                let parameters = &graph.block(merge)?.parameters;
+                match parameters.as_slice() {
+                    [] => need(
+                        from_body.arguments.is_empty() && from_false.arguments.is_empty(),
+                        "identity SSA unused caller Borrow stays off Break merge",
+                        (from_body, from_false),
+                    )?,
+                    [parameter] => {
+                        need(
+                            from_body.arguments.as_slice() == [b]
+                                && from_false.arguments.as_slice() == [f]
+                                && graph.transported(from_body, b)? == *parameter
+                                && graph.transported(from_false, f)? == *parameter,
+                            "identity SSA all merge incoming preserve same caller Borrow",
+                            (from_body, from_false),
+                        )?;
+                        uses.protect(*parameter);
+                        seeds.push(*parameter);
+                    }
+                    _ => {
+                        return Err(failure(
+                            "identity SSA Break merge has one caller Borrow column",
+                            parameters,
+                        ));
+                    }
+                }
             } else {
                 need(
                     from_body.arguments.is_empty()

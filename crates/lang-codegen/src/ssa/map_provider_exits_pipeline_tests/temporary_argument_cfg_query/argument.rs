@@ -205,28 +205,79 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check_unit<'p>(
         .copied()
         .filter(|e| flags.contains(e))
         .collect::<Vec<_>>();
-    let current = one(
-        current_flags.into_iter(),
-        "Unit argument merge requires exactly its current flag column",
-    )?;
-    let yes_flag = g.transported(when_true, *parameter)?;
-    let no_flag = g.transported(when_false, *parameter)?;
+    // Refinement SSA keeps an unchanged caller flag as a dominating definition
+    // instead of threading it through every arm; both shapes stay valid here.
+    let threaded = !current_flags.is_empty();
+    let current = match current_flags.as_slice() {
+        [current] => *current,
+        [] => {
+            need(
+                inherits(g, *parameter, call.block)?,
+                "Unit argument merge flag still dominates call block",
+                (*parameter, call.block),
+            )?;
+            *parameter
+        }
+        _ => {
+            return Err(failure(
+                "Unit argument merge duplicate flag columns",
+                current_flags,
+            ));
+        }
+    };
+    let yes_flag = if when_true.arguments.contains(parameter) {
+        g.transported(when_true, *parameter)?
+    } else {
+        need(
+            inherits(g, *parameter, when_true.target)?,
+            "Unit argument true arm flag still dominates",
+            (*parameter, when_true.target),
+        )?;
+        *parameter
+    };
+    let no_flag = if when_false.arguments.contains(parameter) {
+        g.transported(when_false, *parameter)?
+    } else {
+        need(
+            inherits(g, *parameter, when_false.target)?,
+            "Unit argument false arm flag still dominates",
+            (*parameter, when_false.target),
+        )?;
+        *parameter
+    };
+    let carries_y = y.arguments.contains(&current);
+    let carries_n = n.arguments.contains(&current);
+    let mut yes_expected = BTreeSet::from([result(yes)?]);
+    let mut no_expected = BTreeSet::from([result(no)?]);
+    let mut call_expected = BTreeSet::from([EntityId::Value(phi)]);
+    if threaded {
+        yes_expected.insert(current);
+        no_expected.insert(current);
+        call_expected.insert(current);
+    }
+    let arms_carry =
+        |edge: &Edge| edge.arguments.is_empty() || edge.arguments.as_slice() == [*parameter];
+    let yes_parameters = &g.block(yes.block)?.parameters;
+    let no_parameters = &g.block(no.block)?.parameters;
+    let arm_parameters =
+        |parameters: &[EntityId], flag: EntityId| parameters.is_empty() || parameters == [flag];
     need(
-        g.argument(y, current)? == yes_flag
-            && g.argument(n, current)? == no_flag
-            && when_true.arguments.as_slice() == [*parameter]
-            && when_false.arguments.as_slice() == [*parameter]
-            && g.block(yes.block)?.parameters.as_slice() == [yes_flag]
-            && g.block(no.block)?.parameters.as_slice() == [no_flag]
-            && y.arguments.len() == 2
-            && n.arguments.len() == 2
-            && g.block(call.block)?.parameters.len() == 2
-            && y.arguments.iter().copied().collect::<BTreeSet<_>>()
-                == BTreeSet::from([result(yes)?, yes_flag])
-            && n.arguments.iter().copied().collect::<BTreeSet<_>>()
-                == BTreeSet::from([result(no)?, no_flag]),
+        (!carries_y || g.argument(y, current)? == yes_flag)
+            && (!carries_n || g.argument(n, current)? == no_flag)
+            && arms_carry(when_true)
+            && arms_carry(when_false)
+            && arm_parameters(yes_parameters, yes_flag)
+            && arm_parameters(no_parameters, no_flag)
+            && y.arguments.iter().copied().collect::<BTreeSet<_>>() == yes_expected
+            && n.arguments.iter().copied().collect::<BTreeSet<_>>() == no_expected
+            && g.block(call.block)?
+                .parameters
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                == call_expected,
         "Unit argument merge keeps the exact complete flag and literal columns from both arms",
-        (current, yes_flag, no_flag),
+        (current, yes_flag, no_flag, threaded),
     )?;
     uses.permit(EntityId::Loan(flag_source), flag);
     let flag_ends = g

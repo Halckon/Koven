@@ -311,11 +311,20 @@ impl Builder<'_, '_> {
             if fact.symbol() != symbol {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            return self
-                .narrowed
-                .get(&symbol)
-                .copied()
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+            if let Some(slot) = self.narrowed.get(&symbol).copied() {
+                return Ok(slot);
+            }
+            if self.move_only(self.c(fact.narrowed_type()))
+                && self.active_view(symbol).is_some()
+                && self.c(fact.declared_type()) == self.inputs.return_type
+            {
+                return self
+                    .bindings
+                    .get(&symbol)
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+            }
+            return Err(error(LoweringErrorKind::MissingFact, span));
         }
         if let Some(loan) = self.borrowed.get(&symbol).copied() {
             // Copyable Borrow parameter: read the value through the caller's loan.

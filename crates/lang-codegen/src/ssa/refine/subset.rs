@@ -734,12 +734,32 @@ impl Checker<'_, '_> {
                 } else if self.inputs.carrier_return.is_some() {
                     value.is_some_and(|value| self.carrier_return_body(expression, value))
                 } else {
-                    value.is_none_or(|value| self.expression(value))
+                    value.is_none_or(|value| {
+                        self.expression(value) || self.returned_nullable_owner(value)
+                    })
                 }
             }
             Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
             _ => false,
         }
+    }
+
+    fn returned_nullable_owner(&self, expression: ExpressionId) -> bool {
+        let root = self.ungrouped(expression);
+        let Some(fact) = self.inputs.typed.non_null_use(self.id(root)) else {
+            return false;
+        };
+        let symbol = fact.symbol();
+        self.reference(root) == Some(symbol)
+            && self.known.contains(&symbol)
+            && !self.callables.contains(&symbol)
+            && !matches!(
+                self.parameter_mode(symbol),
+                Some(ParameterMode::Borrow | ParameterMode::Inout)
+            )
+            && self.view_symbols.contains(&symbol)
+            && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
+            && self.c(fact.declared_type()) == self.inputs.return_type
     }
 
     fn name(&mut self, expression: ExpressionId) -> bool {

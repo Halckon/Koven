@@ -304,6 +304,35 @@ pub(super) fn function(
     )
 }
 
+/// A role that an edge does not transport must already dominate the target block.
+/// Refinement SSA keeps such loans as ordinary dominating definitions instead of
+/// threading every carrier through every merge.
+pub(super) fn inherits(
+    graph: &Graph<'_>,
+    entity: EntityId,
+    target: BlockId,
+) -> Result<bool, Failure> {
+    let data = graph
+        .function
+        .entity(entity)
+        .ok_or_else(|| failure("identity SSA inherited role entity", entity))?;
+    let definition = match data.definition {
+        Definition::BlockParameter { block, .. } => block,
+        Definition::InstructionResult { instruction, .. } => {
+            graph
+                .function
+                .instruction(instruction)
+                .ok_or_else(|| failure("identity SSA inherited role producer", instruction))?
+                .block
+        }
+    };
+    if definition == target {
+        return Ok(false);
+    }
+    let dominators = crate::ssa::verify::compute_dominators(graph.function);
+    Ok(dominators[target.index()].contains(&definition.index()))
+}
+
 #[derive(Default)]
 pub(super) struct Uses(BTreeMap<EntityId, BTreeSet<InstructionId>>);
 

@@ -60,18 +60,16 @@ fn observe(case: &Case, rooted: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let result = crate::ssa::with_per_family_lowering(|| {
-        pipeline::unit_input_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            rooted,
-            |n, t, o, r| {
-                source_forms::facts::unit(&sources, &parsed, n, t, o, r);
-            },
-        )
-    });
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |n, t, o, r| {
+            source_forms::facts::unit(&sources, &parsed, n, t, o, r);
+        },
+    );
     diagnostic!(
         "ARGUMENT CFG RUNTIME LOWER {} rooted={rooted} report={report:#?} outcome={:?}",
         case.label,

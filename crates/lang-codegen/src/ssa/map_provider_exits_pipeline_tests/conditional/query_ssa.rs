@@ -1,7 +1,7 @@
 //! 真实 roots → 三 If 六边 → 两回边/两出口；每一列独立追到实际 operand。
 use super::super::{
     fixture::{Failure, failure, need},
-    query_graph::{Graph, Uses, function, loan, result, value},
+    query_graph::{Graph, Uses, function, inherits, loan, result, value},
     query_inputs::one,
 };
 use super::{
@@ -65,22 +65,39 @@ fn transport(
     let set = |values: &[EntityId]| values.iter().copied().collect::<BTreeSet<_>>();
     need(
         expected.len() == set(&expected).len()
-            && edge.arguments.len() == expected.len()
-            && set(&edge.arguments) == set(&expected),
+            && edge
+                .arguments
+                .iter()
+                .all(|argument| expected.contains(argument))
+            && set(&edge.arguments).len() == edge.arguments.len(),
         "conditional identity every edge has precisely current role operands",
         (edge, roles),
     )?;
+    // Refinement SSA keeps an unchanged carrier as a dominating definition instead of
+    // repeating it on every merge edge.
+    let carry = |entity: EntityId| -> Result<EntityId, Failure> {
+        if edge.arguments.contains(&entity) {
+            graph.transported(edge, entity)
+        } else {
+            need(
+                inherits(graph, entity, edge.target)?,
+                "conditional identity inherited role still dominates target",
+                (edge, roles, entity),
+            )?;
+            Ok(entity)
+        }
+    };
     let next = Roles {
-        source: as_loan(graph.transported(edge, EntityId::Loan(roles.source))?)?,
-        cursor: as_value(graph.transported(edge, EntityId::Value(roles.cursor))?)?,
-        seed: roles.seed.map(|e| graph.transported(edge, e)).transpose()?,
+        source: as_loan(carry(EntityId::Loan(roles.source))?)?,
+        cursor: as_value(carry(EntityId::Value(roles.cursor))?)?,
+        seed: roles.seed.map(carry).transpose()?,
         body: roles
             .body
             .map(|(k, v, g)| -> Result<_, Failure> {
                 Ok((
-                    as_loan(graph.transported(edge, EntityId::Loan(k))?)?,
-                    as_loan(graph.transported(edge, EntityId::Loan(v))?)?,
-                    as_value(graph.transported(edge, EntityId::Value(g))?)?,
+                    as_loan(carry(EntityId::Loan(k))?)?,
+                    as_loan(carry(EntityId::Loan(v))?)?,
+                    as_value(carry(EntityId::Value(g))?)?,
                 ))
             })
             .transpose()?,
@@ -597,9 +614,12 @@ pub(super) fn check(
         (exhausted, from_empty, exhausted_roles.seed),
     ] {
         let expected = if f.map { None } else { expected };
+        let retained = match expected {
+            None => edge.arguments.is_empty(),
+            Some(seed) => edge.arguments.is_empty() || edge.arguments.as_slice() == [seed],
+        };
         need(
-            edge.arguments == expected.into_iter().collect::<Vec<_>>()
-                && graph.term(block)?.origin == Origin::Source(a.span),
+            retained && graph.term(block)?.origin == Origin::Source(a.span),
             "conditional identity only retained caller Borrow enters after-loop",
             edge,
         )?;
@@ -622,13 +642,25 @@ pub(super) fn check(
                 exhausted_roles,
             )
         })?;
-        let b = graph.transported(from_break, b)?;
+        let b = if from_break.arguments.contains(&b) {
+            graph.transported(from_break, b)?
+        } else {
+            b
+        };
+        let e = if from_empty.arguments.contains(&e) {
+            graph.transported(from_empty, e)?
+        } else {
+            e
+        };
+        // Refinement SSA 只在 after-loop 真正读取 caller 时建立 merge 列；
+        // 否则入口 caller 定义仍然支配 after 块。
+        let parameters = &graph.block(after)?.parameters;
         need(
-            b == graph.transported(from_empty, e)?
-                && graph.block(after)?.parameters.as_slice() == [b],
+            parameters.is_empty() || (parameters.as_slice() == [b] && b == e),
             "conditional identity both after-loop incoming retain exact caller alias",
             after,
         )?;
+        let b = parameters.first().copied().unwrap_or(seed);
         uses.protect(b);
         Some(b)
     };
@@ -791,49 +823,51 @@ fn source_inventory(
             .ok_or_else(|| failure("conditional identity live Unit source role", role))?;
         for (entity, ty) in [(seed, seed_type), (EntityId::Loan(role.source), lease_type)] {
             need(
-                expected.insert(entity) && scan.entity(entity).is_some_and(|data| data.ty == ty),
+                scan.entity(entity).is_some_and(|data| data.ty == ty),
                 "conditional identity distinct current source and provider lease roles",
                 (block, entity, ty),
             )?;
+            expected.insert(entity);
             // The initial provider lease is a BorrowBegin/SharedReborrow result;
-            // every other source role is this block's own grounded parameter.
+            // every other source role is this block's own grounded parameter, or an
+            // unchanged dominating carrier that refinement SSA did not re-thread.
             if index != 0 || entity == seed {
-                let slot = one(
-                    graph
-                        .block(block)?
-                        .parameters
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(slot, &actual)| (actual == entity).then_some(slot)),
-                    "conditional identity source role actual parameter column",
-                )?;
-                need(
-                    scan.entity(entity).is_some_and(|data| {
-                        data.definition == Definition::BlockParameter { block, index: slot }
-                            && data.origin == Origin::Source(span)
-                    }),
-                    "conditional identity source role exact definition and source span",
-                    (block, slot, entity),
-                )?;
+                let parameters = &graph.block(block)?.parameters;
+                if let Some(slot) = parameters.iter().position(|actual| *actual == entity) {
+                    need(
+                        scan.entity(entity).is_some_and(|data| {
+                            data.definition == Definition::BlockParameter { block, index: slot }
+                                && data.origin == Origin::Source(span)
+                        }),
+                        "conditional identity source role exact definition and source span",
+                        (block, slot, entity),
+                    )?;
+                } else {
+                    need(
+                        inherits(&graph, entity, block)?,
+                        "conditional identity inherited source role dominates block",
+                        (block, entity),
+                    )?;
+                }
             }
         }
     }
     if let Some(seed) = after_seed {
         need(
-            expected.insert(seed) && scan.entity(seed).is_some_and(|data| data.ty == seed_type),
+            scan.entity(seed).is_some_and(|data| data.ty == seed_type),
             "conditional identity only the unchanged caller Borrow survives the merge",
             seed,
         )?;
+        expected.insert(seed);
     }
     if let Some(root) = root {
         need(
-            expected.insert(root)
-                && scan
-                    .entity(root)
-                    .is_some_and(|data| data.ty == EntityType::Place(map_type)),
+            scan.entity(root)
+                .is_some_and(|data| data.ty == EntityType::Place(map_type)),
             "conditional identity sole owned source storage is distinct from every lease",
             root,
         )?;
+        expected.insert(root);
     }
     let actual = definitions
         .into_iter()

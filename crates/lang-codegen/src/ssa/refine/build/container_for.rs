@@ -230,12 +230,17 @@ impl Builder<'_, '_> {
                 self.push(ROp::Drop { owner }, Vec::new(), fact_span)?;
             }
         }
-        let target = if is_break {
-            frame.exit
+        let (target, jump_span) = if is_break {
+            let jump_span = if frame.map_for.is_some() {
+                self.statement_span(frame.statement.statement())?
+            } else {
+                span
+            };
+            (frame.exit, jump_span)
         } else {
-            frame.continue_target
+            (frame.continue_target, span)
         };
-        self.terminate(RTerm::Goto(target), span)?;
+        self.terminate(RTerm::Goto(target), jump_span)?;
         Ok(Lowered::Diverged)
     }
 
@@ -559,14 +564,14 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let cursor_ty = self.ssa_type(ulong_unit, span)?;
         let bool_ty = self.ssa_type(bool_unit, span)?;
-        let source_loan = match plan.source_access() {
+        let (seed, source_loan) = match plan.source_access() {
             UnitIterationSourceAccess::Shared => {
                 let symbol = self.named_container_symbol(source, span)?;
                 let caller_loan = *self
                     .borrowed
                     .get(&symbol)
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                self.value(
+                let loan = self.value(
                     ROp::SharedReborrow {
                         source: caller_loan,
                     },
@@ -575,27 +580,29 @@ impl Builder<'_, '_> {
                         target: container,
                     },
                     span,
-                )?
+                )?;
+                (caller_loan, loan)
             }
             UnitIterationSourceAccess::Owned => {
+                let symbol = self.named_container_symbol(source, span)?;
+                let owner = *self
+                    .bindings
+                    .get(&symbol)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                 if let Some(view) = self.narrowed_view(source)? {
-                    self.value(
+                    let loan = self.value(
                         ROp::SharedReborrow { source: view },
                         EntityType::Loan {
                             kind: LoanKind::Shared,
                             target: container,
                         },
                         span,
-                    )?
+                    )?;
+                    (owner, loan)
                 } else {
-                    let symbol = self.named_container_symbol(source, span)?;
-                    let owner = *self
-                        .bindings
-                        .get(&symbol)
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                     let place =
                         self.value(ROp::RootPlace { owner }, EntityType::Place(container), span)?;
-                    self.value(
+                    let loan = self.value(
                         ROp::BorrowBegin {
                             place,
                             kind: LoanKind::Shared,
@@ -605,7 +612,8 @@ impl Builder<'_, '_> {
                             target: container,
                         },
                         span,
-                    )?
+                    )?;
+                    (owner, loan)
                 }
             }
             UnitIterationSourceAccess::Temporary => {
@@ -623,7 +631,7 @@ impl Builder<'_, '_> {
                 }
                 let place =
                     self.value(ROp::RootPlace { owner }, EntityType::Place(container), span)?;
-                self.value(
+                let loan = self.value(
                     ROp::BorrowBegin {
                         place,
                         kind: LoanKind::Shared,
@@ -633,7 +641,8 @@ impl Builder<'_, '_> {
                         target: container,
                     },
                     span,
-                )?
+                )?;
+                (owner, loan)
             }
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
@@ -648,6 +657,12 @@ impl Builder<'_, '_> {
         let body_block = self.body.block();
         let exhausted = self.body.block();
         let exit = self.body.block();
+        self.body.blocks[header.0].preserve_header = true;
+        for block in [header, body_block, exhausted] {
+            self.body.blocks[block.0].origin = Some(span);
+            self.body.blocks[block.0].pinned = vec![seed, source_loan, cursor];
+        }
+        self.body.blocks[exit.0].origin = Some(span);
         self.goto(header, span)?;
 
         let mark = self.enter(header);

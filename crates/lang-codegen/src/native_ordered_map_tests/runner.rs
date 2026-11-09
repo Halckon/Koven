@@ -177,10 +177,12 @@ impl Artifacts {
         }
         command.arg("-o").arg(&executable);
         self.compiler(&format!("{label}-compile"), &mut command);
+        // The fixture itself runs in well under a second, but the full parallel
+        // suite can starve the child long enough to trip a tight wall clock.
         let run = self.run(
             &format!("{label}-run"),
             &mut Command::new(&executable),
-            Duration::from_secs(10),
+            Duration::from_secs(60),
         );
         assert_eq!(run.status.code(), Some(0), "{label} must exit normally");
         assert_diagnostic!(

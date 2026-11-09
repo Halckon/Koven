@@ -347,15 +347,12 @@ impl Builder<'_, '_> {
             .flatten())
     }
 
-    /// A MoveOnly Borrow parameter or capture lent directly to a Borrow call parameter.
+    /// A MoveOnly Borrow parameter/capture or Map iteration component lent directly to a Borrow call parameter.
     pub(super) fn borrowed_move_only_loan(
         &self,
         expression: ExpressionId,
         parameter: UnitTypeId,
     ) -> Result<Option<Slot>, LoweringError> {
-        if !self.move_only(parameter) {
-            return Ok(None);
-        }
         let mut root = expression;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
@@ -375,28 +372,41 @@ impl Builder<'_, '_> {
                 let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end())) else {
                     return Ok(None);
                 };
+                let is_map_for_component = self.loops.iter().any(|frame| {
+                    frame.map_for.is_some_and(|map_for| {
+                        map_for.key_binding == symbol || map_for.value_binding == symbol
+                    })
+                });
+                if !self.move_only(parameter) && !is_map_for_component {
+                    return Ok(None);
+                }
                 Ok((self.symbol_type(symbol) == Some(parameter))
                     .then(|| self.borrowed.get(&symbol).copied())
                     .flatten())
             }
-            Expression::This => Ok(self
-                .inputs
-                .receiver
-                .filter(|receiver| {
-                    receiver.mode == lang_frontend::type_checking::ParameterMode::Borrow
-                        && receiver.ty == parameter
-                })
-                .and(self.receiver)
-                .or_else(|| {
-                    let symbol = self
-                        .inputs
-                        .references
-                        .get(&(span.start(), span.end()))
-                        .copied()?;
-                    (self.symbol_type(symbol) == Some(parameter))
-                        .then(|| self.borrowed.get(&symbol).copied())
-                        .flatten()
-                })),
+            Expression::This => {
+                if !self.move_only(parameter) {
+                    return Ok(None);
+                }
+                Ok(self
+                    .inputs
+                    .receiver
+                    .filter(|receiver| {
+                        receiver.mode == lang_frontend::type_checking::ParameterMode::Borrow
+                            && receiver.ty == parameter
+                    })
+                    .and(self.receiver)
+                    .or_else(|| {
+                        let symbol = self
+                            .inputs
+                            .references
+                            .get(&(span.start(), span.end()))
+                            .copied()?;
+                        (self.symbol_type(symbol) == Some(parameter))
+                            .then(|| self.borrowed.get(&symbol).copied())
+                            .flatten()
+                    }))
+            }
             _ => Ok(None),
         }
     }

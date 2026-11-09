@@ -681,11 +681,16 @@ fn trace(function: &Function, shape: &Shape, spans: &OuterSpans) -> Trace {
 }
 
 fn assert_scalars(function: &Function, shape: &Shape) {
-    let mut pending = vec![(function.entry_block().unwrap(), shape.zero, shape.length)];
+    let mut pending = vec![(
+        function.entry_block().unwrap(),
+        shape.zero,
+        shape.length,
+        shape.step,
+    )];
     let mut seen = BTreeSet::new();
     let mut backedges = BTreeSet::new();
-    while let Some((id, mut cursor, length)) = pending.pop() {
-        if !seen.insert((id, cursor, length)) {
+    while let Some((id, mut cursor, length, step)) = pending.pop() {
+        if !seen.insert((id, cursor, length, step)) {
             continue;
         }
         let block = function.block(id).unwrap();
@@ -699,7 +704,7 @@ fn assert_scalars(function: &Function, shape: &Shape) {
             if *id == shape.increment {
                 assert!(
                     matches!(instruction.operation, Operation::Binary { operator: BinaryOperator::Add, left, right }
-                    if left == cursor && right == shape.step)
+                    if left == cursor && right == step)
                 );
                 cursor = value(instruction);
             }
@@ -733,10 +738,11 @@ fn assert_scalars(function: &Function, shape: &Shape) {
                 edge.target,
                 carry_scalar(function, edge, cursor),
                 carry_scalar(function, edge, length),
+                carry_scalar(function, edge, step),
             ));
         }
     }
-    assert!(seen.iter().any(|(id, _, _)| *id == shape.body));
+    assert!(seen.iter().any(|(id, _, _, _)| *id == shape.body));
     assert_eq!(backedges.len(), 1);
 }
 

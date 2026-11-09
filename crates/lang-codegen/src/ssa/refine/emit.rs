@@ -37,7 +37,12 @@ fn reachable(body: &RefinedBody, span: Span) -> Result<Vec<BlockRef>, LoweringEr
 fn uses_and_defs(body: &RefinedBody, block: BlockRef) -> (BTreeSet<Slot>, BTreeSet<Slot>) {
     let data = &body.blocks[block.0];
     let mut defs: BTreeSet<Slot> = data.view.into_iter().collect();
-    let mut uses = BTreeSet::new();
+    let mut uses: BTreeSet<Slot> = data
+        .pinned
+        .iter()
+        .copied()
+        .filter(|slot| !defs.contains(slot))
+        .collect();
     for statement in &data.statements {
         for operand in statement.op.operands() {
             if !defs.contains(&operand) {
@@ -141,7 +146,8 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
                     if successor != block
                         && successor.0 != 0
                         && predecessors.get(successor) == Some(&1)
-                        && body.blocks[successor.0].view.is_none() =>
+                        && body.blocks[successor.0].view.is_none()
+                        && !body.blocks[successor.0].preserve_header =>
                 {
                     Some((*block, *successor))
                 }
@@ -153,6 +159,14 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
         };
         let folded = std::mem::take(&mut body.blocks[successor.0]);
         let target = &mut body.blocks[block.0];
+        if target.origin.is_none() {
+            target.origin = folded.origin;
+        }
+        for slot in folded.pinned {
+            if !target.pinned.contains(&slot) {
+                target.pinned.push(slot);
+            }
+        }
         target.statements.extend(folded.statements);
         target.terminator = folded.terminator;
     }
@@ -308,6 +322,14 @@ impl Emitter<'_> {
         value(self.get(slot, span)?, span)
     }
 
+    fn entities(&self, slots: &[Slot], span: Span) -> Result<Vec<EntityId>, LoweringError> {
+        slots.iter().map(|slot| self.get(*slot, span)).collect()
+    }
+
+    fn values(&self, slots: &[Slot], span: Span) -> Result<Vec<ValueId>, LoweringError> {
+        slots.iter().map(|slot| self.value(*slot, span)).collect()
+    }
+
     fn abort_divisor(&self, slot: Slot, span: Span) -> Result<ValueId, LoweringError> {
         let entity = self
             .current
@@ -443,10 +465,7 @@ impl Emitter<'_> {
             } => Operation::DirectCall {
                 callee: *callee,
                 receiver: receiver.map(|slot| self.get(slot, span)).transpose()?,
-                arguments: arguments
-                    .iter()
-                    .map(|slot| self.get(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                arguments: self.entities(arguments, span)?,
             },
             ROp::NullableWrap { nullable, owner } => Operation::NullableWrap {
                 nullable: *nullable,
@@ -464,10 +483,7 @@ impl Emitter<'_> {
             },
             ROp::AggregateConstruct { aggregate, fields } => Operation::AggregateConstruct {
                 aggregate: *aggregate,
-                fields: fields
-                    .iter()
-                    .map(|slot| self.value(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                fields: self.values(fields, span)?,
             },
             ROp::HeapAllocate { owner, payload } => Operation::HeapAllocate {
                 owner: *owner,
@@ -561,20 +577,14 @@ impl Emitter<'_> {
             },
             ROp::CallableInvokeView { view, arguments } => Operation::CallableInvokeView {
                 view: loan(self.get(*view, span)?, span)?,
-                arguments: arguments
-                    .iter()
-                    .map(|slot| self.get(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                arguments: self.entities(arguments, span)?,
             },
             ROp::CallableInvoke {
                 callable,
                 arguments,
             } => Operation::CallableInvoke {
                 callable: self.value(*callable, span)?,
-                arguments: arguments
-                    .iter()
-                    .map(|slot| self.get(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                arguments: self.entities(arguments, span)?,
             },
             ROp::RootPlaceTake { owner, place: slot } => Operation::RootPlaceTake {
                 owner: self.value(*owner, span)?,
@@ -644,10 +654,7 @@ impl Emitter<'_> {
                 elements,
             } => Operation::ContainerConstruct {
                 container: *container,
-                elements: elements
-                    .iter()
-                    .map(|slot| self.value(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                elements: self.values(elements, span)?,
             },
             ROp::ContainerLength { owner } => Operation::ContainerLength {
                 owner: self.get(*owner, span)?,
@@ -779,10 +786,7 @@ impl Emitter<'_> {
                 source,
             } => Operation::RangeCall {
                 callee: *callee,
-                arguments: arguments
-                    .iter()
-                    .map(|slot| self.get(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                arguments: self.entities(arguments, span)?,
                 source: loan(self.get(*source, span)?, span)?,
             },
             ROp::RangeLength { view } => Operation::RangeLength {
@@ -802,10 +806,7 @@ impl Emitter<'_> {
                 source,
             } => Operation::BorrowCall {
                 callee: *callee,
-                arguments: arguments
-                    .iter()
-                    .map(|slot| self.get(*slot, span))
-                    .collect::<Result<_, _>>()?,
+                arguments: self.entities(arguments, span)?,
                 source: loan(self.get(*source, span)?, span)?,
             },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {

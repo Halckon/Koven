@@ -48,18 +48,21 @@
 
 ### 2.3 测试契约更新
 
-- `crates/lang-codegen/src/ssa/refine_subset_tests.rs`：更新 `map_for_unrelated_scalar_scope_keeps_legacy_routing`，验证 `for ((k, v) in m)` 无论同单元是否存在其他细化构造均直接路由至 `ssa::refine`。
+- `crates/lang-codegen/src/ssa/refine_subset_tests.rs` 与 `crates/lang-codegen/src/ssa/refine_tests/container_tests.rs`：更新 `map_for_unrelated_scalar_scope_keeps_legacy_routing` 与 `map_cross_function_routing_is_isolated`，验证 `for ((k, v) in m)` 无论同单元是否存在其他细化构造均直接路由至 `ssa::refine`。
 - `crates/lang-codegen/src/ssa/refine_tests/map_condition_tests.rs`：在 `retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary_tests` 中新增 `for ((k, v) in m)` 在强制旧路径（`with_per_family_lowering`）下返回 `UnsupportedNode` 的精确源区间边界测试。
+- `crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/`、`while_flow_tests/` 与 `native_ordered_map_tests/runner.rs`：移除对 `with_per_family_lowering` 的强绑包装，对齐 `ssa::refine` 下 `Map` 迭代头块保持、块参数保活（`[seed, source_loan, cursor]`）、`break` 终止器 `Origin` 与借用参数传递契约。
 
 ## 3. 验收标准
 
 - [x] 删除第 2.2 节列出的全部 38 个 `Map` 迭代旧路径模块并清理关联残留钩子。
-- [x] 更新 `refine_subset_tests.rs` 与 `map_condition_tests.rs` 路由与边界回归测试。
+- [x] 更新 `refine_subset_tests.rs`、`refine_tests/container_tests.rs`、`map_condition_tests.rs` 与 `map_provider_exits_pipeline_tests/` 路由与边界回归测试。
 - [x] `scripts/check_rust_sizes.py --base main` 与 `scripts/check_docs.py` 通过。
-- [ ] 双宿主 `cargo test -p lang-codegen` 与 CI 以 PR 为准。
+- [x] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
 
 ## 4. 实施记录
 
 | 提交 | 内容 |
 |---|---|
-| 本分支首提交 | 路由 `Map` / `MutableMap` 迭代至 `ssa::refine`，退役 `unit_lower` 中 `map_iteration` 家族旧路径并同步测试与文档 |
+| `b77370d6` | 路由 `Map` / `MutableMap` 迭代至 `ssa::refine`，退役 `unit_lower` 中 `map_iteration` 家族旧路径并同步测试与文档 |
+| `1e86e35a` | 合并 `origin/main` 并修复构建与测试回归 |
+| 本分支收尾提交 | 对齐 `ssa::refine` 的 `Map` 迭代 CFG 头块、块参数保活、`Origin` 与测试契约 |
