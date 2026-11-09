@@ -95,7 +95,9 @@ impl DropPlanner<'_, '_> {
                 // A terminated arm has no continuation state. Its explicit return
                 // event and complete cleanup are checked by both replays.
                 let same_owners = match branch_states.as_slice() {
-                    [_] => true,
+                    // No live join is needed when both arms terminate. The event
+                    // validators require explicit terminal cleanup on every leaf.
+                    [] | [_] => true,
                     [left, right] => {
                         left.values.len() == right.values.len()
                             && left.values.iter().all(|value| {
