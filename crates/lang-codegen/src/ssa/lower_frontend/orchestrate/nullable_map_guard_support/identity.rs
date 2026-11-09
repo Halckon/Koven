@@ -132,6 +132,7 @@ pub(super) fn plans(
             signature: CallableSignature {
                 parameters: parameter_types,
                 returns,
+                never_returns: false,
             },
         };
         let pointer = *module

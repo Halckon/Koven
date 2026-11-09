@@ -196,10 +196,12 @@ fn container_unit_storage_does_not_enable_general_value_callable_abi() {
         CallableSignature {
             parameters: vec![EntityType::Value(unit)],
             returns: vec![],
+            never_returns: false,
         },
         CallableSignature {
             parameters: vec![],
             returns: vec![unit],
+            never_returns: false,
         },
     ] {
         assert!(matches!(
@@ -212,6 +214,7 @@ fn container_unit_storage_does_not_enable_general_value_callable_abi() {
             &CallableSignature {
                 parameters: vec![],
                 returns: vec![],
+                never_returns: false,
             },
             false,
         )

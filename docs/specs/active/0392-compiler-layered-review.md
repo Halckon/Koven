@@ -3490,3 +3490,34 @@ Const Refine 的 `Never` 计划原会从固定左值再建两条边，导致新�
 3 项具名 Nothing 和 16 项 callable identity 测试通过，零失败、零忽略。
 具名 Nothing 计数与控制完成性 SSA 共享一条回归。
 同一合流树的 Unit 类型、所有权与 Const 所有权三套共 474 项通过，零失败、零忽略。
+
+## 136. R4 间接 Nothing 的 callable ABI
+
+在 `081549cd` 上，公共 CLI check 接受无捕获 lambda、共享捕获 closure 和借用
+callback 中的 `() -> Nothing`。三者原生 build 均退出 2，lowering 报
+UnsupportedNode。三个原生回归均在生成目标文件时失败，错误位置落在实际 lambda。
+红测要求保留 callee 输出、SIGABRT 与原始 error 源位置，并跳过调用之后的输出。
+
+待核合同覆盖函数指针、具体 closure 和 callable view。无正常返回必须通过已验证的
+callable 签名传递，普通 Unit 无值返回继续独立验证。调用按原顺序求值并交付实参，
+实际间接调用之后无正常清理或后继。SSA 验证器需拒绝把可正常返回的调用当作
+Unreachable，也需拒绝把可正常返回的 thunk 绑定到无返回签名。LLVM 适配需核对
+实际调用、callback trampoline、无返回属性与终止指令。
+
+本批实现保留前端 callable result 的无返回事实。声明、函数指针、具体 closure、
+callable view 与 thunk 共用完整签名。SSA 验证不允许正常 Unit thunk 形成无返回指针，
+也拒绝无返回调用之后接正常后继或正常调用后伪造 Unreachable。
+LLVM 发出实际 indirect call、noreturn 与 unreachable。借用 callable view 的指针
+trampoline 同样保留该合同。无捕获、无参数 thunk 的保留 lowering 路径已实跑。
+
+独立复核发现普通和专用调用在中止实参后泄漏构建期 loan。普通调用、List size 和
+Map receiver/key 的红测均在候选上复现 InvalidModel。表达式构建入口现在在
+Diverged 后丢弃该表达式新增的 pending loan 记录，已生成的控制转移清理不变。
+本机原生验证 while 正常绕过、普通嵌套调用、List 与 Map 前缀，以及 Const 实参
+break 的资源计数和未实际分派。Unit initializer 与 Map action 的两条 SSA 负控先
+复现误接纳，再验证运行时消费者拒绝无返回签名。独立复核已核对修正后的签名和 loan 边界。
+
+本机间接 Nothing 原生 7 项、SSA verify 112 项、borrowed generation 28 项和
+Unit closure 10 项通过，零失败、零忽略。相关拒绝过滤器的 3 项通过，与 SSA 和
+generation 计数有重叠。
+全工作区全目标 Clippy、格式、文档结构与 Rust 尺寸门禁通过。

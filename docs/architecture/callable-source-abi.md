@@ -53,6 +53,10 @@ field symbol、field index 与 target 后建立 `SharedHeapFieldLoan`；child �
 
 ## 验证边界
 
+函数指针、具体闭包和借用 callable view 的签名区分 `Nothing` 无正常返回与普通 `Unit`。
+SSA 验证器核对 thunk 的签名，并要求实际无返回调用以 `Unreachable` 结束。
+LLVM 间接调用和 callback trampoline 保留此终止合同。参见[间接调用验收](../specs/active/0392-compiler-layered-review.md#136-r4-间接-nothing-的-callable-abi)。
+
 两入口各144个 Int/String/Resource/Unit × Array/List × 三环境 × named/temporary × 0/1/3
 源码组合已通过 SSA/LLVM。两入口各144个普通 native 组合及各48个 generic helper
 组合（显式与推断 T，single 同文件、unit 跨文件）已实际 object/link/run；Resource trace

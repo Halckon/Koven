@@ -18,12 +18,24 @@ impl Module {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn add_function_pointer_type_with_parameters(
         &mut self,
         parameters: Vec<EntityType>,
         returns: Vec<SsaTypeId>,
     ) -> Result<SsaTypeId, ModelError> {
-        let signature = self.check_callable_signature(parameters, returns)?;
+        self.add_function_pointer_signature(CallableSignature {
+            parameters,
+            returns,
+            never_returns: false,
+        })
+    }
+
+    pub(crate) fn add_function_pointer_signature(
+        &mut self,
+        signature: CallableSignature,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_callable_signature(&signature)?;
         Ok(self.intern_type(SsaTypeKind::FunctionPointer { signature }))
     }
 
@@ -32,7 +44,7 @@ impl Module {
         &mut self,
         signature: CallableSignature,
     ) -> Result<SsaTypeId, ModelError> {
-        let signature = self.check_callable_signature(signature.parameters, signature.returns)?;
+        self.check_callable_signature(&signature)?;
         Ok(self.intern_type(SsaTypeKind::CallableView { signature }))
     }
 
@@ -70,11 +82,31 @@ impl Module {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn add_concrete_closure_type_with_parameters(
         &mut self,
         name: impl Into<String>,
         parameters: Vec<EntityType>,
         returns: Vec<SsaTypeId>,
+        environment: SsaTypeId,
+        captures: Vec<ClosureCaptureType>,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.add_concrete_closure_signature(
+            name,
+            CallableSignature {
+                parameters,
+                returns,
+                never_returns: false,
+            },
+            environment,
+            captures,
+        )
+    }
+
+    pub(crate) fn add_concrete_closure_signature(
+        &mut self,
+        name: impl Into<String>,
+        signature: CallableSignature,
         environment: SsaTypeId,
         captures: Vec<ClosureCaptureType>,
     ) -> Result<SsaTypeId, ModelError> {
@@ -84,7 +116,7 @@ impl Module {
         if captures.is_empty() {
             return Err(ModelError::EmptyClosureCaptures);
         }
-        let signature = self.check_callable_signature(parameters, returns)?;
+        self.check_callable_signature(&signature)?;
         let fields = self
             .aggregate_fields(environment)
             .ok_or(ModelError::ExpectedAggregate { ty: environment })?;
@@ -145,26 +177,20 @@ impl Module {
         }
     }
 
-    fn check_callable_signature(
-        &self,
-        parameters: Vec<EntityType>,
-        returns: Vec<SsaTypeId>,
-    ) -> Result<CallableSignature, ModelError> {
-        if returns.len() > 1 {
+    fn check_callable_signature(&self, signature: &CallableSignature) -> Result<(), ModelError> {
+        if signature.returns.len() > 1 || (signature.never_returns && !signature.returns.is_empty())
+        {
             return Err(ModelError::InvalidCallableReturnArity);
         }
-        for parameter in &parameters {
+        for parameter in &signature.parameters {
             if matches!(parameter, EntityType::Place(_)) {
                 return Err(ModelError::InvalidCallableParameter);
             }
             self.check_type_id(parameter.semantic_type())?;
         }
-        for ty in &returns {
+        for ty in &signature.returns {
             self.check_type_id(*ty)?;
         }
-        Ok(CallableSignature {
-            parameters,
-            returns,
-        })
+        Ok(())
     }
 }

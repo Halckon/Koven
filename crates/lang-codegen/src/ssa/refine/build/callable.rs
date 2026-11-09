@@ -107,7 +107,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionId,
         arguments: Vec<Slot>,
-        unit_return: bool,
+        return_type: UnitTypeId,
         span: Span,
     ) -> Result<(Lowered, Option<ExpressionId>), LoweringError> {
         let Expression::Call { callee, .. } = self.node(expression)?.0 else {
@@ -134,7 +134,11 @@ impl Builder<'_, '_> {
         } else {
             return Err(error(LoweringErrorKind::MissingFact, callee_span));
         };
-        let result = if unit_return {
+        let result = if self.is_nothing(return_type) {
+            self.push(op, Vec::new(), span)?;
+            self.terminate(super::RTerm::Unreachable, span)?;
+            Lowered::Diverged
+        } else if self.is_unit(return_type) {
             self.push(op, Vec::new(), span)?;
             Lowered::Unit
         } else {

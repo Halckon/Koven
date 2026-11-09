@@ -163,6 +163,10 @@ pub(super) fn declare(
         let scope = *owners
             .get(&source)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, layout.span))?;
+        let never_returns = module
+            .callable_signature(layout.callable)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, layout.span))?
+            .never_returns;
         let thunk = module
             .add_function(
                 format!("{}.thunk", layout.identity),
@@ -170,9 +174,11 @@ pub(super) fn declare(
                 Origin::Source(layout.span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?;
-        module
+        let function = module
             .function_mut(thunk)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?;
+        function.never_returns = never_returns;
+        function
             .add_block(layout.parameters, Origin::Source(layout.span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?;
         closures.insert(
@@ -298,7 +304,11 @@ impl UnitExpressionLowerer<'_> {
         };
         let callable = require_value(self.pending_operands[callable_index], span)?;
         self.pending_operands.truncate(callable_index);
-        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
+        let result_builtin = builtin_type(self.typed, return_type);
+        let result_types = if matches!(
+            result_builtin,
+            Some(BuiltinType::Unit | BuiltinType::Nothing)
+        ) {
             Vec::new()
         } else {
             vec![EntityType::Value(
@@ -320,6 +330,16 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        if result_builtin == Some(BuiltinType::Nothing) {
+            self.function
+                .set_terminator(
+                    self.block,
+                    TerminatorKind::Unreachable,
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Diverged);
+        }
         for (loan, end_span) in created_loans.into_iter().rev() {
             self.function
                 .append_instruction(
@@ -436,11 +456,14 @@ pub(super) fn finish_thunk(
     lowerer: &mut UnitExpressionLowerer<'_>,
     plan: &CallablePlan,
 ) -> Result<(), LoweringError> {
-    // SPEC-0370: only capture-free `() -> Unit` lambdas whose bodies still use unmigrated
-    // map-iteration families remain on this fallback path.
+    // The fallback thunk has no parameters, captures, or returned values.
+    let result_builtin = builtin_type(lowerer.typed, plan.return_type);
     if !plan.captures.is_empty()
         || !plan.parameter_symbols.is_empty()
-        || builtin_type(lowerer.typed, plan.return_type) != Some(BuiltinType::Unit)
+        || !matches!(
+            result_builtin,
+            Some(BuiltinType::Unit | BuiltinType::Nothing)
+        )
     {
         return Err(lowering_error(
             LoweringErrorKind::UnsupportedNode,
@@ -462,7 +485,7 @@ pub(super) fn finish_thunk(
             plan.span,
         ));
     }
-    if result != LoweredValue::Unit {
+    if result != LoweredValue::Unit || result_builtin == Some(BuiltinType::Nothing) {
         return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
     }
     lowerer

@@ -604,8 +604,11 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
                     .last()
                     .and_then(|&id| function.instruction(id));
                 if !final_call.is_some_and(|instruction| {
-                    matches!(instruction.operation, super::model::Operation::DirectCall { callee, .. }
-                        if module.function(callee).is_some_and(|callee| callee.never_returns))
+                    super::verify_operation::callable::call_never_returns(
+                        module,
+                        function,
+                        &instruction.operation,
+                    )
                 }) {
                     errors.push(VerifyError {
                         kind: VerifyErrorKind::OperationContract {
