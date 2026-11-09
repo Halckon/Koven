@@ -7015,3 +7015,70 @@ producer重叠，未吸纳或验证该组合。仍缺正常/跳转混合臂的�
 header/exit phi、动态多实例capture/释放、suffix最终消费与Phase 4/native；LoopExit
 仍清理原condition state，不是实际body回灌或一般出口运输。本Spec与D10/E2仍in-progress。
 按用户要求仅本地分步提交，不推送、不改PR、不合main，保留全部旧链、工作树和oracle。
+
+
+## 164. 不变 owner 的正常幸存臂与独立跳转臂（2026-11-09）
+
+先核 main `748516795812a1946b2fd9e3ca0f8046dc2e560b`、#390 `734dde83`、#398
+`8952321a`及远端/本地在途链，无重复owner实现。新隔离分支从main建立，仅ff-only复用
+§162 `b0f73fe82d2ff56bd5ddf38027ad67d01959fd9f`，不新建merge或重放依赖；统一队列
+4dfeda9e与类型/codegen旁线保持独立，旧工作树、oracle和完整父链不改。
+
+新增 `UnitOwnerInvariantMixedJoinObservationV1`、独立getter及
+`UnitOwnerMixedArmBoundaryV1::{Normal, Jump}`。只接末尾If一个正常空臂和一个裸Continue/
+Break的四种排列；§162的三语句immutable String输入/Name suffix、独立Boolean条件和
+闭合body-local String/move/Group/root Replace合同不变，不放行臂内owner或其它控制。
+
+私有normal_join扩成joining：arm completion保存实际evaluator的continues与binding，
+真实jump cleanup另存kind/ID/binding；只有(true,None)造Normal、(false,Some jump)造Jump，
+矛盾或缺失则拒绝，不由expected AST或缺少jump推定正常。两个实际Normal只转换原NN
+类型并过旧seal，mixed才进新类型；旧public NN/JumpArm文件及branch.rs字节不变。
+原完成门对mixed要求恰1 continuation，NN仍2、terminal仍0；终端空merge要求保持。
+
+正常臂经branch-exit cleanup，跳转臂false后不正常branch-exit cleanup也不push。原merge
+只收到正常幸存state，之后才独立读取join，不称两状态合流；whole-body正常scope cleanup
+后再读backedge并核实际Ok(true)、completed/collected Arc与原闭合V1。共十份真实binding：
+entry/split、正常臂entry/completion、跳转臂entry/after_jump/completion、join/backedge/exit。
+每份完整OwnedValue相同，values之外16槽空；空正常臂自身不执行drop_scope。
+
+新seal限定恰一Fallthrough，逐项核实际Normal/Jump变体、expected completion、jump目标、
+七边、source/序号/control/body及全部catalog/Arc/binding。Continue组合有一ContinueBackedge
+和一普通Backedge，Break组合也有一BreakExit和一普通Backedge，不能称整体终端body。
+LoopExit仍清理原condition state，没有回灌Break state；控制图是静态检查证据，不是某次
+执行同时走两臂或每轮换臂。普通cleanup/merge算法、Guide ASAP、Choice与旧能力不放宽。
+
+合法N/C原红例在typed/ownership成功后因缺观察1 failed，红提交
+`272c82e533fca5a5ba472384961266a22ad4189f`；最小接线后同例1 passed，精确原源码保留。
+最终Rust/架构提交 `ebf42b04d2e2e6e90454a0b4db42922e8f26e676`，tree
+`3e191a3ff01a5e9e427a14d91484ec3c2fade160`；以下验收对应该字节，后续仅追加账本。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 四种真实mixed路径 | `invariant_mixed_join::actual_mixed_arms_preserve_the_surviving_join_and_jump` | 1 passed，4×2×2×2×4＝128矩阵输入+原红1例；AST独立核7边/10binding、producer及真实Drop |
+| 拒绝与旧能力 | 同模块 `mixed_join_rejects_unproved_paths_and_preserves_prior_capabilities` | 1 passed，28合法否例；另复核四终端组合及NN，旧空输入NN能力保留 |
+| 来源及错误 | 同模块 `mixed_join_sources_and_failures_keep_capabilities_separate` | 1 passed，双source/二次analysis隔离，3输入错误/未闭合body、2非法arm无泄露，sibling错误清空观察 |
+| 双公开入口 | `invariant_mixed_join_owner_unit::mixed_join_destinations_match_both_public_unit_inputs` | 1 passed，27片段×两入口，54分析/81 source inputs，48准入/33拒绝 |
+| owner与共享hook组合 | §162的92 lib exact+本片3、21 iteration+本片公开1、原5 multifile/2 closures/1 borrow-continuation | 95 + 22 + 5 + 2 + 1 passed，0 failed/ignored；包含旧空输入四mixed路径回归 |
+| main常量邻控 | §162保留的multifile_constant_qualification 11项exact | 11 passed |
+| 工程门禁 | frontend all-targets严格Clippy、LLVM21 workspace all-targets check、fmt/docs/尺寸/diff | 全过；866 Markdown、2291 Rust、37历史超限，尺寸base b0f73fe8，无新豁免 |
+| 独立复审和精确复跑 | 实际completion、jump/幸存者分离、旧能力及新3 lib+1公开 | 无剩余blocker；4项各1 passed，前后HEAD/tree/clean、两个binary SHA256一致 |
+
+合计136项不同ordinary，125项owner相关+11项常量邻控；红绿和复跑不重复计数。lib名称
+完整前缀为 `ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+正例producer数1/1/2/3、Replace数0/0/1/2由源码独立给定，输入/body catalog隔离，逐个
+String body span/Create/唯一真实Drop对照，无伪造ControlTransfer Drop。单源正反例比较
+完整Analysis开关等值；双source helper只对source 0做该对照，另核全部source身份。
+两个非法arm在准入前已拒绝，不是第一臂完成后的中途撤销；新空输入对照只测NN，四mixed
+空输入由旧回归覆盖。自洽NN/双终端、expected Break对actual Continue、foreign状态/Arc/
+catalog、错误边及deferred守卫仅编译。精准Break守卫从真实N/B出发，只改为另一个真实
+While的LoopExit目标，保持closed一致再核mixed拒绝；不能把初版同时改kind的case当作
+单独目的地证明。所有model/Abort/故障注入未本机执行。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target。
+未跑frontend/workspace全量测试、Linux、native或精确头正式CI，136项不是统一队列验收。
+收尾main/#390未变，#398推进至b6cb2bb7，含类型flow/inout与恢复门禁；本地c356d70d为
+codegen后续，无owner producer重叠，均未吸纳或组合验证。本片完成单个不变String的末尾
+If正常/Continue/Break九种双臂完成组合之最后四种，不代表变更owner、一般header/exit phi、
+动态多实例capture/释放、suffix最终消费、完整外层运输或Phase 4/native已闭合。
+本Spec与D10/E2仍in-progress；仅本地分步提交，不推送、不改PR、不合main。当前事实见
+[不变输入循环边界](../../architecture/unit-invariant-loop-owner.md)。
