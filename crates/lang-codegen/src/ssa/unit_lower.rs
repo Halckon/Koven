@@ -439,6 +439,13 @@ impl UnitExpressionLowerer<'_> {
         if self.function.carrier_return.is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if let Some(value) = value {
+            // A nullable-When extraction is atomic at the whole `return` boundary.
+            self.guard_nullable_when_expression(
+                UnitExpressionId::new(self.source_unit, value),
+                span,
+            )?;
+        }
         let mut result = match value {
             Some(value) => self.lower(value)?,
             None => LoweredValue::Unit,

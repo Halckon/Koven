@@ -11,7 +11,7 @@ use crate::ssa::model::{LoanId, SsaTypeKind};
 use lang_frontend::{
     ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
     parser::{BinaryOperator, FunctionBody, FunctionForm, Item},
-    type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitTypeKind},
+    type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitExpressionId, UnitTypeKind},
 };
 
 #[derive(Clone, Copy)]
@@ -34,6 +34,27 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
         if !self.nullable_proofs.is_empty() || result_required {
             return Ok(None);
+        }
+        // Nullable `String?` ifs lower only in `ssa::refine` (SPEC-0398); a mixed
+        // compatibility body keeps its older inline-nullable handling.
+        if !self.migrated_family_compatibility
+            && self
+                .typed
+                .null_comparison(UnitExpressionId::new(self.source_unit, condition))
+                .is_some_and(|fact| {
+                    matches!(
+                        self.typed.types().get(fact.nullable_type()),
+                        Some(UnitTypeKind::Nullable(inner))
+                            if matches!(
+                                self.typed.types().get(*inner),
+                                Some(UnitTypeKind::Builtin(
+                                    lang_frontend::type_checking::BuiltinType::String
+                                ))
+                            )
+                    )
+                })
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));

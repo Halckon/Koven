@@ -314,9 +314,15 @@ fun main(): Unit {
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
     crate::native_tests::boxed_enum_tests::assert_success(&run, b"value\nvalue\nfallback\n");
-    let err = super::refine::with_per_family_lowering(|| {
+    let err = match super::refine::with_per_family_lowering(|| {
         source.lower_entry(source.declaration("entry", SymbolKind::Function))
-    })
-    .unwrap_err();
-    assert_eq!(err.kind, super::LoweringErrorKind::UnsupportedNode);
+    }) {
+        Err(err) => err,
+        Ok(_) => panic!("the retired nullable String if path must reject per-family lowering"),
+    };
+    assert_eq!(
+        err.kind,
+        super::LoweringErrorKind::UnsupportedNode,
+        "{err:?}"
+    );
 }

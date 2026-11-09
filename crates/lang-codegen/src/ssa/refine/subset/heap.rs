@@ -403,7 +403,12 @@ impl Checker<'_, '_> {
                 if !self.plain(receiver_expression) {
                     return false;
                 }
-                match typed.non_null_use(receiver) {
+                // Transparent groups around the narrowed name keep the same proof.
+                let root = self.ungrouped(receiver_expression);
+                let use_fact = typed
+                    .non_null_use(receiver)
+                    .or_else(|| typed.non_null_use(self.id(root)));
+                match use_fact {
                     // A smart-cast receiver is read through the condition's proof view.
                     Some(fact) => {
                         let named = self
@@ -411,10 +416,10 @@ impl Checker<'_, '_> {
                             .parsed
                             .ast()
                             .expressions()
-                            .get(receiver_expression)
+                            .get(root)
                             .is_ok_and(|node| matches!(node.payload(), Expression::Name));
                         (named
-                            && self.reference(receiver_expression) == Some(fact.symbol())
+                            && self.reference(root) == Some(fact.symbol())
                             && self.known.contains(&fact.symbol())
                             && self.view_symbols.contains(&fact.symbol()))
                         .then(|| self.c(fact.narrowed_type()))
