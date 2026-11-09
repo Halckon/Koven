@@ -96,6 +96,11 @@ resource-bearing generic、nullable、Box/Rc、enum wrapper、interface 继承�
 交付通用 native 能力，均保留显式拒绝。类型分类广于此 native 范围。single 仍保留普通
 instance member 调用和 nested field chain 作为 Borrow 实参的原有限制，不因 deinit 顺带扩展。
 
+原 `Holder<Resource>` 泛型包装拒绝用例现经 strict Unit 入口，保留源码、真实声明身份及
+构造表达式上的完整 `UnsupportedNode` 错误；nullable resource 与直接泛型 deinit 的原
+Legacy 见证仍保留。这里只迁移一条测试输入路径，不扩展泛型资源执行能力；精确保全证据见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#泛型资源包装拒绝消费者迁移2026-11-09)。
+
 证据入口：frontend `resource_deinit_type_facts`、`ownership_resource_deinit`；codegen
 `deinit_tests`、single/unit deinit lowering 与 native 测试。当前验收记录见
 [SPEC-0245](../archive/specs/0245-resource-deinit.md)，不代表整个语言/全部 frontend 完成。
