@@ -3046,3 +3046,25 @@ when 只从分支统计完成性，需要单独核对 subject、分支/nullable 
 最终本机完整前端 183 组、2901 项通过。后端直接调用前缀 4 项、Map provider
 退出 76 项、原生资源 18 项通过，均零失败、零忽略。前端和 codegen 全目标
 Clippy、格式和文档检查通过。上述是基于 `edaaa9b2` 的下一批本机证据。
+
+## 120. R2/R3 when subject 的提前退出
+
+普通调用组合中 `(when (return 1) { else -> 2 })` 原报后续 nullable 使用 L0084。
+原待定写回夹具中的 `when (return)` 以及在 subject 内嵌一个私有已知提前退出的
+when，均把死 arm 的待定赋值错误带到调用者。三条红测实际复现。现在公开完成性
+只统计 subject 可完成时的正常出口。私有恢复另以 subject 和 arm 的实际可达出口
+合并待定键，并保留非穷尽 unmatched 路径。死 arm 仍检查源码，原 `Unbound` 诊断保留。
+正常 subject 的 inout 对照仍报 L0084。独立复核的活 arm、非穷尽及全部覆盖对照
+验证了待定键传播与清除。
+
+提前退出的 nullable subject 不发布用于进入 arm 的证明。Refine 准入先检查 subject
+本身，refine 与兼容 lowering 都使用公开完成事实，在结果槽、nullable plan 和 arm
+之前降低 subject 一次，并核对实际 `Diverged`。原生最小用例在只有前端修补时
+仍 UnsupportedNode，随后走真实构建和运行验证。带 `null` 与 `else` 的 nullable
+对照在普通返回时保留 descriptor。selector 自身提前退出是另一个已识别的完成性
+边界，本片验证的是 subject 求值。
+
+三套本机前端类型与所有权用例 538 项通过，零失败、零忽略。原生对照实跑三份输入。
+直接 return、带完整 null/else 形状的 nullable 返回类型，以及同一函数先执行活的
+owned nullable when 后再提前退出，均只输出 ok。用于构造兼容路径的 nullable Boolean
+局部夹具先在既有初始化边界失败，最终换用已支持的 nullable 类参数。

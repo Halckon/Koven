@@ -142,6 +142,8 @@ fn unfinished_inout_call_keeps_the_other_paths_narrowed() {
     for (argument, expected) in [
         ("(return 1)", [].as_slice()),
         ("(if (return 1) 2 else 3)", [].as_slice()),
+        ("(when (return 1) { else -> 2 })", [].as_slice()),
+        ("(when (0) { else -> 2 })", ["L0084"].as_slice()),
         ("1", ["L0084"].as_slice()),
     ] {
         let text = format!(

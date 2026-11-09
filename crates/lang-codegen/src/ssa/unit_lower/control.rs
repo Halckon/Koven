@@ -272,6 +272,17 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
         expected_string: Option<(UnitTypeId, SsaTypeId)>,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(subject) = subject
+            && self
+                .typed
+                .expression_falls_through(UnitExpressionId::new(self.source_unit, subject))
+                == Some(false)
+        {
+            return match self.lower_expression(subject)? {
+                LoweredValue::Diverged => Ok(LoweredValue::Diverged),
+                _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let control = UnitExpressionId::new(self.source_unit, expression);
         if self.owned.drops().iter().any(|fact| {
             matches!(fact.point(),
