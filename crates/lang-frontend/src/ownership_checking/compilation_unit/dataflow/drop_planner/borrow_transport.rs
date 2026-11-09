@@ -37,6 +37,10 @@ impl DropPlanner<'_, '_> {
             .call_uses()
             .iter()
             .filter(|fact| fact.expression() == source_call)
+            .filter(|fact| {
+                fact.end_point()
+                    == crate::ownership_checking::UnitDropPoint::CallReturn(fact.call())
+            })
         {
             let Some(consumer) = self.checker.typed.call(use_fact.call()) else {
                 continue;

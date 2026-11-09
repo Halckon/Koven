@@ -617,6 +617,8 @@ impl OwnershipDeferredFact {
 /// 一次实际执行路径上的 loan 终止边；先终止 loan，再执行该边的 drop facts。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoanEndPoint {
+    /// 从借用结果复制后，在下一个实参求值前结束原 loan。
+    AfterExpression(ExpressionId),
     /// 所有实参正常完成且同步调用已返回。
     CallReturn(ExpressionId),
     /// 尚未调用就由 return/break/continue 放弃调用求值。

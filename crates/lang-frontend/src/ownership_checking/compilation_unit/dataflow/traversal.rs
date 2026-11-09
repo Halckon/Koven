@@ -895,8 +895,10 @@ impl Checker<'_> {
                     contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
                         && !contract.crosses_thread()
                 })
-                .and_then(|_| self.borrow_call_argument(id, argument.value));
-            if let Some(expression) = borrow_call {
+                .and_then(|contract| {
+                    self.borrow_call_argument(id, argument.value, contract.parameter_type())
+                });
+            if let Some((expression, _)) = borrow_call {
                 self.allowed_borrow_call = Some(expression);
             } else if range {
                 self.allowed_borrow_call = Some(argument.value);
@@ -915,9 +917,9 @@ impl Checker<'_> {
                 );
             }
             if self.diagnostics.len() == diagnostic_count
-                && let Some(expression) = borrow_call
+                && let Some((expression, copies)) = borrow_call
             {
-                self.record_borrow_call_use(id, argument.value, expression, &mut flows)?;
+                self.record_borrow_call_use(id, argument.value, expression, copies, &mut flows)?;
             }
             let operand = self.unit_expression(argument.value);
             if self.is_nothing_expression(operand) {

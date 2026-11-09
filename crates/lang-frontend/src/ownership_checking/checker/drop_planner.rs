@@ -157,6 +157,7 @@ impl ValueState {
 
 struct DropPlanner<'a, 'checker> {
     resource_lifetime: Option<ExpressionId>,
+    call_return_copy_source: Option<SymbolId>,
     loop_origins: BTreeMap<usize, crate::ownership_checking::IterationClosureFlow>,
     captured_origins: origins::CapturedOrigins,
     recursive_capture_phi: Option<ExpressionId>,
@@ -199,7 +200,8 @@ struct DropPlanner<'a, 'checker> {
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn owner_protected_by_context(&self, symbol: SymbolId, state: &ValueState) -> bool {
-        self.borrow_source_protected(symbol, state)
+        self.call_return_copy_source == Some(symbol)
+            || self.borrow_source_protected(symbol, state)
             || state
                 .iterations
                 .iter()
@@ -220,6 +222,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     ) -> Self {
         Self {
             resource_lifetime: None,
+            call_return_copy_source: None,
             loop_origins,
             captured_origins,
             recursive_capture_phi: None,
@@ -1180,6 +1183,30 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.continue_range_temporary(id, state);
                 let roots = self
                     .end_pending_calls(LoanEndPoint::CallReturn(id), state, |call| call.call == id);
+                let copied_source = self
+                    .checker
+                    .call_descriptors
+                    .get(&id.index())
+                    .filter(|call| call.borrow_return().is_some())
+                    .and_then(|_| {
+                        self.checker
+                            .borrow_results
+                            .call_uses
+                            .iter()
+                            .find_map(|fact| {
+                                if fact.expression() == id
+                                    && fact.end_point()
+                                        == DropPoint::AfterExpression(fact.argument())
+                                    && let LoanTarget::Place(place) = fact.origin()
+                                {
+                                    Some((place.root(), fact.end_point()))
+                                } else {
+                                    None
+                                }
+                            })
+                    });
+                // Closure cleanup can recursively try to drop the borrowed source.
+                self.call_return_copy_source = copied_source.map(|(root, _)| root);
                 // Value parameters now own their arguments; only borrowed temporaries expire here.
                 state
                     .nullable_temporaries
@@ -1187,10 +1214,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.drop_nullable_temporaries(DropPoint::CallReturn(id), state, |temporary| {
                     temporary.control == id
                 });
+                let mut copied_drop = None;
                 for root in roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
-                        self.drop_named_asap(DropPoint::CallReturn(id), root, state);
+                        if let Some(copy) = copied_source.filter(|(source, _)| *source == root) {
+                            copied_drop = Some(copy);
+                        } else {
+                            self.drop_named_asap(DropPoint::CallReturn(id), root, state);
+                        }
                     }
+                }
+                self.call_return_copy_source = None;
+                if let Some((root, point)) = copied_drop {
+                    self.drop_named_asap(point, root, state);
                 }
                 Ok(true)
             }

@@ -708,3 +708,94 @@ fn borrow_value_field_unit_native_matrix() {
         assert!(run.stderr.is_empty(), "{name}: {run:?}");
     }
 }
+
+#[test]
+fn nested_nullable_borrow_copies_before_a_later_inout() {
+    let source = r#"fun view(source: Int): borrow Int from source = source
+fun observe(value: Int?, inout changed: Int): Unit {
+    changed = 9
+    if (value != null) { if (value == 7) { println("copied") } }
+}
+fun report(value: Int): Unit { if (value == 9) { println("changed") } }
+fun main(): Unit {
+    var n: Int = 7
+    observe(value = ((view(n))), changed = &n)
+    report(n)
+}"#;
+    let output = crate::native_tests::emit_link_and_run("nested_nullable_copy.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"copied\nchanged\n");
+}
+
+#[test]
+fn nested_nullable_borrow_keeps_the_resource_until_its_scope_exit() {
+    let source = r#"class Bucket(val value: Int) {
+    deinit() { println("released") }
+}
+fun view(source: Bucket): borrow Int from source = source.value
+fun observe(value: Int?): Unit { if (value != null) { if (value == 7) { println("copied") } } }
+fun main(): Unit {
+    val bucket = Bucket(7)
+    observe(view(bucket))
+}"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nested_nullable_resource.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"copied\nreleased\n");
+}
+
+#[test]
+fn nested_nullable_borrow_preserves_other_inner_cleanup_edges() {
+    let source = r#"class Boxed(val value: Int)
+class Aux() { deinit() { println("aux") } }
+fun view(source: Boxed, aux: Aux): borrow Int from source = source.value
+fun later(): Int { println("later"); return 1 }
+fun observe(value: Int?, own marker: Int): Unit {
+    if (value != null) { if (value == 7 && marker == 1) { println("copied") } }
+}
+fun main(): Unit {
+    val boxed = Boxed(7)
+    observe(value = ((view(boxed, Aux()))), marker = later())
+}"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nested_nullable_cleanup.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"aux\nlater\ncopied\n");
+}
+
+#[test]
+fn borrow_result_auxiliary_nullable_argument_uses_its_mapped_type() {
+    for (name, result, forwarded, argument, expected) in [
+        ("exact", "Int", "Int", "seed()", b"aux\nresult\n".as_slice()),
+        (
+            "promoted",
+            "Int?",
+            "Int",
+            "seed()",
+            b"aux\nresult\n".as_slice(),
+        ),
+        ("forwarded", "Int", "Int", "aux", b"result\n".as_slice()),
+        ("existing", "Int", "Int?", "aux", b"result\n".as_slice()),
+        ("null", "Int", "Int", "null", b"result\n".as_slice()),
+        (
+            "grouped_const",
+            "Int",
+            "Int",
+            "((extra))",
+            b"result\n".as_slice(),
+        ),
+    ] {
+        let check = if result == "Int?" {
+            r#"if (value != null) { if (value == 7) { println("result") } }"#
+        } else {
+            r#"if (value == 7) { println("result") }"#
+        };
+        let source = format!(
+            r#"const val extra: Int = 1
+fun seed(): Int {{ println("aux"); return 1 }}
+fun view(source: Int, aux: Int?): borrow Int from source = source
+fun observe(value: {result}): Unit {{ {check} }}
+fun forward(source: Int, aux: {forwarded}): Unit {{ observe(view(aux = {argument}, source = source)) }}
+fun main(): Unit {{ val n: Int = 7; forward(n, 1) }}"#
+        );
+        let output = crate::native_tests::emit_link_and_run(name, &source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, expected);
+    }
+}
