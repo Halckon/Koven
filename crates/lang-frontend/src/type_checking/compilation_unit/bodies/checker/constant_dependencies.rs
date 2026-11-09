@@ -8,7 +8,7 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, TypeCheckingError, UnitExpressionId, UnitTypeKind,
-        constant_graph::cyclic_components,
+        constant_graph::strongly_connected_components,
         constant_value::{accepts_binary_operand, accepts_prefix_operand},
     },
 };
@@ -154,36 +154,68 @@ impl BodyChecker<'_> {
                 }
             }
         }
-        // Cyclic nodes never become topologically ready. Propagate newly concrete types
-        // through their dependents before deciding which syntax cycles remain valid.
-        let mut queued = remaining
+        let symbols = remaining
             .iter()
             .filter_map(|(&symbol, &count)| {
                 (count > 0 && !invalid.contains(&symbol)).then_some(symbol)
             })
-            .collect::<BTreeSet<_>>();
-        let mut pending = queued.iter().copied().collect::<VecDeque<_>>();
-        while let Some(symbol) = pending.pop_front() {
-            queued.remove(&symbol);
-            if invalid.contains(&symbol) {
-                continue;
+            .collect::<Vec<_>>();
+        let indices = symbols
+            .iter()
+            .enumerate()
+            .map(|(index, &symbol)| (symbol, index))
+            .collect::<BTreeMap<_, _>>();
+        let mut edges = vec![Vec::new(); symbols.len()];
+        for (index, symbol) in symbols.iter().enumerate() {
+            for target in &dependencies[symbol] {
+                if let Some(&provider) = indices.get(target) {
+                    edges[index].push(provider);
+                } else if !inputs.contains_key(target) {
+                    return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+                }
             }
-            let previous = self.parts.symbol_types.get(&symbol).copied();
-            if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
-                invalid.insert(symbol);
-                propagate_invalid(&mut invalid, &reverse, [symbol]);
-                continue;
+        }
+        let mut components = strongly_connected_components(&edges);
+        let mut component_of = vec![0; symbols.len()];
+        for (id, component) in components.iter_mut().enumerate() {
+            component.sort_unstable();
+            for &index in component.iter() {
+                component_of[index] = id;
             }
-            let current = self.parts.symbol_types.get(&symbol).copied();
-            // Deferred reason changes convey no new operand eligibility and must not
-            // keep an unanchored alias cycle alive in this worklist.
-            if current != previous && current.is_some_and(|ty| !self.is_deferred(ty)) {
-                for &dependent in reverse.get(&symbol).into_iter().flatten() {
-                    if remaining[&dependent] > 0
-                        && !invalid.contains(&dependent)
-                        && queued.insert(dependent)
-                    {
-                        pending.push_back(dependent);
+        }
+
+        // Edges point from consumers to providers. Stabilize each remaining
+        // component before checking consumers outside it.
+        for (id, component) in components.iter().enumerate().rev() {
+            let mut queued = component
+                .iter()
+                .map(|&index| symbols[index])
+                .filter(|symbol| !invalid.contains(symbol))
+                .collect::<BTreeSet<_>>();
+            let mut pending = queued.iter().copied().collect::<VecDeque<_>>();
+            while let Some(symbol) = pending.pop_front() {
+                queued.remove(&symbol);
+                if invalid.contains(&symbol) {
+                    continue;
+                }
+                let previous = self.parts.symbol_types.get(&symbol).copied();
+                if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
+                    invalid.insert(symbol);
+                    propagate_invalid(&mut invalid, &reverse, [symbol]);
+                    continue;
+                }
+                let current = self.parts.symbol_types.get(&symbol).copied();
+                // Deferred reason changes cannot stabilize an unanchored alias cycle.
+                if current != previous && current.is_some_and(|ty| !self.is_deferred(ty)) {
+                    for &dependent in reverse.get(&symbol).into_iter().flatten() {
+                        if indices
+                            .get(&dependent)
+                            .is_some_and(|&index| component_of[index] == id)
+                            && !invalid.contains(&dependent)
+                            && queued.insert(dependent)
+                        {
+                            pending.push_back(dependent);
+                        }
                     }
                 }
             }
@@ -203,29 +235,16 @@ impl BodyChecker<'_> {
         // errors. It only blocks dependent evaluation and cycle diagnostics.
         invalid.extend(evaluation_failures.iter().copied());
         propagate_invalid(&mut invalid, &reverse, evaluation_failures);
-        let symbols = inputs.keys().copied().collect::<Vec<_>>();
-        let indices = symbols
-            .iter()
-            .enumerate()
-            .map(|(index, &symbol)| (symbol, index))
-            .collect::<BTreeMap<_, _>>();
-        let mut edges = vec![Vec::new(); symbols.len()];
-        for (&symbol, targets) in &dependencies {
-            if invalid.contains(&symbol) {
-                continue;
-            }
-            for target in targets {
-                edges[indices[&symbol]].push(
-                    *indices
-                        .get(target)
-                        .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?,
-                );
-            }
-        }
-        let mut cycles = cyclic_components(&edges);
-        for cycle in &mut cycles {
-            cycle.sort_unstable();
-        }
+        // Reverse invalidation reaches an entire component, so surviving
+        // cycles can reuse the original partition.
+        let mut cycles = components
+            .into_iter()
+            .filter(|component| {
+                let first = component[0];
+                !invalid.contains(&symbols[first])
+                    && (component.len() > 1 || edges[first].contains(&first))
+            })
+            .collect::<Vec<_>>();
         cycles.sort_by_key(|cycle| cycle[0]);
         let code = codes::catalog()?.resolve(codes::CONSTANT_DEPENDENCY_CYCLE)?;
         for cycle in cycles {

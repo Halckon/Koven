@@ -538,3 +538,41 @@ fn rejected_annotation_does_not_preempt_an_ordinary_initializer_error() {
         Some("+"),
     );
 }
+
+#[test]
+fn downstream_qualification_waits_for_the_cyclic_provider() {
+    for (provider, consumer) in [("a", "b"), ("b", "a")] {
+        let consumer_text = format!(
+            "package {consumer}\nimport {provider}.B\nconst val FORWARD = B.BAD\nconst val COPY: Boolean = FORWARD == FORWARD"
+        );
+        for (body, code, span) in [
+            ("const val BAD: Boolean = BAD + true", "L0085", "+"),
+            ("const val BAD: Boolean = BAD == BAD", "L0156", "BAD == BAD"),
+            (
+                "const val BAD: Boolean = NEXT + true\nconst val NEXT: Boolean = BAD",
+                "L0085",
+                "+",
+            ),
+        ] {
+            let provider_text = format!("package {provider}\nobject B {{ {body} }}");
+            let texts = if provider == "a" {
+                [provider_text.as_str(), consumer_text.as_str()]
+            } else {
+                [consumer_text.as_str(), provider_text.as_str()]
+            };
+            check(texts, &[code], Some(span));
+        }
+    }
+}
+
+#[test]
+fn downstream_qualification_sees_types_stabilized_inside_a_healthy_cycle() {
+    check(
+        [
+            "package a\nimport b.B\nconst val COPY = B.OTHER == B.OTHER",
+            "package b\nobject B { const val VALUE: Boolean = OTHER\nconst val OTHER = VALUE }",
+        ],
+        &["L0156", "L0157"],
+        Some("B.OTHER == B.OTHER"),
+    );
+}

@@ -1,5 +1,14 @@
-/// Iterative Kosaraju: input indices are built from this analysis's symbol table, never source integers.
 pub(super) fn cyclic_components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    collect_components(edges, false)
+}
+
+/// Iterative Kosaraju, in topological order along the supplied edges.
+/// Input indices belong to the analysis's symbol table.
+pub(super) fn strongly_connected_components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    collect_components(edges, true)
+}
+
+fn collect_components(edges: &[Vec<usize>], include_acyclic: bool) -> Vec<Vec<usize>> {
     let mut visited = vec![false; edges.len()];
     let mut order = Vec::with_capacity(edges.len());
     for root in 0..edges.len() {
@@ -28,7 +37,7 @@ pub(super) fn cyclic_components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
         }
     }
     visited.fill(false);
-    let mut cycles = Vec::new();
+    let mut components = Vec::new();
     for root in order.into_iter().rev() {
         if visited[root] {
             continue;
@@ -45,9 +54,9 @@ pub(super) fn cyclic_components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
                 }
             }
         }
-        if component.len() > 1 || edges[root].contains(&root) {
-            cycles.push(component);
+        if include_acyclic || component.len() > 1 || edges[root].contains(&root) {
+            components.push(component);
         }
     }
-    cycles
+    components
 }
