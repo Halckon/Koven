@@ -518,3 +518,22 @@ fun main(): Unit {{ println("before abort"); run(true) }}
     assert_eq!(output.stdout, b"before abort\nmade outer\nmade pending\n");
     assert!(output.stderr.starts_with(b"abort: stop\n"), "{output:?}");
 }
+
+#[test]
+fn direct_resource_closure_native_keeps_original_output_and_repeated_drop_order() {
+    for (source, expected) in [
+        (
+            "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
+            "keep\n",
+        ),
+        (
+            "class Resource { deinit() { println(\"released\") } }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource(); println(\"body\") }; val alias = callback; (alias)(); (alias)(); println(\"after\") }",
+            "keep\nbody\nreleased\nkeep\nbody\nreleased\nafter\n",
+        ),
+    ] {
+        let output = emit_link_and_run("resource-direct-closure.ko", source, "run");
+        assert_eq_diagnostic!(output.status.code(), Some(0), "{output:?}");
+        assert_eq_diagnostic!(output.stdout, expected.as_bytes(), "{output:?}");
+        assert_eq_diagnostic!(output.stderr, b"", "{output:?}");
+    }
+}
