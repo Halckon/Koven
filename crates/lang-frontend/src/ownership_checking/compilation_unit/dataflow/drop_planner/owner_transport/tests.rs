@@ -28,7 +28,11 @@ fn compare(fixture: &Fixture, parts: &Parts) {
     compare_and_inspect(fixture, parts, |_| {});
 }
 
-fn compare_and_inspect(fixture: &Fixture, parts: &Parts, inspect: impl FnOnce(&Checker<'_>)) {
+fn compare_and_inspect(
+    fixture: &Fixture,
+    parts: &Parts,
+    inspect: impl FnOnce(&Checker<'_>),
+) -> usize {
     let inputs = fixture.inputs();
     let fields = traversal::collect_field_mutability(&inputs, fixture.names.names()).unwrap();
     let constructions = collect_construction_descriptors(
@@ -105,6 +109,7 @@ fn compare_and_inspect(fixture: &Fixture, parts: &Parts, inspect: impl FnOnce(&C
         observed, disabled,
         "all legacy cleanup fields, their identities and order must be identical"
     );
+    observed.string_clone_loan_ends.len()
 }
 
 #[test]
@@ -227,4 +232,43 @@ fn terminal_if_observation_preserves_full_legacy_cleanup_analysis() {
         assert!(owned.clone().validate().is_ok());
         compare(&fixture, &fixture.parts(&owned));
     }
+}
+
+#[test]
+fn owner_observation_preserves_nonempty_string_clone_ends() {
+    for (text, ends) in [
+        (r#"fun copy(text: String): String = text.clone()"#, 1),
+        (r#"fun copy(): String = ("nested".clone()).clone()"#, 2),
+        (
+            r#"fun copy(text: String, flag: Boolean): Unit { while(flag) { val copy = text.clone(); println(copy); break } }"#,
+            1,
+        ),
+        (
+            r#"fun select(first: String, second: String): String = first.clone()
+fun copy(): String { return select("inner".clone(), return "done").clone() }"#,
+            2,
+        ),
+    ] {
+        let fixture = Fixture::new(&[("root.ko", text)]);
+        let shared = fixture.shared();
+        assert!(shared.clone().validate().is_ok());
+        assert_eq!(shared.string_clone_loan_ends().len(), ends);
+        let parts = fixture.parts(&shared);
+        assert_eq!(compare_and_inspect(&fixture, &parts, |_| {}), ends);
+    }
+}
+
+#[test]
+fn owner_observation_preserves_simultaneously_nonempty_receiver_and_clone_end_tables() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(node: Node): Unit { val seed = \"kept\"; node.touch(seed.clone(), 0); node.touch(\"prefix\".clone(), return) }";
+    let fixture = Fixture::new(&[("root.ko", text)]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    assert_eq!(shared.receiver_call_return_ends().len(), 1);
+    assert_eq!(shared.receiver_call_prefix_ends().len(), 1);
+    assert_eq!(shared.string_clone_loan_ends().len(), 2);
+    assert_eq!(
+        compare_and_inspect(&fixture, &fixture.parts(&shared), |_| {}),
+        2
+    );
 }

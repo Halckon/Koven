@@ -73,7 +73,8 @@ pub use compilation_unit::{
     UnitOwnerProducerCatalogV1, UnitOwnerTransportEvent, UnitOwnerUnsupportedReason,
     UnitOwnerValueEventV1, UnitOwnerValueObservationV1, UnitOwnerValueV1,
     UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact,
+    UnitRcOwnershipEffect, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
+    UnitReceiverOwnershipFact,
     UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
     UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
     ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
@@ -116,7 +117,7 @@ pub use nullable_when::{
     NullableWhenExtractionKind, NullableWhenOwnershipPlan, NullableWhenProofView,
 };
 pub use rc::{RcOwnershipEffect, RcOwnershipEffectKind};
-pub use string::{StringOwnershipEffect, UnitStringOwnershipEffect};
+pub use string::{StringOwnershipEffect, UnitStringCloneLoanEndFact, UnitStringOwnershipEffect};
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。
 pub fn check_ownership(
