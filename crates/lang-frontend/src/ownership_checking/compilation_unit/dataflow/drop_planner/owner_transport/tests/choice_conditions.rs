@@ -94,7 +94,6 @@ fn wrapped_choice_conditions_do_not_admit_loops_or_following_owner_uses() {
     for body in [
         r#"while (flag) { val chosen = if (!flag) "left" else "right"; break }"#,
         r#"loop { val chosen = if (!flag) "left" else "right"; break }"#,
-        r#"val chosen = if (!flag) "left" else "right"; val moved = chosen"#,
         r#"val chosen = if (!flag) "left" else "right"; val callback = move { chosen }"#,
     ] {
         let source = format!("fun run(flag: Boolean): Unit {{ {body} }}");

@@ -181,12 +181,13 @@ fn post_choice_transfer_keeps_other_consumers_and_multiple_statements_closed() {
         "val forwarded = chosen + \"suffix\"",
         "val callback = move { chosen }",
         "(chosen)",
+        "consume(chosen)",
         "if (flag) { val forwarded = chosen } else { val forwarded = chosen }",
         "loop { val forwarded = chosen; break }",
         "return",
     ] {
         let source = format!(
-            "fun run(flag: Boolean): Unit {{ val chosen = if (flag) \"left\" else \"right\"; {suffix} }}"
+            "fun run(flag: Boolean): Unit {{ val chosen = if (flag) \"left\" else \"right\"; {suffix} }}\nfun consume(own value: String): Unit {{}}"
         );
         let fixture = Fixture::new(&[("root.ko", &source)]);
         let owned = fixture.shared();
@@ -197,4 +198,103 @@ fn post_choice_transfer_keeps_other_consumers_and_multiple_statements_closed() {
         assert!(rejected.definitions().is_empty() && rejected.events().is_empty());
         compare(&fixture, &fixture.parts(&owned));
     }
+}
+
+#[test]
+fn transfer_transaction_rejects_missing_or_misordered_handoff_evidence() {
+    let control = "if (flag) \"left\" else \"right\"";
+    let source = format!(
+        "fun run(flag: Boolean): Unit {{ val chosen = {control}; val forwarded = ((chosen)) }}"
+    );
+    let fixture = Fixture::new(&[("root.ko", &source)]);
+    let owned = fixture.shared();
+    let parts = fixture.parts(&owned);
+    compare_and_inspect(&fixture, &parts, |checker| {
+        let unit = |text| checker.unit_expression(fixture.expression(0, text));
+        let control = unit(control);
+        let left = unit("\"left\"");
+        let right = unit("\"right\"");
+        let name = unit("chosen");
+        let group = unit("(chosen)");
+        let initializer = unit("((chosen))");
+        let chosen = fixture.symbol(0, "chosen");
+        let forwarded = fixture.symbol(0, "forwarded");
+        let graph = owned.owner_observations()[0]
+            .value_observation_v1()
+            .unwrap();
+        let Event::Drop(point, _, _) = graph.suffix().last().unwrap() else {
+            panic!("actual final cleanup");
+        };
+        // Guard traces are separate from the real source tests above. Do not
+        // substitute these hand-written transitions for planner execution proof.
+        for mutation in 0..20 {
+            let mut tx = super::super::choice::ChoiceTransaction::begin(
+                checker,
+                checker.parsed.roots()[0],
+                std::sync::Arc::new(()),
+            )
+            .unwrap();
+            tx.string_completed(left);
+            tx.expression_completed(left, true, true);
+            tx.edge_completed(control, 0, Some(left), true);
+            tx.string_completed(right);
+            tx.expression_completed(right, true, true);
+            tx.edge_completed(control, 1, Some(right), true);
+            tx.expression_completed(control, true, true);
+            if mutation == 1 {
+                tx.moved(name, Some(chosen));
+            }
+            if mutation != 2 {
+                tx.bound(chosen, control);
+            }
+            if mutation == 3 {
+                tx.bound(forwarded, initializer);
+            }
+            tx.moved(
+                name,
+                match mutation {
+                    4 => None,
+                    5 => Some(forwarded),
+                    _ => Some(chosen),
+                },
+            );
+            if mutation == 6 {
+                tx.moved(name, Some(chosen));
+            }
+            if mutation == 7 {
+                tx.expression_completed(group, true, true);
+            }
+            if mutation != 8 {
+                tx.expression_completed(name, mutation != 9, mutation != 10);
+            }
+            if mutation == 11 {
+                tx.expression_completed(name, true, true);
+            }
+            tx.expression_completed(group, true, true);
+            if mutation != 12 {
+                tx.expression_completed(initializer, true, true);
+            }
+            tx.bound(
+                if mutation == 13 { chosen } else { forwarded },
+                if mutation == 14 { name } else { initializer },
+            );
+            if mutation == 15 {
+                tx.bound(forwarded, initializer);
+            }
+            if mutation != 16 {
+                tx.dropped(
+                    if mutation == 17 {
+                        UnitDropPoint::AfterExpression(control)
+                    } else {
+                        *point
+                    },
+                    if mutation == 18 { chosen } else { forwarded },
+                );
+            }
+            if mutation == 19 {
+                tx.dropped(*point, forwarded);
+            }
+            assert_eq!(tx.finish().is_some(), mutation == 0, "mutation {mutation}");
+        }
+    });
 }

@@ -1,4 +1,4 @@
-//! Single-binding Choice collection at real planner transitions, separate from legacy IDs.
+//! Bounded Choice collection at real planner transitions, separate from legacy IDs.
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
@@ -6,13 +6,27 @@ use crate::ownership_checking::compilation_unit::owner_transport::values::{
 };
 use crate::parser::{PrefixOperator, VariableKind};
 
-/// One outer binding; each edge is a literal or a single consumed immutable local.
+/// One Choice binding, optionally moved once; each edge has a single String tail.
 struct Admission {
     callable: UnitOwnerCallable,
     control: UnitExpressionId,
     symbol: UnitSymbolId,
     drop_point: crate::ownership_checking::UnitDropPoint,
     arms: [Arm; 2],
+    transfer: Option<Transfer>,
+}
+
+struct Transfer {
+    symbol: UnitSymbolId,
+    chain: Vec<UnitExpressionId>,
+}
+
+#[derive(Default)]
+struct TransferFrame {
+    // This is the selected Choice result, never a newly invented producer token.
+    result: Option<UnitExpressionId>,
+    completed: usize,
+    bound: bool,
 }
 
 struct Arm {
@@ -41,6 +55,7 @@ pub(in super::super) struct ChoiceTransaction {
     catalog: UnitOwnerProducerCatalogV1,
     events: [Vec<Event>; 2],
     edges: [Edge; 2],
+    transfer: TransferFrame,
     control_completed: bool,
     suffix: Vec<Event>,
     bound: bool,
@@ -102,10 +117,12 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
-    let [statement] = elements.as_slice() else {
-        return None;
+    let (statement, transfer_statement) = match elements.as_slice() {
+        [statement] => (*statement, None),
+        [statement, transfer] => (*statement, Some(*transfer)),
+        _ => return None,
     };
-    let Statement::LocalVariable { declaration } = ast.statements().get(*statement).ok()?.payload()
+    let Statement::LocalVariable { declaration } = ast.statements().get(statement).ok()?.payload()
     else {
         return None;
     };
@@ -259,15 +276,49 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             local,
         })
     }
+    let transfer = if let Some(statement) = transfer_statement {
+        let Statement::LocalVariable { declaration } =
+            ast.statements().get(statement).ok()?.payload()
+        else {
+            return None;
+        };
+        let Item::Variable {
+            kind: VariableKind::Val,
+            name,
+            initializer,
+            ..
+        } = ast.items().get(*declaration).ok()?.payload()
+        else {
+            return None;
+        };
+        let target = *checker.marker_symbol(*name)?;
+        if target == symbol
+            || checker
+                .typed
+                .symbol_type(target)
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            || !checker.is_move_only_variable(target)
+        {
+            return None;
+        }
+        Some(Transfer {
+            symbol: target,
+            chain: chain(checker, *initializer, Some(symbol))?,
+        })
+    } else {
+        None
+    };
     Some(Admission {
         callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
         control: checker.unit_expression(*initializer),
         symbol,
         drop_point: crate::ownership_checking::UnitDropPoint::AfterStatement(UnitStatementId::new(
             checker.source_unit,
-            *statement,
+            transfer_statement.unwrap_or(statement),
         )),
         arms: [arm(checker, *then_branch)?, arm(checker, *else_branch)?],
+        transfer,
     })
 }
 
@@ -287,6 +338,7 @@ impl ChoiceTransaction {
             admission,
             events: [Vec::new(), Vec::new()],
             edges: [Edge::default(), Edge::default()],
+            transfer: TransferFrame::default(),
             control_completed: false,
             suffix: Vec::new(),
             bound: false,
@@ -299,6 +351,7 @@ impl ChoiceTransaction {
         self.catalog.definitions.clear();
         self.events.iter_mut().for_each(Vec::clear);
         self.edges = [Edge::default(), Edge::default()];
+        self.transfer = TransferFrame::default();
         self.control_completed = false;
         self.suffix.clear();
         self.bound = false;
@@ -354,6 +407,35 @@ impl ChoiceTransaction {
         }
         if !continues {
             self.abort();
+            return;
+        }
+        if let Some(transfer) = &self.admission.transfer
+            && let Some(position) = transfer.chain.iter().position(|id| *id == expression)
+        {
+            let from = if position == 0 {
+                expression
+            } else {
+                transfer.chain[position - 1]
+            };
+            if !consuming
+                || !self.bound
+                || self.dropped
+                || self.transfer.bound
+                || self.transfer.completed != position
+                || self.transfer.result != Some(from)
+            {
+                self.abort();
+                return;
+            }
+            if position != 0 {
+                self.suffix.push(Event::Forward(
+                    from,
+                    expression,
+                    Value::Choice(self.choice_id()),
+                ));
+                self.transfer.result = Some(expression);
+            }
+            self.transfer.completed += 1;
             return;
         }
         if expression == self.admission.control {
@@ -428,6 +510,30 @@ impl ChoiceTransaction {
         taken: Option<UnitSymbolId>,
     ) {
         if !self.valid {
+            return;
+        }
+        if self
+            .admission
+            .transfer
+            .as_ref()
+            .is_some_and(|transfer| transfer.chain.first() == Some(&expression))
+        {
+            if !self.bound
+                || self.dropped
+                || self.transfer.bound
+                || self.transfer.result.is_some()
+                || self.transfer.completed != 0
+                || taken != Some(self.admission.symbol)
+            {
+                self.abort();
+                return;
+            }
+            self.suffix.push(Event::Move(
+                expression,
+                self.admission.symbol,
+                Value::Choice(self.choice_id()),
+            ));
+            self.transfer.result = Some(expression);
             return;
         }
         let Some(edge) = self
@@ -537,6 +643,28 @@ impl ChoiceTransaction {
             state.local = Some((symbol, owner));
             return;
         }
+        if let Some(transfer) = &self.admission.transfer
+            && symbol == transfer.symbol
+        {
+            if !self.bound
+                || self.dropped
+                || self.transfer.bound
+                || self.transfer.completed != transfer.chain.len()
+                || self.transfer.result != Some(initializer)
+                || transfer.chain.last() != Some(&initializer)
+            {
+                self.abort();
+                return;
+            }
+            self.suffix.push(Event::Bind(
+                symbol,
+                initializer,
+                Value::Choice(self.choice_id()),
+            ));
+            self.transfer.result = None;
+            self.transfer.bound = true;
+            return;
+        }
         if self.bound
             || !self.control_completed
             || !self.edges.iter().all(|edge| edge.delivered)
@@ -561,10 +689,17 @@ impl ChoiceTransaction {
         if !self.valid {
             return;
         }
+        let expected = self
+            .admission
+            .transfer
+            .as_ref()
+            .map_or(self.admission.symbol, |transfer| transfer.symbol);
         if !self.bound
             || self.dropped
-            || symbol != self.admission.symbol
+            || symbol != expected
             || point != self.admission.drop_point
+            || (self.admission.transfer.is_some()
+                && (!self.transfer.bound || self.transfer.result.is_some()))
         {
             self.abort();
             return;

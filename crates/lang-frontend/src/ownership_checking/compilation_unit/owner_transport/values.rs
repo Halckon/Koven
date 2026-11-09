@@ -1,6 +1,6 @@
 //! Versioned value projection. Choice is not a producer definition.
 //! Legacy projection is closed straight-line String transport; a separate sealed
-//! planner transaction can publish the narrow single-binding Choice slice.
+//! planner transaction can publish the bounded Choice binding/transfer slice.
 //! A structurally valid choice graph does not establish typed AST admission.
 mod catalog;
 pub use catalog::UnitOwnerProducerCatalogV1;
