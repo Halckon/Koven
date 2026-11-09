@@ -5077,3 +5077,36 @@ API 变更，旧 Single 消费者退休数仍为零。
 未跑 frontend全量、Abort、CI-only注入、native、Linux或远端CI。基于上述main线性追加
 本地提交，不推送、合并；每步分别导出 format-patch/bundle 并验证精确基线恢复与
 私有云盘回读完整性，D10/E2继续in-progress。
+
+## 普通分支 join 消费者迁移（2026-11-09）
+
+独立分支 `fix/spec-0341-branch-join-consumers` 基于 main `e1b0c2dc`，代码
+提交 `c85c09a4`。本次 fetch 的远端引用中，目标文件没有未合入提交；不叠加
+Choice owner、receiver loop-prefix、String clone、类型候选或容器 signature 后继。
+
+主线 `5ec4ed94` 已修正 bottom initializer 结束 callable 时的旧 Single L0088
+差距。迁移前临时给原 Single/Rooted helper 追加 MemoryDocument/Rooted 对照，
+原9项测试全部通过；临时代码不提交，日志留备份。
+
+- `same_type_and_bottom_branches_keep_exact_result` 的12份原源码迁至双 Unit，
+  保留 Int/Nothing 根类型、raw 无诊断及 final 成功。原分支/return/declaration
+  oracle 不变，新增20+4次观察计数。
+- `expected_types_keep_original_mismatch_diagnostics` 的6份普通原源码迁至双
+  Unit，保留唯一 L0084、原 `"text"` primary 及 final diagnostics 与 raw 完全相等，
+  新增12次观察计数。
+- `observe_text` 保留同一源码、AST、标准环境，新增唯一 SourceId 和真实
+  MemoryDocument/Rooted key/root/path 断言。只删除不再使用的旧包装函数。
+- runtime Any 的4份 Single/Rooted 源码与 helper 函数体原样保留：旧入口的
+  L0165、26..29范围和后续raw，与Unit双L0084仍分别约束，不声称其等价。
+
+| 验收项 | 命令 / 范围 | 实际结果 |
+|---|---|---|
+| 迁移前入口对照 | 临时扩展的 `control_branch_join` 全目标 | 9 passed，0 failed/ignored/filtered |
+| 迁移及终止流邻控 | `cargo test --locked --offline -p lang-frontend --test control_branch_join --test lambda_completion --test final_type_admission --no-fail-fast` | 9 + 4 + 63 passed，0 failed/ignored/filtered |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、相对main尺寸 | 通过；目标Rust文件921行，不增例外额度 |
+| 独立只读复审 | 原源码/oracle、入口身份、观察次数与Any差异保全 | 无代码阻断；其余七项测试正文及保留的两个旧helper函数体逐字未变 |
+
+Linux x86_64、Rust1.96.0、默认debug、离线锁定依赖。本片只改测试消费者与事实
+记录，不改生产、语言语义、依赖或CI。未运行frontend全量、workspace
+check、native、故障注入、macOS或正式PR CI。仅本地分步提交与私人补丁备份，
+不推送、不合并；D10/E2仍in-progress。
