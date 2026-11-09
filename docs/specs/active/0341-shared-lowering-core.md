@@ -7327,3 +7327,40 @@ Rust1.96.0、LLVM21.1.8、默认debug、jobs=2，本工作树独占 target 串�
 未运行 frontend/codegen/workspace 全量、native 进程、Linux、正式CI或故障/Abort注入套件；
 局部测试与静态门禁不能替代统一候选最终组合验收。独立代码审阅未发现阻断项，
 SPEC-0341 与 D10/E2 继续 in-progress；本片仅分步本地提交，未推送或修改PR。
+
+
+### 普通 continue 拒绝输入的严格 Unit 差分合同（2026-11-09）
+
+隔离基底为实际 main `94768a910f11fc2f8426c813b550618f7799895f`。
+本片仅修改 `lower_frontend_owned_source_continue_tests.rs` 的两个原测试：
+source move、索引写入、MutableList add/removeLast 共四份 L0135 输入，及借用元素移出
+的一份 L0133 输入。五份原源码逐字保留，无 wrapper、package、mode 或 fixture 改写。
+生产实现、共享 harness、工具链、CI selector 与其他测试合同均不变。
+
+原两项 exact 先实际运行，记录 Legacy 与 strict Unit 的完整诊断。四份 L0135 在 Legacy
+均为 `access conflicts with the active iteration source loan`，Unit 分别报告
+`move conflicts with an active loan`、`mutation conflicts with an active loan` 与
+`new loan conflicts with an active loan`；move 另带选中参数标签。L0133 的原文案不变，
+Unit 同样增加选中参数标签。两路保留原错误码、primary 和原冲突标签，但不逐字等价。
+因此保留全部 Legacy 见证，旧入口净退休0，不把新增观察算作迁移完成。
+
+`6a32a8b4` 首先把原 Legacy 的弱码检查提升为完整 oracle；`33b0b3c7` 再追加同源 Unit
+合同及架构事实，完整源码树为 `db194596fd9b044b95d21f96f98d234c20555619`。
+期望独立固定 severity、code、完整 message、源码身份与原字节、primary、每个有序
+label；Diagnostic 完整相等同时排除额外 note/help。Unit 必须在 parse/names/types
+均零诊断后以唯一 ownership 用户诊断拒绝，意外成功、空集、内部错误及其他分流均失败。
+本片不调用拒绝后的 lowering，也不把诊断拒绝当作 SSA/native 行为等价。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 原 Legacy 与 Unit 差分及 continue 邻控 | `cargo test --locked --offline -p lang-codegen --lib ssa::lower_frontend_tests::owned_source_continue_tests::` | 19 passed，0 failed/ignored，2780 filtered |
+| 严格静态检查 | codegen all-targets Clippy，`-W clippy::all -D warnings`，locked/offline | 通过 |
+| 工程门禁 | workspace fmt、docs、相对 `94768a91` Rust尺寸、diff | 通过；863 Markdown、2239 Rust、37项历史超长，不改额度 |
+| 独立只读复审 | 完整原源、Legacy保全、Unit资格、诊断顺序及架构边界 | 无 blocker；复审未自行运行测试 |
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8、debug=0、jobs=2，独占本片 target 串行运行。
+19项为最终不同测试数；两项基线、强化后的复跑及最终重复运行不累加。完整原始观测及
+命令日志留本工作树忽略的 `.local-artifacts/`，固定诊断期望已入上述提交，不依赖临时日志。
+未运行完整 codegen/frontend/workspace 测试、native 进程、Linux、故障注入或 sanitizer。
+本片仅本地提交待统一队列，不推送、开PR、合并或吸纳其他未发布候选；正式精确头CI待后续。
+动态 owner、完整借用全序、全部 Single 消费者退休及 Phase 4 仍未闭合，D10/E2保持in-progress。
