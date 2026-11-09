@@ -9,7 +9,7 @@ mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
-mod loan_root_provenance;
+mod loan_provenance;
 mod map;
 mod model;
 mod nullable_comparison;
@@ -222,7 +222,7 @@ struct DropPlanner<'a, 'checker> {
     planned_iterations: std::collections::BTreeSet<UnitStatementId>,
     resource_deferred: Vec<UnitOwnershipDeferredFact>,
     checker: &'a Checker<'checker>,
-    loan_root_provenance: std::cell::OnceCell<loan_root_provenance::LoanRootProvenance>,
+    loan_provenance: std::cell::OnceCell<loan_provenance::LoanProvenance>,
     liveness: liveness::Liveness,
     facts: Vec<PlannerDropFact>,
     conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
@@ -259,7 +259,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             planned_iterations: std::collections::BTreeSet::new(),
             resource_deferred: Vec::new(),
             checker,
-            loan_root_provenance: std::cell::OnceCell::new(),
+            loan_provenance: std::cell::OnceCell::new(),
             liveness,
             facts: Vec::new(),
             conditional_receiver_facts: Vec::new(),

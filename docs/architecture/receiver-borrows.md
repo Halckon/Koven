@@ -81,3 +81,6 @@ break/continue、reservation、this、投影、temporary、provider、借用绑�
 Receiver、直接调用和借用结果 handoff 的根分类共用当前源文件 checker 的只读索引。
 首次查询建立已形成 owner、迭代绑定与 provider 根、借用结果绑定三个集合。索引不替换
 checker 的回滚记录或顺序产物，也不改变实际退出动作和事实发布门禁。
+
+同一索引按 source-qualified 初始化表达式登记本地借用绑定的原位置。正常调用的 handoff
+和绑定运输只查询当前 initializer 的候选，仍按原顺序验证 pending、父依赖和各自的来源条件。

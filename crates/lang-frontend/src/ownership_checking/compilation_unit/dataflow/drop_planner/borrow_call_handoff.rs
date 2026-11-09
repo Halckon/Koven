@@ -21,13 +21,9 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let Some(binding) = self
-            .checker
-            .borrow_results
-            .bindings()
-            .iter()
+            .borrow_bindings_initialized_by(call_id)
             .find(|binding| {
-                binding.initializer() == call_id
-                    && binding.parent().is_none()
+                binding.parent().is_none()
                     && state.pending_borrow_results.contains(&binding.binding())
                     && binding
                         .source_loan()
@@ -69,10 +65,7 @@ impl DropPlanner<'_, '_> {
         let UnitLoanTarget::Place(place) = source_loan.target() else {
             return;
         };
-        if !self
-            .loan_root_provenance()
-            .formed_owned
-            .contains(&place.root())
+        if !self.loan_provenance().formed_owned.contains(&place.root())
             || state.position(place.root()).is_none()
         {
             return;
@@ -119,7 +112,7 @@ impl DropPlanner<'_, '_> {
             return false;
         };
         let root = place.root();
-        let provenance = self.loan_root_provenance();
+        let provenance = self.loan_provenance();
         loan.kind() == LoanKind::Shared
             && place.is_root()
             && !provenance.iteration_providers.contains(&root)
@@ -203,10 +196,7 @@ impl DropPlanner<'_, '_> {
             };
             if loan.kind() != LoanKind::Shared
                 || !place.is_root()
-                || !self
-                    .loan_root_provenance()
-                    .formed_owned
-                    .contains(&place.root())
+                || !self.loan_provenance().formed_owned.contains(&place.root())
                 || call.receiver().is_some()
                 || !matches!(call.target(), UnitCallTarget::Declaration(_))
                 || !matches!(call.result_source(), CallableResultSource::Borrow(_))
@@ -282,10 +272,7 @@ impl DropPlanner<'_, '_> {
         // Typed argument mapping selects the candidate only. The actual evaluated
         // token, original operand place and still-live owner prove this observation.
         place.is_root()
-            && self
-                .loan_root_provenance()
-                .formed_owned
-                .contains(&place.root())
+            && self.loan_provenance().formed_owned.contains(&place.root())
             && state.position(place.root()).is_some()
             && !state.borrow_bindings.contains(&place.root())
             && self
