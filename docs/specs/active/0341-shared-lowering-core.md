@@ -4685,3 +4685,43 @@ previous 不再 named Drop，最终清理点严格取第三句声明 AfterStatem
 保持拒绝；未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI。
 架构同节200行，D10/E2 仍 in-progress；不新增备份，分步提交后使用 connector 发布，
 不强推、不合并。
+
+## 130. Checked replace 返回 Choice 的整表达式分组（2026-11-09）
+
+基于已发布 `4b7f8132`（与 §128 本地 `977752ee` 同树），核实远端 main `4243ebe5`
+及现有 Choice 分支，没有重复消费者或此生产路径的新主线改动。仍依赖未合 Choice 链，
+不是最新 main 组合验收。Phase 3 沿用 Guide §10 原子 replace 与既有 Group 运输语义，
+不改语言、公开 API、validator、普通 pending/commit hook 或借用线。
+
+仅将 `val previous = checked replace(...)` 扩到整个调用的 Group 链；每个节点须
+精确 String、非 constant-use，叶仍通过原 checked String root Replace 与 RHS 合同。
+可接 §128 已有的一次不可变 Name/Group 转交；nullable、其它表达式、普通调用、
+incoming Choice、二次转交及真实循环/phi 仍拒绝。这里没有新增 String producer。
+
+准入保存由实际 call 到最外 Group 的有序结果链；原布尔 completed 改为消费计数。
+每次实际 Consume 同时核位置、前驱 returned 身份、commit 和原根清理完成状态；
+非首层才发同一 Choice Forward。末层完成后才允许 post-insert 绑定 previous 并清空帧，
+一次具名转交还须确认整链完成。漏层、Read、错序、重复、过早绑定或清理均撤销。
+Pending/Replace/原根 CallReturn 仍指向实际 call，不替换成 Group；新 definition
+仍先在 call 释放，旧 Choice 在第二声明或唯一转交后的第三声明 AfterStatement 释放。
+
+真实红测在旧生产的一层 Group 源码缺 V1 上 1 failed，随后提交 `88036aa1`；
+实现 `aabc4d78` 后新2项普通 exact 全绿。128组合（2条件×4边形态×2整个If分组
+×2 RHS分组×2返回Group深度×2是否转交）独立核 AST 双边事件、三 producer、
+完整有序 suffix、真实 call/末帧身份、两清理点、sibling 与开关完整旧 Analysis。
+原 §126 的单层返回 Group 拒绝样例迁入正例；另8种合法拒绝保留 concat、其它call、
+非literal/Choice RHS、四句消费、新根转交、nullable及循环，并核 sibling 隔离。
+16条补充手工trace（1正15负）仅编译未本机运行，不充当真实生产行为证据。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_replace_groups` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §128 同一36项普通 exact，包含不分组的旧replace与转交 | 36 passed，0 failed/ignored |
+| 独立复验 | `aabc4d78` 上新两个普通 exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2227 Rust、35项既有超限；新trace仅编译 |
+
+独立静审无 blocker，确认真实 planner 内层 call/外层 Group 回调顺序符合帧合同。
+唯一生产改动为 `choice/replace.rs` 356→396行；新增测试327行，无尺寸例外变化。
+架构保持200行。不运行全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+这些本机检查不代表主线整合、Phase 4/E3 或完整 D10/E2 完成。状态继续 in-progress。
+依用户最新方向不新增备份，分步提交后 connector 仅发布独立新分支，不覆盖或合并。
