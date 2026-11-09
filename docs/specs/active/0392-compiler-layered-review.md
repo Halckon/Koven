@@ -3901,6 +3901,10 @@ macOS arm64 对同形双包输入执行 project check、object build、link 与�
 [实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42625817187) 的合成提交
 `649d8a5e` 与实际合并提交的有序双亲和树一致。双宿主定向、预览生产、独立安装及
 最终门禁通过，15 项成功，编辑器词法检查按改动范围跳过。
-合流仅需合并账本追加段。正在执行的完整前端测试所用 frontend 源码树为
+合流仅需合并账本追加段。完整前端测试所用 frontend 源码树为
 `8f91d54d020d2bf6461d995b3f189cc37a82539d`，本次同步保持该树、Guide、
 标准库、编辑器夹具和 workspace manifest/lock 不变。
+本机 `cargo test --locked -p lang-frontend` 183 组、2967 项通过，零失败、零忽略、
+零过滤。合流后同一源码树复跑 SSA 借用结果合同 12 项、原生借用初始化 3 项，零失败、
+零忽略，其余按过滤条件排除。前端及 codegen 全目标 Clippy 通过。本机重新构建的
+kovenc 通过原双包探针的 CLI check、build、link、run，stdout 逐字节一致。
