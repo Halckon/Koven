@@ -5128,3 +5128,58 @@ Cargo target 串行运行，不跨树复用。共290项不同普通测试，不�
 复审未重跑Cargo，已按建议收窄 class alias 负控措辞并锁定诊断来源。
 不增加尺寸例外，不宣称跨表全序、完整借用流或D10/E2完成。不再备份，不覆盖已有分支、
 不强推或合并；connector发布与精确头CI另核。
+
+
+## 137. 首层字段来源借用绑定的 Shared receiver 结束（2026-11-09）
+
+本片基于已发布直接根绑定头 `994d916a87eb84802dcb34fd0691c4ee3dc16d79`，独立分支
+`feature/spec-0341-field-binding-receiver`。开工核 main `ac9a7d81`（#382），收尾核
+main `14297820`（#384）。新主线已有有界 Return-prefix 观察，但未接入本片字段来源
+binding；已有 receiver/字段/直接根绑定、String.clone 与动态 owner 工作不重复。
+本片没有整合新主线，以下不是最新 main 验收；与并行 owner §138 无生产交叠。
+
+guide §10 允许稳定只读 place 作为非 owning binding initializer。这里仅将首层直接
+binding 的 origin 从完整根扩展为具名根的普通字段链；initializer 与 receiver 共用
+Name/Group/非 safe Member 语法检查，随后要求完整 typed initializer place 精确等于
+binding origin。原 receiver target 也须等于该完整 place，保留每个字段符号与 source。
+仍要求 BorrowedStorage、无 parent/source loan、alias operand 是完整根、来源满足原
+owned/Borrow/Inout 资格及 provider 排除。Shared、静态 Declaration/Symbol 与 owned
+result gate 不变，不把 source lease 当作 callee payload 地址。
+
+正常与 Return/Break/Continue 只观察原 pending/cleanup 实际退休 token。不改变语言
+准入、父 binding 终止、source drop、activation、loop depth 或 owner 运输。call-derived、
+父子链、alias.field、this 字段来源、index/safe/temporary、carrier、provider、Exclusive
+及 borrowed-result 保留边界；不宣称完整 NLL、动态实例映射或 native 权限恢复。
+
+红测提交 `e8c8ad17` 保留前片两份正常/Return 字段来源源码，均实际得到0而预期1；最小
+观察资格扩展后转绿。旧排除循环仅移出这两份源码，保留其他负控和 Single 见证。首轮13项
+扩展通过；追加至18项时17过1失败，MoveOnly sequential index initializer 产生 L0136，
+不是合法空观察。原正常/Return 源码单列为第19项，锁定 message、`nodes[0]` primary、
+容器 owner label 和空 binding。没有改生产去放行它，也没有声称单独基线实跑该边界。
+后续独立复审建议的两个 L0135 负控已补 primary 与父借用 label，最后整族重新通过。
+
+19项新双Unit合同覆盖完整向量、alias/source/target/span、多层Group/field、四种根模式
+与四类完成点、class/value class、同根兄弟 alias 与逆序 prefix、父 binding 后续存活和
+唯一 aggregate drop、最后使用后整根转移与真实 ReplacedField 析构、兄弟变异/重叠冲突、
+内层 loop 保留 outer、inner 不重发、for 实际动作及互斥 normal/prefix 点。this 来源、
+call-derived、parent-chain、alias.field 与 borrowed-result 先证明合法准入，再核空表。
+2项 raw 合同以真实正常/三类跳转非空表证明后置 L0134/deferred 撤销；三 source 相同
+AST/symbol index 区分 consumer 根/alias 与定义文件的共享字段符号，公开/raw完整相等。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 字段绑定与既有直接借用合同 | `unit_direct_call_loan_ends`，沿用5项Abort整项排除 | 230 passed，含19项新合同 |
+| raw撤销及跨source字段身份 | `--lib adjacent_borrow_results` | 23 passed，396项未选 |
+| 相邻借用及receiver回边 | continuation、nested、backedge，nested沿用1项Abort排除 | 14 + 9 + 4 passed |
+| Unit iteration退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| 两阶段receiver合同 | `multifile_two_phase_borrows`，沿用2项Abort排除 | 25 passed，2项未选 |
+| 静态及跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 全部通过 |
+| 文档及尺寸 | `check_docs.py`、`check_rust_sizes.py --base 994d916a`、diff | 通过；863 Markdown、2234 Rust、35项既有超长 |
+
+Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2；本工作树专属全新
+Cargo target 串行，不跨树复用。共311项不同普通测试，不重复累计先行复跑；继承§129
+八项Abort整项仅编译。未跑native、Linux、故障注入、压力或frontend/workspace全量。
+完整9文件、Architecture、本节及实际日志经独立fresh-context只读复审，未见P1/P2；
+复审未重跑Cargo。
+不增加尺寸例外。D10/E2及完整借用生命周期仍未完成；不再备份，不覆盖已有分支、不强推
+或合并，connector发布与精确头CI另核。

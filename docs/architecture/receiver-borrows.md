@@ -74,9 +74,9 @@ receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end
 包含被切片排除的真实动作，按不同控制转移点重置，不提供全局执行索引或完整结束流。
 
 仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow/Inout 参数的具名根及普通字段路径，
-以及具体 nominal 的 this、首层直接根借用绑定准入；
+以及具体 nominal 的 this、首层直接根/字段来源借用绑定准入；
 参数的 nested reborrow 结束不结束原参数能力，也不析构 caller owner。正常返回、
-Exclusive receiver reservation、StaticSelf this、索引/this 字段投影、temporary、provider、调用返回/父子链/字段来源借用绑定与 borrowed-result
+Exclusive receiver reservation、StaticSelf this、索引/this 字段投影、temporary、provider、调用返回/父子链借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
 
@@ -93,10 +93,10 @@ Borrow、Group、同根嵌套逆序、for 清理顺序、后续参数使用、�
 
 Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pending 队列移出完整
 receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
-反推执行。正常完成准入 owned 名称根、声明端 Borrow/Inout 参数根及其普通字段路径、具体 nominal 的 this，及首层直接根借用绑定；
+反推执行。正常完成准入 owned 名称根、声明端 Borrow/Inout 参数根及其普通字段路径、具体 nominal 的 this，及首层直接根/字段来源借用绑定；
 都要求 Shared receiver 与 owned-result 方法。非 owning 参数只结束本次 nested Shared reborrow，
 原参数能力与 caller owner 不被结束或析构；prefix 查询使用相同来源资格。
-Exclusive receiver reservation、StaticSelf this、索引/this 字段投影、temporary、provider、调用返回/父子链/字段来源借用绑定与 borrowed-result
+Exclusive receiver reservation、StaticSelf this、索引/this 字段投影、temporary、provider、调用返回/父子链借用绑定与 borrowed-result
 receiver 继续排除；String.clone intrinsic 的独立完成路径不在此查询内。
 
 正常完成仍移除原 retain 所选的 call/receiver tokens，其他调用及 action 的顺序和 loop
@@ -132,7 +132,7 @@ StaticSelf、provider this、Exclusive receiver 和 borrowed-result 仍不进入
 Name/Group/非 safe Member，最终观察目标必须等于完整 place，不能以其 backing root
 代替字段身份。正常与 Return/Break/Continue 结束均来自原 token；owner、字段 replacement、
 loop depth 与两阶段 activation 不变。同根兄弟字段保持独立路径，aggregate 只承担原有
-唯一 drop，non-owning 根不增加析构义务。索引、this 字段、provider、显式 borrow binding
+唯一 drop，non-owning 根不增加析构义务。索引、this 字段、provider、alias 上再次投影的字段
 及 borrowed-result 继续排除。临时 owner 字段 receiver 的未形成 place 错误，以及 safe
 字段链的最终类型拒绝，在本片基线仍存在；它们不是已准入后的空结束表证明。
 六份旧排除源码迁移、跨文件字段声明身份及真实撤销见
@@ -146,7 +146,19 @@ initializer place 等于原 origin 根；来源仍须满足 owned/Borrow/Inout �
 alias 解释成 owner，或把来源 lease 当作 callee 内投影的 payload 地址。父 binding 可继续
 供后续调用使用，其实际结束及来源唯一 drop 保持原计划；存活父 binding 仍阻止 source
 变异；本片 class alias 的 Exclusive 调用仍因父 Shared loan 冲突报 L0135。循环内新建 provider 元素 binding 仍在准入阶段
-L0164，并非合法源码的空事件证明。调用返回来源、父子 binding 链、字段来源/alias 字段、
+L0164，并非合法源码的空事件证明。调用返回来源、父子 binding 链、alias 字段、
 carrier 及 borrowed-result 不由本片放行。原 Single 见证保留；真实 token、父子终止点、
 跨 source 身份和撤销证据见
 [直接绑定子借用切片](../specs/active/0341-shared-lowering-core.md#135-首层直接借用绑定的-shared-receiver-结束2026-11-09)。
+
+
+首层直接 binding 的 initializer 现也可为具名根的普通字段链，含透明 Group。initializer
+与 receiver 共用 Name/Group/非 safe Member 语法检查，完整 typed place 必须等于原
+binding origin 和实际 receiver target；字段符号与 source identity 不可退化为根。
+BorrowedStorage、无 parent/source loan、alias operand 为完整根及原来源能力/provider
+排除保持。父 binding 的最后使用、字段 replacement 与 aggregate 唯一 drop 仍按原计划；
+同根兄弟字段保持独立，父借用存活期间允许不重叠字段变异，重叠字段/整根 move 仍 L0135。
+调用返回来源、父子链、alias.field 与 this 字段来源不扩张。MoveOnly sequential index
+initializer 的实际 L0136 是前置拒绝，不是合法空观察证明；不放行 safe/temporary/index
+来源或 native 权限恢复。原两份字段来源排除源码已原样迁为非空 oracle，证据见
+[字段绑定子借用切片](../specs/active/0341-shared-lowering-core.md#137-首层字段来源借用绑定的-shared-receiver-结束2026-11-09)。
