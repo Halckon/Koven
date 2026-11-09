@@ -29,6 +29,17 @@ clone 结果进入普通 temporary / binding 的 owner、transfer 和 drop 规�
 两入口保留 class field 与 Rc payload 的两项实际 String effect、receiver loan/root 和唯一
 CallReturn drop 断言；这不替代独立 Single loan-end event witness，也不扩大 native 边界。
 
+`CompilationUnitOwnership::string_clone_loan_ends()` 另发布仅覆盖 builtin String.clone 的
+独立 planner 正常完成观察。`UnitStringCloneLoanEndFact` 保留原 source-qualified receiver
+Shared loan 的完整身份与 CallReturn 点；在 receiver 的实际规划返回成功之后追加，
+不从最终 descriptor 集合反推，不包含 planner 未遍历或 receiver 提前退出的调用。已完成的
+内层 clone 不因外层 receiver 随后 return 而消失。普通同名方法及 size 不进入此表。
+本表不改变 pending loan、drop、所有权或 native 语义；保持本表遍历顺序，但不是动态
+执行 trace，不承诺全 CFG 不可达裁剪，也不能与其他 loan-end/drop 表拼出统一动作总序。
+错误或任何 deferred 在原始 dataflow 与公开产物两层撤销全表，后续来源失败也不能
+泄露前缀观察。
+当前独立身份和正常/提前退出见证与原 Single oracle 并存，不计作旧入口退休。
+
 ## 显式 StringClone
 
 单文件与 unit lowering 消费 typed String descriptor 和 ownership effect，核对 receiver/type/

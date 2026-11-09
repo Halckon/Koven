@@ -5490,3 +5490,45 @@ Cargo target 串行，不跨树复用。共311项不同普通测试，不重复�
 复审未重跑Cargo。
 不增加尺寸例外。D10/E2及完整借用生命周期仍未完成；不再备份，不覆盖已有分支、不强推
 或合并，connector发布与精确头CI另核。
+
+
+### D10/E2：String.clone 独立正常完成观察（2026-11-08）
+
+在 `e4d6dbbe` 基线上新增有界 `UnitStringCloneLoanEndFact` 与
+`CompilationUnitOwnership::string_clone_loan_ends()`。只在 builtin Clone receiver 的
+planner 遍历正常完成后记录原 Shared loan，保留 call、argument、target、kind 与完整
+Span 身份，完成点为 CallReturn。独立 vector 不参与 pending loan、iteration actions、
+owner/drop 算法，也不改变 native 能力。后源诊断或任何 deferred 在 raw/public 两层
+撤销整表；已完成的内层 clone 与随后 return 的未完成外层调用严格区分。
+
+本表仅为静态 planner 观察，不承诺动态执行次数、全 CFG 不可达裁剪或跨其他事件/drop
+表的统一总序。MemoryDocument/Rooted 固定新 oracle 核对借用根、具名源、嵌套临时源、
+return 后未遍历调用、未完成外层 receiver，以及普通同名方法和 List/Map size 邻控。
+原正向 fixture 增加完整事件与 loan 对照；原 Single 入口、原源码及其独立 CallReturn
+见证全部保留，本片旧消费者退休数为零，D10/E2 仍为 in-progress。
+
+先记录借用根 expected 1 / actual 0 的真实红灯，再接入正常完成观察。首次新测试的
+模块路径/导入问题已修正；17/19 阶段的两处失败分别是新 oracle 错把 Group temporary
+当作内层 call，以及把 size 属性写成方法。沿原 AST 分类/语言合同修正测试预期，
+未更改生产 target 或 size 语义。四个普通源（借用根、嵌套临时、while/break、外层提前
+return）在 owner observation enabled/disabled 下比较完整 Analysis，并固定非空新表
+数量 1/2/1/2；原 owner 清理与 Exclusive return 前缀邻控继续保留。
+
+| 验收项 | 本片实际结果 |
+|---|---|
+| String.clone 原合同与五个新独立见证 | `string_clone` 19 passed，两入口均覆盖 |
+| raw 前源成功、后源诊断/deferred 撤销 | `adjacent_borrow_results` 7 passed，含新 clone 事件；未选择 CI-only 注入 |
+| owner 开关完整产物邻控 | 新非空 clone、原 cleanup、原 Exclusive return 三个 exact 测试各 1 passed |
+| clone/replace/swap typed 交叉合同 | `clone_primitive_integration` 5 passed |
+| 静态与跨 crate | frontend all-targets Clippy `-W clippy::all -D warnings`、workspace all-targets check、fmt、docs、尺寸、diff 全通过 |
+
+本片共 34 项定向测试，不累计重复运行。Mac AArch64、Rust/Cargo 1.96、LLVM 21.1.8，
+locked/offline、默认 debug、jobs=2，同一独立 target 串行执行。文档 863 份、手写 Rust
+2220 份，35 项既有超 1000 行；三个父文件仅新表传递、门控与一个领域调用接线，沿用
+原例外额度与拆分计划，不提高上限。独立实现复审与补充邻控复审无阻断。
+
+恢复时核对 main 已为 `e1b0c2dc`，主线新增文件与本片没有修改路径交集；本地候选仍基于
+上述原基线，此处结果不冒充最新 main 的组合验收。仅本地提交及 format-patch 备份，
+未推送、未合并、未触发本片远端 CI。未运行 frontend/workspace 全量测试、Abort、
+CI-only 注入、native 或 Linux。正式 CI 中原 stage 集成选择 `string_clone` 与
+`clone_primitive_integration`，core 选择 lib；配置存在不代表本片已获得 CI 绿灯。

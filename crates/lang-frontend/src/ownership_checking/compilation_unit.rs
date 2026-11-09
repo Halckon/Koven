@@ -83,7 +83,7 @@ use crate::{
 
 use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, OwnershipDeferredReason,
-    RcOwnershipEffectKind, Transferability, UnitStringOwnershipEffect,
+    RcOwnershipEffectKind, Transferability, UnitStringCloneLoanEndFact, UnitStringOwnershipEffect,
 };
 
 /// typed call argument 在 ownership 阶段采用的规范契约。
@@ -426,6 +426,7 @@ pub struct CompilationUnitOwnership {
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
     string_effects: Vec<UnitStringOwnershipEffect>,
+    string_clone_loan_ends: Vec<UnitStringCloneLoanEndFact>,
     construction_plans: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
     conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
@@ -607,6 +608,11 @@ impl CompilationUnitOwnership {
             receiver_facts: dataflow.receiver_facts,
             conditional_receiver_deliveries: dataflow.conditional_receiver_deliveries,
             delegations,
+            string_clone_loan_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.string_clone_loan_ends
+            } else {
+                Vec::new()
+            },
             string_effects: if successful && dataflow.deferred.is_empty() {
                 typed
                     .string_operations()
@@ -800,6 +806,15 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn delegations(&self) -> &[UnitDelegationOwnershipPlan] {
         &self.delegations
+    }
+
+    /// String.clone receiver 正常完成的独立 planner 观察，保持本表遍历顺序。
+    /// 不包含普通同名方法、size、未被 planner 遍历或 receiver 未正常完成的 clone。
+    /// 错误或 deferred 时整表撤销；不承诺常量条件或全 CFG 的不可达裁剪。
+    /// 不是动态执行 trace，也不授予与 drops 或其他 loan-end 表的统一顺序。
+    #[must_use]
+    pub fn string_clone_loan_ends(&self) -> &[UnitStringCloneLoanEndFact] {
+        &self.string_clone_loan_ends
     }
 
     /// 普通直接调用 Borrow 实参的实际结束事件，保持 planner 的结束动作顺序。

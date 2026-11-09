@@ -116,7 +116,7 @@ pub use nullable_when::{
     NullableWhenExtractionKind, NullableWhenOwnershipPlan, NullableWhenProofView,
 };
 pub use rc::{RcOwnershipEffect, RcOwnershipEffectKind};
-pub use string::{StringOwnershipEffect, UnitStringOwnershipEffect};
+pub use string::{StringOwnershipEffect, UnitStringCloneLoanEndFact, UnitStringOwnershipEffect};
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。
 pub fn check_ownership(

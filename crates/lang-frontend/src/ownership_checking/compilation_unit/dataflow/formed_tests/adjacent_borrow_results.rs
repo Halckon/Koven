@@ -1,6 +1,6 @@
 //! Seed every borrow-result table through real sources before observing raw rejection.
 use super::*;
-use crate::ownership_checking::OwnershipDeferredReason;
+use crate::ownership_checking::{OwnershipDeferredReason, UnitDropPoint};
 
 const DIAGNOSTIC_SUFFIX: &str = "fun rejected(): Unit { val target = 0; target = 1 }";
 const DEFERRED_SUFFIX: &str =
@@ -15,6 +15,7 @@ fn fixture(texts: &[(&str, &str)], range: bool) -> Fixture {
 }
 
 fn assert_cleared(raw: &Analysis) {
+    assert!(raw.string_clone_loan_ends.is_empty());
     assert!(raw.formed_owned_locals.is_empty());
     assert!(raw.nullable_whens.is_empty());
     assert!(raw.borrow_return_origins.is_empty());
@@ -114,6 +115,7 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
             assert_eq!(raw.diagnostics, [expected]);
             assert_eq!(rejected.sources.slice(span).unwrap(), "target");
         }
+        assert!(shared.string_clone_loan_ends().is_empty());
         // Observe dataflow::analyze directly: CompilationUnitOwnership::new must not
         // hide a missing clear in the earlier production gate.
         assert_cleared(&raw);
@@ -789,4 +791,31 @@ fn field_binding_receiver_ends_distinguish_aliases_roots_and_shared_field_declar
             shared.receiver_call_prefix_ends()
         );
     }
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_string_clone_ends() {
+    assert_rejections_clear(
+        "fun copy(text: String): String = text.clone()",
+        false,
+        |accepted, raw| {
+            let [end] = raw.string_clone_loan_ends.as_slice() else {
+                panic!("one real planner end before rejection");
+            };
+            let call =
+                UnitExpressionId::new(accepted.source(0), accepted.expression(0, "text.clone()"));
+            let argument =
+                UnitExpressionId::new(accepted.source(0), accepted.expression(0, "text"));
+            assert_eq!(end.point(), UnitDropPoint::CallReturn(call));
+            assert_eq!(end.loan().call(), call);
+            assert_eq!(end.loan().argument(), argument);
+            assert_eq!(end.loan().kind(), LoanKind::Shared);
+            let UnitLoanTarget::Place(place) = end.loan().target() else {
+                panic!("borrowed named source");
+            };
+            assert_eq!(place.root(), accepted.symbol(0, "text"));
+            assert!(place.is_root());
+            assert!(raw.loans.contains(end.loan()));
+        },
+    );
 }

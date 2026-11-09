@@ -85,6 +85,7 @@ pub(super) struct Analysis {
     pub(super) borrow_forward_transports:
         Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
+    pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
@@ -172,6 +173,7 @@ fn plan_with_owner_observation(
     Ok(Analysis {
         owner_observations: planner.owner_observations,
         direct_call_loan_ends,
+        string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
         borrow_call_handoffs: planner.borrow_call_handoffs,
         borrow_call_transports: planner.borrow_call_transports,
@@ -199,6 +201,7 @@ struct DropPlanner<'a, 'checker> {
     owner_branch_depth: usize,
     owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
     owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
+    string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_temporary_scopes: Vec<(
         UnitStatementId,
@@ -247,6 +250,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             owner_branch_depth: 0,
             owner_observation: None,
             owner_observations: Vec::new(),
+            string_clone_loan_ends: Vec::new(),
             iteration_conditional_scopes: Vec::new(),
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
@@ -617,6 +621,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             if !self.expression(receiver, DropExpressionUse::Place, state)? {
                 return Ok(false);
             }
+            self.observe_string_clone_return(id);
             for loan in self.checker.loans.iter().filter(|loan| {
                 loan.call() == self.checker.unit_expression(id) && loan.argument() == receiver_id
             }) {

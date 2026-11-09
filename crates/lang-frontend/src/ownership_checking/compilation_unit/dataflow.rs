@@ -109,6 +109,7 @@ pub(super) struct Analysis {
     pub(super) borrow_binding_transports: Vec<super::UnitBorrowBindingTransportFact>,
     pub(super) borrow_forward_transports: Vec<super::UnitBorrowForwardTransportFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
+    pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -225,6 +226,7 @@ pub(super) fn analyze(
     let mut borrow_binding_transports = Vec::new();
     let mut borrow_forward_transports = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
+    let mut string_clone_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut receiver_call_prefix_ends = Vec::new();
     let mut receiver_call_return_ends = Vec::new();
@@ -323,6 +325,7 @@ pub(super) fn analyze(
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
+        string_clone_loan_ends.extend(drop_analysis.string_clone_loan_ends);
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
         borrow_call_transports.extend(drop_analysis.borrow_call_transports);
         borrow_binding_transports.extend(drop_analysis.borrow_binding_transports);
@@ -390,6 +393,7 @@ pub(super) fn analyze(
         borrow_forward_transports.clear();
         receiver_call_prefix_ends.clear();
         receiver_call_return_ends.clear();
+        string_clone_loan_ends.clear();
         borrow_call_transports.clear();
         borrow_binding_transports.clear();
         borrow_results = Default::default();
@@ -424,6 +428,7 @@ pub(super) fn analyze(
         loans,
         owner_observations,
         direct_call_loan_ends,
+        string_clone_loan_ends,
         borrow_call_handoffs,
         borrow_call_transports,
         borrow_binding_transports,
