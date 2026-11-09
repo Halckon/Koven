@@ -6376,3 +6376,43 @@ Rust1.96.0、LLVM21.1.8，独占本工作树target串行执行，默认debug。�
 同函数双lambda只选一个的额外隔离负控为非阻断建议，本片未新增。未运行完整codegen/
 workspace测试、Linux、故障/计数/sanitizer或新头官方CI。用户已批准本地提交交统一批次，
 本片未推送、未创建PR、未合并；D10/E2与本Spec保持in-progress。
+
+### 统一候选同步 #394 与资源闭包（2026-11-09）
+
+本轮只在已有统一隔离分支推进，不新建 PR。`5724164b2f8fd4186bf1c41f7864a2a33c1c5d1d`
+保留原统一候选 `16c7dff7` 与实际 main `a4b72d350f9616115a9d5fbed13ca761828ba728`
+为有序父级；后者已合入 #394 的借用结果初始化前缀退出。`607dba546e90d2cd2af41dcf9027bc94a4d01838`
+再保留该组合与资源闭包候选 `e1e72006cd027e704f1ad01e88b79b7254233d6e` 为父级。
+未重放提交。独立逐文件核查确认所有单侧代码原样保全，唯一共同 SPEC 修改精确保留
+公共基底和双方追加正文各一次。资源闭包原 Legacy 成功见证仍保留，旧入口净退休0。
+
+交叉测试提交 `a0ce1d3ecc4222d1601cc65ee288c29c6aa28b98`，完整树
+`995400626622b7e4f5a1cd6fc0cf2618a405ff91`。本轮不再修改生产实现，新增三个测试：
+已派发资源闭包之后的无条件/单臂借用初始化 return、同函数另一个未派发资源 lambda
+隔离，以及两种 flag 的真实 native 输出。SSA 保留真实 thunk 的 Resource drop/deinit；
+条件退出另逐 block 核正常分支的 source loan、退出分支同源 loan end 先于对应 owner drop。
+未派发 sibling 的 unused 与 `callback(return)` 两例均保持第二个 `Resource()` 的精确拒绝范围。
+native 核完整 stdout、exit 0、空 stderr与可观察 Resource 析构顺序，不将输出当作
+String 环境/owner 的分配释放计数或无泄漏证明。
+
+| 本轮实际选择（`lang-codegen --lib`，二进制逐全名 `--exact`） | 结果 |
+|---|---|
+| `ssa::lower_frontend_tests::resource_deinit_tests::` | 23 passed，含2个新交叉 SSA测试 |
+| `ssa::unit_plan_tests::callable_identity::`、`ssa::unit_lower_closure_tests::` | 16 + 10 passed |
+| `ssa::borrow_result_contract_tests::` | 12 passed |
+| `native::unit_tests::borrow_result_tests::native_borrow_initializer*` | 3 passed |
+| 原资源闭包输出、原 owned String环境、`resource_closure_native_composes_with_borrow_initializer_return` | 3 passed，含1个新交叉 native测试 |
+| codegen all-targets Clippy `-W clippy::all -D warnings`、workspace all-targets check | 全通过，均 locked/offline |
+| fmt、diff、docs、相对 `a4b72d35` Rust尺寸 | 全通过；865 Markdown、2263 Rust、37项历史超长，未改额度 |
+
+合计67项不同测试全部实际命中，0 failed/ignored；不重复累计首轮3项运行。Mac AArch64、
+Rust1.96.0、LLVM21.1.8，locked/offline、debug=0、jobs=2、独占原统一 target 串行。
+完整命令、选择和结果留本机临时验收目录，不入 Git。独立复核确认67个选择与成功项完全一致，
+交叉测试无阻断项。frontend、标准库、Cargo/工具链输入相对 `16c7dff7` 未变，复用前节729项
+frontend证据，不称本轮重跑，也不把两组相加冒称新组合全量验收。
+
+未运行完整 codegen/workspace 测试、Linux、额外故障注入或 sanitizer；新增资源交叉 native
+没有 allocator 计数断言。旧 #390 CI run `42629723592` 的输入是 head `51d8dc72`、base
+`369fff4c`，不含本轮组合，不能据此宣称新候选正式 CI通过。本轮未更新远端、取消或重启 CI，
+未合并 main、关闭其他 PR或改 Draft；后续发布仍须核最新分支与适用授权，再验精确新头。
+SPEC-0341、D10/E2保持in-progress，本片不封闭一般动态生命周期、完整迁移或 Phase 4。
