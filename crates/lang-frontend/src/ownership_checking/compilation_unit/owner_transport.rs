@@ -1,6 +1,6 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
 mod loops;
-pub(super) use loops::{LoopBodyCompletion, publish_observations};
+pub(super) use loops::{LoopBodyCompletion, LoopBranchCompletion, publish_observations};
 pub use loops::{UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1};
 pub(super) mod values;
 pub use values::{

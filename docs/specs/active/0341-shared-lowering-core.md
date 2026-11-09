@@ -6482,3 +6482,66 @@ Cargo/工具链输入仍未变，原729项frontend证据仅复用，不声称本
 新增资源native输出仍不是allocator计数或无泄漏证据。仅本地合流与验收，不更新远端、
 不取消或重跑旧CI、不合并main；发布仍须核当前分支及适用授权并验精确新头。
 D10/E2与SPEC-0341保持in-progress，不由本批5项退休推导旧入口全部清除。
+
+
+## 148. 闭合 While 尾部 If 的真实双臂跳转边（2026-11-09）
+
+启动时先核180个远端分支、9个开放PR及本地成果；当时main为 `a4b72d35`，统一#390为
+`734dde83b156c533558efd5060a2a39a110537d2`，当时#395为 `9f55dff2` 的nullable/构造借用
+修正，不包含本片。隔离分支从main建立再快进到#390，复用已发布§144/§146，不重做
+旧循环见证。本片不改现有PR、不另开PR；按用户最新要求仅本地分步提交，留统一批次发布。
+
+只扩Phase 3闭合body观察的控制前置：一个While，已有String/MoveOnly声明前缀后接唯一
+末尾显式If，每臂恰一个裸Continue/Break，四种kind组合均可。两个无mode marker的精确
+Boolean参数分别供While和If读取不同真实symbol，条件只接Name/Group；原outcomes必须
+都保留true/false。单参数直线完成合同不变。同一参数、其它条件、Return、空臂、Group
+跳转、臂内声明、嵌套If、不可达后缀及其它原拒绝范围不准入。
+
+AST只保存候选。原If condition完成后先核完整空ValueState及原V1已封闭owner前缀；每臂
+入口锁control、branch和body，实际jump仍先执行原loan/owner/iteration清理。跳转见证
+包含fresh body Arc、kind、expression、最近loop和scope；各臂实际返回后、状态合并或
+丢弃前，另核tail、false和完整空状态，再消费各自pending见证。两臂都完成且事件都为空，
+才只抑制私有body sink的空If事件，保存独立completion。异常先恢复observer/Choice/depth
+并清空split/arm/pending标记；不从合并后的空状态推定两臂成功。普通If事件和V1不放宽。
+
+新增source-qualified IfBranch，保存control、condition、branch序号与arm body。公开edges
+改为只读slice，原直线三边不变；条件完成六边顺序为EnterBody、then分支及其真实jump、
+else分支及其真实jump、ConditionFalseExit，私有completion独立重建并核对。String仍按
+ASAP在If前退休，没有ControlTransfer Drop、owner join、carried phi或运行实例。两个参数
+在调用内不变，If同次调用选同一臂，不能把六个结构边称为一条已执行轨迹或任意换臂循环。
+
+真实红测试 `4fc18af54c1e7c4e97acf5b94221c66ff6aaa319`：合法Break/Continue条件源码
+完成typed/ownership验证，但缺循环产物而1 failed；不是编译失败。最小接线后同测试复绿。
+完整实现与来源断言补强提交 `ec515ac871abc82c4f40f3c8c7e08ad359e9fef1`，tree
+`c38f20c0b74aca58c7ac684cd1d696666c043c70`；后续文档不改受测Rust。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 条件完成生产者 | `closed_while_conditional::real_while_tail_if_records_both_completed_jump_edges` | 1 passed，32输入覆盖四kind对、Group/显式Unit及四类owner前缀 |
+| 拒绝与原子发布 | 同模块 `conditional_loop_rejects_nonindependent_or_open_arms_atomically`、`conditional_loop_catalogs_are_separate_and_errors_withhold_publication` | 2 passed，18合法拒绝、两文件两次分析及真实ownership错误 |
+| owner与全局分支hook邻控 | §146的62 lib exact + 本片3项 + `branch_boundaries`三项、`control_tail::shared_control_body_keeps_when_and_replacement_cleanup_unchanged`、两个`owner_observation_preserves_*`非空loan表对照 | 71 passed，0 failed/ignored |
+| 公开入口与循环邻控 | 原`ownership_iteration`13项 + `closed_while_owner_unit::conditional_while_completions_match_both_unit_inputs` | 14 passed；新增MemoryDocument/Rooted共12输入组合 |
+| 主线相邻合同 | 5项`multifile_ownership_checking`控制/drop、2项`ownership_closures::capture_identity_unit`、1项`ownership_borrow_continuation` | 5 + 2 + 1 passed |
+| 工程门禁 | frontend all-targets严格Clippy `-D warnings`、workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2266 Rust、37项既有超限；尺寸基底为734dde83，未改额度 |
+| 独立复审 | 原遍历hook、各臂state丢弃前取证、错误恢复与source oracle | 无blocker；上述新3 lib与公开1项独立exact各1 passed，前后HEAD/tree与二进制SHA256不变 |
+
+合计93项不同ordinary测试，既有结果仅用于选名，本轮对当前Rust全数重跑；10项循环初验
+及重复复跑不累加。新增3项lib使用完整 `ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`
+前缀；其它项保留各自模块路径，全部普通二进制逐完整名 `--exact`。32正例从实际While/If/ControlBody取完整ID，核六边
+kind/目标、distinct jump、真实producer/move/replace和唯一Drop，观察开关的完整Analysis
+一致。跨文件与重复分析先核两项非空、成功validate，再从fixture文件独立核callable、
+String origin和所有边source，foreign token lookup失败。公开入口从index核SourceUnitId
+和source_id，不用被测observation作为来源期望；实际While AST及双臂jump均独立对照。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2，原专属target
+串行，未删除缓存或工作。测试选择及日志留本机临时验收目录，不入Git。新seal损坏守卫
+（缺边、重复臂、交换后继、错误control、foreign catalog、伪造ControlTransfer Drop）及
+既有手工模型、Abort、故障注入仅编译，未本机执行；未跑frontend/workspace全量测试、
+Linux、native或精确新头官方CI。保持原Single见证与所有未准入拒绝；D10/E2和本Spec仍
+in-progress。真实entry/backedge/exit owner快照与phi、通用控制合流、动态实例及释放、
+Phase 4消费者仍缺，不由本片闭合模板宣称解决。当前事实见[循环观察架构](../../architecture/unit-loop-owner-transport.md)。
+
+收尾只读复核时，#395已合入，main推进到 `9369cc7279c268385a19f41a10a54c7cc31ea2ce`，
+#390仍为734dde83。该增量未改本片owner文件，但涉及共享call-loan产物；本片93项与独立
+4项是上述已发布基线加本地切片的结果，尚非9369cc72整合验收。保留现有提交，后续统一
+本地合流须验证精确组合，不把旧结果改记为新主线结果。
