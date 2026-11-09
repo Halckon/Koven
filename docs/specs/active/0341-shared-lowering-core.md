@@ -4494,3 +4494,30 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+
+
+## 顺序容器 signature 诊断消费者退休（2026-11-09）
+
+基于 main `e1b0c2dc` 的独立分支 `fix/spec-0341-independent-unit-consumers`，
+代码提交 `6359920f`。不叠加 Choice、receiver loop-prefix、Rc/signature/deep graph
+候选，不改生产、Guide、harness、依赖或 CI。
+
+原 `non_storable_and_wrong_arity_container_types_are_rejected` 的源码、测试名、自定义
+环境与四条有序 code 保留。迁移前真实 Single、MemoryDocument、Rooted 的完整诊断
+逐项一致，故移除该消费者的 Single 分析；两个 Unit 固定消息、Error severity、原
+SourceId/字节范围及唯一 interface declaration label。额外核签名诊断与完整列表相同、
+body 无诊断且 validate 拒绝。预期是已核原 Single 的固定值，不从当前 Unit 结果生成。
+`deferred_callable_reference_element_does_not_become_a_false_storable_error` 的 Single
+及双 Unit 断言原样保留，不声称所有容器恢复合同已等价。
+
+| 验收项 | 命令 / 范围 | 实际结果 |
+|---|---|---|
+| 原消费者基线及临时完整诊断对照 | 原测试 exact | 两次各 1 passed，34 filtered；临时日志不入库 |
+| 迁移及签名邻控 | `cargo test --locked --offline -p lang-frontend --test type_containers --test multifile_type_signatures --no-fail-fast` | 35 + 24 passed，0 failed/ignored/filtered |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、相对 `e1b0c2dc` 尺寸 | 通过；修改的 Rust 文件 809 行，不增尺寸额度 |
+| 独立只读复审 | 原源码/oracle、双入口身份、非等价见证与本次 clone 的远端引用去重 | 无代码阻断；发现的 Architecture 旧描述已同步 |
+
+Linux x86_64、Rust1.96.0、默认 debug profile。初次 offline 解析因云缓存缺 inkwell
+索引失败；随后仅读取 Cargo.lock 对应 crates.io 索引，原锁文件未改，最终检查离线执行。
+未运行 frontend 全量、workspace check、native、故障注入、macOS 或正式 PR CI。
+本片仅本地分步提交与私人补丁备份，不推送、不合并；D10/E2 仍 in-progress。
