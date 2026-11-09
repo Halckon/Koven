@@ -2973,3 +2973,26 @@ MapResult 比较受 nullable `when` 影响的拒绝。兼容路径对 MoveOnly M
 原 loan 的缺席状态，并保留 Copyable MapResult 的原路径。两路原生均通过。
 合流后 codegen 定向 52 项及两个 frontend 套件 378 项通过，均零失败和忽略。
 codegen 全目标 Clippy、格式和文档门禁通过。
+
+## 117. R0/R3 二元操作结束与重绑后的退出析构
+
+以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else
+变体逐字保留。两个旧测试先在同一快照实跑，之后迁到 MemoryDocument 与 Rooted Unit。
+按源码中的实际表达式与名称解析得到 source-qualified 身份。String 的四个操作数必须
+恰在对应 `AfterBinaryOperands` 逆序析构，核对目标和值来源，排除其它点的重复析构。
+重绑核对全部 `ControlTransfer` 事实，精确比较 return、逆声明顺序和当前值来源；
+多余的提前退出析构同样会失败。独立复核提出该额外边检测后，已补强并复核。
+
+使用真实 native 入口编译、链接和运行独立的 `deinit` 场景。左右重绑与提前 return、
+正常落尾组成四条运行路径。各路径都核对旧值析构、退出标记、second、当前 first 的
+完整输出顺序。此处的 native 证据是资源类型的可观察析构，前端原用例为纯内存类型。
+
+相邻的 nested Borrow/Inout 用例继续保留为旧产物见证。旧 `loans_ending_at` 查询
+实际 CallReturn 结束事实，Unit 同名查询与 `end_span` 只标明建立描述符的调用。
+Unit 普通直接 Borrow 有独立的实际结束切片；Exclusive 前缀切片限定为提前放弃，
+未覆盖正常 CallReturn 的 Exclusive 结束。现有 Unit 描述符用例与 Single 结束用例
+分别验证其所属合同。
+
+最终本机 `ownership_checking` 29 项、`multifile_ownership_checking` 157 项和
+`resource_deinit_native` 18 项通过，均零失败、零忽略。前端与 codegen 全目标 Clippy、
+格式、文档和 Rust 尺寸检查通过。本片为下一批候选，双宿主 CI 尚未运行。

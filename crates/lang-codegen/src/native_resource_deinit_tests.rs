@@ -153,6 +153,39 @@ fun main(): Unit {{
 }
 
 #[test]
+fn resource_deinit_native_branch_replacement_keeps_return_cleanup_order() {
+    let source = format!(
+        r#"{LEAF}
+fun run(flag: Boolean, early: Boolean): Unit {{
+    var first = Leaf("old")
+    val second = Leaf("second")
+    if (flag) {{ first = Leaf("left") }} else {{ first = Leaf("right") }}
+    if (early) {{ println("return"); return }}
+    println("fallthrough")
+}}
+fun main(): Unit {{
+    run(true, true)
+    run(false, true)
+    run(true, false)
+    run(false, false)
+}}
+"#
+    );
+    let output = emit_link_and_run("resource-branch-replace.ko", &source, "main");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_eq!(
+        output.stdout,
+        concat!(
+            "old\nreturn\nsecond\nleft\n",
+            "old\nreturn\nsecond\nright\n",
+            "old\nfallthrough\nsecond\nleft\n",
+            "old\nfallthrough\nsecond\nright\n",
+        )
+        .as_bytes()
+    );
+}
+
+#[test]
 fn resource_deinit_native_conditional_owner_is_rejected_without_overwriting_output() {
     use super::TestDirectory;
     use crate::native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource};
