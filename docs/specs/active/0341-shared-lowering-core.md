@@ -4913,3 +4913,57 @@ diff、Architecture与本节，未发现P1/P2阻断；复审未另行运行Cargo
 
 按用户最新要求不再备份；红测、实现、文档分步本地提交，准备通过connector发布，不强推、
 不合并。发布头与主线集成后的官方CI仍须独立核验，D10/E2与完整借用生命周期仍未完成。
+
+
+## 129. Inout 参数的 Shared receiver reborrow 结束（2026-11-09）
+
+独立分支 `feature/spec-0341-inout-receiver-reborrow`，基底为已发布
+`835c1682115df2cceefa3bb3fc2cf921c6cdcda7`，与前片本地 `f2fbc8bc` 完整树一致。
+开工核 main `edaaa9b21e7f9b1a9728db04dd72eabef7aeef51`（#379）尚无这组receiver表，
+相关新变化为nullable lowering；已核已发布借用链与在途工作，不重复实现。本片依赖前片
+堆叠，不把其测试算作当前main、其他未合分支或集成后的验收；不触碰Choice owner线。
+
+Guide10 允许 Inout 参数建立 nested Shared reborrow，caller 保留完整已初始化的owner。
+`observes_root_receiver` 仅将声明端 `ValueParameter` 的非owning binding准入从Shared
+扩为Shared或Exclusive；顶层receiver仍必须 `SharedLoan`。正常CallReturn与实际
+Return/Break/Continue token沿原路径退休，不改producer、队列、loop-depth、cleanup、
+owner/drop、activation或语言准入。Exclusive receiver reservation不是本片准入对象。
+
+owned-result、declaration/symbol、Name/Group完整根与真实target身份要求不变；投影、
+this、temporary、provider来源/绑定、显式借用绑定、borrowed-result receiver仍排除。
+结束的是Shared子reborrow，不是父Inout权限或caller owner；原计数仍包含被排除动作。
+不提供跨表全序、全局absence、动态caller/callee别名、完整生命周期或native执行证明。
+既有Single见证及原Borrow/owned切片不退役。
+
+红测提交 `c4deb475` 逐字保留原Inout正常返回及前缀排除源码；两个测试实际在正常返回、
+Return首例得到0事件而预期1。最小资格变化后转绿，原Break/Continue与混合Borrow/Inout
+源码也原样转为非空完整oracle。新增caller用局部var形成owner，首次测试误用参数binding
+查询期待Owned而实际为None；改为核真实 `formed_owned_locals`，不改源码或生产，唯一drop
+与callee参数无drop断言保留。
+
+13项新双Unit入口合同覆盖原源码、Group、同根normal/逆序prefix token、inner完成不重发、
+loop-depth、for实际cleanup、后续变异准入、caller唯一drop、Exclusive receiver正常激活及
+前缀未激活排除、投影/provider/结果边界、L0133禁止移出父参数及公开撤销。2项raw合同覆盖
+正常和三类控制转移的真实非空表撤销，以及相同AST index双source不混淆。静态准入与身份
+不代表实际执行过native调用或恢复权限。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 新Inout及已有直接借用合同 | `unit_direct_call_loan_ends`，沿用前片5项Abort整项排除 | 162 passed，含13项新合同 |
+| raw撤销与跨source | `--lib adjacent_borrow_results` | 15 passed，396项未选 |
+| 原借用与receiver回边 | continuation、nested、backedge三targets，nested沿用1项Abort整项排除 | 14 + 9 + 4 passed |
+| Unit iteration退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| 相邻两阶段合同 | `multifile_two_phase_borrows`，排除下述2项Abort整项 | 25 passed，2项未选 |
+| 静态及跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 全部通过 |
+| 文档及尺寸 | `check_docs.py`、`check_rust_sizes.py --base 835c1682`、diff | 通过；863 Markdown、2230 Rust、35项既有超长 |
+
+Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2；复用本worker的
+隔离Cargo target串行运行，无其他任务并发使用。前片6项Abort整项及两阶段target的
+`terminating_arguments_keep_reservation_without_activation`、
+`nothing_returning_method_still_activates_before_entering_callee`仅编译，未执行故障注入、
+压力、native、Linux、frontend/workspace全量或正式CI。共235项不同普通测试通过，不重复
+累计先行复跑。独立fresh-context只读复核完整10文件diff、Architecture与本节，无P1/P2
+阻断；复审未重跑Cargo。不增加超长文件或提高尺寸额度。
+
+遵循用户持续开发、分步提交与connector推送授权，不再备份，不强推、不合并。发布头CI
+与后续主线集成须独立核验；本片不宣称D10/E2或完整借用流完成。

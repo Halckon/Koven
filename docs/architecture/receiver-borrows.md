@@ -73,9 +73,9 @@ Unit `receiver_call_prefix_ends()` 只投影实际 return/break/continue unwind 
 receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end 的数量。计数
 包含被切片排除的真实动作，按不同控制转移点重置，不提供全局执行索引或完整结束流。
 
-仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow 参数的 Name/Group 根准入；
+仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow/Inout 参数的 Name/Group 根准入；
 参数的 nested reborrow 结束不结束原参数能力，也不析构 caller owner。正常返回、
-Inout 参数、reservation、this、投影、temporary、provider、显式借用绑定与 borrowed-result
+Exclusive receiver reservation、this、投影、temporary、provider、显式借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
 
@@ -92,10 +92,10 @@ Borrow、Group、同根嵌套逆序、for 清理顺序、后续参数使用、�
 
 Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pending 队列移出完整
 receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
-反推执行。正常完成准入 owned 名称根及声明端 Borrow 参数的 Name/Group 根；两者都
-要求 Shared receiver 与 owned-result 方法。Borrow 参数只结束本次 nested reborrow，
+反推执行。正常完成准入 owned 名称根及声明端 Borrow/Inout 参数的 Name/Group 根；两者都
+要求 Shared receiver 与 owned-result 方法。非 owning 参数只结束本次 nested Shared reborrow，
 原参数能力与 caller owner 不被结束或析构；prefix 查询使用相同根资格。
-Inout 参数、this、投影、temporary、provider、显式借用绑定、reservation 与 borrowed-result
+Exclusive receiver reservation、this、投影、temporary、provider、显式借用绑定与 borrowed-result
 receiver 继续排除；String.clone intrinsic 的独立完成路径不在此查询内。
 
 正常完成仍移除原 retain 所选的 call/receiver tokens，其他调用及 action 的顺序和 loop
@@ -108,3 +108,10 @@ outer unwind 再出现；分支两侧的同一 receiver 可分别有 CallReturn 
 声明端默认/显式 Borrow、嵌套及重复 reborrow、分支/循环静态点、被捕获的参数及资源参数
 的无析构义务由 [Borrow 参数切片](../specs/active/0341-shared-lowering-core.md#125-borrow-参数-receiver-的正常-reborrow-结束2026-11-09)固定。
 调用者后续读取和其唯一 owner drop 另有源码正控；静态 caller/callee 参数身份不充当动态别名映射。
+
+
+Inout 参数的根 binding 为 Exclusive，不改变其内部普通方法的 Shared receiver token。
+正常返回与 Return/Break/Continue 查询观察该子 reborrow 的实际退休，不结束父 Inout
+能力。后续变异准入、callee 无参数 drop、caller 唯一 owner drop 与未激活 reservation
+继续排除的证据见 [Inout 子借用切片](../specs/active/0341-shared-lowering-core.md#129-inout-参数的-shared-receiver-reborrow-结束2026-11-09)。
+这些是 frontend 静态事实及源码准入证据，不是 native 动态权限恢复或完整生命周期证明。
