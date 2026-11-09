@@ -153,43 +153,7 @@ impl Checker<'_> {
             Expression::NonNullAssert {
                 operand,
                 operator_span,
-            } => {
-                let checked = self.check_expression(operand, None, None)?;
-                let ty = match self.kind(checked.ty) {
-                    TypeKind::Nullable(inner) => {
-                        let inner = *inner;
-                        self.non_null_assertions.push(
-                            crate::type_checking::NonNullAssertionDescriptor {
-                                expression: id,
-                                operand,
-                                operator_span,
-                                nullable_type: checked.ty,
-                                inner_type: inner,
-                                category: self.expression_categories[operand.index()],
-                                source_category: self.nullable_when_category(operand)?,
-                                copyability: self.copyability_of(inner),
-                            },
-                        );
-                        self.non_null_assertions
-                            .sort_by_key(|plan| plan.expression().index());
-                        inner
-                    }
-                    TypeKind::Error => self.error_type(),
-                    TypeKind::Deferred(_) => self.deferred(DeferredReason::MemberAccess),
-                    _ => {
-                        self.emit(
-                            self.operands_code,
-                            "non-null assertion requires a nullable operand",
-                            operator_span,
-                        )?;
-                        self.error_type()
-                    }
-                };
-                ExprCheck {
-                    ty,
-                    falls_through: checked.falls_through,
-                }
-            }
+            } => self.check_non_null_assertion(id, operand, operator_span)?,
             Expression::Cast {
                 expression,
                 type_ref,
