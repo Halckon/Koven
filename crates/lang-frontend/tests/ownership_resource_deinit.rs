@@ -409,7 +409,7 @@ fn replacement_releases_the_old_resource_then_keeps_declaration_cleanup_order() 
     }
 }
 
-fn resource_deferred(text: &str) -> [bool; 2] {
+fn single_resource_deferred(text: &str) -> bool {
     use lang_frontend::ownership_checking::OwnershipDeferredReason;
     let mut sources = SourceMap::new();
     let source = sources.add_source("resource-deferred.ko", text).unwrap();
@@ -432,32 +432,7 @@ fn resource_deferred(text: &str) -> [bool; 2] {
     if single {
         assert!(owned.drops().is_empty());
     }
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "resource-deferred.ko",
-        source,
-        &parsed,
-    )];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_env)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_env)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let owned =
-        check_compilation_unit_ownership(&sources, &inputs, &names, &type_env, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let unit = owned
-        .deferred()
-        .iter()
-        .any(|fact| fact.reason() == OwnershipDeferredReason::ResourceLifetime);
-    if unit {
-        assert!(owned.drops().is_empty());
-    }
-    [single, unit]
+    single
 }
 
 #[test]
@@ -465,7 +440,8 @@ fn unit_conditional_resource_move_is_deferred_instead_of_released_early_or_lost(
     let text = format!(
         "{HEADER}fun consume(own consumed: Guard): Unit {{}}\nfun run(flag: Boolean): Unit {{ val guard = Guard(); if (flag) {{ consume(guard) }}; tick() }}"
     );
-    assert_eq!(resource_deferred(&text), [false, true]);
+    assert!(!single_resource_deferred(&text));
+    assert_eq!(unit_plans::resource_lifetime_deferrals(&text), [true, true]);
 }
 
 #[test]
@@ -473,7 +449,7 @@ fn loop_carried_resource_consumption_is_deferred_instead_of_dropped_twice() {
     let text = format!(
         "{HEADER}fun consume(own consumed: Guard): Unit {{}}\nfun run(flag: Boolean): Unit {{ val guard = Guard(); while (flag) {{ consume(guard); break }}; tick() }}"
     );
-    assert_eq!(resource_deferred(&text), [true, true]);
+    assert_eq!(unit_plans::resource_lifetime_deferrals(&text), [true, true]);
 }
 
 #[test]

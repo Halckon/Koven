@@ -61,7 +61,7 @@ impl Builder<'_, '_> {
         }
         let control = self.unit(expression);
         let ty = self.expression_type(expression)?;
-        let result = if self.is_unit(ty) {
+        let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
             let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner))
@@ -762,12 +762,12 @@ impl Builder<'_, '_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let lower_bound = self
-            .required(operation.left().expression())?
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let upper_bound = self
-            .required(operation.right().expression())?
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let Some(lower_bound) = self.required(operation.left().expression())? else {
+            return Ok(());
+        };
+        let Some(upper_bound) = self.required(operation.right().expression())? else {
+            return Ok(());
+        };
         self.drops(UnitDropPoint::AfterExpression(self.unit(range)))?;
         let boolean = self.boolean_type(span)?;
         let above = self.value(

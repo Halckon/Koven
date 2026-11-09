@@ -82,7 +82,7 @@ L0158 定位运算符；短路 RHS 不进入值求值。失败依赖不发布值
 
 ## nullable when 与非空来源事实
 
-`TypedFile::nullable_whens` / `nullable_when` 保留 subject、来源类别、稳定 symbol、entry/alternative
+Unit selector 提前退出只截断尚未匹配的路径，保留前序匹配和独立的真假待定写回。 `TypedFile::nullable_whens` / `nullable_when` 保留 subject、来源类别、稳定 symbol、entry/alternative
 输入与剩余域；Boolean/enum 保有限域原子，nullable 域区分 null/non-null，字段/元素不绑定重新求值。
 Unit 为有 subject 的 `null -> …; else -> …` 发布 `UnitNullableWhenDescriptor`，以 source-qualified
 expression/subject/body、真实 reference、symbol 与 generation 连接分支域及 `UnitNullableWhenUseWitness`。

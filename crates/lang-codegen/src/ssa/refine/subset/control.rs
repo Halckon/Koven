@@ -1,7 +1,9 @@
 //! Conservative condition outcomes from published completion facts and short-circuit structure.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
+    ownership_checking::UnitShortCircuitRhs,
     parser::{BinaryOperator, Expression, Statement},
+    type_checking::UnitExpressionId,
 };
 
 use super::Checker;
@@ -24,7 +26,20 @@ impl Checker<'_, '_> {
         }
     }
 
-    pub(super) fn logical_reaches_rhs(&self, left: ExpressionId, operator: BinaryOperator) -> bool {
+    pub(super) fn logical_reaches_rhs(
+        &self,
+        control: UnitExpressionId,
+        left: ExpressionId,
+        operator: BinaryOperator,
+    ) -> bool {
+        if self
+            .inputs
+            .constant_owned
+            .and_then(|owned| owned.short_circuit_at(control))
+            .is_some_and(|plan| plan.rhs() == UnitShortCircuitRhs::Never)
+        {
+            return false;
+        }
         let (yes, no) = self.condition_outcomes(left);
         if operator == BinaryOperator::LogicalAnd {
             yes

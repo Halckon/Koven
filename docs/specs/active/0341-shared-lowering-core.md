@@ -4929,3 +4929,29 @@ Linux x86_64、Rust1.96.0、默认 debug、jobs=2，独占 target 串行 Cargo�
 本环境缺 LLVM21，未运行 workspace check、native、LLVM 或 frontend 全量测试；
 Clippy 全目标编译不等于全部行为测试。上述本机结果与旧 PR CI 不替代新组合精确头的
 正式双宿主/Preview 门禁，须全部通过且无未决项才合入。D10/E2 与 SPEC-0341 仍在推进。
+
+### #384 同步 #383 新主线后的组合复验（2026-11-09）
+
+#384 的 `cdf5a4106446aecfe3de9afbc4ed828627e72337` 已完成
+[旧组合 CI](https://github.com/Halckon/Koven/actions/runs/42569789437)，但该组合基于
+`ac9a7d81`，不能代替 #383 合入后的 main `62ca42cfad329bf92c361af38de64797530cd239`。
+本次从 #384 远端头建立独立工作树，普通 merge 新 main，无冲突，组合代码头 `1d12f9b2`，
+保留两个 PR、去重分支和 #384 既有全部祖先；原工作树和 #372/#374 分支均不改写。
+
+独立静态复核确认 #383 的24个变更文件中21个与新main blob逐字相同；其余
+`compilation_unit.rs`、`dataflow.rs`、`names-and-types.md` 完整保留原main新增/删除行。
+新 callable 实际进入事实与 receiver prefix/owner observation 分别传递，互不覆盖；
+when selector 新实现原样保留，owner observation 对 When 的保守拒绝没有放宽。
+
+| 验收项 | 本组合实际选择 | 结果 |
+|---|---|---|
+| 原类型与借用消费者 | 上节九个完整 integration targets | 491 passed；压力与 raw Abort 事实均实跑 |
+| 共享内部合同 | 完整 frontend `--lib` | 407 passed，含终止 owner replay 损坏负控 |
+| 新main交叉邻控 | 完整 `multifile_type_checking`、`multifile_ownership_checking`、`ownership_closures`、`ownership_resource_deinit` | 286 + 163 + 74 + 31 passed |
+| 编译与静态质量 | frontend all-targets Clippy（locked/offline、`-W clippy::all -D warnings`）、workspace fmt、diff | 通过 |
+| 文档与尺寸 | `check_docs.py`、尺寸门禁 `--base 62ca42cfad329bf92c361af38de64797530cd239` | 863 Markdown、2231 Rust、36项既有超长；通过，额度不变 |
+
+Linux x86_64/Rust1.96、默认debug、jobs=2，独占target串行，共1452项不同测试通过，
+零失败/忽略/过滤；不将上节1144项重复加总。无LLVM21，未跑本地workspace/native/LLVM
+或frontend全量；以上检查不能替代发布新头的正式双宿主、Preview及CI Passed。
+须以包含62ca42cf的精确新组合验收，不沿用cdf5a410的旧base绿灯；D10/E2继续in-progress。

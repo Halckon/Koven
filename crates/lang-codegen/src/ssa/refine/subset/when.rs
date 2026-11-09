@@ -74,7 +74,8 @@ impl Checker<'_, '_> {
                             tagged && self.type_test_target(*type_ref, subject_type)
                         }
                     };
-                    if let WhenCondition::Expression(expression) = condition
+                    if let WhenCondition::Expression(expression)
+                    | WhenCondition::Contains { expression, .. } = condition
                         && self
                             .inputs
                             .typed
@@ -229,7 +230,8 @@ impl Checker<'_, '_> {
             && operation.left().source_unit() == self.inputs.source_unit
             && operation.right().source_unit() == self.inputs.source_unit
             && self.expression(operation.left().expression())
-            && self.expression(operation.right().expression())
+            && (self.inputs.typed.expression_falls_through(operation.left()) == Some(false)
+                || self.expression(operation.right().expression()))
     }
 
     /// Boolean alternatives tested in order; a value-context `when` needs `else`.
