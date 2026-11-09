@@ -88,7 +88,7 @@ impl UnitExpressionLowerer<'_> {
             self.reject_nested_while_proof(span)?;
             None
         };
-        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
+        if !self.supports_loop_control_prefix(span) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
@@ -124,7 +124,7 @@ impl UnitExpressionLowerer<'_> {
         let Some(condition) = self.lower_optional_condition_value(condition, span)? else {
             return Ok(LoweredValue::Diverged);
         };
-        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
+        if !self.supports_loop_control_prefix(span) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let constant_condition = if let Some(entity) =
@@ -245,7 +245,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         self.reject_live_if_proof(span)?;
         self.reject_nested_while_proof(span)?;
-        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
+        if !self.supports_loop_control_prefix(span) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();

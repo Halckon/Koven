@@ -289,6 +289,7 @@ impl UnitExpressionLowerer<'_> {
                 shared_field_roots: Vec::new(),
                 created_loans: Vec::new(),
                 abi_slots: Vec::new(),
+                control_prefix_temporaries: Vec::new(),
             });
         let lowered_arguments = self.lower_call_arguments(call, arguments, descriptor, span);
         self.pending_call_frames.pop();

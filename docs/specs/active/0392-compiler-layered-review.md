@@ -3491,6 +3491,11 @@ Const Refine 的 `Never` 计划原会从固定左值再建两条边，导致新�
 具名 Nothing 计数与控制完成性 SSA 共享一条回归。
 同一合流树的 Unit 类型、所有权与 Const 所有权三套共 474 项通过，零失败、零忽略。
 
+PR #386 精确头 `081549cd` 的[实际双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42577215257)
+通过 Check/Clippy、定向测试、双宿主预览包生产及独立安装、Code CI Evidence 与 CI Passed。
+15 项通过，编辑器词法门禁按改动范围跳过。`main` 合并提交 `e87de0ac` 的树与
+CI 检出的 `f0182570` 一致。
+
 ## 136. R4 间接 Nothing 的 callable ABI
 
 在 `081549cd` 上，公共 CLI check 接受无捕获 lambda、共享捕获 closure 和借用
@@ -3521,3 +3526,22 @@ break 的资源计数和未实际分派。Unit initializer 与 Map action 的两
 Unit closure 10 项通过，零失败、零忽略。相关拒绝过滤器的 3 项通过，与 SSA 和
 generation 计数有重叠。
 全工作区全目标 Clippy、格式、文档结构与 Rust 尺寸门禁通过。
+
+
+## 137. R4 普通调用实参内的循环与前缀临时值
+
+在 `50bdf49a` 上，公共前端接受先借用新 String，再在后续实参的 if 分支中求值 while 的程序。
+原生红测在 while 语句报 UnsupportedNode。普通声明调用已通过其专用前缀准入，
+循环只查询旧通用能力，仍拒绝被合法实参借用的临时 owner。默认路径的红测和带
+Group 的强制兼容路径红测分别复现同一拒绝。
+
+构建在已有直接前缀校验成功后，只把已求值的实参临时源身份登记在当前调用帧。
+循环资格仍从既有通用能力或现存调用帧取得，检查所有待携带的临时 owner。
+透明 Group 的别名按当前 CFG 中相同的 owner ValueId 识别，已离开调用帧的身份不能
+开通后续循环。CFG 携带、实参交付、控制转移借用终止与析构仍由原槽位和前端事实决定。
+
+两项原生回归通过，分别走默认和强制兼容路径，实跑循环内 return、循环正常绕过后的
+return 和调用实际交付三条边。间接 Nothing 原生 7 项、旧 Unit 循环 7 项、
+while proof 4 项通过，均零失败、零忽略。独立复核确认透明 alias 重绑定与无关 owner
+拒绝，格式、文档与 Rust 尺寸门禁通过。
+同一候选的全工作区全目标 Clippy 和 CLI 构建通过。
