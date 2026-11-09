@@ -4187,3 +4187,16 @@ Rust 尺寸门禁通过。Cargo 与远端 CI 另行验收。
 
 九个前端集成套件 130 项、前端单元 412 项通过，零失败和忽略。
 前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 169. R0 下标公共入口回归接入双宿主矩阵
+
+PR #398 的双宿主工作区门禁会编译 `parser_index_recovery`，原定向
+矩阵实际执行 `parser_super_recovery`、`parser_block_line_continuation`
+及前端单元测试。下标专用 suite 原本仅有本地执行证据。将其加入两个
+宿主共用的 `check_stage_integration.sh`，与相邻 Parser suite 一起运行。
+
+用 shell 语法检查及替代 Cargo 的命令跟踪确认新 suite 恰好入选一次。
+§168 对应的本地 Cargo 已实际执行 14 项下标回归。另保留前批精确证据：
+`8bfc8d8d` 全前端 184 组 2994 项，`8952321a` 的 11 个定向集成套件
+178 项和前端单元 411 项均通过，零失败和忽略。后者全目标 Clippy 通过。
+本项实际双宿主矩阵随本批 PR 验收。
