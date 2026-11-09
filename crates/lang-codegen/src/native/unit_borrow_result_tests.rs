@@ -99,6 +99,70 @@ fn native_borrow_direct_alias_unit_preserves_real_storage_and_owner_cleanup() {
 }
 
 #[test]
+fn native_stable_root_alias_can_end_before_or_cross_a_branch() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "stable-root-alias-branch",
+        source: r#"fun ended(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    { borrow val item = owner; println(item) }
+    if (flag) { println("after") }
+}
+fun live(own owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun borrowed(owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() {
+    ended(true)
+    ended(false)
+    live("early".clone(), true)
+    live("normal".clone(), false)
+    borrowed("borrowed early".clone(), true)
+    borrowed("borrowed normal".clone(), false)
+}"#,
+        stdout: b"kept\nafter\nkept\nearly\nnormal\nborrowed early\nborrowed normal\n",
+        allocations: 6,
+    }]);
+}
+
+#[test]
+fn native_stable_child_aliases_release_before_the_parent() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "stable-child-alias-branch",
+        source: r#"fun view(source: String): borrow String from source = source
+fun ended(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    {
+        borrow val parent = view(owner)
+        borrow val item = ((parent))
+        println(item)
+    }
+    if (flag) { println("after") }
+}
+fun live(owner: String, own flag: Boolean): Unit {
+    borrow val parent = owner
+    borrow val child = ((parent))
+    borrow val item = child
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() {
+    ended(true)
+    ended(false)
+    live("early".clone(), true)
+    live("normal".clone(), false)
+}"#,
+        stdout: b"kept\nafter\nkept\nearly\nnormal\n",
+        allocations: 4,
+    }]);
+}
+
+#[test]
 fn native_borrow_stable_place_unit_preserves_storage_and_cleanup() {
     check_normal_cases(crate::native_borrow_place_cases::cases());
 }

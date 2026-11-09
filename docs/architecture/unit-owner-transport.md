@@ -76,7 +76,7 @@ validator 独立拒绝任何 If 子树中的 Capture，即使最终守恒；此�
 
 ## 循环拒绝回归切片
 
-旧 owner 观察仍不准入循环；独立的[闭合 While body 产物](unit-loop-owner-transport.md)不改变此边界。
+旧 owner 观察仍不准入循环；独立的[While body 与不变输入产物](unit-loop-owner-transport.md)不改变此边界。
 既有静态回归固定 While/Loop 在外层 statement 原子 Unsupported：
 常量 false 的零轮边界、未改变条件的正常回边、continue、break 与嵌套循环都清空整个
 callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀与非法事实注入检查防止空测。

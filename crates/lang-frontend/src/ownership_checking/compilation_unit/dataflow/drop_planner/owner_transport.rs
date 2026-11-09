@@ -43,6 +43,7 @@ impl DropPlanner<'_, '_> {
             events: Vec::new(),
             choice_value: None,
             loop_value: None,
+            invariant_loop_value: None,
         });
     }
 
@@ -68,6 +69,7 @@ impl DropPlanner<'_, '_> {
             events: Vec::new(),
             choice_value: None,
             loop_value: None,
+            invariant_loop_value: None,
         });
     }
 
@@ -76,12 +78,14 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
-        let loop_value = self
+        let (loop_value, invariant_loop_value) = self
             .owner_loop
             .take()
-            .and_then(loops::LoopTransaction::finish);
+            .map(loops::LoopTransaction::finish)
+            .unwrap_or_default();
         if let Some(mut observation) = self.owner_observation.take() {
             observation.loop_value = loop_value.map(Box::new);
+            observation.invariant_loop_value = invariant_loop_value.map(Box::new);
             observation.choice_value = choice.map(Box::new);
             if !observation.is_consistent() {
                 let point = match observation.callable {
@@ -240,7 +244,9 @@ impl DropPlanner<'_, '_> {
     pub(super) fn check_owner_statement(
         &mut self,
         id: StatementId,
+        state: &ValueState,
     ) -> Result<(), OwnershipCheckingError> {
+        self.prepare_owner_loop_input(id, state);
         if !self.owner_observation_active() {
             return Ok(());
         }

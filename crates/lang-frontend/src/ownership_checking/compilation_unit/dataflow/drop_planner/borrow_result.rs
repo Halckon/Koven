@@ -78,7 +78,7 @@ impl DropPlanner<'_, '_> {
             false
         });
     }
-    pub(super) fn statement(
+    pub(super) fn statement_with_borrow_ends(
         &mut self,
         id: StatementId,
         state: &mut ValueState,

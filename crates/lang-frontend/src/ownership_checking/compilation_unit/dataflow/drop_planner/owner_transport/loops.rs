@@ -1,7 +1,12 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
+mod conditional;
+mod invariant;
 use super::*;
-use crate::ownership_checking::compilation_unit::owner_transport::LoopBodyCompletion;
-use crate::ownership_checking::{UnitOwnerLoopEdgeV1 as Edge, UnitOwnerLoopObservationV1};
+use crate::ownership_checking::UnitOwnerLoopObservationV1;
+use crate::ownership_checking::compilation_unit::owner_transport::{
+    InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
+    LoopBranchExit,
+};
 use crate::parser::VariableKind;
 use std::collections::BTreeSet;
 
@@ -14,7 +19,13 @@ pub(in super::super) struct LoopTransaction {
     expected: LoopBodyCompletion,
     active: Option<(std::sync::Arc<()>, usize)>,
     completed: Option<(std::sync::Arc<()>, LoopBodyCompletion)>,
+    split_entered: bool,
+    active_branch: Option<usize>,
+    pending_jump: Option<(std::sync::Arc<()>, LoopBodyCompletion)>,
+    branch_completed: [bool; 2],
     result: Option<UnitOwnerLoopObservationV1>,
+    invariant: Option<invariant::InvariantInput>,
+    invariant_result: Option<InvariantLoopValueV1>,
 }
 
 fn exact_type(checker: &Checker<'_>, expression: ExpressionId, builtin: BuiltinType) -> bool {
@@ -94,8 +105,10 @@ impl LoopTransaction {
             return None;
         };
         if !checker.parsed.roots().contains(&item)
-            || parameters.len() != 1
-            || parameters[0].mode_marker.is_some()
+            || !(1..=2).contains(&parameters.len())
+            || parameters
+                .iter()
+                .any(|parameter| parameter.mode_marker.is_some())
             || checker.receiver_context(*name).is_some()
         {
             return None;
@@ -115,14 +128,18 @@ impl LoopTransaction {
         {
             return None;
         }
-        let parameter = *checker.marker_symbol(parameters[0].name)?;
-        if checker
-            .typed
-            .symbol_type(parameter)
-            .and_then(|ty| checker.typed.types().get(ty))
-            != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-        {
-            return None;
+        let mut parameter_symbols = BTreeSet::new();
+        for parameter in parameters {
+            let symbol = *checker.marker_symbol(parameter.name)?;
+            if checker
+                .typed
+                .symbol_type(symbol)
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
+            {
+                return None;
+            }
+            parameter_symbols.insert(symbol);
         }
         let function_body = match form {
             FunctionForm::ImplicitUnitBlock(body)
@@ -136,32 +153,21 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let [statement] = elements.as_slice() else {
-            return None;
+        let (statement, mut invariant) = match elements.as_slice() {
+            [statement] => (*statement, None),
+            [prefix, statement, suffix] => (
+                *statement,
+                Some(invariant::InvariantInput::admit(checker, *prefix, *suffix)?),
+            ),
+            _ => return None,
         };
         let Statement::While {
             condition, body, ..
-        } = ast.statements().get(*statement).ok()?.payload()
+        } = ast.statements().get(statement).ok()?.payload()
         else {
             return None;
         };
-        let mut current = *condition;
-        loop {
-            if !exact_type(checker, current, BuiltinType::Boolean) {
-                return None;
-            }
-            let node = ast.expressions().get(current).ok()?;
-            match node.payload() {
-                Expression::Group { expression } => current = *expression,
-                Expression::Name if checker.reference_symbol(node.span()) == Some(parameter) => {
-                    break;
-                }
-                _ => return None,
-            }
-        }
-        if checker.ordinary_condition_outcomes(*condition) != (true, true) {
-            return None;
-        }
+        let parameter = conditional::boolean_parameter(checker, *condition, &parameter_symbols)?;
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
@@ -174,18 +180,29 @@ impl LoopTransaction {
             if let Statement::Expression { expression } =
                 ast.statements().get(*statement).ok()?.payload()
             {
-                if index + 1 != elements.len()
-                    || locals.is_empty()
-                    || !exact_type(checker, *expression, BuiltinType::Nothing)
-                {
+                if index + 1 != elements.len() || locals.is_empty() {
                     return None;
                 }
                 let jump = checker.unit_expression(*expression);
                 expected = match ast.expressions().get(*expression).ok()?.payload() {
                     Expression::Continue { .. } => LoopBodyCompletion::Continue(jump),
                     Expression::Break { .. } => LoopBodyCompletion::Break(jump),
+                    Expression::If { .. } => conditional::admit_split(
+                        checker,
+                        *expression,
+                        &parameter_symbols,
+                        parameter,
+                    )?,
                     _ => return None,
                 };
+                let result_type = if expected.continues() {
+                    BuiltinType::Unit
+                } else {
+                    BuiltinType::Nothing
+                };
+                if !exact_type(checker, *expression, result_type) {
+                    return None;
+                }
                 continue;
             }
             let Statement::LocalVariable { declaration } =
@@ -215,8 +232,41 @@ impl LoopTransaction {
             }
             locals.insert(symbol);
         }
+        let required_parameters = if matches!(expected, LoopBodyCompletion::Conditional { .. }) {
+            2
+        } else {
+            1
+        };
+        if parameter_symbols.len() != required_parameters {
+            return None;
+        }
+        if let Some(input) = &mut invariant {
+            match expected {
+                LoopBodyCompletion::Fallthrough
+                | LoopBodyCompletion::Continue(_)
+                | LoopBodyCompletion::Break(_) => {}
+                LoopBodyCompletion::Conditional { branches, .. }
+                    if branches.iter().all(|branch| {
+                        matches!(
+                            branch.exit,
+                            LoopBranchExit::Continue(_) | LoopBranchExit::Break(_)
+                        )
+                    }) =>
+                {
+                    input.enable_terminal_split()
+                }
+                LoopBodyCompletion::Conditional { branches, .. }
+                    if branches
+                        .iter()
+                        .any(|branch| branch.exit == LoopBranchExit::Fallthrough) =>
+                {
+                    input.enable_joining();
+                }
+                _ => return None,
+            }
+        }
         Some(Self {
-            statement: *statement,
+            statement,
             condition: *condition,
             body: *body,
             identity,
@@ -224,17 +274,28 @@ impl LoopTransaction {
             expected,
             active: None,
             completed: None,
+            split_entered: false,
+            active_branch: None,
+            pending_jump: None,
+            branch_completed: [false; 2],
             result: None,
+            invariant,
+            invariant_result: None,
         })
     }
 
-    pub(in super::super) fn finish(self) -> Option<UnitOwnerLoopObservationV1> {
-        self.result
+    pub(in super::super) fn finish(
+        self,
+    ) -> (
+        Option<UnitOwnerLoopObservationV1>,
+        Option<InvariantLoopValueV1>,
+    ) {
+        (self.result, self.invariant_result)
     }
 }
 
 // Exhaustive destructuring makes new planner slots require an explicit boundary decision.
-fn empty_boundary(state: &ValueState) -> bool {
+fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
     let ValueState {
         lambda,
         borrow_bindings,
@@ -254,7 +315,7 @@ fn empty_boundary(state: &ValueState) -> bool {
         closure_asap,
         this,
     } = state;
-    lambda.is_none()
+    (lambda.is_none()
         && this.is_none()
         && borrow_bindings.is_empty()
         && pending_borrow_results.is_empty()
@@ -265,12 +326,16 @@ fn empty_boundary(state: &ValueState) -> bool {
         && borrow_forward_transports.is_empty()
         && iterations.is_empty()
         && pending_temporaries.is_empty()
-        && values.is_empty()
         && replacements.is_empty()
         && pending_borrows.is_empty()
         && pending_capture_borrows.is_empty()
         && closures.is_empty()
-        && closure_asap.is_empty()
+        && closure_asap.is_empty())
+    .then_some(values)
+}
+
+fn empty_boundary(state: &ValueState) -> bool {
+    boundary_values(state).is_some_and(<[OwnedValue]>::is_empty)
 }
 
 impl DropPlanner<'_, '_> {
@@ -306,15 +371,20 @@ impl DropPlanner<'_, '_> {
         let Some((identity, boundary)) = &transaction.active else {
             return false;
         };
-        let expected = match transaction.expected {
+        let Some(expected) = transaction.expected_jump() else {
+            return false;
+        };
+        let branch_depth = usize::from(transaction.active_branch.is_some());
+        let expected = match expected {
             LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump) => jump,
-            LoopBodyCompletion::Fallthrough => return false,
+            _ => return false,
         };
         expected == self.checker.unit_expression(id)
             && transaction.completed.is_none()
+            && transaction.pending_jump.is_none()
             && self.loop_boundaries.as_slice() == [*boundary]
-            && self.scope_depth == boundary + 1
-            && self.owner_branch_depth == 0
+            && self.scope_depth == boundary + 1 + branch_depth
+            && self.owner_branch_depth == branch_depth
             && self.owner_observation.as_ref().is_some_and(|observation| {
                 observation.status == UnitOwnerObservationStatus::Complete
                     && std::sync::Arc::ptr_eq(&observation.identity, identity)
@@ -323,17 +393,28 @@ impl DropPlanner<'_, '_> {
 
     // Invoked only after the real jump's loans, owners and iteration cleanup succeeded.
     fn finish_owner_loop_jump(&mut self, id: ExpressionId, is_continue: bool, state: &ValueState) {
-        if self.owner_loop_jump_supported(id) && empty_boundary(state) {
+        if self.owner_loop_jump_supported(id) {
             let transaction = self.owner_loop.as_mut().expect("checked active loop");
-            let (identity, _) = transaction.active.as_ref().expect("checked body sink");
+            let identity = transaction
+                .active
+                .as_ref()
+                .expect("checked body sink")
+                .0
+                .clone();
             let jump = self.checker.unit_expression(id);
             let completed = if is_continue {
                 LoopBodyCompletion::Continue(jump)
             } else {
                 LoopBodyCompletion::Break(jump)
             };
-            if completed == transaction.expected {
-                transaction.completed = Some((identity.clone(), completed));
+            if Some(completed) == transaction.expected_jump()
+                && transaction.jump_boundary(completed, &identity, state)
+            {
+                if transaction.active_branch.is_some() {
+                    transaction.pending_jump = Some((identity.clone(), completed));
+                } else {
+                    transaction.completed = Some((identity.clone(), completed));
+                }
             }
         }
     }
@@ -351,12 +432,13 @@ impl DropPlanner<'_, '_> {
         let collecting = self.owner_observation_enabled
             && self.loop_boundaries.is_empty()
             && self.owner_branch_depth == 0
-            && empty_boundary(state)
-            && self.owner_loop.as_ref().is_some_and(|transaction| {
+            && self.owner_loop.as_mut().is_some_and(|transaction| {
                 transaction.statement == id
                     && transaction.condition == condition
                     && transaction.body == body
                     && transaction.result.is_none()
+                    && transaction.invariant_result.is_none()
+                    && transaction.entry_boundary(state)
             });
         let mut body_transport = None;
         if self.checker.ordinary_condition_outcomes(condition).0 {
@@ -383,6 +465,7 @@ impl DropPlanner<'_, '_> {
                         events: Vec::new(),
                         choice_value: None,
                         loop_value: None,
+                        invariant_loop_value: None,
                     }),
                     self.owner_choice.take(),
                     self.owner_branch_depth,
@@ -402,15 +485,21 @@ impl DropPlanner<'_, '_> {
                 let transaction = self.owner_loop.as_mut().expect("checked loop transaction");
                 transaction.active = None;
                 let witnessed = transaction.completed.take();
-                if empty_boundary(&body_state)
+                transaction.split_entered = false;
+                transaction.active_branch = None;
+                transaction.pending_jump = None;
+                transaction.branch_completed = [false; 2];
+                if transaction.body_completion_boundary(&body_state)
                     && let Some(collected) = collected
                 {
                     let completion = match (&continued, transaction.expected, witnessed) {
                         (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
                             Some(LoopBodyCompletion::Fallthrough)
                         }
-                        (Ok(false), expected, Some((identity, completed)))
-                            if expected == completed
+                        (Ok(continues), expected, Some((identity, completed)))
+                            if *continues == expected.continues()
+                                && expected != LoopBodyCompletion::Fallthrough
+                                && expected == completed
                                 && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
                         {
                             Some(completed)
@@ -431,7 +520,6 @@ impl DropPlanner<'_, '_> {
         }
         self.drop_loop_exit(id, state);
         if collecting
-            && empty_boundary(state)
             && let (Some(transaction), Some((transport, completion))) =
                 (&mut self.owner_loop, body_transport)
         {
@@ -447,17 +535,14 @@ impl DropPlanner<'_, '_> {
                 body,
                 transport,
                 completion,
-                edges: [
-                    Edge::EnterBody(condition, body),
-                    completion.edge(statement, condition, body),
-                    Edge::ConditionFalseExit(
-                        condition,
-                        crate::ownership_checking::UnitDropPoint::LoopExit(statement),
-                    ),
-                ],
+                edges: completion.edges(statement, condition, body),
             };
             if value.is_consistent() {
-                transaction.result = Some(value);
+                if let Some(invariant) = &mut transaction.invariant {
+                    transaction.invariant_result = invariant.finish(value, state);
+                } else if empty_boundary(state) {
+                    transaction.result = Some(value);
+                }
             }
         }
         Ok(true)

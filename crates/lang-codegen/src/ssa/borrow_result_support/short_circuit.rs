@@ -97,9 +97,14 @@ pub(super) fn allows(
                     }
                     Expression::If { condition, .. } => {
                         ungroup(parsed, *condition, node.span()).ok() == Some(expression)
-                            && local_if::allows(parsed, scope, outer, builtin, &|id| {
-                                call_allowed(id, CallAccess::OwnedResult)
-                            })
+                            && local_if::allows(
+                                parsed,
+                                scope,
+                                outer,
+                                builtin,
+                                &|id| call_allowed(id, CallAccess::OwnedResult),
+                                None,
+                            )
                     }
                     _ => false,
                 }
