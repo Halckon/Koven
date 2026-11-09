@@ -793,6 +793,15 @@ impl Parser<'_> {
                 continue;
             }
             let outside_owner = owners.is_empty();
+            if outside_owner
+                && delimiters.is_empty()
+                && paired_groups.is_empty()
+                && stops.in_unsupported_delegation_suffix()
+                && symbol == Some(Symbol::LeftBrace)
+                && let Some(closer) = self.delegation_lambda_closer(raw_index)?
+            {
+                paired_groups.push((closer, delimiters.len()));
+            }
             let nested_greater = symbol == Some(Symbol::Greater) && !paired_groups.is_empty();
             let protected_suffix_group = supertype_suffix && !paired_groups.is_empty();
             let hard_stop = outside_owner

@@ -88,18 +88,9 @@ impl BodyChecker<'_> {
             .symbols()[symbol.symbol().index()]
         .kind()
             == SymbolKind::Constant;
-        // Signature resolution precedes body diagnostics and may wrap Error inside
-        // nullable/container types. Preserve the annotation's original diagnostic.
-        let signature_error = expected_span.is_some_and(|annotation| {
-            self.signatures.diagnostics().iter().any(|diagnostic| {
-                let span = diagnostic.primary_span();
-                span.source_id() == annotation.source_id()
-                    && annotation.start() <= span.start()
-                    && span.end() <= annotation.end()
-            })
-        });
         if constant
-            && !signature_error
+            && !self.constant_recovery_only.contains(&symbol)
+            && !expected_span.is_some_and(|annotation| self.signature_error_in(annotation))
             && self.diagnostics.len() == before
             && !self.constant_type_has_error(ty)
         {
@@ -188,7 +179,17 @@ impl BodyChecker<'_> {
             .map_err(CompilationUnitTypeError::from)
     }
 
-    fn top_level_type_ref_span(
+    // Signature resolution may preserve the outer type of an invalid annotation.
+    pub(super) fn signature_error_in(&self, annotation: Span) -> bool {
+        self.signatures.diagnostics().iter().any(|diagnostic| {
+            let span = diagnostic.primary_span();
+            span.source_id() == annotation.source_id()
+                && annotation.start() <= span.start()
+                && span.end() <= annotation.end()
+        })
+    }
+
+    pub(super) fn top_level_type_ref_span(
         &self,
         source: SourceUnitId,
         type_ref: TypeRefId,
