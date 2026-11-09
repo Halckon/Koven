@@ -28,13 +28,9 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let Some(binding) = self
-            .checker
-            .borrow_results
-            .bindings()
-            .iter()
+            .borrow_bindings_initialized_by(source_call)
             .find(|binding| {
-                binding.initializer() == source_call
-                    && binding.parent().is_none()
+                binding.parent().is_none()
                     && state.pending_borrow_results.contains(&binding.binding())
             })
         else {
