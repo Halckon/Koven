@@ -304,88 +304,6 @@ fn direct_and_grouped_root_arguments_end_once_at_call_return() {
 }
 
 #[test]
-fn checked_construction_temporaries_publish_actual_ends_but_factory_results_do_not() {
-    for (operand, observed_construction) in
-        [("Node()", true), ("((Node()))", true), ("factory()", false)]
-    {
-        let observed = observe(&format!(
-            "class Node {{}}\nfun factory(): Node = Node()\nfun read(first: Node, own n: Int): Unit {{}}\nfun run(flag: Boolean): Unit = read({operand}, if (flag) {{ return }} else {{ 0 }})",
-        ));
-        assert_units_admitted(&observed);
-        for unit in &observed.units {
-            let [loan] = unit.loans() else {
-                panic!("one actual Borrow operand: {operand}");
-            };
-            let UnitLoanTarget::Temporary(owner) = loan.target() else {
-                panic!("the operand owns its temporary");
-            };
-            assert_eq!(*owner, loan.argument());
-            let points: Vec<_> = unit
-                .drops()
-                .iter()
-                .filter(|drop| drop.target() == UnitDropTarget::Temporary(*owner))
-                .map(|drop| drop.point())
-                .collect();
-            assert_eq!(points.len(), 2, "{operand}: {points:?}");
-            assert!(matches!(points[0], UnitDropPoint::ControlTransfer(_)));
-            assert_eq!(points[1], UnitDropPoint::CallReturn(loan.call()));
-            let ends = unit.direct_call_loan_ends();
-            if observed_construction {
-                assert_eq!(
-                    ends.iter().map(|end| end.point()).collect::<Vec<_>>(),
-                    points
-                );
-                assert!(
-                    ends.iter()
-                        .all(|end| end.loan() == loan && end.preceding_drops() == 0)
-                );
-            } else {
-                assert!(
-                    ends.is_empty(),
-                    "a factory call has no direct construction proof"
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path() {
-    let observed = observe(
-        "class Node {}\nfun read(first: Node, own n: Int): Unit {}\nfun run(flag: Boolean): Unit = read(Node(), if (flag) { error(\"stop\") } else { 0 })",
-    );
-    assert_units_admitted(&observed);
-    for unit in &observed.units {
-        let mut constructor_loans = unit
-            .loans()
-            .iter()
-            .filter(|loan| observed.sources.slice(loan.begin_span()) == Ok("Node()"));
-        let loan = constructor_loans.next().unwrap_or_else(|| {
-            panic!(
-                "construction is borrowed before the argument branches: {:?}",
-                unit.loans()
-            )
-        });
-        assert!(constructor_loans.next().is_none());
-        assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
-        let [end] = unit.direct_call_loan_ends() else {
-            panic!("only the normal arm retires the loan");
-        };
-        assert_eq!(end.loan(), loan);
-        let normal = UnitDropPoint::CallReturn(loan.call());
-        assert_eq!(end.point(), normal);
-        assert_eq!(end.preceding_drops(), 0);
-        let points: Vec<_> = unit
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == UnitDropTarget::Temporary(loan.argument()))
-            .map(|drop| drop.point())
-            .collect();
-        assert_eq!(points, [normal]);
-    }
-}
-
-#[test]
 fn only_established_prefix_ends_on_return_break_and_continue() {
     for operand in ["\"prefix\"", "((\"prefix\"))"] {
         for (jump, looped) in [("return", false), ("break", true), ("continue", true)] {
@@ -975,3 +893,6 @@ mod exclusive_order;
 
 #[path = "unit_direct_call_loan_ends/receiver_prefix.rs"]
 mod receiver_prefix;
+
+#[path = "unit_direct_call_loan_ends/constructed_argument.rs"]
+mod constructed_argument;

@@ -3804,3 +3804,27 @@ AfterExpression 析构，在三个显式转移各有唯一真实出口析构。A
 owner 均保留真实析构，只有构造发布结束。Abort 负控使用同一实际前缀 loan，正常
 臂只发布一条 CallReturn end 与同点 drop。五个集成套件共 515 项通过，零失败、
 零忽略。前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+## 153. R3 跨文件构造 Borrow 的求值与来源身份
+
+在 `39181c78` 上，使用两个包中的实际 class、声明和调用验证 §152 的构造实参合同。
+形参 ABI 顺序为 Int、Node，正控在源码中先写分组构造、后写有 Return 的值实参。
+相同调用的对照交换具名实参位置。只有先完成构造的退出边有 loan-end 和同点析构，
+两条正常路径各有一个 CallReturn。跨文件输入重排仍保留 caller 的 call、argument、
+temporary、Return 和 value origin，以及 callee 的声明与精确参数 Span。
+三条事件均在同点普通 drop 前发生，跳过构造的边没有相应析构。
+
+原构造和 Abort 两项测试原样迁至 `constructed_argument` 子模块，保留相同 suite。
+此次仅增加跨文件见证，没有改动编译器实现。`unit_direct_call_loan_ends` 116 项通过，
+零失败、零忽略。前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+独立复核后，借用结束事实逐条与原 loan 描述符及调用 AST 实参匹配，并按 owner
+核对完整析构点序列和来源，避免错标来源掩盖额外析构。用本轮构建的 kovenc 在
+macOS arm64 对同形双包输入执行 project check、object build、link 与本机运行。
+两条提前路径中只有已构造的 owner 打印析构。两条正常路径均先打印 callee 标记，
+再各打印一次 owner 析构，stdout 逐字节符合预期。该探针使用 deinit 输出，未测
+实际分配次数。
+
+[PR #392 实际 main CI](https://github.com/Halckon/Koven/actions/runs/42624664615)
+在 `369fff4c` 通过双宿主 Check/Clippy、定向、预览生产与独立消费。15 项成功，
+只跳过 PR 专用的 Code CI Evidence。
