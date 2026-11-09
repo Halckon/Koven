@@ -4771,3 +4771,53 @@ Clippy 首轮定位测试同类型 cast，删除冗余 cast 后严格门禁和40
 无尺寸例外变化，架构200行。任意后续、投影、incoming Choice、真实循环/phi、
 Phase 4/native 与 E3 仍未开放；未跑全量、手工模型/故障注入、native、Linux 或正式
 精确头 CI。D10/E2 继续 in-progress；不新增备份，不覆盖已有分支或合并。
+
+## 134. Checked replace 两个输出的顺序运输（2026-11-09）
+
+基于已发布 `d4e183a0`（与 §132 本地 `3ba0f136` 同树），先核最新 main
+`ec8a7b9f` 及远端 Choice 分支，相关 Choice 生产路径没有额外主线改动或重复能力。
+依赖未合 Choice 链，不把分支测试算作最新 main 整合。Phase 3 沿用已启用的
+replace/move/cleanup 合同，不改 Guide、公开 API、V1 validator 或通用 planner hook。
+
+新增恰四句形状：初始 chosen 接 Choice、previous 接 checked replace 返回值，
+第三句不可变精确 String/MoveOnly binding 只接 Name/Group previous，
+第四句同类 binding 只接 Name/Group chosen。两个目标须与原根、previous 及彼此不同；
+只准旧输出在前、新根在后，不是任意 alias 链。零/单 transfer 的既有路径不变。
+
+准入保存至多两段 source/target/chain/精确 AfterStatement 点，运行时只处理活动段。
+实际 take 后保存的 value 沿原 Consume/Forward/post-insert 门禁运输；只有该目标
+真正按自身声明点 Drop、result 已清空、bound 成立且 value 仍在，才清空整帧并推进
+活动索引。第二段从全新 result/value/completed/bound 状态开始，不能继承上一段进度。
+finish 要求所有段均完成；这不是两个同时存活的临时值槽或从历史事件重建身份。
+
+双输出路径不允许原根 CallReturn Drop，也不允许 previous 原 binding 提前 Drop。
+旧输出 alias 第三声明真实退休后才建立 previous_dropped，新根 actual take 才能拿到
+原 incoming Definition，最后在第四声明退休；每个值恰一个真实清理点，根与 previous
+都不再额外 Drop。错误源、Read、漏层、错序、提前/重复绑定和清理均原子撤销。
+
+真实红测在四句源码缺 V1 上 1 failed，测试提交 `3422d4dd`。实现 `825d70a9`
+后补全256组合（2条件×4边形态×2整个If分组×2 RHS分组×2返回Group深度
+×2旧输出Name/Group×2新输出Name/Group），独立核 AST 两边、三 producer、
+全部 suffix 身份/顺序与准确两次 alias cleanup，比较 observation 开关完整旧 Analysis。
+9种合法拒绝覆盖新先旧后、同值alias链、concat、var/nullable、调用、第五句与循环；
+保留 sibling 隔离及全部旧零/单 transfer 邻控。22条补充手工trace仅编译未本机执行。
+
+独立静审曾发现：切段后旧表达式或尚未开始的第二段表达式落入 unknown callback 路径，
+会被忽略而非撤销；普通合法源码绿灯不能证明这条故障边界。`754c94c7` 单独修正为
+先识别全部 transfer.chain，非活动段一律 abort，包含全部完成后的退休链；真正无关
+condition/callee/inout-root 回调不变。既有退休重复 trace 与新增提前第二段 trace 静态
+核对该 guard，但未声称运行过这些trace。独立复审确认缺口闭合，没有其它 blocker。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_dual_forwarding` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §132 同一40项普通 exact | 40 passed，0 failed/ignored |
+| 修正后重跑 | `754c94c7` 相同42项普通 exact及strict Clippy | 全部通过，未省略邻控 |
+| 独立复验 | `754c94c7` 新两个完整名 ordinary exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2229 Rust、35项既有超限 |
+
+生产 choice/replace 分别938/453行，新测试422行，无尺寸例外变化，架构200行。
+反向双输出、同值反复运输、任意后续、incoming Choice、真实循环实例/phi、Phase 4/native
+与 E3 仍未开放。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+D10/E2 继续 in-progress。不新增备份，分步提交后 connector 创建独立新分支，
+不覆盖已有 ref、不强推或合并。

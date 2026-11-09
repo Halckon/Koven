@@ -106,7 +106,7 @@ V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。�
 先求条件，再按真实 then/else 记边，不因 Not 交换输入。调用、常量、比较和短路仍拒绝。
 每边允许无插值 String literal/Group（可包单尾 ControlBody），或一个精确 String/
 MoveOnly 的局部 `val` 后接唯一 Name/Group 消费尾；局部 initializer 仅 literal/Group。
-两边可混搭；函数体仅初始 binding 及下述可选唯一后继，不接受其它语句或使用。
+两边可混搭；函数体仅初始 binding 及下述有界后续，不接受其它语句或使用。
 
 String 构造登记真定义；Group/If 完成与双边实际 tail 交付必须唯一有序。局部 initializer
 与 tail 使用独立帧/计数，symbol→value 槽仅在真实 insert 后接 Binding，实际 take_named
@@ -120,13 +120,13 @@ Consume/Forward，再 post-insert 清空帧；最后仅清理 forwarded，chosen
 失败 take、Read、错序、重复或错误清理均撤销；多次转交仍拒绝（SPEC-0341 §122）。
 
 初始 `var` 须紧跟 `val previous = replace(&chosen, literal/Group)` 或其整个 Group 链；
-可再接唯一不可变、精确 String/MoveOnly 的 `val forwarded = Name/Group`，来源为 previous 或 chosen。
+后继须不可变、精确 String/MoveOnly 的 Name/Group；单个源为 previous 或 chosen，两个只许前旧后新。
 必须是真实 checked String root Replace，非投影，RHS 精确 String 且无插值；独立帧
 完整 Consume 后注册真实唯一 pending，再于 checked primitive 完成和 root 更新后发 Replace。
 返回旧 Choice 沿实际 call/各层 Group 按序 Consume/Forward，末帧才 post-insert 绑定 previous（§130）。
-无后继或转交 previous 时，新 definition 在真实 CallReturn 释放；旧 Choice 按 §126/§128 释放。
-若转交 chosen，previous 须先在第二声明后退休，原根保持新 definition；实际 take 后才保存运输值。
-同一 value 帧逐层 Consume/Forward、绑定及第三声明后 Drop；不提前清理原根或重建身份（§132）。
+无后继或仅转交 previous 时，新 definition 在真实 CallReturn 释放；旧 Choice 按 §126/§128 释放。
+若转交 chosen，旧 Choice 须先在 previous 或其唯一 alias 声明后退休，原根保持新 definition。
+每段实际 take 后沿 value 帧运输/绑定，在自身声明 Drop 后清空才推进下一段；不重建身份（§132/§134）。
 
 Choice 图的 CallReturn Drop 必须承接紧邻同 call/root/incoming 的 Replace；连续 cleanup 保留
 该 commit 见证，仍验证 Named→Dropped；Swap 仍仅无 Choice。公开事件 API 不变。
@@ -136,8 +136,8 @@ BranchExit、控制退出、When 等未覆盖 point 仍不准入；图守恒不�
 旧观察仍原子 Unsupported，不接收新定义/Choice；原 cleanup/Single 见证保持。新能力
 绑定 observation 的 product/callable，旧 Eq 仅比旧事实，新协议须独立验收。不从事件、
 cleanup 或 owner=None 重建身份；任意退出、遗漏、重复或错误交付均清空新事务。
-nullable、普通调用、capture、二次 replace/转交、退出、真实循环/phi、通用后续消费及 Phase 4 仍未开放。
-本机证据见 §120/§122/§124/§126/§128/§130/§132；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
+nullable、普通调用、capture、二次 replace/同值转交、退出、真实循环/phi、通用后续消费及 Phase 4 仍未开放。
+本机证据见 §120/§122/§124/§126/§128/§130/§132/§134；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
 
 ## String 根 swap 观察
 
