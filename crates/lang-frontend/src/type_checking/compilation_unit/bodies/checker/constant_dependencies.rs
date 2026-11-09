@@ -78,7 +78,7 @@ impl BodyChecker<'_> {
             {
                 continue;
             }
-            if let Ok(syntax) = self.constant_syntax_dependencies(input.expression)? {
+            if let Ok(syntax) = self.constant_syntax_dependencies(input.expression, None)? {
                 input.expressions = syntax.expressions;
                 dependencies.insert(symbol, syntax.dependencies);
             }
@@ -184,16 +184,21 @@ impl BodyChecker<'_> {
                 }
             }
         }
+        // Recover independent qualification diagnostics without using types
+        // that depend on a failed signature or initializer.
+        for (&symbol, input) in &inputs {
+            if dependencies.contains_key(&symbol)
+                && invalid.contains(&symbol)
+                && !self.constant_prechecked.contains(&symbol)
+            {
+                let nodes = self.constant_invalid_dependency_nodes(input, &invalid)?;
+                self.constant_recovery_nodes.insert(symbol, nodes);
+            }
+        }
         // A failed value does not invalidate operand types or hide qualification
         // errors. It only blocks dependent evaluation and cycle diagnostics.
         invalid.extend(evaluation_failures.iter().copied());
         propagate_invalid(&mut invalid, &reverse, evaluation_failures);
-        // An invalid dependency blocks qualification and evaluation. Still let the
-        // ordinary body pass find independent type errors in skipped initializers.
-        self.constant_recovery_only
-            .extend(dependencies.keys().copied().filter(|symbol| {
-                invalid.contains(symbol) && !self.constant_prechecked.contains(symbol)
-            }));
         let symbols = inputs.keys().copied().collect::<Vec<_>>();
         let indices = symbols
             .iter()
@@ -281,15 +286,59 @@ impl BodyChecker<'_> {
         self.current_owner = previous_owner;
         result?;
         Ok(self.diagnostics.len() == before
-            && self.constant_syntax_dependencies(input.expression)?.is_ok())
+            && self
+                .constant_syntax_dependencies(input.expression, None)?
+                .is_ok())
+    }
+
+    fn constant_invalid_dependency_nodes(
+        &self,
+        input: &Initializer,
+        invalid: &BTreeSet<UnitSymbolId>,
+    ) -> Result<BTreeSet<UnitExpressionId>, CompilationUnitTypeError> {
+        let source = input.expression.source_unit();
+        let mut affected = BTreeSet::new();
+        // The dependency walk records parents before their operands.
+        for &expression in input.expressions.iter().rev() {
+            let node = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .map_err(TypeCheckingError::from)?;
+            let affected_child = |id| affected.contains(&UnitExpressionId::new(source, id));
+            let depends_on_invalid = match node.payload() {
+                Expression::Group { expression }
+                | Expression::Prefix {
+                    operand: expression,
+                    ..
+                } => affected_child(*expression),
+                Expression::Binary { left, right, .. } => {
+                    affected_child(*left) || affected_child(*right)
+                }
+                Expression::Name => self
+                    .constant_target(source, node.span())
+                    .is_some_and(|target| invalid.contains(&target)),
+                Expression::Member { name_span, .. } => self
+                    .constant_target(source, *name_span)
+                    .is_some_and(|target| invalid.contains(&target)),
+                _ => false,
+            };
+            if depends_on_invalid {
+                affected.insert(expression);
+            }
+        }
+        Ok(affected)
     }
 
     /// Qualification shares the dependency walk, including the unevaluated short-circuit RHS.
     pub(super) fn check_constant_expression(
         &mut self,
+        symbol: UnitSymbolId,
         root: UnitExpressionId,
     ) -> Result<(), CompilationUnitTypeError> {
-        if let Err(span) = self.constant_syntax_dependencies(root)? {
+        let affected = self.constant_recovery_nodes.get(&symbol);
+        if let Err(span) = self.constant_syntax_dependencies(root, affected)? {
             self.emit(
                 codes::INVALID_CONSTANT_EXPRESSION,
                 "expression is not permitted in a constant initializer",
@@ -302,8 +351,12 @@ impl BodyChecker<'_> {
     fn constant_operand_allows(
         &self,
         expression: UnitExpressionId,
+        affected: Option<&BTreeSet<UnitExpressionId>>,
         accepts: impl Fn(BuiltinType) -> bool,
     ) -> bool {
+        if affected.is_some_and(|nodes| nodes.contains(&expression)) {
+            return true;
+        }
         match self
             .parts
             .expression_types
@@ -320,12 +373,14 @@ impl BodyChecker<'_> {
     fn constant_syntax_dependencies(
         &self,
         root: UnitExpressionId,
+        affected: Option<&BTreeSet<UnitExpressionId>>,
     ) -> Result<Result<SyntaxDependencies, Span>, CompilationUnitTypeError> {
         let mut pending = vec![root.expression()];
         let mut dependencies = BTreeSet::new();
         let mut expressions = Vec::new();
         while let Some(expression) = pending.pop() {
-            expressions.push(UnitExpressionId::new(root.source_unit(), expression));
+            let id = UnitExpressionId::new(root.source_unit(), expression);
+            expressions.push(id);
             let node = self
                 .file(root.source_unit())
                 .ast()
@@ -344,6 +399,7 @@ impl BodyChecker<'_> {
                 } => {
                     if !self.constant_operand_allows(
                         UnitExpressionId::new(root.source_unit(), *operand),
+                        affected,
                         |ty| accepts_prefix_operand(*operator, ty),
                     ) {
                         return Ok(Err(node.span()));
@@ -360,10 +416,12 @@ impl BodyChecker<'_> {
                     if !(accepts(BuiltinType::Int) || accepts(BuiltinType::Boolean))
                         || !self.constant_operand_allows(
                             UnitExpressionId::new(root.source_unit(), *left),
+                            affected,
                             accepts,
                         )
                         || !self.constant_operand_allows(
                             UnitExpressionId::new(root.source_unit(), *right),
+                            affected,
                             accepts,
                         )
                     {

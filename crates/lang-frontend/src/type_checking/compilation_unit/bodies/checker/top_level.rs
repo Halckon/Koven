@@ -89,11 +89,18 @@ impl BodyChecker<'_> {
         .kind()
             == SymbolKind::Constant;
         if constant
-            && !self.constant_recovery_only.contains(&symbol)
             && !expected_span.is_some_and(|annotation| self.signature_error_in(annotation))
             && self.diagnostics.len() == before
-            && !self.constant_type_has_error(ty)
         {
+            let root = UnitExpressionId::new(source, initializer);
+            // An inferred type can depend on the failed declaration. An
+            // explicit type annotation keeps its own qualification check.
+            if type_ref.is_none() && self.constant_recovery_nodes.contains_key(&symbol) {
+                return self.check_constant_expression(symbol, root);
+            }
+            if self.constant_type_has_error(ty) {
+                return Ok(());
+            }
             let allowed = match self.signatures.types().get(ty) {
                 Some(UnitTypeKind::Error) => true,
                 Some(UnitTypeKind::Deferred(reason)) => {
@@ -119,7 +126,7 @@ impl BodyChecker<'_> {
                     span,
                 )?;
             } else {
-                self.check_constant_expression(UnitExpressionId::new(source, initializer))?;
+                self.check_constant_expression(symbol, root)?;
             }
         }
         Ok(())

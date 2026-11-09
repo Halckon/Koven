@@ -1,5 +1,6 @@
 //! SPEC-0210: constant type eligibility follows ordinary type diagnostics.
 use lang_frontend::{
+    diagnostic::Diagnostic,
     lexer::lex,
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
@@ -8,6 +9,23 @@ use lang_frontend::{
 };
 
 fn check(texts: [&str; 2], expected_codes: &[&str], expected_span: Option<&str>) {
+    check_with_spans(texts, expected_codes, |sources, diagnostics| {
+        if let Some(span) = expected_span {
+            // A helper top-level val can produce L0167 before the diagnostic under test.
+            let diagnostic = diagnostics
+                .iter()
+                .find(|d| d.code().to_string() != "L0167")
+                .expect("diagnostic under test");
+            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), span);
+        }
+    });
+}
+
+fn check_with_spans(
+    texts: [&str; 2],
+    expected_codes: &[&str],
+    check_spans: impl Fn(&SourceMap, &[Diagnostic]),
+) {
     let mut sources = SourceMap::new();
     let a = sources.add_source("a.ko", texts[0]).unwrap();
     let b = sources.add_source("b.ko", texts[1]).unwrap();
@@ -36,15 +54,7 @@ fn check(texts: [&str; 2], expected_codes: &[&str], expected_span: Option<&str>)
                 .collect::<Vec<_>>(),
             expected_codes
         );
-        if let Some(span) = expected_span {
-            // Guide v0.46 L0167 on a helper top-level `val` precedes the diagnostic under test.
-            let diagnostic = typed
-                .diagnostics()
-                .iter()
-                .find(|d| d.code().to_string() != "L0167")
-                .expect("diagnostic under test");
-            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), span);
-        }
+        check_spans(&sources, typed.diagnostics());
         let snapshot = (
             typed.types().clone(),
             typed.expression_types().clone(),
@@ -419,5 +429,68 @@ fn failed_evaluation_still_blocks_dependent_evaluation_and_cycle_diagnostics() {
         ],
         &["L0158"],
         Some("/"),
+    );
+}
+
+fn check_two_sources(texts: [&str; 2], code: &str, fragments: [&str; 2]) {
+    check_with_spans(texts, &[code, code], |sources, diagnostics| {
+        for ((diagnostic, file), (text, fragment)) in diagnostics
+            .iter()
+            .zip(["a.ko", "b.ko"])
+            .zip(texts.into_iter().zip(fragments))
+        {
+            let span = diagnostic.primary_span();
+            let start = text.find(fragment).expect("source fragment");
+            assert_eq!(sources.source_name(span.source_id()), Ok(file));
+            assert_eq!((span.start(), span.end()), (start, start + fragment.len()));
+            assert_eq!(sources.slice(span), Ok(fragment));
+        }
+    });
+}
+
+#[test]
+fn invalid_dependency_does_not_hide_an_independent_qualification_error() {
+    for (prefix, expression, invalid) in [
+        ("", "false && ((true == false) || B.BAD)", "true == false"),
+        ("", "B.BAD == true", "B.BAD == true"),
+        ("", "true == B.BAD", "true == B.BAD"),
+        (
+            "const val FORWARD = B.BAD\n",
+            "FORWARD == true",
+            "FORWARD == true",
+        ),
+    ] {
+        check_two_sources(
+            [
+                &format!("package a\nimport b.B\n{prefix}const val COPY: Boolean = {expression}"),
+                "package b\nfun runtime(value: Boolean): Boolean = value\nobject B { const val BAD: Boolean = runtime(true) }",
+            ],
+            "L0156",
+            [invalid, "runtime(true)"],
+        );
+    }
+}
+
+#[test]
+fn invalid_dependency_does_not_create_a_derived_qualification_error() {
+    check(
+        [
+            "package a\nimport b.B\nconst val COPY: Boolean = B.BAD == B.BAD",
+            "package b\nobject B { const val BAD: Double = 1.5 }",
+        ],
+        &["L0155"],
+        Some("Double"),
+    );
+}
+
+#[test]
+fn invalid_dependency_preserves_independent_explicit_type_qualification() {
+    check_two_sources(
+        [
+            "package a\nimport b.B\nconst val COPY: Double = B.BAD",
+            "package b\nobject B { const val BAD: Double = 1.5 }",
+        ],
+        "L0155",
+        ["Double", "Double"],
     );
 }
