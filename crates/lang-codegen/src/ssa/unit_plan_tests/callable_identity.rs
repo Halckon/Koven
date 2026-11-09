@@ -799,3 +799,35 @@ fn unit_callable_plan_keeps_static_routes_inside_lambda_and_hidden_deinit_bodies
         assert!(route.delegation().is_empty());
     }
 }
+
+#[test]
+fn unit_callable_plan_dispatches_a_nothing_callee_but_skips_its_outer_call() {
+    let fixture = Fixture::new(
+        "package q\nfun stop(): Nothing = error(\"stop\")\nfun dormant(value: Int): Unit {}",
+        "package p\nimport q.stop\nimport q.dormant\nfun entry(): Unit { dormant(stop()) }",
+    );
+    let plan = fixture.plan();
+    assert_eq!(fixture.counts(&plan, &["stop", "dormant"]), [1, 0]);
+    let entry = plan
+        .iter()
+        .find(|instance| instance.key().target() == fixture.target("entry"))
+        .unwrap();
+    for (name, dispatches) in [("stop", true), ("dormant", false)] {
+        let UnitCallableTarget::Declaration(target) = fixture.target(name) else {
+            unreachable!();
+        };
+        let call = fixture
+            .typed
+            .types()
+            .calls()
+            .iter()
+            .find(|call| call.target() == UnitCallTarget::Declaration(target))
+            .unwrap();
+        let route = plan
+            .callable_plan()
+            .call_site(entry.source_token(), call.expression())
+            .unwrap();
+        assert_eq!(route.key().target(), fixture.target(name));
+        assert_eq!(route.dispatch_key().is_some(), dispatches, "{name}");
+    }
+}

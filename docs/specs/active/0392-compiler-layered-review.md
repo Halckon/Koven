@@ -3348,6 +3348,97 @@ PR #383 首轮 [Linux 定向门禁](https://github.com/Halckon/Koven/actions/run
 本机 Range 定向 6 项、Map 定向 42 项及 sequential 前缀 1 项通过，零失败、零忽略。
 修复后分别复核了 Const 准入和 SSA 断言。
 
+[PR #383](https://github.com/Halckon/Koven/pull/383) 已合入 `62ca42cf`。
+[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42567269515) 的 head
+为 `1822b960`，合成提交 `50d74fc8` 与实际 main 合入树同为 `41d20fba`。
+两端 Check/Clippy、Targeted、预览生产及独立消费、CI Passed 与 Code CI Evidence 均通过。
+Linux 后端 2743 项、macOS 后端 2740 项通过，均零失败。macOS 真实 LLDB 用例按权限边界
+忽略 1 项，Editor lexical job 按变更路径跳过。两端日志均核对 selector、Range、调用进入
+与强制兼容死 callable 回归的实际通过记录。Linux native sanitizer 通过。
+
+## 130. R3/R4 Const 短路析构边编号
+
+在 `ac9a7d81` 上，Const subjectless when 的条件 OR 在跳过 RHS 时应释放仍由
+调用者持有的 String。原生红测实际报 InvalidModel。所有权计划以 0=true、1=false
+编号，OR 的正常 RHS 是 1。refine 改为从同源的 Const 计划读取 RHS 编号，以互补
+编号消费 skip 的清理事实。Basic 保持 RHS 0、skip 1。
+
+本机实际编译链接运行 AND、OR 两种形状。各自覆盖正常 RHS、旁路与 RHS 实参
+提前 return，精确断言结果和输出。提前退出的 RHS 不调用 callee。Const SSA 套件
+27 项、前端 Const 所有权 23 项通过，零失败与忽略。codegen 全目标 Clippy 通过，
+独立复核核对真实清理点、Const 提前退出及 Basic 隔离。
+
+## 131. R3/R4 已进入调用的 callback 实参前缀
+
+在 `ac9a7d81` 上，具名实参按源码顺序执行 tick、return，再遇到未求值 lambda 的
+原生红测于实例规划报 UnsupportedNode。所有权在源码实参产生正常值时记录该实参，
+planner 仅为完成的 callback 登记来源，已进入的外层调用仍保留 route。活但来源不明
+的 callback 沿用原 UnsupportedNode，独立原生正控核对方法 receiver 与正常具名调用。
+
+callback 实参本身提前 return 且外层为 subjectless when 时，第二个原生红测复现
+refine 准入失败。refine 现在按源码实参顺序检查实际前缀，已知不完成的实参本身仍
+求值，不检查后继实参的 lowering。没有正常值的 callback 走既有的退出求值，不构造
+view。保留实参借用与临时值的原退出清理路径。
+
+本机原生验证后续 lambda 未形成、callback 实参自身 return、已建立 inout 的前缀退出
+以及活 callback 正常执行。13 项 callable 规划与 185 项 Unit/Const 所有权通过，零失败、
+零忽略。前端与 codegen 全目标 Clippy 通过。独立对照实跑 Basic、Const 与活 receiver，
+并核对源码实参顺序与 ABI 槽位分离。已进入但不 invoke 的通用实例调度、receiver 自身
+退出以及已形成 callable view 的兼容前缀仍需复审。
+
+## 132. R3/R4 普通成员 receiver 先退出
+
+在 `cad9f6de`，`make(return 7).apply(lambda)` 通过前端后于原生构建报 MissingFact。
+同源 typed receiver 已明确无正常结果，所有权没有建立 receiver loan。refine 准入、
+构建与 Unit 兼容调用现先消费该事实，实际求值 receiver 并核对退出，不进入成员分派。
+
+原生测试分别核对默认 refine 与强制 Unit 兼容路由。receiver 前缀确实打印，早退路径
+不调用 make、普通实参函数或 callback；正常 receiver 对照依次打印 receiver、argument
+与活 callback。13 项 callable 规划和 3 项 Unit 短路与前缀测试通过，零失败、零忽略，
+codegen 全目标 Clippy 通过。独立复核核对了阶段身份和活 receiver 原准入。Range carrier、
+borrow-return 专用入口与 nullable proof 仍按各自原有边界。
+
+## 133. R3/R4 已求值前缀与实际进入 callee
+
+Guide 10 要求按源码顺序求值并应用实参合同。在 `e526236a`，`dormant(tick(), return 7, lambda)`
+的红测确认默认 SSA 仍生成永远不会执行的 callee，两条 lowering 路由共用该实例计划。
+所有权现按源码身份合并可能进入 callee 的状态，在处理其 `Nothing` 结果前记录。
+实例规划保留前缀的路由、委托和已完成 callback 的 view，明确无法进入时跳过目标函数体。
+Recipe frontier 仍核对当前边的 receiver 与继承合同，停止遍历该目标模板。
+
+独立复审发现 nullable when 已提取 owner 的前缀仍要求 callee ID，新增红测复现
+MissingFact。兼容路径现在只在有分派时验证该 ID，保留早退处的析构。
+已有 callback view 的前缀须先结束 view 和根 loan，再释放临时 closure。
+带括号的捕获 lambda 另复现 MissingFact，refine 用现有临时值登记保留原实参身份。
+
+本机原生通过 3 项测试，覆盖默认 SSA 省略目标、强制兼容路径保留 tick 输出、
+带和不带括号的捕获 closure，以及 nullable when 的提前析构与 null 正控。
+14 项 callable 规划通过，两组均无失败或忽略。独立复核核对了 return/break/continue
+的 pending loan 顺序与分组临时值登记；本轮原生用例实跑 return。
+
+具名 `Nothing` callee 的正控覆盖实例计划。其 native ABI 仍待独立修复。
+未访问的后缀调用由 §129 的进入事实处理。Nullable If 和借用结果的专用准入范围按原合同保留。
+
+与 `62ca42cf` 合流后，联合用例区分未进入的后缀、已进入但早退的前缀和实际分派，
+并分别核对已完成与未完成的实参。同一合流树的三套前端测试共 472 项通过。
+3 项前缀原生、14 项 callable 规划、10 项逗号 when 及 1 项本机 LLDB 真断点通过，
+均零失败、零忽略。独立复核确认两组调用事实和进入 lambda 的来源都保留。
+
+具名 `Nothing` 的独立探针在 `563049a1` 上通过公共 CLI check，原生 build 以
+UnsupportedNode 退出 2。后续回归同时要求早期实参输出、真实 callee 输出、
+callee 内 abort 源位置，以及跳过后续实参和栈析构。
+
+PR #385 首轮[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42570876471)
+在同一条 two-phase receiver 断言失败。原断言先查找只被无分派前缀引用的 `update` 定义，
+已通过的零 exclusive activation 检查之后命中 `unwrap`。改为要求该定义缺席，
+前缀 `read` 恰好调用一次，并保留 LLVM 验证。独立复核核对了 class、value class
+及 return、break、continue、abort 各路径，邻近的正常激活与 CFG 合流对照继续覆盖。
+
+PR #385 精确头 `d37dabbf` 的[实际双宿主 PR 门禁](https://github.com/Halckon/Koven/actions/runs/42572582506)
+通过 Check/Clippy、定向测试、预览包生产及独立消费和最终 CI Passed。
+定向测试 macOS 2747 项通过，1 项 LLDB 因调试权限忽略；Linux 2750 项通过，零忽略。
+本机 LLDB 真断点证据见上。合并提交 `415ba277` 的树与门禁中的合并树一致。
+
 ## 134. R4 具名 Nothing 的普通直接调用
 
 在 `62ca42cf` 上，公共类型阶段接受具名 `Nothing`，实例计划保留真实调用；
@@ -3392,3 +3483,10 @@ Const Refine 的 `Never` 计划原会从固定左值再建两条边，导致新�
 所有权计划另核对仅死 arm 使用的 owner 在绑定后的 AfterStatement 析构。
 全工作区全目标 Clippy、格式、文档结构与 Rust 尺寸门禁通过。
 旧 Single 检查器的普通循环完成性仍需随真实消费者复审。
+
+与 `415ba277` 合流后的独立复核核对已完成实参、实际分派与无返回终止，
+以及 receiver/临时借用退出、Const 固定边和穷尽 when 的可达前缀。
+本机合流树的 4 项控制完成性 SSA、13 项原生控制流、1 项两阶段 receiver、
+3 项具名 Nothing 和 16 项 callable identity 测试通过，零失败、零忽略。
+具名 Nothing 计数与控制完成性 SSA 共享一条回归。
+同一合流树的 Unit 类型、所有权与 Const 所有权三套共 474 项通过，零失败、零忽略。

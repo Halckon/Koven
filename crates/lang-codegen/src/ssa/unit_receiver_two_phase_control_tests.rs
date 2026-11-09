@@ -28,13 +28,24 @@ fn receiver_two_phase_diverging_argument_never_activates() {
                 )),
                 "unreached activation: {source}"
             );
-            let updater = program.modules[0]
+            assert!(
+                program.modules[0]
+                    .functions
+                    .iter()
+                    .all(|function| !function.name.contains(".update.")),
+                "unentered update body was emitted: {source}"
+            );
+            let reader = program.modules[0]
                 .functions
                 .iter()
-                .find(|function| function.name.contains(".update."))
-                .unwrap();
-            assert!(!entry.instructions.iter().any(|instruction|
-                matches!(instruction.operation, Operation::DirectCall { callee, .. } if callee == updater.id())));
+                .find(|function| function.name.contains(".read."))
+                .expect("the earlier argument still needs its callee");
+            let reads = entry.instructions.iter().filter(|instruction|
+                matches!(instruction.operation, Operation::DirectCall { callee, .. } if callee == reader.id())).count();
+            assert_eq!(
+                reads, 1,
+                "the earlier argument must run exactly once: {source}"
+            );
             crate::llvm::render_verified_program(&program).expect("diverging reservation cleanup");
         }
     }

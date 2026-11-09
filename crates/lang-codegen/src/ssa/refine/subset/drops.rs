@@ -119,16 +119,17 @@ impl Checker<'_, '_> {
                     .map(|arg| (arg.span().end() - arg.span().start(), loan.call()))
             })
             .min_by_key(|(width, _)| *width);
+        let ty = self.expression_type(expression.expression());
         let borrowed = lender.is_some_and(|(_, call)| {
-            !self.inputs.typed.call(call).is_some_and(|call| {
-                call.target() == UnitCallTarget::FunctionValue
-                    || matches!(call.result_source(), CallableResultSource::Carrier(_))
-            })
+            let abandoned_callback = ty.is_some_and(|ty| self.view_function(ty))
+                && self.inputs.owned.call_may_dispatch(call) == Some(false);
+            !abandoned_callback
+                && !self.inputs.typed.call(call).is_some_and(|call| {
+                    call.target() == UnitCallTarget::FunctionValue
+                        || matches!(call.result_source(), CallableResultSource::Carrier(_))
+                })
         });
-        !borrowed
-            && self
-                .expression_type(expression.expression())
-                .is_some_and(|ty| self.copyability_of(ty) == Copyability::MoveOnly)
+        !borrowed && ty.is_some_and(|ty| self.copyability_of(ty) == Copyability::MoveOnly)
     }
 
     fn fact_in_function(&self, origin: lang_frontend::source::Span) -> bool {

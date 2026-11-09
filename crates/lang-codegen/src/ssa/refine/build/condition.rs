@@ -15,9 +15,8 @@ use crate::ssa::{
 };
 
 impl Builder<'_, '_> {
-    /// Short-circuit: the skipped exit consumes `BranchExit` 1 and the evaluated exits
-    /// consume `BranchExit` 0 on both outcome edges. Proof views flow only to the true
-    /// target; any other edge ends them.
+    /// Short-circuit: Basic numbers the evaluated exit 0 and the skip 1. Const
+    /// carries its own true/false edge numbering. Proof views flow only to the true target.
     fn logical(
         &mut self,
         expression: ExpressionId,
@@ -32,7 +31,7 @@ impl Builder<'_, '_> {
         let control = self.unit(expression);
         // A constant left operand fixes the plan: `Never` yields the left value and skips the
         // right operand; `Always` evaluates the left operand and yields the right value.
-        if let Some(plan) = self
+        let rhs_branch = if let Some(plan) = self
             .inputs
             .constant_owned
             .and_then(|owned| owned.short_circuit_at(control))
@@ -52,9 +51,11 @@ impl Builder<'_, '_> {
                     }
                     return self.condition_internal(right, when_true, when_false, views, None);
                 }
-                UnitShortCircuitRhs::Conditional => {}
+                UnitShortCircuitRhs::Conditional => plan.rhs_branch(),
             }
-        }
+        } else {
+            0
+        };
         if self.inputs.typed.expression_falls_through(control) == Some(false) {
             // If the left side completes, the frontend proved the RHS is required
             // and has no normal exit. Do not synthesize a skipped predecessor.
@@ -99,8 +100,14 @@ impl Builder<'_, '_> {
             }
         }
         let skip_target = if and { when_false } else { when_true };
-        let skip_point = UnitDropPoint::BranchExit { control, branch: 1 };
-        let rhs_point = UnitDropPoint::BranchExit { control, branch: 0 };
+        let skip_point = UnitDropPoint::BranchExit {
+            control,
+            branch: 1 - rhs_branch,
+        };
+        let rhs_point = UnitDropPoint::BranchExit {
+            control,
+            branch: rhs_branch,
+        };
         let skipped = self.collect_drops(skip_point);
         let outer_temporaries = self.temporaries.clone();
         let outer_loans = self.pending_call_loans.clone();

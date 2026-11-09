@@ -1,6 +1,6 @@
 //! Source-qualified adapters reuse validated declarations, body types and capture descriptors.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Checker, ExpressionUse, Flows, State, closure::CaptureIndex};
 use crate::{
@@ -329,6 +329,8 @@ pub(super) fn finish(
     typed: &crate::type_checking::CompilationUnitTypes,
     capture_index: &CaptureIndex<'_>,
     entered_calls: BTreeSet<UnitExpressionId>,
+    call_dispatch: BTreeMap<UnitExpressionId, bool>,
+    completed_arguments: BTreeSet<UnitExpressionId>,
 ) -> UnitCallableFacts {
     let graph = collection.arena.borrow();
     let initial = graph.solve(|origin| !matches!(origin, UnitCallableOrigin::FactoryResult(_)));
@@ -390,6 +392,8 @@ pub(super) fn finish(
         })
         .collect();
     UnitCallableFacts {
+        call_dispatch,
+        completed_arguments,
         entered_calls,
         origins,
         returns,
