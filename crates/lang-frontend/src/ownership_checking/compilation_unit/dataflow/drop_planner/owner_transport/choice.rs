@@ -533,6 +533,19 @@ impl ChoiceTransaction {
         if self.replacement_expression(expression, consuming) {
             return;
         }
+        if self
+            .admission
+            .transfers
+            .iter()
+            .enumerate()
+            .any(|(index, transfer)| {
+                index != self.transfer_index && transfer.chain.contains(&expression)
+            })
+        {
+            // A not-yet-started or retired transfer is not an unrelated condition.
+            self.abort();
+            return;
+        }
         if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
             && let Some(position) = transfer.chain.iter().position(|id| *id == expression)
         {

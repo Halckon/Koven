@@ -326,7 +326,7 @@ fn dual_transfer_requires_first_retirement_before_reset_and_second_take() {
         let old_point = declaration(&fixture, old_group);
         let new_point = declaration(&fixture, new_group);
         // Supplemental hand traces; the ordinary source tests prove actual behavior.
-        for mutation in 0..21 {
+        for mutation in 0..22 {
             let mut tx = super::super::choice::ChoiceTransaction::begin(
                 checker,
                 checker.parsed.roots()[0],
@@ -350,6 +350,9 @@ fn dual_transfer_requires_first_retirement_before_reset_and_second_take() {
             }
             tx.expression_completed(call, true, true);
             tx.bound(previous, call);
+            if mutation == 21 {
+                tx.expression_completed(new_group, true, true);
+            }
             if mutation == 2 {
                 tx.dropped(declaration(&fixture, call), previous);
             }
