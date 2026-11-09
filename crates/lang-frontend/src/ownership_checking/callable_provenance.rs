@@ -2,7 +2,7 @@
 
 pub(super) mod graph;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{CompilationUnitOwnership, OwnershipCheckedFile};
 use crate::{
@@ -181,6 +181,7 @@ pub(super) struct FileCallableFacts {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct UnitCallableFacts {
+    pub(super) call_dispatch: BTreeMap<UnitExpressionId, bool>,
     pub(super) completed_arguments: BTreeSet<UnitExpressionId>,
     pub(super) origins: Vec<UnitCallableOriginFact>,
     pub(super) returns: Vec<UnitPointerCallableReturnSummary>,
@@ -219,6 +220,13 @@ impl OwnershipCheckedFile {
 }
 
 impl CompilationUnitOwnership {
+    /// Whether any analyzed path completes the call's operands and can enter its callee.
+    /// Unvisited sites have no fact. Calls returning Nothing can still enter their callee.
+    #[must_use]
+    pub fn call_may_dispatch(&self, call: UnitExpressionId) -> Option<bool> {
+        self.callable_provenance.call_dispatch.get(&call).copied()
+    }
+
     /// Reports whether evaluating the source call argument produced a normal value.
     #[must_use]
     pub fn call_argument_completed(&self, expression: UnitExpressionId) -> bool {

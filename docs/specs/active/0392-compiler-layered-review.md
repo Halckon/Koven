@@ -3310,3 +3310,24 @@ view。保留实参借用与临时值的原退出清理路径。
 与活 callback。13 项 callable 规划和 3 项 Unit 短路与前缀测试通过，零失败、零忽略，
 codegen 全目标 Clippy 通过。独立复核核对了阶段身份和活 receiver 原准入。Range carrier、
 borrow-return 专用入口与 nullable proof 仍按各自原有边界。
+
+## 133. R3/R4 已求值前缀与实际进入 callee
+
+Guide 10 要求按源码顺序求值并应用实参合同。在 `e526236a`，`dormant(tick(), return 7, lambda)`
+的红测确认默认 SSA 仍生成永远不会执行的 callee，两条 lowering 路由共用该实例计划。
+所有权现按源码身份合并可能进入 callee 的状态，在处理其 `Nothing` 结果前记录。
+实例规划保留前缀的路由、委托和已完成 callback 的 view，明确无法进入时跳过目标函数体。
+Recipe frontier 仍核对当前边的 receiver 与继承合同，停止遍历该目标模板。
+
+独立复审发现 nullable when 已提取 owner 的前缀仍要求 callee ID，新增红测复现
+MissingFact。兼容路径现在只在有分派时验证该 ID，保留早退处的析构。
+已有 callback view 的前缀须先结束 view 和根 loan，再释放临时 closure。
+带括号的捕获 lambda 另复现 MissingFact，refine 用现有临时值登记保留原实参身份。
+
+本机原生通过 3 项测试，覆盖默认 SSA 省略目标、强制兼容路径保留 tick 输出、
+带和不带括号的捕获 closure，以及 nullable when 的提前析构与 null 正控。
+14 项 callable 规划通过，两组均无失败或忽略。独立复核核对了 return/break/continue
+的 pending loan 顺序与分组临时值登记；本轮原生用例实跑 return。
+
+具名 `Nothing` callee 的正控覆盖实例计划。其 native ABI 仍待独立修复。
+未访问的后缀调用由 §129 的进入事实处理。Nullable If 和借用结果的专用准入范围按原合同保留。

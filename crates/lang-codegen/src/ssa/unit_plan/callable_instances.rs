@@ -12,11 +12,16 @@ use lang_frontend::{
 pub(crate) struct PlannedUnitCallSite {
     key: UnitFunctionInstanceKey,
     delegation: Vec<UnitDelegatedCallRoute>,
+    dispatches: bool,
 }
 
 impl PlannedUnitCallSite {
     pub(crate) fn key(&self) -> &UnitFunctionInstanceKey {
         &self.key
+    }
+
+    pub(crate) fn dispatch_key(&self) -> Option<&UnitFunctionInstanceKey> {
+        self.dispatches.then_some(&self.key)
     }
 
     pub(crate) fn delegation(&self) -> &[UnitDelegatedCallRoute] {
@@ -50,6 +55,8 @@ pub(crate) struct UnitCallablePlan {
     /// ADR-0034: concrete callables passed to Borrow function parameters, by caller and argument
     /// expression. The callee receives a view, so the callable never specializes the callee.
     borrowed_arguments: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
+    /// Views formed by completed operands even when a later operand prevents invocation.
+    prefix_views: BTreeMap<UnitTypeId, Span>,
 }
 
 impl UnitCallablePlan {
@@ -97,6 +104,10 @@ impl UnitCallablePlan {
             .iter()
             .filter(move |((caller, _), _)| *caller == source)
             .map(|(_, token)| *token)
+    }
+
+    pub(in crate::ssa) fn prefix_views(&self) -> impl Iterator<Item = (UnitTypeId, Span)> + '_ {
+        self.prefix_views.iter().map(|(&ty, &span)| (ty, span))
     }
 
     pub(in crate::ssa) fn callable_return(
@@ -390,7 +401,8 @@ impl<'a> CallablePlanner<'a> {
         resolved: &mut ResolvedUnitCallInstance,
         pending: &mut BTreeSet<UnitFunctionInstanceKey>,
         span: Span,
-    ) -> Result<(), LoweringError> {
+    ) -> Result<bool, LoweringError> {
+        let dispatches = self.owned.call_may_dispatch(call.expression()) != Some(false);
         let current = self
             .plan
             .source(caller)
@@ -418,6 +430,12 @@ impl<'a> CallablePlanner<'a> {
             let argument = arguments
                 .get(mapping.argument_index())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let expression = UnitExpressionId::new(call.expression().source_unit(), argument.value);
+            // A call prefix can exit before forming this callback. Other
+            // completed operands still need their normal view bindings.
+            if !self.owned.call_argument_completed(expression) {
+                continue;
+            }
             let parameter = signature
                 .parameters()
                 .get(mapping.parameter_index())
@@ -446,12 +464,6 @@ impl<'a> CallablePlanner<'a> {
                     operand_span,
                 ));
             }
-            let expression = UnitExpressionId::new(call.expression().source_unit(), argument.value);
-            // A call prefix can exit before forming this callback. Other
-            // completed operands still need their normal view bindings.
-            if !self.owned.call_argument_completed(expression) {
-                continue;
-            }
             let mapped = resolve_concrete_type(
                 self.typed,
                 mapping.parameter_type(),
@@ -473,6 +485,12 @@ impl<'a> CallablePlanner<'a> {
             if actual != expected || mapped != expected {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, operand_span));
             }
+            if !dispatches {
+                self.plan
+                    .prefix_views
+                    .entry(expected)
+                    .or_insert(operand_span);
+            }
             // ADR-0034: the callee receives a view; the concrete callable is the caller's.
             if let Some(token) =
                 self.origin(caller, substitutions, expression, pending, operand_span)?
@@ -484,11 +502,14 @@ impl<'a> CallablePlanner<'a> {
         }
         slots.sort_by_key(|(slot, _)| *slot);
         resolved.key.callable_arguments = slots;
-        self.validate_arguments(resolved.key(), &target_substitutions, span)?;
-        self.reserve_source(resolved.key(), span)?;
+        if dispatches {
+            self.validate_arguments(resolved.key(), &target_substitutions, span)?;
+            self.reserve_source(resolved.key(), span)?;
+        }
         let route = PlannedUnitCallSite {
             key: resolved.key.clone(),
             delegation: resolved.delegation.clone(),
+            dispatches,
         };
         if let Some(previous) = self
             .plan
@@ -498,7 +519,7 @@ impl<'a> CallablePlanner<'a> {
         {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
-        Ok(())
+        Ok(dispatches)
     }
 
     fn origin(
@@ -624,7 +645,10 @@ impl<'a> CallablePlanner<'a> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let key = if let Some(route) = self.plan.call_site(caller, expression) {
-            route.key().clone()
+            route
+                .dispatch_key()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+                .clone()
         } else {
             let arguments = call
                 .instance()
@@ -648,7 +672,9 @@ impl<'a> CallablePlanner<'a> {
                 None,
                 span,
             )?;
-            self.specialize_call(caller, substitutions, call, &mut resolved, pending, span)?;
+            if !self.specialize_call(caller, substitutions, call, &mut resolved, pending, span)? {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            }
             resolved.key
         };
         let factory = self.reserve_source(&key, span)?;

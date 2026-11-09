@@ -307,3 +307,91 @@ fun main(): Unit {
     });
     assert_success(&compatibility, b"receiver prefix\nok\n");
 }
+
+#[test]
+fn an_exiting_call_prefix_does_not_emit_a_dormant_callback_callee() {
+    use super::boxed_enum_tests::unit_source::UnitSource;
+    use crate::ssa::model::Origin;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let source = r#"
+fun tick(): Int { println("prefix"); return 1 }
+fun dormant(first: Int, second: Int, callback: () -> Unit): Unit { callback() }
+fun choose(): Int {
+    dormant(tick(), return 7, { println("dead") })
+    return 3
+}
+fun main(): Unit {
+    if (choose() != 7) { error("wrong result") }
+    println("ok")
+}
+"#;
+    let unit = UnitSource::analyze("dormant-callback-callee.ko", source).unwrap();
+    unit.assert_frontend_clean();
+    let dormant = unit.declaration("dormant", SymbolKind::Function);
+    let origin = Origin::Source(unit.declaration_span(dormant));
+    let (program, _) = unit
+        .lower_entry(unit.declaration("main", SymbolKind::Function))
+        .unwrap();
+    assert!(
+        program
+            .modules
+            .iter()
+            .flat_map(|module| &module.functions)
+            .all(|function| function.origin != origin),
+        "an exiting operand prefix must not require the callee body"
+    );
+    let output = crate::ssa::with_per_family_lowering(|| {
+        emit_link_and_run("dormant-callback-callee.ko", source, "main")
+    });
+    assert_success(&output, b"prefix\nok\n");
+}
+
+#[test]
+fn an_exiting_call_prefix_can_form_a_callable_view_before_returning() {
+    for operand in ["{ println(marker) }", "({ println(marker) })"] {
+        let source = format!(
+            r#"
+fun dormant(callback: () -> Unit, second: Int): Unit {{ callback() }}
+fun choose(): Int {{
+    val marker = "callback body"
+    dormant({operand}, return 7)
+    return 3
+}}
+fun main(): Unit {{
+    if (choose() != 7) {{ error("wrong result") }}
+    println("ok")
+}}
+"#
+        );
+        assert_success(
+            &emit_link_and_run("completed-callback-prefix.ko", &source, "main"),
+            b"ok\n",
+        );
+    }
+}
+
+#[test]
+fn an_exiting_call_prefix_drops_a_consumed_nullable_when_subject() {
+    let source = r#"
+class Node { deinit() { println("drop") } }
+fun dormant(own value: Node, own result: Int): Unit { println("dispatched") }
+fun choose(own subject: Node?): Unit {
+    when (subject) {
+        null -> {};
+        else -> { dormant((subject), return) }
+    }
+    println("after")
+}
+fun main(): Unit {
+    val present: Node? = Node()
+    choose(present)
+    choose(null)
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("nullable-when-operand-exit.ko", source, "main"),
+        b"drop\nafter\nok\n",
+    );
+}

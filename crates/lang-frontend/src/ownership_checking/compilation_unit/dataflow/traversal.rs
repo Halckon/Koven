@@ -970,6 +970,8 @@ impl Checker<'_> {
             self.release_last_closure_use(expression, &mut flows)?;
         }
         self.finish_call_closures(call, &mut flows);
+        // The callee may itself return Nothing. Only the operand prefix controls entry.
+        *self.call_dispatch.entry(call).or_default() |= flows.next.is_some();
         if self.is_nothing_expression(call) {
             flows.next = None;
         }

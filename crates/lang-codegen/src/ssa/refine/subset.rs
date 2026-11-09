@@ -686,7 +686,7 @@ impl Checker<'_, '_> {
                     .typed
                     .call(self.id(expression))
                     .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
-                self.call(expression)
+                self.call(expression, &values)
                     && (!function_value || self.function_callee(expression, &values))
                     && self.arguments(expression, &values)
             }

@@ -935,10 +935,13 @@ impl Builder<'_, '_> {
                 .source_plan
                 .call_site(self.inputs.source_token, call)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let key = resolved
+                .dispatch_key()
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
             let callee = self
                 .inputs
                 .function_ids
-                .get(resolved.key())
+                .get(key)
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             let (receiver, r_loans) = match receiver {

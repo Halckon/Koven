@@ -115,6 +115,10 @@ fn lower_unit_impl(
         &mut types,
     )?;
 
+    for (ty, span) in source_plan.prefix_views() {
+        let view = callable_abi::view_type(module, typed, &mut types, ty, span)?;
+        callable_abi.record_view(ty, view);
+    }
     for (source_ordinal, instance) in instances.into_iter().enumerate() {
         if instance.key().deinit_owner().is_some() {
             let plan = deinit::declare(
