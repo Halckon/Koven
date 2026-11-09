@@ -3055,3 +3055,14 @@ Single 回收另有合同边界。
 
 最终候选的完整前端 183 组、2908 项通过，零失败和忽略。前端全目标 Clippy、
 格式、文档和 Rust 尺寸检查通过。上述为 `4243ebe5` 上的本机验证。
+
+## 123. R0/R3 Phase 3 成败语料消费者
+
+原 `ownership-pass/basic.ko`、`ownership-fail/use-after-move.ko` 与原诊断 sidecar
+逐字保留。迁移前在同一快照实际运行 Single、MemoryDocument、Rooted 三路。
+两条 Unit 路径继续核对成功用例诊断为空，以及失败用例的诊断码、起止字节、顺序
+和末尾换行逐字节一致。解析、名称和类型仍各自要求无诊断。
+
+迁移后 `ownership_checking` 30 项、`multifile_ownership_checking` 156 项通过，
+零失败、零忽略。独立复核确认保留文件发现和逐项断言。旧 helper 仍有其他消费者，
+本片只完成这组语料的迁移。
