@@ -384,9 +384,11 @@ impl Checker<'_> {
         argument: CallArgument,
         mode: ParameterMode,
         is_receiver: bool,
+        copy_to_nullable: bool,
         flows: &mut Flows,
     ) -> Result<(), OwnershipCheckingError> {
-        if self.is_this_receiver(argument.value)?
+        if !copy_to_nullable
+            && self.is_this_receiver(argument.value)?
             && let Some(nominal) = self
                 .typed
                 .expression_type(argument.value)
@@ -442,7 +444,9 @@ impl Checker<'_> {
                         operand_span,
                         call_span,
                     ));
-                } else if let Some(place) = self.shared_receiver_place(argument.value)? {
+                } else if !copy_to_nullable
+                    && let Some(place) = self.shared_receiver_place(argument.value)?
+                {
                     if self.access_place(
                         &place,
                         AccessKind::SharedLoan,
@@ -466,13 +470,15 @@ impl Checker<'_> {
                             origin: operand_span,
                         });
                     }
-                } else if let Some(temporary) =
+                } else if let Some(temporary) = if copy_to_nullable {
+                    Some(argument.value)
+                } else {
                     self.temporary_element_owner(argument.value)?.or_else(|| {
                         (self.typed.expression_category(argument.value)
                             == Some(ExpressionCategory::Temporary))
                         .then_some(argument.value)
                     })
-                {
+                } {
                     let temporary = self
                         .constant_temporary_origin(temporary)
                         .map_or(temporary, |(owner, _)| owner);
@@ -581,19 +587,21 @@ impl Checker<'_> {
     }
 
     pub(super) fn end_call_loans(&self, call: ExpressionId, flows: &mut Flows) {
+        let source_origin = (self.allowed_borrow_call == Some(call))
+            .then(|| self.borrowed_call_source(call))
+            .flatten()
+            .and_then(|argument| {
+                self.loans
+                    .iter()
+                    .find(|fact| fact.call() == call && fact.argument() == argument)
+                    .map(|fact| fact.begin_span())
+            });
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
         {
             state.loans.retain(|loan| {
-                (loan.owner != ActiveLoanOwner::Call(call)
-                    || (self.allowed_borrow_call == Some(call)
-                        && self.borrowed_call_source(call).and_then(|argument| {
-                            self.loans
-                                .iter()
-                                .find(|fact| fact.call() == call && fact.argument() == argument)
-                                .map(|fact| fact.begin_span())
-                        }) == Some(loan.origin)))
+                (loan.owner != ActiveLoanOwner::Call(call) || source_origin == Some(loan.origin))
                     && loan.owner != ActiveLoanOwner::ReservedReceiver(call)
             });
         }

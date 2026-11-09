@@ -14,6 +14,8 @@ impl Checker<'_> {
         argument: ExpressionId,
     ) -> Option<ExpressionId> {
         let expression = self.borrow_result_call(argument)?;
+        // A nullable conversion cannot be handed off as a stable source loan.
+        let source = self.borrowed_call_source(expression)?;
         let outer = self.typed.call(call)?;
         if outer.result_source() != CallableResultSource::Owned
             || outer.receiver().is_some()
@@ -48,7 +50,7 @@ impl Checker<'_> {
             return None;
         }
         // 暂不延长 temporary source，也不借此放行嵌套结果再次成为来源。
-        let place = self.place(self.borrowed_call_source(expression)?).ok()??;
+        let place = self.place(source).ok()??;
         self.borrow_call_source_supported(&place)
             .then_some(expression)
     }

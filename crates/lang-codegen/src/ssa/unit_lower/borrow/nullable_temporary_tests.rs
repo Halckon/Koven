@@ -32,6 +32,88 @@ const STANDARD: &str = include_str!(concat!(
 ));
 
 #[test]
+fn copyable_nullable_borrow_runs_with_or_without_a_refinement_anchor() {
+    let source = r#"fun read(value: Int?): Int = if (value == null) 0 else value
+fun relay(value: Int): Int { /*route*/ return read((value)) }
+fun flag(value: Boolean?): Unit { if (value != null && value) { println("flag") } }
+fun main(): Unit { /*route*/
+    val n: Int = 8
+    if (read(7) == 7 && read((n)) == 8 && relay(9) == 9 && read(null) == 0) {
+        println("injected")
+    } else { error("wrong nullable value") }
+    flag(true)
+}"#;
+    for (anchor, text) in [
+        (false, source.to_owned()),
+        (
+            true,
+            source.replace("/*route*/", "val anchor: Int? = null;"),
+        ),
+    ] {
+        let (output, routes) = crate::ssa::refine::observe_routing(|| {
+            crate::native_tests::emit_link_and_run("copyable_nullable.ko", &text, "main")
+        });
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"injected\nflag\n");
+        assert_eq!(
+            routes
+                .iter()
+                .any(|name| name.split('.').any(|part| part == "relay")),
+            anchor,
+            "{routes:?}"
+        );
+    }
+}
+
+#[test]
+fn copyable_nullable_borrow_snapshots_before_a_later_inout_argument() {
+    let source = r#"fun capture(value: Int?, inout changed: Int): Unit {
+    changed = 9
+    if (value != null) {
+        if (value == 7) { println("snapshot") }
+    }
+}
+fun main(): Unit {
+    var n: Int = 7
+    capture(value = (n), changed = &n)
+    if (n == 9) { println("changed") }
+}"#;
+    let output = crate::native_tests::emit_link_and_run("nullable_snapshot.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"snapshot\nchanged\n");
+}
+
+#[test]
+fn copyable_nullable_borrow_ends_on_later_return_and_call_return() {
+    let source = r#"fun accept(value: Int?, own marker: Int): Unit {
+    if (value != null) {
+        if (value == 7 && marker == 8) { println("accepted") }
+    }
+}
+fun exercise(own flag: Boolean): Unit {
+    /*route*/
+    val n: Int = 7
+    accept((n), if (flag) { return } else 8)
+    println("finished")
+}
+fun main(): Unit { exercise(true); exercise(false) }"#;
+    for (anchor, text) in [
+        (false, source.to_owned()),
+        (true, source.replace("/*route*/", "val anchor: Int? = null")),
+    ] {
+        let (output, routes) = crate::ssa::refine::observe_routing(|| {
+            crate::native_tests::emit_link_and_run("nullable_early_return.ko", &text, "main")
+        });
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"accepted\nfinished\n");
+        assert_eq!(
+            routes
+                .iter()
+                .any(|name| name.split('.').any(|part| part == "exercise")),
+            anchor,
+            "{routes:?}"
+        );
+    }
+}
+
+#[test]
 fn original_q05_nullable_temporary_borrow_has_one_wrapped_owner_in_both_layouts() {
     assert_eq!(SOURCE.len(), 163, "完整原源，不替换为更弱的等价例子");
     for root in ["single", "src"] {

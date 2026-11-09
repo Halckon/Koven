@@ -4382,3 +4382,80 @@ LLDB 用例因 debugserver task-port 权限忽略，§175 另有后继本机实�
 基线 `74851679`、合成提交 `3a6c4bad`、实际合入 `94768a91`，
 合成和合入树均为 `25cf3ece844d7b6b344b104ab00812085d1718a2`。
 合并时无未决审阅线程；上述验收限于该 PR 候选。
+
+## 179. R3 普通借用结果必须引用已有 nullable 存储
+
+在 `3110cfa5` 上，公共检查接受将 `Int` 来源转换为 `Int?` 后的
+借用绑定、返回和具名实参转发。新增三入口回归在修改前实际失败。
+显式 `Nothing?` 到 `Int?` 以及枚举 case 到 nullable 枚举的转换也
+复现。同步 `observe(view(n))` 在 `view` 的来源实参需要转换时，
+原来同样会接受并把原 place 当作可延续的 loan。
+
+Single 与 Unit 在识别借用调用之后，分开核验实际映射参数的存储。
+已知类型不同且目标为 nullable 时，按原有 Name/Group 引用查声明
+存储，不把收窄读值当作新存储，也不扫描整张非空事实表。声明类型
+相同的真实 nullable、`when` 的枚举单 case 收窄和普通非空分支
+均保留绑定、转发或同步 handoff。显式结果绑定及返回同样核对
+目标类型；失败绑定释放初始化调用保留的 loan，后续赋值无级联诊断。
+
+最终七组前端单元和集成测试共 719 项通过，零失败、忽略或过滤。
+负例精确区分 L0162 与同步 L0164，并核对拒绝后无借用结果事实。
+严格前端 Clippy 和 CLI build 通过。公共 CLI 单文件与项目均复核
+来源错误拒绝，独立审查覆盖来源、诊断、释放和调用扫描边界。
+
+普通 `Borrow Int?` 的临时包装仍另行处理。若内层合法返回
+`borrow Int` 而外层同步消费者参数为 `Int?`，转换发生在外层，
+现有直接同步交接事实仍有表示差异，不能复用本节结论。
+
+## 180. R3/R4 普通 Borrow 的 Copyable nullable 临时值
+
+在 `3992f39b` 上，`Borrow Int?` 接受字面量、具名 `Int` 及转发
+的 `Borrow Int`，但原生构建因路由报 `MissingFact` 或
+`InvalidModel`。具名转换后在同一次调用借用 `&n` 原本还报 L0135。
+先复现这两个失败，再以真实 nullable 存储和先借用 `&n` 的反向顺序
+作负控。
+
+普通调用对需要 nullable 转换的 Copyable place 先检查并执行普通
+读取，再发布同一 operand 身份的 Shared Temporary loan。后续实参可
+借用原变量，反向顺序仍会拒绝读取。真实 nullable 的 place 在收窄
+后仍有原 loan。Direct 对已发布的 Temporary 核验 inline payload
+与 Copyable，再借用新包装槽；refine 仅在目标相等时复用原参数 loan，
+目标不同则要求同源 Temporary 事实并从原 loan 读值。原句柄
+MoveOnly temporary 的唯一析构义务继续转给 wrapper。
+
+初版修复后，带后续提前返回的 Direct 前缀仍因实参类别是 Place 报
+`UnsupportedNode`。准入与构建改用同一 Copyable inline 判据，实际
+pending loan 的观测记录覆盖 CallReturn 和 ControlTransfer。
+两条原生路线均验证提前退出不分派、继续路径只调用一次。
+独立复核先发现该缺口，再复核修复后的实际 loan 和来源校验。
+
+最终六组前端单元和集成测试 732 项通过。三个后端定向集合分别
+通过 4、5 和 5 项，均无失败或忽略，分别过滤 2802、2801 和 2801 项。
+严格 workspace Clippy、CLI build 通过。普通参数、先读后写和后续早退
+三组程序均通过实际 CLI single/project 构建及输出对照。本次原生覆盖
+`Int?` 与 `Boolean?`，并保留旧 MoveOnly 句柄回归。精确类型的
+nullable 枚举及 `Char?` 探针仍报 UnsupportedNode。§179 的内层
+合法借用结果被外层转换为 nullable 的组合仍另行复审。
+
+## 181. R4 短路与分组 Inout 批次合并验收
+
+[PR #399](https://github.com/Halckon/Koven/pull/399) 的 head `3110cfa5`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42682599112)
+通过双宿主 Check/Clippy、定向、预览生产和独立消费。CI Passed 与 Code
+CI Evidence 实际执行并通过。共 15 个成功作业，Editor lexical 按范围
+跳过。双端日志分别核对五个 SSA 回归均实际通过，包含两条路线的早退。
+macOS CI 的既有 LLDB 用例按 debugserver 权限忽略，§175 有本机证据。
+
+两端预览归档实算 SHA256 与生产和消费清单相符，各 12 项独立命令、
+哨兵及清理成功。基线 `94768a91`、合成提交 `0292e636`、实际合入
+`2b1e8f1e`，合成和实际合入树均为
+`49021804d6a2d2c9bf397422b520334d1d15fe4b`，无未决审阅线程。
+
+前一主干 [push CI](https://github.com/Halckon/Koven/actions/runs/42682434283)
+中 macOS Check/Clippy 被标记取消且无步骤记录，随后定向与预览跳过。
+该记录仍缺少主干验收，不能以 #398 或 #399 的 PR 结果代替。
+
+另以 §180 候选实跑 §179 的镜像边界。精确 `Borrow Int` 参数消费
+`borrow Int` 结果能原生运行；只把外层改为 `Borrow Int?` 后，
+公开检查仍通过，原生报 `InvalidModel`。下一轮须分别核对内层
+来源 lease、实际复制点及外层临时 loan 的结束。

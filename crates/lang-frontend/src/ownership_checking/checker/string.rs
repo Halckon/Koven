@@ -30,6 +30,7 @@ impl Checker<'_> {
                 },
                 crate::type_checking::ParameterMode::Borrow,
                 true,
+                false,
                 &mut flows,
             )?;
         }
