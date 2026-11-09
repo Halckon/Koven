@@ -91,6 +91,7 @@ pub(super) fn parse_file(
         file_mode: true,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
+        missing_block_closers: Vec::new(),
         #[cfg(test)]
         declaration_recovery_raw_visits: 0,
         #[cfg(test)]
@@ -120,6 +121,7 @@ pub(super) fn parse_file(
         imports,
         roots,
         diagnostics,
+        missing_block_closers: parser.missing_block_closers,
     })
 }
 
@@ -148,6 +150,7 @@ pub(super) fn parse(
         file_mode: false,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
+        missing_block_closers: Vec::new(),
         #[cfg(test)]
         declaration_recovery_raw_visits: 0,
         #[cfg(test)]
@@ -199,6 +202,7 @@ pub(super) fn parse_declaration(
         file_mode: false,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
+        missing_block_closers: Vec::new(),
         #[cfg(test)]
         declaration_recovery_raw_visits: 0,
         #[cfg(test)]
@@ -248,6 +252,7 @@ pub(super) fn parse_block(
         file_mode: false,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
+        missing_block_closers: Vec::new(),
         #[cfg(test)]
         declaration_recovery_raw_visits: 0,
         #[cfg(test)]
@@ -328,6 +333,7 @@ struct Parser<'source> {
     file_mode: bool,
     ast: ExpressionAst,
     diagnostics: Vec<Diagnostic>,
+    missing_block_closers: Vec<(StatementId, Span)>,
     #[cfg(test)]
     declaration_recovery_raw_visits: usize,
     #[cfg(test)]

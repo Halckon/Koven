@@ -1,10 +1,28 @@
-//! Pure AST selection for the narrow null context of a joined control branch.
+//! Shared control-body source ranges and tail expression selection.
 use crate::{
     ast::{ExpressionId, StatementId},
     parser::{Expression, LiteralKind, ParsedFile, Statement},
+    source::{SourceMap, Span},
 };
 
 use super::TypeCheckingError;
+
+pub(super) fn function_end_span(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    body: StatementId,
+) -> Result<Span, TypeCheckingError> {
+    let span = parsed.ast().statements().get(body)?.span();
+    if let Some(recovery) = parsed.block_closer_recovery(body) {
+        return Ok(recovery);
+    }
+    let start = if sources.slice(span)?.ends_with('}') {
+        span.end() - 1
+    } else {
+        span.end()
+    };
+    Ok(sources.span(span.source_id(), start, span.end())?)
+}
 
 pub(super) fn ends_in_null(
     parsed: &ParsedFile,
