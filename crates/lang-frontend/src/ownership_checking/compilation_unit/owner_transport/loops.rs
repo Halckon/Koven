@@ -16,35 +16,99 @@ pub enum UnitOwnerLoopEdgeV1 {
     ContinueBackedge(UnitDropPoint, UnitExpressionId),
     /// A real terminal Break reaches this loop exit after jump cleanup.
     BreakExit(UnitDropPoint, UnitDropPoint),
+    /// One mutually exclusive arm selected by the actual terminal If condition.
+    IfBranch {
+        /// Actual If expression containing this branch.
+        control: UnitExpressionId,
+        /// Actual independent Boolean condition.
+        condition: UnitExpressionId,
+        /// Ordered arm, zero for then and one for else.
+        branch: usize,
+        /// Actual arm statement whose terminal jump was observed.
+        body: UnitStatementId,
+    },
 }
 
-// Kept separately from public edges: only actual completion supplies the sealed endpoint.
+// Kept separately from public edges: only actual completion supplies the sealed endpoints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ownership_checking::compilation_unit) struct LoopBranchCompletion {
+    pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) jump: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) is_continue: bool,
+}
+impl LoopBranchCompletion {
+    pub(in crate::ownership_checking::compilation_unit) fn completion(self) -> LoopBodyCompletion {
+        if self.is_continue {
+            LoopBodyCompletion::Continue(self.jump)
+        } else {
+            LoopBodyCompletion::Break(self.jump)
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
     Fallthrough,
     Continue(UnitExpressionId),
     Break(UnitExpressionId),
+    Conditional {
+        control: UnitExpressionId,
+        condition: UnitExpressionId,
+        branches: [LoopBranchCompletion; 2],
+    },
 }
 impl LoopBodyCompletion {
-    pub(in crate::ownership_checking::compilation_unit) fn edge(
+    pub(in crate::ownership_checking::compilation_unit) fn edges(
         self,
         statement: UnitStatementId,
         condition: UnitExpressionId,
         body: UnitStatementId,
-    ) -> UnitOwnerLoopEdgeV1 {
+    ) -> Vec<UnitOwnerLoopEdgeV1> {
+        let mut edges = vec![UnitOwnerLoopEdgeV1::EnterBody(condition, body)];
         match self {
-            Self::Fallthrough => {
-                UnitOwnerLoopEdgeV1::Backedge(UnitDropPoint::AfterStatement(body), condition)
-            }
-            Self::Continue(jump) => UnitOwnerLoopEdgeV1::ContinueBackedge(
+            Self::Fallthrough => edges.push(UnitOwnerLoopEdgeV1::Backedge(
+                UnitDropPoint::AfterStatement(body),
+                condition,
+            )),
+            Self::Continue(jump) => edges.push(UnitOwnerLoopEdgeV1::ContinueBackedge(
                 UnitDropPoint::ControlTransfer(jump),
                 condition,
-            ),
-            Self::Break(jump) => UnitOwnerLoopEdgeV1::BreakExit(
+            )),
+            Self::Break(jump) => edges.push(UnitOwnerLoopEdgeV1::BreakExit(
                 UnitDropPoint::ControlTransfer(jump),
                 UnitDropPoint::LoopExit(statement),
-            ),
+            )),
+            Self::Conditional {
+                control,
+                condition: branch_condition,
+                branches,
+            } => {
+                for (branch, completed) in branches.into_iter().enumerate() {
+                    edges.push(UnitOwnerLoopEdgeV1::IfBranch {
+                        control,
+                        condition: branch_condition,
+                        branch,
+                        body: completed.body,
+                    });
+                    edges.push(if completed.is_continue {
+                        UnitOwnerLoopEdgeV1::ContinueBackedge(
+                            UnitDropPoint::ControlTransfer(completed.jump),
+                            condition,
+                        )
+                    } else {
+                        UnitOwnerLoopEdgeV1::BreakExit(
+                            UnitDropPoint::ControlTransfer(completed.jump),
+                            UnitDropPoint::LoopExit(statement),
+                        )
+                    });
+                }
+            }
         }
+        edges.push(UnitOwnerLoopEdgeV1::ConditionFalseExit(
+            condition,
+            UnitDropPoint::LoopExit(statement),
+        ));
+        edges
     }
 }
 
@@ -52,7 +116,8 @@ impl LoopBodyCompletion {
 /// Definition tokens identify static producers in this template, not runtime instances.
 /// The initial pure Boolean parameter is unchanged: false means zero activations;
 /// true may repeat forever for fallthrough/Continue, while a terminal Break exits after
-/// one activation. No runtime iteration trace or carried owner is represented.
+/// one activation. A terminal If independently selects one of these jump completions.
+/// No runtime iteration trace or carried owner is represented.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) identity: std::sync::Arc<()>,
@@ -63,7 +128,7 @@ pub struct UnitOwnerLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) completion: LoopBodyCompletion,
     pub(in crate::ownership_checking::compilation_unit) transport: UnitOwnerValueObservationV1,
-    pub(in crate::ownership_checking::compilation_unit) edges: [UnitOwnerLoopEdgeV1; 3],
+    pub(in crate::ownership_checking::compilation_unit) edges: Vec<UnitOwnerLoopEdgeV1>,
 }
 impl UnitOwnerLoopObservationV1 {
     /// Source-qualified loop statement, never a producer identity.
@@ -78,12 +143,13 @@ impl UnitOwnerLoopObservationV1 {
     pub fn body(&self) -> UnitStatementId {
         self.body
     }
-    /// Closed straight-line transport for one fresh activation, with no incoming owners.
+    /// Closed straight-line owner transport for one fresh activation, with no incoming owners.
+    /// A terminal If has no owner events; its exclusive control edges are stored separately.
     pub fn body_transport(&self) -> &UnitOwnerValueObservationV1 {
         &self.transport
     }
     /// Structural edges established by real traversal and cleanup.
-    pub fn edges(&self) -> &[UnitOwnerLoopEdgeV1; 3] {
+    pub fn edges(&self) -> &[UnitOwnerLoopEdgeV1] {
         &self.edges
     }
     /// Internal identity, edge and conservation consistency, not general loop admission.
@@ -92,13 +158,34 @@ impl UnitOwnerLoopObservationV1 {
             return false;
         };
         let source = function.source_unit();
-        let completion_source = match self.completion {
-            LoopBodyCompletion::Fallthrough => source,
+        let completion_valid = match self.completion {
+            LoopBodyCompletion::Fallthrough => true,
             LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump) => {
-                jump.source_unit()
+                jump.source_unit() == source
+            }
+            LoopBodyCompletion::Conditional {
+                control,
+                condition,
+                branches,
+            } => {
+                control.source_unit() == source
+                    && condition.source_unit() == source
+                    && control != condition
+                    && condition != self.condition
+                    && branches[0].body != branches[1].body
+                    && branches[0].jump != branches[1].jump
+                    && branches.iter().all(|branch| {
+                        branch.body.source_unit() == source
+                            && branch.body != self.body
+                            && branch.body != self.statement
+                            && branch.jump.source_unit() == source
+                            && branch.jump != control
+                            && branch.jump != condition
+                            && branch.jump != self.condition
+                    })
             }
         };
-        completion_source == source
+        completion_valid
             && self.statement.source_unit() == source
             && self.condition.source_unit() == source
             && self.body.source_unit() == source
@@ -111,15 +198,9 @@ impl UnitOwnerLoopObservationV1 {
             && self.transport.suffix().is_empty()
             && self.transport.is_consistent()
             && self.edges
-                == [
-                    UnitOwnerLoopEdgeV1::EnterBody(self.condition, self.body),
-                    self.completion
-                        .edge(self.statement, self.condition, self.body),
-                    UnitOwnerLoopEdgeV1::ConditionFalseExit(
-                        self.condition,
-                        UnitDropPoint::LoopExit(self.statement),
-                    ),
-                ]
+                == self
+                    .completion
+                    .edges(self.statement, self.condition, self.body)
     }
 }
 impl UnitOwnerObservation {
