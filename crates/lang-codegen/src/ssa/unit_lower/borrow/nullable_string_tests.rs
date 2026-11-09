@@ -245,6 +245,7 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
                     pending_start: 0,
                     created_loans: Vec::new(),
                     abi_slots: Vec::new(),
+                    control_prefix_temporaries: Vec::new(),
                     field_replace_owner: None,
                     shared_field_roots: Vec::new(),
                     exclusive_root_owners: Vec::new(),

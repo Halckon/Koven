@@ -153,6 +153,7 @@ fn run(fixture: &Fixture, target: Target, fault: Option<Fault>) {
                 nullable_children: Vec::new(), call: checkpoint.use_id, receiver: true,
                 loan_arguments: Vec::new(), loop_depth: 0, pending_start: 0, created_loans: Vec::new(),
                 abi_slots: Vec::new(), field_replace_owner: None, shared_field_roots: Vec::new(), exclusive_root_owners: Vec::new(),
+control_prefix_temporaries: Vec::new(),
             }),
             Some(Fault::ResultLoan) => { lowerer.result_source_loans.insert(checkpoint.root, vec![checkpoint.loan]); }
             Some(Fault::ReplayTake) => {

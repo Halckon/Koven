@@ -9,7 +9,7 @@ pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
 };
-mod callable;
+pub(super) mod callable;
 use callable::{
     callable_invoke_contract, closure_construct_contract, direct_call_contract,
     function_address_contract,
@@ -513,7 +513,7 @@ pub(super) fn verify_operation(
                 )
         }
     };
-    if !valid {
+    if !valid || !callable::call_termination_contract(module, function, instruction) {
         errors.push(VerifyError {
             kind: VerifyErrorKind::OperationContract {
                 reason: "operand and result types do not match the operation contract",

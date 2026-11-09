@@ -97,13 +97,21 @@ impl CallableAbi {
                 key.static_self(),
                 span,
             )?;
-            let returns = if builtin_type(typed, result) == Some(BuiltinType::Unit) {
+            let result_builtin = builtin_type(typed, result);
+            let returns = if matches!(
+                result_builtin,
+                Some(BuiltinType::Unit | BuiltinType::Nothing)
+            ) {
                 Vec::new()
             } else {
                 vec![types.intern(module, typed, result, span)?]
             };
             let callable = module
-                .add_function_pointer_type_with_parameters(parameters, returns)
+                .add_function_pointer_signature(crate::ssa::model::CallableSignature {
+                    parameters,
+                    returns,
+                    never_returns: result_builtin == Some(BuiltinType::Nothing),
+                })
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             named.insert(source, callable);
         }
@@ -269,7 +277,11 @@ pub(super) fn view_type(
             }
         });
     }
-    let returns = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
+    let result_builtin = builtin_type(typed, return_type);
+    let returns = if matches!(
+        result_builtin,
+        Some(BuiltinType::Unit | BuiltinType::Nothing)
+    ) {
         Vec::new()
     } else if is_function(return_type) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -280,6 +292,7 @@ pub(super) fn view_type(
         .add_callable_view_type(crate::ssa::model::CallableSignature {
             parameters: entities,
             returns,
+            never_returns: result_builtin == Some(BuiltinType::Nothing),
         })
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
 }

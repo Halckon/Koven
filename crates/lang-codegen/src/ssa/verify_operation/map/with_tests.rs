@@ -140,3 +140,44 @@ fn map_with_memory_and_rooted_verify_real_slot_callback_and_temporary_cleanup() 
         }
     }
 }
+
+#[test]
+fn map_with_value_rejects_a_non_returning_callback_signature() {
+    use crate::ssa::verify::{VerifyErrorKind, VerifyLocation};
+
+    let (_, text, _) = crate::native_map_with_cases::cases()
+        .into_iter()
+        .next()
+        .unwrap();
+    let mut program = unit(&text).unwrap();
+    let module = &mut program.modules[0];
+    let (instruction, ty) = module
+        .functions
+        .iter()
+        .find_map(|function| {
+            function.instructions.iter().find_map(|instruction| {
+                let Operation::MapWithValue { action, .. } = instruction.operation else {
+                    return None;
+                };
+                let ty = function.entity(EntityId::Loan(action))?.ty.semantic_type();
+                Some((instruction.id, ty))
+            })
+        })
+        .unwrap();
+    let (SsaTypeKind::FunctionPointer { signature }
+    | SsaTypeKind::ConcreteClosure { signature, .. }) = &mut module.types[ty.index()]
+    else {
+        panic!("expected a callback");
+    };
+    signature.never_returns = true;
+    assert!(
+        verify_program(&program)
+            .unwrap_err()
+            .errors
+            .iter()
+            .any(|error| {
+                error.location == VerifyLocation::Instruction(instruction)
+                    && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            })
+    );
+}

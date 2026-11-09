@@ -315,6 +315,36 @@ fn borrowed_generation_accepts_unit_void_as_one_logical_element() {
     }
 }
 
+#[test]
+fn borrowed_generation_rejects_a_non_returning_unit_initializer() {
+    use super::verify::{VerifyErrorKind, VerifyLocation};
+
+    let mut fixture = fixture(Layout::Pointer, 1, true);
+    let module = fixture.program.module_mut(fixture.make.module()).unwrap();
+    let function = module.function(fixture.make).unwrap();
+    let callable = function.entity(EntityId::Value(fixture.callback)).unwrap();
+    let ty = callable.ty.semantic_type();
+    let Definition::InstructionResult { instruction, .. } = callable.definition else {
+        panic!("expected a function address");
+    };
+    let Operation::FunctionAddress { target } =
+        function.instruction(instruction).unwrap().operation
+    else {
+        panic!("expected a function address");
+    };
+    let SsaTypeKind::FunctionPointer { signature } = &mut module.types[ty.index()] else {
+        panic!("expected a function pointer");
+    };
+    signature.never_returns = true;
+    let thunk = module.function_mut(target).unwrap();
+    thunk.never_returns = true;
+    thunk.blocks[0].terminator.as_mut().unwrap().kind = TerminatorKind::Abort;
+    has_error(&fixture, |error| {
+        error.location == VerifyLocation::Instruction(fixture.generate)
+            && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+    });
+}
+
 fn has_error(fixture: &Fixture, predicate: impl Fn(&super::verify::VerifyError) -> bool) {
     let errors = verify_program(&fixture.program).expect_err("malformed generator must fail");
     assert_diagnostic!(

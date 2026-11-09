@@ -286,6 +286,7 @@ impl UnitExpressionLowerer<'_> {
                         })
                         .collect(),
                     abi_slots: Vec::new(),
+                    control_prefix_temporaries: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
                         .collect(),
@@ -538,6 +539,7 @@ impl UnitExpressionLowerer<'_> {
                 shared_field_roots: Vec::new(),
                 created_loans: Vec::new(),
                 abi_slots: Vec::new(),
+                control_prefix_temporaries: Vec::new(),
             });
         let result = self.lower_call_arguments_in_frame(call, arguments, descriptor, span);
         self.pending_call_frames.pop();
@@ -555,8 +557,10 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let pending_start = self.pending_operands.len();
-        let control_prefix = self.supports_control_prefix(span)
-            || self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
+        let general_prefix = self.supports_control_prefix(span);
+        let direct_prefix = !general_prefix
+            && self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
+        let control_prefix = general_prefix || direct_prefix;
         let range_receiver = matches!(descriptor.result_source(),
             lang_frontend::type_checking::CallableResultSource::Carrier(contract)
                 if contract.origin() == lang_frontend::type_checking::BorrowReturnOrigin::Receiver);
@@ -723,6 +727,14 @@ impl UnitExpressionLowerer<'_> {
                     ));
                 }
             };
+            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+            if direct_prefix && self.temporaries.contains_key(&argument_id) {
+                self.pending_call_frames
+                    .last_mut()
+                    .expect("call frame is active")
+                    .control_prefix_temporaries
+                    .push(argument_id);
+            }
             let pending_index = self.pending_operands.len();
             self.pending_operands.push(entity);
             let slot = ordered

@@ -13,6 +13,8 @@ pub(super) struct PendingCallFrame {
     pub(super) loop_depth: usize,
     pub(super) pending_start: usize,
     pub(super) created_loans: Vec<usize>,
+    /// Argument temporaries whose ordinary direct-call prefix was validated.
+    pub(super) control_prefix_temporaries: Vec<UnitExpressionId>,
     /// (owner, shared-loan) slots for sealed source addresses with no user storage LoanFact.
     pub(super) abi_slots: Vec<(usize, usize)>,
     /// 字段置换的父 owner 槽位；整体借用与控制退出仍核对其身份。
@@ -60,6 +62,19 @@ impl UnitExpressionLowerer<'_> {
                                 || (span.start() <= iteration.start()
                                     && iteration.end() <= span.end())
                         })
+            })
+    }
+
+    pub(super) fn supports_loop_control_prefix(&self, span: Span) -> bool {
+        self.supports_control_prefix(span)
+            || self.temporaries.values().all(|owner| {
+                // A Group may record multiple source IDs for the same carried owner.
+                self.pending_call_frames.iter().any(|frame| {
+                    frame
+                        .control_prefix_temporaries
+                        .iter()
+                        .any(|argument| self.temporaries.get(argument) == Some(owner))
+                })
             })
     }
 
