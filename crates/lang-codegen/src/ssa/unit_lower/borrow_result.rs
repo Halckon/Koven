@@ -2,7 +2,9 @@
 use super::*;
 use crate::ssa::borrow_result_support::ordinary_local;
 use lang_frontend::{
-    ownership_checking::{BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget},
+    ownership_checking::{
+        BorrowBindingFact, BorrowBindingStorage, OwnershipBindingKind, UnitLoanTarget,
+    },
     type_checking::{BorrowReturnOrigin, UnitAggregateProjectionReceiver},
 };
 
@@ -82,6 +84,35 @@ fn has_dedicated_binding_path(
                     if receiver.source_unit() == source_unit)
                     && place.fields().last() == Some(&projection.field())
             }));
+    }
+    let root = place.root();
+    let initializer = fact.initializer();
+    if root.source_unit() == source_unit
+        && initializer.source_unit() == source_unit
+        && (owned.formed_owned_locals().binary_search(&root).is_ok()
+            || matches!(
+                owned.binding_kind(root),
+                Some(OwnershipBindingKind::Owned | OwnershipBindingKind::Shared)
+            ))
+    {
+        let expression = crate::ssa::borrow_result_support::ungroup(
+            file,
+            initializer.expression(),
+            fact.marker_span(),
+        )?;
+        let source = UnitExpressionId::new(source_unit, expression);
+        // The sealed frontend fact establishes the root. The reached lowerer
+        // and verifier check storage and the actual loan extent.
+        if let Some(ty) = typed.symbol_type(root)
+            && typed.expression_type(source) == Some(ty)
+            && file
+                .ast()
+                .expressions()
+                .get(expression)
+                .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+        {
+            return Ok(true);
+        }
     }
     Ok(owned.map_iterations().iter().any(|plan| {
         let statement = plan.descriptor().statement();

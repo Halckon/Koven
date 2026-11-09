@@ -3817,3 +3817,27 @@ codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
 合并后的本批源码实跑 `unit_direct_call_loan_ends` 113 项、SSA 借用结果合同 12 项和
 原生借用初始化 3 项，均零失败、零忽略。SSA 与原生测试按套件名过滤。
 同一源码树的 codegen 全目标 Clippy、格式、文档和差异检查通过。
+
+## 154. R4 直接根别名的分支准入
+
+在 `a4b72d35` 上，普通 owned local 的词法借用块结束后再进入 `if`，MemoryDocument
+红测在 If 范围报 UnsupportedNode。使用同形 CLI 输入复核，前端均接受。
+无关未调用 `swap` 使后端全单元开关绕过旧扫描，加入后实际运行输出正确。
+实际 CLI 还核到 owned 参数和 Borrow 参数的活跃别名穿过 Return 时同类差异，
+Inout 参数的有无 sibling 对照均为 UnsupportedNode。
+
+BorrowedStorage 的直接名根要求无来源调用 loan、无父绑定、无字段或元素投影、
+同源且类型一致。依据同轮已验证绑定确定真实根，仅放行已形成 owned local、
+Owned 参数或 Shared 参数。真正到达的 builder 与 verifier 仍核存储和生命周期。
+RangeView、carrier、直接字段和 Map provider 沿各自入口。没有改变构建器、
+SSA 验证规则和 Inout 能力。
+
+独立复核确认 Name 的实际来源来自已验证 ownership 产物，formed 历史仅用于分类，
+存活由原消费者核对。两个 Unit 入口核对无 sibling、无关函数和未用 lambda，
+覆盖提前结束的 local、穿过显式 Return 的 owned/Borrow 参数和 Inout 负控。
+本机原生用例覆盖六次调用、正常与提前返回的精确 stdout 和六次实际分配释放。
+
+根别名/存储合同 9 项、普通借用结果 12 项、Map 路由 15 项、RangeView 12 项及
+新增原生运行 1 项，共 49 项通过，零失败、零忽略，按套件名过滤。Inout 负控核对
+拒绝类别，未锁诊断 Span。Const 与 Basic 共用前置校验，新增正控直接覆盖 Basic。
+codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
