@@ -4597,3 +4597,51 @@ E3 均不开放。完整 D10/E2 继续 in-progress。
 独立只读复审无 blocker，核完整初始结果帧和已有 transfer 隔离。未跑全量、手工
 模型/故障注入、native、Linux 或正式精确头 CI。按用户最新方向不新增 format-patch、
 bundle 或 Drive 备份；本地分步提交后准备 connector 发布，不强推或合并。
+
+## 126. Choice 根的 checked replace 消费者（2026-11-09）
+
+基于已发布 `01a159a1`（与 §124 本地 `eac11275` 同树），先核远端 Choice model 与
+complex-consumers 均为祖先，未重复未合能力。main 后续推进到 `a8657f58`，本片不声称
+在该新主线组合验收。Phase 3 依 Guide §10 的既有原子 replace/mutable-root 合同，
+不改语言语义、公开事件 API、旧 cleanup 或 Single 见证，不等候前片 CI。
+
+仅开放两句形状：`var chosen = If/Group If` 后跟 `val previous = replace(&chosen, RHS)`。
+两根均须精确 String/MoveOnly，首 binding 显式 Val|Var 分流；var 无此后继仍拒绝。
+后继必须对应实际 checked String root Replace，非字段/索引，实参与 descriptor 同序；
+RHS 仅精确 String、非 constant-use 的无插值 literal/Group。既有 val 与一次 alias 不变。
+分支局部、条件/整个 If 分组仍沿前片合同；新返回值不接受 call 外 Group 或额外使用。
+
+私有 replace 子模块用独立 RHS 帧和结果/退休标志：逐层实际 Consume 后，只有真实唯一
+transfers_at_call pending tuple 可发布 Pending。checked primitive 完成、root origin
+更新且实际 root/pending 仍存在后才发 Replace；不受旧观察 Unsupported 早返屏蔽。
+旧 Choice 成为 call 返回结果，新 definition 安装到原根；原根先在真实 CallReturn
+释放，新结果经 Consume 完成与 post-insert 绑定 previous，声明后释放旧 Choice。
+任意遗漏、错误身份、Read、提前/重复 commit、绑定或清理清空新事务，不从 cleanup、
+事件历史或旧 owner=None 重建 token；全部旧 Analysis 字段及序列保持观察开关一致。
+
+V1 validator 只取消 Choice 对 CallReturn 的总禁令，仍要求紧邻同 call/root/incoming
+Replace 见证及 Named→Dropped；Swap 保持无 Choice。原模型的匹配邻接正例同步，
+错 call/root/value、非邻接、无 Replace 与重复清理六负例保留。图可验证更一般的
+Replace，但不授权相应 AST 消费者。新20条手工事务 trace（1正19负）与模型改动仅
+编译，未在本机执行，不作真实生产证明。真实循环实例/phi、nested Choice、任意调用、
+投影、插值/Name RHS、二次 replace、返回值额外运输、Phase 4/native 与 E3 均不开放。
+
+真实红测 `57e8b96b` 在旧实现缺 V1 上一项失败；实现 `64f97a3e` 后，32组合
+（2条件×4边形态×2整个If分组×2 RHS分组）独立核 AST 双边事件、三 producer、
+每个 Choice/Definition 身份、Pending/Replace、准确两次 Drop 及完整旧 Analysis。
+11种合法源码拒绝保留 sibling，另精确核不可变根原有诊断，不把拒绝观测误作语言错误。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_replace` 三个普通 exact，排除手工trace | 3 passed，0 failed/ignored |
+| Choice及旧边界 | §124 同一22项普通 exact | 22 passed，0 failed/ignored |
+| 共享hook邻控 | 旧swap/V1两项、nested replace一项、完整Analysis六项 | 9 passed，0 failed/ignored |
+| 独立复验 | `64f97a3e` 上新三个普通 exact，各命中1项 | 3 passed，0 failed；运行前后头及源码tree不变 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、尺寸 | 通过；863 Markdown、2225 Rust、35项既有超限；新增trace仅编译 |
+
+独立静审无 blocker：确认真实 pending/commit/cleanup 隔离和准入边界；
+`drop_planner.rs` 1557→1558 仅新增 checked commit 后一条委托，算法/状态留子模块，
+现存 max_lines=1669 不变，本次增长已独立审阅，不批准后续增长。架构同节精简至199行，
+保留旧边界与证据依赖。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
+D10/E2 仍 in-progress。按用户最新要求不新增备份，本地分步提交后准备 connector 发布，
+不强推、不合并。

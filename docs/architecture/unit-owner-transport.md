@@ -99,44 +99,44 @@ Control body 的私有结果通道保留实际尾表达式与既有求值帧 own
 ## V1 value 投影与受限 Choice
 
 V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
-定义最终 named Drop 的直线观察可按需投影；另有真实 planner 事务接纳严格限定的
-有界 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
-函数体先有一个 `val`，initializer 是显式 If 或整个 If 的 Group 链；
-If 条件是该参数或其分组/逻辑非链。
-条件链每个节点必须为非 constant-use 的精确 Boolean，叶节点仍是同一参数。分组和逻辑非
-沿原 planner 在分叉前求值，Choice 输入始终对应真实 then/else，不因逻辑非交换边。
-调用、常量、比较和短路条件仍拒绝。目标 binding 必须精确 String/MoveOnly。每边独立
-允许 String literal/Group literal（可包单尾 ControlBody），
-或恰一条不可变、精确 String/MoveOnly 局部 `val` 后接唯一 Name/Group 消费尾。局部
-initializer 仅无插值 literal/Group；两种边可以混搭。除下述一次转交外不接受额外语句或使用。
+定义最终 named Drop 的直线观察可按需投影；有界 Choice 另由真实 planner 事务收集。
+仅顶层无修饰、非泛型 Unit 函数，一个无模式 marker 的 Boolean 参数；初始 binding
+必须精确 String/MoveOnly，initializer 为显式 If 或整个 If 的 Group 链。
+条件仅同一参数的 Group/Not 链，每节点为非 constant-use 的精确 Boolean；原 planner
+先求条件，再按真实 then/else 记边，不因 Not 交换输入。调用、常量、比较和短路仍拒绝。
+每边允许无插值 String literal/Group（可包单尾 ControlBody），或一个精确 String/
+MoveOnly 的局部 `val` 后接唯一 Name/Group 消费尾；局部 initializer 仅 literal/Group。
+两边可混搭；函数体仅初始 binding 及下述可选唯一后继，不接受其它语句或使用。
 
-String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 交付必须唯一且有序，
-局部 initializer 与 tail 各有独立结果帧和完成计数；每边独立 symbol→value 槽仅在
-真实 state.insert 返回后接收 Binding，实际 take_named 返回 Some 后才转移到 Name
-结果并清空局部槽。边出口不得残留 initializer 或 named owner，不复用旧 owner=None、
-不从事件或 cleanup 重建 token。chosen 同样在实际插入后绑定；无后继时由真实移除后的
-精确 AfterStatement drop 闭合。任意退出、遗漏、重复、
-错误交付/cleanup 清空新事务。旧观察仍原子 Unsupported，不接收新定义或 Choice；
-原 cleanup/Single 见证保持。新能力与旧 observation 的 product/callable 绑定，旧 Eq
-只比较旧协议事实，新能力必须单独验证。新 Drop 带实际 point；未覆盖的 BranchExit、
-控制退出、When 等 point 不被 V1 图 validator 接受。
+String 构造登记真定义；Group/If 完成与双边实际 tail 交付必须唯一有序。局部 initializer
+与 tail 使用独立帧/计数，symbol→value 槽仅在真实 insert 后接 Binding，实际 take_named
+返回 Some 才转移到 Name 并清空槽。边出口不得残留 initializer 或 named owner。
+整个 If 的 Group 链沿真实 Consume 完成运输同一 Choice，post-insert 仅接完整末帧并
+清空结果；保留真实 control 和双边 producer。漏层、Read、错序或重复均撤销事务（§124）。
 
-整个 If 外的 Group 沿真实 Consume 完成逐层运输同一 Choice；独立结果位置与计数
-拒绝漏层、Read、重复或错序。chosen 的 post-insert 只接受完整末帧，再清空结果；
-不改真实 If control、双边 producer 或公开协议。实测范围见 SPEC-0341 §124。
+初始 `val` 可无后继，由实际移除后的精确 AfterStatement Drop 闭合；也可跟唯一不可变、
+精确 String/MoveOnly 的 `val forwarded = ((chosen))`。实际 take 后用独立结果帧逐层
+Consume/Forward，再 post-insert 清空帧；最后仅清理 forwarded，chosen 不再 named Drop。
+失败 take、Read、错序、重复或错误清理均撤销；多次转交仍拒绝（SPEC-0341 §122）。
 
-可选唯一后继为不可变、精确 String/MoveOnly 的 `val forwarded = ((chosen))`。
-实际 take_named 成功后把同一 Choice 移入独立结果帧，逐层 Consume 完成才发布 Forward；
-post-insert 绑定新 symbol 并清空帧，最后只在后继声明的真实 AfterStatement 清理新根。
-chosen 不再有 named Drop。失败 take、Read、错序、重复或错误清理清空事务；不从旧
-owner=None、事件历史或 cleanup 重建身份。多次转交、var/nullable、调用、capture、
-控制退出与循环仍拒绝；V1 validator 和公开事件协议不变，验收见 SPEC-0341 §122。
+初始 `var` 仅在唯一后继为 `val previous = replace(&chosen, literal/Group)` 时准入。
+必须是真实 checked String root Replace，非投影，RHS 精确 String 且无插值；独立帧
+要求完整 Consume 后注册真实唯一 pending，再于 checked primitive 完成和 root 更新后
+发布 Replace。原 Choice 成为返回结果，新 definition 安装到 chosen；真实 CallReturn
+先释放新根，调用 Consume 完成、post-insert 后才绑定 previous，声明后释放旧 Choice。
+漏 pending/commit、错误根、提前绑定/清理或重复均撤销；不复用旧 owner=None（§126）。
 
-图守恒不等于 typed AST 准入。生产能力只由上述私有门禁和实际事件构造；手工图测试
-仍可测试更一般的 Binding/Pending/Replace 守恒，不意味着这些 Choice 消费者已接线。
-原候选范围与历史静态验收见 SPEC-0341 §87/§88/§101。
-branch-local 的 §89 前置验收依赖保留，不表示 D10 完成。条件包装切片的本机定向
-验证见 SPEC-0341 §120；本层仍不扩展循环 phi、通用后续消费或 Phase 4。
+Choice 图的 CallReturn Drop 必须承接紧邻同 call/root/incoming 的 Replace；连续 cleanup 保留
+该 commit 见证，仍验证 Named→Dropped；Swap 仍仅无 Choice。公开事件 API 不变。
+BranchExit、控制退出、When 等未覆盖 point 仍不准入；图守恒不等于 typed AST 准入。
+手工图可验证更一般的 Pending/Replace，但生产消费者仍只限上述合同。
+
+旧观察仍原子 Unsupported，不接收新定义/Choice；原 cleanup/Single 见证保持。新能力
+绑定 observation 的 product/callable，旧 Eq 仅比旧事实，新协议须独立验收。不从事件、
+cleanup 或 owner=None 重建身份；任意退出、遗漏、重复或错误交付均清空新事务。
+nullable、普通调用、capture、二次 replace、控制退出与真实循环/phi、通用后续消费和
+Phase 4 仍未实现。本机证据见 §120/§122/§124/§126；原 §87/§88/§89/§101 依赖保留，
+不表示 D10/E2 完成。
 
 ## String 根 swap 观察
 
