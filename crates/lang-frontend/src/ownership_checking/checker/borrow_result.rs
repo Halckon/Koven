@@ -9,7 +9,7 @@ use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity, codes},
     parser::{FunctionForm, ValueParameter},
-    type_checking::BorrowReturnOrigin,
+    type_checking::{BorrowReturnOrigin, CallableResultSource, TypeId, TypeKind},
 };
 
 impl Checker<'_> {
@@ -25,13 +25,24 @@ impl Checker<'_> {
     }
 
     pub(super) fn borrowed_call_source(&self, expression: ExpressionId) -> Option<ExpressionId> {
+        let (operand, parameter) = self.borrowed_call_source_operand(expression)?;
+        parameter
+            .is_none_or(|expected| !self.borrow_needs_nullable_conversion(operand, expected))
+            .then_some(operand)
+    }
+
+    // Keep recognition of a borrow call separate from admission of its source as a place.
+    pub(super) fn borrowed_call_source_operand(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<(ExpressionId, Option<TypeId>)> {
         if let Some(descriptor) = self.typed.map_require_value(expression) {
-            return Some(descriptor.receiver());
+            return Some((descriptor.receiver(), None));
         }
 
         let call = self.typed.call(expression)?;
         if let Some(range) = call.range_construction() {
-            return Some(range.source());
+            return Some((range.source(), None));
         }
         let crate::parser::Expression::Call { arguments, .. } = self
             .parsed
@@ -44,34 +55,59 @@ impl Checker<'_> {
             return None;
         };
         let origin = match call.result_source() {
-            crate::type_checking::CallableResultSource::Borrow(contract) => contract.origin(),
-            crate::type_checking::CallableResultSource::Carrier(contract)
-                if self.range_call_is_proven(call) =>
-            {
+            CallableResultSource::Borrow(contract) => contract.origin(),
+            CallableResultSource::Carrier(contract) if self.range_call_is_proven(call) => {
                 contract.origin()
             }
             _ => return None,
         };
         match origin {
-            BorrowReturnOrigin::Parameter(index) => call
-                .arguments()
-                .iter()
-                .find(|argument| argument.parameter_index() == index)
-                .and_then(|argument| arguments.get(argument.argument_index()))
-                .map(|argument| argument.value),
+            BorrowReturnOrigin::Parameter(index) => {
+                let mapping = call
+                    .arguments()
+                    .iter()
+                    .find(|arg| arg.parameter_index() == index)?;
+                let operand = arguments.get(mapping.argument_index())?.value;
+                let parameter = matches!(call.result_source(), CallableResultSource::Borrow(_))
+                    .then(|| mapping.parameter_type());
+                Some((operand, parameter))
+            }
             BorrowReturnOrigin::Receiver
-                if matches!(
-                    call.result_source(),
-                    crate::type_checking::CallableResultSource::Carrier(_)
-                ) =>
+                if matches!(call.result_source(), CallableResultSource::Carrier(_)) =>
             {
                 match call.receiver()?.origin() {
-                    crate::type_checking::CallReceiverOrigin::Expression(id) => Some(id),
+                    crate::type_checking::CallReceiverOrigin::Expression(id) => Some((id, None)),
                     _ => None,
                 }
             }
             BorrowReturnOrigin::Receiver => None,
         }
+    }
+
+    // A narrowed read can still refer to storage already laid out as the requested nullable.
+    pub(super) fn borrow_needs_nullable_conversion(
+        &self,
+        expression: ExpressionId,
+        expected: TypeId,
+    ) -> bool {
+        let Some(actual) = self.typed.expression_type(expression) else {
+            return false;
+        };
+        actual != expected
+            && matches!(
+                self.typed.types().get(expected),
+                Some(TypeKind::Nullable(_))
+            )
+            && !matches!(
+                self.typed.types().get(actual),
+                None | Some(TypeKind::Error | TypeKind::Deferred(_))
+            )
+            && self
+                .expression_root_symbol(expression)
+                .ok()
+                .flatten()
+                .and_then(|symbol| self.typed.symbol_type(symbol))
+                != Some(expected)
     }
 
     pub(super) fn check_borrow_call_use(
@@ -178,7 +214,11 @@ impl Checker<'_> {
             .map(|origin| self.place(origin))
             .transpose()?
             .flatten();
-        if let Some(place) = place.filter(|place| place.root() == symbol) {
+        let needs_conversion = self
+            .typed
+            .type_ref_type(source.type_ref)
+            .is_some_and(|expected| self.borrow_needs_nullable_conversion(expression, expected));
+        if let Some(place) = place.filter(|place| place.root() == symbol && !needs_conversion) {
             if self.diagnostics.len() == before {
                 if let Some(call) = self.borrow_result_call(expression)
                     && let Some(argument) = self.borrowed_call_source(call)
@@ -208,7 +248,11 @@ impl Checker<'_> {
                 self.sources,
                 Severity::Error,
                 codes::catalog()?.resolve(codes::INVALID_BORROW_CONTRACT)?,
-                "returned borrow does not originate from the declared source",
+                if needs_conversion {
+                    "returned borrow requires existing nullable storage"
+                } else {
+                    "returned borrow does not originate from the declared source"
+                },
                 self.parsed.ast().expressions().get(expression)?.span(),
             )?;
             diagnostic.add_label(

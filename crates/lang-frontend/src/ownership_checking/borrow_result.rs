@@ -1,7 +1,7 @@
 //! 普通借用的实际来源、结果绑定依赖与显式终止事实。
 
 use crate::{
-    ast::ExpressionId,
+    ast::{ExpressionId, TypeRefId},
     parser::{Expression, NameMarker, ParsedFile},
     source::Span,
 };
@@ -84,6 +84,7 @@ pub(crate) struct ReturnSource<S> {
     pub(crate) symbol: Option<S>,
     pub(crate) span: Span,
     pub(crate) marker: Span,
+    pub(crate) type_ref: TypeRefId,
     pub(crate) new_range: bool,
 }
 

@@ -944,22 +944,23 @@ impl Checker<'_> {
         {
             self.record_ownership_primitive(id, arguments, next)?;
         }
+        let source_origin = (self.allowed_borrow_call == Some(id))
+            .then(|| self.borrowed_call_source(id))
+            .flatten()
+            .and_then(|argument| {
+                let argument = self.unit_expression(argument);
+                self.loans
+                    .iter()
+                    .find(|fact| fact.call() == call && fact.argument() == argument)
+                    .map(|fact| fact.begin_span())
+            });
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
         {
             state.loans.retain(|loan| {
                 loan.owner != super::ActiveLoanOwner::Call(call)
-                    || (self.allowed_borrow_call == Some(id)
-                        && self.borrowed_call_source(id).and_then(|argument| {
-                            self.loans
-                                .iter()
-                                .find(|fact| {
-                                    fact.call() == call
-                                        && fact.argument() == self.unit_expression(argument)
-                                })
-                                .map(|fact| fact.begin_span())
-                        }) == Some(loan.origin))
+                    || source_origin == Some(loan.origin)
             });
         }
         for expression in receiver_expression

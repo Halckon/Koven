@@ -581,19 +581,21 @@ impl Checker<'_> {
     }
 
     pub(super) fn end_call_loans(&self, call: ExpressionId, flows: &mut Flows) {
+        let source_origin = (self.allowed_borrow_call == Some(call))
+            .then(|| self.borrowed_call_source(call))
+            .flatten()
+            .and_then(|argument| {
+                self.loans
+                    .iter()
+                    .find(|fact| fact.call() == call && fact.argument() == argument)
+                    .map(|fact| fact.begin_span())
+            });
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
         {
             state.loans.retain(|loan| {
-                (loan.owner != ActiveLoanOwner::Call(call)
-                    || (self.allowed_borrow_call == Some(call)
-                        && self.borrowed_call_source(call).and_then(|argument| {
-                            self.loans
-                                .iter()
-                                .find(|fact| fact.call() == call && fact.argument() == argument)
-                                .map(|fact| fact.begin_span())
-                        }) == Some(loan.origin)))
+                (loan.owner != ActiveLoanOwner::Call(call) || source_origin == Some(loan.origin))
                     && loan.owner != ActiveLoanOwner::ReservedReceiver(call)
             });
         }
