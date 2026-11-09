@@ -19,10 +19,40 @@ fn assignment_and_capture_invalidate_mutable_smart_casts_and_invalid_tests_are_p
                     if (current is Shape.Circle) { return current.radius }\n\
                     return 0\n\
                 }\n\
+                fun shadowed(initial: Shape): Int {\n\
+                    var current = initial\n\
+                    {\n\
+                        var current = initial\n\
+                        val callback = { current }\n\
+                    }\n\
+                    if (current is Shape.Circle) { return current.radius }\n\
+                    return 0\n\
+                }\n\
                 fun invalid(shape: Shape): Boolean = shape is Marker";
-    let (sources, _, entries) = checked_entries(text);
+    let (sources, file, entries) = checked_entries(text);
+    // Only the assigned and captured occurrences are invalid; the shadowed outer var is stable.
+    let invalid_members = text
+        .match_indices("current.radius")
+        .take(2)
+        .map(|(start, member)| {
+            sources
+                .span(
+                    file.source_id(),
+                    start + "current.".len(),
+                    start + member.len(),
+                )
+                .expect("member span")
+        })
+        .collect::<Vec<_>>();
     for (_, typed) in entries {
         assert_eq!(codes(typed.diagnostics()), ["L0113", "L0113", "L0106"]);
+        assert_eq!(
+            typed.diagnostics()[..2]
+                .iter()
+                .map(|diagnostic| diagnostic.primary_span())
+                .collect::<Vec<_>>(),
+            invalid_members
+        );
         assert_eq!(
             typed
                 .diagnostics()

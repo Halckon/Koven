@@ -2996,3 +2996,21 @@ Unit 普通直接 Borrow 有独立的实际结束切片；Exclusive 前缀切片
 最终本机 `ownership_checking` 29 项、`multifile_ownership_checking` 157 项和
 `resource_deinit_native` 18 项通过，均零失败、零忽略。前端与 codegen 全目标 Clippy、
 格式、文档和 Rust 尺寸检查通过。本片为下一批候选，双宿主 CI 尚未运行。
+
+## 118. R2 稳定流事实的声明符号查找
+
+原 BodyChecker 初始化为每个有名称的 `var` 在线性符号表中查找声明。一个文件
+有 M 个此类声明、S 个符号时，该部分最坏检查 O(M × S) 个候选。检查器已有
+按 source unit、声明字节范围和值命名空间的 BTreeMap 索引，改为复用同一个
+`symbol_at`，此部分每声明一次 O(log S_total) 查询。循环或写回触发的重放仍
+按原路径重建索引。未以此推断整个类型检查的复杂度。
+
+原赋值和捕获负控保留，另加同名变量的遮蔽正控。内层 `var` 被闭包捕获，外层
+同名 `var` 仍可收窄。MemoryDocument 与 Rooted Unit 同时核对原诊断码和精确
+声明使用位置。独立复核提出两个相同文本的诊断可能互相掩盖，现直接比较两处
+负控的 source-qualified primary span。静态核对了索引、同源、Value 命名空间、
+缺失标识符恢复与 replay 初始化，未发现待处理问题。
+
+本机两个类型套件共 378 项通过。生产改动的完整前端套件共 183 组、2898 项通过，
+零失败、零忽略。精确 span 加强后的定向用例单独复跑通过。前端全目标 Clippy、
+格式及文档检查通过。
