@@ -4,9 +4,9 @@ use crate::{
     ast::ExpressionId,
     name_resolution::SymbolKind,
     ownership_checking::{
-        OwnershipBindingKind, UnitIterationCleanupAction as Action, UnitLoanTarget,
-        UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
-        UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+        BorrowBindingStorage, OwnershipBindingKind, UnitIterationCleanupAction as Action,
+        UnitLoanTarget, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
+        UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
     },
     parser::Expression,
     type_checking::{CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget, UnitTypeKind},
@@ -73,8 +73,40 @@ impl DropPlanner<'_, '_> {
         }
         // Resolve the complete typed field path, not merely its named backing root.
         // The syntax walk excludes this fields, indices, safe access and temporaries.
-        let Ok(Some(place)) = self.checker.place(full_operand) else {
+        let Ok(Some(operand_place)) = self.checker.place(full_operand) else {
             return false;
+        };
+        // Direct first-level bindings retain a canonical source lease. Observe
+        // the existing child token; never reinterpret the alias as an owned root
+        // or infer a payload address from a callee's borrow-result source.
+        let place = if let Some(binding) = self
+            .checker
+            .borrow_results
+            .bindings
+            .iter()
+            .find(|binding| binding.binding() == operand_place.root())
+        {
+            if !operand_place.is_root()
+                || binding.storage() != BorrowBindingStorage::BorrowedStorage
+                || binding.parent().is_some()
+                || binding.source_loan().is_some()
+                || binding.initializer().source_unit() != receiver.call().source_unit()
+            {
+                return false;
+            }
+            let UnitLoanTarget::Place(origin) = binding.origin() else {
+                return false;
+            };
+            let Ok(Some(initializer)) = self.checker.place(binding.initializer().expression())
+            else {
+                return false;
+            };
+            if !origin.is_root() || &initializer != origin {
+                return false;
+            }
+            origin
+        } else {
+            &operand_place
         };
         let root = place.root();
         let owned = self.checker.formed_owned_locals.contains(&root)
@@ -115,7 +147,7 @@ impl DropPlanner<'_, '_> {
                 .bindings
                 .iter()
                 .any(|binding| binding.binding() == root)
-            && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == &place)
+            && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == place)
     }
 
     /// Retire exactly the tokens removed by the old normal-return retain. Move the

@@ -846,14 +846,16 @@ impl CompilationUnitOwnership {
         &self.exclusive_call_prefix_ends
     }
 
-    /// owned/Borrow/Inout 具名根及其字段路径，或具体 this 的 Shared receiver 在实际 return/break/continue unwind 中的有界观测。
+    /// owned/Borrow/Inout 具名根、字段、具体 this 及首层直接根借用绑定的 Shared receiver 实际 unwind 观测。
+    /// 只观察 return/break/continue 退休的子 token，不结束绑定的来源 lease 或父 loan。
     /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
     #[must_use]
     pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
         &self.receiver_call_prefix_ends
     }
 
-    /// owned/Borrow/Inout 具名根及其字段路径，或具体 this 的 Shared receiver 正常完成时退休的实际 pending token。
+    /// owned/Borrow/Inout 具名根、字段、具体 this 及首层直接根借用绑定的 Shared receiver 正常退休 token。
+    /// 绑定 operand 与 canonical source lease 身份分开，不把子结束当作父 binding 结束。
     /// 不提供跨事务顺序、完整 receiver 流或动态执行次数；前缀退出另行查询。
     #[must_use]
     pub fn receiver_call_return_ends(&self) -> &[UnitReceiverCallReturnEndFact] {

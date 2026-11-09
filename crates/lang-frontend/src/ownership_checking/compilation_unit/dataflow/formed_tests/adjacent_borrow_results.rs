@@ -581,3 +581,106 @@ fn field_receiver_ends_keep_consumer_roots_and_provider_field_identity() {
         );
     }
 }
+
+#[test]
+fn real_rejections_clear_nonempty_direct_binding_receiver_tables() {
+    for (open, close, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(node: Node, flag: Boolean): Unit {{ borrow val borrowed = node; {open} borrowed.touch(\"ready\", {next}) {close} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.borrow_results.bindings.len(), 1);
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn direct_binding_receiver_ends_distinguish_same_index_aliases_and_source_leases() {
+    use crate::ownership_checking::{UnitLoanTarget, UnitReceiverOwnershipTarget};
+    let types = "class Node { fun read(own next: Int): Int = next }";
+    for next in ["0", "return"] {
+        let left = format!(
+            "fun first(node: Node): Unit {{ borrow val borrowed = node; borrowed.read({next}) }}"
+        );
+        let right = format!(
+            "fun other(node: Node): Unit {{ borrow val borrowed = node; borrowed.read({next}) }}"
+        );
+        let accepted = Fixture::new(&[("a.ko", types), ("b.ko", &left), ("c.ko", &right)]);
+        let shared = accepted.shared();
+        assert!(
+            shared.diagnostics().is_empty(),
+            "{:?}",
+            shared.diagnostics()
+        );
+        assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+        shared.clone().validate().unwrap();
+        let receivers: Vec<_> = shared
+            .receiver_call_return_ends()
+            .iter()
+            .map(|e| e.receiver())
+            .chain(
+                shared
+                    .receiver_call_prefix_ends()
+                    .iter()
+                    .map(|e| e.receiver()),
+            )
+            .collect();
+        let [first, second] = receivers.as_slice() else {
+            panic!("one real end per source")
+        };
+        assert_eq!(first.call().expression(), second.call().expression());
+        assert_ne!(first.call(), second.call());
+        assert_ne!(first.target(), second.target());
+        let [first_binding, second_binding] = shared.borrow_results().bindings() else {
+            panic!("one binding per source")
+        };
+        assert_eq!(
+            first_binding.binding().symbol(),
+            second_binding.binding().symbol()
+        );
+        assert_ne!(first_binding.binding(), second_binding.binding());
+        for (source, receiver, binding) in [(1, first, first_binding), (2, second, second_binding)]
+        {
+            assert_eq!(receiver.call().source_unit(), accepted.source(source));
+            assert_eq!(binding.binding().source_unit(), accepted.source(source));
+            let UnitReceiverOwnershipTarget::Place(place) = receiver.target() else {
+                panic!("source lease")
+            };
+            assert_eq!(place.root(), accepted.symbol(source, "node"));
+            assert_eq!(binding.binding(), accepted.symbol(source, "borrowed"));
+            assert_ne!(place.root(), binding.binding());
+            assert_eq!(binding.origin(), &UnitLoanTarget::Place(place.clone()));
+            assert_eq!(binding.initializer().source_unit(), accepted.source(source));
+        }
+        assert_eq!(
+            shared.receiver_call_return_ends().len(),
+            if next == "0" { 2 } else { 0 }
+        );
+        assert_eq!(
+            shared.receiver_call_prefix_ends().len(),
+            if next == "return" { 2 } else { 0 }
+        );
+        let raw = accepted.dataflow(&accepted.parts(&shared));
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+    }
+}

@@ -356,7 +356,8 @@ impl UnitDelegationOwnershipPlan {
     }
 }
 
-/// 实际 return/break/continue unwind 中结束的 owned/Borrow/Inout 具名根及其字段路径，或具体 this 的 Shared receiver loan。
+/// 实际 return/break/continue unwind 中结束的具名根/字段、具体 this 或首层直接根借用绑定的 Shared receiver。
+/// 绑定保留原 canonical source lease，不将子 token 结束解释成父 binding 或 source loan 结束。
 /// 只读观测切片，不覆盖正常返回、reservation、索引/temporary/this 字段投影、provider 或完整 loan-end 流。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitReceiverCallPrefixEndFact {
@@ -399,7 +400,8 @@ impl UnitReceiverCallPrefixEndFact {
     }
 }
 
-/// 正常调用完成时从真实 pending 队列退休的 owned/Borrow/Inout 具名根及其字段路径，或具体 this 的 Shared receiver。
+/// 正常调用完成时从真实 pending 队列退休的具名根/字段、具体 this 或首层直接根借用绑定的 Shared receiver。
+/// 直接绑定仅限 BorrowedStorage、无 parent/source loan，initializer 与完整来源根相同。
 /// 与前缀退出分开观察，不声明参数/receiver/drop 全序或完整借用事件流。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitReceiverCallReturnEndFact {
