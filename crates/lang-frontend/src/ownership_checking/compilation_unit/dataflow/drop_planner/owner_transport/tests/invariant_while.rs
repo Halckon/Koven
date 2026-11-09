@@ -8,10 +8,11 @@ use crate::ownership_checking::{
 use crate::parser::Statement;
 use crate::type_checking::UnitStatementId;
 
-fn check(
+pub(super) fn check(
     fixture: &Fixture,
     index: usize,
     owned: &crate::ownership_checking::CompilationUnitOwnership,
+    expected_jump: Option<ExpressionId>,
 ) {
     let source = fixture.source(index);
     let legacy = &owned.owner_observations()[index];
@@ -51,11 +52,28 @@ fn check(
         (observed.statement(), observed.condition(), observed.body()),
         (statement, condition, body)
     );
+    let backedge = if let Some(jump) = expected_jump {
+        let jump = UnitExpressionId::new(source, jump);
+        assert_eq!(observed.continue_boundary(), Some((jump, observed.entry())));
+        assert!(matches!(
+            fixture.parsed[index]
+                .ast()
+                .expressions()
+                .get(jump.expression())
+                .unwrap()
+                .payload(),
+            crate::parser::Expression::Continue { .. }
+        ));
+        Edge::ContinueBackedge(UnitDropPoint::ControlTransfer(jump), condition)
+    } else {
+        assert!(observed.continue_boundary().is_none());
+        Edge::Backedge(UnitDropPoint::AfterStatement(body), condition)
+    };
     assert_eq!(
         observed.edges(),
         &[
             Edge::EnterBody(condition, body),
-            Edge::Backedge(UnitDropPoint::AfterStatement(body), condition),
+            backedge,
             Edge::ConditionFalseExit(condition, UnitDropPoint::LoopExit(statement))
         ]
     );
@@ -169,7 +187,7 @@ fn actual_outer_owner_survives_three_while_boundaries() {
                 let fixture = Fixture::new(&[("root.ko", &text)]);
                 let owned = fixture.shared();
                 assert!(owned.clone().validate().is_ok(), "{text}");
-                check(&fixture, 0, &owned);
+                check(&fixture, 0, &owned, None);
                 let graph = owned.owner_observations()[0]
                     .invariant_loop_observation_v1()
                     .unwrap()
@@ -202,7 +220,6 @@ fn nonempty_loop_rejects_unproved_carriers_and_control_atomically() {
         r#"fun run(flag: Boolean) { val held = "outer"; val second = "second"; while(flag) { val local = "inner" }; val retired = held }"#,
         r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { val local = "inner" }; val retired = held; val extra = "extra" }"#,
         r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { val local = "inner"; break }; val retired = held }"#,
-        r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { val local = "inner"; continue }; val retired = held }"#,
         r#"fun run(flag: Boolean, other: Boolean) { val held = "outer"; while(flag) { val local = "inner"; if(other) {} else {} }; val retired = held }"#,
         r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { while(flag) { val local = "inner" } }; val retired = held }"#,
         r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { val local = "inner" }; while(flag) { val local = "second" }; val retired = held }"#,
@@ -249,7 +266,7 @@ fn invariant_loop_sources_and_analyses_do_not_share_owner_tokens() {
     assert!(owned.clone().validate().is_ok() && again.clone().validate().is_ok());
     assert_eq!(owned.owner_observations().len(), 2);
     for index in 0..2 {
-        check(&fixture, index, &owned);
+        check(&fixture, index, &owned, None);
         let observed = owned.owner_observations()[index]
             .invariant_loop_observation_v1()
             .unwrap();

@@ -21,7 +21,7 @@ impl UnitOwnerLoopBindingV1 {
     }
 }
 
-/// An unchanged outer String owner at three independently observed While boundaries.
+/// An unchanged outer String owner at independently observed While boundaries.
 /// The body transport owns only its fresh local producers. This does not supply outer
 /// suffix events, final consumption, a phi, dynamic instances, or a termination proof.
 #[derive(Clone, Debug)]
@@ -31,6 +31,8 @@ pub struct UnitOwnerInvariantLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) entry: UnitOwnerLoopBindingV1,
     pub(in crate::ownership_checking::compilation_unit) backedge: UnitOwnerLoopBindingV1,
     pub(in crate::ownership_checking::compilation_unit) exit: UnitOwnerLoopBindingV1,
+    pub(in crate::ownership_checking::compilation_unit) continued:
+        Option<(std::sync::Arc<()>, UnitExpressionId, UnitOwnerLoopBindingV1)>,
 }
 impl UnitOwnerInvariantLoopObservationV1 {
     /// Actual While statement.
@@ -53,9 +55,17 @@ impl UnitOwnerInvariantLoopObservationV1 {
     pub fn entry(&self) -> &UnitOwnerLoopBindingV1 {
         &self.entry
     }
-    /// State read after actual body completion and scope cleanup.
+    /// State reread after body completion: normal scope cleanup, or the witnessed
+    /// Continue cleanup followed by the body's actual early return.
     pub fn backedge(&self) -> &UnitOwnerLoopBindingV1 {
         &self.backedge
+    }
+    /// Actual Continue expression and independently read post-jump-cleanup binding.
+    /// Normal body fallthrough has no Continue boundary.
+    pub fn continue_boundary(&self) -> Option<(UnitExpressionId, &UnitOwnerLoopBindingV1)> {
+        self.continued
+            .as_ref()
+            .map(|(_, expression, binding)| (*expression, binding))
     }
     /// State read after actual LoopExit cleanup on the original condition state.
     pub fn exit(&self) -> &UnitOwnerLoopBindingV1 {
@@ -65,14 +75,25 @@ impl UnitOwnerInvariantLoopObservationV1 {
     pub fn body_transport(&self) -> &UnitOwnerValueObservationV1 {
         self.closed.body_transport()
     }
-    /// Entry, normal backedge and condition-false exit; not a finite runtime trace.
+    /// Entry, normal/Continue backedge and condition-false exit, not a runtime trace.
     pub fn edges(&self) -> &[UnitOwnerLoopEdgeV1] {
         self.closed.edges()
     }
     /// Catalog and boundary identity consistency, not a full owner conservation proof.
     pub fn is_consistent(&self) -> bool {
+        let completion = match (self.closed.completion, &self.continued) {
+            (super::LoopBodyCompletion::Fallthrough, None) => true,
+            (super::LoopBodyCompletion::Continue(expected), Some((identity, actual, binding))) => {
+                expected == *actual
+                    && actual.source_unit() == self.statement().source_unit()
+                    && *actual != self.condition()
+                    && std::sync::Arc::ptr_eq(identity, &self.closed.body_identity)
+                    && binding == &self.entry
+            }
+            _ => false,
+        };
         self.closed.is_consistent()
-            && self.closed.completion == super::LoopBodyCompletion::Fallthrough
+            && completion
             && self.inputs.is_consistent()
             && self.inputs.definitions().len() == 1
             && self.inputs.callable() == self.closed.callable

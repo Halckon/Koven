@@ -236,7 +236,11 @@ impl LoopTransaction {
         } else {
             1
         };
-        if (invariant.is_some() && expected != LoopBodyCompletion::Fallthrough)
+        if (invariant.is_some()
+            && !matches!(
+                expected,
+                LoopBodyCompletion::Fallthrough | LoopBodyCompletion::Continue(_)
+            ))
             || parameter_symbols.len() != required_parameters
         {
             return None;
@@ -369,16 +373,23 @@ impl DropPlanner<'_, '_> {
 
     // Invoked only after the real jump's loans, owners and iteration cleanup succeeded.
     fn finish_owner_loop_jump(&mut self, id: ExpressionId, is_continue: bool, state: &ValueState) {
-        if self.owner_loop_jump_supported(id) && empty_boundary(state) {
+        if self.owner_loop_jump_supported(id) {
             let transaction = self.owner_loop.as_mut().expect("checked active loop");
-            let (identity, _) = transaction.active.as_ref().expect("checked body sink");
+            let identity = transaction
+                .active
+                .as_ref()
+                .expect("checked body sink")
+                .0
+                .clone();
             let jump = self.checker.unit_expression(id);
             let completed = if is_continue {
                 LoopBodyCompletion::Continue(jump)
             } else {
                 LoopBodyCompletion::Break(jump)
             };
-            if Some(completed) == transaction.expected_jump() {
+            if Some(completed) == transaction.expected_jump()
+                && transaction.jump_boundary(completed, &identity, state)
+            {
                 if transaction.active_branch.is_some() {
                     transaction.pending_jump = Some((identity.clone(), completed));
                 } else {

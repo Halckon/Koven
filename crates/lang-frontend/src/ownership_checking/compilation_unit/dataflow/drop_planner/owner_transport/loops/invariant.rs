@@ -1,4 +1,4 @@
-//! Retain the real prefix identity, then read three actual nonempty loop states.
+//! Retain real prefix identity and independently read loop and optional Continue states.
 use super::*;
 use crate::ownership_checking::{UnitOwnerLoopBindingV1, UnitOwnerProducerCatalogV1};
 
@@ -9,6 +9,7 @@ pub(super) struct InvariantInput {
     catalog: Option<UnitOwnerProducerCatalogV1>,
     entry: Option<UnitOwnerLoopBindingV1>,
     backedge: Option<UnitOwnerLoopBindingV1>,
+    continued: Option<(std::sync::Arc<()>, UnitExpressionId, UnitOwnerLoopBindingV1)>,
 }
 impl InvariantInput {
     pub(super) fn admit(
@@ -68,6 +69,7 @@ impl InvariantInput {
             catalog: None,
             entry: None,
             backedge: None,
+            continued: None,
         })
     }
 
@@ -150,11 +152,34 @@ impl InvariantInput {
             entry: self.entry.take()?,
             backedge: self.backedge.take()?,
             exit,
+            continued: self.continued.take(),
         };
         observed.is_consistent().then_some(observed)
     }
 }
 impl LoopTransaction {
+    // Called only after the real jump cleanup and precise active-sink/kind checks.
+    pub(super) fn jump_boundary(
+        &mut self,
+        completion: LoopBodyCompletion,
+        identity: &std::sync::Arc<()>,
+        state: &ValueState,
+    ) -> bool {
+        let Some(input) = &mut self.invariant else {
+            return empty_boundary(state);
+        };
+        let LoopBodyCompletion::Continue(jump) = completion else {
+            return false;
+        };
+        if input.continued.is_some() {
+            return false;
+        }
+        let Some(snapshot) = input.snapshot(state) else {
+            return false;
+        };
+        input.continued = Some((identity.clone(), jump, snapshot));
+        true
+    }
     pub(super) fn entry_boundary(&mut self, state: &ValueState) -> bool {
         if let Some(input) = &mut self.invariant {
             input.entry = input.snapshot(state);
