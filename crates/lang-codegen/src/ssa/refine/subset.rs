@@ -48,6 +48,8 @@ struct Checker<'i, 'a> {
     callables: BTreeSet<UnitSymbolId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
+    /// Temporary field parents whose pending loan and cleanup lower together.
+    temporary_field_parents: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
     nullable: bool,
     /// Enclosing `while`/`loop` statements; `break`/`continue` need one.
@@ -84,6 +86,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         known,
         callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
+        temporary_field_parents: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
@@ -238,6 +241,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         known: BTreeSet::new(),
         callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
+        temporary_field_parents: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
@@ -269,6 +273,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         let span = node.span();
         if item.start() <= span.start() && span.end() <= item.end() {
             let id = UnitExpressionId::new(inputs.source_unit, expression);
+            checker.demand_prefix_nullable_arguments(id, node.payload(), &mut demands);
             if let Some(ty) = inputs.typed.expression_type(id) {
                 let ty = match checker.kind(ty) {
                     Some(UnitTypeKind::EnumCase { root, .. }) => *root,

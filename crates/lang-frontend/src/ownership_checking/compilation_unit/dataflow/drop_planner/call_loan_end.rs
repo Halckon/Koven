@@ -58,11 +58,11 @@ impl DropPlanner<'_, '_> {
                         && matches!(loan.target(), UnitLoanTarget::Place(target) if target == &place);
                 }
                 Expression::Member { .. } => {
-                    // Reuse the pending-owner proof: typed Field/Group chain, actual Shared
-                    // Temporary(parent) token, and the complete parent's MoveOnly category.
+                    // The field parent's cleanup obligation is independent of the loan target.
+                    // Only a loan of the actual parent is observed by this field path.
                     return kind == LoanKind::Shared
                         && self
-                            .borrowed_temporary_field_owner(
+                            .call_temporary_field_parent(
                                 loan.call().expression(),
                                 loan.argument().expression(),
                                 super::UnitCallArgumentOwnershipKind::SharedLoan,

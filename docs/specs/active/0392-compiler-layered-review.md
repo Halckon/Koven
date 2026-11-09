@@ -3038,6 +3038,62 @@ SIGABRT，没有析构输出。原生资源套件 18 项及最终加强后的新
 Code CI Evidence 均通过。两端原始日志均核对六条关键回归实际通过，覆盖文件恢复、
 软前缀、操作计数、名义类型压力、实参清理事实及原生退出顺序。Editor lexical 按改动范围跳过。
 
+### R3 复制字段实参的临时父对象
+
+以 `53f1227f` 为基线，`read(Holder(1).number, ...)` 把 Copyable
+字段转换为 `Borrow Int?` 后，Unit 发布包装槽的 Shared loan，却在正常返回
+与后续实参提前退出时都遗漏完整父 owner 的析构。定向回归在修改前实际失败。
+
+调用清理复用 Field/Group 父对象定位和原 pending temporary 机制。
+只有已检查的同调用、同实参 Shared loan 和 nullable 转换合同可以把
+父对象加入调用清理。真实 loan 目标仍是包装槽，字段父观测只消费
+目标确为父对象的 loan。MemoryDocument 与 Rooted 覆盖裸父和分组父、
+正常返回、`return`、`break`、`continue` 及 Abort 不析构。
+独立复核额外验证混合精确/复制实参按完成顺序逆序清理，未求值的父不登记。
+
+最终前端单元及三组集成共 895 项通过，零失败、忽略或过滤。前端严格
+Clippy 通过。旧 Single 两种字段参数均缺少临时父支持，单列为旧入口
+能力边界。Unit 清理事实与后端验收分别记录。
+
+### R4 临时父字段的借用与原生清理
+
+以 `b9672e4c` 为基线。精确 Borrow 和 nullable 复制的公共检查通过，
+原生构建报 `UnsupportedNode`。已有父析构事实因 borrowed temporary
+准入限制无法进入 Refine，普通调用与借用结果调用也需要同一字段处理。
+
+准入和构建共同核对 source-qualified 调用、实参、字段链及父清理。
+精确路径保留实际字段 loan；nullable 路径读取 Copyable 字段，
+结束整条字段 loan 链，再借用新的包装槽。分组父保留原清理身份。
+正常返回与提前退出先结束活动 loan，再消费前端的父析构计划。
+借用结果调用的辅助字段只由内层调用清理，真正来源继续交付给外层。
+
+最终 SSA 借用、资源析构、Range 调用前缀和 Refine 路由四组共 93 项
+通过，零失败或忽略。SSA 直接核对嵌套 inline 字段的真实 loan、
+子到父结束顺序，以及包装值到实际调用槽的关联。六组公开程序在
+单文件和项目入口均构建并执行，覆盖正常返回、`return`、`break`、
+`continue` 及具名辅助参数。严格 workspace Clippy、格式、尺寸、
+文档及 CLI build 通过。独立复核覆盖准入和构建接线及清理边。
+
+### R4 无分派调用的已完成前缀
+
+以 `736a49ed` 为基线，调用的后继实参必然 `return` 或 Abort 时，
+公开检查接受，原生可因缺少 nullable 参数的 SSA 类型报 `MissingFact`。
+无 callee 实例时，已完成的 Borrow/Value 实参仍按已选参数类型求值。
+Refine 只补这些实际前缀实参的 nullable 类型需求，未求值后缀
+不引入参数 ABI 类型。SSA 回归核对前缀包装、callee 实例缺席及
+后缀 Boolean nullable 类型缺席。
+
+临时字段的已完成前缀以同源 loan 和无分派事实进入 Refine。
+Return 仍消费前端父析构，Abort 允许无析构事实。独立复核确认
+普通返回仍由 SSA verifier 拒绝残存 MoveOnly owner。原生回归实际
+对照精确字段、nullable 字段，以及 Return 与 Abort 的构造、退出和
+析构行为。
+
+最终 SSA 借用、调用前缀及 Refine 路由集合分别通过 7、55 和 41 项，
+零失败或忽略。四组公开程序在单文件和项目入口均实际构建、执行，
+核对正常退出、Abort 信号和资源输出。严格 workspace Clippy、
+CLI build、格式、文档及尺寸检查通过。
+
 ## 117. R0/R3 二元操作结束与重绑后的退出析构
 
 以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else
@@ -4577,3 +4633,24 @@ nullable 存储或 `null` 后可运行。新增原生回归在修改前实际失
 `Borrow Int` 会发布 backing owner 的 CallReturn drop；转换为
 `Borrow Int?` 时没有该事实。两种匿名投影在基线原生路径均报
 `UnsupportedNode`，该资源边另行复审。
+
+## 185. R3/R4 嵌套 nullable 借用批次合并验收
+
+[PR #401](https://github.com/Halckon/Koven/pull/401) 的 head `03b885ce`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42695805642)
+通过 15 个作业。两宿主分别执行并通过本批 9 项指定回归。
+Editor lexical 按范围跳过，macOS 的既有 LLDB 用例因 debugserver
+权限忽略，§175 另有前一代码树的本机运行证据。
+
+两端预览生产、独立消费清单与归档实算哈希匹配，各 12 项命令、
+哨兵及清理通过。基线 `53f1227f`、合成提交 `eb5f8eb8`、实际合入
+`1af615f0`，合成与实际合入树均为
+`7f7508857236850ccbc0b8ee18a983ed2cfca0f8`，无未决审阅线程。
+[#400 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42694684754)
+已成功，另已启动 [#401 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42701685162)。
+
+下一批临时字段及无分派前缀的主干合流树为
+`e4e9944c1380a0802bddb39bb70205910da40dda`，与隔离预演一致。
+合流后复跑 SSA 借用、临时字段、嵌套 nullable 和标量前缀，分别
+通过 8、2、4 和 1 项，零失败或忽略。严格 workspace Clippy 通过。
+早一预演另核对 131 项前端合同和两组组合程序的双 CLI 入口实跑。
