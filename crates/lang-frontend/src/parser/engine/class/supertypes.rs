@@ -83,7 +83,17 @@ impl Parser<'_> {
                     let (raw, current) = self
                         .significant(0)
                         .ok_or(ParserInternalError::InvalidLexemeStream)?;
-                    if !self.at_delegation_boundary(raw, current, owner, false)? {
+                    let lambda_suffix = matches!(target, NameMarker::Present(_))
+                        && matches!(
+                            current.kind(),
+                            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+                        )
+                        && !self.gap_has_line_break(
+                            self.previous_significant_end(),
+                            current.span().start(),
+                        )?
+                        && self.delegation_lambda_closer(raw)?.is_some();
+                    if lambda_suffix || !self.at_delegation_boundary(raw, current, owner, false)? {
                         let poison = self.is_supertype_suffix_poison(raw, current);
                         let invalid_target = matches!(target, NameMarker::Error(_));
                         let recover_suffix = poison || invalid_target;
@@ -315,6 +325,39 @@ impl Parser<'_> {
             self.index = closer + 1;
         }
         Ok(())
+    }
+
+    pub(in crate::parser::engine) fn delegation_lambda_closer(
+        &self,
+        raw: usize,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        if !matches!(
+            self.lambda_headers.query(raw)?,
+            LambdaHeaderTrial::Header { .. }
+        ) {
+            return Ok(None);
+        }
+        // Require a header continuation before spending a brace that might close
+        // an enclosing classifier in incomplete source.
+        Ok(self
+            .lexical_recoveries
+            .angle_group_closer(self.lexed, raw)
+            .filter(|closer| {
+                self.lexed.lexemes()[closer + 1..]
+                    .iter()
+                    .find(|lexeme| {
+                        #[cfg(test)]
+                        self.significant_raw_visits
+                            .set(self.significant_raw_visits.get() + 1);
+                        !matches!(lexeme.kind(), LexemeKind::Trivia(_))
+                    })
+                    .is_some_and(|lexeme| {
+                        matches!(
+                            lexeme.kind(),
+                            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::LeftBrace))
+                        )
+                    })
+            }))
     }
 
     fn consume_closed_supertype_group(&mut self) -> Result<Option<Span>, ParserInternalError> {
