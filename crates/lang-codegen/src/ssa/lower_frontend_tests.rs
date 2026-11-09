@@ -14,6 +14,9 @@ mod resource_deinit_tests;
 #[path = "lower_frontend_return_tests.rs"]
 mod return_control_tests;
 
+#[path = "lower_frontend_root_boundary_tests.rs"]
+mod root_boundaries;
+
 use lang_frontend::{
     lexer::lex,
     name_resolution::{DeclarationId, NameResolution, SourceUnitKey, SymbolKind, resolve_names},
@@ -187,48 +190,13 @@ fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
 
 #[test]
 fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
-    let analysis = analyze(
+    root_boundaries::assert_unused_declarations(
         "public value class Pair<A, B>(val first: A, val second: B)\n\
          class Holder(val item: Int)\n\
          interface Marker\n\
          enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
          fun entry(): Unit {}",
     );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-
-    let lower = || {
-        lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .expect("declarative type roots have no module initialization action")
-    };
-    let program = lower();
-    let repeated = lower();
-    let ssa = render_program(&program);
-    assert_text_eq!(ssa, render_program(&repeated));
-    assert_eq_diagnostic!(ssa.matches("func \"").count(), 1, "{ssa}");
-    assert_diagnostic!(ssa.contains("func \"entry\""), "{ssa}");
-    for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
-        assert_diagnostic!(!ssa.contains(declaration), "{ssa}");
-    }
-
-    let llvm = render_verified_program(&program).expect("declarative roots must reach LLVM");
-    assert_eq_diagnostic!(llvm.matches("define internal").count(), 1, "{llvm}");
-    for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
-        assert_diagnostic!(!llvm.contains(declaration), "{llvm}");
-    }
-
     {
         let rejected = analyze("val state = 1\nfun entry(): Unit {}");
         assert!(rejected.names.diagnostics().is_empty());

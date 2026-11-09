@@ -7220,3 +7220,36 @@ Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、
 及独立第五份entry联合使用，不证明变化owner、一般header/exit phi、动态多实例或Phase 4。
 main/#390/#398及本地旁线收尾未变。本Spec与D10/E2仍in-progress；仅本地分步提交，
 不推送、不改PR、不合main，保全旧链和oracle。当前事实见[后缀消费](../../architecture/unit-invariant-loop-suffix.md)。
+
+
+### 声明根 codegen 消费者迁移（2026-11-09）
+
+从 main `a4b72d350f9616115a9d5fbed13ca761828ba728` 的独立分支实施，仅迁移
+`declarative_type_roots_do_not_enter_the_scalar_instance_graph` 中的首个正例。
+原182字节源码保留四类未使用声明与唯一entry；本测试及相邻诊断测试的9份Koven输入
+逐字核对相同。复用现有strict UnitSource，不改生产实现、共享harness或入口API。
+
+原SSA确定性、唯一函数、LLVM唯一internal定义及四个声明名不出现的断言保留。
+Unit采用真实entry的declaration Span取代Legacy显示名；额外锁单MemoryDocument、5个根、
+单module、空运行时types、无初始化/清理指令和空Return，重复SSA与LLVM均逐字相等。
+该文件真实Legacy `analyze` 调用20→19，`lower_scalar_file` 调用21→20，净退休1个消费者；
+不把函数定义或`UnitSource::analyze`文本命中计作Legacy调用，也不累计统一批次已有迁移。
+
+试迁前实际运行原两项exact并记录原错误。numeric when在Legacy是UnsupportedNode/
+`input` 37..42，而Unit返回成功；Elvis两侧均拒绝，但Span由整函数0..41变为表达式31..41。
+两次试迁的断言失败不计通过，最终完整恢复原诊断/unsupported测试，不修改期待换绿。
+全局val拒绝、nominal多根的构造/分配/drop及LLVM malloc/free、无retain/clone，泛型跨根
+复用与递归身份、其余旧清理见证均原样保留，不宣称上述边界已退休。
+
+| 验收项 | codegen `--lib` exact目标或命令 | 本地实际结果 |
+|---|---|---|
+| 原完整测试与拒绝邻控 | `declarative_type_roots_do_not_enter_the_scalar_instance_graph`、`diagnostics_and_unsupported_bodies_fail_without_partial_programs` | 2项通过 |
+| 原Unit及多根保全邻控 | `lowers_real_scalar_expression_functions_through_verified_ssa`、`lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity`、`generic_overloads_with_the_same_type_arguments_keep_distinct_targets`、`non_null_assertion_does_not_register_unreachable_inline_types` | 4项通过 |
+| 工程门禁 | codegen all-targets Clippy `-D warnings`、fmt、docs、尺寸与diff | 全通过；863 Markdown、2235 Rust，37项历史超长额度不增 |
+
+测试均用完整`ssa::lower_frontend_tests::`前缀和`cargo test --locked -p lang-codegen --lib ... -- --exact`。
+合计6项不同最终测试，基线与重复运行不累加。Mac AArch64/Rust1.96.0/LLVM21.1.8、默认debug、
+独占本树target串行；进程枚举被系统拒绝，未据此声称全机无并发。原日志保留在Git忽略的
+`.local-artifacts/`。未执行整个mixed套件、codegen/workspace全量、native进程、Linux、
+故障/计数/sanitizer或精确新头CI。独立代码复审无阻断；仅交统一合批，
+不新开PR或修改正在验收的远端头，SPEC-0341和D10/E2仍in-progress。
