@@ -400,3 +400,94 @@ fn inout_receiver_reborrow_tables_keep_same_ast_indices_source_qualified() {
         );
     }
 }
+
+#[test]
+fn real_rejections_clear_nonempty_this_receiver_reborrow_tables() {
+    for (opener, closer, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next; fun run(flag: Boolean): Unit {{ {opener} this.touch(\"ready\", {next}) {closer} }} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn this_reborrow_ends_keep_same_ast_indices_and_different_nominal_owners() {
+    for operand in ["", "((this))."] {
+        for next in ["0", "return"] {
+            let left = format!(
+                "class Left {{ fun read(own next: Int): Int = next; fun run(): Unit {{ {operand}read({next}) }} }}"
+            );
+            let right = format!(
+                "class Rght {{ fun read(own next: Int): Int = next; fun run(): Unit {{ {operand}read({next}) }} }}"
+            );
+            let accepted = Fixture::new(&[("a.ko", &left), ("b.ko", &right)]);
+            let shared = accepted.shared();
+            assert!(
+                shared.diagnostics().is_empty(),
+                "{:?}",
+                shared.diagnostics()
+            );
+            assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+            shared.clone().validate().unwrap();
+            let receivers: Vec<_> = shared
+                .receiver_call_return_ends()
+                .iter()
+                .map(|event| event.receiver())
+                .chain(
+                    shared
+                        .receiver_call_prefix_ends()
+                        .iter()
+                        .map(|event| event.receiver()),
+                )
+                .collect();
+            let [first, second] = receivers.as_slice() else {
+                panic!("one real end per source")
+            };
+            assert_eq!(first.call().expression(), second.call().expression());
+            assert_eq!(first.call().source_unit(), accepted.source(0));
+            assert_eq!(second.call().source_unit(), accepted.source(1));
+            assert_ne!(first.call(), second.call());
+            assert!(matches!(
+                first.target(),
+                crate::ownership_checking::UnitReceiverOwnershipTarget::This(_)
+            ));
+            assert!(matches!(
+                second.target(),
+                crate::ownership_checking::UnitReceiverOwnershipTarget::This(_)
+            ));
+            assert_ne!(first.target(), second.target());
+            assert_eq!(
+                shared.receiver_call_return_ends().len(),
+                if next == "0" { 2 } else { 0 }
+            );
+            assert_eq!(
+                shared.receiver_call_prefix_ends().len(),
+                if next == "return" { 2 } else { 0 }
+            );
+            let raw = accepted.dataflow(&accepted.parts(&shared));
+            assert_eq!(
+                raw.receiver_call_return_ends,
+                shared.receiver_call_return_ends()
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends,
+                shared.receiver_call_prefix_ends()
+            );
+        }
+    }
+}

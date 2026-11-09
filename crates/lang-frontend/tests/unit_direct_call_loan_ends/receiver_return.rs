@@ -244,8 +244,6 @@ fn normal_completion_keeps_all_existing_receiver_provenance_boundaries() {
         format!("{NODE}class Holder(val node: Node)\nfun run(own holder: Holder): Unit {{ holder.node.touch(\"field\", 0) }}"),
         format!("{NODE}fun run(own nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", 0) }} }}"),
         format!("{NODE}fun alias(source: Node): borrow Node from source = source\nfun run(own node: Node): Unit {{ borrow val borrowed = alias(node); borrowed.touch(\"binding\", 0) }}"),
-        "class Node { fun touch(text: String, own next: Int): Int = next; fun run(): Unit { touch(\"implicit\", 0) } }".into(),
-        "class Node { fun touch(text: String, own next: Int): Int = next; fun run(): Unit { this.touch(\"this\", 0) } }".into(),
         "class Node { inout fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { var node = Node(); node.touch(\"reservation\", 0) }".into(),
         "class Node { fun view(source: Node): borrow Node from source = source }\nfun run(own node: Node, source: Node): Unit { borrow val unused = node.view(source) }".into(),
     ] {

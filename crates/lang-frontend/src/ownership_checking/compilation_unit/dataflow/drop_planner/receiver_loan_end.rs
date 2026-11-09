@@ -9,12 +9,12 @@ use crate::{
         UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
     },
     parser::Expression,
-    type_checking::{CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget},
+    type_checking::{CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget, UnitTypeKind},
 };
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
-    fn observes_root_receiver(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
+    fn observes_bounded_receiver(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
         let Some(call) = self.checker.typed.call(receiver.call()) else {
             return false;
         };
@@ -26,6 +26,30 @@ impl DropPlanner<'_, '_> {
             || call.result_source() != CallableResultSource::Owned
         {
             return false;
+        }
+        // This uses the already checked nominal identity, not the planner's
+        // current receiver context (prefix observations are collected later).
+        if let UnitReceiverOwnershipTarget::This(owner) = receiver.target() {
+            let concrete = matches!(
+                self.checker.typed.types().get(receiver.receiver_type()),
+                Some(UnitTypeKind::Nominal { declaration, .. }) if declaration == owner
+            );
+            let same_source = match receiver.source() {
+                UnitCallReceiverOrigin::ImplicitThis(source) => source == *owner,
+                UnitCallReceiverOrigin::Expression(source) => {
+                    source.source_unit() == receiver.call().source_unit()
+                        && self
+                            .checker
+                            .expression_is_this(source.expression())
+                            .unwrap_or(false)
+                }
+            };
+            let provider = self.checker.iterations.values().any(|plan| {
+                matches!(plan.source(), Some(UnitLoanTarget::This(source)) if source == owner)
+            }) || self.checker.map_iterations.values().any(|plan| {
+                matches!(plan.source(), Some(UnitLoanTarget::This(source)) if source == owner)
+            });
+            return concrete && same_source && !provider;
         }
         let UnitCallReceiverOrigin::Expression(operand) = receiver.source() else {
             return false;
@@ -100,7 +124,7 @@ impl DropPlanner<'_, '_> {
             })
         {
             if let Action::EndReceiverLoan(receiver) = action
-                && self.observes_root_receiver(&receiver)
+                && self.observes_bounded_receiver(&receiver)
             {
                 self.receiver_call_return_ends
                     .push(UnitReceiverCallReturnEndFact { receiver });
@@ -137,7 +161,7 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *drops += 1,
                 Action::EndCallLoan(_) => *calls += 1,
                 Action::EndReceiverLoan(receiver) => {
-                    if self.observes_root_receiver(receiver) {
+                    if self.observes_bounded_receiver(receiver) {
                         ends.push(UnitReceiverCallPrefixEndFact {
                             receiver: receiver.clone(),
                             point: point.into_unit(self.checker.source_unit),
