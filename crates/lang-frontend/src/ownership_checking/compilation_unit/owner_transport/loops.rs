@@ -244,7 +244,7 @@ impl UnitOwnerObservation {
     /// Separate sealed loop capability; legacy status/events and Choice remain unchanged.
     pub fn loop_observation_v1(&self) -> Option<&UnitOwnerLoopObservationV1> {
         self.loop_value.as_deref().filter(|value| {
-            matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
+            self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
                 point: UnitDropPoint::AfterStatement(statement), reason: super::UnitOwnerUnsupportedReason::Syntax
             } if statement == value.statement)
                 && value.callable == self.callable
@@ -266,6 +266,7 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
     if !complete {
         for observation in &mut observations {
             observation.loop_value = None;
+            observation.invariant_loop_value = None;
         }
     }
     observations

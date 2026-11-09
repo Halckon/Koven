@@ -1,0 +1,189 @@
+//! Retain the real prefix identity, then read three actual nonempty loop states.
+use super::*;
+use crate::ownership_checking::{UnitOwnerLoopBindingV1, UnitOwnerProducerCatalogV1};
+
+pub(super) struct InvariantInput {
+    symbol: UnitSymbolId,
+    initializer: ExpressionId,
+    expected: Option<OwnedValue>,
+    catalog: Option<UnitOwnerProducerCatalogV1>,
+    entry: Option<UnitOwnerLoopBindingV1>,
+    backedge: Option<UnitOwnerLoopBindingV1>,
+}
+impl InvariantInput {
+    pub(super) fn admit(
+        checker: &Checker<'_>,
+        prefix: StatementId,
+        suffix: StatementId,
+    ) -> Option<Self> {
+        let ast = checker.parsed.ast();
+        let variable = |statement| {
+            let Statement::LocalVariable { declaration } =
+                ast.statements().get(statement).ok()?.payload()
+            else {
+                return None;
+            };
+            let Item::Variable {
+                name,
+                kind: VariableKind::Val,
+                initializer,
+                ..
+            } = ast.items().get(*declaration).ok()?.payload()
+            else {
+                return None;
+            };
+            let symbol = *checker.marker_symbol(*name)?;
+            (checker
+                .typed
+                .symbol_type(symbol)
+                .and_then(|ty| checker.typed.types().get(ty))
+                == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                && checker.is_move_only_variable(symbol)
+                && exact_type(checker, *initializer, BuiltinType::String))
+            .then_some((symbol, *initializer))
+        };
+        let (symbol, initializer) = variable(prefix)?;
+        let Expression::String { parts } = ast.expressions().get(initializer).ok()?.payload()
+        else {
+            return None;
+        };
+        if parts
+            .iter()
+            .any(|part| matches!(part, StringPart::Interpolation { .. }))
+        {
+            return None;
+        }
+        let (retired, use_expression) = variable(suffix)?;
+        let use_node = ast.expressions().get(use_expression).ok()?;
+        if retired == symbol
+            || !matches!(use_node.payload(), Expression::Name)
+            || checker.reference_symbol(use_node.span()) != Some(symbol)
+        {
+            return None;
+        }
+        Some(Self {
+            symbol,
+            initializer,
+            expected: None,
+            catalog: None,
+            entry: None,
+            backedge: None,
+        })
+    }
+
+    // Before the ordinary While rejection clears its prefix, require the actual Result/Bind.
+    fn capture(
+        &mut self,
+        checker: &Checker<'_>,
+        observation: &UnitOwnerObservation,
+        state: &ValueState,
+        scope: usize,
+    ) {
+        let Some([value]) = boundary_values(state) else {
+            return;
+        };
+        let Some(owner) = &value.owner else {
+            return;
+        };
+        let initializer = checker.unit_expression(self.initializer);
+        let [
+            UnitOwnerTransportEvent::Result {
+                expression,
+                owner: result,
+            },
+            UnitOwnerTransportEvent::Binding {
+                symbol,
+                initializer: bound,
+                owner: binding,
+            },
+        ] = observation.events.as_slice()
+        else {
+            return;
+        };
+        if value.symbol != self.symbol
+            || value.scope_depth != scope
+            || *expression != initializer
+            || *bound != initializer
+            || *symbol != self.symbol
+            || result != owner
+            || binding != owner
+        {
+            return;
+        }
+        let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
+            return;
+        };
+        if catalog.definitions().len() != 1
+            || catalog.definition(owner.clone()).is_none_or(|definition| {
+                definition.origin() != UnitOwnerOrigin::String(initializer)
+            })
+        {
+            return;
+        }
+        self.expected = Some(value.clone());
+        self.catalog = Some(catalog);
+    }
+
+    // Full OwnedValue equality includes origin, declaration and scope, not just symbol/token.
+    fn snapshot(&self, state: &ValueState) -> Option<UnitOwnerLoopBindingV1> {
+        let [value] = boundary_values(state)? else {
+            return None;
+        };
+        if Some(value) != self.expected.as_ref() {
+            return None;
+        }
+        Some(UnitOwnerLoopBindingV1 {
+            symbol: value.symbol,
+            owner: value.owner.clone()?,
+        })
+    }
+
+    pub(super) fn finish(
+        &mut self,
+        closed: UnitOwnerLoopObservationV1,
+        state: &ValueState,
+    ) -> Option<UnitOwnerInvariantLoopObservationV1> {
+        let exit = self.snapshot(state)?;
+        let observed = UnitOwnerInvariantLoopObservationV1 {
+            closed,
+            inputs: self.catalog.take()?,
+            entry: self.entry.take()?,
+            backedge: self.backedge.take()?,
+            exit,
+        };
+        observed.is_consistent().then_some(observed)
+    }
+}
+impl LoopTransaction {
+    pub(super) fn entry_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(input) = &mut self.invariant {
+            input.entry = input.snapshot(state);
+            input.entry.is_some()
+        } else {
+            empty_boundary(state)
+        }
+    }
+    pub(super) fn backedge_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(input) = &mut self.invariant {
+            input.backedge = input.snapshot(state);
+            input.backedge.is_some()
+        } else {
+            empty_boundary(state)
+        }
+    }
+}
+impl DropPlanner<'_, '_> {
+    pub(in super::super::super) fn prepare_owner_loop_input(
+        &mut self,
+        id: StatementId,
+        state: &ValueState,
+    ) {
+        if let (Some(transaction), Some(observation)) =
+            (&mut self.owner_loop, &self.owner_observation)
+            && transaction.statement == id
+            && let Some(input) = &mut transaction.invariant
+        {
+            input.capture(self.checker, observation, state, self.scope_depth);
+        }
+    }
+}

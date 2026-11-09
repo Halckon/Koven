@@ -1,10 +1,11 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 mod conditional;
+mod invariant;
 use super::*;
-use crate::ownership_checking::UnitOwnerLoopObservationV1;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     LoopBodyCompletion, LoopBranchCompletion, LoopBranchExit,
 };
+use crate::ownership_checking::{UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopObservationV1};
 use crate::parser::VariableKind;
 use std::collections::BTreeSet;
 
@@ -22,6 +23,8 @@ pub(in super::super) struct LoopTransaction {
     pending_jump: Option<(std::sync::Arc<()>, LoopBodyCompletion)>,
     branch_completed: [bool; 2],
     result: Option<UnitOwnerLoopObservationV1>,
+    invariant: Option<invariant::InvariantInput>,
+    invariant_result: Option<UnitOwnerInvariantLoopObservationV1>,
 }
 
 fn exact_type(checker: &Checker<'_>, expression: ExpressionId, builtin: BuiltinType) -> bool {
@@ -149,12 +152,17 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let [statement] = elements.as_slice() else {
-            return None;
+        let (statement, invariant) = match elements.as_slice() {
+            [statement] => (*statement, None),
+            [prefix, statement, suffix] => (
+                *statement,
+                Some(invariant::InvariantInput::admit(checker, *prefix, *suffix)?),
+            ),
+            _ => return None,
         };
         let Statement::While {
             condition, body, ..
-        } = ast.statements().get(*statement).ok()?.payload()
+        } = ast.statements().get(statement).ok()?.payload()
         else {
             return None;
         };
@@ -228,11 +236,13 @@ impl LoopTransaction {
         } else {
             1
         };
-        if parameter_symbols.len() != required_parameters {
+        if (invariant.is_some() && expected != LoopBodyCompletion::Fallthrough)
+            || parameter_symbols.len() != required_parameters
+        {
             return None;
         }
         Some(Self {
-            statement: *statement,
+            statement,
             condition: *condition,
             body: *body,
             identity,
@@ -245,16 +255,23 @@ impl LoopTransaction {
             pending_jump: None,
             branch_completed: [false; 2],
             result: None,
+            invariant,
+            invariant_result: None,
         })
     }
 
-    pub(in super::super) fn finish(self) -> Option<UnitOwnerLoopObservationV1> {
-        self.result
+    pub(in super::super) fn finish(
+        self,
+    ) -> (
+        Option<UnitOwnerLoopObservationV1>,
+        Option<UnitOwnerInvariantLoopObservationV1>,
+    ) {
+        (self.result, self.invariant_result)
     }
 }
 
 // Exhaustive destructuring makes new planner slots require an explicit boundary decision.
-fn empty_boundary(state: &ValueState) -> bool {
+fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
     let ValueState {
         lambda,
         borrow_bindings,
@@ -274,7 +291,7 @@ fn empty_boundary(state: &ValueState) -> bool {
         closure_asap,
         this,
     } = state;
-    lambda.is_none()
+    (lambda.is_none()
         && this.is_none()
         && borrow_bindings.is_empty()
         && pending_borrow_results.is_empty()
@@ -285,12 +302,16 @@ fn empty_boundary(state: &ValueState) -> bool {
         && borrow_forward_transports.is_empty()
         && iterations.is_empty()
         && pending_temporaries.is_empty()
-        && values.is_empty()
         && replacements.is_empty()
         && pending_borrows.is_empty()
         && pending_capture_borrows.is_empty()
         && closures.is_empty()
-        && closure_asap.is_empty()
+        && closure_asap.is_empty())
+    .then_some(values)
+}
+
+fn empty_boundary(state: &ValueState) -> bool {
+    boundary_values(state).is_some_and(<[OwnedValue]>::is_empty)
 }
 
 impl DropPlanner<'_, '_> {
@@ -380,12 +401,13 @@ impl DropPlanner<'_, '_> {
         let collecting = self.owner_observation_enabled
             && self.loop_boundaries.is_empty()
             && self.owner_branch_depth == 0
-            && empty_boundary(state)
-            && self.owner_loop.as_ref().is_some_and(|transaction| {
+            && self.owner_loop.as_mut().is_some_and(|transaction| {
                 transaction.statement == id
                     && transaction.condition == condition
                     && transaction.body == body
                     && transaction.result.is_none()
+                    && transaction.invariant_result.is_none()
+                    && transaction.entry_boundary(state)
             });
         let mut body_transport = None;
         if self.checker.ordinary_condition_outcomes(condition).0 {
@@ -412,6 +434,7 @@ impl DropPlanner<'_, '_> {
                         events: Vec::new(),
                         choice_value: None,
                         loop_value: None,
+                        invariant_loop_value: None,
                     }),
                     self.owner_choice.take(),
                     self.owner_branch_depth,
@@ -435,7 +458,7 @@ impl DropPlanner<'_, '_> {
                 transaction.active_branch = None;
                 transaction.pending_jump = None;
                 transaction.branch_completed = [false; 2];
-                if empty_boundary(&body_state)
+                if transaction.backedge_boundary(&body_state)
                     && let Some(collected) = collected
                 {
                     let completion = match (&continued, transaction.expected, witnessed) {
@@ -466,7 +489,6 @@ impl DropPlanner<'_, '_> {
         }
         self.drop_loop_exit(id, state);
         if collecting
-            && empty_boundary(state)
             && let (Some(transaction), Some((transport, completion))) =
                 (&mut self.owner_loop, body_transport)
         {
@@ -485,7 +507,11 @@ impl DropPlanner<'_, '_> {
                 edges: completion.edges(statement, condition, body),
             };
             if value.is_consistent() {
-                transaction.result = Some(value);
+                if let Some(invariant) = &mut transaction.invariant {
+                    transaction.invariant_result = invariant.finish(value, state);
+                } else if empty_boundary(state) {
+                    transaction.result = Some(value);
+                }
             }
         }
         Ok(true)

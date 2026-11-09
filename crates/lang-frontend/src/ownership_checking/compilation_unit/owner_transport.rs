@@ -244,7 +244,8 @@ pub enum UnitOwnerTransportEvent {
     },
 }
 
-/// Whole-callable atomic observation. Unsupported observations expose no prefix facts.
+/// Whole-callable atomic legacy observation; unsupported definitions/events are empty.
+/// Separately sealed capabilities have their own bounded contracts.
 /// Equality compares complete structural facts across analyses, not token interchangeability.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerObservation {
@@ -255,6 +256,7 @@ pub struct UnitOwnerObservation {
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
     pub(super) loop_value: Option<Box<UnitOwnerLoopObservationV1>>,
+    pub(super) invariant_loop_value: Option<Box<UnitOwnerInvariantLoopObservationV1>>,
 }
 impl UnitOwnerObservation {
     /// Source-qualified callable.

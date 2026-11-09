@@ -462,7 +462,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         id: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        self.check_owner_statement(id)?;
+        self.check_owner_statement(id, state)?;
         match self
             .checker
             .parsed

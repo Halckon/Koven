@@ -86,6 +86,15 @@ impl UnitOwnerInvariantLoopObservationV1 {
 impl UnitOwnerObservation {
     /// Separate nonempty boundary capability. Legacy and empty-input loop APIs stay unchanged.
     pub fn invariant_loop_observation_v1(&self) -> Option<&UnitOwnerInvariantLoopObservationV1> {
-        None
+        self.invariant_loop_value.as_deref().filter(|value| {
+            self.loop_value.is_none()
+                && matches!(self.status, super::super::UnitOwnerObservationStatus::Unsupported {
+                    point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),
+                    reason: super::super::UnitOwnerUnsupportedReason::Syntax
+                } if statement == value.statement())
+                && value.closed.callable == self.callable
+                && std::sync::Arc::ptr_eq(&value.closed.identity, &self.identity)
+                && value.is_consistent()
+        })
     }
 }
