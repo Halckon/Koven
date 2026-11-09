@@ -3181,3 +3181,14 @@ canonical nullable 两组实测 typed/owned entry 完成性分别对齐为 `[fal
 兼容 lowering 仍按既有能力边界审查。
 后端 nullable when 定向 18 项通过，零失败与忽略。旧大文件拆出 selector 检查和
 私有边归并，Rust 尺寸检查通过。
+
+## 128. R0/R3 循环资源待定的 Unit 消费者
+
+原循环夹具逐字保留。迁移前原 Single/Rooted 断言实跑通过，另以已构建的 Unit
+前端直接验证 MemoryDocument 与 Rooted 都发布 ResourceLifetime。迁移后循环夹具
+只走这两种 Unit，分别要求无诊断、ResourceLifetime、无 drop，并拒绝所有权准入。
+相邻条件资源差异见证仍核对 Single 不待定，同时将 Unit 观察补为两入口。
+
+原 readonly 否决沿用相同阶段和空 drop 断言。独立复核指出验证需消费 ownership
+产物，修为回调接收产物本身。最终 `ownership_resource_deinit` 31 项通过，
+零失败与忽略。
