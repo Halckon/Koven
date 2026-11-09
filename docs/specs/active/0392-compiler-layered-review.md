@@ -4905,3 +4905,25 @@ key 类型错误优先于待定恢复。外层期望类型的硬错也保留，�
 核对重查与缓存、局部诊断的精确位置、透明分组和实际内层写回，
 未发现阻断。另实跑确认暂定值经 `!!` 或 Elvis 包装后仍可使外层
 普通调用发布描述符，列为独立后续复审。
+
+## 197. R1 调用恢复合入与 R2 Single 批次合流
+
+[PR #404](https://github.com/Halckon/Koven/pull/404) 的 head `1c7fc66e`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42715152484)
+验收。双宿主各实际通过 9 项指定 Parser 回归、严格 Clippy 和
+最终门禁。Editor lexical 按范围跳过，macOS 既有 LLDB 用例因
+debugserver 权限忽略。六份预览产物独立下载校验，双宿主各 12 项
+独立消费、哨兵和清理通过，生产与消费清单的归档哈希均与实算一致。
+无未决审阅线程。基线 `c97c5a9b`、合成提交 `1434b4da`，实际合入
+`6ce85b07`。合成与合入树均为 `8bd014eba55b7feda60a8759e57e36ca5ec0811b`。
+[合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42720825998)
+已启动，双宿主 Workspace Check 与 Clippy 已通过，定向运行中。
+
+§193–196 的四个类型修复在 `6ce85b07` 合流为 `f6107a29`，
+测试树为 `af9d747458b0c0096bd6d4905c498d5cbdcdc40c`。合流前后类型源码
+与直接回归逐字相同，Parser 与该主干一致，双方历史账本完整保留。
+合流树 frontend 184 个目标共 3057 项通过，含 12 项文档测试，
+零失败、忽略或过滤。严格 workspace Clippy、CLI 构建、文档门禁
+通过。CLI 单文件和项目各实跑拒绝调用、有效写回、拒绝下标 key
+和拒绝 `.get` key 四组，均仅在原实参或应失效的后继读取报一条
+L0084。公共入口使用 Unit，旧 Single 事实由直接回归核对。
