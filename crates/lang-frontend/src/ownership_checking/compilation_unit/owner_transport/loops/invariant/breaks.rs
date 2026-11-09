@@ -13,6 +13,12 @@ pub struct UnitOwnerInvariantBreakObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) evidence: InvariantLoopBoundaries,
 }
 impl UnitOwnerInvariantBreakObservationV1 {
+    /// Actual prefix and post-loop consumption, together with this unchanged Break
+    /// and condition-false exit evidence. Not a general exit phi or runtime trace.
+    pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
+        None
+    }
+
     /// Actual While statement targeted by the terminal Break.
     pub fn statement(&self) -> UnitStatementId {
         self.evidence.closed.statement()

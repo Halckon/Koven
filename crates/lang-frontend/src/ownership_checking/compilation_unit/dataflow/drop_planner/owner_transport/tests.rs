@@ -21,6 +21,7 @@ mod closed_while_fallthrough;
 mod combination;
 mod control_tail;
 mod invariant_break;
+mod invariant_break_suffix;
 mod invariant_continue;
 mod invariant_mixed_join;
 mod invariant_normal_join;
