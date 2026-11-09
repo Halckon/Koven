@@ -4494,3 +4494,34 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+
+
+## 未声明 component 的 final 消费者迁移（2026-11-09）
+
+独立分支 `fix/spec-0341-structural-consumers` 基于 main `e1b0c2dc`，代码提交
+`4f59b9bd`。本次 fetch 的远端引用中，目标文件没有未合入提交；不叠加已发布的
+Choice、借用、类型、容器 signature 或 branch join 候选。
+
+只迁移 `value_class_does_not_supply_an_undeclared_component_method` 的一份原源码。
+先在同一 SourceMap/AST 上临时用完整 Diagnostic 相等断言核 Single 与两个 Unit
+入口，exact 测试通过后撤回临时比较，再退休该 Single 分析。保留重复解析、自定义
+环境、两条 L0165、原 `pair.component1` primary、空 details、无 call/projection
+及 final 拒绝。新增实际 SourceId 和 MemoryDocument/Rooted key/root/path 检查；
+不改生产、不启用自动 component、不把 raw 可观察性当作最终准入。
+
+本轮先尝试字段与 fixture 消费者的完整诊断对照，临时 target 为9 passed/2 failed。
+两个首轮 MemoryDocument 负例都额外发布 selected-parameter label，Single 没有；
+相应 Rooted 负例尚未到达，不能推断结果。这不是主线原测试失败，也没有修改预期
+来求等价。两项原消费者、旧 helper 和 sidecar 全部保留；其余测试正文逐字不变。
+
+| 验收项 | 命令 / 范围 | 实际结果 |
+|---|---|---|
+| 同源完整 final 诊断对照 | 原目标 `value_class_does_not_supply_an_undeclared_component_method` exact，临时 `assert_eq!(single, unit)` | 1 passed，10 filtered；覆盖两个Unit入口 |
+| 迁移与共享final邻控 | `cargo test --locked --offline -p lang-frontend --test ownership_structural --test final_type_admission --no-fail-fast` | 11 + 63 passed，0 failed/ignored/filtered |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、相对main尺寸 | 通过；目标Rust文件564行，不增尺寸额度 |
+| 独立只读复审 | 原源码/oracle、双入口身份、非等价Single保全 | 无阻断；从BUILTINS起的helper及其他测试逐字不变 |
+
+Linux x86_64、Rust1.96.0、默认debug、locked/offline。首轮fmt只发现局部import
+应为单行，修正后重新通过；首次被fmt阻止的测试不计运行。未执行frontend全量、
+workspace check、native、故障注入、macOS或正式PR CI。按本轮授权仅本地分步提交，
+不生成补丁备份、不上传、不推送、不合并；D10/E2仍in-progress。
