@@ -364,11 +364,17 @@ impl ChoiceTransaction {
         {
             return None;
         }
+        // Only a proved two-output sequence may move the installed root while
+        // the old Choice is still named. The active index advances only at Drop.
+        let installed_first = self.transfer_index == 0
+            && !frame.previous_dropped
+            && matches!(self.admission.transfers.as_slice(), [first, second]
+                if first.source == self.admission.symbol && second.source == admission.symbol);
         if source == admission.symbol && !frame.previous_dropped {
             Some(Value::Choice(self.choice_id()))
         } else if self.replacement_root_transferred()
             && source == self.admission.symbol
-            && frame.previous_dropped
+            && (frame.previous_dropped || installed_first)
         {
             frame.owner.clone().map(Value::Definition)
         } else {

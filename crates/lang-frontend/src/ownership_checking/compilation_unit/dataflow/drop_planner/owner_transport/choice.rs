@@ -400,20 +400,24 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     }
     let mut transfers: Vec<_> = transfer.into_iter().collect();
     if let Some(statement) = extra_statement {
-        // Only the old-result transfer may precede the newly installed root.
+        // The second transfer must consume the other checked replacement output.
         let previous = replacement.as_ref()?.symbol;
         let first = transfers.first()?;
-        if first.source != previous {
+        let source = if first.source == previous {
+            symbol
+        } else if first.source == symbol {
+            previous
+        } else {
             return None;
-        }
+        };
         let (target, initializer) = immutable_string_binding(checker, statement)?;
         if [symbol, previous, first.symbol].contains(&target) {
             return None;
         }
         transfers.push(Transfer {
-            source: symbol,
+            source,
             symbol: target,
-            chain: chain(checker, initializer, Some(symbol))?,
+            chain: chain(checker, initializer, Some(source))?,
             drop_point: drop_point(statement),
         });
     }
