@@ -64,6 +64,8 @@ pub(in super::super) struct ChoiceTransaction {
     edges: [Edge; 2],
     transfer: TransferFrame,
     transfer_index: usize,
+    // A completed intermediate alias stays named until the next actual take.
+    alias: Option<(UnitSymbolId, Value)>,
     replacement: replace::Frame,
     control_completed: bool,
     result: Option<UnitExpressionId>,
@@ -350,7 +352,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         ))
     };
     let mut replacement = None;
-    let mut transfer = if let Some(statement) = transfer_statement {
+    let transfer = if let Some(statement) = transfer_statement {
         let (target, initializer) = immutable_string_binding(checker, statement)?;
         if target == symbol {
             return None;
@@ -378,27 +380,32 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         }
         None
     };
+    let mut transfers: Vec<_> = transfer.into_iter().collect();
     if let Some(statement) = final_statement {
-        // The one following declaration may consume either checked replace output:
-        // its selected old result, or the definition now installed in the original root.
-        let previous = replacement.as_ref()?.symbol;
+        // Without replace, the third declaration consumes the first alias.
+        // With replace, it consumes either checked output as before.
+        let previous = replacement
+            .as_ref()
+            .map(|item| item.symbol)
+            .or_else(|| transfers.first().map(|item| item.symbol))?;
         let (target, initializer) = immutable_string_binding(checker, statement)?;
         if target == previous || target == symbol {
             return None;
         }
         let (source, ids) = if let Some(ids) = chain(checker, initializer, Some(previous)) {
             (previous, ids)
-        } else {
+        } else if replacement.is_some() {
             (symbol, chain(checker, initializer, Some(symbol))?)
+        } else {
+            return None;
         };
-        transfer = Some(Transfer {
+        transfers.push(Transfer {
             source,
             symbol: target,
             chain: ids,
             drop_point: drop_point(statement),
         });
     }
-    let mut transfers: Vec<_> = transfer.into_iter().collect();
     if let Some(statement) = extra_statement {
         // The second transfer must consume the other checked replacement output.
         let previous = replacement.as_ref()?.symbol;
@@ -454,6 +461,7 @@ impl ChoiceTransaction {
             edges: [Edge::default(), Edge::default()],
             transfer: TransferFrame::default(),
             transfer_index: 0,
+            alias: None,
             replacement: replace::Frame::default(),
             control_completed: false,
             result: None,
@@ -471,6 +479,7 @@ impl ChoiceTransaction {
         self.edges = [Edge::default(), Edge::default()];
         self.transfer = TransferFrame::default();
         self.transfer_index = 0;
+        self.alias = None;
         self.replacement = replace::Frame::default();
         self.control_completed = false;
         self.result = None;
@@ -696,7 +705,15 @@ impl ChoiceTransaction {
                 self.abort();
                 return;
             }
-            let Some(value) = self.replacement_transfer_value(source) else {
+            let value = if self.admission.replacement.is_none() && self.transfer_index == 1 {
+                self.alias
+                    .take()
+                    .filter(|(symbol, _)| *symbol == source)
+                    .map(|(_, value)| value)
+            } else {
+                self.replacement_transfer_value(source)
+            };
+            let Some(value) = value else {
                 self.abort();
                 return;
             };
@@ -823,6 +840,7 @@ impl ChoiceTransaction {
                 || self.transfer.bound
                 || self.transfer.completed != transfer.chain.len()
                 || self.transfer.result != Some(initializer)
+                || self.alias.is_some()
                 || transfer.chain.last() != Some(&initializer)
             {
                 self.abort();
@@ -835,6 +853,18 @@ impl ChoiceTransaction {
             self.suffix.push(Event::Bind(symbol, initializer, value));
             self.transfer.result = None;
             self.transfer.bound = true;
+            if self.admission.replacement.is_none()
+                && self
+                    .admission
+                    .transfers
+                    .get(self.transfer_index + 1)
+                    .is_some_and(|next| next.source == symbol)
+            {
+                // Post-insert is the only non-retiring transition between segments.
+                self.alias = self.transfer.value.take().map(|value| (symbol, value));
+                self.transfer = TransferFrame::default();
+                self.transfer_index += 1;
+            }
             return;
         }
         if self.bound
@@ -906,6 +936,7 @@ impl ChoiceTransaction {
             || !self.dropped
             || !self.edges.iter().all(|edge| edge.delivered)
             || self.transfer.value.is_some()
+            || self.alias.is_some()
             || self.transfer_index != self.admission.transfers.len()
         {
             return None;
