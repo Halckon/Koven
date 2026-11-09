@@ -184,13 +184,18 @@ impl<'a> BodyChecker<'a> {
         let callee_operand = self.call_callee_operand(source, callee)?;
         Ok(std::iter::once(callee_operand)
             .chain(arguments.iter().map(|argument| argument.value))
-            .all(|operand| {
-                self.parts
-                    .expression_falls_through
-                    .get(&UnitExpressionId::new(source, operand))
-                    .copied()
-                    .unwrap_or(true)
-            }))
+            .all(|operand| self.operand_falls_through(source, operand)))
+    }
+
+    pub(super) fn operand_falls_through(
+        &self,
+        source: SourceUnitId,
+        operand: ExpressionId,
+    ) -> bool {
+        self.parts
+            .expression_falls_through
+            .get(&UnitExpressionId::new(source, operand))
+            != Some(&false)
     }
 
     pub(super) fn checked_call_operand_exits(

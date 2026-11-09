@@ -146,3 +146,101 @@ fn unit_when_selector_exit_publishes_nothing_after_branch_type_checking() {
         }
     }
 }
+
+#[test]
+fn unit_loop_completion_requires_a_structurally_reachable_local_break() {
+    for (body, has_exit, expected) in [
+        ("loop {}", false, [].as_slice()),
+        ("loop { continue; break }", false, [].as_slice()),
+        ("loop { return 7; break }", false, [].as_slice()),
+        ("loop { loop { break }; continue }", false, [].as_slice()),
+        ("loop { loop {}; break }", false, [].as_slice()),
+        ("loop { if (return 7) { break } }", false, [].as_slice()),
+        (
+            "loop { if (flag && ((return 7) == 0)) { break } }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { when { pred(return 7) -> break; else -> break } }",
+            false,
+            [].as_slice(),
+        ),
+        ("loop { while (return 7) {}; break }", false, [].as_slice()),
+        (
+            "loop { while (flag) {}; break }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        (
+            "loop { while (flag || ((return 7) == 0)) {}; break }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { while (flag || ((return 7) == 0)) { break }; break }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        (
+            "loop { if (flag && ((return 7) == 0)) { 0 } else { continue }; break }",
+            false,
+            [].as_slice(),
+        ),
+        ("loop { sink(return 7, break) }", false, [].as_slice()),
+        ("loop { sink(break, 7) }", true, ["L0088"].as_slice()),
+        ("loop { break }", true, ["L0088"].as_slice()),
+        ("loop { break }; return 9", true, [].as_slice()),
+        (
+            "loop { if (flag) { break }; continue }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        // Ordinary completion keeps both Boolean edges. Const can use a narrower plan.
+        ("loop { if (false) { break } }", true, ["L0088"].as_slice()),
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "loop-completion.ko",
+            &format!(
+                "fun pred(value: Int): Boolean = value == 1
+                 fun sink(first: Int, second: Int): Unit {{}}
+                 fun choose(flag: Boolean): Int {{ {body} }}"
+            ),
+        );
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "loop-completion.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (name_environment, type_environment) = standard_environments();
+            let names = validated_names(&sources, &inputs, &name_environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                .expect("type product");
+            let actual: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect();
+            assert_eq!(actual, expected, "{body}");
+            let (outer, _) = file
+                .ast()
+                .statements()
+                .iter()
+                .filter(|(_, node)| {
+                    matches!(
+                        node.payload(),
+                        lang_frontend::parser::Statement::Loop { .. }
+                    )
+                })
+                .last()
+                .expect("outer loop");
+            let id = lang_frontend::type_checking::UnitStatementId::new(
+                source_unit(&names, source),
+                outer,
+            );
+            assert_eq!(typed.loop_falls_through(id), Some(has_exit), "{body}");
+        }
+    }
+}

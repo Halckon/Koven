@@ -42,20 +42,7 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
     (result.map(|(program, _)| program), f)
 }
 
-#[test]
-fn named_nothing_call_uses_refine_and_stops_at_the_call() {
-    for callee in [
-        r#"fun stop(): Nothing = error("stop")"#,
-        "fun stop(): Nothing = stop()",
-    ] {
-        let (result, routed) = route(&format!("{callee}\nfun f(): Int = stop()"));
-        assert!(routed, "a direct Nothing result must qualify for refine");
-        let program = result.unwrap();
-        let rendered = render_program(&program);
-        assert!(rendered.contains("noreturn"));
-        assert!(rendered.contains("unreachable"));
-    }
-}
+mod control_completion;
 
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {

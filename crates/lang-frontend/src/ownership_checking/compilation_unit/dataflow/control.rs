@@ -64,7 +64,13 @@ impl Checker<'_> {
         };
         self.begin_nullable_when(control)?;
         let mut branches = Flows::default();
-        for (entry_index, entry) in entries.iter().enumerate() {
+        let control_id = self.unit_expression(control);
+        let closed_after = self.typed.when_closed_after(control_id);
+        for (entry_index, entry) in entries
+            .iter()
+            .take(closed_after.unwrap_or(entries.len()))
+            .enumerate()
+        {
             if entry.else_span.is_some() {
                 branches.merge(self.check_nullable_when_body(
                     control,
@@ -79,7 +85,11 @@ impl Checker<'_> {
             }
             let mut condition_state = Some(unmatched);
             let mut body_state = None;
-            for condition in &entry.conditions {
+            let selector_count = self
+                .typed
+                .when_final_selector_count(control_id, entry_index)
+                .unwrap_or(entry.conditions.len());
+            for condition in entry.conditions.iter().take(selector_count) {
                 let Some(current) = condition_state.take() else {
                     break;
                 };
@@ -125,8 +135,10 @@ impl Checker<'_> {
             };
             unmatched = next;
         }
-        self.release_exclusive_branch(control, entries.len(), &mut unmatched);
-        branches.merge(Flows::next(unmatched));
+        if closed_after.is_none() {
+            self.release_exclusive_branch(control, entries.len(), &mut unmatched);
+            branches.merge(Flows::next(unmatched));
+        }
         prefix.merge(branches);
         Ok(prefix)
     }

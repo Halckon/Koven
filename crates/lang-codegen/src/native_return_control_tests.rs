@@ -198,3 +198,42 @@ fun main(): Unit {
     assert_success(&run(), expected);
     assert_success(&crate::ssa::with_per_family_lowering(run), expected);
 }
+
+#[test]
+fn exhaustive_when_inside_loop_has_no_phantom_resource_exit() {
+    let source = r#"
+class Ticket {
+    fun observe(): Unit { println("observe") }
+    deinit() { println("drop") }
+}
+fun discard(own ticket: Ticket): Unit { println("unexpected discard") }
+fun choose(flag: Boolean, own ticket: Ticket): Int {
+    loop {
+        when (flag) {
+            (true) -> { ticket.observe(); return 7 };
+            false -> { ticket.observe(); return 8 };
+            else -> { discard(ticket); discard(ticket); break }
+        }
+        break
+    }
+}
+fun deadSelector(own ticket: Ticket): Boolean { println("unexpected selector"); return false }
+fun covered(flag: Boolean, own ticket: Ticket): Int {
+    loop {
+        when (flag) {
+            true, false, deadSelector(ticket), deadSelector(ticket) -> { ticket.observe(); return 9 }
+        }
+    }
+}
+fun main(): Unit {
+    if (covered(true, Ticket()) != 9) { error("wrong covered branch") }
+    if (choose(true, Ticket()) != 7) { error("wrong true branch") }
+    if (choose(false, Ticket()) != 8) { error("wrong false branch") }
+    println("ok")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("exhaustive-when-loop-resource.ko", source, "main"),
+        b"observe\ndrop\nobserve\ndrop\nobserve\ndrop\nok\n",
+    );
+}

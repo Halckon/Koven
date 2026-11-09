@@ -3368,3 +3368,27 @@ receiver、实参与 callee 的顺序，均核对 SIGABRT、stderr 源位置和�
 
 独立探针 `fun stop(): Nothing { loop { continue } }` 在进入后端前于 Unit 类型阶段
 报 L0088。循环完成性需单列 R2 核对，间接 `Nothing` 的 callable ABI 仍需复审。
+
+## 135. R2/R3/R4 循环完成性与穷尽 when 前缀
+
+`8151374d` 上，两个 Unit 公共入口都为无 break 的 `loop {}` 报 L0088。
+普通完成性现在在当前循环 frame 单独收集可能执行的 break，与待定写回的布尔裁剪隔离。
+语法和类型检查仍访问死语句。语句、调用实参、when selector 和短路控制先消费前序
+完成性。while 复用结构布尔边，假边及本层 break 才能离开循环。
+这份普通证明不折叠字面条件。失败候选及回边试算回滚带源 identity 的事实与 frame。
+
+独立复审确认 `loop` 接受后，穷尽 Boolean when 的分组 selector 与穷尽后的 else
+原会在 Refine 重建伪 miss 或 break。有限域第一次耗尽时，Unit 类型阶段现发布 arm 和
+selector 的可达前缀。所有权、活性、析构计划、Refine 准入和构建共享该边界。
+源顺序及原 arm、selector 的索引保持，前缀中已匹配的分支继续独立执行。
+
+Const Refine 的 `Never` 计划原会从固定左值再建两条边，导致新版完成性暴露 MissingFact。
+构建现在实际求值左侧并按计划进入唯一后继。Refine 的 if/while 红转绿，
+原生 AND/OR 对照验证后续跳转未执行且返回值正确。独立复核核对原 loan/view 的边界。
+
+本机三套 Unit 前端 474 项、4 项控制完成性 SSA、28 项 Const SSA、10 项 comma-when
+和两个新增原生用例均通过。SSA 计数含一条重复覆盖的 Const 完成性回归。
+原生覆盖死 arm 与死 selector 的重复消费、真实分支返回和资源逐次析构。
+所有权计划另核对仅死 arm 使用的 owner 在绑定后的 AfterStatement 析构。
+全工作区全目标 Clippy、格式、文档结构与 Rust 尺寸门禁通过。
+旧 Single 检查器的普通循环完成性仍需随真实消费者复审。

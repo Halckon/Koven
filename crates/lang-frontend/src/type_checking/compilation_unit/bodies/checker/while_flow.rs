@@ -9,7 +9,15 @@ use crate::type_checking::flow_effects::{
 #[derive(Clone, Default)]
 pub(super) struct PendingLoopExits {
     breaks: Option<BTreeSet<FlowKey>>,
+    // Ordinary completion keeps branches whose absence requires value folding.
+    ordinary_break: bool,
+    suppress_ordinary_break: bool,
     continues: BTreeSet<FlowKey>,
+}
+
+pub(super) struct LoopCompletion {
+    pub(super) pending_exit: bool,
+    pub(super) falls_through: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -172,10 +180,13 @@ impl BodyChecker<'_> {
     }
 
     pub(super) fn record_pending_loop_jump(&mut self, jump: LoopJump) {
-        if self.loop_depth <= self.suppressed_loop_depth {
-            return;
-        }
         if let Some(exits) = self.pending_loop_exits.last_mut() {
+            if matches!(jump, LoopJump::Break) && !exits.suppress_ordinary_break {
+                exits.ordinary_break = true;
+            }
+            if self.loop_depth <= self.suppressed_loop_depth {
+                return;
+            }
             let pending = self.flow_versions.pending_keys();
             match jump {
                 LoopJump::Break => exits
@@ -185,6 +196,26 @@ impl BodyChecker<'_> {
                 LoopJump::Continue => exits.continues.extend(pending),
             }
         }
+    }
+
+    /// Isolate structurally unreachable jumps while checking their syntax for diagnostics.
+    /// An inner loop still gets a fresh frame for its own completion.
+    pub(super) fn check_loop_paths<T>(
+        &mut self,
+        ordinary: bool,
+        pending: bool,
+        check: impl FnOnce(&mut Self) -> Result<T, CompilationUnitTypeError>,
+    ) -> Result<T, CompilationUnitTypeError> {
+        let previous = self.pending_loop_exits.last_mut().map(|frame| {
+            let previous = frame.suppress_ordinary_break;
+            frame.suppress_ordinary_break |= !ordinary;
+            previous
+        });
+        let result = self.check_loop_reachable(pending, check);
+        if let (Some(previous), Some(frame)) = (previous, self.pending_loop_exits.last_mut()) {
+            frame.suppress_ordinary_break = previous;
+        }
+        result
     }
 
     pub(super) fn check_loop_reachable<T>(
@@ -245,7 +276,7 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
         return_span: Option<Span>,
         can_exhaust: bool,
-    ) -> Result<bool, CompilationUnitTypeError> {
+    ) -> Result<LoopCompletion, CompilationUnitTypeError> {
         let ast = self.file(source).ast();
         let mut targets =
             collect_statement_mutation_targets(ast, body).map_err(TypeCheckingError::from)?;
@@ -272,7 +303,9 @@ impl BodyChecker<'_> {
             .contains(&site)
             .then(|| self.trial_state());
         loop {
-            let condition_edges = if let Some(condition) = condition {
+            let (condition_edges, (ordinary_enters, ordinary_exhausts)) = if let Some(condition) =
+                condition
+            {
                 let boolean = self.builtin(BuiltinType::Boolean);
                 let checked =
                     self.check_expression(source, condition, Some(boolean), None, return_type)?;
@@ -286,15 +319,25 @@ impl BodyChecker<'_> {
                 }
                 let (true_facts, _) = self.condition_facts(source, condition)?;
                 self.flow_facts = flow::extend_facts(&self.flow_facts, &true_facts);
-                Some(edges)
+                let ordinary =
+                    self.parts
+                        .structural_boolean_outcomes_at(source, self.file(source), condition);
+                (Some(edges), ordinary)
             } else {
-                None
+                (None, (true, can_exhaust))
             };
             let enters_body = condition_edges
                 .as_ref()
                 .is_none_or(|edges| edges.yes.is_some());
             self.pending_loop_exits.push(PendingLoopExits::default());
-            let result = self.check_loop_body(source, body, return_type, return_span, enters_body);
+            let result = self.check_loop_body(
+                source,
+                body,
+                return_type,
+                return_span,
+                ordinary_enters,
+                enters_body,
+            );
             let exits = self.pending_loop_exits.pop().expect("current loop frame");
             let result = result?;
 
@@ -330,14 +373,17 @@ impl BodyChecker<'_> {
                 }
                 can_exhaust
             };
-            let falls_through = exhausts || exits.breaks.is_some();
+            let pending_exit = exhausts || exits.breaks.is_some();
             if let Some(breaks) = exits.breaks {
                 exit_versions.mark_pending(breaks);
             }
             self.flow_facts = head;
             self.flow_versions = flow::merge_flow_versions(&head_versions, &self.flow_versions);
             self.flow_versions.take_pending_from(exit_versions);
-            return Ok(falls_through);
+            return Ok(LoopCompletion {
+                pending_exit,
+                falls_through: ordinary_exhausts || exits.ordinary_break,
+            });
         }
     }
 }

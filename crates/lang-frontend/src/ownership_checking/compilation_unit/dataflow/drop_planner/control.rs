@@ -159,13 +159,25 @@ impl DropPlanner<'_, '_> {
         }
         let mut remaining = Some(state.clone());
         let mut exits = Vec::new();
-        for (entry_index, entry) in entries.iter().enumerate() {
+        let control = self.checker.unit_expression(id);
+        let closed_after = self.checker.typed.when_closed_after(control);
+        for (entry_index, entry) in entries
+            .iter()
+            .take(closed_after.unwrap_or(entries.len()))
+            .enumerate()
+        {
             let mut matched = Vec::new();
             let mut alternatives = Vec::new();
             if entry.else_span.is_some() {
                 matched.extend(remaining.take());
             }
-            for (alternative, condition) in entry.conditions.iter().enumerate() {
+            let selector_count = self
+                .checker
+                .typed
+                .when_final_selector_count(control, entry_index)
+                .unwrap_or(entry.conditions.len());
+            for (alternative, condition) in entry.conditions.iter().take(selector_count).enumerate()
+            {
                 let Some(mut input) = remaining.take() else {
                     break;
                 };
@@ -250,7 +262,7 @@ impl DropPlanner<'_, '_> {
                 exits.push(branch);
             }
         }
-        if let Some(mut implicit) = remaining {
+        if let Some(mut implicit) = remaining.filter(|_| closed_after.is_none()) {
             self.drop_branch_entry(id, entries.len(), &[], &mut implicit);
             self.drop_branch_exit(id, entries.len(), &mut implicit);
             self.finish_pending_temporaries(

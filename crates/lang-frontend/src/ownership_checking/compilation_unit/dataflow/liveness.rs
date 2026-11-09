@@ -496,13 +496,25 @@ impl Builder<'_, '_> {
                 } else {
                     None
                 };
-                let mut live = live_after.clone();
-                for (index, entry) in entries.into_iter().enumerate().rev() {
+                let control = self.checker.unit_expression(id);
+                let closed_after = self.checker.typed.when_closed_after(control);
+                let entry_count = closed_after.unwrap_or(entries.len());
+                let mut live = if closed_after.is_some() {
+                    LiveSet::new()
+                } else {
+                    live_after.clone()
+                };
+                for (index, entry) in entries.into_iter().take(entry_count).enumerate().rev() {
                     let body = self.statement(entry.body, live_after.clone())?;
                     if entry.else_span.is_some() {
                         live = body.clone();
                     }
-                    for condition in entry.conditions.into_iter().rev() {
+                    let selector_count = self
+                        .checker
+                        .typed
+                        .when_final_selector_count(control, index)
+                        .unwrap_or(entry.conditions.len());
+                    for condition in entry.conditions.into_iter().take(selector_count).rev() {
                         // Only this selector's normal exits can match the body or try the next one.
                         if let WhenCondition::Expression(expression)
                         | WhenCondition::Contains { expression, .. } = condition

@@ -201,9 +201,11 @@ impl BodyChecker<'_> {
         if let Some(pending) = &rhs_pending {
             self.flow_versions.set_pending_keys(pending.iter().copied());
         }
-        let right_result = self.check_loop_reachable(rhs_pending.is_some(), |checker| {
-            checker.check_expression(source, right, None, None, return_type)
-        });
+        let right_result = self.check_loop_paths(
+            left_result.falls_through,
+            rhs_pending.is_some(),
+            |checker| checker.check_expression(source, right, None, None, return_type),
+        );
         let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
         let writes = self.expression_flow_writes(source, right)?;
         self.flow_facts = baseline;
@@ -299,9 +301,10 @@ impl BodyChecker<'_> {
             } else {
                 None
             };
-            let right_result = self.check_loop_reachable(left_exits, |checker| {
-                checker.check_expression(source, right, expected, None, return_type)
-            })?;
+            let right_result =
+                self.check_loop_paths(left_result.falls_through, left_exits, |checker| {
+                    checker.check_expression(source, right, expected, None, return_type)
+                })?;
             (left_result, right_result)
         };
         let pending_exit = self.has_pending_expression_exit(source, left, left_result)?

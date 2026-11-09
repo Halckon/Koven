@@ -678,7 +678,7 @@ impl Checker<'_, '_> {
                 subject: Some(subject),
                 entries,
                 ..
-            } => self.subject_when(ty, subject, &entries),
+            } => self.subject_when(expression, ty, subject, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
                 let function_value = self
