@@ -4337,4 +4337,48 @@ Basic 所有权和实例规划仍保守处理死 RHS；本批仅调整执行路�
 后端 `--lib inout` 40 项通过，零失败或忽略，2763 项过滤。
 严格 codegen Clippy 通过。CLI 单文件与项目均执行两级调用并输出
 `cleared`，退出 0。独立复核核对了原外层 operand loan、转发与
-局部写回的不同路径。
+局部写回的不同路径。以同一代码树显式运行本机 LLDB 源码断点及
+栈帧回归，1 项通过，零失败或忽略，2802 项过滤。
+
+## 176. R3/R4 Nullable Borrow 注入的路由和来源核对
+
+以 `b2f8e7f3` 的本机 CLI 和 Basic Unit API 核对 §172 的剩余反例。
+`fun read(x: Int?): Int = if (x == null) 0 else x` 的调用 `read(7)`
+与 `val n: Int = 7; read(n)` 都通过检查，原生构建分别在 `7` 和
+`n` 处报 `MissingFact`。前者的 Shared loan 指向源码合格的 Temporary，
+后者指向 `n` 的根 Place。给调用方加无关 `val anchor: Int? = null`
+后两种实参均可运行；值参数对照和 `read(null)` 也能运行。应同时复审
+临时包装和具名值的拷贝，不能依靠无关声明选择后端路径。
+
+另实测 `fun view(source: Int?): borrow Int? from source = source`。
+`borrow val item = view(n)` 在 `n: Int` 与 `n: Int?` 两种情况下均
+通过检查、在当前 native 路径均报 `UnsupportedNode`；`view(7)`
+作为同一绑定的初始化则报告 L0162。这里必须另行核对来源是原存储
+还是 nullable 转换生成的临时。已有 nullable 存储上的非空读取也不能
+仅凭表达式收窄类型判成转换。暂未修复这组反例，现有原生拒绝不能
+充当前端来源正确性的证据。
+
+## 177. R0 旧入口直接调用增量核对
+
+沿用 §151 的四个范围及五个调用名，在 `b2f8e7f3` 重跑直接调用清点。
+frontend src、codegen src 与其他 crates 的数值均一致。frontend tests
+的 `resolve_names` 为 66 文件 / 134 匹配行，`check_types` 为
+55 文件 / 88 匹配行，各增加 1。差异唯一来自 §173
+`type_callable/inout_storage.rs` 的显式 Single 对照。其 MemoryDocument
+和 Rooted Unit 实跑同一输入，Single 见证可暴露旧检查器的诊断或存储
+事实偏差。其余三个入口计数不变。仍需逐个处置保留测试见证，不能
+从直接调用计数推断仓外 API 或间接调用已经迁移。
+
+## 178. R1/R2 合批合并验收
+
+[PR #398](https://github.com/Halckon/Koven/pull/398) 的最终 head
+`b6cb2bb7` 经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42675895710)
+通过。双宿主 Check/Clippy、定向测试、预览生产与独立消费、CI Passed
+及 Code CI Evidence 共 15 个作业成功。Editor lexical 按变更范围跳过。
+逐宿主核验新增 Parser/Inout 回归均实际执行。macOS 定向套件的既有
+LLDB 用例因 debugserver task-port 权限忽略，§175 另有后继本机实跑。
+
+两端产物均核对归档 SHA256、生产与消费清单及 12 项独立执行命令。
+基线 `74851679`、合成提交 `3a6c4bad`、实际合入 `94768a91`，
+合成和合入树均为 `25cf3ece844d7b6b344b104ab00812085d1718a2`。
+合并时无未决审阅线程；上述验收限于该 PR 候选。
