@@ -3427,3 +3427,9 @@ MissingFact。兼容路径现在只在有分派时验证该 ID，保留早退处
 具名 `Nothing` 的独立探针在 `563049a1` 上通过公共 CLI check，原生 build 以
 UnsupportedNode 退出 2。后续回归同时要求早期实参输出、真实 callee 输出、
 callee 内 abort 源位置，以及跳过后续实参和栈析构。
+
+PR #385 首轮[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42570876471)
+在同一条 two-phase receiver 断言失败。原断言先查找只被无分派前缀引用的 `update` 定义，
+已通过的零 exclusive activation 检查之后命中 `unwrap`。改为要求该定义缺席，
+前缀 `read` 恰好调用一次，并保留 LLVM 验证。独立复核核对了 class、value class
+及 return、break、continue、abort 各路径，邻近的正常激活与 CFG 合流对照继续覆盖。
