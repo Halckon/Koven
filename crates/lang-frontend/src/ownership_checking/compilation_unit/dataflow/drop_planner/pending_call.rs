@@ -107,7 +107,7 @@ impl DropPlanner<'_, '_> {
                 .then_some(argument)
             });
         if temporary.is_none() {
-            temporary = self.borrowed_temporary_field_owner(call, argument, kind)?;
+            temporary = self.call_temporary_field_parent(call, argument, kind)?;
         }
         if let Some(temporary) = temporary {
             let origin = self
@@ -161,7 +161,8 @@ impl DropPlanner<'_, '_> {
         }
     }
 
-    pub(super) fn borrowed_temporary_field_owner(
+    /// The complete parent can need cleanup even when the loan targets a copied field value.
+    pub(super) fn call_temporary_field_parent(
         &self,
         call: ExpressionId,
         argument: ExpressionId,
@@ -176,6 +177,9 @@ impl DropPlanner<'_, '_> {
         let Some(receiver) = self.checker.temporary_field_owner(argument)? else {
             return Ok(None);
         };
+        if !self.is_move_only_temporary(receiver.expression()) {
+            return Ok(None);
+        }
         let argument = self.checker.unit_expression(argument);
         let call = self.checker.unit_expression(call);
         Ok(self.checker.loans.iter().find_map(|loan| {
@@ -186,8 +190,18 @@ impl DropPlanner<'_, '_> {
             let UnitLoanTarget::Temporary(owner) = loan.target() else {
                 return None;
             };
-            (*owner == receiver && self.is_move_only_temporary(owner.expression()))
-                .then_some(owner.expression())
+            let copied_field = *owner == argument
+                && self
+                    .checker
+                    .contracts_by_call
+                    .get(&call)
+                    .is_some_and(|contracts| {
+                        contracts.iter().any(|contract| {
+                            contract.argument() == argument
+                                && self.checker.copy_to_nullable_borrow(*contract)
+                        })
+                    });
+            (*owner == receiver || copied_field).then_some(receiver.expression())
         }))
     }
 

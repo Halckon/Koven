@@ -261,7 +261,7 @@ impl Builder<'_, '_> {
                 return Ok(Some(loan));
             }
         }
-        let Some(owner) = self.required(root)? else {
+        let Some(owner) = self.required(expression)? else {
             return Ok(None);
         };
         let place = self.value(ROp::RootPlace { owner }, EntityType::Place(target), span)?;
@@ -642,27 +642,36 @@ impl Builder<'_, '_> {
                     lowered_slots[param_slot] = Some(loan);
                     continue;
                 }
-                let parameter = self.c(param_ty);
-                let copy_to = if param_slot != source_index
-                    && let Some(UnitTypeKind::Nullable(payload)) =
-                        self.inputs.typed.types().get(parameter)
-                    && self.expression_type(value_expr)? == *payload
-                    && self.copyability_of(*payload) == Copyability::Copyable
-                    && self.inputs.owned.loans().iter().any(|loan| {
-                        loan.call() == call
-                            && loan.argument() == arg_id
-                            && loan.kind() == FrontendLoanKind::Shared
-                            && matches!(loan.target(), UnitLoanTarget::Temporary(owner)
-                                if owner.source_unit() == arg_id.source_unit())
-                    }) {
-                    // A narrowed read of an existing nullable Place does not authorize a copy.
-                    Some(parameter)
+                let operand = if param_slot != source_index
+                    && let Some((loan, created)) = self.lower_temporary_field_argument(
+                        call,
+                        value_expr,
+                        param_ty,
+                        call_arg_span,
+                    )? {
+                    Some((loan, created, None))
                 } else {
-                    None
-                };
-                let Some((loan, created, read_expr)) =
+                    let parameter = self.c(param_ty);
+                    let copy_to = if param_slot != source_index
+                        && let Some(UnitTypeKind::Nullable(payload)) =
+                            self.inputs.typed.types().get(parameter)
+                        && self.expression_type(value_expr)? == *payload
+                        && self.copyability_of(*payload) == Copyability::Copyable
+                        && self.inputs.owned.loans().iter().any(|loan| {
+                            loan.call() == call
+                                && loan.argument() == arg_id
+                                && loan.kind() == FrontendLoanKind::Shared
+                                && matches!(loan.target(), UnitLoanTarget::Temporary(owner)
+                                    if owner.source_unit() == arg_id.source_unit())
+                        }) {
+                        // A narrowed read of an existing nullable Place does not authorize a copy.
+                        Some(parameter)
+                    } else {
+                        None
+                    };
                     self.borrow_call_operand_loan(value_expr, copy_to, call_arg_span)?
-                else {
+                };
+                let Some((loan, created, read_expr)) = operand else {
                     return Ok(None);
                 };
                 for &c in &created {

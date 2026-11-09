@@ -112,6 +112,10 @@ MoveOnly 载荷字段借用实参。`deinit` 析构体、多层字段借用、�
 也可跳过原整函数扫描，由旧 lowering 核对直接来源、活动 shared loan 与 provider 交接。
 RangeView、carrier 别名和其他绑定保留原有前置边界。
 
+临时 class 的字段实参按同源 Shared loan 与父对象清理事实进入细化层。
+精确 Borrow 传递实际字段 loan；Copyable nullable 转换读取字段并结束原借用链，
+再借用包装槽。正常返回与提前退出由调用清理消费完整临时父对象的析构事实。
+
 ## inline nullable 布局
 
 `SsaTypeKind::InlineNullable { inner, niche }`：String 与顺序容器用 bytes/buffer 指针 niche（空串与

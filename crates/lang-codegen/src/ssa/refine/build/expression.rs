@@ -727,6 +727,19 @@ impl Builder<'_, '_> {
                 continue;
             }
             if mode == ParameterMode::Borrow
+                && let Some((loan, created)) = self.lower_temporary_field_argument(
+                    call,
+                    value_expression,
+                    parameter_type,
+                    call_arg_span,
+                )?
+            {
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
+                lowered_slots[param_slot] = Some(loan);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
                 && let Some((loan, created, read_expr)) = self.lower_short_range_argument(
                     value_expression,
                     self.c(parameter_type),

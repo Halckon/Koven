@@ -233,6 +233,67 @@ fn temporary_field_parent_drops_once_after_normal_call_return() {
 }
 
 #[test]
+fn copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges() {
+    for parent in ["Holder(1)", "(Holder(1))"] {
+        for transfer in ["return", "break", "continue", "error(\"stop\")"] {
+            let operand = format!("{parent}.number");
+            let call = format!("read({operand}, if (stop) {{ {transfer} }} else {{ 0 }})");
+            let body = if matches!(transfer, "break" | "continue") {
+                format!("while (stop) {{ {call} }}")
+            } else {
+                call.clone()
+            };
+            let observed = observe(&format!(
+                "class Holder(val number: Int) {{ deinit() {{}} }}\nfun read(number: Int?, own n: Int): Unit {{}}\nfun run(stop: Boolean): Unit {{ {body} }}"
+            ));
+            assert_units_admitted(&observed);
+            let parent = expression(&observed, parent);
+            let operand = expression(&observed, &operand);
+            let call = expression(&observed, &call);
+            let transfer = (transfer != "error(\"stop\")").then(|| expression(&observed, transfer));
+
+            for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
+                let [source] = names.names().index().source_units() else {
+                    panic!("one source per Unit input");
+                };
+                let qualify = |id| UnitExpressionId::new(source.id(), id);
+                let call = qualify(call);
+                let operand = qualify(operand);
+                let loans: Vec<_> = unit
+                    .loans()
+                    .iter()
+                    .filter(|loan| loan.call() == call)
+                    .collect();
+                let [loan] = loans.as_slice() else {
+                    panic!("only the wrapper is borrowed: {loans:?}");
+                };
+                assert_eq!(loan.argument(), operand);
+                assert_eq!(loan.kind(), LoanKind::Shared);
+                assert_eq!(loan.target(), &UnitLoanTarget::Temporary(operand));
+                let parent = qualify(parent);
+                assert!(
+                    unit.direct_call_loan_ends()
+                        .iter()
+                        .all(|end| { end.loan().target() != &UnitLoanTarget::Temporary(parent) })
+                );
+                let points: Vec<_> = unit
+                    .drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(parent))
+                    .map(|drop| drop.point())
+                    .collect();
+                let expected: Vec<_> = transfer
+                    .map(|transfer| UnitDropPoint::ControlTransfer(qualify(transfer)))
+                    .into_iter()
+                    .chain([UnitDropPoint::CallReturn(call)])
+                    .collect();
+                assert_eq!(points, expected);
+            }
+        }
+    }
+}
+
+#[test]
 fn distinct_temporary_field_parents_drop_in_reverse_completion_order() {
     let call = "read(Holder(\"first\").text, Holder(\"second\").text, 0)";
     let observed = observe(&format!(
