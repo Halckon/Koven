@@ -251,3 +251,11 @@ fn normal_receiver_ends_keep_identical_ast_indices_in_distinct_sources_separate(
         shared.receiver_call_return_ends()
     );
 }
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_borrowed_receiver_return_table() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(node: Node): Unit { node.touch(\"ready\", 0) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.receiver_call_return_ends.len(), 1);
+    });
+}

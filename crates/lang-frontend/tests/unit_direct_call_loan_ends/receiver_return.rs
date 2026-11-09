@@ -5,9 +5,9 @@ use lang_frontend::{
     type_checking::UnitCallReceiverOrigin,
 };
 
-const NODE: &str = "class Node { fun touch(text: String, own next: Int): Int = next }\n";
+pub(super) const NODE: &str = "class Node { fun touch(text: String, own next: Int): Int = next }\n";
 
-fn assert_returns(text: &str, expected: &[(&str, &str)]) -> Observed {
+pub(super) fn assert_returns(text: &str, expected: &[(&str, &str)]) -> Observed {
     let observed = observe(text);
     assert_units_admitted(&observed);
     for (entry, (unit, names)) in observed.units.iter().zip(&observed.unit_names).enumerate() {
@@ -240,7 +240,6 @@ fn abandoned_and_unreachable_calls_do_not_publish_normal_receiver_ends() {
 #[test]
 fn normal_completion_keeps_all_existing_receiver_provenance_boundaries() {
     for text in [
-        format!("{NODE}fun run(node: Node): Unit {{ node.touch(\"borrowed\", 0) }}"),
         format!("{NODE}fun run(): Unit {{ Node().touch(\"temporary\", 0) }}"),
         format!("{NODE}class Holder(val node: Node)\nfun run(own holder: Holder): Unit {{ holder.node.touch(\"field\", 0) }}"),
         format!("{NODE}fun run(own nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", 0) }} }}"),

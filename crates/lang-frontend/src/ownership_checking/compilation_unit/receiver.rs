@@ -399,7 +399,7 @@ impl UnitReceiverCallPrefixEndFact {
     }
 }
 
-/// 正常调用完成时从真实 pending 队列退休的 owned 根 Shared receiver。
+/// 正常调用完成时从真实 pending 队列退休的 owned 根或 Borrow 参数根 Shared receiver。
 /// 与前缀退出分开观察，不声明参数/receiver/drop 全序或完整借用事件流。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitReceiverCallReturnEndFact {

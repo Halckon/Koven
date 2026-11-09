@@ -14,7 +14,11 @@ use crate::{
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
-    fn observes_owned_root_receiver(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
+    fn observes_root_receiver(
+        &self,
+        receiver: &UnitReceiverOwnershipFact,
+        allow_shared_parameter: bool,
+    ) -> bool {
         let Some(call) = self.checker.typed.call(receiver.call()) else {
             return false;
         };
@@ -51,6 +55,16 @@ impl DropPlanner<'_, '_> {
                 .bindings
                 .get(&root)
                 .is_some_and(|binding| binding.kind() == OwnershipBindingKind::Owned);
+        // A nested Shared receiver reborrow may end while the caller's parameter
+        // loan and owner remain live. Admit only a declared Borrow parameter;
+        // explicit borrow bindings and Exclusive parameters remain outside this slice.
+        let shared_parameter = allow_shared_parameter
+            && self.checker.symbol_kind(root) == Some(SymbolKind::ValueParameter)
+            && self
+                .checker
+                .bindings
+                .get(&root)
+                .is_some_and(|binding| binding.kind() == OwnershipBindingKind::Shared);
         // A root descriptor alone cannot distinguish provider/binding provenance.
         let provider = self.checker.iterations.values().any(|plan| {
             plan.bindings().iter().any(|binding| binding.symbol() == root)
@@ -59,7 +73,7 @@ impl DropPlanner<'_, '_> {
             plan.bindings().iter().any(|binding| binding.symbol() == root)
                 || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
         });
-        owned
+        (owned || shared_parameter)
             && !provider
             && place.is_root()
             && matches!(
@@ -89,7 +103,7 @@ impl DropPlanner<'_, '_> {
             })
         {
             if let Action::EndReceiverLoan(receiver) = action
-                && self.observes_owned_root_receiver(&receiver)
+                && self.observes_root_receiver(&receiver, true)
             {
                 self.receiver_call_return_ends
                     .push(UnitReceiverCallReturnEndFact { receiver });
@@ -126,7 +140,7 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *drops += 1,
                 Action::EndCallLoan(_) => *calls += 1,
                 Action::EndReceiverLoan(receiver) => {
-                    if self.observes_owned_root_receiver(receiver) {
+                    if self.observes_root_receiver(receiver, false) {
                         ends.push(UnitReceiverCallPrefixEndFact {
                             receiver: receiver.clone(),
                             point: point.into_unit(self.checker.source_unit),

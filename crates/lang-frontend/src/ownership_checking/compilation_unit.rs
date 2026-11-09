@@ -853,7 +853,7 @@ impl CompilationUnitOwnership {
         &self.receiver_call_prefix_ends
     }
 
-    /// owned 名称根 Shared receiver 正常完成时，从实际 pending 队列退休的 token。
+    /// owned 名称根或 Borrow 参数根 Shared receiver 正常完成时退休的实际 pending token。
     /// 不提供跨事务顺序、完整 receiver 流或动态执行次数；前缀退出另行查询。
     #[must_use]
     pub fn receiver_call_return_ends(&self) -> &[UnitReceiverCallReturnEndFact] {
