@@ -916,7 +916,8 @@ impl Checker<'_, '_> {
                 let ok = boolean
                     && self.plain(expression)
                     && self.condition(left, views)
-                    && (!self.logical_reaches_rhs(left, operator) || self.condition(right, views));
+                    && (!self.logical_reaches_rhs(id, left, operator)
+                        || self.condition(right, views));
                 if !views {
                     self.view_symbols = saved;
                 }
