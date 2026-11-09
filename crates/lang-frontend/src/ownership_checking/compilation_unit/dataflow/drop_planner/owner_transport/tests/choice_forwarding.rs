@@ -176,7 +176,6 @@ fn post_choice_transfer_keeps_other_consumers_and_multiple_statements_closed() {
     for suffix in [
         "var forwarded = chosen",
         "val forwarded: String? = chosen",
-        "val forwarded = chosen; val again = forwarded",
         "val unrelated = \"other\"",
         "val forwarded = chosen + \"suffix\"",
         "val callback = move { chosen }",

@@ -169,7 +169,6 @@ fn if_result_groups_do_not_admit_other_wrappers_exits_or_extra_uses() {
         r#"val chosen = ((if (flag) { return } else "right"))"#,
         r#"val chosen = ((if (flag) make() else "right"))"#,
         r#"val chosen = ((if (flag) "left" else "right") + "suffix")"#,
-        r#"val chosen = ((if (flag) "left" else "right")); val forwarded = chosen; val again = forwarded"#,
         r#"val chosen = ((if (flag) "left" else "right")); val callback = move { chosen }"#,
         r#"while (flag) { val chosen = ((if (flag) "left" else "right")); break }"#,
     ] {

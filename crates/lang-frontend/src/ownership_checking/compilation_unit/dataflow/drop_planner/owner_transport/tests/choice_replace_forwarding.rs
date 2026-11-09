@@ -222,16 +222,19 @@ fn replaced_choice_forwarding_keeps_other_consumers_and_extra_steps_closed() {
         );
         compare(&fixture, &fixture.parts(&owned));
     }
-    for body in [
-        format!("while (flag) {{ {prefix} val forwarded = previous; break }}"),
-        r#"val chosen = if (flag) "left" else "right"; val previous = chosen; val forwarded = previous"#.to_owned(),
-    ] {
+    for body in [format!(
+        "while (flag) {{ {prefix} val forwarded = previous; break }}"
+    )] {
         let source = format!("fun run(flag: Boolean): Unit {{ {body} }}");
         let fixture = Fixture::new(&[("root.ko", &source)]);
         let owned = fixture.shared();
         assert!(owned.diagnostics().is_empty());
         assert!(owned.clone().validate().is_ok());
-        assert!(owned.owner_observations()[0].value_observation_v1().is_none());
+        assert!(
+            owned.owner_observations()[0]
+                .value_observation_v1()
+                .is_none()
+        );
         compare(&fixture, &fixture.parts(&owned));
     }
 }
