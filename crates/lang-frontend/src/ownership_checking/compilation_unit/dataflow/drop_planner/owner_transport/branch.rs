@@ -17,6 +17,7 @@ impl DropPlanner<'_, '_> {
         // Restore depth even when legacy traversal returns an error. Only the real
         // branch bodies and their cleanup run inside this admission boundary.
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
+        self.begin_owner_loop_split(id, condition, outcomes, state);
         self.owner_branch_depth += 1;
         let result = self.owner_if_edges(
             id,
@@ -46,10 +47,14 @@ impl DropPlanner<'_, '_> {
         if reaches_then {
             let mut then_state = base.clone();
             self.drop_branch_entry(id, 0, &[], &mut then_state);
+            self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
             let (then_tail, then_result) =
                 self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
             if then_result.continues {
                 self.drop_branch_exit(id, 0, &mut then_state);
+            }
+            self.finish_owner_loop_arm(id, 0, then_tail, &then_result, &then_state);
+            if then_result.continues {
                 branch_states.push(then_state);
             }
             if let Some(choice) = &mut self.owner_choice {
@@ -66,10 +71,14 @@ impl DropPlanner<'_, '_> {
             if let Some(else_branch) = else_branch {
                 let mut else_state = base;
                 self.drop_branch_entry(id, 1, &[], &mut else_state);
+                self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
                 let (else_tail, else_result) =
                     self.evaluate_control_body(else_branch, branch_usage, &mut else_state)?;
                 if else_result.continues {
                     self.drop_branch_exit(id, 1, &mut else_state);
+                }
+                self.finish_owner_loop_arm(id, 1, else_tail, &else_result, &else_state);
+                if else_result.continues {
                     branch_states.push(else_state);
                 }
                 if let Some(choice) = &mut self.owner_choice {
@@ -110,11 +119,18 @@ impl DropPlanner<'_, '_> {
                     _ => false,
                 };
                 if same_owners {
-                    self.owner_event(UnitOwnerTransportEvent::If {
-                        control: self.checker.unit_expression(id),
-                        then_events,
-                        else_events,
-                    });
+                    if !self.finish_owner_loop_split(
+                        id,
+                        &then_events,
+                        &else_events,
+                        branch_states.len(),
+                    ) {
+                        self.owner_event(UnitOwnerTransportEvent::If {
+                            control: self.checker.unit_expression(id),
+                            then_events,
+                            else_events,
+                        });
+                    }
                 } else {
                     self.reject_owner_expression(id, UnitOwnerUnsupportedReason::MissingOwner);
                 }

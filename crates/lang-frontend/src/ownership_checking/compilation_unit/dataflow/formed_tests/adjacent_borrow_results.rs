@@ -1,6 +1,6 @@
 //! Seed every borrow-result table through real sources before observing raw rejection.
 use super::*;
-use crate::ownership_checking::OwnershipDeferredReason;
+use crate::ownership_checking::{OwnershipDeferredReason, UnitDropPoint};
 
 const DIAGNOSTIC_SUFFIX: &str = "fun rejected(): Unit { val target = 0; target = 1 }";
 const DEFERRED_SUFFIX: &str =
@@ -15,6 +15,7 @@ fn fixture(texts: &[(&str, &str)], range: bool) -> Fixture {
 }
 
 fn assert_cleared(raw: &Analysis) {
+    assert!(raw.string_clone_loan_ends.is_empty());
     assert!(raw.formed_owned_locals.is_empty());
     assert!(raw.nullable_whens.is_empty());
     assert!(raw.borrow_return_origins.is_empty());
@@ -26,6 +27,7 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.borrow_results.call_uses.is_empty());
     assert!(raw.borrow_forward_transports.is_empty());
     assert!(raw.receiver_call_prefix_ends.is_empty());
+    assert!(raw.receiver_call_return_ends.is_empty());
     assert!(raw.borrow_call_transports.is_empty());
     assert!(raw.borrow_binding_transports.is_empty());
 }
@@ -113,6 +115,9 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
             assert_eq!(raw.diagnostics, [expected]);
             assert_eq!(rejected.sources.slice(span).unwrap(), "target");
         }
+        assert!(shared.string_clone_loan_ends().is_empty());
+        assert!(shared.receiver_call_return_ends().is_empty());
+        assert!(shared.receiver_call_prefix_ends().is_empty());
         // Observe dataflow::analyze directly: CompilationUnitOwnership::new must not
         // hide a missing clear in the earlier production gate.
         assert_cleared(&raw);
@@ -190,5 +195,649 @@ fn real_deferred_and_diagnostic_clear_nonempty_receiver_prefix_table() {
     let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { val node = Node(); node.touch(\"prefix\", return) }";
     assert_rejections_clear(text, false, |_, raw| {
         assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_receiver_loop_prefix_table() {
+    for (loop_start, jump) in [("loop", "break"), ("while (flag)", "continue")] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(flag: Boolean): Unit {{ {loop_start} {{ val node = Node(); node.touch(\"prefix\", {jump}) }} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+        });
+    }
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_receiver_return_table() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { val node = Node(); node.touch(\"ready\", 0) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.receiver_call_return_ends.len(), 1);
+    });
+}
+
+#[test]
+fn normal_receiver_ends_keep_identical_ast_indices_in_distinct_sources_separate() {
+    let accepted = Fixture::new(&[
+        (
+            "a.ko",
+            "class Left { fun read(): Int = 1 }\nfun first(own node: Left): Unit { node.read() }",
+        ),
+        (
+            "b.ko",
+            "class Rght { fun read(): Int = 1 }\nfun other(own node: Rght): Unit { node.read() }",
+        ),
+    ]);
+    let shared = accepted.shared();
+    assert!(
+        shared.diagnostics().is_empty(),
+        "{:?}",
+        shared.diagnostics()
+    );
+    assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+    shared.clone().validate().unwrap();
+    let [left, right] = shared.receiver_call_return_ends() else {
+        panic!("one normal end per source")
+    };
+    assert_eq!(
+        left.receiver().call().expression(),
+        right.receiver().call().expression()
+    );
+    assert_eq!(left.receiver().call().source_unit(), accepted.source(0));
+    assert_eq!(right.receiver().call().source_unit(), accepted.source(1));
+    assert_ne!(left.receiver().call(), right.receiver().call());
+    assert_ne!(left.receiver().target(), right.receiver().target());
+    let raw = accepted.dataflow(&accepted.parts(&shared));
+    assert_eq!(
+        raw.receiver_call_return_ends,
+        shared.receiver_call_return_ends()
+    );
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_borrowed_receiver_return_table() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(node: Node): Unit { node.touch(\"ready\", 0) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.receiver_call_return_ends.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_borrowed_receiver_prefix_table() {
+    for (opener, closer, jump) in [
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(node: Node, flag: Boolean): Unit {{ {opener} node.touch(\"prefix\", {jump}) {closer} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+        });
+    }
+}
+
+#[test]
+fn borrowed_receiver_prefixes_keep_identical_ast_indices_in_distinct_sources_separate() {
+    let accepted = Fixture::new(&[
+        (
+            "a.ko",
+            "class Left { fun read(own next: Int): Int = next }\nfun first(node: Left): Unit { node.read(return) }",
+        ),
+        (
+            "b.ko",
+            "class Rght { fun read(own next: Int): Int = next }\nfun other(node: Rght): Unit { node.read(return) }",
+        ),
+    ]);
+    let shared = accepted.shared();
+    assert!(
+        shared.diagnostics().is_empty(),
+        "{:?}",
+        shared.diagnostics()
+    );
+    assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+    shared.clone().validate().unwrap();
+    let [left, right] = shared.receiver_call_prefix_ends() else {
+        panic!("one abandoned reborrow per source")
+    };
+    assert_eq!(
+        left.receiver().call().expression(),
+        right.receiver().call().expression()
+    );
+    assert_eq!(left.receiver().call().source_unit(), accepted.source(0));
+    assert_eq!(right.receiver().call().source_unit(), accepted.source(1));
+    assert_ne!(left.receiver().call(), right.receiver().call());
+    assert_ne!(left.receiver().target(), right.receiver().target());
+    assert_ne!(left.point(), right.point());
+    for event in [left, right] {
+        assert_eq!(event.preceding_drops(), 0);
+        assert_eq!(event.preceding_call_loan_ends(), 0);
+        assert_eq!(event.preceding_receiver_loan_ends(), 0);
+    }
+    let raw = accepted.dataflow(&accepted.parts(&shared));
+    assert_eq!(
+        raw.receiver_call_prefix_ends,
+        shared.receiver_call_prefix_ends()
+    );
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_inout_receiver_reborrow_tables() {
+    for (opener, closer, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(inout node: Node, flag: Boolean): Unit {{ {opener} node.touch(\"ready\", {next}) {closer} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn inout_receiver_reborrow_tables_keep_same_ast_indices_source_qualified() {
+    for next in ["0", "return"] {
+        let left = format!(
+            "class Left {{ fun read(own next: Int): Int = next }}\nfun first(inout node: Left): Unit {{ node.read({next}) }}"
+        );
+        let right = format!(
+            "class Rght {{ fun read(own next: Int): Int = next }}\nfun other(inout node: Rght): Unit {{ node.read({next}) }}"
+        );
+        let accepted = Fixture::new(&[("a.ko", &left), ("b.ko", &right)]);
+        let shared = accepted.shared();
+        assert!(
+            shared.diagnostics().is_empty(),
+            "{:?}",
+            shared.diagnostics()
+        );
+        assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+        shared.clone().validate().unwrap();
+        let receivers: Vec<_> = shared
+            .receiver_call_return_ends()
+            .iter()
+            .map(|event| event.receiver())
+            .chain(
+                shared
+                    .receiver_call_prefix_ends()
+                    .iter()
+                    .map(|event| event.receiver()),
+            )
+            .collect();
+        let [first, second] = receivers.as_slice() else {
+            panic!("one real end per source")
+        };
+        assert_eq!(first.call().expression(), second.call().expression());
+        assert_eq!(first.call().source_unit(), accepted.source(0));
+        assert_eq!(second.call().source_unit(), accepted.source(1));
+        assert_ne!(first.call(), second.call());
+        assert_ne!(first.target(), second.target());
+        assert_eq!(
+            shared.receiver_call_return_ends().len(),
+            if next == "0" { 2 } else { 0 }
+        );
+        assert_eq!(
+            shared.receiver_call_prefix_ends().len(),
+            if next == "return" { 2 } else { 0 }
+        );
+        let raw = accepted.dataflow(&accepted.parts(&shared));
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+    }
+}
+
+#[test]
+fn real_rejections_clear_nonempty_this_receiver_reborrow_tables() {
+    for (opener, closer, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next; fun run(flag: Boolean): Unit {{ {opener} this.touch(\"ready\", {next}) {closer} }} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn this_reborrow_ends_keep_same_ast_indices_and_different_nominal_owners() {
+    for operand in ["", "((this))."] {
+        for next in ["0", "return"] {
+            let left = format!(
+                "class Left {{ fun read(own next: Int): Int = next; fun run(): Unit {{ {operand}read({next}) }} }}"
+            );
+            let right = format!(
+                "class Rght {{ fun read(own next: Int): Int = next; fun run(): Unit {{ {operand}read({next}) }} }}"
+            );
+            let accepted = Fixture::new(&[("a.ko", &left), ("b.ko", &right)]);
+            let shared = accepted.shared();
+            assert!(
+                shared.diagnostics().is_empty(),
+                "{:?}",
+                shared.diagnostics()
+            );
+            assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+            shared.clone().validate().unwrap();
+            let receivers: Vec<_> = shared
+                .receiver_call_return_ends()
+                .iter()
+                .map(|event| event.receiver())
+                .chain(
+                    shared
+                        .receiver_call_prefix_ends()
+                        .iter()
+                        .map(|event| event.receiver()),
+                )
+                .collect();
+            let [first, second] = receivers.as_slice() else {
+                panic!("one real end per source")
+            };
+            assert_eq!(first.call().expression(), second.call().expression());
+            assert_eq!(first.call().source_unit(), accepted.source(0));
+            assert_eq!(second.call().source_unit(), accepted.source(1));
+            assert_ne!(first.call(), second.call());
+            assert!(matches!(
+                first.target(),
+                crate::ownership_checking::UnitReceiverOwnershipTarget::This(_)
+            ));
+            assert!(matches!(
+                second.target(),
+                crate::ownership_checking::UnitReceiverOwnershipTarget::This(_)
+            ));
+            assert_ne!(first.target(), second.target());
+            assert_eq!(
+                shared.receiver_call_return_ends().len(),
+                if next == "0" { 2 } else { 0 }
+            );
+            assert_eq!(
+                shared.receiver_call_prefix_ends().len(),
+                if next == "return" { 2 } else { 0 }
+            );
+            let raw = accepted.dataflow(&accepted.parts(&shared));
+            assert_eq!(
+                raw.receiver_call_return_ends,
+                shared.receiver_call_return_ends()
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends,
+                shared.receiver_call_prefix_ends()
+            );
+        }
+    }
+}
+
+#[test]
+fn real_rejections_clear_nonempty_field_receiver_reborrow_tables() {
+    for (open, close, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nclass Holder(val node: Node)\nfun run(holder: Holder, flag: Boolean): Unit {{ {open} holder.node.touch(\"ready\", {next}) {close} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn field_receiver_ends_keep_consumer_roots_and_provider_field_identity() {
+    use crate::ownership_checking::UnitReceiverOwnershipTarget;
+    let types = "class Node { fun read(own next: Int): Int = next }\nclass Holder(val node: Node)";
+    for next in ["0", "return"] {
+        let left = format!("fun first(holder: Holder): Unit {{ holder.node.read({next}) }}");
+        let right = format!("fun other(holder: Holder): Unit {{ holder.node.read({next}) }}");
+        let accepted = Fixture::new(&[("a.ko", types), ("b.ko", &left), ("c.ko", &right)]);
+        let shared = accepted.shared();
+        assert!(
+            shared.diagnostics().is_empty(),
+            "{:?}",
+            shared.diagnostics()
+        );
+        assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+        shared.clone().validate().unwrap();
+        let receivers: Vec<_> = shared
+            .receiver_call_return_ends()
+            .iter()
+            .map(|e| e.receiver())
+            .chain(
+                shared
+                    .receiver_call_prefix_ends()
+                    .iter()
+                    .map(|e| e.receiver()),
+            )
+            .collect();
+        let [first, second] = receivers.as_slice() else {
+            panic!("one real end per consumer")
+        };
+        assert_eq!(first.call().expression(), second.call().expression());
+        assert_eq!(first.call().source_unit(), accepted.source(1));
+        assert_eq!(second.call().source_unit(), accepted.source(2));
+        assert_ne!(first.call(), second.call());
+        let UnitReceiverOwnershipTarget::Place(first_path) = first.target() else {
+            panic!("first path")
+        };
+        let UnitReceiverOwnershipTarget::Place(second_path) = second.target() else {
+            panic!("second path")
+        };
+        assert_eq!(first_path.root().source_unit(), accepted.source(1));
+        assert_eq!(second_path.root().source_unit(), accepted.source(2));
+        assert_ne!(first_path.root(), second_path.root());
+        assert_eq!(first_path.fields().len(), 1);
+        assert_eq!(first_path.fields(), second_path.fields());
+        assert_eq!(first_path.fields()[0].source_unit(), accepted.source(0));
+        assert_eq!(
+            shared.receiver_call_return_ends().len(),
+            if next == "0" { 2 } else { 0 }
+        );
+        assert_eq!(
+            shared.receiver_call_prefix_ends().len(),
+            if next == "return" { 2 } else { 0 }
+        );
+        let raw = accepted.dataflow(&accepted.parts(&shared));
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+    }
+}
+
+#[test]
+fn real_rejections_clear_nonempty_direct_binding_receiver_tables() {
+    for (open, close, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nfun run(node: Node, flag: Boolean): Unit {{ borrow val borrowed = node; {open} borrowed.touch(\"ready\", {next}) {close} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.borrow_results.bindings.len(), 1);
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn direct_binding_receiver_ends_distinguish_same_index_aliases_and_source_leases() {
+    use crate::ownership_checking::{UnitLoanTarget, UnitReceiverOwnershipTarget};
+    let types = "class Node { fun read(own next: Int): Int = next }";
+    for next in ["0", "return"] {
+        let left = format!(
+            "fun first(node: Node): Unit {{ borrow val borrowed = node; borrowed.read({next}) }}"
+        );
+        let right = format!(
+            "fun other(node: Node): Unit {{ borrow val borrowed = node; borrowed.read({next}) }}"
+        );
+        let accepted = Fixture::new(&[("a.ko", types), ("b.ko", &left), ("c.ko", &right)]);
+        let shared = accepted.shared();
+        assert!(
+            shared.diagnostics().is_empty(),
+            "{:?}",
+            shared.diagnostics()
+        );
+        assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+        shared.clone().validate().unwrap();
+        let receivers: Vec<_> = shared
+            .receiver_call_return_ends()
+            .iter()
+            .map(|e| e.receiver())
+            .chain(
+                shared
+                    .receiver_call_prefix_ends()
+                    .iter()
+                    .map(|e| e.receiver()),
+            )
+            .collect();
+        let [first, second] = receivers.as_slice() else {
+            panic!("one real end per source")
+        };
+        assert_eq!(first.call().expression(), second.call().expression());
+        assert_ne!(first.call(), second.call());
+        assert_ne!(first.target(), second.target());
+        let [first_binding, second_binding] = shared.borrow_results().bindings() else {
+            panic!("one binding per source")
+        };
+        assert_eq!(
+            first_binding.binding().symbol(),
+            second_binding.binding().symbol()
+        );
+        assert_ne!(first_binding.binding(), second_binding.binding());
+        for (source, receiver, binding) in [(1, first, first_binding), (2, second, second_binding)]
+        {
+            assert_eq!(receiver.call().source_unit(), accepted.source(source));
+            assert_eq!(binding.binding().source_unit(), accepted.source(source));
+            let UnitReceiverOwnershipTarget::Place(place) = receiver.target() else {
+                panic!("source lease")
+            };
+            assert_eq!(place.root(), accepted.symbol(source, "node"));
+            assert_eq!(binding.binding(), accepted.symbol(source, "borrowed"));
+            assert_ne!(place.root(), binding.binding());
+            assert_eq!(binding.origin(), &UnitLoanTarget::Place(place.clone()));
+            assert_eq!(binding.initializer().source_unit(), accepted.source(source));
+        }
+        assert_eq!(
+            shared.receiver_call_return_ends().len(),
+            if next == "0" { 2 } else { 0 }
+        );
+        assert_eq!(
+            shared.receiver_call_prefix_ends().len(),
+            if next == "return" { 2 } else { 0 }
+        );
+        let raw = accepted.dataflow(&accepted.parts(&shared));
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+    }
+}
+
+#[test]
+fn real_rejections_clear_nonempty_field_binding_receiver_tables() {
+    for (open, close, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nclass Holder(val node: Node)\nfun run(holder: Holder, flag: Boolean): Unit {{ borrow val borrowed = holder.node; {open} borrowed.touch(\"ready\", {next}) {close} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(raw.borrow_results.bindings.len(), 1);
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn field_binding_receiver_ends_distinguish_aliases_roots_and_shared_field_declarations() {
+    use crate::ownership_checking::{UnitLoanTarget, UnitReceiverOwnershipTarget};
+    let types = "class Node { fun read(own next: Int): Int = next }\nclass Holder(val node: Node)";
+    for next in ["0", "return"] {
+        let left = format!(
+            "fun first(holder: Holder): Unit {{ borrow val borrowed = holder.node; borrowed.read({next}) }}"
+        );
+        let right = format!(
+            "fun other(holder: Holder): Unit {{ borrow val borrowed = holder.node; borrowed.read({next}) }}"
+        );
+        let accepted = Fixture::new(&[("a.ko", types), ("b.ko", &left), ("c.ko", &right)]);
+        let shared = accepted.shared();
+        assert!(
+            shared.diagnostics().is_empty(),
+            "{:?}",
+            shared.diagnostics()
+        );
+        assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+        shared.clone().validate().unwrap();
+        let receivers: Vec<_> = shared
+            .receiver_call_return_ends()
+            .iter()
+            .map(|e| e.receiver())
+            .chain(
+                shared
+                    .receiver_call_prefix_ends()
+                    .iter()
+                    .map(|e| e.receiver()),
+            )
+            .collect();
+        let [first, second] = receivers.as_slice() else {
+            panic!("one real end per source")
+        };
+        assert_eq!(first.call().expression(), second.call().expression());
+        assert_ne!(first.call(), second.call());
+        assert_ne!(first.target(), second.target());
+        let [first_binding, second_binding] = shared.borrow_results().bindings() else {
+            panic!("one binding per source")
+        };
+        assert_eq!(
+            first_binding.binding().symbol(),
+            second_binding.binding().symbol()
+        );
+        assert_ne!(first_binding.binding(), second_binding.binding());
+        for (source, receiver, binding) in [(1, first, first_binding), (2, second, second_binding)]
+        {
+            assert_eq!(receiver.call().source_unit(), accepted.source(source));
+            assert_eq!(binding.binding().source_unit(), accepted.source(source));
+            let UnitReceiverOwnershipTarget::Place(place) = receiver.target() else {
+                panic!("source lease")
+            };
+            assert_eq!(place.root(), accepted.symbol(source, "holder"));
+            assert_eq!(binding.binding(), accepted.symbol(source, "borrowed"));
+            assert_ne!(place.root(), binding.binding());
+            assert_eq!(binding.origin(), &UnitLoanTarget::Place(place.clone()));
+            assert_eq!(binding.initializer().source_unit(), accepted.source(source));
+            assert_eq!(place.fields().len(), 1);
+            assert_eq!(place.fields()[0], accepted.symbol(0, "node"));
+            assert_eq!(place.fields()[0].source_unit(), accepted.source(0));
+        }
+        assert_eq!(
+            shared.receiver_call_return_ends().len(),
+            if next == "0" { 2 } else { 0 }
+        );
+        assert_eq!(
+            shared.receiver_call_prefix_ends().len(),
+            if next == "return" { 2 } else { 0 }
+        );
+        let raw = accepted.dataflow(&accepted.parts(&shared));
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+    }
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_string_clone_ends() {
+    assert_rejections_clear(
+        "fun copy(text: String): String = text.clone()",
+        false,
+        |accepted, raw| {
+            let [end] = raw.string_clone_loan_ends.as_slice() else {
+                panic!("one real planner end before rejection");
+            };
+            let call =
+                UnitExpressionId::new(accepted.source(0), accepted.expression(0, "text.clone()"));
+            let argument =
+                UnitExpressionId::new(accepted.source(0), accepted.expression(0, "text"));
+            assert_eq!(end.point(), UnitDropPoint::CallReturn(call));
+            assert_eq!(end.loan().call(), call);
+            assert_eq!(end.loan().argument(), argument);
+            assert_eq!(end.loan().kind(), LoanKind::Shared);
+            let UnitLoanTarget::Place(place) = end.loan().target() else {
+                panic!("borrowed named source");
+            };
+            assert_eq!(place.root(), accepted.symbol(0, "text"));
+            assert!(place.is_root());
+            assert!(raw.loans.contains(end.loan()));
+        },
+    );
+}
+
+#[test]
+fn later_rejections_clear_simultaneously_nonempty_receiver_and_clone_end_tables() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(node: Node): Unit { val seed = \"kept\"; node.touch(seed.clone(), 0); node.touch(\"prefix\".clone(), return) }";
+    assert_rejections_clear(text, false, |accepted, raw| {
+        assert_eq!(raw.receiver_call_return_ends.len(), 1);
+        assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+        assert_eq!(raw.string_clone_loan_ends.len(), 2);
+        let shared = accepted.shared();
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+        assert_eq!(raw.string_clone_loan_ends, shared.string_clone_loan_ends());
     });
 }

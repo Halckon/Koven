@@ -3,6 +3,8 @@
 //! retain their original pipeline.
 
 use crate::test_support::diagnostics::assert_text_eq;
+#[path = "lower_frontend_resource_deinit_tests/direct_closure.rs"]
+mod direct_closure;
 #[path = "lower_frontend_resource_deinit_tests/field_chain.rs"]
 mod field_chain;
 
@@ -107,7 +109,7 @@ fn lower_resource(source: &str, entry_name: &str) -> ResourceUnit {
     }
 }
 
-// Only the unsupported direct-invoked resource closure retains this legacy path.
+// Keep the original direct resource closure success witness beside its strict Unit counterpart.
 fn lower_resource_legacy(source: &str) -> crate::ssa::model::Program {
     let analysis = analyze_legacy(source);
     assert!(
@@ -472,8 +474,8 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
 
 #[test]
 fn single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup() {
-    // Legacy-only: direct callable invocation does not select resource lambdas
-    // in the Unit planner. Keep the complete original body/environment oracle.
+    // Keep the complete original body/environment oracle on the Legacy path.
+    // direct_closure independently verifies the identical source through strict Unit.
     let program = lower_resource_legacy(
         "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
     );
