@@ -3591,3 +3591,8 @@ Unit 实际输出在括号后，修正生产者并保留原基准。旧入口的
 前端单元 397 项、type_checking 102 项、multifile_type_checking 287 项、
 parser block continuation 11 项、CLI check 6 项及 LSP 单元 56 项通过，零失败、
 零忽略。前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+本机 LSP stdio 格式化 integration 经 Cargo 启动时，在候选和同环境 `498b4b6b`
+基线均报响应超时。直接运行各自生成的同一测试二进制，两边均通过。
+候选本机协议探针也实际完成单文件与项目初始化、格式化、更新、关闭和退出。
+Cargo 下的超时原因未定位，待远端对应测试验收。
