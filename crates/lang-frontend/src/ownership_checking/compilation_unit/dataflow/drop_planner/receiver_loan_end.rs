@@ -115,7 +115,8 @@ impl DropPlanner<'_, '_> {
             &operand_place
         };
         let root = place.root();
-        let owned = self.checker.formed_owned_locals.contains(&root)
+        let provenance = self.loan_provenance();
+        let owned = provenance.formed_owned.contains(&root)
             || self
                 .checker
                 .bindings
@@ -132,14 +133,8 @@ impl DropPlanner<'_, '_> {
                     OwnershipBindingKind::Shared | OwnershipBindingKind::Exclusive
                 )
             });
-        // A root descriptor alone cannot distinguish provider/binding provenance.
-        let provider = self.checker.iterations.values().any(|plan| {
-            plan.bindings().iter().any(|binding| binding.symbol() == root)
-                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-        }) || self.checker.map_iterations.values().any(|plan| {
-            plan.bindings().iter().any(|binding| binding.symbol() == root)
-                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-        });
+        // Keep the same root membership checks on the immutable checker index.
+        let provider = provenance.iteration_providers.contains(&root);
         (owned || nonowning_parameter)
             && !provider
             && place.elements().is_empty()
@@ -147,12 +142,7 @@ impl DropPlanner<'_, '_> {
                 self.checker.symbol_kind(root),
                 Some(SymbolKind::Variable | SymbolKind::ValueParameter)
             )
-            && !self
-                .checker
-                .borrow_results
-                .bindings
-                .iter()
-                .any(|binding| binding.binding() == root)
+            && !provenance.borrow_bindings.contains(&root)
             && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == place)
     }
 

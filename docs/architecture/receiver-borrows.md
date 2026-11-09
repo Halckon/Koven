@@ -169,3 +169,17 @@ Shared receiver 的正常/前缀观察现与 String.clone 独立完成表共同�
 不可达后缀不伪造完成事件，并核后来源错误/deferred 对 raw 与公开三表的共同撤销。
 owner 观察开关比较完整 Analysis；这些有界组合证据仍不提供跨表动作总序或消费者退休。
 见[生命周期候选合批验收](../specs/active/0341-shared-lowering-core.md#139-receiver-与-stringclone-生命周期候选合批2026-11-09)。
+
+Receiver、直接调用和借用结果 handoff 的根分类共用当前源文件 checker 的只读索引。
+首次查询建立已形成 owner、迭代绑定与 provider 根、借用结果绑定三个集合。索引不替换
+checker 的回滚记录或顺序产物，也不改变实际退出动作和事实发布门禁。
+
+同一索引按 source-qualified 初始化表达式登记本地借用绑定的原位置。正常调用的 handoff
+和绑定运输只查询当前 initializer 的候选，仍按原顺序验证 pending、父依赖和各自的来源条件。
+
+转发借用单独按实际调用惰性索引已验证来源 loan 与返回来源。返回表达式沿用原有分组归一，
+同键仍取原先首项。索引只参与候选查找，token 仍由真实 pending 集合移交到实际返回边。
+
+索引仅改变查询成本；Shared receiver 的 Borrow/Inout、普通字段、具体 this 与首层直接
+binding 资格和实际 token 退休保持。索引在 alias 解析为 canonical source place 后查询；
+This provider 仍使用原 This 身份检查，不混入只含 Place 根的集合。

@@ -53,6 +53,53 @@ fn actual_source_token_survives_initializer_until_local_last_use() {
     }
 }
 
+#[test]
+fn repeated_local_binding_names_select_only_their_own_call_and_token() {
+    use std::{collections::BTreeSet, fmt::Write};
+
+    let mut text = VIEW.to_owned();
+    for index in 0..32 {
+        writeln!(
+            text,
+            "fun run{index}(): Unit {{ val owner = \"kept\"; borrow val item = view(owner); println(item) }}"
+        )
+        .unwrap();
+    }
+    let observed = observe(&text);
+    assert_units_admitted(&observed);
+    super::borrow_handoff::assert_handoff_identity(&observed);
+    for unit in &observed.units {
+        let bindings = unit.borrow_results().bindings();
+        let handoffs = unit.borrow_call_handoffs();
+        let transports = unit.borrow_binding_transports();
+        assert_eq!(bindings.len(), 32);
+        assert_eq!(handoffs.len(), bindings.len());
+        assert_eq!(transports.len(), bindings.len());
+        let mut calls = BTreeSet::new();
+        for ((binding, handoff), transport) in bindings.iter().zip(handoffs).zip(transports) {
+            assert_eq!(handoff.binding(), binding.binding());
+            assert_eq!(transport.binding(), binding.binding());
+            assert_eq!(handoff.source_loan(), transport.source_loan());
+            assert_eq!(transport.handoff_point(), handoff.point());
+            assert_eq!(handoff.source_loan().call(), binding.initializer());
+            assert_eq!(
+                handoff.source_loan().argument(),
+                binding.source_loan().unwrap().argument()
+            );
+            assert_eq!(handoff.source_loan().target(), binding.origin());
+            let end = unit
+                .borrow_results()
+                .ends()
+                .iter()
+                .find(|end| end.binding() == binding.binding())
+                .expect("the original binding has its own end");
+            assert_eq!(transport.point(), end.point());
+            assert_eq!(point_text(&observed, transport.point()), "println(item)");
+            assert!(calls.insert(binding.initializer()));
+        }
+    }
+}
+
 fn point_text(observed: &Observed, point: UnitDropPoint) -> &str {
     let span = match point {
         UnitDropPoint::AfterStatement(id) => observed
