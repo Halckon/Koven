@@ -2,9 +2,28 @@
 use super::*;
 
 impl Checker<'_> {
+    pub(super) fn copy_to_nullable_borrow(
+        &self,
+        contract: UnitCallArgumentOwnershipContract,
+    ) -> bool {
+        contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+            && contract.category() == ExpressionCategory::Place
+            && self
+                .typed
+                .expression_type(contract.argument())
+                .is_some_and(|ty| {
+                    self.typed.copyability(ty) == crate::type_checking::Copyability::Copyable
+                })
+            && self.borrow_needs_nullable_conversion(
+                contract.argument().expression(),
+                contract.parameter_type(),
+            )
+    }
+
     pub(super) fn apply_contract(
         &mut self,
         contract: UnitCallArgumentOwnershipContract,
+        copy_to_nullable: bool,
         state: &mut State,
     ) -> Result<(), OwnershipCheckingError> {
         match contract.kind() {
@@ -83,6 +102,9 @@ impl Checker<'_> {
                         });
                     }
                     target
+                } else if copy_to_nullable {
+                    // The operand has already been read. The shared loan is of the wrapper.
+                    UnitLoanTarget::Temporary(contract.argument())
                 } else {
                     match contract.category() {
                         ExpressionCategory::Temporary => {

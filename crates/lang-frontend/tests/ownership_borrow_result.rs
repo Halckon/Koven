@@ -226,3 +226,75 @@ fn synchronous_borrow_continuation_cannot_alias_a_promoted_source() {
         assert!(unit.borrow_results().call_uses().is_empty());
     }
 }
+
+#[test]
+fn copyable_nullable_borrow_uses_a_temporary_instead_of_lending_the_source() {
+    use lang_frontend::ownership_checking::{LoanKind, LoanTarget, UnitLoanTarget};
+
+    let text = "fun deliver(value: Int?, inout output: Int): Unit { output = 9 }\nfun run() { var n: Int = 7; deliver(value = (n), output = &n) }";
+    let file = checked_single(text);
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    let [shared, exclusive] = file.loans() else {
+        panic!("expected two operand loans")
+    };
+    assert_eq!(shared.kind(), LoanKind::Shared);
+    assert_eq!(shared.target(), &LoanTarget::Temporary(shared.argument()));
+    assert_eq!(exclusive.kind(), LoanKind::Exclusive);
+    assert!(matches!(exclusive.target(), LoanTarget::Place(place) if place.is_root()));
+
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [shared, exclusive] = unit.loans() else {
+            panic!("expected two operand loans")
+        };
+        assert_eq!(shared.kind(), LoanKind::Shared);
+        assert_eq!(
+            shared.target(),
+            &UnitLoanTarget::Temporary(shared.argument())
+        );
+        assert_eq!(exclusive.kind(), LoanKind::Exclusive);
+        assert!(matches!(exclusive.target(), UnitLoanTarget::Place(place) if place.is_root()));
+    }
+}
+
+#[test]
+fn nullable_borrow_copies_preserve_real_storage_conflicts() {
+    for text in [
+        "fun deliver(value: Int?, inout output: Int?): Unit { output = null }\nfun run() { var n: Int? = 7; if (n != null) { deliver(value = (n), output = &n) } }",
+        "fun deliver(inout output: Int, value: Int?): Unit { output = 9 }\nfun run() { var n: Int = 7; deliver(output = &n, value = (n)) }",
+    ] {
+        let file = checked_single(text);
+        let units = checked(text);
+        for diagnostics in
+            std::iter::once(file.diagnostics()).chain(units.iter().map(|unit| unit.diagnostics()))
+        {
+            let [diagnostic] = diagnostics else {
+                panic!("{text}: expected an overlap, got {diagnostics:?}");
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0135");
+        }
+    }
+}
+
+#[test]
+fn nullable_copy_loan_end_witness_covers_call_return_and_later_argument_exit() {
+    use lang_frontend::ownership_checking::{UnitDropPoint, UnitLoanTarget};
+
+    let text = "fun accept(value: Int?, own marker: Int): Unit {}\nfun exercise(own flag: Boolean): Unit { val n: Int = 7; accept((n), if (flag) { return } else 8) }";
+    for unit in checked(text) {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let ends = unit.direct_call_loan_ends();
+        assert_eq!(ends.len(), 2, "{ends:?}");
+        assert_eq!(ends[0].loan(), ends[1].loan());
+        let loan = ends[0].loan();
+        assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+        assert!(
+            ends.iter()
+                .any(|end| end.point() == UnitDropPoint::CallReturn(loan.call()))
+        );
+        assert!(
+            ends.iter()
+                .any(|end| matches!(end.point(), UnitDropPoint::ControlTransfer(_)))
+        );
+    }
+}

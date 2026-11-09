@@ -129,6 +129,7 @@ struct Checker<'a> {
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     references_by_span: BTreeMap<(usize, usize), SymbolId>,
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
+    call_descriptors: BTreeMap<usize, &'a crate::type_checking::CallDescriptor>,
     receivers_by_expression: BTreeMap<usize, CallReceiverDescriptor>,
     construction: construction::Analysis,
     rc_effects: Vec<super::RcOwnershipEffect>,
@@ -235,6 +236,11 @@ impl<'a> Checker<'a> {
             symbols_by_span,
             references_by_span,
             calls_by_expression,
+            call_descriptors: typed
+                .calls()
+                .iter()
+                .map(|call| (call.expression().index(), call))
+                .collect(),
             receivers_by_expression,
             construction: construction::Analysis::new(parsed, typed)?,
             rc_effects: Vec::new(),

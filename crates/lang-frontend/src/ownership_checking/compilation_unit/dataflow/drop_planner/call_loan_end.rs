@@ -7,7 +7,7 @@ use crate::{
         UnitLoanTarget,
     },
     parser::{Expression, StringPart},
-    type_checking::{CallableResultSource, UnitCallTarget},
+    type_checking::{CallableResultSource, ExpressionCategory, UnitCallTarget},
 };
 use std::collections::BTreeMap;
 
@@ -42,6 +42,14 @@ impl DropPlanner<'_, '_> {
             match node.payload() {
                 Expression::Group { expression } => operand = *expression,
                 Expression::Name => {
+                    if kind == LoanKind::Shared
+                        && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument())
+                        && self.checker.typed.expression_category(loan.argument())
+                            == Some(ExpressionCategory::Place)
+                    {
+                        // A Copyable nullable conversion of the name has its own temporary loan.
+                        return true;
+                    }
                     let Ok(Some(place)) = self.checker.place(operand) else {
                         return false;
                     };

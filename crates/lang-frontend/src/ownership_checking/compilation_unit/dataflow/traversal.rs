@@ -861,7 +861,12 @@ impl Checker<'_> {
                     argument: index,
                 });
             }
+            let copy_to_nullable =
+                contract.is_some_and(|contract| self.copy_to_nullable_borrow(contract));
             let usage = match contract.map(UnitCallArgumentOwnershipContract::kind) {
+                Some(UnitCallArgumentOwnershipKind::SharedLoan) if copy_to_nullable => {
+                    ExpressionUse::Read
+                }
                 Some(UnitCallArgumentOwnershipKind::Value) => ExpressionUse::Consume {
                     parameter_span: contract.and_then(|contract| contract.parameter_span()),
                 },
@@ -931,7 +936,7 @@ impl Checker<'_> {
                     self.reject_borrowed_closure_escape(argument.value, next)?;
                 }
                 if self.diagnostics.len() == diagnostic_count {
-                    self.apply_contract(contract, next)?;
+                    self.apply_contract(contract, copy_to_nullable, next)?;
                 }
             }
             self.hold_call_closure(call, argument.value, false, &mut flows)?;

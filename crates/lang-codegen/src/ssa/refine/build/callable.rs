@@ -3,11 +3,15 @@
 //! callables, and Borrow String/field loans in closure bodies.
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode, UnitDropPoint},
+    ownership_checking::{
+        ClosureCaptureEffect, ClosureCaptureMode, LoanKind as FrontendLoanKind, UnitDropPoint,
+        UnitLoanTarget,
+    },
     parser::Expression,
     source::Span,
     type_checking::{
-        BuiltinType, NominalKind, UnitAggregateProjectionKind, UnitTypeId, UnitTypeKind,
+        BuiltinType, Copyability, NominalKind, UnitAggregateProjectionKind, UnitTypeId,
+        UnitTypeKind,
     },
 };
 
@@ -24,6 +28,61 @@ use crate::ssa::{
 pub(super) type LentArgument = (Slot, Vec<Slot>, Option<ExpressionId>);
 
 impl Builder<'_, '_> {
+    /// A borrowed binding can be reborrowed directly only when its storage matches the ABI.
+    pub(super) fn reborrow_call_argument(
+        &mut self,
+        call: ExpressionId,
+        operand: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> Result<Option<Slot>, LoweringError> {
+        let root = self.ungrouped_expr(operand)?;
+        let (payload, root_span) = self.node(root)?;
+        let source = match payload {
+            Expression::Name => self
+                .reference(root_span)
+                .ok()
+                .and_then(|symbol| self.borrowed.get(&symbol).copied()),
+            Expression::This => match self.reference(root_span) {
+                Ok(symbol) => self.borrowed.get(&symbol).copied(),
+                Err(_) => self.receiver,
+            },
+            _ => None,
+        };
+        let Some(source) = source else {
+            return Ok(None);
+        };
+        let span = self.span(operand);
+        let EntityType::Loan { target, .. } = self.body.slots[source.0] else {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        };
+        if target == self.ssa_type(self.c(parameter), span)? {
+            return self
+                .value(
+                    ROp::SharedReborrow { source },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    },
+                    span,
+                )
+                .map(Some);
+        }
+        let operand_id = self.unit(operand);
+        if self.copyability_of(self.expression_type(operand)?) == Copyability::Copyable
+            && self.inputs.owned.loans().iter().any(|fact| {
+                fact.call() == self.unit(call)
+                    && fact.argument() == operand_id
+                    && fact.kind() == FrontendLoanKind::Shared
+                    && fact.target() == &UnitLoanTarget::Temporary(operand_id)
+            })
+        {
+            // The ordinary argument path reads through the source loan before wrapping the copy.
+            Ok(None)
+        } else {
+            Err(error(LoweringErrorKind::MissingFact, span))
+        }
+    }
+
     /// Binds a lambda thunk's optional borrowed environment, capture projections, and
     /// explicit parameters on entry.
     pub(super) fn bind_thunk_entry(

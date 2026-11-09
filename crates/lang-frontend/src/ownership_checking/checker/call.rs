@@ -100,6 +100,7 @@ impl Checker<'_> {
                 },
                 receiver.mode(),
                 true,
+                false,
                 &mut flows,
             )?;
         } else if let Some(receiver) = receiver
@@ -111,6 +112,7 @@ impl Checker<'_> {
         self.hold_call_closures(id, receiver_expression.unwrap_or(callee), &mut flows)?;
         let modes = self.calls_by_expression.get(&id.index()).cloned();
         let cross_thread = self.cross_thread_by_expression.get(&id.index()).cloned();
+        let descriptor = self.call_descriptors.get(&id.index()).copied();
         let argument_expressions = arguments
             .iter()
             .map(|argument| argument.value)
@@ -122,7 +124,24 @@ impl Checker<'_> {
                 .and_then(|effects| effects.get(index))
                 .copied()
                 .unwrap_or(false);
+            let copy_to_nullable = mode == Some(ParameterMode::Borrow)
+                && descriptor
+                    .and_then(|call| call.arguments().get(index))
+                    .is_some_and(|mapping| {
+                        mapping.category() == crate::type_checking::ExpressionCategory::Place
+                            && self
+                                .typed
+                                .expression_type(argument.value)
+                                .is_some_and(|ty| {
+                                    self.typed.copyability(ty) == Some(Copyability::Copyable)
+                                })
+                            && self.borrow_needs_nullable_conversion(
+                                argument.value,
+                                mapping.parameter_type(),
+                            )
+                    });
             let usage = match mode {
+                Some(ParameterMode::Borrow) if copy_to_nullable => ExpressionUse::Read,
                 Some(ParameterMode::Value) => ExpressionUse::Consume,
                 Some(ParameterMode::Borrow | ParameterMode::Inout) => ExpressionUse::Place,
                 None => ExpressionUse::Read,
@@ -172,7 +191,14 @@ impl Checker<'_> {
             if self.diagnostics.len() == argument_diagnostics
                 && let Some(mode) = mode
             {
-                self.apply_argument_contract(id, argument, mode, false, &mut flows)?;
+                self.apply_argument_contract(
+                    id,
+                    argument,
+                    mode,
+                    false,
+                    copy_to_nullable,
+                    &mut flows,
+                )?;
             }
         }
         if self.diagnostics.len() == diagnostic_count {

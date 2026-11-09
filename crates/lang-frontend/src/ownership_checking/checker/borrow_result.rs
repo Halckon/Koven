@@ -40,7 +40,7 @@ impl Checker<'_> {
             return Some((descriptor.receiver(), None));
         }
 
-        let call = self.typed.call(expression)?;
+        let call = self.call_descriptors.get(&expression.index())?;
         if let Some(range) = call.range_construction() {
             return Some((range.source(), None));
         }

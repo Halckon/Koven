@@ -4406,3 +4406,33 @@ Single 与 Unit 在识别借用调用之后，分开核验实际映射参数的�
 普通 `Borrow Int?` 的临时包装仍另行处理。若内层合法返回
 `borrow Int` 而外层同步消费者参数为 `Int?`，转换发生在外层，
 现有直接同步交接事实仍有表示差异，不能复用本节结论。
+
+## 180. R3/R4 普通 Borrow 的 Copyable nullable 临时值
+
+在 `3992f39b` 上，`Borrow Int?` 接受字面量、具名 `Int` 及转发
+的 `Borrow Int`，但原生构建因路由报 `MissingFact` 或
+`InvalidModel`。具名转换后在同一次调用借用 `&n` 原本还报 L0135。
+先复现这两个失败，再以真实 nullable 存储和先借用 `&n` 的反向顺序
+作负控。
+
+普通调用对需要 nullable 转换的 Copyable place 先检查并执行普通
+读取，再发布同一 operand 身份的 Shared Temporary loan。后续实参可
+借用原变量，反向顺序仍会拒绝读取。真实 nullable 的 place 在收窄
+后仍有原 loan。Direct 对已发布的 Temporary 核验 inline payload
+与 Copyable，再借用新包装槽；refine 仅在目标相等时复用原参数 loan，
+目标不同则要求同源 Temporary 事实并从原 loan 读值。原句柄
+MoveOnly temporary 的唯一析构义务继续转给 wrapper。
+
+初版修复后，带后续提前返回的 Direct 前缀仍因实参类别是 Place 报
+`UnsupportedNode`。准入与构建改用同一 Copyable inline 判据，实际
+pending loan 的观测记录覆盖 CallReturn 和 ControlTransfer。
+两条原生路线均验证提前退出不分派、继续路径只调用一次。
+独立复核先发现该缺口，再复核修复后的实际 loan 和来源校验。
+
+最终六组前端单元和集成测试 732 项通过。三个后端定向集合分别
+通过 4、5 和 5 项，均无失败或忽略，分别过滤 2802、2801 和 2801 项。
+严格 workspace Clippy、CLI build 通过。普通参数、先读后写和后续早退
+三组程序均通过实际 CLI single/project 构建及输出对照。本次原生覆盖
+`Int?` 与 `Boolean?`，并保留旧 MoveOnly 句柄回归。精确类型的
+nullable 枚举及 `Char?` 探针仍报 UnsupportedNode。§179 的内层
+合法借用结果被外层转换为 nullable 的组合仍另行复审。
