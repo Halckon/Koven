@@ -4494,3 +4494,26 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+
+
+### D10/E2：规范类型种子消费者复用到最新主线（2026-11-08）
+
+以 `e1b0c2dc`（#377 已合入）新建独立分支，逐文件比较确认原候选 `e8284750` 的
+`canonical.rs` 与 `canonical_type_tables.rs` 在其父提交至本基线没有变化，且主线尚未
+覆盖该迁移。因此仅原样复用两文件，Architecture 在当前正文追加事实，不回滚已合入
+的 `lambda_completion` 等说明，不重放旧 Spec 账本或重复合入其他候选。
+
+原 `package sample` 空源保持不变。MemoryDocument/Rooted 两入口各检查 signature/raw
+表的固定18个 builtin 加 Signed/Unsigned literal 与 Error 共21种种子顺序、完整 kind
+反查和总长度，不从另一入口或生产 ALL 动态生成期望。原 local/unit builtin 身份对照
+保留在既有 canonical 核心测试，直接检查两表 ID 和 kind，不再运行旧 Single checker。
+本片退休一个 integration Single checker 消费者；不改生产类型表实现或公开 API。
+
+本基线实际验收：`canonical_type_tables` 1 passed，精确 canonical 核心单测 1 passed；
+frontend all-targets Clippy `-W clippy::all -D warnings`、fmt、docs、相对本基线尺寸与
+`git diff --check` 全通过。863份 Markdown、2220份手写 Rust，35项既有超1000行，
+未新增尺寸例外或提高额度。独立复审确认原样复用、固定 oracle 与旧合同保全。
+Mac AArch64、Rust/Cargo1.96，locked/offline、默认debug、jobs=2，复用独立 target 串行。
+本片仅 cfg(test)/integration/docs，不改公开 API，未额外运行 workspace check；未跑
+frontend全量、Abort、CI-only注入、native、Linux或远端CI。保持 D10/E2 in-progress，
+仅本地提交及经恢复验证的 format-patch/bundle 备份，不推送、合并。
