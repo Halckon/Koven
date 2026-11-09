@@ -4862,3 +4862,54 @@ Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2、�
 
 按用户最新指令不再生成备份；本片分步本地提交，准备通过connector发布，不强推、不合并。
 本地定向结果不替代发布头官方CI，也不宣称完整借用流或D10/E2完成。
+
+
+## 127. Borrow 参数 receiver 的控制转移前缀结束（2026-11-09）
+
+独立分支 `feature/spec-0341-borrowed-receiver-prefix`，精确基底为 connector 已发布的
+`bb2fca382f9e67b913a780329a7fea587e1fea4b`，与前片本地 `b06970b9` 的完整树一致。
+已核在途 receiver/borrow 分支，不重复正常 CallReturn 或 String.clone，也不改 Choice。
+main 后续经 #378 前进到 `a8657f58`；本片验证只证明此明确基底上的候选，不算新主线、
+其他未合分支组合或集成后验收。
+
+依 Guide10 Borrow 参数允许 nested Shared reborrow、caller 保有 owner 的现行合同，
+本片把 §125 已有 Shared ValueParameter 根资格用于原 `EndReceiverLoan` 前缀投影。
+`observes_root_receiver` 移除资格开关，正常返回原 true 路径等价；Return/Break/Continue
+仍只观察原 depth-aware unwind 实际移出的 token。没有新增或重建 token，也不修改队列
+退休、loop depth、receiver activation、借用准入、owner/drop、provider 或 native 行为。
+
+资格仍要求 declaration/symbol 的 owned-result 方法、Shared receiver、完整 Name/Group
+根 identity。Inout 参数、显式借用绑定、provider 来源/绑定、this、投影、temporary、
+reservation 与 borrowed-result receiver 排除不变。结束的是被放弃调用的 nested reborrow，
+不是原参数 loan 或 caller owner；计数仍含未收录动作，按静态控制点分别重置，不代表
+完整流、全局 absence、跨表全序、动态迭代次数或 caller/callee 动态别名。Single 见证未改。
+
+失败先行 `40145ca6` 逐字保留原 Return 排除源码，真实运行得到0事件而固定预期为1；
+最小资格变更后转绿。原 break/continue 两份 Borrow 负控源码及混合 owned/Borrow 源码
+也原样保留，改用非空固定 oracle；已完成 inner CallReturn 不在 outer 前缀重发。
+13项新双Unit入口合同覆盖默认/显式Borrow、Group、同根逆序token、loop-depth、真实for
+cleanup动作、后续参数使用、不同静态边计数、Inout/借用结果/provenance边界及公开撤销。
+2项新增raw合同先真实形成非空表再叠加独立错误/deferred，并核相同AST index的双source身份。
+
+新增fixture曾错误预期 loop 内 borrow val 准入，真实分析按既有 L0164 拒绝；后续探针
+区分了 loop 外 alias 已准入但仍被本表排除、loop 内 alias/borrow-result binding 尚未证明。
+最终保留两类固定正负控，拒绝项核精确诊断消息与 borrow marker span；临时探针输出已移除。
+未以调整生产消除未支持路径，也未删去失败暴露的源码边界。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 参数前缀及既有直接借用合同 | `unit_direct_call_loan_ends`，沿用前片5项Abort整项排除 | 149 passed，含13项新合同 |
+| 原借用与receiver回边 | continuation、nested、backedge三targets，nested沿用1项Abort整项排除 | 14 + 9 + 4 passed |
+| 原Unit iteration退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| raw撤销与跨source邻控 | `--lib adjacent_borrow_results` | 13 passed，396项未选 |
+| 静态与跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 全部通过 |
+| 文档及尺寸 | `check_docs.py`、`check_rust_sizes.py --base bb2fca38`、diff | 通过；863 Markdown、2229 Rust、35项既有超长 |
+
+Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2、独立target串行。
+沿用6项既有Abort整项仅编译边界；未执行故障注入、压力、native、Linux、frontend/workspace
+全量测试或正式CI。本片不改公开表结构或尺寸额度，不把源码准入升级为native证明。
+共195项不同普通测试通过，不重复累计先行复跑。独立fresh-context只读复核完整11文件
+diff、Architecture与本节，未发现P1/P2阻断；复审未另行运行Cargo。
+
+按用户最新要求不再备份；红测、实现、文档分步本地提交，准备通过connector发布，不强推、
+不合并。发布头与主线集成后的官方CI仍须独立核验，D10/E2与完整借用生命周期仍未完成。

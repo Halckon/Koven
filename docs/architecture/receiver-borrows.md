@@ -73,8 +73,9 @@ Unit `receiver_call_prefix_ends()` 只投影实际 return/break/continue unwind 
 receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end 的数量。计数
 包含被切片排除的真实动作，按不同控制转移点重置，不提供全局执行索引或完整结束流。
 
-仅 owned-result 方法、Shared receiver 和 owned Name/Group 根准入；正常返回、
-reservation、this、投影、temporary、provider、借用绑定与 borrowed-result
+仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow 参数的 Name/Group 根准入；
+参数的 nested reborrow 结束不结束原参数能力，也不析构 caller owner。正常返回、
+Inout 参数、reservation、this、投影、temporary、provider、显式借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
 
@@ -82,6 +83,10 @@ reservation、this、投影、temporary、provider、借用绑定与 borrowed-re
 pending receiver；continue 保留仍 live 的循环外 owner，for 的 provider 清理顺序不变。
 计数描述每个静态控制点，不表示动态迭代次数；同根多 token 仍按实际逆序逐条保留。
 新增证据见 [CFG 前缀切片](../specs/active/0341-shared-lowering-core.md#121-shared-receiver-循环控制转移前缀2026-11-09)。
+Borrow 参数的 Return/Break/Continue 现观察同一实际退休 token；先完成 inner 的正常
+结束不在 outer 放弃时重发，内层循环跳转也不结束更外层 pending receiver。默认/显式
+Borrow、Group、同根嵌套逆序、for 清理顺序、后续参数使用、跨 source 身份及原子撤销见
+[参数前缀切片](../specs/active/0341-shared-lowering-core.md#127-borrow-参数-receiver-的控制转移前缀结束2026-11-09)。
 
 ## Shared receiver 的正常完成观察
 
@@ -89,7 +94,7 @@ Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pendi
 receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
 反推执行。正常完成准入 owned 名称根及声明端 Borrow 参数的 Name/Group 根；两者都
 要求 Shared receiver 与 owned-result 方法。Borrow 参数只结束本次 nested reborrow，
-原参数能力与 caller owner 不被结束或析构；prefix 查询仍只覆盖 owned 根。
+原参数能力与 caller owner 不被结束或析构；prefix 查询使用相同根资格。
 Inout 参数、this、投影、temporary、provider、显式借用绑定、reservation 与 borrowed-result
 receiver 继续排除；String.clone intrinsic 的独立完成路径不在此查询内。
 
