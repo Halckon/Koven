@@ -38,6 +38,47 @@ fn error_writes_its_message_verbatim_after_flushed_stdout() {
 }
 
 #[test]
+fn named_nothing_call_enters_the_callee_and_aborts_during_an_argument_prefix() {
+    let check = || {
+        assert_abort(
+            "named-nothing-prefix",
+            r#"
+class Ticket { deinit() { println("unexpected drop") } }
+fun prefix(): Ticket { println("prefix"); return Ticket() }
+fun stop(): Nothing { println("entered stop"); error("from stop") }
+fun suffix(): Int { println("unexpected suffix"); return 1 }
+fun dormant(own ticket: Ticket, middle: Int, last: Int): Unit { println("unexpected dispatch") }
+fun entry(): Unit { dormant(prefix(), stop(), suffix()) }
+"#,
+            "prefix\nentered stop\n",
+            "from stop",
+            "error(",
+        )
+    };
+    check();
+    crate::ssa::with_per_family_lowering(check);
+}
+
+#[test]
+fn named_nothing_method_evaluates_its_receiver_before_its_arguments() {
+    assert_abort(
+        "named-nothing-method",
+        r#"
+class Worker {
+    deinit() { println("unexpected drop") }
+    fun stop(own value: Int): Nothing { println("entered method"); error("method stop") }
+}
+fun worker(): Worker { println("receiver"); return Worker() }
+fun argument(): Int { println("argument"); return 1 }
+fun entry(): Unit { worker().stop(argument()); println("unexpected continuation") }
+"#,
+        "receiver\nargument\nentered method\n",
+        "method stop",
+        "error(",
+    );
+}
+
+#[test]
 fn null_assertion_points_at_the_asserted_expression() {
     assert_abort(
         "null-assertion",

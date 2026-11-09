@@ -35,6 +35,7 @@ fn valid_signature(module: &Module, owner: SsaTypeId, function: FunctionId) -> b
                     target: owner,
                 })
                 && function.return_types.is_empty()
+                && !function.never_returns
         })
 }
 

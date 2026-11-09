@@ -315,6 +315,8 @@ impl BodyChecker<'_> {
         let initial_candidate_count = candidates.len();
         let callee_exits =
             !self.tracks_pending_call_flow() || self.checked_callee_exits(source, callee)?;
+        let ordinary = self.pending_loop_exits.is_empty()
+            || self.call_operands_fall_through(source, callee, &[])?;
         let mut mapped = Vec::new();
         let mut first_mapping_error = None;
         for candidate in candidates {
@@ -335,7 +337,7 @@ impl BodyChecker<'_> {
             if let Some(error) = first_mapping_error {
                 self.emit_mapping_error(error)?;
             }
-            self.check_loop_reachable(callee_exits, |checker| {
+            self.check_loop_paths(ordinary, callee_exits, |checker| {
                 checker.with_explicit_storage_recovery(&explicit_storage_failures, |checker| {
                     checker.check_call_arguments_without_expected(source, arguments, return_type)
                 })
@@ -345,7 +347,7 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
-        self.check_loop_reachable(callee_exits, |checker| {
+        self.check_loop_paths(ordinary, callee_exits, |checker| {
             checker.select_mapped_call(
                 overload::CallSite {
                     source,
@@ -433,7 +435,9 @@ impl BodyChecker<'_> {
     ) -> Result<(), CompilationUnitTypeError> {
         let callee_exits =
             !self.tracks_pending_call_flow() || self.checked_callee_exits(source, callee)?;
-        self.check_loop_reachable(callee_exits, |checker| {
+        let ordinary = self.pending_loop_exits.is_empty()
+            || self.call_operands_fall_through(source, callee, &[])?;
+        self.check_loop_paths(ordinary, callee_exits, |checker| {
             checker.check_call_arguments_without_expected(source, arguments, return_type)
         })
     }
@@ -445,11 +449,13 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = true;
         for argument in arguments {
-            let result = self.check_loop_reachable(arguments_exit, |checker| {
+            let result = self.check_loop_paths(ordinary, arguments_exit, |checker| {
                 checker.check_expression(source, argument.value, None, None, return_type)
             })?;
+            ordinary &= result.falls_through;
             if track_arguments && arguments_exit {
                 arguments_exit =
                     self.has_pending_expression_exit(source, argument.value, result)?;
@@ -478,6 +484,7 @@ impl BodyChecker<'_> {
         let mut deferred = false;
         let mut uncommitted_context = false;
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = !track_arguments || self.checked_callee_exits(source, callee)?;
         let mut observed = constraints.as_ref().map(|_| vec![None; arguments.len()]);
         for (argument_index, argument) in arguments.iter().enumerate() {
@@ -567,7 +574,7 @@ impl BodyChecker<'_> {
                     } else {
                         expected
                     };
-                    self.check_loop_reachable(arguments_exit, |checker| {
+                    self.check_loop_paths(ordinary, arguments_exit, |checker| {
                         checker.check_expression_with_expectation(
                             source,
                             argument.value,
@@ -579,6 +586,7 @@ impl BodyChecker<'_> {
                     .ty
                 }
             };
+            ordinary &= self.operand_falls_through(source, argument.value);
             if track_arguments && arguments_exit {
                 arguments_exit = self.checked_call_operand_exits(source, argument.value)?;
             }

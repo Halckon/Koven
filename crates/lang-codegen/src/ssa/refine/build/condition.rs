@@ -38,7 +38,12 @@ impl Builder<'_, '_> {
         {
             match plan.rhs() {
                 UnitShortCircuitRhs::Never => {
-                    return self.condition_internal(left, when_true, when_false, views, None);
+                    self.unreachable_drop_scopes.push(self.span(right));
+                    if self.required(left)?.is_some() {
+                        let target = if and { when_false } else { when_true };
+                        self.goto(target, span)?;
+                    }
+                    return Ok(());
                 }
                 UnitShortCircuitRhs::Always => {
                     if self.required(left)?.is_none() {

@@ -516,7 +516,7 @@ impl<'a> BodyChecker<'a> {
                 let mut falls_through = true;
                 let mut pending_exit = true;
                 for element in elements {
-                    let result = self.check_loop_reachable(pending_exit, |checker| {
+                    let result = self.check_loop_paths(falls_through, pending_exit, |checker| {
                         checker.check_statement(source, element, return_type, return_span)
                     })?;
                     falls_through &= result.falls_through;

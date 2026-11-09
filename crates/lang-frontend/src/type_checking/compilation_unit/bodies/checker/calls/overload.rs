@@ -360,6 +360,7 @@ impl BodyChecker<'_> {
     ) -> Result<bool, CompilationUnitTypeError> {
         let mut uncommitted = false;
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = true;
         for argument in site.arguments {
             let key = crate::type_checking::UnitExpressionId::new(site.source, argument.value);
@@ -368,7 +369,7 @@ impl BodyChecker<'_> {
                     uncommitted = true;
                 } else {
                     let context = self.deferred_type(DeferredReason::Call);
-                    self.check_loop_reachable(arguments_exit, |checker| {
+                    self.check_loop_paths(ordinary, arguments_exit, |checker| {
                         checker.check_expression(
                             site.source,
                             argument.value,
@@ -379,6 +380,7 @@ impl BodyChecker<'_> {
                     })?;
                 }
             }
+            ordinary &= self.operand_falls_through(site.source, argument.value);
             if track_arguments && arguments_exit {
                 arguments_exit = self.checked_call_operand_exits(site.source, argument.value)?;
             }

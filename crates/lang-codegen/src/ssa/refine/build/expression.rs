@@ -958,6 +958,11 @@ impl Builder<'_, '_> {
                 receiver,
                 arguments: lowered,
             };
+            if self.is_nothing(self.c(descriptor.return_type())) {
+                self.push(op, Vec::new(), span)?;
+                self.terminate(RTerm::Unreachable, span)?;
+                return Ok(Lowered::Diverged);
+            }
             if unit_return {
                 self.push(op, Vec::new(), span)?;
                 Lowered::Unit

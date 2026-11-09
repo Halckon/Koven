@@ -3433,3 +3433,60 @@ PR #385 首轮[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42570
 已通过的零 exclusive activation 检查之后命中 `unwrap`。改为要求该定义缺席，
 前缀 `read` 恰好调用一次，并保留 LLVM 验证。独立复核核对了 class、value class
 及 return、break、continue、abort 各路径，邻近的正常激活与 CFG 合流对照继续覆盖。
+
+PR #385 精确头 `d37dabbf` 的[实际双宿主 PR 门禁](https://github.com/Halckon/Koven/actions/runs/42572582506)
+通过 Check/Clippy、定向测试、预览包生产及独立消费和最终 CI Passed。
+定向测试 macOS 2747 项通过，1 项 LLDB 因调试权限忽略；Linux 2750 项通过，零忽略。
+本机 LLDB 真断点证据见上。合并提交 `415ba277` 的树与门禁中的合并树一致。
+
+## 134. R4 具名 Nothing 的普通直接调用
+
+在 `62ca42cf` 上，公共类型阶段接受具名 `Nothing`，实例计划保留真实调用；
+原生红测在声明返回 ABI 时报 UnsupportedNode。typed SSA 现在区分普通无值返回和
+无正常返回。直接调用沿原路径求值、激活 receiver 并交付实参，随后以 Unreachable
+终止该块。LLVM 发出实际 call 与 unreachable，abort 的消息和源码位置仍由 callee 产生。
+
+verifier 要求无返回 call 是块的最后一条指令，且仅该形状可接 Unreachable。
+无返回的声明不能有正常 Return、存储结果或借用结果。函数地址、thunk、进程入口和
+析构钩子不能以空返回槽将其作为普通 Unit 签名接收。独立复核发现析构钩子旁路和 Refine
+提前拒绝；新增负例复现注册旁路，现注册与 verifier 重检共用修正，Refine 准入和路由共用
+具名调用判断。普通 `error()` 保持原路由。
+
+本机 3 项具名回归通过。顶层调用在默认和强制 Unit 兼容路由保留前缀输出，方法保留
+receiver、实参与 callee 的顺序，均核对 SIGABRT、stderr 源位置和未执行的后续副作用。
+另以递归具名调用核对 Refine 路由与 SSA 无正常后继。52 项 deinit 相关测试、109 项 SSA
+验证测试和 1 项内建 error 原生对照通过，零失败、零忽略。全工作区全目标 Clippy 通过。
+
+独立探针 `fun stop(): Nothing { loop { continue } }` 在进入后端前于 Unit 类型阶段
+报 L0088。循环完成性需单列 R2 核对，间接 `Nothing` 的 callable ABI 仍需复审。
+
+## 135. R2/R3/R4 循环完成性与穷尽 when 前缀
+
+`8151374d` 上，两个 Unit 公共入口都为无 break 的 `loop {}` 报 L0088。
+普通完成性现在在当前循环 frame 单独收集可能执行的 break，与待定写回的布尔裁剪隔离。
+语法和类型检查仍访问死语句。语句、调用实参、when selector 和短路控制先消费前序
+完成性。while 复用结构布尔边，假边及本层 break 才能离开循环。
+这份普通证明不折叠字面条件。失败候选及回边试算回滚带源 identity 的事实与 frame。
+
+独立复审确认 `loop` 接受后，穷尽 Boolean when 的分组 selector 与穷尽后的 else
+原会在 Refine 重建伪 miss 或 break。有限域第一次耗尽时，Unit 类型阶段现发布 arm 和
+selector 的可达前缀。所有权、活性、析构计划、Refine 准入和构建共享该边界。
+源顺序及原 arm、selector 的索引保持，前缀中已匹配的分支继续独立执行。
+
+Const Refine 的 `Never` 计划原会从固定左值再建两条边，导致新版完成性暴露 MissingFact。
+构建现在实际求值左侧并按计划进入唯一后继。Refine 的 if/while 红转绿，
+原生 AND/OR 对照验证后续跳转未执行且返回值正确。独立复核核对原 loan/view 的边界。
+
+本机三套 Unit 前端 474 项、4 项控制完成性 SSA、28 项 Const SSA、10 项 comma-when
+和两个新增原生用例均通过。SSA 计数含一条重复覆盖的 Const 完成性回归。
+原生覆盖死 arm 与死 selector 的重复消费、真实分支返回和资源逐次析构。
+所有权计划另核对仅死 arm 使用的 owner 在绑定后的 AfterStatement 析构。
+全工作区全目标 Clippy、格式、文档结构与 Rust 尺寸门禁通过。
+旧 Single 检查器的普通循环完成性仍需随真实消费者复审。
+
+与 `415ba277` 合流后的独立复核核对已完成实参、实际分派与无返回终止，
+以及 receiver/临时借用退出、Const 固定边和穷尽 when 的可达前缀。
+本机合流树的 4 项控制完成性 SSA、13 项原生控制流、1 项两阶段 receiver、
+3 项具名 Nothing 和 16 项 callable identity 测试通过，零失败、零忽略。
+具名 Nothing 计数与控制完成性 SSA 共享一条回归。
+同一合流树的 Unit 类型、所有权与 Const 所有权三套共 474 项通过，零失败、零忽略。
