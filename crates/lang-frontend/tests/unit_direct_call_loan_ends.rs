@@ -917,3 +917,6 @@ mod field_receiver_reborrow;
 
 #[path = "unit_direct_call_loan_ends/direct_binding_receiver.rs"]
 mod direct_binding_receiver;
+
+#[path = "unit_direct_call_loan_ends/field_binding_receiver.rs"]
+mod field_binding_receiver;
