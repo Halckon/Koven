@@ -3,9 +3,9 @@ use super::{BodyChecker, ExpressionCheck, ExpressionExpected, UnitExpressionId};
 use crate::{
     ast::{ExpressionId, TypeRefId},
     name_resolution::SourceUnitId,
-    parser::CallArgument,
+    parser::{CallArgument, Expression},
     source::Span,
-    type_checking::{CompilationUnitTypeError, UnitTypeId},
+    type_checking::{CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
 };
 
 impl BodyChecker<'_> {
@@ -32,6 +32,8 @@ impl BodyChecker<'_> {
             })
             .filter_map(|argument| self.stable_flow_key(source, argument.value))
             .collect::<Vec<_>>();
+        let call = UnitExpressionId::new(source, expression);
+        self.inactive_inout_calls.remove(&call);
         let result = if let Some(result) = self.check_intrinsic_ownership_primitive_call(
             source,
             expression,
@@ -82,9 +84,54 @@ impl BodyChecker<'_> {
             )?;
             result
         };
-        for key in invalidated {
-            self.invalidate_flow_key(key);
+        if self.is_deferred(result.ty) && self.has_inactive_callee(source, callee)? {
+            self.inactive_inout_calls.insert(call);
+        }
+        if !invalidated.is_empty() {
+            if result.falls_through
+                && !self.is_error(result.ty)
+                && !self.inactive_inout_calls.contains(&call)
+            {
+                for key in invalidated {
+                    self.invalidate_flow_key(key);
+                }
+            } else {
+                // Boolean edge reconstruction must omit only this call's own write.
+                self.inactive_inout_calls.insert(call);
+            }
         }
         Ok(result)
+    }
+    fn has_inactive_callee(
+        &self,
+        source: SourceUnitId,
+        callee: ExpressionId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let mut operands = vec![callee];
+        while let Some(operand) = operands.pop() {
+            if self
+                .inactive_inout_calls
+                .contains(&UnitExpressionId::new(source, operand))
+            {
+                return Ok(true);
+            }
+            match self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(operand)
+                .map_err(TypeCheckingError::from)?
+                .payload()
+            {
+                Expression::Group { expression }
+                | Expression::Member {
+                    receiver: expression,
+                    ..
+                } => operands.push(*expression),
+                Expression::Index { receiver, index } => operands.extend([*receiver, *index]),
+                _ => {}
+            }
+        }
+        Ok(false)
     }
 }
