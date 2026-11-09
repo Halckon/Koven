@@ -44,7 +44,13 @@ impl Checker<'_> {
         arguments: Vec<CallArgument>,
         expected: Option<TypeId>,
     ) -> Result<ExprCheck, TypeCheckingError> {
-        if let Some(result) = self.check_special_call(
+        let invalidated = arguments
+            .iter()
+            .filter(|argument| matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_))))
+            .filter_map(|argument| self.stable_flow_key(argument.value))
+            .collect::<Vec<_>>();
+        self.inout_call_may_write.remove(&expression.index());
+        let result = if let Some(result) = self.check_special_call(
             expression,
             call_span,
             callee,
@@ -52,12 +58,26 @@ impl Checker<'_> {
             &arguments,
             expected,
         )? {
-            self.note_pending_call_exit(expression, callee, &arguments)?;
-            return Ok(result);
-        }
-        let result =
-            self.check_ordinary_call(expression, call_span, callee, &type_arguments, &arguments)?;
+            result
+        } else {
+            self.check_ordinary_call(expression, call_span, callee, &type_arguments, &arguments)?
+        };
         self.note_pending_call_exit(expression, callee, &arguments)?;
+        // Apply only this call's effect, before the enclosing expected-type check.
+        // Argument checking may already have applied writes from nested calls.
+        let may_write = self
+            .inout_call_may_write
+            .get(&expression.index())
+            .copied()
+            .unwrap_or_else(|| !self.is_error(result.ty));
+        if may_write {
+            for key in invalidated {
+                self.flow_facts.remove(&key);
+                *self.flow_versions.entry(key).or_default() += 1;
+            }
+        } else if !invalidated.is_empty() {
+            self.inout_call_may_write.insert(expression.index(), false);
+        }
         Ok(result)
     }
 
@@ -219,15 +239,20 @@ impl Checker<'_> {
         }
 
         let mut argument_types = Vec::with_capacity(arguments.len());
-        let mut poisoned = false;
+        let mut invalid = false;
+        let mut deferred = false;
         let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for argument in arguments {
             let result =
                 self.check_pending_operand(argument.value, None, None, &mut reaches_argument)?;
-            poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
+            invalid |= self.is_error(result.ty);
+            deferred |= self.is_deferred(result.ty);
             argument_types.push(result.ty);
         }
-        if poisoned {
+        if invalid || deferred {
+            // Keep the legacy recovery type without treating an unresolved overload as rejected.
+            self.inout_call_may_write
+                .insert(expression.index(), !invalid);
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -290,7 +315,8 @@ impl Checker<'_> {
         lambda_arguments: &[bool],
     ) -> Result<ExprCheck, TypeCheckingError> {
         let mut argument_types = vec![None; arguments.len()];
-        let mut poisoned = false;
+        let mut invalid = false;
+        let mut deferred = false;
         let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for (index, argument) in arguments.iter().enumerate() {
             if lambda_arguments[index] {
@@ -299,10 +325,14 @@ impl Checker<'_> {
             }
             let result =
                 self.check_pending_operand(argument.value, None, None, &mut reaches_argument)?;
-            poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
+            invalid |= self.is_error(result.ty);
+            deferred |= self.is_deferred(result.ty);
             argument_types[index] = Some(result.ty);
         }
-        if poisoned {
+        if invalid || deferred {
+            // Keep the legacy recovery type without treating an unresolved overload as rejected.
+            self.inout_call_may_write
+                .insert(expression.index(), !invalid);
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,

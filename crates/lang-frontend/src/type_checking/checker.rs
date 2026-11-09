@@ -167,6 +167,7 @@ struct Checker<'a> {
     captured_mutable_symbols: BTreeSet<SymbolId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
     flow_versions: BTreeMap<FlowKey, u64>,
+    inout_call_may_write: BTreeMap<usize, bool>,
     source_references: Vec<(ScopeId, ReferenceTarget)>,
     nominal_by_symbol: BTreeMap<SymbolId, NominalId>,
     nominal_by_scope: BTreeMap<ScopeId, NominalId>,
@@ -385,6 +386,7 @@ impl<'a> Checker<'a> {
             captured_mutable_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
             flow_versions: BTreeMap::new(),
+            inout_call_may_write: BTreeMap::new(),
             source_references: names
                 .references()
                 .iter()

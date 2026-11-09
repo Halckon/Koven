@@ -71,11 +71,11 @@ fn assert_inout_storage(text: &str, nullable: Option<bool>) {
             operand_ty,
             "{text}"
         );
-        if let Some(read) = ordinary_read {
-            assert!(single.non_null_use(read).is_some(), "{text}");
-        }
     } else {
         assert!(single.call(call).is_none(), "{text}");
+    }
+    if let Some(read) = ordinary_read {
+        assert!(single.non_null_use(read).is_some(), "{text}");
     }
 
     for (names, unit) in checked_named_entries(&sources, &parsed, &environment, &types) {
@@ -100,15 +100,15 @@ fn assert_inout_storage(text: &str, nullable: Option<bool>) {
                 operand_ty,
                 "{text}"
             );
-            if let Some(read) = ordinary_read {
-                assert!(
-                    unit.non_null_use(UnitExpressionId::new(source, read))
-                        .is_some(),
-                    "{text}"
-                );
-            }
         } else {
             assert!(unit.call(call).is_none(), "{text}");
+        }
+        if let Some(read) = ordinary_read {
+            assert!(
+                unit.non_null_use(UnitExpressionId::new(source, read))
+                    .is_some(),
+                "{text}"
+            );
         }
     }
 }
@@ -145,4 +145,92 @@ fn inout_storage_overload_selects_the_declared_nonnullable_type() {
     ] {
         assert_inout_storage(text, Some(false));
     }
+}
+
+#[test]
+fn rejected_inout_storage_does_not_kill_the_next_read_fact() {
+    for (declaration, signature) in [
+        (
+            "fun set(inout target: Int): Boolean { target = 4; return true }",
+            "",
+        ),
+        ("", "set: (inout Int) -> Boolean"),
+    ] {
+        for body in [
+            "if (x != null) { set(&x); val after: Int = /*read*/x }",
+            "if (x != null && set(&x)) { val after: Int = /*read*/x }",
+            "if (x == null || set(&x)) {} else { val after: Int = /*read*/x }",
+        ] {
+            let text =
+                format!("{declaration}\nfun run({signature}): Unit {{ var x: Int? = 7; {body} }}");
+            assert_inout_storage(&text, None);
+        }
+    }
+}
+
+fn assert_inout_diagnostic_spans(text: &str, expected: &[(&str, &str)]) {
+    let (sources, parsed) = parsed(text);
+    let (environment, types) = standard_environments();
+    let assert_diagnostics = |diagnostics: &[Diagnostic]| {
+        let actual = diagnostics
+            .iter()
+            .map(|diagnostic| {
+                (
+                    diagnostic.code().to_string(),
+                    sources.slice(diagnostic.primary_span()).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let expected = expected
+            .iter()
+            .map(|(code, span)| (code.to_string(), *span))
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected, "{text}");
+    };
+    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let single = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert_diagnostics(single.diagnostics());
+    for (_, unit) in checked_named_entries(&sources, &parsed, &environment, &types) {
+        assert_diagnostics(unit.diagnostics());
+    }
+}
+
+#[test]
+fn selected_inout_writes_survive_rejected_enclosing_expressions() {
+    for (text, expected) in [
+        (
+            "fun set(inout target: Int?): Int { target = null; return 0 }\nfun run(): Unit { var x: Int? = 7; if (x != null) { val wrong: Boolean = set(&x); val after: Int = x } }",
+            [("L0084", "set(&x)"), ("L0084", "x")],
+        ),
+        (
+            "fun write(inout target: Int?): Int { target = null; return 0 }\nfun reject(inout target: Int, input: Int): Boolean { return true }\nfun run(): Unit { var x: Int? = 7; var y: Int? = 7; if (x != null && y != null && reject(&x, write(&y))) { val retained: Int = x; val invalidated: Int = y } }",
+            [("L0084", "x"), ("L0084", "y")],
+        ),
+    ] {
+        assert_inout_diagnostic_spans(text, &expected);
+    }
+}
+
+#[test]
+fn pending_arguments_keep_proven_rejection_separate_from_unresolved_overloads() {
+    assert_inout_storage(
+        "fun set(inout target: Int, value: Int): Boolean { return true }\nfun run(produce: () -> Int): Unit { var x: Int? = 7; if (x != null) { set(&x, produce<Int>()); val after: Int = /*read*/x } }",
+        None,
+    );
+    assert_inout_diagnostic_spans(
+        "fun choose(inout x: Int?, value: Int): Boolean { return true }\nfun choose(inout x: Int?, value: Boolean): Boolean { return true }\nfun run(produce: () -> Int): Unit { var x: Int? = 7; if (x != null) { choose(&x, produce<Int>()); val after: Int = x } }",
+        &[("L0084", "x")],
+    );
+}
+
+#[test]
+fn pending_ownership_intrinsics_do_not_write_after_a_proven_rejection() {
+    assert_inout_diagnostic_spans(
+        "fun run(produce: () -> Int): Unit { var x: Int? = 7; if (x != null) { replace<Int>(&x, produce<Int>()); val after: Int = x } }",
+        &[("L0084", "x")],
+    );
+    assert_inout_diagnostic_spans(
+        "fun run(produce: () -> Int): Unit { var x: Int? = 7; if (x != null) { swap<Int>(&x, &produce<Int>()); val after: Int = x } }",
+        &[("L0084", "x"), ("L0122", "&produce<Int>()")],
+    );
 }

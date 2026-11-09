@@ -117,6 +117,9 @@ impl Checker<'_> {
             }
         }
         if deferred {
+            if !valid {
+                self.inout_call_may_write.insert(expression.index(), false);
+            }
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),
                 falls_through: true,

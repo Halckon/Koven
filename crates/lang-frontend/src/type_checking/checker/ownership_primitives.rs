@@ -229,6 +229,9 @@ impl Checker<'_> {
             || self.is_deferred(arg0_result.ty)
             || self.is_deferred(arg1_result.ty)
         {
+            if !valid || self.is_error(t) {
+                self.inout_call_may_write.insert(expression.index(), false);
+            }
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),
                 falls_through: true,
@@ -448,6 +451,9 @@ impl Checker<'_> {
             || self.is_deferred(arg0_result.ty)
             || self.is_deferred(arg1_result.ty)
         {
+            if !valid || self.is_error(t) {
+                self.inout_call_may_write.insert(expression.index(), false);
+            }
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),
                 falls_through: true,

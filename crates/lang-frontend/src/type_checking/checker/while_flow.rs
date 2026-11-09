@@ -2,7 +2,8 @@
 use super::{flow::FlowKey, *};
 use crate::parser::{Item, Statement};
 use crate::type_checking::flow_effects::{
-    collect_expression_mutation_targets, collect_statement_mutation_targets,
+    collect_expression_mutation_targets, collect_expression_mutation_targets_with_inout_filter,
+    collect_statement_mutation_targets,
 };
 
 #[derive(Clone, Default)]
@@ -93,12 +94,19 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<BTreeSet<FlowKey>, TypeCheckingError> {
-        Ok(
-            collect_expression_mutation_targets(self.syntactic_boolean_outcomes, expression)?
-                .into_iter()
-                .filter_map(|target| self.stable_flow_key(target))
-                .collect(),
-        )
+        Ok(collect_expression_mutation_targets_with_inout_filter(
+            self.syntactic_boolean_outcomes,
+            expression,
+            |call| {
+                self.inout_call_may_write
+                    .get(&call.index())
+                    .copied()
+                    .unwrap_or(true)
+            },
+        )?
+        .into_iter()
+        .filter_map(|target| self.stable_flow_key(target))
+        .collect())
     }
 
     pub(super) fn check_repeating_flow(
