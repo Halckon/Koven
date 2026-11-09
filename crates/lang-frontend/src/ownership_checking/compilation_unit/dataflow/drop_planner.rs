@@ -773,22 +773,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 subject, entries, ..
             } => self.when_expression(id, subject, &entries, state),
             Expression::Return { value, .. } => self.owner_return_expression(id, value, state),
-            Expression::Break { .. } | Expression::Continue { .. } => {
-                let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
-                self.end_iteration_pending_loans(
-                    PlannerDropPoint::ControlTransfer(id),
-                    state,
-                    self.loop_boundaries.len(),
-                );
-                self.drop_deeper_than(
-                    boundary,
-                    self.loop_boundaries.len(),
-                    PlannerDropPoint::ControlTransfer(id),
-                    state,
-                );
-                self.finish_jump_iteration(id, state)?;
-                Ok(false)
-            }
+            jump @ (Expression::Break { .. } | Expression::Continue { .. }) => self
+                .owner_loop_jump_expression(id, matches!(jump, Expression::Continue { .. }), state),
             Expression::NonNullAssert { operand, .. } => {
                 self.expression(operand, DropExpressionUse::Consume, state)
             }

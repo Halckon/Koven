@@ -1,5 +1,6 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 use super::*;
+use crate::ownership_checking::compilation_unit::owner_transport::LoopBodyCompletion;
 use crate::ownership_checking::{UnitOwnerLoopEdgeV1 as Edge, UnitOwnerLoopObservationV1};
 use crate::parser::VariableKind;
 use std::collections::BTreeSet;
@@ -10,6 +11,9 @@ pub(in super::super) struct LoopTransaction {
     body: StatementId,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
+    expected: LoopBodyCompletion,
+    active: Option<(std::sync::Arc<()>, usize)>,
+    completed: Option<(std::sync::Arc<()>, LoopBodyCompletion)>,
     result: Option<UnitOwnerLoopObservationV1>,
 }
 
@@ -164,8 +168,26 @@ impl LoopTransaction {
         if elements.is_empty() {
             return None;
         }
+        let mut expected = LoopBodyCompletion::Fallthrough;
         let mut locals = BTreeSet::new();
-        for statement in elements {
+        for (index, statement) in elements.iter().enumerate() {
+            if let Statement::Expression { expression } =
+                ast.statements().get(*statement).ok()?.payload()
+            {
+                if index + 1 != elements.len()
+                    || locals.is_empty()
+                    || !exact_type(checker, *expression, BuiltinType::Nothing)
+                {
+                    return None;
+                }
+                let jump = checker.unit_expression(*expression);
+                expected = match ast.expressions().get(*expression).ok()?.payload() {
+                    Expression::Continue { .. } => LoopBodyCompletion::Continue(jump),
+                    Expression::Break { .. } => LoopBodyCompletion::Break(jump),
+                    _ => return None,
+                };
+                continue;
+            }
             let Statement::LocalVariable { declaration } =
                 ast.statements().get(*statement).ok()?.payload()
             else {
@@ -199,6 +221,9 @@ impl LoopTransaction {
             body: *body,
             identity,
             callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
+            expected,
+            active: None,
+            completed: None,
             result: None,
         })
     }
@@ -249,6 +274,70 @@ fn empty_boundary(state: &ValueState) -> bool {
 }
 
 impl DropPlanner<'_, '_> {
+    // Preserve the ordinary jump cleanup sequence; the witness is only a final observer.
+    pub(in super::super) fn owner_loop_jump_expression(
+        &mut self,
+        id: ExpressionId,
+        is_continue: bool,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
+        self.end_iteration_pending_loans(
+            PlannerDropPoint::ControlTransfer(id),
+            state,
+            self.loop_boundaries.len(),
+        );
+        self.drop_deeper_than(
+            boundary,
+            self.loop_boundaries.len(),
+            PlannerDropPoint::ControlTransfer(id),
+            state,
+        );
+        self.finish_jump_iteration(id, state)?;
+        self.finish_owner_loop_jump(id, is_continue, state);
+        Ok(false)
+    }
+
+    // Only the precise expected tail in the fresh, active body sink is admitted.
+    pub(in super::super) fn owner_loop_jump_supported(&self, id: ExpressionId) -> bool {
+        let Some(transaction) = &self.owner_loop else {
+            return false;
+        };
+        let Some((identity, boundary)) = &transaction.active else {
+            return false;
+        };
+        let expected = match transaction.expected {
+            LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump) => jump,
+            LoopBodyCompletion::Fallthrough => return false,
+        };
+        expected == self.checker.unit_expression(id)
+            && transaction.completed.is_none()
+            && self.loop_boundaries.as_slice() == [*boundary]
+            && self.scope_depth == boundary + 1
+            && self.owner_branch_depth == 0
+            && self.owner_observation.as_ref().is_some_and(|observation| {
+                observation.status == UnitOwnerObservationStatus::Complete
+                    && std::sync::Arc::ptr_eq(&observation.identity, identity)
+            })
+    }
+
+    // Invoked only after the real jump's loans, owners and iteration cleanup succeeded.
+    fn finish_owner_loop_jump(&mut self, id: ExpressionId, is_continue: bool, state: &ValueState) {
+        if self.owner_loop_jump_supported(id) && empty_boundary(state) {
+            let transaction = self.owner_loop.as_mut().expect("checked active loop");
+            let (identity, _) = transaction.active.as_ref().expect("checked body sink");
+            let jump = self.checker.unit_expression(id);
+            let completed = if is_continue {
+                LoopBodyCompletion::Continue(jump)
+            } else {
+                LoopBodyCompletion::Break(jump)
+            };
+            if completed == transaction.expected {
+                transaction.completed = Some((identity.clone(), completed));
+            }
+        }
+    }
+
     pub(in super::super) fn owner_while_statement(
         &mut self,
         id: StatementId,
@@ -280,9 +369,14 @@ impl DropPlanner<'_, '_> {
                     .as_ref()
                     .expect("checked loop transaction")
                     .callable;
+                let identity = std::sync::Arc::new(());
+                self.owner_loop
+                    .as_mut()
+                    .expect("checked loop transaction")
+                    .active = Some((identity.clone(), self.scope_depth));
                 Some((
                     self.owner_observation.replace(UnitOwnerObservation {
-                        identity: std::sync::Arc::new(()),
+                        identity,
                         callable,
                         status: UnitOwnerObservationStatus::Complete,
                         definitions: Vec::new(),
@@ -305,8 +399,29 @@ impl DropPlanner<'_, '_> {
                 self.owner_choice = choice;
                 self.owner_branch_depth = depth;
                 // Restore every sink before propagating an error or considering publication.
-                if matches!(&continued, Ok(true)) && empty_boundary(&body_state) {
-                    body_transport = collected.and_then(|value| value.value_observation_v1());
+                let transaction = self.owner_loop.as_mut().expect("checked loop transaction");
+                transaction.active = None;
+                let witnessed = transaction.completed.take();
+                if empty_boundary(&body_state)
+                    && let Some(collected) = collected
+                {
+                    let completion = match (&continued, transaction.expected, witnessed) {
+                        (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
+                            Some(LoopBodyCompletion::Fallthrough)
+                        }
+                        (Ok(false), expected, Some((identity, completed)))
+                            if expected == completed
+                                && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
+                        {
+                            Some(completed)
+                        }
+                        _ => None,
+                    };
+                    if let Some(completion) = completion {
+                        body_transport = collected
+                            .value_observation_v1()
+                            .map(|transport| (transport, completion));
+                    }
                 }
             }
             continued?;
@@ -317,7 +432,8 @@ impl DropPlanner<'_, '_> {
         self.drop_loop_exit(id, state);
         if collecting
             && empty_boundary(state)
-            && let (Some(transaction), Some(transport)) = (&mut self.owner_loop, body_transport)
+            && let (Some(transaction), Some((transport, completion))) =
+                (&mut self.owner_loop, body_transport)
         {
             let statement = UnitStatementId::new(self.checker.source_unit, id);
             let condition = self.checker.unit_expression(condition);
@@ -330,12 +446,10 @@ impl DropPlanner<'_, '_> {
                 condition,
                 body,
                 transport,
+                completion,
                 edges: [
                     Edge::EnterBody(condition, body),
-                    Edge::Backedge(
-                        crate::ownership_checking::UnitDropPoint::AfterStatement(body),
-                        condition,
-                    ),
+                    completion.edge(statement, condition, body),
                     Edge::ConditionFalseExit(
                         condition,
                         crate::ownership_checking::UnitDropPoint::LoopExit(statement),
