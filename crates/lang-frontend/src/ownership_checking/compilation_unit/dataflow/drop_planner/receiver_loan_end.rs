@@ -14,6 +14,24 @@ use crate::{
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
+    fn has_named_receiver_place_syntax(&self, mut operand: ExpressionId) -> bool {
+        loop {
+            let Ok(node) = self.checker.parsed.ast().expressions().get(operand) else {
+                return false;
+            };
+            match node.payload() {
+                Expression::Group { expression } => operand = *expression,
+                Expression::Member {
+                    receiver,
+                    safe: false,
+                    ..
+                } => operand = *receiver,
+                Expression::Name => return true,
+                _ => return false,
+            }
+        }
+    }
+
     fn observes_bounded_receiver(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
         let Some(call) = self.checker.typed.call(receiver.call()) else {
             return false;
@@ -55,21 +73,8 @@ impl DropPlanner<'_, '_> {
             return false;
         };
         let full_operand = operand.expression();
-        let mut operand = full_operand;
-        loop {
-            let Ok(node) = self.checker.parsed.ast().expressions().get(operand) else {
-                return false;
-            };
-            match node.payload() {
-                Expression::Group { expression } => operand = *expression,
-                Expression::Member {
-                    receiver,
-                    safe: false,
-                    ..
-                } => operand = *receiver,
-                Expression::Name => break,
-                _ => return false,
-            }
+        if !self.has_named_receiver_place_syntax(full_operand) {
+            return false;
         }
         // Resolve the complete typed field path, not merely its named backing root.
         // The syntax walk excludes this fields, indices, safe access and temporaries.
@@ -91,6 +96,7 @@ impl DropPlanner<'_, '_> {
                 || binding.parent().is_some()
                 || binding.source_loan().is_some()
                 || binding.initializer().source_unit() != receiver.call().source_unit()
+                || !self.has_named_receiver_place_syntax(binding.initializer().expression())
             {
                 return false;
             }
@@ -101,7 +107,7 @@ impl DropPlanner<'_, '_> {
             else {
                 return false;
             };
-            if !origin.is_root() || &initializer != origin {
+            if &initializer != origin {
                 return false;
             }
             origin

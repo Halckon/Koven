@@ -492,7 +492,7 @@ fn binding_receiver_in_for_keeps_actual_cleanup_and_parent_scope() {
 }
 
 #[test]
-fn call_derived_parent_chain_and_projected_bindings_stay_excluded() {
+fn call_derived_parent_chain_and_alias_projections_stay_excluded() {
     for next in ["0", "return"] {
         for text in [
             format!(
@@ -500,9 +500,6 @@ fn call_derived_parent_chain_and_projected_bindings_stay_excluded() {
             ),
             format!(
                 "{NODE}fun run(node: Node): Unit {{ borrow val parent = node; borrow val borrowed = parent; borrowed.touch(\"chain\", {next}) }}"
-            ),
-            format!(
-                "{NODE}class Holder(val node: Node)\nfun run(holder: Holder): Unit {{ borrow val borrowed = holder.node; borrowed.touch(\"field-source\", {next}) }}"
             ),
             format!(
                 "{NODE}class Holder(val node: Node)\nfun run(holder: Holder): Unit {{ borrow val borrowed = holder; borrowed.node.touch(\"field-receiver\", {next}) }}"
