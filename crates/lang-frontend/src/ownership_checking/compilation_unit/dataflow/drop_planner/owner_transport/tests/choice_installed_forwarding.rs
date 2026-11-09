@@ -80,8 +80,7 @@ fn actual_installed_value_moves_after_selected_previous_retires() {
                                             .expressions()
                                             .iter()
                                             .find(|(_, node)| {
-                                                node.span().start() as usize
-                                                    == source.rfind(text).unwrap()
+                                                node.span().start() == source.rfind(text).unwrap()
                                                     && fixture.sources.slice(node.span()).unwrap()
                                                         == text
                                             })

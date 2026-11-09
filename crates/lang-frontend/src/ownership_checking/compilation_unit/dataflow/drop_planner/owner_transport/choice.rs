@@ -28,8 +28,9 @@ struct Transfer {
 
 #[derive(Default)]
 struct TransferFrame {
-    // This is the selected Choice result, never a newly invented producer token.
+    // Saved at the actual named take, never reconstructed from a cleanup event.
     result: Option<UnitExpressionId>,
+    value: Option<Value>,
     completed: usize,
     bound: bool,
 }
@@ -341,7 +342,13 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             return None;
         }
         if *kind == VariableKind::Var {
-            replacement = Some(replace::admit(checker, symbol, target, initializer)?);
+            replacement = Some(replace::admit(
+                checker,
+                symbol,
+                target,
+                initializer,
+                statement,
+            )?);
             None
         } else {
             Some(Transfer {
@@ -357,16 +364,22 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         None
     };
     if let Some(statement) = final_statement {
-        // A third declaration is only the selected old result of this checked replace.
-        let source = replacement.as_ref()?.symbol;
+        // The one following declaration may consume either checked replace output:
+        // its selected old result, or the definition now installed in the original root.
+        let previous = replacement.as_ref()?.symbol;
         let (target, initializer) = immutable_string_binding(checker, statement)?;
-        if target == source || target == symbol {
+        if target == previous || target == symbol {
             return None;
         }
+        let (source, ids) = if let Some(ids) = chain(checker, initializer, Some(previous)) {
+            (previous, ids)
+        } else {
+            (symbol, chain(checker, initializer, Some(symbol))?)
+        };
         transfer = Some(Transfer {
             source,
             symbol: target,
-            chain: chain(checker, initializer, Some(source))?,
+            chain: ids,
         });
     }
     Some(Admission {
@@ -501,12 +514,12 @@ impl ChoiceTransaction {
                 self.abort();
                 return;
             }
+            let Some(value) = self.transfer.value.clone() else {
+                self.abort();
+                return;
+            };
             if position != 0 {
-                self.suffix.push(Event::Forward(
-                    from,
-                    expression,
-                    Value::Choice(self.choice_id()),
-                ));
+                self.suffix.push(Event::Forward(from, expression, value));
                 self.transfer.result = Some(expression);
             }
             self.transfer.completed += 1;
@@ -622,18 +635,19 @@ impl ChoiceTransaction {
                 || self.dropped
                 || self.transfer.bound
                 || self.transfer.result.is_some()
+                || self.transfer.value.is_some()
                 || self.transfer.completed != 0
                 || taken != Some(source)
-                || !self.replacement_transfer_ready(source)
             {
                 self.abort();
                 return;
             }
-            self.suffix.push(Event::Move(
-                expression,
-                source,
-                Value::Choice(self.choice_id()),
-            ));
+            let Some(value) = self.replacement_transfer_value(source) else {
+                self.abort();
+                return;
+            };
+            self.transfer.value = Some(value.clone());
+            self.suffix.push(Event::Move(expression, source, value));
             self.transfer.result = Some(expression);
             return;
         }
@@ -760,11 +774,11 @@ impl ChoiceTransaction {
                 self.abort();
                 return;
             }
-            self.suffix.push(Event::Bind(
-                symbol,
-                initializer,
-                Value::Choice(self.choice_id()),
-            ));
+            let Some(value) = self.transfer.value.clone() else {
+                self.abort();
+                return;
+            };
+            self.suffix.push(Event::Bind(symbol, initializer, value));
             self.transfer.result = None;
             self.transfer.bound = true;
             return;
@@ -814,8 +828,16 @@ impl ChoiceTransaction {
             self.abort();
             return;
         }
-        self.suffix
-            .push(Event::Drop(point, symbol, Value::Choice(self.choice_id())));
+        let value = if self.admission.transfer.is_some() {
+            let Some(value) = self.transfer.value.take() else {
+                self.abort();
+                return;
+            };
+            value
+        } else {
+            Value::Choice(self.choice_id())
+        };
+        self.suffix.push(Event::Drop(point, symbol, value));
         self.dropped = true;
     }
     pub(in super::super) fn finish(self) -> Option<UnitOwnerValueObservationV1> {
@@ -823,6 +845,7 @@ impl ChoiceTransaction {
             || !self.bound
             || !self.dropped
             || !self.edges.iter().all(|edge| edge.delivered)
+            || self.transfer.value.is_some()
         {
             return None;
         }

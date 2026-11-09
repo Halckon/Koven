@@ -6,6 +6,7 @@ pub(super) struct Admission {
     call: UnitExpressionId,
     argument: Vec<UnitExpressionId>,
     result_chain: Vec<UnitExpressionId>,
+    drop_point: UnitDropPoint,
     pub(super) symbol: UnitSymbolId,
 }
 
@@ -19,6 +20,7 @@ pub(super) struct Frame {
     completed: usize,
     bound: bool,
     root_dropped: bool,
+    previous_dropped: bool,
 }
 
 pub(super) fn admit(
@@ -26,6 +28,7 @@ pub(super) fn admit(
     root: UnitSymbolId,
     symbol: UnitSymbolId,
     initializer: ExpressionId,
+    statement: StatementId,
 ) -> Option<Admission> {
     // The checked call remains the primitive and cleanup identity. Groups only
     // transport its returned Choice through their own actual Consume frames.
@@ -100,6 +103,10 @@ pub(super) fn admit(
         call,
         argument,
         result_chain,
+        drop_point: UnitDropPoint::AfterStatement(UnitStatementId::new(
+            checker.source_unit,
+            statement,
+        )),
         symbol,
     })
 }
@@ -156,7 +163,7 @@ impl ChoiceTransaction {
             let frame = &self.replacement;
             if !consuming
                 || !frame.committed
-                || !frame.root_dropped
+                || !self.replacement_cleanup_ready()
                 || frame.completed != position
                 || frame.bound
                 || frame.returned != Some(from)
@@ -308,7 +315,7 @@ impl ChoiceTransaction {
         if !self.bound
             || self.dropped
             || !frame.committed
-            || !frame.root_dropped
+            || !self.replacement_cleanup_ready()
             || frame.completed != admission.result_chain.len()
             || frame.bound
             || frame.returned != Some(initializer)
@@ -327,16 +334,44 @@ impl ChoiceTransaction {
         true
     }
 
-    pub(super) fn replacement_transfer_ready(&self, source: UnitSymbolId) -> bool {
+    fn replacement_root_transferred(&self) -> bool {
+        self.admission.replacement.is_some()
+            && self
+                .admission
+                .transfer
+                .as_ref()
+                .is_some_and(|transfer| transfer.source == self.admission.symbol)
+    }
+
+    fn replacement_cleanup_ready(&self) -> bool {
+        if self.replacement_root_transferred() {
+            !self.replacement.root_dropped
+        } else {
+            self.replacement.root_dropped
+        }
+    }
+
+    pub(super) fn replacement_transfer_value(&self, source: UnitSymbolId) -> Option<Value> {
         let Some(admission) = &self.admission.replacement else {
-            return source == self.admission.symbol;
+            return (source == self.admission.symbol).then(|| Value::Choice(self.choice_id()));
         };
-        source == admission.symbol
-            && self.replacement.committed
-            && self.replacement.root_dropped
-            && self.replacement.completed == admission.result_chain.len()
-            && self.replacement.bound
-            && self.replacement.returned.is_none()
+        let frame = &self.replacement;
+        if !frame.committed
+            || frame.completed != admission.result_chain.len()
+            || !frame.bound
+            || frame.returned.is_some()
+            || !self.replacement_cleanup_ready()
+        {
+            return None;
+        }
+        if self.replacement_root_transferred() {
+            (source == self.admission.symbol && frame.previous_dropped)
+                .then(|| frame.owner.clone().map(Value::Definition))
+                .flatten()
+        } else {
+            (source == admission.symbol && !frame.previous_dropped)
+                .then(|| Value::Choice(self.choice_id()))
+        }
     }
 
     pub(super) fn replacement_dropped(
@@ -349,7 +384,8 @@ impl ChoiceTransaction {
         };
         let frame = &self.replacement;
         if symbol == self.admission.symbol {
-            if !self.bound
+            if self.replacement_root_transferred()
+                || !self.bound
                 || self.dropped
                 || !frame.committed
                 || frame.pending
@@ -370,23 +406,27 @@ impl ChoiceTransaction {
                 .push(Event::Drop(point, symbol, Value::Definition(owner)));
             self.replacement.root_dropped = true;
         } else if symbol == admission.symbol
-            && self.admission.transfer.is_none()
+            && (self.admission.transfer.is_none() || self.replacement_root_transferred())
             && !self.dropped
+            && frame.committed
+            && frame.completed == admission.result_chain.len()
             && frame.bound
-            && frame.root_dropped
+            && !frame.previous_dropped
+            && self.replacement_cleanup_ready()
             && frame.returned.is_none()
-            && point == self.admission.drop_point
+            && point == admission.drop_point
         {
             self.suffix
                 .push(Event::Drop(point, symbol, Value::Choice(self.choice_id())));
-            self.dropped = true;
+            self.replacement.previous_dropped = true;
+            self.dropped = !self.replacement_root_transferred();
         } else if self
             .admission
             .transfer
             .as_ref()
             .is_some_and(|transfer| transfer.symbol == symbol)
         {
-            // The same Choice is now owned by the separately verified transfer frame.
+            // The selected old Choice or installed definition follows its verified transfer frame.
             return false;
         } else {
             self.abort();
