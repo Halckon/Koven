@@ -3074,6 +3074,26 @@ Clippy 通过。旧 Single 两种字段参数均缺少临时父支持，单列�
 `continue` 及具名辅助参数。严格 workspace Clippy、格式、尺寸、
 文档及 CLI build 通过。独立复核覆盖准入和构建接线及清理边。
 
+### R4 无分派调用的已完成前缀
+
+以 `736a49ed` 为基线，调用的后继实参必然 `return` 或 Abort 时，
+公开检查接受，原生可因缺少 nullable 参数的 SSA 类型报 `MissingFact`。
+无 callee 实例时，已完成的 Borrow/Value 实参仍按已选参数类型求值。
+Refine 只补这些实际前缀实参的 nullable 类型需求，未求值后缀
+不引入参数 ABI 类型。SSA 回归核对前缀包装、callee 实例缺席及
+后缀 Boolean nullable 类型缺席。
+
+临时字段的已完成前缀以同源 loan 和无分派事实进入 Refine。
+Return 仍消费前端父析构，Abort 允许无析构事实。独立复核确认
+普通返回仍由 SSA verifier 拒绝残存 MoveOnly owner。原生回归实际
+对照精确字段、nullable 字段，以及 Return 与 Abort 的构造、退出和
+析构行为。
+
+最终 SSA 借用、调用前缀及 Refine 路由集合分别通过 7、55 和 41 项，
+零失败或忽略。四组公开程序在单文件和项目入口均实际构建、执行，
+核对正常退出、Abort 信号和资源输出。严格 workspace Clippy、
+CLI build、格式、文档及尺寸检查通过。
+
 ## 117. R0/R3 二元操作结束与重绑后的退出析构
 
 以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else

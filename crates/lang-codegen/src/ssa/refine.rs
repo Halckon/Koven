@@ -244,6 +244,12 @@ impl RefineInputs<'_> {
         if !copied && *target != parent {
             return None;
         }
+        // A completed prefix still evaluates the parent. An Abort path has no drop fact.
+        if self.owned.call_may_dispatch(call) == Some(false)
+            && self.owned.call_argument_completed(argument)
+        {
+            return Some((parent.expression(), copied));
+        }
         let call_span = nodes.get(call.expression()).ok()?.span();
         let operand_span = nodes.get(operand).ok()?.span();
         self.owned

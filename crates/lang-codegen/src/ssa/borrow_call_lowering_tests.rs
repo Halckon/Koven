@@ -39,6 +39,44 @@ fn assert_borrow_call(program: &Program) {
 }
 
 #[test]
+fn abandoned_call_prefix_demands_only_completed_nullable_parameter_storage() {
+    let text = "fun unreachableCallee(number: Int?, own stop: Int, own suffix: Boolean?): Unit {}\nfun entry() { unreachableCallee(7, return, false) }";
+    let program = unit(text).unwrap();
+    verify_program(&program).unwrap();
+    let module = &program.modules[0];
+    assert!(
+        !module
+            .functions
+            .iter()
+            .any(|function| { function.name.contains("unreachableCallee") })
+    );
+    let wrappers: Vec<_> = module
+        .types
+        .iter()
+        .filter_map(|ty| {
+            if let SsaTypeKind::InlineNullable { inner, .. } = ty {
+                Some(&module.types[inner.index()])
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(wrappers.len(), 1);
+    assert_ne!(wrappers[0], &SsaTypeKind::Boolean);
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("entry"))
+        .unwrap();
+    assert!(
+        entry
+            .instructions
+            .iter()
+            .any(|instruction| { matches!(instruction.operation, Operation::NullableWrap { .. }) })
+    );
+}
+
+#[test]
 fn temporary_field_borrow_uses_the_field_loan_or_copies_before_wrapping() {
     for parameter in ["Int", "Int?"] {
         let program = unit(&format!(

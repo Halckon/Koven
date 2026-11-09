@@ -374,6 +374,49 @@ fun main(): Unit {{
     }
 }
 
+#[test]
+fn unit_non_dispatching_nullable_prefix_needs_no_callee_instance() {
+    for marker in ["", "own "] {
+        let source = format!(
+            r#"fun make_number(): Int {{ println("prefix"); return 7 }}
+fun after(): Int {{ println("unexpected suffix"); return 0 }}
+fun read({marker}number: Int?, own n: Int, own last: Int): Unit {{ println("unexpected call") }}
+fun main(): Unit {{ read(make_number(), return, after()) }}"#
+        );
+        let output = crate::native_tests::emit_link_and_run("nullable_prefix.ko", &source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"prefix\n");
+    }
+}
+
+#[test]
+fn unit_temporary_field_prefix_abandons_the_call_on_return_or_abort() {
+    for parameter in ["Int", "Int?"] {
+        for exit in ["return", "error(\"stop\")"] {
+            let source = format!(
+                r#"class Holder(val number: Int) {{ deinit() {{ println("release") }} }}
+fun make_number(): Int {{ println("construct"); return 7 }}
+fun read(number: {parameter}, own n: Int): Unit {{ println("unexpected") }}
+fun main(): Unit {{ read((Holder(make_number())).number, {exit}) }}"#
+            );
+            let output = crate::native_tests::emit_link_and_run("field_prefix.ko", &source, "main");
+            if exit == "return" {
+                crate::native_tests::boxed_enum_tests::assert_success(
+                    &output,
+                    b"construct\nrelease\n",
+                );
+            } else {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    assert_eq!(output.status.signal(), Some(6), "{output:?}");
+                }
+                assert!(!output.status.success(), "{output:?}");
+                assert_eq!(output.stdout, b"construct\n");
+            }
+        }
+    }
+}
+
 fn assert_stable_output(
     ir: String,
     object: &Path,

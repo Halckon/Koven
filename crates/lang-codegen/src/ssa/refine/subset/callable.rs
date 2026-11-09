@@ -824,6 +824,38 @@ impl Checker<'_, '_> {
         ok
     }
 
+    /// Completed operands can require storage even if there is no callee instance.
+    pub(super) fn demand_prefix_nullable_arguments(
+        &self,
+        id: UnitExpressionId,
+        expression: &Expression,
+        demands: &mut Vec<UnitTypeId>,
+    ) {
+        if self.inputs.owned.call_may_dispatch(id) != Some(false) {
+            return;
+        }
+        let (Some(call), Expression::Call { arguments, .. }) =
+            (self.inputs.typed.call(id), expression)
+        else {
+            return;
+        };
+        for argument in call.arguments() {
+            if arguments
+                .get(argument.argument_index())
+                .is_some_and(|operand| {
+                    self.inputs
+                        .owned
+                        .call_argument_completed(self.id(operand.value))
+                })
+            {
+                let parameter = self.c(argument.parameter_type());
+                if matches!(self.kind(parameter), Some(UnitTypeKind::Nullable(_))) {
+                    demands.push(parameter);
+                }
+            }
+        }
+    }
+
     /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
     /// non-null name read through its proof view.
     pub(super) fn arguments(&mut self, call: ExpressionId, values: &[ExpressionId]) -> bool {
@@ -831,6 +863,7 @@ impl Checker<'_, '_> {
             return false;
         };
         let is_extension = self.is_extension_call(descriptor);
+        let prefix_only = self.inputs.owned.call_may_dispatch(self.id(call)) == Some(false);
         let mut modes: Vec<_> = descriptor
             .arguments()
             .iter()
@@ -866,6 +899,9 @@ impl Checker<'_, '_> {
             if self.inputs.typed.expression_falls_through(self.id(value)) == Some(false) {
                 reaches_operand = false;
                 return self.expression(value);
+            }
+            if prefix_only && self.inputs.owned.call_argument_completed(self.id(value)) {
+                self.note_nullable(parameter);
             }
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);

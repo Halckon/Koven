@@ -273,6 +273,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         let span = node.span();
         if item.start() <= span.start() && span.end() <= item.end() {
             let id = UnitExpressionId::new(inputs.source_unit, expression);
+            checker.demand_prefix_nullable_arguments(id, node.payload(), &mut demands);
             if let Some(ty) = inputs.typed.expression_type(id) {
                 let ty = match checker.kind(ty) {
                     Some(UnitTypeKind::EnumCase { root, .. }) => *root,
