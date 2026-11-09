@@ -317,16 +317,9 @@ impl UnitExpressionLowerer<'_> {
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         span: Span,
     ) -> Result<LoopContext, LoweringError> {
-        self.create_carried_loop_context(baseline, span)
-    }
-
-    // Shared construction only. The old wrapper keeps its rejection for loop/for
-    // and unqualified proof births; nullable while qualifies an existing proof first.
-    fn create_carried_loop_context(
-        &mut self,
-        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
-        span: Span,
-    ) -> Result<LoopContext, LoweringError> {
+        if !self.nullable_proofs.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let mut carried = self.carried_bindings(baseline, span)?;
         let mut loans = self.carried_loans(&self.borrow_bindings, span)?;
         self.carry_pending_operands(&mut carried, &mut loans, span)?;
@@ -385,10 +378,9 @@ impl UnitExpressionLowerer<'_> {
         let mut state = self.loop_state();
         // Cleanup already ended cancelled ordinary call loans. Their Rust frames
         // still unwind in the caller, but must not reappear in the loop successor.
-        // Keep live nullable-child metadata for its existing strict validation.
-        state.pending_call_frames.retain(|frame| {
-            frame.loop_depth < self.loops.len() || !frame.nullable_children.is_empty()
-        });
+        state
+            .pending_call_frames
+            .retain(|frame| frame.loop_depth < self.loops.len());
         Ok(LoopJump { state, span })
     }
 

@@ -24,7 +24,6 @@ pub(super) fn checked_operator(operator: BinaryOperator) -> Option<CheckedArithm
         _ => None,
     }
 }
-
 pub(super) fn comparison_operator(operator: BinaryOperator) -> Option<ComparisonOperator> {
     match operator {
         BinaryOperator::Equal => Some(ComparisonOperator::Equal),

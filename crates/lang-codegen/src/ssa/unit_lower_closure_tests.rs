@@ -974,15 +974,12 @@ fn dropped(function: &Function) -> Vec<ValueId> {
 fn is_closure_construct(operation: &Operation) -> bool {
     matches!(operation, Operation::ClosureConstruct { .. })
 }
-
 fn is_function_address(operation: &Operation) -> bool {
     matches!(operation, Operation::FunctionAddress { .. })
 }
-
 fn is_callable_invoke(operation: &Operation) -> bool {
     matches!(operation, Operation::CallableInvoke { .. })
 }
-
 fn is_shared_field_loan(operation: &Operation) -> bool {
     matches!(operation, Operation::SharedFieldLoan { .. })
 }
@@ -990,15 +987,12 @@ fn is_shared_field_loan(operation: &Operation) -> bool {
 fn is_direct_call(operation: &Operation) -> bool {
     matches!(operation, Operation::DirectCall { .. })
 }
-
 fn is_drop(operation: &Operation) -> bool {
     matches!(operation, Operation::Drop { .. })
 }
-
 fn is_string_literal(operation: &Operation) -> bool {
     matches!(operation, Operation::StringLiteral { .. })
 }
-
 fn is_string_concat(operation: &Operation) -> bool {
     matches!(operation, Operation::StringConcat { .. })
 }

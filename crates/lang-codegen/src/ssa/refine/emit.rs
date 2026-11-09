@@ -1,8 +1,6 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
 use std::collections::{BTreeMap, BTreeSet};
-
 use lang_frontend::source::Span;
-
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
