@@ -364,12 +364,9 @@ fn inout_parameter_reborrow_keeps_actual_for_cleanup_and_no_parameter_drop() {
 }
 
 #[test]
-fn projected_provider_bound_and_borrowed_result_receivers_stay_excluded() {
+fn provider_bound_and_borrowed_result_receivers_stay_excluded() {
     for next in ["0", "return"] {
         for text in [
-            format!(
-                "{NODE}class Holder(val node: Node)\nfun run(inout holder: Holder): Unit {{ holder.node.touch(\"field\", {next}) }}"
-            ),
             format!(
                 "{NODE}fun run(inout nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", {next}) }} }}"
             ),

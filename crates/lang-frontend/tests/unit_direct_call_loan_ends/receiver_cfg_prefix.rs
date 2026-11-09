@@ -355,14 +355,11 @@ fn for_body_receiver_prefix_precedes_provider_cleanup_without_changing_it() {
 }
 
 #[test]
-fn loop_prefixes_preserve_temporary_projection_provider_and_reservation_boundaries() {
+fn loop_prefixes_preserve_temporary_provider_and_reservation_boundaries() {
     for (loop_start, jump) in [("loop", "break"), ("while (flag)", "continue")] {
         for text in [
             format!(
                 "{NODE}fun run(flag: Boolean): Unit {{ {loop_start} {{ Node().touch(\"temporary\", {jump}) }} }}"
-            ),
-            format!(
-                "{NODE}class Holder(val node: Node)\nfun run(own holder: Holder, flag: Boolean): Unit {{ {loop_start} {{ holder.node.touch(\"field\", {jump}) }} }}"
             ),
             format!(
                 "{NODE}fun run(own nodes: List<Node>, flag: Boolean): Unit {{ for (node in nodes) {{ {loop_start} {{ node.touch(\"provider\", {jump}) }} }} }}"

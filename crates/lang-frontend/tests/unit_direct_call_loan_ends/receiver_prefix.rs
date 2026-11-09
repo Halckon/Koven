@@ -143,10 +143,9 @@ fn normal_calls_unvisited_calls_and_nested_loop_jumps_do_not_end_a_prefix() {
 }
 
 #[test]
-fn temporary_projected_and_reserved_receivers_remain_excluded() {
+fn temporary_provider_and_reserved_receivers_remain_excluded() {
     for text in [
         format!("{NODE}fun run(): Unit {{ Node().touch(\"temporary\", return) }}"),
-        format!("{NODE}class Holder(val node: Node)\nfun run(own holder: Holder): Unit {{ holder.node.touch(\"field\", return) }}"),
         format!("{NODE}fun run(own nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", return) }} }}"),
         "class Node { inout fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { var node = Node(); node.touch(\"reservation\", return) }".into(),
     ] {

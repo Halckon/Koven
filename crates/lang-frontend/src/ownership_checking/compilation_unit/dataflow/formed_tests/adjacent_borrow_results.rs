@@ -491,3 +491,93 @@ fn this_reborrow_ends_keep_same_ast_indices_and_different_nominal_owners() {
         }
     }
 }
+
+#[test]
+fn real_rejections_clear_nonempty_field_receiver_reborrow_tables() {
+    for (open, close, next) in [
+        ("", "", "0"),
+        ("", "", "return"),
+        ("loop {", "}", "break"),
+        ("while (flag) {", "}", "continue"),
+    ] {
+        let text = format!(
+            "class Node {{ fun touch(text: String, own next: Int): Int = next }}\nclass Holder(val node: Node)\nfun run(holder: Holder, flag: Boolean): Unit {{ {open} holder.node.touch(\"ready\", {next}) {close} }}"
+        );
+        assert_rejections_clear(&text, false, |_, raw| {
+            assert_eq!(
+                raw.receiver_call_return_ends.len(),
+                usize::from(next == "0")
+            );
+            assert_eq!(
+                raw.receiver_call_prefix_ends.len(),
+                usize::from(next != "0")
+            );
+        });
+    }
+}
+
+#[test]
+fn field_receiver_ends_keep_consumer_roots_and_provider_field_identity() {
+    use crate::ownership_checking::UnitReceiverOwnershipTarget;
+    let types = "class Node { fun read(own next: Int): Int = next }\nclass Holder(val node: Node)";
+    for next in ["0", "return"] {
+        let left = format!("fun first(holder: Holder): Unit {{ holder.node.read({next}) }}");
+        let right = format!("fun other(holder: Holder): Unit {{ holder.node.read({next}) }}");
+        let accepted = Fixture::new(&[("a.ko", types), ("b.ko", &left), ("c.ko", &right)]);
+        let shared = accepted.shared();
+        assert!(
+            shared.diagnostics().is_empty(),
+            "{:?}",
+            shared.diagnostics()
+        );
+        assert!(shared.deferred().is_empty(), "{:?}", shared.deferred());
+        shared.clone().validate().unwrap();
+        let receivers: Vec<_> = shared
+            .receiver_call_return_ends()
+            .iter()
+            .map(|e| e.receiver())
+            .chain(
+                shared
+                    .receiver_call_prefix_ends()
+                    .iter()
+                    .map(|e| e.receiver()),
+            )
+            .collect();
+        let [first, second] = receivers.as_slice() else {
+            panic!("one real end per consumer")
+        };
+        assert_eq!(first.call().expression(), second.call().expression());
+        assert_eq!(first.call().source_unit(), accepted.source(1));
+        assert_eq!(second.call().source_unit(), accepted.source(2));
+        assert_ne!(first.call(), second.call());
+        let UnitReceiverOwnershipTarget::Place(first_path) = first.target() else {
+            panic!("first path")
+        };
+        let UnitReceiverOwnershipTarget::Place(second_path) = second.target() else {
+            panic!("second path")
+        };
+        assert_eq!(first_path.root().source_unit(), accepted.source(1));
+        assert_eq!(second_path.root().source_unit(), accepted.source(2));
+        assert_ne!(first_path.root(), second_path.root());
+        assert_eq!(first_path.fields().len(), 1);
+        assert_eq!(first_path.fields(), second_path.fields());
+        assert_eq!(first_path.fields()[0].source_unit(), accepted.source(0));
+        assert_eq!(
+            shared.receiver_call_return_ends().len(),
+            if next == "0" { 2 } else { 0 }
+        );
+        assert_eq!(
+            shared.receiver_call_prefix_ends().len(),
+            if next == "return" { 2 } else { 0 }
+        );
+        let raw = accepted.dataflow(&accepted.parts(&shared));
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+    }
+}

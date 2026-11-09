@@ -241,7 +241,6 @@ fn abandoned_and_unreachable_calls_do_not_publish_normal_receiver_ends() {
 fn normal_completion_keeps_all_existing_receiver_provenance_boundaries() {
     for text in [
         format!("{NODE}fun run(): Unit {{ Node().touch(\"temporary\", 0) }}"),
-        format!("{NODE}class Holder(val node: Node)\nfun run(own holder: Holder): Unit {{ holder.node.touch(\"field\", 0) }}"),
         format!("{NODE}fun run(own nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", 0) }} }}"),
         format!("{NODE}fun alias(source: Node): borrow Node from source = source\nfun run(own node: Node): Unit {{ borrow val borrowed = alias(node); borrowed.touch(\"binding\", 0) }}"),
         "class Node { inout fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { var node = Node(); node.touch(\"reservation\", 0) }".into(),

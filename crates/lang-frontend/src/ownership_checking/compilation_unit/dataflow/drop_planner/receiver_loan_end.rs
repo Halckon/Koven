@@ -54,18 +54,26 @@ impl DropPlanner<'_, '_> {
         let UnitCallReceiverOrigin::Expression(operand) = receiver.source() else {
             return false;
         };
-        let mut operand = operand.expression();
+        let full_operand = operand.expression();
+        let mut operand = full_operand;
         loop {
             let Ok(node) = self.checker.parsed.ast().expressions().get(operand) else {
                 return false;
             };
             match node.payload() {
                 Expression::Group { expression } => operand = *expression,
+                Expression::Member {
+                    receiver,
+                    safe: false,
+                    ..
+                } => operand = *receiver,
                 Expression::Name => break,
                 _ => return false,
             }
         }
-        let Ok(Some(place)) = self.checker.place(operand) else {
+        // Resolve the complete typed field path, not merely its named backing root.
+        // The syntax walk excludes this fields, indices, safe access and temporaries.
+        let Ok(Some(place)) = self.checker.place(full_operand) else {
             return false;
         };
         let root = place.root();
@@ -96,7 +104,7 @@ impl DropPlanner<'_, '_> {
         });
         (owned || nonowning_parameter)
             && !provider
-            && place.is_root()
+            && place.elements().is_empty()
             && matches!(
                 self.checker.symbol_kind(root),
                 Some(SymbolKind::Variable | SymbolKind::ValueParameter)
