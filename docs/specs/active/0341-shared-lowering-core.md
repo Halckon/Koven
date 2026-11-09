@@ -7253,3 +7253,40 @@ Unit采用真实entry的declaration Span取代Legacy显示名；额外锁单Memo
 `.local-artifacts/`。未执行整个mixed套件、codegen/workspace全量、native进程、Linux、
 故障/计数/sanitizer或精确新头CI。独立代码复审无阻断；仅交统一合批，
 不新开PR或修改正在验收的远端头，SPEC-0341和D10/E2仍in-progress。
+
+
+### 借用来源移动诊断消费者迁移（2026-11-09）
+
+本地独立分支基于 main `9369cc7279c268385a19f41a10a54c7cc31ea2ce`（已含#395），
+未叠加或修改#390的验收头、其他carrier/while候选。本片只改
+`borrow_result_contract_tests::borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa`
+这一测试函数，原PROVIDER与entry合成的281字节源码及`result.ko`名称逐字保留。
+
+先实跑原Single断言并记录同源Unit观察：均为L0135 Error，完整message为
+`move conflicts with an active loan`，primary255..261，首label238..244及
+`conflicting loan starts here`相同。Unit另有140..158的`selected parameter declared here`
+标签。本片不声称两份Diagnostic整值相等，也不保留旧FrontendDiagnostics错误包装的逐字段断言。
+原测试只观察frontend在SSA前拒绝；该语义由strict Unit的Diagnostics拒绝和
+parse/names/types各0、ownership恰1的完整阶段计数承接。固定完整Diagnostic的Eq同时覆盖
+severity、code、message、primary、全部有序details；多余诊断、Label、Note或Help均失败。
+三个范围的原片段、完整源码和source身份同时固定，不筛选错误码或接受任意拒绝。
+
+本文件真实Legacy `single`调用3→2，净退休1个消费者路径；helper、其内部
+`lower_scalar_file`调用点、其他文件消费者及全部生产代码未改，不能计作旧入口退休。
+原Legacy wrapper的FrontendDiagnostics/None与source/analysis/diagnostics优先级仍由
+`lowering_entry_contract_tests::legacy_only`的既有独立合同保留，本片未改这些测试。
+
+| 验收项 | 完整测试路径或命令 | 本地实际结果 |
+|---|---|---|
+| 迁移及同族正常/拒绝邻控 | `ssa::borrow_result_contract_tests::`下`borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa`、`borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move`、`borrowed_result_unit_ssa_uses_returned_loan_and_orders_end_before_move`、`borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported` | 4项通过 |
+| 仍用同一Legacy helper的独立见证 | `ssa::owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison`、`ssa::verify_operation::map::require_tests::map_require_readonly_source_can_return_its_slot_through_ordinary_wrapper` | 2项通过 |
+| 工程门禁 | codegen all-targets Clippy `-D warnings`、fmt | 通过 |
+| 交付文档门禁 | docs、Rust尺寸、diff | 全通过；863 Markdown、2235 Rust，37项历史超长额度不增 |
+
+以上6项均为`cargo test --locked -p lang-codegen --lib ... -- --exact`，每项恰1通过、零失败/忽略。
+初次新断言宏缺说明参数导致编译失败，未产生行为结果；修复后全部6项从头实际通过。
+基线及重复运行不累加。Mac AArch64、Rust1.96.0、LLVM21.1.8、默认debug、独占本树target串行。
+独立代码复审无阻断；原日志在Git忽略的`.local-artifacts/`，不提交raw dump。
+未执行故障注入/verifier改写测试、native进程、codegen/workspace全量、Linux或精确新头CI；
+本片不新增运行时能力。仅分步本地提交供下一统一批次，不推送、不新开PR或合并，
+SPEC-0341与D10/E2仍in-progress。
