@@ -17,6 +17,7 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
     pub(super) index_poison_tail: Cell<Option<IndexPoisonTail>>,
     group_closers: OnceCell<GroupClosers>,
+    block_statement_after_separator: Cell<Option<(usize, bool)>>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     poisoned_string_starts: OnceCell<Vec<bool>>,
     angle_terminal_hint: usize,
@@ -342,6 +343,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             terminal_owner_events: verified_events,
             index_poison_tail: Cell::new(None),
             group_closers: OnceCell::new(),
+            block_statement_after_separator: Cell::new(None),
             angle_group_closers: OnceCell::new(),
             poisoned_string_starts: OnceCell::new(),
             supertype_boundary: Cell::new(None),
@@ -772,6 +774,14 @@ impl Parser<'_> {
                     && symbol == Some(Symbol::LeftBrace)
                     && self.has_paired_lambda_header(raw_index)?);
             if hard_stop
+                || (outside_owner
+                    && !protected_suffix
+                    && delimiters.is_empty()
+                    && stops.has_block_statement_separator()
+                    && symbol == Some(Symbol::Semicolon)
+                    && self
+                        .lexical_recoveries
+                        .block_statement_follows(self.lexed, raw_index))
                 || (supertype_suffix
                     && outside_owner
                     && !protected_suffix
@@ -810,7 +820,7 @@ impl Parser<'_> {
                     raw_index,
                     symbol,
                     first.0,
-                    stops.has_semicolon(),
+                    stops.has_semicolon() || stops.has_block_statement_separator(),
                 )?
             {
                 if let Some(closer) = closer

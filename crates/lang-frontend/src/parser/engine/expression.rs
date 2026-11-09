@@ -169,7 +169,9 @@ impl Parser<'_> {
             let move_span = self.bump()?.span();
             return self.parse_lambda(Some(move_span), stops);
         }
-        if stops.contains(current) && !control_expression_start_kind(current.kind()) {
+        if (stops.contains(current) && !control_expression_start_kind(current.kind()))
+            || self.at_block_statement_separator(current, stops)?
+        {
             let span = self.empty_at(current.span().start())?;
             self.emit(codes::EXPECTED_EXPRESSION, "expected expression", span)?;
             return self.add_expression(span, Expression::Error);

@@ -82,6 +82,24 @@ impl LexicalRecoveryIndex<'_> {
         self.ordinary_groups(lexed).closer(opener)
     }
 
+    pub(in crate::parser::engine) fn block_statement_follows(
+        &self,
+        lexed: &LexedFile,
+        separator: usize,
+    ) -> bool {
+        if let Some((previous, starts_statement)) = self.block_statement_after_separator.get()
+            && previous == separator
+        {
+            return starts_statement;
+        }
+        // Nested expressions can all unwind at the same caller separator.
+        let starts_statement =
+            starts_block_statement(self.source, &lexed.lexemes()[separator + 1..]);
+        self.block_statement_after_separator
+            .set(Some((separator, starts_statement)));
+        starts_statement
+    }
+
     pub(in crate::parser::engine) fn postfix_recovery_closer(
         &self,
         lexed: &LexedFile,
