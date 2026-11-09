@@ -114,10 +114,10 @@ String 构造登记真定义；Group/If 完成与双边实际 tail 交付必须�
 整个 If 的 Group 链沿真实 Consume 完成运输同一 Choice，post-insert 仅接完整末帧并
 清空结果；保留真实 control 和双边 producer。漏层、Read、错序或重复均撤销事务（§124）。
 
-初始 `val` 可无后继，由实际移除后的精确 AfterStatement Drop 闭合；也可跟唯一不可变、
-精确 String/MoveOnly 的 `val forwarded = ((chosen))`。实际 take 后用独立结果帧逐层
-Consume/Forward，再 post-insert 清空帧；最后仅清理 forwarded，chosen 不再 named Drop。
-失败 take、Read、错序、重复或错误清理均撤销；多次转交仍拒绝（SPEC-0341 §122）。
+初始 `val` 可直接精确 AfterStatement Drop，或跟至多两级不可变、精确 String/MoveOnly 的 Name/Group alias。
+每次真实 take/Consume/Forward 与 post-insert 保留同一 Choice；两级时第一 alias 的值
+在独立 named 槽等待第二次实际 take，结果帧在绑定后清空；仅最终 alias 精确 Drop（§138）。
+失败 take、Read、错序、重复或中间清理均撤销；第三次转交和 replace 输出 alias 链仍拒绝。
 
 初始 `var` 须紧跟 `val previous = replace(&chosen, literal/Group)` 或其整个 Group 链；
 后继须不可变、精确 String/MoveOnly 的 Name/Group；单个源为 previous 或 chosen，两个须分别消费二者。
@@ -136,8 +136,8 @@ BranchExit、控制退出、When 等未覆盖 point 仍不准入；图守恒不�
 旧观察仍原子 Unsupported，不接收新定义/Choice；原 cleanup/Single 见证保持。新能力
 绑定 observation 的 product/callable，旧 Eq 仅比旧事实，新协议须独立验收。不从事件、
 cleanup 或 owner=None 重建身份；任意退出、遗漏、重复或错误交付均清空新事务。
-nullable、普通调用、capture、二次 replace/同值转交、退出、真实循环/phi、通用后续消费及 Phase 4 仍未开放。
-本机证据见 §120/§122/§124/§126/§128/§130/§132/§134/§136；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
+nullable、普通调用、capture、二次 replace/任意转交、退出、真实循环/phi、通用后续消费及 Phase 4 仍未开放。
+本机证据见 §120/§122/§124/§126/§128/§130/§132/§134/§136/§138；原 §87/§88/§89/§101 依赖保留，D10/E2 未完成。
 
 ## String 根 swap 观察
 

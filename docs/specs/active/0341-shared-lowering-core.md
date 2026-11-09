@@ -4864,3 +4864,47 @@ single-root 路径不满足两段门禁，仍须 previous 实际退休；原旧�
 同值多次运输、任意消费、incoming Choice、真实循环实例/phi、Phase 4/native 与 E3
 仍未开放。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
 D10/E2 继续 in-progress。不新增备份，分步提交后仅发布独立新分支，不覆盖、强推或合并。
+
+
+## 138. 初始 Choice 的两级具名 alias 运输（2026-11-09）
+
+基于已发布 `86d50628`（§136），核对远端 Choice 与 alias 分支，无重复实现。
+最新 main 为 `ac9a7d81`（#382）；其通用 flow/branch 改动尚未与本未合依赖链组合验收，
+本片分支测试不能替代最新 main 验收。Phase 3 沿用既有 move/ASAP 合同，只改 Choice
+私有事务收集，不改 Guide、公开 API、V1 validator、cleanup 或通用 planner hook。
+
+准入仅新增三句形态：初始不可变精确 String/MoveOnly chosen 接既有显式 If/Group If，
+不可变 forwarded 接 Name/Group chosen，再由同类 again 接 Name/Group forwarded。
+第三句只能消费第一 alias，不能重新消费初始根；仍至多两级，不开放 replace 输出
+alias 链、第四句、普通调用、capture、退出或循环。原三个合法拒绝样例完整迁入正例。
+
+第一段必须由真实 take、逐层 Consume/Forward 和完整 post-insert binding 交付；
+同一 Value 才从结果帧移入独立的 symbol/value named 槽，清空帧并推进活动段。
+这不是退休：第一 alias 不产生 Drop，第二段必须实际 take 成功且源 symbol 精确匹配，
+才唯一取走槽值并沿第二结果帧运输。仅末 alias 在自身声明的精确 AfterStatement Drop。
+不从事件、cleanup 或 owner=None 重建身份；未绑定、重复/提前 take、Read、错序、
+中间 Drop、非活动/退休回调和遗漏末清理均撤销，abort/finish 覆盖新 named 槽。
+replace 路径不进入这条 post-insert 推进，仍按各输出真实 Drop 推进，旧合同保持。
+
+真实红测在裸三句源码缺 V1 上 1 failed，测试提交 `0904158f`；实现 `33c46d05`
+后216组合（3条件×4边形态×2整个If分组×3第一alias深度×3第二alias深度）逐项
+核真实 AST 双边、两个producer、完整有序 suffix、同一Choice身份、原根/中间alias
+无Drop及末alias准确清理。10种合法拒绝覆盖第三次转交、var/nullable、concat、
+普通调用、capture、循环和两种replace输出链；sibling及开关完整旧Analysis保持。
+26条补充手工守卫trace仅编译，未本机执行，不替代真实planner证据。
+
+迁移旧拒绝样例后，strict Clippy 报单元素循环；`9718dfbe` 单独改为普通块，
+没有跳过检查或改变断言，随后重跑全部46项和严格Clippy。独立静审无blocker。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_alias_chain` 两个 ordinary exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §136 同一44项 ordinary exact，含replace双输出与单alias | 44 passed，0 failed/ignored |
+| lint修正后 | 同一46项 ordinary exact及frontend all-targets Clippy `-D warnings` | 全部通过 |
+| 独立复验 | `9718dfbe` 两个新完整名 ordinary exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 最终质量 | fmt、docs、尺寸、diff | 通过；863 Markdown、2231 Rust、35项既有超限 |
+
+生产 choice 为973行，replace未改；新测试332行，架构200行，无尺寸例外变化。
+D10/E2 继续 in-progress；真实循环实例/phi、incoming Choice、通用后续消费、Phase 4/native
+与 E3 仍未开放。未跑全量、手工模型/故障注入、native、Linux、最新main组合或正式精确头CI。
+不新增备份，分步提交后仅用connector发布独立新分支，不覆盖已有ref、不强推或合并。
