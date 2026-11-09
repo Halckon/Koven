@@ -848,6 +848,11 @@ impl DeclarationStops {
     pub(super) const LEADING_UNPROVED_ANGLE_COMMA: u32 = 1 << 22;
     pub(super) const DELEGATION_ERROR_TARGET: u32 = 1 << 23;
     pub(super) const DELEGATION_UNSUPPORTED_SUFFIX: u32 = 1 << 24;
+    pub(super) const INDEX_SUFFIX: u32 = 1 << 25;
+
+    pub(super) const fn recovers_index_suffix(self) -> bool {
+        self.0 & Self::INDEX_SUFFIX != 0
+    }
 
     pub(super) const fn in_delegation_recovery(self) -> bool {
         self.0 & (Self::DELEGATION_ERROR_TARGET | Self::DELEGATION_UNSUPPORTED_SUFFIX) != 0

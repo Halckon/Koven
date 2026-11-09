@@ -672,15 +672,8 @@ impl Parser<'_> {
         )?;
         let current = self.current()?;
         let poisoned = leading_poison || self.is_poison();
-        if poisoned
-            && let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw)
-            && self.current_raw()? < closer
-        {
-            // The index proves this closer belongs to the group in its own
-            // lexical scope. No token in the skipped suffix becomes a sibling.
+        if poisoned && let Some(end) = self.skip_to_group_closer(opener_raw)? {
             let start = self.expression_span(inner)?.start();
-            self.index = closer;
-            let end = self.previous_significant_end();
             inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
         } else if !poisoned
             && !self.current_is_symbol(Symbol::RightParen)

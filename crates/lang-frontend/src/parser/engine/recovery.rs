@@ -616,6 +616,20 @@ fn angle_group_closers(
 }
 
 impl Parser<'_> {
+    /// Leave a proven closer in place for its group to consume.
+    pub(super) fn skip_to_group_closer(
+        &mut self,
+        opener_raw: usize,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw)
+            && self.current_raw()? < closer
+        {
+            self.index = closer;
+            return Ok(Some(self.previous_significant_end()));
+        }
+        Ok(None)
+    }
+
     /// 消费声明恢复区，保留调用方拥有的 hard closer，并只在局部 delimiter / owner
     /// 回到 baseline 后识别逗号 soft stop。
     pub(super) fn recover_declaration_region(
@@ -672,6 +686,7 @@ impl Parser<'_> {
         let mut end = recovery_start;
         let mut string_poison = false;
         let supertype_suffix = stops.has_supertype_suffix();
+        let index_suffix = stops.recovers_index_suffix();
         let supertype_owner = if stops.has_class_file_boundary() {
             ClassifierHeaderOwner::File
         } else if stops.stops_at_class_member() {
@@ -766,7 +781,8 @@ impl Parser<'_> {
                 paired_groups.push((closer, delimiters.len()));
             }
             let nested_greater = symbol == Some(Symbol::Greater) && !paired_groups.is_empty();
-            let protected_suffix_group = supertype_suffix && !paired_groups.is_empty();
+            let protected_suffix_group =
+                (supertype_suffix || index_suffix) && !paired_groups.is_empty();
             let hard_stop = outside_owner
                 && !nested_greater
                 && !protected_suffix_group
@@ -789,6 +805,7 @@ impl Parser<'_> {
                     )?)
                 || (outside_owner
                     && delimiters.is_empty()
+                    && (!index_suffix || paired_groups.is_empty())
                     && (((!unclosed_angle || symbol != Some(Symbol::Comma))
                         && stops.contains_soft(current, symbol))
                         || (!supertype_suffix
@@ -800,6 +817,21 @@ impl Parser<'_> {
                             && self.class_member_recovery_start()?)))
             {
                 break;
+            }
+
+            // An unclosed nested opener cannot hide the index caller's stops.
+            if outside_owner
+                && index_suffix
+                && symbol
+                    .and_then(group_delimiter)
+                    .is_some_and(|(_, opening)| opening)
+            {
+                if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, raw_index) {
+                    paired_groups.push((closer, delimiters.len()));
+                }
+                self.index = raw_index + 1;
+                end = current.span().end();
+                continue;
             }
 
             if outside_owner

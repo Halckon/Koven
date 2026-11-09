@@ -136,6 +136,8 @@ L0057。相关结构、范围和资源回归见 `parser_return_control` 与 pars
 普通表达式分组遇到前置或尾随 lexer poison 时，只在同一词法作用域证明真实右括号后
 收回错误尾部。分号、声明 starter 和嵌套异形 closer 仍在实际分组的 Error 子节点内。
 每个插值拥有独立配对栈。缺少配对证明时保留外层恢复边界。
+下标恢复复用普通配对索引。坏 key 留下的嵌套右方括号不会冒充下标的 closer。
+没有配对时把外层逗号交回调用方，文件内恢复仅允许已配对的局部分组遮蔽声明边界。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。

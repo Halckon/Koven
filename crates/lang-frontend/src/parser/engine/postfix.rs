@@ -619,37 +619,76 @@ impl Parser<'_> {
         receiver: ExpressionId,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let index_stops = outer_stops.without_file_and_semicolon_stops();
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
         let receiver_span = self.expression_span(receiver)?;
-        let inner_stops = outer_stops
+        let inner_stops = index_stops
             .without_lambda_body_soft_stops()
             .with(Stops::RIGHT_BRACKET)
             .with(Stops::COMMA);
-        let index = self.parse_expression_bp(0, inner_stops)?;
+        let leading_poison = self.is_poison();
+        let diagnostic_count = self.diagnostics.len();
+        let mut index = self.parse_expression_bp(0, inner_stops)?;
         let index_span = self.expression_span(index)?;
+        let current = self.current()?;
+        let at_bracket = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket))
+        );
+        // A failed key parse can leave a nested bracket at the cursor.
+        let mut at_index_closer = at_bracket
+            && (self.diagnostics.len() == diagnostic_count
+                || self.lexical_recoveries.group_closer(self.lexed, opener_raw)
+                    == Some(self.current_raw()?));
         let mut last_consumed_end = index_span.end().max(opener.end());
-        let mut reported_missing_closer = false;
+        if !at_index_closer {
+            let comma = matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
+            );
+            let caller_boundary = outer_stops.contains(current);
+            let paired_end = if comma || at_bracket || leading_poison || !caller_boundary {
+                self.skip_to_group_closer(opener_raw)?
+            } else {
+                None
+            };
 
-        if self.current_is_symbol(Symbol::Comma) {
-            let comma = self.bump()?.span();
-            self.emit_closing(comma, opener)?;
-            reported_missing_closer = true;
-            last_consumed_end = comma.end();
-            while !self.current_is_symbol(Symbol::RightBracket)
-                && !outer_stops.contains(self.current()?)
-            {
-                last_consumed_end = self.bump()?.span().end();
+            let already_diagnosed = self.is_poison_kind(current.kind())
+                || (paired_end.is_some() && !comma && (leading_poison || at_bracket));
+            if !already_diagnosed {
+                let diagnostic_span = if comma && paired_end.is_some() {
+                    current.span()
+                } else {
+                    self.boundary_span(current, outer_stops)?
+                };
+                self.emit_closing(diagnostic_span, opener)?;
+            }
+            if let Some(end) = paired_end {
+                last_consumed_end = end;
+                at_index_closer = true;
+                if !comma {
+                    index = self
+                        .add_expression(self.span(index_span.start(), end)?, Expression::Error)?;
+                }
+            } else if !caller_boundary {
+                if at_bracket {
+                    last_consumed_end = self.bump()?.span().end();
+                } else if comma {
+                    self.bump()?;
+                    self.recover_declaration_region(
+                        DeclarationStops::from_expression(outer_stops)
+                            .with(DeclarationStops::RIGHT_BRACKET)
+                            .with(DeclarationStops::INDEX_SUFFIX),
+                    )?;
+                    last_consumed_end = self.previous_significant_end();
+                }
             }
         }
 
-        let end = if self.current_is_symbol(Symbol::RightBracket) {
+        let end = if at_index_closer {
             self.bump()?.span().end()
         } else {
-            let current = self.current()?;
-            if !reported_missing_closer && !self.is_poison() {
-                self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
-            }
             last_consumed_end
         };
         self.add_expression(
