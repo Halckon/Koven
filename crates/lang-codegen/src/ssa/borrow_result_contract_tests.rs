@@ -459,6 +459,51 @@ fn ordinary_result_local_ends_source_before_dropping_owner_on_argument_return() 
 }
 
 #[test]
+fn ordinary_result_argument_return_shares_only_proved_disjoint_controls() {
+    let conditional =
+        "borrow val item = view(source, if (flag) { return } else { 1 }); println(item)";
+    let disjoint = format!(
+        "{{ borrow val before = view(source, 0); println(before) }}\n    {{ {conditional} }}\n    {{ borrow val after = view(source, 2); println(after) }}"
+    );
+    let overlapping = format!(
+        "borrow val before = view(source, 0)\n    {{ {conditional} }}\n    println(before)"
+    );
+    let missing_prefix = format!(
+        "{{ {conditional} }}\n    {{ borrow val unproved = view(extra = if (flag) {{ return }} else {{ 1 }}, source = source); println(unproved) }}"
+    );
+    for (body, accepted) in [
+        (disjoint, true),
+        (overlapping, false),
+        (missing_prefix, false),
+    ] {
+        for source in local_result_control_sources(&body) {
+            let source = with_extra_value_parameter(&source);
+            for (lower, prefix_len) in [
+                (memory_unit as fn(&str) -> _, 0),
+                (
+                    super::borrow_storage_contract_tests::unit,
+                    "package p\n".len(),
+                ),
+            ] {
+                if accepted {
+                    let program = lower(&source).unwrap();
+                    verify_program(&program).unwrap();
+                    crate::llvm::render_verified_program(&program).unwrap();
+                } else {
+                    let error = lower(&source)
+                        .err()
+                        .expect("sibling has no applicable control proof");
+                    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+                    let span = error.span.expect("exact unsupported control boundary");
+                    let start = source.rfind("return").unwrap() + prefix_len;
+                    assert_eq!((span.start(), span.end()), (start, start + "return".len()));
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn ordinary_result_local_preserves_argument_boundary() {
     for (arguments, rejected) in [
         (

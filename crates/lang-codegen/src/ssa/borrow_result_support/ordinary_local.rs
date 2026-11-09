@@ -1,15 +1,15 @@
 //! Ordinary call-result bindings keep control outside the published loan extent.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{contains, local_if::binding_marker, ungroup};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    name_resolution::UnitSymbolId,
+    name_resolution::{SourceUnitId, UnitSymbolId},
     ownership_checking::{
         BorrowBindingFact, BorrowBindingStorage, CompilationUnitOwnership, UnitDropPoint,
         UnitLoanTarget,
     },
-    parser::{Expression, Item, ParsedFile, Statement},
+    parser::{Expression, Item, ParsedFile, Statement, VariableKind},
     source::Span,
     type_checking::{CompilationUnitTypes, Copyability, ParameterMode, UnitExpressionId},
 };
@@ -102,12 +102,23 @@ fn callable(file: &ParsedFile, span: Span) -> Option<Span> {
 /// For disjoint lexical controls, only follow statement order through ordinary blocks.
 pub(in crate::ssa) fn allowed_controls(
     file: &ParsedFile,
-    typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &Binding,
+    argument_controls: &BTreeMap<UnitExpressionId, BTreeSet<usize>>,
 ) -> BTreeSet<usize> {
-    let mut allowed = BTreeSet::new();
-    collect_argument_returns(file, typed, owned, fact, &mut allowed);
+    let mut allowed = argument_controls
+        .get(&fact.initializer())
+        .cloned()
+        .unwrap_or_default();
+    let collect = |statements: &[StatementId], allowed: &mut BTreeSet<usize>| {
+        collect_disjoint_controls(
+            file,
+            statements,
+            fact.binding().source_unit(),
+            argument_controls,
+            allowed,
+        );
+    };
     let mut parents = vec![None; file.ast().statements().len()];
     let mut acquisition = None;
     for (block, node) in file.ast().statements().iter() {
@@ -124,7 +135,7 @@ pub(in crate::ssa) fn allowed_controls(
     let Some((scope, elements, binding_index)) = acquisition else {
         return allowed;
     };
-    collect_ifs(file, &elements[..binding_index], &mut allowed);
+    collect(&elements[..binding_index], &mut allowed);
 
     let mut ends = owned
         .borrow_results()
@@ -141,7 +152,7 @@ pub(in crate::ssa) fn allowed_controls(
     };
     let ended_in_scope = match end.and_then(|end| parents.get(end.index()).copied().flatten()) {
         Some((block, _, index)) if block == scope && index >= binding_index => {
-            collect_ifs(file, &elements[index + 1..], &mut allowed);
+            collect(&elements[index + 1..], &mut allowed);
             true
         }
         _ => end == Some(scope),
@@ -149,9 +160,9 @@ pub(in crate::ssa) fn allowed_controls(
 
     let mut block = scope;
     while let Some((parent, siblings, index)) = parents[block.index()] {
-        collect_ifs(file, &siblings[..index], &mut allowed);
+        collect(&siblings[..index], &mut allowed);
         if ended_in_scope {
-            collect_ifs(file, &siblings[index + 1..], &mut allowed);
+            collect(&siblings[index + 1..], &mut allowed);
         }
         block = parent;
     }
@@ -160,25 +171,23 @@ pub(in crate::ssa) fn allowed_controls(
 
 // The binding does not exist yet on a Return from an argument. Require the
 // actual end of this call's source token there, independently of its normal path.
-fn collect_argument_returns(
+pub(in crate::ssa) fn argument_returns(
     file: &ParsedFile,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &Binding,
-    allowed: &mut BTreeSet<usize>,
-) {
-    let Some(source) = fact.source_loan() else {
-        return;
-    };
-    let Some(descriptor) = typed.call(source.call()) else {
-        return;
-    };
-    let Ok(call) = file.ast().expressions().get(source.call().expression()) else {
-        return;
-    };
+) -> Option<BTreeSet<usize>> {
+    let source = fact.source_loan()?;
+    let descriptor = typed.call(source.call())?;
+    let call = file
+        .ast()
+        .expressions()
+        .get(source.call().expression())
+        .ok()?;
     let Expression::Call { arguments, .. } = call.payload() else {
-        return;
+        return None;
     };
+    let mut allowed = BTreeSet::new();
     let unit = |id| UnitExpressionId::new(source.call().source_unit(), id);
     for mapping in descriptor.arguments() {
         if mapping.mode() != ParameterMode::Value
@@ -221,6 +230,7 @@ fn collect_argument_returns(
             allowed.insert(returned.index());
         }
     }
+    (!allowed.is_empty()).then_some(allowed)
 }
 
 fn bare_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
@@ -243,7 +253,13 @@ fn bare_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId
     .then_some(expression)
 }
 
-fn collect_ifs(file: &ParsedFile, statements: &[StatementId], allowed: &mut BTreeSet<usize>) {
+fn collect_disjoint_controls(
+    file: &ParsedFile,
+    statements: &[StatementId],
+    source_unit: SourceUnitId,
+    argument_controls: &BTreeMap<UnitExpressionId, BTreeSet<usize>>,
+    allowed: &mut BTreeSet<usize>,
+) {
     let mut pending = statements.to_vec();
     while let Some(id) = pending.pop() {
         let Ok(node) = file.ast().statements().get(id) else {
@@ -260,6 +276,19 @@ fn collect_ifs(file: &ParsedFile, statements: &[StatementId], allowed: &mut BTre
                         .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }))
                 {
                     allowed.insert(expression.index());
+                }
+            }
+            Statement::LocalVariable { declaration } => {
+                if let Ok(node) = file.ast().items().get(*declaration)
+                    && let Item::Variable {
+                        kind: VariableKind::BorrowVal(_),
+                        initializer,
+                        ..
+                    } = node.payload()
+                    && let Some(controls) =
+                        argument_controls.get(&UnitExpressionId::new(source_unit, *initializer))
+                {
+                    allowed.extend(controls);
                 }
             }
             _ => {}

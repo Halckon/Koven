@@ -70,6 +70,30 @@ fun entry() {
 }
 
 #[test]
+fn native_borrow_initializer_return_composes_with_disjoint_bindings() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "borrow-initializer-return-with-disjoint-bindings",
+        source: r#"fun view(source: String, own n: Int): borrow String from source = source
+fun probe(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    { borrow val before = view(owner, 0); println(before) }
+    {
+        borrow val item = view(owner, if (flag) { return } else { 1 })
+        println(item)
+    }
+    { borrow val after = view(owner, 2); println(after) }
+}
+fun entry() {
+    probe(true)
+    println("first done")
+    probe(false)
+}"#,
+        stdout: b"kept\nfirst done\nkept\nkept\nkept\n",
+        allocations: 2,
+    }]);
+}
+
+#[test]
 fn native_borrow_direct_alias_unit_preserves_real_storage_and_owner_cleanup() {
     check_normal_cases(crate::native_borrow_last_use_cases::alias_cases());
 }

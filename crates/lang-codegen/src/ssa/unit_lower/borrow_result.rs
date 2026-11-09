@@ -344,14 +344,38 @@ pub(crate) fn validate_bindings(
     owned: &CompilationUnitOwnership,
     legacy_gate: bool,
 ) -> Result<(), LoweringError> {
-    for fact in owned.borrow_results().bindings() {
-        let file = parsed
-            .iter()
-            .find(|file| file.source_id() == fact.marker_span().source_id())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
-        match ordinary_local::policy(file, typed, owned, fact) {
+    let bindings: Vec<_> = owned
+        .borrow_results()
+        .bindings()
+        .iter()
+        .map(|fact| {
+            let file = parsed
+                .iter()
+                .copied()
+                .find(|file| file.source_id() == fact.marker_span().source_id());
+            let policy = file.and_then(|file| ordinary_local::policy(file, typed, owned, fact));
+            (fact, file, policy)
+        })
+        .collect();
+    // Each initializer keeps its own proof. A sibling may use it only through
+    // the ordinary lexical disjointness walk.
+    let argument_controls = bindings
+        .iter()
+        .filter_map(|&(fact, file, policy)| {
+            if policy != Some(ordinary_local::Policy::Scoped) {
+                return None;
+            }
+            let controls = ordinary_local::argument_returns(file?, typed, owned, fact)?;
+            Some((fact.initializer(), controls))
+        })
+        .collect();
+    for (fact, file, policy) in bindings {
+        let file =
+            file.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
+        match policy {
             Some(ordinary_local::Policy::Scoped) => {
-                let allowed = ordinary_local::allowed_controls(file, typed, owned, fact);
+                let allowed =
+                    ordinary_local::allowed_controls(file, owned, fact, &argument_controls);
                 validate_binding(file, names, typed, owned, fact, Some(&allowed))?;
             }
             None if legacy_gate
