@@ -9,6 +9,8 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
+#[path = "parser_block_line_continuation/group_boundary.rs"]
+mod group_boundary;
 #[path = "support/parser_line_break_carriers.rs"]
 mod parser_line_break_carriers;
 #[path = "support/parser_test_assertions.rs"]
@@ -695,12 +697,7 @@ fn for_header_delimiters_suspend_inherited_block_line_breaks() {
     }
 }
 
-fn assert_poisoned_group(
-    sources: &SourceMap,
-    ast: &SyntaxAst,
-    expression: ExpressionId,
-    text: &str,
-) {
+fn assert_error_group(sources: &SourceMap, ast: &SyntaxAst, expression: ExpressionId, text: &str) {
     let group = ast.expressions().get(expression).expect("group");
     assert_eq!(sources.slice(group.span()), Ok(text));
     let Expression::Group { expression: inner } = group.payload() else {
@@ -714,7 +711,7 @@ fn assert_poisoned_group(
     );
 }
 
-fn assert_poisoned_group_initializer(
+fn assert_error_group_initializer(
     sources: &SourceMap,
     ast: &SyntaxAst,
     item: lang_frontend::ast::ItemId,
@@ -737,12 +734,12 @@ fn assert_poisoned_group_initializer(
             initializer.payload()
         );
     };
-    assert_poisoned_group(sources, ast, *left, group);
+    assert_error_group(sources, ast, *left, group);
     let tail = ast.expressions().get(*right).expect("tail");
     assert_eq!(sources.slice(tail.span()), Ok("tail"));
 }
 
-fn assert_group_lexer_diagnostics(
+fn assert_group_diagnostics(
     sources: &SourceMap,
     diagnostics: &[lang_frontend::diagnostic::Diagnostic],
     expected: &[(&str, &str)],
@@ -765,8 +762,10 @@ fn assert_group_lexer_diagnostics(
 }
 
 #[test]
-fn paired_poisoned_groups_keep_their_initializer_in_file_declaration_and_block() {
+fn paired_group_errors_keep_their_initializer_in_file_declaration_and_block() {
     for (group, diagnostics) in [
+        ("(value, other)", &[("L0013", ",")][..]),
+        ("(value other)", &[("L0013", "other")][..]),
         ("(value async (other, nested))", &[("L0002", "async")][..]),
         ("(value β; val phantom = 0)", &[("L0001", "β")][..]),
         ("(value β { nested })", &[("L0001", "β")][..]),
@@ -783,11 +782,11 @@ fn paired_poisoned_groups_keep_their_initializer_in_file_declaration_and_block()
             .add_source("group-file.ko", format!("{variable}\nval next = 1"))
             .unwrap();
         let file = parse_file_twice(&sources, file_source, "group file");
-        assert_group_lexer_diagnostics(&sources, file.diagnostics(), diagnostics);
+        assert_group_diagnostics(&sources, file.diagnostics(), diagnostics);
         let [first, next] = file.roots() else {
             panic!("expected exactly two real roots, got {:?}", file.roots());
         };
-        assert_poisoned_group_initializer(&sources, file.ast(), *first, group);
+        assert_error_group_initializer(&sources, file.ast(), *first, group);
         assert_eq!(
             sources.slice(file.ast().items().get(*next).unwrap().span()),
             Ok("val next = 1")
@@ -797,14 +796,14 @@ fn paired_poisoned_groups_keep_their_initializer_in_file_declaration_and_block()
             .add_source("group-declaration.ko", &variable)
             .unwrap();
         let declaration = parse_declaration_twice(&sources, decl_source, "group declaration");
-        assert_group_lexer_diagnostics(&sources, declaration.diagnostics(), diagnostics);
-        assert_poisoned_group_initializer(&sources, declaration.ast(), declaration.root(), group);
+        assert_group_diagnostics(&sources, declaration.diagnostics(), diagnostics);
+        assert_error_group_initializer(&sources, declaration.ast(), declaration.root(), group);
 
         let block_source = sources
             .add_source("group-block.ko", format!("{{ {variable}\nval next = 1 }}"))
             .unwrap();
         let block = parse_block_twice(&sources, block_source, "group block");
-        assert_group_lexer_diagnostics(&sources, block.diagnostics(), diagnostics);
+        assert_group_diagnostics(&sources, block.diagnostics(), diagnostics);
         let [first, next] = block_elements(block.ast(), block.root()) else {
             panic!("expected two local variables");
         };
@@ -812,7 +811,7 @@ fn paired_poisoned_groups_keep_their_initializer_in_file_declaration_and_block()
         let Statement::LocalVariable { declaration } = first.payload() else {
             panic!("expected local variable");
         };
-        assert_poisoned_group_initializer(&sources, block.ast(), *declaration, group);
+        assert_error_group_initializer(&sources, block.ast(), *declaration, group);
         assert_eq!(
             sources.slice(block.ast().statements().get(*next).unwrap().span()),
             Ok("val next = 1")
@@ -820,7 +819,7 @@ fn paired_poisoned_groups_keep_their_initializer_in_file_declaration_and_block()
     }
 }
 
-fn assert_poisoned_group_call(
+fn assert_error_group_call(
     sources: &SourceMap,
     ast: &SyntaxAst,
     expression: ExpressionId,
@@ -833,7 +832,7 @@ fn assert_poisoned_group_call(
     let [first, next] = arguments.as_slice() else {
         panic!("expected two arguments, got {arguments:?}");
     };
-    assert_poisoned_group(sources, ast, first.value, group);
+    assert_error_group(sources, ast, first.value, group);
     assert_eq!(sources.slice(next.span), Ok("next"));
 }
 
@@ -844,10 +843,10 @@ fn paired_poisoned_group_preserves_the_next_call_argument() {
         let mut sources = SourceMap::new();
         let source = sources.add_source("group-argument.ko", &text).unwrap();
         let parsed = parse_expression_twice(&sources, source, &text);
-        assert_group_lexer_diagnostics(&sources, parsed.diagnostics(), &[("L0001", "β")]);
+        assert_group_diagnostics(&sources, parsed.diagnostics(), &[("L0001", "β")]);
         let root = parsed.ast().expressions().get(parsed.root()).unwrap();
         assert_eq!(sources.slice(root.span()), Ok(text.as_str()));
-        assert_poisoned_group_call(&sources, parsed.ast(), parsed.root(), group);
+        assert_error_group_call(&sources, parsed.ast(), parsed.root(), group);
     }
 }
 
@@ -864,7 +863,7 @@ fn paired_poisoned_group_is_local_to_its_interpolation() {
         let mut sources = SourceMap::new();
         let source = sources.add_source("group-interpolation.ko", &text).unwrap();
         let parsed = parse_expression_twice(&sources, source, &text);
-        assert_group_lexer_diagnostics(&sources, parsed.diagnostics(), diagnostics);
+        assert_group_diagnostics(&sources, parsed.diagnostics(), diagnostics);
         let root = parsed.ast().expressions().get(parsed.root()).unwrap();
         let Expression::String { parts } = root.payload() else {
             panic!("expected string");
@@ -876,7 +875,7 @@ fn paired_poisoned_group_is_local_to_its_interpolation() {
         else {
             panic!("expected interpolation and tail, got {parts:?}");
         };
-        assert_poisoned_group_call(&sources, parsed.ast(), *expression, group);
+        assert_error_group_call(&sources, parsed.ast(), *expression, group);
         assert_eq!(sources.slice(*tail), Ok("tail"));
     }
 }
@@ -889,7 +888,7 @@ fn unpaired_poisoned_group_leaves_the_next_file_declaration_reachable() {
         .add_source("unpaired-poisoned-group.ko", text)
         .unwrap();
     let file = parse_file_twice(&sources, id, text);
-    assert_group_lexer_diagnostics(&sources, file.diagnostics(), &[("L0002", "async")]);
+    assert_group_diagnostics(&sources, file.diagnostics(), &[("L0002", "async")]);
     let roots = file
         .roots()
         .iter()
@@ -910,7 +909,7 @@ fn unpaired_leading_poison_keeps_the_next_file_declaration() {
         .add_source("unpaired-leading-poison.ko", text)
         .unwrap();
     let file = parse_file_twice(&sources, id, text);
-    assert_group_lexer_diagnostics(
+    assert_group_diagnostics(
         &sources,
         file.diagnostics(),
         &[("L0001", "β"), ("L0010", "")],

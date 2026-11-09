@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 
 mod ordinary_groups;
 
-use ordinary_groups::{OrdinaryGroups, group_closers, group_delimiter};
+use ordinary_groups::{GroupClosers, OrdinaryGroups, group_delimiter};
 
 pub(super) struct LexicalRecoveryIndex {
     pub(super) source_len: usize,
@@ -15,7 +15,7 @@ pub(super) struct LexicalRecoveryIndex {
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
     pub(super) index_poison_tail: Cell<Option<IndexPoisonTail>>,
-    group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
+    group_closers: OnceCell<GroupClosers>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     poisoned_string_starts: OnceCell<Vec<bool>>,
     angle_terminal_hint: usize,
@@ -344,15 +344,6 @@ impl LexicalRecoveryIndex {
         })
     }
 
-    pub(super) fn group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
-        self.group_closers
-            .get_or_init(|| group_closers(lexed, &self.terminal_owner_events))
-            .get(opener)
-            .copied()
-            .flatten()
-            .map(NonZeroUsize::get)
-    }
-
     pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
         self.angle_group_closers
             .get_or_init(|| angle_group_closers(lexed, &self.terminal_owner_events))
@@ -616,20 +607,6 @@ fn angle_group_closers(
 }
 
 impl Parser<'_> {
-    /// Leave a proven closer in place for its group to consume.
-    pub(super) fn skip_to_group_closer(
-        &mut self,
-        opener_raw: usize,
-    ) -> Result<Option<usize>, ParserInternalError> {
-        if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw)
-            && self.current_raw()? < closer
-        {
-            self.index = closer;
-            return Ok(Some(self.previous_significant_end()));
-        }
-        Ok(None)
-    }
-
     /// 消费声明恢复区，保留调用方拥有的 hard closer，并只在局部 delimiter / owner
     /// 回到 baseline 后识别逗号 soft stop。
     pub(super) fn recover_declaration_region(
