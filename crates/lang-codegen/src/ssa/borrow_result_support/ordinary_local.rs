@@ -275,22 +275,31 @@ fn collect_disjoint_controls(
         match node.payload() {
             Statement::Block { elements } => pending.extend_from_slice(elements),
             Statement::Expression { expression } => {
-                if let Ok(expression) = ungroup(file, *expression, node.span())
-                    && let Ok(control) = file.ast().expressions().get(expression)
-                    && let Expression::If {
+                let Ok(expression) = ungroup(file, *expression, node.span()) else {
+                    continue;
+                };
+                let Ok(control) = file.ast().expressions().get(expression) else {
+                    continue;
+                };
+                match control.payload() {
+                    Expression::If {
                         then_branch,
                         else_branch,
                         ..
-                    } = control.payload()
-                {
-                    allowed.insert(expression.index());
-                    if range {
-                        for branch in std::iter::once(*then_branch).chain(*else_branch) {
-                            if let Some(returned) = bare_return(file, branch) {
-                                allowed.insert(returned.index());
+                    } => {
+                        allowed.insert(expression.index());
+                        if range {
+                            for branch in std::iter::once(*then_branch).chain(*else_branch) {
+                                if let Some(returned) = bare_return(file, branch) {
+                                    allowed.insert(returned.index());
+                                }
                             }
                         }
                     }
+                    Expression::Return { .. } if range => {
+                        allowed.insert(expression.index());
+                    }
+                    _ => {}
                 }
             }
             Statement::LocalVariable { declaration } => {

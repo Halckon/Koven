@@ -111,6 +111,10 @@ fun scan(own flag:Boolean):Unit{{
 fun main():Unit{{scan(true);scan(false)}}
 "#
     );
+    run_carrier_layouts(case, &consumer, binding, expected);
+}
+
+fn run_carrier_layouts(case: &str, consumer: &str, binding: &str, expected: &[u8]) {
     for (variant, suffix) in [
         ("plain", ""),
         (
@@ -205,5 +209,56 @@ fn range_carrier_gate_descriptor_ends_on_unbraced_return() {
         "if(flag) return",
         "borrow val part=take(root,1)\nif(flag) return\nread(part)",
         b"drop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
+    );
+}
+
+#[test]
+fn range_carrier_direct_return_after_scope() {
+    carrier_scope_layout(
+        "direct-return-after-scope",
+        "return",
+        "{borrow val parent=take(root,1);borrow val child=(parent);read(child)}\nreturn",
+        b"first\ndrop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
+    );
+}
+
+#[test]
+fn range_carrier_direct_return_in_binding_scope() {
+    carrier_scope_layout(
+        "direct-return-same-scope",
+        "return",
+        "borrow val parent=take(root,1)\nborrow val child=(parent)\nread(child)\nreturn",
+        b"first\ndrop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
+    );
+}
+
+#[test]
+fn range_carrier_direct_return_skips_unreachable_use() {
+    carrier_scope_layout(
+        "direct-return-unreachable-use",
+        "return",
+        "borrow val part=take(root,1)\nreturn\nread(part)",
+        b"drop\nsecond\ndrop\nfirst\ndrop\nsecond\ndrop\nfirst\n",
+    );
+}
+
+#[test]
+fn range_carrier_direct_value_return_reads_live_child() {
+    let consumer = r#"
+class Item(val text:String){deinit(){println("drop");println(this.text)}}
+fun count(view:View<Item>):Int{for(item in view){println(item.text)};return 7}
+fun scan():Int{
+    val root=listOf(Item("first"),Item("second"))
+    borrow val parent=take(root,1)
+    borrow val child=(parent)
+    return count(child)
+}
+fun main():Unit{val result=scan();if(result==7){println("seven")}}
+"#;
+    run_carrier_layouts(
+        "direct-return-value",
+        consumer,
+        "return count(child)",
+        b"first\ndrop\nsecond\ndrop\nfirst\nseven\n",
     );
 }

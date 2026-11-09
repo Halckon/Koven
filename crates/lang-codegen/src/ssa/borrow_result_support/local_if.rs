@@ -174,8 +174,8 @@ pub(super) fn allows(
     })
 }
 
-/// A direct return arm needs an exact end fact for this binding, including for
-/// metadata children. The normal arm and condition still use the bounded CFG.
+/// A direct return statement or selected return arm needs an exact end fact
+/// for this binding. A selected arm still uses the bounded if condition and body.
 pub(in crate::ssa) fn return_controls(
     parsed: &ParsedFile,
     marker: Span,
@@ -207,6 +207,12 @@ pub(in crate::ssa) fn return_controls(
             continue;
         };
         if marker.end() > node.span().start() {
+            continue;
+        }
+        if matches!(node.payload(), Expression::Return { .. }) {
+            if ends_on_return(control) {
+                allowed.insert(control.index());
+            }
             continue;
         }
         let Expression::If {

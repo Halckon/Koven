@@ -62,8 +62,10 @@ frontend/LLVM ABI未改；冻结首片不宣称整个0298广义目标完成。
 
 Unit 的局部 descriptor 从 typed carrier call 和同源 source-loan 事实识别；直接 metadata
 child 还要匹配真实父名称、同源同类型和相同根。两者可与取得前或正常结束后的直接
-statement `if` 组合。正常路径须有唯一同源 `AfterStatement`，控制转移的结束事实单独核对。
-活跃绑定只放行同一词法块中有精确 `ControlTransfer` end 的直接裸 `return`，
-可用有或无花括号的写法；条件和正常调用仍受有界控制流检查。每个绑定独立核对，
+statement `if` 或独立 `return` 组合。正常路径须有唯一同源 `AfterStatement`，
+控制转移的结束事实单独核对。活跃绑定只放行同一词法块中有精确 `ControlTransfer`
+end 的独立 `return` 或受限 `if` 的裸 `return` 分支。独立 `return` 可带返回值，
+操作数仍经过原能力检查。裸返回分支可用有或无花括号的写法，条件和正常调用仍受
+有界控制流检查。每个绑定独立核对，
 较晚建立的 child 可用取得前的词法证明。Refine 消费原结束事实并经 SSA verifier，
 返回边依次结束子 loan、父 descriptor、来源 loan 和 owner，正常边保留继续使用所需状态。

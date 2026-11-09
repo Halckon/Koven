@@ -171,13 +171,29 @@ fn range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates() {
         ("val other=n shl 1", "n shl 1"),
         ("if(true){read(part)}", "if(true){read(part)}"),
         ("while(false){read(part)}", "while(false){read(part)}"),
-        ("return", "return"),
     ] {
         let consumer = format!(
             "fun read(view:View<String>):Unit{{}}\nfun scan(n:Int):Unit{{val root=listOf(\"a\");borrow val part=take(root,1);{statement};read(part)}}\nfun main():Unit{{scan(1)}}"
         );
         assert_source_rejected(&consumer, fragment);
     }
+}
+
+#[test]
+fn range_scalar_counts_keep_value_if_in_return_outside_gate() {
+    let expression = "if(flag){read(part)}else{0}";
+    let consumer = format!(
+        r#"
+fun read(view:View<String>):Int{{return 1}}
+fun scan(flag:Boolean):Int{{
+    val root=listOf("a")
+    borrow val part=take(root,1)
+    return {expression}
+}}
+fun main():Unit{{val result=scan(true)}}
+"#
+    );
+    assert_source_rejected(&consumer, expression);
 }
 
 #[test]

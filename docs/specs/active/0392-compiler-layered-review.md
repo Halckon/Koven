@@ -3889,3 +3889,21 @@ Unit 借用预检对 typed carrier call 和直接同源 metadata child 复用词
 borrow-result 70 项与 Map 路由 15 项通过，零失败和忽略。lang-codegen 全目标
 Clippy、格式、文档和 Rust 尺寸门禁通过。完整 Range 集合未在最终二进制重跑，
 双宿主证据留待批量候选。
+
+## 157. R4 RangeView 独立 return
+
+用 `fd641223` 的实际 CLI 核对三种输入。局部 carrier scope 后的裸返回、
+同一块中的裸返回、以及活跃 child 上的 `return count(child)` 均通过前端。
+默认原生构建退出 2 且报 UnsupportedNode，未调用的 `swap` 会使三种变体
+构建运行成功。三个定向回归均在原实现的对应 Return span 失败。
+
+词法相离路径允许独立的 Return 表达式。活跃绑定还要求同一直接词法块和
+该 binding 对应的精确 `ControlTransfer` end。只放行 Return 本身，操作数
+继续通过原检查。Refine 先完成返回值求值与交付，再按事实结束借用并析构。
+独立复审核对了调用方、顺序和原冻结边界。旧裸返回负例迁移到带不可达
+后继读取的原生正例；返回值内部的 `if` 仍在精确表达式处拒绝。
+
+最终定向 25 项通过，零失败和忽略。实际 CLI 的六种输入都 check/build/run
+成功并逐字节匹配 stdout，其中带值返回核对 child 读取、逆序析构、调用者
+读取返回值。lang-codegen 全目标 Clippy、fmt、文档和 Rust 尺寸门禁通过。
+更宽的嵌套控制流、循环及 legacy 兼容路由继续记在 R4。
