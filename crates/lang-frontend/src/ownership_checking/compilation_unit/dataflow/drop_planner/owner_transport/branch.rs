@@ -50,9 +50,11 @@ impl DropPlanner<'_, '_> {
             self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
             let (then_tail, then_result) =
                 self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
-            self.finish_owner_loop_arm(id, 0, then_tail, then_result.continues, &then_state);
             if then_result.continues {
                 self.drop_branch_exit(id, 0, &mut then_state);
+            }
+            self.finish_owner_loop_arm(id, 0, then_tail, &then_result, &then_state);
+            if then_result.continues {
                 branch_states.push(then_state);
             }
             if let Some(choice) = &mut self.owner_choice {
@@ -72,9 +74,11 @@ impl DropPlanner<'_, '_> {
                 self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
                 let (else_tail, else_result) =
                     self.evaluate_control_body(else_branch, branch_usage, &mut else_state)?;
-                self.finish_owner_loop_arm(id, 1, else_tail, else_result.continues, &else_state);
                 if else_result.continues {
                     self.drop_branch_exit(id, 1, &mut else_state);
+                }
+                self.finish_owner_loop_arm(id, 1, else_tail, &else_result, &else_state);
+                if else_result.continues {
                     branch_states.push(else_state);
                 }
                 if let Some(choice) = &mut self.owner_choice {
@@ -119,7 +123,7 @@ impl DropPlanner<'_, '_> {
                         id,
                         &then_events,
                         &else_events,
-                        branch_states.is_empty(),
+                        branch_states.len(),
                     ) {
                         self.owner_event(UnitOwnerTransportEvent::If {
                             control: self.checker.unit_expression(id),

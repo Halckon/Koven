@@ -3,7 +3,7 @@ mod conditional;
 use super::*;
 use crate::ownership_checking::UnitOwnerLoopObservationV1;
 use crate::ownership_checking::compilation_unit::owner_transport::{
-    LoopBodyCompletion, LoopBranchCompletion,
+    LoopBodyCompletion, LoopBranchCompletion, LoopBranchExit,
 };
 use crate::parser::VariableKind;
 use std::collections::BTreeSet;
@@ -171,10 +171,7 @@ impl LoopTransaction {
             if let Statement::Expression { expression } =
                 ast.statements().get(*statement).ok()?.payload()
             {
-                if index + 1 != elements.len()
-                    || locals.is_empty()
-                    || !exact_type(checker, *expression, BuiltinType::Nothing)
-                {
+                if index + 1 != elements.len() || locals.is_empty() {
                     return None;
                 }
                 let jump = checker.unit_expression(*expression);
@@ -189,6 +186,14 @@ impl LoopTransaction {
                     )?,
                     _ => return None,
                 };
+                let result_type = if expected.continues() {
+                    BuiltinType::Unit
+                } else {
+                    BuiltinType::Nothing
+                };
+                if !exact_type(checker, *expression, result_type) {
+                    return None;
+                }
                 continue;
             }
             let Statement::LocalVariable { declaration } =
@@ -437,8 +442,10 @@ impl DropPlanner<'_, '_> {
                         (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
                             Some(LoopBodyCompletion::Fallthrough)
                         }
-                        (Ok(false), expected, Some((identity, completed)))
-                            if expected == completed
+                        (Ok(continues), expected, Some((identity, completed)))
+                            if *continues == expected.continues()
+                                && expected != LoopBodyCompletion::Fallthrough
+                                && expected == completed
                                 && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
                         {
                             Some(completed)

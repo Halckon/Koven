@@ -1,4 +1,4 @@
-//! A terminal If has two actual, empty jump arms; no owner phi or synthetic replay.
+//! A terminal If has two actual empty-boundary arms; no owner phi or synthetic replay.
 use super::*;
 
 pub(super) fn boolean_parameter(
@@ -32,6 +32,12 @@ fn admit_branch(checker: &Checker<'_>, body: StatementId) -> Option<LoopBranchCo
     let Statement::ControlBody { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
+    if elements.is_empty() {
+        return Some(LoopBranchCompletion {
+            body: UnitStatementId::new(checker.source_unit, body),
+            exit: LoopBranchExit::Fallthrough,
+        });
+    }
     let [statement] = elements.as_slice() else {
         return None;
     };
@@ -42,15 +48,15 @@ fn admit_branch(checker: &Checker<'_>, body: StatementId) -> Option<LoopBranchCo
     if !exact_type(checker, *expression, BuiltinType::Nothing) {
         return None;
     }
-    let is_continue = match ast.expressions().get(*expression).ok()?.payload() {
-        Expression::Continue { .. } => true,
-        Expression::Break { .. } => false,
+    let jump = checker.unit_expression(*expression);
+    let exit = match ast.expressions().get(*expression).ok()?.payload() {
+        Expression::Continue { .. } => LoopBranchExit::Continue(jump),
+        Expression::Break { .. } => LoopBranchExit::Break(jump),
         _ => return None,
     };
     Some(LoopBranchCompletion {
         body: UnitStatementId::new(checker.source_unit, body),
-        jump: checker.unit_expression(*expression),
-        is_continue,
+        exit,
     })
 }
 
@@ -98,7 +104,9 @@ impl LoopTransaction {
             }
             LoopBodyCompletion::Conditional { branches, .. } if self.split_entered => {
                 let branch = self.active_branch?;
-                (!self.branch_completed[branch]).then_some(branches[branch].completion())
+                (!self.branch_completed[branch])
+                    .then_some(branches[branch].completion())
+                    .flatten()
             }
             _ => None,
         }
@@ -187,7 +195,7 @@ impl DropPlanner<'_, '_> {
         control: ExpressionId,
         branch: usize,
         tail: Option<ExpressionId>,
-        continues: bool,
+        result: &EvaluatedOwner,
         state: &ValueState,
     ) {
         let Some(transaction) = &mut self.owner_loop else {
@@ -211,19 +219,28 @@ impl DropPlanner<'_, '_> {
         let Some(expected_branch) = branches.get(branch) else {
             return;
         };
-        if !continues
+        let Some((active, boundary)) = &transaction.active else {
+            return;
+        };
+        let completion_matches = if expected_branch.continues() {
+            result.continues && tail.is_none() && pending.is_none()
+        } else {
+            !result.continues
+                && tail.map(|tail| self.checker.unit_expression(tail)) == expected_branch.jump()
+                && pending.is_some_and(|(identity, completed)| {
+                    std::sync::Arc::ptr_eq(&identity, active)
+                        && Some(completed) == expected_branch.completion()
+                })
+        };
+        if completion_matches
+            && result.owner.is_none()
             && empty_boundary(state)
-            && tail.map(|tail| self.checker.unit_expression(tail)) == Some(expected_branch.jump)
-            && let (Some((identity, completed)), Some((active, boundary))) =
-                (pending, &transaction.active)
-            && std::sync::Arc::ptr_eq(&identity, active)
-            && completed == expected_branch.completion()
             && self.scope_depth == boundary + 1
             && self.owner_branch_depth == 1
             && self.loop_boundaries.as_slice() == [*boundary]
             && self.owner_observation.as_ref().is_some_and(|observation| {
                 observation.status == UnitOwnerObservationStatus::Complete
-                    && std::sync::Arc::ptr_eq(&identity, &observation.identity)
+                    && std::sync::Arc::ptr_eq(active, &observation.identity)
             })
         {
             transaction.branch_completed[branch] = true;
@@ -235,16 +252,18 @@ impl DropPlanner<'_, '_> {
         control: ExpressionId,
         then_events: &[UnitOwnerTransportEvent],
         else_events: &[UnitOwnerTransportEvent],
-        all_terminated: bool,
+        continuations: usize,
     ) -> bool {
-        if !all_terminated || !then_events.is_empty() || !else_events.is_empty() {
+        if !then_events.is_empty() || !else_events.is_empty() {
             return false;
         }
         let Some(transaction) = &mut self.owner_loop else {
             return false;
         };
         let LoopBodyCompletion::Conditional {
-            control: expected, ..
+            control: expected,
+            branches,
+            ..
         } = transaction.expected
         else {
             return false;
@@ -253,6 +272,7 @@ impl DropPlanner<'_, '_> {
             return false;
         };
         if transaction.split_entered
+            && continuations == branches.iter().filter(|branch| branch.continues()).count()
             && transaction.branch_completed == [true, true]
             && transaction.active_branch.is_none()
             && transaction.pending_jump.is_none()

@@ -16,6 +16,8 @@ pub enum UnitOwnerLoopEdgeV1 {
     ContinueBackedge(UnitDropPoint, UnitExpressionId),
     /// A real terminal Break reaches this loop exit after jump cleanup.
     BreakExit(UnitDropPoint, UnitDropPoint),
+    /// A real empty arm returns normally to its containing If, not a Drop point.
+    IfFallthrough(UnitStatementId, UnitExpressionId),
     /// One mutually exclusive arm selected by the actual terminal If condition.
     IfBranch {
         /// Actual If expression containing this branch.
@@ -31,17 +33,33 @@ pub enum UnitOwnerLoopEdgeV1 {
 
 // Kept separately from public edges: only actual completion supplies the sealed endpoints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ownership_checking::compilation_unit) enum LoopBranchExit {
+    Fallthrough,
+    Continue(UnitExpressionId),
+    Break(UnitExpressionId),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::ownership_checking::compilation_unit) struct LoopBranchCompletion {
     pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
-    pub(in crate::ownership_checking::compilation_unit) jump: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) is_continue: bool,
+    pub(in crate::ownership_checking::compilation_unit) exit: LoopBranchExit,
 }
 impl LoopBranchCompletion {
-    pub(in crate::ownership_checking::compilation_unit) fn completion(self) -> LoopBodyCompletion {
-        if self.is_continue {
-            LoopBodyCompletion::Continue(self.jump)
-        } else {
-            LoopBodyCompletion::Break(self.jump)
+    pub(in crate::ownership_checking::compilation_unit) fn continues(self) -> bool {
+        self.exit == LoopBranchExit::Fallthrough
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn jump(self) -> Option<UnitExpressionId> {
+        match self.exit {
+            LoopBranchExit::Fallthrough => None,
+            LoopBranchExit::Continue(jump) | LoopBranchExit::Break(jump) => Some(jump),
+        }
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn completion(
+        self,
+    ) -> Option<LoopBodyCompletion> {
+        match self.exit {
+            LoopBranchExit::Fallthrough => None,
+            LoopBranchExit::Continue(jump) => Some(LoopBodyCompletion::Continue(jump)),
+            LoopBranchExit::Break(jump) => Some(LoopBodyCompletion::Break(jump)),
         }
     }
 }
@@ -58,6 +76,13 @@ pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
     },
 }
 impl LoopBodyCompletion {
+    pub(in crate::ownership_checking::compilation_unit) fn continues(self) -> bool {
+        match self {
+            Self::Fallthrough => true,
+            Self::Continue(_) | Self::Break(_) => false,
+            Self::Conditional { branches, .. } => branches.iter().any(|branch| branch.continues()),
+        }
+    }
     pub(in crate::ownership_checking::compilation_unit) fn edges(
         self,
         statement: UnitStatementId,
@@ -90,17 +115,25 @@ impl LoopBodyCompletion {
                         branch,
                         body: completed.body,
                     });
-                    edges.push(if completed.is_continue {
-                        UnitOwnerLoopEdgeV1::ContinueBackedge(
-                            UnitDropPoint::ControlTransfer(completed.jump),
+                    edges.push(match completed.exit {
+                        LoopBranchExit::Fallthrough => {
+                            UnitOwnerLoopEdgeV1::IfFallthrough(completed.body, control)
+                        }
+                        LoopBranchExit::Continue(jump) => UnitOwnerLoopEdgeV1::ContinueBackedge(
+                            UnitDropPoint::ControlTransfer(jump),
                             condition,
-                        )
-                    } else {
-                        UnitOwnerLoopEdgeV1::BreakExit(
-                            UnitDropPoint::ControlTransfer(completed.jump),
+                        ),
+                        LoopBranchExit::Break(jump) => UnitOwnerLoopEdgeV1::BreakExit(
+                            UnitDropPoint::ControlTransfer(jump),
                             UnitDropPoint::LoopExit(statement),
-                        )
+                        ),
                     });
+                }
+                if self.continues() {
+                    edges.push(UnitOwnerLoopEdgeV1::Backedge(
+                        UnitDropPoint::AfterStatement(body),
+                        condition,
+                    ));
                 }
             }
         }
@@ -116,7 +149,7 @@ impl LoopBodyCompletion {
 /// Definition tokens identify static producers in this template, not runtime instances.
 /// The initial pure Boolean parameter is unchanged: false means zero activations;
 /// true may repeat forever for fallthrough/Continue, while a terminal Break exits after
-/// one activation. A terminal If independently selects one of these jump completions.
+/// one activation. A terminal If independently selects a jump or an empty normal arm.
 /// No runtime iteration trace or carried owner is represented.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerLoopObservationV1 {
@@ -173,15 +206,17 @@ impl UnitOwnerLoopObservationV1 {
                     && control != condition
                     && condition != self.condition
                     && branches[0].body != branches[1].body
-                    && branches[0].jump != branches[1].jump
+                    && (branches[0].jump().is_none() || branches[0].jump() != branches[1].jump())
                     && branches.iter().all(|branch| {
                         branch.body.source_unit() == source
                             && branch.body != self.body
                             && branch.body != self.statement
-                            && branch.jump.source_unit() == source
-                            && branch.jump != control
-                            && branch.jump != condition
-                            && branch.jump != self.condition
+                            && branch.jump().is_none_or(|jump| {
+                                jump.source_unit() == source
+                                    && jump != control
+                                    && jump != condition
+                                    && jump != self.condition
+                            })
                     })
             }
         };

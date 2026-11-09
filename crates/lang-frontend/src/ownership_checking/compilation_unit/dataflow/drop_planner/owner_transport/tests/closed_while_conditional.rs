@@ -269,10 +269,6 @@ fn conditional_loop_rejects_nonindependent_or_open_arms_atomically() {
         ("flag: Boolean, exit: Boolean", "if (exit) { break }"),
         (
             "flag: Boolean, exit: Boolean",
-            "if (exit) { break } else {}",
-        ),
-        (
-            "flag: Boolean, exit: Boolean",
             "if (exit) { return } else { continue }",
         ),
         (
