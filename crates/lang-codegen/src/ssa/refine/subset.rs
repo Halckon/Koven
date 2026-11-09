@@ -504,6 +504,15 @@ impl Checker<'_, '_> {
         let Some(ty) = self.expression_type(expression) else {
             return false;
         };
+        if let Expression::When {
+            subject: Some(subject),
+            ..
+        } = *node.payload()
+            && self.inputs.typed.expression_falls_through(self.id(subject)) == Some(false)
+        {
+            self.migrated = true;
+            return self.expression(subject);
+        }
         let id = self.id(expression);
         // Jumps and abort calls are typed `Nothing`. An if or group can carry that
         // divergence; the inner expression still has to pass its own admission.

@@ -64,6 +64,18 @@ fn only_normal_returns_carry_a_pending_inout_write() {
             &[("L0165", "Unbound")][..],
         ),
         (
+            format!(
+                "when (when (flag()) {{ else -> if (true) {{ return }} else 0 }}) {{
+                    else -> {{ {DIRTY}; return }}
+                }}"
+            ),
+            &[("L0165", "Unbound")][..],
+        ),
+        (
+            format!("when (return) {{ else -> {{ {DIRTY}; return }} }}"),
+            &[("L0165", "Unbound")][..],
+        ),
+        (
             format!("val unused: () -> Unit = {{ {DIRTY}; return }}"),
             &[("L0165", "Unbound")][..],
         ),

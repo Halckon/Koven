@@ -155,17 +155,42 @@ impl<'a> BodyChecker<'a> {
         source: SourceUnitId,
         callee: ExpressionId,
     ) -> Result<bool, CompilationUnitTypeError> {
+        self.checked_call_operand_exits(source, self.call_callee_operand(source, callee)?)
+    }
+
+    fn call_callee_operand(
+        &self,
+        source: SourceUnitId,
+        callee: ExpressionId,
+    ) -> Result<ExpressionId, CompilationUnitTypeError> {
         let node = self
             .file(source)
             .ast()
             .expressions()
             .get(callee)
             .map_err(TypeCheckingError::from)?;
-        let operand = match node.payload() {
+        Ok(match node.payload() {
             Expression::Member { receiver, .. } => *receiver,
             _ => callee,
-        };
-        self.checked_call_operand_exits(source, operand)
+        })
+    }
+
+    pub(super) fn call_operands_fall_through(
+        &self,
+        source: SourceUnitId,
+        callee: ExpressionId,
+        arguments: &[crate::parser::CallArgument],
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let callee_operand = self.call_callee_operand(source, callee)?;
+        Ok(std::iter::once(callee_operand)
+            .chain(arguments.iter().map(|argument| argument.value))
+            .all(|operand| {
+                self.parts
+                    .expression_falls_through
+                    .get(&UnitExpressionId::new(source, operand))
+                    .copied()
+                    .unwrap_or(true)
+            }))
     }
 
     pub(super) fn checked_call_operand_exits(

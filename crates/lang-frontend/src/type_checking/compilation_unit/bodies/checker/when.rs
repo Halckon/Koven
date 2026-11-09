@@ -1,6 +1,6 @@
 //! SPEC-0197 compilation-unit `when` 穷尽性、分支类型与 flow facts。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::ExpressionId,
@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::flow::{intersect_facts, merge_flow_versions};
-use super::{BodyChecker, ExpressionCheck, flow::FlowKey};
+use super::{BodyChecker, ExpressionCheck, flow::FlowKey, while_flow::PendingControlSite};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum CoverageAtom {
@@ -46,15 +46,17 @@ impl BodyChecker<'_> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let value_use = self.expression_use(source, expression) == ExpressionUse::Value;
         let deferred = self.deferred_facts.len();
-        let subject_type = if let Some(subject) = subject {
-            Some(
-                self.check_expression(source, subject, None, None, return_type)?
-                    .ty,
-            )
-        } else {
-            None
+        let subject_result = subject
+            .map(|subject| self.check_expression(source, subject, None, None, return_type))
+            .transpose()?;
+        let subject_type = subject_result.map(|result| result.ty);
+        let subject_completes = subject_result.is_none_or(|result| result.falls_through);
+        let subject_reaches_arms = match subject.zip(subject_result) {
+            Some((subject, result)) => self.has_pending_expression_exit(source, subject, result)?,
+            None => true,
         };
         let mut replacement_pending = value_use
+            && subject_reaches_arms
             && subject.zip(subject_type).is_some_and(|(subject, ty)| {
                 self.replacement_value_pending(UnitExpressionId::new(source, subject), ty, deferred)
             });
@@ -65,15 +67,19 @@ impl BodyChecker<'_> {
             _ => None,
         });
         let subject_source = subject_key.map(|key| (key, self.flow_version(key)));
-        let mut nullable_when = self.begin_nullable_when(
-            source,
-            expression,
-            subject,
-            subject_type,
-            nullable_inner,
-            subject_source,
-            entries,
-        )?;
+        let mut nullable_when = if subject_completes {
+            self.begin_nullable_when(
+                source,
+                expression,
+                subject,
+                subject_type,
+                nullable_inner,
+                subject_source,
+                entries,
+            )?
+        } else {
+            None
+        };
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
         let mut remaining_facts = baseline.clone();
@@ -87,6 +93,7 @@ impl BodyChecker<'_> {
         let mut has_else = false;
         let mut branches = Vec::new();
         let mut exits = Vec::new();
+        let mut pending_exits = None::<BTreeSet<_>>;
 
         for (entry_index, entry) in entries.iter().enumerate() {
             let mut nullable_entry = super::nullable_when::begin_entry(
@@ -131,8 +138,9 @@ impl BodyChecker<'_> {
                 for condition in &entry.conditions {
                     let deferred = self.deferred_facts.len();
                     let condition_span = self.when_condition_span(source, condition)?;
-                    let checked =
-                        self.check_loop_reachable(!remaining_domain.is_empty(), |checker| {
+                    let checked = self.check_loop_reachable(
+                        subject_reaches_arms && !remaining_domain.is_empty(),
+                        |checker| {
                             checker.check_when_condition(
                                 source,
                                 subject_type,
@@ -141,8 +149,9 @@ impl BodyChecker<'_> {
                                 condition,
                                 return_type,
                             )
-                        })?;
-                    if value_use && !remaining_domain.is_empty() {
+                        },
+                    )?;
+                    if value_use && subject_reaches_arms && !remaining_domain.is_empty() {
                         replacement_pending |= !checked.valid
                             || self.when_selector_pending(source, condition, deferred);
                     }
@@ -246,16 +255,19 @@ impl BodyChecker<'_> {
                 entry_source_valid,
             );
             let mut branch_pending = false;
-            let result = self.check_loop_reachable(!body_domain.is_empty(), |checker| {
-                checker.check_value_body_with_replacement(
-                    source,
-                    entry.body,
-                    branch_expected,
-                    expected_span,
-                    return_type,
-                    value_use.then_some(&mut branch_pending),
-                )
-            });
+            let result = self.check_loop_reachable(
+                subject_reaches_arms && !body_domain.is_empty(),
+                |checker| {
+                    checker.check_value_body_with_replacement(
+                        source,
+                        entry.body,
+                        branch_expected,
+                        expected_span,
+                        return_type,
+                        value_use.then_some(&mut branch_pending),
+                    )
+                },
+            );
             self.active_nullable_whens.truncate(frame_base);
             let result = result?;
             super::nullable_when::finish_entry(
@@ -265,8 +277,16 @@ impl BodyChecker<'_> {
                 &remaining_domain,
                 result.falls_through,
             );
-            if !body_domain.is_empty() && result.falls_through {
+            if subject_reaches_arms
+                && !body_domain.is_empty()
+                && self.has_pending_statement_exit(source, entry.body, result)
+            {
                 replacement_pending |= branch_pending;
+                pending_exits
+                    .get_or_insert_default()
+                    .extend(self.flow_versions.pending_keys());
+            }
+            if subject_completes && !body_domain.is_empty() && result.falls_through {
                 exits.push((self.flow_facts.clone(), self.flow_versions.clone()));
             }
             branches.push(result);
@@ -280,9 +300,20 @@ impl BodyChecker<'_> {
             self.emit_non_exhaustive_when(keyword_span, domain.as_deref(), &covered)?;
         }
         if !exhaustive {
-            exits.push((remaining_facts, remaining_versions));
+            if subject_reaches_arms {
+                pending_exits
+                    .get_or_insert_default()
+                    .extend(remaining_versions.pending_keys());
+            }
+            if subject_completes {
+                exits.push((remaining_facts, remaining_versions));
+            }
         }
         let falls_through = !exits.is_empty();
+        self.note_pending_exit(
+            PendingControlSite::Expression(UnitExpressionId::new(source, expression)),
+            pending_exits.is_some(),
+        );
         (self.flow_facts, self.flow_versions) = exits
             .into_iter()
             .reduce(
@@ -294,6 +325,8 @@ impl BodyChecker<'_> {
                 },
             )
             .unwrap_or((baseline, baseline_versions));
+        self.flow_versions
+            .set_pending_keys(pending_exits.into_iter().flatten());
         let ty = if !value_use {
             self.builtin(BuiltinType::Unit)
         } else if branches

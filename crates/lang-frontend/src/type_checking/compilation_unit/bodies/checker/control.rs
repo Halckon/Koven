@@ -250,7 +250,7 @@ impl BodyChecker<'_> {
             );
             return Ok(ExpressionCheck {
                 ty: self.builtin(BuiltinType::Unit),
-                falls_through: true,
+                falls_through: condition_result.falls_through,
             });
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
@@ -354,7 +354,8 @@ impl BodyChecker<'_> {
         );
         Ok(ExpressionCheck {
             ty,
-            falls_through: then_result.falls_through || else_result.falls_through,
+            falls_through: condition_result.falls_through
+                && (then_result.falls_through || else_result.falls_through),
         })
     }
 
@@ -393,7 +394,7 @@ impl BodyChecker<'_> {
             .map_err(TypeCheckingError::from)?;
         let span = node.span();
         let payload = node.payload().clone();
-        match payload {
+        let mut result = match payload {
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => self
                 .check_value_elements(
                     source,
@@ -419,7 +420,11 @@ impl BodyChecker<'_> {
                 Ok(result)
             }
             _ => self.check_statement(source, statement, return_type, expected_span),
+        }?;
+        if !result.falls_through && !self.is_error(result.ty) {
+            result.ty = self.builtin(BuiltinType::Nothing);
         }
+        Ok(result)
     }
 
     #[allow(clippy::too_many_arguments)]

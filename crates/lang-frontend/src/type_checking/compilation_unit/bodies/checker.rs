@@ -212,12 +212,11 @@ impl<'a> BodyChecker<'a> {
                 })
             })
             .collect();
-        let stable_flow_symbols = flow::collect_stable_flow_symbols(&files, names);
         let expression_uses = files
             .iter()
             .map(|file| collect_expression_uses(file))
             .collect();
-        Self {
+        let mut checker = Self {
             sources,
             names,
             environment,
@@ -226,7 +225,7 @@ impl<'a> BodyChecker<'a> {
             signatures,
             references,
             symbols_by_span,
-            stable_flow_symbols,
+            stable_flow_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
             flow_versions: FlowVersions::default(),
             inactive_inout_calls: BTreeSet::new(),
@@ -262,7 +261,9 @@ impl<'a> BodyChecker<'a> {
             checking_constants: false,
             constant_inputs: BTreeMap::new(),
             constant_values: BTreeMap::new(),
-        }
+        };
+        checker.stable_flow_symbols = flow::collect_stable_flow_symbols(&checker);
+        checker
     }
 
     fn run(self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
