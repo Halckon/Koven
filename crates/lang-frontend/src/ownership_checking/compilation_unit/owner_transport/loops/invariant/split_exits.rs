@@ -172,6 +172,17 @@ impl UnitOwnerObservation {
     pub fn invariant_split_exit_observation_v1(
         &self,
     ) -> Option<&UnitOwnerInvariantSplitExitObservationV1> {
-        None
+        let super::InvariantLoopValueV1::SplitExit(value) = self.invariant_loop_value.as_deref()?
+        else {
+            return None;
+        };
+        (self.loop_value.is_none()
+            && matches!(self.status, crate::ownership_checking::UnitOwnerObservationStatus::Unsupported {
+                point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),
+                reason: crate::ownership_checking::UnitOwnerUnsupportedReason::Syntax
+            } if statement == value.statement())
+            && value.closed.callable == self.callable
+            && std::sync::Arc::ptr_eq(&value.closed.identity, &self.identity)
+            && value.is_consistent()).then_some(value)
     }
 }

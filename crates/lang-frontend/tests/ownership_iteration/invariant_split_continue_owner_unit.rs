@@ -97,6 +97,7 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
             continue;
         };
         assert!(admitted && observed.is_consistent());
+        assert!(legacy.invariant_split_exit_observation_v1().is_none());
         assert_eq!(
             (observed.statement(), observed.condition(), observed.body()),
             (statement, condition, body)

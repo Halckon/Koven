@@ -246,11 +246,14 @@ impl LoopTransaction {
                 | LoopBodyCompletion::Continue(_)
                 | LoopBodyCompletion::Break(_) => {}
                 LoopBodyCompletion::Conditional { branches, .. }
-                    if branches
-                        .iter()
-                        .all(|branch| matches!(branch.exit, LoopBranchExit::Continue(_))) =>
+                    if branches.iter().all(|branch| {
+                        matches!(
+                            branch.exit,
+                            LoopBranchExit::Continue(_) | LoopBranchExit::Break(_)
+                        )
+                    }) =>
                 {
-                    input.enable_split_continue()
+                    input.enable_terminal_split()
                 }
                 _ => return None,
             }

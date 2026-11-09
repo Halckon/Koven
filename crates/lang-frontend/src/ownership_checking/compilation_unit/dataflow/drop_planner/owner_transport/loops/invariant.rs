@@ -1,5 +1,5 @@
 //! Retain real prefix identity and independently read loop and optional jump states.
-mod split_continue;
+mod split_terminal;
 use super::*;
 use crate::ownership_checking::{
     UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
@@ -14,7 +14,7 @@ pub(super) struct InvariantInput {
     entry: Option<UnitOwnerLoopBindingV1>,
     body_completion: Option<UnitOwnerLoopBindingV1>,
     transfer: Option<(std::sync::Arc<()>, UnitExpressionId, UnitOwnerLoopBindingV1)>,
-    split: Option<split_continue::InvariantContinueSplitInput>,
+    split: Option<split_terminal::InvariantTerminalSplitInput>,
 }
 impl InvariantInput {
     pub(super) fn admit(
@@ -156,10 +156,7 @@ impl InvariantInput {
             if self.transfer.is_some() || self.body_completion.is_some() {
                 return None;
             }
-            let value = split.finish(closed, self.catalog.take()?, self.entry.take()?, exit)?;
-            return value
-                .is_consistent()
-                .then_some(InvariantLoopValueV1::SplitContinue(Box::new(value)));
+            return split.finish(closed, self.catalog.take()?, self.entry.take()?, exit);
         }
         let evidence = InvariantLoopBoundaries {
             closed,
@@ -202,8 +199,7 @@ impl LoopTransaction {
             return false;
         };
         if let Some(branch) = self.active_branch {
-            return matches!(completion, LoopBodyCompletion::Continue(_))
-                && input.split_jump_boundary(branch, jump, identity, state);
+            return input.split_jump_boundary(branch, completion, identity, state);
         }
         if input.transfer.is_some() || input.split.is_some() {
             return false;

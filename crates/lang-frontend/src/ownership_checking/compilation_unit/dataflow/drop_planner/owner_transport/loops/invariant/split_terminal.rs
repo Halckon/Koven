@@ -1,7 +1,8 @@
 //! Observe each terminated arm before the existing If merge discards its state.
 use super::*;
 use crate::ownership_checking::{
-    UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantSplitContinueObservationV1,
+    UnitDropPoint, UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantSplitContinueObservationV1,
+    UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopEdgeV1,
 };
 
 type ArmEntry = (
@@ -13,31 +14,75 @@ type ArmEntry = (
 #[derive(Default)]
 struct ArmInput {
     entry: Option<ArmEntry>,
-    jump: Option<(UnitExpressionId, UnitOwnerLoopBindingV1)>,
+    jump: Option<(LoopBranchExit, UnitOwnerLoopBindingV1)>,
     completion: Option<UnitOwnerLoopBindingV1>,
 }
 #[derive(Default)]
-pub(super) struct InvariantContinueSplitInput {
+pub(super) struct InvariantTerminalSplitInput {
     entry: Option<(std::sync::Arc<()>, UnitOwnerLoopBindingV1)>,
     arms: [ArmInput; 2],
 }
 impl ArmInput {
-    fn finish(self, branch: usize) -> Option<UnitOwnerContinueArmBoundaryV1> {
+    fn finish(
+        self,
+        branch: usize,
+        statement: UnitStatementId,
+        condition: UnitExpressionId,
+    ) -> Option<UnitOwnerJumpArmBoundaryV1> {
         let (identity, control, body, entry) = self.entry?;
-        let (jump, after_continue) = self.jump?;
-        Some(UnitOwnerContinueArmBoundaryV1 {
+        let (actual, after_jump) = self.jump?;
+        let (jump, edge) = match actual {
+            LoopBranchExit::Continue(jump) => (
+                jump,
+                UnitOwnerLoopEdgeV1::ContinueBackedge(
+                    UnitDropPoint::ControlTransfer(jump),
+                    condition,
+                ),
+            ),
+            LoopBranchExit::Break(jump) => (
+                jump,
+                UnitOwnerLoopEdgeV1::BreakExit(
+                    UnitDropPoint::ControlTransfer(jump),
+                    UnitDropPoint::LoopExit(statement),
+                ),
+            ),
+            LoopBranchExit::Fallthrough => return None,
+        };
+        Some(UnitOwnerJumpArmBoundaryV1 {
             identity,
             control,
             branch,
             body,
             jump,
+            edge,
             entry,
-            after_continue,
+            after_jump,
             completion: self.completion?,
         })
     }
 }
-impl InvariantContinueSplitInput {
+// A public Continue-only arm is constructed only from an actually observed Continue.
+fn into_continue(
+    arm: UnitOwnerJumpArmBoundaryV1,
+    condition: UnitExpressionId,
+) -> Option<UnitOwnerContinueArmBoundaryV1> {
+    (arm.edge
+        == UnitOwnerLoopEdgeV1::ContinueBackedge(
+            UnitDropPoint::ControlTransfer(arm.jump),
+            condition,
+        ))
+    .then_some(UnitOwnerContinueArmBoundaryV1 {
+        identity: arm.identity,
+        control: arm.control,
+        branch: arm.branch,
+        body: arm.body,
+        jump: arm.jump,
+        entry: arm.entry,
+        after_continue: arm.after_jump,
+        completion: arm.completion,
+    })
+}
+impl InvariantTerminalSplitInput {
     pub(super) fn is_complete(&self) -> bool {
         self.entry.is_some()
             && self
@@ -51,7 +96,7 @@ impl InvariantContinueSplitInput {
         inputs: UnitOwnerProducerCatalogV1,
         entry: UnitOwnerLoopBindingV1,
         exit: UnitOwnerLoopBindingV1,
-    ) -> Option<UnitOwnerInvariantSplitContinueObservationV1> {
+    ) -> Option<InvariantLoopValueV1> {
         let LoopBodyCompletion::Conditional {
             control, condition, ..
         } = closed.completion
@@ -60,30 +105,67 @@ impl InvariantContinueSplitInput {
         };
         let (split_identity, split) = self.entry?;
         let [left, right] = self.arms;
-        Some(UnitOwnerInvariantSplitContinueObservationV1 {
-            closed,
-            control,
-            branch_condition: condition,
-            inputs,
-            entry,
-            split_identity,
-            split,
-            arms: [left.finish(0)?, right.finish(1)?],
-            exit,
-        })
+        let arms = [
+            left.finish(0, closed.statement(), closed.condition())?,
+            right.finish(1, closed.statement(), closed.condition())?,
+        ];
+        if arms
+            .iter()
+            .all(|arm| matches!(arm.edge, UnitOwnerLoopEdgeV1::ContinueBackedge(..)))
+        {
+            let [left, right] = arms;
+            let arms = [
+                into_continue(left, closed.condition())?,
+                into_continue(right, closed.condition())?,
+            ];
+            let value = UnitOwnerInvariantSplitContinueObservationV1 {
+                closed,
+                control,
+                branch_condition: condition,
+                inputs,
+                entry,
+                split_identity,
+                split,
+                arms,
+                exit,
+            };
+            value
+                .is_consistent()
+                .then_some(InvariantLoopValueV1::SplitContinue(Box::new(value)))
+        } else {
+            let value = UnitOwnerInvariantSplitExitObservationV1 {
+                closed,
+                control,
+                branch_condition: condition,
+                inputs,
+                entry,
+                split_identity,
+                split,
+                arms,
+                exit,
+            };
+            value
+                .is_consistent()
+                .then_some(InvariantLoopValueV1::SplitExit(Box::new(value)))
+        }
     }
 }
 impl InvariantInput {
-    pub(in super::super) fn enable_split_continue(&mut self) {
-        self.split = Some(InvariantContinueSplitInput::default());
+    pub(in super::super) fn enable_terminal_split(&mut self) {
+        self.split = Some(InvariantTerminalSplitInput::default());
     }
     pub(super) fn split_jump_boundary(
         &mut self,
         branch: usize,
-        jump: UnitExpressionId,
+        completion: LoopBodyCompletion,
         identity: &std::sync::Arc<()>,
         state: &ValueState,
     ) -> bool {
+        let actual = match completion {
+            LoopBodyCompletion::Continue(jump) => LoopBranchExit::Continue(jump),
+            LoopBodyCompletion::Break(jump) => LoopBranchExit::Break(jump),
+            _ => return false,
+        };
         let Some(binding) = self.snapshot(state) else {
             return false;
         };
@@ -100,7 +182,7 @@ impl InvariantInput {
                 .as_ref()
                 .is_some_and(|(entered, ..)| std::sync::Arc::ptr_eq(entered, identity))
         {
-            arm.jump = Some((jump, binding));
+            arm.jump = Some((actual, binding));
             true
         } else {
             false
@@ -185,7 +267,7 @@ impl LoopTransaction {
             input
                 .split
                 .as_ref()
-                .is_some_and(InvariantContinueSplitInput::is_complete)
+                .is_some_and(InvariantTerminalSplitInput::is_complete)
         })
     }
 }

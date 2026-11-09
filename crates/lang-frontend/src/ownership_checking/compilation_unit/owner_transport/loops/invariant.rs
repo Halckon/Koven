@@ -44,6 +44,7 @@ pub(in crate::ownership_checking::compilation_unit) enum InvariantLoopValueV1 {
     Backedge(UnitOwnerInvariantLoopObservationV1),
     Break(UnitOwnerInvariantBreakObservationV1),
     SplitContinue(Box<UnitOwnerInvariantSplitContinueObservationV1>),
+    SplitExit(Box<UnitOwnerInvariantSplitExitObservationV1>),
 }
 impl UnitOwnerInvariantLoopObservationV1 {
     /// Actual While statement.

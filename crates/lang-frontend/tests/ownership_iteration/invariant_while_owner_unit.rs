@@ -69,6 +69,7 @@ fn check_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool, expected
             continue;
         };
         assert!(admitted && observed.is_consistent());
+        assert!(legacy.invariant_split_exit_observation_v1().is_none());
         assert!(legacy.invariant_split_continue_observation_v1().is_none());
         assert!(legacy.invariant_break_observation_v1().is_none());
         let source = index.source_units()[i].id();
