@@ -3749,3 +3749,33 @@ Clippy、格式、文档和 Rust 尺寸门禁通过。
 [#389 双宿主验收树](https://github.com/Halckon/Koven/actions/runs/42611691670) 一致。
 同步只合并本账本的追加记录，R3 源码与测试无冲突。合并候选本机再实跑前端单元
 408 项、相关所有权和 Parser 集成 629 项，零失败、零忽略。前端全目标 Clippy 通过。
+
+## 151. R0/R3 生产名称原语与 nullable when 消费者
+
+以 #392 合入后的 `369fff4c` 为基线，按已跟踪 Rust 源码直接调用形状计文件数及
+匹配行。排除同一行的函数定义，包含测试及字符串。范围不解释宏、间接调用或仓外 API。
+
+| 范围 | resolve_names | check_types | check_ownership | complete_file_types | lower_scalar_file_with_entry |
+|---|---:|---:|---:|---:|---:|
+| frontend src | 34 / 44 | 31 / 41 | 13 / 13 | 3 / 3 | 0 |
+| frontend tests | 65 / 133 | 54 / 87 | 33 / 45 | 22 / 31 | 0 |
+| codegen src | 15 / 18 | 15 / 18 | 14 / 17 | 7 / 7 | 4 / 8 |
+| 其他 crates | 0 | 0 | 0 | 0 | 0 |
+
+五名未检出显式 `as` 别名。UnitResolver 按源文件使用 `resolve_names` 生成 local
+scope/symbol/reference，再建立跨文件引用和声明身份。CLI 与 LSP 的公开入口经 Unit
+消费该共享生产步骤。`complete_file_types` 的十处 crate src 调用均注册在测试链。
+旧类型、所有权和 codegen 测试入口的归属仍见 §93、§105。保留这组公开 API 的仓外
+兼容性边界，生产 Unit legacy lowering 仍属 R4。
+
+沿用 [SPEC-0341](0341-shared-lowering-core.md) 的消费者迁移。旧 Single 基线
+`ownership_nullable_when` 26 项通过。将四项原用例的七条原源码原样转到
+MemoryDocument 和 Rooted。核对真实 Abort body 无正常或循环后继、Copyable
+形参保留 Shared/Exclusive 权限和无 owner drop、合流前后两个不同调用的 Shared
+loan 与后一 CallReturn 上唯一根析构。早逗号匹配直接核对 `WhenAlternativeMatch`
+与两名不同 owner。多 alternative 原例没有完整 nullable descriptor，此处消费实际
+drop fact。其余 22 个用例函数保留原文，包含 Single 独立 loan-end、提取位置和条件
+owner 的见证。独立复核后的能力和调用身份断言覆盖只查诊断无法发现的回归。
+
+候选四个集成套件共 85 项通过，覆盖 Single/Unit 名称解析、basic Unit 所有权及
+nullable when。零失败、零忽略。前端全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。

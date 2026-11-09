@@ -3,8 +3,9 @@
 use lang_frontend::{
     name_resolution::resolve_names,
     ownership_checking::{
-        DropPoint, DropTarget, LoanEndPoint, NullableWhenBranchOutcome, NullableWhenExtractionKind,
-        OwnershipCheckedFile, check_ownership,
+        CompilationUnitOwnership, DropPoint, DropTarget, LoanEndPoint, LoanKind,
+        NullableWhenBranchOutcome, NullableWhenExtractionKind, OwnershipBindingKind,
+        OwnershipCheckedFile, UnitDropPoint, UnitDropTarget, UnitLoanTarget, check_ownership,
     },
     source::SourceMap,
     type_checking::{check_types, standard_environments},
@@ -41,6 +42,28 @@ fn checked(text: &str) -> OwnershipCheckedFile {
         typed.diagnostics()
     );
     check_ownership(&sources, &parsed, &names, &typed).expect("ownership")
+}
+
+fn checked_nullable_unit(text: &str) -> [CompilationUnitOwnership; 2] {
+    [false, true].map(|rooted| {
+        let (_, _, owned) = nullable_unit::checked(
+            text,
+            "nullable-ownership.ko",
+            rooted,
+            standard_environments(),
+        );
+        assert!(
+            owned.diagnostics().is_empty(),
+            "{text}: {:?}",
+            owned.diagnostics()
+        );
+        assert!(
+            owned.deferred().is_empty(),
+            "{text}: {:?}",
+            owned.deferred()
+        );
+        owned
+    })
 }
 
 #[test]
@@ -348,12 +371,24 @@ fn non_null_condition_value_delivery_is_recorded_before_selecting_body() {
 
 #[test]
 fn aborting_nullable_branch_has_no_normal_outcome() {
-    let owned = checked("fun test(x: Int?): Int = when (x) { null -> 0; else -> error(\"stop\") }");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(
-        owned.nullable_whens()[0].branches()[1].outcome(),
-        NullableWhenBranchOutcome::Diverging
-    );
+    for owned in checked_nullable_unit(
+        "fun test(x: Int?): Int = when (x) { null -> 0; else -> error(\"stop\") }",
+    ) {
+        let [plan] = owned.nullable_whens() else {
+            panic!("one nullable when");
+        };
+        let [null, abort] = plan.entries() else {
+            panic!("both source branches checked");
+        };
+        assert_eq!((null.index(), abort.index()), (0, 1));
+        assert!(null.falls_through());
+        assert!(!abort.falls_through() && !abort.breaks() && !abort.continues());
+        let [null_descriptor, abort_descriptor] = plan.descriptor().entries() else {
+            panic!("both typed branches");
+        };
+        assert_eq!(null.body(), null_descriptor.body());
+        assert_eq!(abort.body(), abort_descriptor.body());
+    }
 }
 
 #[test]
@@ -546,18 +581,39 @@ fn transferred_control_result_keeps_source_moved_after_join() {
 #[test]
 fn copyable_inner_preserves_borrow_and_inout_capabilities() {
     // A proof permits copying the inner value without acquiring the caller's owner.
-    for text in [
-        "fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }",
-        "fun extract(inout x: Int?): Int = when (x) { null -> 0; else -> x }",
-        "value class Token(val item: Int)\nfun extract(x: Token?): Token = when (x) { null -> Token(0); else -> x }",
-        "enum class Flag { On, Off }\nfun extract(x: Flag?): Flag = when (x) { null -> Flag.Off; else -> x }",
+    for (text, capability) in [
+        (
+            "fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }",
+            OwnershipBindingKind::Shared,
+        ),
+        (
+            "fun extract(inout x: Int?): Int = when (x) { null -> 0; else -> x }",
+            OwnershipBindingKind::Exclusive,
+        ),
+        (
+            "value class Token(val item: Int)\nfun extract(x: Token?): Token = when (x) { null -> Token(0); else -> x }",
+            OwnershipBindingKind::Shared,
+        ),
+        (
+            "enum class Flag { On, Off }\nfun extract(x: Flag?): Flag = when (x) { null -> Flag.Off; else -> x }",
+            OwnershipBindingKind::Shared,
+        ),
     ] {
-        let owned = checked(text);
-        assert!(
-            owned.diagnostics().is_empty(),
-            "{text}: {:?}",
-            owned.diagnostics()
-        );
+        for owned in checked_nullable_unit(text) {
+            let [plan] = owned.nullable_whens() else {
+                panic!("original nullable subject plan: {text}");
+            };
+            let root = plan.source_place().expect("named subject").root();
+            assert_eq!(owned.binding_kind(root), Some(capability), "{text}");
+            assert!(
+                !owned
+                    .drops()
+                    .iter()
+                    .any(|drop| drop.target() == UnitDropTarget::Named(root))
+            );
+            assert_eq!(plan.entries().len(), 2);
+            assert!(plan.entries().iter().all(|entry| entry.falls_through()));
+        }
     }
 }
 
@@ -692,28 +748,60 @@ fn nullable_extraction_respects_active_loan_and_previous_move() {
 
 #[test]
 fn read_only_when_does_not_consume_named_subject_needed_after_join() {
-    let owned = checked(
+    for owned in checked_nullable_unit(
         "class Node {}\nfun read(x: Node?): Unit {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> {}; else -> read(x) }; val later = read(x) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    ) {
+        let [plan] = owned.nullable_whens() else {
+            panic!("one nullable when");
+        };
+        let root = plan.source_place().expect("named subject").root();
+        let mut reads = owned.loans().iter().filter(
+            |loan| matches!(loan.target(), UnitLoanTarget::Place(place) if place.root() == root),
+        );
+        let inside = reads.next().expect("branch borrows the original subject");
+        let later = reads
+            .next()
+            .expect("post-join read borrows the same subject");
+        assert!(reads.next().is_none());
+        assert!(inside.begin_span().start() < later.begin_span().start());
+        assert_ne!(inside.call(), later.call());
+        assert_eq!([inside.kind(), later.kind()], [LoanKind::Shared; 2]);
+        let root_drops: Vec<_> = owned
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == UnitDropTarget::Named(root))
+            .collect();
+        assert_eq!(root_drops.len(), 1);
+        assert_eq!(
+            root_drops[0].point(),
+            UnitDropPoint::CallReturn(later.call())
+        );
+    }
 }
 
 #[test]
 fn earlier_comma_match_keeps_drop_obligation_skipped_by_later_move() {
     // Only probe owns the later edge. The null edge must still destroy the unused resource.
-    let owned = checked(
+    for owned in checked_nullable_unit(
         "class Resource {}\nfun probe(own resource: Resource): Boolean = true\nfun test(flag: Boolean?, own resource: Resource): Int = when (flag) { null, probe(resource) -> 0; else -> 0 }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    // One named drop belongs to probe's parameter; another must cover test's null path.
-    assert_eq!(
-        owned
+    ) {
+        let drops: Vec<_> = owned
             .drops()
             .iter()
-            .filter(|fact| matches!(fact.target(), DropTarget::Named(_)))
-            .count(),
-        2,
-        "comma match must retain the early edge's owner obligation: {:?}",
-        owned.drops()
-    );
+            .filter(|fact| matches!(fact.target(), UnitDropTarget::Named(_)))
+            .collect();
+        assert_eq!(drops.len(), 2, "each callable owns one drop: {drops:?}");
+        assert_ne!(drops[0].target(), drops[1].target());
+        assert!(
+            drops.iter().any(|drop| matches!(
+                drop.point(),
+                UnitDropPoint::WhenAlternativeMatch {
+                    entry: 0,
+                    alternative: 0,
+                    ..
+                }
+            )),
+            "early match retains the cleanup skipped by the later move: {drops:?}"
+        );
+    }
 }
