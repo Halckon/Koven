@@ -55,7 +55,11 @@ fn check(texts: [&str; 2], expected_codes: &[&str], expected_span: Option<&str>)
         }
         previous = Some(snapshot);
         if !expected_codes.is_empty() {
-            assert!(typed.validate().is_err());
+            assert!(typed.constants().is_none());
+            let rejected = typed
+                .validate_constants()
+                .expect_err("invalid constant unit");
+            assert!(rejected.validate().is_err());
         }
     }
 }
@@ -316,6 +320,75 @@ fn failed_constant_evaluation_does_not_cascade_to_dependents() {
             "package b\nobject B { const val BAD = 1 / 0 }",
         ],
         &["L0158"],
+        Some("/"),
+    );
+}
+
+#[test]
+fn unrelated_signature_errors_do_not_hide_constant_cycles_or_arithmetic_errors() {
+    for (constants, expected, primary) in [
+        (
+            "const val FIRST: Int = SECOND\nconst val SECOND: Int = FIRST",
+            "L0157",
+            "FIRST",
+        ),
+        ("const val BROKEN: Int = 1 / 0", "L0158", "/"),
+    ] {
+        check(
+            [
+                &format!("package a\n{constants}"),
+                "package b\nfun invalid(value: List<Nothing>): Unit {}",
+            ],
+            &[expected, "L0125"],
+            Some(primary),
+        );
+    }
+}
+
+#[test]
+fn invalid_constant_signatures_do_not_seed_dependency_cycles() {
+    check(
+        [
+            "package a\nconst val FIRST: List<Nothing> = SECOND\nconst val SECOND: List<Nothing> = FIRST",
+            "package b\nfun unused(): Unit {}",
+        ],
+        &["L0125", "L0125"],
+        Some("Nothing"),
+    );
+}
+
+#[test]
+fn invalid_signature_dependency_preserves_independent_operand_error() {
+    check(
+        [
+            "package a\nimport b.B\nobject A { const val COPY = (1 && true) && B.BAD }",
+            "package b\nobject B { const val BAD: Array<Int<String>>? = null }",
+        ],
+        &["L0085", "L0082"],
+        Some("&&"),
+    );
+}
+
+#[test]
+fn invalid_signature_dependency_preserves_private_constant_diagnostic() {
+    check(
+        [
+            "package a\nimport b.B\nconst val COPY = B.BAD",
+            "package b\nobject B { private const val BAD: List<Nothing>? = null }",
+        ],
+        &["L0154", "L0125"],
+        Some("BAD"),
+    );
+}
+
+#[test]
+fn failed_constant_evaluation_preserves_independent_operand_error() {
+    check(
+        [
+            "package a\nconst val BROKEN: Int = 1 / 0\nconst val COPY = (1 && true) && (BROKEN == 0)",
+            "package b\nfun unused(): Unit {}",
+        ],
+        &["L0158", "L0085"],
         Some("/"),
     );
 }

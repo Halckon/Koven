@@ -32,9 +32,7 @@ impl BodyChecker<'_> {
     pub(super) fn precheck_constant_dependencies(
         &mut self,
     ) -> Result<(), CompilationUnitTypeError> {
-        if !self.signatures.diagnostics().is_empty() {
-            return Ok(());
-        }
+        let has_signature_errors = !self.signatures.diagnostics().is_empty();
         let mut inputs = BTreeMap::new();
         for source in self.names.index().source_units() {
             for (_, node) in self.file(source.id()).ast().items().iter() {
@@ -70,6 +68,16 @@ impl BodyChecker<'_> {
         }
         let mut dependencies = BTreeMap::new();
         for (&symbol, input) in &mut inputs {
+            // Retain the symbol as an invalid dependency. Its initializer still
+            // receives ordinary recovery checking outside the dependency graph.
+            if has_signature_errors
+                && let Some(type_ref) = input.type_ref
+                && self.signature_error_in(
+                    self.top_level_type_ref_span(input.expression.source_unit(), type_ref)?,
+                )
+            {
+                continue;
+            }
             if let Ok(syntax) = self.constant_syntax_dependencies(input.expression)? {
                 input.expressions = syntax.expressions;
                 dependencies.insert(symbol, syntax.dependencies);
@@ -101,10 +109,6 @@ impl BodyChecker<'_> {
                 reverse.entry(target).or_default().push(symbol);
             }
         }
-        // A dependency must establish its type eligibility before consumers are checked.
-        // Cyclic nodes are handled by the concrete-type worklist below.
-        self.constant_prechecked
-            .extend(dependencies.keys().copied());
         let initial_invalid = invalid.iter().copied().collect::<Vec<_>>();
         propagate_invalid(&mut invalid, &reverse, initial_invalid);
         let mut remaining = dependencies
@@ -177,6 +181,12 @@ impl BodyChecker<'_> {
                 }
             }
         }
+        // An invalid dependency blocks qualification and evaluation. Still let the
+        // ordinary body pass find independent type errors in skipped initializers.
+        self.constant_recovery_only
+            .extend(dependencies.keys().copied().filter(|symbol| {
+                invalid.contains(symbol) && !self.constant_prechecked.contains(symbol)
+            }));
         let symbols = inputs.keys().copied().collect::<Vec<_>>();
         let indices = symbols
             .iter()
@@ -249,6 +259,7 @@ impl BodyChecker<'_> {
                 .remove(expression);
             self.parts.constant_selections.remove(expression);
         }
+        self.constant_prechecked.insert(symbol);
         let previous_owner = self.current_owner;
         self.current_owner = input.owner;
         self.checking_constants = true;

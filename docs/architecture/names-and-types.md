@@ -176,13 +176,13 @@ visibility；跨文件 private 访问产生 L0154，import target 的 L0148/L014
 
 闭合初始化器按 source-qualified symbol 建立语法依赖图，保留短路右侧依赖；无环部分按依赖
 顺序重查以推断前向引用类型，环内具体类型通过工作队列传播，失效沿反向边传播后才发布
-L0157。SCC 使用与单文件相同的显式栈算法，诊断及 labels 按稳定 symbol 顺序排列。该图仍为
-内部类型检查事实。常量类型使用与单文件共享的闭合集合，普通类型错误优先；L0155 指向显式
-注解或推断初始化器，签名错误及包含 Error 的复合依赖类型不追加资格级联。表达式资格复用
-依赖遍历，以首个非法子表达式的 Span 产生 L0156；普通类型错误与 L0155 先处理，短路 RHS
-仍检查资格。无环节点在类型资格通过后调用共享 evaluator，适配器仅映射 source-qualified
-表达式、已选常量值和整数类型；短路、String/Char 解码及算术仍由共享内核执行。失败产生
-L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
+L0157。错误注解只使所在常量及其依赖者失效，跳过常量检查的 initializer 仍做普通类型恢复。
+内部图使用与单文件共享的显式栈 SCC 算法，按稳定 symbol 排列诊断及 labels。常量类型沿用
+共享闭合集合，普通类型错误优先。L0155 指向注解或推断初始化器，签名错误及包含 Error 的
+复合依赖类型不追加资格级联。表达式资格复用依赖遍历，以首个非法子表达式的 Span 产生 L0156。
+普通类型错误与 L0155 先处理，短路 RHS 仍检查资格。无环节点在类型资格通过后调用共享 evaluator，
+适配器映射 source-qualified 表达式、已选常量值和整数类型。短路、String/Char 解码及算术由共享内核执行。
+求值失败产生 L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
 类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布；错误时不保留部分常量事实。
 `validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
 解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。 `type_constants` 三项求值消费者以双入口保留算术失败、短路/依赖边界与关联常量字宽的诊断/span oracle。
