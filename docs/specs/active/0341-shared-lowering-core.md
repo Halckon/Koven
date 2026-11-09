@@ -4645,3 +4645,43 @@ Replace，但不授权相应 AST 消费者。新20条手工事务 trace（1正19
 保留旧边界与证据依赖。未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
 D10/E2 仍 in-progress。按用户最新要求不新增备份，本地分步提交后准备 connector 发布，
 不强推、不合并。
+
+## 128. Replace 返回 Choice 的一次具名转交（2026-11-09）
+
+基于已发布 `38f278d9`（与 §126 本地 `a2edabe4` 同树），先核 main `edaaa9b2` 与
+远端 Choice 分支；相关生产路径没有额外新主线修改或重复的后续消费者。本片依赖未合
+Choice 链，不表示已在最新 main 组合验收，不等待前片 CI。Phase 3 组合 §122 和 §126
+既有移动/原子置换合同，不改 Guide、公开 API、V1 validator 或通用 pending/commit hook。
+
+仅在 `var chosen = If/Group If; val previous = checked replace(...)` 后允许恰一条
+不可变、精确 String/MoveOnly 的 Name/Group 转交。叶 Name 必须解析到 previous，
+不能是安装新值的 chosen；三句入口必须已通过原 checked replace 准入。原两句 val
+alias 和 replace 路径保留，普通 val 连续转交不会因三句入口而放开。
+
+Transfer 记录真实 source symbol，复用原独立结果帧。实际 take_named 返回 previous
+后仍须确认 replace 已提交、原根 CallReturn 清理完成、调用 Consume 完成且 previous
+已 post-insert 绑定、返回帧已清空，才记录同一 Choice Move。各层 Consume/Forward、
+最终 post-insert/Drop 继续沿原门禁；失败 take、Read、漏层、错序、重复或早绑定均撤销。
+previous 不再 named Drop，最终清理点严格取第三句声明 AfterStatement；原根仍在
+真实 CallReturn 释放新 definition。replace 的 Drop 回调仅向已准入最终 symbol 委托
+既有 transfer 检查，提前/错误 previous Drop 仍撤销，不能仅按 symbol 合并两个所有者。
+
+真实红测 `bd81859c` 在旧生产缺 V1 上一项失败；实现 `d205529c` 后，64组合
+（2条件×4边形态×2整个If分组×2 RHS分组×2末尾转交分组）独立核完整 AST 边事件、
+三 producer、准确同一 Choice Move/Forward/Bind、两次清理点与 previous 零 Drop。
+11种合法拒绝覆盖四句、var/nullable、concat、capture、调用、新根、If、第二次replace、
+循环及旧 val 两次转交；包含独立 sibling 隔离和观察开关完整旧 Analysis 比较。
+新增18条手工trace（1正17负）仅编译未本机执行，不能代替上述真实源码证据。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_replace_forwarding` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §126 同一34项普通 exact | 34 passed，0 failed/ignored |
+| 独立复验 | `d205529c` 上重跑两个新普通 exact，各命中1项 | 2 passed，0 failed；运行前后HEAD/tree一致 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2226 Rust、35项既有超限；新增trace仅编译 |
+
+独立生产静审未见 blocker；两个私有模块分别858/356行，无尺寸例外上限变化。
+二次转交、任意调用/投影、返回值复杂消费、真实循环实例/phi、Phase 4/native 与 E3
+保持拒绝；未跑全量、手工模型/故障注入、native、Linux 或正式精确头 CI。
+架构同节200行，D10/E2 仍 in-progress；不新增备份，分步提交后使用 connector 发布，
+不强推、不合并。
