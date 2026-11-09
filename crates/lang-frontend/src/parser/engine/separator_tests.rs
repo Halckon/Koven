@@ -55,20 +55,22 @@ fn angle_separator_metrics(text: &str, diagnostic_count: usize) -> (usize, usize
 
 #[test]
 fn unfinished_nested_types_do_not_rescan_the_file_separator_suffix() {
-    let metrics = |depth, trivia| {
+    let metrics = |separator, depth, trivia| {
         let text = format!(
-            "interface C<T: {}Int;{} public val sentinel = 2 > 1",
+            "interface C<T: {}Int{separator}{} public val sentinel = 2 > 1",
             "A<".repeat(depth),
             "/* comment */ ".repeat(trivia)
         );
         angle_separator_metrics(&text, depth + 1).0
     };
-    let small = metrics(16, 64);
-    let large = metrics(32, 128);
-    assert!(
-        large <= small * 2 + 64,
-        "raw token visits: {small} -> {large}"
-    );
+    for separator in [";", "\n"] {
+        let small = metrics(separator, 16, 64);
+        let large = metrics(separator, 32, 128);
+        assert!(
+            large <= small * 2 + 64,
+            "{separator:?} raw token visits: {small} -> {large}"
+        );
+    }
 }
 
 #[test]

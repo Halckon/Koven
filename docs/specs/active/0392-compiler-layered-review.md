@@ -108,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过。内部旧入口见 §93 和 §105，失败 trial 的三入口事实见 §98 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§103 | 隐式换行的类型参数边界、未闭合分组及剩余词法错误的 AST 归属仍开放 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–83、§86–88、§92、§103 | 文件级类型参数换行交接见 §114；其它未闭合分组及词法错误的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；对象发布见 §99，借用和 Map 路由见 §106–108，双宿主预览、Linux sanitizer 与本机 LLDB 的实跑证据已分别记账 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2920,3 +2920,22 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 校验输出。LLVM 断言分别锁定字段 0 的 pointer load 与 i1 load，检查函数中其余
 读只对应打印的本地字面量 storage。原普通类句柄的 borrowed nullable temporary
 定向测试 1 项、inline nullable 布局套件 6 项及 codegen 全目标 Clippy 均通过。
+
+
+## 114. R1 文件类型参数的隐式换行
+
+主干 `a8657f58` 上，文件级缺失 `>` 的 `interface C<T` 会吞入下一行常量声明，
+并将比较符当成类型参数 closer。真实 CLI 中，显式分号对照保留下一声明；
+合法多行类型参数与同一常量比较可以通过完整前端。
+
+文件类型参数的恢复按显式分号或当前 token 前的换行识别完整文件前缀。普通分组和
+词法 owner 须先回到当前 `<` 的基线。限定类型路径在 `.` 后还未取得段名时也查询
+同一边界。保留显式分号、真实 closer、分组内比较和普通软标识符的对照。
+
+独立复审核对了 `pkg.`、分行 `value class`、`borrow fun` 和缺少比较符的尾部恢复。
+新用例先失败再通过，并核对文件根的完整范围。换行的嵌套退栈曾重复扫描同段 trivia，
+深度 16→32、注释 64→128 的实测访问次数由 14476 增至 49196。只在当前文件
+类型参数作用域缓存真实游标对应的首个 significant raw 位置后，分号和换行两组
+均通过相同的线性倍增断言。原 token 位置、trivia 与 lexical owner 保留。
+本机类声明、上下文 TypeRef 与接口委托三个定向套件共 125 项，另加倍增检查 1 项，
+全部通过，零失败或忽略。

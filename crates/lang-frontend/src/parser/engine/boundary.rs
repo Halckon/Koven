@@ -103,7 +103,7 @@ pub(super) enum TypeParameterOwner {
 pub(super) struct FileAngleRecovery {
     pub(super) groups: RefCell<recovery::FileAngleGroups>,
     pub(super) boundary: Cell<Option<(usize, bool)>>,
-    pub(super) recovered_group_greater: bool,
+    pub(super) significant_start: Cell<Option<(usize, usize)>>,
 }
 
 impl Parser<'_> {
@@ -118,9 +118,6 @@ impl Parser<'_> {
             current.kind(),
             LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
         );
-        if !explicit && !recovery.recovered_group_greater {
-            return Ok(false);
-        }
         let offset = current.span().start();
         let memo = &recovery.boundary;
         if let Some((previous, boundary)) = memo.get()
@@ -164,7 +161,9 @@ impl Parser<'_> {
         }) || (ordinal == start
             && (self.peek_is_keyword(start, Keyword::Package)
                 || self.peek_is_keyword(start, Keyword::Import)))
-            || self.value_class_start_at(ordinal)?)
+            || self.value_class_start_at(ordinal)?
+            || (self.receiver_modifier_at(ordinal)?.is_some()
+                && self.peek_is_keyword(ordinal + 1, Keyword::Fun)))
     }
 
     pub(super) fn value_class_start_at(&self, ordinal: usize) -> Result<bool, ParserInternalError> {
