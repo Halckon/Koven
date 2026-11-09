@@ -671,6 +671,8 @@ impl Parser<'_> {
         let mut string_poison = false;
         let supertype_suffix = stops.has_supertype_suffix();
         let proven_groups = stops.requires_proven_groups();
+        let preserves_block_separator = stops.has_block_statement_separator();
+        let mut local_block_closer = None;
         let supertype_owner = if stops.has_class_file_boundary() {
             ClassifierHeaderOwner::File
         } else if stops.stops_at_class_member() {
@@ -755,6 +757,14 @@ impl Parser<'_> {
                 continue;
             }
             let outside_owner = owners.is_empty();
+            if preserves_block_separator
+                && !proven_groups
+                && outside_owner
+                && symbol == Some(Symbol::LeftBrace)
+                && local_block_closer.is_none_or(|closer| raw_index > closer)
+            {
+                local_block_closer = self.lexical_recoveries.group_closer(self.lexed, raw_index);
+            }
             if outside_owner
                 && delimiters.is_empty()
                 && paired_groups.is_empty()
@@ -776,9 +786,9 @@ impl Parser<'_> {
             if hard_stop
                 || (outside_owner
                     && !protected_suffix
-                    && delimiters.is_empty()
-                    && stops.has_block_statement_separator()
+                    && preserves_block_separator
                     && symbol == Some(Symbol::Semicolon)
+                    && local_block_closer.is_none_or(|closer| raw_index > closer)
                     && self
                         .lexical_recoveries
                         .block_statement_follows(self.lexed, raw_index))
@@ -820,7 +830,7 @@ impl Parser<'_> {
                     raw_index,
                     symbol,
                     first.0,
-                    stops.has_semicolon() || stops.has_block_statement_separator(),
+                    stops.has_semicolon() || preserves_block_separator,
                 )?
             {
                 if let Some(closer) = closer
@@ -948,49 +958,4 @@ impl Parser<'_> {
 }
 
 #[cfg(test)]
-mod angle_group_tests {
-    use super::*;
-    use crate::lexer::lex;
-
-    #[test]
-    fn angle_group_index_agrees_with_a_fresh_forward_owner_for_each_opener() {
-        const DELIMITERS: [char; 6] = ['(', ')', '[', ']', '{', '}'];
-        for mut case in 0..DELIMITERS.len().pow(5) {
-            let mut text = String::new();
-            for _ in 0..5 {
-                text.push(DELIMITERS[case % DELIMITERS.len()]);
-                text.push(' ');
-                case /= DELIMITERS.len();
-            }
-            let mut sources = SourceMap::new();
-            let id = sources.add_source("groups.ko", &text).unwrap();
-            let lexed = lex(&sources, id).unwrap();
-            let indexed = angle_group_closers(&lexed, &[]);
-            for (opener, lexeme) in lexed.lexemes().iter().enumerate() {
-                if !matches!(
-                    lexeme.kind(),
-                    LexemeKind::Token(TokenKind::Symbol(
-                        Symbol::LeftParen | Symbol::LeftBracket | Symbol::LeftBrace
-                    ))
-                ) {
-                    continue;
-                }
-                let mut owners = GroupOwners::default();
-                let expected = lexed
-                    .lexemes()
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .skip(opener)
-                    .find_map(|(raw, token)| {
-                        (owners.visit(raw, token, &[]) == Some(opener)).then_some(raw)
-                    });
-                assert_eq!(
-                    indexed[opener].map(NonZeroUsize::get),
-                    expected,
-                    "{text:?} opener {opener}"
-                );
-            }
-        }
-    }
-}
+mod angle_group_tests;

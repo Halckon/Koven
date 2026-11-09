@@ -581,6 +581,90 @@ fn an_index_in_a_call_argument_keeps_an_internal_invalid_semicolon() {
 }
 
 #[test]
+fn raw_call_recovery_leaves_a_block_declaration_after_a_damaged_nested_group() {
+    for (head, closers) in [
+        ("f(: junk[key", "])"),
+        ("f(1 : junk[key", "])"),
+        ("f(: junk[key", ")"),
+        ("f(: junk(key", "))"),
+        ("f(: junk[{ -> val local = 1; val inner = 2 }", "])"),
+    ] {
+        let text = format!("{{ {head}; val saved = 1\n{closers}\nval later = saved }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("call-recovery-block-boundary.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        assert_eq!(
+            local_names(&sources, ast, elements),
+            ["saved", "later"],
+            "{text}"
+        );
+        assert_eq!(
+            sources.slice(ast.statements().get(elements[0]).unwrap().span()),
+            Ok(head)
+        );
+    }
+}
+
+#[test]
+fn raw_call_recovery_preserves_paired_local_owners_and_unclosed_comma_behavior() {
+    for (arguments_text, expected) in [
+        (
+            ": { -> val first = 1; val second = 2 }, next",
+            vec![": { -> val first = 1; val second = 2 }", "next"],
+        ),
+        (": junk[key; 2], next", vec![": junk[key; 2]", "next"]),
+        (
+            r#": "${{ -> val first = 1; val second = 2 }}", next"#,
+            vec![r#": "${{ -> val first = 1; val second = 2 }}""#, "next"],
+        ),
+        (": junk[key, ignored", vec![": junk[key, ignored"]),
+    ] {
+        let text = format!("{{ f({arguments_text}); tail }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("call-recovery-local-owner.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let [call, tail] = elements.as_slice() else {
+            panic!("expected call and tail: {text}");
+        };
+        let Statement::Expression { expression } = ast.statements().get(*call).unwrap().payload()
+        else {
+            panic!("expected expression");
+        };
+        let Expression::Call { arguments, .. } =
+            ast.expressions().get(*expression).unwrap().payload()
+        else {
+            panic!("expected call");
+        };
+        assert_eq!(
+            arguments
+                .iter()
+                .map(|arg| sources.slice(arg.span).unwrap())
+                .collect::<Vec<_>>(),
+            expected,
+            "{text}"
+        );
+        assert_eq!(
+            sources.slice(ast.statements().get(*tail).unwrap().span()),
+            Ok("tail")
+        );
+    }
+}
+
+#[test]
 fn unpaired_index_leaves_the_block_separator_and_respects_structural_line_breaks() {
     for (text, adjacent) in [
         ("{ xs[key β; next }", true),
