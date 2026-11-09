@@ -5024,3 +5024,40 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+
+### 泛型资源包装拒绝消费者迁移（2026-11-09）
+
+基于 main `9369cc7279c268385a19f41a10a54c7cc31ea2ce` 的独立本地分支，核对在途
+#390 `734dde83`、统一候选 `3580baa0` 及已交付声明根和借用诊断候选，未重复实施。
+只修改 `lower_frontend_resource_deinit_tests` 中
+`single_resource_deinit_rejects_unsupported_resource_wrappers` 的第三条输入路径。
+三条原源码均按原字节保留一次；第三条 `Holder<Resource>` 输入为113字节，SHA-256
+`a0a50cbcd1b4375d72a74dfaf540bfdd4097bce078a8fa35b87df48ed4483668`。
+
+迁移前在同一源码实际观察 Legacy 与 Unit：第三条均为完整 `LoweringError`
+`UnsupportedNode`，Span 为原 source 的93..111，切片为 `Holder(Resource())`。
+新断言使用 strict `UnitSource` admission，固定四阶段零诊断、无 deferred、三个 parsed
+roots、source 名称与全文、真实 `run` 声明及其完整切片，再要求封闭入口不生成 Program，
+并整值比较上述错误。没有调整源码、弱化 span 或回退旧路径；测试原本没有资源计数或
+native oracle，其他资源测试及其 SSA/LLVM/清理断言完整不变，生产实现没有改动。
+
+前两条输入的 Legacy 循环与断言逐字保留。直接泛型 `Resource<T>` 的 Legacy span
+34..45 指向 `deinit() {}`，Unit span81..92 指向 `Resource(1)`，并非完整错误等价，
+本片不迁移、不修正该差异。净退休仅1条 Legacy 输入路径（该测试原3条降为2条）；
+本文件静态 `analyze_legacy` 仍5处、`lower_scalar_file` 仍4处，不声称删除调用点、
+整个测试或 helper，也不声称支持泛型资源包装。
+
+| 验收项 | 本片实际选择 | 结果 |
+|---|---|---|
+| 直接拒绝与邻控 | `single_resource_deinit_rejects_unsupported_resource_wrappers`、`single_resource_deinit_rejects_member_calls_and_nested_call_borrows`、`single_resource_deinit_rejects_partial_move_at_the_conditional_owner_origin` | 三个 exact 各1 passed |
+| 资源正向邻控 | `single_resource_deinit_body_is_lowered_and_reads_live_fields`、`single_resource_deinit_handles_nested_class_fields_and_body_generic_call_roots`、`single_resource_deinit_supports_direct_sequence_elements_and_resource_value_fields` | 三个 exact 各1 passed |
+| 静态质量 | codegen all-targets Clippy（locked，`-D warnings`）、workspace fmt、diff | 通过 |
+| 文档与尺寸 | `check_docs.py`、尺寸门禁 `--base 9369cc72` | 863 Markdown、2235 Rust、37项既有超长；通过，额度不变 |
+
+以上6项测试使用完整 `ssa::lower_frontend_tests::resource_deinit_tests::` 前缀及 `--exact`，
+均零失败/忽略，每次另有2777项过滤；不将 baseline 观察重复计入。macOS AArch64、
+Rust1.96.0、LLVM21.1.8、默认debug、jobs=2，本工作树独占 target 串行执行。
+未运行 frontend/codegen/workspace 全量、native 进程、Linux、正式CI或故障/Abort注入套件；
+局部测试与静态门禁不能替代统一候选最终组合验收。独立代码审阅未发现阻断项，
+SPEC-0341 与 D10/E2 继续 in-progress；本片仅分步本地提交，未推送或修改PR。
