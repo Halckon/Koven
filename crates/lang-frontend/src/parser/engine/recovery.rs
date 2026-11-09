@@ -686,7 +686,7 @@ impl Parser<'_> {
         let mut end = recovery_start;
         let mut string_poison = false;
         let supertype_suffix = stops.has_supertype_suffix();
-        let index_suffix = stops.recovers_index_suffix();
+        let proven_groups = stops.requires_proven_groups();
         let supertype_owner = if stops.has_class_file_boundary() {
             ClassifierHeaderOwner::File
         } else if stops.stops_at_class_member() {
@@ -781,22 +781,24 @@ impl Parser<'_> {
                 paired_groups.push((closer, delimiters.len()));
             }
             let nested_greater = symbol == Some(Symbol::Greater) && !paired_groups.is_empty();
-            let protected_suffix_group =
-                (supertype_suffix || index_suffix) && !paired_groups.is_empty();
+            let protected_suffix = (supertype_suffix || proven_groups) && !paired_groups.is_empty();
             let hard_stop = outside_owner
                 && !nested_greater
-                && !protected_suffix_group
-                && stops.contains_hard(current, symbol);
+                && !protected_suffix
+                && stops.contains_hard(current, symbol)
+                && !(proven_groups
+                    && symbol == Some(Symbol::LeftBrace)
+                    && self.has_paired_lambda_header(raw_index)?);
             if hard_stop
                 || (supertype_suffix
                     && outside_owner
-                    && !protected_suffix_group
+                    && !protected_suffix
                     && stops.has_semicolon()
                     && symbol == Some(Symbol::Semicolon))
                 || (supertype_suffix
                     && proven_type_closer.is_none()
                     && outside_owner
-                    && !protected_suffix_group
+                    && !protected_suffix
                     && self.at_supertype_suffix_boundary(
                         raw_index,
                         current,
@@ -805,7 +807,7 @@ impl Parser<'_> {
                     )?)
                 || (outside_owner
                     && delimiters.is_empty()
-                    && (!index_suffix || paired_groups.is_empty())
+                    && (!proven_groups || paired_groups.is_empty())
                     && (((!unclosed_angle || symbol != Some(Symbol::Comma))
                         && stops.contains_soft(current, symbol))
                         || (!supertype_suffix
@@ -819,24 +821,27 @@ impl Parser<'_> {
                 break;
             }
 
-            // An unclosed nested opener cannot hide the index caller's stops.
+            // Only proven local groups can hide the caller's stops.
             if outside_owner
-                && index_suffix
-                && symbol
-                    .and_then(group_delimiter)
-                    .is_some_and(|(_, opening)| opening)
+                && proven_groups
+                && let Some((last, closer)) =
+                    self.proven_postfix_recovery_step(raw_index, symbol, first.0)?
             {
-                if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, raw_index) {
+                if let Some(closer) = closer
+                    && paired_groups
+                        .last()
+                        .is_none_or(|&(active, _)| active != closer)
+                {
                     paired_groups.push((closer, delimiters.len()));
                 }
-                self.index = raw_index + 1;
-                end = current.span().end();
+                self.index = last + 1;
+                end = self.lexed.lexemes()[last].span().end();
                 continue;
             }
 
             if outside_owner
                 && supertype_suffix
-                && !protected_suffix_group
+                && !protected_suffix
                 && symbol == Some(Symbol::Less)
             {
                 if let Some(closer) = self.strict_trials.recovery_type_list_closer(

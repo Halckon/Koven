@@ -5,10 +5,10 @@ mod parser_test_assertions;
 
 use lang_frontend::{
     ast::ExpressionId,
-    parser::{BinaryOperator, Expression, Item, StringPart, SyntaxAst},
+    parser::{BinaryOperator, Expression, Item, Statement, StringPart, SyntaxAst},
     source::SourceMap,
 };
-use parser_test_assertions::{parse_expression_twice, parse_file_twice};
+use parser_test_assertions::{parse_block_twice, parse_expression_twice, parse_file_twice};
 
 fn assert_index(
     sources: &SourceMap,
@@ -242,4 +242,37 @@ fn a_nested_bracket_after_a_bad_type_is_not_the_index_closer() {
         true,
         &[("L0014", "[")],
     );
+}
+
+#[test]
+fn unpaired_index_keeps_a_proven_lambda_local_and_the_block_separator_outer() {
+    let mut sources = SourceMap::new();
+    let text = "{ xs[key, { -> 1 }; next }";
+    let id = sources.add_source("index-recovery.ko", text).unwrap();
+    let parsed = parse_block_twice(&sources, id, text);
+    let ast = parsed.ast();
+    let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+    else {
+        panic!("expected block");
+    };
+    let [first, next] = elements.as_slice() else {
+        panic!("expected two statements, got {elements:?}");
+    };
+    let Statement::Expression { expression } = ast.statements().get(*first).unwrap().payload()
+    else {
+        panic!("expected index statement");
+    };
+    assert_index(&sources, ast, *expression, "xs[key, { -> 1 }", "key", false);
+    assert_eq!(
+        sources.slice(ast.statements().get(*next).unwrap().span()),
+        Ok("next")
+    );
+    let [diagnostic] = parsed.diagnostics() else {
+        panic!(
+            "expected the index diagnostic only: {:?}",
+            parsed.diagnostics()
+        );
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0010");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok(","));
 }
