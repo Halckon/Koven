@@ -8,7 +8,7 @@ use crate::{
     type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
 };
 
-use crate::type_checking::flow_effects::logical_rhs_is_required;
+use crate::type_checking::flow_effects::logical_rhs_execution;
 
 use super::{
     BodyChecker, ExpressionCheck, UnitExpressionId,
@@ -185,8 +185,8 @@ impl BodyChecker<'_> {
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
         let ast = self.file(source).ast();
-        let rhs_required =
-            logical_rhs_is_required(ast, left, operator).map_err(TypeCheckingError::from)?;
+        let rhs_execution =
+            logical_rhs_execution(ast, left, operator).map_err(TypeCheckingError::from)?;
         let left_edges = if self.has_pending_expression_exit(source, left, left_result)? {
             self.boolean_pending_edges(source, left, &baseline_versions)?
         } else {
@@ -207,10 +207,11 @@ impl BodyChecker<'_> {
             |checker| checker.check_expression(source, right, None, None, return_type),
         );
         let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
-        let writes = self.expression_flow_writes(source, right)?;
         self.flow_facts = baseline;
-        for key in writes {
-            self.invalidate_flow_key(key);
+        if rhs_execution != Some(false) {
+            for key in self.expression_flow_writes(source, right)? {
+                self.invalidate_flow_key(key);
+            }
         }
         let right_result = right_result?;
         let mut edges = if rhs_pending.is_some()
@@ -266,7 +267,7 @@ impl BodyChecker<'_> {
         Ok(ExpressionCheck {
             ty,
             falls_through: left_result.falls_through
-                && (right_result.falls_through || !rhs_required),
+                && (right_result.falls_through || rhs_execution != Some(true)),
         })
     }
 

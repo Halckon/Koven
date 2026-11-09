@@ -5,7 +5,7 @@ use crate::{
 };
 
 use super::{flow::extend_facts, *};
-use crate::type_checking::flow_effects::logical_rhs_is_required;
+use crate::type_checking::flow_effects::logical_rhs_execution;
 
 struct LambdaSyntax {
     span: Span,
@@ -959,11 +959,17 @@ impl Checker<'_> {
                 &left_false
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
-            let required = logical_rhs_is_required(self.ast(), left, operator)?;
+            let rhs_execution = logical_rhs_execution(self.ast(), left, operator)?;
+            let bypass_versions =
+                (rhs_execution == Some(false)).then(|| self.flow_versions.clone());
             let right_result =
                 self.check_pending_logical_rhs(expression, left, operator, right, left_result)?;
-            let writes = self.expression_flow_writes(right)?;
-            baseline.retain(|key, _| !writes.contains(key));
+            if let Some(versions) = bypass_versions {
+                self.flow_versions = versions;
+            } else {
+                let writes = self.expression_flow_writes(right)?;
+                baseline.retain(|key, _| !writes.contains(key));
+            }
             self.flow_facts = baseline;
             let valid = self.is_builtin(left_result.ty, BuiltinType::Boolean)
                 && self.is_builtin(right_result.ty, BuiltinType::Boolean);
@@ -986,7 +992,7 @@ impl Checker<'_> {
             return Ok(ExprCheck {
                 ty,
                 falls_through: left_result.falls_through
-                    && (right_result.falls_through || !required),
+                    && (right_result.falls_through || rhs_execution != Some(true)),
             });
         }
         let (left_result, right_result) =

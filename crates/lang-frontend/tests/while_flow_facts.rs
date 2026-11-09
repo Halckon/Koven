@@ -15,6 +15,9 @@ use lang_frontend::{
     },
 };
 
+#[path = "while_flow_facts/literal_short_circuit.rs"]
+mod literal_short_circuit;
+
 #[path = "while_flow_facts/null_comparison_fallback.rs"]
 mod null_comparison_fallback;
 

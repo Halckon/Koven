@@ -18,9 +18,18 @@ enum Pending {
 /// Recognize an unconditional RHS without running constant evaluation in flow checking.
 pub(super) fn logical_rhs_is_required(
     ast: &SyntaxAst,
-    mut left: ExpressionId,
+    left: ExpressionId,
     operator: BinaryOperator,
 ) -> Result<bool, AstError> {
+    Ok(logical_rhs_execution(ast, left, operator)? == Some(true))
+}
+
+/// A literal (possibly grouped or negated) proves whether the RHS executes.
+pub(super) fn logical_rhs_execution(
+    ast: &SyntaxAst,
+    mut left: ExpressionId,
+    operator: BinaryOperator,
+) -> Result<Option<bool>, AstError> {
     let mut required_value = operator == BinaryOperator::LogicalAnd;
     loop {
         match ast.expressions().get(left)?.payload() {
@@ -34,9 +43,9 @@ pub(super) fn logical_rhs_is_required(
                 left = *operand;
             }
             Expression::Literal(LiteralKind::Boolean(value)) => {
-                return Ok(*value == required_value);
+                return Ok(Some(*value == required_value));
             }
-            _ => return Ok(false),
+            _ => return Ok(None),
         }
     }
 }
@@ -70,7 +79,7 @@ fn collect_mutation_targets(
 ) -> Result<Vec<ExpressionId>, AstError> {
     let mut pending = vec![root];
     let mut targets = Vec::new();
-    // 覆盖每条可能执行的分支，不推演可达性、callee 效果或实际写入顺序。
+    // 覆盖可能执行的分支，仅排除字面短路已证明跳过的 RHS。
     while let Some(node) = pending.pop() {
         match node {
             Pending::Expression(expression) => match ast.expressions().get(expression)?.payload() {
@@ -140,8 +149,19 @@ fn collect_mutation_targets(
                         pending.push(Pending::Expression(*value));
                     }
                 }
-                Expression::Binary { left, right, .. } => {
-                    pending.push(Pending::Expression(*right));
+                Expression::Binary {
+                    left,
+                    operator,
+                    right,
+                    ..
+                } => {
+                    if !matches!(
+                        operator,
+                        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+                    ) || logical_rhs_execution(ast, *left, *operator)? != Some(false)
+                    {
+                        pending.push(Pending::Expression(*right));
+                    }
                     pending.push(Pending::Expression(*left));
                 }
                 Expression::Assignment { target, value, .. } => {
