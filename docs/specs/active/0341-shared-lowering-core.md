@@ -5018,3 +5018,59 @@ Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2，�
 本片只观察静态实际结束事实，不承诺跨表全序、动态this/caller别名、完整生命周期或
 native权限恢复；完整D10/E2仍未完成。不再备份，不强推、不覆盖已有工作、不合并；
 connector发布与精确头CI另外核验。
+
+
+## 133. 具名字段路径的 Shared receiver reborrow 结束（2026-11-09）
+
+本片基于已发布 this 头 `3cca9843531692280c757953005e203d28189e20`，独立分支为
+`feature/spec-0341-field-receiver-reborrow`。开工核 main `4243ebe5`，后续复核已推进
+`ec8a7b9f`（#381）；该合并不含本观察模块。本片未整合新主线，以下不是新 main 验收。
+已有receiver/Inout/this、String.clone与动态owner分支未重复；与owner §132无生产交叠。
+
+依据 guide §10 调用期 loan 与稳定 root/field place 合同，沿原 receiver operand 的
+Name/Group/非 safe Member 语法链检查有界来源，随后对 **完整 operand** 查询 typed place；
+保留 root、全部字段符号与 source identity，并要求原 token target 等于该完整 place。
+不能将剥离语法后的根当作字段 target。只准入 owned/Borrow/Inout 具名根、无 elements 的
+路径；既有 provider、borrow binding、Shared kind、owned-result及静态call target资格
+不变。不重建token，不改pending生产、activation、loop-depth、cleanup或native消费者。
+
+红测 `2cc178c5` 的两个测试实际在owned正常/Return首例得到0而预期1，后续Inout子例未在
+红测失败后执行。最小实现后四份原源码转绿。全新target首次整族193过1失败，发现原CFG字段排除断言，
+将两份原Break/Continue源码原样迁为非空oracle，没有删来源或扩大生产。共六份旧字段源码
+保留，其他空观察边界与Single见证不退役。
+
+初版扩展15项为14过1失败，临时owner字段方法 `Holder(Node()).node.touch(...)` 尚不能形成
+place。该完整源码独立固定为 `InvalidUnitArgumentPlace`，保留source/expression身份；
+safe字段链 `holder?.node?.touch(...)` 在最终type准入报L0165，固定完整诊断码与operand span。
+两者各含正常/Return源码及两个Unit入口，在未改生产的独立 `3cca9843` 基线实际复跑2项
+通过，明确是基线缺口，不把它们当作已准入后零事件，也不在本片修复/启用。
+
+基线复跑后首次复用旧Cargo target未触发重编译，12项仍得到旧空表；该轮不计验收。
+此后使用全新、仅本工作树使用的target重跑，未清理旧目标、改生产或降低断言。不同工作树
+即使串行也不复用本片target；最终direct记录为增补后的重编译，不单独声称冷缓存全套
+验收，不以首次部分成功替代最终门禁。
+
+18项新双Unit入口合同覆盖原六份源码、Group与多层field完整路径、owned/Borrow/Inout根、
+重复token及兄弟字段、正常/CFG/loop-depth、for真实cleanup、后续字段replacement、aggregate
+唯一drop及non-owning根无drop、互斥normal/prefix、Exclusive兄弟排除但计序、L0132/L0135、
+provider/binding/index/this字段排除，以及上述两项入口失败边界。2项raw合同先生成真实非空
+正常和三类控制转移表，再由后置L0134/deferred撤销；三source同AST index用例区分consumer
+root与共享provider字段声明，公开/raw完整相等。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 字段及既有直接借用合同 | `unit_direct_call_loan_ends`，沿用5项Abort整项排除 | 新target 195 passed，含18项新合同 |
+| raw撤销和跨文件字段身份 | `--lib adjacent_borrow_results` | 19 passed，396项未选 |
+| 相邻借用及receiver回边 | continuation、nested、backedge，nested沿用1项Abort排除 | 14 + 9 + 4 passed |
+| Unit iteration退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| 两阶段receiver合同 | `multifile_two_phase_borrows`，沿用2项Abort排除 | 25 passed，2项未选 |
+| 静态及跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 全部通过 |
+| 文档及尺寸 | `check_docs.py`、`check_rust_sizes.py --base 3cca9843`、diff | 通过；863 Markdown、2232 Rust、35项既有超长 |
+
+Mac AArch64、Rust1.96、LLVM21.1.8，locked/offline、默认debug、jobs=2，全新独占target串行。
+继承§129八项Abort整项仅编译；未跑native、Linux、故障注入、压力及frontend/workspace全量。
+共272项不同普通测试通过，不重复累计基线及先行复跑。独立fresh-context复审完整12文件、
+Architecture、本节及实际门禁日志，无P1/P2，未重跑Cargo。不增加尺寸例外。
+
+不提供跨表全序、动态字段/owner实例映射、完整借用流或native恢复权限证明；D10/E2仍未
+完成。不再备份，不覆盖既有分支、不强推或合并；connector发布与精确头CI另外核验。

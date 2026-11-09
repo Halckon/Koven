@@ -73,10 +73,10 @@ Unit `receiver_call_prefix_ends()` 只投影实际 return/break/continue unwind 
 receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end 的数量。计数
 包含被切片排除的真实动作，按不同控制转移点重置，不提供全局执行索引或完整结束流。
 
-仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow/Inout 参数的 Name/Group 根，
+仅 owned-result 方法、Shared receiver 与 owned 或声明端 Borrow/Inout 参数的具名根及普通字段路径，
 以及具体 nominal 的 this 准入；
 参数的 nested reborrow 结束不结束原参数能力，也不析构 caller owner。正常返回、
-Exclusive receiver reservation、StaticSelf this、投影、temporary、provider、显式借用绑定与 borrowed-result
+Exclusive receiver reservation、StaticSelf this、索引/this 字段投影、temporary、provider、显式借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
 
@@ -93,10 +93,10 @@ Borrow、Group、同根嵌套逆序、for 清理顺序、后续参数使用、�
 
 Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pending 队列移出完整
 receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
-反推执行。正常完成准入 owned 名称根、声明端 Borrow/Inout 参数的 Name/Group 根及具体 nominal 的 this；
+反推执行。正常完成准入 owned 名称根、声明端 Borrow/Inout 参数根及其普通字段路径，以及具体 nominal 的 this；
 都要求 Shared receiver 与 owned-result 方法。非 owning 参数只结束本次 nested Shared reborrow，
-原参数能力与 caller owner 不被结束或析构；prefix 查询使用相同根资格。
-Exclusive receiver reservation、StaticSelf this、投影、temporary、provider、显式借用绑定与 borrowed-result
+原参数能力与 caller owner 不被结束或析构；prefix 查询使用相同来源资格。
+Exclusive receiver reservation、StaticSelf this、索引/this 字段投影、temporary、provider、显式借用绑定与 borrowed-result
 receiver 继续排除；String.clone intrinsic 的独立完成路径不在此查询内。
 
 正常完成仍移除原 retain 所选的 call/receiver tokens，其他调用及 action 的顺序和 loop
@@ -126,3 +126,14 @@ StaticSelf、provider this、Exclusive receiver 和 borrowed-result 仍不进入
 未支持的 from-this 结果延续仍 L0164，存活 Shared 下的新 Exclusive 仍 L0135。
 四份旧 this 排除源码原样转为非空 oracle，完整身份、模式、跨 source 及撤销证据见
 [this 子借用切片](../specs/active/0341-shared-lowering-core.md#131-具体-this-的-shared-receiver-reborrow-结束2026-11-09)。
+
+
+具名根的普通字段 receiver 现保留完整 typed field path，Group 透明；语法链只接受
+Name/Group/非 safe Member，最终观察目标必须等于完整 place，不能以其 backing root
+代替字段身份。正常与 Return/Break/Continue 结束均来自原 token；owner、字段 replacement、
+loop depth 与两阶段 activation 不变。同根兄弟字段保持独立路径，aggregate 只承担原有
+唯一 drop，non-owning 根不增加析构义务。索引、this 字段、provider、显式 borrow binding
+及 borrowed-result 继续排除。临时 owner 字段 receiver 的未形成 place 错误，以及 safe
+字段链的最终类型拒绝，在本片基线仍存在；它们不是已准入后的空结束表证明。
+六份旧排除源码迁移、跨文件字段声明身份及真实撤销见
+[具名字段子借用切片](../specs/active/0341-shared-lowering-core.md#133-具名字段路径的-shared-receiver-reborrow-结束2026-11-09)。
