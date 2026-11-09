@@ -2951,3 +2951,25 @@ object receiver 对照仍独立保留。
 
 迁移前原 Single 测试及相邻 Unit 测试分别实跑通过。迁移后本机 `type_checking` 95 项、
 `multifile_type_checking` 283 项通过，零失败和忽略。
+
+
+## 113. R4 细化层的 MoveOnly Borrow nullable 判空
+
+普通类 `Node?` 的自有证明与另一 Borrow `String?` 的存在性比较同处一个 callable
+时，前端通过，旧路径在普通类 `if` 的 proof carrier 处拒绝。保留真实 source 和
+loan，细化层接受该签名，通过 `NullableLoanIsNull` 只读原 Borrow storage。
+判空不建立借用 payload 的 view。原 MoveOnly Borrow presence 负路由源码移到
+正例，另用实际需要 payload view 的源码保持负路由断言。
+
+独立审查发现可达 `Map.remove` 会为同型 `String?` 登记 MapResult 布局，初版
+候选在此组合被 verifier 拒绝。最终实现对已登记 MapResult 只读字段 0，仍要求
+活动 Shared loan 和 Boolean 结果。原生回归覆盖 MapResult 的存在/缺席、普通
+Borrow 读取和短路 RHS，另有同形未登记聚合及独占 loan 的 SSA 负控。
+
+初版全 codegen 2724 项通过、1 项有记录的 LLDB 权限忽略，原生有序 Map 碰撞
+测试一次超时。该项在最终候选单独复跑通过；初版全量不计为全绿。
+细化候选的 nullable 扩大套件 209 项通过。集成复核另复现普通 Unit 中同一
+MapResult 比较受 nullable `when` 影响的拒绝。兼容路径对 MoveOnly MapResult 也读取
+原 loan 的缺席状态，并保留 Copyable MapResult 的原路径。两路原生均通过。
+合流后 codegen 定向 52 项及两个 frontend 套件 378 项通过，均零失败和忽略。
+codegen 全目标 Clippy、格式和文档门禁通过。

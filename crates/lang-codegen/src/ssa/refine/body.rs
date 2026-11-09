@@ -133,6 +133,9 @@ pub(super) enum ROp {
     NullableIsNull {
         owner: Slot,
     },
+    NullableLoanIsNull {
+        source: Slot,
+    },
     NullableTake {
         owner: Slot,
         proof: Slot,
@@ -492,6 +495,7 @@ impl ROp {
             | Self::StringByteLength { source: slot }
             | Self::NullableWrap { owner: slot, .. }
             | Self::NullableIsNull { owner: slot }
+            | Self::NullableLoanIsNull { source: slot }
             | Self::HeapAllocate { payload: slot, .. }
             | Self::HeapPayloadPlace { owner: slot }
             | Self::HeapFieldRead { receiver: slot, .. }

@@ -647,3 +647,67 @@ fn multiple_return_program() -> Program {
         });
     fixture.program
 }
+
+#[test]
+fn borrowed_map_result_presence_requires_registered_shape_and_shared_loan() {
+    use super::model::LoanKind;
+
+    for (registered, kind, expected) in [
+        (true, LoanKind::Shared, true),
+        (false, LoanKind::Shared, false),
+        (true, LoanKind::Exclusive, false),
+    ] {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("main");
+        let module = program.module_mut(module_id).expect("module");
+        let boolean = module.intern_type(SsaTypeKind::Boolean);
+        let string = module.add_string_owner_type();
+        let target = if registered {
+            module.add_map_result_type(string).expect("Map result")
+        } else {
+            module
+                .add_aggregate_type("same-layout", vec![boolean, string])
+                .expect("ordinary aggregate")
+        };
+        let id = module
+            .add_function("presence", vec![boolean], origin.clone())
+            .expect("function");
+        let function = module.function_mut(id).expect("function");
+        let entry = function
+            .add_block(vec![EntityType::Loan { kind, target }], origin.clone())
+            .expect("entry");
+        let EntityId::Loan(source) = function.blocks[0].parameters[0] else {
+            panic!("expected loan parameter");
+        };
+        let (_, results) = function
+            .append_instruction(
+                entry,
+                Operation::NullableLoanIsNull { source },
+                vec![EntityType::Value(boolean)],
+                origin.clone(),
+            )
+            .expect("presence instruction");
+        function
+            .set_terminator(
+                entry,
+                TerminatorKind::Return {
+                    values: vec![value(results[0])],
+                },
+                origin,
+            )
+            .expect("return");
+        let verified = verify_program(&program);
+        if expected {
+            verified.expect("registered Map result presence through a shared loan");
+        } else {
+            let error = verified.expect_err("invalid borrowed presence");
+            assert!(
+                error
+                    .errors
+                    .iter()
+                    .any(|issue| matches!(issue.kind, VerifyErrorKind::OperationContract { .. }))
+            );
+        }
+    }
+}

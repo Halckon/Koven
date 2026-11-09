@@ -307,7 +307,8 @@ pub(super) fn verify_operation(
         Operation::NullableLoanIsNull { source } => {
             matches!(function.entity(EntityId::Loan(*source)).map(|e| e.ty),
                 Some(EntityType::Loan {kind:LoanKind::Shared,target})
-                    if matches!(module.type_kind(target), Some(SsaTypeKind::NullableHandle { .. } | SsaTypeKind::InlineNullable { .. })))
+                    if matches!(module.type_kind(target), Some(SsaTypeKind::NullableHandle { .. } | SsaTypeKind::InlineNullable { .. }))
+                        || module.map_result_value(target).is_some())
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
         Operation::NullableTake { owner, proof } => {
