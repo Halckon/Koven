@@ -2,12 +2,53 @@
 use super::{Checker, DropPlanner};
 use crate::{
     name_resolution::{SymbolKind, UnitSymbolId},
-    ownership_checking::{OwnershipBindingKind, UnitLoanTarget, borrow_result::BorrowBindingFact},
+    ownership_checking::{
+        OwnershipBindingKind, UnitLoanTarget,
+        borrow_result::{
+            BorrowBindingFact, BorrowReturnOriginFact, BorrowSourceLoan, borrow_result_call,
+        },
+    },
     type_checking::UnitExpressionId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 type UnitBorrowBinding = BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>;
+type UnitBorrowReturnOrigin = BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>;
+
+pub(super) struct BorrowForwardIndex {
+    by_call: BTreeMap<UnitExpressionId, ForwardedBorrowCall>,
+}
+
+struct ForwardedBorrowCall {
+    source: BorrowSourceLoan<UnitExpressionId>,
+    origin: Option<usize>,
+}
+
+impl BorrowForwardIndex {
+    fn collect(checker: &Checker<'_>) -> Self {
+        let mut by_call = BTreeMap::new();
+        for &source in checker.borrow_results.forwarded_source_loans() {
+            by_call.entry(source.call()).or_insert(ForwardedBorrowCall {
+                source,
+                origin: None,
+            });
+        }
+        if !by_call.is_empty() {
+            for (index, origin) in checker.borrow_return_origins.iter().enumerate() {
+                // The forwarded facts already prove the typed source. Only
+                // unwrap groups here, then require membership in that set.
+                if let Some(call) =
+                    borrow_result_call(checker.parsed, origin.expression().expression(), |_| true)
+                    && let Some(entry) = by_call.get_mut(&checker.unit_expression(call))
+                {
+                    // Keep the original first matching return origin for this call.
+                    entry.origin.get_or_insert(index);
+                }
+            }
+        }
+        Self { by_call }
+    }
+}
 
 pub(super) struct LoanProvenance {
     pub(super) formed_owned: BTreeSet<UnitSymbolId>,
@@ -70,6 +111,21 @@ impl DropPlanner<'_, '_> {
             .into_iter()
             .flatten()
             .map(|&index| &bindings[index])
+    }
+
+    pub(super) fn forwarded_borrow_source(
+        &self,
+        call: UnitExpressionId,
+    ) -> Option<(BorrowSourceLoan<UnitExpressionId>, &UnitBorrowReturnOrigin)> {
+        let entry = self
+            .borrow_forward_index
+            .get_or_init(|| BorrowForwardIndex::collect(self.checker))
+            .by_call
+            .get(&call)?;
+        Some((
+            entry.source,
+            &self.checker.borrow_return_origins[entry.origin?],
+        ))
     }
 
     pub(super) fn is_observable_owned_loan_root(&self, root: UnitSymbolId) -> bool {
