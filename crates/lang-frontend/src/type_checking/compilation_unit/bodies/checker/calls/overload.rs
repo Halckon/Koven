@@ -229,7 +229,7 @@ impl BodyChecker<'_> {
                     }
                     self.emit_unit_instantiation_failure(failure)?;
                     if uncommitted {
-                        return Ok(self.unresolved_call());
+                        return Ok(self.rejected_call_recovery(site.source, site.expression));
                     }
                     Ok(ExpressionCheck {
                         ty: self.error_type(),
@@ -324,7 +324,7 @@ impl BodyChecker<'_> {
         site: &CallSite<'_>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         if self.recover_untyped_call_arguments(site)? {
-            return Ok(self.unresolved_call());
+            return Ok(self.rejected_call_recovery(site.source, site.expression));
         }
         Ok(ExpressionCheck {
             ty: self.error_type(),
@@ -339,7 +339,7 @@ impl BodyChecker<'_> {
         let uncommitted = self.recover_untyped_call_arguments(site)?;
         let failure = self.overload_failure(site.callee_span, true)?;
         if uncommitted {
-            Ok(self.unresolved_call())
+            Ok(self.rejected_call_recovery(site.source, site.expression))
         } else {
             Ok(failure)
         }
@@ -462,7 +462,7 @@ impl BodyChecker<'_> {
                 index,
                 origin,
             );
-            return Ok(self.unresolved_call());
+            return Ok(self.rejected_call_recovery(site.source, site.expression));
         }
         let failure = match successes.len() {
             0 => self.overload_failure(site.callee_span, true),
@@ -498,7 +498,7 @@ impl BodyChecker<'_> {
         if pending || !matches!(callee.payload(), crate::parser::Expression::Name) {
             // Named overload errors have an existing final-admission proof.
             // Other selectors need the unresolved anchor for rolled-back lambdas.
-            Ok(self.unresolved_call())
+            Ok(self.rejected_call_recovery(site.source, site.expression))
         } else {
             Ok(failure)
         }

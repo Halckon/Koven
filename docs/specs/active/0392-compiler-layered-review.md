@@ -3154,6 +3154,127 @@ nullable when 18 项、Map provider 退出 76 项和原生资源 19 项。以上
 零忽略。nullable when 首次过滤没有匹配，验收以更正过滤后的 18 项为准。
 前端与 codegen 全目标 Clippy、格式与文档检查通过。
 
+[PR #381](https://github.com/Halckon/Koven/pull/381) 合入 `ec8a7b9f`。基线
+`4243ebe5` 与 head `57d9cac2` 在 [CI 42556170476](https://github.com/Halckon/Koven/actions/runs/42556170476)
+验证。合成提交 `03e9921f` 的父提交匹配该 base/head，CI 树和实际合入树同为
+`de8eb0b0`。双宿主 Check/Clippy、定向测试、预览生产及独立安装、CI Passed 和
+Code CI Evidence 均通过。两端原始日志均实查六条回归通过，覆盖调用与 when 的
+提前退出、待定写回、重绑与析构。Editor lexical 按变更范围跳过。
+
+## 122. R2 被拒调用与条件流重建
+
+在 `4243ebe5` 上，两组全失败重载会先报 L0123，再在后续非空读取误报 L0084。
+普通调用恢复无条件应用语法 `&`，而短路条件会重新扫描写入。只修直接失效后，
+`&&` 红测仍复现。现在使用同一 source-qualified 调用身份识别不提交的写入。
+条件重建只省略该调用本身的标记，仍遍历 callee 和实参。标记随候选和循环试探回滚；
+循环的检查前扫描及旧 Single 入口继续使用原保守语法路径。
+
+独立复核发现部分明确拒绝的调用仍以 Deferred 锚供最终准入。成员 lambda、
+普通参数适用性拒绝、具名参数错误与待定实参并存的原语，以及确定不兼容的 super
+模式均保留原锚并明确标记。已知普通函数值的非法显式类型实参，以及由分组传递
+或经成员接收者、索引接收者及下标传播的已拒 callee，也不提交写入。真正待决的
+候选仍保守，已有上下文错误不会撤销
+已选择调用的影响。
+
+双入口测试覆盖普通调用、`&&`、`||`、成员、前置适用性、已知 callable 和
+callee 链。在被拒父调用的 `&x` 与已成功实参调用的 `&y` 同时存在时，
+只在后继 y 上保留 L0084。原语测试保留 L0120 且无成功事实。当前
+`type_checking` 99 项、`multifile_type_checking` 283 项、`type_ownership_primitives`
+18 项通过，零失败与忽略。原语自身的公开提前退出、selector 提前退出及旧
+Single 回收另有合同边界。
+
+最终候选的完整前端 183 组、2908 项通过，零失败和忽略。前端全目标 Clippy、
+格式、文档和 Rust 尺寸检查通过。上述为 `4243ebe5` 上的本机验证。
+
+## 123. R0/R3 Phase 3 成败语料消费者
+
+原 `ownership-pass/basic.ko`、`ownership-fail/use-after-move.ko` 与原诊断 sidecar
+逐字保留。迁移前在同一快照实际运行 Single、MemoryDocument、Rooted 三路。
+两条 Unit 路径继续核对成功用例诊断为空，以及失败用例的诊断码、起止字节、顺序
+和末尾换行逐字节一致。解析、名称和类型仍各自要求无诊断。
+
+迁移后 `ownership_checking` 30 项、`multifile_ownership_checking` 156 项通过，
+零失败、零忽略。独立复核确认保留文件发现和逐项断言。旧 helper 仍有其他消费者，
+本片只完成这组语料的迁移。
+
+## 124. R2/R3 when selector 的独立复审
+
+复审者从冻结的 #381 候选 `57d9cac2` 在仓外构建前端和后端，并实际发射对象、
+链接及运行。另从其 base `4243ebe5` 构建前端复跑两条 R3 阻断。
+以下为确认发现，修复与验收另记。
+
+| 合同 | 实际证据 |
+|---|---|
+| 公开完成性保留逗号前已有匹配边，截断 selector 退出后的未匹配边 | `when (flag) { true, pred(return 7) -> return 2 }` 当前误报 L0088，subjectless 同样。共享 arm 改成普通值，或 selector 改 `pred(7)`，仍有正常出口并应报 L0088。普通标量 refine 的已有值分支对照两路输出 `2\n7\n` |
+| 私有恢复保持 subjectless selector 的真假路径 | `flag() && pred(return)` 的 false 路径可 miss，true 路径无后继。当前死 arm 的待定赋值仍污染调用者 |
+| 已匹配分支需要的纯内存 owner 必须保持 live | 无 deinit 的 own 参数只在先匹配的 arm 被读时，当前错误发布 FunctionEntry drop。局部 owner 在声明后被释放。后端报 InvalidModel。把提前退出 selector 移到首项的对照实际输出 `7\n7\n` |
+| 短路 false bypass 仍需检查 move | `consume(x)` 后，`when { flag && pred(return 7) -> 2; else -> { observe(x); 3 } }` 漏 L0131，原生 InvalidModel。改 `pred(7)` 恢复 L0131 |
+
+own 参数提前析构和 false bypass 漏报都在 #381 的 base 实跑复现，属基线既有阻断。
+词法资源析构的原生对照通过，纯内存 ASAP 的缺陷由此独立定位。
+`when` 的回向活性需按 entry 和 alternative 递推，在 selector 正常出口
+分别合并匹配 arm 与继续匹配的活性。基础所有权的短路 false 边须单独复核。
+
+另有下游边界。已支持的 `in asInt(return 7)..2` 报 MissingFact，正常对照
+`in asInt(1)..2` 实际输出 `2\n2\n`。外层 canonical nullable descriptor
+的嵌套 arm 当前完成性错误，须与所有权计划对齐。兼容 lowering 对动态 selector
+的正常对照也不支持，按既有能力边界单列。
+
+## 125. R3 when 匹配路径上的 owner 活性
+
+`30886cde` 基线上，逗号前匹配的 body 借用纯内存 owner，后续 selector
+提前 return 时，前端红测只取得错误的 FunctionEntry drop，原生红测报 InvalidModel。
+改为逐 entry、逐 alternative 回向传递。每项正常出口分别合并匹配 body 和后续 miss，
+提前退出只截断该 selector 的正常后继。String subject 的隐式读取留在每个候选的
+正常出口。分支入口事实仍保存对应 body 的活性。
+
+独立复核发现 while 条件在每条分支都替换退出边仍需读取的 owner 时，旧循环头初值
+会导致固定点无法收敛。修前实际限时 8 秒退出 142。现从空集迭代，条件出口继续
+注入 live-after，保留 break/continue 的各自目标。两种 Unit 均实跑通过。
+
+本机所有权及迭代前端 388 项、后端 comma when 5 项及循环资源 9 项通过，
+零失败和忽略。原生 subjectful 和 subjectless 对照实际编译、链接并运行，精确
+验证先匹配时读取 owner，后续提前退出时不执行 callee。最终差异经独立复核。
+
+与 `ec8a7b9f` 合流后，五套类型、原语和所有权前端共 591 项通过，
+零失败、零忽略。
+
+## 126. R3 普通布尔短路的正常后继
+
+在 `152c57ea` 上，RHS 提前 return 会使普通 Unit 丢失 `&&` 的假旁路和
+`||` 的真旁路。可达分支读取已移动 owner 时漏 L0131。单纯合并两边又会
+引入实际不存在的路径。双入口红测实证必走 RHS 后的死语句、不可达分支以及
+没有条件假出口的 while 会误报。while 有实际 break 时，后续读取仍须检查。
+
+类型检查在试探全部结束后，按 source-qualified expression 发布布尔正常结果。
+各 profile 以表达式表插入顺序构建，查询不递归扫描子树。Basic 复用已有的分组、
+取反字面量必走 RHS 判断。独立复核发现重新初始化已移动 owner 后的虚假旁路，
+新增红测实际在 `true &&` 上报 L0131。修复后两种必走形式继续，动态形状
+保留可能绕过初始化的 L0131。Const 保留原结构结果及独立执行计划。
+
+数据流、活性、析构计划、默认 refine 与 Unit 兼容 lowering 使用相符的正常边。
+Basic 正常求值 RHS 使用 BranchExit 0，旁路使用 1。已知不完成的 RHS 只发布
+实际退出的清理。true-only while 的回边供下一轮，不虚构条件假出口，实际 break
+仍进入正常后继。旧字面量旁路的既有清理合同保留。
+
+独立复核另确认，callable 实例规划按词法位置收集调用，动态 RHS 退出造成的死 arm
+仍可能索要 callable provenance。该形状在 `152c57ea` 的所有权遍历已无该 provenance，
+保留为下游规划复审项。Const Conditional `||` 的 refine builder 既有边编号
+也需与专用计划单独对账。
+
+本机三套前端定向用例 385 项通过，零失败、零忽略。三条新增原生测试覆盖
+`when` 两种旁路、六组 if/while/嵌套短路在默认与强制兼容路由的执行结果，
+以及两条必走 RHS 的 owner 移交和析构。析构夹具首跑因遗漏 `deinit()` 的
+括号在解析失败，修正后两路均输出相同的两组 take/drop 和最终 ok。
+最终逻辑差异经过独立复核。最后一轮完整前端本机运行因复核新发现而提前停止，
+本节以修复后的定向实跑和后续双宿主候选证据为准。
+
+[PR #382](https://github.com/Halckon/Koven/pull/382) 已合入 `ac9a7d81`。
+[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42562208549) 的合成提交
+`964e977e` 与实际合入树均为 `0fd9108e`。Check/Clippy、定向、预览生产和独立安装、
+CI Passed 与 Code CI Evidence 均通过，Editor lexical 按范围跳过。两端原始日志
+各核实 11 条指定回归通过，包括调用退出、写回、析构和本批新增短路用例。
+
 ## 127. R2/R3 when selector 的完成性与写回
 
 在 `ec8a7b9f` 上，两种 Unit 入口均把逗号后 selector 提前 return 的路径误计为

@@ -383,6 +383,31 @@ fun main(): Unit {
 }
 
 #[test]
+fn comma_when_abrupt_later_selector_preserves_the_earlier_match_owner() {
+    for (subject, selector) in [("(flag)", "true"), ("", "flag")] {
+        let source = format!(
+            r#"class Node(val tag: Int)
+fun observe(borrow value: Node): Unit {{ if (value.tag == 1) {{ println("observe") }} }}
+fun pred(value: Int): Boolean {{ println("pred must not run"); return false }}
+fun test(own x: Node, flag: Boolean): Int {{
+    when {subject} {{
+        {selector}, pred(return 7) -> {{ observe(x); return 2 }}
+        else -> return 3
+    }}
+}}
+fun main(): Unit {{
+    if (test(Node(1), true) != 2 || test(Node(1), false) != 7) {{ error("wrong result") }}
+    println("ok")
+}}
+"#
+        );
+        let output = emit_link_and_run("comma-when-abrupt-owner.ko", &source, "main");
+        assert_diagnostic!(output.status.success(), "{subject}: {output:?}");
+        assert_eq!(output.stdout, b"observe\nok\n", "{subject}");
+    }
+}
+
+#[test]
 fn when_selector_return_stops_value_delivery_but_preserves_an_earlier_match() {
     let source = r#"
 fun pred(value: Int): Boolean { println("unexpected pred"); return true }

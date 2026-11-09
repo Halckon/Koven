@@ -217,3 +217,169 @@ fn unfinished_call_retains_the_static_shape_for_a_chained_call() {
         }
     }
 }
+
+#[test]
+fn rejected_inout_call_does_not_kill_non_null_facts() {
+    let overloads = "
+        fun <T> choose(seed: T, inout x: Int?, cb: (Int) -> Int): Boolean { x = null; return true }
+        fun <T> choose(seed: T, inout x: Int?, cb: (Boolean) -> Boolean): Boolean { x = null; return true }
+    ";
+    for body in [
+        "if (x != null) { CALL; return x }",
+        "if (x != null && CALL) { return x }",
+        "if (x == null || CALL) {} else { return x }",
+    ] {
+        for (callback, code) in [("it + \"\"", "L0123"), ("it - 1", "L0084")] {
+            let call = format!("choose(0, &x, {{ {callback} }})");
+            let body = body.replace("CALL", &call);
+            let text = format!(
+                "{overloads}
+                 fun test(seed: Int?): Int {{ var x = seed; {body}; return 0 }}"
+            );
+            let (sources, _, entries) = checked_entries(&text);
+            for (_, typed) in entries {
+                assert_eq!(codes(typed.diagnostics()), [code], "{body}");
+                if code == "L0084" {
+                    assert_eq!(
+                        sources
+                            .slice(typed.diagnostics()[0].primary_span())
+                            .unwrap(),
+                        "x"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn inout_effects_keep_nested_calls_and_contextually_rejected_results() {
+    let declarations = "
+        fun update(inout x: Int?): Int { x = null; return 0 }
+        fun predicate(value: Boolean): Boolean = value
+        fun choose(seed: Int, inout x: Int?, cb: (Int) -> Int): Boolean = true
+        fun choose(seed: Int, inout x: Int?, cb: (Boolean) -> Boolean): Boolean = true
+    ";
+    for (condition, tail, error_code, error_text, changed) in [
+        (
+            "x != null && predicate(update(&x))",
+            "return x",
+            "L0084",
+            "update(&x)",
+            "x",
+        ),
+        (
+            "x != null && y != null && choose(update(&y), &x, { it + \"\" })",
+            "val retained: Int = x; return y",
+            "L0123",
+            "choose",
+            "y",
+        ),
+    ] {
+        let text = format!(
+            "{declarations}
+             fun test(seed: Int?): Int {{
+                 var x = seed
+                 var y = seed
+                 if ({condition}) {{ {tail} }}
+                 return 0
+             }}"
+        );
+        let (sources, _, entries) = checked_entries(&text);
+        for (_, typed) in entries {
+            assert_eq!(
+                codes(typed.diagnostics()),
+                [error_code, "L0084"],
+                "{condition}"
+            );
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|diag| sources.slice(diag.primary_span()).unwrap())
+                    .collect::<Vec<_>>(),
+                [error_text, changed],
+                "{condition}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rejected_calls_keep_non_null_facts_with_deferred_recovery_roots() {
+    let declarations = "
+        fun choose(seed: Int, inout x: Int?, cb: (Int) -> Int): Boolean = true
+        fun choose(seed: Int, inout x: Int?, cb: (Boolean) -> Boolean): Boolean = true
+    ";
+    for (scope, parameters, call) in [
+        (
+            format!("class Picker {{ {declarations} }}"),
+            "seed: Int?, picker: Picker",
+            r#"picker.choose(0, &x, { it + "" })"#,
+        ),
+        (
+            declarations.to_owned(),
+            "seed: Int?",
+            r#"choose("wrong", &x, { it })"#,
+        ),
+    ] {
+        let text = format!(
+            "{scope}
+             fun test({parameters}): Int {{
+                 var x = seed
+                 if (x != null && {call}) {{ return x }}
+                 return 0
+             }}"
+        );
+        let (_, _, entries) = checked_entries(&text);
+        for (_, typed) in entries {
+            assert_eq!(codes(typed.diagnostics()), ["L0123"], "{call}");
+        }
+    }
+}
+
+#[test]
+fn rejected_callee_shapes_do_not_kill_inout_narrowing() {
+    let declarations = "
+        fun choose(seed: Int, cb: (Int) -> Int): (inout Int?) -> Boolean = { _ -> true }
+        fun choose(seed: Int, cb: (Boolean) -> Boolean): (inout Int?) -> Boolean = { _ -> true }
+        fun badIndex(seed: Int, cb: (Int) -> Int): Int = 0
+        fun badIndex(seed: Int, cb: (Boolean) -> Boolean): Int = 0
+    ";
+    for (parameters, call, expected) in [
+        (
+            "seed: Int?, callback: (inout Int?) -> Boolean",
+            "callback<Int>(&x)",
+            [].as_slice(),
+        ),
+        (
+            "seed: Int?",
+            r#"(choose("wrong", { it }))(&x)"#,
+            ["L0123"].as_slice(),
+        ),
+        (
+            "seed: Int?",
+            r#"choose("wrong", { it })[0](&x)"#,
+            ["L0123"].as_slice(),
+        ),
+        (
+            "seed: Int?, items: List<(inout Int?) -> Boolean>",
+            r#"items[badIndex("wrong", { it })](&x)"#,
+            ["L0123"].as_slice(),
+        ),
+    ] {
+        let text = format!(
+            "{declarations}
+             fun test({parameters}): Int {{
+                 var x = seed
+                 if (x != null && {call}) {{ return x }}
+                 return 0
+             }}"
+        );
+        let (_, _, entries) = checked_entries(&text);
+        for (_, typed) in entries {
+            assert_eq!(codes(typed.diagnostics()), expected, "{call}");
+            assert!(typed.calls().is_empty(), "{:?}", typed.calls());
+        }
+    }
+}

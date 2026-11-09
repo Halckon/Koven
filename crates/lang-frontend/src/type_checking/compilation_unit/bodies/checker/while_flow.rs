@@ -2,8 +2,8 @@
 use super::{flow::FlowKey, *};
 use crate::parser::{BinaryOperator, PrefixOperator};
 use crate::type_checking::flow_effects::{
-    collect_expression_mutation_targets, collect_statement_mutation_targets,
-    logical_rhs_is_required,
+    collect_expression_mutation_targets, collect_expression_mutation_targets_with_inout_filter,
+    collect_statement_mutation_targets, logical_rhs_is_required,
 };
 
 #[derive(Clone, Default)]
@@ -222,13 +222,19 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> Result<BTreeSet<FlowKey>, CompilationUnitTypeError> {
-        Ok(
-            collect_expression_mutation_targets(self.file(source).ast(), expression)
-                .map_err(TypeCheckingError::from)?
-                .into_iter()
-                .filter_map(|target| self.stable_flow_key(source, target))
-                .collect(),
+        Ok(collect_expression_mutation_targets_with_inout_filter(
+            self.file(source).ast(),
+            expression,
+            |call| {
+                !self
+                    .inactive_inout_calls
+                    .contains(&UnitExpressionId::new(source, call))
+            },
         )
+        .map_err(TypeCheckingError::from)?
+        .into_iter()
+        .filter_map(|target| self.stable_flow_key(source, target))
+        .collect())
     }
 
     pub(super) fn check_repeating_flow(

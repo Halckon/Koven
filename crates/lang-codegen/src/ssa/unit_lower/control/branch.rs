@@ -48,18 +48,9 @@ impl UnitExpressionLowerer<'_> {
         drop_point: UnitDropPoint,
         result_plan: ControlResult,
     ) -> Result<Option<BranchExit>, LoweringError> {
-        if !matches!(drop_point, UnitDropPoint::BranchExit { control, .. } if control == result_plan.control)
-        {
-            return Err(lowering_error(
-                LoweringErrorKind::MissingFact,
-                self.statement_span(statement)?,
-            ));
-        }
-        let result_required = result_plan.required;
         self.block = block;
         self.current_receiver = receiver;
         self.consumed_receiver = consumed_receiver;
-        let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.nullable_proofs = nullable_proofs;
@@ -68,8 +59,26 @@ impl UnitExpressionLowerer<'_> {
         self.capture_loans = capture_loans;
         self.pending_operands = pending_operands;
         self.pending_call_frames = pending_call_frames;
-        let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
         self.temporaries = temporaries;
+        self.lower_current_if_branch(statement, drop_point, result_plan)
+    }
+
+    pub(super) fn lower_current_if_branch(
+        &mut self,
+        statement: StatementId,
+        drop_point: UnitDropPoint,
+        result_plan: ControlResult,
+    ) -> Result<Option<BranchExit>, LoweringError> {
+        if !matches!(drop_point, UnitDropPoint::BranchExit { control, .. } if control == result_plan.control)
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                self.statement_span(statement)?,
+            ));
+        }
+        let result_required = result_plan.required;
+        let entry_symbols = self.bindings.keys().copied().collect();
+        let entry_temporaries = self.temporaries.keys().copied().collect::<Vec<_>>();
         let result_expression = result_required
             .then(|| self.control_tail_expression(statement))
             .transpose()?;

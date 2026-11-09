@@ -66,7 +66,12 @@ impl Builder<'_, '_> {
         }
         let middle = self.body.block();
         let skip = self.body.block();
-        if and {
+        if self.inputs.constant_owned.is_none() && self.inputs.typed.ordinary_rhs_required(control)
+        {
+            if self.required(left)?.is_some() {
+                self.goto(middle, span)?;
+            }
+        } else if and {
             self.condition_internal(left, middle, skip, views, None)?;
         } else {
             self.condition_internal(left, skip, middle, views, None)?;

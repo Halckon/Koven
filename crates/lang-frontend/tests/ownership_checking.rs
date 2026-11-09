@@ -733,23 +733,27 @@ fn checked_in_phase3_ownership_fixtures_execute_pass_and_fail_cases() {
         assert_eq!(files.len(), 1, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 ownership fixture");
-            let (_, _, checked) = checked(&text);
-            if should_pass {
-                assert!(checked.diagnostics().is_empty(), "{path:?}");
-            } else {
-                let expected =
-                    fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar");
-                let actual = checked
-                    .diagnostics()
-                    .iter()
-                    .map(|diagnostic| {
-                        let span = diagnostic.primary_span();
-                        format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    + "\n";
-                assert_eq!(actual, expected, "{path:?}");
+            let expected = (!should_pass).then(|| {
+                fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar")
+            });
+            for rooted in [false, true] {
+                let (_, _, unit) =
+                    nullable_unit::checked(&text, "ownership.ko", rooted, environments());
+                if let Some(expected) = &expected {
+                    let actual = unit
+                        .diagnostics()
+                        .iter()
+                        .map(|diagnostic| {
+                            let span = diagnostic.primary_span();
+                            format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        + "\n";
+                    assert_eq!(&actual, expected, "{path:?} (rooted: {rooted})");
+                } else {
+                    assert!(unit.diagnostics().is_empty(), "{path:?} (rooted: {rooted})");
+                }
             }
         }
     }

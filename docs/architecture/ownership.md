@@ -36,14 +36,12 @@ owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，nam
 binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
 return/break/continue 清理已求值前缀，Abort 不展开。
 
-专用常量入口显式启用私有短路控制模式（空常量 unit 也启用），基础入口保持旧门禁。
-`short_circuit_plan` 供主 traversal、liveness、drop 共用：左侧正常完成后，依据 Boolean literal、
-typed 常量值或 Group 确定 RHS Always/Never/Conditional；不另行求值常量 initializer。
-动态路径合并 RHS 与 skip 后继，RHS 退出不抹去 skip；BranchExit 编号仍为 0=true、1=false。
-source-qualified `UnitShortCircuitPlan` 仅由实际访问收集，与物化计划一起受错误/deferred 原子门禁
-保护，专用 validate 同时要求两者完整。专用 recovery/owned 提供只读计划列表，owned 还可按
-expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定，字段不可外部构造或修改。
-专用 unit native 已消费该短路计划；基础 native 入口保持原能力边界。
+基础 Unit 共用类型产物的布尔正常结果。短路 RHS 提前退出时保留可达旁路，析构边仍为
+0=求值 RHS 后正常完成、1=旁路。专用常量入口显式启用独立短路计划，空常量 unit 也启用。
+`short_circuit_plan` 供遍历、活性和析构共用。常量模式以 Boolean literal、typed 常量值或
+Group 决定 RHS，无需再次求值 initializer。动态计划保留可达旁路，编号为 0=true、1=false。
+仅常量入口发布实际访问的 source-qualified `UnitShortCircuitPlan`，与物化计划一起通过
+错误/deferred 原子门禁。专用 owned 支持按 expression 查询，专用 native 消费这些计划。
 
 专用模式由主遍历记录实际访问的 source-qualified lambda 集合；drop 前的 lambda liveness
 预扫描、lambda body 清理及公开 closure/capture 入口均按此集合筛选，避免不可达 lambda
