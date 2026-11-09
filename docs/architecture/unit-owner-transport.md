@@ -100,31 +100,38 @@ Control body 的私有结果通道保留实际尾表达式与既有求值帧 own
 
 V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
 定义最终 named Drop 的直线观察可按需投影；另有真实 planner 事务接纳严格限定的
-单绑定 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
-函数体唯一 `val`、initializer 是以该参数或其分组/逻辑非链为条件的显式 If；
+有界 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
+函数体先有一个 `val`，其 initializer 是以该参数或其分组/逻辑非链为条件的显式 If；
 条件链每个节点必须为非 constant-use 的精确 Boolean，叶节点仍是同一参数。分组和逻辑非
 沿原 planner 在分叉前求值，Choice 输入始终对应真实 then/else，不因逻辑非交换边。
 调用、常量、比较和短路条件仍拒绝。目标 binding 必须精确 String/MoveOnly。每边独立
 允许 String literal/Group literal（可包单尾 ControlBody），
 或恰一条不可变、精确 String/MoveOnly 局部 `val` 后接唯一 Name/Group 消费尾。局部
-initializer 仅无插值 literal/Group；两种边可以混搭，不接受额外语句或后续使用。
+initializer 仅无插值 literal/Group；两种边可以混搭。除下述一次转交外不接受额外语句或使用。
 
 String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 交付必须唯一且有序，
 局部 initializer 与 tail 各有独立结果帧和完成计数；每边独立 symbol→value 槽仅在
 真实 state.insert 返回后接收 Binding，实际 take_named 返回 Some 后才转移到 Name
 结果并清空局部槽。边出口不得残留 initializer 或 named owner，不复用旧 owner=None、
-不从事件或 cleanup 重建 token。chosen 同样在实际插入后绑定，最后由真实移除后的
+不从事件或 cleanup 重建 token。chosen 同样在实际插入后绑定；无后继时由真实移除后的
 精确 AfterStatement drop 闭合。任意退出、遗漏、重复、
 错误交付/cleanup 清空新事务。旧观察仍原子 Unsupported，不接收新定义或 Choice；
 原 cleanup/Single 见证保持。新能力与旧 observation 的 product/callable 绑定，旧 Eq
 只比较旧协议事实，新能力必须单独验证。新 Drop 带实际 point；未覆盖的 BranchExit、
 控制退出、When 等 point 不被 V1 图 validator 接受。
 
+可选唯一后继为不可变、精确 String/MoveOnly 的 `val forwarded = ((chosen))`。
+实际 take_named 成功后把同一 Choice 移入独立结果帧，逐层 Consume 完成才发布 Forward；
+post-insert 绑定新 symbol 并清空帧，最后只在后继声明的真实 AfterStatement 清理新根。
+chosen 不再有 named Drop。失败 take、Read、错序、重复或错误清理清空事务；不从旧
+owner=None、事件历史或 cleanup 重建身份。多次转交、var/nullable、调用、capture、
+控制退出与循环仍拒绝；V1 validator 和公开事件协议不变，验收见 SPEC-0341 §122。
+
 图守恒不等于 typed AST 准入。生产能力只由上述私有门禁和实际事件构造；手工图测试
 仍可测试更一般的 Binding/Pending/Replace 守恒，不意味着这些 Choice 消费者已接线。
 原候选范围与历史静态验收见 SPEC-0341 §87/§88/§101。
 branch-local 的 §89 前置验收依赖保留，不表示 D10 完成。条件包装切片的本机定向
-验证见 SPEC-0341 §120；它不扩展循环 phi、后续消费或 Phase 4。
+验证见 SPEC-0341 §120；本层仍不扩展循环 phi、通用后续消费或 Phase 4。
 
 ## String 根 swap 观察
 

@@ -4526,3 +4526,38 @@ Phase 3 的 V1 Choice 仅扩展条件准入：同一 Boolean 参数外可有分�
 frontend/workspace 全量、模型/故障注入、native、Linux 或正式精确头 CI。独立只读
 复审未见 blocker，确认逐层类型/身份限制和真实边序；不得把本机通过当作完整 D10/E2
 验收。本分支仅本地分步提交及 format-patch/bundle 备份，不 push、发布 PR 或合并。
+
+
+## 122. Choice 结果的一次具名转交（2026-11-09）
+
+本片依赖 §120 本地头 `53dd1599`，其主干基线仍为 `e1b0c2dc`；未合并其它 owner 或
+借用分支。Phase 3 只扩一个已明确定义的后继：原唯一 chosen 后允许一条不可变、
+精确 String/MoveOnly 的 `val forwarded = chosen` 或 Group 链，不允许第三条语句。
+initializer 的叶 Name 必须是原 chosen symbol；原条件、双边完整尾交付和局部边合同
+不变。V1 既有 Move/Forward/Bind validator 与公开协议原样复用，不新建 Choice producer。
+
+实际 take_named 返回原 symbol 后，事务把同一 Choice 放入独立结果帧；每层实际
+Consume 完成按顺序发布 Forward，post-insert 后绑定目标并清空帧。最终只接受真实
+后继声明 AfterStatement 的目标 Drop，chosen 不再被 named cleanup。失败 take、Read、
+未完成/重复/错序/提前绑定、结果残留或错误清理均原子清空事务。不从旧 owner=None、
+最后事件或 cleanup 重建 owner。只有一次转交，不开放 Pending/Replace、var/nullable、
+调用、capture、二次转交、Return/Abort、真实循环实例/phi、Phase 4/native 或 E3。
+
+测试先提交 `3fa1aebf`，首项在旧生产准入缺 V1 处真实失败。实现 `649790c6` 后，
+三种条件 × 四种边形态 × 三种 Name/Group 后继共36组合保完整 AST oracle；两条旧
+后续使用拒绝源码逐字迁为新正例，未删除覆盖。原 helper 仅拆出逐边部分，原直达 Drop
+断言保留，新 helper 独立核每个 Choice ID、所有 suffix 事件、最终声明/cleanup、
+零 chosen drop、旧 Unsupported 空表、sibling 和 observation on/off 全 Analysis。
+十一种真实拒绝后继包括调用、mutable/nullable、额外转交、binary、capture、控制与
+循环。新增单项20条手工 guard trace（1正19负）只编译未本机执行，不作真实生产证据。
+
+| 验收项 | 实际选择 | 本机结果 |
+|---|---|---|
+| 新真实源码 | `choice_forwarding` 三个普通 exact，不含手工 transaction 项 | 3 passed，0 failed/ignored |
+| 已有邻控 | §120 同一17项普通 exact，保留原 oracle及拒绝源码迁移 | 17 passed，0 failed/ignored |
+| 独立复验 | 在 `649790c6` 重跑新普通源码三个 exact | 各命中1项，3 passed，无 blocker |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全通过；863 Markdown、2222 Rust、35项既有超限；手工 guard 仅编译 |
+
+未跑 frontend/workspace 全量、手工 guard/模型/故障注入、native、Linux 或正式精确头 CI。
+只读独立复审未见 blocker，逐点核实际 hook 和 fail-closed；本片不 push、发布 PR 或
+合并。format-patch 与增量 bundle 按私有备份流程保留；完整 D10/E2 和循环 phi 仍未完成。
