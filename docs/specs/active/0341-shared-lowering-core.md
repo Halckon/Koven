@@ -6132,3 +6132,119 @@ locked/offline、默认debug、jobs=2，新的工作树专属target串行运行�
 
 该批将已有能力集中交付，不提供统一跨表全序、全CFG/absence/动态实例证明或native权限恢复，
 不退休原 Single 见证。call-derived/父子alias/provider等既有边界不扩展；D10/E2保持进行中。
+
+### D10/E2：规范类型种子消费者复用到最新主线（2026-11-08）
+
+以 `e1b0c2dc`（#377 已合入）新建独立分支，逐文件比较确认原候选 `e8284750` 的
+`canonical.rs` 与 `canonical_type_tables.rs` 在其父提交至本基线没有变化，且主线尚未
+覆盖该迁移。因此仅原样复用两文件，Architecture 在当前正文追加事实，不回滚已合入
+的 `lambda_completion` 等说明，不重放旧 Spec 账本或重复合入其他候选。
+
+原 `package sample` 空源保持不变。MemoryDocument/Rooted 两入口各检查 signature/raw
+表的固定18个 builtin 加 Signed/Unsigned literal 与 Error 共21种种子顺序、完整 kind
+反查和总长度，不从另一入口或生产 ALL 动态生成期望。原 local/unit builtin 身份对照
+保留在既有 canonical 核心测试，直接检查两表 ID 和 kind，不再运行旧 Single checker。
+本片退休一个 integration Single checker 消费者；不改生产类型表实现或公开 API。
+
+本基线实际验收：`canonical_type_tables` 1 passed，精确 canonical 核心单测 1 passed；
+frontend all-targets Clippy `-W clippy::all -D warnings`、fmt、docs、相对本基线尺寸与
+`git diff --check` 全通过。863份 Markdown、2220份手写 Rust，35项既有超1000行，
+未新增尺寸例外或提高额度。独立复审确认原样复用、固定 oracle 与旧合同保全。
+Mac AArch64、Rust/Cargo1.96，locked/offline、默认debug、jobs=2，复用独立 target 串行。
+本片仅 cfg(test)/integration/docs，不改公开 API，未额外运行 workspace check；未跑
+frontend全量、Abort、CI-only注入、native、Linux或远端CI。保持 D10/E2 in-progress，
+仅本地提交及经恢复验证的 format-patch/bundle 备份，不推送、合并。
+
+
+### D10/E2：去重复补强已合入失败 trial 见证（2026-11-09）
+
+逐项比对原本地 `dc9fd259` 与 main `e1b0c2dc` 后确认，#377 的 `efa28997` 已引入
+双入口 `failed_trials` 基础见证。本片不再注册原候选的 `rejected_trials`，不重复合入
+其同类空表/参数/调用检查，仅在现有 helper 补缺失断言；`type_callable.rs` 原入口与
+完整 Single Error 封存见证保持字节不变，不把 Unit 的缺失事实改称 Error 哨兵。
+
+保留 #377 的双分析、两参数、空 calls/modes 和 observed=[2,2] 原断言；新增原两处
+callee 的完整 primary Span/SourceId 与 resolve 切片、重复完整类型表，以及所有表达式
+类型/类别的一致性。两个 lambda 及其 it/true body 共四项直接查询均为 None，不能用
+悬空 TypeId 经表查询变成 None 冒充撤销。先于 `_ => continue` 核所有表达式；原合法
+函数体 1 与 "text" 分别保持 Int/String，双分析均验证，防止回滚误删既有事实。
+Architecture 只补该事实，保留 main 的 lambda_completion 等现行说明。无生产或公开
+API 变更，旧 Single 消费者退休数仍为零。
+
+| 验收项 | 本组合实际结果 |
+|---|---|
+| 原 callable 全部普通合同 | `type_callable` 20 passed；仅整项排除既有 `standard_error_has_a_stable_abort_identity_and_nothing_result` |
+| 最终类型准入邻控 | `failed_contextual_lambda_recovery_preserves_call_and_live_roots` exact 1 passed |
+| 前一步规范类型种子 | integration 与 canonical core 各复跑 1 passed |
+| 静态门 | frontend all-targets Clippy `-W clippy::all -D warnings`、fmt、docs、相对 e1b0c2dc 的尺寸与 diff 全通过 |
+
+组合共23项实际定向测试，不累计前一步重复运行；863份Markdown、2220份手写Rust，
+35项既有超1000行，尺寸政策未改。独立只读复审确认不削弱 #377 或原 Single oracle，
+直接 None、四项计数与合法 body 正控完整。Mac AArch64、Rust/Cargo1.96，locked/offline、
+默认debug、jobs=2，复用同一 target 串行。测试 helper 变更未要求额外 workspace check；
+未跑 frontend全量、Abort、CI-only注入、native、Linux或远端CI。基于上述main线性追加
+本地提交，不推送、合并；每步分别导出 format-patch/bundle 并验证精确基线恢复与
+私有云盘回读完整性，D10/E2继续in-progress。
+
+## 普通分支 join 消费者迁移（2026-11-09）
+
+独立分支 `fix/spec-0341-branch-join-consumers` 基于 main `e1b0c2dc`，代码
+提交 `c85c09a4`。本次 fetch 的远端引用中，目标文件没有未合入提交；不叠加
+Choice owner、receiver loop-prefix、String clone、类型候选或容器 signature 后继。
+
+主线 `5ec4ed94` 已修正 bottom initializer 结束 callable 时的旧 Single L0088
+差距。迁移前临时给原 Single/Rooted helper 追加 MemoryDocument/Rooted 对照，
+原9项测试全部通过；临时代码不提交，日志留备份。
+
+- `same_type_and_bottom_branches_keep_exact_result` 的12份原源码迁至双 Unit，
+  保留 Int/Nothing 根类型、raw 无诊断及 final 成功。原分支/return/declaration
+  oracle 不变，新增20+4次观察计数。
+- `expected_types_keep_original_mismatch_diagnostics` 的6份普通原源码迁至双
+  Unit，保留唯一 L0084、原 `"text"` primary 及 final diagnostics 与 raw 完全相等，
+  新增12次观察计数。
+- `observe_text` 保留同一源码、AST、标准环境，新增唯一 SourceId 和真实
+  MemoryDocument/Rooted key/root/path 断言。只删除不再使用的旧包装函数。
+- runtime Any 的4份 Single/Rooted 源码与 helper 函数体原样保留：旧入口的
+  L0165、26..29范围和后续raw，与Unit双L0084仍分别约束，不声称其等价。
+
+| 验收项 | 命令 / 范围 | 实际结果 |
+|---|---|---|
+| 迁移前入口对照 | 临时扩展的 `control_branch_join` 全目标 | 9 passed，0 failed/ignored/filtered |
+| 迁移及终止流邻控 | `cargo test --locked --offline -p lang-frontend --test control_branch_join --test lambda_completion --test final_type_admission --no-fail-fast` | 9 + 4 + 63 passed，0 failed/ignored/filtered |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、相对main尺寸 | 通过；目标Rust文件921行，不增例外额度 |
+| 独立只读复审 | 原源码/oracle、入口身份、观察次数与Any差异保全 | 无代码阻断；其余七项测试正文及保留的两个旧helper函数体逐字未变 |
+
+Linux x86_64、Rust1.96.0、默认debug、离线锁定依赖。本片只改测试消费者与事实
+记录，不改生产、语言语义、依赖或CI。未运行frontend全量、workspace
+check、native、故障注入、macOS或正式PR CI。仅本地分步提交与私人补丁备份，
+不推送、不合并；D10/E2仍in-progress。
+
+## 未声明 component 的 final 消费者迁移（2026-11-09）
+
+独立分支 `fix/spec-0341-structural-consumers` 基于 main `e1b0c2dc`，代码提交
+`4f59b9bd`。本次 fetch 的远端引用中，目标文件没有未合入提交；不叠加已发布的
+Choice、借用、类型、容器 signature 或 branch join 候选。
+
+只迁移 `value_class_does_not_supply_an_undeclared_component_method` 的一份原源码。
+先在同一 SourceMap/AST 上临时用完整 Diagnostic 相等断言核 Single 与两个 Unit
+入口，exact 测试通过后撤回临时比较，再退休该 Single 分析。保留重复解析、自定义
+环境、两条 L0165、原 `pair.component1` primary、空 details、无 call/projection
+及 final 拒绝。新增实际 SourceId 和 MemoryDocument/Rooted key/root/path 检查；
+不改生产、不启用自动 component、不把 raw 可观察性当作最终准入。
+
+本轮先尝试字段与 fixture 消费者的完整诊断对照，临时 target 为9 passed/2 failed。
+两个首轮 MemoryDocument 负例都额外发布 selected-parameter label，Single 没有；
+相应 Rooted 负例尚未到达，不能推断结果。这不是主线原测试失败，也没有修改预期
+来求等价。两项原消费者、旧 helper 和 sidecar 全部保留；其余测试正文逐字不变。
+
+| 验收项 | 命令 / 范围 | 实际结果 |
+|---|---|---|
+| 同源完整 final 诊断对照 | 原目标 `value_class_does_not_supply_an_undeclared_component_method` exact，临时 `assert_eq!(single, unit)` | 1 passed，10 filtered；覆盖两个Unit入口 |
+| 迁移与共享final邻控 | `cargo test --locked --offline -p lang-frontend --test ownership_structural --test final_type_admission --no-fail-fast` | 11 + 63 passed，0 failed/ignored/filtered |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、diff、相对main尺寸 | 通过；目标Rust文件564行，不增尺寸额度 |
+| 独立只读复审 | 原源码/oracle、双入口身份、非等价Single保全 | 无阻断；从BUILTINS起的helper及其他测试逐字不变 |
+
+Linux x86_64、Rust1.96.0、默认debug、locked/offline。首轮fmt只发现局部import
+应为单行，修正后重新通过；首次被fmt阻止的测试不计运行。未执行frontend全量、
+workspace check、native、故障注入、macOS或正式PR CI。按本轮授权仅本地分步提交，
+不生成补丁备份、不上传、不推送、不合并；D10/E2仍in-progress。

@@ -229,9 +229,39 @@ pub(super) fn failed_trials(
     environment: &NameEnvironment,
     types: &TypeEnvironment,
 ) {
+    let expressions = parsed.ast().expressions();
+    let lambdas = expressions
+        .iter()
+        .filter_map(|(_, node)| {
+            matches!(node.payload(), Expression::Lambda { .. }).then_some(node.span())
+        })
+        .collect::<Vec<_>>();
+    let mut callees = expressions
+        .iter()
+        .filter_map(|(_, node)| match node.payload() {
+            Expression::Call { callee, .. } => Some(expressions.get(*callee).unwrap().span()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    callees.sort_by_key(|span| span.start());
+    assert_eq!(callees.len(), 2);
+    assert!(
+        callees
+            .iter()
+            .all(|&span| sources.slice(span) == Ok("resolve"))
+    );
     for (names, typed, repeated) in checked_entries(sources, parsed, environment, types) {
         assert_eq!(codes(typed.diagnostics()), ["L0124", "L0123"]);
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.primary_span())
+                .collect::<Vec<_>>(),
+            callees
+        );
         assert_eq!(typed.diagnostics(), repeated.diagnostics());
+        assert_eq!(typed.types(), repeated.types());
         assert!(typed.calls().is_empty());
         assert_eq!(typed.calls(), repeated.calls());
         assert!(typed.body_parameter_modes().is_empty());
@@ -261,7 +291,36 @@ pub(super) fn failed_trials(
         }
 
         let mut observed = [0, 0];
-        for (expression, node) in parsed.ast().expressions().iter() {
+        let mut withheld = 0;
+        for (expression, node) in expressions.iter() {
+            let id = UnitExpressionId::new(source.source_unit(), expression);
+            assert_eq!(typed.expression_type(id), repeated.expression_type(id));
+            assert_eq!(
+                typed.expression_category(id),
+                repeated.expression_category(id)
+            );
+            if lambdas.iter().any(|span| {
+                span.source_id() == node.span().source_id()
+                    && span.start() <= node.span().start()
+                    && node.span().end() <= span.end()
+            }) {
+                withheld += 1;
+                for analysis in [&typed, &repeated] {
+                    // Query absence directly: an invalid TypeId must not masquerade as None.
+                    assert_eq!(
+                        analysis.expression_type(id),
+                        None,
+                        "trial type leaked at {:?}",
+                        node.span()
+                    );
+                    assert_eq!(
+                        analysis.expression_category(id),
+                        None,
+                        "trial category leaked at {:?}",
+                        node.span()
+                    );
+                }
+            }
             let expected = match node.payload() {
                 Expression::Lambda { .. } => {
                     observed[0] += 1;
@@ -273,7 +332,6 @@ pub(super) fn failed_trials(
                 }
                 _ => continue,
             };
-            let id = UnitExpressionId::new(source.source_unit(), expression);
             for analysis in [&typed, &repeated] {
                 let actual = analysis
                     .expression_type(id)
@@ -282,5 +340,25 @@ pub(super) fn failed_trials(
             }
         }
         assert_eq!(observed, [2, 2]);
+        assert_eq!(withheld, 4, "two original lambdas and their it/true bodies");
+        // Rollback must preserve already checked, unrelated source bodies in this same pass.
+        for (literal, builtin) in [("1", BuiltinType::Int), ("\"text\"", BuiltinType::String)] {
+            let literals = expressions
+                .iter()
+                .filter(|(_, node)| sources.slice(node.span()) == Ok(literal))
+                .map(|(local, _)| UnitExpressionId::new(source.source_unit(), local))
+                .collect::<Vec<_>>();
+            let [id] = literals.as_slice() else {
+                panic!("one untouched original function body for {literal}")
+            };
+            for analysis in [&typed, &repeated] {
+                assert_eq!(
+                    analysis
+                        .expression_type(*id)
+                        .and_then(|ty| analysis.types().get(ty)),
+                    Some(&UnitTypeKind::Builtin(builtin))
+                );
+            }
+        }
     }
 }
