@@ -183,6 +183,8 @@ pub(super) struct FileCallableFacts {
 pub(super) struct UnitCallableFacts {
     pub(super) call_dispatch: BTreeMap<UnitExpressionId, bool>,
     pub(super) completed_arguments: BTreeSet<UnitExpressionId>,
+    pub(super) entered_calls: BTreeSet<UnitExpressionId>,
+    pub(super) entered_lambdas: BTreeSet<UnitExpressionId>,
     pub(super) origins: Vec<UnitCallableOriginFact>,
     pub(super) returns: Vec<UnitPointerCallableReturnSummary>,
     pub(super) closure_returns: Vec<UnitClosureCallableReturnSummary>,
@@ -232,6 +234,21 @@ impl CompilationUnitOwnership {
     pub fn call_argument_completed(&self, expression: UnitExpressionId) -> bool {
         self.callable_provenance
             .completed_arguments
+            .contains(&expression)
+    }
+
+    /// Reports whether this validated analysis entered evaluation of the call.
+    /// A call can be entered even if evaluating its receiver or an argument exits early.
+    #[must_use]
+    pub fn call_site_was_entered(&self, expression: UnitExpressionId) -> bool {
+        self.callable_provenance.entered_calls.contains(&expression)
+    }
+
+    /// Reports whether ownership reached the lambda formation and checked its body.
+    #[must_use]
+    pub fn lambda_was_entered(&self, expression: UnitExpressionId) -> bool {
+        self.callable_provenance
+            .entered_lambdas
             .contains(&expression)
     }
 

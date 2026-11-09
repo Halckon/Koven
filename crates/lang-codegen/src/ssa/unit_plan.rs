@@ -377,7 +377,7 @@ pub(super) fn plan_unit_instances_from_facts(
         ));
     }
 
-    let calls_by_template = index_calls(typed, parsed_by_source, &templates)?;
+    let calls_by_template = index_calls(typed, owned, parsed_by_source, &templates)?;
     let mut pending = BTreeSet::from([UnitFunctionInstanceKey::new(entry, Vec::new())]);
     let mut planned = BTreeMap::new();
     let mut runtime_type_demands = BTreeMap::new();
@@ -570,6 +570,7 @@ pub(super) fn plan_unit_instances_from_facts(
         let resource_lambdas = callables.selected_resource_lambdas(source_token);
         deinit::plan_instance_deinits(
             typed,
+            owned,
             names,
             parsed_by_source[template.source_unit.index()],
             template,
@@ -718,6 +719,7 @@ fn callable_item(
 
 fn index_calls(
     typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     parsed_by_source: &[&ParsedFile],
     templates: &[UnitFunctionTemplate],
 ) -> Result<Vec<Vec<(usize, Span)>>, LoweringError> {
@@ -738,6 +740,9 @@ fn index_calls(
                 span: None,
             })?
             .span();
+        if !owned.call_site_was_entered(expression) {
+            continue;
+        }
         let mut owners = templates.iter().enumerate().filter(|(_, template)| {
             template.source_unit == expression.source_unit() && span_contains(template.span, span)
         });

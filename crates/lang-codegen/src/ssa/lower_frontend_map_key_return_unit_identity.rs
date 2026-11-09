@@ -313,13 +313,16 @@ fn frontend(unit: &UnitSource, operation: &str, key_text: &str, count: usize) ->
     }
 }
 
-fn function_at(program: &Program, span: Span) -> &Function {
-    let functions = program
+fn functions_at(program: &Program, span: Span) -> impl Iterator<Item = &Function> {
+    program
         .modules
         .iter()
         .flat_map(|module| &module.functions)
-        .filter(|function| function.origin == Origin::Source(span))
-        .collect::<Vec<_>>();
+        .filter(move |function| function.origin == Origin::Source(span))
+}
+
+fn function_at(program: &Program, span: Span) -> &Function {
+    let functions = functions_at(program, span).collect::<Vec<_>>();
     one::<&Function>(&functions, "unique function at original declaration Origin")
 }
 
@@ -498,7 +501,9 @@ fn check_paths(function: &Function, anchors: &Anchors, count: usize) {
 
 fn ssa(program: &Program, anchors: &Anchors, operation: &str, count: usize) {
     let function = function_at(program, anchors.inspect);
-    let suffix = function_at(program, anchors.suffix_declaration);
+    let suffixes = functions_at(program, anchors.suffix_declaration).collect::<Vec<_>>();
+    assert_eq!(suffixes.len(), count, "only an entered suffix has a body");
+    let suffix = suffixes.first().map(|function| function.id);
     let constructions = function
         .instructions
         .iter()
@@ -562,7 +567,7 @@ fn ssa(program: &Program, anchors: &Anchors, operation: &str, count: usize) {
         else {
             panic!("original suffix is a direct top-level call")
         };
-        assert_eq!(*callee, suffix.id);
+        assert_eq!(Some(*callee), suffix);
         assert!(arguments.is_empty());
         assert_eq!(instruction.origin, Origin::Source(anchors.suffix));
     }

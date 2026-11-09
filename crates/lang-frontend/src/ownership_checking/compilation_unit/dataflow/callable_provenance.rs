@@ -159,6 +159,9 @@ impl Checker<'_> {
         let ast = self.parsed.ast().expressions().get(id)?;
         let span = ast.span();
         let expression = ast.payload().clone();
+        if matches!(expression, Expression::Call { .. }) {
+            self.entered_calls.insert(self.unit_expression(id));
+        }
         let name = if matches!(expression, Expression::Name) {
             if let Some(target) = self.named_callable(id) {
                 Some(
@@ -325,6 +328,7 @@ pub(super) fn finish(
     collection: &Collection,
     typed: &crate::type_checking::CompilationUnitTypes,
     capture_index: &CaptureIndex<'_>,
+    entered_calls: BTreeSet<UnitExpressionId>,
     call_dispatch: BTreeMap<UnitExpressionId, bool>,
     completed_arguments: BTreeSet<UnitExpressionId>,
 ) -> UnitCallableFacts {
@@ -390,8 +394,10 @@ pub(super) fn finish(
     UnitCallableFacts {
         call_dispatch,
         completed_arguments,
+        entered_calls,
         origins,
         returns,
         closure_returns,
+        ..UnitCallableFacts::default()
     }
 }

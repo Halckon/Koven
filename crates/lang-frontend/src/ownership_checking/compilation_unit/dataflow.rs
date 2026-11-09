@@ -212,6 +212,7 @@ pub(super) fn analyze(
     let mut formed_owned_locals = Vec::new();
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
+    let mut entered_calls = std::collections::BTreeSet::new();
     let mut call_dispatch = BTreeMap::new();
     let mut completed_arguments = std::collections::BTreeSet::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
@@ -311,6 +312,7 @@ pub(super) fn analyze(
         iteration_loan_ends.extend(drop_analysis.iteration_loan_ends);
         iteration_required_exits.extend(drop_analysis.iteration_required_exits);
         short_circuits.extend(checker.short_circuits.into_values());
+        entered_calls.extend(checker.entered_calls);
         call_dispatch.extend(checker.call_dispatch);
         completed_arguments.extend(checker.completed_arguments);
         visited_lambdas.extend(checker.visited_lambdas);
@@ -369,6 +371,7 @@ pub(super) fn analyze(
             &callable_sources,
             typed,
             &capture_index,
+            entered_calls,
             call_dispatch,
             completed_arguments,
         )
@@ -482,6 +485,7 @@ struct Checker<'a> {
         crate::type_checking::UnitStatementId,
         crate::ownership_checking::UnitMapIterationOwnershipPlan,
     >,
+    entered_calls: std::collections::BTreeSet<UnitExpressionId>,
     call_dispatch: BTreeMap<UnitExpressionId, bool>,
     completed_arguments: std::collections::BTreeSet<UnitExpressionId>,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
@@ -645,6 +649,7 @@ impl<'a> Checker<'a> {
             callable_sources,
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
+            entered_calls: std::collections::BTreeSet::new(),
             call_dispatch: BTreeMap::new(),
             completed_arguments: std::collections::BTreeSet::new(),
             visited_lambdas: std::collections::BTreeSet::new(),

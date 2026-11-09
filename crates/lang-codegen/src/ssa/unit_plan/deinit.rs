@@ -41,6 +41,7 @@ pub(super) fn template(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn plan_instance_deinits(
     typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     names: &ValidatedCompilationUnitNames,
     parsed: &ParsedFile,
     template: &UnitFunctionTemplate,
@@ -120,8 +121,18 @@ pub(super) fn plan_instance_deinits(
             lambda_spans[0].1,
         ));
     }
+    let unentered_lambda_spans = lambda_spans
+        .iter()
+        .filter_map(|&(lambda, span)| (!owned.lambda_was_entered(lambda)).then_some(span))
+        .collect::<Vec<_>>();
     let mut visited = BTreeSet::new();
     for (ty, span) in roots {
+        if unentered_lambda_spans
+            .iter()
+            .any(|&lambda_span| span_contains(lambda_span, span))
+        {
+            continue;
+        }
         // This pass adds destructor reachability, not general runtime type validation.
         // In particular, a generic source callable has a pure function type whose
         // unresolved parameters must remain under the existing callable planner.
