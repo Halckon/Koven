@@ -116,6 +116,8 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
             assert_eq!(rejected.sources.slice(span).unwrap(), "target");
         }
         assert!(shared.string_clone_loan_ends().is_empty());
+        assert!(shared.receiver_call_return_ends().is_empty());
+        assert!(shared.receiver_call_prefix_ends().is_empty());
         // Observe dataflow::analyze directly: CompilationUnitOwnership::new must not
         // hide a missing clear in the earlier production gate.
         assert_cleared(&raw);
@@ -818,4 +820,24 @@ fn real_deferred_and_diagnostic_clear_nonempty_string_clone_ends() {
             assert!(raw.loans.contains(end.loan()));
         },
     );
+}
+
+#[test]
+fn later_rejections_clear_simultaneously_nonempty_receiver_and_clone_end_tables() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(node: Node): Unit { val seed = \"kept\"; node.touch(seed.clone(), 0); node.touch(\"prefix\".clone(), return) }";
+    assert_rejections_clear(text, false, |accepted, raw| {
+        assert_eq!(raw.receiver_call_return_ends.len(), 1);
+        assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
+        assert_eq!(raw.string_clone_loan_ends.len(), 2);
+        let shared = accepted.shared();
+        assert_eq!(
+            raw.receiver_call_return_ends,
+            shared.receiver_call_return_ends()
+        );
+        assert_eq!(
+            raw.receiver_call_prefix_ends,
+            shared.receiver_call_prefix_ends()
+        );
+        assert_eq!(raw.string_clone_loan_ends, shared.string_clone_loan_ends());
+    });
 }

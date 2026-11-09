@@ -245,3 +245,18 @@ fun copy(): String { return select("inner".clone(), return "done").clone() }"#,
         assert_eq!(compare_and_inspect(&fixture, &parts, |_| {}), ends);
     }
 }
+
+#[test]
+fn owner_observation_preserves_simultaneously_nonempty_receiver_and_clone_end_tables() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(node: Node): Unit { val seed = \"kept\"; node.touch(seed.clone(), 0); node.touch(\"prefix\".clone(), return) }";
+    let fixture = Fixture::new(&[("root.ko", text)]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    assert_eq!(shared.receiver_call_return_ends().len(), 1);
+    assert_eq!(shared.receiver_call_prefix_ends().len(), 1);
+    assert_eq!(shared.string_clone_loan_ends().len(), 2);
+    assert_eq!(
+        compare_and_inspect(&fixture, &fixture.parts(&shared), |_| {}),
+        2
+    );
+}
