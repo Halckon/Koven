@@ -38,6 +38,7 @@ fn angle_separator_metrics(text: &str, diagnostic_count: usize) -> (usize, usize
         file_mode: true,
         ast: ExpressionAst::new(source_id),
         diagnostics: Vec::new(),
+        missing_block_closers: Vec::new(),
         declaration_recovery_raw_visits: 0,
         declaration_recovery_event_queries_and_applications: 0,
         block_dispatch_iterations: 0,
@@ -87,4 +88,38 @@ fn recovery_scans_paired_angle_groups_once() {
     assert!(small_recovery > 32);
     assert!(large_significant <= small_significant * 2 + 64);
     assert!(large_recovery <= small_recovery * 2 + 16);
+}
+
+#[test]
+fn block_dispatch_legal_error_and_nested_families_stay_linear() {
+    use super::tests::block_dispatch_metrics;
+
+    for (make, diagnostics_per_element) in [
+        (|count| format!("{{ {} }}", "val x = 1; ".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
+        (
+            |count| format!("{}{}", "{".repeat(count), "}".repeat(count)),
+            0,
+        ),
+    ] as [(fn(usize) -> String, usize); 4]
+    {
+        let (small_raw, small_iterations, small_visits, small_diagnostics) =
+            block_dispatch_metrics(make(32));
+        let (large_raw, large_iterations, large_visits, large_diagnostics) =
+            block_dispatch_metrics(make(64));
+        assert_eq!(small_diagnostics, diagnostics_per_element * 32);
+        assert_eq!(large_diagnostics, diagnostics_per_element * 64);
+        assert!(small_iterations <= small_raw);
+        assert!(large_iterations <= large_raw);
+        assert!(
+            small_visits <= small_raw * 32,
+            "{small_visits} > {small_raw} * 32"
+        );
+        assert!(
+            large_visits <= large_raw * 32,
+            "{large_visits} > {large_raw} * 32"
+        );
+        assert!(large_visits <= small_visits * 2 + 64);
+    }
 }

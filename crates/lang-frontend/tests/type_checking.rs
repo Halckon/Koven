@@ -700,11 +700,12 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
 fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase2");
     for (directory, should_pass) in [("type-pass", true), ("type-fail", false)] {
-        let files = fs::read_dir(root.join(directory))
+        let mut files = fs::read_dir(root.join(directory))
             .expect("fixture directory")
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
+        files.sort();
         assert_eq!(
             files.len(),
             if should_pass { 10 } else { 11 },
@@ -712,23 +713,28 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
         );
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
-            let (_, _, _, typed) = checked(&text);
-            if should_pass {
-                assert!(typed.diagnostics().is_empty(), "{path:?}");
-            } else {
-                let expected =
-                    fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar");
-                let actual = typed
-                    .diagnostics()
-                    .iter()
-                    .map(|diagnostic| {
-                        let span = diagnostic.primary_span();
-                        format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    + "\n";
-                assert_eq!(actual, expected, "{path:?}");
+            let (sources, file, entries) = unit_entries::checked_entries(&text);
+            let expected = (!should_pass).then(|| {
+                fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar")
+            });
+            for (entry, (_, typed)) in ["MemoryDocument", "Rooted"].into_iter().zip(entries) {
+                let diagnostics = typed.diagnostics();
+                if let Some(expected) = &expected {
+                    let actual = diagnostics
+                        .iter()
+                        .map(|diagnostic| {
+                            let span = diagnostic.primary_span();
+                            assert_eq!(span.source_id(), file.source_id(), "{entry} {path:?}");
+                            assert!(sources.slice(span).is_ok(), "{entry} {path:?}");
+                            format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        + "\n";
+                    assert_eq!(&actual, expected, "{entry} {path:?}");
+                } else {
+                    assert!(diagnostics.is_empty(), "{entry} {path:?}: {diagnostics:?}");
+                }
             }
         }
     }

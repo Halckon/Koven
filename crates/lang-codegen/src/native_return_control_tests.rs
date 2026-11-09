@@ -482,3 +482,31 @@ fun main(): Unit {
         );
     });
 }
+
+#[test]
+fn call_argument_diverging_loop_skips_dispatch_only_on_the_return_edge() {
+    let source = r#"
+fun consume(text: String, flag: Boolean): Unit {
+    if (!flag) { error("wrong delivered value") }
+    println(text)
+}
+fun work(outer: Boolean): Unit {
+    consume("outer" + " loan", if (outer) {
+        loop { return }
+    } else { true })
+}
+fun main(): Unit {
+    work(true)
+    work(false)
+    println("done")
+}
+"#;
+    let check = || {
+        assert_success(
+            &emit_link_and_run("argument-diverging-loop.ko", source, "main"),
+            b"outer loan\ndone\n",
+        );
+    };
+    check();
+    crate::ssa::with_per_family_lowering(check);
+}

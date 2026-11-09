@@ -3545,3 +3545,54 @@ return 和调用实际交付三条边。间接 Nothing 原生 7 项、旧 Unit �
 while proof 4 项通过，均零失败、零忽略。独立复核确认透明 alias 重绑定与无关 owner
 拒绝，格式、文档与 Rust 尺寸门禁通过。
 同一候选的全工作区全目标 Clippy 和 CLI 构建通过。
+
+PR #387 精确头 `498b4b6b` 的[实际双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42581057194)
+通过 Check/Clippy、定向测试、双宿主预览包生产及独立安装、Code CI Evidence 与 CI Passed。
+15 项通过，编辑器词法门禁按改动范围跳过。`main` 合并提交 `f2bef461` 的树与
+CI 检出的 `187de685` 一致。其[主干编辑器门禁](https://github.com/Halckon/Koven/actions/runs/42583721121/job/129048425878)
+完成实际安装与词法测试。上一主干 `e87de0ac` 的两次编辑器安装均因上游下载 HTTP 504 失败，
+该提交的双宿主编译器与预览包证据均通过。
+
+## 138. R4 值分支没有语法尾表达式时的终止交接
+
+在 `498b4b6b` 上，前端接受后续实参中的
+`if (outer) { loop { return } } else { true }`。原生红测在 loop span 报 MissingFact。
+兼容层在构建值分支前就要求尾表达式身份，尚未获知该分支是否正常继续。
+
+兼容层现将语法尾表达式读取为可选项，继续用已知尾身份识别 String? 的 null
+物化。实际 lowering 得到 Diverged 时不生成分支正常出口或尾值交付。正常继续并
+交付值时仍需原表达式身份，正常 Unit 仍无法交付要求的值。
+独立复核核对了退出、继续、null 尾值桥接、临时值边界和 nullable 专用准入。
+
+强化后的原生回归在默认与强制兼容路径通过，验证退出边不分派、继续边传入正确
+Boolean 并打印前序借用的 String。另有 19 项 return-control 测试及 String? guard
+定向测试通过。lang-codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+
+## 139. R0/R1/R2 Phase 2 夹具迁移与 L0088 闭合身份
+
+`50079c7b` 的旧 Single 夹具基线通过。将原 10 份成功和 11 份失败源码移到真实
+MemoryDocument 与 Rooted raw type 入口，保留解析、名称、源码身份和全部有序
+错误码及字节范围断言。两路对照只发现两项差异。顶层普通 val 的 L0167 符合
+Guide 05，侧车补一行并保留三项 L0142。L0088 的原侧车指向真实右花括号，
+Unit 实际输出在括号后，修正生产者并保留原基准。旧入口的独立身份与恢复见证仍执行。
+
+恢复独立复核发现两种 span 歧义。缺外层闭合但最后子块闭合时，原类型诊断停在
+最后有效 token，Parser 插入点在实际 EOF。缺 while body 时，错误节点又可借用
+真实函数右花括号范围，不能用 child 与 block 的结束位置相等判断缺失。两种情况
+先由同一真实恢复入口红测复现。Parser 现在只为缺闭合的 block 保存其实际恢复点，
+按新 StatementId 顺序写入稀疏表。函数体 L0088 共享选择器读取此事实，真实闭合时
+定位右花括号。解析结构和诊断保留，返回类型 label 保留。
+迁移所属合同见 [SPEC-0341](0341-shared-lowering-core.md)。
+
+最终恢复回归覆盖真实闭合、带 CRLF 尾部空白的 EOF，以及词法错误抑制 L0010
+时的 EOF，均核对返回类型 label。复核确认稀疏表有序且型参试探不会写入。
+原 block dispatch 复杂度测试归入现有 separator 模块，保留原操作计数与断言。
+前端单元 397 项、type_checking 102 项、multifile_type_checking 287 项、
+parser block continuation 11 项、CLI check 6 项及 LSP 单元 56 项通过，零失败、
+零忽略。前端全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+本机 LSP stdio 格式化 integration 经 Cargo 启动时，在候选和同环境 `498b4b6b`
+基线均报响应超时。直接运行各自生成的同一测试二进制，两边均通过。
+候选本机协议探针也实际完成单文件与项目初始化、格式化、更新、关闭和退出。
+Cargo 下的超时原因未定位，待远端对应测试验收。
