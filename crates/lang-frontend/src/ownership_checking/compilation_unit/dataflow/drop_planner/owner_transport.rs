@@ -40,6 +40,7 @@ impl DropPlanner<'_, '_> {
             definitions: Vec::new(),
             events: Vec::new(),
             choice_value: None,
+            loop_value: None,
         });
     }
 
@@ -63,6 +64,7 @@ impl DropPlanner<'_, '_> {
             definitions: Vec::new(),
             events: Vec::new(),
             choice_value: None,
+            loop_value: None,
         });
     }
 
