@@ -53,7 +53,7 @@ fn forward(expected: &mut Vec<Expected>, ids: &[UnitExpressionId], owner: &UnitO
     }
 }
 
-pub(super) fn assert_ast_graph(
+pub(super) fn assert_ast_edges(
     fixture: &Fixture,
     control_text: &str,
     graph: &UnitOwnerValueObservationV1,
@@ -163,6 +163,18 @@ pub(super) fn assert_ast_graph(
         assert_eq!(choice.inputs()[edge].tail(), *tail.last().unwrap());
         assert_eq!(choice.inputs()[edge].owner(), owner);
     }
+}
+
+pub(super) fn assert_ast_graph(
+    fixture: &Fixture,
+    control_text: &str,
+    graph: &UnitOwnerValueObservationV1,
+) {
+    assert_ast_edges(fixture, control_text, graph);
+    let ast = fixture.parsed[0].ast();
+    let control = fixture.expression(0, control_text);
+    let unit_control = UnitExpressionId::new(fixture.source(0), control);
+    let choice = graph.choice().unwrap();
     let chosen: Vec<_> = ast
         .statements()
         .iter()
