@@ -176,7 +176,6 @@ impl UnitExpressionLowerer<'_> {
             inner,
             scope: control,
             non_null_when_true: true,
-            consume: None,
         }))
     }
 }

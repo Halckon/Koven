@@ -6,16 +6,13 @@ use lang_frontend::{
     ownership_checking::UnitDropPoint,
     parser::Expression,
     source::Span,
-    type_checking::{IntrinsicTypeConstructor, UnitExpressionId, UnitMapSizeDescriptor},
+    type_checking::UnitExpressionId,
 };
 
-use super::{
-    ExpressionCategory, LoweredValue, UnitExpressionLowerer, UnitTypeKind, lowering_error,
-    resolve_concrete_type, span_key,
-};
+use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type, span_key};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, Operation, Origin, SsaTypeId, SsaTypeKind, ValueId},
+    model::{EntityId, EntityType, Operation, Origin, ValueId},
 };
 
 fn require_lowered_value(value: LoweredValue, span: Span) -> Result<ValueId, LoweringError> {
@@ -35,6 +32,7 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.map_with_value(id).is_some()
             || self.typed.map_get(id).is_some()
             || self.typed.map_consume(id).is_some()
+            || self.typed.map_remove(id).is_some()
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -49,9 +47,6 @@ impl UnitExpressionLowerer<'_> {
         }
         if self.typed.map_put(id).is_some() {
             return self.lower_map_put(expression, span).map(Some);
-        }
-        if self.typed.map_remove(id).is_some() {
-            return self.lower_map_remove(expression, span).map(Some);
         }
         Ok(None)
     }
@@ -93,13 +88,9 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .map_size(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let owner = match self.nullable_map_size_operand(id, descriptor, span)? {
-            Some(owner) => owner,
-            None => {
-                self.map_owner_operand(descriptor.receiver().expression(), span)?
-                    .0
-            }
-        };
+        let owner = self
+            .map_owner_operand(descriptor.receiver().expression(), span)?
+            .0;
         let int_ty = self.expression_ssa_type(expression, span)?;
         let result_id = self
             .function
@@ -115,131 +106,6 @@ impl UnitExpressionLowerer<'_> {
         };
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Value(val))
-    }
-
-    /// Qualify source/storage/read identity without producing or retiring a view.
-    /// The ordinary If producer and MapSize consumer use this same read boundary.
-    pub(super) fn qualified_nullable_map_size_read(
-        &self,
-        expression: UnitExpressionId,
-        descriptor: &UnitMapSizeDescriptor,
-        span: Span,
-    ) -> Result<Option<(UnitSymbolId, SsaTypeId, SsaTypeId)>, LoweringError> {
-        let receiver = descriptor.receiver();
-        if expression.source_unit() != self.source_unit
-            || receiver.source_unit() != self.source_unit
-            || descriptor.expression() != expression
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let mut operand = receiver.expression();
-        let mut operands = Vec::new();
-        let root = loop {
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(operand)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            operands.push(UnitExpressionId::new(self.source_unit, operand));
-            match node.payload() {
-                Expression::Group { expression } => operand = *expression,
-                Expression::Name => {
-                    break self
-                        .references
-                        .get(&span_key(node.span()))
-                        .copied()
-                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                }
-                _ => return Ok(None),
-            }
-        };
-        let storage = self
-            .typed
-            .symbol_type(root)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(self.typed.types().get(storage), Some(UnitTypeKind::Nullable(inner))
-        if matches!(self.typed.types().get(*inner), Some(UnitTypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap, ..
-        }))) {
-            return Ok(None);
-        }
-        let concrete =
-            |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
-        let declared = concrete(storage)?;
-        let Some(&nullable) = self.type_ids.get(&declared) else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let Some(&inner) = self.nullable_maps.get(&nullable) else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let use_fact = self
-            .typed
-            .non_null_use(receiver)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        let narrowed = concrete(use_fact.narrowed_type())?;
-        if root.source_unit() != self.source_unit
-            || use_fact.symbol() != root
-            || use_fact.declared_type() != storage
-            || concrete(descriptor.map_type())? != narrowed
-            || !matches!(self.typed.types().get(declared),
-                Some(UnitTypeKind::Nullable(target)) if *target == narrowed)
-            || self.type_ids.get(&narrowed) != Some(&inner)
-            || !matches!(
-                self.ssa_types.get(inner.index()),
-                Some(SsaTypeKind::MapContainer { .. })
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        if self.borrow_bindings.contains_key(&root) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        for operand in operands {
-            let fact = self
-                .typed
-                .non_null_use(operand)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if fact.expression() != operand
-                || fact.symbol() != root
-                || fact.declared_type() != storage
-                || fact.narrowed_type() != use_fact.narrowed_type()
-                || self.typed.expression_type(operand) != Some(fact.narrowed_type())
-                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-        }
-        Ok(Some((root, nullable, inner)))
-    }
-
-    fn nullable_map_size_operand(
-        &self,
-        expression: UnitExpressionId,
-        descriptor: &UnitMapSizeDescriptor,
-        span: Span,
-    ) -> Result<Option<EntityId>, LoweringError> {
-        let Some((root, nullable, inner)) =
-            self.qualified_nullable_map_size_read(expression, descriptor, span)?
-        else {
-            return Ok(None);
-        };
-        let proof = self
-            .nullable_proofs
-            .get(&root)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
-        if proof.inner != inner
-            || self
-                .function
-                .entity(EntityId::Value(proof.owner))
-                .map(|data| data.ty)
-                != Some(EntityType::Value(nullable))
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        Ok(Some(EntityId::Loan(proof.loan)))
     }
 
     fn lower_map_contains(
@@ -386,71 +252,6 @@ impl UnitExpressionLowerer<'_> {
         self.emit_drops(UnitDropPoint::AfterExpression(descriptor.value()))?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Unit)
-    }
-
-    fn lower_map_remove(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .map_remove(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (owner, root) = self.extract_map_owner_val(descriptor.receiver(), span)?;
-        let pending_start = self.pending_operands.len();
-        self.pending_operands.push(EntityId::Value(owner));
-        let key_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(descriptor.key().expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .span();
-        let Some((key, _)) = self.lower_map_operand(descriptor.key().expression(), key_span)?
-        else {
-            self.pending_operands.truncate(pending_start);
-            return Ok(LoweredValue::Diverged);
-        };
-        let owner = self.pending_operands.get(pending_start).copied();
-        self.pending_operands.truncate(pending_start);
-        let Some(EntityId::Value(owner)) = owner else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let receiver_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(descriptor.receiver().expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .span();
-        let container_type =
-            self.expression_ssa_type(descriptor.receiver().expression(), receiver_span)?;
-        let result_type = self.expression_ssa_type(expression, span)?;
-        let result_id = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::MapRemove { owner, key },
-                vec![
-                    EntityType::Value(container_type),
-                    EntityType::Value(result_type),
-                ],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let Some(EntityId::Value(new_owner)) = result_id.1.first().copied() else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        if let Some(symbol) = root {
-            self.bindings.insert(symbol, LoweredValue::Value(new_owner));
-        }
-        self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        let Some(EntityId::Value(result)) = result_id.1.get(1).copied() else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        Ok(LoweredValue::Value(result))
     }
 
     fn extract_map_owner_val(

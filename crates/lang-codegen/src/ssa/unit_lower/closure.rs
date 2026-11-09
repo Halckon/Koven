@@ -14,20 +14,19 @@ use lang_frontend::{
     parser::{Expression, Statement},
     source::Span,
     type_checking::{
-        BuiltinType, Copyability, ParameterMode, UnitCallDescriptor, UnitExpressionId, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, Copyability, ParameterMode, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{
-    FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, call::LoweredCallArguments,
-    lowering_error, require_value, resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
+    FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error,
+    require_value, resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityId, EntityType, FunctionId,
-        LoanKind, Module, Operation, Origin, SsaTypeId, TerminatorKind,
+        ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityType, FunctionId,
+        LoanKind, Module, Operation, Origin, SsaTypeId,
     },
 };
 
@@ -235,112 +234,6 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Value(require_value(results[0], span)?))
     }
 
-    pub(super) fn lower_function_value_call(
-        &mut self,
-        expression: ExpressionId,
-        callee: ExpressionId,
-        arguments: &[lang_frontend::parser::CallArgument],
-        descriptor: &UnitCallDescriptor,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let callee_node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let return_type = resolve_concrete_type(
-            self.typed,
-            descriptor.return_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        if !matches!(callee_node.payload(), Expression::Name) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let callable = match self.lower_expression(callee)? {
-            LoweredValue::Value(value) => value,
-            LoweredValue::Unit | LoweredValue::Diverged => {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-        };
-        let callee_id = UnitExpressionId::new(self.source_unit, callee);
-        let call = UnitExpressionId::new(self.source_unit, expression);
-        let callable_index = self.pending_operands.len();
-        self.pending_operands.push(EntityId::Value(callable));
-        // callee 也属于调用前缀；参数退出时须先移除其 pending alias，再消费 owner drop。
-        self.pending_call_frames
-            .push(super::call_lifetimes::PendingCallFrame {
-                call,
-                receiver: false,
-                loan_arguments: Vec::new(),
-                loop_depth: self.loops.len(),
-                pending_start: callable_index,
-                exclusive_root_owners: Vec::new(),
-                field_replace_owner: None,
-                shared_field_roots: Vec::new(),
-                created_loans: Vec::new(),
-                abi_slots: Vec::new(),
-            });
-        let lowered_arguments = self.lower_call_arguments(call, arguments, descriptor, span);
-        self.pending_call_frames.pop();
-        let Some(LoweredCallArguments {
-            arguments,
-            created_loans,
-            abi_owners,
-            ..
-        }) = lowered_arguments?
-        else {
-            self.pending_operands.truncate(callable_index);
-            return Ok(LoweredValue::Diverged);
-        };
-        let callable = require_value(self.pending_operands[callable_index], span)?;
-        self.pending_operands.truncate(callable_index);
-        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
-            Vec::new()
-        } else {
-            vec![EntityType::Value(
-                *self
-                    .type_ids
-                    .get(&return_type)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
-            )]
-        };
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::CallableInvoke {
-                    callable,
-                    arguments,
-                },
-                result_types,
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        for (loan, end_span) in created_loans.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(end_span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
-        }
-        self.drop_abi_call_owners(abi_owners, span)?;
-        self.emit_drops(
-            lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(callee_id),
-        )?;
-        self.emit_drops(lang_frontend::ownership_checking::UnitDropPoint::CallReturn(call))?;
-        match results.as_slice() {
-            [] => Ok(LoweredValue::Unit),
-            [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
-            _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
-        }
-    }
-
     pub(super) fn closure_origin(
         &self,
         expression: ExpressionId,
@@ -429,48 +322,6 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
-}
-
-pub(super) fn finish_thunk(
-    lowerer: &mut UnitExpressionLowerer<'_>,
-    plan: &CallablePlan,
-) -> Result<(), LoweringError> {
-    // SPEC-0370: only capture-free `() -> Unit` lambdas whose bodies still use unmigrated
-    // map-iteration families remain on this fallback path.
-    if !plan.captures.is_empty()
-        || !plan.parameter_symbols.is_empty()
-        || builtin_type(lowerer.typed, plan.return_type) != Some(BuiltinType::Unit)
-    {
-        return Err(lowering_error(
-            LoweringErrorKind::UnsupportedNode,
-            plan.span,
-        ));
-    }
-    lowerer.thunk_expression = Some(plan.expression);
-    lowerer.emit_drops(
-        lang_frontend::ownership_checking::UnitDropPoint::LambdaEntry(plan.expression),
-    )?;
-    let result = lowerer.lower_statement(plan.body)?;
-    if result == LoweredValue::Diverged {
-        return Ok(());
-    }
-    if !lowerer.temporaries.is_empty() {
-        return Err(lowering_error(
-            LoweringErrorKind::UnsupportedNode,
-            plan.span,
-        ));
-    }
-    if result != LoweredValue::Unit {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
-    }
-    lowerer
-        .function
-        .set_terminator(
-            lowerer.block,
-            TerminatorKind::Return { values: Vec::new() },
-            Origin::Source(plan.span),
-        )
-        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, plan.span))
 }
 
 fn span_contains(owner: Span, child: Span) -> bool {

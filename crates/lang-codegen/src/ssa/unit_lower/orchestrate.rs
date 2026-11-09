@@ -1,8 +1,6 @@
 //! unit 实例规划、函数入口与完整 SSA module 组装。
 
 #[cfg(test)]
-pub(super) mod nullable_map_guard_support;
-#[cfg(test)]
 mod pr120_range_source_contract_tests;
 #[cfg(test)]
 mod pr120_verifier_diagnostics;
@@ -701,7 +699,6 @@ fn lower_unit_impl(
             entry_boolean_roots,
             entry_string_roots,
             nullable_proofs: BTreeMap::new(),
-            map_borrow_guards: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),
             temporary_range_slots: BTreeMap::new(),
             short_range_ends: BTreeMap::new(),
@@ -781,7 +778,6 @@ fn lower_unit_impl(
     for plan in callable_plans.values() {
         let parsed = parsed_by_source[plan.source_unit.index()];
         let references = symbol_references(names, plan.source_unit, Namespace::Value);
-        let type_references = symbol_references(names, plan.source_unit, Namespace::Type);
         let refine_callables = closure::refine_callables(&callable_plans, plan.thunk);
         let entry = module.functions[plan.thunk.index()]
             .entry_block()
@@ -820,82 +816,29 @@ fn lower_unit_impl(
             borrow_return: None,
             carrier_return: None,
         };
-        if crate::ssa::refine::routes(&inputs) {
-            for ty in crate::ssa::refine::type_demands(&inputs) {
-                types.intern(module, typed, ty, plan.span)?;
-            }
-            let function = module
-                .functions
-                .get_mut(plan.thunk.index())
-                .expect("planned unit closure thunk exists");
-            let refine_types = crate::ssa::refine::RefineTypes {
-                type_ids: types.type_ids(),
-                heap_payloads: types.heap_payloads(),
-                field_indices: types.field_indices(),
-                enum_payloads: types.enum_payloads(),
-                map_results: &module.map_results,
-                nullable_maps: &module.nullable_maps,
-                ssa_types: &module.types,
-            };
-            crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
-            continue;
+        if !crate::ssa::refine::routes(&inputs) {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                plan.span,
+            ));
+        }
+        for ty in crate::ssa::refine::type_demands(&inputs) {
+            types.intern(module, typed, ty, plan.span)?;
         }
         let function = module
             .functions
             .get_mut(plan.thunk.index())
             .expect("planned unit closure thunk exists");
-        let block = function
-            .entry_block()
-            .expect("planned unit closure thunk has entry");
-        let mut lowerer = UnitExpressionLowerer {
-            sources,
-            parsed,
-            source_unit: plan.source_unit,
-            names,
-            typed,
-            owned,
-            constant_owned,
-            function_ids: &function_ids,
-            source_plan: &source_plan,
-            callable_abi: &callable_abi,
-            source_token: plan.source_token,
+        let refine_types = crate::ssa::refine::RefineTypes {
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
+            field_indices: types.field_indices(),
+            enum_payloads: types.enum_payloads(),
             map_results: &module.map_results,
             nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
-            enum_payloads: types.enum_payloads(),
-            field_indices: types.field_indices(),
-            substitutions: &plan.substitutions,
-            static_self: plan.static_self,
-            references: &references,
-            type_references: &type_references,
-            function,
-            block,
-            bindings: BTreeMap::new(),
-            borrow_bindings: BTreeMap::new(),
-            entry_boolean_roots: std::collections::BTreeSet::new(),
-            entry_string_roots: std::collections::BTreeSet::new(),
-            nullable_proofs: BTreeMap::new(),
-            map_borrow_guards: BTreeMap::new(),
-            result_source_loans: BTreeMap::new(),
-            temporary_range_slots: BTreeMap::new(),
-            short_range_ends: BTreeMap::new(),
-            current_receiver: None,
-            consumed_receiver: None,
-            closure_bindings: BTreeMap::new(),
-            closure_binding_context: false,
-            capture_loans: BTreeMap::new(),
-            thunk_expression: None,
-            callable_plans: &callable_plans,
-            closure_scope: plan.scope,
-            temporaries: BTreeMap::new(),
-            pending_operands: Vec::new(),
-            pending_call_frames: Vec::new(),
-            loops: Vec::new(),
-            return_type: plan.return_type,
         };
-        closure::finish_thunk(&mut lowerer, plan)?;
+        crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
     }
 
     let verification = verify_program(&program);

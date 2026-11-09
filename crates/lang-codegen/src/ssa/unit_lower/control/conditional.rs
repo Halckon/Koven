@@ -26,14 +26,7 @@ impl UnitExpressionLowerer<'_> {
             .get(expression)
             .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }));
         let nullable_if =
-            match self.prepare_nullable_if_entry(control, condition, result_required, span)? {
-                Some(entry) => Some(entry),
-                None => {
-                    self.prepare_map_nullable_if_entry(control, condition, result_required, span)?
-                }
-            };
-        let guard = self.map_borrow_condition(condition, span)?;
-        let baseline_guards = self.map_borrow_guards.clone();
+            self.prepare_nullable_if_entry(control, condition, result_required, span)?;
         let condition_value = if nullable_if.is_none() {
             let Some(value) = self.lower_optional_condition_value(condition, span)? else {
                 return Ok(LoweredValue::Diverged);
@@ -207,9 +200,6 @@ impl UnitExpressionLowerer<'_> {
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
-        if let Some(guard) = guard.filter(|guard| guard.non_null_when_true()) {
-            self.map_borrow_guards.insert(guard.symbol(), guard);
-        }
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
@@ -231,10 +221,6 @@ impl UnitExpressionLowerer<'_> {
             result,
         )? {
             exits.push(exit);
-        }
-        self.map_borrow_guards.clone_from(&baseline_guards);
-        if let Some(guard) = guard.filter(|guard| !guard.non_null_when_true()) {
-            self.map_borrow_guards.insert(guard.symbol(), guard);
         }
         if let Some(else_branch) = else_branch {
             if let Some(exit) = self.lower_if_branch(
@@ -295,7 +281,6 @@ impl UnitExpressionLowerer<'_> {
                 temporaries: self.temporaries.clone(),
             });
         }
-        self.map_borrow_guards = baseline_guards;
         if ordinary_if {
             self.retire_if_exit_proofs(control, &mut exits, span)?;
         }

@@ -71,7 +71,7 @@ impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_call(
         &mut self,
         expression: ExpressionId,
-        callee_expression: ExpressionId,
+        _callee_expression: ExpressionId,
         arguments: &[lang_frontend::parser::CallArgument],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
@@ -147,15 +147,6 @@ impl UnitExpressionLowerer<'_> {
             self.emit_borrow_argument_expression_drops(call)?;
             self.emit_drops(UnitDropPoint::CallReturn(call))?;
             return Ok(LoweredValue::Unit);
-        }
-        if descriptor.target() == UnitCallTarget::FunctionValue {
-            return self.lower_function_value_call(
-                expression,
-                callee_expression,
-                arguments,
-                descriptor,
-                span,
-            );
         }
         match descriptor.target() {
             UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_) => {}

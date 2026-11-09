@@ -159,7 +159,6 @@ impl UnitExpressionLowerer<'_> {
             inner,
             scope: control,
             non_null_when_true: comparison.non_null_when_true(),
-            consume: None,
         }))
     }
 }

@@ -24,7 +24,7 @@ impl Checker<'_, '_> {
             || self.class_seen(ty, active)
             || self.move_value_class_seen(ty, active)
             || self.container_element_seen(ty, active).is_some()
-            || (self.scope_requires_refine() && self.map_kv_seen(ty, active).is_some())
+            || self.map_kv_seen(ty, active).is_some()
             || self.box_payload_seen(ty, active).is_some()
             || self.rc_payload_seen(ty, active).is_some()
     }

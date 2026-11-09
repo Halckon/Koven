@@ -1,7 +1,5 @@
 //! Source-qualified owned-root delivery into a readonly Map owner.
 
-pub(super) mod nullable;
-
 use super::*;
 use lang_frontend::type_checking::UnitCallReceiverOrigin;
 

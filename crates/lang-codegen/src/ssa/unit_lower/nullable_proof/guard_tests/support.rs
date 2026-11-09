@@ -337,7 +337,6 @@ impl Fixture {
             entry_boolean_roots,
             entry_string_roots,
             nullable_proofs: BTreeMap::new(),
-            map_borrow_guards: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),
             temporary_range_slots: BTreeMap::new(),
             short_range_ends: BTreeMap::new(),

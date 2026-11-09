@@ -788,6 +788,23 @@ fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary
             "fun main(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v } }",
             "for ((k, v) in m) { val x = v }",
         ),
+        (
+            "fun main(own m: MutableMap<Int, Int>?): Unit { if (m != null) { val copy = m.consume() } }",
+            "m.consume()",
+        ),
+        (
+            "fun main(own m: Map<Int, Int>?): Unit { if (m != null) { val n = m.size } }",
+            "m.size",
+        ),
+        (
+            "fun main(): Unit { var m = mutableMapOf<Int, Int>(); val removed = m.remove(1) }",
+            "m.remove(1)",
+        ),
+        ("fun main(): Int { val f = { 7 }; return f() }", "f()"),
+        (
+            "fun main(): Unit { val f = { println(\"hi\") } }",
+            "{ println(\"hi\") }",
+        ),
     ] {
         let mut sources = SourceMap::new();
         let text = format!("package p\n{source}");

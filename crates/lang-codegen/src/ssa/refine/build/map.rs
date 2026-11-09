@@ -55,6 +55,18 @@ impl Builder<'_, '_> {
         self.inputs.typed.map_put(self.unit(target)).is_some()
     }
 
+    fn drop_receiver_chain(&mut self, mut receiver: ExpressionId) -> Result<(), LoweringError> {
+        let mut chain = vec![receiver];
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(receiver) {
+            receiver = inner;
+            chain.push(receiver);
+        }
+        for expr in chain.into_iter().rev() {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(expr)))?;
+        }
+        Ok(())
+    }
+
     fn map_construction(
         &mut self,
         expression: ExpressionId,
@@ -100,7 +112,7 @@ impl Builder<'_, '_> {
         let result_ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let result = self.value(ROp::MapSize { owner }, EntityType::Value(result_ty), span)?;
         if drop_receiver {
-            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+            self.drop_receiver_chain(receiver)?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))
@@ -152,7 +164,7 @@ impl Builder<'_, '_> {
             span,
         )?;
         if drop_receiver {
-            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+            self.drop_receiver_chain(receiver)?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))
@@ -238,7 +250,7 @@ impl Builder<'_, '_> {
             )?;
             self.sync_dead();
             self.dead.insert(symbol);
-            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+            self.drop_receiver_chain(receiver)?;
             let map_type = self.ssa_type(self.expression_type(expression)?, span)?;
             let result = self.value(
                 ROp::MapConsume { owner, map_type },
@@ -306,7 +318,7 @@ impl Builder<'_, '_> {
             span,
         )?;
         if drop_receiver {
-            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+            self.drop_receiver_chain(receiver)?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))
@@ -456,7 +468,7 @@ impl Builder<'_, '_> {
             self.drops(UnitDropPoint::AfterExpression(self.unit(arg)))?;
         }
         if view.is_some() {
-            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+            self.drop_receiver_chain(receiver)?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))

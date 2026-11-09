@@ -117,7 +117,18 @@ impl Builder<'_, '_> {
             }
             return Ok(Lowered::Unit);
         }
-        let Lowered::Value(value) = self.expression(initializer)? else {
+        let saved_expected = self.expected_nullable;
+        if matches!(
+            self.inputs.typed.types().get(declared),
+            Some(lang_frontend::type_checking::UnitTypeKind::Nullable(_))
+        ) {
+            self.expected_nullable = self.ssa_type(declared, span).ok();
+        } else {
+            self.expected_nullable = None;
+        }
+        let lowered = self.expression(initializer);
+        self.expected_nullable = saved_expected;
+        let Lowered::Value(value) = lowered? else {
             return Ok(Lowered::Diverged);
         };
         let value = self.adapt_with_span(value, initializer, declared, span)?;

@@ -141,9 +141,10 @@ impl Checker<'_, '_> {
             // `RangeView.size` (SPEC-0393) and `String.clone()` (SPEC-0394) lower only here.
             || typed.range_size(id).is_some()
             || typed.string_operation(id).is_some()
-            // Borrow-result and `RangeView` calls lower only here (SPEC-0393).
+            // Borrow-result, `RangeView`, and `FunctionValue` calls lower only here.
             || typed.call(id).is_some_and(|call| {
-                call.borrow_return().is_some()
+                call.target() == UnitCallTarget::FunctionValue
+                    || call.borrow_return().is_some()
                     || matches!(call.result_source(), CallableResultSource::Carrier(_))
             })
             || typed.integer_operation(id).is_some()
@@ -151,6 +152,8 @@ impl Checker<'_, '_> {
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()
             || typed.map_get(id).is_some()
+            || typed.map_consume(id).is_some()
+            || typed.map_remove(id).is_some()
             || typed.container_append(id).is_some()
             || typed.container_clear(id).is_some()
             || typed.container_remove_at(id).is_some()

@@ -195,8 +195,6 @@ struct UnitExpressionLowerer<'a> {
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
     entry_string_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
-    map_borrow_guards:
-        BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
     result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
     temporary_range_slots: BTreeMap<UnitExpressionId, Vec<usize>>,
     short_range_ends: BTreeMap<LoanId, UnitExpressionId>,
@@ -254,16 +252,6 @@ impl UnitExpressionLowerer<'_> {
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
         self.guard_nullable_when_expression(unit_expression, span)?;
-        // Only a fully witnessed consume may atomically retire an ordinary If view.
-        if matches!(node.payload(), Expression::Call { .. })
-            && self
-                .nullable_proofs
-                .values()
-                .any(|proof| proof.if_scope().is_some())
-            && let Some(value) = self.lower_nullable_map_consume(unit_expression, span)?
-        {
-            return Ok(value);
-        }
         // Reject unsupported If carriers/transfers before specialized dispatch can
         // create a call frame, a temporary owner, or any SSA instruction.
         if matches!(

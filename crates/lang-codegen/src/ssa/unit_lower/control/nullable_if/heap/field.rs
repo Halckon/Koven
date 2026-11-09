@@ -64,7 +64,6 @@ impl UnitExpressionLowerer<'_> {
             self.ssa_types.get(inner.index()),
             Some(SsaTypeKind::HeapOwner { .. })
         ) || self.borrow_bindings.contains_key(&comparison.symbol())
-            || crate::ssa::unit_lower::map_borrow::owned_remove_origin(self.function, owner)
         {
             return Ok(None);
         }
@@ -112,7 +111,6 @@ impl UnitExpressionLowerer<'_> {
             inner,
             scope: control,
             non_null_when_true: comparison.non_null_when_true(),
-            consume: None,
         }))
     }
 

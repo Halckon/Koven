@@ -56,11 +56,6 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok((loan, Vec::new(), fact.end_span()));
         }
-        if let Some(proof) =
-            self.lower_owned_map_borrow(call, argument, fact.target(), target, span)?
-        {
-            return Ok((proof, vec![proof], fact.end_span()));
-        }
         if matches!(
             self.ssa_types.get(target.index()),
             Some(SsaTypeKind::RangeView { .. })
@@ -349,8 +344,7 @@ impl UnitExpressionLowerer<'_> {
                 && matches!(owner_type, Some(EntityType::Value(storage))
                 if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::InlineNullable { inner, niche: true })
                     if self.ssa_types.get(inner.index()) == Some(&SsaTypeKind::StringOwner))));
-        if !supported_storage || super::map_borrow::owned_remove_origin(self.function, proof.owner)
-        {
+        if !supported_storage {
             return Ok(None);
         }
         let mut operand = UnitExpressionId::new(self.source_unit, argument);
