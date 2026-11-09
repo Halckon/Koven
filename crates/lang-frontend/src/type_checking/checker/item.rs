@@ -478,7 +478,11 @@ impl Checker<'_> {
                         && !self.is_error(return_type)
                         && !self.is_deferred(return_type)
                     {
-                        let primary = self.body_end_span(body)?;
+                        let primary = super::super::control_body::function_end_span(
+                            self.sources,
+                            self.parsed,
+                            body,
+                        )?;
                         if let Some(label) = annotation_span {
                             self.emit_with_label(
                                 self.missing_return_code,
@@ -702,19 +706,5 @@ impl Checker<'_> {
 
     pub(super) fn is_unit(&self, ty: TypeId) -> bool {
         matches!(self.kind(ty), TypeKind::Builtin(BuiltinType::Unit))
-    }
-
-    fn body_end_span(&self, body: StatementId) -> Result<Span, TypeCheckingError> {
-        let span = self.ast().statements().get(body)?.span();
-        let text = self.sources.slice(span)?;
-        if text.ends_with('}') {
-            Ok(self
-                .sources
-                .span(span.source_id(), span.end() - 1, span.end())?)
-        } else {
-            Ok(self
-                .sources
-                .span(span.source_id(), span.end(), span.end())?)
-        }
     }
 }

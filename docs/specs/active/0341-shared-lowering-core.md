@@ -5008,3 +5008,19 @@ fmt、docs、diff及相对f2bef461尺寸门禁通过：863 Markdown、2233 Rust�
 独占target串行；LLVM21缺失，未运行本地workspace/native/LLVM或frontend全量。
 只有包含f2bef461的精确发布头正式CI才可用于合并，e87de0ac组合旧CI不替代；
 SPEC-0341与D10/E2仍in-progress。
+
+### #384 保留 #388 控制实参与 Unit fixture 主线（2026-11-09）
+
+上一精确头 `cbcaeccc` 的正式CI run 42585742695 已通过15项门禁，编辑器按范围跳过。
+合入前 main 又推进到 #388 `d193a65fa91950a3b9e9653d98f2281d4b9d238d`，故不以
+旧base绿灯合并。本次另建隔离工作树普通merge，代码头 `c31b6827`，无人工冲突。
+独立复核确认主线15文件中14个同blob；type_checking.rs完整保留fixture迁移增删行、
+双Unit入口与source identity/偏移校验。Rc/signature各迁移仍一份，其余31个既有crate
+消费者文件逐字保留，含owner observer/replay；实际Diverged优先判定不改变观察准入。
+
+新组合完整frontend lib（408）及原13个integration目标（1047）实际通过1455项，
+零失败/忽略/过滤，不累计旧结果。frontend all-targets严格Clippy、workspace fmt、docs、
+diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线既有超长，额度不变。
+Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
+缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
+正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。

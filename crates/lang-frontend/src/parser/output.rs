@@ -16,6 +16,8 @@ pub struct ParsedFile {
     pub(crate) imports: Vec<ImportDirective>,
     pub(crate) roots: Vec<ItemId>,
     pub(crate) diagnostics: Vec<Diagnostic>,
+    // Added when the block receives its ID, so the sparse table is ordered by ID.
+    pub(super) missing_block_closers: Vec<(StatementId, Span)>,
 }
 
 impl ParsedFile {
@@ -29,6 +31,14 @@ impl ParsedFile {
     #[must_use]
     pub const fn ast(&self) -> &SyntaxAst {
         &self.ast
+    }
+
+    /// 只返回此解析产物中缺少右花括号的 block 的实际恢复点。
+    pub(crate) fn block_closer_recovery(&self, block: StatementId) -> Option<Span> {
+        self.missing_block_closers
+            .binary_search_by_key(&block.index(), |(statement, _)| statement.index())
+            .ok()
+            .map(|index| self.missing_block_closers[index].1)
     }
 
     /// 返回可选的文件 package directive。

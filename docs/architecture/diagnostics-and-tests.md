@@ -17,6 +17,9 @@ Unit signature 与 body 的 builtin 非法类型实参诊断 L0082 均保留原�
 `builtin_argument_diagnostics` 子模块另锁定 producer 分层、有序 labels 与 source 身份。
 本批实现尚未经编译或动态验收，不能据此声明全域诊断等价。
 
+L0088 的 Single 与 Unit 类型入口共用函数体结束范围。真实闭合时标记函数的右花括号；
+缺失时标记 EOF 空范围，避免误标最后一个嵌套块的右花括号。返回类型标注保留为关联位置。
+
 `ordered_diagnostics` 先用共同 SourceMap 验证全部 Span，再按 source 名称、范围、severity、code、
 message 和 details 建立稳定全序。顺序不依赖 `SourceId`、source 加载顺序或哈希容器迭代。
 
