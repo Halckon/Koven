@@ -4011,3 +4011,20 @@ MemoryDocument 的展示名独立于声明包。两个输入仍核对诊断阶�
 独立复审核对各入口身份、原快照和精确诊断。更新后的 Guide 和相关前端
 七个套件共 276 项通过，零失败和忽略。前端全目标 Clippy、格式、文档
 和 Rust 尺寸门禁通过。本次验证覆盖前端套件，原 native 门禁不变。
+
+## 159. R0/R3/R4 批次对齐与本机验收
+
+[PR #395](https://github.com/Halckon/Koven/pull/395) 合入 `9369cc72`。
+[第三轮 PR CI](https://github.com/Halckon/Koven/actions/runs/42633574473/attempts/3)
+的双宿主 Check、Clippy、定向测试、预览构建和独立安装均通过。前两轮
+macOS 独立安装因托管 runner 未分配而取消。第三轮实际下载并安装原产物
+`13684479638`。CI Passed 与 Code CI Evidence 成功，Editor lexical 按范围跳过。
+合入树 `aa9b8f84` 与已验候选一致。
+
+批次 §154–158 与该 main 对齐为 `86ba8476`。独立复核确认代码各取唯一变更侧，
+Spec 保留 main 的 §7、§151–153 并追加原 §154–158。共享架构页保留两侧事实。
+对齐前 `51aebc0c` 的 Range 定向集合 395 项全部通过，零失败和忽略。
+
+对齐候选的 Guide、nullable when、直接调用 loan-end 共 165 项通过。别名、
+RangeView、nullable when 与 Map 的后端定向组合共 61 项通过，零失败和忽略。
+前端与 codegen 全目标 Clippy、格式、文档结构及 Rust 尺寸门禁通过。
