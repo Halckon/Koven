@@ -13,6 +13,7 @@ impl Checker<'_, '_> {
     /// unless the subject is an enum, whose closed domain the frontend proved covered.
     pub(super) fn subject_when(
         &mut self,
+        control: ExpressionId,
         ty: UnitTypeId,
         subject: ExpressionId,
         entries: &[WhenEntry],
@@ -34,59 +35,76 @@ impl Checker<'_, '_> {
         } else {
             (self.scalar(subject_type) || copy_enum) && self.expression(subject)
         };
+        let control = self.id(control);
+        let closed_after = self.inputs.typed.when_closed_after(control);
+        let Some(entries) = entries.get(..closed_after.unwrap_or(entries.len())) else {
+            return false;
+        };
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
         let boolean_exhaustive = matches!(
             self.kind(subject_type),
             Some(lang_frontend::type_checking::UnitTypeKind::Builtin(
                 lang_frontend::type_checking::BuiltinType::Boolean
             ))
-        ) && self.boolean_two_arms(entries);
+        ) && (closed_after.is_some() || self.boolean_two_arms(entries));
         if !subject_ok || !(self.unit(ty) || has_else || tagged || boolean_exhaustive) {
             return false;
         }
         let mut can_reach_entry = true;
-        entries.iter().all(|entry| {
+        entries.iter().enumerate().all(|(index, entry)| {
             if !can_reach_entry {
                 return true;
             }
             let saved = self.view_symbols.clone();
             let mut can_match = entry.else_span.is_some();
+            let selector_count = self
+                .inputs
+                .typed
+                .when_final_selector_count(control, index)
+                .unwrap_or(entry.conditions.len());
             let conditions_ok = entry.else_span.is_some() == entry.conditions.is_empty()
-                && entry.conditions.iter().all(|condition| {
-                    if !can_reach_entry {
-                        return true;
-                    }
-                    let ok = match condition {
-                        WhenCondition::Expression(condition) if string => {
-                            self.string_when_literal(*condition)
+                && entry
+                    .conditions
+                    .iter()
+                    .take(selector_count)
+                    .all(|condition| {
+                        if !can_reach_entry {
+                            return true;
                         }
-                        WhenCondition::Expression(condition) if tagged => {
-                            copy_enum && self.case_value_condition(*condition, subject_type)
+                        let ok = match condition {
+                            WhenCondition::Expression(condition) if string => {
+                                self.string_when_literal(*condition)
+                            }
+                            WhenCondition::Expression(condition) if tagged => {
+                                copy_enum && self.case_value_condition(*condition, subject_type)
+                            }
+                            WhenCondition::Expression(condition) => {
+                                self.expression_type(*condition) == Some(subject_type)
+                                    && self.expression(*condition)
+                            }
+                            WhenCondition::Contains { expression, .. } => {
+                                !tagged
+                                    && !string
+                                    && self.range_condition(*expression, subject_type)
+                            }
+                            WhenCondition::TypeTest { type_ref, .. } => {
+                                tagged && self.type_test_target(*type_ref, subject_type)
+                            }
+                        };
+                        if let WhenCondition::Expression(expression)
+                        | WhenCondition::Contains { expression, .. } = condition
+                            && self
+                                .inputs
+                                .typed
+                                .expression_falls_through(self.id(*expression))
+                                == Some(false)
+                        {
+                            can_reach_entry = false;
+                        } else {
+                            can_match = true;
                         }
-                        WhenCondition::Expression(condition) => {
-                            self.expression_type(*condition) == Some(subject_type)
-                                && self.expression(*condition)
-                        }
-                        WhenCondition::Contains { expression, .. } => {
-                            !tagged && !string && self.range_condition(*expression, subject_type)
-                        }
-                        WhenCondition::TypeTest { type_ref, .. } => {
-                            tagged && self.type_test_target(*type_ref, subject_type)
-                        }
-                    };
-                    if let WhenCondition::Expression(expression) = condition
-                        && self
-                            .inputs
-                            .typed
-                            .expression_falls_through(self.id(*expression))
-                            == Some(false)
-                    {
-                        can_reach_entry = false;
-                    } else {
-                        can_match = true;
-                    }
-                    ok
-                });
+                        ok
+                    });
             let ok = conditions_ok && (!can_match || self.statement(entry.body));
             self.view_symbols = saved;
             ok
@@ -229,7 +247,8 @@ impl Checker<'_, '_> {
             && operation.left().source_unit() == self.inputs.source_unit
             && operation.right().source_unit() == self.inputs.source_unit
             && self.expression(operation.left().expression())
-            && self.expression(operation.right().expression())
+            && (self.inputs.typed.expression_falls_through(operation.left()) == Some(false)
+                || self.expression(operation.right().expression()))
     }
 
     /// Boolean alternatives tested in order; a value-context `when` needs `else`.

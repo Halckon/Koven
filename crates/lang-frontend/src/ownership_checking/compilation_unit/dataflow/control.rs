@@ -24,17 +24,25 @@ impl Checker<'_> {
             return Ok(prefix);
         };
         let (then_branch, else_branch) = arms;
-        let mut then_state = base.clone();
-        self.release_exclusive_branch(control, 0, &mut then_state);
-        self.release_exclusive_branch(control, 1, &mut base);
-        let mut branches =
-            self.check_control_body(then_branch, then_state, branch_usage, escaping)?;
-        branches.merge(if let Some(else_branch) = else_branch {
-            self.check_control_body(else_branch, base, branch_usage, escaping)?
-        } else {
-            Flows::next(base)
-        });
-        prefix.merge(branches);
+        let (reaches_then, reaches_else) = self.ordinary_condition_outcomes(condition);
+        if reaches_then {
+            let mut then_state = base.clone();
+            self.release_exclusive_branch(control, 0, &mut then_state);
+            prefix.merge(self.check_control_body(
+                then_branch,
+                then_state,
+                branch_usage,
+                escaping,
+            )?);
+        }
+        if reaches_else {
+            self.release_exclusive_branch(control, 1, &mut base);
+            prefix.merge(if let Some(else_branch) = else_branch {
+                self.check_control_body(else_branch, base, branch_usage, escaping)?
+            } else {
+                Flows::next(base)
+            });
+        }
         Ok(prefix)
     }
 
@@ -56,7 +64,13 @@ impl Checker<'_> {
         };
         self.begin_nullable_when(control)?;
         let mut branches = Flows::default();
-        for (entry_index, entry) in entries.iter().enumerate() {
+        let control_id = self.unit_expression(control);
+        let closed_after = self.typed.when_closed_after(control_id);
+        for (entry_index, entry) in entries
+            .iter()
+            .take(closed_after.unwrap_or(entries.len()))
+            .enumerate()
+        {
             if entry.else_span.is_some() {
                 branches.merge(self.check_nullable_when_body(
                     control,
@@ -71,7 +85,11 @@ impl Checker<'_> {
             }
             let mut condition_state = Some(unmatched);
             let mut body_state = None;
-            for condition in &entry.conditions {
+            let selector_count = self
+                .typed
+                .when_final_selector_count(control_id, entry_index)
+                .unwrap_or(entry.conditions.len());
+            for condition in entry.conditions.iter().take(selector_count) {
                 let Some(current) = condition_state.take() else {
                     break;
                 };
@@ -83,8 +101,18 @@ impl Checker<'_> {
                 if let Some(expression) = expression {
                     let mut flows =
                         self.check_expression(expression, current, ExpressionUse::Read)?;
-                    merge_optional_state(&mut body_state, flows.next.clone());
-                    condition_state = flows.next.take();
+                    let (can_match, can_miss) = if subject.is_none() {
+                        self.ordinary_condition_outcomes(expression)
+                    } else {
+                        (true, true)
+                    };
+                    let next = flows.next.take();
+                    if can_match {
+                        merge_optional_state(&mut body_state, next.clone());
+                    }
+                    if can_miss {
+                        condition_state = next;
+                    }
                     prefix.merge(flows);
                 } else {
                     merge_optional_state(&mut body_state, Some(current.clone()));
@@ -107,8 +135,10 @@ impl Checker<'_> {
             };
             unmatched = next;
         }
-        self.release_exclusive_branch(control, entries.len(), &mut unmatched);
-        branches.merge(Flows::next(unmatched));
+        if closed_after.is_none() {
+            self.release_exclusive_branch(control, entries.len(), &mut unmatched);
+            branches.merge(Flows::next(unmatched));
+        }
         prefix.merge(branches);
         Ok(prefix)
     }

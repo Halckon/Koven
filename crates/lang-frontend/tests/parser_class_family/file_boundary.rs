@@ -407,3 +407,305 @@ fn terminal_string_events_do_not_leak_into_or_out_of_the_type_parameter_owner() 
         2
     );
 }
+
+#[test]
+fn comparisons_in_closed_groups_do_not_end_the_type_parameter_list() {
+    for head in [
+        "interface C<T break f(; public val hidden = 2 > 1)>",
+        "interface C<T break f([2 > 1)>",
+        "interface C<T break f([(]2 > 1)>",
+        "interface C<T break [2 > 1], U>",
+    ] {
+        let (sources, parsed) = file(&format!("{head}\nclass Sentinel"));
+        let items = parsed.ast().items();
+        let [class, sentinel] = parsed.roots() else {
+            panic!("two file roots: {head}, {:?}", parsed.diagnostics());
+        };
+        assert_eq!(
+            sources.slice(items.get(*class).unwrap().span()).unwrap(),
+            head
+        );
+        assert_eq!(
+            sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+            "class Sentinel"
+        );
+        assert_eq!(codes(parsed.diagnostics()), ["L0025"]);
+    }
+}
+
+#[test]
+fn an_unclosed_group_does_not_hide_the_type_parameter_closer() {
+    let text = "interface C<T break f(>\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    let items = parsed.ast().items();
+    let [class, sentinel] = parsed.roots() else {
+        panic!("two file roots: {:?}", parsed.diagnostics());
+    };
+    assert_eq!(
+        sources.slice(items.get(*class).unwrap().span()).unwrap(),
+        "interface C<T break f(>"
+    );
+    assert_eq!(
+        sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+        "class Sentinel"
+    );
+    assert_eq!(codes(parsed.diagnostics()), ["L0025"]);
+}
+
+#[test]
+fn a_paired_closer_releases_the_recovery_stack_after_a_wrong_inner_opener() {
+    for following in [", U>\nclass Sentinel", "; public val sentinel = 2 > 1"] {
+        let head = "interface C<T break f([2 > 1)";
+        let (sources, parsed) = file(&format!("{head}{following}"));
+        let items = parsed.ast().items();
+        let [class, sentinel] = parsed.roots() else {
+            panic!("two file roots: {following}, {:?}", parsed.diagnostics());
+        };
+        let first = items.get(*class).unwrap();
+        let Item::Classifier(classifier) = first.payload() else {
+            panic!("classifier")
+        };
+        if following.starts_with(',') {
+            let [_, second] = classifier.type_parameters.as_slice() else {
+                panic!("both parameters")
+            };
+            assert_eq!(sources.slice(second.span).unwrap(), "U");
+            assert_eq!(
+                sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+                "class Sentinel"
+            );
+            assert_eq!(codes(parsed.diagnostics()), ["L0025"]);
+        } else {
+            assert_eq!(sources.slice(first.span()).unwrap(), head);
+            assert_eq!(
+                sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+                "public val sentinel = 2 > 1"
+            );
+            assert_eq!(codes(parsed.diagnostics()), ["L0025", "L0010"]);
+        }
+    }
+}
+
+#[test]
+fn a_comparison_in_a_recovered_group_cannot_hide_the_next_file_root() {
+    let head = "interface C<T break f(2 > 1)";
+    for following in ["class Sentinel", "public val sentinel = 2 > 1"] {
+        let (sources, parsed) = file(&format!("{head}\n{following}"));
+        let items = parsed.ast().items();
+        let [class, sentinel] = parsed.roots() else {
+            panic!("two roots: {following}, {:?}", parsed.diagnostics());
+        };
+        assert_eq!(
+            sources.slice(items.get(*class).unwrap().span()).unwrap(),
+            head
+        );
+        assert_eq!(
+            sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+            following
+        );
+        assert_eq!(codes(parsed.diagnostics()), ["L0025", "L0010"]);
+    }
+}
+
+#[test]
+fn type_parameter_name_recovery_keeps_the_file_boundary_on_return() {
+    let head = "interface C<break f(2 > 1)";
+    let (sources, parsed) = file(&format!("{head}\nclass Sentinel"));
+    let items = parsed.ast().items();
+    let [class, sentinel] = parsed.roots() else {
+        panic!("two roots: {:?}", parsed.diagnostics());
+    };
+    assert_eq!(
+        sources.slice(items.get(*class).unwrap().span()).unwrap(),
+        head
+    );
+    assert_eq!(
+        sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+        "class Sentinel"
+    );
+}
+
+#[test]
+fn an_interpolation_closer_cannot_pop_an_enclosing_ordinary_recovery_group() {
+    let head = "interface C<T break f(\"${x)}\" 2 > 1\nclass Hidden\n)>";
+    let (sources, parsed) = file(&format!("{head}\nclass Sentinel"));
+    let items = parsed.ast().items();
+    let [class, sentinel] = parsed.roots() else {
+        panic!("two roots: {:?}", parsed.diagnostics());
+    };
+    assert_eq!(
+        sources.slice(items.get(*class).unwrap().span()).unwrap(),
+        head
+    );
+    assert_eq!(
+        sources.slice(items.get(*sentinel).unwrap().span()).unwrap(),
+        "class Sentinel"
+    );
+    assert_eq!(codes(parsed.diagnostics()), ["L0025"]);
+}
+
+#[test]
+fn a_previous_root_opener_cannot_cancel_a_recovered_groups_closer() {
+    for (prefix, head) in [
+        ("", "interface C<T break f(]2 > 1)>"),
+        ("val x: [ = 1\n", "interface C<T break f(]2 > 1)>"),
+        ("val x: [ = 1\n", "interface C<T break f(] [(] 2 > 1)>"),
+    ] {
+        let text = format!("{prefix}{head}\nclass Sentinel");
+        let (sources, parsed) = file(&text);
+        let roots = parsed.roots();
+        assert_eq!(
+            roots.len(),
+            2 + usize::from(!prefix.is_empty()),
+            "{text}: {:?}",
+            parsed.diagnostics()
+        );
+        let items = parsed.ast().items();
+        let class = items.get(roots[roots.len() - 2]).unwrap();
+        assert_eq!(sources.slice(class.span()).unwrap(), head);
+        assert_eq!(
+            sources
+                .slice(items.get(*roots.last().unwrap()).unwrap().span())
+                .unwrap(),
+            "class Sentinel"
+        );
+    }
+}
+
+#[test]
+fn a_group_closer_beyond_an_enclosing_brace_cannot_claim_an_angle() {
+    let head = "interface C<T break f(>";
+    let (sources, parsed) = file(&format!("{head}\n}}\nclass Sentinel\n)"));
+    let items = parsed.ast().items();
+    let first = items.get(parsed.roots()[0]).unwrap();
+    assert_eq!(sources.slice(first.span()).unwrap(), head);
+    assert!(
+        parsed
+            .roots()
+            .iter()
+            .any(|&id| sources.slice(items.get(id).unwrap().span()) == Ok("class Sentinel"))
+    );
+}
+
+#[test]
+fn file_class_angle_recovery_does_not_change_function_parameter_recovery() {
+    for text in [
+        "fun <T break f(2 > 1)\nclass Sentinel",
+        "class C { fun <T break f(2 > 1)\nfun sentinel(): Int = 1\n}\nclass Sentinel",
+    ] {
+        let (sources, parsed) = file(text);
+        let items = parsed.ast().items();
+        assert_eq!(
+            sources
+                .slice(items.get(*parsed.roots().last().unwrap()).unwrap().span())
+                .unwrap(),
+            "class Sentinel"
+        );
+        if text.starts_with("class") {
+            let Item::Classifier(classifier) = items.get(parsed.roots()[0]).unwrap().payload()
+            else {
+                panic!("outer class")
+            };
+            assert!(
+                classifier
+                    .body
+                    .as_ref()
+                    .unwrap()
+                    .members
+                    .iter()
+                    .any(|&id| sources.slice(items.get(id).unwrap().span())
+                        == Ok("fun sentinel(): Int = 1"))
+            );
+        }
+    }
+}
+
+#[test]
+fn unfinished_file_type_parameters_preserve_the_next_root_after_newline() {
+    let sentinel = "public const val sentinel: Boolean = 2 > 1";
+    let kept = "fun kept(): Unit {}";
+    for (header, expected) in [
+        ("interface C<T", &["L0010"][..]),
+        ("interface C<T: Box<Int", &["L0010", "L0010"][..]),
+        ("interface C<\nT\n>", &[][..]),
+        ("interface C<\nborrow\n>", &[][..]),
+        ("interface C<T: pkg.\nvalue\n>", &[][..]),
+    ] {
+        let input = format!("{header}\n{sentinel}\n{kept}");
+        let (sources, parsed) = file(&input);
+        let ast = parsed.ast().items();
+        let roots = parsed
+            .roots()
+            .iter()
+            .map(|root| sources.slice(ast.get(*root).unwrap().span()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(roots, [header, sentinel, kept], "{input}");
+        assert_eq!(codes(parsed.diagnostics()), expected, "{input}");
+        for diagnostic in parsed.diagnostics() {
+            assert!(diagnostic.primary_span().is_empty());
+            assert_eq!(diagnostic.primary_span().start(), header.len() + 1);
+        }
+    }
+}
+
+fn assert_file_angle_keeps_following_declaration(header: &str, following: &str) {
+    let kept = "fun kept(): Unit {}";
+    let input = format!("{header}\n{following}\n{kept}");
+    let (sources, parsed) = file(&input);
+    let ast = parsed.ast().items();
+    let roots = parsed
+        .roots()
+        .iter()
+        .map(|root| sources.slice(ast.get(*root).unwrap().span()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(roots, [header, following, kept], "{input}");
+    assert!(
+        parsed
+            .diagnostics()
+            .iter()
+            .all(|diagnostic| diagnostic.primary_span().end() <= header.len() + 1),
+        "{input}: {:?}",
+        parsed.diagnostics()
+    );
+}
+
+#[test]
+fn file_angle_keeps_soft_declaration_after_an_unfinished_qualified_bound() {
+    assert_file_angle_keeps_following_declaration(
+        "interface C<T: pkg.",
+        "value class Sentinel(val y: Int)",
+    );
+}
+
+#[test]
+fn file_angle_keeps_split_value_class_after_a_recovered_comparison_group() {
+    assert_file_angle_keeps_following_declaration(
+        "interface C<T break f(2 > 1)",
+        "value\nclass Sentinel(val y: Int)",
+    );
+}
+
+#[test]
+fn file_angle_keeps_borrow_extension_prefix() {
+    assert_file_angle_keeps_following_declaration(
+        "interface C<T",
+        "borrow fun String.byteLength(): Int = textByteLength(this)",
+    );
+}
+
+#[test]
+fn file_angle_keeps_split_soft_prefixes_without_a_comparison_group() {
+    for (header, following) in [
+        ("interface C<T", "value\nclass Sentinel(val y: Int)"),
+        (
+            "interface C<T break f(1)",
+            "value\nclass Sentinel(val y: Int)",
+        ),
+        (
+            "interface C<T: pkg.",
+            "borrow\nfun String.byteLength(): Int = textByteLength(this)",
+        ),
+    ] {
+        assert_file_angle_keeps_following_declaration(header, following);
+    }
+}

@@ -397,3 +397,97 @@ fn assert_signature_product_is_public(_: &CompilationUnitSignatures) {}
 
 #[path = "multifile_type_signatures/container_storage.rs"]
 mod container_storage;
+
+#[test]
+fn nominal_arity_primary_stays_in_use_source_under_input_permutation() {
+    let mut sources = SourceMap::new();
+    let (model_id, model) = parsed(
+        &mut sources,
+        "model.ko",
+        "package p\npublic class Left(val value: Long) {}",
+    );
+    let (use_id, usage) = parsed(
+        &mut sources,
+        "use.ko",
+        "package p\nfun inspect(input: Left<Int, Long>): Unit",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/model.ko", model_id, &model),
+        SourceUnitInput::new("root", "p/use.ko", use_id, &usage),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    for inputs in [inputs, [inputs[1], inputs[0]]] {
+        let validated = names(&sources, &inputs, &name_environment)
+            .validate()
+            .expect("valid names");
+        let signatures =
+            collect_compilation_unit_signatures(&sources, &inputs, &validated, &type_environment)
+                .expect("signatures");
+        assert_eq!(codes(signatures.diagnostics()), ["L0091"]);
+        let diagnostic = &signatures.diagnostics()[0];
+        assert_eq!(sources.slice(diagnostic.primary_span()), Ok("Left"));
+        assert_eq!(diagnostic.primary_span().source_id(), use_id);
+        let label = diagnostic
+            .details()
+            .iter()
+            .find_map(|detail| match detail {
+                lang_frontend::diagnostic::DiagnosticDetail::Label(label) => Some(label.span()),
+                _ => None,
+            })
+            .expect("declaration label");
+        assert_eq!(sources.slice(label), Ok("Left"));
+        assert_eq!(label.source_id(), model_id);
+        assert!(signatures.validate().is_err());
+    }
+}
+
+#[test]
+fn enum_case_position_diagnostic_preserves_cross_file_identity_and_input_order() {
+    for visibility in ["", "public "] {
+        let mut sources = SourceMap::new();
+        let (model_id, model) = parsed(
+            &mut sources,
+            "model.ko",
+            &format!("package p\n{visibility}enum class Shape {{ Circle }}"),
+        );
+        let (use_id, usage) = parsed(
+            &mut sources,
+            "use.ko",
+            "package p\nfun invalid(input: Shape.Circle): Unit",
+        );
+        let inputs = [
+            SourceUnitInput::new("root", "p/model.ko", model_id, &model),
+            SourceUnitInput::new("root", "p/use.ko", use_id, &usage),
+        ];
+        let (name_environment, type_environment) = standard_environments();
+        for inputs in [inputs, [inputs[1], inputs[0]]] {
+            let validated = names(&sources, &inputs, &name_environment)
+                .validate()
+                .expect("valid names");
+            let signatures = collect_compilation_unit_signatures(
+                &sources,
+                &inputs,
+                &validated,
+                &type_environment,
+            )
+            .expect("signatures");
+            assert_eq!(codes(signatures.diagnostics()), ["L0114"]);
+            let diagnostic = &signatures.diagnostics()[0];
+            assert_eq!(sources.slice(diagnostic.primary_span()), Ok("Shape.Circle"));
+            assert_eq!(diagnostic.primary_span().source_id(), use_id);
+            let label = diagnostic
+                .details()
+                .iter()
+                .find_map(|detail| match detail {
+                    lang_frontend::diagnostic::DiagnosticDetail::Label(label) => Some(label.span()),
+                    _ => None,
+                })
+                .expect("root enum label");
+            assert_eq!(sources.slice(label), Ok("Shape"));
+            assert_eq!(label.source_id(), model_id);
+            assert!(signatures.validate().is_err());
+        }
+    }
+}
+#[path = "multifile_type_signatures/enum_identity.rs"]
+mod enum_identity;

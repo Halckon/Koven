@@ -188,6 +188,27 @@ fn function_value_loop_exits_match_literal_capture_and_argument_cleanup() {
 }
 
 #[test]
+fn indirect_nothing_argument_break_cleans_up_without_dispatch() {
+    let provider = "package p\nconst val TEXT = \"中文\"\nconst val FLAG = true";
+    let consumer = r#"
+package q
+fun entry(): Unit {
+    loop {
+        val captured = p.TEXT + p.TEXT
+        val action: move (borrow String, own Boolean) -> Nothing =
+            move { text, accepted -> println(captured); error("unexpected dispatch") }
+        val pending = action(p.TEXT + p.TEXT, if (p.FLAG) { break } else { true })
+    }
+    println("done")
+}
+"#;
+    let run = run_counted_strings(provider, consumer, 7, 2, false);
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"done\n", "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
 fn inner_loops_preserve_pending_string_owner_and_loan() {
     for mode in ["borrow", "own"] {
         for (inner, drops, aborting, expected) in [

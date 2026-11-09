@@ -7,6 +7,7 @@ mod pr120_verifier_diagnostics;
 #[cfg(test)]
 mod registration_tests;
 use super::*;
+use crate::ssa::refine::CallableRoute;
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。
 pub(super) fn lower_unit_from_facts(
@@ -47,13 +48,17 @@ fn lower_unit_impl(
     // Both sealed views have already checked the complete frontend identity chain.
     // Declarations are validated unconditionally for every unit.
     super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
-    // Legacy whole-source binding/iteration checks precede instance planning and Module creation
-    // for legacy units; units using ssa::refine-exclusive constructs validate in refine.
+    // Map providers are validated at their reached lowering route. Keep the older
+    // borrow-binding CFG frontier for bindings without dedicated lowering checks.
     let unit_has_refine_constructs =
         !owned.field_replacements().is_empty() || !typed.ownership_primitives().is_empty();
-    if !unit_has_refine_constructs {
-        super::borrow_result::validate_bindings(&parsed_by_source, names, typed, owned)?;
-    }
+    super::borrow_result::validate_bindings(
+        &parsed_by_source,
+        names,
+        typed,
+        owned,
+        !unit_has_refine_constructs,
+    )?;
     // Runtime global initialization is not lowered yet. Check every source root,
     // including unused declarations, before reachability can discard its initializer.
     for parsed in &parsed_by_source {
@@ -108,6 +113,10 @@ fn lower_unit_impl(
         &mut types,
     )?;
 
+    for (ty, span) in source_plan.prefix_views() {
+        let view = callable_abi::view_type(module, typed, &mut types, ty, span)?;
+        callable_abi.record_view(ty, view);
+    }
     for (source_ordinal, instance) in instances.into_iter().enumerate() {
         if instance.key().deinit_owner().is_some() {
             let plan = deinit::declare(
@@ -304,7 +313,11 @@ fn lower_unit_impl(
             instance.span(),
         )?;
         let mut callable_return = None;
-        let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
+        let result_builtin = builtin_type(typed, return_type);
+        let return_types = if matches!(
+            result_builtin,
+            Some(BuiltinType::Unit | BuiltinType::Nothing)
+        ) {
             Vec::new()
         } else {
             vec![if matches!(
@@ -337,9 +350,11 @@ fn lower_unit_impl(
         if let Some(returned) = callable_return {
             callable_returns.insert(id, returned);
         }
-        module
+        let function = module
             .function_mut(id)
-            .expect("new unit function must exist")
+            .expect("new unit function must exist");
+        function.never_returns = result_builtin == Some(BuiltinType::Nothing);
+        function
             .add_block(parameter_types, Origin::Source(instance.span()))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
         if let Some(contract) = callable.borrow_return() {
@@ -503,6 +518,7 @@ fn lower_unit_impl(
             })
         };
         let refine_callables = closure::refine_callables(&callable_plans, plan.id);
+        let mut compatibility = false;
         if let Some((entry, entities, modes, borrow_return, carrier_return)) = refine_entry {
             let refine_body = match &plan.body {
                 FunctionPlanBody::Expression(expression) => {
@@ -547,7 +563,9 @@ fn lower_unit_impl(
                 borrow_return,
                 carrier_return,
             };
-            if crate::ssa::refine::routes(&inputs) {
+            let route = crate::ssa::refine::route(&inputs);
+            compatibility = matches!(route, CallableRoute::Compatibility);
+            if matches!(route, CallableRoute::Refine) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {
                     types.intern(module, typed, ty, plan.instance.span())?;
                 }
@@ -670,6 +688,7 @@ fn lower_unit_impl(
             }
         }
         let mut lowerer = UnitExpressionLowerer {
+            migrated_family_compatibility: compatibility,
             sources,
             parsed,
             source_unit: plan.instance.source_unit(),
@@ -816,7 +835,10 @@ fn lower_unit_impl(
             borrow_return: None,
             carrier_return: None,
         };
-        if !crate::ssa::refine::routes(&inputs) {
+        if !matches!(
+            crate::ssa::refine::route(&inputs),
+            CallableRoute::Refine
+        ) {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 plan.span,

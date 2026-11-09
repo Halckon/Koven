@@ -1,6 +1,10 @@
-//! source-qualified 普通 Borrow/Value 参数 shared 结果；非 refine 路径仅保留全单元校验与 Map 借用 root 绑定。
+//! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
 use super::*;
-use lang_frontend::{ownership_checking::UnitLoanTarget, type_checking::BorrowReturnOrigin};
+use crate::ssa::borrow_result_support::ordinary_local;
+use lang_frontend::{
+    ownership_checking::{BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget},
+    type_checking::{BorrowReturnOrigin, UnitAggregateProjectionReceiver},
+};
 
 pub(super) fn validate_declarations(
     parsed: &[&lang_frontend::parser::ParsedFile],
@@ -45,135 +49,178 @@ pub(super) fn validate_declarations(
     Ok(())
 }
 
-pub(super) fn validate_bindings(
-    parsed: &[&lang_frontend::parser::ParsedFile],
+// These binding shapes have dedicated lowering checks. Other bindings still require
+// the older whole-function CFG frontier, including RangeView and carrier aliases.
+fn has_dedicated_binding_path(
+    file: &lang_frontend::parser::ParsedFile,
     _names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
+    fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+) -> Result<bool, LoweringError> {
+    let UnitLoanTarget::Place(place) = fact.origin() else {
+        return Ok(false);
+    };
+    if fact.storage() != BorrowBindingStorage::BorrowedStorage
+        || fact.source_loan().is_some()
+        || fact.parent().is_some()
+        || place.element().is_some()
+    {
+        return Ok(false);
+    }
+    let source_unit = fact.binding().source_unit();
+    if !place.is_root() {
+        let expression = crate::ssa::borrow_result_support::ungroup(
+            file,
+            fact.initializer().expression(),
+            fact.marker_span(),
+        )?;
+        return Ok(typed
+            .aggregate_projection(UnitExpressionId::new(source_unit, expression))
+            .is_some_and(|projection| {
+                matches!(projection.receiver(), UnitAggregateProjectionReceiver::Expression(receiver)
+                    if receiver.source_unit() == source_unit)
+                    && place.fields().last() == Some(&projection.field())
+            }));
+    }
+    // Map iteration itself now lowers only in `ssa::refine`; the provider binding
+    // still owns this dedicated validation path, so the retired legacy qualifier
+    // is not consulted here.
+    Ok(owned.map_iterations().iter().any(|plan| {
+        let statement = plan.descriptor().statement();
+        statement.source_unit() == source_unit
+            && plan.source() == Some(fact.origin())
+            && typed.map_iteration(statement).is_some()
+    }))
+}
+
+fn validate_binding(
+    file: &lang_frontend::parser::ParsedFile,
+    _names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+    disjoint_ifs: Option<&std::collections::BTreeSet<usize>>,
 ) -> Result<(), LoweringError> {
-    for fact in owned.borrow_results().bindings() {
-        let file = parsed
-            .iter()
-            .find(|file| file.source_id() == fact.marker_span().source_id())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
-        let prefixes = owned
-            .borrow_results()
-            .range_uses()
-            .iter()
-            .filter_map(|use_fact| {
-                let lang_frontend::ownership_checking::RangeUseSite::Call(call) = use_fact.site()
-                else {
-                    return None;
-                };
-                (use_fact.origin() == fact.origin()
-                    && call.source_unit() == fact.binding().source_unit())
-                .then(|| {
-                    file.ast()
-                        .expressions()
-                        .get(call.expression())
-                        .ok()
-                        .map(|node| node.span())
-                })
-                .flatten()
+    if file.source_id() != fact.marker_span().source_id() {
+        return Err(lowering_error(
+            LoweringErrorKind::MissingFact,
+            fact.marker_span(),
+        ));
+    }
+    let prefixes = owned
+        .borrow_results()
+        .range_uses()
+        .iter()
+        .filter_map(|use_fact| {
+            let lang_frontend::ownership_checking::RangeUseSite::Call(call) = use_fact.site()
+            else {
+                return None;
+            };
+            (use_fact.origin() == fact.origin()
+                && call.source_unit() == fact.binding().source_unit())
+            .then(|| {
+                file.ast()
+                    .expressions()
+                    .get(call.expression())
+                    .ok()
+                    .map(|node| node.span())
             })
-            .collect::<Vec<_>>();
-        let scope = crate::ssa::borrow_result_support::range_scope(
-            file,
-            fact.marker_span(),
-            |marker, scope| {
-                let expected_end = UnitDropPoint::AfterStatement(
-                    lang_frontend::type_checking::UnitStatementId::new(
-                        fact.binding().source_unit(),
-                        scope,
-                    ),
-                );
-                let Some(other) = owned
-                    .borrow_results()
-                    .bindings()
-                    .iter()
-                    .find(|other| other.marker_span() == marker)
-                else {
-                    return false;
-                };
-                let mut ends = owned
-                    .borrow_results()
-                    .ends()
-                    .iter()
-                    .filter(|end| end.binding() == other.binding());
-                other.storage()
-                    == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor
-                    && other.origin() == fact.origin()
-                    && other.source_loan().is_some()
-                    && ends.next().is_some_and(|end| end.point() == expected_end)
-                    && ends.next().is_none()
-            },
-        );
-        crate::ssa::borrow_result_support::binding(
-            file,
-            fact.marker_span(),
-            fact.storage()
-                == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
-            &prefixes,
-            scope,
-            |expression| match typed
-                .expression_type(UnitExpressionId::new(
+            .flatten()
+        })
+        .collect::<Vec<_>>();
+    let scope = crate::ssa::borrow_result_support::range_scope(
+        file,
+        fact.marker_span(),
+        |marker, scope| {
+            let expected_end =
+                UnitDropPoint::AfterStatement(lang_frontend::type_checking::UnitStatementId::new(
+                    fact.binding().source_unit(),
+                    scope,
+                ));
+            let Some(other) = owned
+                .borrow_results()
+                .bindings()
+                .iter()
+                .find(|other| other.marker_span() == marker)
+            else {
+                return false;
+            };
+            let mut ends = owned
+                .borrow_results()
+                .ends()
+                .iter()
+                .filter(|end| end.binding() == other.binding());
+            other.storage()
+                == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor
+                && other.origin() == fact.origin()
+                && other.source_loan().is_some()
+                && ends.next().is_some_and(|end| end.point() == expected_end)
+                && ends.next().is_none()
+        },
+    );
+    crate::ssa::borrow_result_support::binding(
+        file,
+        fact.marker_span(),
+        fact.storage()
+            == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
+        &prefixes,
+        disjoint_ifs,
+        scope,
+        |expression| match typed
+            .expression_type(UnitExpressionId::new(
+                fact.binding().source_unit(),
+                expression,
+            ))
+            .and_then(|ty| typed.types().get(ty))
+        {
+            Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+            _ => None,
+        },
+        |expression, access| {
+            typed
+                .call(UnitExpressionId::new(
                     fact.binding().source_unit(),
                     expression,
                 ))
-                .and_then(|ty| typed.types().get(ty))
-            {
-                Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
-                _ => None,
-            },
-            |expression, access| {
-                typed
-                    .call(UnitExpressionId::new(
-                        fact.binding().source_unit(),
-                        expression,
-                    ))
-                    .is_some_and(|call| {
-                        use crate::ssa::borrow_result_support::CallAccess;
-                        let mode_allowed = |mode, ty| {
-                            mode == ParameterMode::Borrow
-                                || (mode == ParameterMode::Value
-                                    && typed.copyability(ty)
-                                        == lang_frontend::type_checking::Copyability::Copyable)
-                        };
-                        call.result_source()
-                            == lang_frontend::type_checking::CallableResultSource::Owned
-                            && (access == CallAccess::OwnedResult
-                                || (!call.aborts()
-                                    && !matches!(
-                                        call.target(),
-                                        lang_frontend::type_checking::UnitCallTarget::FunctionValue
-                                    )
-                                    && call.arguments().iter().all(|argument| {
-                                        !argument.crosses_thread()
-                                            && mode_allowed(
-                                                argument.mode(),
-                                                argument.parameter_type(),
-                                            )
-                                    })
-                                    && call.receiver().is_none_or(|receiver| {
-                                        mode_allowed(receiver.mode(), receiver.ty())
-                                    })))
-                    })
-            },
-            |statement| {
-                typed
-                    .map_iteration(lang_frontend::type_checking::UnitStatementId::new(
-                        fact.binding().source_unit(),
-                        statement,
-                    ))
-                    .is_some()
-            },
-        )?;
-        if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {
-            return Err(lowering_error(
-                LoweringErrorKind::UnsupportedNode,
-                fact.marker_span(),
-            ));
-        }
+                .is_some_and(|call| {
+                    use crate::ssa::borrow_result_support::CallAccess;
+                    let mode_allowed = |mode, ty| {
+                        mode == ParameterMode::Borrow
+                            || (mode == ParameterMode::Value
+                                && typed.copyability(ty)
+                                    == lang_frontend::type_checking::Copyability::Copyable)
+                    };
+                    call.result_source()
+                        == lang_frontend::type_checking::CallableResultSource::Owned
+                        && (access == CallAccess::OwnedResult
+                            || (!call.aborts()
+                                && !matches!(
+                                    call.target(),
+                                    lang_frontend::type_checking::UnitCallTarget::FunctionValue
+                                )
+                                && call.arguments().iter().all(|argument| {
+                                    !argument.crosses_thread()
+                                        && mode_allowed(argument.mode(), argument.parameter_type())
+                                })
+                                && call.receiver().is_none_or(|receiver| {
+                                    mode_allowed(receiver.mode(), receiver.ty())
+                                })))
+                })
+        },
+        |statement| {
+            let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
+            owned.map_iterations().iter().any(|plan| {
+                plan.descriptor().statement() == statement
+                    && plan.source() == Some(fact.origin())
+            })
+        },
+    )?;
+    if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {
+        return Err(lowering_error(
+            LoweringErrorKind::UnsupportedNode,
+            fact.marker_span(),
+        ));
     }
     Ok(())
 }
@@ -193,19 +240,22 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .find(|fact| fact.binding() == symbol && fact.initializer() == id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let UnitLoanTarget::Place(origin) = fact.origin() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        // Only direct root Borrow parameter aliases remain here (SPEC-0393).
+        let origin = match fact.origin() {
+            UnitLoanTarget::Place(origin)
+                if fact.storage() == BorrowBindingStorage::BorrowedStorage
+                    && fact.source_loan().is_none()
+                    && fact.parent().is_none()
+                    && origin.is_root() =>
+            {
+                origin
+            }
+            _ => {
+                // Preserve the legacy diagnostic for shapes that cannot lower on this route.
+                validate_binding(self.parsed, self.names, self.typed, self.owned, fact, None)?;
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
         };
-        // Non-root/call/range `borrow val` bindings lower through `ssa::refine` (SPEC-0393);
-        // only direct root Borrow parameter aliases used by legacy map iteration remain here.
-        if fact.storage()
-            != lang_frontend::ownership_checking::BorrowBindingStorage::BorrowedStorage
-            || fact.source_loan().is_some()
-            || fact.parent().is_some()
-            || !origin.is_root()
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         if self.direct_name_symbol(initializer, span)? != Some(origin.root()) {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -279,12 +329,30 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn validate_bindings_for_test(
+pub(crate) fn validate_bindings(
     parsed: &[&lang_frontend::parser::ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
+    legacy_gate: bool,
 ) -> Result<(), LoweringError> {
-    validate_bindings(parsed, names, typed, owned)
+    for fact in owned.borrow_results().bindings() {
+        let file = parsed
+            .iter()
+            .find(|file| file.source_id() == fact.marker_span().source_id())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
+        match ordinary_local::policy(file, typed, owned, fact) {
+            Some(ordinary_local::Policy::Scoped) => {
+                let disjoint_ifs = ordinary_local::disjoint_ifs(file, owned, fact);
+                validate_binding(file, names, typed, owned, fact, Some(&disjoint_ifs))?;
+            }
+            None if legacy_gate
+                && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
+            {
+                validate_binding(file, names, typed, owned, fact, None)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }

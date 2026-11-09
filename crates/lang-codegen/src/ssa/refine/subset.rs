@@ -162,9 +162,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
                                         || checker.box_enum_type(ty)
                                         || checker.map_kv(ty).is_some()
                                         || checker.rc_payload(ty).is_some()
-                                        || ((matches!(inputs.body, RefineBody::Lambda(_))
-                                            || inputs.borrow_return.is_some())
-                                            && checker.nullable_storage(ty))
+                                        || checker.nullable_storage(ty)
                                 }
                                 ParameterMode::Inout => {
                                     checker.copyability_of(ty) == Copyability::Copyable
@@ -174,6 +172,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
                 })
             })
         && (checker.unit(inputs.return_type)
+            || checker.nothing(inputs.return_type)
             || checker.storage_type(inputs.return_type)
             // A borrow-result function forwards a loan of a nullable owner unchanged.
             || (inputs.borrow_return.is_some() && checker.nullable_storage(inputs.return_type))
@@ -197,7 +196,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         });
     // An Inout parameter or receiver, a MoveOnly Value receiver, or a StaticSelf/object
     // specialization belongs to the migrated subset.
-    checker.migrated |= inputs.modes.contains(&ParameterMode::Inout)
+    checker.migrated |= checker.nothing(inputs.return_type)
+        || inputs.modes.contains(&ParameterMode::Inout)
         || inputs.static_self.is_some()
         || inputs.receiver.is_some_and(|receiver| {
             receiver.mode == ParameterMode::Inout
@@ -506,7 +506,24 @@ impl Checker<'_, '_> {
         let Some(ty) = self.expression_type(expression) else {
             return false;
         };
+        if let Expression::When {
+            subject: Some(subject),
+            ..
+        } = *node.payload()
+            && self.inputs.typed.expression_falls_through(self.id(subject)) == Some(false)
+        {
+            self.migrated = true;
+            return self.expression(subject);
+        }
         let id = self.id(expression);
+        if matches!(node.payload(), Expression::Call { .. })
+            && let Some(receiver) =
+                crate::ssa::unit_source_query::non_completing_call_receiver(self.inputs.typed, id)
+        {
+            self.migrated = true;
+            return receiver.source_unit() == self.inputs.source_unit
+                && self.expression(receiver.expression());
+        }
         // Jumps and abort calls are typed `Nothing`. An if or group can carry that
         // divergence; the inner expression still has to pass its own admission.
         let returns = (matches!(
@@ -516,7 +533,13 @@ impl Checker<'_, '_> {
                 | Expression::Continue { .. }
                 | Expression::If { .. }
                 | Expression::Group { .. }
-        ) || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
+        ) || matches!(node.payload(), Expression::When { .. })
+            && self.inputs.typed.expression_falls_through(id) == Some(false)
+            || self.inputs.typed.call(id).is_some_and(|desc| {
+                desc.aborts()
+                    || self.named_nothing_call(desc)
+                    || desc.target() == UnitCallTarget::FunctionValue
+            }))
             && matches!(
                 self.kind(ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
@@ -674,7 +697,7 @@ impl Checker<'_, '_> {
                 subject: Some(subject),
                 entries,
                 ..
-            } => self.subject_when(ty, subject, &entries),
+            } => self.subject_when(expression, ty, subject, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
                 let function_value = self
@@ -682,7 +705,7 @@ impl Checker<'_, '_> {
                     .typed
                     .call(self.id(expression))
                     .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
-                self.call(expression)
+                self.call(expression, &values)
                     && (!function_value || self.function_callee(expression, &values))
                     && self.arguments(expression, &values)
             }
@@ -890,8 +913,12 @@ impl Checker<'_, '_> {
         });
         if let Some(fact) = self.inputs.typed.null_comparison(id) {
             self.branch_form.insert(id);
-            self.note_nullable(self.c(fact.nullable_type()));
-            let inner_ok = match self.kind(self.c(fact.nullable_type())) {
+            let nullable = self.c(fact.nullable_type());
+            self.note_nullable(nullable);
+            if let Some(supported) = self.borrowed_nullable_presence(fact.symbol(), nullable) {
+                return boolean && supported && self.known.contains(&fact.symbol());
+            }
+            let inner_ok = match self.kind(nullable) {
                 Some(UnitTypeKind::Nullable(inner))
                     if self.scalar(*inner)
                         || self.range_type(*inner)
@@ -934,7 +961,8 @@ impl Checker<'_, '_> {
                 let ok = boolean
                     && self.plain(expression)
                     && self.condition(left, views)
-                    && (!self.logical_reaches_rhs(left, operator) || self.condition(right, views));
+                    && (!self.logical_reaches_rhs(id, left, operator)
+                        || self.condition(right, views));
                 if !views {
                     self.view_symbols = saved;
                 }
@@ -949,6 +977,7 @@ impl Checker<'_, '_> {
         let id = self.id(root);
         if let Some(fact) = self.inputs.typed.null_comparison(id)
             && !fact.non_null_when_true()
+            && self.parameter_mode(fact.symbol()) != Some(ParameterMode::Borrow)
             && self.known.contains(&fact.symbol())
             && let Some(UnitTypeKind::Nullable(inner)) = self.kind(self.c(fact.nullable_type()))
             && self.view_inner(*inner)

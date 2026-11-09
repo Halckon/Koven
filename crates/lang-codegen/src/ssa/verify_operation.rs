@@ -9,7 +9,7 @@ pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
 };
-mod callable;
+pub(super) mod callable;
 use callable::{
     callable_invoke_contract, closure_construct_contract, direct_call_contract,
     function_address_contract,
@@ -130,11 +130,9 @@ pub(super) fn verify_operation(
             value_type(function, *operand).is_some_and(|ty| is_boolean(module, ty))
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
-        Operation::DirectCall {
-            callee,
-            receiver,
-            arguments,
-        } => direct_call_contract(module, function, *callee, *receiver, arguments, &results),
+        Operation::DirectCall { .. } => {
+            direct_call_contract(module, function, instruction, &results)
+        }
         Operation::FunctionAddress { target } => {
             function_address_contract(module, *target, &results)
         }
@@ -307,7 +305,8 @@ pub(super) fn verify_operation(
         Operation::NullableLoanIsNull { source } => {
             matches!(function.entity(EntityId::Loan(*source)).map(|e| e.ty),
                 Some(EntityType::Loan {kind:LoanKind::Shared,target})
-                    if matches!(module.type_kind(target),Some(SsaTypeKind::NullableHandle {..})))
+                    if matches!(module.type_kind(target), Some(SsaTypeKind::NullableHandle { .. } | SsaTypeKind::InlineNullable { .. }))
+                        || module.map_result_value(target).is_some())
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
         Operation::NullableTake { owner, proof } => {
@@ -514,7 +513,7 @@ pub(super) fn verify_operation(
                 )
         }
     };
-    if !valid {
+    if !valid || !callable::call_termination_contract(module, function, instruction) {
         errors.push(VerifyError {
             kind: VerifyErrorKind::OperationContract {
                 reason: "operand and result types do not match the operation contract",

@@ -9,7 +9,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         Copyability, ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitCallTarget, UnitTypeId, UnitTypeKind,
+        UnitCallDescriptor, UnitCallTarget, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -715,11 +715,24 @@ impl Checker<'_, '_> {
         }
     }
 
-    pub(super) fn call(&mut self, expression: ExpressionId) -> bool {
+    pub(super) fn named_nothing_call(&self, call: &UnitCallDescriptor) -> bool {
+        matches!(
+            call.target(),
+            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+        ) && !call.aborts()
+            && self.nothing(self.c(call.return_type()))
+    }
+
+    pub(super) fn call(&mut self, expression: ExpressionId, values: &[ExpressionId]) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
             return false;
         };
+        let site = self
+            .inputs
+            .source_plan
+            .call_site(self.inputs.source_token, id);
+        let prefix_only = site.is_some_and(|site| site.dispatch_key().is_none());
         let is_extension = self.is_extension_call(descriptor);
         let simple = (descriptor.receiver().is_none()
             || is_extension
@@ -729,6 +742,12 @@ impl Checker<'_, '_> {
             && descriptor
                 .arguments()
                 .iter()
+                .filter(|argument| {
+                    !prefix_only
+                        || values.get(argument.argument_index()).is_some_and(|&value| {
+                            self.inputs.owned.call_argument_completed(self.id(value))
+                        })
+                })
                 .all(|argument| match argument.mode() {
                     ParameterMode::Value => self.storage_type(self.c(argument.parameter_type())),
                     ParameterMode::Borrow => {
@@ -750,31 +769,33 @@ impl Checker<'_, '_> {
             || (matches!(
                 descriptor.target(),
                 UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
-            ) && self
-                .inputs
-                .source_plan
-                .call_site(self.inputs.source_token, id)
-                .is_some_and(|site| {
-                    let delegation_ok = site.delegation().is_empty()
-                        || (descriptor
-                            .receiver()
-                            .is_some_and(|r| r.mode() == ParameterMode::Borrow)
-                            && site.delegation().first().is_some_and(|first| {
-                                Some(first.outer_receiver())
-                                    == descriptor.receiver().map(|r| self.c(r.ty()))
-                            })
-                            && site.delegation().iter().all(|route| {
-                                self.class(route.outer_receiver())
-                                    && self.class(route.delegate_receiver())
-                                    && self.class_field(route.outer_receiver(), route.field())
-                            }));
-                    if !site.delegation().is_empty() && delegation_ok {
-                        self.migrated = true;
-                    }
-                    delegation_ok && self.inputs.function_ids.contains_key(site.key())
-                }));
+            ) && site.is_some_and(|site| {
+                let delegation_ok = site.delegation().is_empty()
+                    || (descriptor
+                        .receiver()
+                        .is_some_and(|r| r.mode() == ParameterMode::Borrow)
+                        && site.delegation().first().is_some_and(|first| {
+                            Some(first.outer_receiver())
+                                == descriptor.receiver().map(|r| self.c(r.ty()))
+                        })
+                        && site.delegation().iter().all(|route| {
+                            self.class(route.outer_receiver())
+                                && self.class(route.delegate_receiver())
+                                && self.class_field(route.outer_receiver(), route.field())
+                        }));
+                if !site.delegation().is_empty() && delegation_ok {
+                    self.migrated = true;
+                }
+                delegation_ok
+                    && site
+                        .dispatch_key()
+                        .is_none_or(|key| self.inputs.function_ids.contains_key(key))
+            }));
         let ok = simple && target;
-        self.migrated |= ok && (is_extension || descriptor.text_primitive().is_some());
+        self.migrated |= ok
+            && (is_extension
+                || descriptor.text_primitive().is_some()
+                || self.named_nothing_call(descriptor));
         ok
     }
 
@@ -806,12 +827,20 @@ impl Checker<'_, '_> {
             extension_rec = Some(expression.expression());
             modes.insert(0, (None, receiver.mode(), self.c(receiver.ty())));
         }
+        let mut reaches_operand = true;
         modes.into_iter().all(|(index, mode, parameter)| {
+            if !reaches_operand {
+                return true;
+            }
             let Some(value) = index.map_or(extension_rec, |i| values.get(i).copied()) else {
                 return false;
             };
             if mode == ParameterMode::Inout {
                 return self.inout_argument(call, value);
+            }
+            if self.inputs.typed.expression_falls_through(self.id(value)) == Some(false) {
+                reaches_operand = false;
+                return self.expression(value);
             }
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);

@@ -6,7 +6,8 @@ pub use drop_point::{
 
 mod loan;
 pub use loan::{
-    UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact, UnitDirectCallLoanEndFact,
+    UnitBorrowBindingTransportFact, UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact,
+    UnitBorrowCallTransportFact, UnitBorrowForwardTransportFact, UnitDirectCallLoanEndFact,
     UnitExclusiveCallPrefixEndFact, UnitLoanFact, UnitLoanTarget,
 };
 
@@ -61,8 +62,8 @@ pub use construction::{
 pub use non_null_assertion::UnitNonNullAssertionOwnershipPlan;
 pub use receiver::{
     UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
-    UnitDelegationOwnershipPlan, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget,
+    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
 use std::sync::Arc;
@@ -412,9 +413,13 @@ pub struct CompilationUnitOwnership {
     conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     delegations: Vec<UnitDelegationOwnershipPlan>,
     owner_observations: Vec<UnitOwnerObservation>,
+    receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
+    borrow_call_transports: Vec<UnitBorrowCallTransportFact>,
+    borrow_binding_transports: Vec<UnitBorrowBindingTransportFact>,
+    borrow_forward_transports: Vec<UnitBorrowForwardTransportFact>,
     borrow_call_prefix_ends: Vec<UnitBorrowCallPrefixEndFact>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -556,7 +561,14 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
-            callable_provenance: dataflow.callable_provenance,
+            callable_provenance: super::callable_provenance::UnitCallableFacts {
+                entered_lambdas: if successful {
+                    dataflow.visited_lambdas
+                } else {
+                    Default::default()
+                },
+                ..dataflow.callable_provenance
+            },
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 typed_basic_is_valid: typed.has_valid_basic_types(),
@@ -615,6 +627,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            receiver_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.receiver_call_prefix_ends
+            } else {
+                Vec::new()
+            },
             exclusive_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.exclusive_call_prefix_ends
             } else {
@@ -622,6 +639,21 @@ impl CompilationUnitOwnership {
             },
             borrow_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.borrow_call_prefix_ends
+            } else {
+                Vec::new()
+            },
+            borrow_forward_transports: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_forward_transports
+            } else {
+                Vec::new()
+            },
+            borrow_binding_transports: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_binding_transports
+            } else {
+                Vec::new()
+            },
+            borrow_call_transports: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_call_transports
             } else {
                 Vec::new()
             },
@@ -766,13 +798,32 @@ impl CompilationUnitOwnership {
 
     /// 普通直接调用 Borrow 实参的实际结束事件，保持 planner 的结束动作顺序。
     /// 仅覆盖 owned-result、无 receiver 的 declaration/symbol call：operand 为可分组的
-    /// owned val/var 或具名参数根，或无插值 String 字面量。不包含借用绑定、provider 来源/绑定、投影、
-    /// 构造结果、借用结果、来源移交、Inout、receiver 或 capture end。
+    /// owned val/var 或具名参数根、无插值 String 字面量，或沿 typed Field/Group 链证明的
+    /// MoveOnly temporary 父字段（target 必须是实际完整父 owner）。不包含借用绑定、provider
+    /// 来源/绑定、其他投影、直接构造结果、借用结果、来源移交、Inout、receiver 或 capture end。
     /// 本轮任一 provider 使用的名称根均保守排除，不按调用位置扩大准入。
     /// 空列表不证明其它种类的 loan 仍活跃或已经结束。
     #[must_use]
     pub fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
         &self.direct_call_loan_ends
+    }
+
+    /// 真实 source token 跨 inner return 的有界同步 consumer 运输；不是完整 loan-end 流。
+    #[must_use]
+    pub fn borrow_call_transports(&self) -> &[UnitBorrowCallTransportFact] {
+        &self.borrow_call_transports
+    }
+
+    /// 真实 source token 从直接 initializer 运输到 local binding 实际终止；不是完整流。
+    #[must_use]
+    pub fn borrow_binding_transports(&self) -> &[UnitBorrowBindingTransportFact] {
+        &self.borrow_binding_transports
+    }
+
+    /// 真实参数 source token 跨 inner return 交接给当前函数返回；不是 source 结束。
+    #[must_use]
+    pub fn borrow_forward_transports(&self) -> &[UnitBorrowForwardTransportFact] {
+        &self.borrow_forward_transports
     }
 
     /// 已完成的具名 Shared 根实参借用返回交接；不包含完整 loan-end 流。
@@ -794,6 +845,13 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn exclusive_call_prefix_ends(&self) -> &[UnitExclusiveCallPrefixEndFact] {
         &self.exclusive_call_prefix_ends
+    }
+
+    /// owned 名称根 Shared receiver 在实际 Return unwind 中的有界结束观测。
+    /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
+    #[must_use]
+    pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
+        &self.receiver_call_prefix_ends
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。

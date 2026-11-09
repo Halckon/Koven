@@ -264,3 +264,58 @@ fn original_gate_sources_keep_their_first_real_diagnostic_stage() {
         );
     }
 }
+
+#[test]
+fn missing_return_uses_the_function_closer_or_eof_during_recovery() {
+    for (text, unclosed, reports_missing_closer) in [
+        ("fun missing(): Int { { 0 }\r\n  ", true, true),
+        (
+            "fun missing(): Int { while (false) }\nfun later(): Unit {}\n",
+            false,
+            false,
+        ),
+        ("fun missing(): Int { /* }", true, false),
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("recovered-body.ko", text).unwrap();
+        let start = if unclosed {
+            text.len()
+        } else {
+            text.find('}').unwrap()
+        };
+        let expected = sources
+            .span(source, start, start + usize::from(!unclosed))
+            .unwrap();
+        let (environment, types) = standard_environments();
+        let snapshot = analyze_unit_names(
+            sources,
+            vec![UnitSourceDescriptor::memory_document(source)],
+            environment,
+        )
+        .unwrap();
+        let [parsed] = snapshot.parsed_files() else {
+            panic!("one source")
+        };
+        assert!(!parsed.diagnostics().is_empty(), "{text:?}");
+        let closing = parsed
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0010");
+        assert_eq!(
+            closing.map(Diagnostic::primary_span),
+            reports_missing_closer.then_some(expected)
+        );
+        let (typed, _) = analyze_unit_recovery(&snapshot, &types).unwrap();
+        let missing_return = typed
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0088")
+            .expect("non-Unit body reaches its closer or recovery point");
+        assert_eq!(missing_return.primary_span(), expected, "{text:?}");
+        assert!(missing_return.details().iter().any(|detail| matches!(
+            detail,
+            crate::diagnostic::DiagnosticDetail::Label(label)
+                if snapshot.sources().slice(label.span()) == Ok("Int")
+        )));
+    }
+}

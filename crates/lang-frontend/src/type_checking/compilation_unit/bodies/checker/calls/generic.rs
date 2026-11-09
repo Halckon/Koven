@@ -66,6 +66,7 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<Vec<Option<UnitTypeId>>, CompilationUnitTypeError> {
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = true;
         arguments
             .iter()
@@ -73,7 +74,7 @@ impl BodyChecker<'_> {
                 if self.is_lambda_syntax(source, argument.value) {
                     Ok(None)
                 } else {
-                    let result = self.check_loop_reachable(arguments_exit, |checker| {
+                    let result = self.check_loop_paths(ordinary, arguments_exit, |checker| {
                         checker.check_expression(
                             source,
                             argument.value,
@@ -82,6 +83,7 @@ impl BodyChecker<'_> {
                             return_type,
                         )
                     })?;
+                    ordinary &= result.falls_through;
                     if track_arguments && arguments_exit {
                         arguments_exit =
                             self.has_pending_expression_exit(source, argument.value, result)?;

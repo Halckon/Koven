@@ -58,6 +58,11 @@ impl SourceProgram {
     }
 
     fn function(&self, name: &str) -> &Function {
+        self.function_if_emitted(name)
+            .expect("same-source function body is emitted")
+    }
+
+    fn function_if_emitted(&self, name: &str) -> Option<&Function> {
         let mut declarations =
             self.names
                 .names()
@@ -87,9 +92,7 @@ impl SourceProgram {
             .iter()
             .flat_map(|module| &module.functions)
             .filter(|function| function.origin == Origin::Source(span));
-        let function = functions
-            .next()
-            .expect("same-source function body is emitted");
+        let function = functions.next();
         assert!(
             functions.next().is_none(),
             "one body for the original source declaration"
@@ -355,7 +358,8 @@ fn incoming_edges(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)>
                 TerminatorKind::Return { .. }
                 | TerminatorKind::RangeReturn { .. }
                 | TerminatorKind::BorrowReturn { .. }
-                | TerminatorKind::Abort => Vec::new(),
+                | TerminatorKind::Abort
+                | TerminatorKind::Unreachable => Vec::new(),
             };
             edges.into_iter().map(move |edge| (block.id, edge))
         })

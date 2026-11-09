@@ -3,7 +3,9 @@
 //! 索引只保存识别结果，不构造 AST 或诊断。所有依赖都指向更靠后的 significant lexeme，
 //! 因而可以反向迭代求值，避免 Rust 递归及每个 `<` 候选重复扫描后缀。
 
-use crate::lexer::{LexedFile, Lexeme, LexemeKind, Symbol, TokenKind};
+use std::cell::OnceCell;
+
+use crate::lexer::{InvalidKind, LexedFile, Lexeme, LexemeKind, Symbol, TokenKind};
 use crate::source::SourceMap;
 
 use super::{MAX_RECURSION_DEPTH, ParserInternalError};
@@ -24,6 +26,8 @@ pub(super) enum CallTrial {
     NoMatch {
         /// 判定失败前实际探索到的最大附加递归深度。
         additional_depth: usize,
+        /// 严格类型列表的真实 `>`。仅在调用后缀不匹配时仍可能存在。
+        closed_list_raw: Option<usize>,
     },
 }
 
@@ -33,7 +37,9 @@ impl CallTrial {
             Self::Match {
                 additional_depth, ..
             }
-            | Self::NoMatch { additional_depth } => additional_depth,
+            | Self::NoMatch {
+                additional_depth, ..
+            } => additional_depth,
         }
     }
 }
@@ -42,6 +48,7 @@ impl CallTrial {
 pub(super) struct StrictCallTrialIndex {
     raw_to_significant: Vec<Option<usize>>,
     trials: Vec<Option<CallTrial>>,
+    recovered_type_closers: OnceCell<Result<Vec<Option<usize>>, ParserInternalError>>,
     #[cfg(test)]
     token_inspections: usize,
     #[cfg(test)]
@@ -74,7 +81,7 @@ impl StrictCallTrialIndex {
             raw_to_significant[raw] = next_significant;
         }
 
-        let built = TrialBuilder::new(sources, &significant).build()?;
+        let built = TrialBuilder::new(sources, &significant, false).build()?;
         let trials = built
             .call_trials
             .into_iter()
@@ -98,8 +105,22 @@ impl StrictCallTrialIndex {
                         additional_depth,
                     }))
                 }
-                Some(SignificantCallTrial::NoMatch { additional_depth }) => {
-                    Ok(Some(CallTrial::NoMatch { additional_depth }))
+                Some(SignificantCallTrial::NoMatch {
+                    additional_depth,
+                    closed_list_significant,
+                }) => {
+                    let closed_list_raw = closed_list_significant
+                        .map(|index| {
+                            significant_to_raw
+                                .get(index)
+                                .copied()
+                                .ok_or(ParserInternalError::InvalidLexemeStream)
+                        })
+                        .transpose()?;
+                    Ok(Some(CallTrial::NoMatch {
+                        additional_depth,
+                        closed_list_raw,
+                    }))
                 }
                 None => Ok(None),
             })
@@ -108,11 +129,72 @@ impl StrictCallTrialIndex {
         Ok(Self {
             raw_to_significant,
             trials,
+            recovered_type_closers: OnceCell::new(),
             #[cfg(test)]
             token_inspections: built.token_inspections,
             #[cfg(test)]
             evaluated_states: built.evaluated_states,
         })
+    }
+
+    fn trial_at_raw(&self, raw_start: usize) -> Result<Option<CallTrial>, ParserInternalError> {
+        let significant = self
+            .raw_to_significant
+            .get(raw_start)
+            .copied()
+            .flatten()
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        Ok(self.trials.get(significant).copied().flatten())
+    }
+
+    /// 声明恢复只消费有真实闭合证据的类型列表，不授予 typed-call 准入。
+    pub(super) fn recovery_type_list_closer(
+        &self,
+        sources: &SourceMap,
+        lexed: &LexedFile,
+        raw_start: usize,
+        allow_poison: bool,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        match self.trial_at_raw(raw_start)? {
+            Some(CallTrial::Match { closing_raw, .. }) => return Ok(Some(closing_raw)),
+            Some(CallTrial::NoMatch {
+                closed_list_raw: Some(closer),
+                ..
+            }) => return Ok(Some(closer)),
+            Some(CallTrial::NoMatch { .. }) if allow_poison => {}
+            _ => return Ok(None),
+        }
+
+        // 复用严格类型结构。替代原子的结果另存，保持严格查询和预算不变。
+        let recovered = self.recovered_type_closers.get_or_init(|| {
+            let (raw, significant): (Vec<_>, Vec<_>) = lexed
+                .lexemes()
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, lexeme)| !matches!(lexeme.kind(), LexemeKind::Trivia(_)))
+                .unzip();
+            let built = TrialBuilder::new(sources, &significant, true).build()?;
+            Ok(built
+                .call_trials
+                .into_iter()
+                .map(|trial| match trial {
+                    Some(SignificantCallTrial::Match {
+                        closing_significant,
+                        ..
+                    }) => raw.get(closing_significant).copied(),
+                    Some(SignificantCallTrial::NoMatch {
+                        closed_list_significant: Some(closer),
+                        ..
+                    }) => raw.get(closer).copied(),
+                    _ => None,
+                })
+                .collect())
+        });
+        let recovered = recovered.as_ref().map_err(Clone::clone)?;
+        let significant =
+            self.raw_to_significant[raw_start].ok_or(ParserInternalError::InvalidLexemeStream)?;
+        Ok(recovered.get(significant).copied().flatten())
     }
 
     /// 查询一个原始 `<` 下标；查询本身为 `O(1)`，并按当前 parser 深度重验统一预算。
@@ -121,20 +203,10 @@ impl StrictCallTrialIndex {
         raw_start: usize,
         baseline_depth: usize,
     ) -> Result<CallTrial, ParserInternalError> {
-        let significant = self
-            .raw_to_significant
-            .get(raw_start)
-            .copied()
-            .flatten()
-            .ok_or(ParserInternalError::InvalidLexemeStream)?;
-        let trial = self
-            .trials
-            .get(significant)
-            .copied()
-            .flatten()
-            .unwrap_or(CallTrial::NoMatch {
-                additional_depth: 1,
-            });
+        let trial = self.trial_at_raw(raw_start)?.unwrap_or(CallTrial::NoMatch {
+            additional_depth: 1,
+            closed_list_raw: None,
+        });
         if baseline_depth
             .checked_add(trial.additional_depth())
             .is_none_or(|depth| depth > MAX_RECURSION_DEPTH)
@@ -196,6 +268,7 @@ enum SignificantCallTrial {
     },
     NoMatch {
         additional_depth: usize,
+        closed_list_significant: Option<usize>,
     },
 }
 
@@ -210,6 +283,7 @@ struct BuiltTrials {
 struct TrialBuilder<'a> {
     sources: &'a SourceMap,
     lexemes: &'a [Lexeme],
+    recover_poison: bool,
     #[cfg(test)]
     inspections: usize,
     #[cfg(test)]
@@ -217,10 +291,11 @@ struct TrialBuilder<'a> {
 }
 
 impl<'a> TrialBuilder<'a> {
-    const fn new(sources: &'a SourceMap, lexemes: &'a [Lexeme]) -> Self {
+    const fn new(sources: &'a SourceMap, lexemes: &'a [Lexeme], recover_poison: bool) -> Self {
         Self {
             sources,
             lexemes,
+            recover_poison,
             #[cfg(test)]
             inspections: 0,
             #[cfg(test)]
@@ -283,6 +358,7 @@ impl<'a> TrialBuilder<'a> {
                     }
                     _ => SignificantCallTrial::NoMatch {
                         additional_depth: list.explored_depth,
+                        closed_list_significant: list.success.map(|success| success.closing),
                     },
                 });
             }
@@ -302,6 +378,14 @@ impl<'a> TrialBuilder<'a> {
                 }
             } else if self.is_symbol(index, Symbol::LeftParen) {
                 self.parse_function(index, &paren_lists, &types)?
+            } else if self.is_recovery_atom(index) {
+                let end = index + 1;
+                ParseTrial {
+                    success: Some(ParseSuccess {
+                        end: end + usize::from(self.is_symbol(end, Symbol::Question)),
+                    }),
+                    explored_depth: 1,
+                }
             } else {
                 ParseTrial::INVALID_TYPE
             };
@@ -339,7 +423,9 @@ impl<'a> TrialBuilder<'a> {
                 && (self.is_identifier_named(cursor, "own")
                     || self.is_identifier_named(cursor, "borrow")
                     || self.is_identifier_named(cursor, "inout"))
-                && (self.is_identifier(cursor + 1) || self.is_symbol(cursor + 1, Symbol::LeftParen))
+                && (self.is_identifier(cursor + 1)
+                    || self.is_symbol(cursor + 1, Symbol::LeftParen)
+                    || self.is_recovery_atom(cursor + 1))
             {
                 cursor += 1;
             }
@@ -476,6 +562,17 @@ impl<'a> TrialBuilder<'a> {
     #[cfg(not(test))]
     const fn record_state(&mut self) {}
 
+    fn is_recovery_atom(&mut self, index: usize) -> bool {
+        self.recover_poison
+            && matches!(
+                self.kind(index),
+                Some(
+                    LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)
+                        | LexemeKind::Token(TokenKind::ReservedWord(_))
+                )
+            )
+    }
+
     fn is_identifier(&mut self, index: usize) -> bool {
         matches!(
             self.kind(index),
@@ -536,16 +633,18 @@ mod tests {
         source::SourceMap,
     };
 
-    use super::{CallTrial, MAX_RECURSION_DEPTH, ParserInternalError, StrictCallTrialIndex};
+    use super::{
+        CallTrial, MAX_RECURSION_DEPTH, ParserInternalError, StrictCallTrialIndex, TrialBuilder,
+    };
 
-    fn indexed(text: &str) -> (crate::lexer::LexedFile, StrictCallTrialIndex) {
+    fn indexed(text: &str) -> (SourceMap, crate::lexer::LexedFile, StrictCallTrialIndex) {
         let mut sources = SourceMap::new();
         let source_id = sources
             .add_source("trial.ko", text)
             .expect("test source name must be unique");
         let lexed = lex_test_source_twice(&sources, source_id, "strict call trial");
         let index = StrictCallTrialIndex::new(&sources, &lexed).expect("lexer output must index");
-        (lexed, index)
+        (sources, lexed, index)
     }
 
     fn less_raw(lexed: &crate::lexer::LexedFile, nth: usize) -> usize {
@@ -566,7 +665,7 @@ mod tests {
 
     #[test]
     fn recognizes_complete_strict_types_and_rejects_incomplete_candidates() {
-        let (lexed, index) =
+        let (_, lexed, index) =
             indexed("f<A.B<C?>, Box<move (borrow D, inout E<F>) -> G?>> /* trivia */ ()");
         let trial = index
             .query(less_raw(&lexed, 0), 0)
@@ -585,7 +684,7 @@ mod tests {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Greater))
         ));
 
-        let (lexed, index) = indexed("f<T> /* same line */ {}");
+        let (_, lexed, index) = indexed("f<T> /* same line */ {}");
         let CallTrial::Match { suffix_raw, .. } = index
             .query(less_raw(&lexed, 0), 0)
             .expect("trailing lambda type arguments must query")
@@ -607,14 +706,112 @@ mod tests {
             "f<(borrow borrow T) -> R>()",
             "f<Box<(borrow inout T) -> R>>()",
         ] {
-            let (lexed, index) = indexed(malformed);
+            let (_, lexed, index) = indexed(malformed);
             assert!(matches!(
                 index.query(less_raw(&lexed, 0), 0),
                 Ok(CallTrial::NoMatch {
-                    additional_depth: 1..
+                    additional_depth: 1..,
+                    ..
                 })
             ));
         }
+    }
+
+    #[test]
+    fn recovered_type_closers_never_authorize_a_strict_call_or_a_nested_owner() {
+        for (text, proven) in [
+            ("f<A, β>()", true),
+            ("f<A, async?>()", true),
+            ("f<A, Box<(borrow β) -> R>>()", true),
+            ("f<A, 1>()", false),
+            ("f<A, 'ab'>()", false),
+            ("f<A, β; B>()", false),
+            ("f<A, β, class Next>()", false),
+            ("f<A, β()", false),
+        ] {
+            let (sources, lexed, index) = indexed(text);
+            let raw = less_raw(&lexed, 0);
+            let strict = index.query(raw, 0).unwrap();
+            assert!(
+                matches!(
+                    strict,
+                    CallTrial::NoMatch {
+                        closed_list_raw: None,
+                        ..
+                    }
+                ),
+                "{text}"
+            );
+            assert_eq!(
+                index.recovery_type_list_closer(&sources, &lexed, raw, false),
+                Ok(None)
+            );
+            assert!(index.recovered_type_closers.get().is_none());
+
+            let expected = proven.then(|| {
+                let end = text.rfind('>').unwrap();
+                lexed
+                    .lexemes()
+                    .iter()
+                    .position(|lexeme| lexeme.span().start() == end)
+                    .unwrap()
+            });
+            assert_eq!(
+                index.recovery_type_list_closer(&sources, &lexed, raw, true),
+                Ok(expected)
+            );
+            assert!(index.recovered_type_closers.get().is_some());
+            assert_eq!(
+                index.recovery_type_list_closer(&sources, &lexed, raw, false),
+                Ok(None)
+            );
+            assert_eq!(index.query(raw, 0), Ok(strict));
+        }
+    }
+
+    #[test]
+    fn poisoned_nested_trial_lists_keep_linear_operation_counts() {
+        let measure = |levels| {
+            let text = format!(
+                "f<{}β?{}()",
+                "Box /* trivia */ <".repeat(levels - 1),
+                ">".repeat(levels)
+            );
+            let (sources, lexed, _) = indexed(&text);
+            let significant = lexed
+                .lexemes()
+                .iter()
+                .copied()
+                .filter(|lexeme| !matches!(lexeme.kind(), LexemeKind::Trivia(_)))
+                .collect::<Vec<_>>();
+            let built = TrialBuilder::new(&sources, &significant, true)
+                .build()
+                .unwrap();
+            let closed = built
+                .call_trials
+                .iter()
+                .filter(|trial| {
+                    matches!(
+                        trial,
+                        Some(
+                            super::SignificantCallTrial::Match { .. }
+                                | super::SignificantCallTrial::NoMatch {
+                                    closed_list_significant: Some(_),
+                                    ..
+                                }
+                        )
+                    )
+                })
+                .count();
+            assert_eq!(closed, levels);
+            assert!(built.evaluated_states <= significant.len() * 3);
+            let visits = lexed.lexemes().len() + built.token_inspections;
+            assert!(visits <= lexed.lexemes().len() * 34);
+            visits
+        };
+        let small = measure(64);
+        let large = measure(128);
+        assert!(large <= small * 2 + 64, "{small} to {large}");
     }
 
     #[test]
@@ -622,7 +819,7 @@ mod tests {
         let nested = "A<".repeat(8) + "T" + &">".repeat(8);
         for suffix in ["()", ""] {
             let text = format!("f<{nested}>{suffix}");
-            let (lexed, index) = indexed(&text);
+            let (_, lexed, index) = indexed(&text);
             let raw = less_raw(&lexed, 0);
             let shallow = index.query(raw, 0).expect("shallow query must fit");
             let additional_depth = shallow.additional_depth();
@@ -697,7 +894,7 @@ mod tests {
         }
 
         fn metrics(text: &str) -> (usize, usize, usize, usize, usize) {
-            let (lexed, index) = indexed(text);
+            let (_, lexed, index) = indexed(text);
             let raw = lexed.lexemes().len();
             let significant = lexed
                 .lexemes()

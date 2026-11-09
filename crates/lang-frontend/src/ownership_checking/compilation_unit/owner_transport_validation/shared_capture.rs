@@ -2,8 +2,10 @@
 use super::{UnitDropPoint, UnitOwnerId, UnitOwnerTransportEvent};
 use crate::name_resolution::UnitSymbolId;
 
+type LoanSlots = Vec<(UnitOwnerId, UnitSymbolId, UnitOwnerId)>;
+
 pub(super) fn consistent(events: &[UnitOwnerTransportEvent]) -> bool {
-    replay(events, &[]).is_some_and(|loans| loans.is_empty())
+    replay(events, &[]).is_some_and(|(loans, _)| loans.is_empty())
 }
 
 // Both edges start from identical slots. Only an exactly equal completed state
@@ -11,10 +13,10 @@ pub(super) fn consistent(events: &[UnitOwnerTransportEvent]) -> bool {
 fn replay(
     events: &[UnitOwnerTransportEvent],
     inherited: &[(UnitOwnerId, UnitSymbolId, UnitOwnerId)],
-) -> Option<Vec<(UnitOwnerId, UnitSymbolId, UnitOwnerId)>> {
+) -> Option<(LoanSlots, bool)> {
     let mut loans = inherited.to_vec();
     let mut retiring: Option<(UnitOwnerId, UnitDropPoint)> = None;
-    for event in events {
+    for (event_index, event) in events.iter().enumerate() {
         // Loan ends are a single contiguous retirement immediately before the
         // matching environment drop, never an independently movable permission.
         if let Some((environment, point)) = &retiring {
@@ -86,17 +88,34 @@ fn replay(
                 else_events,
                 ..
             } => {
-                let left = replay(then_events, &loans)?;
-                let right = replay(else_events, &loans)?;
-                if left != right {
+                let (left, left_continues) = replay(then_events, &loans)?;
+                let (right, right_continues) = replay(else_events, &loans)?;
+                loans = match (left_continues, right_continues) {
+                    (false, false) => {
+                        // A nested terminal fork ends its enclosing path too.
+                        // No event may run after either already-retired alternative.
+                        if event_index + 1 != events.len() || !left.is_empty() || !right.is_empty()
+                        {
+                            return None;
+                        }
+                        return Some((left, false));
+                    }
+                    (false, true) => right,
+                    (true, false) => left,
+                    (true, true) if left == right => left,
+                    _ => return None,
+                };
+            }
+            UnitOwnerTransportEvent::UnitReturn { .. } => {
+                if event_index + 1 != events.len() || !loans.is_empty() || retiring.is_some() {
                     return None;
                 }
-                loans = left;
+                return Some((loans, false));
             }
             _ => {}
         }
     }
-    retiring.is_none().then_some(loans)
+    retiring.is_none().then_some((loans, true))
 }
 
 #[cfg(test)]

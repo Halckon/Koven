@@ -153,6 +153,39 @@ fun main(): Unit {{
 }
 
 #[test]
+fn resource_deinit_native_branch_replacement_keeps_return_cleanup_order() {
+    let source = format!(
+        r#"{LEAF}
+fun run(flag: Boolean, early: Boolean): Unit {{
+    var first = Leaf("old")
+    val second = Leaf("second")
+    if (flag) {{ first = Leaf("left") }} else {{ first = Leaf("right") }}
+    if (early) {{ println("return"); return }}
+    println("fallthrough")
+}}
+fun main(): Unit {{
+    run(true, true)
+    run(false, true)
+    run(true, false)
+    run(false, false)
+}}
+"#
+    );
+    let output = emit_link_and_run("resource-branch-replace.ko", &source, "main");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_eq!(
+        output.stdout,
+        concat!(
+            "old\nreturn\nsecond\nleft\n",
+            "old\nreturn\nsecond\nright\n",
+            "old\nfallthrough\nsecond\nleft\n",
+            "old\nfallthrough\nsecond\nright\n",
+        )
+        .as_bytes()
+    );
+}
+
+#[test]
 fn resource_deinit_native_conditional_owner_is_rejected_without_overwriting_output() {
     use super::TestDirectory;
     use crate::native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource};
@@ -406,4 +439,82 @@ fun entry(): Unit {{ work(false, false); work(false, true); work(true, false); w
             expected.as_bytes(),
         );
     }
+}
+
+#[test]
+fn resource_deinit_native_pending_value_argument_obeys_each_control_exit() {
+    let source = format!(
+        r#"{LEAF}
+fun take(own left: Leaf, own right: Leaf): Unit {{ println("take") }}
+fun returning(flag: Boolean): Unit {{
+    val outer = Leaf("outer")
+    take(Leaf("pending"), if (flag) {{ return }} else {{ Leaf("right") }})
+    println("after")
+}}
+fun breaking(flag: Boolean): Unit {{
+    val outer = Leaf("outer")
+    var count = 0
+    while (count < 2) {{
+        count = count + 1
+        val inner = Leaf("inner")
+        take(Leaf("pending"), if (flag) {{ break }} else {{ Leaf("right") }})
+        println("unexpected continuation")
+        break
+    }}
+    println("after")
+}}
+fun continuing(flag: Boolean): Unit {{
+    val outer = Leaf("outer")
+    var count = 0
+    while (count < 2) {{
+        count = count + 1
+        val inner = Leaf("inner")
+        take(Leaf("pending"), if (flag) {{ continue }} else {{ Leaf("right") }})
+        println("unexpected continuation")
+    }}
+    println("after")
+}}
+fun main(): Unit {{
+    println("return")
+    returning(true)
+    println("normal")
+    returning(false)
+    println("break")
+    breaking(true)
+    println("continue")
+    continuing(true)
+    println("done")
+}}
+"#
+    );
+    let output = emit_link_and_run("pending-resource-exits.ko", &source, "main");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_eq!(
+        output.stdout,
+        b"return\npending\nouter\nnormal\ntake\nright\npending\nafter\nouter\nbreak\npending\ninner\nafter\nouter\ncontinue\npending\ninner\npending\ninner\nafter\nouter\ndone\n"
+    );
+    assert!(output.stderr.is_empty(), "{output:?}");
+
+    let aborting = format!(
+        r#"{LEAF}
+fun take(own left: Leaf, own right: Leaf): Unit {{ println("take") }}
+fun makePending(): Leaf {{
+    val result = Leaf("pending")
+    println("made pending")
+    return result
+}}
+fun run(flag: Boolean): Unit {{
+    val outer = Leaf("outer")
+    println("made outer")
+    take(makePending(), if (flag) {{ error("stop") }} else {{ Leaf("right") }})
+    println("after")
+}}
+fun main(): Unit {{ println("before abort"); run(true) }}
+"#
+    );
+    let output = emit_link_and_run("pending-resource-abort.ko", &aborting, "main");
+    use std::os::unix::process::ExitStatusExt;
+    assert_eq_diagnostic!(output.status.signal(), Some(6), "{output:?}");
+    assert_eq!(output.stdout, b"before abort\nmade outer\nmade pending\n");
+    assert!(output.stderr.starts_with(b"abort: stop\n"), "{output:?}");
 }

@@ -109,7 +109,7 @@ pub enum UnitOwnerObservationStatus {
 /// Events emitted at real evaluation/registration/commit transitions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnitOwnerTransportEvent {
-    /// A Unit-valued If with two continuing paths and identical surviving identities.
+    /// A Unit-valued or both-terminal If; continuing paths preserve surviving identities.
     /// The condition precedes this event. Each ordered arm includes its real cleanup;
     /// arm 0 is true and arm 1 is false. These are alternatives, never a linear trace.
     If {
@@ -119,6 +119,11 @@ pub enum UnitOwnerTransportEvent {
         then_events: Vec<UnitOwnerTransportEvent>,
         /// Explicit false path, including branch-exit cleanup.
         else_events: Vec<UnitOwnerTransportEvent>,
+    },
+    /// A real bare Unit return after all path-local cleanup. No successor events.
+    UnitReturn {
+        /// Source-qualified return expression; not an owner producer.
+        expression: UnitExpressionId,
     },
     /// Formation consumes actual current binding tokens into a new environment.
     Capture {
@@ -331,6 +336,8 @@ impl UnitOwnerTransportEvent {
                 }
                 _ => false,
             },
+            Self::UnitReturn { expression } => matches!(other,
+                Self::UnitReturn { expression: rhs } if expression == rhs),
             Self::Capture {
                 expression,
                 environment,

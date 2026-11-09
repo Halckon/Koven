@@ -6,7 +6,7 @@
 
 Unit 产物另外保存逐 callable 的 `owner_observations()`。当前实现限普通函数内的
 String Value 参数、非插值 String、Name/Group/local binding 与 checked root replace，
-以及下节限定的显式双支 Unit If 与顶层 leaf capture 顺序组合。
+以及下节限定的显式双支 Unit If、双 bare Return 终止 If 与顶层 leaf capture 顺序组合。
 定义 token 带 source-qualified callable 与分析内身份；结果使用逐求值帧局部槽，pending
 使用 call/argument 配对。旧值在 commit 交给结果，新 RHS 值进入 root；事件在真实转换点
 记录，不从 drop、span 或 formed history 推导。`is_consistent()` 核对运输守恒与身份。
@@ -31,7 +31,7 @@ validator 从同一父 location 分叉重放：继续状态中的 owner 必须�
 控制身份不可重复，BranchExit 必须属于当前边；跨分析整体相等比较递归保留两支事实，
 独立 token 与 lookup 仍不可互换。此校验证明已发事件的内部守恒，不重推 AST 合法性。
 
-不同存活 owner 的 join、String-valued If、return 分支、隐式 else 和 When 仍整体拒绝。
+不同存活 owner 的 join、String-valued If、带值 return 分支、隐式 else 和 When 仍整体拒绝。
 旧 cleanup 的 symbol 交集不能证明 owner 相同；无 else 的旧路径仍真实执行边级 ASAP
 清理，不能当作 location 原样直通。完整 Choice/phi 需要独立的 incoming-edge 覆盖、
 非继续路径与 return payload 交付合同；本片没有定义或实现 Choice。
@@ -159,3 +159,42 @@ Owned Capture 旁路。它只认证观测，不更改原 cleanup，不授予 low
 另一臂保持 Uncreated，在形成臂成为 Dropped，不能把 Named/Result 环境带到合流。
 环境静态定义只允许一次形成，created 状态跨兄弟臂共享验证。Owned/mixed/Exclusive
 分支形成、环境逃逸以及循环仍不准入；既有环境和同源新环境的 loan 分别保护来源。
+
+## Unit Return 终止边前置
+
+显式 Unit If 可有一个 bare Return 臂。真实 Return 先按原顺序完成 iteration cleanup 与
+全部 owner cleanup，再发布 UnitReturn；事件记录真实 source-qualified expression，不新建
+owner。主位置 replay 与 Shared loan overlay 分别验证终止状态：无活跃 owner/loan、无
+部分退休、无事件后缀；只把继续臂状态交给后继，不拿终止臂的 Dropped 与继续臂求交。
+V1 投影拒绝新终止事件，默认 cleanup 与诊断不依赖观测开关。
+
+带返回值、循环及不支持调用仍保守拒绝；
+没有动态 owner phi 或循环实例能力。事件一致性校验不重新判断 AST 节点种类；实际
+bare Return 身份由 producer 接线和真实源码的精确 Unit ID / ControlTransfer point 验证。
+
+return 臂局部构造并完整退休的 owner 可保留为静态不可用身份：仅在继续臂为 Uncreated、
+终止臂已验证为 Dropped 时归一为 Dropped。继续臂 Named 等存活位置原样保留，两臂都
+未形成仍为 Uncreated，不能凭归一满足完整性。这里不发布额外 runtime Drop，不构造
+动态 phi；合流后该 token 不能 Result/Bind/Move/Drop，created 仍阻止兄弟臂重复形成。
+
+既有 Owned move 环境的单 bare Return 见证沿用完整捕获输入：两臂把同一环境分别移动到
+局部别名，各自按原 AST AfterStatement 点先释放原槽再释放环境，终止臂末尾保留真实
+source-qualified UnitReturn，继续臂不带终止事件。原双 bare Return 源码也保留并验证两臂各自清理；
+观测开关比较完整 Analysis，既有清理身份与顺序不变，不据此扩展 native 或 V1 投影。
+
+## 双 bare Return 终止闭合
+
+显式 If 两臂都 bare Return 时，其 typed 结果为 Nothing，观察可保留真实分支事件。
+原 planner 不产生继续状态或新的 owner join；主位置 replay 与 Shared loan overlay
+各自递归返回终止，并拒绝任何后缀。终止路径不能留下活跃 owner、loan 或部分退休。
+只在一臂形成且完整退休的静态定义与另一臂的 Uncreated 合并为不可用 Dropped，
+两臂均未形成仍为 Uncreated，不凭空完成定义。嵌套双终止可以成为外层单终止臂，
+另一继续臂仍保留原 owner 与 loan 状态。
+
+原 Shared/Owned 双终止输入逐字保留，真实源码按 AST Return 身份与每条路径的实际
+形成集合检查恰一次清理；Owned alias 仍在原 AfterStatement 释放，不推迟到 Return。
+未使用的 Shared 环境仍在 If 前 ASAP 退休；双臂 alias 见证另核真实分支内的
+SharedCaptureEnd、环境与来源 Drop 身份，按 AST alias 的 AfterStatement 清理，不伪造 Return 端点。
+两 replay 各有独立的损坏产物负控，防止组合校验互相遮蔽。事件校验不重判 typed AST，
+不凭清理序列推断原源码必然终止；Return 身份和完整性由 producer 与源码合同约束。
+V1、动态条件 owner/phi、循环实例及 native 能力不变。

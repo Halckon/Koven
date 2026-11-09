@@ -6,9 +6,8 @@ use lang_frontend::{
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        AggregateProjectionReceiver, BuiltinType, CallReceiverOrigin, Capability, DeferredReason,
-        IntrinsicCallable, IntrinsicTypeConstructor, ParameterMode, TypeCheckingError,
-        TypeEnvironment, TypeKind, TypedFile, check_types,
+        BuiltinType, Capability, DeferredReason, IntrinsicCallable, IntrinsicTypeConstructor,
+        TypeCheckingError, TypeEnvironment, TypeKind, TypedFile, check_types,
     },
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -25,11 +24,20 @@ mod resource_unit;
 #[path = "type_checking/non_null_unit.rs"]
 mod non_null_unit;
 
+#[path = "type_checking/nominal_arity_spans.rs"]
+mod nominal_arity_spans;
+
+#[path = "type_checking/enum_type_position.rs"]
+mod enum_type_position;
+
 #[path = "type_checking/unit_entries.rs"]
 mod unit_entries;
 
 #[path = "type_checking/scalar_unit.rs"]
 mod scalar_unit;
+
+#[path = "type_checking/rc_unit.rs"]
+mod rc_unit;
 
 #[path = "type_checking/interface_unit.rs"]
 mod interface_unit;
@@ -234,69 +242,6 @@ fn enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests() 
         diagnostic_spans(&sources, &typed.diagnostics()[0]),
         ("Shape.Circle", "Shape")
     );
-}
-
-#[test]
-fn intrinsic_rc_publishes_construction_share_and_payload_borrow_facts() {
-    use lang_frontend::type_checking::{
-        ConstructionTarget, Copyability, ParameterMode, RcOperationKind,
-    };
-
-    let text = "value class Point(val x: Int)
-                fun shared(): Int {
-                    val first = Rc(Point(1))
-                    val second = first.share()
-                    val explicit = Rc<Point>(Point(2))
-                    val copied = first.value.x
-                    return second.value.x
-                }";
-    let (_, _, _, typed) = checked(text);
-
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let rc_constructions = typed
-        .constructions()
-        .iter()
-        .filter(|descriptor| descriptor.target() == ConstructionTarget::IntrinsicRc)
-        .collect::<Vec<_>>();
-    assert_eq!(rc_constructions.len(), 2);
-    assert!(rc_constructions.iter().all(|descriptor| {
-        descriptor.arguments().len() == 1
-            && descriptor.arguments()[0].parameter_name() == "value"
-            && descriptor.arguments()[0].mode() == ParameterMode::Value
-            && typed.copyability(descriptor.result_type()) == Some(Copyability::MoveOnly)
-    }));
-    assert_eq!(typed.rc_operations().len(), 3);
-    assert_eq!(typed.rc_operations()[0].kind(), RcOperationKind::Share);
-    assert_eq!(typed.rc_operations()[0].result_mode(), ParameterMode::Value);
-    assert!(typed.rc_operations()[1..].iter().all(|descriptor| {
-        descriptor.kind() == RcOperationKind::Value
-            && descriptor.result_mode() == ParameterMode::Borrow
-    }));
-}
-
-#[test]
-fn rc_shapes_reuse_existing_call_diagnostics_without_partial_facts() {
-    let text = "fun missing(): Unit { val result = Rc() }
-                fun extra(): Unit { val result = Rc<Int>(1, 2) }
-                fun badShare(): Unit {
-                    val owner = Rc(1)
-                    val shared = owner.share(2)
-                }";
-    let (_, _, _, typed) = checked(text);
-
-    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0121"]);
-    assert_eq!(
-        typed
-            .constructions()
-            .iter()
-            .filter(|descriptor| matches!(
-                descriptor.target(),
-                lang_frontend::type_checking::ConstructionTarget::IntrinsicRc
-            ))
-            .count(),
-        1
-    );
-    assert!(typed.rc_operations().is_empty());
 }
 
 #[test]
@@ -512,35 +457,6 @@ fn nominal_and_type_parameter_identity_is_known_and_arity_is_exact() {
 }
 
 #[test]
-fn interface_closure_substitutes_invariant_arguments_and_checks_bounds() {
-    let text = "interface Base<T> {}\n\
-                interface Mid<U> : Base<U> {}\n\
-                class Good : Mid<Int> {}\n\
-                class Wrong : Mid<Long> {}\n\
-                class Holder<T: Base<Int>> {}\n\
-                class Generic<U: Mid<Int>> { fun pass(input: Holder<U>): Unit {} }\n\
-                fun inspect(good: Holder<Good>, bad: Holder<Wrong>): Unit";
-    let (sources, _, resolution, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0093"]);
-    assert_eq!(
-        diagnostic_spans(&sources, &typed.diagnostics()[0]),
-        ("Wrong", "T")
-    );
-    let good = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "Good")
-        .expect("Good");
-    let descriptor = typed
-        .nominals()
-        .iter()
-        .find(|descriptor| descriptor.id().symbol() == good.id())
-        .expect("Good descriptor");
-    assert_eq!(descriptor.direct_interfaces().len(), 1);
-    assert_eq!(descriptor.interfaces().len(), 2);
-}
-
-#[test]
 fn interface_delegation_validates_targets_types_and_conflicts() {
     let valid = "interface Draw { fun draw(): Unit }\n\
                  class Renderer : Draw { override fun draw(): Unit {} }\n\
@@ -570,83 +486,6 @@ fn interface_delegation_validates_targets_types_and_conflicts() {
                      class Resolved(val draw: Drawer, val reset: Resetter) : Draw by draw, Reset by reset { override fun act(): Unit {} }";
     let (_, _, _, typed) = checked(conflicts);
     assert_eq!(codes(typed.diagnostics()), ["L0105", "L0105"]);
-}
-
-#[test]
-fn generic_signatures_and_legal_this_types_are_known() {
-    let text = "fun <T> identity(item: T): T = item\n\
-                class Sample { fun self(): Sample = this }\n\
-                interface Protocol { fun touch(): Unit { val current = this } }";
-    let (_, parsed, resolution, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let identity = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "identity")
-        .expect("identity");
-    assert!(matches!(
-        typed
-            .symbol_type(identity.id())
-            .and_then(|ty| typed.types().get(ty)),
-        Some(TypeKind::Function { .. })
-    ));
-    let identity_descriptor = typed
-        .callables()
-        .iter()
-        .find(|callable| callable.symbol() == identity.id())
-        .expect("identity descriptor");
-    assert!(identity_descriptor.owner().is_none());
-    assert_eq!(identity_descriptor.type_parameters().len(), 1);
-    assert!(
-        typed
-            .callables()
-            .iter()
-            .any(|callable| callable.owner().is_some())
-    );
-    let this_kinds = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .filter(|(_, node)| matches!(node.payload(), lang_frontend::parser::Expression::This))
-        .map(|(id, _)| {
-            typed
-                .expression_type(id)
-                .and_then(|ty| typed.types().get(ty))
-                .expect("typed this")
-        })
-        .collect::<Vec<_>>();
-    assert!(matches!(this_kinds[0], TypeKind::Nominal { .. }));
-    assert!(matches!(this_kinds[1], TypeKind::StaticSelf(_)));
-}
-
-#[test]
-fn deep_generic_and_long_interface_graphs_stay_deterministic() {
-    let mut text = String::from("class Box<T> {}\ninterface I0 {}\n");
-    for index in 1..64 {
-        text.push_str(&format!("interface I{index} : I{} {{}}\n", index - 1));
-    }
-    text.push_str("class Leaf : I63 {}\nfun deep(input: ");
-    for _ in 0..96 {
-        text.push_str("Box<");
-    }
-    text.push_str("Int");
-    for _ in 0..96 {
-        text.push('>');
-    }
-    text.push_str("): Unit {}\n");
-    let (_, _, resolution, typed) = checked(&text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let leaf = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "Leaf")
-        .expect("Leaf");
-    let descriptor = typed
-        .nominals()
-        .iter()
-        .find(|descriptor| descriptor.id().symbol() == leaf.id())
-        .expect("Leaf descriptor");
-    assert_eq!(descriptor.interfaces().len(), 64);
 }
 
 #[test]
@@ -722,79 +561,15 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
 }
 
 #[test]
-fn single_file_member_calls_publish_receiver_contracts() {
-    let (sources, parsed, _, typed) = checked(
-        "class Holder<T>(val item: T) {\n\
-             fun echo(input: T): T = input\n\
-             borrow fun same(input: T): T = echo(input)\n\
-             inout fun replace(own input: T): T = input\n\
-             fun current(): T = item\n\
-         }\n\
-         fun use(holder: Holder<Int>): Int = holder.same(1)",
-    );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(
-        typed
-            .callables()
-            .iter()
-            .filter_map(|callable| callable.receiver().map(|receiver| receiver.mode()))
-            .collect::<Vec<_>>(),
-        [
-            ParameterMode::Borrow,
-            ParameterMode::Borrow,
-            ParameterMode::Inout,
-            ParameterMode::Borrow,
-        ]
-    );
-    let item = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find(|(_, node)| sources.slice(node.span()) == Ok("item"))
-        .expect("bare field expression")
-        .0;
-    assert!(matches!(
-        typed
-            .aggregate_projection(item)
-            .expect("bare field projection")
-            .receiver(),
-        AggregateProjectionReceiver::This(_)
-    ));
-    let call = |text: &str| {
-        let expression = parsed
-            .ast()
-            .expressions()
-            .iter()
-            .find(|(_, node)| sources.slice(node.span()) == Ok(text))
-            .expect("call expression")
-            .0;
-        typed.call(expression).expect("receiver call fact")
-    };
-    assert!(matches!(
-        call("echo(input)")
-            .receiver()
-            .expect("implicit receiver")
-            .origin(),
-        CallReceiverOrigin::ImplicitThis(_)
-    ));
-    assert!(matches!(
-        call("holder.same(1)")
-            .receiver()
-            .expect("explicit receiver")
-            .origin(),
-        CallReceiverOrigin::Expression(_)
-    ));
-}
-
-#[test]
 fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase2");
     for (directory, should_pass) in [("type-pass", true), ("type-fail", false)] {
-        let files = fs::read_dir(root.join(directory))
+        let mut files = fs::read_dir(root.join(directory))
             .expect("fixture directory")
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
+        files.sort();
         assert_eq!(
             files.len(),
             if should_pass { 10 } else { 11 },
@@ -802,23 +577,28 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
         );
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
-            let (_, _, _, typed) = checked(&text);
-            if should_pass {
-                assert!(typed.diagnostics().is_empty(), "{path:?}");
-            } else {
-                let expected =
-                    fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar");
-                let actual = typed
-                    .diagnostics()
-                    .iter()
-                    .map(|diagnostic| {
-                        let span = diagnostic.primary_span();
-                        format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    + "\n";
-                assert_eq!(actual, expected, "{path:?}");
+            let (sources, file, entries) = unit_entries::checked_entries(&text);
+            let expected = (!should_pass).then(|| {
+                fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar")
+            });
+            for (entry, (_, typed)) in ["MemoryDocument", "Rooted"].into_iter().zip(entries) {
+                let diagnostics = typed.diagnostics();
+                if let Some(expected) = &expected {
+                    let actual = diagnostics
+                        .iter()
+                        .map(|diagnostic| {
+                            let span = diagnostic.primary_span();
+                            assert_eq!(span.source_id(), file.source_id(), "{entry} {path:?}");
+                            assert!(sources.slice(span).is_ok(), "{entry} {path:?}");
+                            format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        + "\n";
+                    assert_eq!(&actual, expected, "{entry} {path:?}");
+                } else {
+                    assert!(diagnostics.is_empty(), "{entry} {path:?}: {diagnostics:?}");
+                }
             }
         }
     }

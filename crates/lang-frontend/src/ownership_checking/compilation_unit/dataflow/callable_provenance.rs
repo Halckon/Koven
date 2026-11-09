@@ -1,6 +1,8 @@
 //! Source-qualified adapters reuse validated declarations, body types and capture descriptors.
 
-use super::{Checker, ExpressionUse, Flows, State};
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::{Checker, ExpressionUse, Flows, State, closure::CaptureIndex};
 use crate::{
     ast::ExpressionId,
     name_resolution::{UnitReferenceTarget, UnitSymbolId},
@@ -157,6 +159,9 @@ impl Checker<'_> {
         let ast = self.parsed.ast().expressions().get(id)?;
         let span = ast.span();
         let expression = ast.payload().clone();
+        if matches!(expression, Expression::Call { .. }) {
+            self.entered_calls.insert(self.unit_expression(id));
+        }
         let name = if matches!(expression, Expression::Name) {
             if let Some(target) = self.named_callable(id) {
                 Some(
@@ -322,7 +327,10 @@ fn factory_target(
 pub(super) fn finish(
     collection: &Collection,
     typed: &crate::type_checking::CompilationUnitTypes,
-    captures: &[crate::ownership_checking::UnitClosureCaptureDescriptor],
+    capture_index: &CaptureIndex<'_>,
+    entered_calls: BTreeSet<UnitExpressionId>,
+    call_dispatch: BTreeMap<UnitExpressionId, bool>,
+    completed_arguments: BTreeSet<UnitExpressionId>,
 ) -> UnitCallableFacts {
     let graph = collection.arena.borrow();
     let initial = graph.solve(|origin| !matches!(origin, UnitCallableOrigin::FactoryResult(_)));
@@ -333,9 +341,7 @@ pub(super) fn finish(
             continue;
         };
         let origin = match initial.get(*node) {
-            Some(UnitCallableOrigin::Lambda(lambda))
-                if !captures.iter().any(|capture| capture.lambda() == lambda) =>
-            {
+            Some(UnitCallableOrigin::Lambda(lambda)) if !capture_index.contains_lambda(lambda) => {
                 UnitPointerCallableReturnOrigin::Lambda(lambda)
             }
             // A capturing return is a move closure (a borrowed one is rejected, L0137); its
@@ -386,8 +392,12 @@ pub(super) fn finish(
         })
         .collect();
     UnitCallableFacts {
+        call_dispatch,
+        completed_arguments,
+        entered_calls,
         origins,
         returns,
         closure_returns,
+        ..UnitCallableFacts::default()
     }
 }

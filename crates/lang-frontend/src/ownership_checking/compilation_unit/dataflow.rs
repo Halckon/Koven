@@ -100,9 +100,13 @@ pub(super) struct Analysis {
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) formed_owned_locals: Vec<UnitSymbolId>,
     pub(super) owner_observations: Vec<super::UnitOwnerObservation>,
+    pub(super) receiver_call_prefix_ends: Vec<super::UnitReceiverCallPrefixEndFact>,
     pub(super) exclusive_call_prefix_ends: Vec<super::UnitExclusiveCallPrefixEndFact>,
     pub(super) borrow_call_prefix_ends: Vec<super::UnitBorrowCallPrefixEndFact>,
     pub(super) borrow_call_handoffs: Vec<super::UnitBorrowCallHandoffFact>,
+    pub(super) borrow_call_transports: Vec<super::UnitBorrowCallTransportFact>,
+    pub(super) borrow_binding_transports: Vec<super::UnitBorrowBindingTransportFact>,
+    pub(super) borrow_forward_transports: Vec<super::UnitBorrowForwardTransportFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -209,12 +213,19 @@ pub(super) fn analyze(
     let mut formed_owned_locals = Vec::new();
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
+    let mut entered_calls = std::collections::BTreeSet::new();
+    let mut call_dispatch = BTreeMap::new();
+    let mut completed_arguments = std::collections::BTreeSet::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
     let mut borrow_call_prefix_ends = Vec::new();
     let mut borrow_call_handoffs = Vec::new();
+    let mut borrow_call_transports = Vec::new();
+    let mut borrow_binding_transports = Vec::new();
+    let mut borrow_forward_transports = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
+    let mut receiver_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
@@ -238,7 +249,7 @@ pub(super) fn analyze(
     let mut iteration_required_exits = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
-    let exclusive_captures = closure::exclusive_capture_index(closure_inputs.captures, typed);
+    let capture_index = closure::capture_index(closure_inputs.captures, typed);
     let empty_construction_descriptors = BTreeMap::new();
     let field_kinds = traversal::collect_field_mutability(inputs, names)?;
     let range_producers =
@@ -262,8 +273,7 @@ pub(super) fn analyze(
             &field_kinds,
             call_inputs.arguments,
             call_inputs.receivers,
-            closure_inputs.captures,
-            &exclusive_captures,
+            &capture_index,
             closure_inputs.closures,
             closure_inputs.transferabilities,
             construction_descriptors
@@ -304,13 +314,20 @@ pub(super) fn analyze(
         iteration_loan_ends.extend(drop_analysis.iteration_loan_ends);
         iteration_required_exits.extend(drop_analysis.iteration_required_exits);
         short_circuits.extend(checker.short_circuits.into_values());
+        entered_calls.extend(checker.entered_calls);
+        call_dispatch.extend(checker.call_dispatch);
+        completed_arguments.extend(checker.completed_arguments);
         visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
+        borrow_call_transports.extend(drop_analysis.borrow_call_transports);
+        borrow_binding_transports.extend(drop_analysis.borrow_binding_transports);
+        borrow_forward_transports.extend(drop_analysis.borrow_forward_transports);
         borrow_call_prefix_ends.extend(drop_analysis.borrow_call_prefix_ends);
         exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
+        receiver_call_prefix_ends.extend(drop_analysis.receiver_call_prefix_ends);
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
         deferred.extend(drop_analysis.deferred);
@@ -353,13 +370,24 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     let callable_provenance = if diagnostics.is_empty() && typed.has_valid_type_facts() {
-        callable_provenance::finish(&callable_sources, typed, closure_inputs.captures)
+        callable_provenance::finish(
+            &callable_sources,
+            typed,
+            &capture_index,
+            entered_calls,
+            call_dispatch,
+            completed_arguments,
+        )
     } else {
         Default::default()
     };
     if !formed_publication::finalize(typed, &diagnostics, &deferred, &mut formed_owned_locals) {
         nullable_whens.clear();
         borrow_return_origins.clear();
+        borrow_forward_transports.clear();
+        receiver_call_prefix_ends.clear();
+        borrow_call_transports.clear();
+        borrow_binding_transports.clear();
         borrow_results = Default::default();
     }
     nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
@@ -393,8 +421,12 @@ pub(super) fn analyze(
         owner_observations,
         direct_call_loan_ends,
         borrow_call_handoffs,
+        borrow_call_transports,
+        borrow_binding_transports,
+        borrow_forward_transports,
         borrow_call_prefix_ends,
         exclusive_call_prefix_ends,
+        receiver_call_prefix_ends,
         value_deliveries,
         receiver_facts,
         conditional_receiver_deliveries,
@@ -458,6 +490,9 @@ struct Checker<'a> {
         crate::type_checking::UnitStatementId,
         crate::ownership_checking::UnitMapIterationOwnershipPlan,
     >,
+    entered_calls: std::collections::BTreeSet<UnitExpressionId>,
+    call_dispatch: BTreeMap<UnitExpressionId, bool>,
+    completed_arguments: std::collections::BTreeSet<UnitExpressionId>,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     constant_control: bool,
     short_circuits: BTreeMap<UnitExpressionId, super::constant::UnitShortCircuitPlan>,
@@ -469,8 +504,7 @@ struct Checker<'a> {
     names: &'a CompilationUnitNames,
     typed: &'a CompilationUnitTypes,
     bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
-    captures: &'a [UnitClosureCaptureDescriptor],
-    exclusive_captures: &'a closure::ExclusiveCaptureIndex,
+    capture_index: &'a closure::CaptureIndex<'a>,
     closures: &'a [UnitClosureDescriptor],
     transferabilities: &'a [Transferability],
     construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
@@ -495,6 +529,7 @@ struct Checker<'a> {
     if_branch_live_in: BTreeMap<usize, [std::collections::BTreeSet<UnitSymbolId>; 2]>,
     when_entry_live_in: BTreeMap<(usize, usize), std::collections::BTreeSet<UnitSymbolId>>,
     statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
+    non_fallthrough_whiles: std::collections::BTreeSet<usize>,
     codes: Codes,
     diagnostics: &'a mut Vec<Diagnostic>,
     formed_owned_locals: Vec<UnitSymbolId>,
@@ -540,8 +575,7 @@ impl<'a> Checker<'a> {
         field_kinds: &'a BTreeMap<UnitSymbolId, VariableKind>,
         contracts: &[UnitCallArgumentOwnershipContract],
         receiver_contracts: &[UnitCallReceiverOwnershipContract],
-        captures: &'a [UnitClosureCaptureDescriptor],
-        exclusive_captures: &'a closure::ExclusiveCaptureIndex,
+        capture_index: &'a closure::CaptureIndex<'a>,
         closures: &'a [UnitClosureDescriptor],
         transferabilities: &'a [Transferability],
         construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
@@ -620,6 +654,9 @@ impl<'a> Checker<'a> {
             callable_sources,
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
+            entered_calls: std::collections::BTreeSet::new(),
+            call_dispatch: BTreeMap::new(),
+            completed_arguments: std::collections::BTreeSet::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
             short_circuits: BTreeMap::new(),
@@ -630,8 +667,7 @@ impl<'a> Checker<'a> {
             names,
             typed,
             bindings,
-            captures,
-            exclusive_captures,
+            capture_index,
             closures,
             transferabilities,
             construction_descriptors,
@@ -654,6 +690,7 @@ impl<'a> Checker<'a> {
             if_branch_live_in: BTreeMap::new(),
             when_entry_live_in: BTreeMap::new(),
             statement_live_after: Vec::new(),
+            non_fallthrough_whiles: Default::default(),
             codes,
             diagnostics,
             formed_owned_locals: Vec::new(),

@@ -14,12 +14,12 @@ use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
     fn observes_direct_call_loan(&self, loan: &UnitLoanFact) -> bool {
-        self.observes_root_call_loan(loan, LoanKind::Shared)
+        self.observes_call_loan(loan, LoanKind::Shared)
     }
 
-    // Both observational slices use the same conservative operand boundary. This
-    // does not alter registration, normal-return retirement or unwind traversal.
-    fn observes_root_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
+    // Shared admits proven temporary field parents in addition to roots. Exclusive
+    // remains root-only; both reuse registered tokens and the existing unwind traversal.
+    fn observes_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
         let Some(call) = self.checker.typed.call(loan.call()) else {
             return false;
         };
@@ -73,6 +73,23 @@ impl DropPlanner<'_, '_> {
                             .iter()
                             .any(|binding| binding.binding() == root)
                         && matches!(loan.target(), UnitLoanTarget::Place(target) if target == &place);
+                }
+                Expression::Member { .. } => {
+                    // Reuse the pending-owner proof: typed Field/Group chain, actual Shared
+                    // Temporary(parent) token, and the complete parent's MoveOnly category.
+                    return kind == LoanKind::Shared
+                        && self
+                            .borrowed_temporary_field_owner(
+                                loan.call().expression(),
+                                loan.argument().expression(),
+                                super::UnitCallArgumentOwnershipKind::SharedLoan,
+                            )
+                            .is_ok_and(|owner| {
+                                owner.is_some_and(|owner| {
+                                    matches!(loan.target(), UnitLoanTarget::Temporary(target)
+                                if *target == self.checker.unit_expression(owner))
+                                })
+                            });
                 }
                 Expression::String { parts } => {
                     // plain String 自己求值成 owner；不接受 interpolation、投影或构造调用。
@@ -141,6 +158,7 @@ impl DropPlanner<'_, '_> {
         &self,
     ) -> Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact> {
         let mut preceding_drops = BTreeMap::new();
+        let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
         for (point, action) in &self.iteration_actions {
             let PlannerDropPoint::ControlTransfer(transfer) = point else {
@@ -159,14 +177,20 @@ impl DropPlanner<'_, '_> {
             let count = preceding_drops.entry(transfer.index()).or_insert(0);
             match action {
                 Action::Drop(_) => *count += 1,
-                Action::EndCallLoan(loan)
-                    if self.observes_root_call_loan(loan, LoanKind::Exclusive) =>
-                {
-                    ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
-                        loan: loan.clone(),
-                        point: point.into_unit(self.checker.source_unit),
-                        preceding_drops: *count,
-                    });
+                Action::EndCallLoan(loan) => {
+                    // Count every actual end before filtering to the Exclusive slice.
+                    let loan_count = preceding_call_loan_ends
+                        .entry(transfer.index())
+                        .or_default();
+                    if self.observes_call_loan(loan, LoanKind::Exclusive) {
+                        ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
+                            loan: loan.clone(),
+                            point: point.into_unit(self.checker.source_unit),
+                            preceding_drops: *count,
+                            preceding_call_loan_ends: *loan_count,
+                        });
+                    }
+                    *loan_count += 1;
                 }
                 _ => {}
             }

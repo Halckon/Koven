@@ -17,7 +17,7 @@ use super::{
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, LoanId, Operation, Origin, PlaceAccess},
+    model::{EntityId, EntityType, LoanId, Operation, Origin, PlaceAccess, TerminatorKind},
 };
 
 pub(super) struct LoweredCallArguments {
@@ -338,7 +338,11 @@ impl UnitExpressionLowerer<'_> {
             self.static_self,
             span,
         )?;
-        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
+        let result_builtin = builtin_type(self.typed, return_type);
+        let result_types = if matches!(
+            result_builtin,
+            Some(BuiltinType::Unit | BuiltinType::Nothing)
+        ) {
             Vec::new()
         } else if matches!(
             self.typed.types().get(return_type),
@@ -393,6 +397,16 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        if result_builtin == Some(BuiltinType::Nothing) {
+            self.function
+                .set_terminator(
+                    self.block,
+                    TerminatorKind::Unreachable,
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Diverged);
+        }
         for (loan, end_span) in created_loans.into_iter().rev() {
             self.function
                 .append_instruction(

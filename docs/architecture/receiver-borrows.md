@@ -65,3 +65,15 @@ unit 既有能力不回退。0299 组合只证明
 `value class` 的显式 `componentN()` 按普通成员调用处理。未声明的调用走一般未解析成员
 路径，不发布调用或字段投影。局部结构解构与 `for` 借用解构各有独立产物。直接字段访问
 按真实字段身份进行所有权检查；尝试从 owned 聚合移出不可复制字段时报告 L0132 并标注字段声明。
+
+
+## Shared receiver 的 Return 前缀结束观察
+
+Unit `receiver_call_prefix_ends()` 只投影实际 Return unwind 的 `EndReceiverLoan`，保留真实
+receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end 的数量。计数
+包含被切片排除的真实动作，按不同 Return 点重置，不提供全局执行索引或完整结束流。
+
+仅 owned-result 方法、Shared receiver 和 owned Name/Group 根准入；正常返回、
+break/continue、reservation、this、投影、temporary、provider、借用绑定与 borrowed-result
+方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
+行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。

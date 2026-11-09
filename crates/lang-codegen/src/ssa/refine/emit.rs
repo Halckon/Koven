@@ -65,7 +65,10 @@ fn abort_blocks(body: &RefinedBody, reachable: &[BlockRef]) -> BTreeSet<BlockRef
     let mut aborts: BTreeSet<BlockRef> = reachable
         .iter()
         .copied()
-        .filter(|block| matches!(body.blocks[block.0].terminator, Some((RTerm::Abort(_), _))))
+        .filter(|block| {
+            let term = &body.blocks[block.0].terminator;
+            matches!(term, Some((RTerm::Abort(_) | RTerm::Unreachable, _)))
+        })
         .collect();
     while reachable.iter().rev().any(|&block| {
         !aborts.contains(&block)
@@ -476,6 +479,9 @@ impl Emitter<'_> {
             },
             ROp::NullableIsNull { owner } => Operation::NullableIsNull {
                 owner: self.value(*owner, span)?,
+            },
+            ROp::NullableLoanIsNull { source } => Operation::NullableLoanIsNull {
+                source: loan(self.get(*source, span)?, span)?,
             },
             ROp::NullableTake { owner, proof } => Operation::NullableTake {
                 owner: self.value(*owner, span)?,
@@ -944,6 +950,7 @@ pub(super) fn emit(
         }
         let kind = match terminator {
             RTerm::Abort(_) => unreachable!(),
+            RTerm::Unreachable => TerminatorKind::Unreachable,
             RTerm::Goto(successor) => TerminatorKind::Branch(edge(&emitter, *successor)?),
             RTerm::Branch {
                 condition,

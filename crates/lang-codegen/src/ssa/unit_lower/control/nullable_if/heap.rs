@@ -363,11 +363,14 @@ impl UnitExpressionLowerer<'_> {
             .source_plan
             .call_site(self.source_token, call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(key) = route.dispatch_key() else {
+            return Ok(false);
+        };
         if descriptor.expression() != call
             || descriptor.arguments().len() != arguments.len()
-            || route.key().target() != UnitCallableTarget::Declaration(target)
-            || !route.key().type_arguments().is_empty()
-            || !self.function_ids.contains_key(route.key())
+            || key.target() != UnitCallableTarget::Declaration(target)
+            || !key.type_arguments().is_empty()
+            || !self.function_ids.contains_key(key)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

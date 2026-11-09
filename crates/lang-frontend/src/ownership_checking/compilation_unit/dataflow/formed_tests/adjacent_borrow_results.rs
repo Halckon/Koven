@@ -24,6 +24,10 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.borrow_results.range_returns.is_empty());
     assert!(raw.borrow_results.range_uses.is_empty());
     assert!(raw.borrow_results.call_uses.is_empty());
+    assert!(raw.borrow_forward_transports.is_empty());
+    assert!(raw.receiver_call_prefix_ends.is_empty());
+    assert!(raw.borrow_call_transports.is_empty());
+    assert!(raw.borrow_binding_transports.is_empty());
 }
 
 fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixture, &Analysis)) {
@@ -161,5 +165,30 @@ fn real_deferred_and_diagnostic_clear_nonempty_synchronous_call_use_table() {
     let text = "fun view(source: String): borrow String from source = source\nfun observe(item: String) { println(item) }\nfun consume(own item: String) {}\nfun run() { val source = \"kept\"; observe(view(source)); consume(source) }";
     assert_rejections_clear(text, false, |_, raw| {
         assert_eq!(raw.borrow_results.call_uses.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_forwarded_source_transport() {
+    let text = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.borrow_forward_transports.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_call_and_binding_transports() {
+    let text = "fun view(source: String): borrow String from source = source\nfun observe(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; observe(view(owner)); borrow val item = view(owner); println(item) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.borrow_call_transports.len(), 1);
+        assert_eq!(raw.borrow_binding_transports.len(), 1);
+    });
+}
+
+#[test]
+fn real_deferred_and_diagnostic_clear_nonempty_receiver_prefix_table() {
+    let text = "class Node { fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { val node = Node(); node.touch(\"prefix\", return) }";
+    assert_rejections_clear(text, false, |_, raw| {
+        assert_eq!(raw.receiver_call_prefix_ends.len(), 1);
     });
 }

@@ -21,6 +21,90 @@ fn native_nullable_map_promotion_single_transfers_and_drops_generic_payloads() {
     check_normal_cases(crate::native_map_promotion_cases::cases());
 }
 
+#[test]
+fn native_borrowed_inline_nullable_presence_preserves_empty_string_and_storage() {
+    let path = "borrowed-inline-nullable-presence.ko";
+    let source = r#"
+fun inspect(value: String?): Unit {
+    if (value != null) { println("present") } else { println("absent") }
+    if (null == value) { println("equal") } else { println("different") }
+}
+fun entry(): Unit {
+    inspect(null)
+    inspect("")
+    val text: String? = "owned"
+    inspect(text)
+}
+"#;
+    let run = emit_link_and_run(path, source, "entry");
+    super::boxed_enum_tests::assert_success(
+        &run,
+        b"absent\nequal\npresent\ndifferent\npresent\ndifferent\n",
+    );
+    assert_presence_field_reads(path, source, "ptr", 2);
+}
+
+#[test]
+fn native_borrowed_inline_nullable_presence_reads_the_tag_of_a_moveonly_value() {
+    let path = "borrowed-tagged-nullable-presence.ko";
+    let source = r#"
+value class Payload(val text: String)
+fun inspect(value: Payload?): Unit {
+    if (value != null) { println("present") } else { println("absent") }
+}
+fun entry(): Unit {
+    inspect(null)
+    inspect(Payload("text"))
+}
+"#;
+    let run = emit_link_and_run(path, source, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"absent\npresent\n");
+    assert_presence_field_reads(path, source, "i1", 1);
+}
+
+fn assert_presence_field_reads(path: &str, source: &str, ty: &str, reads: usize) {
+    let ir = super::boxed_enum_tests::lower_to_llvm(path, source);
+    let signature = ir
+        .lines()
+        .find(|line| line.starts_with("define ") && line.contains(".inspect."))
+        .expect("definition for the source inspect function");
+    let (_, tail) = ir.split_once(signature).expect("inspect definition start");
+    let (body, _) = tail.split_once("\n}").expect("inspect definition end");
+    // Printing loads local literal temporaries; ignore those exact alloca slots.
+    let local_slots = body
+        .lines()
+        .filter_map(|line| line.trim().split_once(" = alloca ").map(|(slot, _)| slot))
+        .collect::<Vec<_>>();
+    let loan_loads = body
+        .lines()
+        .filter_map(|line| line.split_once(" = load ").map(|(_, load)| load))
+        .filter(|load| {
+            let (_, address) = load.split_once(", ptr ").expect("load source address");
+            let (address, _) = address.split_once(", ").expect("load source operand");
+            !local_slots.contains(&address)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        loan_loads.len(),
+        reads,
+        "inspect loads only presence: {body}"
+    );
+    let expected = format!("{ty}, ptr %nullable.borrowed.presence.slot");
+    assert!(
+        loan_loads.iter().all(|load| load.starts_with(&expected)),
+        "{body}"
+    );
+    let slots = body
+        .lines()
+        .filter(|line| line.contains(" = getelementptr "))
+        .collect::<Vec<_>>();
+    assert_eq!(slots.len(), reads, "{body}");
+    assert!(
+        slots.iter().all(|slot| slot.ends_with(", i32 0, i32 0")),
+        "{body}"
+    );
+}
+
 fn check_normal_cases(cases: impl IntoIterator<Item = crate::native_borrow_last_use_cases::Case>) {
     for case in cases {
         let run = emit_link_and_run(case.name, case.source, "entry");

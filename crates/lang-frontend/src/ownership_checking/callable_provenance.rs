@@ -2,6 +2,8 @@
 
 pub(super) mod graph;
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use super::{CompilationUnitOwnership, OwnershipCheckedFile};
 use crate::{
     ast::ExpressionId,
@@ -179,6 +181,10 @@ pub(super) struct FileCallableFacts {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct UnitCallableFacts {
+    pub(super) call_dispatch: BTreeMap<UnitExpressionId, bool>,
+    pub(super) completed_arguments: BTreeSet<UnitExpressionId>,
+    pub(super) entered_calls: BTreeSet<UnitExpressionId>,
+    pub(super) entered_lambdas: BTreeSet<UnitExpressionId>,
     pub(super) origins: Vec<UnitCallableOriginFact>,
     pub(super) returns: Vec<UnitPointerCallableReturnSummary>,
     pub(super) closure_returns: Vec<UnitClosureCallableReturnSummary>,
@@ -216,6 +222,36 @@ impl OwnershipCheckedFile {
 }
 
 impl CompilationUnitOwnership {
+    /// Whether any analyzed path completes the call's operands and can enter its callee.
+    /// Unvisited sites have no fact. Calls returning Nothing can still enter their callee.
+    #[must_use]
+    pub fn call_may_dispatch(&self, call: UnitExpressionId) -> Option<bool> {
+        self.callable_provenance.call_dispatch.get(&call).copied()
+    }
+
+    /// Reports whether evaluating the source call argument produced a normal value.
+    #[must_use]
+    pub fn call_argument_completed(&self, expression: UnitExpressionId) -> bool {
+        self.callable_provenance
+            .completed_arguments
+            .contains(&expression)
+    }
+
+    /// Reports whether this validated analysis entered evaluation of the call.
+    /// A call can be entered even if evaluating its receiver or an argument exits early.
+    #[must_use]
+    pub fn call_site_was_entered(&self, expression: UnitExpressionId) -> bool {
+        self.callable_provenance.entered_calls.contains(&expression)
+    }
+
+    /// Reports whether ownership reached the lambda formation and checked its body.
+    #[must_use]
+    pub fn lambda_was_entered(&self, expression: UnitExpressionId) -> bool {
+        self.callable_provenance
+            .entered_lambdas
+            .contains(&expression)
+    }
+
     /// Deterministic, source-qualified callable facts from this successful analysis.
     #[must_use]
     pub fn callable_origins(&self) -> &[UnitCallableOriginFact] {

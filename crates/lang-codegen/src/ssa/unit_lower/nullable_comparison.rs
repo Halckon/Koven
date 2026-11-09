@@ -23,31 +23,36 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let aggregate_presence = self.map_results.contains_key(&target);
-        let operation = if let Some(&source) = self.borrow_bindings.get(&d.symbol()) {
+        let (operation, reads_presence) = if let Some(&source) =
+            self.borrow_bindings.get(&d.symbol())
+        {
             if self.nullable_maps.contains_key(&target) {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
-            // Preserve the existing borrowed aggregate path and its Copyable gate.
-            if aggregate_presence {
+            // Copyable results keep the existing aggregate read. A MoveOnly result
+            // reads absence through the loan without copying the wrapper.
+            if aggregate_presence && self.typed.copyability(ty) == Copyability::Copyable {
                 return Ok(None);
             }
-            Operation::NullableLoanIsNull { source }
+            (Operation::NullableLoanIsNull { source }, false)
         } else if let Some(LoweredValue::Value(owner)) = self.bindings.get(&d.symbol()).copied() {
             if aggregate_presence {
-                Operation::AggregateProject {
-                    aggregate: owner,
-                    field: 0,
-                }
+                (
+                    Operation::AggregateProject {
+                        aggregate: owner,
+                        field: 0,
+                    },
+                    true,
+                )
             } else {
-                Operation::NullableIsNull { owner }
+                (Operation::NullableIsNull { owner }, false)
             }
         } else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         let boolean = self.expression_ssa_type(expression, span)?;
         let result = self.append_scalar(operation, boolean, span)?;
-        // Old R flags mean present; NullableIsNull on handles or N means absent.
-        let result = if d.non_null_when_true() != aggregate_presence {
+        let result = if d.non_null_when_true() != reads_presence {
             let LoweredValue::Value(operand) = result else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };

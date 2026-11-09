@@ -854,7 +854,7 @@ fn llvm_emission_failure_is_atomic_and_tls_recovers() {
             let guard = crate::llvm::emission_failure::Guard::new(blocker.join("object.o"));
             let error = handoff
                 .emit(pathway, entry, &object)
-                .expect_err("real LLVM ENOTDIR");
+                .expect_err("real object write ENOTDIR");
             assert_eq!(
                 guard.calls(),
                 1,
@@ -890,4 +890,106 @@ fn llvm_emission_failure_is_atomic_and_tls_recovers() {
             assert!(run.stderr.is_empty());
         }
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn non_utf8_emission_path_failure_preserves_existing_object() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let analysis = fixture();
+    let inputs = analysis.inputs();
+    let handoff = Handoff::new(&analysis, &inputs);
+    let entry = entries(&analysis)[0];
+    let directory = TestDirectory::create();
+    let output = directory.join("program.o");
+    let blocker = directory.join("regular-file");
+    fs::write(&output, b"old object").unwrap();
+    fs::write(&blocker, b"blocker").unwrap();
+
+    let invalid_path = blocker.join(OsString::from_vec(b"object-\xff.o".to_vec()));
+    let guard = crate::llvm::emission_failure::Guard::new(invalid_path);
+    let error = handoff
+        .emit(Pathway::View, entry, &output)
+        .expect_err("non-directory parent must return a backend error");
+    assert_eq!(guard.calls(), 1);
+    assert_eq!(error.kind(), NativeObjectErrorKind::Backend);
+    assert_diagnostic!(error.to_string().contains("Not a directory"), "{error}");
+    assert_eq!(fs::read(&output).unwrap(), b"old object");
+    assert_eq!(fs::read(&blocker).unwrap(), b"blocker");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn non_utf8_output_directory_supports_native_object_publication() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let analysis = fixture();
+    let inputs = analysis.inputs();
+    let handoff = Handoff::new(&analysis, &inputs);
+    let entry = entries(&analysis)[0];
+    let directory = TestDirectory::create();
+    let parent = directory
+        .0
+        .join(OsString::from_vec(b"output-\xff".to_vec()));
+    fs::create_dir(&parent).unwrap();
+    let output = parent.join("program.o");
+    let executable = directory.join("program");
+
+    for pathway in PATHWAYS {
+        for present in [false, true] {
+            if present {
+                fs::write(&output, b"old object").unwrap();
+            }
+            handoff
+                .emit(pathway, entry, &output)
+                .expect("native object");
+            crate::test_support::assert_native_object(&fs::read(&output).unwrap());
+            assert_no_sibling_temporary(&parent);
+            let linked = Command::new(crate::test_support::clang())
+                .current_dir(&parent)
+                .args(["program.o", "-o"])
+                .arg(&executable)
+                .output()
+                .unwrap();
+            assert!(linked.status.success(), "{linked:?}");
+            let run = Command::new(&executable).output().unwrap();
+            assert_eq!(run.status.code(), Some(0));
+            assert_eq!(run.stdout, "handoff-界\n".as_bytes());
+            assert!(run.stderr.is_empty());
+            fs::remove_file(&output).unwrap();
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn object_write_failure_preserves_target_and_allows_retry() {
+    let analysis = fixture();
+    let inputs = analysis.inputs();
+    let handoff = Handoff::new(&analysis, &inputs);
+    let entry = entries(&analysis)[0];
+    let directory = TestDirectory::create();
+    let output = directory.join("program.o");
+    fs::write(&output, b"old object").unwrap();
+
+    // This device opens successfully and rejects actual writes with ENOSPC.
+    let guard = crate::llvm::emission_failure::Guard::full_device();
+    let error = handoff
+        .emit(Pathway::View, entry, &output)
+        .expect_err("object write failure must return to the caller");
+    assert_eq!(guard.calls(), 1);
+    assert_eq!(error.kind(), NativeObjectErrorKind::Backend);
+    assert_diagnostic!(
+        error.to_string().contains("No space left on device"),
+        "{error}"
+    );
+    assert_eq!(fs::read(&output).unwrap(), b"old object");
+    assert_no_sibling_temporary(&directory.0);
+
+    drop(guard);
+    handoff.emit(Pathway::View, entry, &output).expect("retry");
+    crate::test_support::assert_native_object(&fs::read(&output).unwrap());
+    assert_no_sibling_temporary(&directory.0);
 }

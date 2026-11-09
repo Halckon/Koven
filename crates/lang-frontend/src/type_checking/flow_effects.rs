@@ -45,17 +45,29 @@ pub(super) fn collect_expression_mutation_targets(
     ast: &SyntaxAst,
     expression: ExpressionId,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(ast, Pending::Expression(expression))
+    collect_expression_mutation_targets_with_inout_filter(ast, expression, |_| true)
+}
+
+pub(super) fn collect_expression_mutation_targets_with_inout_filter(
+    ast: &SyntaxAst,
+    expression: ExpressionId,
+    includes_inout: impl Fn(ExpressionId) -> bool,
+) -> Result<Vec<ExpressionId>, AstError> {
+    collect_mutation_targets(ast, Pending::Expression(expression), includes_inout)
 }
 
 pub(super) fn collect_statement_mutation_targets(
     ast: &SyntaxAst,
     statement: StatementId,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(ast, Pending::Statement(statement))
+    collect_mutation_targets(ast, Pending::Statement(statement), |_| true)
 }
 
-fn collect_mutation_targets(ast: &SyntaxAst, root: Pending) -> Result<Vec<ExpressionId>, AstError> {
+fn collect_mutation_targets(
+    ast: &SyntaxAst,
+    root: Pending,
+    includes_inout: impl Fn(ExpressionId) -> bool,
+) -> Result<Vec<ExpressionId>, AstError> {
     let mut pending = vec![root];
     let mut targets = Vec::new();
     // 覆盖每条可能执行的分支，不推演可达性、callee 效果或实际写入顺序。
@@ -143,12 +155,11 @@ fn collect_mutation_targets(ast: &SyntaxAst, root: Pending) -> Result<Vec<Expres
                 Expression::Call {
                     callee, arguments, ..
                 } => {
-                    for argument in arguments {
-                        match argument.mode_marker {
-                            Some(ParameterModeMarker::Inout(_)) => targets.push(argument.value),
-                            Some(ParameterModeMarker::Own(_) | ParameterModeMarker::Borrow(_))
-                            | None => {}
-                        }
+                    if includes_inout(expression) {
+                        targets.extend(arguments.iter().filter_map(|argument| {
+                            matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
+                                .then_some(argument.value)
+                        }));
                     }
                     for argument in arguments.iter().rev() {
                         pending.push(Pending::Expression(argument.value));

@@ -21,25 +21,33 @@ fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool)
             &anchors,
         );
         let mut inputs: Option<Result<query_inputs::Inputs, Failure>> = None;
-        let (program, entry) = pipeline::unit_input_observed(
-            &input.sources,
-            &input.parsed,
-            "provider.ko",
-            &mut report,
-            rooted,
-            |names, typed, owned, report| {
-                unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                let queried = anchors
-                    .as_ref()
-                    .map_err(|e| failure("nested identity AST for FE", e))
-                    .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
-                report.query(
-                    "nested identity same-analysis FE source/caller/component/cleanup bridge",
-                    &queried,
-                );
-                inputs = Some(queried);
-            },
-        )?;
+        // Keep the original factory on normal routing; the queried consumers stay pinned.
+        let factory = anchors
+            .as_ref()
+            .ok()
+            .and_then(|anchors| anchors.function(anchors.factory.target))
+            .map(|function| function.span);
+        let (program, entry) = crate::ssa::refine::with_per_family_lowering_except(factory, || {
+            pipeline::unit_input_observed(
+                &input.sources,
+                &input.parsed,
+                "provider.ko",
+                &mut report,
+                rooted,
+                |names, typed, owned, report| {
+                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    let queried = anchors
+                        .as_ref()
+                        .map_err(|e| failure("nested identity AST for FE", e))
+                        .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
+                    report.query(
+                        "nested identity same-analysis FE source/caller/component/cleanup bridge",
+                        &queried,
+                    );
+                    inputs = Some(queried);
+                },
+            )
+        })?;
         diagnostic!(
             "SPEC0331 NESTED IDENTITY SSA case={label} rooted={rooted}\n{}",
             crate::ssa::render::render_program(&program)

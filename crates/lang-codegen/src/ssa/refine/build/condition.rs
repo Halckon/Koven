@@ -15,9 +15,8 @@ use crate::ssa::{
 };
 
 impl Builder<'_, '_> {
-    /// Short-circuit: the skipped exit consumes `BranchExit` 1 and the evaluated exits
-    /// consume `BranchExit` 0 on both outcome edges. Proof views flow only to the true
-    /// target; any other edge ends them.
+    /// Short-circuit: Basic numbers the evaluated exit 0 and the skip 1. Const
+    /// carries its own true/false edge numbering. Proof views flow only to the true target.
     fn logical(
         &mut self,
         expression: ExpressionId,
@@ -32,14 +31,19 @@ impl Builder<'_, '_> {
         let control = self.unit(expression);
         // A constant left operand fixes the plan: `Never` yields the left value and skips the
         // right operand; `Always` evaluates the left operand and yields the right value.
-        if let Some(plan) = self
+        let rhs_branch = if let Some(plan) = self
             .inputs
             .constant_owned
             .and_then(|owned| owned.short_circuit_at(control))
         {
             match plan.rhs() {
                 UnitShortCircuitRhs::Never => {
-                    return self.condition_internal(left, when_true, when_false, views, None);
+                    self.unreachable_drop_scopes.push(self.span(right));
+                    if self.required(left)?.is_some() {
+                        let target = if and { when_false } else { when_true };
+                        self.goto(target, span)?;
+                    }
+                    return Ok(());
                 }
                 UnitShortCircuitRhs::Always => {
                     if self.required(left)?.is_none() {
@@ -47,9 +51,11 @@ impl Builder<'_, '_> {
                     }
                     return self.condition_internal(right, when_true, when_false, views, None);
                 }
-                UnitShortCircuitRhs::Conditional => {}
+                UnitShortCircuitRhs::Conditional => plan.rhs_branch(),
             }
-        }
+        } else {
+            0
+        };
         if self.inputs.typed.expression_falls_through(control) == Some(false) {
             // If the left side completes, the frontend proved the RHS is required
             // and has no normal exit. Do not synthesize a skipped predecessor.
@@ -66,7 +72,12 @@ impl Builder<'_, '_> {
         }
         let middle = self.body.block();
         let skip = self.body.block();
-        if and {
+        if self.inputs.constant_owned.is_none() && self.inputs.typed.ordinary_rhs_required(control)
+        {
+            if self.required(left)?.is_some() {
+                self.goto(middle, span)?;
+            }
+        } else if and {
             self.condition_internal(left, middle, skip, views, None)?;
         } else {
             self.condition_internal(left, skip, middle, views, None)?;
@@ -89,8 +100,14 @@ impl Builder<'_, '_> {
             }
         }
         let skip_target = if and { when_false } else { when_true };
-        let skip_point = UnitDropPoint::BranchExit { control, branch: 1 };
-        let rhs_point = UnitDropPoint::BranchExit { control, branch: 0 };
+        let skip_point = UnitDropPoint::BranchExit {
+            control,
+            branch: 1 - rhs_branch,
+        };
+        let rhs_point = UnitDropPoint::BranchExit {
+            control,
+            branch: rhs_branch,
+        };
         let skipped = self.collect_drops(skip_point);
         let outer_temporaries = self.temporaries.clone();
         let outer_loans = self.pending_call_loans.clone();
@@ -259,20 +276,6 @@ impl Builder<'_, '_> {
             _ => {}
         }
         if let Some(fact) = self.inputs.typed.null_comparison(self.unit(expression)) {
-            let owner = match self.bindings.get(&fact.symbol()) {
-                Some(owner) => *owner,
-                // A Copyable Borrow parameter is tested on a copy read through its loan.
-                None => {
-                    let loan = *self
-                        .borrowed
-                        .get(&fact.symbol())
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                    let EntityType::Loan { target, .. } = self.body.slots[loan.0] else {
-                        return Err(error(LoweringErrorKind::InvalidModel, span));
-                    };
-                    self.value(ROp::ReadLoan { loan }, EntityType::Value(target), span)?
-                }
-            };
             // The operands are read by the branch itself; their drop points follow it on
             // both edges.
             let Expression::Binary { left, right, .. } = payload else {
@@ -312,6 +315,40 @@ impl Builder<'_, '_> {
                 (when_true, when_false)
             } else {
                 (when_false, when_true)
+            };
+            if self.move_only(nullable_ty)
+                && let Some(&source) = self.borrowed.get(&fact.symbol())
+            {
+                let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+                let is_null = self.value(
+                    ROp::NullableLoanIsNull { source },
+                    EntityType::Value(bool_ty),
+                    span,
+                )?;
+                self.emit_drops(&operand_drops)?;
+                self.finish_drops(&operand_drops);
+                return self.terminate(
+                    RTerm::Branch {
+                        condition: is_null,
+                        when_true: on_null,
+                        when_false: on_non_null,
+                    },
+                    control_span.unwrap_or(span),
+                );
+            }
+            let owner = match self.bindings.get(&fact.symbol()) {
+                Some(owner) => *owner,
+                // A Copyable Borrow parameter is tested on a copy read through its loan.
+                None => {
+                    let loan = *self
+                        .borrowed
+                        .get(&fact.symbol())
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    let EntityType::Loan { target, .. } = self.body.slots[loan.0] else {
+                        return Err(error(LoweringErrorKind::InvalidModel, span));
+                    };
+                    self.value(ROp::ReadLoan { loan }, EntityType::Value(target), span)?
+                }
             };
             let null_block = self.body.block();
             let non_null_block = self.body.block();

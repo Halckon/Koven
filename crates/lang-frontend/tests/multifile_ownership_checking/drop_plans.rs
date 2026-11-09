@@ -345,3 +345,222 @@ fn validated_unit_ownership_rejects_deferred_element_field_drop_plans() {
     );
     assert!(ownership.clone().validate().is_err());
 }
+
+fn with_unit_drop_plans(
+    text: &str,
+    assert_facts: impl Fn(
+        &SourceMap,
+        &ParsedFile,
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitOwnership,
+        SourceUnitId,
+    ),
+) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "drop-order.ko", text);
+    let (name_environment, type_environment) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "drop-order.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &name_environment);
+        assert!(names.names().diagnostics().is_empty());
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        assert!(typed.types().diagnostics().is_empty());
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert!(
+            ownership.diagnostics().is_empty(),
+            "{:?}",
+            ownership.diagnostics()
+        );
+        assert!(
+            ownership.deferred().is_empty(),
+            "{:?}",
+            ownership.deferred()
+        );
+        assert_facts(
+            &sources,
+            &file,
+            &names,
+            &ownership,
+            source_unit(&names, source),
+        );
+        ownership.validate().expect("valid ownership");
+    }
+}
+
+fn named_operand_drop(
+    sources: &SourceMap,
+    file: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    unit: SourceUnitId,
+    text: &str,
+) -> UnitDropTarget {
+    use lang_frontend::name_resolution::UnitReferenceTarget;
+
+    let expression = expression_with_text(sources, file, text);
+    let span = file.ast().expressions().get(expression).unwrap().span();
+    names
+        .names()
+        .references()
+        .iter()
+        .find_map(|reference| match reference.target() {
+            UnitReferenceTarget::Symbol(symbol)
+                if reference.span() == span && symbol.source_unit() == unit =>
+            {
+                Some(UnitDropTarget::Named(*symbol))
+            }
+            _ => None,
+        })
+        .expect("source-qualified operand symbol")
+}
+
+#[test]
+fn unit_return_cleanup_preserves_declaration_order_after_rebinding() {
+    for replacement in [
+        "{ first = Resource() }",
+        "if (flag) { first = Resource() } else { first = Resource() }",
+    ] {
+        let text = "class Resource {}
+fun inspect(item: Resource): Unit {}
+fun run(flag: Boolean) {
+    var first = Resource()
+    val second = Resource()
+    REPLACE
+    if (flag) { return }
+    val a = inspect(first)
+    val b = inspect(second)
+}"
+        .replace("REPLACE", replacement);
+
+        with_unit_drop_plans(&text, |sources, file, names, ownership, unit| {
+            let transfer = UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                unit,
+                expression_with_text(sources, file, "return"),
+            ));
+            let first = named_operand_drop(sources, file, names, unit, "first");
+            let second = named_operand_drop(sources, file, names, unit, "second");
+            let released = ownership
+                .drops()
+                .iter()
+                .filter(|fact| matches!(fact.point(), UnitDropPoint::ControlTransfer(_)))
+                .map(|fact| {
+                    (
+                        fact.point(),
+                        fact.target(),
+                        sources.slice(fact.value_origin()).unwrap(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                released,
+                [
+                    (transfer, second, "second"),
+                    (transfer, first, "first = Resource()")
+                ],
+                "{replacement}"
+            );
+        });
+    }
+}
+
+#[test]
+fn unit_string_binary_views_drop_operands_only_after_the_operation() {
+    let text = "fun compare(own left: String, own right: String): Boolean {\n\
+                    val joined = left + \"!\"\n\
+                    return joined == right\n\
+                }";
+
+    with_unit_drop_plans(text, |sources, file, names, ownership, unit| {
+        let expression =
+            |text| UnitExpressionId::new(unit, expression_with_text(sources, file, text));
+        let named = |name| named_operand_drop(sources, file, names, unit, name);
+        for (binary, expected) in [
+            (
+                expression("left + \"!\""),
+                [
+                    (UnitDropTarget::Temporary(expression("\"!\"")), "\"!\""),
+                    (named("left"), "left"),
+                ],
+            ),
+            (
+                expression("joined == right"),
+                [(named("right"), "right"), (named("joined"), "joined")],
+            ),
+        ] {
+            let completion = UnitDropPoint::AfterBinaryOperands(binary);
+            let drops = ownership
+                .drops()
+                .iter()
+                .filter(|fact| {
+                    fact.point() == completion
+                        || expected.iter().any(|(target, _)| fact.target() == *target)
+                })
+                .map(|fact| {
+                    (
+                        fact.point(),
+                        fact.target(),
+                        sources.slice(fact.value_origin()).unwrap(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                drops,
+                expected.map(|(target, origin)| (completion, target, origin))
+            );
+            assert!(
+                ownership
+                    .drops()
+                    .iter()
+                    .all(|fact| fact.point() != UnitDropPoint::AfterExpression(binary))
+            );
+        }
+    });
+}
+
+#[test]
+fn exhaustive_when_does_not_extend_an_owner_only_used_by_a_dead_arm() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "dead-when-owner.ko",
+        "class Ticket {}
+         fun discard(own ticket: Ticket): Unit {}
+         fun gate(): Boolean = false
+         fun f(flag: Boolean): Unit {
+             val ticket = Ticket()
+             when (flag) { gate() -> {}; true -> {}; false -> {}; else -> discard(ticket) }
+         }",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let owned =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let unit = source_unit(&names, source);
+    let (binding, _) = file
+        .ast()
+        .statements()
+        .iter()
+        .find(|(_, node)| {
+            matches!(
+                node.payload(),
+                lang_frontend::parser::Statement::LocalVariable { .. }
+            )
+        })
+        .expect("ticket binding");
+    let binding = lang_frontend::type_checking::UnitStatementId::new(unit, binding);
+    assert!(
+        owned.drops().iter().any(|fact| {
+            fact.point() == UnitDropPoint::AfterStatement(binding)
+                && matches!(fact.target(), UnitDropTarget::Named(_))
+        }),
+        "the dead use must not delay the initializer's last-use drop"
+    );
+}

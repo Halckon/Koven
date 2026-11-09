@@ -135,6 +135,7 @@ pub(super) struct BodyChecker<'a> {
     stable_flow_symbols: BTreeSet<UnitSymbolId>,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
     flow_versions: FlowVersions,
+    inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,
     replacement_values: BTreeMap<UnitExpressionId, bool>,
     parts: CompilationUnitTypeParts,
@@ -211,12 +212,11 @@ impl<'a> BodyChecker<'a> {
                 })
             })
             .collect();
-        let stable_flow_symbols = flow::collect_stable_flow_symbols(&files, names);
         let expression_uses = files
             .iter()
             .map(|file| collect_expression_uses(file))
             .collect();
-        Self {
+        let mut checker = Self {
             sources,
             names,
             environment,
@@ -225,9 +225,10 @@ impl<'a> BodyChecker<'a> {
             signatures,
             references,
             symbols_by_span,
-            stable_flow_symbols,
+            stable_flow_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
             flow_versions: FlowVersions::default(),
+            inactive_inout_calls: BTreeSet::new(),
             pending_immutable_bindings: BTreeSet::new(),
             replacement_values: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
@@ -260,7 +261,9 @@ impl<'a> BodyChecker<'a> {
             checking_constants: false,
             constant_inputs: BTreeMap::new(),
             constant_values: BTreeMap::new(),
-        }
+        };
+        checker.stable_flow_symbols = flow::collect_stable_flow_symbols(&checker);
+        checker
     }
 
     fn run(self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
@@ -391,6 +394,11 @@ impl<'a> BodyChecker<'a> {
             .integer_operations
             .sort_by_key(|fact| fact.expression());
         self.finish_nullable_when_facts();
+        for source in source_units {
+            let unit = source.id();
+            self.parts
+                .record_ordinary_boolean_outcomes(unit, self.files[unit.index()]);
+        }
         // 排序与全部 trial 完成后才分流。诊断候选仍属原 owner，不重新发布执行表。
         if !self.signatures.is_valid()
             || diagnostics
@@ -508,7 +516,7 @@ impl<'a> BodyChecker<'a> {
                 let mut falls_through = true;
                 let mut pending_exit = true;
                 for element in elements {
-                    let result = self.check_loop_reachable(pending_exit, |checker| {
+                    let result = self.check_loop_paths(falls_through, pending_exit, |checker| {
                         checker.check_statement(source, element, return_type, return_span)
                     })?;
                     falls_through &= result.falls_through;

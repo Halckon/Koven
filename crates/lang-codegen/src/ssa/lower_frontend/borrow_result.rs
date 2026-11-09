@@ -80,6 +80,7 @@ pub(super) fn validate(
             fact.storage()
                 == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
             &prefixes,
+            None,
             scope,
             |expression| match typed
                 .expression_type(expression)
@@ -484,6 +485,7 @@ impl ExpressionLowerer<'_> {
             node.span(),
             false,
             &[],
+            None,
             None,
             |_| None,
             |_, _| false,

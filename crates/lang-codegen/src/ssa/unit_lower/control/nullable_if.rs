@@ -53,7 +53,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(entry) = self.prepare_heap_field_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));
         }
-        if !self.typed.nullable_whens().is_empty()
+        if self.migrated_family_compatibility
             && let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)?
         {
             return Ok(Some(entry));

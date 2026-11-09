@@ -2,16 +2,29 @@ use super::*;
 
 impl Parser<'_> {
     pub(super) fn significant(&self, ordinal: usize) -> Option<(usize, Lexeme)> {
+        // Nested TypeRefs can unwind without advancing across the file separator's
+        // trivia. Cache its first significant position without consuming that trivia.
+        let recovery = self.file_angle.as_ref();
+        let start = recovery
+            .and_then(|recovery| recovery.significant_start.get())
+            .filter(|(cursor, _)| *cursor == self.index)
+            .map_or(self.index, |(_, start)| start);
         let mut remaining = ordinal;
-        for (index, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
+        for (index, lexeme) in self.lexed.lexemes()[start..].iter().enumerate() {
             #[cfg(test)]
             self.significant_raw_visits
                 .set(self.significant_raw_visits.get() + 1);
             if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
                 continue;
             }
+            let raw = start + index;
+            if remaining == ordinal
+                && let Some(recovery) = recovery
+            {
+                recovery.significant_start.set(Some((self.index, raw)));
+            }
             if remaining == 0 {
-                return Some((self.index + index, *lexeme));
+                return Some((raw, *lexeme));
             }
             remaining -= 1;
         }
@@ -152,7 +165,7 @@ impl Parser<'_> {
     ) -> Result<bool, ParserInternalError> {
         Ok(stops.contains(current)
             || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
-            || self.at_file_angle_separator(current)?)
+            || self.at_file_angle_boundary(current)?)
     }
 
     pub(super) fn type_boundary_span(

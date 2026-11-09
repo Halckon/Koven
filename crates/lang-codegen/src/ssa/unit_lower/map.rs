@@ -9,7 +9,7 @@ use lang_frontend::{
     type_checking::UnitExpressionId,
 };
 
-use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type, span_key};
+use super::{LoweredValue, UnitExpressionLowerer, lowering_error, span_key};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{EntityId, EntityType, Operation, Origin, ValueId},

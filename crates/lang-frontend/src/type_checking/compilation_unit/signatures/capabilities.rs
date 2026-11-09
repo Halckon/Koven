@@ -14,6 +14,7 @@ use crate::{
 
 use super::super::{
     CompilationUnitTypeError, SignatureCollector, UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
+    unwrapped_item,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -302,12 +303,9 @@ impl SignatureCollector<'_> {
     ) -> Result<Vec<(UnitTypeId, Span)>, CompilationUnitTypeError> {
         let declaration = &self.names.index().declarations()[nominal.index()];
         let source = declaration.source_unit();
-        let item = self.inputs[source.index()]
-            .ast()
-            .items()
-            .get(declaration.root())
-            .map_err(TypeCheckingError::from)?;
-        let Item::Classifier(classifier) = item.payload() else {
+        // Visibility wraps the declaration; layout still belongs to the classifier.
+        let item = unwrapped_item(self.inputs[source.index()].ast(), declaration.root())?;
+        let Item::Classifier(classifier) = item else {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         };
         let mut components = Vec::new();

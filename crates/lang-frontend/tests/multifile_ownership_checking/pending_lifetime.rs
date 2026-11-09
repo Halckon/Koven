@@ -258,3 +258,97 @@ fn nested_argument_loan_ends_at_its_own_call_before_outer_inout() {
         "accept(read(local), &local)"
     );
 }
+
+#[test]
+fn unit_pending_value_argument_cleanup_follows_exact_control_transfer() {
+    for (body, exit) in [
+        (
+            "return take(first, (if (flag) { return Resource() } else { second })!!)",
+            Some("return Resource()"),
+        ),
+        (
+            "loop { val result = take(first, (if (flag) { break } else { second })!!)\nbreak }\nreturn Resource()",
+            Some("break"),
+        ),
+        (
+            "loop { val first = Resource()\nval second: Resource? = Resource()\nval result = take(first, (if (flag) { continue } else { second })!!)\nbreak }\nreturn Resource()",
+            Some("continue"),
+        ),
+        ("return take(first, second!!)", None),
+        (
+            "return take(first, (if (flag) { stop() } else { second })!!)",
+            None,
+        ),
+        (
+            r#"return take(first, (if (flag) { error("stop") } else { second })!!)"#,
+            None,
+        ),
+    ] {
+        let text = format!(
+            "class Resource {{}}\nfun stop(): Nothing = stop()\nfun take(own left: Resource, own right: Resource): Resource = left\nfun test(flag: Boolean, own first: Resource, own second: Resource?): Resource {{ {body} }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "pending-owned.ko", &text);
+        let first = expression_with_text(&sources, &file, "first");
+        let transfer = exit.map(|exit| {
+            let prefix = "if (flag) { ";
+            let start = text.find(&format!("{prefix}{exit} }}")).unwrap() + prefix.len();
+            let span = sources.span(source, start, start + exit.len()).unwrap();
+            file.ast()
+                .expressions()
+                .iter()
+                .find(|(_, node)| node.span() == span)
+                .expect("argument control transfer expression")
+                .0
+        });
+        let (name_environment, type_environment) = standard_environments();
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "pending-owned.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let names = validated_names(&sources, &inputs, &name_environment);
+            assert!(
+                names.names().diagnostics().is_empty(),
+                "{body}: {:?}",
+                names.names().diagnostics()
+            );
+            let typed = validated_types(&sources, &inputs, &names, &type_environment);
+            assert!(
+                typed.types().diagnostics().is_empty(),
+                "{body}: {:?}",
+                typed.types().diagnostics()
+            );
+            let ownership = check_compilation_unit_ownership(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+            )
+            .expect("ownership product");
+            assert!(
+                ownership.diagnostics().is_empty(),
+                "{body}: {:?}",
+                ownership.diagnostics()
+            );
+            assert!(
+                ownership.deferred().is_empty(),
+                "{body}: {:?}",
+                ownership.deferred()
+            );
+            let unit = source_unit(&names, source);
+            let target = UnitDropTarget::Temporary(UnitExpressionId::new(unit, first));
+            let actual = ownership
+                .drops()
+                .iter()
+                .filter(|fact| fact.target() == target)
+                .map(|fact| fact.point())
+                .collect::<Vec<_>>();
+            let expected =
+                transfer.map(|id| UnitDropPoint::ControlTransfer(UnitExpressionId::new(unit, id)));
+            assert_eq!(actual, expected.as_slice(), "{body}");
+            ownership.validate().expect("valid ownership");
+        }
+    }
+}

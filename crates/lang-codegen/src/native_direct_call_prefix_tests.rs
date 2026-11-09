@@ -945,3 +945,56 @@ fn ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections() {
         assert_eq!(source.sources.slice(span), Ok(call.as_str()));
     }
 }
+
+#[test]
+fn direct_call_with_early_argument_return_contributes_no_value_to_the_branch() {
+    let output = emit_link_and_run(
+        "direct-call-bottom-value.ko",
+        r#"
+fun skip(ignored: Int): Unit { println("callee must not run") }
+fun test(flag: Boolean): Int {
+    return if (flag) { skip(return 1) } else { 2 }
+}
+fun main(): Unit {
+    if (test(true) != 1 || test(false) != 2) { error("wrong result") }
+    println("ok")
+}
+"#,
+        "main",
+    );
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"ok\n");
+}
+
+#[test]
+fn when_subject_exits_before_comparison_or_nullable_planning() {
+    let nullable_arm = r#"null -> { println("null arm"); 3 }"#;
+    let legacy_prefix = "when (flag) { null -> {}; else -> {} }";
+    for (prefix, subject, null_arm) in [
+        ("", "return 7", ""),
+        ("", "choose(return 7)", nullable_arm),
+        (legacy_prefix, "return 7", ""),
+    ] {
+        let source = format!(
+            r#"
+class WhenNode(val value: Int)
+fun choose(value: Int): Boolean? {{ println("callee"); return true }}
+fun test(own flag: WhenNode?): Int {{
+    {prefix}
+    return when ({subject}) {{
+        {null_arm}
+        else -> {{ println("arm"); 2 }}
+    }}
+}}
+fun main(): Unit {{
+    val flag: WhenNode? = WhenNode(7)
+    if (test(flag) != 7) {{ error("wrong result") }}
+    println("ok")
+}}
+"#
+        );
+        let output = emit_link_and_run("when-abrupt-subject.ko", &source, "main");
+        assert_diagnostic!(output.status.success(), "{subject}: {output:?}");
+        assert_eq!(output.stdout, b"ok\n", "{subject}");
+    }
+}

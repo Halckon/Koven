@@ -1,9 +1,12 @@
 //! Concrete closure value construction and indirect invocation.
 
 use inkwell::{
+    attributes::{Attribute, AttributeLoc},
     builder::Builder,
+    types::FunctionType,
     values::{
-        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, StructValue, ValueKind,
+        BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, PointerValue,
+        StructValue, ValueKind,
     },
 };
 
@@ -74,6 +77,7 @@ pub(super) struct PreparedCallable<'ctx> {
     environment: Option<PointerValue<'ctx>>,
     function_type: inkwell::types::FunctionType<'ctx>,
     returns_void: bool,
+    never_returns: bool,
 }
 
 pub(super) fn prepare<'ctx>(
@@ -132,6 +136,7 @@ pub(super) fn prepare<'ctx>(
         environment,
         function_type,
         returns_void: signature.returns.is_empty(),
+        never_returns: signature.never_returns,
     })
 }
 
@@ -146,6 +151,7 @@ pub(super) fn invoke_prepared<'ctx>(
         environment,
         function_type,
         returns_void,
+        never_returns,
     } = prepared;
     let mut operands = environment
         .map(BasicMetadataValueEnum::from)
@@ -154,8 +160,21 @@ pub(super) fn invoke_prepared<'ctx>(
     operands.extend(arguments.iter().copied().map(BasicMetadataValueEnum::from));
     let call_name = if *returns_void { "" } else { name };
     let call = builder.build_indirect_call(*function_type, *function, &operands, call_name)?;
+    if *never_returns {
+        mark_call_noreturn(call, *function_type);
+    }
     Ok(match call.try_as_basic_value() {
         ValueKind::Basic(value) => Some(value),
         ValueKind::Instruction(_) => None,
     })
+}
+
+pub(super) fn mark_call_noreturn(call: CallSiteValue<'_>, function_type: FunctionType<'_>) {
+    let kind = Attribute::get_named_enum_kind_id("noreturn");
+    if kind != 0 {
+        call.add_attribute(
+            AttributeLoc::Function,
+            function_type.get_context().create_enum_attribute(kind, 0),
+        );
+    }
 }

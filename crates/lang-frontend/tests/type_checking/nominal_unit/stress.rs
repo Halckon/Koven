@@ -66,3 +66,96 @@ fn long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic() {
         assert_eq!(first_cases, cases(&second));
     }
 }
+
+#[test]
+fn deep_generic_and_long_interface_graphs_stay_deterministic_in_both_units() {
+    use lang_frontend::type_checking::{BuiltinType, UnitTypeKind};
+    use std::collections::BTreeSet;
+
+    let mut text = String::from("class Box<T> {}\ninterface I0 {}\n");
+    for index in 1..64 {
+        text.push_str(&format!("interface I{index} : I{} {{}}\n", index - 1));
+    }
+    text.push_str("class Leaf : I63 {}\nfun deep(input: ");
+    for _ in 0..96 {
+        text.push_str("Box<");
+    }
+    text.push_str("Int");
+    for _ in 0..96 {
+        text.push('>');
+    }
+    text.push_str("): Unit {}\n");
+
+    let (_, _, entries) = super::checked_entries(&text);
+    let mut interface_order = None;
+    for (unit, names, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let declarations = names.names().index().declarations();
+        let declaration = |name| {
+            declarations
+                .iter()
+                .find(|item| item.source_unit() == unit && item.name() == name)
+                .expect("fixture declaration")
+                .id()
+        };
+        let leaf = typed
+            .signatures()
+            .declaration(declaration("Leaf"))
+            .and_then(|signature| signature.nominal())
+            .expect("Leaf signature");
+        assert_eq!(leaf.interfaces().len(), 64);
+        let interfaces = leaf
+            .interfaces()
+            .iter()
+            .map(|ty| {
+                let Some(UnitTypeKind::Nominal {
+                    declaration,
+                    arguments,
+                }) = typed.types().get(*ty)
+                else {
+                    panic!("interface instance: {ty:?}");
+                };
+                assert!(arguments.is_empty());
+                declarations[declaration.index()].name().to_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            interfaces.iter().cloned().collect::<BTreeSet<_>>(),
+            (0..64).map(|index| format!("I{index}")).collect()
+        );
+        if let Some(first) = &interface_order {
+            assert_eq!(&interfaces, first);
+        } else {
+            interface_order = Some(interfaces);
+        }
+
+        let deep = typed
+            .signatures()
+            .declaration(declaration("deep"))
+            .and_then(|signature| signature.callable())
+            .expect("deep signature");
+        let [parameter] = deep.parameters() else {
+            panic!("one deeply nested parameter");
+        };
+        let boxed = declaration("Box");
+        let mut current = parameter.ty();
+        for depth in 0..96 {
+            let Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) = typed.types().get(current)
+            else {
+                panic!("Box at depth {depth}");
+            };
+            assert_eq!(*declaration, boxed);
+            let [argument] = arguments.as_slice() else {
+                panic!("one invariant type argument at depth {depth}");
+            };
+            current = *argument;
+        }
+        assert_eq!(
+            typed.types().get(current),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+    }
+}

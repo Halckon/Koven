@@ -33,6 +33,7 @@ use super::{
 };
 
 mod constants;
+mod enum_case;
 mod graph;
 mod range_carrier;
 mod recovery;
@@ -584,7 +585,11 @@ impl<'a> SignatureCollector<'a> {
                 segments,
                 nullable_span,
             } => {
-                let mut base = self.resolve_named_type(source, &segments)?;
+                let mut base = if self.reject_enum_case_type(source, id, &segments)? {
+                    self.error_type()
+                } else {
+                    self.resolve_named_type(source, &segments)?
+                };
                 if nullable_span.is_some() && !self.is_error(base) {
                     base = self.types.intern(UnitTypeKind::Nullable(base));
                 }
@@ -639,8 +644,7 @@ impl<'a> SignatureCollector<'a> {
         };
         if arguments.len() != nominal.type_parameters().len() {
             self.emit_arity(
-                self.names.index().declarations()[declaration.index()].source_unit(),
-                segment,
+                segment.name_span,
                 self.names.index().declarations()[declaration.index()].name_span(),
                 "nominal type has the wrong number of type arguments",
             )?;
@@ -669,8 +673,7 @@ impl<'a> SignatureCollector<'a> {
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
                 .span();
             self.emit_arity(
-                symbol.source_unit(),
-                segment,
+                self.argument_primary(symbol.source_unit(), segment),
                 label,
                 "type parameter does not accept type arguments",
             )?;
@@ -894,15 +897,14 @@ impl<'a> SignatureCollector<'a> {
 
     fn emit_arity(
         &mut self,
-        source: SourceUnitId,
-        segment: &TypePathSegment,
+        primary: Span,
         label: Span,
         message: &str,
     ) -> Result<(), CompilationUnitTypeError> {
         self.emit_with_label(
             codes::TYPE_ARGUMENT_ARITY,
             message,
-            self.argument_primary(source, segment),
+            primary,
             label,
             "type is declared here",
         )

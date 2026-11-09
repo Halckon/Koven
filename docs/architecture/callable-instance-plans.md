@@ -23,11 +23,18 @@ plan 保留 `(source token, call expression)` 到完整 callee key 的只读路�
 原 resolver 的 delegation 产物，driver 将整个 source plan 移交给 source 函数及 lambda thunk；
 ordinary static call 直接查询该路由。lambda 内调用继承所属 source owner，hidden deinit
 拥有自己的 source token。两入口 source callback ABI 的消费见[源码 ABI](callable-source-abi.md)。
+Unit 在实例索引中读取同一所有权产物的 call 进入事实，保留已开始求值的调用前缀。
+析构实例规划跳过未进入 lambda 的内部资源根，已进入的 lambda 继续核对原有 ABI。
 
 pointer factory 的摘要按具体 factory source memo，核对声明及调用位置的具体 Fn 类型，
 无捕获返回 lambda 归属 factory source；named function 依赖进入原 worklist。
 普通非 Fn 数据参数保持原规划路径，不因 callback discovery 增加 concrete layout 门禁。
 捕获 Fn 的环境缺少本片 concrete ABI，在 capture 引用位置返回 UnsupportedNode。
+Unit 所有权发布实参正常完成和调用能否进入 callee 的事实。已进入求值的调用保留
+静态路由和委托信息，已证无法进入 callee 的路由只用于求值前缀，实例队列省略其函数体。
+返回 `Nothing` 的 callee 若能实际进入，仍需规划其实例。Borrow Fn 来源仅为完成的实参冻结，
+前缀中已经形成的 callable view 有独立 ABI 声明。refine 按源码顺序求值，沿控制转移先结束
+已形成的借用，再消费临时 owner 的析构事实。
 
 实现位于 `ssa/lowering_support/callable_instances.rs`、`lower_frontend/instances/` 与
 `unit_plan/callable_instances.rs`。本页描述 planner 事实；source runtime constructor、helper

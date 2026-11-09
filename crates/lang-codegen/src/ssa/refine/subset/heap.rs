@@ -152,6 +152,23 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.storage_type(*inner))
     }
 
+    /// Presence through a MoveOnly Borrow does not mint an owned payload view.
+    pub(super) fn borrowed_nullable_presence(
+        &self,
+        symbol: lang_frontend::name_resolution::UnitSymbolId,
+        nullable: UnitTypeId,
+    ) -> Option<bool> {
+        (self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
+            && self.copyability_of(nullable) == Copyability::MoveOnly)
+            .then(|| {
+                matches!(
+                    self.kind(nullable),
+                    Some(UnitTypeKind::Nullable(inner))
+                        if self.map_kv(*inner).is_none() && self.view_inner(*inner)
+                )
+            })
+    }
+
     /// A concrete `Box<T>` whose payload is a supported `value class` or `enum class`.
     pub(super) fn box_payload(&self, ty: UnitTypeId) -> Option<UnitTypeId> {
         self.box_payload_seen(ty, &mut BTreeSet::new())

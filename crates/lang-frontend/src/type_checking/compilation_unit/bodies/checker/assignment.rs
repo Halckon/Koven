@@ -74,17 +74,18 @@ impl BodyChecker<'_> {
             && target_type.is_some_and(|ty| self.is_integer(ty) && ty == target_result.ty);
         let checks_storage = operator == AssignmentOperator::Assign || integer_statement;
         let deferred = self.deferred_facts.len();
-        let value_result = self.check_loop_reachable(target_exits, |checker| {
-            checker.check_expression(
-                source,
-                value,
-                checks_storage.then_some(target_type).flatten(),
-                checks_storage
-                    .then(|| target_contract.map(|(_, span)| span))
-                    .flatten(),
-                return_type,
-            )
-        })?;
+        let value_result =
+            self.check_loop_paths(target_result.falls_through, target_exits, |checker| {
+                checker.check_expression(
+                    source,
+                    value,
+                    checks_storage.then_some(target_type).flatten(),
+                    checks_storage
+                        .then(|| target_contract.map(|(_, span)| span))
+                        .flatten(),
+                    return_type,
+                )
+            })?;
         let flow_key = self.stable_flow_key(source, target);
         if let Some(key) = flow_key {
             self.invalidate_flow_key(key);

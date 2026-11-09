@@ -162,6 +162,10 @@ pub(super) fn declare(
         let scope = *owners
             .get(&source)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, layout.span))?;
+        let never_returns = module
+            .callable_signature(layout.callable)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, layout.span))?
+            .never_returns;
         let thunk = module
             .add_function(
                 format!("{}.thunk", layout.identity),
@@ -169,9 +173,11 @@ pub(super) fn declare(
                 Origin::Source(layout.span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?;
-        module
+        let function = module
             .function_mut(thunk)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?;
+        function.never_returns = never_returns;
+        function
             .add_block(layout.parameters, Origin::Source(layout.span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, layout.span))?;
         closures.insert(

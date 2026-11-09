@@ -348,3 +348,28 @@ fn receiver_two_phase_native_early_exit_and_normal_activation() {
 
 #[path = "unit_root_primitive_tests.rs"]
 mod root_primitive_tests;
+
+#[test]
+fn constant_never_rhs_keeps_the_only_reachable_native_branch() {
+    let run = run_constant_sources(
+        "package p
+const val TRUE = true
+const val FALSE = false",
+        "package q
+         fun orCase(flag: Boolean): Int {
+             when { flag -> {}; else -> {} }
+             if (p.TRUE || ((return 7) == 0)) { return 8 }
+         }
+         fun andCase(flag: Boolean): Int {
+             when { flag -> {}; else -> {} }
+             if (p.FALSE && ((return 7) == 0)) {} else { return 9 }
+         }
+         fun entry(): Unit {
+             if (orCase(false) != 8 || andCase(true) != 9) { error(\"wrong branch\") }
+             println(\"ok\")
+         }",
+    );
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"ok\n", "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}

@@ -45,6 +45,17 @@ impl BodyChecker<'_> {
         }
     }
 
+    pub(super) fn rejected_call_recovery(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+    ) -> ExpressionCheck {
+        // Final admission still needs the Deferred anchor for uncommitted children.
+        self.inactive_inout_calls
+            .insert(UnitExpressionId::new(source, expression));
+        self.unresolved_call()
+    }
+
     fn argument_check_start(&self) -> ArgumentCheckStart {
         ArgumentCheckStart {
             diagnostics: self.diagnostics.len(),
@@ -247,14 +258,10 @@ impl BodyChecker<'_> {
                 Some(self.check_expression(source, callee, None, None, return_type)?)
             };
             self.check_recovery_call_arguments(source, callee, arguments, return_type)?;
-            if let Some(result) = callee_result
-                && self.is_error(result.ty)
-            {
-                return Ok(result);
-            }
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
-                falls_through: true,
+            return Ok(match callee_result {
+                Some(result) if self.is_error(result.ty) => result,
+                Some(result) if self.is_deferred(result.ty) => self.unresolved_call(),
+                _ => self.rejected_call_recovery(source, expression),
             });
         }
         if candidates.is_empty() {
@@ -308,6 +315,8 @@ impl BodyChecker<'_> {
         let initial_candidate_count = candidates.len();
         let callee_exits =
             !self.tracks_pending_call_flow() || self.checked_callee_exits(source, callee)?;
+        let ordinary = self.pending_loop_exits.is_empty()
+            || self.call_operands_fall_through(source, callee, &[])?;
         let mut mapped = Vec::new();
         let mut first_mapping_error = None;
         for candidate in candidates {
@@ -328,7 +337,7 @@ impl BodyChecker<'_> {
             if let Some(error) = first_mapping_error {
                 self.emit_mapping_error(error)?;
             }
-            self.check_loop_reachable(callee_exits, |checker| {
+            self.check_loop_paths(ordinary, callee_exits, |checker| {
                 checker.with_explicit_storage_recovery(&explicit_storage_failures, |checker| {
                     checker.check_call_arguments_without_expected(source, arguments, return_type)
                 })
@@ -338,7 +347,7 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
-        self.check_loop_reachable(callee_exits, |checker| {
+        self.check_loop_paths(ordinary, callee_exits, |checker| {
             checker.select_mapped_call(
                 overload::CallSite {
                     source,
@@ -426,7 +435,9 @@ impl BodyChecker<'_> {
     ) -> Result<(), CompilationUnitTypeError> {
         let callee_exits =
             !self.tracks_pending_call_flow() || self.checked_callee_exits(source, callee)?;
-        self.check_loop_reachable(callee_exits, |checker| {
+        let ordinary = self.pending_loop_exits.is_empty()
+            || self.call_operands_fall_through(source, callee, &[])?;
+        self.check_loop_paths(ordinary, callee_exits, |checker| {
             checker.check_call_arguments_without_expected(source, arguments, return_type)
         })
     }
@@ -438,11 +449,13 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = true;
         for argument in arguments {
-            let result = self.check_loop_reachable(arguments_exit, |checker| {
+            let result = self.check_loop_paths(ordinary, arguments_exit, |checker| {
                 checker.check_expression(source, argument.value, None, None, return_type)
             })?;
+            ordinary &= result.falls_through;
             if track_arguments && arguments_exit {
                 arguments_exit =
                     self.has_pending_expression_exit(source, argument.value, result)?;
@@ -471,6 +484,7 @@ impl BodyChecker<'_> {
         let mut deferred = false;
         let mut uncommitted_context = false;
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = !track_arguments || self.checked_callee_exits(source, callee)?;
         let mut observed = constraints.as_ref().map(|_| vec![None; arguments.len()]);
         for (argument_index, argument) in arguments.iter().enumerate() {
@@ -560,7 +574,7 @@ impl BodyChecker<'_> {
                     } else {
                         expected
                     };
-                    self.check_loop_reachable(arguments_exit, |checker| {
+                    self.check_loop_paths(ordinary, arguments_exit, |checker| {
                         checker.check_expression_with_expectation(
                             source,
                             argument.value,
@@ -572,6 +586,7 @@ impl BodyChecker<'_> {
                     .ty
                 }
             };
+            ordinary &= self.operand_falls_through(source, argument.value);
             if track_arguments && arguments_exit {
                 arguments_exit = self.checked_call_operand_exits(source, argument.value)?;
             }
@@ -650,7 +665,7 @@ impl BodyChecker<'_> {
             if uncommitted_context {
                 // Final admission needs the unresolved call root to identify
                 // the uncommitted lambda. Independent errors are already recorded.
-                return Ok(self.unresolved_call());
+                return Ok(self.rejected_call_recovery(source, expression));
             }
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
@@ -691,7 +706,7 @@ impl BodyChecker<'_> {
             })
         {
             if call_pending {
-                return Ok(self.unresolved_call());
+                return Ok(self.rejected_call_recovery(source, expression));
             }
             self.emit(
                 codes::INVALID_OVERRIDE,
@@ -740,7 +755,8 @@ impl BodyChecker<'_> {
         self.record_call(source, expression, callee, arguments, &candidate, mapping);
         Ok(ExpressionCheck {
             ty: candidate.return_type,
-            falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
+            falls_through: self.call_operands_fall_through(source, callee, arguments)?
+                && !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
     }
 

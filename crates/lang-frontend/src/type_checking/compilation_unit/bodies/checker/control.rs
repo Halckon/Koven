@@ -4,7 +4,7 @@ use crate::{
     name_resolution::SourceUnitId,
     parser::Statement,
     source::Span,
-    type_checking::{BuiltinType, TypeCheckingError, UnitTypeId},
+    type_checking::{BuiltinType, TypeCheckingError, UnitStatementId, UnitTypeId},
 };
 
 use super::flow::{extend_facts, intersect_facts, merge_flow_versions};
@@ -21,7 +21,7 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
         return_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let pending_exit = self.check_repeating_flow(
+        let completion = self.check_repeating_flow(
             source,
             Some(condition),
             body,
@@ -29,8 +29,15 @@ impl BodyChecker<'_> {
             return_span,
             true,
         )?;
-        self.note_pending_statement_exit(source, statement, pending_exit);
-        Ok(self.unit_statement())
+        self.note_pending_statement_exit(source, statement, completion.pending_exit);
+        self.parts.loop_falls_through.insert(
+            UnitStatementId::new(source, statement),
+            completion.falls_through,
+        );
+        Ok(ExpressionCheck {
+            ty: self.builtin(BuiltinType::Unit),
+            falls_through: completion.falls_through,
+        })
     }
 
     pub(super) fn check_loop_statement(
@@ -41,17 +48,17 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
         return_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let pending_exit =
+        let completion =
             self.check_repeating_flow(source, None, body, return_type, return_span, false)?;
-        self.note_pending_statement_exit(source, statement, pending_exit);
-        Ok(self.unit_statement())
-    }
-
-    fn unit_statement(&mut self) -> ExpressionCheck {
-        ExpressionCheck {
+        self.note_pending_statement_exit(source, statement, completion.pending_exit);
+        let statement = UnitStatementId::new(source, statement);
+        self.parts
+            .loop_falls_through
+            .insert(statement, completion.falls_through);
+        Ok(ExpressionCheck {
             ty: self.builtin(BuiltinType::Unit),
-            falls_through: true,
-        }
+            falls_through: completion.falls_through,
+        })
     }
 
     pub(super) fn check_return(
@@ -157,10 +164,11 @@ impl BodyChecker<'_> {
         body: StatementId,
         return_type: UnitTypeId,
         return_span: Option<Span>,
-        reachable: bool,
+        ordinary: bool,
+        pending: bool,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         self.loop_depth += 1;
-        let result = self.check_loop_reachable(reachable, |checker| {
+        let result = self.check_loop_paths(ordinary, pending, |checker| {
             checker.check_statement(source, body, return_type, return_span)
         });
         self.loop_depth -= 1;
@@ -197,6 +205,9 @@ impl BodyChecker<'_> {
             self.has_pending_expression_exit(source, condition, condition_result)?;
         let then_reachable = condition_exits && condition_edges.yes.is_some();
         let else_reachable = condition_exits && condition_edges.no.is_some();
+        let (ordinary_then, ordinary_else) =
+            self.parts
+                .structural_boolean_outcomes_at(source, self.file(source), condition);
         let (true_facts, false_facts) = self.condition_facts(source, condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
         if let Some(pending) = &condition_edges.yes {
@@ -208,7 +219,7 @@ impl BodyChecker<'_> {
             expected
         };
         let mut then_pending = false;
-        let then_result = self.check_loop_reachable(then_reachable, |checker| {
+        let then_result = self.check_loop_paths(ordinary_then, then_reachable, |checker| {
             checker.check_value_body_with_replacement(
                 source,
                 then_branch,
@@ -250,7 +261,7 @@ impl BodyChecker<'_> {
             );
             return Ok(ExpressionCheck {
                 ty: self.builtin(BuiltinType::Unit),
-                falls_through: true,
+                falls_through: ordinary_else || ordinary_then && then_result.falls_through,
             });
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
@@ -260,7 +271,7 @@ impl BodyChecker<'_> {
         }
         let else_expected = self.control_branch_expected(source, else_branch, expected)?;
         let mut else_pending = false;
-        let else_result = self.check_loop_reachable(else_reachable, |checker| {
+        let else_result = self.check_loop_paths(ordinary_else, else_reachable, |checker| {
             checker.check_value_body_with_replacement(
                 source,
                 else_branch,
@@ -354,7 +365,8 @@ impl BodyChecker<'_> {
         );
         Ok(ExpressionCheck {
             ty,
-            falls_through: then_result.falls_through || else_result.falls_through,
+            falls_through: ordinary_then && then_result.falls_through
+                || ordinary_else && else_result.falls_through,
         })
     }
 
@@ -393,7 +405,7 @@ impl BodyChecker<'_> {
             .map_err(TypeCheckingError::from)?;
         let span = node.span();
         let payload = node.payload().clone();
-        match payload {
+        let mut result = match payload {
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => self
                 .check_value_elements(
                     source,
@@ -419,7 +431,11 @@ impl BodyChecker<'_> {
                 Ok(result)
             }
             _ => self.check_statement(source, statement, return_type, expected_span),
+        }?;
+        if !result.falls_through && !self.is_error(result.ty) {
+            result.ty = self.builtin(BuiltinType::Nothing);
         }
+        Ok(result)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -445,7 +461,7 @@ impl BodyChecker<'_> {
         let mut falls_through = true;
         let mut pending_exit = true;
         for &element in prefix {
-            let result = self.check_loop_reachable(pending_exit, |checker| {
+            let result = self.check_loop_paths(falls_through, pending_exit, |checker| {
                 checker.check_statement(source, element, return_type, expected_span)
             })?;
             falls_through &= result.falls_through;
@@ -459,7 +475,7 @@ impl BodyChecker<'_> {
             .map_err(TypeCheckingError::from)?
             .payload()
             .clone();
-        let result = self.check_loop_reachable(pending_exit, |checker| {
+        let result = self.check_loop_paths(falls_through, pending_exit, |checker| {
             if let Statement::Expression { expression } = payload {
                 checker.check_value_tail(
                     source,

@@ -73,6 +73,19 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span));
             }
         }
+        let ordinary_edges = plan.is_none().then(|| {
+            if self.typed.ordinary_rhs_required(control) {
+                return (true, false);
+            }
+            let (yes, no) = self
+                .typed
+                .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, left));
+            match operator {
+                lang_frontend::parser::BinaryOperator::LogicalAnd => (yes, no),
+                lang_frontend::parser::BinaryOperator::LogicalOr => (no, yes),
+                _ => (true, true),
+            }
+        });
         // 专用计划只决定左侧正常完成后的 RHS；左侧退出必须直接传播。
         let left = if let Some(plan) = plan {
             let value = self.lower(left)?;
@@ -98,6 +111,26 @@ impl UnitExpressionLowerer<'_> {
                 LoweredValue::Diverged => Ok(LoweredValue::Diverged),
                 _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
             };
+        }
+        match ordinary_edges {
+            Some((false, true)) => {
+                self.emit_drops(UnitDropPoint::BranchExit { control, branch: 1 })?;
+                return Ok(LoweredValue::Value(left));
+            }
+            Some((true, false)) => {
+                let rhs = self.lower(right)?;
+                match rhs {
+                    LoweredValue::Value(_) => {
+                        self.emit_drops(UnitDropPoint::BranchExit { control, branch: 0 })?;
+                    }
+                    LoweredValue::Diverged => {}
+                    LoweredValue::Unit => {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
+                }
+                return Ok(rhs);
+            }
+            _ => {}
         }
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
@@ -272,6 +305,17 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
         expected_string: Option<(UnitTypeId, SsaTypeId)>,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(subject) = subject
+            && self
+                .typed
+                .expression_falls_through(UnitExpressionId::new(self.source_unit, subject))
+                == Some(false)
+        {
+            return match self.lower_expression(subject)? {
+                LoweredValue::Diverged => Ok(LoweredValue::Diverged),
+                _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let control = UnitExpressionId::new(self.source_unit, expression);
         if self.owned.drops().iter().any(|fact| {
             matches!(fact.point(),

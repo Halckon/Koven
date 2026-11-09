@@ -1,8 +1,8 @@
-//! Field/Group 临时父 Borrow 清理；不扩大 direct-call loan-end 观测片。
+//! Field/Group 临时父 Borrow 的真实结束事件与完整父 owner 清理。
 use super::*;
 use lang_frontend::ast::ExpressionId;
 
-fn expression(observed: &Observed, text: &str) -> ExpressionId {
+pub(super) fn expression(observed: &Observed, text: &str) -> ExpressionId {
     let matches = observed
         .parsed
         .ast()
@@ -16,13 +16,13 @@ fn expression(observed: &Observed, text: &str) -> ExpressionId {
     *expression
 }
 
-#[derive(Clone, Copy)]
-enum Cleanup<'a> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Cleanup<'a> {
     Returned(&'a str),
     Transfer(&'a str),
 }
 
-fn assert_field_cleanup(
+pub(super) fn assert_field_cleanup(
     observed: &Observed,
     call_text: &str,
     fields: &[(&str, &str)],
@@ -149,7 +149,58 @@ fn assert_field_cleanup(
             "complete drop table, including value_origin and traversal order"
         );
         assert!(unit.conditional_receiver_drops().is_empty());
-        assert!(unit.direct_call_loan_ends().is_empty());
+        // 每个已完成的字段 parent 对应同一真实 token，结束先于同点全部父析构。
+        // 预期只取上方源码指定的 parent/point 顺序，不从实际事件或 drop 表生成。
+        let mut previous_point = None;
+        let mut order = 0;
+        let expected_ends = expected_drops
+            .iter()
+            .filter_map(|(point, parent)| {
+                let (field, _) = fields.iter().find(|(_, owner)| owner == parent)?;
+                if previous_point != Some(*point) {
+                    previous_point = Some(*point);
+                    order = 0;
+                }
+                let point = match point {
+                    Cleanup::Returned(text) => {
+                        UnitDropPoint::CallReturn(qualify(expression(observed, text)))
+                    }
+                    Cleanup::Transfer(text) => {
+                        UnitDropPoint::ControlTransfer(qualify(expression(observed, text)))
+                    }
+                };
+                let result = (
+                    qualify(expression(observed, field)),
+                    UnitLoanTarget::Temporary(qualify(expression(observed, parent))),
+                    point,
+                    0,
+                    order,
+                );
+                order += 1;
+                Some(result)
+            })
+            .collect::<Vec<_>>();
+        let actual_ends = unit
+            .direct_call_loan_ends()
+            .iter()
+            .map(|end| {
+                let loan = end.loan();
+                assert!(unit.loans().contains(loan));
+                assert_eq!(loan.call(), call);
+                assert_eq!(loan.kind(), LoanKind::Shared);
+                (
+                    loan.argument(),
+                    loan.target().clone(),
+                    end.point(),
+                    end.preceding_drops(),
+                    end.preceding_call_loan_ends(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual_ends, expected_ends,
+            "complete ordered field-parent end vector"
+        );
         assert!(unit.exclusive_call_prefix_ends().is_empty());
     }
 }

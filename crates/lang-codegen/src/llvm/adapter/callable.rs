@@ -271,6 +271,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         let call = self
             .builder
             .build_indirect_call(function_type, code, &operands, &name)?;
+        if signature.never_returns {
+            closure::mark_call_noreturn(call, function_type);
+        }
         match (results, call.try_as_basic_value()) {
             ([], inkwell::values::ValueKind::Instruction(_)) => Ok(()),
             ([result], inkwell::values::ValueKind::Basic(value)) => {
@@ -311,10 +314,16 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .map(inkwell::values::BasicMetadataValueEnum::from)
             .collect::<Vec<_>>();
         let call = builder.build_indirect_call(inner, target, &operands, "")?;
-        match call.try_as_basic_value() {
-            inkwell::values::ValueKind::Basic(value) => builder.build_return(Some(&value))?,
-            inkwell::values::ValueKind::Instruction(_) => builder.build_return(None)?,
-        };
+        if signature.never_returns {
+            crate::llvm::runtime::add_noreturn_attribute(self.context, trampoline);
+            closure::mark_call_noreturn(call, inner);
+            builder.build_unreachable()?;
+        } else {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(value) => builder.build_return(Some(&value))?,
+                inkwell::values::ValueKind::Instruction(_) => builder.build_return(None)?,
+            };
+        }
         Ok(trampoline)
     }
 

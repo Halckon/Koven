@@ -120,8 +120,12 @@ pub(super) fn analyze(
         dataflow.loans.clear();
         dataflow.direct_call_loan_ends.clear();
         dataflow.borrow_call_handoffs.clear();
+        dataflow.borrow_call_transports.clear();
+        dataflow.borrow_binding_transports.clear();
+        dataflow.borrow_forward_transports.clear();
         dataflow.borrow_call_prefix_ends.clear();
         dataflow.exclusive_call_prefix_ends.clear();
+        dataflow.receiver_call_prefix_ends.clear();
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();

@@ -182,6 +182,18 @@ fn verify_function_structure(module: &Module, function: &Function, errors: &mut 
         }
     }
 
+    if function.never_returns
+        && (!function.return_types.is_empty()
+            || function.borrow_return.is_some()
+            || function.carrier_return.is_some())
+    {
+        errors.push(function_error(
+            function,
+            VerifyErrorKind::OperationContract {
+                reason: "non-returning function cannot declare a result",
+            },
+        ));
+    }
     callable_view::verify_returns(module, function, errors);
     for ty in &function.return_types {
         verify_type(
@@ -478,16 +490,16 @@ fn verify_entity_reference(
 
 fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<VerifyError>) {
     for block in &function.blocks {
+        let terminator = block
+            .terminator
+            .as_ref()
+            .expect("structure phase proved terminator existence");
         for instruction_id in &block.instructions {
             let instruction = function
                 .instruction(*instruction_id)
                 .expect("structure phase proved instruction existence");
             super::verify_operation::verify_operation(module, function, instruction, errors);
         }
-        let terminator = block
-            .terminator
-            .as_ref()
-            .expect("structure phase proved terminator existence");
         if terminator
             .kind
             .targets()
@@ -551,7 +563,7 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
                 );
             }
             TerminatorKind::Return { values } => {
-                if function.borrow_return.is_some() {
+                if function.borrow_return.is_some() || function.never_returns {
                     errors.push(VerifyError {
                         kind: VerifyErrorKind::ReturnType { index: 0 },
                         location: VerifyLocation::Terminator(block.id),
@@ -586,6 +598,27 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
                 }
             }
             TerminatorKind::Abort => {}
+            TerminatorKind::Unreachable => {
+                let final_call = block
+                    .instructions
+                    .last()
+                    .and_then(|&id| function.instruction(id));
+                if !final_call.is_some_and(|instruction| {
+                    super::verify_operation::callable::call_never_returns(
+                        module,
+                        function,
+                        &instruction.operation,
+                    )
+                }) {
+                    errors.push(VerifyError {
+                        kind: VerifyErrorKind::OperationContract {
+                            reason: "unreachable requires a final non-returning call",
+                        },
+                        location: VerifyLocation::Terminator(block.id),
+                        origin: Some(terminator.origin.clone()),
+                    });
+                }
+            }
             TerminatorKind::RangeReturn { view, source } => {
                 super::verify_operation::range_return_contract(
                     module,
@@ -758,7 +791,8 @@ fn non_null_target_is_proof_closed(
             TerminatorKind::Return { .. }
             | TerminatorKind::RangeReturn { .. }
             | TerminatorKind::BorrowReturn { .. }
-            | TerminatorKind::Abort => true,
+            | TerminatorKind::Abort
+            | TerminatorKind::Unreachable => true,
         }
     })
 }

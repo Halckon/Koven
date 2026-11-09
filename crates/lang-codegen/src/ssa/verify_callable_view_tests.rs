@@ -55,6 +55,7 @@ fn types(module: &mut Module) -> Types {
         .add_callable_view_type(CallableSignature {
             parameters: vec![EntityType::Value(int)],
             returns: vec![int],
+            never_returns: false,
         })
         .expect("view type");
     Types { int, pointer, view }
@@ -646,4 +647,156 @@ fn closure_view_passes_thunk_and_borrowed_environment() {
     let llvm = crate::llvm::render_verified_program(&program).expect("view lowers to LLVM");
     assert_diagnostic!(!llvm.contains("koven.callable_view.trampoline"), "{llvm}");
     assert_diagnostic!(!llvm.contains("@malloc"), "views never allocate: {llvm}");
+}
+
+#[test]
+fn non_returning_indirect_calls_require_an_explicit_dead_end() {
+    use super::verify::{VerifyErrorKind, VerifyLocation};
+
+    for view in [false, true] {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("main");
+        let module = program.module_mut(module_id).unwrap();
+        let ty = if view {
+            module
+                .add_callable_view_type(CallableSignature {
+                    parameters: vec![],
+                    returns: vec![],
+                    never_returns: true,
+                })
+                .unwrap()
+        } else {
+            module
+                .add_function_pointer_signature(CallableSignature {
+                    parameters: vec![],
+                    returns: vec![],
+                    never_returns: true,
+                })
+                .unwrap()
+        };
+        let caller = module
+            .add_function("caller", vec![], origin.clone())
+            .unwrap();
+        let function = module.function_mut(caller).unwrap();
+        let parameter = if view {
+            view_loan(ty)
+        } else {
+            EntityType::Value(ty)
+        };
+        let block = function.add_block(vec![parameter], origin.clone()).unwrap();
+        let operation = match function.block(block).unwrap().parameters[0] {
+            EntityId::Loan(view) => Operation::CallableInvokeView {
+                view,
+                arguments: vec![],
+            },
+            EntityId::Value(callable) => Operation::CallableInvoke {
+                callable,
+                arguments: vec![],
+            },
+            EntityId::Place(_) => panic!("expected a callable operand"),
+        };
+        let (call, _) = function
+            .append_instruction(block, operation, vec![], origin.clone())
+            .unwrap();
+        function
+            .set_terminator(block, TerminatorKind::Unreachable, origin)
+            .unwrap();
+        verify_program(&program).unwrap();
+
+        let module = program.module_mut(module_id).unwrap();
+        module.function_mut(caller).unwrap().blocks[0]
+            .terminator
+            .as_mut()
+            .unwrap()
+            .kind = TerminatorKind::Return { values: vec![] };
+        assert!(
+            verify_program(&program)
+                .unwrap_err()
+                .errors
+                .iter()
+                .any(|error| {
+                    error.location == VerifyLocation::Instruction(call)
+                        && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+                })
+        );
+
+        let module = program.module_mut(module_id).unwrap();
+        module.function_mut(caller).unwrap().blocks[0]
+            .terminator
+            .as_mut()
+            .unwrap()
+            .kind = TerminatorKind::Unreachable;
+        let (SsaTypeKind::FunctionPointer { signature } | SsaTypeKind::CallableView { signature }) =
+            &mut module.types[ty.index()]
+        else {
+            panic!("expected a callable type");
+        };
+        signature.never_returns = false;
+        assert!(
+            verify_program(&program)
+                .unwrap_err()
+                .errors
+                .iter()
+                .any(|error| {
+                    error.location == VerifyLocation::Terminator(block)
+                        && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+                })
+        );
+    }
+}
+
+#[test]
+fn a_returning_unit_function_cannot_form_a_non_returning_pointer() {
+    use super::verify::{VerifyErrorKind, VerifyLocation};
+
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("main");
+    let module = program.module_mut(module_id).unwrap();
+    let pointer = module
+        .add_function_pointer_signature(CallableSignature {
+            parameters: vec![],
+            returns: vec![],
+            never_returns: true,
+        })
+        .unwrap();
+    let target = module
+        .add_function("target", vec![], origin.clone())
+        .unwrap();
+    let function = module.function_mut(target).unwrap();
+    let block = function.add_block(vec![], origin.clone()).unwrap();
+    function
+        .set_terminator(
+            block,
+            TerminatorKind::Return { values: vec![] },
+            origin.clone(),
+        )
+        .unwrap();
+    let factory = module
+        .add_function("factory", vec![], origin.clone())
+        .unwrap();
+    let function = module.function_mut(factory).unwrap();
+    let block = function.add_block(vec![], origin.clone()).unwrap();
+    let (address, _) = function
+        .append_instruction(
+            block,
+            Operation::FunctionAddress { target },
+            vec![EntityType::Value(pointer)],
+            origin.clone(),
+        )
+        .unwrap();
+    function
+        .set_terminator(block, TerminatorKind::Return { values: vec![] }, origin)
+        .unwrap();
+    assert!(
+        verify_program(&program)
+            .unwrap_err()
+            .errors
+            .iter()
+            .any(|error| {
+                error.location == VerifyLocation::Instruction(address)
+                    && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            })
+    );
 }

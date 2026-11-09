@@ -1,27 +1,39 @@
 //! 普通 compilation-unit 短路也在两个出口发布最后使用的清理事实。
+use crate::ownership_checking::compilation_unit::constant::{
+    UnitShortCircuitPlan, UnitShortCircuitRhs,
+};
+
 use super::{DropExpressionUse, DropPlanner, ExpressionId, OwnershipCheckingError, ValueState};
 
 impl DropPlanner<'_, '_> {
     pub(super) fn short_circuit(
         &mut self,
         control: ExpressionId,
-        left: ExpressionId,
-        right: ExpressionId,
+        plan: UnitShortCircuitPlan,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        if !self.expression(left, DropExpressionUse::Read, state)? {
+        if !self.expression(plan.left.expression(), DropExpressionUse::Read, state)? {
             return Ok(false);
         }
         let mut evaluated = state.clone();
         let mut exits = Vec::with_capacity(2);
-        if self.expression(right, DropExpressionUse::Read, &mut evaluated)? {
+        if plan.rhs != UnitShortCircuitRhs::Never
+            && self.expression(
+                plan.right.expression(),
+                DropExpressionUse::Read,
+                &mut evaluated,
+            )?
+        {
             self.drop_branch_exit(control, 0, &mut evaluated);
             exits.push(evaluated);
         }
-        let mut skipped = state.clone();
-        self.drop_branch_exit(control, 1, &mut skipped);
-        exits.push(skipped);
+        if plan.rhs != UnitShortCircuitRhs::Always {
+            let mut skipped = state.clone();
+            self.drop_branch_exit(control, 1, &mut skipped);
+            exits.push(skipped);
+        }
+        let continues = !exits.is_empty();
         *state = self.merge_resource_states(control, exits);
-        Ok(true)
+        Ok(continues)
     }
 }

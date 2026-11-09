@@ -38,6 +38,143 @@ fn error_writes_its_message_verbatim_after_flushed_stdout() {
 }
 
 #[test]
+fn named_nothing_call_enters_the_callee_and_aborts_during_an_argument_prefix() {
+    let check = || {
+        assert_abort(
+            "named-nothing-prefix",
+            r#"
+class Ticket { deinit() { println("unexpected drop") } }
+fun prefix(): Ticket { println("prefix"); return Ticket() }
+fun stop(): Nothing { println("entered stop"); error("from stop") }
+fun suffix(): Int { println("unexpected suffix"); return 1 }
+fun dormant(own ticket: Ticket, middle: Int, last: Int): Unit { println("unexpected dispatch") }
+fun entry(): Unit { dormant(prefix(), stop(), suffix()) }
+"#,
+            "prefix\nentered stop\n",
+            "from stop",
+            "error(",
+        )
+    };
+    check();
+    crate::ssa::with_per_family_lowering(check);
+}
+
+#[test]
+fn named_nothing_method_evaluates_its_receiver_before_its_arguments() {
+    assert_abort(
+        "named-nothing-method",
+        r#"
+class Worker {
+    deinit() { println("unexpected drop") }
+    fun stop(own value: Int): Nothing { println("entered method"); error("method stop") }
+}
+fun worker(): Worker { println("receiver"); return Worker() }
+fun argument(): Int { println("argument"); return 1 }
+fun entry(): Unit { worker().stop(argument()); println("unexpected continuation") }
+"#,
+        "receiver\nargument\nentered method\n",
+        "method stop",
+        "error(",
+    );
+}
+
+#[test]
+fn indirect_nothing_function_pointer_has_no_normal_continuation() {
+    let check = || {
+        assert_abort(
+            "indirect-nothing-pointer",
+            r#"
+fun entry(): Unit {
+    val stop: () -> Nothing = { println("pointer"); error("pointer stop") }
+    stop()
+    println("unexpected continuation")
+}
+"#,
+            "pointer\n",
+            "pointer stop",
+            "error(",
+        );
+    };
+    check();
+    crate::ssa::with_per_family_lowering(check);
+}
+
+#[test]
+fn indirect_nothing_capturing_closure_has_no_normal_continuation() {
+    assert_abort(
+        "indirect-nothing-capture",
+        r#"
+fun entry(): Unit {
+    val message = "captured stop"
+    val stop: () -> Nothing = { println("capture"); error(message) }
+    stop()
+    println("unexpected continuation")
+}
+"#,
+        "capture\n",
+        "captured stop",
+        "error(",
+    );
+}
+
+#[test]
+fn indirect_nothing_borrowed_callback_has_no_normal_continuation() {
+    assert_abort(
+        "indirect-nothing-callback",
+        r#"
+fun invoke(stop: () -> Nothing): Int {
+    println("callback")
+    stop()
+}
+fun entry(): Unit {
+    val stop: () -> Nothing = { error("callback stop") }
+    val result = invoke(stop)
+    println("unexpected continuation")
+}
+"#,
+        "callback\n",
+        "callback stop",
+        "error(",
+    );
+}
+
+#[test]
+fn indirect_nothing_while_keeps_borrowed_operands_off_the_bypass() {
+    assert_indirect_nothing_while_bypass(r#"stop("inner")"#);
+    assert_indirect_nothing_while_bypass(r#"sink("outer", stop("inner"))"#);
+}
+
+#[test]
+fn indirect_nothing_container_prefix_keeps_size_loan_off_the_bypass() {
+    assert_indirect_nothing_while_bypass(r#"val xs = List<Int>(1, stop("inner"))"#);
+}
+
+#[test]
+fn indirect_nothing_map_prefix_keeps_key_and_receiver_loans_off_the_bypass() {
+    assert_indirect_nothing_while_bypass(
+        r#"val m = mapOf<String, String>(); m.withValue("key", stop("inner"))"#,
+    );
+}
+
+fn assert_indirect_nothing_while_bypass(body: &str) {
+    let source = format!(
+        r#"
+fun sink(outer: String, inner: Int): Unit {{ println("unexpected sink") }}
+fun work(flag: Boolean): Unit {{
+    val stop: (borrow String) -> Nothing = {{ text -> error(text) }}
+    while (flag) {{ {body} }}
+    return
+}}
+fun entry(): Unit {{ work(false); println("done") }}
+"#
+    );
+    super::boxed_enum_tests::assert_success(
+        &emit_link_and_run("indirect-nothing-while-bypass.ko", &source, "entry"),
+        b"done\n",
+    );
+}
+
+#[test]
 fn null_assertion_points_at_the_asserted_expression() {
     assert_abort(
         "null-assertion",

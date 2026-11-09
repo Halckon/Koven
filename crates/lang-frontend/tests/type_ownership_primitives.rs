@@ -501,3 +501,32 @@ fn divergent_if_condition_preserves_static_primitive_identity() {
         assert!(typed.clone().validate().is_ok());
     });
 }
+
+#[test]
+fn rejected_primitive_with_a_deferred_operand_does_not_kill_the_narrowing() {
+    for call in ["replace<Any>(&x, new = 0)", "swap<Any>(&x, other = &y)"] {
+        let text = format!(
+            "fun run(seed: Int?): Int {{
+                 var x = seed
+                 var y = seed
+                 if (x != null) {{
+                     {call}
+                     return x
+                 }}
+                 return 0
+             }}"
+        );
+        let typed = unit(&[("rejected-primitive.ko", &text)], false);
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0120"],
+            "{call}: {:?}",
+            typed.diagnostics()
+        );
+        assert!(typed.ownership_primitives().is_empty());
+    }
+}

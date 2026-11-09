@@ -229,13 +229,21 @@ impl Builder<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => {
-                let mut header = live_after.clone();
+                // The condition can kill exit-live values before control reaches either edge.
+                let (can_enter, can_skip) = self.checker.ordinary_condition_outcomes(condition);
+                let mut header = LiveSet::new();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
-                    let body_in = self.statement(body, header.clone())?;
+                    let body_in = if can_enter {
+                        self.statement(body, header.clone())?
+                    } else {
+                        LiveSet::new()
+                    };
                     self.loop_stack.pop();
-                    let mut condition_after = live_after.clone();
-                    condition_after.extend(body_in);
+                    let mut condition_after = body_in;
+                    if can_skip {
+                        condition_after.extend(live_after.iter().copied());
+                    }
                     let next = self.expression(condition, ExpressionUse::Read, condition_after)?;
                     if next == header {
                         return Ok(next);
@@ -434,8 +442,16 @@ impl Builder<'_, '_> {
                 else_branch,
                 ..
             } => {
-                let then_live = self.statement(then_branch, live_after.clone())?;
-                let else_live = if let Some(else_branch) = else_branch {
+                let (reaches_then, reaches_else) =
+                    self.checker.ordinary_condition_outcomes(condition);
+                let then_live = if reaches_then {
+                    self.statement(then_branch, live_after.clone())?
+                } else {
+                    LiveSet::new()
+                };
+                let else_live = if !reaches_else {
+                    LiveSet::new()
+                } else if let Some(else_branch) = else_branch {
                     self.statement(else_branch, live_after)?
                 } else {
                     live_after
@@ -448,15 +464,8 @@ impl Builder<'_, '_> {
             Expression::When {
                 subject, entries, ..
             } => {
-                let mut live = live_after.clone();
-                for (index, entry) in entries.iter().enumerate() {
-                    let incoming = self.statement(entry.body, live_after.clone())?;
-                    live.extend(incoming.iter().copied());
-                    self.when_entry_live_in
-                        .insert((id.index(), index), incoming);
-                }
                 // An implicit String comparison reads the subject after each candidate.
-                if let Some(subject) = subject
+                let string_subject = if let Some(subject) = subject
                     && self
                         .checker
                         .typed
@@ -464,8 +473,7 @@ impl Builder<'_, '_> {
                         .and_then(|ty| self.checker.typed.types().get(ty))
                         == Some(&crate::type_checking::UnitTypeKind::Builtin(
                             crate::type_checking::BuiltinType::String,
-                        ))
-                {
+                        )) {
                     let mut subject = subject;
                     while let Expression::Group { expression } = self
                         .checker
@@ -478,21 +486,57 @@ impl Builder<'_, '_> {
                         subject = *expression;
                     }
                     let node = self.checker.parsed.ast().expressions().get(subject)?;
-                    if matches!(node.payload(), Expression::Name)
-                        && let Some(symbol) = self.checker.reference_symbol(node.span())
-                        && self.checker.is_move_only_variable(symbol)
-                    {
-                        live.insert(symbol);
+                    if matches!(node.payload(), Expression::Name) {
+                        self.checker
+                            .reference_symbol(node.span())
+                            .filter(|&symbol| self.checker.is_move_only_variable(symbol))
+                    } else {
+                        None
                     }
-                }
-                for entry in entries.into_iter().rev() {
-                    for condition in entry.conditions.into_iter().rev() {
+                } else {
+                    None
+                };
+                let control = self.checker.unit_expression(id);
+                let closed_after = self.checker.typed.when_closed_after(control);
+                let entry_count = closed_after.unwrap_or(entries.len());
+                let mut live = if closed_after.is_some() {
+                    LiveSet::new()
+                } else {
+                    live_after.clone()
+                };
+                for (index, entry) in entries.into_iter().take(entry_count).enumerate().rev() {
+                    let body = self.statement(entry.body, live_after.clone())?;
+                    if entry.else_span.is_some() {
+                        live = body.clone();
+                    }
+                    let selector_count = self
+                        .checker
+                        .typed
+                        .when_final_selector_count(control, index)
+                        .unwrap_or(entry.conditions.len());
+                    for condition in entry.conditions.into_iter().take(selector_count).rev() {
+                        // Only this selector's normal exits can match the body or try the next one.
                         if let WhenCondition::Expression(expression)
                         | WhenCondition::Contains { expression, .. } = condition
                         {
+                            let (can_match, can_miss) = if subject.is_none() {
+                                self.checker.ordinary_condition_outcomes(expression)
+                            } else {
+                                (true, true)
+                            };
+                            if !can_miss {
+                                live.clear();
+                            }
+                            if can_match {
+                                live.extend(body.iter().copied());
+                            }
+                            live.extend(string_subject);
                             live = self.expression(expression, ExpressionUse::Read, live)?;
+                        } else {
+                            live.extend(body.iter().copied());
                         }
                     }
+                    self.when_entry_live_in.insert((id.index(), index), body);
                 }
                 if let Some(subject) = subject {
                     self.expression(subject, ExpressionUse::Read, live)

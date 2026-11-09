@@ -448,6 +448,13 @@ fn verify_callable_signature(
             "callable signature supports at most one return type",
         );
     }
+    if signature.never_returns && !signature.returns.is_empty() {
+        push_type_error(
+            errors,
+            id,
+            "a non-returning callable cannot declare a result",
+        );
+    }
     if signature
         .parameters
         .iter()

@@ -20,7 +20,8 @@ fn edges(block: &Block) -> Vec<&Edge> {
         TerminatorKind::Return { .. }
         | TerminatorKind::BorrowReturn { .. }
         | TerminatorKind::RangeReturn { .. }
-        | TerminatorKind::Abort => Vec::new(),
+        | TerminatorKind::Abort
+        | TerminatorKind::Unreachable => Vec::new(),
     }
 }
 

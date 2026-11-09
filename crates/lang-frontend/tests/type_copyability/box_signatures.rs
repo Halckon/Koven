@@ -51,7 +51,7 @@ fn nested_box_signature_errors_keep_inner_root_causes_without_cascades() {
     let text = "value class Point(val x: Int)\n\
                 fun bad(a: Box<Box<Int>>, b: Box<Box>, c: Box<Point, Point>,\n\
                         d: Box<() -> Int<String>>, e: Box<Point<Int>>): Unit {}";
-    let (sources, _, entries) = checked_entries(text, true);
+    let (sources, parsed, entries) = checked_entries(text, true);
     for (names, typed) in entries {
         assert_eq!(
             codes(typed.diagnostics()),
@@ -63,7 +63,31 @@ fn nested_box_signature_errors_keep_inner_root_causes_without_cascades() {
                 .iter()
                 .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("span"))
                 .collect::<Vec<_>>(),
-            ["Int", "Box", "Box", "String", "Int"]
+            ["Int", "Box", "Box", "String", "Point"]
+        );
+        // Nominal arity is anchored at the use-site name, not its first argument.
+        let arity = &typed.diagnostics()[4];
+        let start = text.find("Point<Int>").expect("use-site nominal");
+        assert_eq!(
+            (
+                arity.primary_span().source_id(),
+                arity.primary_span().start(),
+                arity.primary_span().end()
+            ),
+            (parsed.source_id(), start, start + "Point".len())
+        );
+        let label = arity
+            .details()
+            .iter()
+            .find_map(|detail| match detail {
+                lang_frontend::diagnostic::DiagnosticDetail::Label(label) => Some(label.span()),
+                _ => None,
+            })
+            .expect("nominal declaration label");
+        let declaration = text.find("Point").expect("nominal declaration");
+        assert_eq!(
+            (label.source_id(), label.start(), label.end()),
+            (parsed.source_id(), declaration, declaration + "Point".len())
         );
         assert_eq!(typed.signatures().diagnostics(), typed.diagnostics());
         assert!(typed.body_diagnostics().is_empty());
@@ -73,6 +97,7 @@ fn nested_box_signature_errors_keep_inner_root_causes_without_cascades() {
                 .expect("parameter type");
             assert_eq!(typed.types().get(ty), Some(&UnitTypeKind::Error), "{name}");
         }
+        assert!(typed.validate().is_err());
     }
 }
 

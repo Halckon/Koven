@@ -545,7 +545,7 @@ fn nonreturning_suffix_and_unreachable_calls_publish_no_cleanup() {
 }
 
 #[test]
-fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
+fn adjacent_projection_exclusions_preserve_the_temporary_field_legacy_witness() {
     let cases = [
         ("own holder: Holder", "", "(holder.text)", None),
         (
@@ -615,7 +615,18 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
                 assert!(legacy.is_none());
             }
             assert_units_admitted(&observed);
-            assert_fixed_ends(&observed, &[]);
+            if legacy_deferred.is_some() {
+                use temporary_field_pending::{Cleanup, assert_field_cleanup};
+                let call = format!("read({operand}, {suffix})");
+                let mut drops = Vec::new();
+                if suffix != "0" {
+                    drops.push((Cleanup::Transfer("return"), "Holder(\"field\")"));
+                }
+                drops.push((Cleanup::Returned(call.as_str()), "Holder(\"field\")"));
+                assert_field_cleanup(&observed, &call, &[(operand, "Holder(\"field\")")], &drops);
+            } else {
+                assert_fixed_ends(&observed, &[]);
+            }
             for unit in &observed.units {
                 let actual = unit
                     .loans()
@@ -645,7 +656,7 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
                     );
                 }
                 assert!(
-                    unit.direct_call_loan_ends().is_empty(),
+                    legacy_deferred.is_some() || unit.direct_call_loan_ends().is_empty(),
                     "excluded operand {operand}, suffix {suffix}"
                 );
             }
@@ -864,3 +875,21 @@ mod prefix_oracle;
 
 #[path = "unit_direct_call_loan_ends/prefix_order.rs"]
 mod prefix_order;
+
+#[path = "unit_direct_call_loan_ends/borrow_transport.rs"]
+mod borrow_transport;
+
+#[path = "unit_direct_call_loan_ends/borrow_binding_transport.rs"]
+mod borrow_binding_transport;
+
+#[path = "unit_direct_call_loan_ends/borrow_forward_transport.rs"]
+mod borrow_forward_transport;
+
+#[path = "unit_direct_call_loan_ends/temporary_field_ends.rs"]
+mod temporary_field_ends;
+
+#[path = "unit_direct_call_loan_ends/exclusive_order.rs"]
+mod exclusive_order;
+
+#[path = "unit_direct_call_loan_ends/receiver_prefix.rs"]
+mod receiver_prefix;

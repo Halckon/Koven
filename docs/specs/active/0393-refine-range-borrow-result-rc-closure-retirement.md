@@ -33,7 +33,7 @@
 
 ## 2. 边界与不变量
 
-- `unit_lower/borrow_result.rs` 仅保留编译单元级 `validate_declarations`、`validate_bindings`，以及遗留 `map_iteration/borrowed.rs` 使用的直接根 `Borrow` 参数 `borrow val` 别名；该别名在作用域不需要细化层时仍走旧路径。
+- `unit_lower/borrow_result.rs` 保留编译单元级 `validate_declarations`，以及遗留 `map_iteration/borrowed.rs` 使用的直接根 `Borrow` 参数 `borrow val` 别名；该别名在作用域不需要细化层时仍走旧路径。直接字段绑定与已限定到同一别名的稳定根 Map provider 由专门入口核验。编译单元启用旧前置门禁时，其余绑定保留现有整函数 CFG 边界。
 - `unit_lower/rc.rs` 与 `unit_lower/control/nullable_if/rc.rs` 仅保留 `lower_rc_construction`、`validated_rc_operation` 与 `prepare_rc_nullable_if_entry`。
 - 已退役家族经默认入口进入细化层并通过 SSA verifier 与 LLVM IR 生成；`with_per_family_lowering` 强制旧路径时确定性返回 `UnsupportedNode`。
 - 非捕获函数值调用实参内的 `break`/`continue` 仍交旧路径（细化层对“无出口 loop + 实参内 `continue`”会产生 `MissingOwnedExit`，留作后继缺口）。
@@ -61,3 +61,4 @@
 | `46566977` | 退役旧路径并去掉范围/借用结果门控（接手前；验收项当时未实测） |
 | 合并提交 | 合入 main `6272d3e5`；Spec 改号 0393 |
 | 本提交 | 补齐第 1 节第 2 项的细化层能力，恢复 `String.clone()` 旧路径，调整上节所列测试 |
+| SPEC-0392 复审 | 按绑定形状保留旧 CFG 边界；两条有/无兄弟函数的原生回归见[复审账本](0392-compiler-layered-review.md#106-r4-借用绑定校验归属与兄弟函数对照)。 |

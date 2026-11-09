@@ -4,11 +4,12 @@ impl Parser<'_> {
     pub(super) fn parse_supertype_list(
         &mut self,
         kind: ClassifierKind,
-        file_header: bool,
+        owner: ClassifierHeaderOwner,
     ) -> Result<(Option<Span>, Vec<SupertypeEntry>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Colon) {
             return Ok((None, Vec::new()));
         }
+        let file_header = owner == ClassifierHeaderOwner::File;
         let colon_span = self.bump()?.span();
         let mut entries = Vec::new();
         let mut recovery_stops = DeclarationStops::EMPTY
@@ -20,18 +21,24 @@ impl Parser<'_> {
             .with(TypeStops::COMMA)
             .with(TypeStops::CLASS_BODY)
             .with(TypeStops::RIGHT_BRACE)
-            .with(TypeStops::FILE);
+            .with(TypeStops::FILE)
+            .for_supertype(owner);
         if file_header {
             recovery_stops = recovery_stops.with(DeclarationStops::CLASS_FILE);
             type_stops = type_stops.with(TypeStops::CLASS_FILE);
+        }
+        let mut suffix_stops = recovery_stops.with(DeclarationStops::SUPERTYPE_SUFFIX);
+        if owner == ClassifierHeaderOwner::Member {
+            suffix_stops = suffix_stops.with(DeclarationStops::CLASS_MEMBER);
         }
         loop {
             let current = self.current()?;
             let file_boundary = file_header && self.at_class_header_file_boundary(true)?;
             if !file_boundary && self.can_start_type_ref(current) {
-                let type_ref = self.parse_type_ref(type_stops)?;
+                let (type_ref, complete) = self.parse_type_ref_with_completion(type_stops)?;
                 let type_span = self.type_span(type_ref)?;
-                let delegation = if self.current_identifier_is("by")? {
+                let mut trailing_lexical_error = None;
+                let delegation = if complete && self.current_identifier_is("by")? {
                     let by_span = self.bump()?.span();
                     if !matches!(kind, ClassifierKind::Class { .. }) {
                         self.emit(
@@ -40,13 +47,10 @@ impl Parser<'_> {
                             by_span,
                         )?;
                     }
-                    let current = self.current()?;
-                    let target_boundary = self.current_is_symbol(Symbol::Comma)
-                        || self.current_is_symbol(Symbol::LeftBrace)
-                        || self.current_is_symbol(Symbol::RightBrace)
-                        || matches!(current.kind(), LexemeKind::Eof)
-                        || self.is_file_declaration_boundary(current)
-                        || (file_header && self.at_class_header_file_boundary(true)?);
+                    let (raw, current) = self
+                        .significant(0)
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    let target_boundary = self.at_delegation_boundary(raw, current, owner, true)?;
                     let mut target = if self.current_is_identifier() && !target_boundary {
                         NameMarker::Present(self.bump()?.span())
                     } else if matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart)) {
@@ -68,21 +72,24 @@ impl Parser<'_> {
                             NameMarker::Missing(primary)
                         } else if let Some(group) = self.consume_closed_supertype_group()? {
                             NameMarker::Error(group)
+                        } else if self.current_is_symbol(Symbol::Less) {
+                            // Keep the opener available to the error target's suffix scan.
+                            NameMarker::Error(primary)
                         } else {
                             self.bump()?;
                             NameMarker::Error(primary)
                         }
                     };
-                    let current = self.current()?;
-                    let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
-                        || self.current_is_symbol(Symbol::LeftBrace)
-                        || self.current_is_symbol(Symbol::RightBrace)
-                        || matches!(current.kind(), LexemeKind::Eof)
-                        || self.is_file_declaration_boundary(current)
-                        || (file_header && self.at_class_header_file_boundary(false)?);
-                    if !at_entry_boundary {
-                        let poison = self.is_poison_kind(current.kind());
-                        if !poison {
+                    let (raw, current) = self
+                        .significant(0)
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    if !self.at_delegation_boundary(raw, current, owner, false)? {
+                        let poison = self.is_supertype_suffix_poison(raw, current);
+                        let invalid_target = matches!(target, NameMarker::Error(_));
+                        let recover_suffix = poison || invalid_target;
+                        if poison {
+                            self.consume_poison_with_closed_type_arguments(true)?;
+                        } else if !invalid_target {
                             self.emit(
                                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                                 "unsupported class-family form",
@@ -90,9 +97,26 @@ impl Parser<'_> {
                             )?;
                         }
                         let _ = self.consume_closed_supertype_group()?;
-                        let end = self.recover_declaration_region(recovery_stops)?;
-                        if poison && let NameMarker::Error(span) = target {
-                            target = NameMarker::Error(self.span(span.start(), end)?);
+                        let stops = suffix_stops.with(if invalid_target {
+                            DeclarationStops::DELEGATION_ERROR_TARGET
+                        } else if poison {
+                            DeclarationStops::LEADING_UNPROVED_ANGLE_COMMA
+                        } else {
+                            DeclarationStops::DELEGATION_UNSUPPORTED_SUFFIX
+                        });
+                        self.recover_declaration_region(stops)?;
+                        if recover_suffix {
+                            let end = self.previous_significant_end();
+                            match target {
+                                NameMarker::Error(span) => {
+                                    target = NameMarker::Error(self.span(span.start(), end)?);
+                                }
+                                NameMarker::Present(_) => {
+                                    trailing_lexical_error =
+                                        Some(self.span(current.span().start(), end)?);
+                                }
+                                NameMarker::Missing(_) => {}
+                            }
                         }
                     }
                     let target_span = marker_span(target);
@@ -112,15 +136,27 @@ impl Parser<'_> {
                 } else {
                     None
                 };
+                if delegation.is_none() && complete {
+                    let (raw, current) = self
+                        .significant(0)
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    if self.is_supertype_suffix_poison(raw, current) {
+                        let start = current.span().start();
+                        let end = self.recover_declaration_region(suffix_stops)?;
+                        trailing_lexical_error = Some(self.span(start, end)?);
+                    }
+                }
                 entries.push(SupertypeEntry {
                     span: self.span(
                         type_span.start(),
-                        delegation
-                            .map(|clause| clause.span.end())
+                        trailing_lexical_error
+                            .or_else(|| delegation.map(|clause| clause.span))
+                            .map(Span::end)
                             .unwrap_or(type_span.end()),
                     )?,
                     type_ref,
                     delegation,
+                    trailing_lexical_error,
                 });
                 if self.current_is_symbol(Symbol::LeftParen) {
                     let primary = self.current()?.span();
@@ -148,13 +184,17 @@ impl Parser<'_> {
                     self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
                 }
                 if !primary.is_empty() {
-                    let end = self.recover_declaration_region(recovery_stops)?;
                     if poison {
-                        let span = self.span(primary.start(), end)?;
+                        self.consume_poison_with_closed_type_arguments(false)?;
+                    }
+                    self.recover_declaration_region(recovery_stops)?;
+                    if poison {
+                        let span = self.span(primary.start(), self.previous_significant_end())?;
                         entries.push(SupertypeEntry {
                             span,
                             type_ref: self.add_type_ref(span, TypeRef::Error)?,
                             delegation: None,
+                            trailing_lexical_error: None,
                         });
                     }
                 }
@@ -176,6 +216,105 @@ impl Parser<'_> {
             break;
         }
         Ok((Some(colon_span), entries))
+    }
+
+    fn at_delegation_boundary(
+        &self,
+        raw: usize,
+        current: Lexeme,
+        owner: ClassifierHeaderOwner,
+        before_target: bool,
+    ) -> Result<bool, ParserInternalError> {
+        if matches!(
+            current.kind(),
+            LexemeKind::Eof
+                | LexemeKind::Token(TokenKind::Symbol(
+                    Symbol::Comma | Symbol::LeftBrace | Symbol::RightBrace
+                ))
+        ) || self.is_file_declaration_boundary(current)
+        {
+            return Ok(true);
+        }
+        match owner {
+            ClassifierHeaderOwner::File => self.at_class_header_file_boundary(before_target),
+            ClassifierHeaderOwner::Member => {
+                // A soft identifier can still be a delegate name across a newline.
+                // Hand it to the enclosing member only for a recognized prefix.
+                Ok(self.current_is_symbol(Symbol::Semicolon)
+                    || (self.at_supertype_suffix_boundary(
+                        raw,
+                        current,
+                        owner,
+                        DeclarationStops::EMPTY
+                            .with(DeclarationStops::DELEGATION_UNSUPPORTED_SUFFIX),
+                    )? && self.gap_has_line_break(
+                        self.previous_significant_end(),
+                        current.span().start(),
+                    )?))
+            }
+            ClassifierHeaderOwner::Declaration => Ok(false),
+        }
+    }
+
+    pub(in crate::parser::engine) fn at_supertype_suffix_boundary(
+        &self,
+        raw: usize,
+        current: Lexeme,
+        owner: ClassifierHeaderOwner,
+        stops: DeclarationStops,
+    ) -> Result<bool, ParserInternalError> {
+        let strict_member =
+            owner == ClassifierHeaderOwner::Member && stops.in_delegation_recovery();
+        if strict_member && self.current_identifier_is("deinit")? {
+            let next_line =
+                self.gap_has_line_break(self.previous_significant_end(), current.span().start())?;
+            let named_suffix = stops.in_unsupported_delegation_suffix();
+            if named_suffix || !next_line {
+                // A call-shaped suffix may immediately precede the classifier body.
+                return Ok((!named_suffix || next_line)
+                    && self.peek_is_symbol(1, Symbol::LeftParen)
+                    && self.peek_is_symbol(2, Symbol::RightParen)
+                    && self.peek_is_symbol(3, Symbol::LeftBrace));
+            }
+        }
+        self.at_supertype_recovery_boundary(raw, current, owner, strict_member)
+    }
+
+    fn is_supertype_suffix_poison(&self, raw: usize, current: Lexeme) -> bool {
+        self.is_poison_kind(current.kind())
+            || (matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart))
+                && self
+                    .lexical_recoveries
+                    .is_poisoned_string_start(self.lexed, raw))
+    }
+
+    fn consume_poison_with_closed_type_arguments(
+        &mut self,
+        include_strings: bool,
+    ) -> Result<(), ParserInternalError> {
+        loop {
+            let (raw, current) = self
+                .significant(0)
+                .ok_or(ParserInternalError::InvalidLexemeStream)?;
+            if self.is_poison_kind(current.kind()) {
+                self.bump()?;
+            } else if include_strings && self.is_supertype_suffix_poison(raw, current) {
+                self.recover_declaration_string()?;
+            } else {
+                break;
+            }
+        }
+        if self.current_is_symbol(Symbol::Less)
+            && let Some(closer) = self.strict_trials.recovery_type_list_closer(
+                self.sources,
+                self.lexed,
+                self.current_raw()?,
+                true,
+            )?
+        {
+            self.index = closer + 1;
+        }
+        Ok(())
     }
 
     fn consume_closed_supertype_group(&mut self) -> Result<Option<Span>, ParserInternalError> {

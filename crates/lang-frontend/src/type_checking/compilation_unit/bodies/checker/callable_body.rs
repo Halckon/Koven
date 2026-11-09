@@ -105,19 +105,15 @@ impl BodyChecker<'_> {
                         && !self.is_builtin(return_type, BuiltinType::Unit)
                         && !self.is_error(return_type)
                     {
-                        let primary = self
-                            .file(source)
-                            .ast()
-                            .statements()
-                            .get(body)
-                            .map_err(TypeCheckingError::from)?
-                            .span();
+                        let primary = crate::type_checking::control_body::function_end_span(
+                            self.sources,
+                            self.file(source),
+                            body,
+                        )?;
                         self.emit_maybe_label(
                             codes::MISSING_RETURN,
                             "non-Unit function can reach the end of its body",
-                            self.sources
-                                .span(primary.source_id(), primary.end(), primary.end())
-                                .map_err(TypeCheckingError::from)?,
+                            primary,
                             expected_span,
                             "function return type declared here",
                         )?;

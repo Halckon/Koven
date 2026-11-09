@@ -48,18 +48,9 @@ impl UnitExpressionLowerer<'_> {
         drop_point: UnitDropPoint,
         result_plan: ControlResult,
     ) -> Result<Option<BranchExit>, LoweringError> {
-        if !matches!(drop_point, UnitDropPoint::BranchExit { control, .. } if control == result_plan.control)
-        {
-            return Err(lowering_error(
-                LoweringErrorKind::MissingFact,
-                self.statement_span(statement)?,
-            ));
-        }
-        let result_required = result_plan.required;
         self.block = block;
         self.current_receiver = receiver;
         self.consumed_receiver = consumed_receiver;
-        let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.nullable_proofs = nullable_proofs;
@@ -68,11 +59,32 @@ impl UnitExpressionLowerer<'_> {
         self.capture_loans = capture_loans;
         self.pending_operands = pending_operands;
         self.pending_call_frames = pending_call_frames;
-        let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
         self.temporaries = temporaries;
-        let result_expression = result_required
-            .then(|| self.control_tail_expression(statement))
-            .transpose()?;
+        self.lower_current_if_branch(statement, drop_point, result_plan)
+    }
+
+    pub(super) fn lower_current_if_branch(
+        &mut self,
+        statement: StatementId,
+        drop_point: UnitDropPoint,
+        result_plan: ControlResult,
+    ) -> Result<Option<BranchExit>, LoweringError> {
+        if !matches!(drop_point, UnitDropPoint::BranchExit { control, .. } if control == result_plan.control)
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                self.statement_span(statement)?,
+            ));
+        }
+        let result_required = result_plan.required;
+        let entry_symbols = self.bindings.keys().copied().collect();
+        let entry_temporaries = self.temporaries.keys().copied().collect::<Vec<_>>();
+        // A branch can diverge through a statement without a syntactic tail value.
+        let result_expression = if result_required {
+            self.control_tail_expression(statement)?
+        } else {
+            None
+        };
         let string_result = result_plan.string;
         let null_tail = result_expression
             .zip(string_result)
@@ -92,7 +104,13 @@ impl UnitExpressionLowerer<'_> {
         if result == LoweredValue::Diverged {
             return Ok(None);
         }
-        if let (Some(expression), LoweredValue::Value(value)) = (result_expression, result) {
+        if result_required && let LoweredValue::Value(value) = result {
+            let Some(expression) = result_expression else {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    self.statement_span(statement)?,
+                ));
+            };
             if let Some((expected, _)) = string_result.filter(|_| null_tail.is_none()) {
                 let (value, transferred) = self.adapt_owned_value_to_expected(
                     expression,
@@ -142,10 +160,10 @@ impl UnitExpressionLowerer<'_> {
         }))
     }
 
-    pub(in super::super) fn control_tail_expression(
+    fn control_tail_expression(
         &self,
         statement: StatementId,
-    ) -> Result<ExpressionId, LoweringError> {
+    ) -> Result<Option<ExpressionId>, LoweringError> {
         let node = self
             .parsed
             .ast()
@@ -156,21 +174,23 @@ impl UnitExpressionLowerer<'_> {
                 span: None,
             })?;
         let tail = match node.payload() {
-            lang_frontend::parser::Statement::Expression { expression } => return Ok(*expression),
-            lang_frontend::parser::Statement::ControlBody { elements } => elements.last(),
+            Statement::Expression { expression } => return Ok(Some(*expression)),
+            Statement::ControlBody { elements } => elements.last(),
             _ => None,
-        }
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+        };
+        let Some(tail) = tail else {
+            return Ok(None);
+        };
         let tail = self
             .parsed
             .ast()
             .statements()
             .get(*tail)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-        match tail.payload() {
-            lang_frontend::parser::Statement::Expression { expression } => Ok(*expression),
-            _ => Err(lowering_error(LoweringErrorKind::MissingFact, tail.span())),
-        }
+        Ok(match tail.payload() {
+            Statement::Expression { expression } => Some(*expression),
+            _ => None,
+        })
     }
 
     pub(in super::super) fn lower_tail_value_body(

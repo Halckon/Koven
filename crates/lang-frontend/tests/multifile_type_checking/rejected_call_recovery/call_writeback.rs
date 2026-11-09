@@ -64,6 +64,18 @@ fn only_normal_returns_carry_a_pending_inout_write() {
             &[("L0165", "Unbound")][..],
         ),
         (
+            format!(
+                "when (when (flag()) {{ else -> if (true) {{ return }} else 0 }}) {{
+                    else -> {{ {DIRTY}; return }}
+                }}"
+            ),
+            &[("L0165", "Unbound")][..],
+        ),
+        (
+            format!("when (return) {{ else -> {{ {DIRTY}; return }} }}"),
+            &[("L0165", "Unbound")][..],
+        ),
+        (
             format!("val unused: () -> Unit = {{ {DIRTY}; return }}"),
             &[("L0165", "Unbound")][..],
         ),
@@ -308,4 +320,45 @@ fn deferred_index_keeps_a_known_read_only_inout_operand_invalid() {
         ],
         Some("keep(items.size)"),
     );
+}
+
+#[test]
+fn only_reachable_when_selector_edges_contribute_pending_writes() {
+    for (selector, diagnostics) in [
+        ("flag() && pred(return)", &[("L0165", "Unbound")][..]),
+        (
+            "flag() || pred(return)",
+            &[("L0165", "Unbound"), ("L0165", "items")][..],
+        ),
+        ("!(flag() || pred(return))", &[("L0165", "Unbound")][..]),
+        (
+            "(when (flag()) { else -> flag() && pred(return) })",
+            &[("L0165", "Unbound")][..],
+        ),
+        (
+            "(when (flag()) { else -> flag() || pred(return) })",
+            &[("L0165", "Unbound"), ("L0165", "items")][..],
+        ),
+    ] {
+        let (rejected, retained) = if diagnostics.len() == 2 {
+            (["listOf<Unbound>()", "keep(items.size)"].as_slice(), None)
+        } else {
+            (["listOf<Unbound>()"].as_slice(), Some("keep(items.size)"))
+        };
+        assert_call_recovery_with_raw(
+            &format!(
+                "{HELPERS}
+                 fun pred(value: Int): Boolean = value == 1
+                 fun update(inout items: List<String>): Unit {{
+                     when {{ {selector} -> {{ {DIRTY}; return }}; else -> return }}
+                 }}
+                 {CALLER}"
+            ),
+            "= 0",
+            rejected,
+            &[],
+            diagnostics,
+            retained,
+        );
+    }
 }

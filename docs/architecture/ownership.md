@@ -5,7 +5,7 @@
 ## 分析入口与产物
 
 单文件入口为 `ownership_checking::check_ownership`；`check_compilation_unit_ownership` 消费 validated typed unit，返回 source-qualified
-`CompilationUnitOwnership`。两条路径使用各自产物的 ID，不能混用；旧 Single 对非已证 Copyable 的 Value receiver 报 L0170，不发布成功所有权计划，完整 owning receiver 由 Unit 提供；范围见 [SPEC-0392](../specs/active/0392-compiler-layered-review.md)。[receiver 两阶段借用](receiver-borrows.md)记录预留与激活的直接合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
+`CompilationUnitOwnership`。两条路径使用各自产物的 ID，不能混用；旧 Single 对非已证 Copyable 的 Value receiver 报 L0170，不发布成功所有权计划，完整 owning receiver 由 Unit 提供；范围见 [SPEC-0392](../specs/active/0392-compiler-layered-review.md)。[receiver 借用](receiver-borrows.md)记录预留/激活与 Shared Return 前缀结束的有界合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
 清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，
@@ -36,14 +36,12 @@ owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，nam
 binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
 return/break/continue 清理已求值前缀，Abort 不展开。
 
-专用常量入口显式启用私有短路控制模式（空常量 unit 也启用），基础入口保持旧门禁。
-`short_circuit_plan` 供主 traversal、liveness、drop 共用：左侧正常完成后，依据 Boolean literal、
-typed 常量值或 Group 确定 RHS Always/Never/Conditional；不另行求值常量 initializer。
-动态路径合并 RHS 与 skip 后继，RHS 退出不抹去 skip；BranchExit 编号仍为 0=true、1=false。
-source-qualified `UnitShortCircuitPlan` 仅由实际访问收集，与物化计划一起受错误/deferred 原子门禁
-保护，专用 validate 同时要求两者完整。专用 recovery/owned 提供只读计划列表，owned 还可按
-expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定，字段不可外部构造或修改。
-专用 unit native 已消费该短路计划；基础 native 入口保持原能力边界。
+基础 Unit 共用类型产物的布尔正常结果。短路 RHS 提前退出时保留可达旁路，析构边仍为
+0=求值 RHS 后正常完成、1=旁路。专用常量入口显式启用独立短路计划，空常量 unit 也启用。
+`short_circuit_plan` 供遍历、活性和析构共用。常量模式以 Boolean literal、typed 常量值或
+Group 决定 RHS，无需再次求值 initializer。动态计划保留可达旁路，编号为 0=true、1=false。
+仅常量入口发布实际访问的 source-qualified `UnitShortCircuitPlan`，与物化计划一起通过
+错误/deferred 原子门禁。专用 owned 支持按 expression 查询，refine 与兼容 lowering 按计划编号消费清理。
 
 专用模式由主遍历记录实际访问的 source-qualified lambda 集合；drop 前的 lambda liveness
 预扫描、lambda body 清理及公开 closure/capture 入口均按此集合筛选，避免不可达 lambda
@@ -125,8 +123,8 @@ drop facts 管理；这不代表 Phase 4 lowering 已接入。
 
 ## Capture、Transferability 与 drop
 
-Single/Unit capture 共用私有 scope、同来源 Span 包含与 Transferability 合并规则，保留类型求值和身份适配；按 lambda identity/source binding 发布。普通 closure 借用 capture；`move` closure
-按 Copy/Move 获取 owner。跨线程 effect 检查完整环境的 `Transferability`，不从语法形状猜测。Unit 为可达的 Copyable 局部根和可验证的具体 MoveOnly 根建立独占 capture loan，冲突报 L0135。MoveOnly 根在 RHS 正常完成后发布 `BeforeReplacement/ReplacedCapture`，捕获根由调用者持有。未证明的环境运输由 L0164 限制，SSA 入口拒绝独占环境布局。[捕获根替换](../specs/active/0392-compiler-layered-review.md#50-r3-moveonly-捕获根替换)
+Single/Unit 共用 capture scope、同源 Span 包含与 Transferability 合并，保留类型求值和身份适配，按 lambda/source binding 发布。Unit 数据流按 source-qualified lambda 索引捕获，形成、逃逸、跨线程、循环检查与 factory 返回归类共用索引，保留原发布顺序。
+普通 closure 借用 capture，`move` closure 按 Copy/Move 获取 owner。跨线程检查完整环境的 `Transferability`。Unit 为可达的 Copyable 局部根和可验证的具体 MoveOnly 根建立独占 capture loan，冲突报 L0135。MoveOnly 根在 RHS 正常完成后发布 `BeforeReplacement/ReplacedCapture`，捕获根由调用者持有。未证明的环境运输由 L0164 限制，SSA 入口拒绝独占环境布局。[捕获根替换](../specs/active/0392-compiler-layered-review.md#50-r3-moveonly-捕获根替换)
 
 反向 liveness 产生 source-qualified drop plan，覆盖参数、local、temporary、replaced value、container
 element、constructor root 和 closure environment。独占捕获入口按已验证的来源在 BranchEntry 清理。drop point 还包括最后使用后、replacement 前、
@@ -138,10 +136,10 @@ entry body、真实 use witness 与已完成 call-argument contract，不复制 
 source-qualified reference/generation 与实际 assignment 身份约束 view、Borrow/Consume 和 drop 关联；
 替换后的新根不能沿旧 witness 取得提取资格。失败与回滚清除相应计划，未消费 temporary 仍由真实 drop facts 清理。
 单文件原 plan 保留 body/alternative 提取区分；Nothing 无正常出口，Abort 不展开析构。
-显式 borrow initializer 的 handoff 另发布真实退休的辅助 Shared owned 根 tokens；来源继续交接，非完整事件流，边界见 [SPEC-0341 辅助观察](../specs/active/0341-shared-lowering-core.md#借用返回的辅助实参结束观察2026-11-07)。
+显式 borrow initializer 的 handoff 观察真实退休的辅助 Shared owned 根 tokens，来源继续交接，见 [辅助观察](../specs/active/0341-shared-lowering-core.md#借用返回的辅助实参结束观察2026-11-07)。实际 source token 另通过 `borrow_call_transports()` 交付同步 consumer，正常返回按 consumer→source 退休；或经 `borrow_binding_transports()` 保留至显式局部 binding 实际终止。`borrow_forward_transports()` 另将真实 Shared 参数 source token 交给实际 wrapper 返回，属于继续转发而非 source end，见 [forwarded 交接片](../specs/active/0341-shared-lowering-core.md#真实-source-token-的-forwarded-return-交接切片2026-11-08)。三类 raw 运输表在错误、deferred 或 typed 事实无效时一并撤销。各片不提供完整流、全局 absence 或统一顺序；[同步首片](../specs/active/0341-shared-lowering-core.md#真实-source-token-的同步-consumer-运输首片2026-11-08)与 [local binding 片](../specs/active/0341-shared-lowering-core.md#真实-source-token-的-local-binding-运输切片2026-11-08)分别记录 CFG、unwind 与 native 边界。
 调用前缀已建立的 loan 与 borrowed temporary 随 ValueState 分支传递，保持前序 owner 活到调用结束；四项 Return-prefix 消费者（含条件返回及嵌套辅助调用）改用[固定身份 oracle](../specs/active/0341-shared-lowering-core.md#return-prefix-固定-oracle-迁移2026-11-07)，continuation 的放弃 initializer 也由真实 prefix 承接，混合 Return 分支另核 continuing binding 的固定身份与唯一 AfterStatement result endpoint，不把该结果终止当作 Return 来源结束；该输入的正常 handoff 仍未发布。完整 absence/全流计数及正常嵌套结果的顺序 Single 边界保留；direct/prefix 同 point 的真实 call-loan 结束前序计数见[有界顺序观察](../specs/active/0341-shared-lowering-core.md#同控制点-call-loan-结束顺序观察2026-11-07)。
-`LoanEndFact` 区分 CallReturn 与 ControlTransfer，同边先结束 loan 再 drop。Unit 有界 direct declaration call 的 root/temporary、当前 owner/loan 与 frame 身份均须匹配。
-Unit `exclusive_call_prefix_ends()` 仅从实际 `EndCallLoan` 动作提取 return 放弃 Exclusive owned 名称根调用前缀事件，保留 source-qualified call/argument/target、控制点、事件顺序及同点先行普通 drop 数；不从 `end_span` 推断执行，Abort 不发布 unwind。
+`LoanEndFact` 区分 CallReturn 与 ControlTransfer，同边先结束 loan 再 drop。Unit 有界 direct declaration call 的 root/temporary、当前 owner/loan 与 frame 身份均须匹配。Shared Field/Group 临时父字段已复用真实 token 发布结束，仅限完整 MoveOnly 父；[准入与边界](../specs/active/0341-shared-lowering-core.md#临时父字段-borrow-的真实结束事件2026-11-08)不代表完整事件流或 native 支持。
+Unit `exclusive_call_prefix_ends()` 仅从实际 `EndCallLoan` 动作提取 return 放弃 Exclusive owned 名称根调用前缀事件，保留 source-qualified call/argument/target、控制点、同点先行的普通 drop 与全部实际 `EndCallLoan` 数；该序号与 direct/borrow-prefix 口径一致，未公开 token 仍计入，不含 receiver/result/drop，见[顺序验收](../specs/active/0341-shared-lowering-core.md#exclusive-return-prefix-同点顺序2026-11-08)。不从 `end_span` 推断执行，Abort 不发布 unwind。
 观测片排除正常返回、break/continue、receiver、投影、provider 来源/绑定及借用结果；原 Shared 查询与 Single primitive witness 保留，不授予新的求值/cleanup/native 能力，不以静态事实充当动态计数。
 
 编译单元 drop planner 按调用身份在 ValueState 保存前序借用的具名 owner，使后续实参中的

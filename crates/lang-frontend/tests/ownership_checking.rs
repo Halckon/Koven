@@ -602,109 +602,6 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
 }
 
 #[test]
-fn return_cleanup_preserves_declaration_order_after_rebinding() {
-    for replacement in [
-        "{ first = Resource() }",
-        "if (flag) { first = Resource() } else { first = Resource() }",
-    ] {
-        let text = "class Resource {}
-fun inspect(item: Resource): Unit {}
-fun run(flag: Boolean) {
-    var first = Resource()
-    val second = Resource()
-    REPLACE
-    if (flag) { return }
-    val a = inspect(first)
-    val b = inspect(second)
-}"
-        .replace("REPLACE", replacement);
-        let (sources, _, owned) = checked(&text);
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        assert!(owned.deferred().is_empty());
-        let mut released = owned
-            .drops()
-            .iter()
-            .filter(|fact| {
-                matches!(fact.point(), DropPoint::ControlTransfer(_))
-                    && matches!(fact.target(), DropTarget::Named(_))
-            })
-            .map(|fact| sources.slice(fact.value_origin()).unwrap())
-            .collect::<Vec<_>>();
-        // 重绑 first 改变它的值来源，不能把它移动到 second 之后的声明位置。
-        released.dedup();
-        assert_eq!(released, ["second", "first = Resource()"]);
-    }
-}
-
-#[test]
-fn string_binary_views_drop_operands_only_after_the_operation() {
-    let text = "fun compare(own left: String, own right: String): Boolean {\n\
-                    val joined = left + \"!\"\n\
-                    return joined == right\n\
-                }";
-    let (sources, parsed, checked) = checked(text);
-    assert!(
-        checked.diagnostics().is_empty(),
-        "{:?}",
-        checked.diagnostics()
-    );
-
-    let binaries = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .filter_map(|(id, node)| {
-            matches!(
-                node.payload(),
-                lang_frontend::parser::Expression::Binary { .. }
-            )
-            .then_some((sources.slice(node.span()).expect("binary span"), id))
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    let concat = binaries["left + \"!\""];
-    let equal = binaries["joined == right"];
-    let completion = |binary| {
-        checked
-            .drops()
-            .iter()
-            .filter(|fact| fact.point() == DropPoint::AfterBinaryOperands(binary))
-            .map(|fact| {
-                (
-                    fact.target(),
-                    sources.slice(fact.value_origin()).expect("drop origin"),
-                )
-            })
-            .collect::<Vec<_>>()
-    };
-
-    let concat_drops = completion(concat);
-    assert_eq!(concat_drops.len(), 2, "{concat_drops:?}");
-    assert!(matches!(concat_drops[0].0, DropTarget::Temporary(_)));
-    assert_eq!(concat_drops[0].1, "\"!\"");
-    assert!(matches!(concat_drops[1].0, DropTarget::Named(_)));
-    assert_eq!(concat_drops[1].1, "left");
-
-    let equality_drops = completion(equal);
-    assert_eq!(equality_drops.len(), 2, "{equality_drops:?}");
-    assert!(
-        equality_drops
-            .iter()
-            .all(|(target, _)| matches!(target, DropTarget::Named(_)))
-    );
-    assert_eq!(
-        equality_drops
-            .iter()
-            .map(|(_, origin)| *origin)
-            .collect::<Vec<_>>(),
-        ["right", "joined"]
-    );
-    assert!(!checked.drops().iter().any(|fact| {
-        matches!(fact.point(), DropPoint::AfterExpression(expression)
-            if expression == concat || expression == equal)
-    }));
-}
-
-#[test]
 fn moved_copyable_and_non_owning_values_never_gain_unique_drop_facts() {
     let text = "class Resource {}\n\
                 fun take(own item: Resource): Unit {}\n\
@@ -836,23 +733,27 @@ fn checked_in_phase3_ownership_fixtures_execute_pass_and_fail_cases() {
         assert_eq!(files.len(), 1, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 ownership fixture");
-            let (_, _, checked) = checked(&text);
-            if should_pass {
-                assert!(checked.diagnostics().is_empty(), "{path:?}");
-            } else {
-                let expected =
-                    fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar");
-                let actual = checked
-                    .diagnostics()
-                    .iter()
-                    .map(|diagnostic| {
-                        let span = diagnostic.primary_span();
-                        format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    + "\n";
-                assert_eq!(actual, expected, "{path:?}");
+            let expected = (!should_pass).then(|| {
+                fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar")
+            });
+            for rooted in [false, true] {
+                let (_, _, unit) =
+                    nullable_unit::checked(&text, "ownership.ko", rooted, environments());
+                if let Some(expected) = &expected {
+                    let actual = unit
+                        .diagnostics()
+                        .iter()
+                        .map(|diagnostic| {
+                            let span = diagnostic.primary_span();
+                            format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        + "\n";
+                    assert_eq!(&actual, expected, "{path:?} (rooted: {rooted})");
+                } else {
+                    assert!(unit.diagnostics().is_empty(), "{path:?} (rooted: {rooted})");
+                }
             }
         }
     }
@@ -871,58 +772,6 @@ fn nullable_when_unselected_condition_does_not_move_first_branch_owner() {
         }";
     let (_, _, owned) = checked(text);
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-}
-
-#[test]
-fn pending_value_argument_cleanup_follows_control_transfer_not_call_return() {
-    for (body, expected) in [
-        (
-            "return take(first, (if (flag) { return Resource() } else { second })!!)",
-            1,
-        ),
-        (
-            "loop { val result = take(first, (if (flag) { break } else { second })!!)\nbreak }\nreturn Resource()",
-            1,
-        ),
-        (
-            "loop { val first = Resource()\nval second: Resource? = Resource()\nval result = take(first, (if (flag) { continue } else { second })!!)\nbreak }\nreturn Resource()",
-            1,
-        ),
-        ("return take(first, second!!)", 0),
-        (
-            "return take(first, (if (flag) { stop() } else { second })!!)",
-            0,
-        ),
-    ] {
-        let source = format!(
-            "class Resource {{}}\nfun stop(): Nothing = stop()\nfun take(own left: Resource, own right: Resource): Resource = left\nfun test(flag: Boolean, own first: Resource, own second: Resource?): Resource {{ {body} }}"
-        );
-        let (sources, parsed, owned) = checked(&source);
-        assert!(
-            owned.diagnostics().is_empty(),
-            "{body}: {:?}",
-            owned.diagnostics()
-        );
-        let pending = owned
-            .drops()
-            .iter()
-            .filter(|fact| {
-                let DropTarget::Temporary(argument) = fact.target() else {
-                    return false;
-                };
-                sources
-                    .slice(parsed.ast().expressions().get(argument).unwrap().span())
-                    .unwrap()
-                    == "first"
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(pending.len(), expected, "{body}: {pending:?}");
-        assert!(
-            pending
-                .iter()
-                .all(|fact| matches!(fact.point(), DropPoint::ControlTransfer(_)))
-        );
-    }
 }
 
 #[test]

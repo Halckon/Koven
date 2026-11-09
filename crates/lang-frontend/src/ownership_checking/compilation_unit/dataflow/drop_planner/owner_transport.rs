@@ -262,11 +262,17 @@ impl DropPlanner<'_, '_> {
                 else_branch: Some(_),
                 ..
             } => {
-                self.checker
-                    .typed
-                    .expression_type(self.checker.unit_expression(id))
-                    .and_then(|ty| self.checker.typed.types().get(ty))
-                    == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                // A both-return If has Nothing type. Its actual terminal events
+                // still must prove complete cleanup in both independent replays.
+                matches!(
+                    self.checker
+                        .typed
+                        .expression_type(self.checker.unit_expression(id))
+                        .and_then(|ty| self.checker.typed.types().get(ty)),
+                    Some(UnitTypeKind::Builtin(
+                        BuiltinType::Unit | BuiltinType::Nothing
+                    ))
+                )
             }
             Expression::Lambda { .. } => {
                 self.owner_capture_supported(id)

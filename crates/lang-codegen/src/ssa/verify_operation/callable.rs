@@ -1,15 +1,21 @@
 //! callable 参数、结果、formation 与签名的一致性合同。
 use super::*;
-use crate::ssa::model::LoanId;
+use crate::ssa::model::{LoanId, TerminatorKind};
 
 pub(super) fn direct_call_contract(
     module: &Module,
     function: &Function,
-    callee: FunctionId,
-    receiver: Option<EntityId>,
-    arguments: &[EntityId],
+    instruction: &Instruction,
     results: &[EntityType],
 ) -> bool {
+    let Operation::DirectCall {
+        callee,
+        receiver,
+        ref arguments,
+    } = instruction.operation
+    else {
+        return false;
+    };
     let Some(callee) = module.function(callee) else {
         return false;
     };
@@ -185,16 +191,7 @@ pub(super) fn invoke_view_contract(
     arguments: &[EntityId],
     results: &[EntityType],
 ) -> bool {
-    let Some(EntityType::Loan {
-        kind: LoanKind::Shared,
-        target,
-    }) = function
-        .entity(EntityId::Loan(view))
-        .map(|entity| entity.ty)
-    else {
-        return false;
-    };
-    let Some(signature) = module.callable_view_signature(target) else {
+    let Some(signature) = view_signature(module, function, view) else {
         return false;
     };
     arguments.len() == signature.parameters.len()
@@ -214,6 +211,55 @@ pub(super) fn invoke_view_contract(
                 .collect::<Vec<_>>()
 }
 
+fn view_signature<'a>(
+    module: &'a Module,
+    function: &Function,
+    view: LoanId,
+) -> Option<&'a CallableSignature> {
+    let EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    } = function.entity(EntityId::Loan(view))?.ty
+    else {
+        return None;
+    };
+    module.callable_view_signature(target)
+}
+
+pub(in crate::ssa) fn call_termination_contract(
+    module: &Module,
+    function: &Function,
+    instruction: &Instruction,
+) -> bool {
+    !call_never_returns(module, function, &instruction.operation)
+        || function.block(instruction.block).is_some_and(|block| {
+            block.instructions.last() == Some(&instruction.id)
+                && block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.kind == TerminatorKind::Unreachable)
+        })
+}
+
+pub(in crate::ssa) fn call_never_returns(
+    module: &Module,
+    function: &Function,
+    operation: &Operation,
+) -> bool {
+    match *operation {
+        Operation::DirectCall { callee, .. } => module
+            .function(callee)
+            .is_some_and(|callee| callee.never_returns),
+        Operation::CallableInvoke { callable, .. } => value_type(function, callable)
+            .and_then(|ty| module.callable_signature(ty))
+            .is_some_and(|signature| signature.never_returns),
+        Operation::CallableInvokeView { view, .. } => {
+            view_signature(module, function, view).is_some_and(|signature| signature.never_returns)
+        }
+        _ => false,
+    }
+}
+
 pub(super) fn function_matches_signature(
     module: &Module,
     target: FunctionId,
@@ -223,7 +269,7 @@ pub(super) fn function_matches_signature(
     let Some(function) = module.function(target) else {
         return false;
     };
-    if function.receiver.is_some() {
+    if function.receiver.is_some() || function.never_returns != signature.never_returns {
         return false;
     }
     let Some(entry) = function.blocks.first() else {

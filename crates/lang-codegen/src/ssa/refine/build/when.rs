@@ -46,9 +46,22 @@ impl Builder<'_, '_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        // The validated subject has no normal exit, so no result or arm plan is needed.
+        if let Some(subject) = subject
+            && self
+                .inputs
+                .typed
+                .expression_falls_through(self.unit(subject))
+                == Some(false)
+        {
+            return match self.expression(subject)? {
+                Lowered::Diverged => Ok(Lowered::Diverged),
+                _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let control = self.unit(expression);
         let ty = self.expression_type(expression)?;
-        let result = if self.is_unit(ty) {
+        let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
             let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner))
@@ -115,12 +128,14 @@ impl Builder<'_, '_> {
         let outer_short_ranges = self.short_ranges.clone();
         let mut predecessors = Vec::new();
         let mut falls_through = true;
+        let closed_after = self.inputs.typed.when_closed_after(control);
+        let reachable_entries = closed_after.unwrap_or(entries.len());
         for (index, entry) in entries.iter().enumerate() {
             let exit_point = UnitDropPoint::BranchExit {
                 control,
                 branch: index,
             };
-            if self.block.is_none() {
+            if index >= reachable_entries || self.block.is_none() {
                 self.unreachable_drop_scopes.push(entry.span);
                 self.unreachable_drop_points.push(exit_point);
                 for alternative in 0..entry.conditions.len() {
@@ -136,8 +151,13 @@ impl Builder<'_, '_> {
                 falls_through = false;
                 self.goto(body, entry.span)?;
             }
+            let selector_count = self
+                .inputs
+                .typed
+                .when_final_selector_count(control, index)
+                .unwrap_or(entry.conditions.len());
             for (alternative, condition) in entry.conditions.iter().enumerate() {
-                if self.block.is_none() {
+                if alternative >= selector_count || self.block.is_none() {
                     if let WhenCondition::Expression(expression)
                     | WhenCondition::Contains { expression, .. } = condition
                     {
@@ -247,11 +267,12 @@ impl Builder<'_, '_> {
             self.block = unmatched;
         }
         if falls_through
-            && (result.is_some()
-                || self.inputs.typed.expression_falls_through(control) == Some(false))
-            && root.is_some()
+            && (closed_after.is_some()
+                || root.is_some()
+                    && (result.is_some()
+                        || self.inputs.typed.expression_falls_through(control) == Some(false)))
         {
-            // The frontend proved the enum cases covered: no value reaches this edge.
+            // The finite subject domain leaves no value on the remaining miss edge.
             let fallthrough = self.collect_drops(UnitDropPoint::BranchExit {
                 control,
                 branch: entries.len(),
@@ -749,12 +770,12 @@ impl Builder<'_, '_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let lower_bound = self
-            .required(operation.left().expression())?
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let upper_bound = self
-            .required(operation.right().expression())?
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let Some(lower_bound) = self.required(operation.left().expression())? else {
+            return Ok(());
+        };
+        let Some(upper_bound) = self.required(operation.right().expression())? else {
+            return Ok(());
+        };
         self.drops(UnitDropPoint::AfterExpression(self.unit(range)))?;
         let boolean = self.boolean_type(span)?;
         let above = self.value(

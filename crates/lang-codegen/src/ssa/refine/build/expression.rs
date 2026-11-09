@@ -84,6 +84,17 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<Lowered, LoweringError> {
+        let outer_loans = self.pending_call_loans.len();
+        let result = self.build_expression(expression)?;
+        if result == Lowered::Diverged {
+            // The terminating edge already performed its own cleanup, if any.
+            // Loans formed here must not leak into a different control-flow edge.
+            self.pending_call_loans.truncate(outer_loans);
+        }
+        Ok(result)
+    }
+
+    fn build_expression(&mut self, expression: ExpressionId) -> Result<Lowered, LoweringError> {
         let (payload, span) = self.node(expression)?;
         let id = self.unit(expression);
         let typed = self.inputs.typed;
@@ -626,6 +637,20 @@ impl Builder<'_, '_> {
         if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if let Some(receiver) =
+            crate::ssa::unit_source_query::non_completing_call_receiver(self.inputs.typed, call)
+        {
+            if receiver.source_unit() != self.inputs.source_unit {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            if self.expression(receiver.expression())? != Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            for argument in arguments {
+                self.unreachable_drop_scopes.push(self.span(argument.value));
+            }
+            return Ok(Lowered::Diverged);
+        }
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs
@@ -721,6 +746,11 @@ impl Builder<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
+                && self
+                    .inputs
+                    .typed
+                    .expression_falls_through(self.unit(value_expression))
+                    != Some(false)
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
                 let (lent, created, read_argument) =
@@ -894,9 +924,12 @@ impl Builder<'_, '_> {
         }
         let mut receiver_loans = Vec::new();
         let mut invoked_callee = None;
-        let unit_return = self.is_unit(self.c(descriptor.return_type()));
+        let return_type = self.c(descriptor.return_type());
         let result = if descriptor.target() == UnitCallTarget::FunctionValue {
-            let (result, callee) = self.invoke_callable(expression, lowered, unit_return, span)?;
+            let (result, callee) = self.invoke_callable(expression, lowered, return_type, span)?;
+            if result == Lowered::Diverged {
+                return Ok(result);
+            }
             invoked_callee = callee;
             result
         } else if descriptor.aborts() {
@@ -925,10 +958,13 @@ impl Builder<'_, '_> {
                 .source_plan
                 .call_site(self.inputs.source_token, call)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let key = resolved
+                .dispatch_key()
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
             let callee = self
                 .inputs
                 .function_ids
-                .get(resolved.key())
+                .get(key)
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             let (receiver, r_loans) = match receiver {
@@ -945,7 +981,12 @@ impl Builder<'_, '_> {
                 receiver,
                 arguments: lowered,
             };
-            if unit_return {
+            if self.is_nothing(return_type) {
+                self.push(op, Vec::new(), span)?;
+                self.terminate(RTerm::Unreachable, span)?;
+                return Ok(Lowered::Diverged);
+            }
+            if self.is_unit(return_type) {
                 self.push(op, Vec::new(), span)?;
                 Lowered::Unit
             } else if let Some(&callable) = self.inputs.callable_returns.get(&callee) {

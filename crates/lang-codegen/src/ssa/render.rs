@@ -64,6 +64,9 @@ fn write_callable_signature(output: &mut String, signature: &CallableSignature) 
         }
         write_entity_type(output, *parameter)?;
     }
+    if signature.never_returns {
+        return output.write_str(") -> never");
+    }
     output.write_str(") -> (")?;
     write_type_ids(output, &signature.returns)?;
     output.push(')');
@@ -94,6 +97,9 @@ fn write_function(output: &mut String, function: &Function) -> fmt::Result {
     }
     write_type_ids(output, &function.return_types)?;
     output.write_str(") ")?;
+    if function.never_returns {
+        output.write_str("noreturn ")?;
+    }
     write_origin(output, &function.origin)?;
     writeln!(output, " {{")?;
 
@@ -884,6 +890,7 @@ fn write_terminator(output: &mut String, terminator: &TerminatorKind) -> fmt::Re
             Ok(())
         }
         TerminatorKind::Abort => output.write_str("abort"),
+        TerminatorKind::Unreachable => output.write_str("unreachable"),
         TerminatorKind::RangeReturn { view, source } => {
             write!(output, "range.return {view:?} from {source:?}")
         }

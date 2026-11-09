@@ -229,7 +229,7 @@ impl BodyChecker<'_> {
                     }
                     self.emit_unit_instantiation_failure(failure)?;
                     if uncommitted {
-                        return Ok(self.unresolved_call());
+                        return Ok(self.rejected_call_recovery(site.source, site.expression));
                     }
                     Ok(ExpressionCheck {
                         ty: self.error_type(),
@@ -324,7 +324,7 @@ impl BodyChecker<'_> {
         site: &CallSite<'_>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         if self.recover_untyped_call_arguments(site)? {
-            return Ok(self.unresolved_call());
+            return Ok(self.rejected_call_recovery(site.source, site.expression));
         }
         Ok(ExpressionCheck {
             ty: self.error_type(),
@@ -339,7 +339,7 @@ impl BodyChecker<'_> {
         let uncommitted = self.recover_untyped_call_arguments(site)?;
         let failure = self.overload_failure(site.callee_span, true)?;
         if uncommitted {
-            Ok(self.unresolved_call())
+            Ok(self.rejected_call_recovery(site.source, site.expression))
         } else {
             Ok(failure)
         }
@@ -360,6 +360,7 @@ impl BodyChecker<'_> {
     ) -> Result<bool, CompilationUnitTypeError> {
         let mut uncommitted = false;
         let track_arguments = self.tracks_pending_call_flow();
+        let mut ordinary = true;
         let mut arguments_exit = true;
         for argument in site.arguments {
             let key = crate::type_checking::UnitExpressionId::new(site.source, argument.value);
@@ -368,7 +369,7 @@ impl BodyChecker<'_> {
                     uncommitted = true;
                 } else {
                     let context = self.deferred_type(DeferredReason::Call);
-                    self.check_loop_reachable(arguments_exit, |checker| {
+                    self.check_loop_paths(ordinary, arguments_exit, |checker| {
                         checker.check_expression(
                             site.source,
                             argument.value,
@@ -379,6 +380,7 @@ impl BodyChecker<'_> {
                     })?;
                 }
             }
+            ordinary &= self.operand_falls_through(site.source, argument.value);
             if track_arguments && arguments_exit {
                 arguments_exit = self.checked_call_operand_exits(site.source, argument.value)?;
             }
@@ -462,7 +464,7 @@ impl BodyChecker<'_> {
                 index,
                 origin,
             );
-            return Ok(self.unresolved_call());
+            return Ok(self.rejected_call_recovery(site.source, site.expression));
         }
         let failure = match successes.len() {
             0 => self.overload_failure(site.callee_span, true),
@@ -498,7 +500,7 @@ impl BodyChecker<'_> {
         if pending || !matches!(callee.payload(), crate::parser::Expression::Name) {
             // Named overload errors have an existing final-admission proof.
             // Other selectors need the unresolved anchor for rolled-back lambdas.
-            Ok(self.unresolved_call())
+            Ok(self.rejected_call_recovery(site.source, site.expression))
         } else {
             Ok(failure)
         }

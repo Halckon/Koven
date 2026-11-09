@@ -249,9 +249,10 @@ impl BodyChecker<'_> {
         }
         let before_new = self.deferred_facts.len();
         let expected = (!self.is_deferred(t)).then_some(t);
-        let arg1_result = self.check_loop_reachable(first_exits, |checker| {
-            checker.check_expression(source, arg1.value, expected, None, return_type)
-        })?;
+        let arg1_result =
+            self.check_loop_paths(arg0_result.falls_through, first_exits, |checker| {
+                checker.check_expression(source, arg1.value, expected, None, return_type)
+            })?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         } else if !self.is_deferred(arg1_result.ty)
@@ -305,6 +306,9 @@ impl BodyChecker<'_> {
             // The old value is the result. Evaluating the new value can still
             // block publication of the call even when the old value is known.
             self.replacement_values.insert(expression_id, old_pending);
+        }
+        if deferred_operand && !valid {
+            return Ok(self.rejected_call_recovery(source, expression));
         }
         if deferred_operand || !valid {
             let ty = if deferred_operand {
@@ -472,9 +476,10 @@ impl BodyChecker<'_> {
             valid = false;
         }
         let before_second = self.deferred_facts.len();
-        let arg1_result = self.check_loop_reachable(first_exits, |checker| {
-            checker.check_expression(source, arg1.value, None, None, return_type)
-        })?;
+        let arg1_result =
+            self.check_loop_paths(arg0_result.falls_through, first_exits, |checker| {
+                checker.check_expression(source, arg1.value, None, None, return_type)
+            })?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         }
@@ -609,6 +614,9 @@ impl BodyChecker<'_> {
                 let pending = arg0_pending || self.contains_unresolved_call_type(arg1_result.ty);
                 self.flow_versions.replace_pending(second, pending);
             }
+        }
+        if deferred_operand && !valid {
+            return Ok(self.rejected_call_recovery(source, expression));
         }
         if deferred_operand || !valid {
             let ty = if deferred_operand {

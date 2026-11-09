@@ -543,6 +543,7 @@ impl UnitOwnerObservation {
                     right_value: value(right_owner),
                 },
                 UnitOwnerTransportEvent::If { .. }
+                | UnitOwnerTransportEvent::UnitReturn { .. }
                 | UnitOwnerTransportEvent::Capture { .. }
                 | UnitOwnerTransportEvent::CaptureDrop { .. }
                 | UnitOwnerTransportEvent::SharedCapture { .. }

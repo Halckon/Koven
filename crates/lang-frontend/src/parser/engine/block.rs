@@ -160,21 +160,29 @@ impl Parser<'_> {
             elements.push(element);
         };
 
-        let end = if matches!(
+        let (end, recovery) = if matches!(
             current.kind(),
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
         ) {
-            self.bump()?.span().end()
+            (self.bump()?.span().end(), None)
         } else {
+            let recovery = self.empty_at(current.span().start())?;
             if !self.lexical_recoveries.terminal_error_at_eof {
-                self.emit_closing(self.empty_at(current.span().start())?, opener)?;
+                self.emit_closing(recovery, opener)?;
             }
-            self.previous_significant_end().max(opener.end())
+            (
+                self.previous_significant_end().max(opener.end()),
+                Some(recovery),
+            )
         };
-        self.add_statement(
+        let block = self.add_statement(
             self.span(opener.start(), end)?,
             Statement::Block { elements },
-        )
+        )?;
+        if let Some(recovery) = recovery {
+            self.missing_block_closers.push((block, recovery));
+        }
+        Ok(block)
     }
 
     /// Report a missing separator without consuming the next real element or its owner.
