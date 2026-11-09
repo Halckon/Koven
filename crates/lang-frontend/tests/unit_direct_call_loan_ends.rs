@@ -893,3 +893,30 @@ mod exclusive_order;
 
 #[path = "unit_direct_call_loan_ends/receiver_prefix.rs"]
 mod receiver_prefix;
+
+#[path = "unit_direct_call_loan_ends/receiver_cfg_prefix.rs"]
+mod receiver_cfg_prefix;
+
+#[path = "unit_direct_call_loan_ends/receiver_return.rs"]
+mod receiver_return;
+
+#[path = "unit_direct_call_loan_ends/borrowed_receiver_return.rs"]
+mod borrowed_receiver_return;
+
+#[path = "unit_direct_call_loan_ends/borrowed_receiver_prefix.rs"]
+mod borrowed_receiver_prefix;
+
+#[path = "unit_direct_call_loan_ends/inout_receiver_reborrow.rs"]
+mod inout_receiver_reborrow;
+
+#[path = "unit_direct_call_loan_ends/this_receiver_reborrow.rs"]
+mod this_receiver_reborrow;
+
+#[path = "unit_direct_call_loan_ends/field_receiver_reborrow.rs"]
+mod field_receiver_reborrow;
+
+#[path = "unit_direct_call_loan_ends/direct_binding_receiver.rs"]
+mod direct_binding_receiver;
+
+#[path = "unit_direct_call_loan_ends/field_binding_receiver.rs"]
+mod field_binding_receiver;

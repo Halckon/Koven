@@ -1,4 +1,4 @@
-//! Return-only Shared receiver observation; existing argument and Single slices stay intact.
+//! Shared receiver Return-prefix contracts; existing argument and Single slices stay intact.
 use super::*;
 use lang_frontend::{
     ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
@@ -129,12 +129,10 @@ fn distinct_receiver_tokens_for_the_same_owner_are_not_deduplicated() {
 }
 
 #[test]
-fn normal_calls_unvisited_calls_and_loop_jumps_are_not_return_prefixes() {
+fn normal_calls_unvisited_calls_and_nested_loop_jumps_do_not_end_a_prefix() {
     for body in [
         "node.touch(\"normal\", 0); return",
         "return; node.touch(\"unreachable\", 0)",
-        "loop { node.touch(\"break\", break) }",
-        "while (flag) { node.touch(\"continue\", continue) }",
         "node.touch(\"outer\", if (flag) { loop { break }; 0 } else { 0 })",
     ] {
         assert_prefixes(
@@ -145,14 +143,10 @@ fn normal_calls_unvisited_calls_and_loop_jumps_are_not_return_prefixes() {
 }
 
 #[test]
-fn borrowed_temporary_projected_this_and_reserved_receivers_remain_excluded() {
+fn temporary_provider_and_reserved_receivers_remain_excluded() {
     for text in [
-        format!("{NODE}fun run(node: Node): Unit {{ node.touch(\"borrowed\", return) }}"),
         format!("{NODE}fun run(): Unit {{ Node().touch(\"temporary\", return) }}"),
-        format!("{NODE}class Holder(val node: Node)\nfun run(own holder: Holder): Unit {{ holder.node.touch(\"field\", return) }}"),
         format!("{NODE}fun run(own nodes: List<Node>): Unit {{ for (node in nodes) {{ node.touch(\"provider\", return) }} }}"),
-        "class Node { fun touch(text: String, own next: Int): Int = next; fun run(): Unit { touch(\"implicit\", return) } }".into(),
-        "class Node { fun touch(text: String, own next: Int): Int = next; fun run(): Unit { this.touch(\"this\", return) } }".into(),
         "class Node { inout fun touch(text: String, own next: Int): Int = next }\nfun run(): Unit { var node = Node(); node.touch(\"reservation\", return) }".into(),
     ] {
         let observed = assert_prefixes(&text, &[]);
@@ -193,18 +187,45 @@ fn later_error_or_deferred_source_revokes_a_nonempty_receiver_prefix() {
 }
 
 #[test]
-fn order_counts_a_real_borrowed_receiver_outside_the_published_slice() {
-    assert_prefixes(
+fn order_keeps_the_original_mixed_owned_and_borrowed_receiver_source() {
+    use super::receiver_cfg_prefix::{Prefix, assert_prefixes};
+    let observed = assert_prefixes(
         &format!(
             "{NODE}fun run(own outer: Node, inner: Node): Unit {{ outer.touch(\"outer\", inner.touch(\"inner\", return)) }}"
         ),
-        &[(
-            "outer.touch(\"outer\", inner.touch(\"inner\", return))",
-            "outer",
-            2,
-            1,
-        )],
+        &[
+            Prefix {
+                call: "inner.touch(\"inner\", return)",
+                operand: "inner",
+                jump: "return",
+                calls_before: 1,
+                receivers_before: 0,
+                drop_at_jump: false,
+            },
+            Prefix {
+                call: "outer.touch(\"outer\", inner.touch(\"inner\", return))",
+                operand: "outer",
+                jump: "return",
+                calls_before: 2,
+                receivers_before: 1,
+                drop_at_jump: true,
+            },
+        ],
     );
+    for unit in &observed.units {
+        for (event, count) in unit.receiver_call_prefix_ends().iter().zip([0, 1]) {
+            let UnitReceiverOwnershipTarget::Place(place) = event.receiver().target() else {
+                panic!("root")
+            };
+            assert_eq!(
+                unit.drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+                    .count(),
+                count
+            );
+        }
+    }
 }
 
 #[test]

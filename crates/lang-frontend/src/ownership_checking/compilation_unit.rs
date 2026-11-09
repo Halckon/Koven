@@ -62,8 +62,8 @@ pub use construction::{
 pub use non_null_assertion::UnitNonNullAssertionOwnershipPlan;
 pub use receiver::{
     UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
-    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
+    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
 use std::sync::Arc;
@@ -414,6 +414,7 @@ pub struct CompilationUnitOwnership {
     delegations: Vec<UnitDelegationOwnershipPlan>,
     owner_observations: Vec<UnitOwnerObservation>,
     receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
+    receiver_call_return_ends: Vec<UnitReceiverCallReturnEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
@@ -632,6 +633,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            receiver_call_return_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.receiver_call_return_ends
+            } else {
+                Vec::new()
+            },
             exclusive_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.exclusive_call_prefix_ends
             } else {
@@ -847,11 +853,20 @@ impl CompilationUnitOwnership {
         &self.exclusive_call_prefix_ends
     }
 
-    /// owned 名称根 Shared receiver 在实际 Return unwind 中的有界结束观测。
+    /// owned/Borrow/Inout 具名根、字段、具体 this 及首层直接根/字段来源借用绑定的 Shared receiver 实际 unwind 观测。
+    /// 只观察 return/break/continue 退休的子 token，不结束绑定的来源 lease 或父 loan。
     /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
     #[must_use]
     pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
         &self.receiver_call_prefix_ends
+    }
+
+    /// owned/Borrow/Inout 具名根、字段、具体 this 及首层直接根/字段来源借用绑定的 Shared receiver 正常退休 token。
+    /// 绑定 operand 与 canonical source lease 身份分开，不把子结束当作父 binding 结束。
+    /// 不提供跨事务顺序、完整 receiver 流或动态执行次数；前缀退出另行查询。
+    #[must_use]
+    pub fn receiver_call_return_ends(&self) -> &[UnitReceiverCallReturnEndFact] {
+        &self.receiver_call_return_ends
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。
