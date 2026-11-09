@@ -494,3 +494,47 @@ fn invalid_dependency_preserves_independent_explicit_type_qualification() {
         ["Double", "Double"],
     );
 }
+
+#[test]
+fn invalid_cyclic_provider_does_not_cascade_into_downstream_qualification() {
+    check(
+        [
+            "package a\nimport b.B\nconst val COPY: Boolean = B.BAD == B.BAD",
+            "package b\nobject B { const val BAD: Int? = BAD }",
+        ],
+        &["L0155"],
+        Some("Int?"),
+    );
+    check(
+        [
+            "package a\nobject B { const val BAD: Int? = BAD }",
+            "package b\nimport a.B\nconst val COPY: Boolean = B.BAD == B.BAD",
+        ],
+        &["L0155"],
+        Some("Int?"),
+    );
+}
+
+#[test]
+fn cyclic_provider_with_an_allowed_type_still_reports_its_cycle() {
+    check(
+        [
+            "package a\nimport b.B\nconst val COPY: Boolean = B.VALUE == B.VALUE",
+            "package b\nobject B { const val VALUE: Int = VALUE }",
+        ],
+        &["L0157"],
+        Some("VALUE"),
+    );
+}
+
+#[test]
+fn rejected_annotation_does_not_preempt_an_ordinary_initializer_error() {
+    check(
+        [
+            "package a\nimport b.B\nconst val COPY: Boolean = B.BAD == B.BAD",
+            "package b\nobject B { const val BAD: Int? = BAD + true }",
+        ],
+        &["L0085"],
+        Some("+"),
+    );
+}

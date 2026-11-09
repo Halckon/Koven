@@ -70,11 +70,15 @@ impl BodyChecker<'_> {
         for (&symbol, input) in &mut inputs {
             // Retain the symbol as an invalid dependency. Its initializer still
             // receives ordinary recovery checking outside the dependency graph.
-            if has_signature_errors
-                && let Some(type_ref) = input.type_ref
-                && self.signature_error_in(
-                    self.top_level_type_ref_span(input.expression.source_unit(), type_ref)?,
-                )
+            if let Some(type_ref) = input.type_ref
+                && ((has_signature_errors
+                    && self.signature_error_in(
+                        self.top_level_type_ref_span(input.expression.source_unit(), type_ref)?,
+                    ))
+                    || self
+                        .signatures
+                        .symbol_type(symbol)
+                        .is_some_and(|ty| !self.constant_type_is_allowed(ty)))
             {
                 continue;
             }

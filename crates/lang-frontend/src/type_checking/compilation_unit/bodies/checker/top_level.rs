@@ -101,15 +101,7 @@ impl BodyChecker<'_> {
             if self.constant_type_has_error(ty) {
                 return Ok(());
             }
-            let allowed = match self.signatures.types().get(ty) {
-                Some(UnitTypeKind::Error) => true,
-                Some(UnitTypeKind::Deferred(reason)) => {
-                    *reason != DeferredReason::AnyValueRepresentation
-                }
-                Some(UnitTypeKind::Builtin(ty)) => accepts_constant_type(*ty),
-                _ => false,
-            };
-            if !allowed {
+            if !self.constant_type_is_allowed(ty) {
                 let span = match expected_span {
                     Some(span) => span,
                     None => self
@@ -130,6 +122,17 @@ impl BodyChecker<'_> {
             }
         }
         Ok(())
+    }
+
+    pub(super) fn constant_type_is_allowed(&self, ty: UnitTypeId) -> bool {
+        match self.signatures.types().get(ty) {
+            Some(UnitTypeKind::Error) => true,
+            Some(UnitTypeKind::Deferred(reason)) => {
+                *reason != DeferredReason::AnyValueRepresentation
+            }
+            Some(UnitTypeKind::Builtin(ty)) => accepts_constant_type(*ty),
+            _ => false,
+        }
     }
 
     /// Recovery types can carry an upstream Error through a cross-file constant reference.
