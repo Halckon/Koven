@@ -7151,3 +7151,72 @@ outer graph只含prefix/suffix，须与原三处loop边界、独立第四份suff
 正常条件false路径的输入转移和最终消费，不证明终止、动态实例、一般header/exit phi、
 变化owner或Phase 4/native。当前事实见[后缀消费](../../architecture/unit-invariant-loop-suffix.md)。
 本Spec及D10/E2仍in-progress；仅本地分步提交，不推送、不改PR、不合main，保护旧链和oracle。
+
+
+## 168. 裸 Break 出口后的不变输入消费（2026-11-09）
+
+先核 main `748516795812a1946b2fd9e3ca0f8046dc2e560b`、#390 `734dde83`、#398
+`b6cb2bb7`、183远端分支与本地在途链，无重复owner实现。新隔离树从main建立，仅ff-only
+复用§166 `baf60fcc39b9c4a466b88d2b85ea3249270b5ca8`，未新建merge或重放旧链。
+统一队列4dfeda9e、codegen c356d70d、类型/codegen 99e16a82均保持独立，未吸纳或验收组合。
+
+`UnitOwnerInvariantBreakObservationV1`新增独立optional `post_loop_transport_v1()`，只接
+原三语句String输入、body-local闭合前缀与唯一末尾裸Break。原Break基础getter和normal
+suffix能力保留；Continue及九种末尾If组合不取得此Break消费，不放行可变或变化owner。
+
+共享 `PostLoopTransport::validate`只核原五事件、单producer、同catalog/Arc/callable、
+完整旧边界及精确suffix身份，不单独授予控制能力。normal公开getter仍要求实际Fallthrough
+和自身is_consistent；Break getter先过原Break is_consistent，包含真实transfer、body Arc、
+post-jump状态和精确BreakExit目的地。内部enum只返回这两种实际且尚无suffix的完整证据，
+激活还核transaction expected等于actual closed completion；收尾再次核对应类型。
+
+复用§166一次prefix.take、实际statement连borrow ends求值一次、先restore再判断Result的
+路径。Break独立读取第五份suffix-entry，完整singleton/OwnedValue与exit相同；随后原真实
+Move/Result/Binding/ASAP Drop使全部17槽为空，再通过原V1投影与精确消费封印。五份分别
+为entry、post-Break、body-completion、exit、suffix-entry；不是复制entry或把false当作正常
+scope cleanup。LoopExit仍清理原condition state，未把Break state回灌到一般出口合流。
+
+旧loops.rs执行器、公开invariant.rs/boundaries.rs及borrow_result.rs与基线逐字相同；
+旧check_break函数仅增加test内pub(super)以复用原断言，函数主体逐字保全。旧损坏Break
+构造只补optional=None，不删除或减弱旧oracle。最终失败/deferred沿原门撤销整个产物。
+
+原合法红例通过typed/ownership和旧Break边界，仅新optional缺失而1 failed；红提交
+`cd405ab7f708f300771a6a5a20cee892d5c5c08f`。接线后同一源码与断言1 passed，原例保留。
+最终Rust/架构提交 `f21e6a6a0a40f5d766d62c2f230d1da20fee68b3`，tree
+`4430cbb3e8059c6fff08f1a05bae9942fc9cc1af`；以下运行对应该Rust字节，后续仅补账本。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 实际Break消费 | `invariant_break_suffix::actual_break_suffix_consumes_the_unchanged_input` | 1 passed，24唯一正例含原红，3条件×2Unit拼写×4body；复用原Break AST/三边/四状态oracle，再核第五份entry与精确五事件 |
+| 控制隔离与拒绝 | 同模块 `break_suffix_keeps_normal_continue_and_conditional_contracts_separate` | 1 passed，15合法否例、normal/Continue及9条件组合；normal原suffix仍准入，Continue仍拒绝 |
+| 来源/错误 | 同模块 `break_suffix_sources_and_failures_keep_the_original_owner` | 1 passed，双source/二次analysis隔离，重复消费/body移动输入/sibling错误3例清空观察 |
+| 双公开入口 | `invariant_break_suffix_owner_unit::actual_break_suffix_matches_both_public_unit_inputs` | 1 passed，19片段×两入口＝38分析/57 source inputs，12准入/45拒绝；独立核实际Break与该While目标、输入身份和唯一退休Drop |
+| owner及共享hook | §166的98 lib+本片3、23 iteration+公开1、5 multifile/2 closures/1 borrow-continuation/4 receiver-clone邻控 | 101+24+5+2+1+4 passed |
+| 常量邻控 | §166原multifile_constant_qualification 11 exact | 11 passed |
+| 工程门禁 | frontend all-targets严格Clippy、LLVM21 workspace all-targets check、fmt/docs/尺寸/diff | 全过；Clippy21.23s/check35.38s，867 Markdown、2297 Rust、37历史超长，尺寸base baf60fcc，无新豁免 |
+| 独立复审和复跑 | production/测试/架构静审，新3 lib+1公开直接binary exact | 无blocker；各1 passed/0 failed/0 ignored，前后HEAD/tree/clean、两个binary SHA256一致 |
+
+合计148不同ordinary＝137 owner相关+11常量，红绿/独立复跑不重复计数。lib完整前缀为
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+七target统一--no-run编译后逐exact核1 passed；四receiver/clone邻控精确名称沿§166。
+单源正反矩阵比较完整Analysis开关等值；双source验证全部身份，不称全部source开关对照。
+输入错误属于准入或整体分析撤销，不称suffix激活后的异常注入。公开normal/Continue否例
+早期曾写成两次跳转，已改精确删除或替换末尾Break后实际重跑；未用错误源码替代旧能力对照。
+
+损坏封印仅编译：foreign suffix/entry、缺失/重复/重排消费、错误退休symbol/Drop点、
+缺transfer、外来transfer Arc/binding、deferred；缺transfer仅表示缺见证被拒绝，不是模拟
+真实运行未执行jump。normal/Break相互套错类型保完整原证据及graph，再核各控制getter拒绝；
+Continue以同source helper真实jump重建自洽边和transfer，先套旧Backedge验证完整一致，
+保持原suffix/catalog身份再让Break拒绝。目的地守卫只将真实BreakExit改指同source另一
+真实While，保jump/kind不变；suffix graph仍一致，原closed控制seal负责拒绝错目标。
+Drop点守卫使用通用V1仍合法的body AfterStatement，再核新精确suffix seal拒绝。
+初始guard误调用私有common seal已改用上述公开完整控制对照，没有扩大生产可见性。
+所有model/Abort/故障注入仍仅编译，未本机执行。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target。
+未跑frontend/workspace全量测试、Linux、native或精确头正式CI，不是统一队列组合验收。
+裸Break语法中条件false不激活body，true沿裸Break在一次body激活后退出；这些是静态checker
+路径，不是执行测量或有限runtime轨迹。图只含outer prefix/suffix，须与四份实际Break边界
+及独立第五份entry联合使用，不证明变化owner、一般header/exit phi、动态多实例或Phase 4。
+main/#390/#398及本地旁线收尾未变。本Spec与D10/E2仍in-progress；仅本地分步提交，
+不推送、不改PR、不合main，保全旧链和oracle。当前事实见[后缀消费](../../architecture/unit-invariant-loop-suffix.md)。
