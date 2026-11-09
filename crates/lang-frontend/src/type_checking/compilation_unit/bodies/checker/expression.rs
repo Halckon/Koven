@@ -299,7 +299,10 @@ impl BodyChecker<'_> {
                 self.check_index(key, receiver, index, return_type)?
             }
         };
-        if let Some(expectation) = expected.map(ExpressionExpected::Canonical).or(expectation) {
+        // A non-completing expression retains its static shape but delivers no value.
+        if result.falls_through
+            && let Some(expectation) = expected.map(ExpressionExpected::Canonical).or(expectation)
+        {
             result.ty = self.apply_expression_expectation(
                 key,
                 span,

@@ -46,6 +46,19 @@ impl Builder<'_, '_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        // The validated subject has no normal exit, so no result or arm plan is needed.
+        if let Some(subject) = subject
+            && self
+                .inputs
+                .typed
+                .expression_falls_through(self.unit(subject))
+                == Some(false)
+        {
+            return match self.expression(subject)? {
+                Lowered::Diverged => Ok(Lowered::Diverged),
+                _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let control = self.unit(expression);
         let ty = self.expression_type(expression)?;
         let result = if self.is_unit(ty) {

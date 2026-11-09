@@ -6,12 +6,10 @@ use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
     name_resolution::{
-        CompilationUnitNames, Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind,
-        UnitReferenceTarget, UnitSymbolId,
+        Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId,
     },
-    parser::{
-        BinaryOperator, Expression, Item, NameMarker, ParsedFile, PrefixOperator, VariableKind,
-    },
+    parser::{BinaryOperator, Expression, Item, NameMarker, PrefixOperator, VariableKind},
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypeError, NominalKind, TypeCheckingError, UnitTypeId,
@@ -114,15 +112,13 @@ pub(super) fn merge_flow_versions(left: &FlowVersions, right: &FlowVersions) -> 
 
 pub(super) type ConditionFacts = (BTreeMap<FlowKey, UnitTypeId>, BTreeMap<FlowKey, UnitTypeId>);
 
-pub(super) fn collect_stable_flow_symbols(
-    files: &[&ParsedFile],
-    names: &CompilationUnitNames,
-) -> BTreeSet<UnitSymbolId> {
+pub(super) fn collect_stable_flow_symbols(checker: &BodyChecker<'_>) -> BTreeSet<UnitSymbolId> {
     let mut stable = BTreeSet::new();
-    for unit in names.source_units() {
+    for unit in checker.names.source_units() {
         let source = unit.source_unit();
         let resolution = unit.resolution();
-        let mutable = files[source.index()]
+        let mutable = checker
+            .file(source)
             .ast()
             .items()
             .iter()
@@ -131,11 +127,9 @@ pub(super) fn collect_stable_flow_symbols(
                     kind: VariableKind::Var,
                     name: NameMarker::Present(span),
                     ..
-                } => resolution
-                    .symbols()
-                    .iter()
-                    .find(|symbol| symbol.span() == *span)
-                    .map(|symbol| symbol.id()),
+                } => checker
+                    .symbol_at(source, *span, Namespace::Value)
+                    .map(UnitSymbolId::symbol),
                 _ => None,
             })
             .collect::<BTreeSet<_>>();

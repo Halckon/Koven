@@ -3030,3 +3030,126 @@ SIGABRT，没有析构输出。原生资源套件 18 项及最终加强后的新
 下一批与 `edaaa9b2` 合流后，本机前端定向套件及操作计数共 690 项，原生资源、
 待完成构造及循环资源套件共 30 项，均通过且零失败、零忽略。前端和 codegen
 全目标 Clippy、格式及文档检查通过。双宿主证据以本批实际 PR 为准。
+
+[PR #380](https://github.com/Halckon/Koven/pull/380) 合入 `4243ebe5`。基线
+`edaaa9b2` 与 head `0d86e1d4` 在 [CI 42551850856](https://github.com/Halckon/Koven/actions/runs/42551850856)
+验证。合成提交 `4de11f94` 的父提交匹配该基线和 head，CI 树与实际合入树同为
+`f51ba611`。双宿主 Check/Clippy、定向测试、预览生产及独立安装、CI Passed 和
+Code CI Evidence 均通过。两端原始日志均核对六条关键回归实际通过，覆盖文件恢复、
+软前缀、操作计数、名义类型压力、实参清理事实及原生退出顺序。Editor lexical 按改动范围跳过。
+
+## 117. R0/R3 二元操作结束与重绑后的退出析构
+
+以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else
+变体逐字保留。两个旧测试先在同一快照实跑，之后迁到 MemoryDocument 与 Rooted Unit。
+按源码中的实际表达式与名称解析得到 source-qualified 身份。String 的四个操作数必须
+恰在对应 `AfterBinaryOperands` 逆序析构，核对目标和值来源，排除其它点的重复析构。
+重绑核对全部 `ControlTransfer` 事实，精确比较 return、逆声明顺序和当前值来源；
+多余的提前退出析构同样会失败。独立复核提出该额外边检测后，已补强并复核。
+
+使用真实 native 入口编译、链接和运行独立的 `deinit` 场景。左右重绑与提前 return、
+正常落尾组成四条运行路径。各路径都核对旧值析构、退出标记、second、当前 first 的
+完整输出顺序。此处的 native 证据是资源类型的可观察析构，前端原用例为纯内存类型。
+
+相邻的 nested Borrow/Inout 用例继续保留为旧产物见证。旧 `loans_ending_at` 查询
+实际 CallReturn 结束事实，Unit 同名查询与 `end_span` 只标明建立描述符的调用。
+Unit 普通直接 Borrow 有独立的实际结束切片；Exclusive 前缀切片限定为提前放弃，
+未覆盖正常 CallReturn 的 Exclusive 结束。现有 Unit 描述符用例与 Single 结束用例
+分别验证其所属合同。
+
+最终本机 `ownership_checking` 29 项、`multifile_ownership_checking` 157 项和
+`resource_deinit_native` 18 项通过，均零失败、零忽略。前端与 codegen 全目标 Clippy、
+格式、文档和 Rust 尺寸检查通过。本片为下一批候选，双宿主 CI 尚未运行。
+
+## 118. R2 稳定流事实的声明符号查找
+
+原 BodyChecker 初始化为每个有名称的 `var` 在线性符号表中查找声明。一个文件
+有 M 个此类声明、S 个符号时，该部分最坏检查 O(M × S) 个候选。检查器已有
+按 source unit、声明字节范围和值命名空间的 BTreeMap 索引，改为复用同一个
+`symbol_at`，此部分每声明一次 O(log S_total) 查询。循环或写回触发的重放仍
+按原路径重建索引。未以此推断整个类型检查的复杂度。
+
+原赋值和捕获负控保留，另加同名变量的遮蔽正控。内层 `var` 被闭包捕获，外层
+同名 `var` 仍可收窄。MemoryDocument 与 Rooted Unit 同时核对原诊断码和精确
+声明使用位置。独立复核提出两个相同文本的诊断可能互相掩盖，现直接比较两处
+负控的 source-qualified primary span。静态核对了索引、同源、Value 命名空间、
+缺失标识符恢复与 replay 初始化，未发现待处理问题。
+
+本机两个类型套件共 378 项通过。生产改动的完整前端套件共 183 组、2898 项通过，
+零失败、零忽略。精确 span 加强后的定向用例单独复跑通过。前端全目标 Clippy、
+格式及文档检查通过。
+
+## 119. R2 普通调用的实参完成性与类型形状
+
+独立审查发现，普通调用只看声明返回类型判断能否继续。泛型重载唯一匹配后，
+实参中的 return 会让 callee 根本不执行，外层分支合流仍错误丢失另一条路径的非空证明。
+值分支还误把该调用的 Unit 当成交付给上层的值。两例都在当前源码先以 L0084 失败。
+把 return 替换为正常 Int 实参会执行 inout 写回，须继续报后继 nullable 使用错误。
+
+尝试把未完成调用的 expression type 统一改成 Nothing，扩大检查在容器及普通构造的
+产物校验中失败，独立复核又确认会破坏链式调用、成员解析和外层重载的静态形状。
+现保留已选择声明及表达式的静态类型，普通调用从实际 receiver/callee 与实参完成事实
+决定是否有正常出口。仅有正常出口的表达式检查实际交付值是否满足 expected；
+不完成的值 body 以 Nothing 进入分支合流。实参中的 if 条件若提前退出，if 的公开
+完成性也须反映该条件。条件组合先在同一修补快照失败，再补上游完成性。
+
+双 Unit 定向覆盖非空证明、值分支、链式函数值、成员及外层重载，并保留真实 inout
+写回负控。原生值分支用例实际编译、链接、运行，true 返回 1、false 返回 2，
+只有 ok 输出，证明提前退出不执行被调函数。独立探针核对后续实参的 L0084、
+待定 L0165 及既有容器/所有权 primitive 描述符仍保留。
+
+另有全候选失败的恢复路径。当前调用包装层和条件流重建仍会按源码 inout marker
+失效，可能在 L0123 后附加 L0084。试探快照本身已恢复流事实。该事务外恢复边界
+继续审查，不计入本切片的合法调用完成性证据。
+
+本片消费已发布的 operand 完成事实，新增的上游检查限于 `if`。独立探针确认带和不带
+else 的条件提前 return，以及普通条件仍可能到达函数末尾的 L0088 对照。另实测
+`(when (return 1) { else -> 2 })` 仍可在同一调用组合中误报 L0084。带 subject 的
+when 只从分支统计完成性，需要单独核对 subject、分支/nullable 描述符和后端消费。
+
+最终本机完整前端 183 组、2901 项通过。后端直接调用前缀 4 项、Map provider
+退出 76 项、原生资源 18 项通过，均零失败、零忽略。前端和 codegen 全目标
+Clippy、格式和文档检查通过。上述是基于 `edaaa9b2` 的下一批本机证据。
+
+## 120. R2/R3 when subject 的提前退出
+
+普通调用组合中 `(when (return 1) { else -> 2 })` 原报后续 nullable 使用 L0084。
+原待定写回夹具中的 `when (return)` 以及在 subject 内嵌一个私有已知提前退出的
+when，均把死 arm 的待定赋值错误带到调用者。三条红测实际复现。现在公开完成性
+只统计 subject 可完成时的正常出口。私有恢复另以 subject 和 arm 的实际可达出口
+合并待定键，并保留非穷尽 unmatched 路径。死 arm 仍检查源码，原 `Unbound` 诊断保留。
+正常 subject 的 inout 对照仍报 L0084。独立复核的活 arm、非穷尽及全部覆盖对照
+验证了待定键传播与清除。
+
+提前退出的 nullable subject 不发布用于进入 arm 的证明。Refine 准入先检查 subject
+本身，refine 与兼容 lowering 都使用公开完成事实，在结果槽、nullable plan 和 arm
+之前降低 subject 一次，并核对实际 `Diverged`。原生最小用例在只有前端修补时
+仍 UnsupportedNode，随后走真实构建和运行验证。带 `null` 与 `else` 的 nullable
+对照在普通返回时保留 descriptor。selector 自身提前退出是另一个已识别的完成性
+边界，本片验证的是 subject 求值。
+
+三套本机前端类型与所有权用例 538 项通过，零失败、零忽略。原生对照实跑三份输入。
+直接 return、带完整 null/else 形状的 nullable 返回类型，以及同一函数先执行活的
+owned nullable when 后再提前退出，均只输出 ok。用于构造兼容路径的 nullable Boolean
+局部夹具先在既有初始化边界失败，最终换用已支持的 nullable 类参数。
+
+## 121. R0 合批后的剩余直接调用
+
+以合入 `4243ebe5` 后的候选 Rust 树清点。按已跟踪 `.rs` 中的直接调用形状计
+文件数和匹配行，排除同一行的定义。引用可能来自测试字符串。注册边界见 §93、§105。
+
+| 范围 | check_types | check_ownership | lower_scalar_file_with_entry |
+|---|---:|---:|---:|
+| frontend src | 31 / 41 | 13 / 13 | 0 |
+| frontend tests | 54 / 87 | 33 / 45 | 0 |
+| codegen src | 15 / 18 | 14 / 17 | 4 / 8 |
+| 其他 crates | 0 | 0 | 0 |
+
+这三名未检出显式 as alias。此范围未覆盖宏展开、跨行间接引用或仓外调用。
+两条普通析构用例已移除旧路径。后续按真实断言分流测试消费者，现有旧身份负控和
+正常 Exclusive 结束事件保留。生产 Unit 兼容 lowering 仍按各路由合同复审。
+
+同树本机合流验收运行完整前端 183 组、2906 项。后端运行直接调用前缀 5 项、
+nullable when 18 项、Map provider 退出 76 项和原生资源 19 项。以上均零失败、
+零忽略。nullable when 首次过滤没有匹配，验收以更正过滤后的 18 项为准。
+前端与 codegen 全目标 Clippy、格式与文档检查通过。
