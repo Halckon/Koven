@@ -228,3 +228,5 @@ fn terminal_if_observation_preserves_full_legacy_cleanup_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+mod closed_while_transfers;
