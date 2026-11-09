@@ -52,7 +52,7 @@ impl GroupClosers {
         if let Some(enclosing) = close.enclosing {
             self.closer(enclosing.get() - 1)?;
         }
-        // Only barriers at this group's depth matter, and only after the current cursor.
+        // Consider only caller boundaries the recovery has not reached yet.
         let at_or_after_cursor =
             |raw: Option<NonZeroUsize>| raw.is_some_and(|raw| raw.get() >= cursor);
         let boundaries = close.boundaries;
@@ -61,6 +61,8 @@ impl GroupClosers {
             || (outer_stops.delimiters & Stops::ELSE != 0
                 && at_or_after_cursor(boundaries.caller_else))
             || (outer_stops.block_elements && at_or_after_cursor(boundaries.caller_block))
+            || (outer_stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0
+                && at_or_after_cursor(boundaries.block_statement_separator))
         {
             return None;
         }
@@ -80,6 +82,27 @@ impl LexicalRecoveryIndex<'_> {
         opener: usize,
     ) -> Option<usize> {
         self.ordinary_groups(lexed).closer(opener)
+    }
+
+    pub(in crate::parser::engine) fn block_statement_follows(
+        &self,
+        lexed: &LexedFile,
+        separator: usize,
+    ) -> bool {
+        if let Some((previous, starts_statement)) = self.block_statement_after_separator.get()
+            && previous == separator
+        {
+            return starts_statement;
+        }
+        // Nested expressions can all unwind at the same caller separator.
+        let starts_statement =
+            matches!(
+                lexed.lexemes()[separator].kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+            ) && starts_block_statement(self.source, &lexed.lexemes()[separator + 1..]);
+        self.block_statement_after_separator
+            .set(Some((separator, starts_statement)));
+        starts_statement
     }
 
     pub(in crate::parser::engine) fn postfix_recovery_closer(
@@ -108,8 +131,19 @@ impl Parser<'_> {
     pub(in crate::parser::engine) fn skip_to_group_closer(
         &mut self,
         opener: usize,
+        preserve_block_separator: bool,
     ) -> Result<Option<usize>, ParserInternalError> {
-        self.skip_before_closer(self.lexical_recoveries.group_closer(self.lexed, opener))
+        let closer = if preserve_block_separator {
+            self.lexical_recoveries.postfix_recovery_closer(
+                self.lexed,
+                opener,
+                self.current_raw()?,
+                true,
+            )
+        } else {
+            self.lexical_recoveries.group_closer(self.lexed, opener)
+        };
+        self.skip_before_closer(closer)
     }
 
     pub(in crate::parser::engine) fn skip_to_confirmed_group_closer(

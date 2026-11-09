@@ -1,11 +1,5 @@
 use super::*;
 
-#[derive(Clone, Copy)]
-pub(super) struct IndexPoisonTail {
-    cursor: usize,
-    boundary: Option<(usize, usize)>,
-}
-
 impl Parser<'_> {
     pub(super) fn parse_postfix(
         &mut self,
@@ -124,7 +118,15 @@ impl Parser<'_> {
         let mut end = first.span().end();
         match first.kind() {
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen | Symbol::LeftBracket)) => {
-                if let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener_raw) {
+                let preserve_block_separator = stops.block_elements
+                    || stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR)
+                        != 0;
+                if let Some(closer) = self.lexical_recoveries.postfix_recovery_closer(
+                    self.lexed,
+                    opener_raw,
+                    opener_raw,
+                    preserve_block_separator,
+                ) {
                     self.index = closer + 1;
                     end = self.lexed.lexemes()[closer].span().end();
                 } else {
@@ -307,7 +309,15 @@ impl Parser<'_> {
         type_arguments_span: Option<Span>,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let block_separator =
+            if outer_stops.block_elements || outer_stops.delimiters & Stops::SEMICOLON != 0 {
+                Stops::BLOCK_STATEMENT_SEPARATOR
+            } else {
+                0
+            };
+        let outer_stops = outer_stops
+            .without_file_and_semicolon_stops()
+            .with(block_separator);
         let opener = self.bump()?.span();
         let callee_span = self.expression_span(callee)?;
         let argument_stops = outer_stops
@@ -376,7 +386,7 @@ impl Parser<'_> {
                     continue;
                 }
                 let current = self.current()?;
-                if self.call_argument_boundary(current, outer_stops) {
+                if self.call_argument_boundary(current, outer_stops)? {
                     break;
                 }
                 if self.can_start_call_argument(current) {
@@ -524,7 +534,7 @@ impl Parser<'_> {
         }
 
         let current = self.current()?;
-        let (value, consumed_separator) = if self.call_argument_boundary(current, outer_stops) {
+        let (value, consumed_separator) = if self.call_argument_boundary(current, outer_stops)? {
             let empty = self.empty_at(current.span().start())?;
             self.emit(
                 codes::EXPECTED_ARGUMENT_VALUE,
@@ -598,14 +608,19 @@ impl Parser<'_> {
         self.can_start_expression(lexeme) || self.current_is_symbol(Symbol::Ampersand)
     }
 
-    pub(super) fn call_argument_boundary(&self, lexeme: Lexeme, outer_stops: Stops) -> bool {
-        matches!(lexeme.kind(), LexemeKind::Eof)
+    pub(super) fn call_argument_boundary(
+        &self,
+        lexeme: Lexeme,
+        outer_stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        Ok(matches!(lexeme.kind(), LexemeKind::Eof)
             || self.current_is_symbol(Symbol::Comma)
             || self.current_is_symbol(Symbol::RightParen)
             || (outer_stops.contains(lexeme)
                 && !self.can_start_expression(lexeme)
                 && !self.current_is_symbol(Symbol::Comma)
                 && !self.current_is_symbol(Symbol::RightParen))
+            || self.at_block_statement_separator(lexeme, outer_stops)?)
     }
 
     pub(super) fn recover_call_region(
@@ -730,16 +745,17 @@ impl Parser<'_> {
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
             );
-            let caller_boundary = outer_stops.contains(current);
-            let at_block_separator = block_stop != 0
-                && (self.current_is_symbol(Symbol::Semicolon)
-                    || (self.is_poison_kind(current.kind())
-                        && self.index_poison_tail_boundary()?.is_some_and(|(raw, _)| {
-                            matches!(
-                                self.lexed.lexemes()[raw].kind(),
-                                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-                            )
-                        })));
+            let at_proven_separator = self.at_block_statement_separator(current, outer_stops)?;
+            let caller_boundary = outer_stops.contains(current) || at_proven_separator;
+            let preserve_separator =
+                outer_stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR) != 0;
+            let at_block_separator = at_proven_separator
+                || (block_stop != 0 && self.current_is_symbol(Symbol::Semicolon))
+                || (preserve_separator
+                    && self.is_poison_kind(current.kind())
+                    && self
+                        .adjacent_poison_tail_boundary()?
+                        .is_some_and(|(raw, _)| self.is_index_block_separator(outer_stops, raw)));
             let paired_end = if !at_block_separator
                 && (comma || at_bracket || leading_poison || !caller_boundary)
             {
@@ -747,7 +763,7 @@ impl Parser<'_> {
                     self.lexed,
                     opener_raw,
                     self.current_raw()?,
-                    block_stop != 0,
+                    preserve_separator,
                 );
                 self.skip_before_closer(closer)?
             } else {
@@ -806,11 +822,13 @@ impl Parser<'_> {
         stops: Stops,
         opener: Span,
     ) -> Result<Option<usize>, ParserInternalError> {
-        let Some((boundary_raw, end)) = self.index_poison_tail_boundary()? else {
+        let Some((boundary_raw, end)) = self.adjacent_poison_tail_boundary()? else {
             return Ok(None);
         };
         let boundary = self.lexed.lexemes()[boundary_raw];
-        if matches!(boundary.kind(), LexemeKind::Eof) || !stops.contains(boundary) {
+        if matches!(boundary.kind(), LexemeKind::Eof)
+            || !(stops.contains(boundary) || self.is_index_block_separator(stops, boundary_raw))
+        {
             return Ok(None);
         }
         self.emit_closing(self.empty_at(boundary.span().start())?, opener)?;
@@ -818,53 +836,15 @@ impl Parser<'_> {
         Ok(Some(end))
     }
 
-    fn index_poison_tail_boundary(&self) -> Result<Option<(usize, usize)>, ParserInternalError> {
-        let cache = &self.lexical_recoveries.index_poison_tail;
-        if let Some(tail) = cache.get()
-            && tail.cursor == self.index
-        {
-            return Ok(tail.boundary);
-        }
-
-        // The next owner must be visible after an adjacent run of ordinary Lexer errors.
-        // A new line can start another statement, and terminal/string errors keep their owners.
-        let start = self.previous_significant_end();
-        let mut end = start;
-        for (offset, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
-            #[cfg(test)]
-            self.significant_raw_visits
-                .set(self.significant_raw_visits.get() + 1);
-            if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
-                continue;
-            }
-            if !matches!(
-                lexeme.kind(),
-                LexemeKind::Invalid(
-                    InvalidKind::UnexpectedCharacter
-                        | InvalidKind::InvalidCharLiteral
-                        | InvalidKind::InvalidNumericLiteral
-                ) | LexemeKind::Token(TokenKind::ReservedWord(_))
-            ) || self.gap_has_line_break(end, lexeme.span().start())?
-            {
-                // A same-line brace can become a trailing lambda if handed to Pratt.
-                let trailing_lambda = end > start
-                    && matches!(
-                        lexeme.kind(),
-                        LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
-                    )
-                    && !self.gap_has_line_break(end, lexeme.span().start())?;
-                let boundary =
-                    (end > start && !trailing_lambda).then_some((self.index + offset, end));
-                // Several unpaired indexes may unwind at the same rejected suffix.
-                cache.set(Some(IndexPoisonTail {
-                    cursor: self.index,
-                    boundary,
-                }));
-                return Ok(boundary);
-            }
-            end = lexeme.span().end();
-        }
-        Err(ParserInternalError::InvalidLexemeStream)
+    fn is_index_block_separator(&self, stops: Stops, raw: usize) -> bool {
+        matches!(
+            self.lexed.lexemes()[raw].kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) && (stops.delimiters & Stops::SEMICOLON != 0
+            || (stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0
+                && self
+                    .lexical_recoveries
+                    .block_statement_follows(self.lexed, raw)))
     }
 }
 

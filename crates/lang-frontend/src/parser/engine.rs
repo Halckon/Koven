@@ -18,6 +18,7 @@ mod separator_tests;
 mod tests;
 mod type_ref;
 
+use block::unsupported_block_element_kind;
 use boundary::*;
 use recovery::LexicalRecoveryIndex;
 pub(super) use recovery::{TerminalOwnerEvent, TerminalOwnerKind};
