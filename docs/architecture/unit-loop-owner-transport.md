@@ -3,7 +3,7 @@
 > **性质**：实现事实 · **状态**：current · **读取时机**：核对真实 While body 运输、完成边与不变输入 owner · **唯一真源**：drop planner 的 owner transport loops 收集器、loop 只读产物与 V1 validator
 
 基础协议见 [Unit owner transport](unit-owner-transport.md)，受限条件值见 [Choice](unit-choice-transport.md)。
-独立不变输入能力只证明三个实际边界的同一 owner；不授予 header/exit phi、完整外层运输、
+独立不变输入能力只证明实际边界及可选 Continue 清理点的同一 owner；不授予 header/exit phi、完整外层运输、
 实例级释放或 Phase 4/native 能力。
 
 ## 空入边闭合 body 的准入与真实执行边界
@@ -79,8 +79,8 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 独立 `invariant_loop_observation_v1()` 不放宽旧空入边 getter；两者互斥。仅一个无 mode marker
 Boolean 参数，函数恰三句：精确 String 的 `val held = "outer"`、直线闭合 While、精确 String
 的 `val retired = held`。前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
-Group/var/nullable。body 复用上述 String 本地构造、move、Group、root Replace，但无末尾
-跳转或 If。locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
+Group/var/nullable。body 复用上述 String 本地构造、move、Group、root Replace，可在末尾
+追加唯一裸 Continue；仍拒绝 Break 或任何 If。locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
 liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点。
 
 普通 While rejection 清空前，核真实 prefix collector Complete、唯一 String producer 与
@@ -89,10 +89,20 @@ liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点�
 拒绝普通观察，旧定义和事件为空。新能力不恢复 suffix collector，也不提供后缀事件或
 最终消费证明；输入 catalog 自身只验证 producer 身份，不能代替闭合运输。
 
-entry 在实际 condition 正常完成后读取；backedge 在实际 body scope cleanup 后读取，
+entry 在实际 condition 正常完成后读取；正常 backedge 在实际 body scope cleanup 后读取，
 且必须返回 Ok(true) 并通过原闭合 V1；exit 在实际 drop_loop_exit 后读取原 condition state。
-三份快照分别来自三个实际状态，不复制 entry 冒充其它边。每次完整 ValueState 除唯一
-OwnedValue 外均为空，且 owner/token、symbol、origin、declaration、scope depth 全部相等。
+Continue 则在原 pending loan、deeper-scope drop 和 iteration cleanup 完成后，先过精确
+expression/kind、单一最近 loop、scope、fresh sink Arc 与一次性完成门，再独立读取一份
+post-jump binding。它成功后才登记 completed；body 返回 Ok(false) 后仍独立读取 backedge，
+并核 expected/completed 和 collected Arc 相同、原 body V1 封闭。该提前返回不执行正常
+body drop_scope，不能称为正常 scope fallthrough。原空入边 jump 仍要求完整空边界。
+
+`continue_boundary()` 返回真实 Continue expression 与其清理后 binding；普通 fallthrough
+必须为 None，Continue 必须有同 source/jump/body Arc 的快照且与其它边界 binding 相等。
+Continue 只有 ContinueBackedge(ControlTransfer(jump), condition)，不额外生成普通 Backedge，
+也不将已有 ASAP Drop 搬到 ControlTransfer。所有快照分别读取实际状态，不复制 entry 冒充
+其它边。ValueState 共17字段，除唯一 OwnedValue 的 values 外16槽为空；owner/token、
+symbol、origin、declaration、scope depth 全部相等。
 body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 owner 不进入该模板。
 公开 binding 可查询真实 symbol/token，三条结构边仍核实际 While/condition/body 身份。
 最终成功且无 deferred 才保留能力，错误分析整体清除。它是非空入边的身份前置，不是 phi、
@@ -103,5 +113,5 @@ body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 o
 除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。

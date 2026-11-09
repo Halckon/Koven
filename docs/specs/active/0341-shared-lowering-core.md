@@ -6676,3 +6676,65 @@ workspace全量测试、Linux、native或精确头正式CI。没有改Guide或�
 不含owner observer/loop producer，本片无重复实现；它含codegen borrow routes、Guide
 litmus与SPEC-0392文档，仍须统一组合复验。上述101+4和workspace门禁只证明本片9369
 基线，未整合或测试新main，不能替代36d381e3组合验收；保留受测链，交统一批次处理。
+
+
+## 154. 真实 Continue 清理后的非空输入 owner 快照（2026-11-09）
+
+本片先核最新 main `36d381e342c195f6c6a4718b098cd9b224f3f549`、#390 `734dde83`、
+在途 #397 `fe1f47f8` 和本地统一队列 `4dfeda9e`；#397只改constant资格/SCC，未复做其工作。
+新隔离分支从main起步，保全合入§152 `ee3a1f8719ed59fe6d4f80d927a6de01d5c6ff59`。
+纯依赖合流 `f96c8a43a091e3ce11f7ed04bc7c137d28f82acc` 的有序父为36d381e3+ee3a1f87，
+tree `9a8b576ba1c1c2beb248062e6b9d579e8433b6fa`。独立逐blob/mode复审确认共同基底
+9369cc72上main18文件与owner83文件交集为空，完整index等于两侧变更并集，无冲突或额外文件。
+该结论仅为字节保全，行为验证来自下表；未修改既有工作树或远端。
+
+准入只在§152单个精确String val输入与后缀合同上增加真实末尾裸Continue。非空输入的
+Break、If、Group跳转、非末尾/嵌套跳转、空owner body及外层输入读取/move/replace仍拒绝。
+不改Guide、liveness、ASAP、cleanup、普通V1或Choice，也不扩parser的最近loop目标语义。
+
+原jump hook在pending loan、deeper-scope owner与iteration cleanup完成后执行。它先核
+active Complete body sink、精确expression、scope、最近loop、实际kind与expected，再对
+实际state作完整singleton快照；成功后才登记completed。保存的continued含真实body Arc、
+真实jump和binding，不能从entry复制。body实际Ok(false)返回后再独立读backedge，并继续
+要求completed/expected/collected Arc相同及原body V1封闭。Continue不执行正常body
+scope结束路径，不伪造Ok(true)、普通Backedge或ControlTransfer Drop。原condition state
+仍经过实际LoopExit清理后另读exit；ValueState共17字段，values之外16槽保持空，完整
+OwnedValue身份、来源、声明与scope均一致。
+
+新 `continue_boundary()` 返回source-qualified jump和独立清理后binding；Fallthrough
+必须None，Continue必须Some且同sealed completion/body Arc及其它binding。两种loop
+getter互斥、input/body catalog隔离和最终successful/complete发布门保持。三个已有边界
+加可选第四个jump读取是实际检查器状态证据，不是有限runtime轨迹；不可变true条件可
+持续循环，不能据此称suffix已执行。仍无phi、outer suffix闭合、动态实例或Phase 4能力。
+
+红提交 `22049664dfda4ee9dcaa255df01d46eb2dc4b8ca` 保留§152原完整合法Continue拒绝
+源码：typed/ownership成功后因缺新能力1 failed。最小接线后同测试1 passed。实现和
+最终测试提交 `ecc874bcbb82a5a5bd11cea63b5f663e685e80b6`，tree
+`df431de24351e5ea28627741488c8b3a507d3aaa`；后续文档不改变受测Rust。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| Continue真实生产者 | `invariant_continue::actual_continue_retains_the_nonempty_input_owner` | 1 passed，24种condition/Unit/body组合+原完整拒绝源码1例 |
+| 不支持的控制与输入 | 同模块 `invariant_continue_rejects_unwitnessed_control_and_open_inputs` | 1 passed，12合法否例，观察数1且三类能力均拒绝 |
+| 来源及错误边界 | 同模块 `invariant_continue_keeps_sources_analyses_and_failures_separate` | 1 passed，两source两成功analysis；3错误/未闭合body不泄露能力，真实sibling错误清空全部观察 |
+| 公开两入口 | `invariant_while_owner_unit::invariant_continue_has_independent_source_qualified_jump_in_both_inputs` | 1 passed，9片段×MemoryDocument单源/Rooted双源，共18分析、27 source inputs，12准入/15拒绝 |
+| 原owner与共享hook组合 | §152的77 lib exact + 本片3项 | 80 passed，0 failed/ignored |
+| 循环与相邻合同 | §152的16 iteration + 本片公开1项；原5 multifile、2 closures、1 borrow-continuation | 17 + 5 + 2 + 1 passed |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、LLVM21 workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2273 Rust、37历史超限，尺寸基底f96c8a43，未改尺寸豁免 |
+| 独立复审与复跑 | 依赖字节保全、生产hook、一次性见证、API seal、测试oracle；新3 lib与公开1项exact | 无blocker；4项各1 passed，HEAD/tree及两binary SHA256前后不变，树clean |
+
+合计105项不同ordinary测试，全部在本片36d381e3依赖组合重新运行；初验和独立复跑不
+重复累计。lib新名带完整前缀 `ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+§152原私有Continue否例和公开完整输入均迁入本片正例，未丢旧源码；其余17私有否例、
+5公开片段保留并重跑，旧fallthrough显式核continue_boundary None。新正例核真实AST
+jump、三条完整边、四份边界binding快照、producer数1/1/2/3、Replace数0/0/1/2、每producer真实Drop、
+跨catalog拒绝及完整Analysis开关等值。普通回边/BreakExit和伪造ControlTransfer Drop
+明确不存在。公开source由index及原source_id独立验证，不用产物自证。
+
+独审建议的仅变body Arc守卫已补；包括缺失/foreign snapshot、错expression、错kind、
+Fallthrough多snapshot、deferred等手工损坏产物守卫仅编译，未本机运行。Mac AArch64、
+Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2，独占target串行。未跑frontend/
+workspace全量测试、Linux、native或精确头正式CI；不把main原CI或统一队列757+74算为本片
+验收。收尾复核main/#390/#397头未变；仍需统一批次组合，不把105项称为整批验收。按用户
+要求只本地分步提交，不推送、不改PR、不合main，D10/E2与本Spec仍in-progress。事实见
+[While边界观察](../../architecture/unit-loop-owner-transport.md)。
