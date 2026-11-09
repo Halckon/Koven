@@ -6,7 +6,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
     UnitOwnerValueEventV1 as Event, UnitOwnerValueObservationV1, UnitOwnerValueV1 as Value,
 };
-use crate::parser::{PrefixOperator, VariableKind};
+use crate::parser::{BinaryOperator, PrefixOperator, VariableKind};
 
 /// One Choice binding and bounded replacement output transfers; one String tail per edge.
 struct Admission {
@@ -154,10 +154,12 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     else {
         return None;
     };
-    // A top-level ordinary, non-generic function with exactly one Boolean parameter.
+    // A top-level ordinary, non-generic function with one or two Boolean inputs.
     if !checker.parsed.roots().contains(&item)
-        || parameters.len() != 1
-        || parameters[0].mode_marker.is_some()
+        || !(1..=2).contains(&parameters.len())
+        || parameters
+            .iter()
+            .any(|parameter| parameter.mode_marker.is_some())
         || checker.receiver_context(*name).is_some()
     {
         return None;
@@ -177,14 +179,18 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     {
         return None;
     }
-    let parameter = *checker.marker_symbol(parameters[0].name)?;
-    if checker
-        .typed
-        .symbol_type(parameter)
-        .and_then(|ty| checker.typed.types().get(ty))
-        != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-    {
-        return None;
+    let mut condition_symbols = Vec::with_capacity(parameters.len());
+    for parameter in parameters {
+        let symbol = *checker.marker_symbol(parameter.name)?;
+        if checker
+            .typed
+            .symbol_type(symbol)
+            .and_then(|ty| checker.typed.types().get(ty))
+            != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
+        {
+            return None;
+        }
+        condition_symbols.push(symbol);
     }
     let body = match form {
         FunctionForm::ImplicitUnitBlock(body)
@@ -266,11 +272,10 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     else {
         return None;
     };
-    // Only pure wrappers around the same checked Boolean parameter are admitted.
-    // The existing traversal evaluates them before the fork. Keep inputs keyed by
-    // the actual If edges; a Not changes the predicate, not the owner edge order.
-    let mut condition = *condition;
-    loop {
+    // Validate the complete owner-free predicate, including both short-circuit
+    // operands. Actual traversal evaluates it; Choice inputs still use If edges.
+    let mut conditions = vec![*condition];
+    while let Some(condition) = conditions.pop() {
         if checker.is_constant_use(condition)
             || checker
                 .typed
@@ -282,13 +287,25 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
         }
         let node = ast.expressions().get(condition).ok()?;
         match node.payload() {
-            Expression::Group { expression } => condition = *expression,
+            Expression::Group { expression } => conditions.push(*expression),
             Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand,
                 ..
-            } => condition = *operand,
-            Expression::Name if checker.reference_symbol(node.span()) == Some(parameter) => break,
+            } => conditions.push(*operand),
+            Expression::Binary {
+                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                left,
+                right,
+                ..
+            } => {
+                conditions.push(*right);
+                conditions.push(*left);
+            }
+            Expression::Name
+                if checker
+                    .reference_symbol(node.span())
+                    .is_some_and(|symbol| condition_symbols.contains(&symbol)) => {}
             _ => return None,
         }
     }

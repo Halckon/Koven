@@ -142,7 +142,7 @@ fn pure_predicates_compose_with_all_bounded_choice_consumers() {
                 .value_observation_v1()
                 .unwrap_or_else(|| panic!("predicate/consumer composition: {source}"));
             assert!(legacy.events().is_empty() && legacy.definitions().is_empty());
-            choice_branch_local::assert_ast_edges(&fixture, &control, &graph);
+            choice_branch_local::assert_ast_branch_events(&fixture, &control, &graph);
             assert_eq!(graph.producers().definitions().len(), producers);
             assert_eq!(
                 graph
@@ -221,6 +221,9 @@ fn predicate_admission_rejects_impure_leaves_modes_and_wider_signatures() {
             "flag && (other || third)",
         ),
         ("own flag: Boolean, other: Boolean", "flag || other"),
+        ("flag: Boolean, other: Int", "flag"),
+        ("flag: Boolean, own other: Boolean", "flag"),
+        ("flag: Boolean, other: Boolean, third: Boolean", "flag"),
         ("", "true"),
     ] {
         let source = format!(
