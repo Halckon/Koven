@@ -338,9 +338,9 @@ impl ChoiceTransaction {
         self.admission.replacement.is_some()
             && self
                 .admission
-                .transfer
-                .as_ref()
-                .is_some_and(|transfer| transfer.source == self.admission.symbol)
+                .transfers
+                .iter()
+                .any(|transfer| transfer.source == self.admission.symbol)
     }
 
     fn replacement_cleanup_ready(&self) -> bool {
@@ -364,13 +364,26 @@ impl ChoiceTransaction {
         {
             return None;
         }
-        if self.replacement_root_transferred() {
-            (source == self.admission.symbol && frame.previous_dropped)
-                .then(|| frame.owner.clone().map(Value::Definition))
-                .flatten()
+        if source == admission.symbol && !frame.previous_dropped {
+            Some(Value::Choice(self.choice_id()))
+        } else if self.replacement_root_transferred()
+            && source == self.admission.symbol
+            && frame.previous_dropped
+        {
+            frame.owner.clone().map(Value::Definition)
         } else {
-            (source == admission.symbol && !frame.previous_dropped)
-                .then(|| Value::Choice(self.choice_id()))
+            None
+        }
+    }
+
+    pub(super) fn replacement_transfer_dropped(&mut self, source: UnitSymbolId) {
+        if self
+            .admission
+            .replacement
+            .as_ref()
+            .is_some_and(|admission| source == admission.symbol)
+        {
+            self.replacement.previous_dropped = true;
         }
     }
 
@@ -406,7 +419,11 @@ impl ChoiceTransaction {
                 .push(Event::Drop(point, symbol, Value::Definition(owner)));
             self.replacement.root_dropped = true;
         } else if symbol == admission.symbol
-            && (self.admission.transfer.is_none() || self.replacement_root_transferred())
+            && !self
+                .admission
+                .transfers
+                .iter()
+                .any(|transfer| transfer.source == admission.symbol)
             && !self.dropped
             && frame.committed
             && frame.completed == admission.result_chain.len()
@@ -422,8 +439,8 @@ impl ChoiceTransaction {
             self.dropped = !self.replacement_root_transferred();
         } else if self
             .admission
-            .transfer
-            .as_ref()
+            .transfers
+            .get(self.transfer_index)
             .is_some_and(|transfer| transfer.symbol == symbol)
         {
             // The selected old Choice or installed definition follows its verified transfer frame.

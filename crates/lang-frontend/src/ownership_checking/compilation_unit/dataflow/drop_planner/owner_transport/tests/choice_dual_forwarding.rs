@@ -45,174 +45,189 @@ fn actual_replace_outputs_transfer_once_and_retire_in_statement_order() {
                 for incoming_grouped in [false, true] {
                     for result_depth in [0, 2] {
                         for depth in [0, 2] {
-                            let control = format!("if ({condition}) {arms}");
-                            let initial = if grouped {
-                                format!("({control})")
-                            } else {
-                                control.clone()
-                            };
-                            let incoming = if incoming_grouped {
-                                "(\"next\")"
-                            } else {
-                                "\"next\""
-                            };
-                            let call_text = format!("replace(&chosen, {incoming})");
-                            let mut returned = vec![call_text.clone()];
-                            for _ in 0..result_depth {
-                                returned.push(format!("({})", returned.last().unwrap()));
-                            }
-                            let result_text = returned.last().unwrap();
-                            let mut transfer = vec!["chosen".to_owned()];
-                            for _ in 0..depth {
-                                transfer.push(format!("({})", transfer.last().unwrap()));
-                            }
-                            let source = format!(
-                                "fun run(flag: Boolean): Unit {{ var chosen = {initial}; val previous = {result_text}; val old_forwarded = ((previous)); val forwarded = {} }}\nfun sibling(): Unit {{ val safe = \"safe\" }}",
-                                transfer.last().unwrap()
-                            );
-                            let fixture = Fixture::new(&[("root.ko", &source)]);
-                            let id = |text: &str| {
-                                UnitExpressionId::new(
-                                    fixture.source(0),
-                                    if text == "chosen" {
-                                        fixture.parsed[0]
-                                            .ast()
-                                            .expressions()
-                                            .iter()
-                                            .find(|(_, node)| {
-                                                node.span().start() == source.rfind(text).unwrap()
-                                                    && fixture.sources.slice(node.span()).unwrap()
-                                                        == text
-                                            })
-                                            .map(|(id, _)| id)
-                                            .unwrap()
-                                    } else {
-                                        fixture.expression(0, text)
-                                    },
-                                )
-                            };
-                            let call = id(&call_text);
-                            let owned = fixture.shared();
-                            assert!(owned.diagnostics().is_empty(), "{source}");
-                            assert!(owned.clone().validate().is_ok(), "{source}");
-                            let legacy = &owned.owner_observations()[0];
-                            assert!(matches!(
-                                legacy.status(),
-                                UnitOwnerObservationStatus::Unsupported { .. }
-                            ));
-                            assert!(legacy.definitions().is_empty() && legacy.events().is_empty());
-                            let graph = legacy.value_observation_v1().unwrap_or_else(|| {
-                                panic!("selected replacement transfer: {source}")
-                            });
-                            assert_eq!(graph.producers().definitions().len(), 3);
-                            choice_branch_local::assert_ast_branch_events(
-                                &fixture, &control, &graph,
-                            );
-                            let choice = graph.choice().unwrap().id();
-                            let definitions: Vec<_> = graph
-                                .producers()
-                                .definitions()
-                                .iter()
-                                .filter(|definition| {
-                                    definition.origin() == UnitOwnerOrigin::String(id("\"next\""))
-                                })
-                                .collect();
-                            assert_eq!(definitions.len(), 1);
-                            let installed = definitions[0].id();
-                            let root = fixture.symbol(0, "chosen");
-                            let previous = fixture.symbol(0, "previous");
-                            let forwarded = fixture.symbol(0, "forwarded");
-                            let old_forwarded = fixture.symbol(0, "old_forwarded");
-                            let mut events = graph.suffix().iter();
-                            if grouped {
-                                assert!(
-                                    matches!(events.next(), Some(Event::Forward(from, to, Value::Choice(value))) if *from == id(&control) && *to == id(&initial) && value == choice)
+                            for old_depth in [0, 2] {
+                                let control = format!("if ({condition}) {arms}");
+                                let initial = if grouped {
+                                    format!("({control})")
+                                } else {
+                                    control.clone()
+                                };
+                                let incoming = if incoming_grouped {
+                                    "(\"next\")"
+                                } else {
+                                    "\"next\""
+                                };
+                                let call_text = format!("replace(&chosen, {incoming})");
+                                let mut returned = vec![call_text.clone()];
+                                for _ in 0..result_depth {
+                                    returned.push(format!("({})", returned.last().unwrap()));
+                                }
+                                let result_text = returned.last().unwrap();
+                                let mut transfer = vec!["chosen".to_owned()];
+                                for _ in 0..depth {
+                                    transfer.push(format!("({})", transfer.last().unwrap()));
+                                }
+                                let mut old_transfer = vec!["previous".to_owned()];
+                                for _ in 0..old_depth {
+                                    old_transfer
+                                        .push(format!("({})", old_transfer.last().unwrap()));
+                                }
+                                let old_initializer = old_transfer.last().unwrap();
+                                let source = format!(
+                                    "fun run(flag: Boolean): Unit {{ var chosen = {initial}; val previous = {result_text}; val old_forwarded = {old_initializer}; val forwarded = {} }}\nfun sibling(): Unit {{ val safe = \"safe\" }}",
+                                    transfer.last().unwrap()
                                 );
-                            }
-                            assert!(
-                                matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Choice(value))) if *symbol == root && *expression == id(&initial) && value == choice)
-                            );
-                            assert!(
-                                matches!(events.next(), Some(Event::Create(expression, value)) if *expression == id("\"next\"") && *value == installed)
-                            );
-                            if incoming_grouped {
+                                let fixture = Fixture::new(&[("root.ko", &source)]);
+                                let id = |text: &str| {
+                                    UnitExpressionId::new(
+                                        fixture.source(0),
+                                        if text == "chosen" {
+                                            fixture.parsed[0]
+                                                .ast()
+                                                .expressions()
+                                                .iter()
+                                                .find(|(_, node)| {
+                                                    node.span().start()
+                                                        == source.rfind(text).unwrap()
+                                                        && fixture
+                                                            .sources
+                                                            .slice(node.span())
+                                                            .unwrap()
+                                                            == text
+                                                })
+                                                .map(|(id, _)| id)
+                                                .unwrap()
+                                        } else {
+                                            fixture.expression(0, text)
+                                        },
+                                    )
+                                };
+                                let call = id(&call_text);
+                                let owned = fixture.shared();
+                                assert!(owned.diagnostics().is_empty(), "{source}");
+                                assert!(owned.clone().validate().is_ok(), "{source}");
+                                let legacy = &owned.owner_observations()[0];
+                                assert!(matches!(
+                                    legacy.status(),
+                                    UnitOwnerObservationStatus::Unsupported { .. }
+                                ));
                                 assert!(
-                                    matches!(events.next(), Some(Event::Forward(from, to, Value::Definition(value))) if *from == id("\"next\"") && *to == id(incoming) && *value == installed)
+                                    legacy.definitions().is_empty() && legacy.events().is_empty()
                                 );
-                            }
-                            assert!(
-                                matches!(events.next(), Some(Event::Pending(actual_call, argument, Value::Definition(value))) if *actual_call == call && *argument == id(incoming) && *value == installed)
-                            );
-                            assert!(
-                                matches!(events.next(), Some(Event::Replace { call: actual_call, argument, root: actual_root, previous: Value::Choice(old), incoming: Value::Definition(new) }) if *actual_call == call && *argument == id(incoming) && *actual_root == root && old == choice && *new == installed)
-                            );
-                            for pair in returned.windows(2) {
+                                let graph = legacy.value_observation_v1().unwrap_or_else(|| {
+                                    panic!("selected replacement transfer: {source}")
+                                });
+                                assert_eq!(graph.producers().definitions().len(), 3);
+                                choice_branch_local::assert_ast_branch_events(
+                                    &fixture, &control, &graph,
+                                );
+                                let choice = graph.choice().unwrap().id();
+                                let definitions: Vec<_> = graph
+                                    .producers()
+                                    .definitions()
+                                    .iter()
+                                    .filter(|definition| {
+                                        definition.origin()
+                                            == UnitOwnerOrigin::String(id("\"next\""))
+                                    })
+                                    .collect();
+                                assert_eq!(definitions.len(), 1);
+                                let installed = definitions[0].id();
+                                let root = fixture.symbol(0, "chosen");
+                                let previous = fixture.symbol(0, "previous");
+                                let forwarded = fixture.symbol(0, "forwarded");
+                                let old_forwarded = fixture.symbol(0, "old_forwarded");
+                                let mut events = graph.suffix().iter();
+                                if grouped {
+                                    assert!(
+                                        matches!(events.next(), Some(Event::Forward(from, to, Value::Choice(value))) if *from == id(&control) && *to == id(&initial) && value == choice)
+                                    );
+                                }
                                 assert!(
-                                    matches!(events.next(), Some(Event::Forward(from, to, Value::Choice(value))) if *from == id(&pair[0]) && *to == id(&pair[1]) && value == choice)
+                                    matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Choice(value))) if *symbol == root && *expression == id(&initial) && value == choice)
                                 );
-                            }
-                            assert!(
-                                matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Choice(value))) if *symbol == previous && *expression == id(result_text) && value == choice)
-                            );
-                            assert!(
-                                matches!(events.next(), Some(Event::Move(expression, symbol, Value::Choice(value))) if *expression == id("previous") && *symbol == previous && value == choice)
-                            );
-                            for pair in ["previous", "(previous)", "((previous))"].windows(2) {
                                 assert!(
-                                    matches!(events.next(), Some(Event::Forward(from, to, Value::Choice(value))) if *from == id(pair[0]) && *to == id(pair[1]) && value == choice)
+                                    matches!(events.next(), Some(Event::Create(expression, value)) if *expression == id("\"next\"") && *value == installed)
                                 );
-                            }
-                            assert!(
-                                matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Choice(value))) if *symbol == old_forwarded && *expression == id("((previous))") && value == choice)
-                            );
-                            let old_point = declaration(&fixture, id("((previous))"));
-                            assert!(
-                                matches!(events.next(), Some(Event::Drop(point, symbol, Value::Choice(value))) if *point == old_point && *symbol == old_forwarded && value == choice)
-                            );
-                            assert!(
-                                matches!(events.next(), Some(Event::Move(expression, symbol, Value::Definition(value))) if *expression == id("chosen") && *symbol == root && *value == installed)
-                            );
-                            for pair in transfer.windows(2) {
+                                if incoming_grouped {
+                                    assert!(
+                                        matches!(events.next(), Some(Event::Forward(from, to, Value::Definition(value))) if *from == id("\"next\"") && *to == id(incoming) && *value == installed)
+                                    );
+                                }
                                 assert!(
-                                    matches!(events.next(), Some(Event::Forward(from, to, Value::Definition(value))) if *from == id(&pair[0]) && *to == id(&pair[1]) && *value == installed)
+                                    matches!(events.next(), Some(Event::Pending(actual_call, argument, Value::Definition(value))) if *actual_call == call && *argument == id(incoming) && *value == installed)
                                 );
-                            }
-                            let final_initializer = id(transfer.last().unwrap());
-                            assert!(
-                                matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Definition(value))) if *symbol == forwarded && *expression == final_initializer && *value == installed)
-                            );
-                            let point = declaration(&fixture, final_initializer);
-                            assert!(
-                                matches!(events.next(), Some(Event::Drop(actual_point, symbol, Value::Definition(value))) if *actual_point == point && *symbol == forwarded && *value == installed)
-                            );
-                            assert!(events.next().is_none());
-                            let cleanup: Vec<_> = owned
-                                .drops()
-                                .iter()
-                                .filter(|drop| {
-                                    [
-                                        UnitDropTarget::Named(root),
-                                        UnitDropTarget::Named(previous),
-                                        UnitDropTarget::Named(old_forwarded),
-                                        UnitDropTarget::Named(forwarded),
+                                assert!(
+                                    matches!(events.next(), Some(Event::Replace { call: actual_call, argument, root: actual_root, previous: Value::Choice(old), incoming: Value::Definition(new) }) if *actual_call == call && *argument == id(incoming) && *actual_root == root && old == choice && *new == installed)
+                                );
+                                for pair in returned.windows(2) {
+                                    assert!(
+                                        matches!(events.next(), Some(Event::Forward(from, to, Value::Choice(value))) if *from == id(&pair[0]) && *to == id(&pair[1]) && value == choice)
+                                    );
+                                }
+                                assert!(
+                                    matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Choice(value))) if *symbol == previous && *expression == id(result_text) && value == choice)
+                                );
+                                assert!(
+                                    matches!(events.next(), Some(Event::Move(expression, symbol, Value::Choice(value))) if *expression == id("previous") && *symbol == previous && value == choice)
+                                );
+                                for pair in old_transfer.windows(2) {
+                                    assert!(
+                                        matches!(events.next(), Some(Event::Forward(from, to, Value::Choice(value))) if *from == id(&pair[0]) && *to == id(&pair[1]) && value == choice)
+                                    );
+                                }
+                                assert!(
+                                    matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Choice(value))) if *symbol == old_forwarded && *expression == id(old_initializer) && value == choice)
+                                );
+                                let old_point = declaration(&fixture, id(old_initializer));
+                                assert!(
+                                    matches!(events.next(), Some(Event::Drop(point, symbol, Value::Choice(value))) if *point == old_point && *symbol == old_forwarded && value == choice)
+                                );
+                                assert!(
+                                    matches!(events.next(), Some(Event::Move(expression, symbol, Value::Definition(value))) if *expression == id("chosen") && *symbol == root && *value == installed)
+                                );
+                                for pair in transfer.windows(2) {
+                                    assert!(
+                                        matches!(events.next(), Some(Event::Forward(from, to, Value::Definition(value))) if *from == id(&pair[0]) && *to == id(&pair[1]) && *value == installed)
+                                    );
+                                }
+                                let final_initializer = id(transfer.last().unwrap());
+                                assert!(
+                                    matches!(events.next(), Some(Event::Bind(symbol, expression, Value::Definition(value))) if *symbol == forwarded && *expression == final_initializer && *value == installed)
+                                );
+                                let point = declaration(&fixture, final_initializer);
+                                assert!(
+                                    matches!(events.next(), Some(Event::Drop(actual_point, symbol, Value::Definition(value))) if *actual_point == point && *symbol == forwarded && *value == installed)
+                                );
+                                assert!(events.next().is_none());
+                                let cleanup: Vec<_> = owned
+                                    .drops()
+                                    .iter()
+                                    .filter(|drop| {
+                                        [
+                                            UnitDropTarget::Named(root),
+                                            UnitDropTarget::Named(previous),
+                                            UnitDropTarget::Named(old_forwarded),
+                                            UnitDropTarget::Named(forwarded),
+                                        ]
+                                        .contains(&drop.target())
+                                    })
+                                    .map(|drop| (drop.point(), drop.target()))
+                                    .collect();
+                                assert_eq!(
+                                    cleanup,
+                                    vec![
+                                        (old_point, UnitDropTarget::Named(old_forwarded)),
+                                        (point, UnitDropTarget::Named(forwarded))
                                     ]
-                                    .contains(&drop.target())
-                                })
-                                .map(|drop| (drop.point(), drop.target()))
-                                .collect();
-                            assert_eq!(
-                                cleanup,
-                                vec![
-                                    (old_point, UnitDropTarget::Named(old_forwarded)),
-                                    (point, UnitDropTarget::Named(forwarded))
-                                ]
-                            );
-                            assert_eq!(owned.drops().len(), 3);
-                            assert_eq!(
-                                owned.owner_observations()[1].status(),
-                                UnitOwnerObservationStatus::Complete
-                            );
-                            compare(&fixture, &fixture.parts(&owned));
+                                );
+                                assert_eq!(owned.drops().len(), 3);
+                                assert_eq!(
+                                    owned.owner_observations()[1].status(),
+                                    UnitOwnerObservationStatus::Complete
+                                );
+                                compare(&fixture, &fixture.parts(&owned));
+                            }
                         }
                     }
                 }

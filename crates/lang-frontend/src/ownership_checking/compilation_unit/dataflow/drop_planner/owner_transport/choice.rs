@@ -8,7 +8,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::values::{
 };
 use crate::parser::{PrefixOperator, VariableKind};
 
-/// One Choice binding, optionally replaced then transferred once; one String tail per edge.
+/// One Choice binding and bounded replacement output transfers; one String tail per edge.
 struct Admission {
     callable: UnitOwnerCallable,
     control: UnitExpressionId,
@@ -16,7 +16,7 @@ struct Admission {
     symbol: UnitSymbolId,
     drop_point: crate::ownership_checking::UnitDropPoint,
     arms: [Arm; 2],
-    transfer: Option<Transfer>,
+    transfers: Vec<Transfer>,
     replacement: Option<replace::Admission>,
 }
 
@@ -24,6 +24,7 @@ struct Transfer {
     source: UnitSymbolId,
     symbol: UnitSymbolId,
     chain: Vec<UnitExpressionId>,
+    drop_point: crate::ownership_checking::UnitDropPoint,
 }
 
 #[derive(Default)]
@@ -62,6 +63,7 @@ pub(in super::super) struct ChoiceTransaction {
     events: [Vec<Event>; 2],
     edges: [Edge; 2],
     transfer: TransferFrame,
+    transfer_index: usize,
     replacement: replace::Frame,
     control_completed: bool,
     result: Option<UnitExpressionId>,
@@ -193,12 +195,18 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
-    let (statement, transfer_statement, final_statement) = match elements.as_slice() {
-        [statement] => (*statement, None, None),
-        [statement, transfer] => (*statement, Some(*transfer), None),
-        [statement, replacement, transfer] => (*statement, Some(*replacement), Some(*transfer)),
-        _ => return None,
-    };
+    let (statement, transfer_statement, final_statement, extra_statement) =
+        match elements.as_slice() {
+            [statement] => (*statement, None, None, None),
+            [statement, transfer] => (*statement, Some(*transfer), None, None),
+            [statement, replacement, transfer] => {
+                (*statement, Some(*replacement), Some(*transfer), None)
+            }
+            [statement, replacement, old, new] => {
+                (*statement, Some(*replacement), Some(*old), Some(*new))
+            }
+            _ => return None,
+        };
     let Statement::LocalVariable { declaration } = ast.statements().get(statement).ok()?.payload()
     else {
         return None;
@@ -335,6 +343,12 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             local,
         })
     }
+    let drop_point = |statement| {
+        crate::ownership_checking::UnitDropPoint::AfterStatement(UnitStatementId::new(
+            checker.source_unit,
+            statement,
+        ))
+    };
     let mut replacement = None;
     let mut transfer = if let Some(statement) = transfer_statement {
         let (target, initializer) = immutable_string_binding(checker, statement)?;
@@ -355,6 +369,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
                 source: symbol,
                 symbol: target,
                 chain: chain(checker, initializer, Some(symbol))?,
+                drop_point: drop_point(statement),
             })
         }
     } else {
@@ -380,6 +395,26 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             source,
             symbol: target,
             chain: ids,
+            drop_point: drop_point(statement),
+        });
+    }
+    let mut transfers: Vec<_> = transfer.into_iter().collect();
+    if let Some(statement) = extra_statement {
+        // Only the old-result transfer may precede the newly installed root.
+        let previous = replacement.as_ref()?.symbol;
+        let first = transfers.first()?;
+        if first.source != previous {
+            return None;
+        }
+        let (target, initializer) = immutable_string_binding(checker, statement)?;
+        if [symbol, previous, first.symbol].contains(&target) {
+            return None;
+        }
+        transfers.push(Transfer {
+            source: symbol,
+            symbol: target,
+            chain: chain(checker, initializer, Some(symbol))?,
+            drop_point: drop_point(statement),
         });
     }
     Some(Admission {
@@ -392,7 +427,7 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             final_statement.or(transfer_statement).unwrap_or(statement),
         )),
         arms: [arm(checker, *then_branch)?, arm(checker, *else_branch)?],
-        transfer,
+        transfers,
         replacement,
     })
 }
@@ -414,6 +449,7 @@ impl ChoiceTransaction {
             events: [Vec::new(), Vec::new()],
             edges: [Edge::default(), Edge::default()],
             transfer: TransferFrame::default(),
+            transfer_index: 0,
             replacement: replace::Frame::default(),
             control_completed: false,
             result: None,
@@ -430,6 +466,7 @@ impl ChoiceTransaction {
         self.events.iter_mut().for_each(Vec::clear);
         self.edges = [Edge::default(), Edge::default()];
         self.transfer = TransferFrame::default();
+        self.transfer_index = 0;
         self.replacement = replace::Frame::default();
         self.control_completed = false;
         self.result = None;
@@ -496,7 +533,7 @@ impl ChoiceTransaction {
         if self.replacement_expression(expression, consuming) {
             return;
         }
-        if let Some(transfer) = &self.admission.transfer
+        if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
             && let Some(position) = transfer.chain.iter().position(|id| *id == expression)
         {
             let from = if position == 0 {
@@ -627,7 +664,7 @@ impl ChoiceTransaction {
         if !self.valid {
             return;
         }
-        if let Some(transfer) = &self.admission.transfer
+        if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
             && transfer.chain.first() == Some(&expression)
         {
             let source = transfer.source;
@@ -761,7 +798,7 @@ impl ChoiceTransaction {
             state.local = Some((symbol, owner));
             return;
         }
-        if let Some(transfer) = &self.admission.transfer
+        if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
             && symbol == transfer.symbol
         {
             if !self.bound
@@ -813,22 +850,22 @@ impl ChoiceTransaction {
         if self.replacement_dropped(point, symbol) {
             return;
         }
-        let expected = self
-            .admission
-            .transfer
-            .as_ref()
-            .map_or(self.admission.symbol, |transfer| transfer.symbol);
+        let transfer = self.admission.transfers.get(self.transfer_index);
+        let (expected, expected_point) = transfer.map_or(
+            (self.admission.symbol, self.admission.drop_point),
+            |transfer| (transfer.symbol, transfer.drop_point),
+        );
         if !self.bound
             || self.dropped
             || symbol != expected
-            || point != self.admission.drop_point
-            || (self.admission.transfer.is_some()
-                && (!self.transfer.bound || self.transfer.result.is_some()))
+            || point != expected_point
+            || (transfer.is_some() && (!self.transfer.bound || self.transfer.result.is_some()))
         {
             self.abort();
             return;
         }
-        let value = if self.admission.transfer.is_some() {
+        let source = transfer.map(|transfer| transfer.source);
+        let value = if source.is_some() {
             let Some(value) = self.transfer.value.take() else {
                 self.abort();
                 return;
@@ -838,7 +875,13 @@ impl ChoiceTransaction {
             Value::Choice(self.choice_id())
         };
         self.suffix.push(Event::Drop(point, symbol, value));
-        self.dropped = true;
+        if let Some(source) = source {
+            self.replacement_transfer_dropped(source);
+            // The next transfer gets a fresh frame only after this actual named Drop.
+            self.transfer = TransferFrame::default();
+            self.transfer_index += 1;
+        }
+        self.dropped = self.transfer_index == self.admission.transfers.len();
     }
     pub(in super::super) fn finish(self) -> Option<UnitOwnerValueObservationV1> {
         if !self.valid
@@ -846,6 +889,7 @@ impl ChoiceTransaction {
             || !self.dropped
             || !self.edges.iter().all(|edge| edge.delivered)
             || self.transfer.value.is_some()
+            || self.transfer_index != self.admission.transfers.len()
         {
             return None;
         }
