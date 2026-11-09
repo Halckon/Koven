@@ -197,6 +197,9 @@ impl LoopTransaction {
         let Some(binding) = input.snapshot(state) else {
             return false;
         };
+        if let (Some(normal), Some((identity, _))) = (&mut input.normal, &self.active) {
+            return normal.enter(identity.clone(), binding);
+        }
         let (Some(split), Some((identity, _))) = (&mut input.split, &self.active) else {
             return false;
         };
@@ -220,6 +223,9 @@ impl LoopTransaction {
         let Some(binding) = input.snapshot(state) else {
             return false;
         };
+        if let (Some(normal), Some((identity, _))) = (&mut input.normal, &self.active) {
+            return normal.arm_entry(branch, identity.clone(), control, body, binding);
+        }
         let (Some(split), Some((identity, _))) = (&mut input.split, &self.active) else {
             return false;
         };
@@ -248,6 +254,9 @@ impl LoopTransaction {
         let Some(binding) = input.snapshot(state) else {
             return false;
         };
+        if let Some(normal) = &mut input.normal {
+            return normal.arm_completion(branch, binding);
+        }
         let Some(arm) = input
             .split
             .as_mut()
@@ -264,6 +273,9 @@ impl LoopTransaction {
     }
     pub(in super::super) fn split_inputs_complete(&self) -> bool {
         self.invariant.as_ref().is_none_or(|input| {
+            if let Some(normal) = &input.normal {
+                return input.split.is_none() && normal.arms_complete();
+            }
             input
                 .split
                 .as_ref()

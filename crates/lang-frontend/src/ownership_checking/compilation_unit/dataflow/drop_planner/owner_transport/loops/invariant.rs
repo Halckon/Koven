@@ -1,4 +1,5 @@
 //! Retain real prefix identity and independently read loop and optional jump states.
+mod normal_join;
 mod split_terminal;
 use super::*;
 use crate::ownership_checking::{
@@ -15,6 +16,7 @@ pub(super) struct InvariantInput {
     body_completion: Option<UnitOwnerLoopBindingV1>,
     transfer: Option<(std::sync::Arc<()>, UnitExpressionId, UnitOwnerLoopBindingV1)>,
     split: Option<split_terminal::InvariantTerminalSplitInput>,
+    normal: Option<normal_join::InvariantNormalJoinInput>,
 }
 impl InvariantInput {
     pub(super) fn admit(
@@ -76,6 +78,7 @@ impl InvariantInput {
             body_completion: None,
             transfer: None,
             split: None,
+            normal: None,
         })
     }
 
@@ -152,6 +155,18 @@ impl InvariantInput {
         state: &ValueState,
     ) -> Option<InvariantLoopValueV1> {
         let exit = self.snapshot(state)?;
+        if let Some(normal) = self.normal.take() {
+            if self.transfer.is_some() || self.split.is_some() {
+                return None;
+            }
+            return normal.finish(
+                closed,
+                self.catalog.take()?,
+                self.entry.take()?,
+                self.body_completion.take()?,
+                exit,
+            );
+        }
         if let Some(split) = self.split.take() {
             if self.transfer.is_some() || self.body_completion.is_some() {
                 return None;
@@ -201,7 +216,7 @@ impl LoopTransaction {
         if let Some(branch) = self.active_branch {
             return input.split_jump_boundary(branch, completion, identity, state);
         }
-        if input.transfer.is_some() || input.split.is_some() {
+        if input.transfer.is_some() || input.split.is_some() || input.normal.is_some() {
             return false;
         }
         let Some(snapshot) = input.snapshot(state) else {
@@ -220,6 +235,14 @@ impl LoopTransaction {
     }
     pub(super) fn body_completion_boundary(&mut self, state: &ValueState) -> bool {
         if let Some(input) = &mut self.invariant {
+            if let Some(normal) = &input.normal {
+                if !normal.is_complete() || input.split.is_some() || input.body_completion.is_some()
+                {
+                    return false;
+                }
+                input.body_completion = input.snapshot(state);
+                return input.body_completion.is_some();
+            }
             if let Some(split) = &input.split {
                 return split.is_complete() && empty_boundary(state);
             }

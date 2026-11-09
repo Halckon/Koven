@@ -74,120 +74,16 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 循环，在末尾 Break 路径经一轮退出。末尾 If 的另一个参数也不变，同次调用选择同一臂，
 并非每轮任意换臂。有限前缀不是终止证明，不发布动态运行计数。
 
-## 单个不变输入 owner 的非空边界
+## 独立非空输入能力
 
-独立 `invariant_loop_observation_v1()` 不放宽旧空入边 getter；两者互斥。仅一个无 mode marker
-Boolean 参数，函数恰三句：精确 String 的 `val held = "outer"`、直线闭合 While、精确 String
-的 `val retired = held`。前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
-Group/var/nullable。body 复用上述 String 本地构造、move、Group、root Replace，可在末尾
-追加唯一裸 Continue；此回边能力仍拒绝 Break 或任何 If，Break 另见下节的独立出口能力。
-locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
-liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点。
-
-普通 While rejection 清空前，核真实 prefix collector Complete、唯一 String producer 与
-恰好 Result/Binding 两事件，token、initializer、symbol 都对应实际单个 OwnedValue。
-只从该 collector 保留 producer catalog，不从 AST、drop 或 symbol 反造 owner。随后照常
-拒绝普通观察，旧定义和事件为空。新能力不恢复 suffix collector，也不提供后缀事件或
-最终消费证明；输入 catalog 自身只验证 producer 身份，不能代替闭合运输。
-
-entry 在实际 condition 正常完成后读取；正常 backedge 在实际 body scope cleanup 后读取，
-且必须返回 Ok(true) 并通过原闭合 V1；exit 在实际 drop_loop_exit 后读取原 condition state。
-Continue 则在原 pending loan、deeper-scope drop 和 iteration cleanup 完成后，先过精确
-expression/kind、单一最近 loop、scope、fresh sink Arc 与一次性完成门，再独立读取一份
-post-jump binding。它成功后才登记 completed；body 返回 Ok(false) 后仍独立读取 backedge，
-并核 expected/completed 和 collected Arc 相同、原 body V1 封闭。该提前返回不执行正常
-body drop_scope，不能称为正常 scope fallthrough。原空入边 jump 仍要求完整空边界。
-
-`continue_boundary()` 返回真实 Continue expression 与其清理后 binding；普通 fallthrough
-必须为 None，Continue 必须有同 source/jump/body Arc 的快照且与其它边界 binding 相等。
-Continue 只有 ContinueBackedge(ControlTransfer(jump), condition)，不额外生成普通 Backedge，
-也不将已有 ASAP Drop 搬到 ControlTransfer。所有快照分别读取实际状态，不复制 entry 冒充
-其它边。ValueState 共17字段，除唯一 OwnedValue 的 values 外16槽为空；owner/token、
-symbol、origin、declaration、scope depth 全部相等。
-body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 owner 不进入该模板。
-公开 binding 可查询真实 symbol/token，三条结构边仍核实际 While/condition/body 身份。
-最终成功且无 deferred 才保留能力，错误分析整体清除。它是非空入边的身份前置，不是 phi、
-不同路径 owner 的 join、运行实例追踪、外层运输闭合或终止证明。
-
-## 单个不变输入 owner 的真实 Break 出口
-
-`invariant_break_observation_v1()` 返回独立 `UnitOwnerInvariantBreakObservationV1`，
-不提供 `backedge()`。准入复用同一个三语句 String 输入合同，body 只能以唯一裸 Break
-结束；不接收 If、Group/非末尾/嵌套跳转、其它 carrier 或对外层输入的读取/move/replace。
-旧回边类型、方法签名及 normal/Continue 的范围不变，其 getter 不接收 Break。
-
-实际 Break 的 pending loan、deeper-scope owner 和 iteration cleanup 后，经过同一精确
-expression/kind、最近 loop、scope、fresh sink Arc 与一次性门，独立读取 post-jump
-binding。body 实际返回 Ok(false) 后再次读取 `body_completion()`，同时核真实 completed
-与原闭合 V1；不执行或伪称正常 body scope cleanup。`break_boundary()` 必须包含真实
-Break expression 及其独立 binding。实际 condition 完成后的 entry 与实际 LoopExit 清理后
-的 exit 仍各自读取，四处均完整核17字段，values 外16槽为空，完整 OwnedValue 身份一致。
-
-原 planner 仍丢弃 body state，并对原 condition state 执行 LoopExit cleanup。本片不改
-这一路径；仅在 post-Break、post-body、entry、exit 的完整单例状态相等时发布能力，不能把
-它扩称为一般出口合流或 exit phi。输入 producer catalog 与闭合 body-local transport 分离，
-保留既有 ASAP Drop，不制造 ControlTransfer Drop；边为 EnterBody、真实
-BreakExit(ControlTransfer(jump), LoopExit(While))、ConditionFalseExit，没有任何回边。
-
-私有非空槽用 Backedge/Break 枚举互斥存储，两类公开 getter 分别核精确变体、原 While
-Unsupported、callable、analysis Arc 与自身 control seal。共同私有边界复用身份、闭合 body
-及结构边一致性检查，不单独授予控制能力；回边 seal 只接 Fallthrough/Continue，出口 seal 只接实际 Break。同一最终
-successful/无 deferred 门清空或保留该槽。不能将完整自洽的另一种控制证据换入对应类型。
-这仍是静态检查器的真实边界证据，不发布 suffix 事件、最终消费、有限运行轨迹、动态实例
-或完整外层守恒；条件 false 的零轮路径也不等于实际执行过 Break。
-
-## 不变输入 owner 的双 Continue 条件边
-
-`invariant_split_continue_observation_v1()` 返回独立
-`UnitOwnerInvariantSplitContinueObservationV1`。仍为精确三语句 String 输入/后缀合同，
-但 While 与末尾 If 分别读取两个不同的普通 Boolean 参数，条件可带 Group；两臂必须各有
-唯一裸 Continue。拒绝 Break 混合臂、空臂、arm-local owner、嵌套控制及外层输入操作。
-旧空输入、normal/裸 Continue 和 Break getter 都不接收此能力，未扩大原接口合同。
-
-While entry、真实 If condition 完成后的 split、两臂各自的 entry/post-Continue/completion、
-原 condition state 经 LoopExit 后的 exit，共九份 binding 分别读取真实状态。每次均核
-完整17字段及同一完整 OwnedValue，其它16槽为空。arm entry 在实际 branch-entry cleanup
-后记录，jump 在原三步清理后记录，completion 在实际 evaluator 返回 false 后再次读取。
-每臂的真实 control、序号、ControlBody、Continue expression 和 fresh body Arc 分别保留，
-同一槽只能写一次；tail、pending jump、scope 与最近 loop 均按原 hook 核验。
-
-原 If 只合入正常继续的 arm。双 Continue 的两个 state 均被丢弃，最终 merge 输入为空；
-两臂完成且事件为空、正常 continuation 数为零后才登记 completed。整体 body 还须实际
-Ok(false)、对应 completed/body Arc 与完整空状态，但不产生 body owner 快照。公开产物
-只给按 then/else 排序的两个 `UnitOwnerContinueArmBoundaryV1`，没有共同 `backedge()`
-或 `body_completion()`，不能从 entry 或某一臂回填合并状态。
-
-闭合 body-local transport 与输入 catalog 仍隔离，六边为 EnterBody、IfBranch(0)、
-ContinueBackedge(0)、IfBranch(1)、ContinueBackedge(1)、ConditionFalseExit。两跳转不同且
-source-qualified，不新增普通 body 回边或移动原 ASAP Drop。私有单槽枚举增加独立变体，
-其 seal 限定双 Continue，核条件/臂次序/端点、catalog/analysis/body 身份与九份 binding。
-最终 successful/无 deferred 门保持；中途失败无法形成完整产物。此为两条互斥控制边的
-静态检查证据，不是正常合流、header/exit phi、suffix 消费、每轮换臂或动态实例运输。
-
-## 不变输入 owner 的条件 Break 出口
-
-`invariant_split_exit_observation_v1()` 返回独立 `UnitOwnerInvariantSplitExitObservationV1`，
-仅接 Continue/Break、Break/Continue、Break/Break。三语句与独立 Boolean 条件合同不变，
-两臂仍各一个裸跳转；空臂、臂内 owner、其它控制及外层输入操作不准入。双 Continue
-继续只走上一节能力，原 `UnitOwnerContinueArmBoundaryV1` 与 `after_continue()` 不变。
-
-私有 terminal split 收集器在实际 jump cleanup 后保存真实 kind、expression 与 binding，
-不在 finish 时根据 AST expected 补造 kind。中性 `UnitOwnerJumpArmBoundaryV1` 提供
-entry、`after_jump()`、completion 和 `edge()`；Continue 精确回到 While condition，Break
-精确到该 While 的 LoopExit。仅实际两条 Continue 边可转换旧 Continue-only 类型；新 seal
-明确要求全为 Continue/Break 且至少一 Break，再核实际 edge、closed completion 与完整六边。
-两种 getter 由私有枚举互斥，source、arm 次序、端点、catalog/analysis/body Arc 门均保持。
-
-九份真实 binding、完整 singleton/OwnedValue 与其它16空槽要求不变。三种组合都没有
-正常 continuation，整体 body 只核真实 false、完整空 merge 与完成封印，不生成共同 body
-binding。LoopExit 仍清理原 condition state，未把 Break state 合流进去；这仅证明窄范围的
-完整不变状态，不是一般出口运输或 exit phi。原 merge、branch/jump cleanup、ASAP 与
-body-local Drop 顺序不变；本片不提供 suffix 消费、运行实例或有限 runtime trace。
+单个 immutable String 输入的真实 entry、正常/Continue 回边、Break 出口、双终端臂和
+双正常臂合流，见[不变输入 owner 循环边界](unit-invariant-loop-owner.md)。各能力独立
+封印且互斥，不放宽本页空入边合同，也不授予一般 phi 或完整外层运输。
 
 ## 保留边界
 
 除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160、§162；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。

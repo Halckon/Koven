@@ -255,6 +255,13 @@ impl LoopTransaction {
                 {
                     input.enable_terminal_split()
                 }
+                LoopBodyCompletion::Conditional { branches, .. }
+                    if branches
+                        .iter()
+                        .all(|branch| branch.exit == LoopBranchExit::Fallthrough) =>
+                {
+                    input.enable_normal_join();
+                }
                 _ => return None,
             }
         }

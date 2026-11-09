@@ -141,6 +141,7 @@ impl DropPlanner<'_, '_> {
         }
         let continues = !branch_states.is_empty();
         *state = self.merge_resource_states(id, branch_states);
+        self.finish_owner_loop_join(id, state);
         Ok(continues)
     }
 
