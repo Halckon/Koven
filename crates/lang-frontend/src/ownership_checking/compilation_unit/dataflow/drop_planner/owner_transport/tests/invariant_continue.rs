@@ -183,25 +183,26 @@ fn invariant_continue_seal_requires_its_real_jump_snapshot() {
         .invariant_loop_observation_v1()
         .unwrap();
     let mut changed = original.clone();
-    changed.continued = None;
+    changed.evidence.transfer = None;
     assert!(!changed.is_consistent());
     let mut changed = original.clone();
-    changed.continued = foreign.continued.clone();
+    changed.evidence.transfer = foreign.evidence.transfer.clone();
     assert!(!changed.is_consistent());
     let mut changed = original.clone();
-    changed.continued.as_mut().unwrap().0 = foreign.continued.as_ref().unwrap().0.clone();
+    changed.evidence.transfer.as_mut().unwrap().0 =
+        foreign.evidence.transfer.as_ref().unwrap().0.clone();
     assert!(
         !changed.is_consistent(),
         "only the fresh body identity changed"
     );
     let mut changed = original.clone();
-    changed.continued.as_mut().unwrap().1 = original.condition();
+    changed.evidence.transfer.as_mut().unwrap().1 = original.condition();
     assert!(!changed.is_consistent());
     let mut changed = original.clone();
-    changed.continued.as_mut().unwrap().2 = foreign.entry().clone();
+    changed.evidence.transfer.as_mut().unwrap().2 = foreign.entry().clone();
     assert!(!changed.is_consistent());
     let mut changed = original.clone();
-    changed.closed.completion =
+    changed.evidence.closed.completion =
         crate::ownership_checking::compilation_unit::owner_transport::LoopBodyCompletion::Break(
             original.continue_boundary().unwrap().0,
         );
@@ -213,7 +214,7 @@ fn invariant_continue_seal_requires_its_real_jump_snapshot() {
         .invariant_loop_observation_v1()
         .unwrap()
         .clone();
-    changed.continued = original.continued.clone();
+    changed.evidence.transfer = original.evidence.transfer.clone();
     assert!(!changed.is_consistent());
     let incomplete =
         crate::ownership_checking::compilation_unit::owner_transport::publish_observations(

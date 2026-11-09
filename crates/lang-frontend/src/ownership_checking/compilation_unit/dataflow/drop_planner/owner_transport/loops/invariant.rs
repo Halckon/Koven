@@ -1,6 +1,9 @@
-//! Retain real prefix identity and independently read loop and optional Continue states.
+//! Retain real prefix identity and independently read loop and optional jump states.
 use super::*;
-use crate::ownership_checking::{UnitOwnerLoopBindingV1, UnitOwnerProducerCatalogV1};
+use crate::ownership_checking::{
+    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerLoopBindingV1, UnitOwnerProducerCatalogV1,
+};
 
 pub(super) struct InvariantInput {
     symbol: UnitSymbolId,
@@ -8,8 +11,8 @@ pub(super) struct InvariantInput {
     expected: Option<OwnedValue>,
     catalog: Option<UnitOwnerProducerCatalogV1>,
     entry: Option<UnitOwnerLoopBindingV1>,
-    backedge: Option<UnitOwnerLoopBindingV1>,
-    continued: Option<(std::sync::Arc<()>, UnitExpressionId, UnitOwnerLoopBindingV1)>,
+    body_completion: Option<UnitOwnerLoopBindingV1>,
+    transfer: Option<(std::sync::Arc<()>, UnitExpressionId, UnitOwnerLoopBindingV1)>,
 }
 impl InvariantInput {
     pub(super) fn admit(
@@ -68,8 +71,8 @@ impl InvariantInput {
             expected: None,
             catalog: None,
             entry: None,
-            backedge: None,
-            continued: None,
+            body_completion: None,
+            transfer: None,
         })
     }
 
@@ -144,17 +147,31 @@ impl InvariantInput {
         &mut self,
         closed: UnitOwnerLoopObservationV1,
         state: &ValueState,
-    ) -> Option<UnitOwnerInvariantLoopObservationV1> {
+    ) -> Option<InvariantLoopValueV1> {
         let exit = self.snapshot(state)?;
-        let observed = UnitOwnerInvariantLoopObservationV1 {
+        let evidence = InvariantLoopBoundaries {
             closed,
             inputs: self.catalog.take()?,
             entry: self.entry.take()?,
-            backedge: self.backedge.take()?,
+            body_completion: self.body_completion.take()?,
             exit,
-            continued: self.continued.take(),
+            transfer: self.transfer.take(),
         };
-        observed.is_consistent().then_some(observed)
+        match evidence.closed.completion {
+            LoopBodyCompletion::Break(_) => {
+                let value = UnitOwnerInvariantBreakObservationV1 { evidence };
+                value
+                    .is_consistent()
+                    .then_some(InvariantLoopValueV1::Break(value))
+            }
+            LoopBodyCompletion::Fallthrough | LoopBodyCompletion::Continue(_) => {
+                let value = UnitOwnerInvariantLoopObservationV1 { evidence };
+                value
+                    .is_consistent()
+                    .then_some(InvariantLoopValueV1::Backedge(value))
+            }
+            LoopBodyCompletion::Conditional { .. } => None,
+        }
     }
 }
 impl LoopTransaction {
@@ -168,16 +185,17 @@ impl LoopTransaction {
         let Some(input) = &mut self.invariant else {
             return empty_boundary(state);
         };
-        let LoopBodyCompletion::Continue(jump) = completion else {
+        let (LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump)) = completion
+        else {
             return false;
         };
-        if input.continued.is_some() {
+        if input.transfer.is_some() {
             return false;
         }
         let Some(snapshot) = input.snapshot(state) else {
             return false;
         };
-        input.continued = Some((identity.clone(), jump, snapshot));
+        input.transfer = Some((identity.clone(), jump, snapshot));
         true
     }
     pub(super) fn entry_boundary(&mut self, state: &ValueState) -> bool {
@@ -188,10 +206,10 @@ impl LoopTransaction {
             empty_boundary(state)
         }
     }
-    pub(super) fn backedge_boundary(&mut self, state: &ValueState) -> bool {
+    pub(super) fn body_completion_boundary(&mut self, state: &ValueState) -> bool {
         if let Some(input) = &mut self.invariant {
-            input.backedge = input.snapshot(state);
-            input.backedge.is_some()
+            input.body_completion = input.snapshot(state);
+            input.body_completion.is_some()
         } else {
             empty_boundary(state)
         }

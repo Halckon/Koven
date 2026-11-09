@@ -3,6 +3,9 @@ mod invariant;
 use super::{UnitOwnerCallable, UnitOwnerObservation, UnitOwnerValueObservationV1};
 use crate::ownership_checking::UnitDropPoint;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
+pub(in crate::ownership_checking::compilation_unit) use invariant::{
+    InvariantLoopBoundaries, InvariantLoopValueV1,
+};
 pub use invariant::{
     UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
     UnitOwnerLoopBindingV1,

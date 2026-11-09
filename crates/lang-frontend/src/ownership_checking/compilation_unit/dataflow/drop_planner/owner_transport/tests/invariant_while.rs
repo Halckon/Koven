@@ -44,6 +44,7 @@ pub(super) fn check(
     assert!(legacy.events().is_empty() && legacy.definitions().is_empty());
     assert!(legacy.value_observation_v1().is_none());
     assert!(legacy.loop_observation_v1().is_none());
+    assert!(legacy.invariant_break_observation_v1().is_none());
     let observed = legacy
         .invariant_loop_observation_v1()
         .expect("actual nonempty loop boundaries");
@@ -336,20 +337,20 @@ fn invariant_loop_seal_rejects_foreign_snapshots_and_deferred_publication() {
     for slot in 0..3 {
         let mut damaged = original.clone();
         match slot {
-            0 => damaged.entry = foreign.entry.clone(),
-            1 => damaged.backedge = foreign.backedge.clone(),
-            _ => damaged.exit = foreign.exit.clone(),
+            0 => damaged.evidence.entry = foreign.evidence.entry.clone(),
+            1 => damaged.evidence.body_completion = foreign.evidence.body_completion.clone(),
+            _ => damaged.evidence.exit = foreign.evidence.exit.clone(),
         }
         assert!(!damaged.is_consistent());
     }
     let mut damaged = original.clone();
-    damaged.inputs = foreign.inputs.clone();
+    damaged.evidence.inputs = foreign.evidence.inputs.clone();
     assert!(!damaged.is_consistent());
     let mut damaged = original.clone();
-    damaged.closed.transport = foreign.closed.transport.clone();
+    damaged.evidence.closed.transport = foreign.evidence.closed.transport.clone();
     assert!(!damaged.is_consistent());
     let mut damaged = original.clone();
-    damaged.closed.edges.pop();
+    damaged.evidence.closed.edges.pop();
     assert!(!damaged.is_consistent());
     let mut damaged = owned.owner_observations()[0].clone();
     damaged.invariant_loop_value = again.owner_observations()[0].invariant_loop_value.clone();

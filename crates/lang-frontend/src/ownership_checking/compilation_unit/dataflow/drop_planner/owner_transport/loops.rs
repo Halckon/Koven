@@ -2,10 +2,11 @@
 mod conditional;
 mod invariant;
 use super::*;
+use crate::ownership_checking::UnitOwnerLoopObservationV1;
 use crate::ownership_checking::compilation_unit::owner_transport::{
-    LoopBodyCompletion, LoopBranchCompletion, LoopBranchExit,
+    InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
+    LoopBranchExit,
 };
-use crate::ownership_checking::{UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopObservationV1};
 use crate::parser::VariableKind;
 use std::collections::BTreeSet;
 
@@ -24,7 +25,7 @@ pub(in super::super) struct LoopTransaction {
     branch_completed: [bool; 2],
     result: Option<UnitOwnerLoopObservationV1>,
     invariant: Option<invariant::InvariantInput>,
-    invariant_result: Option<UnitOwnerInvariantLoopObservationV1>,
+    invariant_result: Option<InvariantLoopValueV1>,
 }
 
 fn exact_type(checker: &Checker<'_>, expression: ExpressionId, builtin: BuiltinType) -> bool {
@@ -239,7 +240,9 @@ impl LoopTransaction {
         if (invariant.is_some()
             && !matches!(
                 expected,
-                LoopBodyCompletion::Fallthrough | LoopBodyCompletion::Continue(_)
+                LoopBodyCompletion::Fallthrough
+                    | LoopBodyCompletion::Continue(_)
+                    | LoopBodyCompletion::Break(_)
             ))
             || parameter_symbols.len() != required_parameters
         {
@@ -268,7 +271,7 @@ impl LoopTransaction {
         self,
     ) -> (
         Option<UnitOwnerLoopObservationV1>,
-        Option<UnitOwnerInvariantLoopObservationV1>,
+        Option<InvariantLoopValueV1>,
     ) {
         (self.result, self.invariant_result)
     }
@@ -469,7 +472,7 @@ impl DropPlanner<'_, '_> {
                 transaction.active_branch = None;
                 transaction.pending_jump = None;
                 transaction.branch_completed = [false; 2];
-                if transaction.backedge_boundary(&body_state)
+                if transaction.body_completion_boundary(&body_state)
                     && let Some(collected) = collected
                 {
                     let completion = match (&continued, transaction.expected, witnessed) {

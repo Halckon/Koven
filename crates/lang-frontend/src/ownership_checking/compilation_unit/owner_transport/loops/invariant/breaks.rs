@@ -63,6 +63,17 @@ impl UnitOwnerInvariantBreakObservationV1 {
 impl UnitOwnerObservation {
     /// Separate invariant Break exit capability; the old loop backedge contract stays strict.
     pub fn invariant_break_observation_v1(&self) -> Option<&UnitOwnerInvariantBreakObservationV1> {
-        None
+        let super::InvariantLoopValueV1::Break(value) = self.invariant_loop_value.as_deref()?
+        else {
+            return None;
+        };
+        (self.loop_value.is_none()
+            && matches!(self.status, crate::ownership_checking::UnitOwnerObservationStatus::Unsupported {
+                point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),
+                reason: crate::ownership_checking::UnitOwnerUnsupportedReason::Syntax
+            } if statement == value.statement())
+            && value.evidence.closed.callable == self.callable
+            && std::sync::Arc::ptr_eq(&value.evidence.closed.identity, &self.identity)
+            && value.is_consistent()).then_some(value)
     }
 }

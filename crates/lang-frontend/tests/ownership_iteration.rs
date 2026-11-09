@@ -93,3 +93,6 @@ mod closed_while_owner_unit;
 
 #[path = "ownership_iteration/invariant_while_owner_unit.rs"]
 mod invariant_while_owner_unit;
+
+#[path = "ownership_iteration/invariant_break_owner_unit.rs"]
+mod invariant_break_owner_unit;
