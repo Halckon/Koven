@@ -576,3 +576,59 @@ fn downstream_qualification_sees_types_stabilized_inside_a_healthy_cycle() {
         Some("B.OTHER == B.OTHER"),
     );
 }
+
+#[test]
+fn cyclic_component_checks_ordinary_errors_before_qualification() {
+    for (provider, consumer) in [("a", "b"), ("b", "a")] {
+        let provider_text = format!(
+            "package {provider}\nimport {consumer}.A\nobject B {{ const val BAD: Boolean = BAD + A.COPY }}"
+        );
+        for (expression, independent) in [("B.BAD == B.BAD", false), ("B.BAD == true", true)] {
+            let consumer_text = format!(
+                "package {consumer}\nimport {provider}.B\nobject A {{ const val COPY: Boolean = {expression} }}"
+            );
+            let provider_first = provider == "a";
+            let texts = if provider_first {
+                [provider_text.as_str(), consumer_text.as_str()]
+            } else {
+                [consumer_text.as_str(), provider_text.as_str()]
+            };
+            let (codes, first_span): (&[_], _) = match (independent, provider_first) {
+                (false, _) => (&["L0085"], "+"),
+                (true, true) => (&["L0085", "L0156"], "+"),
+                (true, false) => (&["L0156", "L0085"], expression),
+            };
+            check(texts, codes, Some(first_span));
+        }
+    }
+}
+
+#[test]
+fn cyclic_component_preserves_only_independent_qualification_when_available() {
+    for (provider, consumer) in [("a", "b"), ("b", "a")] {
+        let provider_text = format!(
+            "package {provider}\nimport {consumer}.A\nobject B {{ const val BAD: Boolean = A.COPY == true }}"
+        );
+        let consumer_text = format!(
+            "package {consumer}\nimport {provider}.B\nobject A {{ const val COPY: Boolean = B.BAD == B.BAD }}"
+        );
+        let texts = if provider == "a" {
+            [provider_text.as_str(), consumer_text.as_str()]
+        } else {
+            [consumer_text.as_str(), provider_text.as_str()]
+        };
+        check(texts, &["L0156"], Some("A.COPY == true"));
+    }
+}
+
+#[test]
+fn mutually_dependent_qualification_failures_keep_a_primary_diagnostic() {
+    check(
+        [
+            "package a\nimport b.B\nobject A { const val COPY: Boolean = B.BAD == B.BAD }",
+            "package b\nimport a.A\nobject B { const val BAD: Boolean = A.COPY == A.COPY }",
+        ],
+        &["L0156"],
+        Some("B.BAD == B.BAD"),
+    );
+}

@@ -193,16 +193,18 @@ impl BodyChecker<'_> {
                 .filter(|symbol| !invalid.contains(symbol))
                 .collect::<BTreeSet<_>>();
             let mut pending = queued.iter().copied().collect::<VecDeque<_>>();
+            let mut ordinary_failure = None;
             while let Some(symbol) = pending.pop_front() {
                 queued.remove(&symbol);
                 if invalid.contains(&symbol) {
                     continue;
                 }
                 let previous = self.parts.symbol_types.get(&symbol).copied();
-                if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
+                if !self.check_constant_initializer_type(symbol, &inputs[&symbol])? {
                     invalid.insert(symbol);
                     propagate_invalid(&mut invalid, &reverse, [symbol]);
-                    continue;
+                    ordinary_failure = Some(symbol);
+                    break;
                 }
                 let current = self.parts.symbol_types.get(&symbol).copied();
                 // Deferred reason changes cannot stabilize an unanchored alias cycle.
@@ -218,6 +220,44 @@ impl BodyChecker<'_> {
                         }
                     }
                 }
+            }
+
+            // Collect qualification failures against the same ordinary facts
+            // before any one member can invalidate its peers.
+            let mut qualification_failures = Vec::new();
+            let mut first_diagnostic = None;
+            for &index in component {
+                let symbol = symbols[index];
+                if !self.constant_prechecked.contains(&symbol) || ordinary_failure == Some(symbol) {
+                    continue;
+                }
+                let input = &inputs[&symbol];
+                if invalid.contains(&symbol) {
+                    self.qualify_constant_recovery(symbol, input, &invalid)?;
+                    continue;
+                }
+                let before = self.diagnostics.len();
+                if !self.check_constant_qualification(symbol, input)? {
+                    if first_diagnostic.is_none() {
+                        first_diagnostic = self.diagnostics.get(before).cloned();
+                    }
+                    self.diagnostics.truncate(before);
+                    qualification_failures.push(symbol);
+                }
+            }
+            invalid.extend(qualification_failures.iter().copied());
+            propagate_invalid(
+                &mut invalid,
+                &reverse,
+                qualification_failures.iter().copied(),
+            );
+            let before = self.diagnostics.len();
+            for symbol in qualification_failures {
+                self.qualify_constant_recovery(symbol, &inputs[&symbol], &invalid)?;
+            }
+            if self.diagnostics.len() == before {
+                // Mutually dependent failures still need one stable primary error.
+                self.diagnostics.extend(first_diagnostic);
             }
         }
         // Recover independent qualification diagnostics without using types
@@ -272,6 +312,17 @@ impl BodyChecker<'_> {
         symbol: UnitSymbolId,
         input: &Initializer,
     ) -> Result<bool, CompilationUnitTypeError> {
+        if !self.check_constant_initializer_type(symbol, input)? {
+            return Ok(false);
+        }
+        self.check_constant_qualification(symbol, input)
+    }
+
+    fn check_constant_initializer_type(
+        &mut self,
+        symbol: UnitSymbolId,
+        input: &Initializer,
+    ) -> Result<bool, CompilationUnitTypeError> {
         // Only closed initializer expressions are cached here; receiver namespace prefixes were not evaluated.
         for expression in &input.expressions {
             self.parts.expression_types.remove(expression);
@@ -297,21 +348,38 @@ impl BodyChecker<'_> {
         self.constant_prechecked.insert(symbol);
         let previous_owner = self.current_owner;
         self.current_owner = input.owner;
-        self.checking_constants = true;
-        let before = self.diagnostics.len();
-        let result = self.check_value_initializer(
+        let result = self.check_value_initializer_type(
             input.expression.source_unit(),
             symbol,
             input.type_ref,
             input.expression.expression(),
         );
-        self.checking_constants = false;
         self.current_owner = previous_owner;
-        result?;
+        result
+    }
+
+    fn check_constant_qualification(
+        &mut self,
+        symbol: UnitSymbolId,
+        input: &Initializer,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let before = self.diagnostics.len();
+        self.qualify_constant_initializer(symbol, input.type_ref, input.expression)?;
         Ok(self.diagnostics.len() == before
             && self
                 .constant_syntax_dependencies(input.expression, None)?
                 .is_ok())
+    }
+
+    fn qualify_constant_recovery(
+        &mut self,
+        symbol: UnitSymbolId,
+        input: &Initializer,
+        invalid: &BTreeSet<UnitSymbolId>,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let nodes = self.constant_invalid_dependency_nodes(input, invalid)?;
+        self.constant_recovery_nodes.insert(symbol, nodes);
+        self.qualify_constant_initializer(symbol, input.type_ref, input.expression)
     }
 
     fn constant_invalid_dependency_nodes(
