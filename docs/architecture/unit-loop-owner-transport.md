@@ -136,10 +136,38 @@ successful/无 deferred 门清空或保留该槽。不能将完整自洽的另�
 这仍是静态检查器的真实边界证据，不发布 suffix 事件、最终消费、有限运行轨迹、动态实例
 或完整外层守恒；条件 false 的零轮路径也不等于实际执行过 Break。
 
+## 不变输入 owner 的双 Continue 条件边
+
+`invariant_split_continue_observation_v1()` 返回独立
+`UnitOwnerInvariantSplitContinueObservationV1`。仍为精确三语句 String 输入/后缀合同，
+但 While 与末尾 If 分别读取两个不同的普通 Boolean 参数，条件可带 Group；两臂必须各有
+唯一裸 Continue。拒绝 Break 混合臂、空臂、arm-local owner、嵌套控制及外层输入操作。
+旧空输入、normal/裸 Continue 和 Break getter 都不接收此能力，未扩大原接口合同。
+
+While entry、真实 If condition 完成后的 split、两臂各自的 entry/post-Continue/completion、
+原 condition state 经 LoopExit 后的 exit，共九份 binding 分别读取真实状态。每次均核
+完整17字段及同一完整 OwnedValue，其它16槽为空。arm entry 在实际 branch-entry cleanup
+后记录，jump 在原三步清理后记录，completion 在实际 evaluator 返回 false 后再次读取。
+每臂的真实 control、序号、ControlBody、Continue expression 和 fresh body Arc 分别保留，
+同一槽只能写一次；tail、pending jump、scope 与最近 loop 均按原 hook 核验。
+
+原 If 只合入正常继续的 arm。双 Continue 的两个 state 均被丢弃，最终 merge 输入为空；
+两臂完成且事件为空、正常 continuation 数为零后才登记 completed。整体 body 还须实际
+Ok(false)、对应 completed/body Arc 与完整空状态，但不产生 body owner 快照。公开产物
+只给按 then/else 排序的两个 `UnitOwnerContinueArmBoundaryV1`，没有共同 `backedge()`
+或 `body_completion()`，不能从 entry 或某一臂回填合并状态。
+
+闭合 body-local transport 与输入 catalog 仍隔离，六边为 EnterBody、IfBranch(0)、
+ContinueBackedge(0)、IfBranch(1)、ContinueBackedge(1)、ConditionFalseExit。两跳转不同且
+source-qualified，不新增普通 body 回边或移动原 ASAP Drop。私有单槽枚举增加独立变体，
+其 seal 限定双 Continue，核条件/臂次序/端点、catalog/analysis/body 身份与九份 binding。
+最终 successful/无 deferred 门保持；中途失败无法形成完整产物。此为两条互斥控制边的
+静态检查证据，不是正常合流、header/exit phi、suffix 消费、每轮换臂或动态实例运输。
+
 ## 保留边界
 
 除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。

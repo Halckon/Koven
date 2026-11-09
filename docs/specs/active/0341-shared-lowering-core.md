@@ -6804,3 +6804,73 @@ parser后续 `8bfc8d8d` 同样不含owner改动。本片保留已验证链，尚
 工作；按用户要求只本地分步提交，不推送、不改PR、不合main。仍无一般phi、非空分支
 合流、动态多实例capture/释放、外层运输闭合或Phase 4/native，D10/E2与本Spec保持
 in-progress。事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。
+
+
+## 158. 非空不变 owner 的双 Continue 逐臂边界（2026-11-09）
+
+开工核对 main `748516795812a1946b2fd9e3ca0f8046dc2e560b`、全部远端分支、在途PR，
+#390仍为734dde83，#391/#393已包含在其链；没有重复的非空条件边实现。本地统一队列
+4dfeda9e与parser批次8bfc8d8d不含本片producer。新隔离分支从最新main建立，保全合入
+§156 `532aef8132f5859d31a85aa415e3ef7faad26c38`；纯依赖提交
+`1fe70f6dc6a20a2641fc730cdd7ea45748ce3a8b` 的有序父为74851679+532aef81，tree
+`9fa63f624ca2ed93895347adea94955e1e055333`。独立逐mode/blob复核：共同基底36d381e3上
+main改7路径、owner改88路径，交集仅names-and-types；其三个不重叠hunk机械合并，其余
+内容逐项保全，index对基底94路径，无额外差异。此结论是字节保全，行为证据另见下表。
+
+新增独立 `UnitOwnerInvariantSplitContinueObservationV1` 及 getter，只接受单个不变String
+输入、原精确三语句prefix/While/suffix，并由两个不同Boolean参数控制While与末尾If。
+If两臂各仅一个裸Continue，复用现有闭合本地String/move/Group/root Replace前缀；不接
+Break混合臂、空臂、arm-local owner、外层输入操作或其它carrier。旧空入边、normal/
+裸Continue、Break和普通V1 getter均保持原合同，所有旧oracle保留。
+
+真实If condition后读取split；实际branch-entry cleanup后读各arm entry，原pending loan、
+deeper-scope owner和iteration cleanup后读各jump，evaluator实际返回false后再读各arm
+completion。每次复用完整singleton/OwnedValue核验，包括ValueState全部17字段，values
+外16槽为空；保留实际control/序号/arm body/jump/body Arc，槽只写一次，第二臂不覆盖
+第一臂。原tail/pending/active/scope/最近loop门均保留，双臂齐备才登记completed。
+
+关键区别：原If仅将正常continuation的state放入merge，双Continue实际merge输入为空。
+因此整体body只核真实Ok(false)、completed/body Arc和完整空状态，不伪造单个非空body
+完成快照；不复制entry或某臂回填。公开两份 `UnitOwnerContinueArmBoundaryV1`，连同
+While entry、split及LoopExit后的exit共九份独立binding；没有共同 `backedge()` 或
+`body_completion()`。六条结构边精确关联两次实际Continue，无普通body回边或新造Drop。
+原branch/merge/jump cleanup、Guide和ASAP均未修改，不实现一般phi或运行实例运输。
+
+真实红提交 `e5d2f2ecac35541300e18fad99475198df9c0ac2` 在typed/ownership成功后因缺
+新能力1 failed；同源码最小接线后1 passed，并将精确原红源码保留在最终测试。实现/测试
+提交 `469d47b7d650bc624fc7e65e0bb3ed1c8e7b259b`，tree
+`3175c048fcc206bab83bc90cd6257dbeac27d104`；后续文档不改变受测Rust。公开测试初次
+模块路径遗漏导致编译失败，修正后重跑；不把它计为行为红。Clippy初报新私有enum变体
+尺寸过大，仅间接存放该新变体，未加豁免或改变公开协议；最终全部测试及门禁重新通过。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 双Continue实际producer | `invariant_split_continue::actual_split_continues_preserve_each_nonempty_arm_before_discard` | 1 passed，32种双条件Group/Unit/body组合+精确原红源码1例 |
+| 控制与输入拒绝 | 同模块 `split_continues_reject_unproved_paths_and_input_shapes` | 1 passed，25合法新getter否例，包含原normal/Continue/Break能力继续可用的3例 |
+| 来源及错误边界 | 同模块 `split_continue_sources_and_failures_keep_capabilities_separate` | 1 passed，双source/双analysis隔离；3输入错误/未闭合body及2非法arm无能力泄露，真实sibling错误清空观察 |
+| 公开两入口 | `invariant_split_continue_owner_unit::split_continue_arms_match_actual_sources_in_both_unit_inputs` | 1 passed，12片段×MemoryDocument单源/Rooted双源，共24分析、36 source inputs，12准入/24拒绝 |
+| owner及共享hook组合 | §156的83 lib exact + 本片3项；18 iteration + 本片公开1项；原5 multifile、2 closures、1 borrow-continuation | 86 + 19 + 5 + 2 + 1 passed，0 failed/ignored |
+| 新main相邻合同 | main #397在multifile_constant_qualification新增的11个ordinary测试，各完整名exact | 11 passed，实际合法/非法常量源码，非手工产物 |
+| 质量门禁 | frontend all-targets严格Clippy `-D warnings`、LLVM21 workspace all-targets check、fmt、docs、尺寸、diff | 通过；865 Markdown、2281 Rust、37历史超限，尺寸基底1fe70f6d，无新豁免 |
+| 独立复审与复跑 | 依赖字节保全、逐臂真实状态、空merge与API seal、测试oracle；新3 lib与公开1项exact | 无blocker；4项各1 passed，执行前后HEAD/tree、两binary SHA256与clean状态一致 |
+
+合计124项不同ordinary测试，即113项owner相关组合及11项新main常量邻控，均在本片
+74851679依赖组合重建后执行；初验、红绿与独立复跑不重复累计。新3 lib完整前缀为
+`ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::`。
+正例从index/AST独立核来源及六边、不同jump与全部binding；producer数1/1/2/3、Replace
+数0/0/1/2独立给定，每producer核实际AST String位于While body内、唯一Drop及真实drop
+fact。输入/body catalog隔离，完整Analysis开关等值；实际suffix Drop仅作兼容性见证，
+不表示后缀运行过或新能力提供最终消费。原空输入条件组合及旧normal/Continue/Break非空公开正例均重跑。
+
+两个非法arm源码因arm含额外语句在admission阶段被拒，不能称为实际走到“第一臂记录后
+第二臂失败”的撤销测试；中途失败安全性来自生产控制流复审，不借源码失败夸大覆盖。
+损坏次序、端点、各类foreign binding/Arc/catalog、deferred与自洽混合Continue/Break
+模板的seal守卫均已编译，未在本机执行；同样未跑旧model/Abort/故障注入。Mac AArch64、
+Rust1.96.0、LLVM21.1.8，locked/offline、默认debug、jobs=2、独占target。未跑frontend/
+workspace全量测试、Linux、native或精确头正式CI，不能将124项称为统一队列整批验收。
+
+收尾main与#390头未变；本地parser已推进a90019c0，其parser/对应文档/CI选择变化不触
+本片owner，没有重复开发或吸纳该未验收批次。仍缺非空正常臂合流、混合目的地、可变
+loop-carried owner、一般header/exit phi、动态多实例capture/释放与Phase 4/native。
+未删除旧工作、缓存或oracle，按用户要求只本地分步提交，不推送、不改PR、不合main。
+D10/E2与本Spec保持in-progress；事实见[While边界观察](../../architecture/unit-loop-owner-transport.md)。
