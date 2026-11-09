@@ -3,7 +3,10 @@ mod loops;
 pub(super) use loops::{
     LoopBodyCompletion, LoopBranchCompletion, LoopBranchExit, publish_observations,
 };
-pub use loops::{UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1};
+pub use loops::{
+    UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
+    UnitOwnerLoopObservationV1,
+};
 pub(super) mod values;
 pub use values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,

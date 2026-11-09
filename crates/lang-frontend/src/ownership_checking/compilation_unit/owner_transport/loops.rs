@@ -1,7 +1,9 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod invariant;
 use super::{UnitOwnerCallable, UnitOwnerObservation, UnitOwnerValueObservationV1};
 use crate::ownership_checking::UnitDropPoint;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
+pub use invariant::{UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopBindingV1};
 
 /// Structural control edges of a sealed While body, not an executed finite trace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
