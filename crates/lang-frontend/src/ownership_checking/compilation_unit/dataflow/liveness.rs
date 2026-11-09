@@ -229,7 +229,8 @@ impl Builder<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => {
-                let mut header = live_after.clone();
+                // The condition can kill exit-live values before control reaches either edge.
+                let mut header = LiveSet::new();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
                     let body_in = self.statement(body, header.clone())?;
@@ -448,15 +449,8 @@ impl Builder<'_, '_> {
             Expression::When {
                 subject, entries, ..
             } => {
-                let mut live = live_after.clone();
-                for (index, entry) in entries.iter().enumerate() {
-                    let incoming = self.statement(entry.body, live_after.clone())?;
-                    live.extend(incoming.iter().copied());
-                    self.when_entry_live_in
-                        .insert((id.index(), index), incoming);
-                }
                 // An implicit String comparison reads the subject after each candidate.
-                if let Some(subject) = subject
+                let string_subject = if let Some(subject) = subject
                     && self
                         .checker
                         .typed
@@ -464,8 +458,7 @@ impl Builder<'_, '_> {
                         .and_then(|ty| self.checker.typed.types().get(ty))
                         == Some(&crate::type_checking::UnitTypeKind::Builtin(
                             crate::type_checking::BuiltinType::String,
-                        ))
-                {
+                        )) {
                     let mut subject = subject;
                     while let Expression::Group { expression } = self
                         .checker
@@ -478,21 +471,33 @@ impl Builder<'_, '_> {
                         subject = *expression;
                     }
                     let node = self.checker.parsed.ast().expressions().get(subject)?;
-                    if matches!(node.payload(), Expression::Name)
-                        && let Some(symbol) = self.checker.reference_symbol(node.span())
-                        && self.checker.is_move_only_variable(symbol)
-                    {
-                        live.insert(symbol);
+                    if matches!(node.payload(), Expression::Name) {
+                        self.checker
+                            .reference_symbol(node.span())
+                            .filter(|&symbol| self.checker.is_move_only_variable(symbol))
+                    } else {
+                        None
                     }
-                }
-                for entry in entries.into_iter().rev() {
+                } else {
+                    None
+                };
+                let mut live = live_after.clone();
+                for (index, entry) in entries.into_iter().enumerate().rev() {
+                    let body = self.statement(entry.body, live_after.clone())?;
+                    if entry.else_span.is_some() {
+                        live = body.clone();
+                    }
                     for condition in entry.conditions.into_iter().rev() {
+                        // Only this selector's normal exits can match the body or try the next one.
+                        live.extend(body.iter().copied());
                         if let WhenCondition::Expression(expression)
                         | WhenCondition::Contains { expression, .. } = condition
                         {
+                            live.extend(string_subject);
                             live = self.expression(expression, ExpressionUse::Read, live)?;
                         }
                     }
+                    self.when_entry_live_in.insert((id.index(), index), body);
                 }
                 if let Some(subject) = subject {
                     self.expression(subject, ExpressionUse::Read, live)

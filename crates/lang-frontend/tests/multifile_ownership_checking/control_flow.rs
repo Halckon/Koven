@@ -331,3 +331,99 @@ fn consumed_control_result_updates_main_ownership_state() {
         "diagnostics prevent publishing a contradictory drop plan"
     );
 }
+
+#[test]
+fn earlier_when_match_keeps_the_owner_live_across_a_later_exiting_selector() {
+    for (subject, selector) in [("(flag)", "true"), ("", "flag")] {
+        for (parameter, initializer) in [("own x: Node, ", ""), ("", "val x = Node(1)")] {
+            let text = format!(
+                "class Node(val tag: Int)
+                 fun observe(borrow value: Node): Unit {{ val tag = value.tag }}
+                 fun pred(value: Int): Boolean = false
+                 fun test({parameter}flag: Boolean): Int {{
+                     {initializer}
+                     when {subject} {{
+                         {selector}, pred(return 7) -> {{ observe(x); return 2 }}
+                         else -> return 3
+                     }}
+                 }}"
+            );
+            let mut sources = SourceMap::new();
+            let (source, file) = parsed(&mut sources, "when-owner.ko", &text);
+            let (name_environment, type_environment) = standard_environments();
+            for input in [
+                SourceUnitInput::memory_document(source, &file),
+                SourceUnitInput::new("root", "when-owner.ko", source, &file),
+            ] {
+                let inputs = [input];
+                let names = validated_names(&sources, &inputs, &name_environment);
+                let typed = validated_types(&sources, &inputs, &names, &type_environment);
+                let owned = check_compilation_unit_ownership(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &type_environment,
+                    &typed,
+                )
+                .expect("ownership product");
+                assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+                assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+                let unit = source_unit(&names, source);
+                let expression =
+                    |text| UnitExpressionId::new(unit, expression_with_text(&sources, &file, text));
+                let points = owned
+                    .drops()
+                    .iter()
+                    .filter_map(|drop| {
+                        (matches!(drop.target(), UnitDropTarget::Named(_))
+                            && sources.slice(drop.value_origin()) == Ok("x"))
+                        .then_some(drop.point())
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(points.len(), 2, "{subject} {parameter}: {points:?}");
+                assert!(
+                    points.contains(&UnitDropPoint::CallReturn(expression("observe(x)"))),
+                    "{points:?}"
+                );
+                assert!(
+                    points.contains(&UnitDropPoint::ControlTransfer(expression("return 7"))),
+                    "{points:?}"
+                );
+                owned.validate().expect("valid ownership");
+            }
+        }
+    }
+}
+
+#[test]
+fn while_liveness_converges_when_the_condition_replaces_the_live_out_owner() {
+    let text = "
+        class Node(val tag: Int)
+        fun observe(borrow value: Node): Unit { val tag = value.tag }
+        fun test(flag: Boolean): Unit {
+            var x = Node(1)
+            while (when {
+                flag -> { x = Node(2); false }
+                else -> { x = Node(3); false }
+            }) {}
+            observe(x)
+        }
+    ";
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "when-loop-owner.ko", text);
+    let (name_environment, type_environment) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "when-loop-owner.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        owned.validate().expect("valid ownership");
+    }
+}

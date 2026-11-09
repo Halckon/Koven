@@ -3089,3 +3089,19 @@ own 参数提前析构和 false bypass 漏报都在 #381 的 base 实跑复现�
 `in asInt(1)..2` 实际输出 `2\n2\n`。外层 canonical nullable descriptor
 的嵌套 arm 当前完成性错误，须与所有权计划对齐。兼容 lowering 对动态 selector
 的正常对照也不支持，按既有能力边界单列。
+
+## 125. R3 when 匹配路径上的 owner 活性
+
+`30886cde` 基线上，逗号前匹配的 body 借用纯内存 owner，后续 selector
+提前 return 时，前端红测只取得错误的 FunctionEntry drop，原生红测报 InvalidModel。
+改为逐 entry、逐 alternative 回向传递。每项正常出口分别合并匹配 body 和后续 miss，
+提前退出只截断该 selector 的正常后继。String subject 的隐式读取留在每个候选的
+正常出口。分支入口事实仍保存对应 body 的活性。
+
+独立复核发现 while 条件在每条分支都替换退出边仍需读取的 owner 时，旧循环头初值
+会导致固定点无法收敛。修前实际限时 8 秒退出 142。现从空集迭代，条件出口继续
+注入 live-after，保留 break/continue 的各自目标。两种 Unit 均实跑通过。
+
+本机所有权及迭代前端 388 项、后端 comma when 5 项及循环资源 9 项通过，
+零失败和忽略。原生 subjectful 和 subjectless 对照实际编译、链接并运行，精确
+验证先匹配时读取 owner，后续提前退出时不执行 callee。最终差异经独立复核。
