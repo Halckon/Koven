@@ -5,7 +5,8 @@ pub(super) use loops::{
     LoopBranchExit, publish_observations,
 };
 pub use loops::{
-    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantBreakObservationV1,
+    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1,
 };
 pub(super) mod values;

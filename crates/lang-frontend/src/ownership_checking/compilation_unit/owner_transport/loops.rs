@@ -7,7 +7,8 @@ pub(in crate::ownership_checking::compilation_unit) use invariant::{
     InvariantLoopBoundaries, InvariantLoopValueV1,
 };
 pub use invariant::{
-    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantBreakObservationV1,
+    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerLoopBindingV1,
 };
 
