@@ -392,3 +392,32 @@ fn failed_constant_evaluation_preserves_independent_operand_error() {
         Some("/"),
     );
 }
+
+#[test]
+fn failed_evaluation_does_not_hide_independent_constant_qualification() {
+    for consumer in [
+        "const val COPY = false && ((true == false) || (FORWARD == 0))\nconst val FORWARD = B.BAD + 1",
+        "const val FIRST: Boolean = SECOND || ((true == false) && (B.BAD == 0))\nconst val SECOND: Boolean = FIRST",
+    ] {
+        check(
+            [
+                &format!("package a\nimport b.B\n{consumer}"),
+                "package b\nobject B { const val BAD: Int = 1 / 0 }",
+            ],
+            &["L0156", "L0158"],
+            Some("true == false"),
+        );
+    }
+}
+
+#[test]
+fn failed_evaluation_still_blocks_dependent_evaluation_and_cycle_diagnostics() {
+    check(
+        [
+            "package a\nimport b.B\nconst val DOWNSTREAM = 2 % 0 + FORWARD\nconst val FORWARD = B.BAD + 1\nconst val FIRST: Int = SECOND + B.BAD\nconst val SECOND: Int = FIRST",
+            "package b\nobject B { const val BAD: Int = 1 / 0 }",
+        ],
+        &["L0158"],
+        Some("/"),
+    );
+}

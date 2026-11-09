@@ -119,22 +119,25 @@ impl BodyChecker<'_> {
             .iter()
             .filter_map(|(&symbol, &count)| (count == 0).then_some(symbol))
             .collect::<VecDeque<_>>();
+        let mut evaluation_failures = Vec::new();
         while let Some(symbol) = ready.pop_front() {
             if !invalid.contains(&symbol) {
-                let valid = self.check_constant_initializer(symbol, &inputs[&symbol])?;
-                let value = if valid {
-                    crate::type_checking::constant_evaluation::evaluate(
-                        self,
-                        inputs[&symbol].expression,
-                    )?
-                } else {
-                    None
-                };
-                if let Some(value) = value {
-                    self.constant_values.insert(symbol, value);
-                } else {
+                if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
                     invalid.insert(symbol);
                     propagate_invalid(&mut invalid, &reverse, [symbol]);
+                } else if dependencies[&symbol]
+                    .iter()
+                    .all(|target| self.constant_values.contains_key(target))
+                {
+                    match crate::type_checking::constant_evaluation::evaluate(
+                        self,
+                        inputs[&symbol].expression,
+                    )? {
+                        Some(value) => {
+                            self.constant_values.insert(symbol, value);
+                        }
+                        None => evaluation_failures.push(symbol),
+                    }
                 }
             }
             for &dependent in reverse.get(&symbol).into_iter().flatten() {
@@ -181,6 +184,10 @@ impl BodyChecker<'_> {
                 }
             }
         }
+        // A failed value does not invalidate operand types or hide qualification
+        // errors. It only blocks dependent evaluation and cycle diagnostics.
+        invalid.extend(evaluation_failures.iter().copied());
+        propagate_invalid(&mut invalid, &reverse, evaluation_failures);
         // An invalid dependency blocks qualification and evaluation. Still let the
         // ordinary body pass find independent type errors in skipped initializers.
         self.constant_recovery_only

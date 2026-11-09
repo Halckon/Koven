@@ -182,8 +182,8 @@ L0157。错误注解只使所在常量及其依赖者失效，跳过常量检查
 复合依赖类型不追加资格级联。表达式资格复用依赖遍历，以首个非法子表达式的 Span 产生 L0156。
 普通类型错误与 L0155 先处理，短路 RHS 仍检查资格。无环节点在类型资格通过后调用共享 evaluator，
 适配器映射 source-qualified 表达式、已选常量值和整数类型。短路、String/Char 解码及算术由共享内核执行。
-求值失败产生 L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
-类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布；错误时不保留部分常量事实。
+求值失败产生 L0158，阻断依赖求值和环诊断，保留类型与资格检查。循环不求值。声明计数、值完整性、
+读取类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布，错误时不保留部分常量事实。
 `validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
 解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。 `type_constants` 三项求值消费者以双入口保留算术失败、短路/依赖边界与关联常量字宽的诊断/span oracle。
 
