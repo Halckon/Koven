@@ -4491,3 +4491,44 @@ Unit 通用 direct loan-end 观测仍不覆盖嵌套借用结果实参，此处�
 的其他 `Borrow Int?` 参数接收 `Int` 时仍报 `InvalidModel`，即使
 外层是精确 Borrow。传 `null` 或已有 nullable 槽的对照可运行，
 这一独立的参数包装遗漏留后续处理。
+
+## 183. R3/R4 普通 nullable 借用存储批次合并验收
+
+[PR #400](https://github.com/Halckon/Koven/pull/400) 的 head `4879cf78`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42689614938)
+通过 15 个作业，Editor lexical 按范围跳过。两宿主的定向日志分别
+确认本批 11 项借用回归实际执行并通过。macOS 的既有 LLDB 用例因
+debugserver 权限忽略，§175 另有前一代码树的本机运行证据。
+
+两端预览归档实算哈希与生产、消费清单相符，各 12 项独立命令、
+哨兵及清理通过。基线 `2b1e8f1e`、合成提交 `7cac65d6`、实际合入
+`53f1227f`，合成和实际合入树均为
+`8c55319f1396a98f0b0ed27047f6cac051f7b94a`，无未决审阅线程。
+§181 的 [#399 合入后主干 CI](https://github.com/Halckon/Koven/actions/runs/42689444198)
+随后成功。另启动了 [#400 合入后主干 CI](https://github.com/Halckon/Koven/actions/runs/42694684754)。
+
+## 184. R4 借用结果生产者的辅助 nullable 实参
+
+在 `c314c867` 上，`view(source: Int, aux: Int?): borrow Int from source`
+的非来源实参接收 `Int` 时通过公开检查，原生构建报 `InvalidModel`。
+外层精确 Borrow 和 nullable 消费者均复现。把辅助实参换成已有
+nullable 存储或 `null` 后可运行。新增原生回归在修改前实际失败。
+
+来源调用 lowering 继续按源码顺序读取每个实参，并用已选描述符
+填充 ABI 参数槽。只有非来源槽、Copyable payload 和同一调用实参
+的同源 Shared Temporary 事实同时成立，才复用普通 nullable 包装，
+借用新槽并在内层调用返回时结束该 loan。具名映射或分组常量可有
+不同 operand/backing ID；实际来源槽和已有 nullable Place 保留原路径。
+
+最终原生矩阵含六种实参组合，覆盖外层精确与 nullable 结果、具名
+求值顺序、转发借用、已有 nullable 存储、`null` 和分组常量。
+最终 SSA 借用调用与 Range 调用前缀各六项通过，零失败或忽略，
+各过滤 2805 项。加入分组常量前的扩大借用结果集合 43 项通过，
+零失败或忽略，2768 项过滤。严格 workspace Clippy 和 CLI build
+通过。八组公开程序在单文件和项目入口均实际构建、执行并核对
+输出，另包括具名类字段读取。
+
+独立复核确认匿名临时类的字段投影仍有另一条前端边界。精确
+`Borrow Int` 会发布 backing owner 的 CallReturn drop；转换为
+`Borrow Int?` 时没有该事实。两种匿名投影在基线原生路径均报
+`UnsupportedNode`，该资源边另行复审。
