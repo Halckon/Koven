@@ -74,6 +74,9 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         let ordinary_edges = plan.is_none().then(|| {
+            if self.typed.ordinary_rhs_bypassed(control) {
+                return (false, true);
+            }
             if self.typed.ordinary_rhs_required(control) {
                 return (true, false);
             }

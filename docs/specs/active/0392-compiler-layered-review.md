@@ -4293,3 +4293,92 @@ CLI 单文件和项目的本机运行均依次输出 `narrowed`、`mutated` 和 
 Basic 的可达前驱和收窄证明。§172 的普通 nullable Borrow 注入仍未修复。
 旧 Single 对被拒绝的 `inout` 调用仍可能撤销已有非空事实并产生额外诊断；
 该调用未发布有效描述符。
+
+## 174. R4 Basic 短路与后端收窄证明
+
+在 `31d36974` 上，字面 `false && clear(&x)` 与复合左式
+`!(left() && false) || clear(&x)` 后的非空读取均通过前端，原生生成
+却在后续 `x` 处报 `MissingFact`。两个原生回归均实际失败。Basic
+lowering 为已知跳过的 RHS 建了写回边，该边在合流时撤销了已有证明。
+
+类型检查复用按源隔离的语法证明，只发布逻辑 RHS 必跳过的事实。
+refine 和兼容 lowering 在左侧完成后消费 Basic 跳过边，保留左侧副作用
+和提前退出。refine 准入继续核验保守 ownership 的 RHS 事实；builder
+只按执行点将未进入的 RHS 与对应退出边标为不可达。独立复核发现提前
+剪枝准入会漏登记字段替换清理，最终候选保留原准入检查，并用带
+`inout` 的函数验证字段替换计划仍能生成原生程序。Const 入口继续
+消费其原有执行计划，未知和必执行 RHS 仍沿用既有路径。
+
+五组前端单元和集成测试共 894 项通过，零失败、忽略或过滤。最终后端
+`short_circuit` 83 项通过，零失败或忽略，2719 项过滤。组内的
+早退见证也单独通过，覆盖 refine 与兼容路线。既有资源计数用例继续
+核对 Basic skip cleanup。旧候选的后端全量已停止，结果不计入验收。
+严格 workspace Clippy、格式和差异检查通过。原组合反例通过 CLI
+单文件与项目构建及执行，跳过两次写入，保留非空读取，随后实际写入
+一次，依次输出 `narrowed`、`mutated` 和 `null`。最终独立复核确认
+原准入路径、清理执行点及早退均保留。
+
+Basic 所有权和实例规划仍保守处理死 RHS；本批仅调整执行路径。
+§172 的 nullable Borrow 临时注入仍待复审。另实测普通
+`mutate(target = &(x))` 通过公共检查，但在原生生成时报
+`UnsupportedNode`，待核对分组实参的 loan 事实与 lowering 准入。
+
+## 175. R4 分组 Inout 实参的原始 loan 身份
+
+在 `79196577` 上，`forward(target = &((x)))` 与函数内的
+`clear(value = &((target)))` 通过公共检查，但原生构建报
+`UnsupportedNode`。refine 的准入与构建各自要求 operand 本身是 Name。
+
+复用两侧已有的直接 place 名称解析，只为定位存储穿过透明分组。
+类型、exclusive loan、源码位置及调用均继续使用原实参身份。转发参数
+沿用已有的独占借用，调用者的局部变量继续在借用结束后读回存储。
+字段、索引和临时值仍受原有准入限制。
+
+后端 `--lib inout` 40 项通过，零失败或忽略，2763 项过滤。
+严格 codegen Clippy 通过。CLI 单文件与项目均执行两级调用并输出
+`cleared`，退出 0。独立复核核对了原外层 operand loan、转发与
+局部写回的不同路径。以同一代码树显式运行本机 LLDB 源码断点及
+栈帧回归，1 项通过，零失败或忽略，2802 项过滤。
+
+## 176. R3/R4 Nullable Borrow 注入的路由和来源核对
+
+以 `b2f8e7f3` 的本机 CLI 和 Basic Unit API 核对 §172 的剩余反例。
+`fun read(x: Int?): Int = if (x == null) 0 else x` 的调用 `read(7)`
+与 `val n: Int = 7; read(n)` 都通过检查，原生构建分别在 `7` 和
+`n` 处报 `MissingFact`。前者的 Shared loan 指向源码合格的 Temporary，
+后者指向 `n` 的根 Place。给调用方加无关 `val anchor: Int? = null`
+后两种实参均可运行；值参数对照和 `read(null)` 也能运行。应同时复审
+临时包装和具名值的拷贝，不能依靠无关声明选择后端路径。
+
+另实测 `fun view(source: Int?): borrow Int? from source = source`。
+`borrow val item = view(n)` 在 `n: Int` 与 `n: Int?` 两种情况下均
+通过检查、在当前 native 路径均报 `UnsupportedNode`；`view(7)`
+作为同一绑定的初始化则报告 L0162。这里必须另行核对来源是原存储
+还是 nullable 转换生成的临时。已有 nullable 存储上的非空读取也不能
+仅凭表达式收窄类型判成转换。暂未修复这组反例，现有原生拒绝不能
+充当前端来源正确性的证据。
+
+## 177. R0 旧入口直接调用增量核对
+
+沿用 §151 的四个范围及五个调用名，在 `b2f8e7f3` 重跑直接调用清点。
+frontend src、codegen src 与其他 crates 的数值均一致。frontend tests
+的 `resolve_names` 为 66 文件 / 134 匹配行，`check_types` 为
+55 文件 / 88 匹配行，各增加 1。差异唯一来自 §173
+`type_callable/inout_storage.rs` 的显式 Single 对照。其 MemoryDocument
+和 Rooted Unit 实跑同一输入，Single 见证可暴露旧检查器的诊断或存储
+事实偏差。其余三个入口计数不变。仍需逐个处置保留测试见证，不能
+从直接调用计数推断仓外 API 或间接调用已经迁移。
+
+## 178. R1/R2 合批合并验收
+
+[PR #398](https://github.com/Halckon/Koven/pull/398) 的最终 head
+`b6cb2bb7` 经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42675895710)
+通过。双宿主 Check/Clippy、定向测试、预览生产与独立消费、CI Passed
+及 Code CI Evidence 共 15 个作业成功。Editor lexical 按变更范围跳过。
+逐宿主核验新增 Parser/Inout 回归均实际执行。macOS 定向套件的既有
+LLDB 用例因 debugserver task-port 权限忽略，§175 另有后继本机实跑。
+
+两端产物均核对归档 SHA256、生产与消费清单及 12 项独立执行命令。
+基线 `74851679`、合成提交 `3a6c4bad`、实际合入 `94768a91`，
+合成和合入树均为 `25cf3ece844d7b6b344b104ab00812085d1718a2`。
+合并时无未决审阅线程；上述验收限于该 PR 候选。

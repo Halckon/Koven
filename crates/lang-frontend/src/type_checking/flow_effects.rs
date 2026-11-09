@@ -41,7 +41,7 @@ pub(super) fn logical_rhs_is_required(
     }
 }
 
-/// Syntactic outcomes bound possible writes. They do not qualify control-flow products.
+/// Syntactic outcomes prove which logical operands can execute without constant evaluation.
 pub(super) struct SyntacticBooleanOutcomes<'a> {
     ast: &'a SyntaxAst,
     outcomes: OnceCell<Vec<(bool, bool)>>,

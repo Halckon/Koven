@@ -391,11 +391,16 @@ fun exitsInWhileCondition(): Int { /*route*/
     return 0
 }
 fun exitsOnRequiredRhs(): Int { /*route*/ true && ((return 12) == 0) }
+fun exitsBeforeBypass(flag: Boolean): Int { /*route*/
+    val ignored = ((if (flag) { println("left"); return 41 } else true) && false) && (rhs() == 0)
+    return 7
+}
 fun main(): Unit {
     if (exitsOnLeft() == 3 && exitsOnRight() == 4 && exitsBeforeShortCircuit() == 5
         && maybeExitsInShortCircuit(false) == 6 && maybeExitsInShortCircuit(true) == 7
         && exitsOnCondition() == 8 && exitsBeforeNullableRhs(false) == 10
-        && exitsInWhileCondition() == 11 && exitsOnRequiredRhs() == 12) {
+        && exitsInWhileCondition() == 11 && exitsOnRequiredRhs() == 12
+        && exitsBeforeBypass(true) == 41 && exitsBeforeBypass(false) == 7) {
         println("exit order")
     } else { error("wrong return") }
 }
@@ -412,6 +417,7 @@ fun main(): Unit {
         "exitsBeforeNullableRhs",
         "exitsInWhileCondition",
         "exitsOnRequiredRhs",
+        "exitsBeforeBypass",
     ] {
         assert!(
             routed
@@ -420,7 +426,7 @@ fun main(): Unit {
             "{function} must stay on the refinement route: {routed:?}"
         );
     }
-    crate::native_tests::boxed_enum_tests::assert_success(&refined, b"lhs\nexit order\n");
+    crate::native_tests::boxed_enum_tests::assert_success(&refined, b"lhs\nleft\nexit order\n");
     let per_family = super::refine::with_per_family_lowering(|| run(source));
-    crate::native_tests::boxed_enum_tests::assert_success(&per_family, b"lhs\nexit order\n");
+    crate::native_tests::boxed_enum_tests::assert_success(&per_family, b"lhs\nleft\nexit order\n");
 }
