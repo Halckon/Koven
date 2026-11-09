@@ -619,3 +619,93 @@ fn file_class_angle_recovery_does_not_change_function_parameter_recovery() {
         }
     }
 }
+
+#[test]
+fn unfinished_file_type_parameters_preserve_the_next_root_after_newline() {
+    let sentinel = "public const val sentinel: Boolean = 2 > 1";
+    let kept = "fun kept(): Unit {}";
+    for (header, expected) in [
+        ("interface C<T", &["L0010"][..]),
+        ("interface C<T: Box<Int", &["L0010", "L0010"][..]),
+        ("interface C<\nT\n>", &[][..]),
+        ("interface C<\nborrow\n>", &[][..]),
+        ("interface C<T: pkg.\nvalue\n>", &[][..]),
+    ] {
+        let input = format!("{header}\n{sentinel}\n{kept}");
+        let (sources, parsed) = file(&input);
+        let ast = parsed.ast().items();
+        let roots = parsed
+            .roots()
+            .iter()
+            .map(|root| sources.slice(ast.get(*root).unwrap().span()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(roots, [header, sentinel, kept], "{input}");
+        assert_eq!(codes(parsed.diagnostics()), expected, "{input}");
+        for diagnostic in parsed.diagnostics() {
+            assert!(diagnostic.primary_span().is_empty());
+            assert_eq!(diagnostic.primary_span().start(), header.len() + 1);
+        }
+    }
+}
+
+fn assert_file_angle_keeps_following_declaration(header: &str, following: &str) {
+    let kept = "fun kept(): Unit {}";
+    let input = format!("{header}\n{following}\n{kept}");
+    let (sources, parsed) = file(&input);
+    let ast = parsed.ast().items();
+    let roots = parsed
+        .roots()
+        .iter()
+        .map(|root| sources.slice(ast.get(*root).unwrap().span()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(roots, [header, following, kept], "{input}");
+    assert!(
+        parsed
+            .diagnostics()
+            .iter()
+            .all(|diagnostic| diagnostic.primary_span().end() <= header.len() + 1),
+        "{input}: {:?}",
+        parsed.diagnostics()
+    );
+}
+
+#[test]
+fn file_angle_keeps_soft_declaration_after_an_unfinished_qualified_bound() {
+    assert_file_angle_keeps_following_declaration(
+        "interface C<T: pkg.",
+        "value class Sentinel(val y: Int)",
+    );
+}
+
+#[test]
+fn file_angle_keeps_split_value_class_after_a_recovered_comparison_group() {
+    assert_file_angle_keeps_following_declaration(
+        "interface C<T break f(2 > 1)",
+        "value\nclass Sentinel(val y: Int)",
+    );
+}
+
+#[test]
+fn file_angle_keeps_borrow_extension_prefix() {
+    assert_file_angle_keeps_following_declaration(
+        "interface C<T",
+        "borrow fun String.byteLength(): Int = textByteLength(this)",
+    );
+}
+
+#[test]
+fn file_angle_keeps_split_soft_prefixes_without_a_comparison_group() {
+    for (header, following) in [
+        ("interface C<T", "value\nclass Sentinel(val y: Int)"),
+        (
+            "interface C<T break f(1)",
+            "value\nclass Sentinel(val y: Int)",
+        ),
+        (
+            "interface C<T: pkg.",
+            "borrow\nfun String.byteLength(): Int = textByteLength(this)",
+        ),
+    ] {
+        assert_file_angle_keeps_following_declaration(header, following);
+    }
+}
