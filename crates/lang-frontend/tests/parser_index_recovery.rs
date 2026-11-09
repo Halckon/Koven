@@ -4,8 +4,8 @@
 mod parser_test_assertions;
 
 use lang_frontend::{
-    ast::ExpressionId,
-    parser::{BinaryOperator, Expression, Item, Statement, StringPart, SyntaxAst},
+    ast::{ExpressionId, StatementId},
+    parser::{BinaryOperator, Expression, Item, NameMarker, Statement, StringPart, SyntaxAst},
     source::SourceMap,
 };
 use parser_test_assertions::{parse_block_twice, parse_expression_twice, parse_file_twice};
@@ -338,6 +338,170 @@ fn adjacent_poison_before_a_file_boundary_does_not_become_a_file_root() {
         text.find("val next").unwrap()
     );
     assert!(closing.primary_span().is_empty());
+}
+
+fn local_names<'a>(
+    sources: &'a SourceMap,
+    ast: &SyntaxAst,
+    elements: &[StatementId],
+) -> Vec<&'a str> {
+    elements
+        .iter()
+        .filter_map(|element| {
+            let Statement::LocalVariable { declaration } =
+                ast.statements().get(*element).unwrap().payload()
+            else {
+                return None;
+            };
+            let Item::Variable {
+                name: NameMarker::Present(name),
+                ..
+            } = ast.items().get(*declaration).unwrap().payload()
+            else {
+                return None;
+            };
+            Some(sources.slice(*name).unwrap())
+        })
+        .collect()
+}
+
+#[test]
+fn a_paired_index_leaves_the_block_semicolon_and_next_declaration() {
+    for (key, key_is_error) in [("key", false), ("key β", true), ("β", true), ("", true)] {
+        let text = format!("{{ xs[{key}; val saved = 1\n]\nval later = saved }}");
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("index-semicolon.ko", &text).unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let Statement::Expression { expression } =
+            ast.statements().get(elements[0]).unwrap().payload()
+        else {
+            panic!("expected first index expression");
+        };
+        assert_index(
+            &sources,
+            ast,
+            *expression,
+            &format!("xs[{key}"),
+            key,
+            key_is_error,
+        );
+        assert_eq!(local_names(&sources, ast, elements), ["saved", "later"]);
+        let closing = parsed
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0010")
+            .unwrap();
+        assert_eq!(closing.primary_span().start(), text.find(';').unwrap());
+        assert!(closing.primary_span().is_empty());
+    }
+}
+
+#[test]
+fn nested_paired_indexes_leave_the_inherited_block_separator_after_poison() {
+    for key in ["β", "key β", ""] {
+        let text = format!("{{ xs[ys[{key}; val saved = 1\n]]\nval later = saved }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("nested-index-semicolon.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        assert_eq!(
+            local_names(&sources, ast, elements),
+            ["saved", "later"],
+            "{text}"
+        );
+        let first = ast.statements().get(elements[0]).unwrap();
+        assert_eq!(
+            sources.slice(first.span()),
+            Ok(&text[2..text.find(';').unwrap()])
+        );
+    }
+}
+
+#[test]
+fn a_paired_index_comma_tail_cannot_hide_a_block_separator_in_a_nested_index() {
+    let text = "{ xs[key, { -> val local = 1; val inner = 2 }, junk[other; /* next element */ var saved = 1\n], rest]\nval later = saved }";
+    let mut sources = SourceMap::new();
+    let id = sources
+        .add_source("index-comma-semicolon.ko", text)
+        .unwrap();
+    let parsed = parse_block_twice(&sources, id, text);
+    let ast = parsed.ast();
+    let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+    else {
+        panic!("expected block");
+    };
+    assert_eq!(local_names(&sources, ast, elements), ["saved", "later"]);
+    let Statement::Expression { expression } = ast.statements().get(elements[0]).unwrap().payload()
+    else {
+        panic!("expected first index expression");
+    };
+    assert_index(
+        &sources,
+        ast,
+        *expression,
+        "xs[key, { -> val local = 1; val inner = 2 }, junk[other",
+        "key",
+        false,
+    );
+}
+
+#[test]
+fn a_paired_index_comma_tail_leaves_recognizable_block_statements() {
+    for (statement, is_expected) in [
+        (
+            "borrow /* binding */ val saved = source",
+            (|node: &Statement| matches!(node, Statement::LocalVariable { .. }))
+                as fn(&Statement) -> bool,
+        ),
+        ("while (flag) { work() }", |node| {
+            matches!(node, Statement::While { .. })
+        }),
+        ("for (item in source) { work() }", |node| {
+            matches!(node, Statement::For { .. })
+        }),
+        ("loop { break }", |node| {
+            matches!(node, Statement::Loop { .. })
+        }),
+    ] {
+        let text = format!("{{ xs[key, 2; {statement}\n]\nval later = 0 }}");
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("index-statement-separator.ko", &text)
+            .unwrap();
+        let parsed = parse_block_twice(&sources, id, &text);
+        let ast = parsed.ast();
+        let Statement::Block { elements } = ast.statements().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("expected block");
+        };
+        let next = ast.statements().get(elements[1]).unwrap();
+        assert_eq!(sources.slice(next.span()), Ok(statement));
+        assert!(
+            is_expected(next.payload()),
+            "{statement}: {:?}",
+            next.payload()
+        );
+        assert_eq!(
+            sources.slice(
+                ast.statements()
+                    .get(*elements.last().unwrap())
+                    .unwrap()
+                    .span()
+            ),
+            Ok("val later = 0")
+        );
+    }
 }
 
 #[test]

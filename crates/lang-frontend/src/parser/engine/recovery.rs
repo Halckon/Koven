@@ -6,7 +6,8 @@ mod ordinary_groups;
 
 use ordinary_groups::{GroupClosers, OrdinaryGroups, group_delimiter};
 
-pub(super) struct LexicalRecoveryIndex {
+pub(super) struct LexicalRecoveryIndex<'source> {
+    source: &'source str,
     pub(super) source_len: usize,
     string_owner_ends: Vec<(usize, usize)>,
     string_recoveries: Vec<(usize, usize)>,
@@ -44,8 +45,11 @@ enum LexicalDiagnosticAnchor {
     InterpolationStart,
 }
 
-impl LexicalRecoveryIndex {
-    pub(super) fn new(source: &str, lexed: &LexedFile) -> Result<Self, ParserInternalError> {
+impl<'source> LexicalRecoveryIndex<'source> {
+    pub(super) fn new(
+        source: &'source str,
+        lexed: &LexedFile,
+    ) -> Result<Self, ParserInternalError> {
         let catalog = codes::catalog()?;
         let unexpected_character = catalog.resolve(codes::UNEXPECTED_CHARACTER)?;
         let reserved_word = catalog.resolve(codes::RESERVED_WORD)?;
@@ -328,6 +332,7 @@ impl LexicalRecoveryIndex {
         lexical_poison_string_recoveries.sort_unstable();
         lexical_poison_string_recoveries.dedup_by_key(|(start, _)| *start);
         Ok(Self {
+            source,
             source_len: source.len(),
             string_owner_ends,
             string_recoveries,
@@ -801,8 +806,12 @@ impl Parser<'_> {
             // Only proven local groups can hide the caller's stops.
             if outside_owner
                 && proven_groups
-                && let Some((last, closer)) =
-                    self.proven_postfix_recovery_step(raw_index, symbol, first.0)?
+                && let Some((last, closer)) = self.proven_postfix_recovery_step(
+                    raw_index,
+                    symbol,
+                    first.0,
+                    stops.has_semicolon(),
+                )?
             {
                 if let Some(closer) = closer
                     && paired_groups

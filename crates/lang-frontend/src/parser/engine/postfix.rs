@@ -151,12 +151,20 @@ impl Parser<'_> {
         raw: usize,
         symbol: Option<Symbol>,
         recovery_start: usize,
+        preserve_block_semicolon: bool,
     ) -> Result<Option<(usize, Option<usize>)>, ParserInternalError> {
+        let group_closer = |opener| {
+            self.lexical_recoveries.postfix_recovery_closer(
+                self.lexed,
+                opener,
+                opener,
+                preserve_block_semicolon,
+            )
+        };
         match symbol {
-            Some(Symbol::LeftParen | Symbol::LeftBracket | Symbol::LeftBrace) => Ok(Some((
-                raw,
-                self.lexical_recoveries.group_closer(self.lexed, raw),
-            ))),
+            Some(Symbol::LeftParen | Symbol::LeftBracket | Symbol::LeftBrace) => {
+                Ok(Some((raw, group_closer(raw))))
+            }
             Some(Symbol::Less) if self.has_recovery_callee_end(recovery_start, raw) => {
                 let Some(CallTrial::Match {
                     closing_raw: closing,
@@ -169,10 +177,7 @@ impl Parser<'_> {
                 if !self.typed_call_suffix_continues(closing, suffix)? {
                     return Ok(None);
                 }
-                Ok(Some((
-                    closing,
-                    self.lexical_recoveries.group_closer(self.lexed, suffix),
-                )))
+                Ok(Some((closing, group_closer(suffix))))
             }
             _ => Ok(None),
         }
@@ -691,6 +696,12 @@ impl Parser<'_> {
         receiver: ExpressionId,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
+        let outer_stops = if outer_stops.block_elements {
+            outer_stops.with(Stops::SEMICOLON)
+        } else {
+            outer_stops
+        };
+        let block_stop = outer_stops.delimiters & Stops::SEMICOLON;
         let index_stops = outer_stops.without_file_and_semicolon_stops();
         let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
@@ -698,7 +709,7 @@ impl Parser<'_> {
         let inner_stops = index_stops
             .without_lambda_body_soft_stops()
             .with(Stops::RIGHT_BRACKET)
-            .with(Stops::COMMA);
+            .with(Stops::COMMA | block_stop);
         let leading_poison = self.is_poison();
         let diagnostic_count = self.diagnostics.len();
         let mut index = self.parse_expression_bp(0, inner_stops)?;
@@ -720,8 +731,25 @@ impl Parser<'_> {
                 LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
             );
             let caller_boundary = outer_stops.contains(current);
-            let paired_end = if comma || at_bracket || leading_poison || !caller_boundary {
-                self.skip_to_group_closer(opener_raw)?
+            let at_block_separator = block_stop != 0
+                && (self.current_is_symbol(Symbol::Semicolon)
+                    || (self.is_poison_kind(current.kind())
+                        && self.index_poison_tail_boundary()?.is_some_and(|(raw, _)| {
+                            matches!(
+                                self.lexed.lexemes()[raw].kind(),
+                                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+                            )
+                        })));
+            let paired_end = if !at_block_separator
+                && (comma || at_bracket || leading_poison || !caller_boundary)
+            {
+                let closer = self.lexical_recoveries.postfix_recovery_closer(
+                    self.lexed,
+                    opener_raw,
+                    self.current_raw()?,
+                    block_stop != 0,
+                );
+                self.skip_before_closer(closer)?
             } else {
                 None
             };
@@ -775,16 +803,13 @@ impl Parser<'_> {
 
     fn recover_index_poison_tail(
         &mut self,
-        mut stops: Stops,
+        stops: Stops,
         opener: Span,
     ) -> Result<Option<usize>, ParserInternalError> {
         let Some((boundary_raw, end)) = self.index_poison_tail_boundary()? else {
             return Ok(None);
         };
         let boundary = self.lexed.lexemes()[boundary_raw];
-        if stops.block_elements {
-            stops = stops.with(Stops::SEMICOLON);
-        }
         if matches!(boundary.kind(), LexemeKind::Eof) || !stops.contains(boundary) {
             return Ok(None);
         }

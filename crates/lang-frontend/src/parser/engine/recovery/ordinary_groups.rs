@@ -1,8 +1,9 @@
 //! Ordinary delimiter pairing, isolated at every interpolation boundary.
 
 use super::{
-    Keyword, LexedFile, LexemeKind, LexicalRecoveryIndex, NonZeroUsize, Parser,
+    Keyword, LexedFile, Lexeme, LexemeKind, LexicalRecoveryIndex, NonZeroUsize, Parser,
     ParserInternalError, Stops, Symbol, TerminalOwnerEvent, TokenKind,
+    unsupported_block_element_kind,
 };
 
 struct GroupClose {
@@ -16,6 +17,7 @@ struct RecoveryBoundaries {
     local: Option<NonZeroUsize>,
     caller_else: Option<NonZeroUsize>,
     caller_block: Option<NonZeroUsize>,
+    block_statement_separator: Option<NonZeroUsize>,
 }
 
 impl RecoveryBoundaries {
@@ -23,6 +25,9 @@ impl RecoveryBoundaries {
         self.local = self.local.max(child.local);
         self.caller_else = self.caller_else.max(child.caller_else);
         self.caller_block = self.caller_block.max(child.caller_block);
+        self.block_statement_separator = self
+            .block_statement_separator
+            .max(child.block_statement_separator);
     }
 }
 
@@ -63,10 +68,10 @@ impl GroupClosers {
     }
 }
 
-impl LexicalRecoveryIndex {
+impl LexicalRecoveryIndex<'_> {
     fn ordinary_groups(&self, lexed: &LexedFile) -> &GroupClosers {
         self.group_closers
-            .get_or_init(|| group_closers(lexed, &self.terminal_owner_events))
+            .get_or_init(|| group_closers(self.source, lexed, &self.terminal_owner_events))
     }
 
     pub(in crate::parser::engine) fn group_closer(
@@ -75,6 +80,26 @@ impl LexicalRecoveryIndex {
         opener: usize,
     ) -> Option<usize> {
         self.ordinary_groups(lexed).closer(opener)
+    }
+
+    pub(in crate::parser::engine) fn postfix_recovery_closer(
+        &self,
+        lexed: &LexedFile,
+        opener: usize,
+        cursor: usize,
+        preserve_block_semicolon: bool,
+    ) -> Option<usize> {
+        let pair = self.ordinary_groups(lexed).pair(opener)?;
+        let crosses_separator = preserve_block_semicolon
+            && pair
+                .boundaries
+                .block_statement_separator
+                .is_some_and(|semicolon| semicolon.get() >= cursor)
+            && !matches!(
+                lexed.lexemes()[pair.closer].kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+            );
+        (!crosses_separator).then_some(pair.closer)
     }
 }
 
@@ -99,7 +124,7 @@ impl Parser<'_> {
         self.skip_before_closer(closer)
     }
 
-    fn skip_before_closer(
+    pub(in crate::parser::engine) fn skip_before_closer(
         &mut self,
         closer: Option<usize>,
     ) -> Result<Option<usize>, ParserInternalError> {
@@ -176,7 +201,41 @@ pub(super) fn group_delimiter(symbol: Symbol) -> Option<(usize, bool)> {
     })
 }
 
-fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> GroupClosers {
+fn starts_block_statement(source: &str, tail: &[Lexeme]) -> bool {
+    let mut tokens = tail
+        .iter()
+        .copied()
+        .filter(|lexeme| !matches!(lexeme.kind(), LexemeKind::Trivia(_)));
+    let Some(first) = tokens.next() else {
+        return false;
+    };
+    let kind = first.kind();
+    if matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+    ) || unsupported_block_element_kind(kind)
+    {
+        return true;
+    }
+    if kind != LexemeKind::Token(TokenKind::Identifier) {
+        return false;
+    }
+    match source.get(first.span().start()..first.span().end()) {
+        Some("borrow") => tokens.next().is_some_and(|second| {
+            second.kind() == LexemeKind::Token(TokenKind::Keyword(Keyword::Val))
+        }),
+        Some("loop") => tokens.next().is_some_and(|second| {
+            second.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        }),
+        _ => false,
+    }
+}
+
+fn group_closers(
+    source: &str,
+    lexed: &LexedFile,
+    terminals: &[TerminalOwnerEvent],
+) -> GroupClosers {
     let mut closers = GroupClosers {
         by_opener: vec![None; lexed.lexemes().len()],
         pairs: Vec::new(),
@@ -202,6 +261,15 @@ fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> GroupCl
             && let Some(group) = scope.groups.last_mut()
         {
             group.boundaries.local = NonZeroUsize::new(raw);
+            // A semicolon in a malformed comma tail may still belong to that tail.
+            // Check prefixes selected by block dispatch. The lookaheads never cross a semicolon.
+            if matches!(
+                lexeme.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+            ) && starts_block_statement(source, &lexed.lexemes()[raw + 1..])
+            {
+                group.boundaries.block_statement_separator = group.boundaries.local;
+            }
             if matches!(
                 lexeme.kind(),
                 LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
@@ -240,6 +308,10 @@ fn group_closers(lexed: &LexedFile, terminals: &[TerminalOwnerEvent]) -> GroupCl
                                 .boundaries
                                 .caller_block
                                 .max(group.boundaries.caller_block);
+                            parent.boundaries.block_statement_separator = parent
+                                .boundaries
+                                .block_statement_separator
+                                .max(group.boundaries.block_statement_separator);
                         }
                     }
                     closers.pairs.push(GroupClose {
