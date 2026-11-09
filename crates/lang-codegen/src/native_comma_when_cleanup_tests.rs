@@ -381,3 +381,49 @@ fun main(): Unit {
         b"chosen\nafter when\nguard\nfirst=7\nprobe\nfallback\nafter when\nguard\nsecond=8\n"
     );
 }
+
+#[test]
+fn when_selector_return_stops_value_delivery_but_preserves_an_earlier_match() {
+    let source = r#"
+fun pred(value: Int): Boolean { println("unexpected pred"); return true }
+fun subjectful(flag: Boolean): Int {
+    return when (flag) { true, pred(return 7) -> return 2; else -> 3 }
+}
+fun subjectless(flag: Boolean): Int {
+    return when { flag, pred(return 7) -> return 2; else -> 3 }
+}
+fun main(): Unit {
+    if (subjectful(true) != 2 || subjectful(false) != 7) { error("wrong subjectful result") }
+    if (subjectless(true) != 2 || subjectless(false) != 7) { error("wrong subjectless result") }
+    println("ok")
+}
+"#;
+    let output = emit_link_and_run("when-selector-return.ko", source, "main");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
+    assert_eq!(output.stdout, b"ok\n");
+}
+
+#[test]
+fn when_range_selector_propagates_each_endpoint_exit_in_source_order() {
+    let source = r#"
+fun endpoint(value: Int): Int { println("endpoint"); return value }
+fun lowerExits(value: Int): Int {
+    return when (value) { in endpoint(return 7)..endpoint(2) -> 2; else -> 3 }
+}
+fun upperExits(value: Int): Int {
+    return when (value) { in endpoint(1)..endpoint(return 8) -> 2; else -> 3 }
+}
+fun matches(value: Int): Int {
+    return when (value) { in endpoint(1)..endpoint(2) -> 2; else -> 3 }
+}
+fun main(): Unit {
+    if (lowerExits(1) != 7 || upperExits(1) != 8 || matches(1) != 2) { error("wrong result") }
+    println("ok")
+}
+"#;
+    let output = emit_link_and_run("when-range-selector-exit.ko", source, "main");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
+    assert_eq!(output.stdout, b"endpoint\nendpoint\nendpoint\nok\n");
+}

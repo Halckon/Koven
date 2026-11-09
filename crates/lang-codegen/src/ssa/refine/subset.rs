@@ -523,7 +523,9 @@ impl Checker<'_, '_> {
                 | Expression::Continue { .. }
                 | Expression::If { .. }
                 | Expression::Group { .. }
-        ) || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
+        ) || matches!(node.payload(), Expression::When { .. })
+            && self.inputs.typed.expression_falls_through(id) == Some(false)
+            || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
             && matches!(
                 self.kind(ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::Nothing))

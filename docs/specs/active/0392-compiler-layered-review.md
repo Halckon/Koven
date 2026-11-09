@@ -3153,3 +3153,31 @@ owned nullable when 后再提前退出，均只输出 ok。用于构造兼容路
 nullable when 18 项、Map provider 退出 76 项和原生资源 19 项。以上均零失败、
 零忽略。nullable when 首次过滤没有匹配，验收以更正过滤后的 18 项为准。
 前端与 codegen 全目标 Clippy、格式与文档检查通过。
+
+## 127. R2/R3 when selector 的完成性与写回
+
+在 `ec8a7b9f` 上，两种 Unit 入口均把逗号后 selector 提前 return 的路径误计为
+可继续，导致 L0088。新红测直接比较公开 expression completion。修复在 selector
+停止时仅截断尚未匹配的路径，保留前序 alternative 已送达的 arm。普通匹配仍
+可进入有值 arm，正常未匹配出口仍要求后续 return。value-context 仍执行语法穷尽
+和原分支类型检查，再为新增无正常结果的 selector 形状发布 Nothing。提前退出的
+subject 保留已有静态类型。
+
+私有写回单独跟踪 match/miss 待定键。subjectless selector 复用现有 Boolean 真/假
+边，穷尽且正常返回 Boolean 的 when 也向外发布实际 arm 的真假待定出口。短路
+死 arm 和嵌套 when 死 arm 原错误污染调用者的 L0165，修后只保留源头 Unbound。
+活 arm 仍传播写回，公开 nullable smart-cast 的有写入和无写入对照保持原合同。
+独立复核核对试探快照、Const 和非穷尽边界。
+
+refine 准入接受已验证不完成的 Nothing when，构建不分配结果槽。Range selector
+以已验证的端点求值顺序传播退出。旧原生红测报 MissingFact，修后下限提前退出不求值
+上限，上限提前退出保留已完成的下限调用，正常范围匹配仍返回原值。独立原生探针
+使用带析构的端点和外层 owner，验证 `in ..`、`!in ..<` 的实际释放顺序。
+canonical nullable 两组实测 typed/owned entry 完成性分别对齐为 `[false,false]`
+和 `[false,true]`。独立对照保留死源码 L0112、L0084 和缺 else 的 L0111。
+
+本机 types 两套 384 项、Unit 所有权两套 181 项和两条新增原生回归通过，零失败与
+忽略。前端与 codegen 全目标 Clippy 通过。原生对照使用默认路由，动态 selector 的
+兼容 lowering 仍按既有能力边界审查。
+后端 nullable when 定向 18 项通过，零失败与忽略。旧大文件拆出 selector 检查和
+私有边归并，Rust 尺寸检查通过。
