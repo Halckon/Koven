@@ -434,3 +434,51 @@ fun main(): Unit {
         b"observe\ndrop\nobserve\ndrop\nobserve\ndrop\nok\n",
     );
 }
+
+#[test]
+fn call_argument_while_return_keeps_prefix_loan_on_each_reachable_edge() {
+    let source = r#"
+fun consume(text: String, flag: Boolean): Unit { println(text) }
+fun work(outer: Boolean, loopFlag: Boolean): Unit {
+    consume("outer" + " loan", if (outer) {
+        while (loopFlag) { return }
+        return
+    } else { true })
+}
+fun main(): Unit {
+    work(true, false)
+    work(true, true)
+    work(false, false)
+    println("done")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("argument-while-return.ko", source, "main"),
+        b"outer loan\ndone\n",
+    );
+}
+
+#[test]
+fn grouped_call_argument_while_return_uses_the_same_prefix_owner() {
+    let source = r#"
+fun consume(text: String, flag: Boolean): Unit { println(text) }
+fun work(outer: Boolean, flag: Boolean): Unit {
+    consume(("outer" + " loan"), if (outer) {
+        while (flag) { return }
+        return
+    } else { true })
+}
+fun main(): Unit {
+    work(true, false)
+    work(true, true)
+    work(false, false)
+    println("done")
+}
+"#;
+    crate::ssa::with_per_family_lowering(|| {
+        assert_success(
+            &emit_link_and_run("grouped-argument-while-return.ko", source, "main"),
+            b"outer loan\ndone\n",
+        );
+    });
+}

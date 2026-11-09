@@ -149,6 +149,7 @@ fn string_if_owner_return_guards_preserve_the_original_state() {
                     nullable_children: Vec::new(),
                     loan_arguments: Vec::new(),
                     abi_slots: Vec::new(),
+                    control_prefix_temporaries: Vec::new(),
                     exclusive_root_owners: Vec::new(),
                     shared_field_roots: Vec::new(),
                     field_replace_owner: None,

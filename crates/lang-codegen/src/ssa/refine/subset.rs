@@ -535,11 +535,11 @@ impl Checker<'_, '_> {
                 | Expression::Group { .. }
         ) || matches!(node.payload(), Expression::When { .. })
             && self.inputs.typed.expression_falls_through(id) == Some(false)
-            || self
-                .inputs
-                .typed
-                .call(id)
-                .is_some_and(|desc| desc.aborts() || self.named_nothing_call(desc)))
+            || self.inputs.typed.call(id).is_some_and(|desc| {
+                desc.aborts()
+                    || self.named_nothing_call(desc)
+                    || desc.target() == UnitCallTarget::FunctionValue
+            }))
             && matches!(
                 self.kind(ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::Nothing))

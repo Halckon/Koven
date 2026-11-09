@@ -79,6 +79,102 @@ fun entry(): Unit { worker().stop(argument()); println("unexpected continuation"
 }
 
 #[test]
+fn indirect_nothing_function_pointer_has_no_normal_continuation() {
+    let check = || {
+        assert_abort(
+            "indirect-nothing-pointer",
+            r#"
+fun entry(): Unit {
+    val stop: () -> Nothing = { println("pointer"); error("pointer stop") }
+    stop()
+    println("unexpected continuation")
+}
+"#,
+            "pointer\n",
+            "pointer stop",
+            "error(",
+        );
+    };
+    check();
+    crate::ssa::with_per_family_lowering(check);
+}
+
+#[test]
+fn indirect_nothing_capturing_closure_has_no_normal_continuation() {
+    assert_abort(
+        "indirect-nothing-capture",
+        r#"
+fun entry(): Unit {
+    val message = "captured stop"
+    val stop: () -> Nothing = { println("capture"); error(message) }
+    stop()
+    println("unexpected continuation")
+}
+"#,
+        "capture\n",
+        "captured stop",
+        "error(",
+    );
+}
+
+#[test]
+fn indirect_nothing_borrowed_callback_has_no_normal_continuation() {
+    assert_abort(
+        "indirect-nothing-callback",
+        r#"
+fun invoke(stop: () -> Nothing): Int {
+    println("callback")
+    stop()
+}
+fun entry(): Unit {
+    val stop: () -> Nothing = { error("callback stop") }
+    val result = invoke(stop)
+    println("unexpected continuation")
+}
+"#,
+        "callback\n",
+        "callback stop",
+        "error(",
+    );
+}
+
+#[test]
+fn indirect_nothing_while_keeps_borrowed_operands_off_the_bypass() {
+    assert_indirect_nothing_while_bypass(r#"stop("inner")"#);
+    assert_indirect_nothing_while_bypass(r#"sink("outer", stop("inner"))"#);
+}
+
+#[test]
+fn indirect_nothing_container_prefix_keeps_size_loan_off_the_bypass() {
+    assert_indirect_nothing_while_bypass(r#"val xs = List<Int>(1, stop("inner"))"#);
+}
+
+#[test]
+fn indirect_nothing_map_prefix_keeps_key_and_receiver_loans_off_the_bypass() {
+    assert_indirect_nothing_while_bypass(
+        r#"val m = mapOf<String, String>(); m.withValue("key", stop("inner"))"#,
+    );
+}
+
+fn assert_indirect_nothing_while_bypass(body: &str) {
+    let source = format!(
+        r#"
+fun sink(outer: String, inner: Int): Unit {{ println("unexpected sink") }}
+fun work(flag: Boolean): Unit {{
+    val stop: (borrow String) -> Nothing = {{ text -> error(text) }}
+    while (flag) {{ {body} }}
+    return
+}}
+fun entry(): Unit {{ work(false); println("done") }}
+"#
+    );
+    super::boxed_enum_tests::assert_success(
+        &emit_link_and_run("indirect-nothing-while-bypass.ko", &source, "entry"),
+        b"done\n",
+    );
+}
+
+#[test]
 fn null_assertion_points_at_the_asserted_expression() {
     assert_abort(
         "null-assertion",

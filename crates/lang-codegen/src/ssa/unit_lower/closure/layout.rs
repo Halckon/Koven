@@ -173,10 +173,16 @@ pub(in crate::ssa::unit_lower) fn declare(
                     ParameterMode::Inout => unreachable!("Inout was rejected above"),
                 });
             }
-            let result_expression = (builtin_type(typed, return_type) != Some(BuiltinType::Unit))
+            let result_builtin = builtin_type(typed, return_type);
+            let never_returns = result_builtin == Some(BuiltinType::Nothing);
+            let returns_value = !matches!(
+                result_builtin,
+                Some(BuiltinType::Unit | BuiltinType::Nothing)
+            );
+            let result_expression = returns_value
                 .then(|| lambda_tail_expression(parsed, *body, span))
                 .transpose()?;
-            if typed.copyability(return_type) == Copyability::MoveOnly {
+            if returns_value && typed.copyability(return_type) == Copyability::MoveOnly {
                 let tail = result_expression
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 let tail_node = parsed
@@ -213,10 +219,10 @@ pub(in crate::ssa::unit_lower) fn declare(
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             }
-            let callable_returns = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
-                Vec::new()
-            } else {
+            let callable_returns = if returns_value {
                 vec![types.intern(module, typed, return_type, span)?]
+            } else {
+                Vec::new()
             };
             let mut captures = Vec::new();
             let mut environment_fields = Vec::new();
@@ -292,12 +298,14 @@ pub(in crate::ssa::unit_lower) fn declare(
                 instance.source_unit().index(),
                 expression.index()
             );
+            let signature = crate::ssa::model::CallableSignature {
+                parameters: callable_parameter_types.clone(),
+                returns: callable_returns.clone(),
+                never_returns,
+            };
             let (callable, environment, thunk_parameters) = if captures.is_empty() {
                 let callable = module
-                    .add_function_pointer_type_with_parameters(
-                        callable_parameter_types.clone(),
-                        callable_returns.clone(),
-                    )
+                    .add_function_pointer_signature(signature)
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 (callable, None, callable_parameter_types)
             } else {
@@ -305,10 +313,9 @@ pub(in crate::ssa::unit_lower) fn declare(
                     .add_aggregate_type(format!("{identity}.environment"), environment_fields)
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 let callable = module
-                    .add_concrete_closure_type_with_parameters(
+                    .add_concrete_closure_signature(
                         format!("{identity}.closure"),
-                        callable_parameter_types.clone(),
-                        callable_returns.clone(),
+                        signature,
                         environment,
                         capture_types,
                     )

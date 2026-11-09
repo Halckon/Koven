@@ -99,6 +99,7 @@ fn install_child(
         pending_start: 0,
         created_loans: vec![0],
         abi_slots: Vec::new(),
+        control_prefix_temporaries: Vec::new(),
         field_replace_owner: None,
         shared_field_roots: vec![root],
         exclusive_root_owners: Vec::new(),

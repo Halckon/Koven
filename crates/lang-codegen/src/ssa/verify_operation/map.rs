@@ -138,6 +138,7 @@ pub(super) fn verify_map_operation(
                         kind: LoanKind::Shared,
                         target: value_type,
                     }]
+                && !signature.never_returns
                 && signature.returns.is_empty()
                 && single_value_result(results)
                     .is_some_and(|ty| matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean)))

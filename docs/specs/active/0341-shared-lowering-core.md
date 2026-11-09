@@ -4991,3 +4991,20 @@ main整文件原样插回既有Rc/signature/stress两句，完整保留新loop/w
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。只有包含e87de0ac的精确发布头
 正式CI才可用于本次合并，不复用b282ad05的旧base证据；SPEC-0341与D10/E2仍in-progress。
+
+### #384 保留 #387 间接 Nothing ABI 与 loop call-prefix 主线（2026-11-09）
+
+上轮CI期间 main 又合入 #387，成为 `f2bef461bd1ddb6a7a831fe8a60c67835106d2af`。
+从远端 #384 `f93fdaedfaa215dd2360aa6a641a46d7ee6df19f` 另建隔离工作树，普通
+merge 无冲突，代码头 `0ece41a6`。独立只读复核确认 #387 的35个变更文件与main
+逐字相同，整个codegen与main无差异；既有32个crate消费者变更与上轮同blob，
+owner observer/replay、receiver-prefix及Rc/signature原样保留，未发现合流P1/P2。
+原 #372/#374 及所有既有 #384 历史仍为祖先，不改写任何原分支。
+
+本组合重新实际运行完整frontend lib及13个integration目标，1454项通过，零失败/
+忽略/过滤；计数同上一组合，不重复累计。frontend all-targets严格Clippy、workspace
+fmt、docs、diff及相对f2bef461尺寸门禁通过：863 Markdown、2233 Rust、37项主线
+既有超长，额度不变。Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、
+独占target串行；LLVM21缺失，未运行本地workspace/native/LLVM或frontend全量。
+只有包含f2bef461的精确发布头正式CI才可用于合并，e87de0ac组合旧CI不替代；
+SPEC-0341与D10/E2仍in-progress。

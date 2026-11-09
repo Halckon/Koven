@@ -3490,3 +3490,58 @@ Const Refine 的 `Never` 计划原会从固定左值再建两条边，导致新�
 3 项具名 Nothing 和 16 项 callable identity 测试通过，零失败、零忽略。
 具名 Nothing 计数与控制完成性 SSA 共享一条回归。
 同一合流树的 Unit 类型、所有权与 Const 所有权三套共 474 项通过，零失败、零忽略。
+
+PR #386 精确头 `081549cd` 的[实际双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42577215257)
+通过 Check/Clippy、定向测试、双宿主预览包生产及独立安装、Code CI Evidence 与 CI Passed。
+15 项通过，编辑器词法门禁按改动范围跳过。`main` 合并提交 `e87de0ac` 的树与
+CI 检出的 `f0182570` 一致。
+
+## 136. R4 间接 Nothing 的 callable ABI
+
+在 `081549cd` 上，公共 CLI check 接受无捕获 lambda、共享捕获 closure 和借用
+callback 中的 `() -> Nothing`。三者原生 build 均退出 2，lowering 报
+UnsupportedNode。三个原生回归均在生成目标文件时失败，错误位置落在实际 lambda。
+红测要求保留 callee 输出、SIGABRT 与原始 error 源位置，并跳过调用之后的输出。
+
+待核合同覆盖函数指针、具体 closure 和 callable view。无正常返回必须通过已验证的
+callable 签名传递，普通 Unit 无值返回继续独立验证。调用按原顺序求值并交付实参，
+实际间接调用之后无正常清理或后继。SSA 验证器需拒绝把可正常返回的调用当作
+Unreachable，也需拒绝把可正常返回的 thunk 绑定到无返回签名。LLVM 适配需核对
+实际调用、callback trampoline、无返回属性与终止指令。
+
+本批实现保留前端 callable result 的无返回事实。声明、函数指针、具体 closure、
+callable view 与 thunk 共用完整签名。SSA 验证不允许正常 Unit thunk 形成无返回指针，
+也拒绝无返回调用之后接正常后继或正常调用后伪造 Unreachable。
+LLVM 发出实际 indirect call、noreturn 与 unreachable。借用 callable view 的指针
+trampoline 同样保留该合同。无捕获、无参数 thunk 的保留 lowering 路径已实跑。
+
+独立复核发现普通和专用调用在中止实参后泄漏构建期 loan。普通调用、List size 和
+Map receiver/key 的红测均在候选上复现 InvalidModel。表达式构建入口现在在
+Diverged 后丢弃该表达式新增的 pending loan 记录，已生成的控制转移清理不变。
+本机原生验证 while 正常绕过、普通嵌套调用、List 与 Map 前缀，以及 Const 实参
+break 的资源计数和未实际分派。Unit initializer 与 Map action 的两条 SSA 负控先
+复现误接纳，再验证运行时消费者拒绝无返回签名。独立复核已核对修正后的签名和 loan 边界。
+
+本机间接 Nothing 原生 7 项、SSA verify 112 项、borrowed generation 28 项和
+Unit closure 10 项通过，零失败、零忽略。相关拒绝过滤器的 3 项通过，与 SSA 和
+generation 计数有重叠。
+全工作区全目标 Clippy、格式、文档结构与 Rust 尺寸门禁通过。
+
+
+## 137. R4 普通调用实参内的循环与前缀临时值
+
+在 `50bdf49a` 上，公共前端接受先借用新 String，再在后续实参的 if 分支中求值 while 的程序。
+原生红测在 while 语句报 UnsupportedNode。普通声明调用已通过其专用前缀准入，
+循环只查询旧通用能力，仍拒绝被合法实参借用的临时 owner。默认路径的红测和带
+Group 的强制兼容路径红测分别复现同一拒绝。
+
+构建在已有直接前缀校验成功后，只把已求值的实参临时源身份登记在当前调用帧。
+循环资格仍从既有通用能力或现存调用帧取得，检查所有待携带的临时 owner。
+透明 Group 的别名按当前 CFG 中相同的 owner ValueId 识别，已离开调用帧的身份不能
+开通后续循环。CFG 携带、实参交付、控制转移借用终止与析构仍由原槽位和前端事实决定。
+
+两项原生回归通过，分别走默认和强制兼容路径，实跑循环内 return、循环正常绕过后的
+return 和调用实际交付三条边。间接 Nothing 原生 7 项、旧 Unit 循环 7 项、
+while proof 4 项通过，均零失败、零忽略。独立复核确认透明 alias 重绑定与无关 owner
+拒绝，格式、文档与 Rust 尺寸门禁通过。
+同一候选的全工作区全目标 Clippy 和 CLI 构建通过。

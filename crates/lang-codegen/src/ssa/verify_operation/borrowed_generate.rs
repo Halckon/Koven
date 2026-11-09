@@ -41,6 +41,7 @@ pub(super) fn contract(
     value_type(function, length).is_some_and(|ty| is_koven_int(module, ty))
         && is_koven_int(module, *index)
         && single_value_result(results) == Some(container)
+        && !signature.never_returns
         && (signature.returns == [element]
             || (signature.returns.is_empty()
                 && matches!(module.type_kind(element), Some(SsaTypeKind::Unit))))

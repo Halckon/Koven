@@ -136,6 +136,7 @@ pub(crate) enum MapContainerKind {
 pub(crate) struct CallableSignature {
     pub(crate) parameters: Vec<EntityType>,
     pub(crate) returns: Vec<SsaTypeId>,
+    pub(crate) never_returns: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1043,7 +1044,7 @@ impl fmt::Display for ModelError {
             Self::InvalidCallableReturnArity => {
                 write!(
                     formatter,
-                    "callable signature supports at most one return type"
+                    "callable signature supports at most one result and no result when it never returns"
                 )
             }
             Self::InvalidCallableParameter => {

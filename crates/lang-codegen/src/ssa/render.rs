@@ -64,6 +64,9 @@ fn write_callable_signature(output: &mut String, signature: &CallableSignature) 
         }
         write_entity_type(output, *parameter)?;
     }
+    if signature.never_returns {
+        return output.write_str(") -> never");
+    }
     output.write_str(") -> (")?;
     write_type_ids(output, &signature.returns)?;
     output.push(')');
