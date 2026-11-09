@@ -6452,3 +6452,33 @@ Rust1.96.0、LLVM21.1.8、独占本工作树target串行、默认debug。原始�
 Git忽略的`.local-artifacts/`而不入Git。独立只读审查与最终docs/sizes/diff结果在本地交付核对；
 未跑整个mixed目标、全量codegen/workspace、native进程、Linux、故障/计数/sanitizer或
 精确新头官方CI。未推送、新开PR或合并；仅交统一批次，D10/E2及本Spec保持in-progress。
+
+### 普通 codegen 边界批次的统一组合验收（2026-11-09）
+
+实际 main 仍为 `a4b72d350f9616115a9d5fbed13ca761828ba728`。统一合流提交
+`439b6d2eceeaf525c5ed0a6f034491e78d7b1241` / tree
+`b15ab65d76d3d9725b8c8e0ee2a0a9727905c712` 的有序父级为原资源组合
+`610c1a3a5d8b6a693a49891e3958814c3e1f3df7` 与消费者批次
+`1426ed1beebdba9f80780d335194e19b00561400`。保留双方父链，不重放提交。
+独立核查确认统一侧71个单侧文件、新增侧3个单侧文件逐blob保全；唯一共同SPEC
+精确为原统一全文加候选的新增段，各出现一次。未吸纳尚未合并的 #395。
+
+计数口径更正：前段保留的 `analyze` 22→17实际是文本命中数，混入了函数定义与
+`UnitSource::analyze`；真正旧Legacy `analyze(...)` 调用为20→15。
+`lower_scalar_file` 调用21→16及本批净退休5个真实消费者不变。全部7份原源码逐字保全，
+四条完整诊断与原观测相同；shared UnitSource与生产实现均未因本批修改。
+
+本组合在同一codegen lib二进制逐完整名称 `--exact` 运行74个不同测试：
+前一资源组合67项（23资源SSA、16 callable identity、10 closure、12借用合同、
+3借用native及3资源/环境native）与本批既有7项，实际全部通过，0 failed/ignored。
+独立核查选择文件、命令和成功项集合完全相等，既有67与新7无重叠；此前运行不重复累计。
+codegen all-targets严格Clippy `-W clippy::all -D warnings`、workspace all-targets
+check、fmt、diff均通过；docs865页，Rust尺寸2264文件及37项历史超长通过，未改额度。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、debug=0、jobs=2，独占原统一
+工作树target串行。命令与逐项日志留本机临时验收目录，不入Git。frontend/标准库与
+Cargo/工具链输入仍未变，原729项frontend证据仅复用，不声称本轮重跑。
+未运行整个mixed目标、完整codegen/workspace测试、Linux、额外故障注入或sanitizer；
+新增资源native输出仍不是allocator计数或无泄漏证据。仅本地合流与验收，不更新远端、
+不取消或重跑旧CI、不合并main；发布仍须核当前分支及适用授权并验精确新头。
+D10/E2与SPEC-0341保持in-progress，不由本批5项退休推导旧入口全部清除。
