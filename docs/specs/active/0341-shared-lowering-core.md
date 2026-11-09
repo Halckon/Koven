@@ -5532,3 +5532,53 @@ locked/offline、默认 debug、jobs=2，同一独立 target 串行执行。文�
 未推送、未合并、未触发本片远端 CI。未运行 frontend/workspace 全量测试、Abort、
 CI-only 注入、native 或 Linux。正式 CI 中原 stage 集成选择 `string_clone` 与
 `clone_primitive_integration`，core 选择 lib；配置存在不代表本片已获得 CI 绿灯。
+
+
+## 139. Receiver 与 String.clone 生命周期候选合批（2026-11-09）
+
+本批从已合入 #384 的 main `14297820786476e7d85bf5010ed6861904dae03e` 新建
+`fix/spec-0341-borrow-lifecycle-integration-20261109`，仅复用 receiver 已发布链
+`4f7549eb691b87df719f3ecbb024becc50fcbb4f` 与独立 String.clone 候选
+`8b6dc2e3a9579b130d03647e70acd242723e0446`，不继续拆分新的观察资格。
+receiver 的增量为已在 main 的 `11c93d62` 之后24提交，clone仅一个提交；不重放
+#372/#374、历史批次或另一条动态 owner 链。准备一个借用生命周期 Draft PR，原分支
+不变，不强推或合入 main；此处历史各片的“未推送”描述仍是当时证据，不代表本批状态。
+
+本地三方合流 `44520ecc`（main、receiver 双父）及 `2a33ea05`（前者、clone 双父）
+保留两候选祖先。生产代码除已有接线外没有新语义改动。receiver 合流仅 SPEC 追加段冲突；
+clone 的 dataflow 清空、owner 开关测试、raw 撤销测试及 SPEC 四处冲突均双侧保全。
+main 的 entered/dispatch/completed-argument、CaptureIndex、while/短路与 Nothing
+完成性代码保留。27条候选路径是原两增量的并集，不以旧候选整树覆盖新 main。
+
+组合合同提交 `94e03e031b84f22b9fcf7ff28535f8d87eb6c0c6` 追加一个65行 integration
+模块及两项 raw/owner 测试；现总差异28文件。双 Unit 入口的 Return/Break/Continue
+各格同时产生 receiver normal/prefix/clone 三表1/1/2：已完成 clone 不因 outer receiver
+退出丢失，不可达后缀仍有 typed descriptor 但没有完成事件。raw 合同先核三表非空及
+公开/raw完整相等，再追加后来源 L0134/deferred，逐表核两层清空。复审建议的公开
+receiver 两条空断言已补齐并重跑整个 raw 族。owner 开关仅清 owner observations 后
+比较完整 Analysis，保留 terminal-if 与 clone 原合同，不忽略任何新表。
+
+以下是同一组合代码树的实际本地验收，不沿用旧片311项或旧主线CI：
+
+| 验收项 | 选择 | 结果 |
+|---|---|---|
+| receiver全链及双入口组合 | `unit_direct_call_loan_ends`，继承5项Abort整项不执行 | 231 passed，5 filtered |
+| clone与primitive邻控 | `string_clone`、`clone_primitive_integration` | 19 + 5 passed |
+| raw及公开原子撤销 | `--lib adjacent_borrow_results` | 25 passed，403 filtered；补强后整族重跑通过 |
+| owner开关完整Analysis | `--lib ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests` | 30 passed，398 filtered |
+| borrow/receiver邻控 | continuation、nested、backedge、two-phase，沿用3项Abort排除 | 14 + 9 + 4 + 25 passed |
+| Unit循环退出 | `ownership_iteration control_exits_unit` | 6 passed，196 filtered |
+| main flow与callable邻控 | `while_flow_facts`、`multifile_ownership_checking callable_provenance::` | 12 + 25 passed；后者139 filtered |
+| 静态与跨crate | frontend all-targets严格Clippy、workspace all-targets check、fmt | 通过；最终测试补强后均复跑 |
+| 文档、尺寸及差异 | `check_docs.py`、`check_rust_sizes.py --base 14297820`、diff | 通过；863 Markdown、2244 Rust、37项超过1000行；不增额度 |
+
+共405项不同普通测试，首轮3项与后续复跑不重复累计。Mac AArch64、Rust1.96、LLVM21.1.8，
+locked/offline、默认debug、jobs=2，新的工作树专属target串行运行。继承的8项Abort整项
+及callable邻控的 `call_entry_facts_distinguish_an_exiting_prefix_from_a_dead_operand`
+（含真实 error/Abort 源码）仅编译未执行；没有修改CI selector或删除这些测试。
+未跑 native、Linux、故障注入、压力、frontend/workspace全量或正式双宿主/Preview CI。
+独立只读复核完整28文件、三项新合同与日志，未见P1/P2；405项无重名，三方事实与历史
+账本保全。复审未另跑Cargo；最终文档结构检查复跑通过，精确远端头CI另核。
+
+该批将已有能力集中交付，不提供统一跨表全序、全CFG/absence/动态实例证明或native权限恢复，
+不退休原 Single 见证。call-derived/父子alias/provider等既有边界不扩展；D10/E2保持进行中。

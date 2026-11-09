@@ -39,6 +39,9 @@ Shared loan 的完整身份与 CallReturn 点；在 receiver 的实际规划返�
 错误或任何 deferred 在原始 dataflow 与公开产物两层撤销全表，后续来源失败也不能
 泄露前缀观察。
 当前独立身份和正常/提前退出见证与原 Single oracle 并存，不计作旧入口退休。
+与 Shared receiver normal/prefix 三表的共同非空、提前退出与后来源撤销已有真实组合合同；
+两类表仍独立，不据此推断跨表全序。见
+[生命周期候选合批验收](../specs/active/0341-shared-lowering-core.md#139-receiver-与-stringclone-生命周期候选合批2026-11-09)。
 
 ## 显式 StringClone
 

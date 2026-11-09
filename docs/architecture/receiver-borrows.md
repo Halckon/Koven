@@ -162,3 +162,10 @@ BorrowedStorage、无 parent/source loan、alias operand 为完整根及原来�
 initializer 的实际 L0136 是前置拒绝，不是合法空观察证明；不放行 safe/temporary/index
 来源或 native 权限恢复。原两份字段来源排除源码已原样迁为非空 oracle，证据见
 [字段绑定子借用切片](../specs/active/0341-shared-lowering-core.md#137-首层字段来源借用绑定的-shared-receiver-结束2026-11-09)。
+
+
+Shared receiver 的正常/前缀观察现与 String.clone 独立完成表共同接入同一分析产物。
+组合合同以真实源码同时形成三表，核 Return/Break/Continue 保留已完成 inner clone、
+不可达后缀不伪造完成事件，并核后来源错误/deferred 对 raw 与公开三表的共同撤销。
+owner 观察开关比较完整 Analysis；这些有界组合证据仍不提供跨表动作总序或消费者退休。
+见[生命周期候选合批验收](../specs/active/0341-shared-lowering-core.md#139-receiver-与-stringclone-生命周期候选合批2026-11-09)。
