@@ -22,8 +22,12 @@ impl Checker<'_> {
         explicit_type: Option<TypeId>,
         operands: [(ExpressionId, TypeId); 2],
     ) -> Option<ExprCheck> {
+        let recoveries = operands.map(|(operand, ty)| self.call_operand_recovery(operand, ty));
         let deferred = explicit_type.is_some_and(|ty| self.is_deferred(ty))
-            || operands.iter().any(|&(_, ty)| self.is_deferred(ty));
+            || operands
+                .iter()
+                .zip(recoveries)
+                .any(|(&(_, ty), recovery)| recovery.is_some() && !self.is_error(ty));
         let rejected_here = !valid || explicit_type.is_some_and(|ty| self.is_error(ty));
         if !deferred && !rejected_here && !operands.iter().any(|&(_, ty)| self.is_error(ty)) {
             return None;
@@ -31,9 +35,9 @@ impl Checker<'_> {
         let recovery = if rejected_here {
             CallRecovery::Rejected
         } else {
-            operands
+            recoveries
                 .into_iter()
-                .filter_map(|(operand, ty)| self.call_operand_recovery(operand, ty))
+                .flatten()
                 .max()
                 .unwrap_or(CallRecovery::Pending)
         };

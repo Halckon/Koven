@@ -4,7 +4,7 @@ use super::*;
 impl Checker<'_> {
     pub(in crate::type_checking::checker) fn call_operand_recovery(
         &self,
-        expression: ExpressionId,
+        mut expression: ExpressionId,
         ty: TypeId,
     ) -> Option<CallRecovery> {
         let recovery_for_type = |ty| {
@@ -16,7 +16,25 @@ impl Checker<'_> {
                 None
             }
         };
-        let mut operands = vec![(expression, recovery_for_type(ty)?)];
+        let fallback = loop {
+            if let Some(&recovery) = self.call_recoveries.get(&expression.index()) {
+                return Some(recovery);
+            }
+            if let Some(fallback) = recovery_for_type(ty) {
+                break fallback;
+            }
+            if self.call_recoveries.is_empty() {
+                return None;
+            }
+            // A provisional concrete type can pass through a transparent group.
+            let Expression::Group { expression: inner } =
+                self.ast().expressions().get(expression).ok()?.payload()
+            else {
+                return None;
+            };
+            expression = *inner;
+        };
+        let mut operands = vec![(expression, fallback)];
         let mut recovery = None;
         while let Some((operand, fallback)) = operands.pop() {
             if let Some(&known) = self.call_recoveries.get(&operand.index()) {
@@ -57,6 +75,17 @@ impl Checker<'_> {
             }
         }
         recovery
+    }
+
+    pub(in crate::type_checking::checker) fn rejected_expected_type(
+        &mut self,
+        expression: ExpressionId,
+    ) -> TypeId {
+        if self.call_recoveries.get(&expression.index()) == Some(&CallRecovery::Pending) {
+            self.call_recoveries
+                .insert(expression.index(), CallRecovery::Rejected);
+        }
+        self.error_type()
     }
 
     pub(super) fn pending_call_receiver_exit(
@@ -144,10 +173,10 @@ impl Checker<'_> {
                 parameter.span,
                 &mut reaches_argument,
             )?;
+            let recovery = self.call_operand_recovery(argument.value, result.ty);
             valid &= !self.is_error(result.ty);
-            deferred |= self.is_deferred(result.ty);
-            rejected |= self.call_operand_recovery(argument.value, result.ty)
-                == Some(CallRecovery::Rejected);
+            deferred |= recovery.is_some() && !self.is_error(result.ty);
+            rejected |= recovery == Some(CallRecovery::Rejected);
             if (was_checked || parameter.mode == ParameterMode::Inout)
                 && !self.is_error(result.ty)
                 && !self.is_deferred(result.ty)

@@ -382,3 +382,59 @@ fn map_nullable_borrow_argument_requires_a_non_null_proof() {
         assert!(entries.iter().all(|unit| unit.non_null_uses().is_empty()));
     }
 }
+
+#[test]
+fn single_map_queries_publish_only_with_a_checked_key() {
+    use lang_frontend::{
+        name_resolution::resolve_names,
+        type_checking::{BuiltinType, TypeKind, check_types},
+    };
+    let declarations = "fun reject(inout target: Int, input: Int): Int = input\nfun outer(inout target: Int?, value: Int?): Boolean { target = null; return true }";
+    for (key, rejected, resolved) in [
+        ("1", false, true),
+        ("produce<Int>()", false, false),
+        ("reject(&y, produce<Int>())", true, false),
+    ] {
+        for query in [format!("table[{key}]"), format!("table.get({key})")] {
+            let outer = format!("outer(&x, ({query}))");
+            let text = format!(
+                "{declarations}\nfun run(produce: () -> Int, table: Map<Int, Int>): Unit {{ var x: Int? = 7; var y: Int? = 7; if (x != null) {{ {outer}; val after: Int = /*read*/x }} }}"
+            );
+            let (sources, file) = parsed(&text);
+            let (environment, types) = standard_environments();
+            let names = resolve_names(&sources, &file, &environment).unwrap();
+            let typed = check_types(&sources, &file, &names, &types).unwrap();
+            let expression = |expected| {
+                file.ast()
+                    .expressions()
+                    .iter()
+                    .find(|(_, node)| sources.slice(node.span()) == Ok(expected))
+                    .unwrap_or_else(|| panic!("expression not found: {expected}"))
+                    .0
+            };
+            let query_id = expression(&query);
+            assert_eq!(typed.map_get(query_id).is_some(), resolved, "{text}");
+            assert_eq!(typed.call(expression(&outer)).is_some(), resolved, "{text}");
+            let actual = typed.types().get(typed.expression_type(query_id).unwrap());
+            if rejected {
+                assert_eq!(actual, Some(&TypeKind::Error), "{text}");
+            } else {
+                assert!(
+                    matches!(actual, Some(TypeKind::Nullable(inner))
+                    if typed.types().get(*inner) == Some(&TypeKind::Builtin(BuiltinType::Int))),
+                    "{text}"
+                );
+            }
+            let [diagnostic] = typed.diagnostics() else {
+                panic!("expected one mismatch: {text}: {:?}", typed.diagnostics());
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0084");
+            let offset = if rejected {
+                text.find("reject(&y").unwrap() + "reject(&".len()
+            } else {
+                text.find("/*read*/").unwrap() + "/*read*/".len()
+            };
+            assert_eq!(diagnostic.primary_span().start(), offset, "{text}");
+        }
+    }
+}

@@ -264,7 +264,7 @@ impl Checker<'_> {
             && !self.is_deferred(result.ty)
         {
             self.mismatch(span, expected_span, result.ty, expected)?;
-            result.ty = self.error_type();
+            result.ty = self.rejected_expected_type(id);
         }
         self.record_non_null_use(id, result.ty);
         self.record_null_comparison(id);

@@ -318,3 +318,24 @@ fn projection_recovery_preserves_local_index_errors_and_pending_inputs() {
         assert_inout_diagnostic_spans(text, &[expected]);
     }
 }
+
+#[test]
+fn provisional_map_types_preserve_local_rejections_and_executed_key_writes() {
+    let choose = "fun choose(input: Int): Int = input\nfun choose(input: Boolean): Int = 7";
+    for (value, code) in [("Int?", "L0130"), ("String", "L0136")] {
+        let text = format!(
+            "{choose}\nfun outer(inout target: Int?, value: Int?): Boolean {{ target = null; return true }}\nfun run(produce: () -> Int, table: Map<Int, {value}>): Unit {{ var x: Int? = 7; if (x != null) {{ outer(&x, table[choose(produce<Int>())]); val after: Int = x }} }}"
+        );
+        assert_inout_diagnostic_spans(&text, &[(code, "table[choose(produce<Int>())]")]);
+    }
+    for query in ["table[produce<Int>()]", "table.get(produce<Int>())"] {
+        let text = format!(
+            "fun outer(inout target: Int?, value: Boolean): Boolean {{ target = null; return true }}\nfun run(produce: () -> Int, table: Map<Int, Int>): Unit {{ var x: Int? = 7; if (x != null) {{ outer(&x, ({query})); val after: Int = x }} }}"
+        );
+        assert_inout_diagnostic_spans(&text, &[("L0084", query)]);
+    }
+    assert_inout_diagnostic_spans(
+        "fun write(inout target: Int?): Boolean { target = null; return true }\nfun outer(inout target: Int?, value: Int?): Boolean { target = null; return true }\nfun run(table: Map<Int, Int>): Unit { var x: Int? = 7; var y: Int? = 7; if (x != null && y != null) { outer(&x, table[write(&y)]); val after: Int = x; val written: Int = y } }",
+        &[("L0084", "write(&y)"), ("L0084", "y")],
+    );
+}
