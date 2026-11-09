@@ -4,13 +4,15 @@ use lang_frontend::{
     ast::ExpressionId,
     name_resolution::UnitSymbolId,
     ownership_checking::{
-        BorrowBindingStorage, BorrowSourceLoan, RangeUseSite, UnitDropPoint, UnitLoanTarget,
+        BorrowBindingStorage, BorrowSourceLoan, LoanKind as FrontendLoanKind, RangeUseSite,
+        UnitDropPoint, UnitLoanTarget,
     },
     parser::{CallArgument, Expression},
     source::Span,
     type_checking::{
-        BorrowReturnOrigin, CallableResultSource, ParameterMode, UnitAggregateProjectionReceiver,
-        UnitCallDescriptor, UnitCallReceiverOrigin, UnitExpressionId, UnitTypeId,
+        BorrowReturnOrigin, CallableResultSource, Copyability, ParameterMode,
+        UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallReceiverOrigin,
+        UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -355,7 +357,7 @@ impl Builder<'_, '_> {
         let target = self.ssa_type(self.expression_type(actual)?, span)?;
         let argument_entry = self.current(call_span)?;
         let Some((lowered_args, mut arg_loans, created_loans, view_reads)) =
-            self.lower_source_call_arguments(id, &arguments, &descriptor, call_span)?
+            self.lower_source_call_arguments(id, &arguments, &descriptor, index, call_span)?
         else {
             return Ok(None);
         };
@@ -435,7 +437,7 @@ impl Builder<'_, '_> {
         let receiver = descriptor.receiver().expression();
         let receiver_span = self.span(receiver);
         let Some((source_loan, created, receiver_read)) =
-            self.borrow_call_operand_loan(receiver, receiver_span)?
+            self.borrow_call_operand_loan(receiver, None, receiver_span)?
         else {
             return Ok(None);
         };
@@ -445,7 +447,7 @@ impl Builder<'_, '_> {
         let key = descriptor.key().expression();
         let key_span = self.span(key);
         let Some((key_loan, key_created, key_read)) =
-            self.borrow_call_operand_loan(key, key_span)?
+            self.borrow_call_operand_loan(key, None, key_span)?
         else {
             return Ok(None);
         };
@@ -477,11 +479,12 @@ impl Builder<'_, '_> {
     fn borrow_call_operand_loan(
         &mut self,
         expression: ExpressionId,
+        copy_to: Option<UnitTypeId>,
         span: Span,
     ) -> Result<Option<BorrowCallOperand>, LoweringError> {
         let root = self.ungrouped_expr(expression)?;
         let id = self.unit(root);
-        if self.inputs.typed.aggregate_projection(id).is_some() {
+        if copy_to.is_none() && self.inputs.typed.aggregate_projection(id).is_some() {
             let mut created = Vec::new();
             let Some(loan) = self.clone_field_loan(root, &mut created, span)? else {
                 return Ok(None);
@@ -489,8 +492,8 @@ impl Builder<'_, '_> {
             return Ok(Some((loan, created, Some(expression))));
         }
         let (payload, root_span) = self.node(root)?;
-        let target = self.ssa_type(self.expression_type(expression)?, span)?;
-        if matches!(payload, Expression::Name | Expression::This) {
+        let target = self.ssa_type(copy_to.unwrap_or(self.expression_type(expression)?), span)?;
+        if copy_to.is_none() && matches!(payload, Expression::Name | Expression::This) {
             if let Some(view) = self.narrowed_view(root)? {
                 return Ok(Some((view, Vec::new(), Some(expression))));
             }
@@ -528,6 +531,11 @@ impl Builder<'_, '_> {
         let Some(owner) = self.required(expression)? else {
             return Ok(None);
         };
+        let owner = if let Some(parameter) = copy_to {
+            self.adapt_borrowed(owner, expression, parameter)?
+        } else {
+            owner
+        };
         let place = self.value(ROp::RootPlace { owner }, EntityType::Place(target), span)?;
         let loan = self.value(
             ROp::BorrowBegin {
@@ -549,6 +557,7 @@ impl Builder<'_, '_> {
         call: UnitExpressionId,
         arguments: &[CallArgument],
         descriptor: &UnitCallDescriptor,
+        source_index: usize,
         span: Span,
     ) -> Result<
         Option<(
@@ -633,8 +642,26 @@ impl Builder<'_, '_> {
                     lowered_slots[param_slot] = Some(loan);
                     continue;
                 }
+                let parameter = self.c(param_ty);
+                let copy_to = if param_slot != source_index
+                    && let Some(UnitTypeKind::Nullable(payload)) =
+                        self.inputs.typed.types().get(parameter)
+                    && self.expression_type(value_expr)? == *payload
+                    && self.copyability_of(*payload) == Copyability::Copyable
+                    && self.inputs.owned.loans().iter().any(|loan| {
+                        loan.call() == call
+                            && loan.argument() == arg_id
+                            && loan.kind() == FrontendLoanKind::Shared
+                            && matches!(loan.target(), UnitLoanTarget::Temporary(owner)
+                                if owner.source_unit() == arg_id.source_unit())
+                    }) {
+                    // A narrowed read of an existing nullable Place does not authorize a copy.
+                    Some(parameter)
+                } else {
+                    None
+                };
                 let Some((loan, created, read_expr)) =
-                    self.borrow_call_operand_loan(value_expr, call_arg_span)?
+                    self.borrow_call_operand_loan(value_expr, copy_to, call_arg_span)?
                 else {
                     return Ok(None);
                 };
@@ -696,7 +723,7 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         let Some((lowered_args, _, created_loans, view_reads)) =
-            self.lower_source_call_arguments(call, &arguments, &descriptor, call_span)?
+            self.lower_source_call_arguments(call, &arguments, &descriptor, index, call_span)?
         else {
             return Ok(None);
         };

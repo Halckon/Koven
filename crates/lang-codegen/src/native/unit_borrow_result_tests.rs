@@ -759,3 +759,43 @@ fun main(): Unit {
         crate::native_tests::emit_link_and_run("nested_nullable_cleanup.ko", source, "main");
     crate::native_tests::boxed_enum_tests::assert_success(&output, b"aux\nlater\ncopied\n");
 }
+
+#[test]
+fn borrow_result_auxiliary_nullable_argument_uses_its_mapped_type() {
+    for (name, result, forwarded, argument, expected) in [
+        ("exact", "Int", "Int", "seed()", b"aux\nresult\n".as_slice()),
+        (
+            "promoted",
+            "Int?",
+            "Int",
+            "seed()",
+            b"aux\nresult\n".as_slice(),
+        ),
+        ("forwarded", "Int", "Int", "aux", b"result\n".as_slice()),
+        ("existing", "Int", "Int?", "aux", b"result\n".as_slice()),
+        ("null", "Int", "Int", "null", b"result\n".as_slice()),
+        (
+            "grouped_const",
+            "Int",
+            "Int",
+            "((extra))",
+            b"result\n".as_slice(),
+        ),
+    ] {
+        let check = if result == "Int?" {
+            r#"if (value != null) { if (value == 7) { println("result") } }"#
+        } else {
+            r#"if (value == 7) { println("result") }"#
+        };
+        let source = format!(
+            r#"const val extra: Int = 1
+fun seed(): Int {{ println("aux"); return 1 }}
+fun view(source: Int, aux: Int?): borrow Int from source = source
+fun observe(value: {result}): Unit {{ {check} }}
+fun forward(source: Int, aux: {forwarded}): Unit {{ observe(view(aux = {argument}, source = source)) }}
+fun main(): Unit {{ val n: Int = 7; forward(n, 1) }}"#
+        );
+        let output = crate::native_tests::emit_link_and_run(name, &source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, expected);
+    }
+}
