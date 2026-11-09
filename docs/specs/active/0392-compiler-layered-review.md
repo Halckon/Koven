@@ -2953,3 +2953,17 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 
 原 Single 和新增双 Unit 压力用例先在同一快照各自运行通过。移除旧测试后，本机
 `type_checking` 95 项及 `multifile_type_checking` 283 项全部通过，零失败或忽略。
+
+## 116. R0/R3 待交付 owned 实参的退出验收
+
+原 Single 的五份源码和生成模板逐字保留，迁至 MemoryDocument 与 Rooted Unit。
+检查实际待交付临时值对应的 source-qualified ID，逐项锁定后继实参内部
+`return`、`break`、`continue` 的析构边。普通提交、`Nothing` 调用及新增的
+显式 `error()` 各自验证无该临时值的额外析构事实。原 Single 与迁移对照先同时
+实跑通过，随后两套所有权测试共 186 项通过，零失败或忽略。
+
+五个 CLI 探针实际通过前端、构建及运行，核对普通提交与各控制转移的资源析构顺序。
+正式 native 用例复用真实 `deinit` 标记，对 break 和 continue 分别核对一轮和两轮，
+并以尾部标记检测误续行。Abort 先核对两个资源的构造完成标记，随后仅报告错误及
+SIGABRT，没有析构输出。原生资源套件 18 项及最终加强后的新增定向用例均通过，
+零失败或忽略。此处验证用户可观察的析构次数与顺序。
