@@ -1,7 +1,7 @@
 //! SPEC-0023 顺序容器类型、核心构造与 element-place 测试。
 
 use lang_frontend::{
-    diagnostic::{Diagnostic, DiagnosticDetail},
+    diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
     parser::{Expression, ParsedFile},
     source::SourceMap,
@@ -112,7 +112,7 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
-// Keep independent Single witnesses for deferred recovery and signature storage diagnostics.
+// Keep the independent Single witness for deferred callable-reference recovery.
 fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
@@ -220,16 +220,52 @@ fn non_storable_and_wrong_arity_container_types_are_rejected() {
                     never: List<Nothing>, top: Array<Any>, dynamic: List<Shape>,\n\
                     arity: MutableList<Int, Long>, callable: List<(Nothing) -> Nothing>\n\
                 ): Unit {}";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0125", "L0125", "L0094", "L0091"]
-    );
-    for (_, typed) in checked_entries(text).2 {
+    let (sources, parsed, entries) = checked_entries(text);
+    for (_, typed) in entries {
         assert_eq!(
             codes(typed.diagnostics()),
             ["L0125", "L0125", "L0094", "L0091"]
         );
+        // Freeze the original Single diagnostics, not expectations computed from Unit.
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.message())
+                .collect::<Vec<_>>(),
+            [
+                "sequential container element type is not structurally storable",
+                "sequential container element type is not structurally storable",
+                "interface cannot be used as a runtime value type without dyn",
+                "intrinsic type has the wrong number of type arguments",
+            ]
+        );
+        for (diagnostic, (start, end, primary)) in typed.diagnostics().iter().zip([
+            (41, 48, "Nothing"),
+            (62, 65, "Any"),
+            (82, 87, "Shape"),
+            (97, 108, "MutableList"),
+        ]) {
+            assert_eq!(diagnostic.severity(), Severity::Error);
+            let span = diagnostic.primary_span();
+            assert_eq!(span.source_id(), parsed.source_id());
+            assert_eq!((span.start(), span.end()), (start, end));
+            assert_eq!(sources.slice(span), Ok(primary));
+            if diagnostic.code().to_string() == "L0094" {
+                let [DiagnosticDetail::Label(label)] = diagnostic.details() else {
+                    panic!("one interface declaration label");
+                };
+                assert_eq!(label.message(), "interface declared here");
+                assert_eq!(label.span().source_id(), parsed.source_id());
+                assert_eq!((label.span().start(), label.span().end()), (10, 15));
+                assert_eq!(sources.slice(label.span()), Ok("Shape"));
+            } else {
+                assert!(diagnostic.details().is_empty());
+            }
+        }
+        assert_eq!(typed.signatures().diagnostics(), typed.diagnostics());
+        assert!(typed.body_diagnostics().is_empty());
+        assert!(typed.validate().is_err());
     }
 }
 
