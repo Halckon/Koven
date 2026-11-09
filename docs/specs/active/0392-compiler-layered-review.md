@@ -2939,3 +2939,13 @@ Unit 已产出 `NullableLoanIsNull`，原 operation verifier 只接受句柄布�
 均通过相同的线性倍增断言。原 token 位置、trivia 与 lexical owner 保留。
 本机类声明、上下文 TypeRef 与接口委托三个定向套件共 125 项，另加倍增检查 1 项，
 全部通过，零失败或忽略。
+
+## 115. R0/R2 名义类型深度与接口闭包的测试消费者
+
+原 Single 压力用例的源码生成代码逐字节保留。相同 AST 和环境进入 MemoryDocument
+及 Rooted Unit。原无诊断、Leaf 传递接口闭包 64 项的断言迁移到两个入口，并核对
+接口集合和两入口顺序。沿 `deep` 形参的实际类型，逐层核对 96 层 Box 声明身份和
+单实参，再确认最内层是 Int。保留各入口原有 nominal 与 enum 压力测试。
+
+原 Single 和新增双 Unit 压力用例先在同一快照各自运行通过。移除旧测试后，本机
+`type_checking` 95 项及 `multifile_type_checking` 283 项全部通过，零失败或忽略。

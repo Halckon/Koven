@@ -626,36 +626,6 @@ fn generic_signatures_and_legal_this_types_are_known() {
 }
 
 #[test]
-fn deep_generic_and_long_interface_graphs_stay_deterministic() {
-    let mut text = String::from("class Box<T> {}\ninterface I0 {}\n");
-    for index in 1..64 {
-        text.push_str(&format!("interface I{index} : I{} {{}}\n", index - 1));
-    }
-    text.push_str("class Leaf : I63 {}\nfun deep(input: ");
-    for _ in 0..96 {
-        text.push_str("Box<");
-    }
-    text.push_str("Int");
-    for _ in 0..96 {
-        text.push('>');
-    }
-    text.push_str("): Unit {}\n");
-    let (_, _, resolution, typed) = checked(&text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let leaf = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "Leaf")
-        .expect("Leaf");
-    let descriptor = typed
-        .nominals()
-        .iter()
-        .find(|descriptor| descriptor.id().symbol() == leaf.id())
-        .expect("Leaf descriptor");
-    assert_eq!(descriptor.interfaces().len(), 64);
-}
-
-#[test]
 fn later_phase_nodes_keep_distinct_deferred_reasons() {
     let text = "fun deferred(input: Int): Int = input\n\
                 val forward = later\n\
