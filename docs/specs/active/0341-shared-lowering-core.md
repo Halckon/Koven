@@ -4725,3 +4725,49 @@ Pending/Replace/原根 CallReturn 仍指向实际 call，不替换成 Group；�
 架构保持200行。不运行全量、手工模型/故障注入、native、Linux 或正式精确头 CI；
 这些本机检查不代表主线整合、Phase 4/E3 或完整 D10/E2 完成。状态继续 in-progress。
 依用户最新方向不新增备份，分步提交后 connector 仅发布独立新分支，不覆盖或合并。
+
+## 132. Replace 新安装根值的一次继续运输（2026-11-09）
+
+基于已发布 `82e99797`（与 §130 本地 `a48ae39f` 同树），先核 main `4243ebe5`
+及现有 Choice 分支，未发现重复消费者；相关生产路径没有额外主线改动。本片仍依赖
+未合 Choice 链，不表示新 main 组合验收。Phase 3 沿用现行 replace、move 与 ASAP
+cleanup 合同；不改 Guide、公开 API、V1 validator、通用 hook、旧 cleanup 或 Single 见证。
+
+三句形状现在允许 `var chosen = If/Group If; val previous = replace(...);
+val forwarded = Name/Group chosen`。最后 binding 仍须不可变、精确 String/MoveOnly；
+第二句可用 §130 整调用 Group，RHS 沿原 literal/Group 合同。它是对两个独立输出的
+受限消费：旧 Choice 由 previous 接收，新 definition 继续留在原 chosen，不得混同。
+原三句转交 previous、两句 replace 与 val Choice 一次转交保持原门禁。
+
+replace admission 保存第二声明的精确 AfterStatement 点。新根继续路径不等待或发出
+原根 CallReturn Drop，任何原根提前 Drop 都撤销；旧返回仍须逐层 Consume 完成并
+post-insert 绑定 previous。只有 previous 的真实第二声明 Drop 已退休旧 Choice，
+actual take_named 又成功移出 chosen 后，才将原 RHS producer 的 Definition 存入
+独立 transfer value 槽；不从 symbol、cleanup 或事件历史重建。旧 previous 转交则仍
+要求原根已清理且 previous 未退休；裸 Choice 转交仍运输原 Choice。
+
+transfer 的 result/value/completed/bound 各自跟踪表达式位置、值身份、顺序和绑定。
+Consume/Forward、post-insert 与最终第三声明 Drop 均消费同一 value；Drop 清空槽，
+finish 拒绝残余 value，并保留双边 replay 守恒。漏旧退休、失败 take、错误 source、
+Read、漏层、错序、早/重复绑定或 Drop 均清空整个事务，不影响原合法性和 cleanup。
+
+真实红测在裸 `val forwarded = chosen` 缺 V1 上 1 failed，测试提交 `f0d53095`。
+实现 `a877c251` 的128组合（2条件×4边形态×2整个If分组×2 RHS分组×2返回Group
+深度×2末尾转交分组）逐项核 AST 两边、三 producer、同一 incoming Definition、
+完整 suffix、previous 第二声明 Drop 与 forwarded 第三声明 Drop，chosen 零 Drop；
+独立 sibling 与 observation 开关完整旧 Analysis 保持。9种合法拒绝保留四句、
+var/nullable、concat、capture、调用、If、二次 replace 和循环。旧两条新根拒绝迁入正例。
+21条补充手工trace（1正20负）仅编译未本机执行，不能替代真实源码证据。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_installed_forwarding` 两个普通 exact，不含手工trace | 2 passed，0 failed/ignored |
+| 前片邻控 | §130 同一38项普通 exact，含旧返回Choice/裸Choice运输 | 38 passed，0 failed/ignored |
+| 独立复验 | `a877c251` 上两个新普通 exact，各命中1项 | 2 passed，0 failed；前后HEAD/tree一致 |
+| 严格质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 通过；863 Markdown、2228 Rust、35项既有超限；新trace仅编译 |
+
+Clippy 首轮定位测试同类型 cast，删除冗余 cast 后严格门禁和40项普通 exact 全部重跑
+通过，未放宽断言。独立静审无 blocker；生产 choice/replace 分别881/436行，新测试383行，
+无尺寸例外变化，架构200行。任意后续、投影、incoming Choice、真实循环/phi、
+Phase 4/native 与 E3 仍未开放；未跑全量、手工模型/故障注入、native、Linux 或正式
+精确头 CI。D10/E2 继续 in-progress；不新增备份，不覆盖已有分支或合并。
