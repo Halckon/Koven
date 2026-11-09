@@ -16,7 +16,7 @@ use lang_frontend::{
 
 use lang_frontend::{
     name_resolution::{
-        CompilationUnitNames, SourceUnitInput, index_compilation_unit,
+        CompilationUnitNames, SourceUnitInput, SourceUnitKey, index_compilation_unit,
         resolve_compilation_unit_names,
     },
     ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
@@ -33,9 +33,7 @@ use parser_test_assertions::parse_file_twice;
 
 #[test]
 fn value_class_does_not_supply_an_undeclared_component_method() {
-    use lang_frontend::type_checking::{
-        FinalTypeAdmissionError, complete_compilation_unit_types, complete_file_types,
-    };
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
 
     let mut sources = SourceMap::new();
     let source = sources
@@ -49,22 +47,28 @@ fn value_class_does_not_supply_an_undeclared_component_method() {
         .unwrap();
     let parsed = parse_file_twice(&sources, source, "undeclared component method");
     let (environment, types) = environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    let Err(FinalTypeAdmissionError::Diagnostics(single)) =
-        complete_file_types(&sources, &parsed, &names, &types, &typed)
-    else {
-        panic!("single-file analysis must reject undeclared methods with source diagnostics");
-    };
-    assert!(typed.calls().is_empty());
-    assert!(typed.aggregate_projections().is_empty());
-
-    for input in [
-        SourceUnitInput::memory_document(source, &parsed),
-        SourceUnitInput::new("root", "component.ko", source, &parsed),
+    for (rooted, input) in [
+        (false, SourceUnitInput::memory_document(source, &parsed)),
+        (
+            true,
+            SourceUnitInput::new("root", "component.ko", source, &parsed),
+        ),
     ] {
         let inputs = [input];
         let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let [entry] = index.source_units() else {
+            panic!("one original component source");
+        };
+        assert_eq!(entry.source_id(), source);
+        match (rooted, entry.key()) {
+            (false, SourceUnitKey::MemoryDocument) => {}
+            (true, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "component.ko");
+            }
+            _ => panic!("requested component entry identity"),
+        }
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
             .unwrap()
             .validate()
@@ -77,13 +81,12 @@ fn value_class_does_not_supply_an_undeclared_component_method() {
         };
         assert!(typed.calls().is_empty());
         assert!(typed.aggregate_projections().is_empty());
-        for diagnostics in [&single, &unit] {
-            assert_eq!(codes(diagnostics), ["L0165", "L0165"]);
-            assert!(diagnostics.iter().all(|diagnostic| {
-                sources.slice(diagnostic.primary_span()) == Ok("pair.component1")
-                    && diagnostic.details().is_empty()
-            }));
-        }
+        assert_eq!(codes(&unit), ["L0165", "L0165"]);
+        assert!(unit.iter().all(|diagnostic| {
+            diagnostic.primary_span().source_id() == source
+                && sources.slice(diagnostic.primary_span()) == Ok("pair.component1")
+                && diagnostic.details().is_empty()
+        }));
     }
 }
 

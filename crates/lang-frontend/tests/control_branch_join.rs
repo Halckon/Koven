@@ -3,7 +3,8 @@ use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SourceUnitKey, index_compilation_unit, resolve_compilation_unit_names,
+        resolve_names,
     },
     parser::parse_file,
     source::{SourceMap, Span},
@@ -61,7 +62,7 @@ fn observe(root: &str) -> Vec<Observation> {
     observe_text(&text, root)
 }
 
-// Keep the two entry-specific diagnostic differentials on their real legacy chain.
+// Keep runtime Any rejection on its real Single chain: final and raw diagnostics differ.
 fn observe_legacy_text(text: &str, root: &str) -> Vec<Observation> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("main.ko", text).expect("source");
@@ -208,7 +209,7 @@ fn observe_legacy_text(text: &str, root: &str) -> Vec<Observation> {
     vec![single, unit]
 }
 
-// The other seven whole tests compare the same source under memory and rooted Unit inputs.
+// Ordinary branch contracts compare the same source under memory and rooted Unit inputs.
 fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("main.ko", text).expect("source");
@@ -235,11 +236,24 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     .map(|(mode, input)| {
         let inputs = [input];
         let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let [source_unit] = index.source_units() else {
+            panic!("one original branch source");
+        };
+        assert_eq!(source_unit.source_id(), source);
+        match (mode, source_unit.key()) {
+            ("memory", SourceUnitKey::MemoryDocument) => {}
+            ("unit", SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "main.ko");
+            }
+            _ => panic!("requested branch entry identity"),
+        }
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
             .expect("unit names")
             .validate()
             .expect("valid unit names");
-        let unit = names.names().index().source_units()[0].id();
+        let unit = source_unit.id();
         let typed =
             check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit types");
         let raw = typed.diagnostics().to_vec();
@@ -312,13 +326,6 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     .collect()
 }
 
-fn observe_legacy(root: &str) -> Vec<Observation> {
-    let text = format!(
-        "fun test(flag: Boolean, optional: Int?, wide: Long): Unit {{ val result = {root} }}"
-    );
-    observe_legacy_text(&text, root)
-}
-
 fn roots(left: &str, right: &str) -> [String; 2] {
     [
         format!("if (flag) {left} else {right}"),
@@ -389,19 +396,19 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     ]
     .into_iter()
     .flat_map(|(left, right)| roots(left, right))
-    .flat_map(|root| observe_legacy(&root))
+    .flat_map(|root| observe(&root))
     .map(|o| (BuiltinType::Int, o))
     .collect();
     for root in roots("error(\"left\")", "error(\"right\")") {
         observations.extend(
-            observe_legacy(&root)
+            observe(&root)
                 .into_iter()
                 .map(|o| (BuiltinType::Nothing, o)),
         );
     }
     for root in roots("return 1", "return 2") {
         observations.extend(
-            observe_legacy_text(
+            observe_text(
                 &format!("fun test(flag: Boolean): Int {{ return {root} }}"),
                 &root,
             )
@@ -412,12 +419,14 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     let declaration_boundary: Vec<_> = roots("return 1", "return 2")
         .into_iter()
         .flat_map(|root| {
-            observe_legacy_text(
+            observe_text(
                 &format!("fun test(flag: Boolean): Int {{ val result = {root} }}"),
                 &root,
             )
         })
         .collect();
+    assert_eq!(observations.len(), 20);
+    assert_eq!(declaration_boundary.len(), 4);
     for (expected, o) in observations {
         assert_eq!(o.shape, Shape::Builtin(expected), "{} {o:?}", o.mode);
         assert!(o.raw.is_empty(), "{o:?}");
@@ -581,24 +590,25 @@ fn expected_types_keep_original_mismatch_diagnostics() {
     let mut observations: Vec<_> = roots("1", "\"text\"")
         .into_iter()
         .flat_map(|root| {
-            observe_legacy_text(
+            observe_text(
                 &format!("fun test(flag: Boolean): Unit {{ val result: Int = {root} }}"),
                 &root,
             )
         })
         .collect();
     for root in roots("1", "\"text\"") {
-        observations.extend(observe_legacy_text(
+        observations.extend(observe_text(
             &format!("fun test(flag: Boolean): Int {{ return {root} }}"),
             &root,
         ));
-        observations.extend(observe_legacy_text(
+        observations.extend(observe_text(
             &format!(
                 "fun take(value: Int): Unit {{}}\nfun test(flag: Boolean): Unit {{ take({root}) }}"
             ),
             &root,
         ));
     }
+    assert_eq!(observations.len(), 12);
     for o in observations {
         assert_eq!(
             o.raw

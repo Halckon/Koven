@@ -38,6 +38,44 @@ pub(super) fn template(
     }))
 }
 
+/// Direct invocation selects a resource body only through the proved callable origin.
+/// A completed receiver prefix alone cannot admit a lambda whose arguments never dispatch.
+pub(super) fn directly_invoked_lambda(
+    owned: &CompilationUnitOwnership,
+    parsed: &ParsedFile,
+    call: &lang_frontend::type_checking::UnitCallDescriptor,
+) -> Result<Option<UnitExpressionId>, LoweringError> {
+    if owned.call_may_dispatch(call.expression()) != Some(true) {
+        return Ok(None);
+    }
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(call.expression().expression())
+        .map_err(|_| LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    let Expression::Call { callee, .. } = node.payload() else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+    };
+    let callee = UnitExpressionId::new(call.expression().source_unit(), *callee);
+    let Some(fact) = owned.callable_origin(callee) else {
+        return Ok(None);
+    };
+    let lang_frontend::ownership_checking::UnitCallableOrigin::Lambda(lambda) = fact.origin()
+    else {
+        return Ok(None);
+    };
+    if lambda.source_unit() != call.expression().source_unit()
+        || owned.closure(lambda).is_none()
+        || !owned.lambda_was_entered(lambda)
+    {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+    }
+    Ok(Some(lambda))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn plan_instance_deinits(
     typed: &CompilationUnitTypes,

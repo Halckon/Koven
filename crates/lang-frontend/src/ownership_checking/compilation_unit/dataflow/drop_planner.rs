@@ -74,6 +74,8 @@ pub(super) struct Analysis {
     pub(super) owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
     pub(super) receiver_call_prefix_ends:
         Vec<crate::ownership_checking::UnitReceiverCallPrefixEndFact>,
+    pub(super) receiver_call_return_ends:
+        Vec<crate::ownership_checking::UnitReceiverCallReturnEndFact>,
     pub(super) exclusive_call_prefix_ends:
         Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact>,
     pub(super) borrow_call_prefix_ends: Vec<crate::ownership_checking::UnitBorrowCallPrefixEndFact>,
@@ -84,6 +86,7 @@ pub(super) struct Analysis {
     pub(super) borrow_forward_transports:
         Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
+    pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
@@ -171,6 +174,7 @@ fn plan_with_owner_observation(
     Ok(Analysis {
         owner_observations: planner.owner_observations,
         direct_call_loan_ends,
+        string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
         borrow_call_handoffs: planner.borrow_call_handoffs,
         borrow_call_transports: planner.borrow_call_transports,
@@ -178,6 +182,7 @@ fn plan_with_owner_observation(
         borrow_forward_transports: planner.borrow_forward_transports,
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
+        receiver_call_return_ends: planner.receiver_call_return_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
@@ -194,9 +199,11 @@ fn plan_with_owner_observation(
 struct DropPlanner<'a, 'checker> {
     owner_observation_enabled: bool,
     owner_choice: Option<owner_transport::choice::ChoiceTransaction>,
+    owner_loop: Option<owner_transport::loops::LoopTransaction>,
     owner_branch_depth: usize,
     owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
     owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
+    string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_temporary_scopes: Vec<(
         UnitStatementId,
@@ -209,6 +216,7 @@ struct DropPlanner<'a, 'checker> {
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
+    receiver_call_return_ends: Vec<crate::ownership_checking::UnitReceiverCallReturnEndFact>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
     iteration_actions: Vec<(
         PlannerDropPoint,
@@ -243,9 +251,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             owner_observation_enabled: true,
             owner_choice: None,
+            owner_loop: None,
             owner_branch_depth: 0,
             owner_observation: None,
             owner_observations: Vec::new(),
+            string_clone_loan_ends: Vec::new(),
             iteration_conditional_scopes: Vec::new(),
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
@@ -255,6 +265,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             borrow_binding_transports: Vec::new(),
             borrow_forward_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
+            receiver_call_return_ends: Vec::new(),
             borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
             planned_iterations: std::collections::BTreeSet::new(),
@@ -546,22 +557,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             Statement::While {
                 condition, body, ..
-            } => {
-                if !self.expression(condition, DropExpressionUse::Read, state)? {
-                    return Ok(false);
-                }
-                if self.checker.ordinary_condition_outcomes(condition).0 {
-                    let mut body_state = state.clone();
-                    self.loop_boundaries.push(self.scope_depth);
-                    self.statement(body, &mut body_state)?;
-                    self.loop_boundaries.pop();
-                }
-                if self.checker.non_fallthrough_whiles.contains(&id.index()) {
-                    return Ok(false);
-                }
-                self.drop_loop_exit(id, state);
-                Ok(true)
-            }
+            } => self.owner_while_statement(id, condition, body, state),
             Statement::For { source, body, .. } => self.iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
                 let mut body_state = state.clone();
@@ -617,6 +613,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             if !self.expression(receiver, DropExpressionUse::Place, state)? {
                 return Ok(false);
             }
+            self.observe_string_clone_return(id);
             for loan in self.checker.loans.iter().filter(|loan| {
                 loan.call() == self.checker.unit_expression(id) && loan.argument() == receiver_id
             }) {
@@ -791,22 +788,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 subject, entries, ..
             } => self.when_expression(id, subject, &entries, state),
             Expression::Return { value, .. } => self.owner_return_expression(id, value, state),
-            Expression::Break { .. } | Expression::Continue { .. } => {
-                let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
-                self.end_iteration_pending_loans(
-                    PlannerDropPoint::ControlTransfer(id),
-                    state,
-                    self.loop_boundaries.len(),
-                );
-                self.drop_deeper_than(
-                    boundary,
-                    self.loop_boundaries.len(),
-                    PlannerDropPoint::ControlTransfer(id),
-                    state,
-                );
-                self.finish_jump_iteration(id, state)?;
-                Ok(false)
-            }
+            jump @ (Expression::Break { .. } | Expression::Continue { .. }) => self
+                .owner_loop_jump_expression(id, matches!(jump, Expression::Continue { .. }), state),
             Expression::NonNullAssert { operand, .. } => {
                 self.expression(operand, DropExpressionUse::Consume, state)
             }
@@ -1099,6 +1082,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             state.values[index].origin = node.span();
                         }
                     }
+                    self.commit_choice_primitive(id, state);
                 }
                 self.continue_borrow_call_source(id, state);
                 self.finish_call_borrows(id, &mut borrowed_roots, state);
@@ -1108,15 +1092,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.transport_borrow_binding_source(id, state);
                 self.transport_borrow_forward_source(id, state);
                 self.finish_borrow_call_transports(id, state);
-                state.pending_loans.retain(|(action, _)| match action {
-                    crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) => {
-                        loan.call() != self.checker.unit_expression(id)
-                    }
-                    crate::ownership_checking::UnitIterationCleanupAction::EndReceiverLoan(
-                        fact,
-                    ) => fact.call() != self.checker.unit_expression(id),
-                    _ => true,
-                });
+                self.finish_call_pending_loans(id, state);
                 self.continue_range_source(id, state);
                 self.finish_pending_temporaries(id, PlannerDropPoint::CallReturn(id), state);
                 for root in borrowed_roots {

@@ -62,8 +62,8 @@ pub use construction::{
 pub use non_null_assertion::UnitNonNullAssertionOwnershipPlan;
 pub use receiver::{
     UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
-    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    UnitDelegationOwnershipPlan, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
+    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
 use std::sync::Arc;
@@ -83,7 +83,7 @@ use crate::{
 
 use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, OwnershipDeferredReason,
-    RcOwnershipEffectKind, Transferability, UnitStringOwnershipEffect,
+    RcOwnershipEffectKind, Transferability, UnitStringCloneLoanEndFact, UnitStringOwnershipEffect,
 };
 
 /// typed call argument 在 ownership 阶段采用的规范契约。
@@ -414,6 +414,7 @@ pub struct CompilationUnitOwnership {
     delegations: Vec<UnitDelegationOwnershipPlan>,
     owner_observations: Vec<UnitOwnerObservation>,
     receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
+    receiver_call_return_ends: Vec<UnitReceiverCallReturnEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
@@ -425,6 +426,7 @@ pub struct CompilationUnitOwnership {
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
     string_effects: Vec<UnitStringOwnershipEffect>,
+    string_clone_loan_ends: Vec<UnitStringCloneLoanEndFact>,
     construction_plans: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
     conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
@@ -606,6 +608,11 @@ impl CompilationUnitOwnership {
             receiver_facts: dataflow.receiver_facts,
             conditional_receiver_deliveries: dataflow.conditional_receiver_deliveries,
             delegations,
+            string_clone_loan_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.string_clone_loan_ends
+            } else {
+                Vec::new()
+            },
             string_effects: if successful && dataflow.deferred.is_empty() {
                 typed
                     .string_operations()
@@ -622,13 +629,18 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
-            owner_observations: if successful {
-                dataflow.owner_observations
+            owner_observations: owner_transport::publish_observations(
+                dataflow.owner_observations,
+                successful,
+                dataflow.deferred.is_empty(),
+            ),
+            receiver_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.receiver_call_prefix_ends
             } else {
                 Vec::new()
             },
-            receiver_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
-                dataflow.receiver_call_prefix_ends
+            receiver_call_return_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.receiver_call_return_ends
             } else {
                 Vec::new()
             },
@@ -796,6 +808,15 @@ impl CompilationUnitOwnership {
         &self.delegations
     }
 
+    /// String.clone receiver 正常完成的独立 planner 观察，保持本表遍历顺序。
+    /// 不包含普通同名方法、size、未被 planner 遍历或 receiver 未正常完成的 clone。
+    /// 错误或 deferred 时整表撤销；不承诺常量条件或全 CFG 的不可达裁剪。
+    /// 不是动态执行 trace，也不授予与 drops 或其他 loan-end 表的统一顺序。
+    #[must_use]
+    pub fn string_clone_loan_ends(&self) -> &[UnitStringCloneLoanEndFact] {
+        &self.string_clone_loan_ends
+    }
+
     /// 普通直接调用 Borrow 实参的实际结束事件，保持 planner 的结束动作顺序。
     /// 仅覆盖 owned-result、无 receiver 的 declaration/symbol call：operand 为可分组的
     /// owned val/var 或具名参数根、无插值 String 字面量、已验证构造形成的完整 MoveOnly
@@ -848,11 +869,20 @@ impl CompilationUnitOwnership {
         &self.exclusive_call_prefix_ends
     }
 
-    /// owned 名称根 Shared receiver 在实际 Return unwind 中的有界结束观测。
+    /// owned/Borrow/Inout 具名根、字段、具体 this 及首层直接根/字段来源借用绑定的 Shared receiver 实际 unwind 观测。
+    /// 只观察 return/break/continue 退休的子 token，不结束绑定的来源 lease 或父 loan。
     /// 不提供正常返回、reservation 或完整 receiver loan-end 流。
     #[must_use]
     pub fn receiver_call_prefix_ends(&self) -> &[UnitReceiverCallPrefixEndFact] {
         &self.receiver_call_prefix_ends
+    }
+
+    /// owned/Borrow/Inout 具名根、字段、具体 this 及首层直接根/字段来源借用绑定的 Shared receiver 正常退休 token。
+    /// 绑定 operand 与 canonical source lease 身份分开，不把子结束当作父 binding 结束。
+    /// 不提供跨事务顺序、完整 receiver 流或动态执行次数；前缀退出另行查询。
+    #[must_use]
+    pub fn receiver_call_return_ends(&self) -> &[UnitReceiverCallReturnEndFact] {
+        &self.receiver_call_return_ends
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。
