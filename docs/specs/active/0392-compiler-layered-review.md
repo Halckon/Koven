@@ -3066,3 +3066,26 @@ Single 回收另有合同边界。
 迁移后 `ownership_checking` 30 项、`multifile_ownership_checking` 156 项通过，
 零失败、零忽略。独立复核确认保留文件发现和逐项断言。旧 helper 仍有其他消费者，
 本片只完成这组语料的迁移。
+
+## 124. R2/R3 when selector 的独立复审
+
+复审者从冻结的 #381 候选 `57d9cac2` 在仓外构建前端和后端，并实际发射对象、
+链接及运行。另从其 base `4243ebe5` 构建前端复跑两条 R3 阻断。
+以下为确认发现，修复与验收另记。
+
+| 合同 | 实际证据 |
+|---|---|
+| 公开完成性保留逗号前已有匹配边，截断 selector 退出后的未匹配边 | `when (flag) { true, pred(return 7) -> return 2 }` 当前误报 L0088，subjectless 同样。共享 arm 改成普通值，或 selector 改 `pred(7)`，仍有正常出口并应报 L0088。普通标量 refine 的已有值分支对照两路输出 `2\n7\n` |
+| 私有恢复保持 subjectless selector 的真假路径 | `flag() && pred(return)` 的 false 路径可 miss，true 路径无后继。当前死 arm 的待定赋值仍污染调用者 |
+| 已匹配分支需要的纯内存 owner 必须保持 live | 无 deinit 的 own 参数只在先匹配的 arm 被读时，当前错误发布 FunctionEntry drop。局部 owner 在声明后被释放。后端报 InvalidModel。把提前退出 selector 移到首项的对照实际输出 `7\n7\n` |
+| 短路 false bypass 仍需检查 move | `consume(x)` 后，`when { flag && pred(return 7) -> 2; else -> { observe(x); 3 } }` 漏 L0131，原生 InvalidModel。改 `pred(7)` 恢复 L0131 |
+
+own 参数提前析构和 false bypass 漏报都在 #381 的 base 实跑复现，属基线既有阻断。
+词法资源析构的原生对照通过，纯内存 ASAP 的缺陷由此独立定位。
+`when` 的回向活性需按 entry 和 alternative 递推，在 selector 正常出口
+分别合并匹配 arm 与继续匹配的活性。基础所有权的短路 false 边须单独复核。
+
+另有下游边界。已支持的 `in asInt(return 7)..2` 报 MissingFact，正常对照
+`in asInt(1)..2` 实际输出 `2\n2\n`。外层 canonical nullable descriptor
+的嵌套 arm 当前完成性错误，须与所有权计划对齐。兼容 lowering 对动态 selector
+的正常对照也不支持，按既有能力边界单列。
