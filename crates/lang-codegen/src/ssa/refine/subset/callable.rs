@@ -9,7 +9,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         Copyability, ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitCallDescriptor, UnitCallTarget, UnitTypeId, UnitTypeKind,
+        UnitCallDescriptor, UnitCallTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -723,6 +723,28 @@ impl Checker<'_, '_> {
             && self.nothing(self.c(call.return_type()))
     }
 
+    pub(super) fn abandoned_borrow_result_call(&self, id: UnitExpressionId) -> bool {
+        // Ordinary exits already unwind pending call loans. The dedicated
+        // borrow/carrier return routes keep their existing admission boundary.
+        self.inputs.borrow_return.is_none()
+            && self.inputs.carrier_return.is_none()
+            && self.inputs.typed.expression_falls_through(id) == Some(false)
+            && self.inputs.owned.call_may_dispatch(id) == Some(false)
+            && self.inputs.typed.call(id).is_some_and(|descriptor| {
+                descriptor.borrow_return().is_some()
+                    && descriptor.receiver().is_none()
+                    && matches!(
+                        descriptor.target(),
+                        UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                    )
+            })
+            && self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, id)
+                .is_some_and(|site| site.dispatch_key().is_none())
+    }
+
     pub(super) fn call(&mut self, expression: ExpressionId, values: &[ExpressionId]) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
@@ -733,12 +755,14 @@ impl Checker<'_, '_> {
             .source_plan
             .call_site(self.inputs.source_token, id);
         let prefix_only = site.is_some_and(|site| site.dispatch_key().is_none());
+        let borrow_prefix =
+            descriptor.borrow_return().is_some() && self.abandoned_borrow_result_call(id);
         let is_extension = self.is_extension_call(descriptor);
         let simple = (descriptor.receiver().is_none()
             || is_extension
             || self.receiver_call(expression))
             && descriptor.range_construction().is_none()
-            && descriptor.borrow_return().is_none()
+            && (borrow_prefix || descriptor.borrow_return().is_none())
             && descriptor
                 .arguments()
                 .iter()
@@ -793,7 +817,8 @@ impl Checker<'_, '_> {
             }));
         let ok = simple && target;
         self.migrated |= ok
-            && (is_extension
+            && (borrow_prefix
+                || is_extension
                 || descriptor.text_primitive().is_some()
                 || self.named_nothing_call(descriptor));
         ok

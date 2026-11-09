@@ -69,3 +69,16 @@ owned root 身份与 provider 的参数 Span；两条兄弟 return 边分别保�
 嵌套辅助调用提前 return 的固定源码样本同时核来源 prefix 与普通 direct-call 两类
 实际 token；两者均在同点 drop 前结束，随后按 temporary、owned root 的精确顺序清理。
 两类切片不能给出彼此之间的统一事件序，测试保留两条 Single 结束见证。
+
+Refine 支持普通调用者中已证明不能分派的借用结果调用前缀。typed 无正常继续、owned
+不分派及实际调用计划的空 dispatch key 共同准入。已完成实参保留原 loan，退出先结束
+这些 loan，再执行原析构。未完成的 `borrow val` 不建立绑定或结果 loan。
+
+普通局部 `borrow val` 的 Copyable 值实参中，显式 `if` 的一臂可直接执行无值
+`return`，另一臂可继续分派。准入要求正常路径的绑定事实和该 Return 上属于同一
+调用、来源实参与来源目标的 prefix end。退出臂结束来源 loan 后析构，正常臂保留
+来源 loan 并建立结果绑定。来源实参在退出实参之后求值时缺少该证明，沿用原准入
+结果。同一函数的其他普通绑定只有经词法顺序证明在该 initializer 前已结束或后才
+建立时，才复用该 initializer 的退出证明。证明按 source-qualified initializer 索引，
+越过分支或 lambda 时不传递。双正常臂的实参 CFG、外层借用或 carrier 返回及
+循环内普通借用绑定沿用各自门禁。

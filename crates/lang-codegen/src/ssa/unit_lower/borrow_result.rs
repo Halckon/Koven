@@ -104,7 +104,7 @@ fn validate_binding(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
-    disjoint_ifs: Option<&std::collections::BTreeSet<usize>>,
+    allowed_controls: Option<&std::collections::BTreeSet<usize>>,
 ) -> Result<(), LoweringError> {
     if file.source_id() != fact.marker_span().source_id() {
         return Err(lowering_error(
@@ -169,7 +169,7 @@ fn validate_binding(
         fact.storage()
             == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
         &prefixes,
-        disjoint_ifs,
+        allowed_controls,
         scope,
         |expression| match typed
             .expression_type(UnitExpressionId::new(
@@ -344,15 +344,39 @@ pub(crate) fn validate_bindings(
     owned: &CompilationUnitOwnership,
     legacy_gate: bool,
 ) -> Result<(), LoweringError> {
-    for fact in owned.borrow_results().bindings() {
-        let file = parsed
-            .iter()
-            .find(|file| file.source_id() == fact.marker_span().source_id())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
-        match ordinary_local::policy(file, typed, owned, fact) {
+    let bindings: Vec<_> = owned
+        .borrow_results()
+        .bindings()
+        .iter()
+        .map(|fact| {
+            let file = parsed
+                .iter()
+                .copied()
+                .find(|file| file.source_id() == fact.marker_span().source_id());
+            let policy = file.and_then(|file| ordinary_local::policy(file, typed, owned, fact));
+            (fact, file, policy)
+        })
+        .collect();
+    // Each initializer keeps its own proof. A sibling may use it only through
+    // the ordinary lexical disjointness walk.
+    let argument_controls = bindings
+        .iter()
+        .filter_map(|&(fact, file, policy)| {
+            if policy != Some(ordinary_local::Policy::Scoped) {
+                return None;
+            }
+            let controls = ordinary_local::argument_returns(file?, typed, owned, fact)?;
+            Some((fact.initializer(), controls))
+        })
+        .collect();
+    for (fact, file, policy) in bindings {
+        let file =
+            file.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
+        match policy {
             Some(ordinary_local::Policy::Scoped) => {
-                let disjoint_ifs = ordinary_local::disjoint_ifs(file, owned, fact);
-                validate_binding(file, names, typed, owned, fact, Some(&disjoint_ifs))?;
+                let allowed =
+                    ordinary_local::allowed_controls(file, owned, fact, &argument_controls);
+                validate_binding(file, names, typed, owned, fact, Some(&allowed))?;
             }
             None if legacy_gate
                 && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>

@@ -3750,6 +3750,74 @@ Clippy、格式、文档和 Rust 尺寸门禁通过。
 同步只合并本账本的追加记录，R3 源码与测试无冲突。合并候选本机再实跑前端单元
 408 项、相关所有权和 Parser 集成 629 项，零失败、零忽略。前端全目标 Clippy 通过。
 
+## 148. R3/R4 未分派的借用结果初始化前缀
+
+在 `7de209f7` 上，公共 CLI 接受 `borrow val item = view(owner, return)`，
+native build 报 UnsupportedNode。真实前端产物保留 String 调用类型，同时发布
+expression falls_through=false、call_may_dispatch=false，且没有 borrow binding。
+原生红测在含可观察前置实参的同形用例复现，直线借用正控已构建并输出 `kept`。
+
+Refine 仅在普通返回 caller、无 receiver 的实际声明或符号调用上，联合 typed、
+owned 与空 dispatch key 准入该前缀。已执行实参走原求值与退出清理；未完成的
+borrow val 不查找或建立绑定，后继语句不进入 lowering。ControlTransfer 上被
+该调用借用的 MoveOnly 临时量使用同一判定，先结束 pending loan，再执行原析构。
+
+独立复核发现外层 borrow/carrier 返回和借用临时量的不同清理门。外层 borrow
+块体探针前端接纳，但仍在原声明门禁 UnsupportedNode，未到 verifier。循环内
+普通 borrow val 仍由前端 L0164 拒绝。本批保留这两类边界，也不扩展仍有正常
+分派的实参 CFG。原生回归检查已完成前置输出、未访问的后继实参、临时 owner
+以及正常借用正控，各核对真实分配与释放。复核确认普通退出顺序和准入证明一致。
+
+本机 LLVM 21.1.8 上，原生套件中的三个源码样例均完成真实 object、link、run 和
+分配释放计数。borrow result SSA 合同 10 项通过，新增回归在 MemoryDocument 与
+Rooted 两入口均过 verifier 与 LLVM，并验证无 BorrowCall、无不可达 callee 实例。
+执行项零失败、零忽略。codegen 全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 149. R3/R4 单臂提前返回的借用初始化实参
+
+在 `ac3628bf` 上，`view(source, if (flag) { return } else { 1 })` 的
+普通 `borrow val` 初始化通过前端，原生红测在 Return 范围报 UnsupportedNode。
+正常路径发布结果绑定和分派，提前返回同时发布同一调用的来源 prefix end。
+准入只认可 Copyable 值参数中带 else 的显式 If 和直接无值 Return，核对实际
+调用、来源实参、来源目标与 ControlTransfer。控制流构建沿用已有实参求值与
+loan 清理。具名实参顺序把 Return 放在来源之前时，缺少 prefix end，仍精确
+拒绝。双正常臂和检查负号也维持原准入结果。
+
+独立复核确认准入使用前端实际已求值的 Shared owned-root 事实，正常臂恢复
+pending loan，提前臂先结束 loan 再析构。普通函数内另一个借用绑定仍会受到
+既有整函数检查，外层借用返回与循环仍受各自门禁约束。
+本机原生回归核对两次调用的 stdout 和两次实际分配、释放。SSA 双入口回归从
+条件的实参跟踪两臂的块参数，核对退出臂的来源 loan 结束、owner 析构及唯一
+正常臂的 BorrowCall。
+原生回归 1 项与 SSA 合同 11 项通过，均零失败、零忽略，其他项按套件名过滤。
+codegen 全目标 Clippy、格式、文档与 Rust 尺寸门禁通过。
+
+## 150. R3/R4 相离词法绑定间的退出证明
+
+在 `03ac38b1` 上，给 §149 的条件借用初始化前后加入已闭合的普通借用块，
+原生红测在真实 Return 仍报 UnsupportedNode。每个普通绑定独立检查整个 callable，
+不能看到已通过自身准入的另一个 initializer 的退出证明。
+
+按 source-qualified initializer 收集原有精确证明。在同一普通词法块的先后遍历中，
+只有另外一个结果尚未建立或已有唯一同源 AfterStatement 终点时，才导入该
+initializer 的 If 与 Return。分支体和 lambda 不参与这个遍历。其余绑定门禁及
+第一条拒绝的原校验顺序保留。独立静态复核未发现阻断，另指出候选在报首错前会
+预计算各绑定证明，密集绑定仍有重复整函数扫描和集合合并，未测量端到端耗时。
+
+原生回归检查提前臂只输出前置绑定，正常臂输出三个绑定，分别核对 owner 的真实
+分配释放。SSA 正例走 MemoryDocument 与 Rooted，并保留无关函数和未用 lambda
+变体。负控让另一个结果在退出分支仍存活，以及在具名实参中先执行 Return、后
+求值来源。两者都检查精确的拒绝范围。
+
+本机 SSA 合同 12 项、三项原生测试均通过，零失败、零忽略，其余按过滤条件排除。
+codegen 全目标 Clippy、格式、文档和 Rust 尺寸门禁通过。
+
+本批与 `369fff4c` 合并时只需合并账本追加段。[PR #392](https://github.com/Halckon/Koven/pull/392)
+合并树等于其[精确双宿主验收树](https://github.com/Halckon/Koven/actions/runs/42619050619)。
+合并后的本批源码实跑 `unit_direct_call_loan_ends` 113 项、SSA 借用结果合同 12 项和
+原生借用初始化 3 项，均零失败、零忽略。SSA 与原生测试按套件名过滤。
+同一源码树的 codegen 全目标 Clippy、格式、文档和差异检查通过。
+
 ## 151. R0/R3 生产名称原语与 nullable when 消费者
 
 以 #392 合入后的 `369fff4c` 为基线，按已跟踪 Rust 源码直接调用形状计文件数及
@@ -3828,3 +3896,11 @@ macOS arm64 对同形双包输入执行 project check、object build、link 与�
 [PR #392 实际 main CI](https://github.com/Halckon/Koven/actions/runs/42624664615)
 在 `369fff4c` 通过双宿主 Check/Clippy、定向、预览生产与独立消费。15 项成功，
 只跳过 PR 专用的 Code CI Evidence。
+
+同步 [PR #394](https://github.com/Halckon/Koven/pull/394) 合入后的 `a4b72d35`。
+[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42625817187) 的合成提交
+`649d8a5e` 与实际合并提交的有序双亲和树一致。双宿主定向、预览生产、独立安装及
+最终门禁通过，15 项成功，编辑器词法检查按改动范围跳过。
+合流仅需合并账本追加段。正在执行的完整前端测试所用 frontend 源码树为
+`8f91d54d020d2bf6461d995b3f189cc37a82539d`，本次同步保持该树、Guide、
+标准库、编辑器夹具和 workspace manifest/lock 不变。
