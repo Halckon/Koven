@@ -4494,3 +4494,35 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 全套、deinit/range等既有选择，亦未跑全量、native或CI-only注入。两份新后续切片
 （借用序号、双终止owner）不在本次冻结批内。旧头旧base的绿灯不能证明本组合新base
 通过，仍须同一草稿PR的精确新头正式CI；不自动合并。
+
+
+## 120. Choice 分组与逻辑非条件切片（2026-11-09）
+
+基于 main `e1b0c2dc` 的独立分支，不复用未合入的双终止 owner/consumer 候选。
+Phase 3 的 V1 Choice 仅扩展条件准入：同一 Boolean 参数外可有分组或逻辑非链，
+每层须为精确 Boolean 且不是 constant-use；最终 Name 必须解析到原参数 symbol。
+原 planner 仍在分叉前求值条件，真实 then/else 固定为输入边 0/1，不根据参数值或
+逻辑非重排 owner。未更改 producer catalog、事件协议、Binding/Drop 或旧 cleanup。
+
+现有唯一 chosen、双 literal/单局部尾、完整消费与清理约束保持。常量、调用、比较、
+短路、其它参数、后续 owner 使用、capture 和真实循环不因本片获得 Choice 准入；
+不新增循环实例、loop phi、动态分支通用支持、Phase 4/native 或 E3 能力。
+
+红测试提交 `b1d78957` 在旧生产准入上真实执行一项，新正例在 `if ((flag))` 缺 V1
+能力处失败；裸参数的四组控制已通过。最小实现 `05197df7` 后，新三项覆盖七种条件
+乘四种边形态，含两向混搭和同名不同 symbol；AST 独立期望核完整逐边事件、输入身份
+及 chosen 的 Bind/Drop，另核旧 Unsupported 空 trace、sibling 和观察开关完整 Analysis。
+拒绝矩阵另含八种条件和四种外围使用/循环源码，不从有限模型推断循环支持。
+
+| 验收项 | 实际选择 | 本机结果 |
+|---|---|---|
+| 新条件正反例 | `owner_transport::tests::choice_conditions` 三项 | 3 passed，0 failed/ignored |
+| Choice 邻控 | admission 两项实际源码、branch_local 两项实际源码、boundaries 三项、capture_isolation 一项 | 8 passed，保持原 oracle |
+| 循环/旧 owner 边界 | loop cleanup 一项、If 三项、owned capture 一项、swap 一项 | 6 passed，未开放循环 |
+| 独立复验 | 在 `05197df7` 重跑新条件三项 | 3 passed，精确头未变 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全通过；863 Markdown、2221 Rust、35项既有超限，无新增例外 |
+
+共17项独立普通测试选择，实际各命中一次；编译目标与其它工作树隔离。没有运行
+frontend/workspace 全量、模型/故障注入、native、Linux 或正式精确头 CI。独立只读
+复审未见 blocker，确认逐层类型/身份限制和真实边序；不得把本机通过当作完整 D10/E2
+验收。本分支仅本地分步提交及 format-patch/bundle 备份，不 push、发布 PR 或合并。
