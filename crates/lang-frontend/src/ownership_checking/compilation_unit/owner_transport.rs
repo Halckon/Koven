@@ -6,10 +6,11 @@ pub(super) use loops::{
 };
 pub use loops::{
     UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantBreakObservationV1,
-    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantNormalJoinObservationV1,
-    UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
-    UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
-    UnitOwnerLoopObservationV1, UnitOwnerNormalArmBoundaryV1,
+    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantMixedJoinObservationV1,
+    UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
+    UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
+    UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1,
+    UnitOwnerNormalArmBoundaryV1,
 };
 pub(super) mod values;
 pub use values::{

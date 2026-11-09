@@ -77,7 +77,7 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 ## 独立非空输入能力
 
 单个 immutable String 输入的真实 entry、正常/Continue 回边、Break 出口、双终端臂和
-双正常臂合流，见[不变输入 owner 循环边界](unit-invariant-loop-owner.md)。各能力独立
+双正常臂及正常/跳转混合臂合流，见[不变输入 owner 循环边界](unit-invariant-loop-owner.md)。各能力独立
 封印且互斥，不放宽本页空入边合同，也不授予一般 phi 或完整外层运输。
 
 ## 保留边界
@@ -85,5 +85,5 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
-真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160、§162；
+真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160、§162、§164；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。

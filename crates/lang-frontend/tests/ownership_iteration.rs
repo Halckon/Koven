@@ -105,3 +105,6 @@ mod invariant_split_exits_owner_unit;
 
 #[path = "ownership_iteration/invariant_normal_join_owner_unit.rs"]
 mod invariant_normal_join_owner_unit;
+
+#[path = "ownership_iteration/invariant_mixed_join_owner_unit.rs"]
+mod invariant_mixed_join_owner_unit;

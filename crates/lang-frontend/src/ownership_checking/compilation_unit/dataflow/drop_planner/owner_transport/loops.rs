@@ -258,9 +258,9 @@ impl LoopTransaction {
                 LoopBodyCompletion::Conditional { branches, .. }
                     if branches
                         .iter()
-                        .all(|branch| branch.exit == LoopBranchExit::Fallthrough) =>
+                        .any(|branch| branch.exit == LoopBranchExit::Fallthrough) =>
                 {
-                    input.enable_normal_join();
+                    input.enable_joining();
                 }
                 _ => return None,
             }

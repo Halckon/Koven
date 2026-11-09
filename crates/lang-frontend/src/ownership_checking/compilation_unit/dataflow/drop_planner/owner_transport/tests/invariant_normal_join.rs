@@ -20,6 +20,7 @@ fn check(
 ) {
     let source = fixture.source(index);
     let legacy = &owned.owner_observations()[index];
+    assert!(legacy.invariant_mixed_join_observation_v1().is_none());
     assert!(legacy.value_observation_v1().is_none() && legacy.loop_observation_v1().is_none());
     assert!(
         legacy.invariant_loop_observation_v1().is_none()

@@ -248,7 +248,7 @@ impl DropPlanner<'_, '_> {
                 observation.status == UnitOwnerObservationStatus::Complete
                     && std::sync::Arc::ptr_eq(active, &observation.identity)
             })
-            && transaction.split_arm_completion_boundary(branch, state)
+            && transaction.split_arm_completion_boundary(branch, result.continues, state)
         {
             transaction.branch_completed[branch] = true;
         }

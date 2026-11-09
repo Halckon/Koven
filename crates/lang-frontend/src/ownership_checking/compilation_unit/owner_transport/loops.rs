@@ -8,9 +8,10 @@ pub(in crate::ownership_checking::compilation_unit) use invariant::{
 };
 pub use invariant::{
     UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantBreakObservationV1,
-    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantNormalJoinObservationV1,
-    UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
-    UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerNormalArmBoundaryV1,
+    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantMixedJoinObservationV1,
+    UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
+    UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
+    UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
 };
 
 /// Structural control edges of a sealed While body, not an executed finite trace.

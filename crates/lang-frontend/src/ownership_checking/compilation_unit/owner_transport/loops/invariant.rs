@@ -1,6 +1,7 @@
 //! Nonempty boundary evidence, deliberately not a closed outer transport or a phi.
 mod boundaries;
 mod breaks;
+mod mixed_join;
 mod normal_join;
 mod split_continue;
 mod split_exits;
@@ -10,6 +11,7 @@ use crate::name_resolution::UnitSymbolId;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
 pub(in crate::ownership_checking::compilation_unit) use boundaries::InvariantLoopBoundaries;
 pub use breaks::UnitOwnerInvariantBreakObservationV1;
+pub use mixed_join::{UnitOwnerInvariantMixedJoinObservationV1, UnitOwnerMixedArmBoundaryV1};
 pub use normal_join::{UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerNormalArmBoundaryV1};
 pub use split_continue::{
     UnitOwnerContinueArmBoundaryV1, UnitOwnerInvariantSplitContinueObservationV1,
@@ -48,6 +50,7 @@ pub(in crate::ownership_checking::compilation_unit) enum InvariantLoopValueV1 {
     SplitContinue(Box<UnitOwnerInvariantSplitContinueObservationV1>),
     SplitExit(Box<UnitOwnerInvariantSplitExitObservationV1>),
     NormalJoin(Box<UnitOwnerInvariantNormalJoinObservationV1>),
+    MixedJoin(Box<UnitOwnerInvariantMixedJoinObservationV1>),
 }
 impl UnitOwnerInvariantLoopObservationV1 {
     /// Actual While statement.

@@ -169,6 +169,9 @@ impl InvariantInput {
         let Some(binding) = self.snapshot(state) else {
             return false;
         };
+        if let Some(joining) = &mut self.joining {
+            return joining.arm_jump(branch, actual, identity, binding);
+        }
         let Some(split) = &mut self.split else {
             return false;
         };
@@ -197,8 +200,8 @@ impl LoopTransaction {
         let Some(binding) = input.snapshot(state) else {
             return false;
         };
-        if let (Some(normal), Some((identity, _))) = (&mut input.normal, &self.active) {
-            return normal.enter(identity.clone(), binding);
+        if let (Some(joining), Some((identity, _))) = (&mut input.joining, &self.active) {
+            return joining.enter(identity.clone(), binding);
         }
         let (Some(split), Some((identity, _))) = (&mut input.split, &self.active) else {
             return false;
@@ -223,8 +226,8 @@ impl LoopTransaction {
         let Some(binding) = input.snapshot(state) else {
             return false;
         };
-        if let (Some(normal), Some((identity, _))) = (&mut input.normal, &self.active) {
-            return normal.arm_entry(branch, identity.clone(), control, body, binding);
+        if let (Some(joining), Some((identity, _))) = (&mut input.joining, &self.active) {
+            return joining.arm_entry(branch, identity.clone(), control, body, binding);
         }
         let (Some(split), Some((identity, _))) = (&mut input.split, &self.active) else {
             return false;
@@ -246,6 +249,7 @@ impl LoopTransaction {
     pub(in super::super) fn split_arm_completion_boundary(
         &mut self,
         branch: usize,
+        continues: bool,
         state: &ValueState,
     ) -> bool {
         let Some(input) = &mut self.invariant else {
@@ -254,8 +258,11 @@ impl LoopTransaction {
         let Some(binding) = input.snapshot(state) else {
             return false;
         };
-        if let Some(normal) = &mut input.normal {
-            return normal.arm_completion(branch, binding);
+        if let Some(joining) = &mut input.joining {
+            return joining.arm_completion(branch, continues, binding);
+        }
+        if continues {
+            return false;
         }
         let Some(arm) = input
             .split
@@ -273,8 +280,8 @@ impl LoopTransaction {
     }
     pub(in super::super) fn split_inputs_complete(&self) -> bool {
         self.invariant.as_ref().is_none_or(|input| {
-            if let Some(normal) = &input.normal {
-                return input.split.is_none() && normal.arms_complete();
+            if let Some(joining) = &input.joining {
+                return input.split.is_none() && joining.arms_complete();
             }
             input
                 .split

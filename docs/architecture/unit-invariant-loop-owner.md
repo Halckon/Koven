@@ -144,3 +144,33 @@ Backedge，不能把 arm 完成冒充整个 body 清理。新私有变体与旧�
 此为同一不变 owner 的真实正常合流证据，不接收不同 owner 或可变 loop-carried 输入，
 不证明一般 header/exit phi、suffix 最终消费、动态运行实例、外层运输闭合或 Phase 4/native。
 普通源码与公开入口、开关对照和未执行守卫范围见 SPEC-0341 §162。
+
+
+## 不变输入 owner 的正常臂与跳转臂
+
+`invariant_mixed_join_observation_v1()` 返回独立 `UnitOwnerInvariantMixedJoinObservationV1`，
+只接一个正常空臂与一个裸 Continue/Break 的四种排列。三语句输入、独立 Boolean 条件及
+body-local 闭合合同不变；NN 和双终端仍只取得各自旧能力，不放宽旧公开类型。
+
+私有 joining 收集器由双正常臂实现扩展，保存 evaluator 实际返回的 continues 与 completion
+binding。只有实际 true 且无 jump 才形成 `UnitOwnerMixedArmBoundaryV1::Normal`；实际
+false 且已有清理后的真实 kind/ID/binding 才形成 Jump，缺失或互相矛盾时拒绝。正常臂
+经过 branch-exit cleanup；跳转臂经原 jump cleanup 后返回 false，不执行正常 branch-exit
+清理，state 不进入 merge。两者在结束时分别保留真实 entry/completion；Jump 另有独立
+`after_jump()`。不能根据 expected AST 或没有 jump 就推定正常完成。
+
+实际完成门对 mixed 要求恰一个 continuation，NN 仍为两个，双终端仍为零。原 If merge
+只收到正常臂的 state，原 post-merge hook 才读取 join；这里不是将跳转臂与正常臂合流。
+whole-body 实际正常 scope cleanup 后再读 backedge，仍须 Ok(true)、同 completed/body
+Arc 与原闭合 V1。共十份真实 singleton binding：entry/split、正常臂两份、跳转臂三份、
+join/backedge/exit；完整 OwnedValue 相同且 values 外16槽为空，没有伪造共同跳转快照。
+
+新 seal 要求恰一个 Fallthrough，逐项核 Normal/Jump 实际变体与 expected completion、
+序号/control/body/source、catalog及各 Arc、十份 binding、真实 jump ID/edge 与完整七边。
+Continue 组合同时有一个 ContinueBackedge 和一个普通 body Backedge；Break 组合同时有
+一个 BreakExit 和一个普通 Backedge，不能把整个 body 宣称为终端出口。两正常实际变体
+只转换原 NN 产物并过旧 seal；全终端继续独立收集并要求完整空 body merge。
+
+branch.rs 的 push/merge/清理顺序、旧 public NN/JumpArm 类型与普通 Choice 均不改。
+LoopExit 仍清理原 condition state，没有把 Break state 回灌；这不是一般出口运输、phi、
+变更 owner、suffix 最终消费、动态实例或 Phase 4/native。证据与未运行范围见 SPEC-0341 §164。

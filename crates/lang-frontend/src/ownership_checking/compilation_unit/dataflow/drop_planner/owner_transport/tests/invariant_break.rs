@@ -15,6 +15,7 @@ fn check_break(
 ) {
     let source = fixture.source(index);
     let legacy = &owned.owner_observations()[index];
+    assert!(legacy.invariant_mixed_join_observation_v1().is_none());
     assert!(legacy.invariant_normal_join_observation_v1().is_none());
     assert!(legacy.invariant_split_exit_observation_v1().is_none());
     let (statement, condition, body) = fixture.parsed[index]
