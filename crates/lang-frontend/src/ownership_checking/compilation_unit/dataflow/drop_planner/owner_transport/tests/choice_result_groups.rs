@@ -1,11 +1,11 @@
 //! Whole-If Group results must be transported before the actual chosen binding.
 use super::*;
 use crate::ownership_checking::{
-    UnitDropPoint, UnitDropTarget, UnitOwnerObservationStatus, UnitOwnerUnsupportedReason,
-    UnitOwnerValueEventV1 as Event, UnitOwnerValueV1 as Value,
+    UnitDropPoint, UnitDropTarget, UnitOwnerCallable, UnitOwnerObservationStatus,
+    UnitOwnerUnsupportedReason, UnitOwnerValueEventV1 as Event, UnitOwnerValueV1 as Value,
 };
 use crate::parser::{Item, Statement};
-use crate::type_checking::UnitStatementId;
+use crate::type_checking::{UnitItemId, UnitStatementId};
 
 fn declaration_point(fixture: &Fixture, initializer: UnitExpressionId) -> UnitDropPoint {
     let ast = fixture.parsed[0].ast();
@@ -183,10 +183,85 @@ fn if_result_groups_do_not_admit_other_wrappers_exits_or_extra_uses() {
         let rejected = &owned.owner_observations()[0];
         assert!(rejected.value_observation_v1().is_none(), "{source}");
         assert!(rejected.definitions().is_empty() && rejected.events().is_empty());
-        assert_eq!(
-            owned.owner_observations().last().unwrap().status(),
-            UnitOwnerObservationStatus::Complete
-        );
+        let sibling = UnitOwnerCallable::Function(UnitItemId::new(
+            fixture.source(0),
+            fixture.parsed[0].roots()[2],
+        ));
+        let sibling = owned
+            .owner_observations()
+            .iter()
+            .find(|observation| observation.callable() == sibling)
+            .unwrap();
+        assert_eq!(sibling.status(), UnitOwnerObservationStatus::Complete);
         compare(&fixture, &fixture.parts(&owned));
     }
+}
+
+#[test]
+fn whole_if_result_frames_reject_missing_read_or_misordered_completion() {
+    let control = "if (flag) \"left\" else \"right\"";
+    let group = format!("({control})");
+    let initializer = format!("({group})");
+    let source = format!("fun run(flag: Boolean): Unit {{ val chosen = {initializer} }}");
+    let fixture = Fixture::new(&[("root.ko", &source)]);
+    let owned = fixture.shared();
+    let parts = fixture.parts(&owned);
+    compare_and_inspect(&fixture, &parts, |checker| {
+        let unit = |text| checker.unit_expression(fixture.expression(0, text));
+        let control = unit(control);
+        let group = unit(&group);
+        let initializer = unit(&initializer);
+        let left = unit("\"left\"");
+        let right = unit("\"right\"");
+        let chosen = fixture.symbol(0, "chosen");
+        let point = declaration_point(&fixture, initializer);
+        // Synthetic guard traces supplement, never replace, the real AST matrix.
+        for mutation in 0..16 {
+            let mut tx = super::super::choice::ChoiceTransaction::begin(
+                checker,
+                checker.parsed.roots()[0],
+                std::sync::Arc::new(()),
+            )
+            .unwrap();
+            tx.string_completed(left);
+            tx.expression_completed(left, true, true);
+            tx.edge_completed(control, 0, Some(left), true);
+            tx.string_completed(right);
+            tx.expression_completed(right, true, true);
+            tx.edge_completed(control, 1, Some(right), true);
+            if mutation != 1 {
+                tx.expression_completed(control, mutation != 2, mutation != 3);
+            }
+            if mutation == 4 {
+                tx.expression_completed(control, true, true);
+            }
+            if mutation == 5 {
+                tx.expression_completed(initializer, true, true);
+            }
+            if mutation != 6 {
+                tx.expression_completed(group, mutation != 7, true);
+            }
+            if mutation == 8 {
+                tx.expression_completed(group, true, true);
+            }
+            if mutation == 9 {
+                tx.bound(chosen, initializer);
+            }
+            if mutation != 10 {
+                tx.expression_completed(initializer, true, mutation != 11);
+            }
+            tx.bound(chosen, if mutation == 12 { control } else { initializer });
+            if mutation == 13 {
+                tx.bound(chosen, initializer);
+            }
+            tx.dropped(point, chosen);
+            if mutation == 14 {
+                tx.expression_completed(group, true, true);
+            }
+            if mutation == 15 {
+                tx.dropped(point, chosen);
+            }
+            assert_eq!(tx.finish().is_some(), mutation == 0, "mutation {mutation}");
+        }
+    });
 }

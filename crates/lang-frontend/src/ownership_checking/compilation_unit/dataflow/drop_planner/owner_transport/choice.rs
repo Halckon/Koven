@@ -10,6 +10,7 @@ use crate::parser::{PrefixOperator, VariableKind};
 struct Admission {
     callable: UnitOwnerCallable,
     control: UnitExpressionId,
+    result_chain: Vec<UnitExpressionId>,
     symbol: UnitSymbolId,
     drop_point: crate::ownership_checking::UnitDropPoint,
     arms: [Arm; 2],
@@ -57,6 +58,8 @@ pub(in super::super) struct ChoiceTransaction {
     edges: [Edge; 2],
     transfer: TransferFrame,
     control_completed: bool,
+    result: Option<UnitExpressionId>,
+    result_completed: usize,
     suffix: Vec<Event>,
     bound: bool,
     dropped: bool,
@@ -145,23 +148,37 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     {
         return None;
     }
+    // A whole-If Group forwards the selected value; it is not another producer
+    // and must still complete through the real expression-result frames.
+    let mut control = *initializer;
+    let mut result_chain = Vec::new();
+    loop {
+        if checker.is_constant_use(control)
+            || checker
+                .typed
+                .expression_type(checker.unit_expression(control))
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        {
+            return None;
+        }
+        result_chain.push(checker.unit_expression(control));
+        match ast.expressions().get(control).ok()?.payload() {
+            Expression::Group { expression } => control = *expression,
+            Expression::If { .. } => break,
+            _ => return None,
+        }
+    }
+    result_chain.reverse();
     let Expression::If {
         condition,
         then_branch,
         else_branch: Some(else_branch),
         ..
-    } = ast.expressions().get(*initializer).ok()?.payload()
+    } = ast.expressions().get(control).ok()?.payload()
     else {
         return None;
     };
-    if checker
-        .typed
-        .expression_type(checker.unit_expression(*initializer))
-        .and_then(|ty| checker.typed.types().get(ty))
-        != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-    {
-        return None;
-    }
     // Only pure wrappers around the same checked Boolean parameter are admitted.
     // The existing traversal evaluates them before the fork. Keep inputs keyed by
     // the actual If edges; a Not changes the predicate, not the owner edge order.
@@ -311,7 +328,8 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     };
     Some(Admission {
         callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
-        control: checker.unit_expression(*initializer),
+        control: checker.unit_expression(control),
+        result_chain,
         symbol,
         drop_point: crate::ownership_checking::UnitDropPoint::AfterStatement(UnitStatementId::new(
             checker.source_unit,
@@ -340,6 +358,8 @@ impl ChoiceTransaction {
             edges: [Edge::default(), Edge::default()],
             transfer: TransferFrame::default(),
             control_completed: false,
+            result: None,
+            result_completed: 0,
             suffix: Vec::new(),
             bound: false,
             dropped: false,
@@ -353,6 +373,8 @@ impl ChoiceTransaction {
         self.edges = [Edge::default(), Edge::default()];
         self.transfer = TransferFrame::default();
         self.control_completed = false;
+        self.result = None;
+        self.result_completed = 0;
         self.suffix.clear();
         self.bound = false;
         self.dropped = false;
@@ -438,13 +460,41 @@ impl ChoiceTransaction {
             self.transfer.completed += 1;
             return;
         }
-        if expression == self.admission.control {
-            if !consuming || self.control_completed || !self.edges.iter().all(|edge| edge.delivered)
+        if let Some(position) = self
+            .admission
+            .result_chain
+            .iter()
+            .position(|id| *id == expression)
+        {
+            if !consuming
+                || self.bound
+                || self.dropped
+                || self.result_completed != position
+                || !self.edges.iter().all(|edge| edge.delivered)
             {
                 self.abort();
                 return;
             }
-            self.control_completed = true;
+            if position == 0 {
+                if self.control_completed || self.result.is_some() {
+                    self.abort();
+                    return;
+                }
+                self.control_completed = true;
+            } else {
+                let from = self.admission.result_chain[position - 1];
+                if !self.control_completed || self.result != Some(from) {
+                    self.abort();
+                    return;
+                }
+                self.suffix.push(Event::Forward(
+                    from,
+                    expression,
+                    Value::Choice(self.choice_id()),
+                ));
+            }
+            self.result = Some(expression);
+            self.result_completed += 1;
             return;
         }
         let Some((edge, initializer, position)) =
@@ -669,7 +719,9 @@ impl ChoiceTransaction {
             || !self.control_completed
             || !self.edges.iter().all(|edge| edge.delivered)
             || symbol != self.admission.symbol
-            || initializer != self.admission.control
+            || self.result_completed != self.admission.result_chain.len()
+            || self.result != Some(initializer)
+            || self.admission.result_chain.last() != Some(&initializer)
         {
             self.abort();
             return;
@@ -679,6 +731,7 @@ impl ChoiceTransaction {
             initializer,
             Value::Choice(self.choice_id()),
         ));
+        self.result = None;
         self.bound = true;
     }
     pub(in super::super) fn dropped(
