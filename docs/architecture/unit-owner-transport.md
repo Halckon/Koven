@@ -101,7 +101,8 @@ Control body 的私有结果通道保留实际尾表达式与既有求值帧 own
 V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
 定义最终 named Drop 的直线观察可按需投影；另有真实 planner 事务接纳严格限定的
 有界 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
-函数体先有一个 `val`，其 initializer 是以该参数或其分组/逻辑非链为条件的显式 If；
+函数体先有一个 `val`，initializer 是显式 If 或整个 If 的 Group 链；
+If 条件是该参数或其分组/逻辑非链。
 条件链每个节点必须为非 constant-use 的精确 Boolean，叶节点仍是同一参数。分组和逻辑非
 沿原 planner 在分叉前求值，Choice 输入始终对应真实 then/else，不因逻辑非交换边。
 调用、常量、比较和短路条件仍拒绝。目标 binding 必须精确 String/MoveOnly。每边独立
@@ -119,6 +120,10 @@ String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 
 原 cleanup/Single 见证保持。新能力与旧 observation 的 product/callable 绑定，旧 Eq
 只比较旧协议事实，新能力必须单独验证。新 Drop 带实际 point；未覆盖的 BranchExit、
 控制退出、When 等 point 不被 V1 图 validator 接受。
+
+整个 If 外的 Group 沿真实 Consume 完成逐层运输同一 Choice；独立结果位置与计数
+拒绝漏层、Read、重复或错序。chosen 的 post-insert 只接受完整末帧，再清空结果；
+不改真实 If control、双边 producer 或公开协议。实测范围见 SPEC-0341 §124。
 
 可选唯一后继为不可变、精确 String/MoveOnly 的 `val forwarded = ((chosen))`。
 实际 take_named 成功后把同一 Choice 移入独立结果帧，逐层 Consume 完成才发布 Forward；

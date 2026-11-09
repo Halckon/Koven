@@ -4561,3 +4561,39 @@ Consume 完成按顺序发布 Forward，post-insert 后绑定目标并清空帧�
 未跑 frontend/workspace 全量、手工 guard/模型/故障注入、native、Linux 或正式精确头 CI。
 只读独立复审未见 blocker，逐点核实际 hook 和 fail-closed；本片不 push、发布 PR 或
 合并。format-patch 与增量 bundle 按私有备份流程保留；完整 D10/E2 和循环 phi 仍未完成。
+
+
+## 124. 整个 If 的 Choice 结果分组运输（2026-11-09）
+
+基于已发布 `853249b6`（tree `02b6b99d`，与 §122 本地 `de1b113c` 相同），只扩展
+§89 留待独立合同的整个 If 外层 Group，不等候或复用前片的 CI 结果。Phase 3 保持
+原条件、两条完整正常尾交付和最多一次具名转交；不修改 Guide、公开 API 或 V1 validator。
+
+准入只剥离精确 String、非 constant-use 的 Group 链，终点必须是原显式 If；每层
+保留真实表达式身份，不能把整个 initializer 当作 If control。双边实际完成后，同一
+Choice 进入独立结果帧，只有实际 Consume 完成且当前位置/完成序号吻合才发布下一层
+Forward。chosen 的 post-insert 只接完整末层 initializer 并清空结果；遗漏、Read、
+非继续、重复、错序或提前/错误 Bind 均清空事务。无 Group 时沿长度1的相同合同；
+后继 transfer 使用独立帧，不再制造 producer，不从 trace 或 cleanup 重建身份。
+
+红测试 `7201bd9b` 在旧生产准入上实际一项失败，缺口是 `(if (flag) ... else ...)`
+没有 V1。实现 `145572c9` 后，32组合（2条件×4边形态×2深度×2转交）全部符合独立
+AST 期望：真实 control/逐边源、每层同一 Choice Forward、准确 Bind/Drop 及完整旧
+Analysis不变。九种合法源码拒绝边界保留 nullable/var、nested Choice、退出、调用、
+binary、二次转交、capture、loop。首轮负例的 sibling 选择错误命中了末尾 lambda，
+已改为 source-qualified function 身份，未放宽 Complete 断言，随后两项全绿。
+
+新增16条手工guard trace（1正15负）只编译未本机运行；它们不是32组合的运行证明。
+调用、nested Choice、控制退出、真实循环实例/loop phi、二次转交、Phase 4/native 与
+E3 均不开放。完整 D10/E2 继续 in-progress。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 新真实源码 | `choice_result_groups` 两个普通 exact，不含手工guard | 2 passed，0 failed/ignored |
+| 前片邻控 | §122 同一20项普通 exact | 20 passed，0 failed/ignored |
+| 独立复验 | `145572c9` 上重跑两个新普通 exact | 2 passed，0 failed，精确头不变 |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全通过；863 Markdown、2223 Rust、35项既有超限；新增guard仅编译 |
+
+独立只读复审无 blocker，核完整初始结果帧和已有 transfer 隔离。未跑全量、手工
+模型/故障注入、native、Linux 或正式精确头 CI。按用户最新方向不新增 format-patch、
+bundle 或 Drive 备份；本地分步提交后准备 connector 发布，不强推或合并。
