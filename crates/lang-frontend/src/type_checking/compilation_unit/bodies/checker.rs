@@ -20,7 +20,7 @@ use crate::{
         UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
         UnitAggregateProjectionReceiver, UnitCallableSignature, UnitFunctionParameterType,
         UnitRuntimeFieldLayoutDescriptor, UnitRuntimeFieldLayoutField, UnitTypeId, UnitTypeKind,
-        collect_expression_uses,
+        collect_expression_uses, flow_effects::SyntacticBooleanOutcomes,
     },
 };
 
@@ -128,6 +128,7 @@ pub(super) struct BodyChecker<'a> {
     names: &'a CompilationUnitNames,
     environment: &'a TypeEnvironment,
     files: Vec<&'a ParsedFile>,
+    syntactic_boolean_outcomes: Vec<SyntacticBooleanOutcomes<'a>>,
     expression_uses: Vec<Vec<ExpressionUse>>,
     signatures: CompilationUnitSignatures,
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
@@ -216,11 +217,16 @@ impl<'a> BodyChecker<'a> {
             .iter()
             .map(|file| collect_expression_uses(file))
             .collect();
+        let syntactic_boolean_outcomes = files
+            .iter()
+            .map(|file| SyntacticBooleanOutcomes::new(file.ast()))
+            .collect();
         let mut checker = Self {
             sources,
             names,
             environment,
             files,
+            syntactic_boolean_outcomes,
             expression_uses,
             signatures,
             references,

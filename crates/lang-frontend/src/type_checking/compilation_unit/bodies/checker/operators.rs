@@ -8,7 +8,7 @@ use crate::{
     type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
 };
 
-use crate::type_checking::flow_effects::logical_rhs_execution;
+use crate::type_checking::flow_effects::logical_rhs_is_required;
 
 use super::{
     BodyChecker, ExpressionCheck, UnitExpressionId,
@@ -185,8 +185,10 @@ impl BodyChecker<'_> {
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
         let ast = self.file(source).ast();
-        let rhs_execution =
-            logical_rhs_execution(ast, left, operator).map_err(TypeCheckingError::from)?;
+        let rhs_required =
+            logical_rhs_is_required(ast, left, operator).map_err(TypeCheckingError::from)?;
+        let rhs_bypassed =
+            self.syntactic_boolean_outcomes[source.index()].rhs_is_bypassed(left, operator);
         let left_edges = if self.has_pending_expression_exit(source, left, left_result)? {
             self.boolean_pending_edges(source, left, &baseline_versions)?
         } else {
@@ -208,7 +210,7 @@ impl BodyChecker<'_> {
         );
         let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
         self.flow_facts = baseline;
-        if rhs_execution != Some(false) {
+        if !rhs_bypassed {
             for key in self.expression_flow_writes(source, right)? {
                 self.invalidate_flow_key(key);
             }
@@ -267,7 +269,7 @@ impl BodyChecker<'_> {
         Ok(ExpressionCheck {
             ty,
             falls_through: left_result.falls_through
-                && (right_result.falls_through || rhs_execution != Some(true)),
+                && (right_result.falls_through || !rhs_required),
         })
     }
 

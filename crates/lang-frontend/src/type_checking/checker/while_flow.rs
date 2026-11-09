@@ -93,10 +93,12 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<BTreeSet<FlowKey>, TypeCheckingError> {
-        Ok(collect_expression_mutation_targets(self.ast(), expression)?
-            .into_iter()
-            .filter_map(|target| self.stable_flow_key(target))
-            .collect())
+        Ok(
+            collect_expression_mutation_targets(self.syntactic_boolean_outcomes, expression)?
+                .into_iter()
+                .filter_map(|target| self.stable_flow_key(target))
+                .collect(),
+        )
     }
 
     pub(super) fn check_repeating_flow(
@@ -105,9 +107,13 @@ impl Checker<'_> {
         body: StatementId,
         can_exhaust: bool,
     ) -> Result<bool, TypeCheckingError> {
-        let mut targets = collect_statement_mutation_targets(self.ast(), body)?;
+        let mut targets =
+            collect_statement_mutation_targets(self.syntactic_boolean_outcomes, body)?;
         if let Some(condition) = condition {
-            targets.extend(collect_expression_mutation_targets(self.ast(), condition)?);
+            targets.extend(collect_expression_mutation_targets(
+                self.syntactic_boolean_outcomes,
+                condition,
+            )?);
         }
         let mut pending_writes = BTreeSet::new();
         let mut writes = BTreeSet::new();

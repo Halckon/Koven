@@ -1,6 +1,6 @@
 //! 只读取语法的潜在写入收集；稳定来源解析与流事实失效由各类型检查入口负责。
 
-use std::collections::BTreeMap;
+use std::{cell::OnceCell, collections::BTreeMap};
 
 use crate::{
     ast::{AstError, ExpressionId, StatementId},
@@ -18,18 +18,9 @@ enum Pending {
 /// Recognize an unconditional RHS without running constant evaluation in flow checking.
 pub(super) fn logical_rhs_is_required(
     ast: &SyntaxAst,
-    left: ExpressionId,
-    operator: BinaryOperator,
-) -> Result<bool, AstError> {
-    Ok(logical_rhs_execution(ast, left, operator)? == Some(true))
-}
-
-/// A literal (possibly grouped or negated) proves whether the RHS executes.
-pub(super) fn logical_rhs_execution(
-    ast: &SyntaxAst,
     mut left: ExpressionId,
     operator: BinaryOperator,
-) -> Result<Option<bool>, AstError> {
+) -> Result<bool, AstError> {
     let mut required_value = operator == BinaryOperator::LogicalAnd;
     loop {
         match ast.expressions().get(left)?.payload() {
@@ -43,43 +34,114 @@ pub(super) fn logical_rhs_execution(
                 left = *operand;
             }
             Expression::Literal(LiteralKind::Boolean(value)) => {
-                return Ok(Some(*value == required_value));
+                return Ok(*value == required_value);
             }
-            _ => return Ok(None),
+            _ => return Ok(false),
         }
     }
 }
 
+/// Syntactic outcomes bound possible writes. They do not qualify control-flow products.
+pub(super) struct SyntacticBooleanOutcomes<'a> {
+    ast: &'a SyntaxAst,
+    outcomes: OnceCell<Vec<(bool, bool)>>,
+}
+
+impl<'a> SyntacticBooleanOutcomes<'a> {
+    pub(super) fn new(ast: &'a SyntaxAst) -> Self {
+        Self {
+            ast,
+            outcomes: OnceCell::new(),
+        }
+    }
+
+    pub(super) fn rhs_is_bypassed(&self, left: ExpressionId, operator: BinaryOperator) -> bool {
+        let values = self.outcomes.get_or_init(|| {
+            // Parser expression IDs are in child-before-parent order.
+            let mut values = Vec::with_capacity(self.ast.expressions().len());
+            for (_, node) in self.ast.expressions().iter() {
+                let value = match node.payload() {
+                    Expression::Literal(LiteralKind::Boolean(value)) => (*value, !*value),
+                    expression => structural_outcomes(expression, |child| {
+                        values.get(child.index()).copied().unwrap_or((true, true))
+                    }),
+                };
+                values.push(value);
+            }
+            values
+        });
+        let (yes, no) = values.get(left.index()).copied().unwrap_or((true, true));
+        match operator {
+            BinaryOperator::LogicalAnd => !yes,
+            BinaryOperator::LogicalOr => !no,
+            _ => false,
+        }
+    }
+}
+
+pub(super) fn structural_outcomes(
+    expression: &Expression,
+    outcomes: impl Fn(ExpressionId) -> (bool, bool),
+) -> (bool, bool) {
+    match expression {
+        Expression::Group { expression } => outcomes(*expression),
+        Expression::Prefix {
+            operator: PrefixOperator::Not,
+            operand,
+            ..
+        } => {
+            let (yes, no) = outcomes(*operand);
+            (no, yes)
+        }
+        Expression::Binary {
+            left,
+            operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
+            right,
+            ..
+        } => {
+            let (yes, no) = outcomes(*left);
+            let (rhs_yes, rhs_no) = outcomes(*right);
+            if *operator == BinaryOperator::LogicalAnd {
+                (yes && rhs_yes, no || (yes && rhs_no))
+            } else {
+                (yes || (no && rhs_yes), no && rhs_no)
+            }
+        }
+        _ => (true, true),
+    }
+}
+
 pub(super) fn collect_expression_mutation_targets(
-    ast: &SyntaxAst,
+    outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_expression_mutation_targets_with_inout_filter(ast, expression, |_| true)
+    collect_expression_mutation_targets_with_inout_filter(outcomes, expression, |_| true)
 }
 
 pub(super) fn collect_expression_mutation_targets_with_inout_filter(
-    ast: &SyntaxAst,
+    outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
     includes_inout: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(ast, Pending::Expression(expression), includes_inout)
+    collect_mutation_targets(outcomes, Pending::Expression(expression), includes_inout)
 }
 
 pub(super) fn collect_statement_mutation_targets(
-    ast: &SyntaxAst,
+    outcomes: &SyntacticBooleanOutcomes<'_>,
     statement: StatementId,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(ast, Pending::Statement(statement), |_| true)
+    collect_mutation_targets(outcomes, Pending::Statement(statement), |_| true)
 }
 
 fn collect_mutation_targets(
-    ast: &SyntaxAst,
+    outcomes: &SyntacticBooleanOutcomes<'_>,
     root: Pending,
     includes_inout: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
+    let ast = outcomes.ast;
     let mut pending = vec![root];
     let mut targets = Vec::new();
-    // 覆盖可能执行的分支，仅排除字面短路已证明跳过的 RHS。
+    // 覆盖可能执行的分支，仅排除已由布尔结构证明跳过的 RHS。
     while let Some(node) = pending.pop() {
         match node {
             Pending::Expression(expression) => match ast.expressions().get(expression)?.payload() {
@@ -158,7 +220,7 @@ fn collect_mutation_targets(
                     if !matches!(
                         operator,
                         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-                    ) || logical_rhs_execution(ast, *left, *operator)? != Some(false)
+                    ) || !outcomes.rhs_is_bypassed(*left, *operator)
                     {
                         pending.push(Pending::Expression(*right));
                     }

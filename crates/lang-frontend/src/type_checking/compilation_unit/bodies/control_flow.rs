@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ast::ExpressionId,
     name_resolution::SourceUnitId,
-    parser::{BinaryOperator, Expression, ParsedFile, PrefixOperator},
-    type_checking::flow_effects::logical_rhs_is_required,
+    parser::{BinaryOperator, Expression, ParsedFile},
+    type_checking::flow_effects::{logical_rhs_is_required, structural_outcomes},
 };
 
 use super::{CompilationUnitTypeParts, CompilationUnitTypes, UnitExpressionId, UnitStatementId};
@@ -173,37 +173,5 @@ impl CompilationUnitTypeParts {
                 recorded.insert(expression, possible);
             }
         }
-    }
-}
-
-fn structural_outcomes(
-    expression: &Expression,
-    outcomes: impl Fn(ExpressionId) -> (bool, bool),
-) -> (bool, bool) {
-    match expression {
-        Expression::Group { expression } => outcomes(*expression),
-        Expression::Prefix {
-            operator: PrefixOperator::Not,
-            operand,
-            ..
-        } => {
-            let (yes, no) = outcomes(*operand);
-            (no, yes)
-        }
-        Expression::Binary {
-            left,
-            operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
-            right,
-            ..
-        } => {
-            let (yes, no) = outcomes(*left);
-            let (rhs_yes, rhs_no) = outcomes(*right);
-            if *operator == BinaryOperator::LogicalAnd {
-                (yes && rhs_yes, no || (yes && rhs_no))
-            } else {
-                (yes || (no && rhs_yes), no && rhs_no)
-            }
-        }
-        _ => (true, true),
     }
 }
