@@ -37,10 +37,10 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 `ownership_borrow_continuation` 的 capture/conditional/nested-call/temporary/loop 五项拒绝
 消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。
 
-普通直接调用的 Unit loan-end 是有界观测切片：Owned-return 根实参/普通 String 的
-成功前缀已有固定事件与唯一 owner-drop 对照；后续真实 ownership 错误或 deferred
-会撤销事件能力。它不包含借用返回来源交接，不能替代 continuation 的 Single loan-end
-stream；该差异对照在对应消费者中仍需保留。
+普通直接调用的 Unit loan-end 覆盖 Owned-return 根实参、普通 String 和经同轮构造事实
+确认的完整 MoveOnly temporary。构造实参须匹配实际 Shared token 和 owner，普通工厂
+调用结果沿用原边界。后续 ownership 错误或 deferred 撤销事件能力。借用返回来源交接
+仍由其独立事实和 Single loan-end 见证覆盖。
 
 `borrow_call_handoffs()` 额外发布直接 borrow-return initializer 到显式 borrow val 的
 有界正常返回观察：真实 pending source token 捕获后，只在 binding 正常提交时发布，

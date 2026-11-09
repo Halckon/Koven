@@ -4,8 +4,8 @@
 
 ## 单文件分析
 
-`name_resolution::resolve_names` 在只读 `ParsedFile` 上建立 scope、symbol、reference 和 overload set。
-调用方通过 `NameEnvironment` 显式提供外部类型和值；resolver 不读取文件系统或隐式加载 prelude。
+`name_resolution::resolve_names` 使用只读 `ParsedFile` 与显式 `NameEnvironment`，建立 scope、symbol、reference 和 overload set。
+Unit 按文件复用该原语，再叠加跨文件声明身份与 package/import 规则。resolver 不读取文件系统或隐式加载 prelude。
 
 单文件解析使用类型/值双命名空间。顶层和成员先收集后解析，block local 在 initializer 完成后可见，
 嵌套作用域允许遮蔽。引用结果保留声明身份和源码 Span，未解析与歧义形成结构化诊断。
