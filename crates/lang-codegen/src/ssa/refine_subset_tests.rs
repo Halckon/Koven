@@ -42,6 +42,8 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
     (result.map(|(program, _)| program), f)
 }
 
+mod control_completion;
+
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {
     for source in [

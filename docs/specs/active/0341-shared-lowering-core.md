@@ -4973,3 +4973,21 @@ Linux x86_64/Rust1.96、默认debug、jobs=2，独占target串行，共1452项�
 Linux x86_64/Rust1.96、默认debug、jobs=2、独占target串行；LLVM21缺失，未执行
 本地workspace/native/LLVM或frontend全量。须以包含415ba277的新发布头完成正式CI，
 62ca42cf组合的进行中门禁不作为本次合并证据；SPEC-0341与D10/E2仍in-progress。
+
+### #384 保留 #386 完成性与 Nothing ABI 主线（2026-11-09）
+
+上轮CI期间 main 合入 #386，成为 `e87de0aca7745d8867404b18d9f0a332b5b0b26d`。
+本次从远端 #384 `b282ad05430bfd205fd80512b1821edadc4eaa79` 另建隔离工作树，
+普通 merge 新main，代码头 `b8f700d3`。唯一冲突是名称类型架构的一段说明：使用
+main整文件原样插回既有Rc/signature/stress两句，完整保留新loop/while/when说明和链接。
+独立静态复核确认56个新main文件中55个blob逐字相同，唯一文档扣除上述两句后与main
+全文逐字相同。ownership主遍历、DropPlanner、liveness均消费when完成性和实际selector
+前缀，旧owner observer/replay保持原样，仍保守拒绝loop/while/when，不扩大观察能力。
+
+本组合重新执行相同完整frontend lib及13个integration目标，1454项通过，零失败/忽略/
+过滤；其中multifile_type_checking为287、multifile_ownership_checking为164，其余计数
+与上一组合相同，不重复累计。frontend all-targets严格Clippy、workspace fmt、docs、diff
+及相对e87de0ac尺寸门禁全部通过：863 Markdown、2233 Rust、37项主线既有超长，额度不变。
+Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
+缺失，未运行本地workspace/native/LLVM或frontend全量。只有包含e87de0ac的精确发布头
+正式CI才可用于本次合并，不复用b282ad05的旧base证据；SPEC-0341与D10/E2仍in-progress。

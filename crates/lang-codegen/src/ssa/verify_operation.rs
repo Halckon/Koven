@@ -130,11 +130,9 @@ pub(super) fn verify_operation(
             value_type(function, *operand).is_some_and(|ty| is_boolean(module, ty))
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
-        Operation::DirectCall {
-            callee,
-            receiver,
-            arguments,
-        } => direct_call_contract(module, function, *callee, *receiver, arguments, &results),
+        Operation::DirectCall { .. } => {
+            direct_call_contract(module, function, instruction, &results)
+        }
         Operation::FunctionAddress { target } => {
             function_address_contract(module, *target, &results)
         }

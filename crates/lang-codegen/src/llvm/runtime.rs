@@ -1000,7 +1000,7 @@ fn pointer_index_bits(target: &TargetData) -> Result<u32, LlvmAdapterError> {
     Ok(index_bits)
 }
 
-fn add_noreturn_attribute(context: &Context, function: FunctionValue<'_>) {
+pub(super) fn add_noreturn_attribute(context: &Context, function: FunctionValue<'_>) {
     let kind = Attribute::get_named_enum_kind_id("noreturn");
     if kind != 0 {
         function.add_attribute(

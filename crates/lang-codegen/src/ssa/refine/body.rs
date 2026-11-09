@@ -855,12 +855,13 @@ pub(super) enum RTerm {
         source: Slot,
     },
     Abort(RAbort),
+    Unreachable,
 }
 
 impl RTerm {
     pub(super) fn operands(&self) -> Vec<Slot> {
         match self {
-            Self::Goto(_) | Self::Return(None) => Vec::new(),
+            Self::Goto(_) | Self::Return(None) | Self::Unreachable => Vec::new(),
             Self::Abort(RAbort::Error { message }) => vec![*message],
             Self::Abort(RAbort::CheckedArithmetic {
                 operator: CheckedArithmeticOperator::Divide | CheckedArithmeticOperator::Remainder,
@@ -891,7 +892,8 @@ impl RTerm {
             Self::Return(_)
             | Self::BorrowReturn { .. }
             | Self::RangeReturn { .. }
-            | Self::Abort(_) => Vec::new(),
+            | Self::Abort(_)
+            | Self::Unreachable => Vec::new(),
         }
     }
 }

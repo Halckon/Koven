@@ -262,7 +262,7 @@ pub(super) fn verify_ownership(
                     errors,
                 );
             }
-            TerminatorKind::Abort => {}
+            TerminatorKind::Abort | TerminatorKind::Unreachable => {}
         }
     }
 }
@@ -1850,6 +1850,7 @@ pub(super) fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
         TerminatorKind::Return { .. }
         | TerminatorKind::RangeReturn { .. }
         | TerminatorKind::BorrowReturn { .. }
-        | TerminatorKind::Abort => Vec::new(),
+        | TerminatorKind::Abort
+        | TerminatorKind::Unreachable => Vec::new(),
     }
 }

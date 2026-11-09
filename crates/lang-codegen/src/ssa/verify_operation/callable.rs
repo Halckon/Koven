@@ -1,18 +1,35 @@
 //! callable 参数、结果、formation 与签名的一致性合同。
 use super::*;
-use crate::ssa::model::LoanId;
+use crate::ssa::model::{LoanId, TerminatorKind};
 
 pub(super) fn direct_call_contract(
     module: &Module,
     function: &Function,
-    callee: FunctionId,
-    receiver: Option<EntityId>,
-    arguments: &[EntityId],
+    instruction: &Instruction,
     results: &[EntityType],
 ) -> bool {
+    let Operation::DirectCall {
+        callee,
+        receiver,
+        ref arguments,
+    } = instruction.operation
+    else {
+        return false;
+    };
     let Some(callee) = module.function(callee) else {
         return false;
     };
+    if callee.never_returns
+        && !function.block(instruction.block).is_some_and(|block| {
+            block.instructions.last() == Some(&instruction.id)
+                && block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.kind == TerminatorKind::Unreachable)
+        })
+    {
+        return false;
+    }
     let Some(entry) = callee.blocks.first() else {
         return false;
     };
@@ -223,7 +240,7 @@ pub(super) fn function_matches_signature(
     let Some(function) = module.function(target) else {
         return false;
     };
-    if function.receiver.is_some() {
+    if function.receiver.is_some() || function.never_returns {
         return false;
     }
     let Some(entry) = function.blocks.first() else {

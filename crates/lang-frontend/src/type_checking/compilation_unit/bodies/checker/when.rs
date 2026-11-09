@@ -97,6 +97,7 @@ impl BodyChecker<'_> {
         let mut pending_exits = None::<BTreeSet<_>>;
         let mut boolean_exits = value_use.then(PendingBooleanEdges::default);
         let mut selector_stops_miss = false;
+        let mut closed_after = None;
 
         for (entry_index, entry) in entries.iter().enumerate() {
             let mut nullable_entry = super::nullable_when::begin_entry(
@@ -140,13 +141,14 @@ impl BodyChecker<'_> {
                     )?;
                 }
             } else {
-                for condition in &entry.conditions {
+                for (alternative, condition) in entry.conditions.iter().enumerate() {
                     let deferred = self.deferred_facts.len();
                     let condition_span = self.when_condition_span(source, condition)?;
                     self.flow_versions
                         .set_pending_keys(remaining_pending.iter().flatten().copied());
                     let reachable = remaining_pending.is_some() && !remaining_domain.is_empty();
-                    let checked = self.check_loop_reachable(reachable, |checker| {
+                    let ordinary = subject_completes && !remaining_domain.is_empty();
+                    let checked = self.check_loop_paths(ordinary, reachable, |checker| {
                         checker.check_when_condition(
                             source,
                             subject_type,
@@ -217,6 +219,9 @@ impl BodyChecker<'_> {
                     }
                     // Condition effects remain on the miss edge; a selected body never runs here.
                     remaining_domain = missed;
+                    if domain.is_some() && remaining_domain.is_empty() {
+                        closed_after.get_or_insert((entry_index + 1, alternative + 1));
+                    }
                     remaining_pending = pending.no.filter(|_| !remaining_domain.is_empty());
                     if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
                         && source_valid
@@ -282,7 +287,8 @@ impl BodyChecker<'_> {
                 entry_source_valid,
             );
             let mut branch_pending = false;
-            let result = self.check_loop_reachable(body_reachable, |checker| {
+            let ordinary = subject_completes && !body_domain.is_empty();
+            let result = self.check_loop_paths(ordinary, body_reachable, |checker| {
                 checker.check_value_body_with_replacement(
                     source,
                     entry.body,
@@ -337,6 +343,11 @@ impl BodyChecker<'_> {
         }
         let falls_through = !exits.is_empty();
         let control = UnitExpressionId::new(source, expression);
+        if let Some(closed_after) = closed_after {
+            self.parts.when_closed_after.insert(control, closed_after);
+        } else {
+            self.parts.when_closed_after.remove(&control);
+        }
         self.note_pending_exit(
             PendingControlSite::Expression(control),
             pending_exits.is_some(),

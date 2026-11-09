@@ -520,3 +520,47 @@ fn unit_string_binary_views_drop_operands_only_after_the_operation() {
         }
     });
 }
+
+#[test]
+fn exhaustive_when_does_not_extend_an_owner_only_used_by_a_dead_arm() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "dead-when-owner.ko",
+        "class Ticket {}
+         fun discard(own ticket: Ticket): Unit {}
+         fun gate(): Boolean = false
+         fun f(flag: Boolean): Unit {
+             val ticket = Ticket()
+             when (flag) { gate() -> {}; true -> {}; false -> {}; else -> discard(ticket) }
+         }",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let owned =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let unit = source_unit(&names, source);
+    let (binding, _) = file
+        .ast()
+        .statements()
+        .iter()
+        .find(|(_, node)| {
+            matches!(
+                node.payload(),
+                lang_frontend::parser::Statement::LocalVariable { .. }
+            )
+        })
+        .expect("ticket binding");
+    let binding = lang_frontend::type_checking::UnitStatementId::new(unit, binding);
+    assert!(
+        owned.drops().iter().any(|fact| {
+            fact.point() == UnitDropPoint::AfterStatement(binding)
+                && matches!(fact.target(), UnitDropTarget::Named(_))
+        }),
+        "the dead use must not delay the initializer's last-use drop"
+    );
+}

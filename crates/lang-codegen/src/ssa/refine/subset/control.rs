@@ -3,7 +3,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     ownership_checking::UnitShortCircuitRhs,
     parser::{BinaryOperator, Expression, Statement},
-    type_checking::UnitExpressionId,
+    type_checking::{UnitExpressionId, UnitStatementId},
 };
 
 use super::Checker;
@@ -58,9 +58,11 @@ impl Checker<'_, '_> {
             | Statement::LambdaBody { elements } => elements
                 .iter()
                 .all(|&element| self.statement_may_continue(element)),
-            Statement::While { condition, .. } => {
-                let (yes, no) = self.condition_outcomes(*condition);
-                yes || no
+            Statement::Loop { .. } | Statement::While { .. } => {
+                self.inputs
+                    .typed
+                    .loop_falls_through(UnitStatementId::new(self.inputs.source_unit, statement))
+                    != Some(false)
             }
             Statement::Expression { expression } => {
                 if !self.expression_may_continue(*expression)

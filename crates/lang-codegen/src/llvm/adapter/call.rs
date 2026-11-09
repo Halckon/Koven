@@ -39,6 +39,9 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
             let llvm_function =
                 self.llvm
                     .add_function(&name, function_type, Some(Linkage::Internal));
+            if function.never_returns {
+                crate::llvm::runtime::add_noreturn_attribute(self.context, llvm_function);
+            }
             if let Some(debug) = &mut self.debug {
                 debug.attach_function(function, llvm_function)?;
             }
