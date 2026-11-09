@@ -926,3 +926,6 @@ mod field_binding_receiver;
 
 #[path = "unit_direct_call_loan_ends/lifecycle_combination.rs"]
 mod lifecycle_combination;
+
+#[path = "unit_direct_call_loan_ends/constructed_receiver_combination.rs"]
+mod constructed_receiver_combination;
