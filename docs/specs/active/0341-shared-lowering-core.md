@@ -4764,3 +4764,56 @@ locked/offline、默认 debug、jobs=2、独立 target 串行。direct 族的
 本片只本地分步提交并生成 format-patch/bundle 私人备份，不推送、不开 PR、不合并。
 恢复包明确以已发布 #374 的 `11c93d62` 为前置；本地回放与 Drive 字节核验分别记录于
 备份说明，不将备份成功当作精确发布头 CI。D10/E2 与完整借用生命周期仍 in-progress。
+
+## 123. Shared receiver 正常调用完成（2026-11-09）
+
+基于前片 `084675c8b6b9200b89bbde3d30878829f5157f76`，独立分支
+`feature/spec-0341-receiver-call-return`；已核 #374 的 Return 观察、前片 CFG 扩展及
+未合的 String.clone `53d0a75b`，不重复其实现，也不改在途动态 owner/Choice 算法。
+此片仍以 #374 的 `11c93d62` 为依赖祖先，不宣称已同步随后主线或其他未合候选。
+
+新增 `receiver_call_return_ends()` 与封闭 `UnitReceiverCallReturnEndFact`。正常调用完成
+原本通过 retain 丢弃的 call/receiver pending tokens，现以同一谓词的补集 extract_if
+完整移出；符合既有 Shared、owned Name/Group 根、owned-result 方法资格的真实 receiver
+原值被保存在独立表中，不从 descriptor 或 end_span 重建执行。其余 tokens 的保留顺序、
+loop depth 和原退休集合不变。无新 iteration action，不改变 caller owner/drop 或借用准入。
+
+前缀查询继续独立。内层正常完成后，外层 return/break/continue 不重复退休其 token；
+内层 loop jump 只清理自己深度的 receiver，外层仍可正常完成。一个 pending receiver
+在互斥的 Return/继续分支可以分别产生 prefix 与 CallReturn 事实，不能当作同一执行
+路径上的两次结束。新表是静态正常完成见证，不提供参数/receiver/drop 全序、动态次数、
+全局 absence 或完整借用生命周期。borrowed/this/投影/temporary/provider/borrow-binding、
+reservation、borrowed-result receiver 与 String.clone intrinsic 的独立路径仍不扩张。
+
+失败先行先因 API 缺失编译失败；接空表后，同一合法 owned receiver 源码在运行时再次
+失败（实际0条、固定预期1条），再接真实 token 退休 producer 后转绿。新增11项普通双
+Unit入口合同覆盖完整向量、独立源码 Span、真实 receiver/root/call 身份、Group、零参数、
+嵌套同根、完成后 unwind、嵌套 loop、分支与循环静态点、混合 Return/正常路径、for 原
+cleanup、排除边界和公开撤销；额外 Abort 邻控仅编译。新 raw 正例核实际非空前缀的错误/
+deferred 清空，并以同unit两份相同 AST 索引源码证明 source-qualified 身份互不混淆。
+
+独立只读复核确认 extract_if 完整耗尽、谓词与旧 retain 互补、正常 continuation 才调用、
+原 token 移动和各层撤销齐全；新 helper 不影响原其他调用的 pending。补齐建议邻控及
+模块注释后复核无P1/P2。既有 Single、prefix、iteration 和 String.clone 见证均保留。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 普通正常完成与原 direct 合同 | `unit_direct_call_loan_ends`，排除下列5整项 | 127 passed，含11项新普通合同 |
+| 原借用与receiver回边 | continuation、nested、backedge 三 targets；nested排除下列1整项 | 14 + 9 + 4 passed |
+| 原 iteration 退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| raw 撤销与跨source | `--lib adjacent_borrow_results` | 10 passed，396项未选 |
+| 静态与跨crate | frontend all-targets Clippy `-W clippy::all -D warnings`、workspace all-targets check、fmt | 全部通过 |
+| 文档与尺寸 | `check_docs.py`、`check_rust_sizes.py --base 084675c8`、diff | 通过；863 Markdown、2227 Rust、35项既有超长，未改额度 |
+
+共170项不同普通测试通过，不重复累计先行/筛选复跑。Mac AArch64、Rust1.96、LLVM21.1.8，
+locked/offline、默认 debug、jobs=2、独立 target 串行。CompilationUnitOwnership
+1022→1035/1156、dataflow1136→1141/1248仅新增公开导出、字段、聚合及清空接线；
+drop_planner1562→1559/1669，算法留receiver子模块。原例外、owner及拆分计划不变。
+
+沿用 §121 的4项 direct Abort 整项与 nested 的
+`inout_receiver_and_nonreturning_sources_do_not_publish_call_uses` 排除，另新增
+`receiver_return::abort_after_completed_inner_receiver_does_not_invent_outer_return`
+仅编译。故障注入、压力、native、Linux、frontend/workspace 全量测试及正式CI未运行。
+本片只本地分步提交，不推送或合并；备份包含从已发布11c93d62起的前片及本片patch链和
+增量bundle，避免仅依赖未合本地父提交。恢复/私有Drive字节校验独立记录于包内说明；
+不以备份或定向门禁宣称完整事件流或D10/E2完成。

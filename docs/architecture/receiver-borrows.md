@@ -82,3 +82,18 @@ reservation、this、投影、temporary、provider、借用绑定与 borrowed-re
 pending receiver；continue 保留仍 live 的循环外 owner，for 的 provider 清理顺序不变。
 计数描述每个静态控制点，不表示动态迭代次数；同根多 token 仍按实际逆序逐条保留。
 新增证据见 [CFG 前缀切片](../specs/active/0341-shared-lowering-core.md#121-shared-receiver-循环控制转移前缀2026-11-09)。
+
+## Shared receiver 的正常完成观察
+
+Unit `receiver_call_return_ends()` 在实际正常调用完成时，从原 pending 队列移出完整
+receiver token，发布独立 `UnitReceiverCallReturnEndFact`；不从最终 receiver descriptor
+反推执行。它与 prefix 查询公用 owned-result、Shared、owned Name/Group 根资格，保留
+借入根、this、投影、temporary、provider、借用绑定、reservation 与 borrowed-result
+receiver 的排除边界；String.clone intrinsic 的独立完成路径不在此查询内。
+
+正常完成仍移除原 retain 所选的 call/receiver tokens，其他调用及 action 的顺序和 loop
+depth 不变，不新增 iteration action 或改变 owner 清理。已完成 inner token 不在后续
+outer unwind 再出现；分支两侧的同一 receiver 可分别有 CallReturn 与 ControlTransfer
+事实，两者互斥，不是重复动态执行。事件只证明相应静态完成点，不承诺参数/receiver/drop
+全序、全局 absence 或完整借用流。错误/deferred 与无效 typed 输入撤销新表；证据见
+[SPEC-0341 正常完成切片](../specs/active/0341-shared-lowering-core.md#123-shared-receiver-正常调用完成2026-11-09)。
