@@ -3038,6 +3038,24 @@ SIGABRT，没有析构输出。原生资源套件 18 项及最终加强后的新
 Code CI Evidence 均通过。两端原始日志均核对六条关键回归实际通过，覆盖文件恢复、
 软前缀、操作计数、名义类型压力、实参清理事实及原生退出顺序。Editor lexical 按改动范围跳过。
 
+### R3 复制字段实参的临时父对象
+
+以 `53f1227f` 为基线，`read(Holder(1).number, ...)` 把 Copyable
+字段转换为 `Borrow Int?` 后，Unit 发布包装槽的 Shared loan，却在正常返回
+与后续实参提前退出时都遗漏完整父 owner 的析构。定向回归在修改前实际失败。
+
+调用清理复用 Field/Group 父对象定位和原 pending temporary 机制。
+只有已检查的同调用、同实参 Shared loan 和 nullable 转换合同可以把
+父对象加入调用清理。真实 loan 目标仍是包装槽，字段父观测只消费
+目标确为父对象的 loan。MemoryDocument 与 Rooted 覆盖裸父和分组父、
+正常返回、`return`、`break`、`continue` 及 Abort 不析构。
+独立复核额外验证混合精确/复制实参按完成顺序逆序清理，未求值的父不登记。
+
+最终前端单元及三组集成共 895 项通过，零失败、忽略或过滤。前端严格
+Clippy 通过。旧 Single 两种字段参数均缺少临时父支持，单列为旧入口
+能力边界。Unit 本批修复清理事实，匿名类字段在 refine 与原生生成的
+准入和析构实跑仍待验证。
+
 ## 117. R0/R3 二元操作结束与重绑后的退出析构
 
 以 `edaaa9b2` 为基线。原 Single 的 String 拼接与比较源码、重绑的普通块与 if/else
