@@ -5481,3 +5481,41 @@ nested If、nullable/非Boolean、参数模式及超限，包括未引用非法�
 真实循环动态实例/phi、incoming/nested Choice、任意消费者、Phase4/native、Single见证
 退休与E3仍未闭合，D10/E2继续in-progress。不新增备份，分步提交后只用connector
 发布新的独立分支，不覆盖已有ref，不强推或合并。
+
+
+## 142. 动态 owner 全链与最新 main 的单 PR 整合（2026-11-09）
+
+按用户合批要求，以 main `14297820` 新建独立整合分支，合入已发布 Choice 链
+`d419f567`（§140），复用其35个主线外提交。逐支核对既有 Choice 分支均为该链祖先；
+owner/capture/loop 旧切片已在 main，不重新实现。本次不覆盖原分支，不强推或合入主线。
+Phase 3 合同与生产准入不扩张，D10/E2 继续 in-progress。
+
+本地组合输入为 `aec1a5fd990960a5ba3d63ee403e9375734e0ca5`，tree
+`ce82b231a4cbeb3c0ee98a61e593e0401096fa8d`；有序父级为 main `14297820`、
+owner `d419f567`。全部 Rust 自动合并，没有手工生产冲突修正；唯一文本冲突为本 Spec
+末尾追加区，保留 main 完整正文及 owner §§120–140 完整追加文本，各一份。
+独立复核确认 main 独有190个文件、owner 独有18个文件逐 blob 保全，共同修改的三个
+Rust 文件精确等于两侧非重叠改动的并集，main 短路和双 bare Return 逻辑均保留。
+
+Architecture 合并后原页217行超过200行门槛，将完整“V1 value 投影与受限 Choice”
+正文迁入 [Choice 专页](../../architecture/unit-choice-transport.md)，原页保留明确入口并
+同步目录索引；正文原字保全，仅省去末尾分隔空行。另澄清旧观察及内部结果通道本身的
+Unsupported 与独立 V1 有界准入不是同一通道，不改变实现或历史验收结论。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| owner 全链与主线邻控 | `lang-frontend --lib`，§140 的49项 ordinary exact，加6项 terminal Return / full legacy cleanup 邻控 | 55 passed，0 failed/ignored |
+| 短路与公开清理 | `multifile_ownership_checking` 两项 control-result、两项 ordinary short-circuit、声明顺序 rebinding cleanup | 5 passed，0 failed/ignored |
+| 循环拒绝边界 | `ownership_iteration loop_choice_unit::` | 8 passed，0 failed/ignored |
+| capture 与借用邻控 | `ownership_closures capture_identity_unit::` 及 `ownership_borrow_continuation` scope/return 子先父清理 | 2 + 1 passed，0 failed/ignored |
+| 独立复跑 | 三项 `choice_predicates`、installed-first、dual-forwarding、alias-chain、terminal Return 与两项公开 short-circuit，各完整名 exact | 9 passed，各命中1项；前后 HEAD/tree 不变 |
+| 质量门禁 | frontend all-targets Clippy `-D warnings`、fmt、docs、Rust 尺寸、diff | 通过；864 Markdown、2245 Rust、37项既有超限 |
+
+以上71项为不同 ordinary 测试，独立9项是重跑其中选项，不重复计入总数。Cargo 使用
+`--locked --offline`；手工模型、故障注入和 Abort 类测试仅随 all-targets 编译，未本机执行。
+后续仅文档修订不改变受测 Rust；再跑文档与 diff 门禁。精确远端头的正式双平台 CI 尚未
+验收，需由一个 draft PR 触发；本地组合绿灯不替代 Linux、native 或完整 CI 证据。
+
+本次未跑全量、native、Linux 或 Phase 4；真实循环动态实例/owner phi、incoming/nested
+Choice、任意消费者、Single 见证退休、Phase 4/native 与 E3 仍未闭合。Spec 不归档，
+不把有界 V1 观察或图守恒升级为这些能力。

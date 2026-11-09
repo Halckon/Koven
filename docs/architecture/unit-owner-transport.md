@@ -88,13 +88,14 @@ callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀�
 `owner_transport_tests::choice_model` 保存单选择的手工图测试，用真 definition catalog
 身份构造图，分别验证两条替代路径及完整后续；Choice 不成为新 String producer。
 原测试内算法已迁入 V1 库 validator，手工图仍只在测试中构造，不代表生产发出 Choice。
-模型不证明 AST 类型、实际尾值交付或未记录的调用/退出，生产 String-result If 仍
-Unsupported。实际消费者的 cleanup 和 Single witness 保留，准入接线须另立合同；
-历史模型验收见 SPEC-0341 §83，本次迁移边界见 §87。
+模型不证明 AST 类型、实际尾值交付或未记录的调用/退出。旧 owner 观察中的 String-result
+If 仍原子 Unsupported；实际 cleanup 和 Single witness 保留。独立 V1 事务的受限生产
+准入见[专页](unit-choice-transport.md)；历史模型验收见 SPEC-0341 §83、§87。
 
 Control body 的私有结果通道保留实际尾表达式与既有求值帧 owner；旧 bool 调用方
 仍只消费是否继续。Read 尾值不交付 owner，原 temporary/scope cleanup 不变。
-该内部通道不改变 String-result If 的 Unsupported 边界，也不发布 Choice 协议。
+该内部通道本身不改变旧观察的 String-result If Unsupported 边界，也不单独发布 Choice；
+V1 协议由专页所述独立事务在完成全部运输与清理证据后发布。
 
 ## V1 value 投影与受限 Choice
 
