@@ -4717,3 +4717,50 @@ AST 查询歧义亦记录为失败，改用唯一比较串后同选择通过。�
 Mac AArch64/Rust1.96、locked/offline、默认debug、jobs=2、共享target串行；损坏注入、
 Abort、压力及native本机未执行，未复跑workspace或frontend全量。按本轮范围仅本地提交
 并format-patch备份，不推送或合并；修复头正式双宿主CI尚未运行，远端旧头失败仍未解除。
+
+## 121. Shared receiver 循环控制转移前缀（2026-11-09）
+
+基线为 #374 的 `11c93d62edd7e5f04229dcd5d775bea5b1a26866`，生产及测试提交
+`a9e9998d66ab4bba2fda914b9a17f4266ad5bece`。已核 main `e1b0c2dc`、#374 的 receiver
+Return 切片及独立 String.clone `53d0a75b`；本片以 #374 为前置，不重复这些提交，不改
+动态 owner/phi、语言准入或 P4/native，也未宣称已与随后主线或 String.clone 合并验证。
+
+只将 `receiver_call_prefix_ends()` 对实际 `EndReceiverLoan` 动作的 Return 筛选扩至
+break/continue。pending 注册、loop-depth 逆序移除、owner/provider 清理均不改变；
+owned-result、Shared、owned Name/Group 根的原资格与排除边界保留。计数按每个 source
+内的静态控制点重置，含未发布 borrowed receiver 的真实动作，不是动态循环次数或全局
+事件索引。完整借用流、正常 receiver CallReturn、reservation、this、投影、temporary、
+provider/borrow-binding receiver、borrow-result receiver 及跨事务全序仍未交付。
+
+失败先行：未修改生产时，合法 loop body 的真实 break 前缀应有1条事件而得到0条，精确
+测试失败。新双入口合同核完整有界向量、真实 source-qualified call/receiver/root/jump
+身份、同根多 token 逆序、内层 jump 不结束外层 pending receiver、continue 保留外层
+owner、两个循环及同循环互斥分支的计数隔离、for provider 顺序、边界和原子撤销。
+旧 Return-only 测试中的两份 loop 源码逐字转为正例，其他原源码及 Single 见证保留。
+
+独立复核发现新测试把函数参数误期望在普通 loop break 点析构；原算法在 LoopExit
+清理外层参数，实跑9通过/1失败确认。仅修正该新 oracle 为 jump 点无 Drop，不改生产
+cleanup；再次独立审查无阻断，最终 direct 族116项通过。新增 raw 测试还核对真实非空
+break/continue 前缀在独立错误及 deferred 来源加入后撤销。
+
+| 验收项 | 实际选择 | 本地结果 |
+|---|---|---|
+| 新合同及原 direct 族 | `unit_direct_call_loan_ends`，排除下列4整项 | 116 passed，含10项新 CFG 合同 |
+| 借用 continuation、nested 与 receiver backedge | 对应3 targets，nested 排除下列1整项 | 14 + 9 + 4 passed |
+| 原 Unit iteration 退出 | `ownership_iteration::control_exits_unit` | 6 passed，196项未选 |
+| raw 原子门及相邻产物 | `--lib adjacent_borrow_results` | 8 passed，396项未选，含新增 loop 前缀撤销 |
+| 静态与跨 crate | frontend all-targets Clippy `-W clippy::all -D warnings`、workspace all-targets check、fmt | 全通过 |
+| 文档、尺寸与 diff | `check_docs.py`、`check_rust_sizes.py --base 11c93d62`、`git diff --check` | 通过；863 Markdown、2226 Rust、35项既有超长，未改额度 |
+
+共157项不同普通 Rust 测试通过，不重复累计筛选复跑。Mac AArch64、Rust1.96、LLVM21.1.8，
+locked/offline、默认 debug、jobs=2、独立 target 串行。direct 族的
+`exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events`、
+`receiver_prefix::abort_does_not_publish_receiver_prefix_ends`、
+`temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent` 与
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`，以及 nested 的
+`inout_receiver_and_nonreturning_sources_do_not_publish_call_uses` 均仅编译未运行。
+未执行故障注入、压力、frontend/workspace 全量测试、native、Linux 或官方 CI。
+
+本片只本地分步提交并生成 format-patch/bundle 私人备份，不推送、不开 PR、不合并。
+恢复包明确以已发布 #374 的 `11c93d62` 为前置；本地回放与 Drive 字节核验分别记录于
+备份说明，不将备份成功当作精确发布头 CI。D10/E2 与完整借用生命周期仍 in-progress。

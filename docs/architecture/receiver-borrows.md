@@ -67,13 +67,18 @@ unit 既有能力不回退。0299 组合只证明
 按真实字段身份进行所有权检查；尝试从 owned 聚合移出不可复制字段时报告 L0132 并标注字段声明。
 
 
-## Shared receiver 的 Return 前缀结束观察
+## Shared receiver 的控制转移前缀结束观察
 
-Unit `receiver_call_prefix_ends()` 只投影实际 Return unwind 的 `EndReceiverLoan`，保留真实
+Unit `receiver_call_prefix_ends()` 只投影实际 return/break/continue unwind 的 `EndReceiverLoan`，保留真实
 receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end 的数量。计数
-包含被切片排除的真实动作，按不同 Return 点重置，不提供全局执行索引或完整结束流。
+包含被切片排除的真实动作，按不同控制转移点重置，不提供全局执行索引或完整结束流。
 
 仅 owned-result 方法、Shared receiver 和 owned Name/Group 根准入；正常返回、
-break/continue、reservation、this、投影、temporary、provider、借用绑定与 borrowed-result
+reservation、this、投影、temporary、provider、借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
+
+循环内只观察原 depth-aware unwind 实际移出的 receiver token，内层 jump 不结束外层
+pending receiver；continue 保留仍 live 的循环外 owner，for 的 provider 清理顺序不变。
+计数描述每个静态控制点，不表示动态迭代次数；同根多 token 仍按实际逆序逐条保留。
+新增证据见 [CFG 前缀切片](../specs/active/0341-shared-lowering-core.md#121-shared-receiver-循环控制转移前缀2026-11-09)。
