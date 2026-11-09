@@ -3268,3 +3268,15 @@ Basic 正常求值 RHS 使用 BranchExit 0，旁路使用 1。已知不完成的
 括号在解析失败，修正后两路均输出相同的两组 take/drop 和最终 ok。
 最终逻辑差异经过独立复核。最后一轮完整前端本机运行因复核新发现而提前停止，
 本节以修复后的定向实跑和后续双宿主候选证据为准。
+
+## 130. R3/R4 Const 短路析构边编号
+
+在 `ac9a7d81` 上，Const subjectless when 的条件 OR 在跳过 RHS 时应释放仍由
+调用者持有的 String。原生红测实际报 InvalidModel。所有权计划以 0=true、1=false
+编号，OR 的正常 RHS 是 1。refine 改为从同源的 Const 计划读取 RHS 编号，以互补
+编号消费 skip 的清理事实。Basic 保持 RHS 0、skip 1。
+
+本机实际编译链接运行 AND、OR 两种形状。各自覆盖正常 RHS、旁路与 RHS 实参
+提前 return，精确断言结果和输出。提前退出的 RHS 不调用 callee。Const SSA 套件
+27 项、前端 Const 所有权 23 项通过，零失败与忽略。codegen 全目标 Clippy 通过，
+独立复核核对真实清理点、Const 提前退出及 Basic 隔离。

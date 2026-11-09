@@ -198,3 +198,33 @@ fun main(): Unit {
     assert_success(&run(), expected);
     assert_success(&crate::ssa::with_per_family_lowering(run), expected);
 }
+
+#[test]
+fn constant_short_circuit_when_cleans_the_actual_skipped_owner() {
+    for (operator, taken, skipped) in [("||", false, true), ("&&", true, false)] {
+        let skipped_result = if skipped { 2 } else { 3 };
+        let source = format!(
+            r#"const val Answer: Int = 2
+fun take(own text: String): Boolean {{ println(text); return true }}
+fun takeAfter(own text: String, value: Int): Boolean {{ println("unexpected"); return true }}
+fun choose(flag: Boolean, own text: String): Int {{
+    return when {{ flag {operator} take(text) -> Answer; else -> 3 }}
+}}
+fun chooseExit(flag: Boolean, own text: String): Int {{
+    return when {{ flag {operator} takeAfter(text, return 7) -> Answer; else -> 3 }}
+}}
+fun main(): Unit {{
+    if (chooseExit({skipped}, "skipped exit") != {skipped_result}) {{ error("wrong skip result") }}
+    if (chooseExit({taken}, "RHS exit") != 7) {{ error("wrong early RHS result") }}
+    if (choose({skipped}, "skipped") != {skipped_result}) {{ error("wrong skip result") }}
+    if (choose({taken}, "taken") != Answer) {{ error("wrong RHS result") }}
+    println("ok")
+}}
+"#
+        );
+        assert_success(
+            &emit_link_and_run("const-when-short-circuit-owner.ko", &source, "main"),
+            b"taken\nok\n",
+        );
+    }
+}
