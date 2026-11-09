@@ -89,7 +89,10 @@ impl Builder<'_, '_> {
             .get(declaration)
             .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
         let lang_frontend::parser::Item::Variable {
-            name, initializer, ..
+            name,
+            initializer,
+            kind,
+            ..
         } = node.payload().clone()
         else {
             return Err(error(LoweringErrorKind::MissingFact, span));
@@ -97,6 +100,18 @@ impl Builder<'_, '_> {
         let lang_frontend::parser::NameMarker::Present(name_span) = name else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
+        if matches!(kind, lang_frontend::parser::VariableKind::BorrowVal(_))
+            && self
+                .inputs
+                .typed
+                .expression_falls_through(self.unit(initializer))
+                == Some(false)
+        {
+            if self.expression(initializer)? != Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            return Ok(Lowered::Diverged);
+        }
         if let Some(fact) = self
             .inputs
             .owned

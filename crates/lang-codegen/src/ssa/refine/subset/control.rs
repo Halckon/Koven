@@ -2,7 +2,7 @@
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     ownership_checking::UnitShortCircuitRhs,
-    parser::{BinaryOperator, Expression, Statement},
+    parser::{BinaryOperator, Expression, Item, Statement, VariableKind},
     type_checking::{UnitExpressionId, UnitStatementId},
 };
 
@@ -63,6 +63,19 @@ impl Checker<'_, '_> {
                     .typed
                     .loop_falls_through(UnitStatementId::new(self.inputs.source_unit, statement))
                     != Some(false)
+            }
+            Statement::LocalVariable { declaration } => {
+                let Ok(item) = self.inputs.parsed.ast().items().get(*declaration) else {
+                    return true;
+                };
+                match item.payload() {
+                    Item::Variable {
+                        kind: VariableKind::BorrowVal(_),
+                        initializer,
+                        ..
+                    } => self.expression_may_continue(*initializer),
+                    _ => true,
+                }
             }
             Statement::Expression { expression } => {
                 if !self.expression_may_continue(*expression)
