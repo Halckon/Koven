@@ -4,8 +4,8 @@ pub(super) use loops::{
     LoopBodyCompletion, LoopBranchCompletion, LoopBranchExit, publish_observations,
 };
 pub use loops::{
-    UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
-    UnitOwnerLoopObservationV1,
+    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1,
 };
 pub(super) mod values;
 pub use values::{

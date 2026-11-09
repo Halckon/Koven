@@ -1,8 +1,11 @@
 //! Nonempty boundary evidence, deliberately not a closed outer transport or a phi.
+mod boundaries;
+mod breaks;
 use super::super::{UnitOwnerId, UnitOwnerProducerCatalogV1, UnitOwnerValueObservationV1};
 use super::{UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerObservation};
 use crate::name_resolution::UnitSymbolId;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
+pub use breaks::UnitOwnerInvariantBreakObservationV1;
 
 /// One binding read from the actual planner state at a loop boundary.
 #[derive(Clone, Debug, PartialEq, Eq)]

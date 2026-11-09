@@ -20,6 +20,7 @@ mod closed_while_conditional;
 mod closed_while_fallthrough;
 mod combination;
 mod control_tail;
+mod invariant_break;
 mod invariant_continue;
 mod invariant_while;
 mod loop_boundaries;

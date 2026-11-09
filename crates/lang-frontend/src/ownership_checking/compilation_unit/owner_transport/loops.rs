@@ -3,7 +3,10 @@ mod invariant;
 use super::{UnitOwnerCallable, UnitOwnerObservation, UnitOwnerValueObservationV1};
 use crate::ownership_checking::UnitDropPoint;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
-pub use invariant::{UnitOwnerInvariantLoopObservationV1, UnitOwnerLoopBindingV1};
+pub use invariant::{
+    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerLoopBindingV1,
+};
 
 /// Structural control edges of a sealed While body, not an executed finite trace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
