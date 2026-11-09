@@ -21,6 +21,7 @@ pub enum UnitOwnerLoopEdgeV1 {
 #[derive(Clone, Debug)]
 pub struct UnitOwnerLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) identity: std::sync::Arc<()>,
+    pub(in crate::ownership_checking::compilation_unit) body_identity: std::sync::Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) callable: UnitOwnerCallable,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
@@ -59,6 +60,8 @@ impl UnitOwnerLoopObservationV1 {
             && self.condition.source_unit() == source
             && self.body.source_unit() == source
             && self.statement != self.body
+            && std::sync::Arc::ptr_eq(&self.body_identity, &self.transport.catalog.identity)
+            && !std::sync::Arc::ptr_eq(&self.body_identity, &self.identity)
             && self.transport.producers().callable() == self.callable
             && !self.transport.producers().definitions().is_empty()
             && self.transport.choice().is_none()
@@ -82,9 +85,29 @@ impl UnitOwnerObservation {
     /// Separate sealed loop capability; legacy status/events and Choice remain unchanged.
     pub fn loop_observation_v1(&self) -> Option<&UnitOwnerLoopObservationV1> {
         self.loop_value.as_deref().filter(|value| {
-            value.callable == self.callable
+            matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
+                point: UnitDropPoint::AfterStatement(statement), reason: super::UnitOwnerUnsupportedReason::Syntax
+            } if statement == value.statement)
+                && value.callable == self.callable
                 && std::sync::Arc::ptr_eq(&value.identity, &self.identity)
                 && value.is_consistent()
         })
     }
+}
+
+// Keep the legacy publication policy, but no sealed loop survives a deferred product.
+pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
+    mut observations: Vec<UnitOwnerObservation>,
+    successful: bool,
+    complete: bool,
+) -> Vec<UnitOwnerObservation> {
+    if !successful {
+        return Vec::new();
+    }
+    if !complete {
+        for observation in &mut observations {
+            observation.loop_value = None;
+        }
+    }
+    observations
 }

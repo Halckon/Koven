@@ -193,6 +193,7 @@ fn plan_with_owner_observation(
 struct DropPlanner<'a, 'checker> {
     owner_observation_enabled: bool,
     owner_choice: Option<owner_transport::choice::ChoiceTransaction>,
+    owner_loop: Option<owner_transport::loops::LoopTransaction>,
     owner_branch_depth: usize,
     owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
     owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
@@ -240,6 +241,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             owner_observation_enabled: true,
             owner_choice: None,
+            owner_loop: None,
             owner_branch_depth: 0,
             owner_observation: None,
             owner_observations: Vec::new(),
@@ -541,22 +543,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             Statement::While {
                 condition, body, ..
-            } => {
-                if !self.expression(condition, DropExpressionUse::Read, state)? {
-                    return Ok(false);
-                }
-                if self.checker.ordinary_condition_outcomes(condition).0 {
-                    let mut body_state = state.clone();
-                    self.loop_boundaries.push(self.scope_depth);
-                    self.statement(body, &mut body_state)?;
-                    self.loop_boundaries.pop();
-                }
-                if self.checker.non_fallthrough_whiles.contains(&id.index()) {
-                    return Ok(false);
-                }
-                self.drop_loop_exit(id, state);
-                Ok(true)
-            }
+            } => self.owner_while_statement(id, condition, body, state),
             Statement::For { source, body, .. } => self.iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
                 let mut body_state = state.clone();

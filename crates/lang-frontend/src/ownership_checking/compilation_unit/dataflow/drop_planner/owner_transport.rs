@@ -2,6 +2,7 @@
 mod branch;
 mod capture;
 pub(super) mod choice;
+pub(super) mod loops;
 #[cfg(test)]
 mod tests;
 
@@ -32,6 +33,7 @@ impl DropPlanner<'_, '_> {
         }
         let identity = std::sync::Arc::new(());
         self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
+        self.owner_loop = loops::LoopTransaction::begin(self.checker, item, identity.clone());
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity,
@@ -53,6 +55,7 @@ impl DropPlanner<'_, '_> {
             return;
         }
         self.owner_choice = None;
+        self.owner_loop = None;
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
@@ -73,7 +76,12 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
+        let loop_value = self
+            .owner_loop
+            .take()
+            .and_then(loops::LoopTransaction::finish);
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.loop_value = loop_value.map(Box::new);
             observation.choice_value = choice.map(Box::new);
             if !observation.is_consistent() {
                 let point = match observation.callable {
