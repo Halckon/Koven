@@ -11927,3 +11927,43 @@ getter、loop validator 或语言 ABI，不实施待决定的开放 loop Return 
 Clippy `-D warnings`、fmt、docs 与尺寸门禁通过；debug=2，无 profile/RUSTFLAGS 降级。
 准备时首次 no-run 漏设 target，已停止本任务默认目录编译并改约定独占 target，未执行测试。
 本批未运行 native、官方 CI，也未推送；原循环体 Return probe 冻结头保持不变。
+
+### Owner receipt 安全钩子与 parent-child Complete 的本地合流验收
+
+本轮只合并已批准两条本地父链，不新增语义、路由、cleanup producer 或 child receipt。
+合成代码头 `43cf8b4592e176e33dd1067a382ee59a21d0b112` 的双父分别为
+`6abfda9ad85ad39ffd393c93805d8013d1c5eb33` 与 `1872ef9787ef67290db8dbc91c560c50052492af`，
+共祖 `bda599637a45fd6c3136c661bcbade8cb4a0e6f8`。只在本 Spec 尾部冲突；两父均保留共祖正文，
+合成精确保留借用全文、分隔空行及 owner 新尾段，其余路径逐字保留对应父内容。
+原树不改，main/local origin/远端 main 核为 `9e7fed92`，没有自动合入、push 或 PR。
+
+- Owner 增量为三个 Rust 文件的 test-only 六故障钩子/测试；新增导入及注入点均为 `cfg(test)`。
+  普通观察器不设置 `FAULT`，其线程局部默认 `None`；六个新 CI-only exact 仅编译，绝不本地执行。
+- Fresh 审核 owner 两个普通正控与借用七项，去重后九个唯一 exact，无交集；每项独立进程
+  先 exact-list 验唯一，再 exact 执行。九项均为 `1 passed / 0 failed / 0 ignored / 2941 filtered`。
+  Owner 两项共五次 SSA/LLVM lower；借用六项共三十次 lower，另一个仅 FE merge；总计三十五次
+  SSA/LLVM lower 加一个 FE-only test，零 native。命名空间含 native_tests 不表示执行本机程序。
+- 真 off 为重新运行所有权分析、原 off 产品直接 lower；legacy comparator 仅克隆后归一作比较。
+  P4 所选项只有同源双 Unit 正常 lower，不冒称其有 off 对照。额外语句/后用及 FE merge 保留旧路径。
+- 本轮是同一合成构建中的独立回归，没有新增 owner suffix 与 parent-child 同一源码交叉证明。
+  Child 只有独立区间 Complete，source/callable 仍 Partial；旧七记录 receipt 隔离，无新 child receipt，
+  旧 oracle 未退休，不授全 callable absence。
+
+证据目录 `/private/tmp/koven-safety-child-coverage-evidence` 保留原始 JSON、日志、runner、名单及哈希。
+`source-input-hashes.json` 绑定合成头的 4248 个 tracked 输入，SHA
+`7bbedb2433ba458af4c2fb8c26610d6780553a2aa348af4cf9f78dd0c782b994`；文档收尾后仅本 Spec 改变。
+九项 `final-selection.txt` SHA 为 `8326f9dae17749014a5504655ca8f367253045348a01fe0f0b1bdc6ada740868`。
+CG 二进制实读 SHA `92c13cdfd2cd50a6afd1973403c955f7d88bfc93b544ec23422e88072ee074f7`；
+FE 编译产物 SHA `0301413536786bef61a396895463558887757a099a9aa302e7b93db28051f1e9`，未执行 FE 测试二进制。
+实际 test artifacts 均 opt0/debug2/test=true，显式唯一 loan-observation-test-support feature；
+默认 CLI 原 JSON 中 frontend/codegen/kovenc 三 artifact 均 features=[]、opt0/debug2。
+默认 CLI check 8.91s、feature no-run 1m06s、strict frontend/codegen all-targets Clippy 42.02s、
+默认 workspace all-targets check 28.92s 均成功；fmt/diff exit0，docs 885，尺寸 2393/旧超限35通过，
+未提高历史尺寸额度。独占原 owner target 串行执行，没有复制 target、降调试信息或运行正式 CI/release。
+
+本轮无 Rust/行为失败。初次普通 sandbox ps 被系统限制，获准的提权只读核进程成功后才使用 target；
+旧 skill/模块只读路径未找到后定位真实路径，不改变代码或验收范围。阶段1的首红只 Rooted、外层 zsh
+status 偏差与 question_mark 风格失败、阶段2的 E0308 oracle 编译偏差及 owner 初次漏 target 的准备偏差
+均保留原父账本和日志，没有重跑红、补造哈希或用本轮最终产物覆盖历史证据限制。
+独立只读终审已逐项复核双父、冻结输入、实际 artifact/binary/九项日志与最终文档分账，无新增阻断；
+审阅者未执行项目测试。文档收尾不重跑未变 Rust，保留原代码头与最终文档头的区别。
