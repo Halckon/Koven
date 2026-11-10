@@ -8,7 +8,11 @@ use crate::parser::{Expression, Item, NameMarker, Statement};
 use crate::type_checking::UnitStatementId;
 pub(super) const SOURCE: &str = r#"fun run(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; val retired = held }"#;
 
-pub(super) fn declaration(f: &Fixture, file: usize, name: &str) -> (UnitStatementId, UnitExpressionId) {
+pub(super) fn declaration(
+    f: &Fixture,
+    file: usize,
+    name: &str,
+) -> (UnitStatementId, UnitExpressionId) {
     let ast = f.parsed[file].ast();
     let found: Vec<_> = ast
         .statements()
