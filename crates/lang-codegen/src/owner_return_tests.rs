@@ -126,16 +126,26 @@ pub(super) fn assert_return_transport(input: &str) {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let [(body, no_body)] = branches.as_slice() else {
+        let [(first, second)] = branches.as_slice() else {
             panic!("two exact runtime alternatives")
         };
-        assert_eq!(body.arguments, initial.results);
-        assert_eq!(no_body.arguments, initial.results);
         let exchange = run
             .instructions
             .iter()
             .find(|i| matches!(i.operation, Operation::RootReplace { .. }))
             .unwrap();
+        // condition_internal lowers Not by swapping CFG targets. Locate the body by
+        // the actual Replace block, never by final branch truth or catalog order.
+        let (body, no_body) = match (
+            first.target == exchange.block,
+            second.target == exchange.block,
+        ) {
+            (true, false) => (*first, *second),
+            (false, true) => (*second, *first),
+            _ => panic!("exactly one condition edge enters the actual Replace body"),
+        };
+        assert_eq!(body.arguments, initial.results);
+        assert_eq!(no_body.arguments, initial.results);
         let Operation::RootReplace {
             owner,
             replacement: rhs,

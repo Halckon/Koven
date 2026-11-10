@@ -355,8 +355,8 @@ fn replace_break_matches_both_public_input_routes() {
     for text in [
         SOURCE.replace("break", "continue"),
         SOURCE.replace("; break", ""),
-        SOURCE.replace("while(flag)", "while(!flag)"),
-        SOURCE.replace("while(flag)", "while((!flag))"),
+        SOURCE.replace("while(flag)", "while(flag && flag)"),
+        SOURCE.replace("while(flag)", "while((flag == true))"),
         SOURCE.replace("\"next\"", "(\"next\")"),
         SOURCE.replace("val previous", "var previous"),
         SOURCE.replace("val retired =", "val retired: String? ="),

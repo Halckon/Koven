@@ -1,15 +1,15 @@
-//! Ordinary Group-only condition sources must retain real outer identities and all consumers.
+//! Ordinary grouped sources and shared checks retain actual condition and consumer identities.
 use super::*;
 use crate::ownership_checking::{
-    UnitDropPoint, UnitDropTarget, UnitOwnerLoopEdgeV1 as Edge,
+    UnitDropPoint, UnitDropTarget, UnitOwnerLoopEdgeV1 as Edge, UnitOwnerOrigin,
     UnitOwnerReplaceBreakCallActionV1 as Call, UnitOwnerReplaceBreakConsumerActionV1 as Bind,
     UnitOwnerReplaceBreakReturnActionV1 as Return,
 };
-use crate::parser::{Expression, Statement};
+use crate::parser::{Expression, PrefixOperator, Statement};
 use crate::type_checking::UnitStatementId;
 
 #[derive(Clone, Copy)]
-enum Consumer {
+pub(super) enum Consumer {
     Bind,
     Call,
     Return,
@@ -28,9 +28,8 @@ fn source(consumer: Consumer, condition: &str) -> String {
     };
     text.replace("while(flag)", &format!("while({condition})"))
 }
-fn check(consumer: Consumer, depth: usize) {
-    let condition = format!("{}flag{}", "(".repeat(depth), ")".repeat(depth));
-    let text = source(consumer, &condition);
+pub(super) fn check(consumer: Consumer, condition: &str, groups: usize, negations: usize) {
+    let text = source(consumer, condition);
     let f = Fixture::new(&[("grouped.ko", &text)]);
     let owned = f.shared();
     assert!(
@@ -46,7 +45,7 @@ fn check(consumer: Consumer, depth: usize) {
     assert_eq!(
         found.len(),
         1,
-        "missing real Group-only ReplaceBreak product: {text}"
+        "missing real wrapped-condition ReplaceBreak product: {text}"
     );
     let boundary = found[0];
     assert!(boundary.is_consistent());
@@ -75,14 +74,32 @@ fn check(consumer: Consumer, depth: usize) {
         (boundary.statement(), boundary.condition(), boundary.body()),
         (*statement, *outer, *body)
     );
+    assert_eq!(
+        f.sources
+            .slice(ast.expressions().get(outer.expression()).unwrap().span())
+            .unwrap(),
+        condition
+    );
     let mut leaf = outer.expression();
-    for _ in 0..depth {
-        let Expression::Group { expression } = ast.expressions().get(leaf).unwrap().payload()
-        else {
-            panic!("all actual Group wrappers retained")
-        };
-        leaf = *expression;
+    let (mut actual_groups, mut actual_negations) = (0, 0);
+    loop {
+        match ast.expressions().get(leaf).unwrap().payload() {
+            Expression::Group { expression } => {
+                actual_groups += 1;
+                leaf = *expression;
+            }
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => {
+                actual_negations += 1;
+                leaf = *operand;
+            }
+            _ => break,
+        }
     }
+    assert_eq!((actual_groups, actual_negations), (groups, negations));
     assert!(matches!(
         ast.expressions().get(leaf).unwrap().payload(),
         Expression::Name
@@ -109,8 +126,24 @@ fn check(consumer: Consumer, depth: usize) {
     let p = boundary.condition_false_exit().owner();
     let q = boundary.break_boundary().owner();
     assert_ne!(p, q);
-    assert!(boundary.input_producers().definition(p).is_some());
-    assert!(boundary.body_producers().definition(q).is_some());
+    let (_, initial) = loop_replace_break::declaration(&f, 0, "held");
+    let (_, call) = loop_replace_break::declaration(&f, 0, "previous");
+    let Expression::Call { arguments, .. } =
+        ast.expressions().get(call.expression()).unwrap().payload()
+    else {
+        panic!("real replacement call")
+    };
+    let replacement = UnitExpressionId::new(f.source(0), arguments[1].value);
+    assert_eq!(
+        boundary.input_producers().definition(p).unwrap().origin(),
+        UnitOwnerOrigin::String(initial)
+    );
+    assert_eq!(
+        boundary.body_producers().definition(q).unwrap().origin(),
+        UnitOwnerOrigin::String(replacement)
+    );
+    assert_eq!(boundary.entry(), boundary.condition_false_exit());
+    assert_eq!(boundary.break_boundary(), boundary.body_completion());
     let incoming = [
         boundary.condition_false_exit().clone(),
         boundary.break_boundary().clone(),
@@ -212,27 +245,36 @@ fn check(consumer: Consumer, depth: usize) {
 #[test]
 fn grouped_replace_break_preserves_bind_consumer_and_outer_condition() {
     for depth in [1, 2, 4] {
-        check(Consumer::Bind, depth);
+        let condition = format!("{}flag{}", "(".repeat(depth), ")".repeat(depth));
+        check(Consumer::Bind, &condition, depth, 0);
     }
 }
 #[test]
 fn grouped_replace_break_preserves_call_consumer_and_outer_condition() {
     for depth in [1, 2, 4] {
-        check(Consumer::Call, depth);
+        let condition = format!("{}flag{}", "(".repeat(depth), ")".repeat(depth));
+        check(Consumer::Call, &condition, depth, 0);
     }
 }
 #[test]
 fn grouped_replace_break_preserves_return_consumer_and_outer_condition() {
     for depth in [1, 2, 4] {
-        check(Consumer::Return, depth);
+        let condition = format!("{}flag{}", "(".repeat(depth), ")".repeat(depth));
+        check(Consumer::Return, &condition, depth, 0);
     }
 }
 #[test]
-fn grouped_replace_break_keeps_not_outside_transport() {
+fn grouped_replace_break_keeps_general_conditions_outside_transport() {
     for consumer in [Consumer::Bind, Consumer::Call, Consumer::Return] {
-        for condition in ["!flag", "(!flag)", "!((flag))", "((!((flag))))", "!(!flag)"] {
+        for condition in [
+            "flag && flag",
+            "(flag || flag)",
+            "!((flag && flag))",
+            "((flag == true))",
+            "!(!(flag != false))",
+        ] {
             let text = source(consumer, condition);
-            let f = Fixture::new(&[("not-neighbor.ko", &text)]);
+            let f = Fixture::new(&[("condition-neighbor.ko", &text)]);
             let owned = f.shared();
             assert!(
                 owned.clone().validate().is_ok(),

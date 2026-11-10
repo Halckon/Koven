@@ -17,6 +17,8 @@ mod nullable_rc_proof_tests;
 mod nullable_when_tests;
 #[path = "owner_group_condition_tests.rs"]
 mod owner_group_condition_tests;
+#[path = "owner_negated_condition_tests.rs"]
+mod owner_negated_condition_tests;
 #[path = "owner_own_call_tests.rs"]
 mod owner_own_call_tests;
 #[path = "owner_replace_break_ci_tests.rs"]

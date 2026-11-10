@@ -10541,3 +10541,64 @@ ConstEnabled下raw String不是constant selection的静态证据已核，未由�
 artifact、debug2/feature、八条exact日志及binary/selection两SHA均匹配。测试编译包含
 默认未激活的故障钩子；普通helper未设置capture或fault，新五项CI-only仅编译。
 独审未执行测试；终审后仅修正文档措辞与补充本账本，不改Rust或重复执行测试。
+
+
+### P/Q 条件纯 Group/Not 链实施合同（2026-11-10）
+
+基于合流冻结`1744661e`，按持续并行本地开发授权，补既有Boolean取反语义的受限P/Q
+运输。原唯一Boolean参数Name外只允许Group/Not链，保每层精确Boolean和原实际最外层
+condition身份。产品false出口仍对应完整条件求值false时的P，Break仍对应实际进入body
+完成Replace后的Q；不按参数真假或Not奇偶交换catalog，不改语言/ABI或旧emitter。
+原唯一B/Call/Return suffix、一次Replace后bare Break、原清理/瞬时Inout不变；不扩
+短路、调用、一般循环、多根、Resource、任意suffix或未定语言设计。
+
+状态in-progress：先普通实际Return receipt红测，再最小生产接线；Basic/Const、奇偶
+取反两边SSA/LLVM/native及重新逐helper审定邻控。旧污染白名单不继承，foreign查询、
+损坏/故障、Abort、计数、压力只编译。精确源码hash、固定头独审、静态门禁与本地分步
+提交后交付；不推送、不触发远端CI，不绕过真实工具审批。
+
+### 纯 Group/Not 条件实施与受限验收（2026-11-10）
+
+合同`0eaf6c31`，普通真实红`aaefbeee`，frontend红源`9fe211d9`，生产固定`a5554f6e`。
+原合法`while(!flag)`已通过旧SSA/LLVM，实际Return payload为Some(2)，但receipt为None，
+同exact据此失败。唯一生产变化是移除ReplaceBreak独立Group-only门，仍调用既有
+boolean_parameter核每层精确Boolean、仅Group/Not链到原唯一Name参数及两真实outcomes。
+未改条件求值、observer/while/If权限、P/Q catalog、backend emitter、cleanup或ABI。
+
+旧While标记Unsupported前已保存P前缀，随后实际Read完整条件；Copyable参数/Not不动
+held，entry再核原P。进入body完成Replace/Break才给Q，完整条件false出口仍给P，
+不按Not奇偶交换角色，也不从条件AST补造状态。普通证据保实际外层condition Span/ID。
+相邻`!!`是一个非空断言token，不能冒充两个Not；本片偶数前缀使用`! !flag`或`!(!flag)`。
+
+新增frontend3覆盖B/Call/Return的7种实际Not/Group链，复用参数化Group helper而不调用
+旧污染check；负邻形迁至逻辑/比较非候选，原断言保留。新增backend3核实际Return
+receipt、Basic/Const双Unit完整false/Break入边和payload/Drop、1/2/3个Not的普通native
+输出：奇数next/outer，偶数outer/next。输出不代表析构计数或heap/Resource证明。
+
+本片重新逐helper核并显式列22项：frontend7，backend15（Group3、Not3、ownCall3、
+Return3、B original_source/physical_drop/absent3）。不读取旧污染名单构建选择集；旧
+public iteration、B dual-unit mixed、loop_replace_break污染check及所有foreign查询、
+故障/破损、Abort、计数、压力路径仅编译。真实源码/配置2985文件SHA、helper闭包说明、
+精确名单、构建及结果存于`/private/tmp/koven-owner-negated-condition-evidence`。
+
+首轮22项中7前端及14后端通过，1项复用Return SSA oracle失败，原日志保留于attempt1。
+这暴露的是旧oracle把最终SSA when_true固定当body的假设：既有condition_internal对Not
+递归交换两个目标，最终branch读取的参数truth不等于源码完整条件truth。`6aa11488`
+仅修正测试：要求两个edge中恰有一个target为真实唯一RootReplace所在block，以此定位
+body/false，不用Not奇偶或catalog顺序猜角色；原P/Q入参、实际owner槽、join/payload、
+本地/caller Drop断言全保留。所有Not奇偶native首轮已绿，未因此修改生产或删除失败项。
+
+`6aa11488`重建后22项全绿。严格Clippy随后要求将同一Boolean helper的None早返回写为
+`?`；`7ee70464`仅作此等价传播，不屏蔽lint、不改变门。前头22项成功及Clippy原报告
+保留于pre-clippy-style；最终代码重新按同一22名单构建验证，不混用前头binary/hash。
+
+最终Rust输入`7ee70464`重新构建并执行22项全部通过，7前端+15后端，0失败/忽略；
+精确名单与完整成功集合一致，两binary实际features空集/defaultdebug2及SHA已核实。
+2985源码/配置hash再次逐文件对照真实bytes全部匹配。严格两crate all-targets Clippy、
+workspace all-targets check、fmt、docs882及diff通过。正式双宿主CI、故障/foreign/计数、
+sanitizer和资源证明未在本片执行；前端on/off对照不外推后端off端到端，不退休旧oracle。
+
+最终`7ee70464`独立只读终审无阻断：生产及oracle差异、代码tree、源码清单SHA、两个
+binary实际SHA、7+15成功集合和debug2/features空集均复核匹配；审阅者未运行测试。
+尺寸基于`1744661e`通过，2329手写Rust、35旧超千行，无预算变化。本片本地实现与
+受限验收完成，owner target已释放，不推送、不发布新PR或改main，正式CI边界保持。
