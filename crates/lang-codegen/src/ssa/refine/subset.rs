@@ -19,6 +19,7 @@ mod receiver;
 mod receiver_route;
 mod scalar_text;
 mod tagged;
+mod temporary_route;
 mod value;
 mod when;
 
@@ -235,7 +236,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         && (checker.nullable
             || checker.migrated
             || checker.bounded_receiver_route()
-            || checker.bounded_named_call().is_some());
+            || checker.bounded_named_call().is_some()
+            || checker.bounded_temporary_call().is_some());
     (accepted, signature && checker.loop_route_retry)
 }
 

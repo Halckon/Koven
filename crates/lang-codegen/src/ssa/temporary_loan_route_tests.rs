@@ -1,4 +1,4 @@
-//! Ordinary source-only P3 route capability; no native execution or faults.
+//! Ordinary source-only P1 route capability; no native execution or faults.
 use super::*;
 
 #[test]
