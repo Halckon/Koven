@@ -11501,3 +11501,45 @@ final-manifest.json、final-selection.txt、runner及4222冻结tracked哈希。�
 精确bb4faa60独立只读终审无新增阻断：原artifact/manifest、执行后binary、8名单与实际
 日志、4222冻结输入均核对一致；当前仅两docs不同，冻结docs对象仍匹配，非docs无漂移。
 独审确认31次SSA/LLVM与FE-only/CI-only边界、真实红绿及入口加固分账，随后仅docs提交。
+
+
+### 有界 P/Q 一跳绑定返回合同（2026-11-10）
+
+从680215d3隔离准备，原prefix/While/一次Replace后Break不变；后继仅为
+`val forwarded = held; return forwarded`，owned String返回。只扩既有Return产品的一跳
+真实binding路径，不造alias producer，不引入新catalog或ABI，不泛化后缀/循环。
+实际take_named先移出held；post-insert后记录alias真实OwnedValue；后续take_named必须匹配
+该状态并移出alias，随后旧Return交付形成Take(root)→Bind(alias)→Take(alias)→Return。
+旧scalar owner不回填P/Q；liveness保留alias跨语句，merge清carrier规则及失败撤销不改。
+refine依真实Alias前/后回调核selected槽到alias槽，旧finish_return唯一发射并核两symbol
+均dead、caller无额外Drop。原直返两动作和B/Call保持；不含Group、更多alias、借用/capture、
+额外使用、分支或一般循环。先普通原样缺receipt红，再双Unit SSA/LLVM/native同源绿。
+foreign、注入、Abort、计数及压力负控仅编译。当前仅静态准备，owner target由合流门禁
+占用，未调用Cargo/native；本合同不声明实现或验证完成，不push/PR。
+
+
+准备头d28cf60e的原样FE exact实际失败（receipt0应1，613filtered），raw保留red.log。
+前端真实carrier实现58f784ab同源绿；该头fresh codegen exact随后以MissingFact失败
+（2894filtered），证明旧两动作授权未接新产品，而不是仅补观察就宣称下游完成。
+后端保原root槽与真实Alias槽，依post-insert/第二次take构成独立阶段，Return必须交付alias槽；
+现已同源codegen绿。新增普通FE四动作及单P/单Q定义核验、六个合法未覆盖suffix邻控，
+Basic/Const两次SSA/LLVM及两次正常native已通过；native输出outer/next，不作释放计数证明。
+旧一跳alias拒绝项迁为两跳，完整旧含continue的边界测试未本地执行；新有限邻控独立覆盖。
+原merge规则、B/Call和唯一finish_return不变。五类CI-only重取/重绑/Return破损仅编译。
+尺寸门禁相对680215d3通过，2350手写Rust、35旧超千行；无新增超限或policy额度变化。
+实现/测试未改main、680215d3冻结树或借用树；更全面回归、静态门禁与独立精确头审查待记。
+证据保留于`/private/tmp/koven-owner-alias-return-evidence`，不推送或认领D10/E2完成。
+
+
+生产冻结46336675d5d641126c50faa3804439ee5f61f84c；独立只读审其六生产差异未发现阻断，
+完整终态证据仍须独立核验，不把生产审查当历史helper认证。两crate all-targets clippy
+-D warnings、workspace all-targets check、fmt、docs884、尺寸及diff检查通过。
+最终fresh allowlist为FE4/CG9，共13个exact全部通过（新alias5，旧B/Return/pair8），
+每项均独立选择且日志确实运行1项。新alias五项内含FE一原源与六合法邻控、一次直接授权、
+Basic/Const两次SSA/LLVM及两次native，不能把exact数量等同内部例数。普通回归只使用
+本轮完整核过的helper闭包，不沿用旧大集合；非本清单测试与所有foreign/注入/Abort/计数/
+压力/强制route不执行。新CI-only五类破损仅编译，正式双宿主CI和sanitizer仍未运行。
+Cargo JSON保留opt0/debug2/test=true、features空及无profile覆盖；manifest包括source与
+binary SHA、13项名单/结果、两份原始SOURCE与各自红头字节一致证明。两次实际红的raw
+日志未覆盖。早期尺寸脚本名称误写导致文件不存在，纠正为仓库check_rust_sizes.py后通过，
+不将该调用失败算尺寸验收。后续仅文档冻结，不重新编译Rust；无push/PR或一般owner完成声明。

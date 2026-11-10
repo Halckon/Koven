@@ -124,7 +124,10 @@ fn replace_break_return_declines_neighbor_shapes() {
     let cases = [
         RUN.replace("return held", "return (held)"),
         RUN.replace("return held", "return \"other\""),
-        RUN.replace("return held", "val retired = held; return retired"),
+        RUN.replace(
+            "return held",
+            "val retired = held; val final_value = retired; return final_value",
+        ),
         RUN.replace("while(flag)", "while((flag == flag))"),
         RUN.replace("while(flag)", "while(flag && (flag == true))"),
         RUN.replace("break", "continue"),

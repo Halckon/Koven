@@ -15,6 +15,12 @@ use lang_frontend::{
     type_checking::{UnitExpressionId, UnitItemId, UnitStatementId},
 };
 
+pub(super) struct ReturnBindingPlan {
+    pub(super) symbol: UnitSymbolId,
+    payload: UnitExpressionId,
+    pub(super) slot: Option<Slot>,
+}
+
 pub(super) struct OwnerPlan<'a> {
     boundary: &'a UnitOwnerReplaceBreakObservationV1,
     producers: [UnitExpressionId; 2],
@@ -26,6 +32,7 @@ pub(super) struct OwnerPlan<'a> {
     pub(super) call: Option<(UnitExpressionId, crate::ssa::model::FunctionId)>,
     pub(super) call_layout: Option<(usize, usize)>,
     pub(super) return_expression: Option<UnitExpressionId>,
+    pub(super) return_binding: Option<ReturnBindingPlan>,
     pub(super) root_slot: Option<Slot>,
     bound: Option<Slot>,
     exit: Option<BlockRef>,
@@ -68,6 +75,7 @@ impl<'a> OwnerPlan<'a> {
         if found.next().is_some() || !boundary.is_consistent() {
             return Err(fail());
         }
+        let mut return_binding = None;
         let (initializer, root, retired, drop_index, call, return_expression, incoming) =
             if let Some(consumer) = boundary.suffix_consumer_v1() {
                 if boundary.suffix_call_consumer_v1().is_some()
@@ -185,35 +193,53 @@ impl<'a> OwnerPlan<'a> {
                 )
             } else {
                 let consumer = boundary.suffix_return_consumer_v1().ok_or_else(fail)?;
-                let [
-                    ReturnAction::Take(payload, root),
-                    ReturnAction::Return {
-                        expression,
-                        payload: delivered,
-                    },
-                ] = consumer.actions()
-                else {
-                    return Err(fail());
+                let (initializer, root, payload, expression, alias) = match consumer.actions() {
+                    [
+                        ReturnAction::Take(payload, root),
+                        ReturnAction::Return {
+                            expression,
+                            payload: delivered,
+                        },
+                    ] if payload == delivered => (*payload, *root, *payload, *expression, None),
+                    [
+                        ReturnAction::Take(initializer, root),
+                        ReturnAction::Bind(binding, alias),
+                        ReturnAction::Take(payload, taken),
+                        ReturnAction::Return {
+                            expression,
+                            payload: delivered,
+                        },
+                    ] if initializer == binding && alias == taken && payload == delivered => {
+                        (*initializer, *root, *payload, *expression, Some(*alias))
+                    }
+                    _ => return Err(fail()),
                 };
-                if payload != delivered
-                    || *payload != consumer.payload()
-                    || *expression != consumer.return_expression()
+                if payload != consumer.payload()
+                    || expression != consumer.return_expression()
                     || expression.source_unit() != inputs.source_unit
-                    || inputs
-                        .owned
-                        .drops()
-                        .iter()
-                        .any(|d| d.target() == UnitDropTarget::Named(*root))
+                    || alias.is_some_and(|symbol| {
+                        symbol == root || symbol.source_unit() != inputs.source_unit
+                    })
+                    || inputs.owned.drops().iter().any(|d| {
+                        d.target() == UnitDropTarget::Named(root)
+                            || alias
+                                .is_some_and(|symbol| d.target() == UnitDropTarget::Named(symbol))
+                    })
                 {
                     return Err(fail());
                 }
+                return_binding = alias.map(|symbol| ReturnBindingPlan {
+                    symbol,
+                    payload,
+                    slot: None,
+                });
                 (
-                    *payload,
-                    *root,
+                    initializer,
+                    root,
                     None,
                     None,
                     None,
-                    Some(*expression),
+                    Some(expression),
                     consumer.incoming(),
                 )
             };
@@ -253,6 +279,7 @@ impl<'a> OwnerPlan<'a> {
                 .suffix_call_consumer_v1()
                 .map(|c| (c.parameter_index(), c.arity())),
             return_expression,
+            return_binding,
             root_slot: None,
             bound: None,
             exit: None,
@@ -267,9 +294,13 @@ impl<'a> OwnerPlan<'a> {
 impl Builder<'_, '_> {
     #[cfg(test)]
     pub(super) fn owner_is_suffix(&self, symbol: UnitSymbolId) -> bool {
-        self.owner_plan
-            .as_ref()
-            .is_some_and(|plan| plan.retired == Some(symbol))
+        self.owner_plan.as_ref().is_some_and(|plan| {
+            plan.retired == Some(symbol)
+                || plan
+                    .return_binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.symbol == symbol)
+        })
     }
 
     pub(super) fn owner_result(
@@ -295,6 +326,29 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Slot, LoweringError> {
         let unit = self.unit(expression);
+        if let Some(plan) = &self.owner_plan
+            && let Some(binding) = plan
+                .return_binding
+                .as_ref()
+                .filter(|binding| binding.payload == unit)
+        {
+            let fail = || error(LoweringErrorKind::InvalidModel, span);
+            let slot = binding.slot.ok_or_else(fail)?;
+            if plan.stage != 2
+                || plan.exit != self.block
+                || self.reference(span)? != binding.symbol
+                || self.bindings.get(&binding.symbol) != Some(&slot)
+                || !self.dead.contains(&plan.root)
+                || self.dead.contains(&binding.symbol)
+            {
+                return Err(fail());
+            }
+            // Stage 4 is the actual second Take, distinct from the initial root Take.
+            self.owner_plan.as_mut().ok_or_else(fail)?.stage = 4;
+            #[cfg(test)]
+            super::owner_consumer_test_support::record_action("alias_take", slot.0);
+            return Ok(slot);
+        }
         #[cfg(test)]
         if let Some(plan) = self
             .owner_plan
@@ -376,6 +430,14 @@ impl Builder<'_, '_> {
             initializer != plan.producers[0]
                 || plan.produced[0] != Some(value)
                 || plan.root_slot.is_some()
+        } else if let Some(binding) = &plan.return_binding {
+            (initializer == plan.initializer || symbol == binding.symbol)
+                && (initializer != plan.initializer
+                    || symbol != binding.symbol
+                    || plan.stage != 1
+                    || plan.root_slot != Some(value)
+                    || binding.slot.is_some()
+                    || !self.dead.contains(&plan.root))
         } else if initializer == plan.initializer || Some(symbol) == plan.retired {
             initializer != plan.initializer
                 || Some(symbol) != plan.retired
@@ -397,6 +459,16 @@ impl Builder<'_, '_> {
                 plan.root_slot = Some(binding);
                 #[cfg(test)]
                 super::owner_consumer_test_support::record_action("root", binding.0);
+            }
+            if let Some(alias) = plan
+                .return_binding
+                .as_mut()
+                .filter(|alias| alias.symbol == symbol)
+            {
+                alias.slot = Some(binding);
+                plan.stage = 2;
+                #[cfg(test)]
+                super::owner_consumer_test_support::record_action("alias_bind", binding.0);
             }
             if Some(symbol) == plan.retired {
                 plan.bound = Some(binding);
@@ -603,7 +675,11 @@ impl Builder<'_, '_> {
                     .drop_index
                     .is_some_and(|index| !self.consumed_drops.contains(&index))
                 || ((plan.call.is_some() || plan.return_expression.is_some())
-                    && !self.dead.contains(&plan.root)))
+                    && !self.dead.contains(&plan.root))
+                || plan
+                    .return_binding
+                    .as_ref()
+                    .is_some_and(|binding| !self.dead.contains(&binding.symbol)))
         {
             return Err(error(LoweringErrorKind::MissingFact, self.inputs.span));
         }

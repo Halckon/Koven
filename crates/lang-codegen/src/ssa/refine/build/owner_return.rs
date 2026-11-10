@@ -34,11 +34,17 @@ impl Builder<'_, '_> {
             .as_ref()
             .filter(|p| p.return_expression == Some(identity))
         {
-            let selected = plan
-                .root_slot
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let (selected, required_stage) = if let Some(binding) = &plan.return_binding {
+                if !self.dead.contains(&binding.symbol) {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                (binding.slot, 4)
+            } else {
+                (plan.root_slot, 1)
+            };
+            let selected = selected.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if unit_return
-                || plan.stage != 1
+                || plan.stage != required_stage
                 || result != Some(selected)
                 || !self.dead.contains(&plan.root)
                 || self.inputs.borrow_return.is_some()

@@ -557,3 +557,5 @@ mod replace_break_short_circuit;
 mod replace_break_leaf_not;
 
 mod replace_break_pair_call;
+
+mod replace_break_alias_return;

@@ -157,15 +157,15 @@ callee 仍使用既有 own 参数清理，body detached P 仍由旧 emitter 清�
 
 ## 共同结果作为唯一 String 返回值
 
-独立受限 Return 后继保留相同prefix/while，仅允许唯一`return held`尾句和owned String
-函数结果；完整Return形状未成立时，其它loop及原B/Call仍要求既有Unit结果。
-真实Name Consume产生的P/Q carrier随payload交付，核root已从当前state移出，沿原Return
-cleanup完成后封印Take/Return。旧scalar投影不补造Q，原catalog与边角色不变。
+受限Return保留相同prefix/while，允许直接`return held`或唯一`val forwarded = held; return forwarded`，
+结果仍为owned String；完整Return形状未成立时，其它loop及原B/Call仍要求既有Unit结果。
+直返记录Take/Return；一跳路径在真实post-insert保存alias状态，第二次take匹配后记录四动作。
+alias不造producer，旧scalar不补Q，原catalog、边角色及merge清carrier规则不变。
 
-refine复用同一两出口及Name Take核验，另核Return expression、payload槽和已deliver的root；
-旧`finish_return`唯一发射成功后才提交消费。返回函数禁止Drop选中root，caller沿原结果
-接收/清理规则工作，body detached P仍按旧规则清理。双Unit普通SSA/LLVM及native覆盖
-false/true返回；输出不是析构计数证明，不扩展借用返回、capture、Resource或一般循环。
+refine核实际Alias前/后槽与两次Take阶段，最终payload必须来自alias槽；直返仍核原root槽。
+旧`finish_return`唯一发射后才提交消费，root/alias均已deliver且无额外Drop；caller沿旧结果
+接收/清理规则工作，body detached P仍按旧规则清理。双Unit普通SSA/LLVM与native分账验收，
+输出不是析构计数证明；不扩更多alias、Group、借用返回、capture、Resource或一般循环。
 
 条件准入复用Boolean参数链检查，逐层仅Group/Not，Name终点须为唯一参数；每层核
 精确Boolean，保实际最外层condition ID。完整条件结果false时仍沿真实false边运输P，
