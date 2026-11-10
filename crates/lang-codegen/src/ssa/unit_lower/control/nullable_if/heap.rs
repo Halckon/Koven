@@ -24,8 +24,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
         // The original no-else, While, Rc and Map entries retain their own rules.
-        if self.thunk_expression.is_some()
-            || !self.nullable_proofs.is_empty()
+        if !self.nullable_proofs.is_empty()
             || !self.loops.is_empty()
             || !self.substitutions.is_empty()
         {
@@ -301,7 +300,7 @@ impl UnitExpressionLowerer<'_> {
         let subject = match (is_null(left_leaf), is_null(right_leaf)) {
             (true, false) => right,
             (false, true) => left,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         if !self.heap_if_root_operand(subject, root, false, span)? {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));

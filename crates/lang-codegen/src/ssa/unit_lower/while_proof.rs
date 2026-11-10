@@ -17,10 +17,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         if self.function.borrow_return.is_some()
             || self.function.carrier_return.is_some()
-            || !self.capture_loans.is_empty()
-            || !self.result_source_loans.is_empty()
-            || !self.temporary_range_slots.is_empty()
-            || !self.short_range_ends.is_empty()
             || self.current_receiver.is_some()
             || self.has_iteration_context()
             || self.borrow_bindings.iter().any(|(root, &loan)| {

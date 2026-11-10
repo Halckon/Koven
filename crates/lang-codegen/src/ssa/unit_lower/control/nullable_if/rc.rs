@@ -32,10 +32,7 @@ impl UnitExpressionLowerer<'_> {
         ) {
             return Ok(None);
         }
-        if !descriptor.non_null_when_true()
-            || self.thunk_expression.is_some()
-            || !self.is_direct_function_body_if(control, span)?
-        {
+        if !descriptor.non_null_when_true() || !self.is_direct_function_body_if(control, span)? {
             return Ok(None);
         }
         let node = self
@@ -88,7 +85,7 @@ impl UnitExpressionLowerer<'_> {
         let subject = match (is_null(left), is_null(right)) {
             (true, false) => right,
             (false, true) => left,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let subject = nodes
             .get(subject)

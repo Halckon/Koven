@@ -195,15 +195,9 @@ struct UnitExpressionLowerer<'a> {
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
-    result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
-    temporary_range_slots: BTreeMap<UnitExpressionId, Vec<usize>>,
-    short_range_ends: BTreeMap<LoanId, UnitExpressionId>,
     current_receiver: Option<ReceiverBinding>,
     consumed_receiver: Option<ConsumedReceiver>,
-    closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     closure_binding_context: bool,
-    capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
-    thunk_expression: Option<UnitExpressionId>,
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
     closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
@@ -474,8 +468,6 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
         {
             self.end_pending_call_loans(0, span)?;
-        } else {
-            self.end_pending_abi_call_slots(0, span)?;
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
@@ -623,9 +615,6 @@ impl UnitExpressionLowerer<'_> {
             LoweredValue::Diverged => unreachable!("divergence returned above"),
         };
         self.bindings.insert(symbol, lowered);
-        if let Some(closure) = closure {
-            self.closure_bindings.insert(symbol, closure);
-        }
         Ok(LoweredValue::Unit)
     }
 

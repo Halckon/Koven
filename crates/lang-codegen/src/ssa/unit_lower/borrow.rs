@@ -161,7 +161,6 @@ impl UnitExpressionLowerer<'_> {
             .nullable_proofs
             .values()
             .any(|proof| proof.if_scope().is_some())
-            || self.thunk_expression.is_some()
             || !self.pending_call_frames.is_empty()
             || !self.pending_operands.is_empty()
             || !self.temporaries.is_empty()

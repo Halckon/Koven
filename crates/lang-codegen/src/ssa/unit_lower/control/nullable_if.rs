@@ -80,7 +80,7 @@ impl UnitExpressionLowerer<'_> {
         if self.function_ids.get(key) != Some(&self.function.id) {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if key.deinit_owner().is_some() || self.thunk_expression.is_some() {
+        if key.deinit_owner().is_some() {
             return Ok(false);
         }
         let UnitCallableTarget::Declaration(target) = key.target() else {

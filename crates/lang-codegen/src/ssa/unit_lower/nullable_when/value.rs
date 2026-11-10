@@ -46,7 +46,6 @@ impl UnitExpressionLowerer<'_> {
             || descriptor.result_source() != CallableResultSource::Owned
             || descriptor.aborts()
             || descriptor.prints_line()
-            || self.thunk_expression.is_some()
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -316,7 +315,6 @@ impl UnitExpressionLowerer<'_> {
         // there is deliberately no BorrowEnd, no wrapper Drop and no second transfer.
         self.nullable_proofs.remove(&prepared.witness.symbol());
         self.bindings.remove(&prepared.witness.symbol());
-        self.closure_bindings.remove(&prepared.witness.symbol());
         self.temporaries
             .retain(|_, owner| *owner != prepared.proof.owner);
         // The original Name/Group cleanup points were all checked empty before

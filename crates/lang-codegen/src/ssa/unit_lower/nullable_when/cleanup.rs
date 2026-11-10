@@ -41,12 +41,6 @@ impl UnitExpressionLowerer<'_> {
                 .borrow_bindings
                 .values()
                 .any(|loan| *loan == proof.loan)
-            || self.capture_loans.values().any(|loan| *loan == proof.loan)
-            || self
-                .result_source_loans
-                .values()
-                .any(|loans| loans.contains(&proof.loan))
-            || self.short_range_ends.contains_key(&proof.loan)
             || self.nullable_proofs.iter().any(|(other, candidate)| {
                 *other != root && (candidate.loan == proof.loan || candidate.owner == proof.owner)
             })

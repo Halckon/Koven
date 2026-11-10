@@ -37,7 +37,6 @@ pub(super) struct LoopContext {
     entry_receiver: Option<super::ReceiverBinding>,
     entry_consumed_receiver: Option<super::ConsumedReceiver>,
     entry_symbols: BTreeSet<UnitSymbolId>,
-    entry_closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     continues: Vec<LoopJump>,
     breaks: Vec<LoopJump>,
 }
@@ -69,7 +68,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
-        let baseline_closures = self.closure_bindings.clone();
         let context = self.create_loop_context(&baseline, span)?;
         let header = context.header;
         self.function
@@ -88,7 +86,6 @@ impl UnitExpressionLowerer<'_> {
         self.current_receiver = context.entry_receiver;
         self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_loop(&baseline, header, &context, span)?;
-        self.closure_bindings = baseline_closures;
         let ordinary_condition = self.constant_owned.is_none().then(|| {
             self.typed
                 .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, condition))
@@ -203,7 +200,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
-        let baseline_closures = self.closure_bindings.clone();
         let context = self.create_loop_context(&baseline, span)?;
         let header = context.header;
         self.function
@@ -221,7 +217,6 @@ impl UnitExpressionLowerer<'_> {
         self.current_receiver = context.entry_receiver;
         self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_loop(&baseline, header, &context, span)?;
-        self.closure_bindings = baseline_closures;
         self.loops.push(context);
         if self.lower_statement(body)? != LoweredValue::Diverged {
             self.record_natural_continue(span)?;
@@ -234,8 +229,6 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.nullable_proofs.clear();
-            self.closure_bindings.clear();
-            self.capture_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
             return Ok(LoweredValue::Diverged);
@@ -260,8 +253,6 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
         {
             self.end_pending_call_loans(self.loops.len(), span)?;
-        } else {
-            self.end_pending_abi_call_slots(self.loops.len(), span)?;
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
@@ -293,8 +284,6 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
         {
             self.end_pending_call_loans(self.loops.len(), span)?;
-        } else {
-            self.end_pending_abi_call_slots(self.loops.len(), span)?;
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
@@ -335,7 +324,6 @@ impl UnitExpressionLowerer<'_> {
             entry_receiver: self.current_receiver,
             entry_consumed_receiver: self.consumed_receiver,
             entry_symbols: baseline.keys().copied().collect(),
-            entry_closure_bindings: self.closure_bindings.clone(),
             continues: Vec::new(),
             breaks: Vec::new(),
         })
@@ -393,9 +381,6 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             nullable_proofs: self.nullable_proofs.clone(),
-            closure_bindings: self.closure_bindings.clone(),
-            capture_loans: self.capture_loans.clone(),
-            result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             pending_call_frames: self.pending_call_frames.clone(),
             temporaries: self.temporaries.clone(),
@@ -409,10 +394,6 @@ impl UnitExpressionLowerer<'_> {
         self.nullable_proofs.clone_from(&state.nullable_proofs);
         self.current_receiver = state.receiver;
         self.consumed_receiver = state.consumed_receiver;
-        self.closure_bindings.clone_from(&state.closure_bindings);
-        self.capture_loans.clone_from(&state.capture_loans);
-        self.result_source_loans
-            .clone_from(&state.result_source_loans);
         self.pending_operands.clone_from(&state.pending_operands);
         self.pending_call_frames
             .clone_from(&state.pending_call_frames);
@@ -451,12 +432,6 @@ impl UnitExpressionLowerer<'_> {
         target: BlockId,
     ) -> Result<(), LoweringError> {
         for jump in &context.continues {
-            if jump.state.closure_bindings != context.entry_closure_bindings {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    jump.span,
-                ));
-            }
             if jump.state.consumed_receiver != context.entry_consumed_receiver {
                 return Err(lowering_error(
                     LoweringErrorKind::UnsupportedNode,

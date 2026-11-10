@@ -135,8 +135,6 @@ impl UnitExpressionLowerer<'_> {
             };
             carry::apply_alias_column(&slot.temporaries, *value, &mut self.temporaries);
         }
-        let source_parameters = parameters[bindings.len()..].to_vec();
-        self.rebind_range_sources(loans, &source_parameters, span)?;
         self.rebind_carried_nullable_proofs(block, &rebound, bindings, loans, span)?;
         Ok(rebound)
     }
@@ -190,15 +188,13 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
         let mut rebound = BTreeMap::new();
-        self.capture_loans.clear();
         for (slot, parameter) in loans.iter().zip(parameters.iter().skip(binding_count)) {
-            if slot.symbol.is_none() && slot.receiver.is_none() && slot.captures.is_empty() {
+            if slot.symbol.is_none() && slot.receiver.is_none() {
                 continue;
             }
             let EntityId::Loan(loan) = parameter else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
-            carry::apply_alias_column(&slot.captures, *loan, &mut self.capture_loans);
             if let Some(symbol) = slot.symbol {
                 rebound.insert(symbol, *loan);
             } else if let Some(mut receiver) = slot.receiver {
