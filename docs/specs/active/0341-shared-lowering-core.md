@@ -8684,3 +8684,17 @@ check通过32.80s，均在上述target另设`LLVM_SYS_211_PREFIX=/opt/homebrew/o
 unwind、动态唯一消费或source/callable Complete；失配引用降为None仍保留原退休和旧表。
 未接ownerPhase4，未认领隔离owner组合结果，未跑正式CI/SSA/LLVM行为，不关闭Spec/D10/E2，
 未推送、PR或合并。
+
+### Loan acquisition句柄贯通下一片（2026-11-10，实施范围）
+
+续接`d2e9c1e5`，复用同一record catalog及既有transfer→retirement，不另建ID体系或
+Complete协议。真实Begin返回观察句柄，随实际pending token移入consumer transfer；
+consumer退休同时携带其实际Begin句柄。独立validator验证source Begin先于transfer、
+consumer Begin位于transfer与retirement之间，完整token和同catalog归属一致，才公开
+source/consumer acquisition引用。禁止按Span或最终facts搜索补回缺失句柄。
+
+pending旧动作/loop深度与合流资格不变。相同前缀clone保留句柄，不同或缺失句柄的合流
+只清观察元数据；observer关闭不额外产生Begin，旧projection/清理不变。接入仅覆盖已有
+同步consumer的真实token生命周期，不认领wrapper、动态唯一消费、parent权限恢复、
+全CFG或整个source/callable Complete。仍Partial，错误/deferred全局撤销边界不变。
+先能力红测，再普通exact/独审；既有7项CI-only和十旧项排除，默认debug2与原target串行。
