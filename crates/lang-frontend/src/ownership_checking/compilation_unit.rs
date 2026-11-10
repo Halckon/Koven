@@ -861,7 +861,7 @@ impl CompilationUnitOwnership {
     }
 
     /// 无 receiver、owned-result 的 declaration/symbol/external 调用中，Exclusive
-    /// owned 名称根实参因 return 放弃调用前缀的实际结束事件。
+    /// owned 名称根实参因 return/break/continue 放弃调用前缀的实际结束事件。
     /// 排除借用绑定、provider 来源/绑定、投影、临时值和借用结果。
     /// 保持真实动作顺序；空列表不证明其它 loan 的状态，abort 不产生 unwind。
     #[must_use]

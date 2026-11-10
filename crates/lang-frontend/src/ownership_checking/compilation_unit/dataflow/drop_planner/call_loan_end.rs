@@ -164,7 +164,14 @@ impl DropPlanner<'_, '_> {
                 .ast()
                 .expressions()
                 .get(*transfer)
-                .is_ok_and(|node| matches!(node.payload(), Expression::Return { .. }))
+                .is_ok_and(|node| {
+                    matches!(
+                        node.payload(),
+                        Expression::Return { .. }
+                            | Expression::Break { .. }
+                            | Expression::Continue { .. }
+                    )
+                })
             {
                 continue;
             }

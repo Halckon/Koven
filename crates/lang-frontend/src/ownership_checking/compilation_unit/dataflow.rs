@@ -392,6 +392,7 @@ pub(super) fn analyze(
         borrow_return_origins.clear();
         borrow_forward_transports.clear();
         receiver_call_prefix_ends.clear();
+        exclusive_call_prefix_ends.clear();
         receiver_call_return_ends.clear();
         string_clone_loan_ends.clear();
         borrow_call_transports.clear();

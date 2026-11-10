@@ -291,3 +291,17 @@ mod loop_negated_conditions;
 mod invariant_continue_suffix;
 
 mod loop_input_alias;
+
+#[test]
+fn owner_observation_preserves_exclusive_loop_exit_prefix_events() {
+    for jump in ["break", "continue"] {
+        let text = format!(
+            "class Item(val n: Int)\nfun run(): Unit {{ loop {{ var a = Item(1); replace(&a, {jump}) }} }}"
+        );
+        let fixture = Fixture::new(&[("root.ko", &text)]);
+        let shared = fixture.shared();
+        assert!(shared.clone().validate().is_ok());
+        assert_eq!(shared.exclusive_call_prefix_ends().len(), 1);
+        compare(&fixture, &fixture.parts(&shared));
+    }
+}

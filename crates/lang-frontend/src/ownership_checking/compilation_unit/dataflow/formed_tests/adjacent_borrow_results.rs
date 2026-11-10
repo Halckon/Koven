@@ -27,6 +27,7 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.borrow_results.call_uses.is_empty());
     assert!(raw.borrow_forward_transports.is_empty());
     assert!(raw.receiver_call_prefix_ends.is_empty());
+    assert!(raw.exclusive_call_prefix_ends.is_empty());
     assert!(raw.receiver_call_return_ends.is_empty());
     assert!(raw.borrow_call_transports.is_empty());
     assert!(raw.borrow_binding_transports.is_empty());
@@ -121,6 +122,7 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
         // Observe dataflow::analyze directly: CompilationUnitOwnership::new must not
         // hide a missing clear in the earlier production gate.
         assert_cleared(&raw);
+        assert!(shared.exclusive_call_prefix_ends().is_empty());
     }
 }
 
@@ -840,4 +842,20 @@ fn later_rejections_clear_simultaneously_nonempty_receiver_and_clone_end_tables(
         );
         assert_eq!(raw.string_clone_loan_ends, shared.string_clone_loan_ends());
     });
+}
+
+#[test]
+fn real_errors_revoke_exclusive_return_and_loop_exit_prefixes() {
+    for jump in ["return", "break", "continue"] {
+        let text = format!(
+            "class Item(val n: Int)\nfun run(): Unit {{ loop {{ var a = Item(1); replace(&a, {jump}) }} }}"
+        );
+        assert_rejections_clear(&text, false, |accepted, raw| {
+            assert_eq!(raw.exclusive_call_prefix_ends.len(), 1);
+            assert_eq!(
+                raw.exclusive_call_prefix_ends,
+                accepted.shared().exclusive_call_prefix_ends()
+            );
+        });
+    }
 }

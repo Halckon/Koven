@@ -929,3 +929,6 @@ mod lifecycle_combination;
 
 #[path = "unit_direct_call_loan_ends/constructed_receiver_combination.rs"]
 mod constructed_receiver_combination;
+
+#[path = "unit_direct_call_loan_ends/exclusive_loop_prefix.rs"]
+mod exclusive_loop_prefix;

@@ -7575,3 +7575,48 @@ workspace all-targets check（40.48秒）、fmt、docs867、diff通过；相对 
 这仍是静态不变owner的来源与退出消费证据，不证明运行次数、终止性、动态实例、一般
 changing owner、header/exit phi、条件合流后缀或Phase4。SPEC-0341与D10/E2保持
 in-progress。仅本地分步提交，未推送、改现有PR、新开PR或合入main。
+
+
+## Exclusive 调用前缀的循环退出与 raw 撤销（2026-11-10）
+
+基于 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 的独立 Phase 3 切片。
+去重时核对 #390 `ca322bc5`、#391 `a94a83d7` 和22个 borrow/receiver 本地分支，均只
+观察 Exclusive Return；parent-binding 的在途实现和受阻文档保持原样，不重做 receiver
+或 String.clone。此片不依赖这些候选，不推送或新建 PR，不将其验收合并计算。
+
+`exclusive_call_prefix_ends()` 新增 Break/Continue，只投影既有深度感知 unwind 真正
+发布的 `EndCallLoan`；原 root/call/result/provider 资格、token注册、退休、逆序清理
+均不改变。普通循环与 for 退出保留 source-qualified 身份及同点动作序号；内层退出不
+结束外层调用前缀，正常完成/未访问后缀不伪造 unwind。这里不是完整生命周期或动态计数。
+
+- 先行红测固定原 `replace(&a, break)` 源码，实际空表与唯一结束事件期望不符；最小
+  point筛选扩展后转绿。原 break/continue 见证源码、loan/owner drop/replacement
+  断言保全，将旧片空表边界更新为精确唯一事件，不删除旧 Single 见证。
+- 独立真实 Return 前缀后追加第二来源 L0134 的 raw 红测暴露原 Exclusive 表残留。
+  在既有 finalize 失败分支补一个 clear；公开门原本有效，不是公开能力泄漏。实际
+  Return/Break/Continue 正控先证明 raw/public 非空且相等，再核错误及deferred撤销。
+- 新双入口固定oracle覆盖混合Shared/Exclusive序号、嵌套逆序、内层loop/while跳转、
+  部分退出与正常后继、未访问/投影/借用参数排除。for正控直接查真实iteration动作，
+  同token恰一次且 EndCallLoan 先于原owner drop，再于EndElement；不由描述符推测。
+- owner开关测试仅移除 owner observations 后比较完整 Analysis，保留新表、身份及顺序。
+
+| 验收项 | 选择 | 本地结果 |
+|---|---|---|
+| 完整普通事件族 | `unit_direct_call_loan_ends`，排除下述6个整项 | 118 passed，含7个新双入口合同 |
+| raw/public原子撤销 | `--lib adjacent_borrow_results` | 8 passed，含1个新三出口合同 |
+| owner开关完整产物 | `--lib owner_observation_preserves_exclusive_` | 2 passed，含1个新loop合同 |
+| 借用与receiver邻控 | continuation、nested、receiver_backedge；nested排除既有1个Abort整项 | 14＋13＋4 passed |
+| Unit循环退出 | `ownership_iteration control_exits_unit` | 6 passed |
+| 质量与消费者 | frontend all-targets Clippy（-D warnings）、workspace all-targets check、fmt | 通过 |
+| 文档/尺寸/差异 | check_docs.py、相对cc1e5b41尺寸门、diff | 通过；不增加尺寸额度 |
+
+Mac AArch64、Rust1.96、LLVM21，locked/offline、默认debug、jobs=2、独立专属target
+串行执行。165个唯一普通测试，包含9个新增测试，不重复累计单跑。事件族6项仅编译：
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、`abort_and_normal_return_do_not_invent_prefix_unwind_events`；
+nested的 `inout_receiver_and_nonreturning_sources_do_not_publish_call_uses` 亦仅编译。
+未运行native、Linux、故障注入、Abort、压力、frontend/workspace全量测试或正式CI。
+独立只读复审无阻断，明确核 dataflow 1157→1158 仅一行撤销接线、保留1248上限；
+compilation_unit.rs仍1030行，新领域测试309行。原错误日志保留于仓外；本片不归档D10/E2，
+最终组合及精确发布头CI另验。
