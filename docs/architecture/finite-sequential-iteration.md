@@ -89,6 +89,12 @@ unit basic/constant24格原SSA能力及独立native单列，未改unit生产。
 两body Resource/borrowed String operand、独立owned结果、同型decoy、fresh inner真实实例、
 耗尽后权限恢复有有界证据；多return、替换/alias、跨loop及Resource新条件能力不由此扩大。
 
+普通 return 的八份原边界输入另有 strict basic Unit 对照：双 return、mixed continue、
+replacement/alias、Resource source及三种跨循环组合，均保留同轮真实 For/provider 身份、
+原 main entry和对应 element access，并通过SSA/LLVM。Legacy八项拒绝仍精确定位原 keys
+声明，完整 kind/source/span固定，旧见证净退休0。此 test-only能力差分不扩大生产准入，
+也不证明两个入口完整等价、任意动态owner/phi或native资源释放。
+
 field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。
 自然循环内 captured Borrow closure 的0/1/3元素在普通/常量两视图已通过正常object/link/run；
 显式 EndCaptureLoan 退出不因此取得一般支持，不以stdout证明分配/析构数量。

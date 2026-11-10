@@ -8084,3 +8084,43 @@ jobs=2、locked/offline，独占target串行。完整基线和命令日志留本
 
 完成前 main 已推进到 #406 `cc1e5b41223fabe0248dd4bc2742e95aae9b810a`，该批改类型流，
 未改本片目标文件。本片仍只在 `144793e1` 基底验收，未合入或验证新main组合；合队后须重验。
+
+
+### D10/E2 原 return 边界 strict Unit 差分（2026-11-10）
+
+从 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 建立独立工作树；收尾只读复核
+main 仍为该头，#390 仍为 `ca322bc558be5336efdc701434cb432e5b7c509e`。目标为
+`lower_frontend_owned_source_return_boundary_tests.rs`，#390 相对该 main 未改此文件；
+定点核对统一队列及既有 owned-return 工作树未发现该文件在途修改。此次不修改此前
+continue 三片文件，不据此推定其他分支无冲突，也未执行统一候选合流或组合验收。
+
+保全八份完整原源：双 return、mixed continue、replacement seed、alias seed、Resource
+source、outer owner with inner loop、same-source nested/sequential。Legacy 仍逐项拒绝，
+完整 `UnsupportedNode` 与原 source/span 固定：普通六项 `keys` 为23..27，alias为53..57，
+Resource为63..67。目标测试文件全部12个旧测试名、原输入字节及另四项见证保留；
+直接 raw `analyze` 两处、`lower_scalar_file` 一处均不减少，旧入口净退休0。
+
+同一原源另走 strict basic `UnitSource` 最终准入，前端无诊断且无 deferred；逐项验证
+同轮 MemoryDocument/source字节、1或2个唯一真实 For 的 qualified provider 与源码表达式、
+原 main 内的 statement范围、原 main entry及相应1或2条 ContainerElementPlace 指令，验证SSA与LLVM。
+不以常量函数、其他入口或替换源码代替原控制流；不改生产准入或语义。Legacy固定诊断提交
+`20ce07d26eedd216d7ce1c883c307f7f169a73a3`；Unit差分与Architecture代码头
+`c1e89963392b8b36881d22f50d46f90112d01bac`，代码树
+`4073d53e627305a727bab96b9e4dd8fac2548513`，目标Rust文件264行。
+
+| 验收项 | 实际选择与结果 |
+|---|---|
+| return全族 | `cargo test --locked --offline -p lang-codegen --lib ssa::lower_frontend_tests::owned_source_return_tests::`；90个不同完整测试名：48 core、12 boundaries、30既有native邻控；0失败/忽略，2727 filtered |
+| 固定前后原边界核对 | 原始观测及Legacy精确跨度各12 passed，不与全族90项重复加总 |
+| 静态门禁 | codegen all-targets Clippy，`-W clippy::all -D warnings`；workspace fmt与diff均通过 |
+| 文档与尺寸 | `check_docs.py`通过863 Markdown；相对cc1e5b41的尺寸门禁通过，2242 Rust、36项既有超长，额度不变 |
+| 独立复核 | 原源/旧见证、严格Unit封闭视图及真实循环身份、SSA/LLVM入口、Architecture事实和日志唯一计数均无阻断项 |
+
+macOS arm64、Rust1.96.0、LLVM21.1.8，locked/offline、debug=0、jobs=2，独占target串行Cargo。
+30项既有native邻控实际经过目标文件、链接及运行，但不是新八份原源的native运行结果；
+新八源只证明strict Unit可准入并通过SSA/LLVM，不证明逐出口清理顺序、精确分配/释放、
+两入口完整语义等价或任意动态owner/phi。原始观测与完整日志保留在忽略的本地输出中，
+稳定原源和完整Legacy oracle在上述提交可追溯，不把重复源码和日志纳入仓库。
+未运行完整codegen/frontend/workspace行为测试、Linux、故障注入或sanitizer；未组合前两片
+continue本地成果与#390复验，不借用旧CI当作新组合证据。只本地提交，无推送、合并或新PR；
+统一队列应保留各片旧见证、在最新main的精确组合头重新验收。D10/E2与SPEC-0341仍in-progress。
