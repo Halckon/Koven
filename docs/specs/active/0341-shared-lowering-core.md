@@ -10989,3 +10989,47 @@ features空集及两binary SHA已核，2998源码/配置SHA逐文件匹配真实
 最终独立只读复核以dc85eaa5/tree5d9a133e为输入：排序提交仅移动test module登记，
 源码清单与两binary SHA、15+21成功exact集合、exit0/features空集/debug2实际匹配；
 结合生产和helper闭包审核无阻断。审核者未代执行测试，本账本冻结不改变Rust输入。
+
+### 短路 owner 与命名双 literal P1 本地合流（2026-11-10）
+
+冻结代码merge `e5a16d304c5da43a2e6b5da7e6c628764ede720a` 保留双父
+`e3c639bd26bc66aff0ce8d451a1a829e4469a86a` 与
+`c5fba0c481d21a9d61f80e41bcdf39592f143ba5`，共基4f72af76。执行前两原树clean，
+本地main/origin/main/只读远端ls-remote均为9e7fed92，未自动带入其它头。
+仅本Spec新增尾段冲突，程序核两父共同正文prefix后按named全文、分隔空行、owner尾段
+完整并集；非交集文件逐字等对应父，无Rust冲突/新生产修改。未合750cd403账本或
+8a38242b Bag probe测试，不改任何原树/main脏文档，不squash或丢父链。
+
+两父36+15实际无重名，本合成源码重新逐source/helper审定后只执行51unique ordinary
+（frontend15、codegen36）；全部通过、无失败/忽略或额外测试。FE每项1pass/606filtered，
+CG每项1pass/2897filtered。6个native exact内共22次有限emit/link/run独立分账，仍只算
+6tests，不作为资源计数/析构/压力证明。所有foreign、fault/corruption、Abort、counter、
+pressure、强制路由及未审矩阵/CI-only仅编译，不调用旧污染check，也未执行Bag probe。
+
+前端owner compare从同一真实checker分别生成两份局部planner Analysis，只清observed
+局部owner_observations用于旧facts相等对照，不回灌lower，不是clone()比较器。
+P1真off则重新分析ownership并将原off产品直接lower；legacy比较helper才clone归一化。
+两者不混写，观察器未激活故障/发射失败hook。实际条件求值、参数映射和唯一cleanup
+沿两父原实现，没有为合流换源或改测试结论。
+
+独占owner target、LLVM21.1.8、默认opt0/debug2，未设置profile/RUSTFLAGS覆盖、未复制/
+清理target。默认CLI check8.83s，实际frontend/codegen/kovenc三artifact features=[]；
+feature no-run1m24s，两test artifact test=true且仅loan-observation-test-support。
+先由新binary --exact --list核唯一名，再逐项执行。严格feature两crate all-targets
+Clippy41.40s、默认workspace all-targets34.55s、fmt、docs884、尺寸2343手写Rust/35旧超限
+（base4f72af76）、diff全部exit0，无预算改变。本批无Rust编译/测试意外失败；仅预期的
+Spec合流冲突，未将两父历史红测重算为本批能力证明。
+
+证据 `/private/tmp/koven-short-named-p1-evidence` 保存manifest、两selection/exact日志、
+runner、原始Cargo JSON与4193全部tracked文件hash（含fixture/config/docs）。该hash冻结
+于e5a16d30；本账本追加后仅Spec当前bytes不同，生产/config/fixture不变。临时产物不
+承诺永久保存，固定双父/merge和51精确选择为复现依据。
+frontend binary SHA256 `6495fbbbb7b916c6258121200f31cd730b7f962350d878bc68ea4bed5fbe5f17`，
+selection `97d2c63d1dc4350b4f3667a3a7373428841ffce10e7e42491ebbc1c736c92cf0`；
+codegen binary SHA256 `6e842884204ad4cec95c93873992f4a3acf04dfdc1b39e275c368fe02ba7c520`，
+selection `09db3871261b3bd8b3de495e337f1f908d7ddfdd865457b07dd715e632b9668f`。
+
+精确e5a16d30独立只读终审无阻断：4193输入、双binary/selection重算、实际profile与
+原artifact/51日志/runner、默认三CLI[]和全部静态终态均一致；审阅者未执行测试或编辑。
+终审后仅补Spec，docs/diff复核后本地提交，不重编Rust。owner target已释放，未push/PR/
+发布；正式双宿主CI、资源证明与独立Bag行为对照仍不在本批范围，旧oracle不退休。
