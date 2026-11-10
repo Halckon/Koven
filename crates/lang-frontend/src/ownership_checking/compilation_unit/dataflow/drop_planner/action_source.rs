@@ -372,6 +372,7 @@ impl ActionSource {
             source,
             actions,
             regions,
+            binding_regions: Vec::new(),
         }]
     }
 }

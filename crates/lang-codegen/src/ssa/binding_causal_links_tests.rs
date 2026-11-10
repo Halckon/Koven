@@ -4,7 +4,7 @@ use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget, check_compilation_unit_ownership,
     legacy_ownership_eq, with_loan_observation,
 };
-const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner); consume(item) }";
+pub(super) const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner); consume(item) }";
 #[test]
 fn binding_lifecycle_requires_actual_causal_links_with_true_off() {
     let mut sources = SourceMap::new();
@@ -114,7 +114,7 @@ fn binding_lifecycle_requires_actual_causal_links_with_true_off() {
         assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
     }
 }
-fn verify_binding_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
+pub(super) fn verify_binding_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
     let module = &program.modules[0];
     let caller = module.function(entry).unwrap();
     let [

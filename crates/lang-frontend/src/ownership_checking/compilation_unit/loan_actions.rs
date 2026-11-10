@@ -85,9 +85,22 @@ pub struct UnitLoanActionObservation {
     pub(super) source: SourceUnitId,
     pub(super) actions: Vec<UnitLoanAction>,
     pub(super) regions: Vec<super::UnitDirectCallLoanRegion>,
+    pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
 }
 
 impl UnitLoanActionObservation {
+    /// Independently entered binding regions. Missing entries do not prove absence.
+    #[must_use]
+    pub fn binding_regions(&self) -> &[super::UnitBorrowBindingRegion] {
+        &self.binding_regions
+    }
+
+    /// Check the exact observation catalog, not equal source or binding descriptors.
+    #[must_use]
+    pub fn owns_binding_region(&self, region: &super::UnitBorrowBindingRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Entered ordinary-call regions. Missing entries do not prove absence.
     #[must_use]
     pub fn regions(&self) -> &[super::UnitDirectCallLoanRegion] {

@@ -745,3 +745,7 @@ mod binding_lifecycle_probe;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "binding_causal_links_tests.rs"]
 mod binding_causal_links;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "binding_coverage_tests.rs"]
+mod binding_coverage;
