@@ -9298,3 +9298,51 @@ CI-only carrier门、借用人工损坏及所有Abort/故障/压力守卫未执�
 不证明runtime释放计数或无泄漏。Linux、sanitizer、正式双宿主CI、全量行为、整个source/
 callable完整覆盖均未验。保留Single和全部旧oracle，Spec/D10/E2不关闭；无push/PR/main
 合并，后续单PR仍需正式精确头CI。原main及其他工作树未修改。
+
+### 严格 B 剩余验收准备与入边角色防御（2026-11-10）
+
+按“优先完成动态 owner 和借用线”继续既有严格 B，不扩形状或 general phi。
+从第三批组合冻结 `dcd8204df22210db6893f3149e35f5490066f0c4` 新建隔离 Spec 分支，
+不改原组合、借用后续工作或0400。代码固定 `ec11a0a03d1b49ab960567d71ac7ac9bafe6cd43`。
+
+静态核查发现 Take 原核前驱集合/数量，若人为交换已记录的 P/Q 端点，集合仍相同。
+正常 While/Break 钩子没有产生该状态的源码反例；本片不声称普通能力 red→green。
+最小加固保存 While 已有 `finished` 块身份，并在 Take 时要求 condition-false 角色与之相同。
+原构图、producer/catalog、Name/Bind、唯一 emitter 和双账本均不变。
+
+新增 `owner_replace_break_ci_tests` 注册到现有 codegen lib，正式
+`scripts/check_core.sh` 的完整 `cargo test --locked -p lang-codegen` 将选择这些测试，
+没有忽略或另加省略开关。以下均为 CI-only，本地只编译、从未执行：
+
+- 两套真实 Basic/Const Unit 分析，以同名/不同名 source 的外国 owned 产品尝试 sealed view
+  构造，覆盖跨 analysis 错配，不手造 opaque owner。
+- 已选计划缺失前驱、无关前驱、P/Q 端点角色对调，核结构化拒绝且不回退。
+- 保持 run 函数严格 B 原样，caller 分别调用 false/true，两种 Unit 各独立链接/运行计数程序。
+  在真实 String destructor 记录字节标签/长度/容量，预期每程序 P Drop一次，Q Drop为flag；
+  literal容量0且malloc/free0。它只准备 literal 析构调用次数证明，不证明一般heap或Resource。
+- 在测试生成的 LLVM 中复制/删除真实两处 Drop call作校准，不改生产 IR emitter；要求失败
+  同时为SIGABRT和计数oracle专属marker，不能把任意崩溃、编译/链接失败当检测成功。
+
+既有 frontend `loop_replace_break` 的 `replace_break_model_rejects_damaged_states_and_catalogs`、
+`replace_break_deferred_publication_withholds_the_complete_product`、
+`replace_break_consumer_rejects_damaged_targets_and_actions` 继续承担 foreign catalog、deferred
+撤销、missing/duplicate action及consumer身份破损守卫，不复制或执行它们。合法非候选没有
+可选 B 产品仍可 lower，不能把“产品可选”改成全局拒绝；普通无产品邻控继续保留。
+
+本片不运行任何 CI-only、预期Abort、故障、计数、压力或sanitizer；Rust no-run与C的
+`clang -fsyntax-only`不证明生成LLVM可链接或计数程序行为正确。正式双宿主CI仍未运行，
+未推送、开PR或合main；Spec/D10/E2继续in-progress。实际本地门禁结果补于下方。
+
+| 本地验收 | 精确选择与实际结果 |
+|---|---|
+| 普通行为 | 沿严格 B 后端账本同9个逐源/helper审查的exact，9 passed、0 failed、2817 filtered、0 ignored；含原样SSA/LLVM、真实receipt、双Unit/同字面/重分析、非候选、普通native与四邻控，未跑整个target |
+| 负控编译 | `cargo test --locked --offline -p lang-codegen --lib --no-run --message-format=json -j 2`及对应`-p lang-frontend --lib --no-run`成功；实际两artifact debug=2，任何负控未计passed |
+| 计数C静态检查 | Clang21对同一counter以`-fsyntax-only -Wall -Wextra -Werror -DEXPECT_Q=0`及`=1`通过；无LLVM/C链接、无计数或校准子进程执行 |
+| 静态门禁 | `cargo clippy --locked --offline -p lang-codegen --all-targets -j 2 -- -D warnings`、`cargo check --locked --offline --workspace --all-targets -j 2`、`cargo fmt --all -- --check`通过 |
+| 文档与尺寸 | docs879；`check_rust_sizes.py --base dcd8204df22210db6893f3149e35f5490066f0c4`：2290 Rust/36旧欠账；diff通过，无新增尺寸例外 |
+| 独立终审 | 新上下文只读终审固定ec11a0a0相对dcd8204d六文件差分，无阻断；确认生产最小角色防御、test-only隔离、真实sealed错配与物理计数/校准范围，未代跑行为 |
+
+本轮串行复用原 owner target，不复制、clean或降debug；实际manifest/日志留仓库外，仓库仅保
+上述固定输入和选择。第三批组合475普通未整批重跑，不把其旧绿灯计为本片执行；未纳入借用
+正在进行的后续证据。此处完成的是严格 B 剩余 CI 验收准备及最小防御加固，正式验收仍待，
+不把所有动态 owner 或借用工作宣称完成。

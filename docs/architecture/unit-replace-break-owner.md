@@ -133,3 +133,9 @@ pending/capture 门并列。当前 B 的 var/while/尾句绑定与 protocol4 的
 语法不相交；这一事实不是省略状态门的理由，也不构成普通源码缺陷红测。合法兄弟函数
 组合另核区域完整五动作和正常退休后同点根 Drop；双 End 保存在有序 retirement transaction
 中，不虚构额外动作或把整个 source 升级为 Complete。
+
+
+严格 B 的 Take 另核 condition-false 角色对应 While 构图的真实 `finished` 块，不只核前驱集合。
+这是无普通源码反例的防御补齐，不是新形状或能力 red→green。跨 analysis sealed view错配、
+缺/错/互换入边以及真实String Drop调用计数/LLVM校准已有CI-only测试准备；本地只编译，
+正式执行仍待。计数仅针对literal P/Q的析构次数及零heap分配，不证明Resource或一般泄漏。
