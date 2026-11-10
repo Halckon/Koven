@@ -9888,3 +9888,29 @@ fmt、docs880、diff通过；依赖边及release命令未改变，未执行relea
 最终仅追加本账本文档，无Rust再修改。原2dc022e8冻结树仍clean；未push/PR/合main。
 全部CI-only、正式双宿主CI、Linux、sanitizer、压力/资源计数仍未执行；off实证限此Basic
 rooted/memory输入，不外推为常量capability或所有shape覆盖，不退休旧oracle，不关闭Spec/D10/E2。
+
+### 已批准：变化 owner 两出口向唯一 own 调用移交（2026-11-10）
+
+用户对动态 owner 与 Shared receiver 两项受限后继回复“是的”。本片只实施 owner 侧，
+基于已发布`2d79c4d6`新建隔离分支`feature/spec-0341-owner-own-call-20261110`，
+不等待或改写在途 #410 CI，不推送；借用侧独立并行。
+
+原固定 Boolean 参数、String 字面量 root、一次 Replace 后裸 Break 保持；唯一尾句允许
+`sink(held)`，sink 为同 Unit 已解析顶层非泛型普通函数，唯一 own String 参数、Unit 返回。
+首个普通源为 `fun sink(own item: String): Unit {}`，原 B 的 `val retired = held` 改为
+该直接调用，entry 调用 false/true 两边。新片不改原 B 的 Take/Bind/Drop 合同。
+
+Phase 3 必须从真实 Name take 与实际调用交付记录发布独立封印的 Take/Call 消费证明，
+保原 P/Q catalogs、不透明身份与 false/Break 角色。不得用 AST 匹配或旧 P 状态投影
+补造 Q 的交付。Phase 4 只核同轮、同 callable 产品并授权实际参数槽和目标调用；
+旧 emitter 唯一发出调用，caller 不再 Drop 已移交的选中值，callee 沿原 own 参数清理，
+true 路径 detached P 仍按旧规则清理。任一已选产品失败不得回退。
+
+不含多参、receiver、泛型/间接调用、Group/Not、任意后缀、owner 返回、loan/capture、
+Resource、一般循环或新 runtime。既有 main/旁线 owned-call-temporary 是 Owned 返回值
+被借用的结束规则，invariant-break-suffix 是不变输入尾句；均不等同本片变化 P/Q 移交。
+
+实施状态：in-progress。先建立真实普通生产 consumer 红测，再分步实施 Phase 3/4；
+Basic/Const 双 Unit、两出口实际 SSA/LLVM/native、精确调用参数与 caller/callee 清理为
+普通验收。错误封印/动作重放/计数校准等 CI-only 仅编译，正式双宿主 CI 仍另行验收。
+保留旧 oracle，不关闭 SPEC-0341/D10/E2；本地提交后集中交付，不单独新开 PR。
