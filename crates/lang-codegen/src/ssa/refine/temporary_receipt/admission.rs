@@ -16,6 +16,14 @@ impl Plans {
         else {
             return Ok(result);
         };
+        // Stage-one route migration does not yet claim a multi-operand receipt.
+        if inputs
+            .typed
+            .call(call)
+            .is_none_or(|c| c.arguments().len() != 1)
+        {
+            return Ok(result);
+        }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
         let callable = UnitItemId::new(inputs.source_unit, item);
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);

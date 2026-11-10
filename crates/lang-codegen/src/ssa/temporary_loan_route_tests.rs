@@ -76,7 +76,7 @@ fn check(require_receipt: bool) {
 fn non_target_temporary_shapes_preserve_routes_and_no_receipts() {
     for (case, text) in [
         "fun inspect(): Int = 1\nfun run(): Unit { inspect() }",
-        "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"a\", \"b\") }",
+        "fun inspect(a: String, b: String, c: String): Int = 1\nfun run(): Unit { inspect(\"a\", \"b\", \"c\") }",
         "fun inspect(value: String): Boolean = true\nfun run(): Unit { inspect(\"a\") }",
         "fun inspect(value: String): Int = 1\nfun run(flag: Boolean): Unit { inspect(\"a\") }",
     ]
@@ -106,7 +106,7 @@ fn non_target_temporary_shapes_preserve_routes_and_no_receipts() {
                 };
                 assert_eq!(region.protocol_version(), 1);
                 assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
-                assert_eq!(region.action_ids().count(), if case == 0 { 0 } else { 6 });
+                assert_eq!(region.action_ids().count(), if case == 0 { 0 } else { 9 });
             }
             let run = names
                 .names()
