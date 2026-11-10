@@ -11200,3 +11200,13 @@ merge及精确测试源码为复现依据。FE binary SHA256
 与selection、原artifact/profile、61逐项结果和全部静态终态均匹配；审阅者未编辑或
 代执行。终审后仅补本Spec，docs/diff复核后本地提交清树，不重编Rust；owner target
 已释放。native结果不独立证明RHS动态跳过次数，不作计数或一般终止性承诺。
+
+### 单借用binding跨语句生命周期前置实证（2026-11-10）
+
+基底a35f8c22，在新隔离树先核原样本地String根、单borrow val binding、单普通consume
+调用的现有语言/路由/SSA与action发布，不先写生产。真实handoff不是End；绑定结束
+后的source token退休及owner清理不能由Span或相等旧表拼成引用证据。已有
+result_action_source测试依赖故障拒绝helper，本地只编译，不作为普通执行入口。
+另建单一普通原样probe：真实FE→观察原action/旧facts→正常lower→SSA/LLVM，
+记录实际路由和操作；无force/修改facts/native/foreign/故障/资源计数。若原样不支持，
+先报告诊断，不自行扩大语言准入。后继认证/生产消费合同以该实证与真实发布点为前置。

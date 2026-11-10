@@ -738,3 +738,6 @@ mod named_literal_mapping;
 
 #[path = "finite_literal_tests.rs"]
 mod finite_literal;
+
+#[path = "binding_lifecycle_probe_tests.rs"]
+mod binding_lifecycle_probe;
