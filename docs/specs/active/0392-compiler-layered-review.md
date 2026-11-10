@@ -4984,3 +4984,24 @@ Elvis 值与提前返回均通过类型/所有权检查，native 仍按规范延
 return 形态经两入口返回 MissingFact，错误分类需在 R4 审核。
 等价的显式 if 对照经两入口均成功构建运行，输出 `bypass` 和
 `return`。本次未增加 Elvis lowering 或声称已覆盖双宿主原生。
+
+## 201. R2 合批前验收与 R4 基线对照
+
+`89428235` 的树 `ce8d1d3a517a3603d4b036ef852d88176e6795b3` 上，
+完整前端 184 个目标共 3063 项通过，含 12 项文档测试，零失败、
+忽略或过滤。严格 workspace Clippy 和 CLI 构建通过。单文件
+和项目各实跑六组，接受退出路径、保留 `when` 版本及子循环只
+return 三组，正常写回、被捕获 break 及子循环 break 的
+`when` 读取各报唯一 L0084。公开入口使用 Unit，Single 同源码
+对照见 §198–200 的直接回归。
+
+[PR #404 的主干 CI](https://github.com/Halckon/Koven/actions/runs/42720825998)
+在 `6ce85b07` 已成功。双宿主定向、预览生产及独立消费、Editor
+lexical 和最终汇总通过。PR 专用 Evidence 按范围跳过。
+
+§200 的两个 MissingFact 在 [#404 的 macOS 预览产物](https://github.com/Halckon/Koven/actions/runs/42715152484)
+实跑复现。核对二进制 SHA-256 为
+`7267328e659281279746162b794b784c86bf17616dbff500cbcfad3296ef4c1f`。
+同一基线的简单 Elvis 值报 UnsupportedNode，显式 if 对照正常
+构建运行，输出 `bypass` 和 `return`。R4 待查项是已延后能力
+在组合中的错误分类，Elvis native 实施仍按 Guide 15 分期。
