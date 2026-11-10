@@ -197,3 +197,12 @@ P/Q专用准入可接受一个`&&`或`||`，两叶各自仅Group/Not到同一原
 转发，entry再次核真实P。内部条件边先汇聚到body或finished，之后仍只有finished和
 Break两个owner出口进入共同exit。OwnerPlan严格incoming2和角色核验、旧唯一emitter
 与清理均不变，不新增一般owner phi或凭AST补造路径。
+
+## 双参数 own-call 的 selected 槽
+
+唯一 own String 后继另准入一个显式 own Int literal，二者均为 Value，支持两种形参顺序、
+positional 和反序 named。默认无 marker Int 仍是 Borrow，不在本片准入；Group、算术、
+其它类型、三参和额外 owner 也不属于该片。封印 source argument index、parameter index
+及 arity，pending Value 只交付真实 String carrier；Copy Int 不创建 payload owner。
+refine 对照同轮 typed 映射，在原 DirectCall 发射前核 selected 出现在对应形参槽且唯一；
+旧 emitter/cleanup 不变，callee 按原 own 参数规则消费。它不是一般多参或借用共同运输。
