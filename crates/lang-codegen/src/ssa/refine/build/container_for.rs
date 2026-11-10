@@ -67,6 +67,7 @@ impl Builder<'_, '_> {
             statement,
             self.unit(condition),
             UnitStatementId::new(self.inputs.source_unit, loop_body),
+            finished,
             exit,
             span,
         )?;

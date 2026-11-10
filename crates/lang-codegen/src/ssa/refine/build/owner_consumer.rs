@@ -25,6 +25,7 @@ pub(super) struct OwnerPlan<'a> {
     root_slot: Option<Slot>,
     bound: Option<Slot>,
     exit: Option<BlockRef>,
+    false_block: Option<BlockRef>,
     // Indexed by semantic role: condition-false P, then Break Q, never CFG order.
     incoming: [Option<BlockRef>; 2],
     replaced: bool,
@@ -125,6 +126,7 @@ impl<'a> OwnerPlan<'a> {
             root_slot: None,
             bound: None,
             exit: None,
+            false_block: None,
             incoming: [None, None],
             replaced: false,
             stage: 0,
@@ -163,6 +165,23 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Slot, LoweringError> {
         let unit = self.unit(expression);
+        #[cfg(test)]
+        if let Some(plan) = self
+            .owner_plan
+            .as_mut()
+            .filter(|plan| plan.initializer == unit)
+        {
+            use super::owner_consumer_test_support::{OwnerFault, take_fault};
+            if take_fault(OwnerFault::MissingIncoming) {
+                plan.incoming[0] = None;
+            }
+            if take_fault(OwnerFault::ForeignIncoming) {
+                plan.incoming[1] = Some(BlockRef(usize::MAX));
+            }
+            if take_fault(OwnerFault::ReversedIncomingRoles) {
+                plan.incoming.swap(0, 1);
+            }
+        }
         let Some(plan) = self.owner_plan.as_ref().filter(|p| p.initializer == unit) else {
             return self.name(expression, span);
         };
@@ -178,6 +197,7 @@ impl Builder<'_, '_> {
             || self.reference(span)? != plan.root
             || self.bindings.get(&plan.root) != Some(&selected)
             || false_edge == break_edge
+            || plan.false_block != Some(false_edge)
         {
             return Err(fail());
         }
@@ -262,6 +282,7 @@ impl Builder<'_, '_> {
         statement: UnitStatementId,
         condition: UnitExpressionId,
         body: UnitStatementId,
+        finished: BlockRef,
         exit: BlockRef,
         span: Span,
     ) -> Result<(), LoweringError> {
@@ -272,6 +293,7 @@ impl Builder<'_, '_> {
         else {
             return Ok(());
         };
+        plan.false_block = Some(finished);
         if plan.boundary.condition() != condition
             || plan.boundary.body() != body
             || plan.root_slot.is_none()

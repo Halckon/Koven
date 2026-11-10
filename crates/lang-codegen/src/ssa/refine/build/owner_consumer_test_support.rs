@@ -9,6 +9,9 @@ pub(crate) enum OwnerFault {
     WrongSlot,
     WrongIndex,
     MissingFinish,
+    MissingIncoming,
+    ForeignIncoming,
+    ReversedIncomingRoles,
 }
 thread_local! {
     static FAULT: Cell<Option<OwnerFault>> = const { Cell::new(None) };

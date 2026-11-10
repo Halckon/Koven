@@ -6,7 +6,7 @@ use crate::ssa::{
 };
 use lang_frontend::name_resolution::SymbolKind;
 
-const SOURCE: &str = r#"fun run(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; val retired = held }
+pub(super) const SOURCE: &str = r#"fun run(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; val retired = held }
 fun entry(): Unit { run(false); run(true) }"#;
 
 #[test]
