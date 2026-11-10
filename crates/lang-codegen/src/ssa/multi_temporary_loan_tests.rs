@@ -6,6 +6,10 @@ const SOURCE: &str =
 fn two_literal_caller_requires_real_refine_route() {
     check(false);
 }
+#[test]
+fn two_literal_call_requires_real_production_receipt() {
+    check(true);
+}
 fn check(receipt: bool) {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-literal.ko", SOURCE);
