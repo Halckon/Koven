@@ -463,6 +463,9 @@ impl UnitOwnerObservation {
     /// Unsupported controls, parameters and captures return no partial projection.
     /// Legacy definitions/events remain Unsupported for Choice-producing AST paths.
     pub fn value_observation_v1(&self) -> Option<UnitOwnerValueObservationV1> {
+        if self.replace_break_value.is_some() {
+            return None;
+        }
         if let Some(choice) = &self.choice_value {
             return (choice.catalog.callable == self.callable
                 && std::sync::Arc::ptr_eq(&choice.catalog.identity, &self.identity)

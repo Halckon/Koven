@@ -236,6 +236,8 @@ pub(super) struct OwnedThis {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
+    pub(super) replace_consumer:
+        Option<super::owner_transport::replace_consumer::ReplaceConsumerCarrier>,
     pub(super) lambda: Option<ExpressionId>,
     pub(super) borrow_bindings: Vec<UnitSymbolId>,
     pub(super) pending_borrow_results: Vec<UnitSymbolId>,
@@ -316,6 +318,8 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     let Some(mut merged) = states.pop() else {
         return ValueState::default();
     };
+    // No general branch merge is authorized for the bounded suffix carrier.
+    merged.replace_consumer = None;
     merged.borrow_forward_transports.retain(|transport| {
         states
             .iter()
