@@ -35,6 +35,10 @@ fn selected_owner_actual_return_requires_product_authorization() {
 
 #[test]
 fn selected_owner_return_both_units_deliver_path_value_and_caller_cleans_up() {
+    assert_return_transport(SOURCE);
+}
+
+pub(super) fn assert_return_transport(input: &str) {
     use super::OwnedProducts;
     use crate::ssa::model::{EntityId, Function, Operation};
     fn edge(f: &Function, b: crate::ssa::model::BlockId) -> &crate::ssa::model::Edge {
@@ -48,10 +52,10 @@ fn selected_owner_return_both_units_deliver_path_value_and_caller_cleans_up() {
         let text = if constant {
             format!(
                 "const val ON: Boolean = true\n{}",
-                SOURCE.replace("run(true)", "run(ON)")
+                input.replace("run(true)", "run(ON)")
             )
         } else {
-            SOURCE.to_owned()
+            input.to_owned()
         };
         let source = UnitSource::analyze("owner-return-dual.ko", &text).unwrap();
         source.assert_frontend_clean();
