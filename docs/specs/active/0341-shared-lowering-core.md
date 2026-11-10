@@ -10130,3 +10130,81 @@ workspace all-targets check、fmt、docs880、diff及尺寸basea3bdf8d1均通过
 排他不变，manifest的codehead/tree、两binary SHA、实际debug2/features空集和140+13
 成功集合均复核一致。审阅者未运行Cargo或行为测试。本片本地实现与普通验收完成；
 上述正式CI与计数边界保持，不据此宣称其已执行或通过。
+
+
+## 已批准的 protocol 2 receiver 生产核验（2026-11-10）
+
+用户同意将既有生产核验从 protocol 4 扩到已进入 refine 的受限 protocol 2 receiver。
+范围为前段已迁非泛型、显式 own 非 Resource class 参数根、零实参 Shared receiver、
+Int/Unit owned 结果及单一直线正常返回 caller，且同轮 catalog 发布 Complete2。
+不改 route，不以 Complete2 取代完整 subset。off/Partial/Unsupported/缺席保旧行为，
+不新增语言拒绝、不授 absence、不退休 oracle。P4、B/Call owner 证据保持独立。
+
+从真实 receiver producer 绑定 call、参数 owner Slot 和新 loan；稳定标记随 RStmt
+移动，实际 SSA append 处核 RootPlace→Begin→DirectCall→End→原 NamedDrop 身份与
+顺序，每个选中实例必须唯一闭合。callee entry loan 与 caller loan 各自局部，不强套
+P4 source/result 角色、不回放手写五指令、不按 Span 事后补配；旧 producer 唯一发动作。
+先执行原样合法 P2 缺 receipt 红测，再最小生产实现及 Basic 双 Unit 真 on/off、
+边界、P4/B/Call 邻控。新增破损守卫仅 CI 编译、本机不执行；独占 borrow target、
+默认 debug2、有限普通 exact，不跑全量/native/资源计数、不 push。
+
+### Protocol 2 生产核验实施与本地验收
+
+新隔离分支`feature/spec-0341-receiver-production-receipt`从
+`a3bdf8d14d0db07ff3ba007755170819d45638e5`起步；范围与红测提交02088225，
+代码头`fa8c547cdace757b8f2fa766137e2c294bfc0d89`。不改前片冻结树。
+`receiver_receipt`独立准入/生产状态/SSA核验，RStmt的私有LoanTag显式区分
+Receiver/Consumer，双归属为错误，P4模块本体未改。窄shape查询复用原predicate，
+仅机械提取type_demands的无状态Checker初始化；原route条件和所有动作生产者不变。
+
+| 验收项 | 实际选择及输入 | 结果 |
+|---|---|---|
+| 原样缺receipt红测 | 02088225；`ssa::loan_region_ssa_tests::certified_receiver_region_has_real_unit_ssa_lifecycle` | 实际lowering成功，receipt 0而要求1；0通过/1失败/2845filtered |
+| 原样生产红转绿 | build2同一exact | 1通过/0失败/2845filtered；生产finish成功后才被observer看到，原五指令oracle保留 |
+| 最终14普通exact | 下述精确选择、fa8c547c | 每项1通过/0失败/0忽略/2851filtered；14唯一测试，双入口与on/off不另累计 |
+| Int身份与真off | 原样P2及既有receiver_route真off测试 | 同catalog原ID→caller/call→原参数owner/place/loan→真实InstructionId；同names/types真实重分析off，原产品直接lower，旧facts/SSA/LLVM相同，off无receipt |
+| Unit结果 | `ssa::loan_region_ssa_tests::receiver_receipts::unit_receiver_receipt_closes_real_slots_and_observer_off_is_transparent` | Basic rooted/memory、真on/off均通过；Unit DirectCall无result，原owner唯一Drop，callee entry loan独立 |
+| 同analysis隔离 | `ssa::loan_region_ssa_tests::receiver_receipt_siblings::receiver_consumer_and_owner_siblings_keep_production_receipts_separate` | P2/P4 action IDs、callable、call、SSA实体互异；B仅一次Drop授权，Call仅一次own String交付授权；SSA/LLVM通过 |
+| 原邻控 | 前片四合法route边界、P4直接/Partial/sibling、B/P4及两项owner Call普通测试 | 未扩大route，无P2/P4角色混用，无重复Drop或callee授权变化 |
+| 严格featureClippy | `cargo clippy --locked --offline -p lang-codegen --features loan-observation-test-support --all-targets -j 2 -- -W clippy::all -D warnings` | 通过50.93s；不执行测试 |
+| fmt/docs/diff/尺寸 | `cargo fmt --all -- --check`、docs、diff、尺寸`--base a3bdf8d1` | 通过；881Markdown、2311手写Rust/36旧超千行，build997/emit983/subset992，无增长豁免变更 |
+
+最终名单为前段有界receiver route的10个普通exact，加上本表Unit与同analysis隔离两项，
+再加`native_tests::boxed_enum_tests::unit_source::owner_own_call_tests::`下的
+`selected_owner_actual_call_requires_product_authorization`及
+`selected_owner_call_both_units_preserve_path_values_and_callee_cleanup`。
+后两项及既有B/P4虽处native_tests模块，逐源/helper核实只分析、lower、SSA/LLVM验证，
+没有native执行、计数或注入。四个新增ci_only仅编译：外来catalog receipt、重复/缺角色、
+重绑slot/错误callee、外来function instruction；snapshot仅其显式capture启用，普通
+helper不触发。核验的是已产生的真实指令ID，不重造五条SSA操作。
+
+每轮命令均为`cargo test --locked --offline -p lang-codegen --features loan-observation-test-support --lib --no-run --message-format=json -vv -j 2`。
+唯一target为`/private/tmp/koven-exclusive-loop-prefix-target`；
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，Rust1.96.0/LLVM21.1.8，macOS AArch64。
+无DEV_DEBUG/TEST_DEBUG/RUSTFLAGS/ENCODED覆盖；实际本树artifact为opt0/debug2/test=true、
+feature仅`loan-observation-test-support`且build-finished成功。先核进程/target锁空闲，
+串行编译，每次从已完成manifest取binary、exact list核名再exact运行；不copy/clean/降档。
+
+过程偏差如实保留：红测no-run1m21s；首次实现编译有两处admission引用层级错误，
+不是能力红测；修复后build2 59.04s且原样绿。build3 30.60s后直接四项绿，
+build4 31.22s后最终14项绿。一次编译尚未开始产出JSON时的只读检查未找到文件，
+随后等待完成产物才执行测试，未运行旧binary。首次docs因receiver入口218行超200失败，
+拆页后又暴露入口202行及README漏索引；将生产核验独立成职责页、复用原段链接并补索引
+后881页通过，未压缩Rust或改额度。最终仅追加文档，不再改已测Rust。
+
+最终binary SHA256：
+`8c1a5972ee87d5035c2ec407887869a7630e13fe21c7aec082c6c8baf9a7d878`。
+14项换行选择SHA256：
+`fd2db2ec955231586fed63ff74f871681c562b272915e62b29dfc13d27ed9ca3`。
+本机临时证据前缀`/private/tmp/koven-p2-receipt-final`包含manifest/selection/exact日志，
+构建为`/private/tmp/koven-p2-receipt-build4.json/.stderr`；临时目录不承诺长期保留，
+固定代码头与精确选择界定可重建输入，不将raw提交到docs。
+
+没有运行任何CI-only、panic、Abort、故障、native、资源计数、压力、Linux、sanitizer、
+全量CI、旧组合全表、workspace/默认CLI或release。未改变frontend API、feature或依赖。
+P2真off实证限Basic双Unit；静态Complete2过滤与off空计划不等于完整absence。
+本机绿不替代父级集中PR的双宿主CI；不push/PR/合main，不关闭Spec/D10/E2或退休oracle。
+
+精确fa8c547c独立只读终审无阻断，确认P2/P4角色与原owner授权独立、窄shape未扩大，
+重算两SHA与profile及14条普通exact日志逐项一致；同analysis sibling证据与代码相符。
+审计未代执行测试。其后仅提交本账本与架构页面，无Rust漂移。

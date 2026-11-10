@@ -872,6 +872,8 @@ pub(super) fn emit(
         blocks.insert(*block, id);
     }
     let mut receipt = super::loan_receipt::Emitted::new(&body.loan_plans, function, span)?;
+    let mut receiver_receipt =
+        super::receiver_receipt::Emitted::new(&body.receiver_plans, function, span)?;
     let mut emitter = Emitter {
         function,
         current: BTreeMap::new(),
@@ -887,7 +889,7 @@ pub(super) fn emit(
         emitter
             .defined
             .extend(emitter.current.iter().map(|(k, v)| (*k, *v)));
-        emitter.statements(body, *block, target, &mut receipt)?;
+        emitter.statements(body, *block, target, &mut receipt, &mut receiver_receipt)?;
         let (terminator, term_span) = body.blocks[block.0].terminator.as_ref().expect("reachable");
         let origin = Origin::Source(*term_span);
         let edge = |emitter: &Emitter<'_>, successor: BlockRef| -> Result<Edge, LoweringError> {
@@ -976,5 +978,6 @@ pub(super) fn emit(
             .map_err(model_error)?;
     }
     receipt.finish(&body.loan_plans, emitter.function, span)?;
+    receiver_receipt.finish(&body.receiver_plans, emitter.function, span)?;
     Ok(())
 }

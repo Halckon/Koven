@@ -65,6 +65,12 @@ impl Builder<'_, '_> {
         };
         Ok(Some(match receiver.mode() {
             ParameterMode::Borrow => {
+                self.body.receiver_plans.enter(
+                    call,
+                    self.inputs.owned.receiver_fact(call),
+                    &self.bindings,
+                    span,
+                )?;
                 let begin_span = self
                     .inputs
                     .owned

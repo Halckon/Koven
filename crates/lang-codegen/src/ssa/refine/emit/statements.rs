@@ -9,6 +9,7 @@ impl Emitter<'_> {
         block: BlockRef,
         target: BlockId,
         receipt: &mut Emitted,
+        receiver_receipt: &mut crate::ssa::refine::receiver_receipt::Emitted,
     ) -> Result<(), LoweringError> {
         for statement in &body.blocks[block.0].statements {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
@@ -35,15 +36,25 @@ impl Emitter<'_> {
                 self.current.insert(*slot, entity);
                 self.defined.insert(*slot, entity);
             }
-            if let Some(tag) = statement.loan_tag {
-                receipt.statement(
+            match statement.loan_tag {
+                Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => receipt.statement(
                     &body.loan_plans,
                     tag,
                     self.function,
                     instruction,
                     &self.current,
                     statement.span,
-                )?;
+                )?,
+                Some(crate::ssa::refine::body::LoanTag::Receiver(tag)) => receiver_receipt
+                    .statement(
+                        &body.receiver_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?,
+                None => {}
             }
         }
         Ok(())
