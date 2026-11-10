@@ -9097,3 +9097,64 @@ lib：`f3b13914c8f8fc47f86caed8abf8d8ff06ce468d26ffc148c8579b9fed188129`。
 本片没有增加Complete协议，不证明wrapper/动态唯一消费/parent权限恢复或整个source/
 callable；不接ownerPhase4、不认领固定owner组合验收，不跑正式CI/SSA/LLVM行为，
 不关闭Spec/D10/E2，未推送、PR或合并。
+
+### B 后端与 loan acquisition 固定批次组合（2026-11-10）
+
+在上一组合隔离分支快进到 owner `131c770d41671f0b1f62cad0ad3d038a63d4f3fd`，随后
+普通 merge `709ab712` 纳入固定 borrow `5f8445c9ee75a39da341104edf75743518bdf1e6`。
+保留两真实父链及已批准严格 B Phase 4 合同，不 cherry-pick 重造；不纳入借用后续新片、
+SPEC-0400或其他脏树。model冲突同时保留B carrier禁止一般合流与pending acquisition
+句柄只降级观察两项职责；测试及历史账本冲突逐段并集，原失败/偏差/未运行记录不删改。
+owner后端与上批raw撤销修复相对固定owner头没有生产diff。
+
+联合证据提交及精确Rust输入为 `3512b4222b118d49d7379e0304b5a7d60754bf5c`，树
+`72073e473ec5c657d93a8568f348d76ec3299ccd`。仅增强既有3项联合测试，没有新增生产修复，
+不把本次兼容性成功伪称能力红→绿。两输入分支原能力红测及上批raw红测记录继续保留。
+
+四开关测试保原B、temporary/named/receiver/result四族，再加入真实`consume(view(owner))`。
+loan开启时从公开同catalog句柄解析source Begin→transfer→consumer Begin→retirement，
+核完整token及严格顺序、唯一旧transport和Partial；不通过descriptor搜索补回依赖。
+20个开关/源码组合剥离owner与loan观察后，比较完整旧Analysis、身份和顺序。
+三source用例保持B与loan正例不变，先证明raw/public依赖非空，再由独立普通错误或真实
+closure replace deferred触发全局撤销；错误清owner表，deferred保旧诊断观察并剥离能力，
+loan观察及旧transport清空。新依赖嵌在原loan观察内，没有漏清的新独立Analysis字段。
+
+本批frontend精确462个唯一普通项通过：134 lib（116安全owner＋15借用＋3联合）、327
+`unit_direct_call_loan_ends`、1 `ownership_iteration`。两项owner混合破损、十项direct排除、
+四项旧iteration Abort及所有CI-only不执行。逐源码/helper独审覆盖468个继承选择的88个
+源码文件，另复审3个联合测试，共471项普通选择；正常native与人工receipt故障严格分开。
+默认不运行全lib或全target行为，all-targets仅供静态check/Clippy编译。
+
+macOS AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、jobs2，串行复用原
+`/private/tmp/koven-choice-replace-forwarding-target`，不复制target、不clean或降档。
+未设置DEV/TEST_DEBUG、RUSTFLAGS或CARGO_ENCODED_RUSTFLAGS覆盖；test artifact逐项核
+profile.debuginfo=2，rustc含`-C debuginfo=2`。LLVM prefix为`/opt/homebrew/opt/llvm@21`。
+frontend构建选择`--lib --test unit_direct_call_loan_ends --test ownership_iteration`，codegen
+选择`--lib`；均使用`cargo test --locked --offline -p <crate> --no-run --message-format=json -vv -j 2`。
+各二进制先`--exact --list --format terse`核白名单，再`--exact`运行并逐项核成功集合。
+
+Mac断连发生在462前端通过后的codegen编译期间；恢复时原日志无build-finished success、
+没有9项行为日志，且本任务无残余进程，保留中断日志后仅续未完成工作，没有重复462项。
+仓外精确名单、binary摘要与日志位于`/private/tmp/koven-owner-loan-combination-batch2-evidence`，
+只供本地复核；持久真源为上述提交、测试源码与本段精确选择边界，不把临时文件当永久证据。
+
+恢复后codegen no-run完成（57.71s），同一Rust输入的9个普通exact全部通过（22.57s，
+0 failed/ignored，2813 filtered）；因此本批去重总计471 passed，不与上批454或分支各自
+验收重复加总。9项完整选择沿用本页“严格 B Phase 4 本地接线验收”：五个普通
+`bounded_replace_break_*`（排除`ci_only_*`）、两个nullable/inout refine邻控，以及两个
+String/closure普通native邻控。新receipt、唯一旧emitter及双账本、原样SSA/LLVM、双Unit×
+同字面量×重分析、合法非候选及普通native false/true均在本批真实组合输入执行。
+
+普通native只证明正常功能与输出，不证明释放计数或无泄漏；本批仍未运行runtime计数、
+sanitizer、Linux、正式双宿主CI、完整frontend/codegen行为或任何CI-only/Abort/人工故障/
+破损/压力守卫。后者仅编译，不记为passed。没有扩展一般phi/capture/Resource、完整loan
+生命周期或source/callable Complete；保留Single及所有旧oracle，Spec与D10/E2仍in-progress。
+未push、开PR或合main；这里只形成后续单PR准备的本地候选，不代表正式CI或发布完成。
+
+本批最终静态门禁：`cargo clippy --locked --offline -p lang-frontend -p lang-codegen
+--all-targets -j 2 -- -W clippy::all -D warnings`通过（53.31s）；`cargo check --locked --offline
+--workspace --all-targets -j 2`通过（40.25s）；`cargo fmt --all -- --check`通过。
+`python3 scripts/check_docs.py`通过879 Markdown；`python3 scripts/check_rust_sizes.py
+--base 3fe1920a`通过2287手写Rust、36旧超长，未增加尺寸额度；`git diff --check`通过。
+独立只读终审核真实父链、model合流职责、旧投影/撤销及471项精确成功集合/binary/profile，
+无剩余阻断；文档只追加本批事实，未把历史分支结果冒充本批。仅文档追加后不重复Rust行为。

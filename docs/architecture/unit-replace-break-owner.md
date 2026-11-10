@@ -115,11 +115,15 @@ Name Take 从计划选中槽交付，实际 Alias Bind 发前授权、发后记�
 ## 与 loan 动作源的组合边界
 
 owner 与 loan 观察独立开关；同一已检查输入的四种组合移除对应观察后，完整旧 planner
-产物及顺序保持相等。严格 B 与 temporary、named、receiver、result loan 的兄弟函数
-共同存在，不表示有界 flat loan region 已支持 B 的循环，也不保证这种形状隔离永久成立。
+产物及顺序保持相等。严格 B 与 temporary、named、receiver、result 及同步 consumer loan
+的兄弟函数共同存在，不表示有界 flat loan region 已支持 B 的循环，也不保证这种形状隔离永久成立。
 组合断言核真实 P/Q incoming、AST 限定的 Take/Bind/Drop；独立原 B oracle 保留。
 
 真实独立 source 的错误在 raw/public 均撤销 owner 观察；真实 deferred 保留旧诊断性
 观察，但在 raw 返回前已剥离 replace-break、closed-loop 和 invariant-loop 能力。
 该处复用原公开发布策略，公开构造仍保留幂等兜底；loan 新观察与既有相关投影全局撤销。
 这修复旧 raw 边界缺口，不改变语言准入或后端执行责任。组合验收见 SPEC-0341。
+
+同步 consumer 的组合正例还解析实际 source Begin、transfer、consumer Begin 与 retirement
+的同 catalog 公开句柄并核严格顺序；独立 source 错误/deferred 后这些依赖和旧 transport
+一并撤销。依赖仍是 Partial 静态记录，不授予一般 parent 权限恢复或动态唯一消费能力。
