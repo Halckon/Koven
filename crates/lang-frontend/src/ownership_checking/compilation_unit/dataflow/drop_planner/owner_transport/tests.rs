@@ -285,3 +285,5 @@ fn owner_observation_preserves_simultaneously_nonempty_receiver_and_clone_end_ta
 }
 
 mod closed_while_transfers;
+
+mod loop_negated_conditions;
