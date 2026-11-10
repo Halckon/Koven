@@ -72,7 +72,7 @@ successful/无 deferred 门清空或保留该槽。不能将完整自洽的另�
 
 `invariant_split_continue_observation_v1()` 返回独立
 `UnitOwnerInvariantSplitContinueObservationV1`。仍为精确三语句 String 输入/后缀合同，
-但 While 与末尾 If 分别读取两个不同的普通 Boolean 参数，条件可带 Group；两臂必须各有
+但 While 与末尾 If 分别读取两个不同的普通 Boolean 参数，条件可带 Group/逻辑取反；两臂必须各有
 唯一裸 Continue。拒绝 Break 混合臂、空臂、arm-local owner、嵌套控制及外层输入操作。
 旧空输入、normal/裸 Continue 和 Break getter 都不接收此能力，未扩大原接口合同。
 
@@ -119,7 +119,7 @@ body-local Drop 顺序不变；本片不提供 suffix 消费、运行实例或�
 ## 不变输入 owner 的双正常臂与真实合流
 
 `invariant_normal_join_observation_v1()` 返回独立 `UnitOwnerInvariantNormalJoinObservationV1`，
-仅接末尾 If 两个正常空 ControlBody。三语句 String 输入/后缀、两个独立 Boolean 参数与
+仅接末尾 If 两个正常空 ControlBody。三语句 String 输入/后缀、两个独立 Boolean 参数（可带 Group/逻辑取反）与
 闭合 body-local 前缀合同保持。正常/跳转混合臂、臂内 owner、嵌套、其它尾值和外层输入操作
 仍拒绝。旧空入边、直线/裸 Continue、裸 Break、双 Continue 与条件 Break getter 均不扩展。
 

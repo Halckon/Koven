@@ -209,12 +209,21 @@ fn closed_while_rejects_open_boundaries_and_unsupported_suffixes() {
             "{run}: {:?}",
             owned.diagnostics()
         );
-        assert!(
-            owned.owner_observations()[0]
-                .loop_observation_v1()
-                .is_none(),
-            "{run}"
-        );
+        if run == super::loop_negated_conditions::ORIGINAL {
+            let value = owned.owner_observations()[0].loop_observation_v1().unwrap();
+            assert!(value.is_consistent());
+            assert_eq!(
+                value.condition(),
+                UnitExpressionId::new(fixture.source(0), fixture.expression(0, "!flag"))
+            );
+        } else {
+            assert!(
+                owned.owner_observations()[0]
+                    .loop_observation_v1()
+                    .is_none(),
+                "{run}"
+            );
+        }
         let sibling = UnitOwnerCallable::Function(UnitItemId::new(
             fixture.source(0),
             fixture.parsed[0].roots()[4],

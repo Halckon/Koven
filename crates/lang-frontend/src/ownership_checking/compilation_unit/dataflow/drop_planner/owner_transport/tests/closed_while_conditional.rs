@@ -324,12 +324,18 @@ fun sibling() {{ val safe = "safe" }}"#
             "{text}: {:?}",
             owned.diagnostics()
         );
-        assert!(
-            owned.owner_observations()[0]
-                .loop_observation_v1()
-                .is_none(),
-            "{text}"
-        );
+        if tail == "if (!exit) { break } else { continue }" {
+            let value = owned.owner_observations()[0].loop_observation_v1().unwrap();
+            assert!(value.is_consistent());
+            assert_actual_loop_source(&fixture, 0, value);
+        } else {
+            assert!(
+                owned.owner_observations()[0]
+                    .loop_observation_v1()
+                    .is_none(),
+                "{text}"
+            );
+        }
         assert_eq!(
             owned.owner_observations().last().unwrap().status(),
             UnitOwnerObservationStatus::Complete

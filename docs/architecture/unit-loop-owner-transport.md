@@ -10,8 +10,15 @@
 
 仅顶层普通、非泛型 Unit 函数，整个函数体仅一个 While。直线完成使用一个无 mode marker
 的精确 Boolean 参数；末尾条件跳转使用两个这样的参数，While 与 If 必须读取不同真实
-symbol。条件只能参数的 Name/Group 链，每层精确 Boolean 且非 constant-use，原条件分析
-必须同时保留 true/false 两条边。函数、循环和 body 均保留 source-qualified 身份。
+symbol。条件只能参数的 Name、Group 与前缀逻辑取反链，每层精确 Boolean 且非 constant-use，
+原条件分析必须同时保留 true/false 两条边；不接 calls、常量、比较或复合逻辑。
+准入返回原参数 symbol，因此不同极性或分组不能绕过两条件的参数互异限制。
+条件与边始终保留完整 source-qualified expression，不能改成最内 Name 或按取反奇偶交换 then/else。
+
+末尾 If 的 Not 另经只读活动门：仅已准入条件链的实际 Not 节点，精确 body sink Arc、scope、
+最近 loop、无 Choice/分支深度，且尚无 split/arm/pending jump/completed，才不拒绝观察。
+既有 expression 遍历仍真实执行条件；不跳过求值，不为普通 Prefix 或循环其它位置授予支持。
+此门不生成控制边、owner 或快照，完整完成与状态封印仍须在实际遍历后成立。
 
 body 至少一个精确 String/MoveOnly 的局部 val/var 声明，可接唯一末尾裸 Continue、Break
 或显式双臂 If。If 每臂只能空 ControlBody 或一个裸 Continue/Break，不接受臂内声明、
@@ -70,8 +77,9 @@ LoopExit。公开 edges 返回只读 slice，私有 completion 重建并核对�
 
 body definition token 是静态 producer 身份，每次激活都要求新实例，不能将不同轮实例混为
 一个 token。此产物只给出闭合模板，不发布 runtime instance handle 或 loop-carried phi。
-条件是不可变参数且 body 不修改它：false 为零轮；true 在 fallthrough/Continue 路径可持续
-循环，在末尾 Break 路径经一轮退出。末尾 If 的另一个参数也不变，同次调用选择同一臂，
+条件仅由不可变参数经 Group/Not 构成，body 不修改参数；完整条件为 false 时零轮，
+为 true 时在 fallthrough/Continue 路径可持续循环，在末尾 Break 路径经一轮退出。
+末尾 If 的另一个参数也不变，同次调用选择同一臂，
 并非每轮任意换臂。有限前缀不是终止证明，不发布动态运行计数。
 
 ## 独立非空输入能力

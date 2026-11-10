@@ -38,7 +38,7 @@ backedge、exit、suffix-entry；Break 五份为 entry、post-jump、body-comple
 
 返回的图只含 outer prefix/suffix，须与本对象原 entry、实际 body 完成边、exit 及闭合模板联合使用。
 它证明上述两类退出路径上的输入转移与最终消费，不能把省略循环执行的线性图当作整个程序轨迹。
-条件是 body 不改变的 Boolean 参数；不能将静态 checker 的边界见证描述成实际运行若干轮
+条件由 body 不改变的 Boolean 参数经 Group/Not 构成；不能将静态 checker 的边界见证描述成实际运行若干轮
 后退出。正常 body 的 suffix 是条件 false 路径的规划；裸 Break 在条件 false 时不激活 body，
 条件 true 时沿裸 Break 在一次 body 激活后退出。仍只提供静态检查证据，不是 runtime 执行测量。
 这不证明循环终止、每轮动态实例、changing owner、header/exit phi、一般控制合流或 Phase 4/native。

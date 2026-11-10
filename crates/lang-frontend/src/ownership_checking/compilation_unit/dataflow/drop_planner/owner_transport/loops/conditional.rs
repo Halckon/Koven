@@ -17,6 +17,11 @@ pub(super) fn boolean_parameter(
         let node = checker.parsed.ast().expressions().get(current).ok()?;
         match node.payload() {
             Expression::Group { expression } => current = *expression,
+            Expression::Prefix {
+                operator: crate::parser::PrefixOperator::Not,
+                operand,
+                ..
+            } => current = *operand,
             Expression::Name => {
                 return checker
                     .reference_symbol(node.span())
@@ -114,6 +119,59 @@ impl LoopTransaction {
 }
 
 impl DropPlanner<'_, '_> {
+    // Permit only Not nodes of the already admitted If condition in its live body sink.
+    // This is a syntax gate, not fabricated condition evaluation or owner evidence.
+    pub(in super::super) fn owner_loop_condition_supported(&self, id: ExpressionId) -> bool {
+        let Some(transaction) = &self.owner_loop else {
+            return false;
+        };
+        let LoopBodyCompletion::Conditional { condition, .. } = transaction.expected else {
+            return false;
+        };
+        let Some((identity, boundary)) = &transaction.active else {
+            return false;
+        };
+        if transaction.split_entered
+            || transaction.active_branch.is_some()
+            || transaction.pending_jump.is_some()
+            || transaction.completed.is_some()
+            || transaction.branch_completed != [false, false]
+            || self.owner_branch_depth != 0
+            || self.owner_choice.is_some()
+            || self.loop_boundaries.as_slice() != [*boundary]
+            || self.scope_depth != boundary + 1
+            || !self.owner_observation.as_ref().is_some_and(|observation| {
+                std::sync::Arc::ptr_eq(&observation.identity, identity)
+                    && observation.value_observation_v1().is_some()
+            })
+        {
+            return false;
+        }
+        let mut current = condition.expression();
+        loop {
+            if !exact_type(self.checker, current, BuiltinType::Boolean) {
+                return false;
+            }
+            let Ok(node) = self.checker.parsed.ast().expressions().get(current) else {
+                return false;
+            };
+            match node.payload() {
+                Expression::Group { expression } => current = *expression,
+                Expression::Prefix {
+                    operator: crate::parser::PrefixOperator::Not,
+                    operand,
+                    ..
+                } => {
+                    if current == id {
+                        return true;
+                    }
+                    current = *operand;
+                }
+                _ => return false,
+            }
+        }
+    }
+
     pub(in super::super) fn begin_owner_loop_split(
         &mut self,
         control: ExpressionId,

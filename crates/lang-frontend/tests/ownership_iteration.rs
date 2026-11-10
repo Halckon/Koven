@@ -114,3 +114,6 @@ mod invariant_suffix_owner_unit;
 
 #[path = "ownership_iteration/invariant_break_suffix_owner_unit.rs"]
 mod invariant_break_suffix_owner_unit;
+
+#[path = "ownership_iteration/loop_negated_conditions_unit.rs"]
+mod loop_negated_conditions_unit;
