@@ -10,8 +10,8 @@
 独立 `invariant_loop_observation_v1()` 不放宽旧空入边 getter；两者互斥。仅一个无 mode marker
 Boolean 参数，函数恰三句：精确 String 的 `val held = "outer"`、直线闭合 While、精确 String
 的 `val retired = held`。直接前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
-Group/var/nullable。仅直线 normal、裸 Continue/Break 另可接受四句形式，在 literal 声明后
-用一次精确 Name move 绑定 held；该具名前缀不准入末尾 If。body 复用[闭合 body](unit-loop-owner-transport.md)的 String 本地构造、move、Group、root Replace，可在末尾
+Group/var/nullable。还可接受四句形式，在 literal 声明后
+用一次精确 Name move 绑定 held；该具名前缀可进入下述各自独立的直线或九种条件边界能力。body 复用[闭合 body](unit-loop-owner-transport.md)的 String 本地构造、move、Group、root Replace，可在末尾
 追加唯一裸 Continue；此回边能力仍拒绝 Break 或任何 If，Break 另见下节的独立出口能力。
 locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
 liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点。
@@ -45,7 +45,7 @@ body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 o
 ## 单个不变输入 owner 的真实 Break 出口
 
 `invariant_break_observation_v1()` 返回独立 `UnitOwnerInvariantBreakObservationV1`，
-不提供 `backedge()`。准入复用三语句直接输入或上述一次 move 的四语句 String 输入合同，body 只能以唯一裸 Break
+不提供 `backedge()`。准入复用三语句直接输入或一次 move 的四语句 String 输入合同，body 只能以唯一裸 Break
 结束；不接收 If、Group/非末尾/嵌套跳转、其它 carrier 或对外层输入的读取/move/replace。
 旧回边类型、方法签名及 normal/Continue 的范围不变，其 getter 不接收 Break。
 
@@ -73,7 +73,7 @@ successful/无 deferred 门清空或保留该槽。不能将完整自洽的另�
 ## 不变输入 owner 的双 Continue 条件边
 
 `invariant_split_continue_observation_v1()` 返回独立
-`UnitOwnerInvariantSplitContinueObservationV1`。仍为精确三语句 String 输入/后缀合同，
+`UnitOwnerInvariantSplitContinueObservationV1`。采用精确三语句直接输入或四语句一跳具名 String 输入/后缀合同，
 但 While 与末尾 If 分别读取两个不同的普通 Boolean 参数，条件可带 Group/逻辑取反；两臂必须各有
 唯一裸 Continue。拒绝 Break 混合臂、空臂、arm-local owner、嵌套控制及外层输入操作。
 旧空输入、normal/裸 Continue 和 Break getter 都不接收此能力，未扩大原接口合同。
@@ -101,7 +101,7 @@ source-qualified，不新增普通 body 回边或移动原 ASAP Drop。私有单
 ## 不变输入 owner 的条件 Break 出口
 
 `invariant_split_exit_observation_v1()` 返回独立 `UnitOwnerInvariantSplitExitObservationV1`，
-仅接 Continue/Break、Break/Continue、Break/Break。三语句与独立 Boolean 条件合同不变，
+仅接 Continue/Break、Break/Continue、Break/Break。上述两类输入与独立 Boolean 条件合同不变，
 两臂仍各一个裸跳转；空臂、臂内 owner、其它控制及外层输入操作不准入。双 Continue
 继续只走上一节能力，原 `UnitOwnerContinueArmBoundaryV1` 与 `after_continue()` 不变。
 
@@ -121,7 +121,7 @@ body-local Drop 顺序不变；本片不提供 suffix 消费、运行实例或�
 ## 不变输入 owner 的双正常臂与真实合流
 
 `invariant_normal_join_observation_v1()` 返回独立 `UnitOwnerInvariantNormalJoinObservationV1`，
-仅接末尾 If 两个正常空 ControlBody。三语句 String 输入/后缀、两个独立 Boolean 参数（可带 Group/逻辑取反）与
+仅接末尾 If 两个正常空 ControlBody。直接或一跳具名 String 输入/后缀、两个独立 Boolean 参数（可带 Group/逻辑取反）与
 闭合 body-local 前缀合同保持。正常/跳转混合臂、臂内 owner、嵌套、其它尾值和外层输入操作
 仍拒绝。旧空入边、直线/裸 Continue、裸 Break、双 Continue 与条件 Break getter 均不扩展。
 
@@ -152,7 +152,7 @@ Backedge，不能把 arm 完成冒充整个 body 清理。新私有变体与旧�
 ## 不变输入 owner 的正常臂与跳转臂
 
 `invariant_mixed_join_observation_v1()` 返回独立 `UnitOwnerInvariantMixedJoinObservationV1`，
-只接一个正常空臂与一个裸 Continue/Break 的四种排列。三语句输入、独立 Boolean 条件及
+只接一个正常空臂与一个裸 Continue/Break 的四种排列。两类精确输入、独立 Boolean 条件及
 body-local 闭合合同不变；NN 和双终端仍只取得各自旧能力，不放宽旧公开类型。
 
 私有 joining 收集器由双正常臂实现扩展，保存 evaluator 实际返回的 continues 与 completion
@@ -178,13 +178,12 @@ branch.rs 的 push/merge/清理顺序、旧 public NN/JumpArm 类型与普通 Ch
 LoopExit 仍清理原 condition state，没有把 Break state 回灌；这不是一般出口运输、phi、
 变更 owner、suffix 最终消费、动态实例或 Phase 4/native。证据与未运行范围见 SPEC-0341 §164。
 
-
 ## 一次真实具名 move 形成循环输入
 
-四句形式仅为 `val seed = "outer"`、`val held = seed`、原直线 While 与
+四句形式仅为 `val seed = "outer"`、`val held = seed`、上述准入 While 与
 `val retired = held`。seed、held、retired 都是精确 String 的 val，两个消费表达式必须
 是解析到对应 symbol 的原 Name；不接受 Group、nullable、var、第二层 alias、调用或插值 producer。
-仅 normal、裸 Continue、裸 Break 复用原独立控制能力；九种末尾 If 仍限原三句直接输入。
+normal、裸 Continue、裸 Break 及九种末尾 If 各复用原独立控制能力；不合并或放宽各类型的控制合同。
 
 真实 prefix collector 必须依次包含 literal Result、seed Binding、seed Name Move、
 同 Name Result、held Binding，五项都解析到同一个真实 literal producer。不是把 seed
@@ -193,4 +192,9 @@ origin、declaration、scope 和 token 参与后续完整相等比较；原17槽
 
 输入仍是一个不变 owner。对应[后缀消费](unit-invariant-loop-suffix.md)保留新增 move
 来源，不把 held 声明当成新 producer；没有实现 changing owner、一般入边合流或 phi。
-验收与未运行范围见 SPEC-0341 §176。
+验收与未运行范围见 SPEC-0341 §176、§178。
+
+具名前缀复用上述四类条件产物和真实快照，不增加控制类型；双终端仍无共同 body binding，
+mixed 只合入实际正常继续臂，不从 seed 或 AST 回填状态。条件产物仍无后缀字段或 getter，
+suffix 收集门只接受 Backedge/Break。输入 catalog 证明 literal producer 与 held boundary
+身份，不提供完整 incoming move 图；旧 retired Drop 仅是清理兼容证据，不是条件后缀运输。

@@ -18,10 +18,16 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
     let text = format!(
         r#"fun first(flag: Boolean, other: Boolean) {{ val held = "outer"; while((flag)) {{ {body} }}; {suffix} }}"#
     );
-    let second = text.replace("first", "second");
+    check_source(rooted, &text, admitted);
+}
+
+pub(super) fn check_source(rooted: bool, text: &str, admitted: bool) {
+    let second =
+        text.replacen("fun first(", "fun second(", 1)
+            .replacen("fun run(", "fun second(", 1);
     let mut sources = SourceMap::new();
     let ids = [
-        sources.add_source("a.ko", &text).unwrap(),
+        sources.add_source("a.ko", text).unwrap(),
         sources.add_source("b.ko", &second).unwrap(),
     ];
     let parsed = ids.map(|id| {
@@ -97,6 +103,19 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
             continue;
         };
         assert!(admitted && observed.is_consistent());
+        assert_eq!(
+            [
+                legacy.invariant_normal_join_observation_v1().is_some(),
+                legacy.invariant_mixed_join_observation_v1().is_some(),
+                legacy.invariant_split_continue_observation_v1().is_some(),
+                legacy.invariant_split_exit_observation_v1().is_some(),
+            ]
+            .into_iter()
+            .filter(|present| *present)
+            .count(),
+            1
+        );
+
         assert!(legacy.invariant_split_exit_observation_v1().is_none());
         assert_eq!(
             (observed.statement(), observed.condition(), observed.body()),
@@ -131,6 +150,14 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
             .iter()
             .find(|s| s.name() == "held")
             .unwrap();
+        if let Some(seed) = names.names().source_units()[source.index()]
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|s| s.name() == "seed")
+        {
+            assert!(owned.drops().iter().all(|drop| !matches!(drop.target(), UnitDropTarget::Named(target) if target.source_unit() == source && target.symbol() == seed.id())));
+        }
         assert_eq!(observed.entry().symbol().source_unit(), source);
         assert_eq!(observed.entry().symbol().symbol(), held.id());
         assert_eq!(observed.entry(), observed.split_boundary());

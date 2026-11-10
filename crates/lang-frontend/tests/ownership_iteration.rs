@@ -123,3 +123,6 @@ mod invariant_continue_suffix_owner_unit;
 
 #[path = "ownership_iteration/loop_input_alias_unit.rs"]
 mod loop_input_alias_unit;
+
+#[path = "ownership_iteration/loop_input_alias_conditional_unit.rs"]
+mod loop_input_alias_conditional_unit;

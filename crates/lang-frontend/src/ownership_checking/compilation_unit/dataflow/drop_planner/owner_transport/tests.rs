@@ -382,3 +382,5 @@ fn unrelated_iteration_forwarding_preserves_complete_owner_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+mod loop_input_alias_conditional;

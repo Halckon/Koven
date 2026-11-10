@@ -296,14 +296,16 @@ fn named_input_keeps_exact_admission_and_failed_publication_boundaries() {
             let owned = fixture.shared();
             assert!(owned.clone().validate().is_ok());
             let o = &owned.owner_observations()[0];
-            assert_eq!(
+            assert!(
                 o.invariant_normal_join_observation_v1().is_some()
                     || o.invariant_mixed_join_observation_v1().is_some()
                     || o.invariant_split_continue_observation_v1().is_some()
                     || o.invariant_split_exit_observation_v1().is_some(),
-                direct,
                 "{text}"
             );
+            if !direct {
+                super::loop_input_alias_conditional::check(&fixture, 0, &owned, left, right);
+            }
             assert!(
                 o.invariant_loop_observation_v1().is_none()
                     && o.invariant_break_observation_v1().is_none()

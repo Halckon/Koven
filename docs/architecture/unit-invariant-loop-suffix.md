@@ -87,5 +87,6 @@ held/retired 不同，原 literal、两次 move、绑定表达式、owner/catalo
 不能擦掉实际 incoming move 降格为直接输入，也不能给直接产物补造 alias 前缀。
 原 completion/body Arc、scope、17槽、suffix 单次执行与成功发布门均保留。
 
-这只扩展直线 normal、裸 Continue/Break 的静态输入来源，不扩大 body、If 或 phi 合同。
+一跳输入也可进入独立条件边界，但本页后缀消费仍只支持直线 normal、裸 Continue/Break，
+不授予任何条件后缀图或 phi；见[输入边界](unit-invariant-loop-owner.md)。
 源码、公开入口与仅编译的损坏封印守卫见 SPEC-0341 §176。

@@ -18,10 +18,17 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
     let text = format!(
         r#"fun first(flag: Boolean, other: Boolean) {{ val held = "outer"; while((flag)) {{ {body} }}; {suffix} }}"#
     );
-    let second = text.replace("first", "second");
+    check_source(rooted, &text, admitted, false);
+}
+
+pub(super) fn check_source(rooted: bool, text: &str, admitted: bool, reject_all: bool) {
+    assert!(!(admitted && reject_all));
+    let second =
+        text.replacen("fun first(", "fun second(", 1)
+            .replacen("fun run(", "fun second(", 1);
     let mut sources = SourceMap::new();
     let ids = [
-        sources.add_source("a.ko", &text).unwrap(),
+        sources.add_source("a.ko", text).unwrap(),
         sources.add_source("b.ko", &second).unwrap(),
     ];
     let parsed = ids.map(|id| {
@@ -58,6 +65,18 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
     assert!(owned.is_compatible_with(&typed));
     assert!(owned.clone().validate().is_ok(), "rooted={rooted}: {text}");
     assert_eq!(owned.owner_observations().len(), source_count);
+    // Old tests may reject only this variant; new input negatives reject every conditional capability.
+    if reject_all {
+        assert!(owned.owner_observations().iter().all(|o| {
+            o.invariant_loop_observation_v1().is_none()
+                && o.invariant_break_observation_v1().is_none()
+                && o.invariant_normal_join_observation_v1().is_none()
+                && o.invariant_mixed_join_observation_v1().is_none()
+                && o.invariant_split_continue_observation_v1().is_none()
+                && o.invariant_split_exit_observation_v1().is_none()
+        }));
+    }
+
     for (i, legacy) in owned.owner_observations().iter().enumerate() {
         let source = index.source_units()[i].id();
         assert_eq!(index.source_units()[i].source_id(), ids[i]);
@@ -97,6 +116,19 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
             continue;
         };
         assert!(admitted && observed.is_consistent());
+        assert_eq!(
+            [
+                legacy.invariant_normal_join_observation_v1().is_some(),
+                legacy.invariant_mixed_join_observation_v1().is_some(),
+                legacy.invariant_split_continue_observation_v1().is_some(),
+                legacy.invariant_split_exit_observation_v1().is_some(),
+            ]
+            .into_iter()
+            .filter(|present| *present)
+            .count(),
+            1
+        );
+
         assert!(legacy.invariant_split_continue_observation_v1().is_none());
         assert!(legacy.invariant_split_exit_observation_v1().is_none());
         assert_eq!(
@@ -132,6 +164,14 @@ fn check_split_inputs(rooted: bool, body: &str, suffix: &str, admitted: bool) {
             .iter()
             .find(|s| s.name() == "held")
             .unwrap();
+        if let Some(seed) = names.names().source_units()[source.index()]
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|s| s.name() == "seed")
+        {
+            assert!(owned.drops().iter().all(|drop| !matches!(drop.target(), UnitDropTarget::Named(target) if target.source_unit() == source && target.symbol() == seed.id())));
+        }
         assert_eq!(observed.entry().symbol().source_unit(), source);
         assert_eq!(observed.entry().symbol().symbol(), held.id());
         assert_eq!(observed.entry(), observed.split_boundary());
