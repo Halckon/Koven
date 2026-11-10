@@ -9645,3 +9645,13 @@ docs880、diff及尺寸`--base a775568f`通过：2288手写Rust、36既有超千
 边界、Int/邻接 plaincall 精确执行。所有人工破损、Abort、压力与资源计数只编译。
 固定唯一 target、默认 debug2 与 LLVM21 配置沿用委托约束，串行构建，先从本轮
 Cargo manifest 核 binary 与测试名再 exact。实际结果随后补充；本段不声称已实现或验收。
+
+首个普通红测沿用原样 `certified_consumer_region_has_real_unit_ssa_lifecycle`，只增加
+生产 receipt 观察断言。no-run 成功后从本轮 Cargo JSON 取唯一测试 binary，先 exact
+list 核名，再 exact 实跑：0 passed、1 failed、2828 filtered；实际降低成功，但 receipt
+为0，预期1。这是真实缺接线红测，不是故障注入或测试源码能力假设失败。binary SHA256
+`b81dd3d9834752ec520d96edab687064531ce485079e7bbdfa275564e9cfcb96`。
+命令为 `cargo test --locked --offline -p lang-codegen --lib --no-run --message-format=json -vv -j 2`，
+实际 artifact debuginfo=2、opt_level=0；LLVM21.1.8。唯一 target 为
+`/private/tmp/koven-exclusive-loop-prefix-target`，构建前无活动 Cargo/rustc，四项覆盖变量
+未设置。原始日志在仓库外 `/private/tmp/koven-p4-receipt-red.{json,stderr,log}`。

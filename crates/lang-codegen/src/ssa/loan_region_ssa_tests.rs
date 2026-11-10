@@ -121,18 +121,25 @@ fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
             assert_eq!(call.arguments().len(), 1);
             assert_eq!(call.arguments()[0].parameter_index(), 0);
         }
-        let (lowered, routed) = super::refine::observe_routing(|| {
-            super::unit_lower::lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                &owned,
-                declarations[0].id(),
-            )
+        let ((lowered, routed), receipts) = super::refine::loan_receipt::observe(|| {
+            super::refine::observe_routing(|| {
+                super::unit_lower::lower_scalar_unit_with_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    &owned,
+                    declarations[0].id(),
+                )
+            })
         });
         let (program, entry) = lowered.unwrap();
+        assert_eq!(
+            receipts.len(),
+            1,
+            "Complete protocol 4 must have a production receipt"
+        );
         assert!(routed.iter().any(|name| name == "koven.run.d2"));
         assert!(routed.iter().any(|name| name == "koven.view.d0"));
         verify_program(&program).unwrap();
