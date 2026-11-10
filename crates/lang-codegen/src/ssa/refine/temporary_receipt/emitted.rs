@@ -12,7 +12,7 @@ pub(crate) struct Receipt {
     pub(crate) caller: FunctionId,
     pub(crate) call: UnitExpressionId,
     pub(crate) instructions: Vec<InstructionId>,
-    /// Actual formed temporary owner, root place, and caller-local argument loan.
+    /// Source-order triples: formed owner, root place, caller-local argument loan.
     pub(crate) entities: Vec<EntityId>,
 }
 pub(in crate::ssa::refine) struct Emitted {
@@ -27,7 +27,10 @@ impl Emitted {
     ) -> Result<Self, LoweringError> {
         let mut receipts = Vec::new();
         for p in &plans.entries {
-            if p.stage != 6 || p.caller != function.id() {
+            if !(1..=2).contains(&p.operands.len())
+                || p.stage != 5 * p.operands.len() + 1
+                || p.caller != function.id()
+            {
                 return Err(invalid(span));
             }
             receipts.push(Receipt {
@@ -62,7 +65,7 @@ impl Emitted {
             .instruction(instruction)
             .ok_or_else(|| invalid(span))?;
         if r.caller != function.id()
-            || r.instructions.len() != usize::from(tag.role)
+            || r.instructions.len() != tag.role
             || self.blocks[tag.plan].is_some_and(|b| b != data.block)
         {
             return Err(invalid(span));
@@ -71,49 +74,56 @@ impl Emitted {
             slot.and_then(|s| current.get(&s).copied())
                 .ok_or_else(|| invalid(span))
         };
-        for (slot, frozen) in [p.owner, p.place, p.loan].into_iter().zip(&r.entities) {
+        for (slot, frozen) in p.slots().zip(&r.entities) {
             if entity(slot)? != *frozen {
                 return Err(invalid(span));
             }
         }
-        match (tag.role, &data.operation) {
-            (0, Operation::StringLiteral { bytes, .. }) if Some(bytes) == p.literal.as_ref() => {
+        let step = p.step(tag.role).ok_or_else(|| invalid(span))?;
+        let mut produced = None;
+        match (step, &data.operation) {
+            (Step::Literal(i), Operation::StringLiteral { bytes, .. })
+                if Some(bytes) == p.operands[i].literal.as_ref() =>
+            {
                 let [owner @ EntityId::Value(_)] = data.results.as_slice() else {
                     return Err(invalid(span));
                 };
-                if *owner != entity(p.owner)? {
+                if r.entities.len() != 3 * i || *owner != entity(p.operands[i].owner)? {
                     return Err(invalid(span));
                 }
-                r.entities.push(*owner);
+                produced = Some(*owner);
             }
-            (1, Operation::RootPlace { owner })
-                if Some(&EntityId::Value(*owner)) == r.entities.first() =>
+            (Step::Root(i), Operation::RootPlace { owner })
+                if Some(&EntityId::Value(*owner)) == r.entities.get(3 * i) =>
             {
                 let [place @ EntityId::Place(_)] = data.results.as_slice() else {
                     return Err(invalid(span));
                 };
-                if *place != entity(p.place)? {
+                if r.entities.len() != 3 * i + 1 || *place != entity(p.operands[i].place)? {
                     return Err(invalid(span));
                 }
-                r.entities.push(*place);
+                produced = Some(*place);
             }
             (
-                2,
+                Step::Begin(i),
                 Operation::BorrowBegin {
                     place,
                     kind: LoanKind::Shared,
                 },
-            ) if Some(&EntityId::Place(*place)) == r.entities.get(1) => {
+            ) if Some(&EntityId::Place(*place)) == r.entities.get(3 * i + 1) => {
                 let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
                     return Err(invalid(span));
                 };
-                if *loan != entity(p.loan)? || id.function() != function.id() {
+                if r.entities.len() != 3 * i + 2
+                    || *loan != entity(p.operands[i].loan)?
+                    || id.function() != function.id()
+                {
                     return Err(invalid(span));
                 }
-                r.entities.push(*loan);
+                produced = Some(*loan);
             }
             (
-                3,
+                Step::Call,
                 Operation::DirectCall {
                     callee,
                     receiver,
@@ -121,14 +131,26 @@ impl Emitted {
                 },
             ) if *callee == p.callee
                 && receiver.is_none()
-                && arguments.as_slice() == [entity(p.loan)?]
+                && *arguments
+                    == p.operands
+                        .iter()
+                        .map(|a| entity(a.loan))
+                        .collect::<Result<Vec<_>, _>>()?
                 && data.results.len() == usize::from(p.returns_value)
                 && data.results.iter().all(|e| matches!(e, EntityId::Value(_))) => {}
-            (4, Operation::BorrowEnd { loan })
-                if EntityId::Loan(*loan) == entity(p.loan)? && data.results.is_empty() => {}
-            (5, Operation::Drop { owner })
-                if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
+            (Step::End(i), Operation::BorrowEnd { loan })
+                if EntityId::Loan(*loan) == entity(p.operands[i].loan)?
+                    && data.results.is_empty() => {}
+            (Step::Drop(i), Operation::Drop { owner })
+                if EntityId::Value(*owner) == entity(p.operands[i].owner)?
+                    && data.results.is_empty() => {}
             _ => return Err(invalid(span)),
+        }
+        if let Some(e) = produced {
+            if r.entities.contains(&e) {
+                return Err(invalid(span));
+            }
+            r.entities.push(e);
         }
         self.blocks[tag.plan] = Some(data.block);
         r.instructions.push(instruction);
@@ -148,8 +170,8 @@ impl Emitted {
                 || r.callable != p.callable
                 || r.call != p.call
                 || r.caller != function.id()
-                || r.instructions.len() != 6
-                || r.entities.len() != 3
+                || r.instructions.len() != 5 * p.operands.len() + 1
+                || r.entities.len() != 3 * p.operands.len()
             {
                 return Err(invalid(span));
             }
@@ -166,9 +188,9 @@ impl Emitted {
         #[cfg(test)]
         ci_tests::record(plans, function, &self.receipts);
         #[cfg(test)]
-        RECEIPTS.with(|output| {
-            if let Some(output) = output.borrow_mut().as_mut() {
-                output.extend(self.receipts);
+        RECEIPTS.with(|out| {
+            if let Some(out) = out.borrow_mut().as_mut() {
+                out.extend(self.receipts);
             }
         });
         Ok(())

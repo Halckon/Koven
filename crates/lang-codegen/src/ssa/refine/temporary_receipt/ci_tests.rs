@@ -67,7 +67,7 @@ fn checked(
     rebind: bool,
 ) -> Result<Emitted, LoweringError> {
     let mut emitted = Emitted::new(&snapshot.plans, &snapshot.function, snapshot.span)?;
-    let plan = &snapshot.plans.entries[0];
+    let plan = &snapshot.plans.entries[0].operands[0];
     let mut current: BTreeMap<_, _> = [plan.owner, plan.place, plan.loan]
         .into_iter()
         .map(Option::unwrap)
@@ -77,10 +77,7 @@ fn checked(
         if rebind && role == 3 {
             current.insert(plan.loan.unwrap(), snapshot.receipt.entities[0]);
         }
-        let tag = Tag {
-            plan: 0,
-            role: u8::try_from(role).unwrap(),
-        };
+        let tag = Tag { plan: 0, role };
         emitted.statement(
             &snapshot.plans,
             tag,
@@ -132,7 +129,9 @@ fn ci_only_duplicate_or_missing_role_is_rejected() {
     assert!(
         plans
             .finish(
-                &[plans.entries[0].drop_index].into_iter().collect(),
+                &[plans.entries[0].operands[0].drop_index]
+                    .into_iter()
+                    .collect(),
                 snapshot.span
             )
             .is_err()
@@ -183,8 +182,8 @@ fn ci_only_foreign_function_instruction_is_rejected() {
 #[test]
 fn ci_only_missing_or_changed_formation_is_rejected() {
     let mut snapshot = capture();
-    snapshot.plans.entries[0].literal = None;
+    snapshot.plans.entries[0].operands[0].literal = None;
     assert!(checked(&snapshot, 6, false, false).is_err());
-    snapshot.plans.entries[0].literal = Some(b"wrong source".to_vec());
+    snapshot.plans.entries[0].operands[0].literal = Some(b"wrong source".to_vec());
     assert!(checked(&snapshot, 6, false, false).is_err());
 }

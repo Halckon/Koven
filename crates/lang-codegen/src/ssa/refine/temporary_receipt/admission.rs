@@ -16,14 +16,6 @@ impl Plans {
         else {
             return Ok(result);
         };
-        // Stage-one route migration does not yet claim a multi-operand receipt.
-        if inputs
-            .typed
-            .call(call)
-            .is_none_or(|c| c.arguments().len() != 1)
-        {
-            return Ok(result);
-        }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
         let callable = UnitItemId::new(inputs.source_unit, item);
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
@@ -45,85 +37,7 @@ impl Plans {
                     .iter()
                     .map(|id| observation.action(id).ok_or_else(fail))
                     .collect::<Result<Vec<_>, _>>()?;
-                let [
-                    UnitLoanAction::Begin(begin),
-                    UnitLoanAction::Cleanup {
-                        point: end_point,
-                        action: UnitIterationCleanupAction::EndCallLoan(end),
-                    },
-                    UnitLoanAction::Cleanup {
-                        point,
-                        action: UnitIterationCleanupAction::Drop(drop),
-                    },
-                ] = actions.as_slice()
-                else {
-                    return Err(fail());
-                };
-                let UnitLoanTarget::Temporary(argument_id) = begin.target() else {
-                    return Err(fail());
-                };
-                if begin.call() != call
-                    || end != begin
-                    || inputs
-                        .owned
-                        .loans()
-                        .iter()
-                        .filter(|loan| *loan == begin)
-                        .count()
-                        != 1
-                    || inputs
-                        .owned
-                        .direct_call_loan_ends()
-                        .iter()
-                        .filter(|fact| fact.loan() == begin && fact.point() == *point)
-                        .count()
-                        != 1
-                    || *argument_id != begin.argument()
-                    || argument_id.source_unit() != inputs.source_unit
-                    || *point != UnitDropPoint::CallReturn(call)
-                    || *end_point != *point
-                    || drop.point() != *point
-                    || drop.target() != UnitDropTarget::Temporary(*argument_id)
-                    || drop.value_origin() != begin.begin_span()
-                {
-                    return Err(fail());
-                }
-                let contracts = inputs
-                    .owned
-                    .call_argument_contracts()
-                    .iter()
-                    .filter(|c| c.call() == call)
-                    .collect::<Vec<_>>();
-                let [contract] = contracts.as_slice() else {
-                    return Err(fail());
-                };
-                let typed_call = inputs.typed.call(call).ok_or_else(fail)?;
-                let [argument] = typed_call.arguments() else {
-                    return Err(fail());
-                };
-                if begin.argument().source_unit() != inputs.source_unit
-                    || contract.argument() != begin.argument()
-                    || contract.kind() != lang_frontend::ownership_checking::UnitCallArgumentOwnershipKind::SharedLoan
-                    || contract.parameter_index() != argument.parameter_index()
-                    || contract.parameter_type() != argument.parameter_type()
-                    || contract.category() != argument.category()
-                    || contract.crosses_thread() || argument.crosses_thread()
-                    || contract.argument_span() != begin.begin_span()
-                    || contract.loan_begin_span() != begin.begin_span()
-                    || contract.call_span() != begin.end_span()
-                    || contract.parameter_span() != begin.parameter_span()
-                { return Err(fail()); }
-                let indices = inputs
-                    .owned
-                    .drops()
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, fact)| **fact == *drop)
-                    .map(|(i, _)| i)
-                    .collect::<Vec<_>>();
-                let [drop_index] = indices.as_slice() else {
-                    return Err(fail());
-                };
+                let operands = operands(inputs, call, &actions)?;
                 let caller_key = inputs
                     .source_plan
                     .source(inputs.source_token)
@@ -171,20 +85,169 @@ impl Plans {
                     caller,
                     call,
                     callee,
-                    fact: (*begin).clone(),
-                    literal: None,
-                    borrowed: false,
-                    drop_index: *drop_index,
+                    operands,
                     returns_value,
-                    owner: None,
-                    place: None,
-                    loan: None,
                     stage: 0,
-                    drop_authorized: false,
                     block: None,
                 });
             }
         }
         Ok(result)
     }
+}
+
+fn operands(
+    inputs: &super::super::RefineInputs<'_>,
+    call: UnitExpressionId,
+    actions: &[&UnitLoanAction],
+) -> Result<Vec<Operand>, LoweringError> {
+    let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
+    let typed = inputs.typed.call(call).ok_or_else(fail)?;
+    let n = typed.arguments().len();
+    let lang_frontend::parser::Expression::Call { arguments: raw, .. } = inputs
+        .parsed
+        .ast()
+        .expressions()
+        .get(call.expression())
+        .map_err(|_| fail())?
+        .payload()
+    else {
+        return Err(fail());
+    };
+    let contracts = inputs
+        .owned
+        .call_argument_contracts()
+        .iter()
+        .filter(|c| c.call() == call)
+        .collect::<Vec<_>>();
+    let point = UnitDropPoint::CallReturn(call);
+    if !(1..=2).contains(&n)
+        || actions.len() != 3 * n
+        || raw.len() != n
+        || contracts.len() != n
+        || inputs
+            .owned
+            .loans()
+            .iter()
+            .filter(|f| f.call() == call)
+            .count()
+            != n
+        || inputs
+            .owned
+            .direct_call_loan_ends()
+            .iter()
+            .filter(|f| f.loan().call() == call)
+            .count()
+            != n
+    {
+        return Err(fail());
+    }
+    let mut operands = Vec::<Operand>::new();
+    for (index, argument) in typed.arguments().iter().enumerate() {
+        let (
+            UnitLoanAction::Begin(begin),
+            UnitLoanAction::Cleanup {
+                point: end_point,
+                action: UnitIterationCleanupAction::EndCallLoan(end),
+            },
+            UnitLoanAction::Cleanup {
+                point: drop_point,
+                action: UnitIterationCleanupAction::Drop(drop),
+            },
+        ) = (
+            actions[index],
+            actions[2 * n - 1 - index],
+            actions[3 * n - 1 - index],
+        )
+        else {
+            return Err(fail());
+        };
+        let id = UnitExpressionId::new(inputs.source_unit, raw[index].value);
+        let matching = contracts
+            .iter()
+            .copied()
+            .filter(|c| c.argument() == id)
+            .collect::<Vec<_>>();
+        let [contract] = matching.as_slice() else {
+            return Err(fail());
+        };
+        if begin.call() != call
+            || begin.argument() != id
+            || begin.target() != &UnitLoanTarget::Temporary(id)
+            || end != begin
+            || argument.argument_index() != index
+            || argument.parameter_index() != index
+            || inputs.owned.loans().iter().filter(|f| *f == begin).count() != 1
+            || inputs
+                .owned
+                .direct_call_loan_ends()
+                .iter()
+                .filter(|f| f.loan() == begin && f.point() == point)
+                .count()
+                != 1
+            || *end_point != point
+            || *drop_point != point
+            || drop.point() != point
+            || drop.target() != UnitDropTarget::Temporary(id)
+            || drop.value_origin() != begin.begin_span()
+            || contract.kind()
+                != lang_frontend::ownership_checking::UnitCallArgumentOwnershipKind::SharedLoan
+            || contract.parameter_index() != argument.parameter_index()
+            || contract.parameter_type() != argument.parameter_type()
+            || contract.category() != argument.category()
+            || contract.crosses_thread()
+            || argument.crosses_thread()
+            || contract.argument_span() != begin.begin_span()
+            || contract.loan_begin_span() != begin.begin_span()
+            || contract.call_span() != begin.end_span()
+            || contract.parameter_span() != begin.parameter_span()
+        {
+            return Err(fail());
+        }
+        let indices = inputs
+            .owned
+            .drops()
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| **f == *drop)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        let [drop_index] = indices.as_slice() else {
+            return Err(fail());
+        };
+        if operands
+            .iter()
+            .any(|a| a.fact.argument() == id || a.drop_index == *drop_index)
+        {
+            return Err(fail());
+        }
+        operands.push(Operand {
+            fact: begin.clone(),
+            literal: None,
+            borrowed: false,
+            drop_index: *drop_index,
+            owner: None,
+            place: None,
+            loan: None,
+            drop_authorized: false,
+        });
+    }
+    let actual = inputs
+        .owned
+        .drops()
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.point() == point)
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    if actual
+        != operands
+            .iter()
+            .rev()
+            .map(|a| a.drop_index)
+            .collect::<Vec<_>>()
+    {
+        return Err(fail());
+    }
+    Ok(operands)
 }
