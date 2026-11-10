@@ -57,7 +57,6 @@ impl SourceSlot for CarriedAccess {
     fn empty(source: EntityId, ty: EntityType) -> Self {
         Self {
             nullable_proofs: Vec::new(),
-            nullable_children: Vec::new(),
             range_sources: Vec::new(),
             captures: Vec::new(),
             symbol: None,

@@ -20,10 +20,6 @@ pub(super) fn assert_memory_unit_direct_proof(program: &Program, entry: Function
     assert_function_proof(module, function, case, true);
 }
 
-/// Direct sources whose unit `entry` lies in the refinement subset: the `return` source
-/// (SPEC-0350) and, since SPEC-0356 admits loop jumps, the `break` source.
-const REFINED_UNIT_CASES: [usize; 2] = [3, 4];
-
 fn assert_proof(program: &Program, case: usize, unit: bool) {
     let module = only(program.modules.iter());
     let function = only(module.functions.iter().filter(|function| {
@@ -71,11 +67,24 @@ fn assert_function_proof(module: &Module, function: &Function, case: usize, unit
     assert_eq!(body.parameters.last(), Some(&EntityId::Loan(*view)));
     assert_eq!(absent.parameters.len(), when_null.arguments.len());
     assert!(!when_null.arguments.contains(&EntityId::Loan(*view)));
-    let flag = if unit && REFINED_UNIT_CASES.contains(&case) {
-        // The refined sources carry only live slots: the unused `flag` loan stays an
-        // entry parameter, and the loop header without a backedge folds into the entry.
+    if unit {
+        // All five unit cases now lower through `ssa::refine`: the unused `flag` loan stays
+        // an entry parameter, and loop headers without a backedge fold into `entry`.
         let entry = function.block(function.entry_block().unwrap()).unwrap();
-        assert_eq!(header.id, entry.id);
+        if case >= 3 {
+            assert_eq!(header.id, entry.id);
+        } else {
+            let TerminatorKind::Branch(initial) = &entry.terminator.as_ref().unwrap().kind else {
+                panic!("real initial header edge")
+            };
+            assert_eq!(initial.target, header.id);
+            assert!(
+                !header
+                    .parameters
+                    .iter()
+                    .any(|entity| matches!(entity, EntityId::Loan(_)))
+            );
+        }
         for block in [body, absent] {
             assert!(
                 block
@@ -85,68 +94,6 @@ fn assert_function_proof(module: &Module, function: &Function, case: usize, unit
                         || *entity == EntityId::Loan(*view))
             );
         }
-        None
-    } else if unit {
-        let boolean_loan = |entities: &[EntityId]| {
-            only(entities.iter().copied().filter(|entity| {
-                matches!(function.entity(*entity).unwrap().ty,
-                    EntityType::Loan { kind: LoanKind::Shared, target }
-                    if module.type_kind(target) == Some(&SsaTypeKind::Boolean))
-            }))
-        };
-        let entry = function.block(function.entry_block().unwrap()).unwrap();
-        let entry_flag = boolean_loan(&entry.parameters);
-        let header_flag = boolean_loan(&header.parameters);
-        let body_flag = boolean_loan(&body.parameters);
-        let absent_flag = boolean_loan(&absent.parameters);
-        for block in [header, absent] {
-            assert_eq!(
-                block
-                    .parameters
-                    .iter()
-                    .filter(|entity| matches!(entity, EntityId::Loan(_)))
-                    .count(),
-                1
-            );
-        }
-        assert_eq!(
-            body.parameters
-                .iter()
-                .filter(|entity| matches!(entity, EntityId::Loan(_)))
-                .count(),
-            2
-        );
-        let header_column = header
-            .parameters
-            .iter()
-            .position(|entity| *entity == header_flag)
-            .unwrap();
-        let body_column = body
-            .parameters
-            .iter()
-            .position(|entity| *entity == body_flag)
-            .unwrap();
-        let absent_column = absent
-            .parameters
-            .iter()
-            .position(|entity| *entity == absent_flag)
-            .unwrap();
-        let TerminatorKind::Branch(initial) = &entry.terminator.as_ref().unwrap().kind else {
-            panic!("real initial header edge")
-        };
-        assert_eq!(initial.target, header.id);
-        assert_eq!(initial.arguments[header_column], entry_flag);
-        assert_eq!(when_non_null.arguments[body_column], header_flag);
-        assert_eq!(when_null.arguments[absent_column], header_flag);
-        for instruction in &function.instructions {
-            if let Operation::BorrowEnd { loan } = instruction.operation {
-                assert!(
-                    ![entry_flag, header_flag, body_flag, absent_flag]
-                        .contains(&EntityId::Loan(loan))
-                );
-            }
-        }
-        Some((header_column, body_flag))
     } else {
         for block in [header, absent] {
             assert!(
@@ -156,8 +103,7 @@ fn assert_function_proof(module: &Module, function: &Function, case: usize, unit
                     .any(|entity| matches!(entity, EntityId::Loan(_)))
             );
         }
-        None
-    };
+    }
     let owner_column = only(
         when_non_null
             .arguments
@@ -228,23 +174,12 @@ fn assert_function_proof(module: &Module, function: &Function, case: usize, unit
             panic!("normal/continue backedge")
         };
         assert_eq!(edge.target, header.id);
-        if let Some((column, body_flag)) = flag {
-            assert_eq!(edge.arguments[column], body_flag);
-            assert_eq!(
-                edge.arguments
-                    .iter()
-                    .filter(|entity| matches!(entity, EntityId::Loan(_)))
-                    .count(),
-                1
-            );
-        } else {
-            assert!(
-                !edge
-                    .arguments
-                    .iter()
-                    .any(|entity| matches!(entity, EntityId::Loan(_)))
-            );
-        }
+        assert!(
+            !edge
+                .arguments
+                .iter()
+                .any(|entity| matches!(entity, EntityId::Loan(_)))
+        );
         let Definition::BlockParameter { block, index } =
             function.entity(EntityId::Value(*owner)).unwrap().definition
         else {

@@ -53,9 +53,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let checkpoint = self.loop_state();
-        let guards = self.map_borrow_guards.clone();
         let result = self.lower_nullable_when_source(&descriptor, &source, result_plan, span);
-        self.map_borrow_guards = guards;
         if result.is_err() {
             // No failed entry leaves an installed proof or half-retired binding.
             // The enclosing lowering error discards the unpublished SSA function.
@@ -77,7 +75,6 @@ impl UnitExpressionLowerer<'_> {
             LoweredValue::Unit => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         let baseline = self.loop_state();
-        let baseline_guards = self.map_borrow_guards.clone();
         let mut carried = self.carried_bindings(&baseline.bindings, span)?;
         let mut loans = self.carried_loans(&baseline.borrow_bindings, span)?;
         self.carry_pending_operands(&mut carried, &mut loans, span)?;
@@ -112,7 +109,6 @@ impl UnitExpressionLowerer<'_> {
         for (index, block) in [(0, null), (1, non_null)] {
             // Never start the second arm with the first arm's state or transfer effects.
             self.restore_loop_state(&baseline);
-            self.map_borrow_guards.clone_from(&baseline_guards);
             self.block = block;
             if index == 1 {
                 self.rebind_map_borrow_control(

@@ -254,7 +254,7 @@ fn routing_and_refined_output_do_not_depend_on_input_order() {
 }
 
 #[test]
-fn outer_non_null_view_with_loop_reassignment_routes_to_legacy() {
+fn outer_non_null_view_with_loop_reassignment_routes_to_refine() {
     let source = r#"fun f(): Unit {
         var outer: String? = "first"
         if (outer != null) {
@@ -267,8 +267,8 @@ fn outer_non_null_view_with_loop_reassignment_routes_to_legacy() {
     }"#;
     let (res, routed) = route(source);
     assert!(
-        !routed,
-        "reassigning an outer-narrowed variable inside a loop must not route to refine"
+        routed,
+        "a reassigned nullable String proof has no legacy fallback (SPEC-0399)"
     );
     assert!(res.is_ok());
 }
@@ -477,10 +477,10 @@ fn map_for_unrelated_scalar_scope_keeps_legacy_routing() {
         );
         let (result, routed) = route(&source);
         assert!(
-            !routed,
-            "unrelated sibling must not expand Map-for routing: {source}"
+            routed,
+            "Map-for now routes directly to ssa::refine (SPEC-0396): {source}"
         );
-        result.expect("original Map-for addition remains supported");
+        result.expect("Map-for addition lowers through ssa::refine");
     }
 }
 
@@ -699,6 +699,18 @@ fn range_view_borrow_return_and_borrow_val_route_to_refine() {
          fun f(b: Boxed): Unit {\n\
              borrow val text = b.text\n\
              println(text)\n\
+         }",
+        "class Holder(val text: String, val value: Int)\n\
+         fun f(own initial: Holder?, flag: Boolean): Int {\n\
+             var current: Holder? = initial\n\
+             var total = 0\n\
+             while (current != null) {\n\
+                 println(current.text)\n\
+                 if (flag) { current = null }\n\
+                 if (current != null) { total = total + current.value }\n\
+                 break\n\
+             }\n\
+             return total\n\
          }",
     ] {
         let (res, routed) = route(source);

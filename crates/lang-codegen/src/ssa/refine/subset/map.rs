@@ -118,7 +118,7 @@ impl Checker<'_, '_> {
         if let Some(symbol) = self.named_container_owner(expression, map_ty, allow_borrow) {
             return Some(symbol);
         }
-        if !allow_borrow || !self.scope_requires_refine() {
+        if !allow_borrow {
             return None;
         }
         let root = self.ungrouped(expression);
@@ -286,7 +286,6 @@ impl Checker<'_, '_> {
             self.named_container_owner(receiver_expr, recv_ty, false) == Some(root)
         } else {
             is_nullable_storage
-                && self.scope_requires_refine()
                 && self.named_map_owner(receiver_expr, recv_ty, true) == Some(root)
                 && self.parameter_mode(root).is_none()
         };
@@ -389,7 +388,6 @@ impl Checker<'_, '_> {
             || self.c(descriptor.value_type()) != value_ty
             || self.expression_type(expression) != Some(res_ty)
             || matches!(self.kind(value_ty), Some(UnitTypeKind::Nullable(_)))
-            || (self.map_kv(value_ty).is_some() && !self.scope_requires_refine())
             || !(self.scalar(value_ty)
                 || self.range_type(value_ty)
                 || self.value_class(value_ty)
@@ -659,9 +657,6 @@ impl Checker<'_, '_> {
             },
             type_checking::UnitStatementId,
         };
-        if !self.scope_requires_refine() {
-            return false;
-        }
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
         let (Some(plan), Some(descriptor)) = (
             self.inputs.owned.map_iteration(statement_id),
@@ -686,10 +681,33 @@ impl Checker<'_, '_> {
         }
         match (plan.source_access(), plan.source_kind()) {
             (
-                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared,
+                UnitIterationSourceAccess::Owned,
                 IterationSource::BorrowedSource(UnitLoanTarget::Place(place)),
             ) if place.is_root() => {
                 if self.named_map_owner(source, container_ty, true) != Some(place.root()) {
+                    return false;
+                }
+            }
+            (
+                UnitIterationSourceAccess::Shared,
+                IterationSource::BorrowedSource(UnitLoanTarget::Place(place)),
+            ) if place.is_root() => {
+                let Some(symbol) = self.named_map_owner(source, container_ty, true) else {
+                    return false;
+                };
+                let origin_matches = symbol == place.root()
+                    || (self.for_borrowed.contains(&symbol)
+                        && self
+                            .inputs
+                            .owned
+                            .borrow_results()
+                            .bindings()
+                            .iter()
+                            .any(|fact| {
+                                fact.binding() == symbol
+                                    && fact.origin() == &UnitLoanTarget::Place(place.clone())
+                            }));
+                if !origin_matches {
                     return false;
                 }
             }
@@ -705,6 +723,7 @@ impl Checker<'_, '_> {
                 matches!(
                     action,
                     Action::Drop(_)
+                        | Action::DropConditionalReceiver(_)
                         | Action::EndBinding { .. }
                         | Action::FinishProvider(_)
                         | Action::EndSource(_)

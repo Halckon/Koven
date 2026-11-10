@@ -372,7 +372,11 @@ fn map_cross_function_routing_is_isolated() {
         &mut sources,
         "p/helper.ko",
         "package p\n\
-         fun unmigrated_lookup(m: Map<String, Int>): Int {\n\
+         fun unmigrated_scalar(x: Int): Int {\n\
+             var total = x\n\
+             return total\n\
+         }\n\
+         fun map_iter_lookup(m: Map<String, Int>): Int {\n\
              var total = 0\n\
              for ((k, v) in m) { total = total + v }\n\
              return total\n\
@@ -391,7 +395,7 @@ fn map_cross_function_routing_is_isolated() {
              var acc = 10\n\
              bump_with_map(&acc, m)\n\
              val ro = mapOf<String, Int>()\n\
-             val looked = unmigrated_lookup(ro)\n\
+             val looked = map_iter_lookup(ro) + unmigrated_scalar(0)\n\
              if (acc == 11 && looked == 0) { println(\"map-isolated-ok\") }\n\
          }",
     );
@@ -413,8 +417,12 @@ fn map_cross_function_routing_is_isolated() {
             entry,
         )
     });
-    result.expect("inout and map functions succeed alongside unmigrated map iteration function");
-    for function in ["koven.p.main.d", "koven.p.bump_with_map.d"] {
+    result.expect("inout and map functions succeed alongside unmigrated scalar function");
+    for function in [
+        "koven.p.main.d",
+        "koven.p.bump_with_map.d",
+        "koven.p.map_iter_lookup.d",
+    ] {
         assert!(
             routed.iter().any(|name| name.starts_with(function)),
             "{function} should route to ssa::refine: {routed:?}"
@@ -423,8 +431,8 @@ fn map_cross_function_routing_is_isolated() {
     assert!(
         !routed
             .iter()
-            .any(|name| name.starts_with("koven.p.unmigrated_lookup.d")),
-        "unmigrated_lookup should stay on unit_lower: {routed:?}"
+            .any(|name| name.starts_with("koven.p.unmigrated_scalar.d")),
+        "unmigrated_scalar should stay on unit_lower: {routed:?}"
     );
 }
 

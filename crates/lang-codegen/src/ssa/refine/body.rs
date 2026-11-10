@@ -907,6 +907,10 @@ pub(super) struct RBlock {
     pub(super) view: Option<Slot>,
     /// Source of the construct this block joins; the function span when unset.
     pub(super) origin: Option<Span>,
+    /// Carrier slots pinned as live-in on entry to this block.
+    pub(super) pinned: Vec<Slot>,
+    /// Keep a loop header block separate from its single entry predecessor.
+    pub(super) preserve_header: bool,
 }
 
 /// Block 0 is the function entry; `parameters` are defined there.

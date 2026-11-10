@@ -56,7 +56,8 @@ fun entry(): Unit { dormant(prefix(), stop(), suffix()) }
         )
     };
     check();
-    crate::ssa::with_per_family_lowering(check);
+    // SPEC-0397 retires the legacy function-value fallback; the refinement layer is
+    // the only lowering route for an indirect `Nothing` call.
 }
 
 #[test]
@@ -96,7 +97,8 @@ fun entry(): Unit {
         );
     };
     check();
-    crate::ssa::with_per_family_lowering(check);
+    // SPEC-0397 retires the legacy function-value fallback; the refinement layer is
+    // the only lowering route for an indirect `Nothing` call.
 }
 
 #[test]

@@ -1,60 +1,9 @@
 //! Source-qualified owned-root delivery into a readonly Map owner.
 
-pub(super) mod nullable;
-
 use super::*;
-use crate::ssa::model::{MapContainerKind, SsaTypeKind};
-use lang_frontend::{
-    ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
-    type_checking::{IntrinsicTypeConstructor, UnitCallReceiverOrigin},
-};
+use lang_frontend::type_checking::UnitCallReceiverOrigin;
 
 impl UnitExpressionLowerer<'_> {
-    pub(super) fn lower_map_consume(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .map_consume(id)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (root, storage) = descriptor
-            .source()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if storage != descriptor.receiver_type() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let delivered = self.lower(descriptor.receiver().expression())?;
-        if delivered != LoweredValue::Value(owner) {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        self.take_owned_binding(root, owner, span)?;
-        self.bindings
-            .retain(|_, binding| *binding != LoweredValue::Value(owner));
-        self.temporaries.retain(|_, temporary| *temporary != owner);
-        let map_type = self.expression_ssa_type(expression, span)?;
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::MapConsume { owner, map_type },
-                vec![EntityType::Value(map_type)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let [EntityId::Value(result)] = results.as_slice() else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok(LoweredValue::Value(*result))
-    }
-
     pub(super) fn lower_delegated_call_receiver(
         &mut self,
         call: UnitExpressionId,

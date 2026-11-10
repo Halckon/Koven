@@ -13,8 +13,10 @@ use super::{
 
 /// Lowers `source` (package `p`, entry `main`) and returns the program and the functions
 /// the refinement layer lowered.
-fn lower(source: &str) -> (Program, Vec<String>, crate::ssa::model::FunctionId) {
-    let ((program, entry), routed) = super::refine::observe_routing(|| {
+fn try_lower(
+    source: &str,
+) -> Result<(Program, Vec<String>, crate::ssa::model::FunctionId), crate::ssa::LoweringError> {
+    let (lowered, routed) = super::refine::observe_routing(|| {
         let mut sources = SourceMap::new();
         let text = format!("package p\n{source}");
         let (id, file) = parsed(&mut sources, "p/main.ko", &text);
@@ -32,9 +34,13 @@ fn lower(source: &str) -> (Program, Vec<String>, crate::ssa::model::FunctionId) 
             &owned,
             entry,
         )
-        .expect("closures lower and verify")
     });
-    (program, routed, entry)
+    let (program, entry) = lowered?;
+    Ok((program, routed, entry))
+}
+
+fn lower(source: &str) -> (Program, Vec<String>, crate::ssa::model::FunctionId) {
+    try_lower(source).expect("closures lower and verify")
 }
 
 fn run_counted(
@@ -190,23 +196,38 @@ fn local_callable_bindings_and_views_lower_in_refine() {
 
 #[test]
 fn a_thunk_keeps_the_gate_for_its_own_while_and_named_iteration() {
-    for (head, expected_thunk_route) in [("", true), ("while (false) {};", false)] {
-        let source = format!(
-            r#"fun main(): Unit {{
-                val run: () -> Unit = {{
-                    {head}
+    let routable = r#"fun main(): Unit {
+                val run: () -> Unit = {
                     val xs = listOf("kept")
-                    for (item in xs) {{ println(item) }}
-                }}
+                    for (item in xs) { println(item) }
+                }
                 run()
-            }}"#
-        );
-        let (program, routed, _) = lower(&source);
-        assert_eq!(
-            routed.iter().any(|name| name.ends_with(".thunk")),
-            expected_thunk_route,
-            "{routed:?}"
-        );
-        crate::ssa::verify::verify_program(&program).expect("the callable and iteration verify");
-    }
+            }"#;
+    let (program, routed, _) = lower(routable);
+    assert!(
+        routed.iter().any(|name| name.ends_with(".thunk")),
+        "a named sequential for routes its thunk to ssa::refine: {routed:?}"
+    );
+    crate::ssa::verify::verify_program(&program).expect("the callable and iteration verify");
+
+    // SPEC-0397 retires the capture-free thunk fallback: a thunk whose own `while`
+    // keeps it off the refinement layer is now an explicit unsupported boundary.
+    let rejected = r#"fun main(): Unit {
+                val run: () -> Unit = {
+                    while (false) {}
+                    val xs = listOf("kept")
+                    for (item in xs) { println(item) }
+                }
+                run()
+            }"#;
+    let error = match try_lower(rejected) {
+        Err(error) => error,
+        Ok(_) => panic!("no legacy thunk fallback remains"),
+    };
+    assert_eq!(
+        error.kind,
+        crate::ssa::LoweringErrorKind::UnsupportedNode,
+        "{error:?}"
+    );
+    assert!(error.span.is_some(), "{error:?}");
 }

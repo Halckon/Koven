@@ -672,11 +672,22 @@ impl Checker<'_, '_> {
                 let cond_ok = self.condition(condition, true);
                 let (reaches_then, reaches_else) = self.condition_outcomes(condition);
                 let then_ok = cond_ok && (!reaches_then || self.statement(then_branch));
+                let then_views = self.view_symbols.clone();
                 self.view_symbols = saved.clone();
                 self.note_else_view(condition);
                 let else_ok =
                     !reaches_else || else_branch.is_none_or(|branch| self.statement(branch));
-                self.view_symbols = saved;
+                let else_views = self.view_symbols.clone();
+                let then_continues = reaches_then && self.statement_may_continue(then_branch);
+                let else_continues = reaches_else
+                    && else_branch.is_none_or(|branch| self.statement_may_continue(branch));
+                self.view_symbols = saved
+                    .into_iter()
+                    .filter(|symbol| {
+                        (!then_continues || then_views.contains(symbol))
+                            && (!else_continues || else_views.contains(symbol))
+                    })
+                    .collect();
                 then_ok
                     && else_ok
                     && (self.unit(ty) || else_branch.is_some())
@@ -751,12 +762,36 @@ impl Checker<'_, '_> {
                 } else if self.inputs.carrier_return.is_some() {
                     value.is_some_and(|value| self.carrier_return_body(expression, value))
                 } else {
-                    value.is_none_or(|value| self.expression(value))
+                    value.is_none_or(|value| {
+                        self.expression(value) || self.returned_nullable_owner(value)
+                    })
                 }
             }
             Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
             _ => false,
         }
+    }
+
+    fn returned_nullable_owner(&self, expression: ExpressionId) -> bool {
+        let root = self.ungrouped(expression);
+        let Some(fact) = self.inputs.typed.non_null_use(self.id(root)) else {
+            return false;
+        };
+        let symbol = fact.symbol();
+        let narrowed = self.c(fact.narrowed_type());
+        self.reference(root) == Some(symbol)
+            && self.known.contains(&symbol)
+            && !self.callables.contains(&symbol)
+            && !matches!(
+                self.parameter_mode(symbol),
+                Some(ParameterMode::Borrow | ParameterMode::Inout)
+            )
+            && self.view_symbols.contains(&symbol)
+            && self.copyability_of(narrowed) == Copyability::MoveOnly
+            && (self.c(fact.declared_type()) == self.inputs.return_type
+                || (narrowed == self.inputs.return_type
+                    && self.string(narrowed)
+                    && !self.is_map_remove_symbol(symbol)))
     }
 
     fn name(&mut self, expression: ExpressionId) -> bool {
@@ -868,105 +903,6 @@ impl Checker<'_, '_> {
                 && self.view_symbols.contains(&fact.symbol());
         }
         self.expression(expression)
-    }
-
-    /// Mirrors the builder: `!`, groups, `&&`, `||` and null comparisons are branch form
-    /// (their own drop points are never emitted); other conditions are plain values.
-    /// `views`: a MoveOnly null comparison may open a proof view only directly in an
-    /// `if`/`while` condition (through groups and `&&`), on its true edge.
-    fn condition(&mut self, expression: ExpressionId, views: bool) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        let id = self.id(expression);
-        let boolean = self.expression_type(expression).is_some_and(|ty| {
-            matches!(
-                self.kind(ty),
-                Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
-            )
-        });
-        if let Some(fact) = self.inputs.typed.null_comparison(id) {
-            self.branch_form.insert(id);
-            let nullable = self.c(fact.nullable_type());
-            self.note_nullable(nullable);
-            if let Some(supported) = self.borrowed_nullable_presence(fact.symbol(), nullable) {
-                return boolean && supported && self.known.contains(&fact.symbol());
-            }
-            let inner_ok = match self.kind(nullable) {
-                Some(UnitTypeKind::Nullable(inner))
-                    if self.scalar(*inner)
-                        || self.range_type(*inner)
-                        || self.value_class(*inner) =>
-                {
-                    true
-                }
-                Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
-                    if views && fact.non_null_when_true() {
-                        self.view_symbols.insert(fact.symbol());
-                    }
-                    true
-                }
-                _ => false,
-            };
-            return boolean && inner_ok && self.known.contains(&fact.symbol());
-        }
-        match node.payload().clone() {
-            Expression::Group { expression: inner } => {
-                self.branch_form.insert(id);
-                boolean && self.plain(expression) && self.condition(inner, views)
-            }
-            Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand: inner,
-                ..
-            } => {
-                self.branch_form.insert(id);
-                boolean && self.plain(expression) && self.condition(inner, false)
-            }
-            Expression::Binary {
-                left,
-                operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
-                right,
-                ..
-            } => {
-                self.branch_form.insert(id);
-                let views = views && operator == BinaryOperator::LogicalAnd;
-                let saved = self.view_symbols.clone();
-                let ok = boolean
-                    && self.plain(expression)
-                    && self.condition(left, views)
-                    && (!self.logical_reaches_rhs(id, left, operator)
-                        || self.condition(right, views));
-                if !views {
-                    self.view_symbols = saved;
-                }
-                ok
-            }
-            _ => self.expression(expression),
-        }
-    }
-
-    fn note_else_view(&mut self, condition: ExpressionId) {
-        let root = self.ungrouped(condition);
-        let id = self.id(root);
-        if let Some(fact) = self.inputs.typed.null_comparison(id)
-            && !fact.non_null_when_true()
-            && self.parameter_mode(fact.symbol()) != Some(ParameterMode::Borrow)
-            && self.known.contains(&fact.symbol())
-            && (self.scope_requires_refine()
-                || self.is_map_remove_symbol(fact.symbol())
-                || self.inputs.owned.loans().iter().any(|loan| {
-                    matches!(
-                        loan.target(),
-                        lang_frontend::ownership_checking::UnitLoanTarget::Place(place)
-                            if place.is_root() && place.root() == fact.symbol()
-                    )
-                }))
-            && let Some(UnitTypeKind::Nullable(inner)) = self.kind(self.c(fact.nullable_type()))
-            && self.view_inner(*inner)
-        {
-            self.view_symbols.insert(fact.symbol());
-        }
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {

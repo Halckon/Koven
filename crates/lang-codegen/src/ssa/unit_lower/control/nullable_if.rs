@@ -1,9 +1,8 @@
-//! Bounded nullable entries: root Borrow, While retests and direct Map Ifs.
+//! Bounded nullable entries: root Borrow and Rc/heap Ifs.
 #[cfg(test)]
-mod guard_tests;
+mod field_tests;
 mod heap;
 mod rc;
-mod string;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
@@ -12,7 +11,7 @@ use crate::ssa::model::{LoanId, SsaTypeKind};
 use lang_frontend::{
     ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
     parser::{BinaryOperator, FunctionBody, FunctionForm, Item},
-    type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitTypeKind},
+    type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitExpressionId, UnitTypeKind},
 };
 
 #[derive(Clone, Copy)]
@@ -22,11 +21,10 @@ pub(super) struct NullableIfEntry {
     pub(super) inner: SsaTypeId,
     pub(super) scope: UnitExpressionId,
     pub(super) non_null_when_true: bool,
-    consume: Option<super::super::map_consume::nullable::NullableMapConsumeWitness>,
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Reuse the proof entry only for While retests or a required root Borrow.
+    /// Reuse the proof entry only for a required root Borrow or Rc/heap If.
     pub(super) fn prepare_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -34,26 +32,31 @@ impl UnitExpressionLowerer<'_> {
         result_required: bool,
         span: Span,
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
-        if !self.nullable_proofs.is_empty() {
+        if !self.nullable_proofs.is_empty() || result_required {
             return Ok(None);
         }
-        let diverges = self
-            .typed
-            .expression_type(control)
-            .is_some_and(|ty| builtin_type(self.typed, ty) == Some(BuiltinType::Nothing));
-        // Nothing has no normal result to deliver, but its return arms still need proofs.
-        if (!result_required || diverges)
-            && let Some(entry) = self.prepare_string_nullable_if_entry(control, condition, span)?
+        // Nullable `String?` ifs lower only in `ssa::refine` (SPEC-0398); a mixed
+        // compatibility body keeps its older inline-nullable handling.
+        if !self.migrated_family_compatibility
+            && self
+                .typed
+                .null_comparison(UnitExpressionId::new(self.source_unit, condition))
+                .is_some_and(|fact| {
+                    matches!(
+                        self.typed.types().get(fact.nullable_type()),
+                        Some(UnitTypeKind::Nullable(inner))
+                            if matches!(
+                                self.typed.types().get(*inner),
+                                Some(UnitTypeKind::Builtin(
+                                    lang_frontend::type_checking::BuiltinType::String
+                                ))
+                            )
+                    )
+                })
         {
-            return Ok(Some(entry));
-        }
-        if result_required {
-            return Ok(None);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
-            return Ok(Some(entry));
-        }
-        if let Some(entry) = self.prepare_heap_field_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));
         }
         if self.migrated_family_compatibility
@@ -61,305 +64,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok(Some(entry));
         }
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(control.expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Expression::If {
-            condition: source,
-            else_branch: None,
-            ..
-        } = node.payload()
-        else {
-            return Ok(None);
-        };
-        if *source != condition {
-            return Ok(None);
-        }
-        let Some(while_scope) = self.current_while_proof_scope() else {
-            return Ok(None);
-        };
-        if control.source_unit() != self.source_unit
-            || while_scope.source_unit() != self.source_unit
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let while_node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(while_scope.statement())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Statement::While {
-            condition: while_condition,
-            ..
-        } = while_node.payload()
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let Some((outer, _)) = self.direct_nullable_while_condition(*while_condition, span)? else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let Some((descriptor, mut operand)) =
-            self.direct_nullable_while_condition(condition, span)?
-        else {
-            return Ok(None);
-        };
-        if descriptor.symbol() != outer.symbol() {
-            return Ok(None);
-        }
-        // Even the empty source-call-frame exception belongs only to While.
-        if !self.pending_call_frames.is_empty() || !self.pending_operands.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let (_, inner) = self.direct_nullable_while_entry(descriptor, span)?;
-        let declared = descriptor.nullable_type();
-        if self.typed.copyability(resolve_concrete_type(
-            self.typed,
-            declared,
-            self.substitutions,
-            self.static_self,
-            span,
-        )?) != Copyability::MoveOnly
-            || !matches!(
-                self.ssa_types.get(inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. })
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        loop {
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(operand.expression())
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if operand.source_unit() != self.source_unit
-                || self.typed.expression_type(operand) != Some(declared)
-                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
-                || self.typed.non_null_use(operand).is_some()
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            match node.payload() {
-                Expression::Group { expression } => {
-                    operand = UnitExpressionId::new(self.source_unit, *expression)
-                }
-                Expression::Name
-                    if self.references.get(&span_key(node.span()))
-                        == Some(&descriptor.symbol()) =>
-                {
-                    break;
-                }
-                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            }
-        }
-        self.ensure_no_while_proof_carriers(span)?;
-        let Some(LoweredValue::Value(owner)) = self.bindings.get(&descriptor.symbol()).copied()
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        Ok(Some(NullableIfEntry {
-            root: descriptor.symbol(),
-            owner,
-            inner,
-            scope: control,
-            non_null_when_true: true,
-            consume: None,
-        }))
-    }
-
-    /// This Map-only ordinary If entry is separate from the existing While retest.
-    pub(super) fn prepare_map_nullable_if_entry(
-        &self,
-        control: UnitExpressionId,
-        condition: ExpressionId,
-        result_required: bool,
-        span: Span,
-    ) -> Result<Option<NullableIfEntry>, LoweringError> {
-        if result_required || !self.nullable_proofs.is_empty() {
-            return Ok(None);
-        }
-        let Some(descriptor) = self.map_borrow_condition(condition, span)? else {
-            return Ok(None);
-        };
-        let storage = descriptor.nullable_type();
-        if !matches!(self.typed.types().get(storage), Some(UnitTypeKind::Nullable(inner))
-        if matches!(self.typed.types().get(*inner), Some(UnitTypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap, ..
-        }))) {
-            return Ok(None);
-        }
-        if !self.is_direct_function_body_if(control, span)? {
-            return Ok(None);
-        }
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(control.expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Expression::If {
-            condition: actual,
-            then_branch,
-            else_branch,
-            ..
-        } = *node.payload()
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        if actual != condition {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let comparison = self.ungroup_map_if_expression(condition, span)?;
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(comparison)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Expression::Binary {
-            left,
-            operator,
-            right,
-            ..
-        } = *node.payload()
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let polarity = match operator {
-            BinaryOperator::NotEqual => true,
-            BinaryOperator::Equal => false,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
-        let is_null = |operand| -> Result<bool, LoweringError> {
-            let operand = self.ungroup_map_if_expression(operand, span)?;
-            Ok(self
-                .parsed
-                .ast()
-                .expressions()
-                .get(operand)
-                .is_ok_and(|node| matches!(node.payload(), Expression::Literal(LiteralKind::Null))))
-        };
-        let mut subject = match (is_null(left)?, is_null(right)?) {
-            (true, false) => right,
-            (false, true) => left,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
-        let root = descriptor.symbol();
-        if control.source_unit() != self.source_unit
-            || root.source_unit() != self.source_unit
-            || descriptor.expression() != UnitExpressionId::new(self.source_unit, comparison)
-            || descriptor.non_null_when_true() != polarity
-            || self.typed.symbol_type(root) != Some(storage)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        loop {
-            let id = UnitExpressionId::new(self.source_unit, subject);
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(subject)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if self.typed.expression_type(id) != Some(storage)
-                || self.typed.expression_category(id) != Some(ExpressionCategory::Place)
-                || self.typed.non_null_use(id).is_some()
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            match node.payload() {
-                Expression::Group { expression } => subject = *expression,
-                Expression::Name if self.references.get(&span_key(node.span())) == Some(&root) => {
-                    break;
-                }
-                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            }
-        }
-        let concrete = resolve_concrete_type(
-            self.typed,
-            storage,
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let nullable = *self
-            .type_ids
-            .get(&concrete)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let inner = *self
-            .nullable_maps
-            .get(&nullable)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        if self.typed.copyability(concrete) != Copyability::MoveOnly
-            || !matches!(
-                self.ssa_types.get(inner.index()),
-                Some(SsaTypeKind::MapContainer { .. })
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let (non_null_body, null_body) = if descriptor.non_null_when_true() {
-            (Some(then_branch), else_branch)
-        } else {
-            (else_branch, Some(then_branch))
-        };
-        let Some(non_null_body) = non_null_body else {
-            return Ok(None);
-        };
-        let size_only =
-            self.map_if_has_only_size_reads(non_null_body, root, nullable, inner, span)?;
-        if !self.map_if_body_is_empty(null_body, span)? {
-            return Ok(None);
-        }
-        let consume = if size_only {
-            None
-        } else {
-            let Some(witness) = self.nullable_map_consume_witness(control, span)? else {
-                return Ok(None);
-            };
-            if witness.root != root || witness.nullable != nullable || witness.inner != inner {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            Some(witness)
-        };
-        // Do not inherit the While-only empty-call-frame or Boolean-provider exceptions.
-        self.ensure_no_while_proof_carriers(span)?;
-        if !self.pending_call_frames.is_empty()
-            || !self.pending_operands.is_empty()
-            || !self.temporaries.is_empty()
-            || !self.borrow_bindings.is_empty()
-            || !self.closure_bindings.is_empty()
-            || self.closure_binding_context
-            || self.thunk_expression.is_some()
-            || self.consumed_receiver.is_some()
-            || !self.loops.is_empty()
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        if self
-            .function
-            .entity(EntityId::Value(owner))
-            .map(|data| data.ty)
-            != Some(EntityType::Value(nullable))
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        Ok(Some(NullableIfEntry {
-            root,
-            owner,
-            inner,
-            scope: control,
-            non_null_when_true: descriptor.non_null_when_true(),
-            consume,
-        }))
+        Ok(None)
     }
 
     /// Follow the actual current source instance to its own top-level block elements.
@@ -474,55 +179,6 @@ impl UnitExpressionLowerer<'_> {
         Ok(matches!(node.payload(), Statement::ControlBody { elements } if elements.is_empty()))
     }
 
-    fn map_if_has_only_size_reads(
-        &self,
-        body: StatementId,
-        root: UnitSymbolId,
-        nullable: SsaTypeId,
-        inner: SsaTypeId,
-        span: Span,
-    ) -> Result<bool, LoweringError> {
-        let node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(body)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Statement::ControlBody { elements } = node.payload() else {
-            return Ok(false);
-        };
-        if elements.is_empty() {
-            return Ok(false);
-        }
-        for &statement in elements {
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(statement)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let Statement::LocalVariable { declaration } = node.payload() else {
-                return Ok(false);
-            };
-            let (_, item, _) = unwrap_modified(self.parsed, *declaration)?;
-            let Item::Variable { initializer, .. } = item else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            };
-            let read = self.ungroup_map_if_expression(initializer, span)?;
-            let id = UnitExpressionId::new(self.source_unit, read);
-            let Some(descriptor) = self.typed.map_size(id) else {
-                return Ok(false);
-            };
-            if self.qualified_nullable_map_size_read(id, descriptor, span)?
-                != Some((root, nullable, inner))
-                || self.expression_builtin_type(read, span)? != Some(BuiltinType::Int)
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-        }
-        Ok(true)
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(super) fn enter_nullable_if_branch(
         &mut self,
@@ -536,11 +192,6 @@ impl UnitExpressionLowerer<'_> {
         condition: ExpressionId,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if let Some(witness) = entry.consume
-            && self.nullable_map_consume_witness(entry.scope, span)? != Some(witness)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         self.block = block;
         self.rebind_map_borrow_control(baseline, block, carried, loans, view, entry.inner, span)?;
         let column = self.nullable_owner_column(carried, entry.root, entry.owner, span)?;
@@ -553,6 +204,37 @@ impl UnitExpressionLowerer<'_> {
             span,
         )?;
         self.emit_direct_nullable_condition_drops(condition, span)
+    }
+
+    pub(in super::super) fn emit_direct_nullable_condition_drops(
+        &mut self,
+        condition: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(condition)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        match *node.payload() {
+            Expression::Group { expression } => {
+                self.emit_direct_nullable_condition_drops(expression, span)?
+            }
+            Expression::Binary { left, right, .. } => {
+                self.emit_null_condition_drops(left)?;
+                self.emit_null_condition_drops(right)?;
+                self.emit_drops(UnitDropPoint::AfterBinaryOperands(UnitExpressionId::new(
+                    self.source_unit,
+                    condition,
+                )))?;
+            }
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+        self.emit_drops(UnitDropPoint::AfterExpression(UnitExpressionId::new(
+            self.source_unit,
+            condition,
+        )))
     }
 
     /// Preflight every retirement against its own complete live exit before emission.
@@ -604,7 +286,7 @@ impl UnitExpressionLowerer<'_> {
                     .nullable_proofs
                     .get(root)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if proof.while_scope().is_none() && proof.if_scope() != Some(control) {
+                if proof.if_scope() != Some(control) {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             }

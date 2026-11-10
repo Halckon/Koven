@@ -82,7 +82,7 @@ impl CheckedLowering for UnitExpressionLowerer<'_> {
     fn restore_roles(
         &mut self,
         roles: Self::Roles,
-        from: BlockId,
+        _from: BlockId,
         success: BlockId,
         span: Span,
     ) -> Result<(), LoweringError> {
@@ -95,6 +95,6 @@ impl CheckedLowering for UnitExpressionLowerer<'_> {
         )?;
         self.borrow_bindings =
             self.rebind_carried_loans(success, roles.carried.len(), &roles.carried_loans, span)?;
-        self.resume_checked_map(from, &roles.baseline_borrows, span)
+        Ok(())
     }
 }

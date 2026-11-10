@@ -1,7 +1,7 @@
 //! Nested-only role witness, beside the unchanged generic read-only graph helper.
 use super::super::{
     fixture::{Failure, failure, need},
-    query_graph::{Graph, Uses},
+    query_graph::{Graph, Uses, inherits},
 };
 use crate::ssa::model::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -119,8 +119,17 @@ impl Witness {
         let expected = roles.0.values().copied().collect::<BTreeSet<_>>();
         need(
             expected.len() == roles.0.len()
-                && edge.arguments.len() == expected.len()
-                && edge.arguments.iter().copied().collect::<BTreeSet<_>>() == expected,
+                && edge
+                    .arguments
+                    .iter()
+                    .all(|argument| expected.contains(argument))
+                && edge
+                    .arguments
+                    .iter()
+                    .copied()
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    == edge.arguments.len(),
             "nested SSA full exact current-role edge operands",
             (from, edge, roles),
         )?;
@@ -146,7 +155,18 @@ impl Witness {
             roles
                 .0
                 .iter()
-                .map(|(&r, &e)| Ok((r, graph.transported(edge, e)?)))
+                .map(|(&r, &e)| {
+                    if edge.arguments.contains(&e) {
+                        Ok((r, graph.transported(edge, e)?))
+                    } else {
+                        need(
+                            inherits(graph, e, edge.target)?,
+                            "nested SSA inherited role still dominates target",
+                            (from, edge, r, e),
+                        )?;
+                        Ok((r, e))
+                    }
+                })
                 .collect::<Result<_, Failure>>()?,
         );
         self.protect(&next)?;

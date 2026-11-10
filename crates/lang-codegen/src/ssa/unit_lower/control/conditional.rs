@@ -26,14 +26,7 @@ impl UnitExpressionLowerer<'_> {
             .get(expression)
             .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }));
         let nullable_if =
-            match self.prepare_nullable_if_entry(control, condition, result_required, span)? {
-                Some(entry) => Some(entry),
-                None => {
-                    self.prepare_map_nullable_if_entry(control, condition, result_required, span)?
-                }
-            };
-        let guard = self.map_borrow_condition(condition, span)?;
-        let baseline_guards = self.map_borrow_guards.clone();
+            self.prepare_nullable_if_entry(control, condition, result_required, span)?;
         let condition_value = if nullable_if.is_none() {
             let Some(value) = self.lower_optional_condition_value(condition, span)? else {
                 return Ok(LoweredValue::Diverged);
@@ -56,9 +49,6 @@ impl UnitExpressionLowerer<'_> {
                     control,
                     branch: index,
                 };
-                if let Some(guard) = guard.filter(|guard| guard.non_null_when_true() == yes) {
-                    self.map_borrow_guards.insert(guard.symbol(), guard);
-                }
                 let exit = if let Some(branch) = branch {
                     self.lower_current_if_branch(branch, point, result)?
                 } else {
@@ -68,14 +58,11 @@ impl UnitExpressionLowerer<'_> {
                     self.emit_drops(point)?;
                     Some(self.loop_state())
                 };
-                self.map_borrow_guards = baseline_guards;
                 let mut exits: Vec<_> = exit.into_iter().collect();
                 self.retire_if_exit_proofs(control, &mut exits, span)?;
                 return self.merge_unit_exits(exits, span);
             }
         }
-        let map_checkpoint =
-            self.checkpoint_map_conditional(control, result_required, else_branch.is_some(), span)?;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
@@ -241,10 +228,6 @@ impl UnitExpressionLowerer<'_> {
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
-        if let Some(guard) = guard.filter(|guard| guard.non_null_when_true()) {
-            self.map_borrow_guards.insert(guard.symbol(), guard);
-        }
-        self.enter_map_conditional_arm(&map_checkpoint, then_block, span)?;
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
@@ -267,11 +250,6 @@ impl UnitExpressionLowerer<'_> {
         )? {
             exits.push(exit);
         }
-        self.map_borrow_guards.clone_from(&baseline_guards);
-        if let Some(guard) = guard.filter(|guard| !guard.non_null_when_true()) {
-            self.map_borrow_guards.insert(guard.symbol(), guard);
-        }
-        self.enter_map_conditional_arm(&map_checkpoint, else_block, span)?;
         if let Some(else_branch) = else_branch {
             if let Some(exit) = self.lower_if_branch(
                 else_block,
@@ -331,13 +309,9 @@ impl UnitExpressionLowerer<'_> {
                 temporaries: self.temporaries.clone(),
             });
         }
-        self.map_borrow_guards = baseline_guards;
         if ordinary_if {
             self.retire_if_exit_proofs(control, &mut exits, span)?;
         }
-        let map_exits = self.map_conditional_exits(&map_checkpoint, &exits, span)?;
-        let result = self.merge_unit_exits(exits, span)?;
-        self.finish_map_conditional_merge(&map_checkpoint, map_exits, result, span)?;
-        Ok(result)
+        self.merge_unit_exits(exits, span)
     }
 }

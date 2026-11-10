@@ -117,9 +117,12 @@ pub(super) fn check(
     } = roles;
     let entities = definitions(graph)?;
     let borrowed_merge = !input.owned && input.exit == Exit::Break;
+    // Refinement SSA keeps the caller Borrow as a dominating definition when the
+    // Break merge tail never reads it again, so five seeds are legal but not required.
+    let seed_count = seeds.len();
     need(
         blocks.len() == 4 + usize::from(input.exit == Exit::Break)
-            && seeds.len() == 4 + usize::from(borrowed_merge),
+            && (seed_count == 4 || (borrowed_merge && seed_count == 5)),
         "identity SSA all source roles including only the live Borrow Break merge",
         (blocks, seeds),
     )?;

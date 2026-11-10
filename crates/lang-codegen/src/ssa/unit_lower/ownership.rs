@@ -140,7 +140,9 @@ impl UnitExpressionLowerer<'_> {
         value: ValueId,
         span: Span,
     ) -> Result<(), LoweringError> {
-        self.reject_live_while_proof(symbol, span)?;
+        if self.nullable_proofs.contains_key(&symbol) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         match self.bindings.remove(&symbol) {
             Some(LoweredValue::Value(bound)) if bound == value => {
                 self.closure_bindings.remove(&symbol);
@@ -275,9 +277,7 @@ impl UnitExpressionLowerer<'_> {
                     })?;
             }
             let Some(fact) = facts.get(index) else { break };
-            if !self.emit_local_map_late_drop(*fact)? {
-                self.emit_drop_fact(*fact)?;
-            }
+            self.emit_drop_fact(*fact)?;
         }
         Ok(())
     }
@@ -360,8 +360,6 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
         };
-        self.validate_formed_map_drop(fact, owner)?;
-        self.validate_pure_map_parameter_drop(fact, owner)?;
         self.function
             .append_instruction(
                 self.block,

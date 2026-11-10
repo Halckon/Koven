@@ -34,16 +34,14 @@ fn observe(mutable: bool, rooted: bool, control: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let lowered = crate::ssa::with_per_family_lowering(|| {
-        pipeline::unit_input_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            rooted,
-            |n, t, o, r| source_forms::facts::unit(&sources, &parsed, n, t, o, r),
-        )
-    });
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |n, t, o, r| source_forms::facts::unit(&sources, &parsed, n, t, o, r),
+    );
     diagnostic!(
         "ARGUMENT CFG LOWER mutable={mutable} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         lowered.as_ref().map(|(_, entry)| entry)

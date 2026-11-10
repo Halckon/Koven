@@ -58,7 +58,7 @@ pub(super) fn validate_declarations(
 // the older whole-function CFG frontier, including RangeView and carrier aliases.
 fn has_dedicated_binding_path(
     file: &lang_frontend::parser::ParsedFile,
-    names: &ValidatedCompilationUnitNames,
+    _names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
@@ -151,14 +151,7 @@ fn has_dedicated_binding_path(
         let statement = plan.descriptor().statement();
         statement.source_unit() == source_unit
             && plan.source() == Some(fact.origin())
-            && super::map_iteration::stable_borrow_provider(
-                file,
-                names,
-                typed,
-                owned,
-                statement,
-                fact.binding(),
-            )
+            && typed.map_iteration(statement).is_some()
     }))
 }
 
@@ -235,7 +228,7 @@ fn is_local_range_binding(
 
 fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
-    names: &ValidatedCompilationUnitNames,
+    _names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
@@ -375,14 +368,9 @@ fn validate_binding(
         call_allowed,
         |statement| {
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
-            super::map_iteration::stable_borrow_provider(
-                file,
-                names,
-                typed,
-                owned,
-                statement,
-                fact.binding(),
-            )
+            owned.map_iterations().iter().any(|plan| {
+                plan.descriptor().statement() == statement && plan.source() == Some(fact.origin())
+            })
         },
     )?;
     if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {

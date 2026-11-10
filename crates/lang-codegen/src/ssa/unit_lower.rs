@@ -23,7 +23,6 @@ mod loop_control;
 mod map;
 mod map_borrow;
 mod map_consume;
-mod map_iteration;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -62,7 +61,7 @@ use lang_frontend::{
     ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
-        Statement,
+        ParsedFile, Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -87,6 +86,26 @@ use super::{
 };
 
 use super::expression_core::LoweredValue;
+
+/// Same-source span containment formerly hosted by the retired map-iteration module.
+pub(super) fn span_contains(outer: Span, inner: Span) -> bool {
+    outer.source_id() == inner.source_id()
+        && outer.start() <= inner.start()
+        && inner.end() <= outer.end()
+}
+
+/// Nearest enclosing lambda; identity filtering, not capability.
+pub(super) fn enclosing_lambda(parsed: &ParsedFile, span: Span) -> Option<ExpressionId> {
+    parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| {
+            span_contains(node.span(), span) && matches!(node.payload(), Expression::Lambda { .. })
+        })
+        .min_by_key(|(_, node)| node.span().end() - node.span().start())
+        .map(|(id, _)| id)
+}
 
 enum FunctionPlanBody {
     Expression(ExpressionId),
@@ -175,10 +194,7 @@ struct UnitExpressionLowerer<'a> {
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
-    entry_string_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
-    map_borrow_guards:
-        BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
     result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
     temporary_range_slots: BTreeMap<UnitExpressionId, Vec<usize>>,
     short_range_ends: BTreeMap<LoanId, UnitExpressionId>,
@@ -195,8 +211,6 @@ struct UnitExpressionLowerer<'a> {
     pending_operands: Vec<EntityId>,
     pending_call_frames: Vec<call_lifetimes::PendingCallFrame>,
     loops: Vec<loop_control::LoopContext>,
-    // One bounded normal Map continuation, discharged by its exact size CallReturn.
-    map_local_continuation: Option<map_iteration::LocalContinuation>,
     return_type: UnitTypeId,
 }
 
@@ -238,16 +252,6 @@ impl UnitExpressionLowerer<'_> {
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
         self.guard_nullable_when_expression(unit_expression, span)?;
-        // Only a fully witnessed consume may atomically retire an ordinary If view.
-        if matches!(node.payload(), Expression::Call { .. })
-            && self
-                .nullable_proofs
-                .values()
-                .any(|proof| proof.if_scope().is_some())
-            && let Some(value) = self.lower_nullable_map_consume(unit_expression, span)?
-        {
-            return Ok(value);
-        }
         // Reject unsupported If carriers/transfers before specialized dispatch can
         // create a call frame, a temporary owner, or any SSA instruction.
         if matches!(
@@ -269,18 +273,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 _ => false,
             };
-            // A plain literal owns static bytes and cannot invalidate a String If view.
-            // Interpolation still uses the ordinary carrier/transfer gate.
-            let plain_string = self.has_only_string_if_proofs()
-                && matches!(node.payload(), Expression::String { parts, .. }
-                    if parts.iter().all(|part| matches!(part, lang_frontend::parser::StringPart::Text(_))));
-            let string_if_return = match node.payload() {
-                Expression::Return { value, .. } => {
-                    self.can_return_from_nullable_string_if(unit_expression, *value, span)?
-                }
-                _ => false,
-            };
-            if !root_borrow_call && !plain_string && !string_if_return {
+            if !root_borrow_call {
                 self.reject_live_if_proof(span)?;
             }
         }
@@ -442,35 +435,31 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let string_if_return = self.can_return_from_nullable_string_if(
-            UnitExpressionId::new(self.source_unit, expression),
-            value,
-            span,
-        )?;
-        if !string_if_return {
-            self.reject_live_if_proof(span)?;
-        }
+        self.reject_live_if_proof(span)?;
         if self.function.carrier_return.is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let (mut result, nullable_owner_return) = match value {
-            Some(value) => self.lower_proven_owner_return(expression, value, span)?,
-            None => (LoweredValue::Unit, false),
+        if let Some(value) = value {
+            // A nullable-When extraction is atomic at the whole `return` boundary.
+            self.guard_nullable_when_expression(
+                UnitExpressionId::new(self.source_unit, value),
+                span,
+            )?;
+        }
+        let mut result = match value {
+            Some(value) => self.lower(value)?,
+            None => LoweredValue::Unit,
         };
         if result == LoweredValue::Diverged {
             return Ok(result);
         }
         if let (Some(value_expression), LoweredValue::Value(lowered)) = (value, result) {
-            let (lowered, transferred) = if nullable_owner_return {
-                (lowered, false)
-            } else {
-                self.adapt_owned_value_to_expected(
-                    value_expression,
-                    lowered,
-                    self.return_type,
-                    span,
-                )?
-            };
+            let (lowered, transferred) = self.adapt_owned_value_to_expected(
+                value_expression,
+                lowered,
+                self.return_type,
+                span,
+            )?;
             if !transferred {
                 self.transfer_owned_expression(value_expression, lowered, span)?;
             }
@@ -488,25 +477,11 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
-        if string_if_return {
-            // Return cancels any qualified text frames. Loans are already ended above;
-            // discard the bookkeeping so the original root drop can retire its proof.
-            self.pending_call_frames.clear();
-        }
-        self.record_map_return_delivery(
-            UnitExpressionId::new(self.source_unit, expression),
-            result,
-            span,
-        )?;
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
         )))?;
         self.retire_nullable_when_transfers(0, span)?;
-        self.retire_while_proofs(true, span)?;
-        if string_if_return && !self.nullable_proofs.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(
@@ -579,7 +554,7 @@ impl UnitExpressionLowerer<'_> {
                     .map_iteration(UnitStatementId::new(self.source_unit, statement))
                     .is_some()
                 {
-                    self.lower_map_for(statement, *source, *body, span)
+                    Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 } else {
                     self.lower_for(statement, *source, *body, span)
                 }

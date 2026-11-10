@@ -1,7 +1,6 @@
 //! Local destructuring and temporary sequential-source routing contracts.
 
 use super::route;
-use crate::ssa::lowering_support::LoweringErrorKind;
 
 #[test]
 fn temporary_sequential_for_routes_with_local_destructuring_on_either_side() {
@@ -227,7 +226,7 @@ fn local_destructuring_qualifies_while_root_reassignment_without_a_for() {
 }
 
 #[test]
-fn numeric_for_cannot_use_local_destructuring_to_retire_outer_proof() {
+fn numeric_for_routes_refine_without_using_local_destructuring_to_retire_outer_proof() {
     let source = r#"
     value class Pair(val first: Int, val second: Int)
     fun f(own range: IntRange): Unit {
@@ -241,11 +240,12 @@ fn numeric_for_cannot_use_local_destructuring_to_retire_outer_proof() {
     }
     "#;
     let (result, routed) = route(source);
-    assert!(!routed, "numeric for must retain its own proof policy");
-    let Err(error) = result else {
-        panic!("retained lowering should reject the local split");
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(
+        routed,
+        "numeric for has no legacy proof policy after SPEC-0388"
+    );
+    crate::ssa::verify::verify_program(&result.expect("numeric for lowers in refine"))
+        .expect("verified program");
 }
 
 #[test]

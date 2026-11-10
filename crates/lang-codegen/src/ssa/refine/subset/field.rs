@@ -93,9 +93,13 @@ impl Checker<'_, '_> {
             return self.callable_local(symbol, initializer);
         }
         self.migrated |= self.class_has_deinit(declared) || self.range_type(declared);
-        let supported =
-            (self.unit(declared) || self.storage_type(declared) || self.nothing(declared))
-                && self.expression(initializer);
+        let supported = (self.unit(declared)
+            || self.storage_type(declared)
+            || self.nothing(declared)
+            || self
+                .expression_type(initializer)
+                .is_some_and(|ty| self.nothing(ty)))
+            && self.expression(initializer);
         self.known.insert(symbol);
         supported
     }
@@ -130,7 +134,9 @@ impl Checker<'_, '_> {
             || self.symbol_type(symbol) != Some(target_ty)
             || !self.storage_type(target_ty)
             || !self.adaptable(value, target_ty)
-            || (self.loops > 0 && self.view_symbols.contains(&symbol))
+            || (self.loops > 0
+                && self.view_symbols.contains(&symbol)
+                && !self.scope_requires_refine())
         {
             return false;
         }
@@ -175,7 +181,9 @@ impl Checker<'_, '_> {
             || self.symbol_type(symbol) != Some(target_ty)
             || !self.integer_type(target_ty)
             || self.expression_type(value) != Some(target_ty)
-            || (self.loops > 0 && self.view_symbols.contains(&symbol))
+            || (self.loops > 0
+                && self.view_symbols.contains(&symbol)
+                && !self.scope_requires_refine())
         {
             return false;
         }

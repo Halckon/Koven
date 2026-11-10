@@ -493,6 +493,11 @@ impl Builder<'_, '_> {
         };
         let when_true = self.body.block();
         let when_false = self.body.block();
+        self.body.blocks[when_true.0].origin = Some(self.statement_span(then_branch)?);
+        self.body.blocks[when_false.0].origin = Some(match else_branch {
+            Some(branch) => self.statement_span(branch)?,
+            None => span,
+        });
         self.condition_for_control(condition, when_true, when_false, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
@@ -564,6 +569,7 @@ impl Builder<'_, '_> {
             });
         }
         let join = self.body.block();
+        self.body.blocks[join.0].origin = Some(span);
         if branch_exits.iter().any(|(_, dead)| *dead) {
             self.entry_this_dead.insert(join);
             if let Some(slot) = self.receiver

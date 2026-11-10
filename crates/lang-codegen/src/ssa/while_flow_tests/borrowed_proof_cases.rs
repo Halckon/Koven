@@ -18,6 +18,7 @@ mod outer_borrowed_proof_contract;
 
 struct Spans {
     outer: Span,
+    outer_condition: Span,
     borrowed: Span,
     construct: Span,
     branch: Span,
@@ -29,6 +30,7 @@ struct Spans {
 struct OuterSpans {
     outer: Span,
     inner: Span,
+    inner_condition: Span,
     construct: Span,
     bindings: [Span; 2],
     member: Span,
@@ -145,8 +147,19 @@ fn source_spans(source: &str, unit: bool) -> Spans {
     let file = parse_file(&sources, &lexed).unwrap();
     assert!(file.diagnostics().is_empty());
     let ast = file.ast();
-    let outer = only(ast.statements().iter().filter_map(|(_, node)| {
-        matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+    let (outer, outer_condition) = only(ast.statements().iter().filter_map(|(_, node)| {
+        let Statement::While { mut condition, .. } = *node.payload() else {
+            return None;
+        };
+        while let Expression::Group { expression } =
+            ast.expressions().get(condition).unwrap().payload()
+        {
+            condition = *expression;
+        }
+        Some((
+            node.span(),
+            ast.expressions().get(condition).unwrap().span(),
+        ))
     }));
     let (borrowed, mut source) = only(ast.statements().iter().filter_map(|(_, node)| {
         let Statement::For { source, .. } = node.payload() else {
@@ -195,6 +208,7 @@ fn source_spans(source: &str, unit: bool) -> Spans {
     };
     Spans {
         outer,
+        outer_condition,
         borrowed,
         construct,
         branch,
@@ -223,8 +237,19 @@ fn outer_source_spans(source: &str, unit: bool) -> OuterSpans {
     let file = parse_file(&sources, &lexed).unwrap();
     assert!(file.diagnostics().is_empty());
     let ast = file.ast();
-    let inner = only(ast.statements().iter().filter_map(|(_, node)| {
-        matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+    let (inner, inner_condition) = only(ast.statements().iter().filter_map(|(_, node)| {
+        let Statement::While { mut condition, .. } = *node.payload() else {
+            return None;
+        };
+        while let Expression::Group { expression } =
+            ast.expressions().get(condition).unwrap().payload()
+        {
+            condition = *expression;
+        }
+        Some((
+            node.span(),
+            ast.expressions().get(condition).unwrap().span(),
+        ))
     }));
     let (outer, mut source) = only(ast.statements().iter().filter_map(|(_, node)| {
         let Statement::For { source, .. } = node.payload() else {
@@ -297,6 +322,7 @@ fn outer_source_spans(source: &str, unit: bool) -> OuterSpans {
     OuterSpans {
         outer,
         inner,
+        inner_condition,
         construct,
         bindings,
         member,

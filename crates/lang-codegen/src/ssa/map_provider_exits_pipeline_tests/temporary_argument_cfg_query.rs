@@ -5,7 +5,7 @@ mod provider;
 mod wrapper;
 use super::{
     fixture::{Failure, failure, need},
-    query_graph::{Graph, Uses, function, loan, result, value},
+    query_graph::{Graph, Uses, function, inherits, loan, result, value},
     query_inputs::one,
 };
 use crate::ssa::model::*;

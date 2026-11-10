@@ -29,20 +29,24 @@ pub(super) fn assert_distinct_scopes(program: &Program, source: &str, unit: bool
         .filter(|block| is_birth(block))
         .collect::<Vec<_>>();
     assert_eq!(births.len(), 2, "two real proof births");
-    // Grouped guards retain the complete while statement's source identity.
-    let header = |start, end| {
+    // Single-file while terminators carry the whole statement span; `ssa::refine` carries
+    // the null-comparison condition span inside the `while` header.
+    let inner_end = source
+        .find("\n        return total + current.value")
+        .unwrap();
+    let header = |start, limit, end| {
         only(births.iter().copied().filter(|block| {
             matches!(block.terminator.as_ref().unwrap().origin, Origin::Source(span)
-                if span.start() == start + offset && span.end() == end + offset)
+                if (span.start() == start + offset && span.end() == end + offset)
+                    || (span.start() >= start + offset && span.end() <= limit + offset))
         }))
     };
-    let outer = header(outer_start, source.rfind("\n    return total").unwrap());
-    let inner = header(
+    let outer = header(
+        outer_start,
         inner_start,
-        source
-            .find("\n        return total + current.value")
-            .unwrap(),
+        source.rfind("\n    return total").unwrap(),
     );
+    let inner = header(inner_start, inner_end, inner_end);
     assert_ne!(outer.id, inner.id);
     let (outer_owner, outer_birth) = birth_pair(function, outer);
     let (inner_owner, inner_birth) = birth_pair(function, inner);

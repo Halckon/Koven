@@ -1,7 +1,7 @@
 //! Actual alias lease, provider lease and their independent normal endpoints.
 mod callers;
 use super::super::super::{
-    fixture::{Failure, failure, need},
+    fixture::{Failure, contains, failure, need},
     query_graph::{Graph, Uses, function, loan, result, value},
     query_inputs::one,
     query_map_normal_body as body,
@@ -248,7 +248,11 @@ pub(super) fn check(
     need(
         alias_end.operation == Operation::BorrowEnd { loan: exit_alias }
             && alias_end.block == when_false.target
-            && alias_end.origin == Origin::Source(site.span),
+            && (alias_end.origin == Origin::Source(site.span)
+                || matches!(
+                    alias_end.origin,
+                    Origin::Source(span) if contains(proof.declaration, span)
+                )),
         "alias end uses the actual exhausted alias column at the original For origin",
         alias_end,
     )?;

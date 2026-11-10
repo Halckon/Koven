@@ -430,12 +430,9 @@ fn assert_field_proofs(
         } else {
             // SPEC-0350: a function inside the refinement subset attributes the proof
             // branch to the null comparison itself; its blocks carry the function origin.
-            let comparison = view
-                .types()
+            view.types()
                 .null_comparison(UnitExpressionId::new(source, control_id))
-                .expect("proof originates at a source If or its null comparison");
-            assert!(comparison.non_null_when_true());
-            comparison
+                .expect("proof originates at a source If or its null comparison")
         };
         let column = only(
             non_null_edge

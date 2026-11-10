@@ -200,8 +200,11 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if let Some(value) = self.read_while_proof_int_field(expression, projection, span)? {
-            return Ok(value);
+        if let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            && let Some(use_fact) = self.typed.non_null_use(receiver)
+            && self.typed.copyability(use_fact.declared_type()) == Copyability::MoveOnly
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if projection.kind() != UnitAggregateProjectionKind::Field
             || self.typed.copyability(projection.ty()) != Copyability::Copyable

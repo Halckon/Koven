@@ -56,6 +56,13 @@ impl Checker<'_, '_> {
             .expressions()
             .iter()
             .any(|(expr_id, node)| self.expr_requires_refine(expr_id, node.payload()))
+            || self
+                .inputs
+                .parsed
+                .ast()
+                .statements()
+                .iter()
+                .any(|(stmt_id, node)| self.stmt_requires_refine(stmt_id, node.payload()))
     }
 
     fn span_requires_refine(&self, scope: Span) -> bool {
@@ -71,6 +78,68 @@ impl Checker<'_, '_> {
                     && span.end() <= scope.end()
                     && self.expr_requires_refine(expr_id, node.payload())
             })
+            || self
+                .inputs
+                .parsed
+                .ast()
+                .statements()
+                .iter()
+                .any(|(stmt_id, node)| {
+                    let span = node.span();
+                    scope.source_id() == span.source_id()
+                        && scope.start() <= span.start()
+                        && span.end() <= scope.end()
+                        && self.stmt_requires_refine(stmt_id, node.payload())
+                })
+    }
+
+    fn stmt_requires_refine(
+        &self,
+        stmt_id: StatementId,
+        payload: &lang_frontend::parser::Statement,
+    ) -> bool {
+        match payload {
+            lang_frontend::parser::Statement::While { condition, .. } => {
+                self.while_requires_refine(*condition)
+            }
+            lang_frontend::parser::Statement::For { .. } => {
+                let statement = UnitStatementId::new(self.inputs.source_unit, stmt_id);
+                // Numeric ranges no longer lower on the legacy path (SPEC-0388).
+                self.inputs.typed.map_iteration(statement).is_some()
+                    || self.inputs.owned.iteration(statement).is_some_and(|plan| {
+                        matches!(
+                            plan.descriptor().provider(),
+                            IterationProvider::NumericRange(_)
+                        )
+                    })
+            }
+            _ => false,
+        }
+    }
+
+    fn while_requires_refine(&self, condition: ExpressionId) -> bool {
+        let root = self.ungrouped(condition);
+        let Some(fact) = self.inputs.typed.null_comparison(self.id(root)) else {
+            return false;
+        };
+        if !fact.non_null_when_true() {
+            return false;
+        }
+        matches!(
+            self.kind(self.c(fact.nullable_type())),
+            Some(UnitTypeKind::Nullable(inner)) if self.class(*inner)
+        )
+    }
+
+    fn if_requires_refine(&self, condition: ExpressionId) -> bool {
+        let root = self.ungrouped(condition);
+        let Some(fact) = self.inputs.typed.null_comparison(self.id(root)) else {
+            return false;
+        };
+        matches!(
+            self.kind(self.c(fact.nullable_type())),
+            Some(UnitTypeKind::Nullable(inner)) if self.class(*inner) || self.string(*inner)
+        )
     }
 
     fn expr_requires_refine(&self, expr_id: ExpressionId, payload: &Expression) -> bool {
@@ -83,6 +152,11 @@ impl Checker<'_, '_> {
                 .callables
                 .get(&id)
                 .is_some_and(|callable| !callable.captures.is_empty())
+            || self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, id)
+                .is_some_and(|site| !site.delegation().is_empty())
             || typed
                 .non_null_assertion(id)
                 .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
@@ -90,7 +164,9 @@ impl Checker<'_, '_> {
             // `RangeView.size` (SPEC-0393) and `String.clone()` (SPEC-0394) lower only here.
             || typed.range_size(id).is_some()
             || typed.string_operation(id).is_some()
-            // Borrow-result and `RangeView` calls lower only here (SPEC-0393).
+            // Borrow-result and `RangeView` calls lower only here. A `FunctionValue`
+            // call qualifies through `function_callee`, which keeps loop-jump
+            // arguments on the explicit unsupported boundary.
             || typed.call(id).is_some_and(|call| {
                 call.borrow_return().is_some()
                     || matches!(call.result_source(), CallableResultSource::Carrier(_))
@@ -100,6 +176,8 @@ impl Checker<'_, '_> {
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()
             || typed.map_get(id).is_some()
+            || typed.map_consume(id).is_some()
+            || typed.map_remove(id).is_some()
             || typed.container_append(id).is_some()
             || typed.container_clear(id).is_some()
             || typed.container_remove_at(id).is_some()
@@ -131,13 +209,15 @@ impl Checker<'_, '_> {
         {
             return true;
         }
-        matches!(
-            payload,
-            Expression::Assignment { target, .. }
-                if self.is_field_target(*target)
+        match payload {
+            Expression::Assignment { target, .. } => {
+                self.is_field_target(*target)
                     || self.is_element_target(*target)
                     || self.is_map_put_target(*target)
-        )
+            }
+            Expression::If { condition, .. } => self.if_requires_refine(*condition),
+            _ => false,
+        }
     }
 
     /// Strips outer proof views for any binding reassigned inside `loop_span`.

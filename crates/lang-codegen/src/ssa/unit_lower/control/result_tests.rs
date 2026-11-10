@@ -5,9 +5,10 @@ use crate::ssa::unit_lower::nullable_proof::guard_tests::support::Fixture;
 #[test]
 fn contextual_null_result_requires_exact_target_and_control_identity() {
     let fixture = Fixture::new(
-        r#"fun entry(flag: Boolean): Unit {
+        r#"fun consume(own v: String?): Unit {}
+fun entry(flag: Boolean): Unit {
     val value = if (flag) { ("value" + "") } else { if (flag) { null } else { null } }
-    if (value != null) { println(value) }
+    consume(value)
 }"#,
     );
     let controls = fixture
