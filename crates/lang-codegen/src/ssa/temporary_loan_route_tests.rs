@@ -3,10 +3,15 @@ use super::*;
 
 #[test]
 fn temporary_borrow_caller_uses_refine_without_migrating_callee() {
-    check();
+    check(false);
 }
 
-fn check() {
+#[test]
+fn temporary_borrow_requires_real_production_receipt() {
+    check(true);
+}
+
+fn check(require_receipt: bool) {
     let text = "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }";
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "temporary.ko", text);
@@ -34,21 +39,31 @@ fn check() {
             .iter()
             .find(|d| d.name() == "run")
             .unwrap();
-        let (lowered, routing) = super::super::refine::observe_routing(|| {
-            super::super::unit_lower::lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                &owned,
-                run.id(),
-            )
-        });
+        let ((lowered, routing), receipts) =
+            super::super::refine::temporary_receipt::observe(|| {
+                super::super::refine::observe_routing(|| {
+                    super::super::unit_lower::lower_scalar_unit_with_entry(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        &owned,
+                        run.id(),
+                    )
+                })
+            });
         let (program, entry) = lowered.unwrap();
         verify_program(&program).unwrap();
         crate::llvm::render_verified_program(&program).unwrap();
         let caller = program.modules[0].function(entry).unwrap();
+        if require_receipt {
+            assert_eq!(
+                receipts.len(),
+                1,
+                "nonempty Complete1 requires production receipt"
+            );
+        }
         assert_eq!(
             routing.as_slice(),
             std::slice::from_ref(&caller.name),
