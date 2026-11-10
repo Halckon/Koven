@@ -1,3 +1,6 @@
+#[path = "lower_frontend_diagnostic_tests.rs"]
+mod frontend_boundaries;
+
 use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic, assert_text_eq};
 #[path = "boxed_signature_storage_tests.rs"]
 mod boxed_signature_storage_tests;
@@ -10,6 +13,9 @@ mod resource_deinit_tests;
 
 #[path = "lower_frontend_return_tests.rs"]
 mod return_control_tests;
+
+#[path = "lower_frontend_root_boundary_tests.rs"]
+mod root_boundaries;
 
 use lang_frontend::{
     lexer::lex,
@@ -184,48 +190,13 @@ fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
 
 #[test]
 fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
-    let analysis = analyze(
+    root_boundaries::assert_unused_declarations(
         "public value class Pair<A, B>(val first: A, val second: B)\n\
          class Holder(val item: Int)\n\
          interface Marker\n\
          enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
          fun entry(): Unit {}",
     );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-
-    let lower = || {
-        lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .expect("declarative type roots have no module initialization action")
-    };
-    let program = lower();
-    let repeated = lower();
-    let ssa = render_program(&program);
-    assert_text_eq!(ssa, render_program(&repeated));
-    assert_eq_diagnostic!(ssa.matches("func \"").count(), 1, "{ssa}");
-    assert_diagnostic!(ssa.contains("func \"entry\""), "{ssa}");
-    for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
-        assert_diagnostic!(!ssa.contains(declaration), "{ssa}");
-    }
-
-    let llvm = render_verified_program(&program).expect("declarative roots must reach LLVM");
-    assert_eq_diagnostic!(llvm.matches("define internal").count(), 1, "{llvm}");
-    for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
-        assert_diagnostic!(!llvm.contains(declaration), "{llvm}");
-    }
-
     {
         let rejected = analyze("val state = 1\nfun entry(): Unit {}");
         assert!(rejected.names.diagnostics().is_empty());
@@ -311,28 +282,10 @@ fn lowers_real_scalar_expression_functions_through_verified_ssa() {
 
 #[test]
 fn rejects_out_of_range_integer_literals_before_ssa_construction() {
-    let invalid = analyze(
+    frontend_boundaries::assert_integer_literal_rejection(
         "fun byteTooLow(): Byte = -129\n\
          fun ulongTooHigh(): ULong = 18446744073709551616uL",
     );
-    assert_eq!(invalid.typed.diagnostics().len(), 2);
-    assert!(
-        invalid
-            .typed
-            .diagnostics()
-            .iter()
-            .all(|diagnostic| diagnostic.code().to_string() == "L0090")
-    );
-    let error = lower_scalar_file(
-        &invalid.sources,
-        &invalid.parsed,
-        &invalid.names,
-        &invalid.typed,
-        &invalid.owned,
-    )
-    .err()
-    .expect("out-of-range literals must be rejected before SSA construction");
-    assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
 }
 
 #[test]
@@ -515,17 +468,7 @@ fn lowers_straight_line_blocks_locals_assignments_and_returns() {
 
 #[test]
 fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
-    let diagnostic = analyze("fun broken(input: Int): Int = missing");
-    let error = lower_scalar_file(
-        &diagnostic.sources,
-        &diagnostic.parsed,
-        &diagnostic.names,
-        &diagnostic.typed,
-        &diagnostic.owned,
-    )
-    .err()
-    .expect("frontend diagnostics must gate lowering");
-    assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
+    frontend_boundaries::assert_missing_name_rejection("fun broken(input: Int): Int = missing");
 
     let numeric_when = analyze(
         "fun numeric(input: Int): Int = when (input) {\n\
@@ -562,52 +505,14 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 
-    let invalid_jump = analyze("fun invalid(): Unit { break }");
-    assert_eq!(invalid_jump.typed.diagnostics().len(), 1);
-    assert_eq!(
-        invalid_jump.typed.diagnostics()[0].code().to_string(),
-        "L0142"
+    frontend_boundaries::assert_jump_rejection("fun invalid(): Unit { break }");
+    frontend_boundaries::assert_original_for_loop(
+        "fun iterate(): Unit { for (item in listOf(1)) {} }",
     );
-    let error = lower_scalar_file(
-        &invalid_jump.sources,
-        &invalid_jump.parsed,
-        &invalid_jump.names,
-        &invalid_jump.typed,
-        &invalid_jump.owned,
-    )
-    .err()
-    .expect("Phase 2 jump diagnostics must gate SSA construction");
-    assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
-
-    let for_loop = analyze("fun iterate(): Unit { for (item in listOf(1)) {} }");
-    assert!(for_loop.typed.diagnostics().is_empty());
-    assert!(for_loop.owned.diagnostics().is_empty());
-    assert_eq!(for_loop.owned.iterations().len(), 1);
-    let program = lower_scalar_file(
-        &for_loop.sources,
-        &for_loop.parsed,
-        &for_loop.names,
-        &for_loop.typed,
-        &for_loop.owned,
-    )
-    .expect("for loops are now lowered to valid SSA");
-    super::verify::verify_program(&program).expect("for loop SSA must verify");
-
-    let string_instance = analyze(
+    frontend_boundaries::assert_original_string_instance(
         "fun <T> identity(own input: T): T = input\n\
          fun text(own input: String): String = identity(input)",
     );
-    assert!(string_instance.typed.diagnostics().is_empty());
-    assert!(string_instance.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &string_instance.sources,
-        &string_instance.parsed,
-        &string_instance.names,
-        &string_instance.typed,
-        &string_instance.owned,
-    )
-    .expect("String is now a first-class concrete generic instance");
-    assert!(render_program(&program).contains("identity<String>"));
 }
 
 #[test]

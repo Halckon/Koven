@@ -53,7 +53,7 @@ impl BorrowForwardIndex {
 pub(super) struct LoanProvenance {
     pub(super) formed_owned: BTreeSet<UnitSymbolId>,
     pub(super) iteration_providers: BTreeSet<UnitSymbolId>,
-    borrow_bindings: BTreeSet<UnitSymbolId>,
+    pub(super) borrow_bindings: BTreeSet<UnitSymbolId>,
     bindings_by_initializer: BTreeMap<UnitExpressionId, Vec<usize>>,
 }
 
@@ -78,8 +78,14 @@ impl LoanProvenance {
         let mut bindings_by_initializer = BTreeMap::<_, Vec<_>>::new();
         for (index, binding) in checker.borrow_results.bindings().iter().enumerate() {
             borrow_bindings.insert(binding.binding());
+            // Normalize only the lookup key through transparent Groups. The
+            // published binding keeps its original initializer identity.
+            let initializer = checker
+                .borrow_result_call(binding.initializer().expression())
+                .map(|call| checker.unit_expression(call))
+                .unwrap_or(binding.initializer());
             bindings_by_initializer
-                .entry(binding.initializer())
+                .entry(initializer)
                 .or_default()
                 .push(index);
         }

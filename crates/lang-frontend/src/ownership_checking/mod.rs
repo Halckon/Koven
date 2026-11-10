@@ -68,15 +68,21 @@ pub use compilation_unit::{
     UnitMapIterationLoan, UnitMapIterationOwnershipPlan, UnitNonNullAssertionOwnershipPlan,
     UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact,
     UnitNullableWhenUseKind, UnitOwnerCallable, UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1,
-    UnitOwnerChoiceV1, UnitOwnerDefinition, UnitOwnerId, UnitOwnerObservation,
-    UnitOwnerObservationStatus, UnitOwnerOrigin, UnitOwnerProducerCatalogV1,
+    UnitOwnerChoiceV1, UnitOwnerContinueArmBoundaryV1, UnitOwnerDefinition, UnitOwnerId,
+    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerInvariantMixedJoinObservationV1, UnitOwnerInvariantNormalJoinObservationV1,
+    UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
+    UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
+    UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
+    UnitOwnerObservation, UnitOwnerObservationStatus, UnitOwnerOrigin, UnitOwnerProducerCatalogV1,
     UnitOwnerTransportEvent, UnitOwnerUnsupportedReason, UnitOwnerValueEventV1,
     UnitOwnerValueObservationV1, UnitOwnerValueV1, UnitOwnershipBindingDescriptor,
     UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitReceiverCallPrefixEndFact, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
-    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
-    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
+    UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
+    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
+    check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{
@@ -115,7 +121,7 @@ pub use nullable_when::{
     NullableWhenExtractionKind, NullableWhenOwnershipPlan, NullableWhenProofView,
 };
 pub use rc::{RcOwnershipEffect, RcOwnershipEffectKind};
-pub use string::{StringOwnershipEffect, UnitStringOwnershipEffect};
+pub use string::{StringOwnershipEffect, UnitStringCloneLoanEndFact, UnitStringOwnershipEffect};
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。
 pub fn check_ownership(

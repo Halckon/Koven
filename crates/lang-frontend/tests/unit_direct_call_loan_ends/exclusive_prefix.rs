@@ -194,13 +194,14 @@ fn declaration_return_exposes_exclusive_owned_root_prefix() {
 }
 
 #[test]
-fn established_exclusive_prefixes_on_break_and_continue_are_excluded() {
+fn established_exclusive_prefixes_end_at_the_actual_loop_exit() {
     for jump in ["break", "continue"] {
         let call_text = format!("replace(&a, {jump})");
         let text = format!(
             "class Item(val n: Int)\nfun run(): Unit {{ loop {{ var a = Item(1); {call_text} }} }}"
         );
-        let observed = assert_prefixes(&text, &[]);
+        let observed = observe(&text);
+        assert_units_admitted(&observed);
         for ((unit, typed), names) in observed
             .units
             .iter()
@@ -217,7 +218,7 @@ fn established_exclusive_prefixes_on_break_and_continue_are_excluded() {
                 .filter(|loan| loan.kind() == LoanKind::Exclusive)
                 .collect();
             let [loan] = loans.as_slice() else {
-                panic!("the excluded call really established one Exclusive loan");
+                panic!("the original call really established one Exclusive loan");
             };
             assert_eq!(loan.call().source_unit(), source.id());
             assert_eq!(loan.argument().source_unit(), source.id());
@@ -259,12 +260,19 @@ fn established_exclusive_prefixes_on_break_and_continue_are_excluded() {
                 unit.drops().iter().any(|drop| {
                     drop.point() == point && drop.target() == UnitDropTarget::Named(place.root())
                 }),
-                "the established owner is actually cleaned at the excluded jump"
+                "the established owner is actually cleaned at the loop exit"
             );
             assert!(
                 unit.ownership_primitives().is_empty(),
                 "replacement never commits"
             );
+            let [event] = unit.exclusive_call_prefix_ends() else {
+                panic!("the original loop source now publishes its actual end");
+            };
+            assert_eq!(event.loan(), *loan);
+            assert_eq!(event.point(), point);
+            assert_eq!(event.preceding_call_loan_ends(), 0);
+            assert_eq!(event.preceding_drops(), 0);
         }
     }
 }

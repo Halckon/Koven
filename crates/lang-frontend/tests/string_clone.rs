@@ -1,5 +1,8 @@
 //! String.clone 的类型与所有权合同。
 
+#[path = "string_clone/loan_ends.rs"]
+mod loan_ends;
+
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
@@ -106,6 +109,7 @@ fn check_both(
         );
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         if ownership_diagnostics.is_empty() {
+            loan_ends::assert_complete(typed, &owned);
             assert_eq!(
                 typed.string_operations().len(),
                 owned.string_effects().len()
@@ -199,6 +203,7 @@ fn check_both(
             "unit ownership",
         );
         if ownership_diagnostics.is_empty() {
+            loan_ends::assert_complete(typed.types(), &owned);
             assert_eq!(
                 typed.types().string_operations().len(),
                 owned.string_effects().len()
@@ -239,9 +244,8 @@ fn check_both(
     }
 }
 
-// Unit exposes synchronous loan descriptors, not the independent legacy loan-end table.
-// Keep the original CallReturn event oracle on the same successful source programs;
-// the MemoryDocument descriptor checks above do not retire this coverage.
+// Retain the original Single CallReturn witness while the new bounded Unit observer
+// is introduced. This additive checkpoint does not retire a legacy consumer.
 fn assert_legacy_clone_call_return(text: &str) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("string-clone.ko", text).expect("source");

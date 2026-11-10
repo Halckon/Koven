@@ -1,18 +1,39 @@
-//! Single-binding Choice collection at real planner transitions, separate from legacy IDs.
+//! Bounded Choice collection at real planner transitions, separate from legacy IDs.
+mod replace;
+
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
     UnitOwnerValueEventV1 as Event, UnitOwnerValueObservationV1, UnitOwnerValueV1 as Value,
 };
-use crate::parser::VariableKind;
+use crate::parser::{BinaryOperator, PrefixOperator, VariableKind};
 
-/// One outer binding; each edge is a literal or a single consumed immutable local.
+/// One Choice binding and bounded replacement output transfers; one String tail per edge.
 struct Admission {
     callable: UnitOwnerCallable,
     control: UnitExpressionId,
+    result_chain: Vec<UnitExpressionId>,
     symbol: UnitSymbolId,
     drop_point: crate::ownership_checking::UnitDropPoint,
     arms: [Arm; 2],
+    transfers: Vec<Transfer>,
+    replacement: Option<replace::Admission>,
+}
+
+struct Transfer {
+    source: UnitSymbolId,
+    symbol: UnitSymbolId,
+    chain: Vec<UnitExpressionId>,
+    drop_point: crate::ownership_checking::UnitDropPoint,
+}
+
+#[derive(Default)]
+struct TransferFrame {
+    // Saved at the actual named take, never reconstructed from a cleanup event.
+    result: Option<UnitExpressionId>,
+    value: Option<Value>,
+    completed: usize,
+    bound: bool,
 }
 
 struct Arm {
@@ -41,71 +62,62 @@ pub(in super::super) struct ChoiceTransaction {
     catalog: UnitOwnerProducerCatalogV1,
     events: [Vec<Event>; 2],
     edges: [Edge; 2],
+    transfer: TransferFrame,
+    transfer_index: usize,
+    // A completed intermediate alias stays named until the next actual take.
+    alias: Option<(UnitSymbolId, Value)>,
+    replacement: replace::Frame,
     control_completed: bool,
+    result: Option<UnitExpressionId>,
+    result_completed: usize,
     suffix: Vec<Event>,
     bound: bool,
     dropped: bool,
     valid: bool,
 }
 
-fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
+fn chain(
+    checker: &Checker<'_>,
+    expression: ExpressionId,
+    local: Option<UnitSymbolId>,
+) -> Option<Vec<UnitExpressionId>> {
     let ast = checker.parsed.ast();
-    let Item::Function {
-        name,
-        parameters,
-        form,
-        ..
-    } = ast.items().get(item).ok()?.payload()
-    else {
-        return None;
-    };
-    // A top-level ordinary, non-generic function with exactly one Boolean parameter.
-    if !checker.parsed.roots().contains(&item)
-        || parameters.len() != 1
-        || parameters[0].mode_marker.is_some()
-        || checker.receiver_context(*name).is_some()
-    {
-        return None;
+    let mut ids = Vec::new();
+    let mut current = expression;
+    loop {
+        if checker.is_constant_use(current) {
+            return None;
+        }
+        ids.push(checker.unit_expression(current));
+        let node = ast.expressions().get(current).ok()?;
+        match node.payload() {
+            Expression::Group { expression } => current = *expression,
+            Expression::Name
+                if local.is_some() && checker.reference_symbol(node.span()) == local =>
+            {
+                break;
+            }
+            Expression::String { parts }
+                if local.is_none()
+                    && !parts
+                        .iter()
+                        .any(|part| matches!(part, StringPart::Interpolation { .. })) =>
+            {
+                break;
+            }
+            _ => return None,
+        }
     }
-    let function = *checker.marker_symbol(*name)?;
-    let signature = checker
-        .typed
-        .signatures()
-        .declarations()
-        .iter()
-        .find(|declaration| declaration.symbol() == function)?
-        .callable()?;
-    if signature.receiver().is_some()
-        || !signature.type_parameters().is_empty()
-        || checker.typed.types().get(signature.return_type())
-            != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
-    {
-        return None;
-    }
-    let parameter = *checker.marker_symbol(parameters[0].name)?;
-    if checker
-        .typed
-        .symbol_type(parameter)
-        .and_then(|ty| checker.typed.types().get(ty))
-        != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-    {
-        return None;
-    }
-    let body = match form {
-        FunctionForm::ImplicitUnitBlock(body)
-        | FunctionForm::Explicit {
-            body: FunctionBody::Block(body),
-            ..
-        } => *body,
-        _ => return None,
-    };
-    let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
-        return None;
-    };
-    let [statement] = elements.as_slice() else {
-        return None;
-    };
-    let Statement::LocalVariable { declaration } = ast.statements().get(*statement).ok()?.payload()
+    ids.reverse();
+    Some(ids)
+}
+
+fn immutable_string_binding(
+    checker: &Checker<'_>,
+    statement: StatementId,
+) -> Option<(UnitSymbolId, ExpressionId)> {
+    let ast = checker.parsed.ast();
+    let Statement::LocalVariable { declaration } = ast.statements().get(statement).ok()?.payload()
     else {
         return None;
     };
@@ -128,63 +140,174 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
     {
         return None;
     }
+    Some((symbol, *initializer))
+}
+
+fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
+    let ast = checker.parsed.ast();
+    let Item::Function {
+        name,
+        parameters,
+        form,
+        ..
+    } = ast.items().get(item).ok()?.payload()
+    else {
+        return None;
+    };
+    // A top-level ordinary, non-generic function with one or two Boolean inputs.
+    if !checker.parsed.roots().contains(&item)
+        || !(1..=2).contains(&parameters.len())
+        || parameters
+            .iter()
+            .any(|parameter| parameter.mode_marker.is_some())
+        || checker.receiver_context(*name).is_some()
+    {
+        return None;
+    }
+    let function = *checker.marker_symbol(*name)?;
+    let signature = checker
+        .typed
+        .signatures()
+        .declarations()
+        .iter()
+        .find(|declaration| declaration.symbol() == function)?
+        .callable()?;
+    if signature.receiver().is_some()
+        || !signature.type_parameters().is_empty()
+        || checker.typed.types().get(signature.return_type())
+            != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+    {
+        return None;
+    }
+    let mut condition_symbols = Vec::with_capacity(parameters.len());
+    for parameter in parameters {
+        let symbol = *checker.marker_symbol(parameter.name)?;
+        if checker
+            .typed
+            .symbol_type(symbol)
+            .and_then(|ty| checker.typed.types().get(ty))
+            != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
+        {
+            return None;
+        }
+        condition_symbols.push(symbol);
+    }
+    let body = match form {
+        FunctionForm::ImplicitUnitBlock(body)
+        | FunctionForm::Explicit {
+            body: FunctionBody::Block(body),
+            ..
+        } => *body,
+        _ => return None,
+    };
+    let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
+        return None;
+    };
+    let (statement, transfer_statement, final_statement, extra_statement) =
+        match elements.as_slice() {
+            [statement] => (*statement, None, None, None),
+            [statement, transfer] => (*statement, Some(*transfer), None, None),
+            [statement, replacement, transfer] => {
+                (*statement, Some(*replacement), Some(*transfer), None)
+            }
+            [statement, replacement, old, new] => {
+                (*statement, Some(*replacement), Some(*old), Some(*new))
+            }
+            _ => return None,
+        };
+    let Statement::LocalVariable { declaration } = ast.statements().get(statement).ok()?.payload()
+    else {
+        return None;
+    };
+    let Item::Variable {
+        kind,
+        name,
+        initializer,
+        ..
+    } = ast.items().get(*declaration).ok()?.payload()
+    else {
+        return None;
+    };
+    let symbol = *checker.marker_symbol(*name)?;
+    if !matches!(kind, VariableKind::Val | VariableKind::Var) {
+        return None;
+    }
+    if checker
+        .typed
+        .symbol_type(symbol)
+        .and_then(|ty| checker.typed.types().get(ty))
+        != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        || !checker.is_move_only_variable(symbol)
+    {
+        return None;
+    }
+    // A whole-If Group forwards the selected value; it is not another producer
+    // and must still complete through the real expression-result frames.
+    let mut control = *initializer;
+    let mut result_chain = Vec::new();
+    loop {
+        if checker.is_constant_use(control)
+            || checker
+                .typed
+                .expression_type(checker.unit_expression(control))
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        {
+            return None;
+        }
+        result_chain.push(checker.unit_expression(control));
+        match ast.expressions().get(control).ok()?.payload() {
+            Expression::Group { expression } => control = *expression,
+            Expression::If { .. } => break,
+            _ => return None,
+        }
+    }
+    result_chain.reverse();
     let Expression::If {
         condition,
         then_branch,
         else_branch: Some(else_branch),
         ..
-    } = ast.expressions().get(*initializer).ok()?.payload()
+    } = ast.expressions().get(control).ok()?.payload()
     else {
         return None;
     };
-    if checker
-        .typed
-        .expression_type(checker.unit_expression(*initializer))
-        .and_then(|ty| checker.typed.types().get(ty))
-        != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-    {
-        return None;
-    }
-    let condition_node = ast.expressions().get(*condition).ok()?;
-    if !matches!(condition_node.payload(), Expression::Name)
-        || checker.reference_symbol(condition_node.span()) != Some(parameter)
-    {
-        return None;
-    }
-    fn chain(
-        checker: &Checker<'_>,
-        expression: ExpressionId,
-        local: Option<UnitSymbolId>,
-    ) -> Option<Vec<UnitExpressionId>> {
-        let ast = checker.parsed.ast();
-        let mut ids = Vec::new();
-        let mut current = expression;
-        loop {
-            if checker.is_constant_use(current) {
-                return None;
-            }
-            ids.push(checker.unit_expression(current));
-            let node = ast.expressions().get(current).ok()?;
-            match node.payload() {
-                Expression::Group { expression } => current = *expression,
-                Expression::Name
-                    if local.is_some() && checker.reference_symbol(node.span()) == local =>
-                {
-                    break;
-                }
-                Expression::String { parts }
-                    if local.is_none()
-                        && !parts
-                            .iter()
-                            .any(|part| matches!(part, StringPart::Interpolation { .. })) =>
-                {
-                    break;
-                }
-                _ => return None,
-            }
+    // Validate the complete owner-free predicate, including both short-circuit
+    // operands. Actual traversal evaluates it; Choice inputs still use If edges.
+    let mut conditions = vec![*condition];
+    while let Some(condition) = conditions.pop() {
+        if checker.is_constant_use(condition)
+            || checker
+                .typed
+                .expression_type(checker.unit_expression(condition))
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
+        {
+            return None;
         }
-        ids.reverse();
-        Some(ids)
+        let node = ast.expressions().get(condition).ok()?;
+        match node.payload() {
+            Expression::Group { expression } => conditions.push(*expression),
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => conditions.push(*operand),
+            Expression::Binary {
+                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                left,
+                right,
+                ..
+            } => {
+                conditions.push(*right);
+                conditions.push(*left);
+            }
+            Expression::Name
+                if checker
+                    .reference_symbol(node.span())
+                    .is_some_and(|symbol| condition_symbols.contains(&symbol)) => {}
+            _ => return None,
+        }
     }
     fn arm(checker: &Checker<'_>, body: StatementId) -> Option<Arm> {
         let ast = checker.parsed.ast();
@@ -239,15 +362,101 @@ fn admission(checker: &Checker<'_>, item: ItemId) -> Option<Admission> {
             local,
         })
     }
+    let drop_point = |statement| {
+        crate::ownership_checking::UnitDropPoint::AfterStatement(UnitStatementId::new(
+            checker.source_unit,
+            statement,
+        ))
+    };
+    let mut replacement = None;
+    let transfer = if let Some(statement) = transfer_statement {
+        let (target, initializer) = immutable_string_binding(checker, statement)?;
+        if target == symbol {
+            return None;
+        }
+        if *kind == VariableKind::Var {
+            replacement = Some(replace::admit(
+                checker,
+                symbol,
+                target,
+                initializer,
+                statement,
+            )?);
+            None
+        } else {
+            Some(Transfer {
+                source: symbol,
+                symbol: target,
+                chain: chain(checker, initializer, Some(symbol))?,
+                drop_point: drop_point(statement),
+            })
+        }
+    } else {
+        if *kind != VariableKind::Val {
+            return None;
+        }
+        None
+    };
+    let mut transfers: Vec<_> = transfer.into_iter().collect();
+    if let Some(statement) = final_statement {
+        // Without replace, the third declaration consumes the first alias.
+        // With replace, it consumes either checked output as before.
+        let previous = replacement
+            .as_ref()
+            .map(|item| item.symbol)
+            .or_else(|| transfers.first().map(|item| item.symbol))?;
+        let (target, initializer) = immutable_string_binding(checker, statement)?;
+        if target == previous || target == symbol {
+            return None;
+        }
+        let (source, ids) = if let Some(ids) = chain(checker, initializer, Some(previous)) {
+            (previous, ids)
+        } else if replacement.is_some() {
+            (symbol, chain(checker, initializer, Some(symbol))?)
+        } else {
+            return None;
+        };
+        transfers.push(Transfer {
+            source,
+            symbol: target,
+            chain: ids,
+            drop_point: drop_point(statement),
+        });
+    }
+    if let Some(statement) = extra_statement {
+        // The second transfer must consume the other checked replacement output.
+        let previous = replacement.as_ref()?.symbol;
+        let first = transfers.first()?;
+        let source = if first.source == previous {
+            symbol
+        } else if first.source == symbol {
+            previous
+        } else {
+            return None;
+        };
+        let (target, initializer) = immutable_string_binding(checker, statement)?;
+        if [symbol, previous, first.symbol].contains(&target) {
+            return None;
+        }
+        transfers.push(Transfer {
+            source,
+            symbol: target,
+            chain: chain(checker, initializer, Some(source))?,
+            drop_point: drop_point(statement),
+        });
+    }
     Some(Admission {
         callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
-        control: checker.unit_expression(*initializer),
+        control: checker.unit_expression(control),
+        result_chain,
         symbol,
         drop_point: crate::ownership_checking::UnitDropPoint::AfterStatement(UnitStatementId::new(
             checker.source_unit,
-            *statement,
+            final_statement.or(transfer_statement).unwrap_or(statement),
         )),
         arms: [arm(checker, *then_branch)?, arm(checker, *else_branch)?],
+        transfers,
+        replacement,
     })
 }
 
@@ -267,7 +476,13 @@ impl ChoiceTransaction {
             admission,
             events: [Vec::new(), Vec::new()],
             edges: [Edge::default(), Edge::default()],
+            transfer: TransferFrame::default(),
+            transfer_index: 0,
+            alias: None,
+            replacement: replace::Frame::default(),
             control_completed: false,
+            result: None,
+            result_completed: 0,
             suffix: Vec::new(),
             bound: false,
             dropped: false,
@@ -279,13 +494,22 @@ impl ChoiceTransaction {
         self.catalog.definitions.clear();
         self.events.iter_mut().for_each(Vec::clear);
         self.edges = [Edge::default(), Edge::default()];
+        self.transfer = TransferFrame::default();
+        self.transfer_index = 0;
+        self.alias = None;
+        self.replacement = replace::Frame::default();
         self.control_completed = false;
+        self.result = None;
+        self.result_completed = 0;
         self.suffix.clear();
         self.bound = false;
         self.dropped = false;
     }
     pub(in super::super) fn string_completed(&mut self, expression: UnitExpressionId) {
         if !self.valid {
+            return;
+        }
+        if self.replacement_string(expression) {
             return;
         }
         let Some(edge) = self.admission.arms.iter().position(|arm| {
@@ -336,13 +560,86 @@ impl ChoiceTransaction {
             self.abort();
             return;
         }
-        if expression == self.admission.control {
-            if !consuming || self.control_completed || !self.edges.iter().all(|edge| edge.delivered)
+        if self.replacement_expression(expression, consuming) {
+            return;
+        }
+        if self
+            .admission
+            .transfers
+            .iter()
+            .enumerate()
+            .any(|(index, transfer)| {
+                index != self.transfer_index && transfer.chain.contains(&expression)
+            })
+        {
+            // A not-yet-started or retired transfer is not an unrelated condition.
+            self.abort();
+            return;
+        }
+        if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
+            && let Some(position) = transfer.chain.iter().position(|id| *id == expression)
+        {
+            let from = if position == 0 {
+                expression
+            } else {
+                transfer.chain[position - 1]
+            };
+            if !consuming
+                || !self.bound
+                || self.dropped
+                || self.transfer.bound
+                || self.transfer.completed != position
+                || self.transfer.result != Some(from)
             {
                 self.abort();
                 return;
             }
-            self.control_completed = true;
+            let Some(value) = self.transfer.value.clone() else {
+                self.abort();
+                return;
+            };
+            if position != 0 {
+                self.suffix.push(Event::Forward(from, expression, value));
+                self.transfer.result = Some(expression);
+            }
+            self.transfer.completed += 1;
+            return;
+        }
+        if let Some(position) = self
+            .admission
+            .result_chain
+            .iter()
+            .position(|id| *id == expression)
+        {
+            if !consuming
+                || self.bound
+                || self.dropped
+                || self.result_completed != position
+                || !self.edges.iter().all(|edge| edge.delivered)
+            {
+                self.abort();
+                return;
+            }
+            if position == 0 {
+                if self.control_completed || self.result.is_some() {
+                    self.abort();
+                    return;
+                }
+                self.control_completed = true;
+            } else {
+                let from = self.admission.result_chain[position - 1];
+                if !self.control_completed || self.result != Some(from) {
+                    self.abort();
+                    return;
+                }
+                self.suffix.push(Event::Forward(
+                    from,
+                    expression,
+                    Value::Choice(self.choice_id()),
+                ));
+            }
+            self.result = Some(expression);
+            self.result_completed += 1;
             return;
         }
         let Some((edge, initializer, position)) =
@@ -408,6 +705,38 @@ impl ChoiceTransaction {
         taken: Option<UnitSymbolId>,
     ) {
         if !self.valid {
+            return;
+        }
+        if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
+            && transfer.chain.first() == Some(&expression)
+        {
+            let source = transfer.source;
+            if !self.bound
+                || self.dropped
+                || self.transfer.bound
+                || self.transfer.result.is_some()
+                || self.transfer.value.is_some()
+                || self.transfer.completed != 0
+                || taken != Some(source)
+            {
+                self.abort();
+                return;
+            }
+            let value = if self.admission.replacement.is_none() && self.transfer_index == 1 {
+                self.alias
+                    .take()
+                    .filter(|(symbol, _)| *symbol == source)
+                    .map(|(_, value)| value)
+            } else {
+                self.replacement_transfer_value(source)
+            };
+            let Some(value) = value else {
+                self.abort();
+                return;
+            };
+            self.transfer.value = Some(value.clone());
+            self.suffix.push(Event::Move(expression, source, value));
+            self.transfer.result = Some(expression);
             return;
         }
         let Some(edge) = self
@@ -483,6 +812,9 @@ impl ChoiceTransaction {
         if !self.valid {
             return;
         }
+        if self.replacement_bound(symbol, initializer) {
+            return;
+        }
         if let Some(edge) = self.admission.arms.iter().position(|arm| {
             arm.local
                 .as_ref()
@@ -517,11 +849,48 @@ impl ChoiceTransaction {
             state.local = Some((symbol, owner));
             return;
         }
+        if let Some(transfer) = self.admission.transfers.get(self.transfer_index)
+            && symbol == transfer.symbol
+        {
+            if !self.bound
+                || self.dropped
+                || self.transfer.bound
+                || self.transfer.completed != transfer.chain.len()
+                || self.transfer.result != Some(initializer)
+                || self.alias.is_some()
+                || transfer.chain.last() != Some(&initializer)
+            {
+                self.abort();
+                return;
+            }
+            let Some(value) = self.transfer.value.clone() else {
+                self.abort();
+                return;
+            };
+            self.suffix.push(Event::Bind(symbol, initializer, value));
+            self.transfer.result = None;
+            self.transfer.bound = true;
+            if self.admission.replacement.is_none()
+                && self
+                    .admission
+                    .transfers
+                    .get(self.transfer_index + 1)
+                    .is_some_and(|next| next.source == symbol)
+            {
+                // Post-insert is the only non-retiring transition between segments.
+                self.alias = self.transfer.value.take().map(|value| (symbol, value));
+                self.transfer = TransferFrame::default();
+                self.transfer_index += 1;
+            }
+            return;
+        }
         if self.bound
             || !self.control_completed
             || !self.edges.iter().all(|edge| edge.delivered)
             || symbol != self.admission.symbol
-            || initializer != self.admission.control
+            || self.result_completed != self.admission.result_chain.len()
+            || self.result != Some(initializer)
+            || self.admission.result_chain.last() != Some(&initializer)
         {
             self.abort();
             return;
@@ -531,6 +900,7 @@ impl ChoiceTransaction {
             initializer,
             Value::Choice(self.choice_id()),
         ));
+        self.result = None;
         self.bound = true;
     }
     pub(in super::super) fn dropped(
@@ -541,23 +911,50 @@ impl ChoiceTransaction {
         if !self.valid {
             return;
         }
+        if self.replacement_dropped(point, symbol) {
+            return;
+        }
+        let transfer = self.admission.transfers.get(self.transfer_index);
+        let (expected, expected_point) = transfer.map_or(
+            (self.admission.symbol, self.admission.drop_point),
+            |transfer| (transfer.symbol, transfer.drop_point),
+        );
         if !self.bound
             || self.dropped
-            || symbol != self.admission.symbol
-            || point != self.admission.drop_point
+            || symbol != expected
+            || point != expected_point
+            || (transfer.is_some() && (!self.transfer.bound || self.transfer.result.is_some()))
         {
             self.abort();
             return;
         }
-        self.suffix
-            .push(Event::Drop(point, symbol, Value::Choice(self.choice_id())));
-        self.dropped = true;
+        let source = transfer.map(|transfer| transfer.source);
+        let value = if source.is_some() {
+            let Some(value) = self.transfer.value.take() else {
+                self.abort();
+                return;
+            };
+            value
+        } else {
+            Value::Choice(self.choice_id())
+        };
+        self.suffix.push(Event::Drop(point, symbol, value));
+        if let Some(source) = source {
+            self.replacement_transfer_dropped(source);
+            // The next transfer gets a fresh frame only after this actual named Drop.
+            self.transfer = TransferFrame::default();
+            self.transfer_index += 1;
+        }
+        self.dropped = self.transfer_index == self.admission.transfers.len();
     }
     pub(in super::super) fn finish(self) -> Option<UnitOwnerValueObservationV1> {
         if !self.valid
             || !self.bound
             || !self.dropped
             || !self.edges.iter().all(|edge| edge.delivered)
+            || self.transfer.value.is_some()
+            || self.alias.is_some()
+            || self.transfer_index != self.admission.transfers.len()
         {
             return None;
         }

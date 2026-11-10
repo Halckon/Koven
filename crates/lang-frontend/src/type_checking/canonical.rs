@@ -97,6 +97,15 @@ mod tests {
     fn local_and_unit_seed_kinds_have_the_same_exact_tail_order() {
         let local = TypeTable::new();
         let unit = UnitTypeTable::new();
+        // 保留已退休 integration Single checker 消费者的完整 builtin 身份对照。
+        // 这里直接检查仍在使用的两种表，不重新运行旧检查管线。
+        for builtin in BuiltinType::ALL {
+            let local_id = local.builtin(builtin).expect("local builtin seed");
+            let unit_id = unit.builtin(builtin).expect("unit builtin seed");
+            assert_eq!(local_id.index(), unit_id.index());
+            assert_eq!(local.get(local_id), Some(&TypeKind::Builtin(builtin)));
+            assert_eq!(unit.get(unit_id), Some(&UnitTypeKind::Builtin(builtin)));
+        }
         let signed = BuiltinType::ALL.len();
         let unsigned = signed + 1;
         let error = unsigned + 1;

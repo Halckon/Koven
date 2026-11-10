@@ -87,3 +87,42 @@ mod loop_choice_unit;
 
 #[path = "ownership_iteration/control_exits_unit.rs"]
 mod control_exits_unit;
+
+#[path = "ownership_iteration/closed_while_owner_unit.rs"]
+mod closed_while_owner_unit;
+
+#[path = "ownership_iteration/invariant_while_owner_unit.rs"]
+mod invariant_while_owner_unit;
+
+#[path = "ownership_iteration/invariant_break_owner_unit.rs"]
+mod invariant_break_owner_unit;
+
+#[path = "ownership_iteration/invariant_split_continue_owner_unit.rs"]
+mod invariant_split_continue_owner_unit;
+
+#[path = "ownership_iteration/invariant_split_exits_owner_unit.rs"]
+mod invariant_split_exits_owner_unit;
+
+#[path = "ownership_iteration/invariant_normal_join_owner_unit.rs"]
+mod invariant_normal_join_owner_unit;
+
+#[path = "ownership_iteration/invariant_mixed_join_owner_unit.rs"]
+mod invariant_mixed_join_owner_unit;
+
+#[path = "ownership_iteration/invariant_suffix_owner_unit.rs"]
+mod invariant_suffix_owner_unit;
+
+#[path = "ownership_iteration/invariant_break_suffix_owner_unit.rs"]
+mod invariant_break_suffix_owner_unit;
+
+#[path = "ownership_iteration/loop_negated_conditions_unit.rs"]
+mod loop_negated_conditions_unit;
+
+#[path = "ownership_iteration/invariant_continue_suffix_owner_unit.rs"]
+mod invariant_continue_suffix_owner_unit;
+
+#[path = "ownership_iteration/loop_input_alias_unit.rs"]
+mod loop_input_alias_unit;
+
+#[path = "ownership_iteration/loop_input_alias_conditional_unit.rs"]
+mod loop_input_alias_conditional_unit;

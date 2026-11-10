@@ -61,7 +61,7 @@ unit native 计数覆盖前序 Rc Borrow temporary 与七类控制流 operand、
 共 28 次分配与 28 次释放，并核对 live pointer 身份。它验证调用交付与 owner 释放，不包含
 借用 Rc 参数的 payload projection；该路径仍为现有 unsupported 边界。
 
-实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
+实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。 未使用的 value class/class/interface/enum 四类声明与单一 entry 的原正例已改走 strict Unit，锁定仅 entry、无运行时类型或初始化动作；多根实例共享与旧拒绝见证保留。
 
 SSA 使用独立 `Char` 类型与 `Char(u32)` 常量；verifier 只接受 Unicode scalar，并拒绝把它与
 UInt32 常量/类型互换。Char 为 Copyable，支持相等/不等而不进入整数算术或排序契约；LLVM
@@ -157,7 +157,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择；callb
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 
 lowerer 只接受它能证明的 concrete layout 和 runtime recipe。缺少 frontend fact、身份不一致或不支持的
-concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。借用 wrapper 核对外层 return-origin 后透过 Group 使用真实 Call；unit 保留 source-qualified 身份，以完整参数帧建立 owner.field 来源 loan 并延续到结果 loan 终止。SPEC-0290 的有界回归（历史证据从 [Archive](../archive/README.md) 按需追溯）不扩大复杂 CFG 或投影支持。
+concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。借用 wrapper 核对外层 return-origin 后透过 Group 使用真实 Call；unit 保留 source-qualified 身份，以完整参数帧建立 owner.field 来源 loan 并延续到结果 loan 终止。SPEC-0290 的有界回归（历史证据从 [Archive](../archive/README.md) 按需追溯）不扩大复杂 CFG 或投影支持。 借用结果仍存活时移动源的原拒绝消费者已走 strict Unit，固定完整 L0135、原冲突来源和 Unit 追加的参数标签；其余 Legacy wrapper 与校验顺序见证保留。
 
 普通 `lower_owned_unit_with_entry` 消费[封闭 view](pipeline-and-workspace.md#普通-owned-unit-交接)，直接进入原私有 driver/planner，不再建立交接 index。
 旧 lower/planner adapter 保留原签名与受限可见性，各经一次 factory；私有 driver 只读取同链 types/ownership facts。
@@ -188,7 +188,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 ## Native object 与发布
 
 `NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。
-旧 `NativeEntry`、`emit_native_object` 及专属私有转接已删除；私有 `lower_frontend` 和旧 checker 仍有真实测试消费者，未随门面机械删除。
+旧 `NativeEntry`、`emit_native_object` 及专属私有转接已删除；私有 `lower_frontend` 和旧 checker 仍有真实测试消费者，未随门面机械删除。 普通整数越界、未解析名和非法break拒绝，以及原for-loop/String泛型成功消费者已改走strict Unit；其余真实旧入口见证保留。
 普通与常量八参入口先执行用户 Into，再各经 factory 进入对应封闭 view；校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)。
 
 普通 unit 的 sibling reserve/commit/Drop 算法不变，失败由 RAII 清理 object 临时文件并保留旧目标。

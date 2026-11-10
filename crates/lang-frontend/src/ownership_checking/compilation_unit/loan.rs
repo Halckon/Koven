@@ -126,7 +126,7 @@ impl UnitDirectCallLoanEndFact {
     }
 }
 
-/// Exclusive 根实参因 return 放弃调用前缀的实际结束事件。
+/// Exclusive 根实参因 return/break/continue 放弃调用前缀的实际结束事件。
 /// 仅为观测切片，不覆盖正常返回、投影、receiver 或完整 owner 图。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitExclusiveCallPrefixEndFact {
@@ -156,7 +156,7 @@ impl UnitExclusiveCallPrefixEndFact {
         self.preceding_drops
     }
 
-    /// 同一分析、同 source-qualified Return point 中先行的实际 EndCallLoan 动作数。
+    /// 同一分析、同 source-qualified 控制转移点中先行的实际 EndCallLoan 动作数。
     /// 与 direct/borrow-prefix 切片共用同点顺序，含未公开的动作，编号可能有空隙。
     /// 不含 receiver/result/drop 动作，不是全局执行索引或完整 loan-end 流。
     #[must_use]
@@ -165,7 +165,7 @@ impl UnitExclusiveCallPrefixEndFact {
     }
 }
 
-/// 具名 Shared 根实参的正常借用返回交接；不是完整 loan-end/cleanup 流。
+/// 具名 Shared 来源根的正常借用返回交接；不是完整 loan-end/cleanup 流。
 /// 来自已完成调用的真实 pending tokens，不包含未完成调用或最终结果终止。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowCallHandoffFact {
@@ -174,15 +174,15 @@ pub struct UnitBorrowCallHandoffFact {
     pub(super) source_loan: UnitLoanFact,
 }
 impl UnitBorrowCallHandoffFact {
-    /// 实际正常返回时结束的有界辅助 Shared owned 根 tokens，保持当前调用 pending tokens 的顺序。
-    /// 排除来源 token；不覆盖借用绑定、provider、投影、temporary 或全部 loan-end 流。
+    /// 正常返回时结束的 Shared/Exclusive owned 根或 Shared pending 临时辅助，保持原 pending 顺序。
+    /// 排除来源 token；不覆盖借用绑定、provider、投影、父 owner 或全部 loan-end 流。
     /// 空列表不证明未覆盖的辅助 tokens 的状态，也不授予跨事件切片的统一顺序。
     #[must_use]
     pub fn auxiliary_loan_ends(&self) -> &[UnitLoanFact] {
         &self.auxiliary_loan_ends
     }
 
-    /// 同一正常返回初始化的显式 borrow val；仅直接 initializer、owned 根来源。
+    /// 同一正常返回初始化的显式 borrow val；仅直接或透明 Group initializer、owned 根来源。
     #[must_use]
     pub const fn binding(&self) -> crate::name_resolution::UnitSymbolId {
         self.binding
@@ -269,7 +269,7 @@ impl UnitBorrowCallTransportFact {
     }
 }
 
-/// Actual source token carried from a direct initializer to local binding termination.
+/// Actual source token carried from a direct/grouped initializer to local binding termination.
 /// This bounded transaction is not a complete loan-end stream or a shared cleanup order.
 /// Parent/provider/projected sources and forwarded results are not covered.
 #[derive(Clone, Debug, PartialEq, Eq)]

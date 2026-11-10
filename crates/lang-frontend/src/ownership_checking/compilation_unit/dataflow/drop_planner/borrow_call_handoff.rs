@@ -44,11 +44,11 @@ impl DropPlanner<'_, '_> {
                 _ => None,
             })
             .collect();
-        // Bound this observation to root Shared places. No receiver, projection,
-        // temporary, exclusive source, or carrier capability is implied.
+        // The source stays a Shared owned root. Auxiliary roots may be Exclusive;
+        // auxiliary temporaries require the exact still-pending Shared owner.
         if loans.iter().any(|loan| {
-            loan.kind() != LoanKind::Shared
-                || !matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root())
+            !(matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root())
+                || self.observes_temporary_borrow_auxiliary(loan, state))
         }) {
             return;
         }
@@ -59,7 +59,7 @@ impl DropPlanner<'_, '_> {
         let [source_loan] = matching.as_slice() else {
             return;
         };
-        if source_loan.target() != binding.origin() {
+        if source_loan.kind() != LoanKind::Shared || source_loan.target() != binding.origin() {
             return;
         }
         let UnitLoanTarget::Place(place) = source_loan.target() else {
@@ -84,7 +84,8 @@ impl DropPlanner<'_, '_> {
             };
             if loan.call() != call_id
                 || loan.argument() == source_loan.argument()
-                || !self.observes_borrow_auxiliary(loan, state)
+                || !(self.observes_borrow_root(loan, state)
+                    || self.observes_temporary_borrow_auxiliary(loan, state))
             {
                 index += 1;
                 continue;
@@ -103,7 +104,35 @@ impl DropPlanner<'_, '_> {
                 auxiliary_loan_ends,
             });
     }
+    fn observes_temporary_borrow_auxiliary(
+        &self,
+        loan: &crate::ownership_checking::UnitLoanFact,
+        state: &ValueState,
+    ) -> bool {
+        // This proof is only for auxiliary retirement. It must not grant source
+        // transport to a temporary or use a backing/parent owner for its projection.
+        loan.kind() == LoanKind::Shared
+            && loan.call().source_unit() == self.checker.source_unit
+            && loan.argument().source_unit() == self.checker.source_unit
+            && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument())
+            && state.pending_temporaries.iter().any(|pending| {
+                pending.holds_borrowed_temporary(
+                    loan.call().expression(),
+                    loan.argument().expression(),
+                )
+            })
+    }
+
     pub(super) fn observes_borrow_auxiliary(
+        &self,
+        loan: &crate::ownership_checking::UnitLoanFact,
+        state: &ValueState,
+    ) -> bool {
+        loan.kind() == LoanKind::Shared && self.observes_borrow_root(loan, state)
+    }
+
+    // Keep Exclusive auxiliary retirement separate from Shared source transport.
+    fn observes_borrow_root(
         &self,
         loan: &crate::ownership_checking::UnitLoanFact,
         state: &ValueState,
@@ -113,8 +142,7 @@ impl DropPlanner<'_, '_> {
         };
         let root = place.root();
         let provenance = self.loan_provenance();
-        loan.kind() == LoanKind::Shared
-            && place.is_root()
+        place.is_root()
             && !provenance.iteration_providers.contains(&root)
             && provenance.formed_owned.contains(&root)
             && state.position(root).is_some()
@@ -225,6 +253,7 @@ impl DropPlanner<'_, '_> {
         crate::type_checking::UnitExpressionId,
         crate::type_checking::UnitExpressionId,
     )> {
+        let initializer = self.checker.borrow_result_call(initializer)?;
         let call_id = self.checker.unit_expression(initializer);
         let call = self.checker.typed.call(call_id)?;
         if call.receiver().is_some()

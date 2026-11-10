@@ -158,7 +158,7 @@ fn abandoned_initializer_does_not_commit_a_handoff() {
 }
 
 #[test]
-fn unsupported_consumers_and_parent_sources_do_not_gain_handoffs() {
+fn grouped_initializer_is_observed_while_parent_and_nested_consumers_stay_excluded() {
     for body in [
         "fun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = view(parent); println(child) }",
         "fun observe(text: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; observe(view(owner)) }",
@@ -168,9 +168,11 @@ fn unsupported_consumers_and_parent_sources_do_not_gain_handoffs() {
         assert_units_admitted(&observed);
         assert_handoff_identity(&observed);
         for unit in &observed.units {
-            if body.contains("borrow val parent") {
+            if body.contains("borrow val parent")
+                || body.contains("borrow val item = (view(owner))")
+            {
                 let [fact] = unit.borrow_call_handoffs() else {
-                    panic!("only parent handoff")
+                    panic!("only the original owned-root handoff")
                 };
                 let call = observed
                     .parsed
@@ -186,7 +188,10 @@ fn unsupported_consumers_and_parent_sources_do_not_gain_handoffs() {
             }
             assert_eq!(
                 unit.borrow_call_handoffs().len(),
-                usize::from(body.contains("borrow val parent"))
+                usize::from(
+                    body.contains("borrow val parent")
+                        || body.contains("borrow val item = (view(owner))")
+                )
             );
         }
     }

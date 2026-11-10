@@ -73,6 +73,13 @@ implies 不变，不新建运行时条件。replacement/alias、跨 loop phi see
 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
 这里的生产修复仅作用于 single；temporary/Borrow 路径保持原实现。
 
+普通 continue 的四份原嵌套/顺序循环源码另有 strict MemoryDocument Unit 对照：fresh inner、
+独立 inner、同源 nested 与同源 sequential 均取得原 main 的 verified SSA/LLVM；每份保留两个
+真实 source-qualified iteration plan 与 element access。Legacy 仍只接受 fresh inner，其他
+三份在原 keys 声明处 UnsupportedNode；完整 kind/source/23..27 范围固定且旧见证保留。
+这是既有能力差分的 test-only 合同，净退休0，不据此证明任意循环 owner/phi、native 释放或
+两个入口的完整行为等价。
+
 single owned source的单条件Return现由[0314](../archive/specs/0314-owned-source-conditional-return.md)
 独立证明：3 exits/3 incoming，Return不入phi；真实Entry和唯一Fallthrough先建立Header，
 再分别核Return path∧Header presence精确Drop、正常live Exit运输或dead absent Exit。
@@ -82,6 +89,12 @@ unit basic/constant24格原SSA能力及独立native单列，未改unit生产。
 两body Resource/borrowed String operand、独立owned结果、同型decoy、fresh inner真实实例、
 耗尽后权限恢复有有界证据；多return、替换/alias、跨loop及Resource新条件能力不由此扩大。
 
+普通 return 的八份原边界输入另有 strict basic Unit 对照：双 return、mixed continue、
+replacement/alias、Resource source及三种跨循环组合，均保留同轮真实 For/provider 身份、
+原 main entry和对应 element access，并通过SSA/LLVM。Legacy八项拒绝仍精确定位原 keys
+声明，完整 kind/source/span固定，旧见证净退休0。此 test-only能力差分不扩大生产准入，
+也不证明两个入口完整等价、任意动态owner/phi或native资源释放。
+
 field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。
 自然循环内 captured Borrow closure 的0/1/3元素在普通/常量两视图已通过正常object/link/run；
 显式 EndCaptureLoan 退出不因此取得一般支持，不以stdout证明分配/析构数量。
@@ -89,6 +102,12 @@ field source（包括 Field symbol root）与 Inout source 的 native 表示仍�
 混轮 facts 仍在 lowering 前拒绝。实际 for 的 allocator oracle 逐 pointer 核 class 元素、临时源、
 局部/外围 owner 与 conditional receiver 的唯一释放顺序，Report 直接读取教程原源码另核 String drop。
 测试入口为 `native/unit_for_*tests.rs`；single provider/native 回归单独保留。
+
+普通 continue 的透明分组、跨函数同名 keys 和 alias 三份原源码另保留 strict Unit 对照。
+同轮 source-qualified root 精确指向各自 keys 声明；跨函数两 provider 分别为 Array/List，
+实际 main→first 调用定位原 first()，callee 与原声明身份一致，SSA/LLVM均验证。
+Legacy 两成功路径及 alias 在 keys 53..57 的完整 UnsupportedNode 拒绝原样保留，净退休0。
+这些 test-only 身份合同不代表一般 alias/owner phi 闭合、完整跨入口等价或 native 释放证明。
 
 ## Compilation-unit 前端事实
 
@@ -109,6 +128,12 @@ provider 发布计划，与普通 capability 隔离；两出口均验证模板�
 嵌套 return 另核 AST Return 身份、两 provider 的完整同点动作及 `iteration_cleanup_at`；
 named source break 与该 named local/outer 用例仍保留 Single owner identity 见证。
 这六项前端合同不替代动态循环 owner/phi、条件清理或 native 释放证明。
+
+普通 owned-source continue 的五个非法源码另在 codegen 消费者核对完整 Legacy 与 strict
+MemoryDocument Unit 诊断：source move、索引写入、MutableList add/removeLast 及元素移出。
+两路保留同一错误码、primary 和原冲突标签；Unit 的 L0135 文案区分 move/mutation/new loan，
+move 与元素移出另带选中参数标签。差异分别固定为完整 oracle，旧 Legacy 见证未退休；
+这些 Phase 3 拒绝合同不产生 SSA/native capability，也不证明动态 owner 或借用全序闭合。
 
 实现入口为 frontend `compilation_unit/iteration.rs`、`dataflow/iteration.rs`、
 `dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`。unit native 消费入口为

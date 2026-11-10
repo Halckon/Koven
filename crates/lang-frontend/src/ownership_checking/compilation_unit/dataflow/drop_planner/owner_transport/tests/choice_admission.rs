@@ -135,7 +135,6 @@ fn choice_admission_rejects_exits_uses_calls_and_non_unit_functions_atomically()
         "fun run(own flag: Boolean): Unit { val chosen = if (flag) \"left\" else \"right\" }",
         "fun run(flag: Boolean): Unit { var chosen = if (flag) \"left\" else \"right\" }",
         "fun run(flag: Boolean): Unit { val before = \"prefix\"; val chosen = if (flag) \"left\" else \"right\" }",
-        "fun run(flag: Boolean): Unit { val chosen = if (flag) \"left\" else \"right\"; val used = chosen }",
         "fun run(flag: Boolean): Unit { val chosen = if (flag) { return } else \"right\" }",
         "fun run(flag: Boolean): String = if (flag) \"left\" else \"right\"",
         "fun run(flag: Boolean): Unit { val chosen = if (flag) (if (flag) \"a\" else \"b\") else \"right\" }",
