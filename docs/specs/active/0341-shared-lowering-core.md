@@ -10026,3 +10026,55 @@ require_escalated只读进程核查成功；borrow target锁空闲后才编译�
 独立只读终审精确09743f1d无阻断：复核完整subset后的窄OR、泛型/结果边界及旧producer、
 P4/frontend无diff；独立重算final4两个SHA并逐一核十条1pass/2841filtered日志、本树
 artifact/debug2与20.63s、Clippy2 26.95s。审计没有代执行测试，不外推未运行范围。
+
+### selected-owner Call 与窄 receiver route 联合普通验收（2026-11-10）
+
+发布前只读核本地main/origin及远端main均仍a775568f，无新基线需要额外合入。
+本批仅本地准备：从2d79c4d6另建隔离分支
+`feature/spec-0341-own-call-receiver-combination-20261110`，保父链合入
+owner `dee59c0c96ff2be51a122ab663bd34843af44ef5`与borrow `b4181cbc`。
+实际合成代码头`4a1e10292101b32cf9d2912550ce7ea3aa894d34`，树
+`0e98af9e84c5e3af563e6114973269d7ebff9200`。唯一Spec尾部冲突保留两侧真实历史，
+无生产冲突、无额外修补；原冻结树不动，不单独发布或重复创建PR。
+
+独立选择/helper准入复核：旧484加owner六项及borrow两项去重，准确492，
+默认前端469（137 lib、331 direct、1 iteration），显式feature后端23。
+新增exact来自前段owner147及borrow十项完整名单，全部仅执行普通有限源码；
+邻接continue只作frontend分析，不执行循环。owner新native确实验证outer/next，
+其余新增普通为真实分析/SSA/LLVM，无故障或计数校准。新旧CI-only、panic恢复、
+人工破损/deferred、重放/错槽/漏提交及所有旧排除均只编译，不按模块filter执行。
+
+P2本轮已是窄caller refine迁移，不能沿用旧Compatibility结论：完整subset仍必经，
+真实on/off均要求此窄route，且不产生P2 production receipt；邻形保持旧路由。
+owner Call真实pending移交、P/Q边角色、callee own清理与B原双ledger共同验收，
+不把新Call产品当原B Bind/Drop产品，不宣称所有owner消费或receiver形状已迁移。
+
+本轮默认debug2、四项profile/RUSTFLAGS覆盖未设置，原owner target串行，不copy/clean。
+codegen no-run显式`--features loan-observation-test-support`，默认前端469不加feature；
+其余Cargo选项仍`--locked --offline --message-format=json -vv -j 2`。编译后exact list
+核名，再执行同binary exact并核成功集合/hash；默认CLI三crate features=[]另行验证。
+外置证据`/private/tmp/koven-own-call-receiver-evidence`仅供本机追溯，固定提交及上述
+名单来源界定可重建输入，不复用旧头绿灯。
+
+本轮实际492普通全绿，0失败/忽略：feature codegen两组12+11互斥（19.39s/27.36s，
+filtered2834/2835）；默认前端137 lib 1.94s、331 direct 0.32s、1 iteration 0.05s，
+filtered451/10/218。codegen no-run1m36s、frontend no-run54.06s。旧484与新8全部在
+新合成输入重编后执行，成功集合与精确选择相等；未发现联合生产兼容失败，无生产修复。
+新P2原样实体oracle和真实off已核refine路由，不产生P2 receipt；新owner native普通输出
+与P/Q入边/caller-callee清理均通过，不外推析构计数或资源无泄漏。
+
+默认CLI新跑`cargo check --locked --offline -p lang-cli --message-format=json -vv -j 2`
+8.44s成功，frontend/codegen/kovenc三个实际artifact features=[]、debug2/test=false。
+独立证据审核492名单、分组成功集及四binary hash一致，feature图前后端仅启指定feature、
+默认前端不启用，HEAD/tree无Rust漂移。codegen构建原始流的103条llvm-sys前缀文本
+由既有窄允许解析处理，其余JSON及build-finished成功已核，无本轮解析失败。
+两个纯读Python exact通过，未执行check_core全量或恢复故障stub。
+
+最终严格feature双crate all-targets Clippy（`-W clippy::all -D warnings`）通过1m05s，
+默认workspace all-targets check通过1m01s，均`--locked --offline -j 2`；fmt通过。
+docs880、diff及尺寸`--base a775568f`通过：2305手写Rust、36既有超千行，未改额度。
+最终仅追加本账本文档，无Rust再改动；原冻结树保持，owner target本批工作完成后释放。
+本轮不push、不更新#410或另开PR，不合main，集中发布方式另定。
+正式双宿主CI、所有CI-only负控/panic/Abort、sanitizer、压力/资源计数未本地执行；
+真实off仍限已测Basic输入，不外推新Call端到端off、常量capability或所有shape；
+P2无production receipt，不退休旧oracle，不关闭Spec/D10/E2。
