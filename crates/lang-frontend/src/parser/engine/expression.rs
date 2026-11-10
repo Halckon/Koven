@@ -169,7 +169,9 @@ impl Parser<'_> {
             let move_span = self.bump()?.span();
             return self.parse_lambda(Some(move_span), stops);
         }
-        if stops.contains(current) && !control_expression_start_kind(current.kind()) {
+        if (stops.contains(current) && !control_expression_start_kind(current.kind()))
+            || self.at_block_statement_separator(current, stops)?
+        {
             let span = self.empty_at(current.span().start())?;
             self.emit(codes::EXPECTED_EXPRESSION, "expected expression", span)?;
             return self.add_expression(span, Expression::Error);
@@ -660,21 +662,66 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let group_stops = outer_stops.without_file_and_semicolon_stops();
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
+        let leading_poison = self.is_poison();
+        let diagnostic_count = self.diagnostics.len();
         let mut inner = self.parse_expression_bp(
             0,
-            outer_stops
+            group_stops
                 .without_lambda_body_soft_stops()
                 .with(Stops::RIGHT_PAREN),
         )?;
         let current = self.current()?;
-        if !self.current_is_symbol(Symbol::RightParen)
+        let poisoned = leading_poison || self.is_poison();
+        let at_right_paren = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen))
+        );
+        let declaration_tail = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) || (self.file_mode && file_construct_start_kind(current.kind()));
+        let skipped = if poisoned {
+            let preserve_block_separator =
+                outer_stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0;
+            let skipped = self.skip_to_group_closer(opener_raw, preserve_block_separator)?;
+            if skipped.is_none()
+                && preserve_block_separator
+                && self.is_poison()
+                && let Some((separator, end)) = self.adjacent_poison_tail_boundary()?
+                && self
+                    .lexical_recoveries
+                    .block_statement_follows(self.lexed, separator)
+            {
+                self.index = separator;
+                Some(end)
+            } else {
+                skipped
+            }
+        } else if !at_right_paren
+            && !declaration_tail
             && (matches!(
                 current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-            ) || (self.file_mode && file_construct_start_kind(current.kind())))
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
+            ) || !outer_stops.contains(current))
         {
+            self.skip_to_confirmed_group_closer(opener_raw, outer_stops)?
+        } else {
+            None
+        };
+        if let Some(end) = skipped {
+            if !poisoned && self.diagnostics.len() == diagnostic_count {
+                self.emit(
+                    codes::UNEXPECTED_TRAILING_TOKEN,
+                    "unexpected trailing token",
+                    current.span(),
+                )?;
+            }
+            let start = self.expression_span(inner)?.start();
+            inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
+        } else if !poisoned && !at_right_paren && declaration_tail {
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,
                 "unexpected trailing token",
@@ -682,7 +729,7 @@ impl Parser<'_> {
             )?;
             let start = self.expression_span(inner)?.start();
             let end = self.recover_declaration_region(
-                DeclarationStops::from_expression_hard(outer_stops)
+                DeclarationStops::from_expression_hard(group_stops)
                     .with(DeclarationStops::RIGHT_PAREN),
             )?;
             inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
@@ -693,7 +740,8 @@ impl Parser<'_> {
         } else {
             let current = self.current()?;
             if !self.is_poison() {
-                self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
+                let stops = if poisoned { outer_stops } else { group_stops };
+                self.emit_closing(self.boundary_span(current, stops)?, opener)?;
             }
             inner_span.end().max(opener.end())
         };

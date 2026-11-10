@@ -151,11 +151,37 @@ impl Parser<'_> {
         current: Lexeme,
         stops: Stops,
     ) -> Result<Span, ParserInternalError> {
-        if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
+        if stops.contains(current) || self.at_block_statement_separator(current, stops)? {
             self.empty_at(current.span().start())
         } else {
             Ok(current.span())
         }
+    }
+
+    pub(super) fn at_block_statement_separator(
+        &self,
+        current: Lexeme,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        Ok(stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0
+            && self.at_proven_block_statement_separator(current)?)
+    }
+
+    fn at_proven_block_statement_separator(
+        &self,
+        current: Lexeme,
+    ) -> Result<bool, ParserInternalError> {
+        if !matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) {
+            return Ok(false);
+        }
+        let raw = self.current_raw()?;
+        Ok(self.lexed.lexemes()[raw] == current
+            && self
+                .lexical_recoveries
+                .block_statement_follows(self.lexed, raw))
     }
 
     pub(super) fn at_type_recovery_boundary(
@@ -164,6 +190,8 @@ impl Parser<'_> {
         stops: TypeStops,
     ) -> Result<bool, ParserInternalError> {
         Ok(stops.contains(current)
+            || (stops.has_block_statement_separator()
+                && self.at_proven_block_statement_separator(current)?)
             || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
             || self.at_file_angle_boundary(current)?)
     }

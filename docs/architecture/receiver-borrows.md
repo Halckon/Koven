@@ -77,3 +77,13 @@ receiver identity 与同点此前普通 Drop、call-loan end、receiver-loan end
 break/continue、reservation、this、投影、temporary、provider、借用绑定与 borrowed-result
 方法不扩张。错误、deferred 或 typed 无效时 raw 与公开产物一并撤销。原 cleanup/native
 行为不变；来源、边界与本地验证见[receiver 前缀观测](../specs/active/0341-shared-lowering-core.md#shared-receiver-return-前缀的实际结束观测2026-11-08)。
+
+Receiver、直接调用和借用结果 handoff 的根分类共用当前源文件 checker 的只读索引。
+首次查询建立已形成 owner、迭代绑定与 provider 根、借用结果绑定三个集合。索引不替换
+checker 的回滚记录或顺序产物，也不改变实际退出动作和事实发布门禁。
+
+同一索引按 source-qualified 初始化表达式登记本地借用绑定的原位置。正常调用的 handoff
+和绑定运输只查询当前 initializer 的候选，仍按原顺序验证 pending、父依赖和各自的来源条件。
+
+转发借用单独按实际调用惰性索引已验证来源 loan 与返回来源。返回表达式沿用原有分组归一，
+同键仍取原先首项。索引只参与候选查找，token 仍由真实 pending 集合移交到实际返回边。

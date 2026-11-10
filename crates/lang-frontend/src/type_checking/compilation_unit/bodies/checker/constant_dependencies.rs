@@ -8,7 +8,7 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, TypeCheckingError, UnitExpressionId, UnitTypeKind,
-        constant_graph::cyclic_components,
+        constant_graph::strongly_connected_components,
         constant_value::{accepts_binary_operand, accepts_prefix_operand},
     },
 };
@@ -32,9 +32,7 @@ impl BodyChecker<'_> {
     pub(super) fn precheck_constant_dependencies(
         &mut self,
     ) -> Result<(), CompilationUnitTypeError> {
-        if !self.signatures.diagnostics().is_empty() {
-            return Ok(());
-        }
+        let has_signature_errors = !self.signatures.diagnostics().is_empty();
         let mut inputs = BTreeMap::new();
         for source in self.names.index().source_units() {
             for (_, node) in self.file(source.id()).ast().items().iter() {
@@ -70,7 +68,21 @@ impl BodyChecker<'_> {
         }
         let mut dependencies = BTreeMap::new();
         for (&symbol, input) in &mut inputs {
-            if let Ok(syntax) = self.constant_syntax_dependencies(input.expression)? {
+            // Retain the symbol as an invalid dependency. Its initializer still
+            // receives ordinary recovery checking outside the dependency graph.
+            if let Some(type_ref) = input.type_ref
+                && ((has_signature_errors
+                    && self.signature_error_in(
+                        self.top_level_type_ref_span(input.expression.source_unit(), type_ref)?,
+                    ))
+                    || self
+                        .signatures
+                        .symbol_type(symbol)
+                        .is_some_and(|ty| !self.constant_type_is_allowed(ty)))
+            {
+                continue;
+            }
+            if let Ok(syntax) = self.constant_syntax_dependencies(input.expression, None)? {
                 input.expressions = syntax.expressions;
                 dependencies.insert(symbol, syntax.dependencies);
             }
@@ -101,10 +113,6 @@ impl BodyChecker<'_> {
                 reverse.entry(target).or_default().push(symbol);
             }
         }
-        // A dependency must establish its type eligibility before consumers are checked.
-        // Cyclic nodes are handled by the concrete-type worklist below.
-        self.constant_prechecked
-            .extend(dependencies.keys().copied());
         let initial_invalid = invalid.iter().copied().collect::<Vec<_>>();
         propagate_invalid(&mut invalid, &reverse, initial_invalid);
         let mut remaining = dependencies
@@ -115,22 +123,25 @@ impl BodyChecker<'_> {
             .iter()
             .filter_map(|(&symbol, &count)| (count == 0).then_some(symbol))
             .collect::<VecDeque<_>>();
+        let mut evaluation_failures = Vec::new();
         while let Some(symbol) = ready.pop_front() {
             if !invalid.contains(&symbol) {
-                let valid = self.check_constant_initializer(symbol, &inputs[&symbol])?;
-                let value = if valid {
-                    crate::type_checking::constant_evaluation::evaluate(
-                        self,
-                        inputs[&symbol].expression,
-                    )?
-                } else {
-                    None
-                };
-                if let Some(value) = value {
-                    self.constant_values.insert(symbol, value);
-                } else {
+                if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
                     invalid.insert(symbol);
                     propagate_invalid(&mut invalid, &reverse, [symbol]);
+                } else if dependencies[&symbol]
+                    .iter()
+                    .all(|target| self.constant_values.contains_key(target))
+                {
+                    match crate::type_checking::constant_evaluation::evaluate(
+                        self,
+                        inputs[&symbol].expression,
+                    )? {
+                        Some(value) => {
+                            self.constant_values.insert(symbol, value);
+                        }
+                        None => evaluation_failures.push(symbol),
+                    }
                 }
             }
             for &dependent in reverse.get(&symbol).into_iter().flatten() {
@@ -143,63 +154,137 @@ impl BodyChecker<'_> {
                 }
             }
         }
-        // Cyclic nodes never become topologically ready. Propagate newly concrete types
-        // through their dependents before deciding which syntax cycles remain valid.
-        let mut queued = remaining
+        let symbols = remaining
             .iter()
             .filter_map(|(&symbol, &count)| {
                 (count > 0 && !invalid.contains(&symbol)).then_some(symbol)
             })
-            .collect::<BTreeSet<_>>();
-        let mut pending = queued.iter().copied().collect::<VecDeque<_>>();
-        while let Some(symbol) = pending.pop_front() {
-            queued.remove(&symbol);
-            if invalid.contains(&symbol) {
-                continue;
-            }
-            let previous = self.parts.symbol_types.get(&symbol).copied();
-            if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
-                invalid.insert(symbol);
-                propagate_invalid(&mut invalid, &reverse, [symbol]);
-                continue;
-            }
-            let current = self.parts.symbol_types.get(&symbol).copied();
-            // Deferred reason changes convey no new operand eligibility and must not
-            // keep an unanchored alias cycle alive in this worklist.
-            if current != previous && current.is_some_and(|ty| !self.is_deferred(ty)) {
-                for &dependent in reverse.get(&symbol).into_iter().flatten() {
-                    if remaining[&dependent] > 0
-                        && !invalid.contains(&dependent)
-                        && queued.insert(dependent)
-                    {
-                        pending.push_back(dependent);
-                    }
-                }
-            }
-        }
-        let symbols = inputs.keys().copied().collect::<Vec<_>>();
+            .collect::<Vec<_>>();
         let indices = symbols
             .iter()
             .enumerate()
             .map(|(index, &symbol)| (symbol, index))
             .collect::<BTreeMap<_, _>>();
         let mut edges = vec![Vec::new(); symbols.len()];
-        for (&symbol, targets) in &dependencies {
-            if invalid.contains(&symbol) {
-                continue;
-            }
-            for target in targets {
-                edges[indices[&symbol]].push(
-                    *indices
-                        .get(target)
-                        .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?,
-                );
+        for (index, symbol) in symbols.iter().enumerate() {
+            for target in &dependencies[symbol] {
+                if let Some(&provider) = indices.get(target) {
+                    edges[index].push(provider);
+                } else if !inputs.contains_key(target) {
+                    return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+                }
             }
         }
-        let mut cycles = cyclic_components(&edges);
-        for cycle in &mut cycles {
-            cycle.sort_unstable();
+        let mut components = strongly_connected_components(&edges);
+        let mut component_of = vec![0; symbols.len()];
+        for (id, component) in components.iter_mut().enumerate() {
+            component.sort_unstable();
+            for &index in component.iter() {
+                component_of[index] = id;
+            }
         }
+
+        // Edges point from consumers to providers. Stabilize each remaining
+        // component before checking consumers outside it.
+        for (id, component) in components.iter().enumerate().rev() {
+            let mut queued = component
+                .iter()
+                .map(|&index| symbols[index])
+                .filter(|symbol| !invalid.contains(symbol))
+                .collect::<BTreeSet<_>>();
+            let mut pending = queued.iter().copied().collect::<VecDeque<_>>();
+            let mut ordinary_failure = None;
+            while let Some(symbol) = pending.pop_front() {
+                queued.remove(&symbol);
+                if invalid.contains(&symbol) {
+                    continue;
+                }
+                let previous = self.parts.symbol_types.get(&symbol).copied();
+                if !self.check_constant_initializer_type(symbol, &inputs[&symbol])? {
+                    invalid.insert(symbol);
+                    propagate_invalid(&mut invalid, &reverse, [symbol]);
+                    ordinary_failure = Some(symbol);
+                    break;
+                }
+                let current = self.parts.symbol_types.get(&symbol).copied();
+                // Deferred reason changes cannot stabilize an unanchored alias cycle.
+                if current != previous && current.is_some_and(|ty| !self.is_deferred(ty)) {
+                    for &dependent in reverse.get(&symbol).into_iter().flatten() {
+                        if indices
+                            .get(&dependent)
+                            .is_some_and(|&index| component_of[index] == id)
+                            && !invalid.contains(&dependent)
+                            && queued.insert(dependent)
+                        {
+                            pending.push_back(dependent);
+                        }
+                    }
+                }
+            }
+
+            // Collect qualification failures against the same ordinary facts
+            // before any one member can invalidate its peers.
+            let mut qualification_failures = Vec::new();
+            let mut first_diagnostic = None;
+            for &index in component {
+                let symbol = symbols[index];
+                if !self.constant_prechecked.contains(&symbol) || ordinary_failure == Some(symbol) {
+                    continue;
+                }
+                let input = &inputs[&symbol];
+                if invalid.contains(&symbol) {
+                    self.qualify_constant_recovery(symbol, input, &invalid)?;
+                    continue;
+                }
+                let before = self.diagnostics.len();
+                if !self.check_constant_qualification(symbol, input)? {
+                    if first_diagnostic.is_none() {
+                        first_diagnostic = self.diagnostics.get(before).cloned();
+                    }
+                    self.diagnostics.truncate(before);
+                    qualification_failures.push(symbol);
+                }
+            }
+            invalid.extend(qualification_failures.iter().copied());
+            propagate_invalid(
+                &mut invalid,
+                &reverse,
+                qualification_failures.iter().copied(),
+            );
+            let before = self.diagnostics.len();
+            for symbol in qualification_failures {
+                self.qualify_constant_recovery(symbol, &inputs[&symbol], &invalid)?;
+            }
+            if self.diagnostics.len() == before {
+                // Mutually dependent failures still need one stable primary error.
+                self.diagnostics.extend(first_diagnostic);
+            }
+        }
+        // Recover independent qualification diagnostics without using types
+        // that depend on a failed signature or initializer.
+        for (&symbol, input) in &inputs {
+            if dependencies.contains_key(&symbol)
+                && invalid.contains(&symbol)
+                && !self.constant_prechecked.contains(&symbol)
+            {
+                let nodes = self.constant_invalid_dependency_nodes(input, &invalid)?;
+                self.constant_recovery_nodes.insert(symbol, nodes);
+            }
+        }
+        // A failed value does not invalidate operand types or hide qualification
+        // errors. It only blocks dependent evaluation and cycle diagnostics.
+        invalid.extend(evaluation_failures.iter().copied());
+        propagate_invalid(&mut invalid, &reverse, evaluation_failures);
+        // Reverse invalidation reaches an entire component, so surviving
+        // cycles can reuse the original partition.
+        let mut cycles = components
+            .into_iter()
+            .filter(|component| {
+                let first = component[0];
+                !invalid.contains(&symbols[first])
+                    && (component.len() > 1 || edges[first].contains(&first))
+            })
+            .collect::<Vec<_>>();
         cycles.sort_by_key(|cycle| cycle[0]);
         let code = codes::catalog()?.resolve(codes::CONSTANT_DEPENDENCY_CYCLE)?;
         for cycle in cycles {
@@ -227,6 +312,17 @@ impl BodyChecker<'_> {
         symbol: UnitSymbolId,
         input: &Initializer,
     ) -> Result<bool, CompilationUnitTypeError> {
+        if !self.check_constant_initializer_type(symbol, input)? {
+            return Ok(false);
+        }
+        self.check_constant_qualification(symbol, input)
+    }
+
+    fn check_constant_initializer_type(
+        &mut self,
+        symbol: UnitSymbolId,
+        input: &Initializer,
+    ) -> Result<bool, CompilationUnitTypeError> {
         // Only closed initializer expressions are cached here; receiver namespace prefixes were not evaluated.
         for expression in &input.expressions {
             self.parts.expression_types.remove(expression);
@@ -249,29 +345,91 @@ impl BodyChecker<'_> {
                 .remove(expression);
             self.parts.constant_selections.remove(expression);
         }
+        self.constant_prechecked.insert(symbol);
         let previous_owner = self.current_owner;
         self.current_owner = input.owner;
-        self.checking_constants = true;
-        let before = self.diagnostics.len();
-        let result = self.check_value_initializer(
+        let result = self.check_value_initializer_type(
             input.expression.source_unit(),
             symbol,
             input.type_ref,
             input.expression.expression(),
         );
-        self.checking_constants = false;
         self.current_owner = previous_owner;
-        result?;
+        result
+    }
+
+    fn check_constant_qualification(
+        &mut self,
+        symbol: UnitSymbolId,
+        input: &Initializer,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let before = self.diagnostics.len();
+        self.qualify_constant_initializer(symbol, input.type_ref, input.expression)?;
         Ok(self.diagnostics.len() == before
-            && self.constant_syntax_dependencies(input.expression)?.is_ok())
+            && self
+                .constant_syntax_dependencies(input.expression, None)?
+                .is_ok())
+    }
+
+    fn qualify_constant_recovery(
+        &mut self,
+        symbol: UnitSymbolId,
+        input: &Initializer,
+        invalid: &BTreeSet<UnitSymbolId>,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let nodes = self.constant_invalid_dependency_nodes(input, invalid)?;
+        self.constant_recovery_nodes.insert(symbol, nodes);
+        self.qualify_constant_initializer(symbol, input.type_ref, input.expression)
+    }
+
+    fn constant_invalid_dependency_nodes(
+        &self,
+        input: &Initializer,
+        invalid: &BTreeSet<UnitSymbolId>,
+    ) -> Result<BTreeSet<UnitExpressionId>, CompilationUnitTypeError> {
+        let source = input.expression.source_unit();
+        let mut affected = BTreeSet::new();
+        // The dependency walk records parents before their operands.
+        for &expression in input.expressions.iter().rev() {
+            let node = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .map_err(TypeCheckingError::from)?;
+            let affected_child = |id| affected.contains(&UnitExpressionId::new(source, id));
+            let depends_on_invalid = match node.payload() {
+                Expression::Group { expression }
+                | Expression::Prefix {
+                    operand: expression,
+                    ..
+                } => affected_child(*expression),
+                Expression::Binary { left, right, .. } => {
+                    affected_child(*left) || affected_child(*right)
+                }
+                Expression::Name => self
+                    .constant_target(source, node.span())
+                    .is_some_and(|target| invalid.contains(&target)),
+                Expression::Member { name_span, .. } => self
+                    .constant_target(source, *name_span)
+                    .is_some_and(|target| invalid.contains(&target)),
+                _ => false,
+            };
+            if depends_on_invalid {
+                affected.insert(expression);
+            }
+        }
+        Ok(affected)
     }
 
     /// Qualification shares the dependency walk, including the unevaluated short-circuit RHS.
     pub(super) fn check_constant_expression(
         &mut self,
+        symbol: UnitSymbolId,
         root: UnitExpressionId,
     ) -> Result<(), CompilationUnitTypeError> {
-        if let Err(span) = self.constant_syntax_dependencies(root)? {
+        let affected = self.constant_recovery_nodes.get(&symbol);
+        if let Err(span) = self.constant_syntax_dependencies(root, affected)? {
             self.emit(
                 codes::INVALID_CONSTANT_EXPRESSION,
                 "expression is not permitted in a constant initializer",
@@ -284,8 +442,12 @@ impl BodyChecker<'_> {
     fn constant_operand_allows(
         &self,
         expression: UnitExpressionId,
+        affected: Option<&BTreeSet<UnitExpressionId>>,
         accepts: impl Fn(BuiltinType) -> bool,
     ) -> bool {
+        if affected.is_some_and(|nodes| nodes.contains(&expression)) {
+            return true;
+        }
         match self
             .parts
             .expression_types
@@ -302,12 +464,14 @@ impl BodyChecker<'_> {
     fn constant_syntax_dependencies(
         &self,
         root: UnitExpressionId,
+        affected: Option<&BTreeSet<UnitExpressionId>>,
     ) -> Result<Result<SyntaxDependencies, Span>, CompilationUnitTypeError> {
         let mut pending = vec![root.expression()];
         let mut dependencies = BTreeSet::new();
         let mut expressions = Vec::new();
         while let Some(expression) = pending.pop() {
-            expressions.push(UnitExpressionId::new(root.source_unit(), expression));
+            let id = UnitExpressionId::new(root.source_unit(), expression);
+            expressions.push(id);
             let node = self
                 .file(root.source_unit())
                 .ast()
@@ -326,6 +490,7 @@ impl BodyChecker<'_> {
                 } => {
                     if !self.constant_operand_allows(
                         UnitExpressionId::new(root.source_unit(), *operand),
+                        affected,
                         |ty| accepts_prefix_operand(*operator, ty),
                     ) {
                         return Ok(Err(node.span()));
@@ -342,10 +507,12 @@ impl BodyChecker<'_> {
                     if !(accepts(BuiltinType::Int) || accepts(BuiltinType::Boolean))
                         || !self.constant_operand_allows(
                             UnitExpressionId::new(root.source_unit(), *left),
+                            affected,
                             accepts,
                         )
                         || !self.constant_operand_allows(
                             UnitExpressionId::new(root.source_unit(), *right),
+                            affected,
                             accepts,
                         )
                     {

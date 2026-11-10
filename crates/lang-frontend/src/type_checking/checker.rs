@@ -72,6 +72,13 @@ use super::{
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::FlowKey;
 
+// Rejection takes precedence when more than one operand needs recovery.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CallRecovery {
+    Pending,
+    Rejected,
+}
+
 #[derive(Clone, Copy)]
 struct ExprCheck {
     ty: TypeId,
@@ -108,9 +115,18 @@ pub(super) fn check(
 ) -> Result<TypedFile, TypeCheckingError> {
     sources.source_text(parsed.source_id())?;
     let mut replay_sites = BTreeSet::new();
+    let syntactic_boolean_outcomes =
+        super::flow_effects::SyntacticBooleanOutcomes::new(parsed.ast());
     loop {
-        let (typed, discovered) =
-            Checker::new(sources, parsed, names, environment, &replay_sites)?.run()?;
+        let (typed, discovered) = Checker::new(
+            sources,
+            parsed,
+            names,
+            environment,
+            &replay_sites,
+            &syntactic_boolean_outcomes,
+        )?
+        .run()?;
         if discovered.is_empty() {
             return Ok(typed);
         }
@@ -121,6 +137,7 @@ pub(super) fn check(
 struct Checker<'a> {
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
+    syntactic_boolean_outcomes: &'a super::flow_effects::SyntacticBooleanOutcomes<'a>,
     environment: &'a TypeEnvironment,
     name_analysis_owner: Arc<()>,
     types: TypeTable,
@@ -157,6 +174,7 @@ struct Checker<'a> {
     captured_mutable_symbols: BTreeSet<SymbolId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
     flow_versions: BTreeMap<FlowKey, u64>,
+    call_recoveries: BTreeMap<usize, CallRecovery>,
     source_references: Vec<(ScopeId, ReferenceTarget)>,
     nominal_by_symbol: BTreeMap<SymbolId, NominalId>,
     nominal_by_scope: BTreeMap<ScopeId, NominalId>,
@@ -281,6 +299,7 @@ impl<'a> Checker<'a> {
         names: &'a NameResolution,
         environment: &'a TypeEnvironment,
         iteration_replay_sites: &'a BTreeSet<usize>,
+        syntactic_boolean_outcomes: &'a super::flow_effects::SyntacticBooleanOutcomes<'a>,
     ) -> Result<Self, TypeCheckingError> {
         let catalog = codes::catalog()?;
         let mut references = BTreeMap::new();
@@ -322,6 +341,7 @@ impl<'a> Checker<'a> {
         Ok(Self {
             sources,
             parsed,
+            syntactic_boolean_outcomes,
             environment,
             name_analysis_owner: names.analysis_owner().clone(),
             types: TypeTable::new(),
@@ -373,6 +393,7 @@ impl<'a> Checker<'a> {
             captured_mutable_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
             flow_versions: BTreeMap::new(),
+            call_recoveries: BTreeMap::new(),
             source_references: names
                 .references()
                 .iter()

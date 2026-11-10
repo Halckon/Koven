@@ -98,6 +98,75 @@ fn actual_source_token_crosses_inner_and_wrapper_returns_without_ending() {
 }
 
 #[test]
+fn repeated_wrappers_keep_their_own_forwarded_call_and_return_edge() {
+    use std::{collections::BTreeSet, fmt::Write};
+
+    let mut text = VIEW.to_owned();
+    for index in 0..32 {
+        let body = if index % 2 == 0 {
+            "= view(source)"
+        } else {
+            "{ return ((view((source)))) }"
+        };
+        writeln!(
+            text,
+            "fun wrap{index}(source: String): borrow String from source {body}"
+        )
+        .unwrap();
+    }
+    let observed = observe(&text);
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let transports = unit.borrow_forward_transports();
+        let sources = unit.borrow_results().forwarded_source_loans();
+        assert_eq!(sources.len(), 32);
+        assert_eq!(transports.len(), sources.len());
+        let mut calls = BTreeSet::new();
+        for (transport, forwarded) in transports.iter().zip(sources) {
+            let loan = transport.source_loan();
+            assert_eq!(loan.call(), forwarded.call());
+            assert_eq!(loan.argument(), forwarded.argument());
+            assert!(calls.insert(loan.call()));
+            assert!(unit.loans().contains(loan));
+            let returned = transport.returned_expression();
+            assert_eq!(returned.source_unit(), loan.call().source_unit());
+            let expressions = observed.parsed.ast().expressions();
+            let mut ungrouped = returned.expression();
+            while let Expression::Group { expression } =
+                expressions.get(ungrouped).unwrap().payload()
+            {
+                ungrouped = *expression;
+            }
+            assert_eq!(ungrouped, loan.call().expression());
+            let origin = unit
+                .borrow_return_origins()
+                .iter()
+                .find(|origin| origin.expression() == returned)
+                .expect("verified origin for this returned expression");
+            assert_eq!(loan.target(), origin.origin());
+            let UnitDropPoint::ControlTransfer(transfer) = transport.point() else {
+                panic!("actual wrapper return");
+            };
+            let expression = observed
+                .parsed
+                .ast()
+                .expressions()
+                .get(transfer.expression())
+                .unwrap();
+            if let Expression::Return {
+                value: Some(value), ..
+            } = expression.payload()
+            {
+                assert_eq!(*value, returned.expression());
+            } else {
+                assert_eq!(transfer, returned);
+                assert_eq!(returned, loan.call());
+            }
+        }
+    }
+}
+
+#[test]
 fn consumer_return_suffix_still_requires_a_proven_continuation() {
     let observed = observe(&format!(
         "{VIEW}fun observe(item: String, own n: Int): Unit {{}}\nfun run(): Unit {{ val owner = \"kept\"; observe(view(owner), return) }}"

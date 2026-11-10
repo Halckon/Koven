@@ -113,14 +113,26 @@ impl Parser<'_> {
         stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
         let receiver_span = self.expression_span(receiver)?;
+        let opener_raw = self.current_raw()?;
         let first = self.bump()?;
         let mut end = first.span().end();
         match first.kind() {
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
-                end = self.consume_balanced_suffix(Symbol::RightParen, end, stops)?;
-            }
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBracket)) => {
-                end = self.consume_balanced_suffix(Symbol::RightBracket, end, stops)?;
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen | Symbol::LeftBracket)) => {
+                let preserve_block_separator = stops.block_elements
+                    || stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR)
+                        != 0;
+                if let Some(closer) = self.lexical_recoveries.postfix_recovery_closer(
+                    self.lexed,
+                    opener_raw,
+                    opener_raw,
+                    preserve_block_separator,
+                ) {
+                    self.index = closer + 1;
+                    end = self.lexed.lexemes()[closer].span().end();
+                } else {
+                    self.recover_declaration_region(DeclarationStops::for_postfix_suffix(stops))?;
+                    end = self.previous_significant_end();
+                }
             }
             LexemeKind::Token(TokenKind::Symbol(
                 Symbol::Dot | Symbol::QuestionDot | Symbol::ColonColon,
@@ -135,25 +147,85 @@ impl Parser<'_> {
         self.add_expression(self.span(receiver_span.start(), end)?, Expression::Error)
     }
 
-    pub(super) fn consume_balanced_suffix(
-        &mut self,
-        closer: Symbol,
-        end: usize,
-        stops: Stops,
-    ) -> Result<usize, ParserInternalError> {
-        let closer_stop = match closer {
-            Symbol::RightParen => DeclarationStops::RIGHT_PAREN,
-            Symbol::RightBracket => DeclarationStops::RIGHT_BRACKET,
-            _ => return Err(ParserInternalError::InvalidLexemeStream),
+    /// Return the consumed raw token and any ordinary group whose body still needs scanning.
+    pub(super) fn proven_postfix_recovery_step(
+        &self,
+        raw: usize,
+        symbol: Option<Symbol>,
+        recovery_start: usize,
+        preserve_block_semicolon: bool,
+    ) -> Result<Option<(usize, Option<usize>)>, ParserInternalError> {
+        let group_closer = |opener| {
+            self.lexical_recoveries.postfix_recovery_closer(
+                self.lexed,
+                opener,
+                opener,
+                preserve_block_semicolon,
+            )
         };
-        let recovery_stops =
-            DeclarationStops::from_expression_hard(stops.without_lambda_body_soft_stops())
-                .with(closer_stop);
-        let mut end = self.recover_declaration_region(recovery_stops)?.max(end);
-        if self.current_is_symbol(closer) {
-            end = self.bump()?.span().end();
+        match symbol {
+            Some(Symbol::LeftParen | Symbol::LeftBracket | Symbol::LeftBrace) => {
+                Ok(Some((raw, group_closer(raw))))
+            }
+            Some(Symbol::Less) if self.has_recovery_callee_end(recovery_start, raw) => {
+                let Some(CallTrial::Match {
+                    closing_raw: closing,
+                    suffix_raw: suffix,
+                    ..
+                }) = self.strict_trials.trial_at_raw(raw)?
+                else {
+                    return Ok(None);
+                };
+                if !self.typed_call_suffix_continues(closing, suffix)? {
+                    return Ok(None);
+                }
+                Ok(Some((closing, group_closer(suffix))))
+            }
+            _ => Ok(None),
         }
-        Ok(end)
+    }
+
+    fn has_recovery_callee_end(&self, start: usize, angle: usize) -> bool {
+        // Walk only the trivia and postfix markers immediately before this angle.
+        // A marker without an operand in this recovery region proves no callee.
+        let terminal = self.lexed.lexemes()[start..angle]
+            .iter()
+            .rev()
+            .map(|lexeme| lexeme.kind())
+            .find(|kind| {
+                !matches!(
+                    kind,
+                    LexemeKind::Trivia(_)
+                        | LexemeKind::Token(TokenKind::Symbol(Symbol::Question | Symbol::BangBang))
+                )
+            });
+        matches!(
+            terminal,
+            Some(LexemeKind::Token(
+                TokenKind::Identifier
+                    | TokenKind::IntegerLiteral(_)
+                    | TokenKind::FloatLiteral(_)
+                    | TokenKind::CharLiteral
+                    | TokenKind::StringEnd
+                    | TokenKind::Keyword(
+                        Keyword::True | Keyword::False | Keyword::Null | Keyword::This
+                    )
+                    | TokenKind::Symbol(
+                        Symbol::RightParen | Symbol::RightBracket | Symbol::RightBrace
+                    )
+            ))
+        )
+    }
+
+    /// An explicit lambda header distinguishes a local brace from a caller's block.
+    pub(super) fn has_paired_lambda_header(&self, raw: usize) -> Result<bool, ParserInternalError> {
+        Ok(matches!(
+            self.lambda_headers.query(raw)?,
+            LambdaHeaderTrial::Header { .. }
+        ) && self
+            .lexical_recoveries
+            .group_closer(self.lexed, raw)
+            .is_some())
     }
 
     pub(super) fn parse_member(
@@ -237,7 +309,15 @@ impl Parser<'_> {
         type_arguments_span: Option<Span>,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let block_separator =
+            if outer_stops.block_elements || outer_stops.delimiters & Stops::SEMICOLON != 0 {
+                Stops::BLOCK_STATEMENT_SEPARATOR
+            } else {
+                0
+            };
+        let outer_stops = outer_stops
+            .without_file_and_semicolon_stops()
+            .with(block_separator);
         let opener = self.bump()?.span();
         let callee_span = self.expression_span(callee)?;
         let argument_stops = outer_stops
@@ -306,7 +386,7 @@ impl Parser<'_> {
                     continue;
                 }
                 let current = self.current()?;
-                if self.call_argument_boundary(current, outer_stops) {
+                if self.call_argument_boundary(current, outer_stops)? {
                     break;
                 }
                 if self.can_start_call_argument(current) {
@@ -454,7 +534,7 @@ impl Parser<'_> {
         }
 
         let current = self.current()?;
-        let (value, consumed_separator) = if self.call_argument_boundary(current, outer_stops) {
+        let (value, consumed_separator) = if self.call_argument_boundary(current, outer_stops)? {
             let empty = self.empty_at(current.span().start())?;
             self.emit(
                 codes::EXPECTED_ARGUMENT_VALUE,
@@ -528,14 +608,19 @@ impl Parser<'_> {
         self.can_start_expression(lexeme) || self.current_is_symbol(Symbol::Ampersand)
     }
 
-    pub(super) fn call_argument_boundary(&self, lexeme: Lexeme, outer_stops: Stops) -> bool {
-        matches!(lexeme.kind(), LexemeKind::Eof)
+    pub(super) fn call_argument_boundary(
+        &self,
+        lexeme: Lexeme,
+        outer_stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        Ok(matches!(lexeme.kind(), LexemeKind::Eof)
             || self.current_is_symbol(Symbol::Comma)
             || self.current_is_symbol(Symbol::RightParen)
             || (outer_stops.contains(lexeme)
                 && !self.can_start_expression(lexeme)
                 && !self.current_is_symbol(Symbol::Comma)
                 && !self.current_is_symbol(Symbol::RightParen))
+            || self.at_block_statement_separator(lexeme, outer_stops)?)
     }
 
     pub(super) fn recover_call_region(
@@ -570,21 +655,7 @@ impl Parser<'_> {
             } => (closing_raw, suffix_raw),
             CallTrial::NoMatch { .. } => return Ok(None),
         };
-        let closing = *self
-            .lexed
-            .lexemes()
-            .get(closing_raw)
-            .ok_or(ParserInternalError::InvalidLexemeStream)?;
-        let suffix = *self
-            .lexed
-            .lexemes()
-            .get(suffix_raw)
-            .ok_or(ParserInternalError::InvalidLexemeStream)?;
-        if matches!(
-            suffix.kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
-        ) && self.gap_has_line_break(closing.span().end(), suffix.span().start())?
-        {
+        if !self.typed_call_suffix_continues(closing_raw, suffix_raw)? {
             return Ok(None);
         }
 
@@ -614,47 +685,176 @@ impl Parser<'_> {
         Ok(Some((arguments, self.span(opener.start(), closer.end())?)))
     }
 
+    fn typed_call_suffix_continues(
+        &self,
+        closing_raw: usize,
+        suffix_raw: usize,
+    ) -> Result<bool, ParserInternalError> {
+        let closing = self
+            .lexed
+            .lexemes()
+            .get(closing_raw)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        let suffix = self
+            .lexed
+            .lexemes()
+            .get(suffix_raw)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        Ok(!matches!(
+            suffix.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        ) || !self.gap_has_line_break(closing.span().end(), suffix.span().start())?)
+    }
+
     pub(super) fn parse_index(
         &mut self,
         receiver: ExpressionId,
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
-        let outer_stops = outer_stops.without_file_and_semicolon_stops();
+        let outer_stops = if outer_stops.block_elements {
+            outer_stops.with(Stops::SEMICOLON)
+        } else {
+            outer_stops
+        };
+        let block_stop = outer_stops.delimiters & Stops::SEMICOLON;
+        let index_stops = outer_stops.without_file_and_semicolon_stops();
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
         let receiver_span = self.expression_span(receiver)?;
-        let inner_stops = outer_stops
+        let inner_stops = index_stops
             .without_lambda_body_soft_stops()
             .with(Stops::RIGHT_BRACKET)
-            .with(Stops::COMMA);
-        let index = self.parse_expression_bp(0, inner_stops)?;
+            .with(Stops::COMMA | block_stop);
+        let leading_poison = self.is_poison();
+        let diagnostic_count = self.diagnostics.len();
+        let mut index = self.parse_expression_bp(0, inner_stops)?;
         let index_span = self.expression_span(index)?;
+        let current = self.current()?;
+        let at_bracket = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket))
+        );
+        // A failed key parse can leave a nested bracket at the cursor.
+        let mut at_index_closer = at_bracket
+            && (self.diagnostics.len() == diagnostic_count
+                || self.lexical_recoveries.group_closer(self.lexed, opener_raw)
+                    == Some(self.current_raw()?));
         let mut last_consumed_end = index_span.end().max(opener.end());
-        let mut reported_missing_closer = false;
-
-        if self.current_is_symbol(Symbol::Comma) {
-            let comma = self.bump()?.span();
-            self.emit_closing(comma, opener)?;
-            reported_missing_closer = true;
-            last_consumed_end = comma.end();
-            while !self.current_is_symbol(Symbol::RightBracket)
-                && !outer_stops.contains(self.current()?)
+        if !at_index_closer {
+            let comma = matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
+            );
+            let at_proven_separator = self.at_block_statement_separator(current, outer_stops)?;
+            let caller_boundary = outer_stops.contains(current) || at_proven_separator;
+            let preserve_separator =
+                outer_stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR) != 0;
+            let at_block_separator = at_proven_separator
+                || (block_stop != 0 && self.current_is_symbol(Symbol::Semicolon))
+                || (preserve_separator
+                    && self.is_poison_kind(current.kind())
+                    && self
+                        .adjacent_poison_tail_boundary()?
+                        .is_some_and(|(raw, _)| self.is_index_block_separator(outer_stops, raw)));
+            let paired_end = if !at_block_separator
+                && (comma || at_bracket || leading_poison || !caller_boundary)
             {
-                last_consumed_end = self.bump()?.span().end();
+                let closer = self.lexical_recoveries.postfix_recovery_closer(
+                    self.lexed,
+                    opener_raw,
+                    self.current_raw()?,
+                    preserve_separator,
+                );
+                self.skip_before_closer(closer)?
+            } else {
+                None
+            };
+
+            let poison_end = if paired_end.is_none() && self.is_poison_kind(current.kind()) {
+                self.recover_index_poison_tail(outer_stops, opener)?
+            } else {
+                None
+            };
+            let already_diagnosed = self.is_poison_kind(current.kind())
+                || (paired_end.is_some() && !comma && (leading_poison || at_bracket));
+            if !already_diagnosed {
+                let diagnostic_span = if comma && paired_end.is_some() {
+                    current.span()
+                } else {
+                    self.boundary_span(current, outer_stops)?
+                };
+                self.emit_closing(diagnostic_span, opener)?;
+            }
+            if let Some(end) = paired_end.or(poison_end) {
+                last_consumed_end = end;
+                at_index_closer = paired_end.is_some();
+                if !comma {
+                    index = self
+                        .add_expression(self.span(index_span.start(), end)?, Expression::Error)?;
+                }
+            } else if !caller_boundary {
+                if at_bracket {
+                    last_consumed_end = self.bump()?.span().end();
+                } else if comma {
+                    self.bump()?;
+                    self.recover_declaration_region(
+                        DeclarationStops::for_postfix_suffix(outer_stops)
+                            .with(DeclarationStops::RIGHT_BRACKET),
+                    )?;
+                    last_consumed_end = self.previous_significant_end();
+                }
             }
         }
 
-        let end = if self.current_is_symbol(Symbol::RightBracket) {
+        let end = if at_index_closer {
             self.bump()?.span().end()
         } else {
-            let current = self.current()?;
-            if !reported_missing_closer && !self.is_poison() {
-                self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
-            }
             last_consumed_end
         };
         self.add_expression(
             self.span(receiver_span.start(), end)?,
             Expression::Index { receiver, index },
         )
+    }
+
+    fn recover_index_poison_tail(
+        &mut self,
+        stops: Stops,
+        opener: Span,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        let Some((boundary_raw, end)) = self.adjacent_poison_tail_boundary()? else {
+            return Ok(None);
+        };
+        let boundary = self.lexed.lexemes()[boundary_raw];
+        if matches!(boundary.kind(), LexemeKind::Eof)
+            || !(stops.contains(boundary) || self.is_index_block_separator(stops, boundary_raw))
+        {
+            return Ok(None);
+        }
+        self.emit_closing(self.empty_at(boundary.span().start())?, opener)?;
+        self.index = boundary_raw;
+        Ok(Some(end))
+    }
+
+    fn is_index_block_separator(&self, stops: Stops, raw: usize) -> bool {
+        matches!(
+            self.lexed.lexemes()[raw].kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+        ) && (stops.delimiters & Stops::SEMICOLON != 0
+            || (stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0
+                && self
+                    .lexical_recoveries
+                    .block_statement_follows(self.lexed, raw)))
+    }
+}
+
+impl DeclarationStops {
+    fn for_postfix_suffix(stops: Stops) -> Self {
+        let stops = if stops.block_elements {
+            stops.with(Stops::SEMICOLON)
+        } else {
+            stops
+        };
+        Self::from_expression(stops).with(Self::PROVEN_GROUPS)
     }
 }

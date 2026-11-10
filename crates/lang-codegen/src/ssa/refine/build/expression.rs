@@ -716,13 +716,30 @@ impl Builder<'_, '_> {
                 continue;
             }
             if mode == ParameterMode::Borrow
-                && let Some((loan, created)) =
-                    self.lower_nested_borrow_argument(call, value_expression, call_arg_span)?
+                && let Some((loan, created)) = self.lower_nested_borrow_argument(
+                    call,
+                    value_expression,
+                    parameter_type,
+                    call_arg_span,
+                )?
             {
                 loans.extend(created.iter().copied());
                 loans.push(loan);
                 self.pending_call_loans.extend(created);
                 self.pending_call_loans.push(loan);
+                lowered_slots[param_slot] = Some(loan);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
+                && let Some((loan, created)) = self.lower_temporary_field_argument(
+                    call,
+                    value_expression,
+                    parameter_type,
+                    call_arg_span,
+                )?
+            {
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
                 lowered_slots[param_slot] = Some(loan);
                 continue;
             }
@@ -807,49 +824,14 @@ impl Builder<'_, '_> {
                 view_reads.push(value_expression);
                 continue;
             }
-            if mode == ParameterMode::Borrow {
-                let mut current = value_expression;
-                let mut source_loan = None;
-                while let Ok(node) = self.inputs.parsed.ast().expressions().get(current) {
-                    match node.payload() {
-                        Expression::Group { expression } => current = *expression,
-                        Expression::Name => {
-                            if let Ok(symbol) = self.reference(self.span(current)) {
-                                source_loan = self.borrowed.get(&symbol).copied();
-                            }
-                            break;
-                        }
-                        Expression::This => {
-                            source_loan = if let Ok(symbol) = self.reference(self.span(current)) {
-                                self.borrowed.get(&symbol).copied()
-                            } else {
-                                self.receiver
-                            };
-                            break;
-                        }
-                        _ => break,
-                    }
-                }
-                if let Some(source_loan) = source_loan {
-                    let argument_span = self.span(value_expression);
-                    let EntityType::Loan { target, .. } = self.body.slots[source_loan.0] else {
-                        return Err(error(LoweringErrorKind::InvalidModel, argument_span));
-                    };
-                    let loan = self.value(
-                        ROp::SharedReborrow {
-                            source: source_loan,
-                        },
-                        EntityType::Loan {
-                            kind: LoanKind::Shared,
-                            target,
-                        },
-                        argument_span,
-                    )?;
-                    loans.push(loan);
-                    self.pending_call_loans.push(loan);
-                    lowered_slots[param_slot] = Some(loan);
-                    continue;
-                }
+            if mode == ParameterMode::Borrow
+                && let Some(loan) =
+                    self.reborrow_call_argument(expression, value_expression, parameter_type)?
+            {
+                loans.push(loan);
+                self.pending_call_loans.push(loan);
+                lowered_slots[param_slot] = Some(loan);
+                continue;
             }
             let saved_expected = self.expected_nullable;
             if matches!(

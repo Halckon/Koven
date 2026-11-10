@@ -9,7 +9,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         Copyability, ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitCallDescriptor, UnitCallTarget, UnitTypeId, UnitTypeKind,
+        UnitCallDescriptor, UnitCallTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -735,6 +735,28 @@ impl Checker<'_, '_> {
             && self.nothing(self.c(call.return_type()))
     }
 
+    pub(super) fn abandoned_borrow_result_call(&self, id: UnitExpressionId) -> bool {
+        // Ordinary exits already unwind pending call loans. The dedicated
+        // borrow/carrier return routes keep their existing admission boundary.
+        self.inputs.borrow_return.is_none()
+            && self.inputs.carrier_return.is_none()
+            && self.inputs.typed.expression_falls_through(id) == Some(false)
+            && self.inputs.owned.call_may_dispatch(id) == Some(false)
+            && self.inputs.typed.call(id).is_some_and(|descriptor| {
+                descriptor.borrow_return().is_some()
+                    && descriptor.receiver().is_none()
+                    && matches!(
+                        descriptor.target(),
+                        UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                    )
+            })
+            && self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, id)
+                .is_some_and(|site| site.dispatch_key().is_none())
+    }
+
     pub(super) fn call(&mut self, expression: ExpressionId, values: &[ExpressionId]) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
@@ -745,12 +767,14 @@ impl Checker<'_, '_> {
             .source_plan
             .call_site(self.inputs.source_token, id);
         let prefix_only = site.is_some_and(|site| site.dispatch_key().is_none());
+        let borrow_prefix =
+            descriptor.borrow_return().is_some() && self.abandoned_borrow_result_call(id);
         let is_extension = self.is_extension_call(descriptor);
         let simple = (descriptor.receiver().is_none()
             || is_extension
             || self.receiver_call(expression))
             && descriptor.range_construction().is_none()
-            && descriptor.borrow_return().is_none()
+            && (borrow_prefix || descriptor.borrow_return().is_none())
             && descriptor
                 .arguments()
                 .iter()
@@ -805,10 +829,43 @@ impl Checker<'_, '_> {
             }));
         let ok = simple && target;
         self.migrated |= ok
-            && (is_extension
+            && (borrow_prefix
+                || is_extension
                 || descriptor.text_primitive().is_some()
                 || self.named_nothing_call(descriptor));
         ok
+    }
+
+    /// Completed operands can require storage even if there is no callee instance.
+    pub(super) fn demand_prefix_nullable_arguments(
+        &self,
+        id: UnitExpressionId,
+        expression: &Expression,
+        demands: &mut Vec<UnitTypeId>,
+    ) {
+        if self.inputs.owned.call_may_dispatch(id) != Some(false) {
+            return;
+        }
+        let (Some(call), Expression::Call { arguments, .. }) =
+            (self.inputs.typed.call(id), expression)
+        else {
+            return;
+        };
+        for argument in call.arguments() {
+            if arguments
+                .get(argument.argument_index())
+                .is_some_and(|operand| {
+                    self.inputs
+                        .owned
+                        .call_argument_completed(self.id(operand.value))
+                })
+            {
+                let parameter = self.c(argument.parameter_type());
+                if matches!(self.kind(parameter), Some(UnitTypeKind::Nullable(_))) {
+                    demands.push(parameter);
+                }
+            }
+        }
     }
 
     /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
@@ -818,6 +875,7 @@ impl Checker<'_, '_> {
             return false;
         };
         let is_extension = self.is_extension_call(descriptor);
+        let prefix_only = self.inputs.owned.call_may_dispatch(self.id(call)) == Some(false);
         let mut modes: Vec<_> = descriptor
             .arguments()
             .iter()
@@ -854,11 +912,29 @@ impl Checker<'_, '_> {
                 reaches_operand = false;
                 return self.expression(value);
             }
+            if prefix_only && self.inputs.owned.call_argument_completed(self.id(value)) {
+                self.note_nullable(parameter);
+            }
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);
             }
             if mode == ParameterMode::Borrow
-                && (self.nested_borrow_argument(call, value)
+                && let Some((parent, _)) =
+                    self.inputs
+                        .temporary_field_argument(self.id(call), value, parameter)
+            {
+                let ok = self
+                    .expression_type(parent)
+                    .is_some_and(|ty| self.class(ty))
+                    && self.expression(parent);
+                if ok {
+                    self.temporary_field_parents.insert(self.id(parent));
+                }
+                self.migrated |= ok;
+                return ok;
+            }
+            if mode == ParameterMode::Borrow
+                && (self.nested_borrow_argument(call, value, parameter)
                     || self.short_range_argument(value, parameter)
                     || self.borrowed_move_only_name(value, parameter)
                     || self.borrowed_string_field(call, value, parameter)

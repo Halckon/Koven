@@ -770,8 +770,14 @@ fn nullable_when_unselected_condition_does_not_move_first_branch_owner() {
             probe(resource) -> 0
             else -> 0
         }";
-    let (_, _, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    for rooted in [false, true] {
+        let (_, _, owned) = nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        assert!(
+            owned.diagnostics().is_empty(),
+            "{rooted}: {:?}",
+            owned.diagnostics()
+        );
+    }
 }
 
 #[test]

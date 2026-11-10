@@ -86,9 +86,12 @@ impl Checker<'_, '_> {
     /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed
     /// temporary moved into a Value argument. A borrowed temporary stays outside unless the
     /// legacy path can no longer lower its call: a function-value call (captured closures
-    /// lower only here) or a `RangeView` carrier call, whose loans the jump ends before the
-    /// temporary drops (SPEC-0393).
+    /// lower only here), a `RangeView` carrier call, or a borrow-result call proven not to
+    /// dispatch. The ordinary exit ends those loans before dropping the temporary.
     fn pending_owner(&self, expression: UnitExpressionId) -> bool {
+        if self.temporary_field_parents.contains(&expression) {
+            return true;
+        }
         if expression.source_unit() != self.inputs.source_unit {
             return false;
         }
@@ -124,6 +127,7 @@ impl Checker<'_, '_> {
             let abandoned_callback = ty.is_some_and(|ty| self.view_function(ty))
                 && self.inputs.owned.call_may_dispatch(call) == Some(false);
             !abandoned_callback
+                && !self.abandoned_borrow_result_call(call)
                 && !self.inputs.typed.call(call).is_some_and(|call| {
                     call.target() == UnitCallTarget::FunctionValue
                         || matches!(call.result_source(), CallableResultSource::Carrier(_))

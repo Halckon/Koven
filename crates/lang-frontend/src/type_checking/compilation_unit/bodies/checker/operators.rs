@@ -187,6 +187,8 @@ impl BodyChecker<'_> {
         let ast = self.file(source).ast();
         let rhs_required =
             logical_rhs_is_required(ast, left, operator).map_err(TypeCheckingError::from)?;
+        let rhs_bypassed =
+            self.syntactic_boolean_outcomes[source.index()].rhs_is_bypassed(left, operator);
         let left_edges = if self.has_pending_expression_exit(source, left, left_result)? {
             self.boolean_pending_edges(source, left, &baseline_versions)?
         } else {
@@ -207,10 +209,11 @@ impl BodyChecker<'_> {
             |checker| checker.check_expression(source, right, None, None, return_type),
         );
         let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
-        let writes = self.expression_flow_writes(source, right)?;
         self.flow_facts = baseline;
-        for key in writes {
-            self.invalidate_flow_key(key);
+        if !rhs_bypassed {
+            for key in self.expression_flow_writes(source, right)? {
+                self.invalidate_flow_key(key);
+            }
         }
         let right_result = right_result?;
         let mut edges = if rhs_pending.is_some()
@@ -442,7 +445,7 @@ impl BodyChecker<'_> {
             return_type,
         )?;
         if let Some((facts, versions)) = bypass {
-            if right_result.falls_through {
+            if self.has_pending_expression_exit(source, right, right_result)? {
                 self.flow_facts = intersect_facts(&facts, &self.flow_facts);
                 self.flow_versions = merge_flow_versions(&versions, &self.flow_versions);
             } else {

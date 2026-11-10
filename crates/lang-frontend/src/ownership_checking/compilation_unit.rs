@@ -798,9 +798,10 @@ impl CompilationUnitOwnership {
 
     /// 普通直接调用 Borrow 实参的实际结束事件，保持 planner 的结束动作顺序。
     /// 仅覆盖 owned-result、无 receiver 的 declaration/symbol call：operand 为可分组的
-    /// owned val/var 或具名参数根、无插值 String 字面量，或沿 typed Field/Group 链证明的
-    /// MoveOnly temporary 父字段（target 必须是实际完整父 owner）。不包含借用绑定、provider
-    /// 来源/绑定、其他投影、直接构造结果、借用结果、来源移交、Inout、receiver 或 capture end。
+    /// owned val/var 或具名参数根、无插值 String 字面量、已验证构造形成的完整 MoveOnly
+    /// temporary，或沿 typed Field/Group 链证明的 MoveOnly temporary 父字段。
+    /// 构造与字段 target 均须匹配实际 owner。排除普通工厂调用结果、借用绑定、provider
+    /// 来源/绑定、其他投影、借用结果、来源移交、Inout、receiver 与 capture end。
     /// 本轮任一 provider 使用的名称根均保守排除，不按调用位置扩大准入。
     /// 空列表不证明其它种类的 loan 仍活跃或已经结束。
     #[must_use]

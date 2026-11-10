@@ -2,7 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use crate::type_checking::{BuiltinType, DeferredReason, UnitTypeId, UnitTypeKind, UnitTypeTable};
+use crate::type_checking::{
+    BuiltinType, DeferredReason, ExpressionCategory, ParameterMode, UnitExpressionId, UnitTypeId,
+    UnitTypeKind, UnitTypeTable,
+};
 
 use super::{BodyChecker, type_graph::children};
 
@@ -58,6 +61,25 @@ impl BodyChecker<'_> {
 
     pub(super) fn contains_unresolved_call_type(&self, root: UnitTypeId) -> bool {
         contains_unresolved(self.signatures.types(), root, &mut BTreeSet::new())
+    }
+
+    pub(super) fn call_argument_matches_mode(
+        &self,
+        value: UnitExpressionId,
+        actual: UnitTypeId,
+        expected: UnitTypeId,
+        mode: ParameterMode,
+        pending: bool,
+    ) -> bool {
+        if mode == ParameterMode::Inout
+            && self.parts.expression_categories.get(&value) == Some(&ExpressionCategory::Place)
+            && !self.is_error(actual)
+            && !self.is_error(expected)
+        {
+            actual == expected || (pending && self.types_could_be_equal(actual, expected))
+        } else {
+            self.call_argument_could_match(actual, expected, pending)
+        }
     }
 
     pub(super) fn call_argument_could_match(

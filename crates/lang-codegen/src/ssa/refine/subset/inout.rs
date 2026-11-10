@@ -34,13 +34,7 @@ impl Checker<'_, '_> {
     /// parameter passed on, whose exclusive loan the ownership facts publish.
     pub(super) fn inout_argument(&mut self, call: ExpressionId, value: ExpressionId) -> bool {
         self.migrated = true;
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(value) else {
-            return false;
-        };
-        let Expression::Name = node.payload() else {
-            return false;
-        };
-        let Some(symbol) = self.reference(value) else {
+        let Some(symbol) = self.direct_place_symbol(value) else {
             return false;
         };
         let (call, value_id) = (self.id(call), self.id(value));

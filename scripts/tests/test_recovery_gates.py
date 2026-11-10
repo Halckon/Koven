@@ -101,14 +101,15 @@ class CompositionContracts(unittest.TestCase):
         other_targets = [target for target in targets
                          if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
-        # Retain the existing review targets and the bounded signature/delegation additions.
-        added_targets = ("multifile_type_signatures", "parser_interface_delegation")
+        # Retain the existing review targets and the bounded additions.
+        added_targets = ("multifile_type_signatures", "parser_interface_delegation",
+                         "parser_index_recovery")
         for target in added_targets:
             self.assertEqual(1, other_targets.count(target))
         retained_targets = [target for target in other_targets
                             if target not in added_targets]
         self.assertEqual(135, len(retained_targets))
-        self.assertEqual(137, len(other_targets))
+        self.assertEqual(138, len(other_targets))
         self.assertEqual(1, targets.count("ownership_value_api"))
         self.assertEqual(1, other_targets.count("type_text_extension"))
         self.assertEqual(1, targets.count("unit_direct_call_loan_ends"))

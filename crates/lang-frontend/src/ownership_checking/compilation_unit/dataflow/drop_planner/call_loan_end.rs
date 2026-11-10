@@ -2,13 +2,12 @@
 use super::{DropPlanner, PlannerDropPoint, ValueState};
 use crate::{
     ast::ExpressionId,
-    name_resolution::SymbolKind,
     ownership_checking::{
-        LoanKind, OwnershipBindingKind, UnitDirectCallLoanEndFact,
-        UnitIterationCleanupAction as Action, UnitLoanFact, UnitLoanTarget,
+        LoanKind, UnitDirectCallLoanEndFact, UnitIterationCleanupAction as Action, UnitLoanFact,
+        UnitLoanTarget,
     },
     parser::{Expression, StringPart},
-    type_checking::{CallableResultSource, UnitCallTarget},
+    type_checking::{CallableResultSource, ExpressionCategory, UnitCallTarget},
 };
 use std::collections::BTreeMap;
 
@@ -17,7 +16,7 @@ impl DropPlanner<'_, '_> {
         self.observes_call_loan(loan, LoanKind::Shared)
     }
 
-    // Shared admits proven temporary field parents in addition to roots. Exclusive
+    // Shared also admits proven temporary owners and field parents. Exclusive
     // remains root-only; both reuse registered tokens and the existing unwind traversal.
     fn observes_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
         let Some(call) = self.checker.typed.call(loan.call()) else {
@@ -43,43 +42,27 @@ impl DropPlanner<'_, '_> {
             match node.payload() {
                 Expression::Group { expression } => operand = *expression,
                 Expression::Name => {
+                    if kind == LoanKind::Shared
+                        && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument())
+                        && self.checker.typed.expression_category(loan.argument())
+                            == Some(ExpressionCategory::Place)
+                    {
+                        // A Copyable nullable conversion of the name has its own temporary loan.
+                        return true;
+                    }
                     let Ok(Some(place)) = self.checker.place(operand) else {
                         return false;
                     };
-                    let root = place.root();
-                    let owned =
-                        self.checker.formed_owned_locals.contains(&root)
-                            || self.checker.bindings.get(&root).is_some_and(|binding| {
-                                binding.kind() == OwnershipBindingKind::Owned
-                            });
-                    let provider = self.checker.iterations.values().any(|plan| {
-                        plan.bindings().iter().any(|binding| binding.symbol() == root)
-                            || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-                    }) || self.checker.map_iterations.values().any(|plan| {
-                        plan.bindings().iter().any(|binding| binding.symbol() == root)
-                            || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
-                    });
-                    return owned
-                        && !provider
-                        && matches!(
-                            self.checker.symbol_kind(root),
-                            Some(SymbolKind::Variable | SymbolKind::ValueParameter)
-                        )
-                        && place.is_root()
-                        && !self
-                            .checker
-                            .borrow_results
-                            .bindings
-                            .iter()
-                            .any(|binding| binding.binding() == root)
+                    return place.is_root()
+                        && self.is_observable_owned_loan_root(place.root())
                         && matches!(loan.target(), UnitLoanTarget::Place(target) if target == &place);
                 }
                 Expression::Member { .. } => {
-                    // Reuse the pending-owner proof: typed Field/Group chain, actual Shared
-                    // Temporary(parent) token, and the complete parent's MoveOnly category.
+                    // The field parent's cleanup obligation is independent of the loan target.
+                    // Only a loan of the actual parent is observed by this field path.
                     return kind == LoanKind::Shared
                         && self
-                            .borrowed_temporary_field_owner(
+                            .call_temporary_field_parent(
                                 loan.call().expression(),
                                 loan.argument().expression(),
                                 super::UnitCallArgumentOwnershipKind::SharedLoan,
@@ -91,8 +74,19 @@ impl DropPlanner<'_, '_> {
                                 })
                             });
                 }
+                Expression::Call { .. } => {
+                    // A checked construction forms its own owner. Other call
+                    // results still need a dedicated ownership-source proof.
+                    return kind == LoanKind::Shared
+                        && self
+                            .checker
+                            .construction_descriptors
+                            .contains_key(&self.checker.unit_expression(operand))
+                        && self.is_move_only_temporary(loan.argument().expression())
+                        && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
+                }
                 Expression::String { parts } => {
-                    // plain String 自己求值成 owner；不接受 interpolation、投影或构造调用。
+                    // plain String 自己求值成 owner；不接受 interpolation 或投影。
                     return kind == LoanKind::Shared
                         && parts.iter().all(|part| matches!(part, StringPart::Text(_)))
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());

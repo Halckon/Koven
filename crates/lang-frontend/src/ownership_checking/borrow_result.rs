@@ -1,7 +1,7 @@
 //! 普通借用的实际来源、结果绑定依赖与显式终止事实。
 
 use crate::{
-    ast::ExpressionId,
+    ast::{ExpressionId, TypeRefId},
     parser::{Expression, NameMarker, ParsedFile},
     source::Span,
 };
@@ -84,6 +84,7 @@ pub(crate) struct ReturnSource<S> {
     pub(crate) symbol: Option<S>,
     pub(crate) span: Span,
     pub(crate) marker: Span,
+    pub(crate) type_ref: TypeRefId,
     pub(crate) new_range: bool,
 }
 
@@ -296,7 +297,7 @@ impl<E: Copy, S: Copy, T, P: Copy> BorrowCallUseFact<E, S, T, P> {
     pub const fn parent(&self) -> Option<S> {
         self.parent
     }
-    /// 结果及本次来源链的正常终止边，只能是外层 CallReturn。
+    /// 结果及来源链在直接交付时于外层 CallReturn 结束，在复制时于外层实参完成后结束。
     pub const fn end_point(&self) -> P {
         self.end_point
     }

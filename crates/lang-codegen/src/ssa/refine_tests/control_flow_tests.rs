@@ -2,6 +2,87 @@ use super::*;
 use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
+fn skipped_short_circuit_write_keeps_the_existing_nonnull_proof() {
+    let source = r#"fun clear(inout target: Int?): Boolean {
+        target = null
+        println("unexpected write")
+        return true
+    }
+    fun main(): Unit {
+        var x: Int? = 7
+        if (x != null) {
+            val ignored = false && clear(&x)
+            val after: Int = x
+            if (after == 7) { println("narrowed") }
+        }
+    }"#;
+    assert_eq!(run(source), ("narrowed\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn skipped_composite_short_circuit_write_preserves_the_left_effect() {
+    let source = r#"fun left(): Boolean { println("left"); return true }
+    fun clear(inout target: Int?): Boolean {
+        target = null
+        println("unexpected write")
+        return false
+    }
+    fun main(): Unit {
+        var x: Int? = 7
+        if (x != null) {
+            val ignored = !(left() && false) || clear(&x)
+            val after: Int = x
+            if (after == 7) { println("narrowed") }
+        }
+    }"#;
+    assert_eq!(run(source), ("left\nnarrowed\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn skipped_short_circuit_still_accepts_a_conservative_field_drop_plan() {
+    let source = r#"class Holder(var text: String)
+    fun check(inout marker: Int, flag: Boolean): Unit {
+        marker = marker + 1
+        val holder = Holder("old")
+        val ignored = false && (if (flag) { holder.text = "new"; true } else false)
+        println(holder.text)
+    }
+    fun main(): Unit {
+        var marker = 0
+        check(&marker, true)
+        if (marker == 1) { println("checked") }
+    }"#;
+    assert_eq!(run(source), ("old\nchecked\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn grouped_inout_arguments_reborrow_the_same_nullable_storage() {
+    let source = r#"fun clear(inout value: Int?): Unit { value = null }
+    fun forward(inout target: Int?): Unit { clear(value = &((target))) }
+    fun main(): Unit {
+        var x: Int? = 7
+        if (x != null) { forward(target = &((x))) }
+        if (x == null) { println("cleared") }
+    }"#;
+    assert_eq!(run(source), ("cleared\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn inout_writes_nullable_storage_even_after_a_nonnull_read() {
+    let source = r#"fun clear(inout target: Int?): Unit { target = null }
+    fun main(): Unit {
+        var x: Int? = 7
+        if (x != null) {
+            val before: Int = x
+            if (before == 7) { println("narrowed") }
+            clear(&x)
+        }
+        if (x == null) { println("cleared") }
+    }"#;
+    assert_eq!(run(source), ("narrowed\ncleared\n".to_owned(), Some(0)));
+}
+
+#[test]
 fn checked_division_by_zero_with_sibling_slot_reassignment() {
     let source = r#"fun test_div(opt: Int?, flag: Boolean, input: Int): Int {
         var d = input

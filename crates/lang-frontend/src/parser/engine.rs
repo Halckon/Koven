@@ -18,6 +18,7 @@ mod separator_tests;
 mod tests;
 mod type_ref;
 
+use block::unsupported_block_element_kind;
 use boundary::*;
 use recovery::LexicalRecoveryIndex;
 pub(super) use recovery::{TerminalOwnerEvent, TerminalOwnerKind};
@@ -322,7 +323,7 @@ fn validate_lexemes(
 struct Parser<'source> {
     sources: &'source SourceMap,
     lexed: &'source LexedFile,
-    lexical_recoveries: LexicalRecoveryIndex,
+    lexical_recoveries: LexicalRecoveryIndex<'source>,
     file_angle: Option<FileAngleRecovery>,
     strict_trials: StrictCallTrialIndex,
     lambda_headers: LambdaHeaderIndex,

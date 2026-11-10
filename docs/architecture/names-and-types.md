@@ -4,8 +4,8 @@
 
 ## 单文件分析
 
-`name_resolution::resolve_names` 在只读 `ParsedFile` 上建立 scope、symbol、reference 和 overload set。
-调用方通过 `NameEnvironment` 显式提供外部类型和值；resolver 不读取文件系统或隐式加载 prelude。
+`name_resolution::resolve_names` 使用只读 `ParsedFile` 与显式 `NameEnvironment`，建立 scope、symbol、reference 和 overload set。
+Unit 按文件复用该原语，再叠加跨文件声明身份与 package/import 规则。resolver 不读取文件系统或隐式加载 prelude。
 
 单文件解析使用类型/值双命名空间。顶层和成员先收集后解析，block local 在 initializer 完成后可见，
 嵌套作用域允许遮蔽。引用结果保留声明身份和源码 Span，未解析与歧义形成结构化诊断。
@@ -14,7 +14,7 @@
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
 Unit调用与逻辑递归帧隔离保留pending语义（[新主线适配](../specs/active/0341-shared-lowering-core.md#unit-栈帧候选适配新主线2026-11-08)）；raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
 [最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
-`type_callable` 的 println 身份、实参映射、lambda 模式与泛型实例由双 Unit 入口覆盖。旧 Single 保留失败 trial 的封存哨兵见证，见[复审账本](../specs/active/0392-compiler-layered-review.md#98-r0r2-泛型实例身份与待定调用消费者)。`type_checking::rc_unit` 的构造/share/payload 与失败原子性两项原消费者、`nominal_unit::signatures` 的接口闭包与泛型 this 两项原消费者使用双 Unit raw type 入口。`nominal_unit::stress` 保留主线96层泛型/64层接口图及128个枚举分支/96层smart-cast回归，未重复注册旧候选。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join` 与双 Unit 的 `lambda_completion`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)。for 与 loop 同样清除回边可能写入的事实，for 先检查 source。loop/while 发布普通完成性，有限域 when 发布实际 selector 前缀，见[复审 §135](../specs/active/0392-compiler-layered-review.md#135-r2r3r4-循环完成性与穷尽-when-前缀)。Elvis 和 if 按正常出口合并事实与来源版本，见[分层复审 §25](../specs/active/0392-compiler-layered-review.md#25-r2-循环回边和-elvis-出口的流事实)。lambda expected/capture 见[专题](expected-move-literals.md)。
+`type_callable` 的 println 身份、实参映射、lambda 模式与泛型实例由双 Unit 入口覆盖。旧 Single 保留失败 trial 的封存哨兵见证，见[复审账本](../specs/active/0392-compiler-layered-review.md#98-r0r2-泛型实例身份与待定调用消费者)。`type_checking::rc_unit` 的构造/share/payload 与失败原子性两项原消费者、`nominal_unit::signatures` 的接口闭包与泛型 this 两项原消费者使用双 Unit raw type 入口。`nominal_unit::stress` 保留主线96层泛型/64层接口图及128个枚举分支/96层smart-cast回归，未重复注册旧候选。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join` 与双 Unit 的 `lambda_completion`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)。for 与 loop 同样清除回边可能写入的事实，for 先检查 source。loop/while 发布普通完成性，有限域 when 发布实际 selector 前缀，见[复审 §135](../specs/active/0392-compiler-layered-review.md#135-r2r3r4-循环完成性与穷尽-when-前缀)。Elvis 和 if 按正常出口合并事实与来源版本，见[分层复审 §25](../specs/active/0392-compiler-layered-review.md#25-r2-循环回边和-elvis-出口的流事实)。lambda expected/capture 见[专题](expected-move-literals.md)。每份 AST 的布尔语法结果表覆盖字面量、分组、取反和复合逻辑，证明被跳过的右侧不参与写入失效及循环预扫描。该右侧仍执行静态类型检查，普通和 Const 的完成性使用各自已有合同。
 
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
 final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。 `type_checking::raw_followup` 的11项构造/smart-cast/when 原消费者现走双 Unit raw type 入口；顶层溢出保留 L0167 与 L0090 并存及原 Single witness，范围见 [迁移验收](../specs/active/0341-shared-lowering-core.md#独立批次构造与控制类型消费者2026-11-07)。
@@ -174,16 +174,16 @@ visibility；跨文件 private 访问产生 L0154，import target 的 L0148/L014
 选择随 overload trial 一起回滚。基础 `CompilationUnitTypes::validate()` 拒绝包含任何常量声明或选择记录的
 产物，避免提前授予 ownership/native 能力。
 
-闭合初始化器按 source-qualified symbol 建立语法依赖图，保留短路右侧依赖；无环部分按依赖
-顺序重查以推断前向引用类型，环内具体类型通过工作队列传播，失效沿反向边传播后才发布
-L0157。SCC 使用与单文件相同的显式栈算法，诊断及 labels 按稳定 symbol 顺序排列。该图仍为
-内部类型检查事实。常量类型使用与单文件共享的闭合集合，普通类型错误优先；L0155 指向显式
-注解或推断初始化器，签名错误及包含 Error 的复合依赖类型不追加资格级联。表达式资格复用
-依赖遍历，以首个非法子表达式的 Span 产生 L0156；普通类型错误与 L0155 先处理，短路 RHS
-仍检查资格。无环节点在类型资格通过后调用共享 evaluator，适配器仅映射 source-qualified
-表达式、已选常量值和整数类型；短路、String/Char 解码及算术仍由共享内核执行。失败产生
-L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
-类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布；错误时不保留部分常量事实。
+闭合初始化器按 source-qualified symbol 建立语法依赖图，保留短路 RHS。就绪节点按依赖顺序检查并求值。
+剩余图先处理提供者分量。分量内先稳定普通类型再提交独立资格错误，失效沿反向边传播，阻断求值与 L0157。
+已知不合格的显式注解在建图前标为失效。普通类型诊断优先，资格仅跳过受失效依赖影响的 operand 类型。
+内部图使用与单文件共享的显式栈 SCC 算法，按稳定 symbol 排列诊断及 labels。常量类型沿用
+共享闭合集合，普通类型错误优先。L0155 指向注解或推断初始化器，签名错误及包含 Error 的
+复合依赖类型不追加资格级联。表达式资格复用依赖遍历，以首个非法子表达式的 Span 产生 L0156。
+普通类型错误与 L0155 先处理，短路 RHS 仍检查资格。无环节点在类型资格通过后调用共享 evaluator，
+适配器映射 source-qualified 表达式、已选常量值和整数类型。短路、String/Char 解码及算术由共享内核执行。
+求值失败产生 L0158，阻断依赖求值和环诊断，保留类型与资格检查。循环不求值。声明计数、值完整性、
+读取类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布，错误时不保留部分常量事实。
 `validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
 解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。 `type_constants` 三项求值消费者以双入口保留算术失败、短路/依赖边界与关联常量字宽的诊断/span oracle。
 

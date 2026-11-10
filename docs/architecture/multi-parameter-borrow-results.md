@@ -37,10 +37,10 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 `ownership_borrow_continuation` 的 capture/conditional/nested-call/temporary/loop 五项拒绝
 消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。
 
-普通直接调用的 Unit loan-end 是有界观测切片：Owned-return 根实参/普通 String 的
-成功前缀已有固定事件与唯一 owner-drop 对照；后续真实 ownership 错误或 deferred
-会撤销事件能力。它不包含借用返回来源交接，不能替代 continuation 的 Single loan-end
-stream；该差异对照在对应消费者中仍需保留。
+普通直接调用的 Unit loan-end 覆盖 Owned-return 根实参、普通 String 和经同轮构造事实
+确认的完整 MoveOnly temporary。构造实参须匹配实际 Shared token 和 owner，普通工厂
+调用结果沿用原边界。后续 ownership 错误或 deferred 撤销事件能力。借用返回来源交接
+仍由其独立事实和 Single loan-end 见证覆盖。
 
 `borrow_call_handoffs()` 额外发布直接 borrow-return initializer 到显式 borrow val 的
 有界正常返回观察：真实 pending source token 捕获后，只在 binding 正常提交时发布，
@@ -69,3 +69,22 @@ owned root 身份与 provider 的参数 Span；两条兄弟 return 边分别保�
 嵌套辅助调用提前 return 的固定源码样本同时核来源 prefix 与普通 direct-call 两类
 实际 token；两者均在同点 drop 前结束，随后按 temporary、owned root 的精确顺序清理。
 两类切片不能给出彼此之间的统一事件序，测试保留两条 Single 结束见证。
+
+Refine 支持普通调用者中已证明不能分派的借用结果调用前缀。typed 无正常继续、owned
+不分派及实际调用计划的空 dispatch key 共同准入。已完成实参保留原 loan，退出先结束
+这些 loan，再执行原析构。未完成的 `borrow val` 不建立绑定或结果 loan。
+
+普通局部 `borrow val` 的 Copyable 值实参中，显式 `if` 的一臂可直接执行无值
+`return`，另一臂可继续分派。准入要求正常路径的绑定事实和该 Return 上属于同一
+调用、来源实参与来源目标的 prefix end。退出臂结束来源 loan 后析构，正常臂保留
+来源 loan 并建立结果绑定。来源实参在退出实参之后求值时缺少该证明，沿用原准入
+结果。同一函数的其他普通绑定只有经词法顺序证明在该 initializer 前已结束或后才
+建立时，才复用该 initializer 的退出证明。证明按 source-qualified initializer 索引，
+越过分支或 lambda 时不传递。双正常臂的实参 CFG、外层借用或 carrier 返回及
+循环内普通借用绑定沿用各自门禁。
+
+Unit 的直接根别名由已验证的绑定事实匹配同源、同类型的普通名称。已形成的 owned
+local 和 Owned/Shared 参数走到达的别名 lowering，按实际结束点处理 loan，再由 SSA
+verifier 检查跨块存活。直接子别名须匹配同源同类型的真实父绑定和同一根。
+符合 subset 的普通 Borrow 参数父子链由 Refine 消费，Map/MutableMap 保留对应兼容路由。
+借用返回调用、投影、carrier 与 Inout 根分别由各自入口处理。

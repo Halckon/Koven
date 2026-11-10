@@ -60,9 +60,33 @@ impl BodyChecker<'_> {
         type_ref: Option<TypeRefId>,
         initializer: crate::ast::ExpressionId,
     ) -> Result<(), CompilationUnitTypeError> {
-        if !self.checking_constants && self.constant_prechecked.contains(&symbol) {
+        if self.constant_prechecked.contains(&symbol) {
             return Ok(());
         }
+        let ordinary_ok =
+            self.check_value_initializer_type(source, symbol, type_ref, initializer)?;
+        let constant = self.names.source_units()[source.index()]
+            .resolution()
+            .symbols()[symbol.symbol().index()]
+        .kind()
+            == SymbolKind::Constant;
+        if ordinary_ok && constant {
+            self.qualify_constant_initializer(
+                symbol,
+                type_ref,
+                UnitExpressionId::new(source, initializer),
+            )?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn check_value_initializer_type(
+        &mut self,
+        source: SourceUnitId,
+        symbol: UnitSymbolId,
+        type_ref: Option<TypeRefId>,
+        initializer: crate::ast::ExpressionId,
+    ) -> Result<bool, CompilationUnitTypeError> {
         let expected = type_ref
             .map(|_| {
                 self.signatures
@@ -81,57 +105,63 @@ impl BodyChecker<'_> {
         let before = self.diagnostics.len();
         let result =
             self.check_expression(source, initializer, expected, expected_span, return_type)?;
-        let ty = expected.unwrap_or(result.ty);
-        self.record_symbol_type(symbol, ty);
-        let constant = self.names.source_units()[source.index()]
-            .resolution()
-            .symbols()[symbol.symbol().index()]
-        .kind()
-            == SymbolKind::Constant;
-        // Signature resolution precedes body diagnostics and may wrap Error inside
-        // nullable/container types. Preserve the annotation's original diagnostic.
-        let signature_error = expected_span.is_some_and(|annotation| {
-            self.signatures.diagnostics().iter().any(|diagnostic| {
-                let span = diagnostic.primary_span();
-                span.source_id() == annotation.source_id()
-                    && annotation.start() <= span.start()
-                    && span.end() <= annotation.end()
-            })
-        });
-        if constant
-            && !signature_error
-            && self.diagnostics.len() == before
-            && !self.constant_type_has_error(ty)
-        {
-            let allowed = match self.signatures.types().get(ty) {
-                Some(UnitTypeKind::Error) => true,
-                Some(UnitTypeKind::Deferred(reason)) => {
-                    *reason != DeferredReason::AnyValueRepresentation
-                }
-                Some(UnitTypeKind::Builtin(ty)) => accepts_constant_type(*ty),
-                _ => false,
+        self.record_symbol_type(symbol, expected.unwrap_or(result.ty));
+        Ok(self.diagnostics.len() == before)
+    }
+
+    pub(super) fn qualify_constant_initializer(
+        &mut self,
+        symbol: UnitSymbolId,
+        type_ref: Option<TypeRefId>,
+        root: UnitExpressionId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let source = root.source_unit();
+        let expected_span = type_ref
+            .map(|type_ref| self.top_level_type_ref_span(source, type_ref))
+            .transpose()?;
+        if expected_span.is_some_and(|annotation| self.signature_error_in(annotation)) {
+            return Ok(());
+        }
+        // An inferred type can depend on the failed declaration. An
+        // explicit type annotation keeps its own qualification check.
+        if type_ref.is_none() && self.constant_recovery_nodes.contains_key(&symbol) {
+            return self.check_constant_expression(symbol, root);
+        }
+        let ty = self.parts.symbol_types[&symbol];
+        if self.constant_type_has_error(ty) {
+            return Ok(());
+        }
+        if !self.constant_type_is_allowed(ty) {
+            let span = match expected_span {
+                Some(span) => span,
+                None => self
+                    .file(source)
+                    .ast()
+                    .expressions()
+                    .get(root.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span(),
             };
-            if !allowed {
-                let span = match expected_span {
-                    Some(span) => span,
-                    None => self
-                        .file(source)
-                        .ast()
-                        .expressions()
-                        .get(initializer)
-                        .map_err(TypeCheckingError::from)?
-                        .span(),
-                };
-                self.emit(
-                    codes::INVALID_CONSTANT_TYPE,
-                    "constant type must be Boolean, an integer, Char, or String",
-                    span,
-                )?;
-            } else {
-                self.check_constant_expression(UnitExpressionId::new(source, initializer))?;
-            }
+            self.emit(
+                codes::INVALID_CONSTANT_TYPE,
+                "constant type must be Boolean, an integer, Char, or String",
+                span,
+            )?;
+        } else {
+            self.check_constant_expression(symbol, root)?;
         }
         Ok(())
+    }
+
+    pub(super) fn constant_type_is_allowed(&self, ty: UnitTypeId) -> bool {
+        match self.signatures.types().get(ty) {
+            Some(UnitTypeKind::Error) => true,
+            Some(UnitTypeKind::Deferred(reason)) => {
+                *reason != DeferredReason::AnyValueRepresentation
+            }
+            Some(UnitTypeKind::Builtin(ty)) => accepts_constant_type(*ty),
+            _ => false,
+        }
     }
 
     /// Recovery types can carry an upstream Error through a cross-file constant reference.
@@ -188,7 +218,17 @@ impl BodyChecker<'_> {
             .map_err(CompilationUnitTypeError::from)
     }
 
-    fn top_level_type_ref_span(
+    // Signature resolution may preserve the outer type of an invalid annotation.
+    pub(super) fn signature_error_in(&self, annotation: Span) -> bool {
+        self.signatures.diagnostics().iter().any(|diagnostic| {
+            let span = diagnostic.primary_span();
+            span.source_id() == annotation.source_id()
+                && annotation.start() <= span.start()
+                && span.end() <= annotation.end()
+        })
+    }
+
+    pub(super) fn top_level_type_ref_span(
         &self,
         source: SourceUnitId,
         type_ref: TypeRefId,

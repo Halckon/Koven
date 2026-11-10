@@ -72,8 +72,12 @@ impl Builder<'_, '_> {
         }
         let middle = self.body.block();
         let skip = self.body.block();
-        if self.inputs.constant_owned.is_none() && self.inputs.typed.ordinary_rhs_required(control)
-        {
+        let ordinary = self.inputs.constant_owned.is_none();
+        if ordinary && self.inputs.typed.ordinary_rhs_bypassed(control) {
+            if self.required(left)?.is_some() {
+                self.goto(skip, span)?;
+            }
+        } else if ordinary && self.inputs.typed.ordinary_rhs_required(control) {
             if self.required(left)?.is_some() {
                 self.goto(middle, span)?;
             }

@@ -23,6 +23,174 @@ fn borrowed_direct_alias_single_and_unit_preserve_real_parent_and_cleanup_order(
 }
 
 #[test]
+fn stable_root_alias_cfg_is_independent_of_unrelated_ownership_primitives() {
+    for probe in [
+        r#"fun probe(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    { borrow val item = owner; println(item) }
+    if (flag) { println("after") }
+}
+fun entry() { probe(true); probe(false) }"#,
+        r#"fun probe(own owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() { probe("kept".clone(), true); probe("kept".clone(), false) }"#,
+        r#"fun probe(owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() { probe("kept".clone(), true); probe("kept".clone(), false) }"#,
+    ] {
+        let sibling =
+            format!("{probe}\nfun unrelated(): Unit {{ var a = 1; var b = 2; swap(&a, &b) }}");
+        let nested = probe.replacen(
+            "    if (flag)",
+            "    val unrelated: () -> Unit = { var a = 1; var b = 2; swap(&a, &b) }\n    if (flag)",
+            1,
+        );
+        for source in [probe, &sibling, &nested] {
+            for lower in [single, unit] {
+                let program = lower(source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program(&program).unwrap();
+                let probe = program.modules[0]
+                    .functions
+                    .iter()
+                    .find(|function| function.name.contains(".probe."))
+                    .unwrap();
+                let operations = || {
+                    probe
+                        .instructions
+                        .iter()
+                        .map(|instruction| &instruction.operation)
+                };
+                assert!(operations().any(|op| matches!(
+                    op,
+                    Operation::BorrowBegin { .. } | Operation::SharedReborrow { .. }
+                )));
+                assert!(operations().any(|op| matches!(op, Operation::BorrowEnd { .. })));
+                assert!(probe.blocks.iter().any(|block| matches!(
+                    block.terminator.as_ref().map(|terminator| &terminator.kind),
+                    Some(TerminatorKind::Conditional { .. })
+                )));
+            }
+        }
+    }
+}
+
+#[test]
+fn stable_child_aliases_keep_their_parent_across_cfg_layouts() {
+    for (probe, depth) in [
+        (
+            r#"fun view(source: String): borrow String from source = source
+fun probe(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    {
+        borrow val parent = view(owner)
+        borrow val item = ((parent))
+        println(item)
+    }
+    if (flag) { println("after") }
+}
+fun entry() { probe(true); probe(false) }"#,
+            1,
+        ),
+        (
+            r#"fun probe(owner: String, own flag: Boolean): Unit {
+    borrow val parent = owner
+    borrow val child = ((parent))
+    borrow val item = child
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() { probe("early".clone(), true); probe("normal".clone(), false) }"#,
+            3,
+        ),
+    ] {
+        let sibling =
+            format!("{probe}\nfun unrelated(): Unit {{ var a = 1; var b = 2; swap(&a, &b) }}");
+        for source in [probe, &sibling] {
+            for lower in [single, unit] {
+                let program = lower(source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program(&program).unwrap();
+                let probe = program.modules[0]
+                    .functions
+                    .iter()
+                    .find(|function| function.name.contains(".probe."))
+                    .unwrap();
+                let chain: Vec<_> = probe
+                    .instructions
+                    .iter()
+                    .filter_map(|instruction| {
+                        let Operation::SharedReborrow { source } = instruction.operation else {
+                            return None;
+                        };
+                        let [EntityId::Loan(child)] = instruction.results.as_slice() else {
+                            panic!("one child result");
+                        };
+                        Some((source, *child))
+                    })
+                    .collect();
+                assert_eq!(chain.len(), depth);
+                assert!(chain.windows(2).all(|pair| pair[0].1 == pair[1].0));
+                if depth == 1 {
+                    let call = probe
+                        .instructions
+                        .iter()
+                        .find(|instruction| {
+                            matches!(instruction.operation, Operation::BorrowCall { .. })
+                        })
+                        .expect("the parent comes from view");
+                    assert_eq!(call.results, [EntityId::Loan(chain[0].0)]);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn map_child_alias_keeps_the_compatibility_gate_before_reachability() {
+    let source = r#"fun probe(owner: Map<String, String>, own flag: Boolean): Unit {
+    borrow val parent = owner
+    borrow val child = parent
+    if (flag) { val count = child.size; println("branch") }
+}
+fun entry() {}"#;
+    for source in [source.to_owned(), source.replace("Map<", "MutableMap<")] {
+        let control = r#"if (flag) { val count = child.size; println("branch") }"#;
+        for (lower, prefix_len) in [(single as fn(&str) -> _, 0), (unit, "package p\n".len())] {
+            let error = lower(&source).err().expect("retained Map alias gate");
+            assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+            let span = error.span.expect("original compatibility error range");
+            let start = source.find(control).unwrap() + prefix_len;
+            assert_eq!((span.start(), span.end()), (start, start + control.len()));
+        }
+    }
+}
+
+#[test]
+fn inout_root_alias_keeps_existing_codegen_boundary() {
+    let source = r#"fun probe(inout owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() { var owner = "kept".clone(); probe(&owner, true) }"#;
+    let sibling =
+        format!("{source}\nfun unrelated(): Unit {{ var a = 1; var b = 2; swap(&a, &b) }}");
+    for text in [source, &sibling] {
+        for lower in [single, unit] {
+            let error = lower(text).err().expect("original Inout boundary");
+            assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+        }
+    }
+}
+
+#[test]
 fn borrowed_stable_place_single_and_unit_use_real_storage_and_ordered_ends() {
     for case in crate::native_borrow_place_cases::cases() {
         for (label, result) in [("single", single(case.source)), ("unit", unit(case.source))] {

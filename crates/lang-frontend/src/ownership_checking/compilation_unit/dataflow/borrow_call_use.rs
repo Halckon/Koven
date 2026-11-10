@@ -7,7 +7,10 @@ use crate::{
         BorrowCallUseFact, BorrowSourceLoan, LoanKind, UnitDropPoint as DropPoint,
         UnitLoanTarget as LoanTarget,
     },
-    type_checking::{CallableResultSource, ParameterMode, UnitCallTarget, UnitExpressionId},
+    type_checking::{
+        CallableResultSource, Copyability, ParameterMode, UnitCallTarget, UnitExpressionId,
+        UnitTypeId, UnitTypeKind,
+    },
 };
 
 impl Checker<'_> {
@@ -15,8 +18,23 @@ impl Checker<'_> {
         &self,
         call: ExpressionId,
         argument: ExpressionId,
-    ) -> Option<ExpressionId> {
+        parameter: UnitTypeId,
+    ) -> Option<(ExpressionId, bool)> {
         let expression = self.borrow_result_call(argument)?;
+        let actual = self.typed.expression_type(self.unit_expression(argument))?;
+        let copies = actual != parameter
+            && matches!(
+                self.typed.types().get(parameter),
+                Some(UnitTypeKind::Nullable(_))
+            );
+        if copies
+            && !(self.typed.copyability(actual) == Copyability::Copyable
+                && matches!(self.typed.types().get(parameter), Some(UnitTypeKind::Nullable(inner)) if *inner == actual))
+        {
+            return None;
+        }
+        // A nullable conversion cannot be handed off as a stable source loan.
+        let source = self.borrowed_call_source(expression)?;
         let outer = self.typed.call(self.unit_expression(call))?;
         if outer.result_source() != CallableResultSource::Owned
             || outer.receiver().is_some()
@@ -60,9 +78,9 @@ impl Checker<'_> {
             return None;
         }
         // 暂不延长 temporary source，也不借此放行嵌套结果再次成为来源。
-        let place = self.place(self.borrowed_call_source(expression)?).ok()??;
+        let place = self.place(source).ok()??;
         self.borrow_call_source_supported(&place)
-            .then_some(expression)
+            .then_some((expression, copies))
     }
 
     fn borrow_call_source_supported(
@@ -81,6 +99,7 @@ impl Checker<'_> {
         call: ExpressionId,
         argument: ExpressionId,
         expression: ExpressionId,
+        copies: bool,
         flows: &mut Flows,
     ) -> Result<(), OwnershipCheckingError> {
         let Some(state) = flows.next.as_mut() else {
@@ -117,24 +136,25 @@ impl Checker<'_> {
             .borrow_bindings
             .contains_key(&place.root())
             .then_some(place.root());
+        let begin = source_loan.begin_span();
         let source_loan = BorrowSourceLoan {
             call: self.unit_expression(expression),
             argument: source_loan.argument(),
         };
-        let begin = self
-            .loans
-            .iter()
-            .find(|loan| loan.call() == source_loan.call && loan.argument() == source_loan.argument)
-            .map(|loan| loan.begin_span());
         let mut transferred = false;
-        for loan in &mut state.loans {
-            if loan.owner == ActiveLoanOwner::Call(self.unit_expression(expression))
-                && Some(loan.origin) == begin
+        state.loans.retain_mut(|loan| {
+            if loan.owner != ActiveLoanOwner::Call(self.unit_expression(expression))
+                || loan.origin != begin
             {
-                loan.owner = ActiveLoanOwner::Call(self.unit_expression(call));
-                transferred = true;
+                return true;
             }
-        }
+            transferred = true;
+            if copies {
+                return false;
+            }
+            loan.owner = ActiveLoanOwner::Call(self.unit_expression(call));
+            true
+        });
         if !transferred {
             return self.emit_borrow_binding_diagnostic(
                 codes::UNSUPPORTED_BORROW_FLOW,
@@ -149,7 +169,11 @@ impl Checker<'_> {
             source_loan,
             origin: LoanTarget::Place(origin),
             parent,
-            end_point: DropPoint::CallReturn(self.unit_expression(call)),
+            end_point: if copies {
+                DropPoint::AfterExpression(self.unit_expression(argument))
+            } else {
+                DropPoint::CallReturn(self.unit_expression(call))
+            },
         });
         Ok(())
     }

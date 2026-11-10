@@ -153,43 +153,7 @@ impl Checker<'_> {
             Expression::NonNullAssert {
                 operand,
                 operator_span,
-            } => {
-                let checked = self.check_expression(operand, None, None)?;
-                let ty = match self.kind(checked.ty) {
-                    TypeKind::Nullable(inner) => {
-                        let inner = *inner;
-                        self.non_null_assertions.push(
-                            crate::type_checking::NonNullAssertionDescriptor {
-                                expression: id,
-                                operand,
-                                operator_span,
-                                nullable_type: checked.ty,
-                                inner_type: inner,
-                                category: self.expression_categories[operand.index()],
-                                source_category: self.nullable_when_category(operand)?,
-                                copyability: self.copyability_of(inner),
-                            },
-                        );
-                        self.non_null_assertions
-                            .sort_by_key(|plan| plan.expression().index());
-                        inner
-                    }
-                    TypeKind::Error => self.error_type(),
-                    TypeKind::Deferred(_) => self.deferred(DeferredReason::MemberAccess),
-                    _ => {
-                        self.emit(
-                            self.operands_code,
-                            "non-null assertion requires a nullable operand",
-                            operator_span,
-                        )?;
-                        self.error_type()
-                    }
-                };
-                ExprCheck {
-                    ty,
-                    falls_through: checked.falls_through,
-                }
-            }
+            } => self.check_non_null_assertion(id, operand, operator_span)?,
             Expression::Cast {
                 expression,
                 type_ref,
@@ -232,22 +196,7 @@ impl Checker<'_> {
                 type_arguments,
                 arguments,
                 ..
-            } => {
-                let invalidated = arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
-                    })
-                    .filter_map(|argument| self.stable_flow_key(argument.value))
-                    .collect::<Vec<_>>();
-                let result =
-                    self.check_call(id, span, callee, type_arguments, arguments, expected)?;
-                for key in invalidated {
-                    self.flow_facts.remove(&key);
-                    *self.flow_versions.entry(key).or_default() += 1;
-                }
-                result
-            }
+            } => self.check_call(id, span, callee, type_arguments, arguments, expected)?,
             Expression::Index { receiver, index } => {
                 self.check_container_index(id, receiver, index)?
             }
@@ -279,7 +228,7 @@ impl Checker<'_> {
             && !self.is_deferred(result.ty)
         {
             self.mismatch(span, expected_span, result.ty, expected)?;
-            result.ty = self.error_type();
+            result.ty = self.rejected_expected_type(id);
         }
         self.record_non_null_use(id, result.ty);
         self.record_null_comparison(id);
@@ -371,7 +320,8 @@ impl Checker<'_> {
         {
             self.iteration_recovery.observe(id);
         }
-        if let Some(key) = self.stable_flow_key(id)
+        if self.expression_use(id) != ExpressionUse::InoutStorage
+            && let Some(key) = self.stable_flow_key(id)
             && let Some(ty) = self.flow_facts.get(&key).copied()
         {
             return Ok(ty);
@@ -959,12 +909,25 @@ impl Checker<'_> {
                 &left_false
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
-            let required = logical_rhs_is_required(self.ast(), left, operator)?;
+            let rhs_required = logical_rhs_is_required(self.ast(), left, operator)?;
+            let mut baseline_versions = self.flow_versions.clone();
             let right_result =
                 self.check_pending_logical_rhs(expression, left, operator, right, left_result)?;
-            let writes = self.expression_flow_writes(right)?;
-            baseline.retain(|key, _| !writes.contains(key));
+            if !self
+                .syntactic_boolean_outcomes
+                .rhs_is_bypassed(left, operator)
+            {
+                let writes = self.expression_flow_writes(right)?;
+                baseline.retain(|key, _| !writes.contains(key));
+                // Keep the RHS version only for writes that can reach this join.
+                baseline_versions.extend(
+                    writes.into_iter().filter_map(|key| {
+                        self.flow_versions.get(&key).map(|&version| (key, version))
+                    }),
+                );
+            }
             self.flow_facts = baseline;
+            self.flow_versions = baseline_versions;
             let valid = self.is_builtin(left_result.ty, BuiltinType::Boolean)
                 && self.is_builtin(right_result.ty, BuiltinType::Boolean);
             let ty = if valid {
@@ -986,7 +949,7 @@ impl Checker<'_> {
             return Ok(ExprCheck {
                 ty,
                 falls_through: left_result.falls_through
-                    && (right_result.falls_through || !required),
+                    && (right_result.falls_through || !rhs_required),
             });
         }
         let (left_result, right_result) =

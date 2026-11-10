@@ -61,6 +61,59 @@ impl Checker<'_> {
         Ok(result)
     }
 
+    pub(super) fn check_non_null_assertion(
+        &mut self,
+        expression: ExpressionId,
+        operand: ExpressionId,
+        operator_span: Span,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        self.call_recoveries.remove(&expression.index());
+        let checked = self.check_expression(operand, None, None)?;
+        let recovery = self.call_operand_recovery(operand, checked.ty);
+        let ty = match self.kind(checked.ty) {
+            TypeKind::Nullable(inner) => {
+                let inner = *inner;
+                if recovery.is_none() {
+                    self.non_null_assertions.push(
+                        crate::type_checking::NonNullAssertionDescriptor {
+                            expression,
+                            operand,
+                            operator_span,
+                            nullable_type: checked.ty,
+                            inner_type: inner,
+                            category: self.expression_categories[operand.index()],
+                            source_category: self.nullable_when_category(operand)?,
+                            copyability: self.copyability_of(inner),
+                        },
+                    );
+                    self.non_null_assertions
+                        .sort_by_key(|plan| plan.expression().index());
+                }
+                inner
+            }
+            TypeKind::Error => self.error_type(),
+            TypeKind::Deferred(_) => self.deferred(DeferredReason::MemberAccess),
+            _ => {
+                self.emit(
+                    self.operands_code,
+                    "non-null assertion requires a nullable operand",
+                    operator_span,
+                )?;
+                return Ok(ExprCheck {
+                    ty: self.error_type(),
+                    falls_through: checked.falls_through,
+                });
+            }
+        };
+        if let Some(recovery) = recovery {
+            self.call_recoveries.insert(expression.index(), recovery);
+        }
+        Ok(ExprCheck {
+            ty,
+            falls_through: checked.falls_through,
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_elvis(
         &mut self,
@@ -71,7 +124,9 @@ impl Checker<'_> {
         expected: Option<TypeId>,
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
+        self.call_recoveries.remove(&expression.index());
         let left_result = self.check_expression(left, None, None)?;
+        let left_completes = self.pending_expression_exit(left, left_result.falls_through);
         let (inner, left_can_bypass_right) = match self.kind(left_result.ty) {
             TypeKind::Nullable(inner) => (
                 Some(*inner),
@@ -80,7 +135,9 @@ impl Checker<'_> {
             TypeKind::Error => (None, false),
             TypeKind::Deferred(_) => (None, true),
             _ => {
-                let right_result = self.check_expression(right, expected, expected_span)?;
+                let right_result = self.check_pending_path(left_completes, |checker| {
+                    checker.check_expression(right, expected, expected_span)
+                })?;
                 self.emit_binary_operand_error(
                     operator_span,
                     left,
@@ -90,7 +147,7 @@ impl Checker<'_> {
                 )?;
                 return Ok(ExprCheck {
                     ty: self.error_type(),
-                    falls_through: left_result.falls_through,
+                    falls_through: left_completes,
                 });
             }
         };
@@ -98,7 +155,6 @@ impl Checker<'_> {
             .filter(|inner| !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)));
         let bypass =
             left_can_bypass_right.then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
-        let left_completes = self.pending_expression_exit(left, left_result.falls_through);
         let can_bypass = left_can_bypass_right && left_completes;
         let mut pending_exits = if can_bypass {
             PendingBooleanEdges::unknown(&self.iteration_recovery.bindings)
@@ -108,18 +164,27 @@ impl Checker<'_> {
         let right_result = self.check_pending_path(left_completes, |checker| {
             checker.check_expression(right, right_expected.or(expected), expected_span)
         })?;
+        let right_completes = self.pending_expression_exit(right, right_result.falls_through);
         if left_completes {
-            pending_exits.merge(self.pending_boolean_edges(right, right_result.falls_through)?);
+            pending_exits.merge(self.pending_boolean_edges(right, right_completes)?);
         }
         self.finish_pending_boolean(expression, pending_exits);
         if let Some((facts, versions)) = bypass {
-            if right_result.falls_through {
+            if right_completes {
                 self.flow_facts = intersect_facts(&facts, &self.flow_facts);
                 self.flow_versions = merge_flow_versions(&versions, &self.flow_versions);
             } else {
                 self.flow_facts = facts;
                 self.flow_versions = versions;
             }
+        }
+        // Both operands must type-check, even when the right side is conditional.
+        // A usable join type alone does not authorize an enclosing call.
+        if let Some(recovery) = self
+            .call_operand_recovery(left, left_result.ty)
+            .max(self.call_operand_recovery(right, right_result.ty))
+        {
+            self.call_recoveries.insert(expression.index(), recovery);
         }
         let ty = if let Some(inner) = inner {
             if matches!(self.kind(inner), TypeKind::Builtin(BuiltinType::Nothing)) {
@@ -132,8 +197,7 @@ impl Checker<'_> {
         };
         Ok(ExprCheck {
             ty,
-            falls_through: left_result.falls_through
-                && (left_can_bypass_right || right_result.falls_through),
+            falls_through: left_completes && (left_can_bypass_right || right_completes),
         })
     }
 

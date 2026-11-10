@@ -44,11 +44,8 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<(Slot, Option<Writeback>), LoweringError> {
-        let (payload, span) = self.node(expression)?;
-        let Expression::Name = payload else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        let symbol = self.reference(span)?;
+        let (_, span) = self.node(expression)?;
+        let symbol = self.direct_place_symbol(expression, span)?;
         if let Some(loan) = self.inout_loan(symbol) {
             return Ok((loan, None));
         }

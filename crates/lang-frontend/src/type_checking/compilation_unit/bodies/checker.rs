@@ -20,7 +20,7 @@ use crate::{
         UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
         UnitAggregateProjectionReceiver, UnitCallableSignature, UnitFunctionParameterType,
         UnitRuntimeFieldLayoutDescriptor, UnitRuntimeFieldLayoutField, UnitTypeId, UnitTypeKind,
-        collect_expression_uses,
+        collect_expression_uses, flow_effects::SyntacticBooleanOutcomes,
     },
 };
 
@@ -128,6 +128,7 @@ pub(super) struct BodyChecker<'a> {
     names: &'a CompilationUnitNames,
     environment: &'a TypeEnvironment,
     files: Vec<&'a ParsedFile>,
+    syntactic_boolean_outcomes: Vec<SyntacticBooleanOutcomes<'a>>,
     expression_uses: Vec<Vec<ExpressionUse>>,
     signatures: CompilationUnitSignatures,
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
@@ -165,7 +166,7 @@ pub(super) struct BodyChecker<'a> {
     current_receiver_mode: Option<ParameterMode>,
     current_owner: Option<DeclarationId>,
     constant_prechecked: BTreeSet<UnitSymbolId>,
-    checking_constants: bool,
+    constant_recovery_nodes: BTreeMap<UnitSymbolId, BTreeSet<UnitExpressionId>>,
     constant_inputs: super::constants::ConstantInputs,
     constant_values: BTreeMap<UnitSymbolId, crate::type_checking::ConstValue>,
 }
@@ -216,11 +217,16 @@ impl<'a> BodyChecker<'a> {
             .iter()
             .map(|file| collect_expression_uses(file))
             .collect();
+        let syntactic_boolean_outcomes = files
+            .iter()
+            .map(|file| SyntacticBooleanOutcomes::new(file.ast()))
+            .collect();
         let mut checker = Self {
             sources,
             names,
             environment,
             files,
+            syntactic_boolean_outcomes,
             expression_uses,
             signatures,
             references,
@@ -258,7 +264,7 @@ impl<'a> BodyChecker<'a> {
             current_receiver_mode: None,
             current_owner: None,
             constant_prechecked: BTreeSet::new(),
-            checking_constants: false,
+            constant_recovery_nodes: BTreeMap::new(),
             constant_inputs: BTreeMap::new(),
             constant_values: BTreeMap::new(),
         };
@@ -396,8 +402,11 @@ impl<'a> BodyChecker<'a> {
         self.finish_nullable_when_facts();
         for source in source_units {
             let unit = source.id();
-            self.parts
-                .record_ordinary_boolean_outcomes(unit, self.files[unit.index()]);
+            self.parts.record_ordinary_boolean_outcomes(
+                unit,
+                self.files[unit.index()],
+                &self.syntactic_boolean_outcomes[unit.index()],
+            );
         }
         // 排序与全部 trial 完成后才分流。诊断候选仍属原 owner，不重新发布执行表。
         if !self.signatures.is_valid()
@@ -666,7 +675,8 @@ impl<'a> BodyChecker<'a> {
             return Ok(ty);
         }
         let target = self.reference(source, span, Namespace::Value);
-        if let Some(UnitReferenceTarget::Symbol(symbol)) = target
+        if self.expression_use(source, expression) != ExpressionUse::InoutStorage
+            && let Some(UnitReferenceTarget::Symbol(symbol)) = target
             && let Some(ty) = self.flow_facts.get(&FlowKey::Symbol(*symbol)).copied()
         {
             self.note_pending_binding_read(UnitExpressionId::new(source, expression), *symbol, ty);

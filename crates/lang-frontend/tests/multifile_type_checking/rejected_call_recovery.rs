@@ -397,6 +397,18 @@ fn repeated_pending_parameter_rejects_inconsistent_arguments() {
 }
 
 #[test]
+fn repeated_pending_inout_parameter_requires_identical_storage_types() {
+    assert_call_recovery_in_entry(
+        "fun <T> take(inout first: T, inout second: T): Int = 0",
+        "{ var x: Int = 1; var y: Int? = null; return take<Unbound>(&x, &y) }",
+        "take<Unbound>(&x, &y)",
+        Some(("L0084", "y")),
+        &[("L0165", "Unbound"), ("L0084", "y")],
+        None,
+    );
+}
+
+#[test]
 fn separate_pending_parameters_and_compatible_uses_stay_pending() {
     for (declarations, call, diagnostics) in [
         (

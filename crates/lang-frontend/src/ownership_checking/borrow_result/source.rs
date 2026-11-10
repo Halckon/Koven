@@ -14,6 +14,7 @@ pub(crate) fn borrow_return_source<S>(
 ) -> Option<ReturnSource<S>> {
     let FunctionForm::Explicit {
         result_source: Some(syntax),
+        type_ref,
         ..
     } = form
     else {
@@ -51,6 +52,7 @@ pub(crate) fn borrow_return_source<S>(
         symbol,
         span,
         marker,
+        type_ref,
         new_range,
     })
 }

@@ -43,26 +43,27 @@ single Inout与unit非根字段/index native仍不在已完成范围，不引入
 Kotlin fenced blocks，核对数量、唯一连续编号及每节恰好一段源码。没有第二份可悄悄漂移的
 Litmus fixtures；源文档变化会触发重新编译。Guide10/13 API 签名及 Guide11 enum 例子也直接读取。
 
-每个 Litmus 在标准环境下分别运行单文件及 compilation-unit 名称、类型、常量验证和所有权
-入口。诊断成功路径要求诊断为空、常量/ownership materialization 能力已发布、ownership deferred
-为空；同时遍历实际 AST expression/type-ref，逐样例逐入口锁定 Deferred/Error/缺失的
-源码节点与种类，没有任意 Deferred 豁免。known-gap 在确切
-失败阶段停止并锁定有序 code、UTF-8 起止范围与源码切片。诊断新增、改变或意外消失都会使
-门禁失败，不能通过 ignore/skip 隐藏；真正实现后须同时升级测试与本页状态。
+每个 Litmus 在标准环境下用 MemoryDocument 与 Rooted 两种编译单元输入，核对 source ID、
+输入 key 与 package。MemoryDocument 使用固定展示名以验证 package 取自源码头。
+两种输入均经过名称、类型、常量验证和所有权入口。成功路径要求诊断为空、
+常量和所有权能力准入通过、ownership deferred 为空。同时遍历实际 AST expression 和
+type-ref，逐样例锁定 Deferred、Error 或缺失事实的源码节点和种类。已知缺口在确切失败阶段
+停止，核对有序诊断码、UTF-8 字节范围与源码切片。
 
-| Guide15 样例 | 当前前端结果（两入口） | 尚不能据此宣称 |
+| Guide15 样例 | MemoryDocument 与 Rooted 的前端结果 | 仍需单独验证 |
 |---|---|---|
-| 2、6、9、10 | 诊断/ownership 检查通过；实际节点没有 Deferred/Error/缺失 typed fact | SSA/native 执行通过 |
-| 1、3、5 | 诊断/ownership 检查通过；single 的赋值表达式仍为 Deferred(Assignment)，unit 对应节点已定型 | single typed 已闭合 |
-| 7、8 | 诊断/ownership 检查通过；Resource/Node 构造目标的非值 expression 是 single Error / unit 无值类型；8 的 single 赋值还为 Deferred(Assignment) | 构造目标占位等于用户源码错误，或全部 typed 产物已闭合 |
-| 11 | 诊断/ownership 检查通过；SPEC-0265 闭合 unit for-body typed facts；两入口 listOf callee 为 Deferred(Call)，single 赋值仍为 Deferred(Assignment) | 该 Litmus 原始源码已通过 native 验收 |
-| 4 | 原始 `return when` 两入口诊断/ownership 通过；Shape 非值 qualifier 保留 single Error / unit 无值类型 | compilation-unit enum expression condition 或直接 case 调用实参已 native 支持 |
-| 12 | const/ownership 检查通过；BitMasks 非值 namespace 仍为 single Error / unit 无值类型；两 native 入口执行原始规范源码 | 其他 Litmus 或一般 constructor 占位已经闭合 |
+| 1、2、3、5、6、9、10 | 诊断和所有权检查通过，已查节点没有 Deferred、Error 或缺失类型事实 | 各样例的 SSA/native 执行 |
+| 7、8 | 诊断和所有权检查通过。Resource、Node 构造目标是非值节点并保留精确无值类型快照 | 其他构造目标及所有 typed 产物 |
+| 11 | 诊断和所有权检查通过。循环体已定型，listOf callee 保留 Deferred(Call) | 原始样例的 native 执行 |
+| 4 | 原始 return when 通过诊断和所有权检查。Shape qualifier 保留精确无值类型快照 | compilation-unit enum expression condition 与直接 case 实参的 native 执行 |
+| 12 | const 和所有权检查通过。BitMasks 非值 namespace 保留精确无值类型快照，两条 native 入口另验 | 其他 Litmus 或一般 constructor 占位 |
 
-`bash scripts/check_guide_litmus.sh` 是独立可复用门禁，运行文档结构检查、23个Guide suite
-测试、两个相关ownership suite，以及位运算、inv与两阶段借用定向前端suite。十二Litmus的两入口
-诊断/ownership检查均通过，return-when与const位运算已转为正向验证；typed节点仍按
-上表锁定精确快照。派生源码每次替换都要求恰好命中一次，避免模板漂移后静默失去覆盖。
+旧单文件 checker 只供显式见证。Litmus 4、5、7、8、11、12 及两条派生源码保留原
+typed 快照，包括旧构造/namespace Error、赋值 Deferred 和 listOf callee。Counter 的旧
+L0135 与两种 Unit 输入的 L0134 各自锁定所有权阶段及同一字段字节范围。
+
+`bash scripts/check_guide_litmus.sh` 运行文档结构检查、23 项 Guide suite 测试及相关
+ownership、位运算、inv 与两阶段借用前端套件。派生源码每次替换都要求恰好命中一次。
 
 本门禁同时执行SPEC-0241的3个单文件native与3个SSA定向回归，以及SPEC-0240的
 `guide_litmus_12`两条native入口，并执行 SPEC-0243 的 `receiver_two_phase` 定向 SSA/native。它不枚举其他未选前端套件，也不替代其他语言能力的

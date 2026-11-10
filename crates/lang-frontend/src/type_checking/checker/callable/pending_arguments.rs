@@ -2,6 +2,92 @@
 use super::*;
 
 impl Checker<'_> {
+    pub(in crate::type_checking::checker) fn call_operand_recovery(
+        &self,
+        mut expression: ExpressionId,
+        ty: TypeId,
+    ) -> Option<CallRecovery> {
+        let recovery_for_type = |ty| {
+            if self.is_error(ty) {
+                Some(CallRecovery::Rejected)
+            } else if self.is_deferred(ty) {
+                Some(CallRecovery::Pending)
+            } else {
+                None
+            }
+        };
+        let fallback = loop {
+            if let Some(&recovery) = self.call_recoveries.get(&expression.index()) {
+                return Some(recovery);
+            }
+            if let Some(fallback) = recovery_for_type(ty) {
+                break fallback;
+            }
+            if self.call_recoveries.is_empty() {
+                return None;
+            }
+            // A provisional concrete type can pass through a transparent group.
+            let Expression::Group { expression: inner } =
+                self.ast().expressions().get(expression).ok()?.payload()
+            else {
+                return None;
+            };
+            expression = *inner;
+        };
+        let mut operands = vec![(expression, fallback)];
+        let mut recovery = None;
+        while let Some((operand, fallback)) = operands.pop() {
+            if let Some(&known) = self.call_recoveries.get(&operand.index()) {
+                recovery = recovery.max(Some(known));
+            } else {
+                let children = match self
+                    .ast()
+                    .expressions()
+                    .get(operand)
+                    .ok()
+                    .map(|node| node.payload())
+                {
+                    Some(
+                        Expression::Group { expression }
+                        | Expression::Member {
+                            receiver: expression,
+                            ..
+                        },
+                    ) => [Some(*expression), None],
+                    Some(Expression::Index { receiver, index }) => [Some(*receiver), Some(*index)],
+                    _ => [None, None],
+                };
+                let before = operands.len();
+                // A concrete operand has no recovery to forward. Keep the
+                // projection's own result when neither checked input supplies one.
+                operands.extend(children.into_iter().flatten().filter_map(|child| {
+                    let child_recovery = recovery_for_type(self.expression_types[child.index()]?)?;
+                    // A merely deferred input cannot explain a diagnosed
+                    // projection error. An Error input may itself wrap Pending.
+                    (child_recovery >= fallback).then_some((child, child_recovery))
+                }));
+                if operands.len() == before {
+                    recovery = recovery.max(Some(fallback));
+                }
+            }
+            if recovery == Some(CallRecovery::Rejected) {
+                break;
+            }
+        }
+        recovery
+    }
+
+    pub(in crate::type_checking::checker) fn rejected_expected_type(
+        &mut self,
+        expression: ExpressionId,
+    ) -> TypeId {
+        if self.call_recoveries.get(&expression.index()) == Some(&CallRecovery::Pending) {
+            self.call_recoveries
+                .insert(expression.index(), CallRecovery::Rejected);
+        }
+        self.error_type()
+    }
+
     pub(super) fn pending_call_receiver_exit(
         &self,
         callee: ExpressionId,
@@ -76,6 +162,7 @@ impl Checker<'_> {
     ) -> Result<ExprCheck, TypeCheckingError> {
         let mut valid = true;
         let mut deferred = false;
+        let mut rejected = false;
         let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for (argument_index, argument) in arguments.iter().enumerate() {
             let parameter = &candidate.parameters[mapping[argument_index]];
@@ -86,12 +173,14 @@ impl Checker<'_> {
                 parameter.span,
                 &mut reaches_argument,
             )?;
+            let recovery = self.call_operand_recovery(argument.value, result.ty);
             valid &= !self.is_error(result.ty);
-            deferred |= self.is_deferred(result.ty);
-            if was_checked
+            deferred |= recovery.is_some() && !self.is_error(result.ty);
+            rejected |= recovery == Some(CallRecovery::Rejected);
+            if (was_checked || parameter.mode == ParameterMode::Inout)
                 && !self.is_error(result.ty)
                 && !self.is_deferred(result.ty)
-                && !self.assignable(result.ty, parameter.ty)
+                && !self.call_parameter_matches(argument.value, result.ty, parameter)
             {
                 self.mismatch(
                     self.ast().expressions().get(argument.value)?.span(),
@@ -100,6 +189,7 @@ impl Checker<'_> {
                     parameter.ty,
                 )?;
                 valid = false;
+                rejected = true;
             }
             if !deferred
                 && matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
@@ -114,17 +204,22 @@ impl Checker<'_> {
                     parameter: parameter.span,
                 })?;
                 valid = false;
+                rejected = true;
             }
         }
-        if deferred {
+        if deferred || !valid {
+            let recovery = if rejected {
+                CallRecovery::Rejected
+            } else {
+                CallRecovery::Pending
+            };
+            self.call_recoveries.insert(expression.index(), recovery);
             return Ok(ExprCheck {
-                ty: self.deferred(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        if !valid {
-            return Ok(ExprCheck {
-                ty: self.error_type(),
+                ty: if deferred {
+                    self.deferred(DeferredReason::Call)
+                } else {
+                    self.error_type()
+                },
                 falls_through: true,
             });
         }

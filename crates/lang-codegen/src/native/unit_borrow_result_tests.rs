@@ -7,8 +7,159 @@ fn native_borrow_last_use_unit_preserves_permissions_and_owner_cleanup() {
 }
 
 #[test]
+fn native_borrow_initializer_prefix_exits_without_forming_a_result() {
+    use crate::native_borrow_last_use_cases::Case;
+
+    check_normal_cases([
+        Case {
+            name: "borrow-initializer-prefix-return",
+            source: r#"fun view(source: String, own before: Int, own stop: Int, own after: Int): borrow String from source = source
+fun tick(): Int { println("prefix"); return 0 }
+fun unreached(): Int { println("unreachable"); return 0 }
+fun entry() {
+    val owner = "kept".clone()
+    borrow val item = view(owner, tick(), return, unreached())
+    println(item)
+}"#,
+            stdout: b"prefix\n",
+            allocations: 1,
+        },
+        Case {
+            name: "borrow-initializer-temporary-prefix-return",
+            source: r#"fun view(source: String, own n: Int): borrow String from source = source
+fun entry() {
+    borrow val item = view("scratch".clone(), return)
+    println(item)
+}"#,
+            stdout: b"",
+            allocations: 1,
+        },
+        Case {
+            name: "borrow-initializer-normal-return",
+            source: r#"fun view(source: String, own before: Int, own after: Int): borrow String from source = source
+fun tick(): Int { println("prefix"); return 0 }
+fun entry() {
+    val owner = "kept".clone()
+    borrow val item = view(owner, tick(), 1)
+    println(item)
+}"#,
+            stdout: b"prefix\nkept\n",
+            allocations: 1,
+        },
+    ]);
+}
+
+#[test]
+fn native_borrow_initializer_with_one_returning_argument_arm() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "borrow-initializer-one-returning-argument-arm",
+        source: r#"fun view(source: String, own n: Int): borrow String from source = source
+fun probe(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    borrow val item = view(owner, if (flag) { return } else { 1 })
+    println(item)
+}
+fun entry() {
+    probe(true)
+    println("first done")
+    probe(false)
+}"#,
+        stdout: b"first done\nkept\n",
+        allocations: 2,
+    }]);
+}
+
+#[test]
+fn native_borrow_initializer_return_composes_with_disjoint_bindings() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "borrow-initializer-return-with-disjoint-bindings",
+        source: r#"fun view(source: String, own n: Int): borrow String from source = source
+fun probe(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    { borrow val before = view(owner, 0); println(before) }
+    {
+        borrow val item = view(owner, if (flag) { return } else { 1 })
+        println(item)
+    }
+    { borrow val after = view(owner, 2); println(after) }
+}
+fun entry() {
+    probe(true)
+    println("first done")
+    probe(false)
+}"#,
+        stdout: b"kept\nfirst done\nkept\nkept\nkept\n",
+        allocations: 2,
+    }]);
+}
+
+#[test]
 fn native_borrow_direct_alias_unit_preserves_real_storage_and_owner_cleanup() {
     check_normal_cases(crate::native_borrow_last_use_cases::alias_cases());
+}
+
+#[test]
+fn native_stable_root_alias_can_end_before_or_cross_a_branch() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "stable-root-alias-branch",
+        source: r#"fun ended(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    { borrow val item = owner; println(item) }
+    if (flag) { println("after") }
+}
+fun live(own owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun borrowed(owner: String, own flag: Boolean): Unit {
+    borrow val item = ((owner))
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() {
+    ended(true)
+    ended(false)
+    live("early".clone(), true)
+    live("normal".clone(), false)
+    borrowed("borrowed early".clone(), true)
+    borrowed("borrowed normal".clone(), false)
+}"#,
+        stdout: b"kept\nafter\nkept\nearly\nnormal\nborrowed early\nborrowed normal\n",
+        allocations: 6,
+    }]);
+}
+
+#[test]
+fn native_stable_child_aliases_release_before_the_parent() {
+    check_normal_cases([crate::native_borrow_last_use_cases::Case {
+        name: "stable-child-alias-branch",
+        source: r#"fun view(source: String): borrow String from source = source
+fun ended(own flag: Boolean): Unit {
+    val owner = "kept".clone()
+    {
+        borrow val parent = view(owner)
+        borrow val item = ((parent))
+        println(item)
+    }
+    if (flag) { println("after") }
+}
+fun live(owner: String, own flag: Boolean): Unit {
+    borrow val parent = owner
+    borrow val child = ((parent))
+    borrow val item = child
+    if (flag) { println(item); return }
+    println(item)
+}
+fun entry() {
+    ended(true)
+    ended(false)
+    live("early".clone(), true)
+    live("normal".clone(), false)
+}"#,
+        stdout: b"kept\nafter\nkept\nearly\nnormal\n",
+        allocations: 4,
+    }]);
 }
 
 #[test]
@@ -555,5 +706,96 @@ fn borrow_value_field_unit_native_matrix() {
         assert!(run.status.success(), "{name}: {run:?}");
         assert_eq!(run.stdout, stdout, "{name}");
         assert!(run.stderr.is_empty(), "{name}: {run:?}");
+    }
+}
+
+#[test]
+fn nested_nullable_borrow_copies_before_a_later_inout() {
+    let source = r#"fun view(source: Int): borrow Int from source = source
+fun observe(value: Int?, inout changed: Int): Unit {
+    changed = 9
+    if (value != null) { if (value == 7) { println("copied") } }
+}
+fun report(value: Int): Unit { if (value == 9) { println("changed") } }
+fun main(): Unit {
+    var n: Int = 7
+    observe(value = ((view(n))), changed = &n)
+    report(n)
+}"#;
+    let output = crate::native_tests::emit_link_and_run("nested_nullable_copy.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"copied\nchanged\n");
+}
+
+#[test]
+fn nested_nullable_borrow_keeps_the_resource_until_its_scope_exit() {
+    let source = r#"class Bucket(val value: Int) {
+    deinit() { println("released") }
+}
+fun view(source: Bucket): borrow Int from source = source.value
+fun observe(value: Int?): Unit { if (value != null) { if (value == 7) { println("copied") } } }
+fun main(): Unit {
+    val bucket = Bucket(7)
+    observe(view(bucket))
+}"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nested_nullable_resource.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"copied\nreleased\n");
+}
+
+#[test]
+fn nested_nullable_borrow_preserves_other_inner_cleanup_edges() {
+    let source = r#"class Boxed(val value: Int)
+class Aux() { deinit() { println("aux") } }
+fun view(source: Boxed, aux: Aux): borrow Int from source = source.value
+fun later(): Int { println("later"); return 1 }
+fun observe(value: Int?, own marker: Int): Unit {
+    if (value != null) { if (value == 7 && marker == 1) { println("copied") } }
+}
+fun main(): Unit {
+    val boxed = Boxed(7)
+    observe(value = ((view(boxed, Aux()))), marker = later())
+}"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nested_nullable_cleanup.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"aux\nlater\ncopied\n");
+}
+
+#[test]
+fn borrow_result_auxiliary_nullable_argument_uses_its_mapped_type() {
+    for (name, result, forwarded, argument, expected) in [
+        ("exact", "Int", "Int", "seed()", b"aux\nresult\n".as_slice()),
+        (
+            "promoted",
+            "Int?",
+            "Int",
+            "seed()",
+            b"aux\nresult\n".as_slice(),
+        ),
+        ("forwarded", "Int", "Int", "aux", b"result\n".as_slice()),
+        ("existing", "Int", "Int?", "aux", b"result\n".as_slice()),
+        ("null", "Int", "Int", "null", b"result\n".as_slice()),
+        (
+            "grouped_const",
+            "Int",
+            "Int",
+            "((extra))",
+            b"result\n".as_slice(),
+        ),
+    ] {
+        let check = if result == "Int?" {
+            r#"if (value != null) { if (value == 7) { println("result") } }"#
+        } else {
+            r#"if (value == 7) { println("result") }"#
+        };
+        let source = format!(
+            r#"const val extra: Int = 1
+fun seed(): Int {{ println("aux"); return 1 }}
+fun view(source: Int, aux: Int?): borrow Int from source = source
+fun observe(value: {result}): Unit {{ {check} }}
+fun forward(source: Int, aux: {forwarded}): Unit {{ observe(view(aux = {argument}, source = source)) }}
+fun main(): Unit {{ val n: Int = 7; forward(n, 1) }}"#
+        );
+        let output = crate::native_tests::emit_link_and_run(name, &source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, expected);
     }
 }

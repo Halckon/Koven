@@ -596,3 +596,188 @@ fn inout_receiver_and_nonreturning_sources_do_not_publish_call_uses() {
         assert_atomic_empty(&checked);
     }
 }
+
+#[test]
+fn nullable_copy_ends_nested_source_before_the_next_operand() {
+    use lang_frontend::ownership_checking::{
+        DropPoint, LoanEndPoint, LoanKind, LoanTarget, UnitDropPoint, UnitLoanTarget,
+    };
+    let text = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun run() { var n: Int = 7; observe(value = ((view(n))), changed = &n) }";
+    for rooted in [false, true] {
+        let Checked { single, unit, .. } = checked(text, rooted);
+        assert!(
+            single.diagnostics().is_empty(),
+            "{:?}",
+            single.diagnostics()
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [single_use] = single.borrow_results().call_uses() else {
+            panic!("expected one copy")
+        };
+        assert_eq!(
+            single_use.end_point(),
+            DropPoint::AfterExpression(single_use.argument())
+        );
+        assert!(
+            single
+                .loans()
+                .iter()
+                .any(|loan| loan.call() == single_use.call()
+                    && loan.kind() == LoanKind::Shared
+                    && loan.target() == &LoanTarget::Temporary(single_use.argument()))
+        );
+        let source = single_use.source_loan();
+        assert!(single.loan_ends().iter().any(|end| {
+            end.call() == source.call()
+                && end.argument() == source.argument()
+                && end.point() == LoanEndPoint::AfterExpression(single_use.argument())
+        }));
+        let [unit_use] = unit.borrow_results().call_uses() else {
+            panic!("expected one copy")
+        };
+        assert_eq!(
+            unit_use.end_point(),
+            UnitDropPoint::AfterExpression(unit_use.argument())
+        );
+        assert!(
+            unit.loans()
+                .iter()
+                .any(|loan| loan.call() == unit_use.call()
+                    && loan.kind() == LoanKind::Shared
+                    && loan.target() == &UnitLoanTarget::Temporary(unit_use.argument()))
+        );
+        assert!(unit.borrow_call_transports().is_empty());
+    }
+}
+
+#[test]
+fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
+    let text = "fun view(source: String): borrow String from source = source\nfun observe(value: String?): Unit {}\nfun run() { val n = \"resource\"; observe(view(n)) }";
+    for rooted in [false, true] {
+        let Checked { single, unit, .. } = checked(text, rooted);
+        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+            let [diagnostic] = diagnostics else {
+                panic!("{diagnostics:?}")
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0164");
+        }
+        assert!(single.borrow_results().call_uses().is_empty());
+        assert!(unit.borrow_results().call_uses().is_empty());
+    }
+}
+
+#[test]
+fn nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source() {
+    use lang_frontend::ownership_checking::{
+        DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+    };
+
+    let overlapping = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun keep(value: Int): Unit {}\nfun run() { var n: Int = 7; borrow val parent = view(n); observe(view(parent), &n); keep(parent) }";
+    let last_use = "class Boxed(val value: Int)\nfun view(source: Boxed, aux: Boxed): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun run() { val boxed = Boxed(7); val aux = Boxed(9); observe(view(boxed, aux)) }";
+
+    for rooted in [false, true] {
+        let Checked { single, unit, .. } = checked(overlapping, rooted);
+        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+            let [diagnostic] = diagnostics else {
+                panic!("{diagnostics:?}")
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0135");
+        }
+
+        let accepted = checked(last_use, rooted);
+        assert!(
+            accepted.single.diagnostics().is_empty(),
+            "{:?}",
+            accepted.single.diagnostics()
+        );
+        assert!(
+            accepted.unit.diagnostics().is_empty(),
+            "{:?}",
+            accepted.unit.diagnostics()
+        );
+        let single = &accepted.single;
+        let [usage] = single.borrow_results().call_uses() else {
+            panic!("expected one copy")
+        };
+        let LoanTarget::Place(place) = usage.origin() else {
+            panic!("expected owned source place")
+        };
+        let drops = single
+            .drops()
+            .iter()
+            .filter(|fact| matches!(fact.target(), DropTarget::Named(_)))
+            .collect::<Vec<_>>();
+        let [aux, drop] = drops.as_slice() else {
+            panic!("{drops:?}")
+        };
+        assert_eq!(aux.point(), DropPoint::CallReturn(usage.expression()));
+        assert_eq!(drop.target(), DropTarget::Named(place.root()));
+        assert_eq!(drop.point(), DropPoint::AfterExpression(usage.argument()));
+
+        let unit = &accepted.unit;
+        let [usage] = unit.borrow_results().call_uses() else {
+            panic!("expected one copy")
+        };
+        let UnitLoanTarget::Place(place) = usage.origin() else {
+            panic!("expected owned source place")
+        };
+        let drops = unit
+            .drops()
+            .iter()
+            .filter(|fact| matches!(fact.target(), UnitDropTarget::Named(_)))
+            .collect::<Vec<_>>();
+        let [aux, drop] = drops.as_slice() else {
+            panic!("{drops:?}")
+        };
+        assert_eq!(aux.point(), UnitDropPoint::CallReturn(usage.expression()));
+        assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
+        assert_eq!(
+            drop.point(),
+            UnitDropPoint::AfterExpression(usage.argument())
+        );
+    }
+}
+
+#[test]
+fn nullable_copy_protects_the_source_from_recursive_call_return_cleanup() {
+    use lang_frontend::ownership_checking::{
+        DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+    };
+    let text = "class Boxed(val value: Int)\nfun view(source: Boxed, aux: () -> Int): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun run() { val boxed = Boxed(7); val aux: () -> Int = { boxed.value }; observe(view(boxed, aux)) }";
+    for rooted in [false, true] {
+        let Checked { single, unit, .. } = checked(text, rooted);
+        assert!(
+            single.diagnostics().is_empty(),
+            "{:?}",
+            single.diagnostics()
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [usage] = single.borrow_results().call_uses() else {
+            panic!("expected one copy")
+        };
+        let LoanTarget::Place(place) = usage.origin() else {
+            panic!("expected a source place")
+        };
+        let points: Vec<_> = single
+            .drops()
+            .iter()
+            .filter(|fact| fact.target() == DropTarget::Named(place.root()))
+            .map(|fact| fact.point())
+            .collect();
+        assert_eq!(points, [DropPoint::AfterExpression(usage.argument())]);
+
+        let [usage] = unit.borrow_results().call_uses() else {
+            panic!("expected one copy")
+        };
+        let UnitLoanTarget::Place(place) = usage.origin() else {
+            panic!("expected a source place")
+        };
+        let points: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|fact| fact.target() == UnitDropTarget::Named(place.root()))
+            .map(|fact| fact.point())
+            .collect();
+        assert_eq!(points, [UnitDropPoint::AfterExpression(usage.argument())]);
+    }
+}

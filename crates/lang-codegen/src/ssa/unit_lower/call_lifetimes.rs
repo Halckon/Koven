@@ -280,8 +280,34 @@ impl UnitExpressionLowerer<'_> {
                                 self.direct_control_prefix_root(argument_id, place, argument_span)?
                             }
                             UnitLoanTarget::Temporary(origin) => {
-                                mapping.category() == ExpressionCategory::Temporary
-                                    && *origin == argument_id
+                                if *origin != argument_id {
+                                    false
+                                } else if mapping.category() == ExpressionCategory::Temporary {
+                                    true
+                                } else {
+                                    let parameter = resolve_concrete_type(
+                                        self.typed,
+                                        mapping.parameter_type(),
+                                        self.substitutions,
+                                        self.static_self,
+                                        argument_span,
+                                    )?;
+                                    let target =
+                                        self.type_ids.get(&parameter).copied().ok_or_else(
+                                            || {
+                                                lowering_error(
+                                                    LoweringErrorKind::MissingFact,
+                                                    argument_span,
+                                                )
+                                            },
+                                        )?;
+                                    self.is_copyable_inline_nullable_borrow(
+                                        argument_id,
+                                        self.expression_ssa_type(argument.value, argument_span)?,
+                                        target,
+                                        argument_span,
+                                    )?
+                                }
                             }
                             UnitLoanTarget::This(_) => false,
                         };

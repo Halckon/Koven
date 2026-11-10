@@ -150,6 +150,9 @@ impl ExpressionLowerer<'_> {
         let Some(fact) = uses.next() else {
             return Ok(None);
         };
+        if fact.end_point() == DropPoint::AfterExpression(argument) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let source = fact.source_loan();
         if uses.next().is_some()
             || fact.expression()

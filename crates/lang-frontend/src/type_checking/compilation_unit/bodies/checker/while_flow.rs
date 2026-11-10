@@ -2,7 +2,7 @@
 use super::{flow::FlowKey, *};
 use crate::parser::{BinaryOperator, PrefixOperator};
 use crate::type_checking::flow_effects::{
-    collect_expression_mutation_targets, collect_expression_mutation_targets_with_inout_filter,
+    collect_expression_mutation_targets, collect_normal_expression_mutation_targets,
     collect_statement_mutation_targets, logical_rhs_is_required,
 };
 
@@ -89,27 +89,31 @@ impl BodyChecker<'_> {
     pub(super) fn has_pending_expression_exit(
         &self,
         source: SourceUnitId,
-        mut expression: ExpressionId,
+        expression: ExpressionId,
         result: ExpressionCheck,
     ) -> Result<bool, CompilationUnitTypeError> {
-        if !result.falls_through {
-            return Ok(false);
-        }
+        Ok(result.falls_through
+            && !self
+                .expression_has_pending_abrupt_exit(source, expression)
+                .map_err(TypeCheckingError::from)?)
+    }
+
+    fn expression_has_pending_abrupt_exit(
+        &self,
+        source: SourceUnitId,
+        mut expression: ExpressionId,
+    ) -> Result<bool, crate::ast::AstError> {
         let ast = self.file(source).ast();
         while let Expression::Group { expression: inner }
         | Expression::Prefix {
             operand: inner,
             operator: PrefixOperator::Not,
             ..
-        } = ast
-            .expressions()
-            .get(expression)
-            .map_err(TypeCheckingError::from)?
-            .payload()
+        } = ast.expressions().get(expression)?.payload()
         {
             expression = *inner;
         }
-        Ok(!self
+        Ok(self
             .pending_abrupt_sites
             .contains(&PendingControlSite::Expression(UnitExpressionId::new(
                 source, expression,
@@ -253,13 +257,17 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> Result<BTreeSet<FlowKey>, CompilationUnitTypeError> {
-        Ok(collect_expression_mutation_targets_with_inout_filter(
-            self.file(source).ast(),
+        Ok(collect_normal_expression_mutation_targets(
+            &self.syntactic_boolean_outcomes[source.index()],
             expression,
             |call| {
                 !self
                     .inactive_inout_calls
                     .contains(&UnitExpressionId::new(source, call))
+            },
+            |rhs| {
+                Ok(self.operand_falls_through(source, rhs)
+                    && !self.expression_has_pending_abrupt_exit(source, rhs)?)
             },
         )
         .map_err(TypeCheckingError::from)?
@@ -277,12 +285,12 @@ impl BodyChecker<'_> {
         return_span: Option<Span>,
         can_exhaust: bool,
     ) -> Result<LoopCompletion, CompilationUnitTypeError> {
-        let ast = self.file(source).ast();
+        let outcomes = &self.syntactic_boolean_outcomes[source.index()];
         let mut targets =
-            collect_statement_mutation_targets(ast, body).map_err(TypeCheckingError::from)?;
+            collect_statement_mutation_targets(outcomes, body).map_err(TypeCheckingError::from)?;
         if let Some(condition) = condition {
             targets.extend(
-                collect_expression_mutation_targets(ast, condition)
+                collect_expression_mutation_targets(outcomes, condition)
                     .map_err(TypeCheckingError::from)?,
             );
         }

@@ -493,8 +493,8 @@ impl UnitExpressionLowerer<'_> {
         Ok(place)
     }
 
-    /// A nullable Borrow temporary keeps the frontend lifetime, but transfers its
-    /// unique owner obligation to the wrapper before creating the shared place.
+    /// Borrow the wrapper's storage and keep the frontend lifetime. For MoveOnly
+    /// temporaries, the wrapper also takes over the unique drop obligation.
     fn adapt_temporary_borrow_owner(
         &mut self,
         temporary: UnitExpressionId,
@@ -514,15 +514,20 @@ impl UnitExpressionLowerer<'_> {
         if actual == target {
             return Ok(owner);
         }
-        if !matches!(
-            self.ssa_types.get(target.index()),
-            Some(SsaTypeKind::NullableHandle { inner }) if *inner == actual
-        ) {
+        let copyable_inline =
+            self.is_copyable_inline_nullable_borrow(temporary, actual, target, span)?;
+        if !copyable_inline
+            && !matches!(
+                self.ssa_types.get(target.index()),
+                Some(SsaTypeKind::NullableHandle { inner }) if *inner == actual
+            )
+        {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        // Only the admitted Temporary origin may transfer. This also removes any
-        // transparent aliases, so the consumed inner can never be dropped later.
-        self.take_owned_temporary_origin(temporary, owner, span)?;
+        if !copyable_inline {
+            // The heap wrapper takes over the proven MoveOnly temporary's drop obligation.
+            self.take_owned_temporary_origin(temporary, owner, span)?;
+        }
         let (_, results) = self
             .function
             .append_instruction(
@@ -536,9 +541,32 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         let owner = require_value(results[0], span)?;
-        // The existing source-qualified CallReturn drop now owns the wrapper.
-        self.temporaries.insert(temporary, owner);
+        if !copyable_inline {
+            // The existing source-qualified CallReturn drop now owns the wrapper.
+            self.temporaries.insert(temporary, owner);
+        }
         Ok(owner)
+    }
+
+    pub(super) fn is_copyable_inline_nullable_borrow(
+        &self,
+        argument: UnitExpressionId,
+        actual: SsaTypeId,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        if !matches!(
+            self.ssa_types.get(target.index()),
+            Some(SsaTypeKind::InlineNullable { inner, .. }) if *inner == actual
+        ) {
+            return Ok(false);
+        }
+        let ty = self
+            .typed
+            .expression_type(argument)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let ty = resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
+        Ok(self.typed.copyability(ty) == Copyability::Copyable)
     }
 
     pub(super) fn direct_name_symbol(
