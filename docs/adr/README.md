@@ -34,6 +34,9 @@ scope 逃逸修复由 0363 维护，闭包家族实施由 0364 维护。
 
 [0035 最终调试产物发布](accepted/0035-final-debug-artifact-publication.md)按 2026-10-29 用户选择接受；由 SPEC-0366 实施。
 
+[0037 一次根替换后 Break 的独立 owner 出口](accepted/0037-replace-break-owner-boundaries.md)
+按 2026-11-10 用户明确确认接受；只涵盖有界双 catalog 见证，不开放一般 phi 或后缀消费。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为

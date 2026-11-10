@@ -88,9 +88,13 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 双正常臂及正常/跳转混合臂合流，见[不变输入 owner 循环边界](unit-invariant-loop-owner.md)。各不变输入也可来自一次实际具名 move，条件 If 的边界仍不提供后缀消费图。各能力独立
 封印且互斥，不放宽本页空入边合同，也不授予一般 phi 或完整外层运输。
 
+一次外层 String root Replace 后立即 Break 的独立变更输入见
+[根替换后 Break](unit-replace-break-owner.md)；其输入 P 与 body 输出 Q 分属真实 catalog，
+分别保留 condition-false 与 Break 出口，不复用上述闭合/不变输入产品。
+
 ## 保留边界
 
-除上述单个不变 String 输入外，普通调用、外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
+除上述独立不变输入及固定 Replace→Break 能力外，普通调用、其它外来/变更 owner、参数模式、capture、其它分支、Return、非末尾跳转、嵌套或顺序
 多个循环、For/Loop、其它表达式语句、未消费 temporary、nullable、普通赋值及其它条件不准入。
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
 真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160、§162、§164；

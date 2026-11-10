@@ -404,3 +404,7 @@ fun run(flag: Boolean): Unit { val owner = "kept"; var other = "other"; borrow v
     assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
     compare(&fixture, &fixture.parts(&shared));
 }
+
+mod loop_replace_break_baseline;
+
+mod loop_replace_break;

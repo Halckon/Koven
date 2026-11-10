@@ -70,7 +70,8 @@ impl UnitOwnerObservation {
         else {
             return None;
         };
-        (self.loop_value.is_none()
+        (self.replace_break_value.is_none()
+            && self.loop_value.is_none()
             && matches!(self.status, crate::ownership_checking::UnitOwnerObservationStatus::Unsupported {
                 point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),
                 reason: crate::ownership_checking::UnitOwnerUnsupportedReason::Syntax
