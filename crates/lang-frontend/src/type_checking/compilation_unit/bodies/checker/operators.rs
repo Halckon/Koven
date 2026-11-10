@@ -445,7 +445,7 @@ impl BodyChecker<'_> {
             return_type,
         )?;
         if let Some((facts, versions)) = bypass {
-            if right_result.falls_through {
+            if self.has_pending_expression_exit(source, right, right_result)? {
                 self.flow_facts = intersect_facts(&facts, &self.flow_facts);
                 self.flow_versions = merge_flow_versions(&versions, &self.flow_versions);
             } else {

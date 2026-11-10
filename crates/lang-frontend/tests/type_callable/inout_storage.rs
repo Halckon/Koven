@@ -339,3 +339,143 @@ fn provisional_map_types_preserve_local_rejections_and_executed_key_writes() {
         &[("L0084", "write(&y)"), ("L0084", "y")],
     );
 }
+
+#[test]
+fn boolean_flow_excludes_only_writes_on_exiting_paths() {
+    let declarations = "fun take(a: Int, b: Int): Boolean = true
+        fun write(inout target: Int?): Int { target = null; return 0 }";
+    for (condition, expected) in [
+        ("x != null && (left ?: take(write(&x), return 0))", &[][..]),
+        (
+            "x != null && ((left ?: take(write(&x), return 0)) || flag)",
+            &[][..],
+        ),
+        (
+            "!(x == null || !(left ?: take(write(&x), return 0)))",
+            &[][..],
+        ),
+        (
+            "x != null && (left ?: if (flag) { x = null; return 0 } else { return 0 })",
+            &[][..],
+        ),
+        (
+            "x != null && (left ?: take(write(&x), 0))",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "x != null && (left ?: ((true && true) && (write(&x) == (return 0))))",
+            &[][..],
+        ),
+        (
+            "x != null && (left ?: ((true && flag) && (write(&x) == (return 0))))",
+            &[][..],
+        ),
+        (
+            "x != null && (left ?: ((true && flag) && (write(&x) == 0)))",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "x != null && (if (flag) { loop { left ?: take(write(&x), break) }; true } else { true })",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "x != null && (if (flag) { loop { break }; left ?: take(write(&x), return 0) } else { true })",
+            &[][..],
+        ),
+    ] {
+        let text = format!(
+            "{declarations}\nfun run(left: Boolean?, flag: Boolean): Int {{
+                var x: Int? = 7
+                if ({condition}) {{ return x }}
+                return 0
+            }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
+fn exiting_boolean_fallback_preserves_the_when_subject_generation() {
+    for (fallback, expected) in [
+        ("take(write(&x), return 0)", &[][..]),
+        ("take(write(&x), 0)", &[("L0084", "x")][..]),
+        ("((true && true) && (write(&x) == (return 0)))", &[][..]),
+        ("((true && flag) && (write(&x) == (return 0)))", &[][..]),
+    ] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun run(input: Int?, left: Boolean?, flag: Boolean): Int {{
+                 var x = input
+                 return when (x) {{
+                     (if (flag && (left ?: {fallback})) {{ 1 }} else {{ 2 }}) -> 0
+                     null -> 0
+                     else -> x
+                 }}
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
+fn conditional_scan_distinguishes_callable_exit_from_nested_loop_jumps() {
+    for (body, expected) in [
+        (
+            "loop { left ?: take(write(&x), return 0); break }; true",
+            &[][..],
+        ),
+        (
+            "loop { left ?: take(write(&x), break); break }; true",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "var retry = flag; loop { if (retry) { retry = false; left ?: take(write(&x), continue) }; break }; true",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "loop { left ?: if (flag) { loop { break }; x = null; return 0 } else { return 0 }; break }; true",
+            &[][..],
+        ),
+        (
+            "loop { before(&x) ?: take(0, return 0); break }; true",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "loop { left ?: if (flag) { for (index in range(write(&x), break)) {}; return 0 } else { return 0 }; break }; true",
+            &[("L0084", "x")][..],
+        ),
+    ] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun before(inout target: Int?): Boolean? {{ target = null; return true }}
+             fun range(a: Int, b: Int): IntRange = 0..0
+             fun run(left: Boolean?, flag: Boolean): Int {{
+                 var x: Int? = 7
+                 if (x != null && (if (flag) {{ {body} }} else {{ true }})) {{ return x }}
+                 return 0
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
+fn when_generation_uses_normal_writes_from_nested_conditions() {
+    for (jump, expected) in [("return 0", &[][..]), ("break", &[("L0084", "x")][..])] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun run(input: Int?, left: Boolean?, flag: Boolean): Int {{
+                 var x = input
+                 return when (x) {{
+                     (if (flag && (if (flag) {{ loop {{ left ?: take(write(&x), {jump}); break }}; true }} else {{ true }})) {{ 1 }} else {{ 2 }}) -> 0
+                     null -> 0
+                     else -> x
+                 }}
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}

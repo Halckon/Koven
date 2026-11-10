@@ -438,3 +438,132 @@ fn single_map_queries_publish_only_with_a_checked_key() {
         }
     }
 }
+
+#[test]
+fn single_nullable_wrappers_keep_map_recovery_separate_from_checked_facts() {
+    use lang_frontend::{
+        name_resolution::resolve_names,
+        type_checking::{BuiltinType, TypeKind, check_types},
+    };
+
+    let declarations = "fun take(a: Int, b: Int): Int = a\nfun reject(inout target: Int, input: Int): Int = input\nfun write(inout target: Int?): Int { target = null; return 0 }\nfun outer(inout target: Int?, value: Int): Boolean { target = null; return true }";
+    for (value, selected, assertions, diagnostic_spans) in [
+        ("table[1]!!", true, 1, vec![("L0084", "/*after*/x")]),
+        ("table[1] ?: 0", true, 0, vec![("L0084", "/*after*/x")]),
+        (
+            "(table[produce<Int>()])!!",
+            false,
+            0,
+            vec![("L0084", "/*after*/x")],
+        ),
+        (
+            "table[produce<Int>()] ?: 0",
+            false,
+            0,
+            vec![("L0084", "/*after*/x")],
+        ),
+        (
+            "table[1] ?: table.get(produce<Int>())!!",
+            false,
+            0,
+            vec![("L0084", "/*after*/x")],
+        ),
+        (
+            "table[reject(&y, produce<Int>())]!!",
+            false,
+            0,
+            vec![("L0084", "reject(&y")],
+        ),
+        (
+            "table[reject(&y, produce<Int>())] ?: 0",
+            false,
+            0,
+            vec![("L0084", "reject(&y")],
+        ),
+        (
+            "table[produce<Int>()] ?: false",
+            false,
+            0,
+            vec![("L0084", "false")],
+        ),
+        (
+            "(table[produce<Int>()]!!)/*invalid*/!!",
+            false,
+            0,
+            vec![("L0085", "/*invalid*/!!")],
+        ),
+        (
+            "table[produce<Int>()] ?: write(&y)",
+            false,
+            0,
+            vec![("L0084", "/*after*/x"), ("L0084", "/*written*/y")],
+        ),
+        (
+            "table[produce<Int>()] ?: take(write(&y), return 0)",
+            false,
+            0,
+            vec![("L0084", "/*after*/x")],
+        ),
+    ] {
+        let outer = format!("outer(&x, ({value}))");
+        let text = format!(
+            "{declarations}\nfun run(produce: () -> Int, table: Map<Int, Int>): Int {{ var x: Int? = 7; var y: Int? = 7; if (x != null && y != null) {{ {outer}; val after: Int = /*after*/x; val written: Int = /*written*/y }}; return 0 }}"
+        );
+        let (sources, file) = parsed(&text);
+        let (environment, types) = standard_environments();
+        let names = resolve_names(&sources, &file, &environment).unwrap();
+        let typed = check_types(&sources, &file, &names, &types).unwrap();
+        let expression = |expected| {
+            file.ast()
+                .expressions()
+                .iter()
+                .find(|(_, node)| sources.slice(node.span()) == Ok(expected))
+                .unwrap_or_else(|| panic!("expression not found: {expected}"))
+                .0
+        };
+        assert_eq!(
+            typed.call(expression(&outer)).is_some(),
+            selected,
+            "{value}"
+        );
+        assert_eq!(typed.non_null_assertions().len(), assertions, "{value}");
+        if assertions == 1 {
+            assert!(
+                typed.non_null_assertion(expression(value)).is_some(),
+                "{value}"
+            );
+        }
+        if diagnostic_spans[0].1 == "/*after*/x" {
+            let value_ty = typed.expression_type(expression(value)).unwrap();
+            assert_eq!(
+                typed.types().get(value_ty),
+                Some(&TypeKind::Builtin(BuiltinType::Int)),
+                "{value}"
+            );
+        }
+        let actual = typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| {
+                (
+                    diagnostic.code().to_string(),
+                    diagnostic.primary_span().start(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let expected = diagnostic_spans
+            .into_iter()
+            .map(|(code, marker)| {
+                let operand = marker
+                    .rsplit_once("*/")
+                    .map_or(marker, |(_, operand)| operand);
+                let operand = operand.strip_prefix("reject(&").unwrap_or(operand);
+                (
+                    code.to_owned(),
+                    text.find(marker).unwrap() + marker.len() - operand.len(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected, "{value}");
+    }
+}

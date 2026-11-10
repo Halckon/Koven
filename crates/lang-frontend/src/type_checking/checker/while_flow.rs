@@ -2,7 +2,7 @@
 use super::{flow::FlowKey, *};
 use crate::parser::{Item, Statement};
 use crate::type_checking::flow_effects::{
-    collect_expression_mutation_targets, collect_expression_mutation_targets_with_inout_filter,
+    collect_expression_mutation_targets, collect_normal_expression_mutation_targets,
     collect_statement_mutation_targets,
 };
 
@@ -94,10 +94,11 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<BTreeSet<FlowKey>, TypeCheckingError> {
-        Ok(collect_expression_mutation_targets_with_inout_filter(
+        Ok(collect_normal_expression_mutation_targets(
             self.syntactic_boolean_outcomes,
             expression,
             |call| self.call_recoveries.get(&call.index()) != Some(&CallRecovery::Rejected),
+            |rhs| Ok(self.pending_checked_exit(rhs)),
         )?
         .into_iter()
         .filter_map(|target| self.stable_flow_key(target))

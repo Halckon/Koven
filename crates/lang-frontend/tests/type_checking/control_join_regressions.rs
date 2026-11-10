@@ -64,3 +64,26 @@ fn when_branch_join_handles_nothing_nullable_enum_cases_and_rejects_mixed() {
     assert!(matches!(symbol_type("root"), TypeKind::Nominal { .. }));
     assert!(matches!(symbol_type("mixed"), TypeKind::Error));
 }
+
+#[test]
+fn elvis_abrupt_left_keeps_its_error_and_the_other_branch_facts() {
+    let text = "fun take(a: Int, b: Int): Int = a
+                fun write(inout target: Int?): Int { target = null; return 0 }
+                fun run(flag: Boolean): Int {
+                    var y: Int? = 7
+                    if (y == null) { return 0 }
+                    if (flag) { take(1, return 0) ?: write(&y) }
+                    return y
+                }";
+    let assert_diagnostics = |sources: &SourceMap, diagnostics: &[Diagnostic]| {
+        assert_eq!(codes(diagnostics), ["L0085"]);
+        assert_eq!(sources.slice(diagnostics[0].primary_span()).unwrap(), "?:");
+    };
+    let (sources, _, _, single) = checked(text);
+    assert_diagnostics(&sources, single.diagnostics());
+
+    let (sources, _, entries) = unit_entries::checked_entries(text);
+    for (_, unit) in entries {
+        assert_diagnostics(&sources, unit.diagnostics());
+    }
+}
