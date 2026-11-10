@@ -323,7 +323,7 @@ fn bounded_replace_break_dual_units_same_literal_and_reanalysis_keep_receipts_lo
 
 #[test]
 fn bounded_replace_break_absent_optional_product_keeps_ordinary_lowering() {
-    let text = SOURCE.replace("while(flag)", "while(flag && flag)");
+    let text = SOURCE.replace("while(flag)", "while((flag == true) && flag)");
     let source =
         UnitSource::analyze("ordinary-logical-condition.ko", &text).expect("legal noncandidate");
     source.assert_frontend_clean();

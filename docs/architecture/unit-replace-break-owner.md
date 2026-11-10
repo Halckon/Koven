@@ -11,7 +11,7 @@
 ## 实际准入
 
 普通非泛型顶层 Unit 函数只有一个无 mode marker 的精确 Boolean 参数，函数体依次为
-外层 var 字符串字面量、While、直接 val 移出该根。While 条件是该参数的 Name/Group/Not链，或下述受限Boolean比较；body
+外层 var 字符串字面量、While、直接 val 移出该根。While 条件是该参数的 Name/Group/Not链，或下述受限Boolean比较/单层同参数短路；body
 恰为 val 接收 checked root Replace 的旧值、一个 bare Break。三个绑定精确为非 nullable
 String，两个字面量没有插值；名称与文本内容不参与准入身份判断。
 
@@ -19,7 +19,7 @@ Replace 仅支持普通 Name callee、无显式类型实参、两个无命名前
 带 Inout marker 的直接根 Name，第二个是无模式标记的字面量；实际 ownership primitive
 必须为 String Replace，只有该完整根，两个 descriptor operand 与真实 AST 实参顺序完全相同。
 
-短路/一般比较条件、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
+一般短路/一般比较条件、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
 opaque call、正常回边、Continue、条件分支、嵌套或后续使用能力均不准入。限制只撤销
 本观察产品，不新增语言诊断或改变既有成功源码。函数末尾直接移出用于保留真实 liveness，
 其普通 cleanup 保持不变；只有实际路径 carrier 完整经过该尾句，才另发布封闭消费证明。
@@ -184,3 +184,14 @@ Boolean literal，左右皆可，比较整体可Group/Not包装。每层精确Bo
 loop仍走原共享boolean_parameter，body If观察门不变。比较按旧表达式路径真实左右Read，
 不会生成owner或重建P/Q；完整条件false与实际Break仍按边角色绑定P/Q，不按operator、
 literal或Not方向交换catalog。backend emitter和原清理不变。
+
+## 单层同参数短路条件
+
+P/Q专用准入可接受一个`&&`或`||`，两叶仅Group到同一原唯一Boolean参数Name，
+整体可Group/Not。叶Not、literal、比较、调用、嵌套短路、第二输入仍不准入。其它
+loop族仍旧共享门，原merge_value_states清除suffix carrier规则不放宽。
+
+条件真实Read发生在suffix carrier安装之前；短路skip/evaluated的P按原状态与CFG
+转发，entry再次核真实P。内部条件边先汇聚到body或finished，之后仍只有finished和
+Break两个owner出口进入共同exit。OwnerPlan严格incoming2和角色核验、旧唯一emitter
+与清理均不变，不新增一般owner phi或凭AST补造路径。

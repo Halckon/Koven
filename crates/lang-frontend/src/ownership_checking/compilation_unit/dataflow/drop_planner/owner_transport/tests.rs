@@ -551,3 +551,5 @@ mod replace_break_grouped_condition;
 mod replace_break_negated_condition;
 
 mod replace_break_boolean_comparison;
+
+mod replace_break_short_circuit;
