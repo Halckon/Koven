@@ -13,16 +13,10 @@ pub(super) struct IterationContext {
     pub(super) statement: UnitStatementId,
     pub(super) retained_start: usize,
     pub(super) outer_temporaries: BTreeSet<UnitExpressionId>,
-    pub(super) state: IterationState,
-}
-
-pub(super) enum IterationState {
-    Borrowed {
-        start: usize,
-        element: usize,
-        step: ValueId,
-        int_type: SsaTypeId,
-    },
+    pub(super) start: usize,
+    pub(super) element: usize,
+    pub(super) step: ValueId,
+    pub(super) int_type: SsaTypeId,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -202,12 +196,10 @@ impl UnitExpressionLowerer<'_> {
             statement: statement_id,
             retained_start,
             outer_temporaries,
-            state: IterationState::Borrowed {
-                start,
-                element: element_slot,
-                step: header.step,
-                int_type,
-            },
+            start,
+            element: element_slot,
+            step: header.step,
+            int_type,
         });
         match descriptor.binding() {
             UnitSequentialIterationBinding::Discard => {}
@@ -349,12 +341,9 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Ok(());
         };
-        let IterationState::Borrowed {
-            start,
-            step,
-            int_type,
-            ..
-        } = context.state;
+        let start = context.start;
+        let step = context.step;
+        let int_type = context.int_type;
         let cursor_index = start + 2;
         let Some(EntityId::Value(cursor)) = self.pending_operands.get(cursor_index).copied() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));

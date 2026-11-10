@@ -21,8 +21,6 @@ mod field_borrow;
 mod handoff;
 mod loop_control;
 mod map;
-mod map_borrow;
-mod map_consume;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -35,7 +33,6 @@ mod type_lower;
 #[cfg(test)]
 mod type_origin_cache_tests;
 mod type_plan;
-mod while_proof;
 
 #[cfg(test)]
 pub(crate) use borrow_result::validate_bindings;

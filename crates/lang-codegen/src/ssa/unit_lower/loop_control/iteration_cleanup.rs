@@ -1,5 +1,5 @@
 //! Consume each frontend cleanup sequence once, preserving provider/call/drop ordering.
-use super::{iteration::IterationState, *};
+use super::*;
 use crate::ssa::model::{EntityId, LoanId, Operation};
 
 use lang_frontend::ownership_checking::UnitIterationCleanupAction as Action;
@@ -33,8 +33,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Action::EndBinding { statement, symbol } => {
                     let span = self.statement_span(statement.statement())?;
-                    let IterationState::Borrowed { element, .. } =
-                        self.iteration_context(*statement, span)?.state;
+                    let element = self.iteration_context(*statement, span)?.element;
                     let element = self.iteration_pending_loan(element, span)?;
                     let loan = self
                         .borrow_bindings
@@ -46,8 +45,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Action::EndElement(statement) => {
                     let span = self.statement_span(statement.statement())?;
-                    let IterationState::Borrowed { element, .. } =
-                        self.iteration_context(*statement, span)?.state;
+                    let element = self.iteration_context(*statement, span)?.element;
                     let loan = self.iteration_pending_loan(element, span)?;
                     self.iteration_end_loan(loan, span)?;
                 }
@@ -57,8 +55,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Action::EndSource(statement) => {
                     let span = self.statement_span(statement.statement())?;
-                    let IterationState::Borrowed { start, .. } =
-                        self.iteration_context(*statement, span)?.state;
+                    let start = self.iteration_context(*statement, span)?.start;
                     let loan = self.iteration_pending_loan(start, span)?;
                     self.iteration_end_loan(loan, span)?;
                 }

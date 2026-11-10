@@ -3,10 +3,7 @@ use super::{LoweredValue, UnitExpressionLowerer, builtin_type, cfg};
 use crate::ssa::{
     LoweringError,
     expression_core::checked::{self, CheckedCarry, CheckedLowering},
-    model::{
-        BlockId, CheckedArithmeticOperator, EntityId, Function, LoanId, Operation, SsaTypeId,
-        ValueId,
-    },
+    model::{BlockId, CheckedArithmeticOperator, EntityId, Function, LoanId, SsaTypeId, ValueId},
 };
 use lang_frontend::{name_resolution::UnitSymbolId, source::Span, type_checking::BuiltinType};
 use std::collections::BTreeMap;
@@ -28,15 +25,6 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         checked::lower_checked_arithmetic(self, operator, left, right, ty, span)
-    }
-
-    pub(super) fn checked_operation(
-        &mut self,
-        operation: Operation,
-        ty: SsaTypeId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        checked::lower_checked_operation(self, operation, ty, span)
     }
 }
 

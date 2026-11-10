@@ -184,13 +184,6 @@ impl UnitExpressionLowerer<'_> {
         })
     }
 
-    pub(in super::super) fn lower_tail_value_body(
-        &mut self,
-        statement: StatementId,
-    ) -> Result<LoweredValue, LoweringError> {
-        self.lower_tail_value_body_with_null(statement, None)
-    }
-
     fn lower_tail_value_body_with_null(
         &mut self,
         statement: StatementId,
