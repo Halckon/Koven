@@ -10877,3 +10877,39 @@ suffix carrier，纯Boolean读取后必须实证P未变；merge_value_states清c
 当前仅准备Spec与普通真实receipt缺失测试，owner target由main合成验收独占，尚未编译
 或执行本片测试，不声称已红。待明确释放后再审普通helper、运行真实红并实现；所有
 foreign/fault/Abort/counter/压力及待定矩阵只编译，不push，不改发布或其他脏树。
+
+### 同参数单层短路实施与受限验收（2026-11-10）
+
+准备合同`7552e6e8`、后端源`d1a05b03`、前端源`b01ca948`，均在target释放前只写未跑。
+明确释放后，以`b01ca948`执行真实普通红：原源码旧SSA/LLVM成功并完成Return，payload
+为Some(2)但receipt为None，同exact失败。实现`82adbf30`仅新增P/Q专用逻辑分支及
+Group-only叶helper32行，双侧真实symbol必须是同一原参数；共享条件门、loop分流、
+merge清carrier及OwnerPlan incoming2无改动，未增加新language/ABI或一般phi。
+
+前端新增4普通核真实两处Name/不同Span绑定同参数、outer condition及B/Call/Return，
+排除leafNot/literal/比较/调用、第二参数、嵌套logical和其他loop族。旧负例迁为仍未准入
+的leafNot/比较叶，原断言保留，污染check/public只编译。条件实际Read后的P边界仍由
+旧entry检查证明，没把快照灌回状态，也没放宽普通merge规则。
+
+后端新增3普通含真实receipt、新CFG oracle及正常native。oracle沿实际BlockParameter的
+完整incoming arguments递归溯源，拒绝循环；以真实初始P及实际Replace安装Q为源，另核
+Replace owner来自P、RHS就是Q literal。所有pre-exit String参数仍来自P，最后恰两条
+Branch分别携P/Q，Return payload来源集合为两者，detached P与caller清理断言保留。
+不假设只有一个Conditional，不按顺序/Not奇偶指定角色。Basic/Const、&&/||及整体Not
+均通过；native只证明正常结果，短路边证据来自真实SSA，不冒充计数或资源证明。
+
+新2项receipt/CFG预检先绿，随后显式重审36项（15前端+21后端）全部通过；预检属于同一
+unique集合，不另计数量。首次fmt门发现新test模块注册排序，`dc85eaa5`仅移动2行path/mod，
+不改生产或测试语义；前头36成功及fmt失败保留于pre-format。最终代码重新完成全部
+门禁和同36集合，不能用前头binary代替：0失败/忽略、成功exact集合精确、实际debug2、
+features空集及两binary SHA已核，2998源码/配置SHA逐文件匹配真实bytes。
+
+最终严格两crate all-targets Clippy、workspace all-targets check、fmt、docs884、diff及
+尺寸base4f72af76均通过：2342手写Rust，35旧超千行，无预算改变。证据位于
+`/private/tmp/koven-owner-short-circuit-evidence`。本片没有运行foreign、fault/损坏、Abort、
+计数、压力、待定矩阵、sanitizer或正式双宿主CI；旧oracle保持，前端on/off对照不外推
+后端off端到端。基底含#411代码但只认领本片受限验证，未推送或改发布头；target已释放。
+
+最终独立只读复核以dc85eaa5/tree5d9a133e为输入：排序提交仅移动test module登记，
+源码清单与两binary SHA、15+21成功exact集合、exit0/features空集/debug2实际匹配；
+结合生产和helper闭包审核无阻断。审核者未代执行测试，本账本冻结不改变Rust输入。
