@@ -8781,3 +8781,62 @@ wrapper/consumer/provider/capture或整个source/callable。没有接ownerPhase4
 合批必须另核owner×loan on/off四组合和跨source全局撤销联合证据，准入若触及replace_consumer
 须明确拒绝或处理，不把当前形状隔离当永久保证。本片未做该组合验收，未运行正式CI、
 SSA/LLVM行为或native计数，不退休Single oracle、不关闭Spec/D10/E2；未推送、PR或合并。
+
+### Owner 与 loan 固定头本地组合（2026-11-10）
+
+基于 main `3fe1920a` 建立隔离 `feature/spec-0341-owner-loan-combination-20261110`。
+普通 merge `c125939d` 纳入 owner `285ac9f8`，再以 `e2addc52` 纳入固定 loan `91649628`，
+保留共同合同 `23d70006` 与两个真实父链；未 cherry-pick 重造合同。两处追加冲突逐段并集，
+其余共享文件逐 diff 核验，保留全部旧验收、选择偏差和未运行记录。未纳入 Phase 4 候选
+`3b0c08b4`、loan 后续新片或 SPEC-0400，原工作树和脏改保留。
+
+联合测试提交 `d393d8ad` 首次运行3项：四开关旧产物相等通过，普通独立 source 错误、真实
+closure replace deferred 两项分别因 raw owner 表未清、raw B 能力未剥离而失败。这是旧
+owner raw 边界既存缺口，不是自动合流新引入的损坏。修复 `66f5b967` 在 dataflow 返回前
+复用原 `publish_observations`：错误/无效typed清表，deferred只剥离replace-break、closed-loop、
+invariant-loop能力并保留旧诊断性观察；公开构造仍幂等兜底。不改变合法源码准入或执行动作。
+
+最终 Rust 代码输入 `33d9e61832bab336e20c694605bbe66fbffa1061`，树
+`e45d3d7bc38cc4b6b535f4c1ec8b3fe965779aad`；格式化测试helper后重新编译并运行下列精确集合。
+全部454个唯一普通项通过，0失败/忽略，重复运行不累加；不是frontend/codegen全量验收。
+
+| 验收项 | 精确选择与结果 |
+|---|---|
+| owner 旧契约 | 原安全116 lib＋`ownership_iteration::loop_replace_break_unit::replace_break_matches_both_public_input_routes` 1项；两项混合损坏仍整项排除 |
+| loan 固定片 | 321 direct＋12 lib，沿用91649628最终普通清单；direct仍10 filtered |
+| 四开关联合 | lib `drop_planner::owner_transport::tests::owner_loan_combination::four_switches_preserve_b_consumer_and_all_legacy_products` 1项，四loan族×四owner/loan开关，剥观察后完整旧Analysis相等 |
+| 全局撤销 red→green | lib `formed_tests::adjacent_borrow_results::owner_loan_combination::{real_error_revokes_owner_and_loan_after_independent_positive_sources,real_deferred_revokes_owner_capabilities_and_loan_after_independent_positive_sources}` 2项；B、loan正例不变，独立第三source触发精确错误/deferred，raw/public按原策略撤销 |
+| 原样B既有下游 | codegen lib `native_tests::boxed_enum_tests::unit_source::owner_replace_break_downstream_tests::bounded_replace_break_original_source_reaches_existing_ssa_and_llvm` 1项；仍非新getter生产消费者 |
+
+上述lib简写共同前缀为 `ownership_checking::compilation_unit::dataflow::`。
+组合fixture核P/Q incoming与AST限定Take/Bind/Drop；完整原B oracle在独立fixture保留，
+不把额外loan的drop混入原恰两条named drop断言。Result仍Partial，不据非空记录升级Complete；
+B与flat loan区域当前是兄弟函数形状，未声称同callable混合已准入或形状隔离永久成立。
+ActionSource cleanup计数/迭代索引、receiver observer-off、handoff保序和binding首次去重保全。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8，locked/offline、jobs2，复用既有独占
+`/private/tmp/koven-choice-replace-forwarding-target`，串行Cargo、不复制target、不clean。
+无DEV/TEST_DEBUG、RUSTFLAGS或CARGO_ENCODED_RUSTFLAGS覆盖，实际4个test artifact
+profile.debuginfo均为2，编译命令含`-C debuginfo=2`；LLVM prefix为`/opt/homebrew/opt/llvm@21`。
+编译命令分别为frontend `--lib --test unit_direct_call_loan_ends --test ownership_iteration`与
+codegen `--lib`，均用`cargo test --locked --offline -p <crate> --no-run --message-format=json -vv -j 2`；
+frontend二进制先`--exact --list --format terse`核全部名字；codegen以唯一匹配过滤器列出
+完整名后，再`--exact`执行；两者均逐项核成功集合。
+
+独立只读复审定位450个继承选择、84个源码文件并核相关helper/外部常量，再复审3个新测试、
+下游helper和7行raw修复；未发现剩余阻断。36个旧超长额度未提高，领域算法仍在独立子模块。
+所有CI-only、人工损坏/注入、Abort和压力集合仅编译未运行；未执行native、runtime计数、
+Linux、sanitizer或正式双宿主CI，不退休Single oracle、不关闭SPEC/D10/E2。
+
+本轮格式检查曾报告新公开测试helper签名需换行，已修正且重编复验；不计能力红测。
+下游第一次编译被会话中断，核无残余进程后续编成功，不宣称中断批次通过。
+测试脚本外壳曾因zsh只读变量`status`报错，但三个binary退出和逐项成功集合已落日志；
+后续格式化代码头再次完整运行453前端普通项通过，未隐藏外壳错误。
+仓外日志、精确名称及binary摘要位于`/private/tmp/koven-owner-loan-combination-evidence`供本地复核；
+长期可重现真源为以上提交、测试源码及选择边界，临时路径不作持久证据。未推送、PR或合main。
+
+最终静态门禁：`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --all-targets
+-j 2 -- -W clippy::all -D warnings`通过（43.46s）；`cargo check --locked --offline --workspace
+--all-targets -j 2`通过（35.29s）；`cargo fmt --all -- --check`通过。文档检查器41项、
+Rust尺寸policy47项直接测试通过。最终docs879、尺寸`--base 3fe1920a`（2281手写Rust、
+36旧超长）及diff检查通过；未提高尺寸额度，不以继承头结果代替。

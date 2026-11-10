@@ -96,3 +96,15 @@ root 与 false 的原 root 进入同一 exit 参数；body 只 Drop detached 旧
 codegen 没有调用 `replace_break_observation_v1()` 或 `suffix_consumer_v1()`；测试查询
 只核 Phase 3 产品存在，不替代真实下游接线。没有修改 production lowering、扩大首片
 合同、退休 Single oracle 或验证 runtime 释放次数。精确验收仍见 SPEC-0341。
+
+## 与 loan 动作源的组合边界
+
+owner 与 loan 观察独立开关；同一已检查输入的四种组合移除对应观察后，完整旧 planner
+产物及顺序保持相等。严格 B 与 temporary、named、receiver、result loan 的兄弟函数
+共同存在，不表示有界 flat loan region 已支持 B 的循环，也不保证这种形状隔离永久成立。
+组合断言核真实 P/Q incoming、AST 限定的 Take/Bind/Drop；独立原 B oracle 保留。
+
+真实独立 source 的错误在 raw/public 均撤销 owner 观察；真实 deferred 保留旧诊断性
+观察，但在 raw 返回前已剥离 replace-break、closed-loop 和 invariant-loop 能力。
+该处复用原公开发布策略，公开构造仍保留幂等兜底；loan 新观察与既有相关投影全局撤销。
+这修复旧 raw 边界缺口，不改变语言准入或后端执行责任。组合验收见 SPEC-0341。
