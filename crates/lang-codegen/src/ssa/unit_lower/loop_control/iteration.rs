@@ -348,26 +348,22 @@ impl UnitExpressionLowerer<'_> {
         let Some(EntityId::Value(cursor)) = self.pending_operands.get(cursor_index).copied() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let Some(EntityId::Loan(source)) = self.pending_operands.get(start).copied() else {
+        let Some(EntityId::Loan(_)) = self.pending_operands.get(start).copied() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let header = self
-            .loops
-            .last()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .header;
+        if self.loops.last().is_none() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let next = provider::advance_in_block(
             self.function,
             self.block,
-            header,
-            source,
             cursor,
             step,
             int_type,
             &Origin::Source(span),
         )
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        self.pending_operands[cursor_index] = EntityId::Value(next.value);
+        self.pending_operands[cursor_index] = EntityId::Value(next);
         Ok(())
     }
 }

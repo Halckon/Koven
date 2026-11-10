@@ -28,47 +28,16 @@ pub(crate) struct ProviderHeader {
     pub(crate) source: LoanId,
     pub(crate) length: ValueId,
     pub(crate) cursor: ValueId,
+    #[cfg(test)]
     pub(crate) source_slot: usize,
+    #[cfg(test)]
     pub(crate) length_slot: usize,
+    #[cfg(test)]
     pub(crate) cursor_slot: usize,
     pub(crate) step: ValueId,
 }
 
-pub(crate) struct ProviderNext {
-    pub(crate) header: BlockId,
-    pub(crate) source: LoanId,
-    pub(crate) value: ValueId,
-}
-
-impl ProviderNext {
-    #[cfg(test)]
-    pub(crate) const fn value(&self) -> ValueId {
-        self.value
-    }
-}
-
 impl ProviderHeader {
-    pub(crate) fn backedge(
-        &self,
-        mut arguments: Vec<EntityId>,
-        next: ProviderNext,
-    ) -> Result<Edge, ProviderBuildError> {
-        if next.header != self.block
-            || arguments.len() <= self.source_slot
-            || arguments.len() <= self.length_slot
-            || arguments.len() <= self.cursor_slot
-        {
-            return Err(ProviderBuildError::InvalidHeaderTransport { block: self.block });
-        }
-        arguments[self.source_slot] = EntityId::Loan(next.source);
-        arguments[self.length_slot] = EntityId::Value(self.length);
-        arguments[self.cursor_slot] = EntityId::Value(next.value);
-        Ok(Edge {
-            target: self.block,
-            arguments,
-        })
-    }
-
     #[cfg(test)]
     pub(crate) const fn step(&self) -> ValueId {
         self.step
@@ -77,10 +46,15 @@ impl ProviderHeader {
 
 pub(crate) struct GuardedElement {
     loan: LoanId,
+    #[cfg(test)]
     header: BlockId,
+    #[cfg(test)]
     body: BlockId,
+    #[cfg(test)]
     source: LoanId,
+    #[cfg(test)]
     cursor: ValueId,
+    #[cfg(test)]
     step: ValueId,
 }
 
@@ -196,8 +170,11 @@ pub(crate) fn enter_header(
         source,
         length,
         cursor,
+        #[cfg(test)]
         source_slot,
+        #[cfg(test)]
         length_slot,
+        #[cfg(test)]
         cursor_slot,
         step: snapshot.step,
     })
@@ -295,10 +272,15 @@ pub(crate) fn guard_and_begin(
     };
     Ok(GuardedElement {
         loan,
+        #[cfg(test)]
         header: header.block,
+        #[cfg(test)]
         body: body_id,
+        #[cfg(test)]
         source: body_source,
+        #[cfg(test)]
         cursor: body_cursor,
+        #[cfg(test)]
         step: header.step,
     })
 }
@@ -308,22 +290,27 @@ impl GuardedElement {
         self.loan
     }
 
+    #[cfg(test)]
     pub(crate) const fn header(&self) -> BlockId {
         self.header
     }
 
+    #[cfg(test)]
     pub(crate) const fn body(&self) -> BlockId {
         self.body
     }
 
+    #[cfg(test)]
     pub(crate) const fn source(&self) -> LoanId {
         self.source
     }
 
+    #[cfg(test)]
     pub(crate) const fn cursor(&self) -> ValueId {
         self.cursor
     }
 
+    #[cfg(test)]
     pub(crate) const fn step(&self) -> ValueId {
         self.step
     }
@@ -334,44 +321,16 @@ impl GuardedElement {
     }
 }
 
-pub(crate) fn finish_element_and_advance_in_block(
-    function: &mut Function,
-    block: BlockId,
-    element: &GuardedElement,
-    int_type: SsaTypeId,
-    origin: &Origin,
-) -> Result<ProviderNext, ModelError> {
-    function.append_instruction(
-        block,
-        Operation::BorrowEnd { loan: element.loan },
-        Vec::new(),
-        origin.clone(),
-    )?;
-    advance_in_block(
-        function,
-        block,
-        element.header,
-        element.source,
-        element.cursor,
-        element.step,
-        int_type,
-        origin,
-    )
-}
-
 /// Advance only after the caller consumed its complete ordered element cleanup.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn advance_in_block(
     function: &mut Function,
     block: BlockId,
-    header: BlockId,
-    source: LoanId,
     cursor: ValueId,
     step: ValueId,
     int_type: SsaTypeId,
     origin: &Origin,
-) -> Result<ProviderNext, ModelError> {
-    let value = append_value(
+) -> Result<ValueId, ModelError> {
+    append_value(
         function,
         block,
         Operation::Binary {
@@ -381,21 +340,7 @@ pub(crate) fn advance_in_block(
         },
         int_type,
         origin,
-    )?;
-    Ok(ProviderNext {
-        header,
-        source,
-        value,
-    })
-}
-
-pub(crate) fn finish_element_and_advance(
-    function: &mut Function,
-    element: GuardedElement,
-    int_type: SsaTypeId,
-    origin: &Origin,
-) -> Result<ProviderNext, ModelError> {
-    finish_element_and_advance_in_block(function, element.body, &element, int_type, origin)
+    )
 }
 
 fn append_value(

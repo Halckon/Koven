@@ -12,6 +12,7 @@ mod integer_range_type;
 #[cfg(test)]
 mod lower_frontend;
 mod map_result;
+#[cfg(test)]
 mod map_source;
 mod refine;
 #[cfg(test)]
@@ -27,8 +28,6 @@ pub(crate) use refine::with_per_family_lowering;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
-// SPEC-0182 将在接入真实 for lowering 时消费本阶段验证的构造器。
-#[allow(dead_code)]
 pub(crate) mod provider;
 mod render;
 mod statement_core;
