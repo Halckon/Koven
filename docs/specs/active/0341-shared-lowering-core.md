@@ -5024,3 +5024,43 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+
+## 借用观察三表的 raw 原子撤销（2026-11-10）
+
+本 Phase 3 切片基于 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a`，与独立
+Exclusive 循环退出提交 `c718d72ec14199953501470bd70d928bffe0cf3f` 分开验收。核对
+#390 `ca322bc5`、#391 `a94a83d7` 及25个既有相关本地分支，均未撤销下述三张 raw 表。
+receiver/parent-binding 在途实现、受阻文档、既有公开 API 与原验收正文保持原样。
+
+原拟扩展 borrow initializer 的循环前缀观察；真实 `select(owner, break/continue)`
+输入先被既有 L0164 拒绝，未进入事件观察。保留该循环实例边界及旧 Return-only 筛选，
+不通过放宽准入伪造新能力。双 Unit 入口新增固定 L0164/borrow marker/空结果合同。
+
+独立真实红测分别证明：成功来源先形成 Shared direct ends、借用 handoff（含一个辅助
+实参结束）、借用 Return-prefix ends，再追加另一来源的 L0134 后，dataflow::analyze
+三张 raw 表各自残留。公开构造门原已撤销这些表，并非公开能力泄漏。
+生产只在既有 finalize 失败分支各加一次 clear；成功路径、token退休、owner清理、
+loop/receiver/source资格均不变。真实 diagnostic 与 deferred 后的 raw/public 同时为空。
+
+| 验收项 | 选择 | 本地结果 |
+|---|---|---|
+| raw真实原子撤销 | `--lib adjacent_borrow_results` | 10 passed，含3个独立新正控/拒绝合同 |
+| 两入口与循环拒绝 | `unit_direct_call_loan_ends borrow_publication` | 2 passed；三表同时非空后整体撤销；计入下行 |
+| 普通事件族 | `unit_direct_call_loan_ends`，排除下述6个整项 | 113 passed，含上述2个新增 |
+| owner开关 | `--lib owner_observation_preserves_all_three_borrow_publication_tables` | 1 passed；只移除观察字段后比较完整drop_planner::Analysis |
+| 邻近借用合同 | continuation、nested、receiver_backedge；nested排除下述1个整项 | 14＋13＋4 passed |
+| 质量与消费者 | frontend all-targets Clippy（-D warnings）、workspace all-targets check | 通过 |
+| 静态提交门 | fmt、check_docs.py、相对cc1e5b41尺寸门、diff | 通过；原尺寸额度不变 |
+
+Mac AArch64/Rust1.96/LLVM21、locked/offline、默认debug、jobs=2、本人target串行复用。
+155个唯一普通测试，新增6项；单跑与事件族重跑不重复计数。完整保留但仅编译的6项为
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、`abort_and_normal_return_do_not_invent_prefix_unwind_events`；
+nested的 `inout_receiver_and_nonreturning_sources_do_not_publish_call_uses` 亦仅编译。
+未运行Abort、native、Linux、故障注入、压力、frontend/workspace全量测试或正式CI。
+
+独立只读代码复审无阻断；dataflow 1157→1160仅三行失败撤销接线，明确复审并沿用
+1248例外上限，baseline/owner/split_plan不变；新领域测试96行。红绿日志保留仓外，
+不复制运行产物入库。未推送或新建PR；D10/E2仍in-progress，组合验收及发布头CI另核。
