@@ -11235,3 +11235,17 @@ CI-only故障仅编译，未运行foreign、注入、Abort、计数、压力或�
 sanitizer及一般循环/多owner/loan合运仍未完成。Cargo JSON证实两个test artifact均
 opt0/debug2/test=true、features空；二进制SHA、源码hash、选择名单与失败摘要保留在上述
 证据目录，不复用旧大筛选集合。不推送，不改变main及借用隔离树。
+
+### 有界 P/Q 一跳绑定返回合同（2026-11-10）
+
+从680215d3隔离准备，原prefix/While/一次Replace后Break不变；后继仅为
+`val forwarded = held; return forwarded`，owned String返回。只扩既有Return产品的一跳
+真实binding路径，不造alias producer，不引入新catalog或ABI，不泛化后缀/循环。
+实际take_named先移出held；post-insert后记录alias真实OwnedValue；后续take_named必须匹配
+该状态并移出alias，随后旧Return交付形成Take(root)→Bind(alias)→Take(alias)→Return。
+旧scalar owner不回填P/Q；liveness保留alias跨语句，merge清carrier规则及失败撤销不改。
+refine依真实Alias前/后回调核selected槽到alias槽，旧finish_return唯一发射并核两symbol
+均dead、caller无额外Drop。原直返两动作和B/Call保持；不含Group、更多alias、借用/capture、
+额外使用、分支或一般循环。先普通原样缺receipt红，再双Unit SSA/LLVM/native同源绿。
+foreign、注入、Abort、计数及压力负控仅编译。当前仅静态准备，owner target由合流门禁
+占用，未调用Cargo/native；本合同不声明实现或验证完成，不push/PR。
