@@ -1,4 +1,5 @@
 //! Pure independent validation of one actual normal-return record interval.
+mod consumer;
 use super::{UnitDirectCallLoanRegion, UnitLoanAction, UnitLoanActionCoverage, UnitLoanFact};
 use crate::type_checking::{UnitExpressionId, UnitItemId};
 use std::sync::Arc;
@@ -24,12 +25,24 @@ pub(super) struct ExpectedNamed {
     pub(super) owner_origin: crate::source::Span,
 }
 
+pub(super) struct ExpectedConsumer {
+    pub(super) source: UnitLoanFact,
+    pub(super) consumer: UnitLoanFact,
+    pub(super) root: crate::name_resolution::UnitSymbolId,
+    pub(super) source_origin: crate::source::Span,
+    pub(super) source_call_origin: crate::source::Span,
+    pub(super) consumer_call_origin: crate::source::Span,
+    pub(super) owner_origin: crate::source::Span,
+    pub(super) formation_span: crate::source::Span,
+}
+
 pub(super) struct Candidate {
     pub(super) call: UnitExpressionId,
     pub(super) callable: Option<UnitItemId>,
     pub(super) expected: Option<Vec<Expected>>,
     pub(super) protocol: u32,
     pub(super) named: Option<ExpectedNamed>,
+    pub(super) consumer: Option<ExpectedConsumer>,
     pub(super) receiver: Option<ExpectedReceiver>,
     pub(super) start: usize,
     pub(super) end: Option<usize>,
@@ -43,7 +56,9 @@ impl Candidate {
         let records = self
             .end
             .map_or(self.start..self.start, |end| self.start..end);
-        let coverage = if self.protocol == 3 {
+        let coverage = if self.protocol == 4 {
+            consumer::coverage(&self, &identity, actions)
+        } else if self.protocol == 3 {
             named_coverage(&self, actions)
         } else if self.protocol == 2 {
             receiver_coverage(&self, actions)

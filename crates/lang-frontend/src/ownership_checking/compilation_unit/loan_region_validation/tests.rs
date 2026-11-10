@@ -112,6 +112,7 @@ fn ci_only_broken_region_models_do_not_certify_complete() {
     assert!(!validates(region.call(), &wrong_origin, &actions));
     let wrong_callable = Candidate {
         protocol: 1,
+        consumer: None,
         named: None,
         receiver: None,
         call: region.call(),
@@ -129,6 +130,7 @@ fn ci_only_broken_region_models_do_not_certify_complete() {
     );
     let absent_completion = Candidate {
         protocol: 1,
+        consumer: None,
         named: None,
         receiver: None,
         call: region.call(),
@@ -153,6 +155,7 @@ fn ci_only_empty_region_requires_all_positive_boundary_evidence() {
     let region = &shared.loan_action_observations()[0].regions()[0];
     let candidate = |expected, start, end| Candidate {
         protocol: 1,
+        consumer: None,
         named: None,
         receiver: None,
         call: region.call(),
@@ -256,6 +259,7 @@ fn ci_only_broken_receiver_region_intervals_do_not_certify_complete() {
         callable: region.callable(),
         expected: None,
         protocol: 2,
+        consumer: None,
         named: None,
         receiver: Some(ExpectedReceiver {
             receiver: receiver.clone(),
@@ -381,6 +385,7 @@ fn ci_only_broken_named_region_does_not_certify_complete() {
         callable: region.callable(),
         expected: None,
         protocol: 3,
+        consumer: None,
         receiver: None,
         named: Some(ExpectedNamed {
             loan: loan.clone(),

@@ -74,7 +74,7 @@ impl Eq for UnitLoanActionId {}
 /// Equality compares structural snapshots, not catalog identity. Action IDs are catalog-bound.
 /// Callable/path segments and dynamic activations are not certified. Equal descriptors or
 /// points cannot identify a dynamic loan or compare execution across branches/loops/callables.
-/// Complete result-continuation, receiver-activation and permission-restoration coverage remains unproved.
+/// General result-continuation, receiver-activation and permission-restoration coverage remains unproved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitLoanActionObservation {
     pub(super) identity: Arc<()>,
