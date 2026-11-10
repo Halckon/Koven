@@ -1,4 +1,6 @@
 //! Ordinary original B source through existing lowering, not a new carrier consumer.
+#[path = "owner_loan_receipt_sibling_tests.rs"]
+mod owner_loan_receipt_sibling_tests;
 use super::{OwnedProducts, UnitSource};
 use crate::ssa::{
     model::{Edge, EntityId, Function, Operation, TerminatorKind, ValueId},

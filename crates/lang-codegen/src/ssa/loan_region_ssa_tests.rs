@@ -1,5 +1,5 @@
 //! Ordinary same-source Phase3 certificate and actual Unit SSA evidence, not native execution.
-//! The certificate is inspected only here; production lowering still consumes existing facts.
+//! Protocol 4 now has production receipts; legacy lifecycle producers remain authoritative.
 use super::{model::*, unit_lower_test_support, verify::verify_program};
 use lang_frontend::{
     name_resolution::SourceUnitInput,
@@ -142,6 +142,35 @@ fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
         );
         assert!(routed.iter().any(|name| name == "koven.run.d2"));
         assert!(routed.iter().any(|name| name == "koven.view.d0"));
+        let receipt = &receipts[0];
+        assert_eq!(receipt.ids, action_ids);
+        assert_eq!(receipt.call, consumer_loan.call());
+        assert_eq!(Some(receipt.callable), regions[0].callable());
+        assert_eq!(receipt.caller, entry);
+        let function = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .find(|f| f.id() == entry)
+            .unwrap();
+        assert_eq!(
+            receipt.instructions,
+            function
+                .instructions
+                .iter()
+                .skip(1)
+                .map(|i| i.id)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            receipt.entities,
+            [
+                function.instructions[0].results[0],
+                function.instructions[1].results[0],
+                function.instructions[2].results[0],
+                function.instructions[3].results[0],
+            ]
+        );
         verify_program(&program).unwrap();
         assert_lifecycle(
             &program,
@@ -634,3 +663,6 @@ fn assert_receiver_lifecycle(
         }
     );
 }
+
+#[path = "loan_receipt_tests.rs"]
+mod receipts;

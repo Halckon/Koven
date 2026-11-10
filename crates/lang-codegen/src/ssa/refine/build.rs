@@ -19,6 +19,7 @@ mod range_view;
 mod rc;
 mod receiver;
 mod scalar_text;
+mod statements;
 mod tagged;
 mod value;
 mod when;
@@ -39,7 +40,7 @@ use lang_frontend::{
 
 use super::{
     RefineBody, RefineInputs, RefineTypes,
-    body::{BlockRef, ROp, RStmt, RTerm, RefinedBody, Slot},
+    body::{BlockRef, ROp, RTerm, RefinedBody, Slot},
 };
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -152,7 +153,10 @@ pub(super) fn build(
         inputs,
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         types,
-        body: RefinedBody::default(),
+        body: RefinedBody {
+            loan_plans: super::loan_receipt::Plans::new(inputs)?,
+            ..RefinedBody::default()
+        },
         block: None,
         bindings: BTreeMap::new(),
         borrowed: BTreeMap::new(),
@@ -246,6 +250,10 @@ pub(super) fn build(
     }
     builder.check_all_drops_consumed()?;
     builder.finish_owner_plan()?;
+    builder
+        .body
+        .loan_plans
+        .finish(&builder.consumed_drops, inputs.span)?;
     Ok(builder.body)
 }
 
@@ -385,22 +393,6 @@ impl Builder<'_, '_> {
                 .is_some_and(|block| self.entry_this_dead.contains(&block));
             self.dead_block = self.block;
         }
-    }
-
-    fn push(&mut self, op: ROp, results: Vec<Slot>, span: Span) -> Result<(), LoweringError> {
-        self.sync_dead();
-        let block = self.current(span)?;
-        self.body.blocks[block.0]
-            .statements
-            .push(RStmt { op, results, span });
-        Ok(())
-    }
-
-    /// Appends `op` producing one fresh slot of `ty`.
-    fn value(&mut self, op: ROp, ty: EntityType, span: Span) -> Result<Slot, LoweringError> {
-        let slot = self.body.slot(ty);
-        self.push(op, vec![slot], span)?;
-        Ok(slot)
     }
 
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
@@ -587,6 +579,9 @@ impl Builder<'_, '_> {
                 _ => None,
             }
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
+            self.body
+                .loan_plans
+                .drop_fact(*index, *target, slot, *span)?;
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
             self.owner_drop_emitted(receipt, *span)?;

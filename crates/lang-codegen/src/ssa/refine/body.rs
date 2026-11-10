@@ -805,6 +805,7 @@ impl ROp {
 
 #[derive(Clone, Debug)]
 pub(super) struct RStmt {
+    pub(super) loan_tag: Option<super::loan_receipt::Tag>,
     pub(super) op: ROp,
     pub(super) results: Vec<Slot>,
     pub(super) span: Span,
@@ -916,6 +917,7 @@ pub(super) struct RBlock {
 /// Block 0 is the function entry; `parameters` are defined there.
 #[derive(Clone, Debug, Default)]
 pub(super) struct RefinedBody {
+    pub(super) loan_plans: super::loan_receipt::Plans,
     pub(super) slots: Vec<EntityType>,
     pub(super) blocks: Vec<RBlock>,
     pub(super) parameters: Vec<Slot>,
