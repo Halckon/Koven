@@ -331,6 +331,12 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
             .iter()
             .all(|state| state.borrow_call_transports.contains(transport))
     });
+    // Preserve old transport eligibility, but never select an arbitrary observer edge.
+    for transport in &mut merged.borrow_call_transports {
+        for state in &states {
+            transport.reconcile_transfer(&state.borrow_call_transports);
+        }
+    }
     merged.values.retain(|value| {
         states
             .iter()

@@ -510,3 +510,22 @@ fn result_action_observer_preserves_nonempty_handoff_and_end_products() {
         assert_eq!(observed, disabled);
     });
 }
+
+#[test]
+fn consumer_dependency_observer_preserves_all_planner_snapshots() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; consume(view(owner)) }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.borrow_call_transports.len(), 1);
+        assert!(observed.loan_action_observations[0].actions().iter().any(|action| matches!(action, crate::ownership_checking::UnitLoanAction::BorrowConsumerRetired(retired) if retired.transfer().is_some())));
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}

@@ -8,11 +8,37 @@ use crate::{
     type_checking::{CallableResultSource, UnitCallTarget, UnitExpressionId},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(super) struct PendingTransport {
     consumer: UnitExpressionId,
     argument: UnitExpressionId,
     source: UnitLoanFact,
+    transfer: Option<super::action_source::ConsumerTransferHandle>,
+}
+
+// Observation metadata must never change the old semantic branch-merge equivalence.
+impl PartialEq for PendingTransport {
+    fn eq(&self, other: &Self) -> bool {
+        self.consumer == other.consumer
+            && self.argument == other.argument
+            && self.source == other.source
+    }
+}
+impl Eq for PendingTransport {}
+impl PendingTransport {
+    pub(super) fn reconcile_transfer(&mut self, alternatives: &[Self]) {
+        for other in alternatives.iter().filter(|other| *other == self) {
+            let same = self
+                .transfer
+                .as_ref()
+                .zip(other.transfer.as_ref())
+                .is_some_and(|(left, right)| left.same_record(right));
+            if !same {
+                self.transfer = None;
+                break;
+            }
+        }
+    }
 }
 
 impl DropPlanner<'_, '_> {
@@ -69,9 +95,15 @@ impl DropPlanner<'_, '_> {
             let (Action::EndCallLoan(source), _) = state.pending_loans.remove(index) else {
                 unreachable!("matched actual source token")
             };
+            let transfer = self.iteration_actions.transfer_consumer(
+                &source,
+                use_fact.call(),
+                use_fact.argument(),
+            );
             state.borrow_call_transports.push(PendingTransport {
                 consumer: use_fact.call(),
                 argument: use_fact.argument(),
+                transfer: Some(transfer),
                 source,
             });
         }
@@ -102,12 +134,16 @@ impl DropPlanner<'_, '_> {
             let (Action::EndCallLoan(consumer), _) = state.pending_loans.remove(index) else {
                 unreachable!("matched actual consumer token")
             };
-            let PendingTransport { source, .. } =
-                state.borrow_call_transports.remove(transport_index);
+            let PendingTransport {
+                source, transfer, ..
+            } = state.borrow_call_transports.remove(transport_index);
             // The consumer retires first, then releases its transported ancestor.
             // This side product does not add iteration/native cleanup actions.
-            self.borrow_call_transports
-                .push(UnitBorrowCallTransportFact { source, consumer });
+            self.iteration_actions
+                .retire_consumer(transfer, UnitBorrowCallTransportFact { source, consumer });
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
