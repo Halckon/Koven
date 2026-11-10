@@ -11666,3 +11666,38 @@ source/callable仍Partial，既有parent-child范围没有Complete证书或produ
 等价、两次原产品lower/十条SSA/LLVM及Partial边界，随后在测试87行因所需10动作实际仅7
 失败，0 passed / 1 failed / 2924 filtered。第二MemoryDocument布局未到达；这与原样probe
 成功分账，不把该红写成语言/SSA缺能力。原始causal-red日志及manifest保留，后续实现不覆盖。
+
+Partial生产代码冻结 `666c2d22141f45b24e7b945cbe14de08bf56ab96`；首次green no-run1m14s，
+同独立核心exact通过，双Unit各真实on/off、旧产品等价与十条SSA/LLVM均成功。child只有
+一个嵌入原parent transport的观察slot，旧Eq仍只比较binding/source；实际新动作由initializer
+commit、normal-return pending提取、live child移除后的旧BindingEnd三个位置发布。
+当前parent source/handoff与child commit都以同record身份核验，缺引用不从旧commit补回。
+重复、future child/parent使用、分支或合流失证后保持Ambiguous/Lost；后一次正常use不能
+再发布看似恢复的合格use链。实际child commit/retire可作为Partial事件保留，不声称所有
+非目标源码完全没有观察。本原样的parent退休use_return保持None，同根Dropcause歧义规则未改。
+
+最终冻结头 `055e93155562ffd300cfc9daade0875d4fb7bfc2` 仅比666c2d22追加实现说明/红账本，
+Rust无漂移。仓库外同一证据目录的 final-manifest.json、final-selection.txt、final-exact.log、
+final-runner.log 和原始 Cargo JSON 绑定该头；causal-source-input-hashes.json含4231个tracked
+输入，SHA为 `7302810a6b3b5fa537253f28e6f64052548958d8b5cdfc46080a618dec880d61`。
+最终名单SHA为 `56586e342775ce46f311baf9e9f2f8c6169ae17ec24e1a555c42fc322c60c647`，
+CG binary SHA为 `2913b4676b2ea419ebe2b6131abd2df523ee754ecd2e0992fcaf6454193e6d64`。
+两crate测试产物均实际opt0/debug2/test=true、唯一loan支持feature；最终fresh no-run0.14s，
+不冒称重新编译耗时。原probe、独立红和首green的原始日志分别保留，不覆盖或合并计数。
+
+最终fresh小集合仅五项，每项独立exact-list后运行：新因果核心、frontend-only merge、
+旧单binding receipt、P4生命周期及P3 Int/Unit真off；五项各1通过/2925 filtered，名单、
+manifest、runner和原日志一致。四项合计18次SSA/LLVM lower，另一项只验证frontend合流，
+无native；未重复运行原probe。合流邻控要求恰1实际child retirement后核use_return=None，
+并核旧parent transport恰1及child source_loan=None，不允许空集合冒充sticky失证证明。
+两项新增CI-only（错catalog/角色/父/initializer/顺序与metadata Eq/失证恢复）只编译，
+从未加入普通选择；foreign、故障、Abort、计数、压力及未审矩阵均未执行。
+
+两crate显式feature all-targets严格Clippy50.36s、默认workspace all-targets30.99s通过；
+fmt、docs884、尺寸2377文件/35项旧超限及diff通过。未增加尺寸额度；新公共API注册使
+compilation_unit入口增加4行，复杂逻辑与测试保留独立模块。架构页200行，未突破页限。
+本轮无Rust编译或普通测试假设失败；独立能力红按预期缺实际因果记录分账。
+未单列默认CLI artifact、release或正式CI验收，不外推大范围控制/多child/权限恢复、
+Complete或新production receipt；source/callable仍Partial，旧oracle与唯一emitter保留。
+独立只读终审核原始红绿产物、4231冻结输入、五项实际日志及文档分账，无新增阻断；
+最后仅本Spec提交，非文档源码保持冻结字节，未重跑Rust。
