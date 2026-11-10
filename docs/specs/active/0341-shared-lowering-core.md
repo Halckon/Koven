@@ -7473,3 +7473,54 @@ all-targets check（47.57秒）、fmt、docs867、相对 `cc1e5b41` 的 Rust尺�
 完整测试选择、逐项日志、二进制哈希保留仓库外临时验收文件，不入Git。未运行完整
 frontend/codegen/workspace测试、损坏/Abort套件、native、Linux或正式CI。此组合只为
 本地验证和后续单PR整合保留，未推送、修改现有PR或合入main；D10/E2仍in-progress。
+
+
+## 174. 裸 Continue 的条件 false 出口后缀消费（2026-11-10）
+
+本片在实际 main `cc1e5b41` 上建立独立分支后，快进复用已验收的 §172 组合 `3fe17177`。
+已核191条远端分支、#390 `ca322bc5` 与本地在途成果，无重复 bare Continue suffix 实现。
+§170 未完成的末尾 If 合流后缀不纳入，原工作树与旧测试保全；未复用该候选的未提交内容。
+
+生产仅修改 `owner_transport/loops/invariant/suffix.rs`。原 Backedge 产物现在允许
+实际 Fallthrough 或裸 Continue 获取同一 optional 后缀能力；Continue 仍须通过原
+独立 post-jump、body-completion 与闭合 ContinueBackedge 证据，不替换为普通完成。
+entry、post-jump、body-completion、exit、suffix-entry 仍来自五次真实读取，沿用全部17槽
+及完整 OwnedValue 比对；LoopExit 继续读取原 condition state，不加入出口 phi。
+
+独立审阅发现单纯放宽旧 completion 门会让既有正常证据自洽重包为 Continue 的否例失守。
+后缀因此额外封存实际收集时的 completion（含原 jump）与新鲜 body Arc，getter 分别
+精确比较与 ptr_eq，不能从后来替换的 evidence 回填。它也约束 normal/Break 的现有
+后缀封印，但不改变其已支持源码。原 prefix collector 只取一次、suffix statement 只
+执行一次、先恢复旧 sink 再验结果、五项真实消费事件与 ASAP Drop/borrow cleanup 全部不变。
+
+真实原源码的 `actual_continue_suffix_consumes_only_after_condition_false_exit` 先失败，
+红提交为 `2d769ce914d3c641aaaf70b4a149ac7296388c6c`；加入最小实现后同项转绿。
+最终实现/测试/架构提交 `ffb5fd23053b7ab3b5813fb54a5e059cc226e121`，树
+`bebd6756bd7b2ff2df0aafe53a757b44d517dca8`；本段为之后的纯文档追加。
+
+| 验收项 | 实际范围 |
+|---|---|
+| 真实来源与消费 | 3项新普通lib测试覆盖原红见证、40组唯一正向源码（5种Name/Group/Not条件 ×2种Unit声明 ×4种move/replace body）、12种合法语法拒绝、9种末尾If能力隔离、2类错误发布清空；单源正/合法负例完整比较观察开关前后分析产物 |
+| 来源隔离 | 两源与同源二次分析均validate成功；输入token只能在原输入/后缀catalog解析，body与foreign catalog拒绝；Continue跳转保留实际source、完整条件和原三条控制边 |
+| 公开入口 | `continue_suffix_consumption_matches_both_public_inputs` 经MemoryDocument与双源Rooted覆盖40正+3负，共86次分析、129个source inputs（120准入、9拒绝）；复用增强后的五事件/唯一退休Drop/原输入不Drop及来源helper，不复制旧测试源码矩阵 |
+| 旧见证保全 | normal、Break及9种If原源码保留；仅原精确裸Continue旧否例转正；公开Break专属getter的Continue否例仍保留；旧§172条件见证更新为新optional支持 |
+| 仅编译守卫 | 保留旧正常→Continue等损坏模型，新增Continue→正常/另一真实jump/真实Break跨getter重包、同源二次分析整套body/Arc/transfer替换及缺跳转见证；均编译成功，未在本机执行 |
+
+最终逐完整名称 `--exact` 运行220项不同普通测试：lib107、ownership_iteration26、
+multifile_ownership_checking5、ownership_closures2、ownership_borrow_continuation1、
+multifile_constant_qualification11、unit_direct_call_loan_ends4、while_flow_facts16、
+type_callable/inout_storage17、type_map19、type_checking/control_join_regressions3、
+control_branch_join9。每项1 passed、0 failed/ignored；原216项无删减，恰增加3lib和1公开。
+红绿和中间复跑不累加。独审逐项核12份日志/选择与二进制SHA256，在上述clean提交直接
+复跑4项新增普通测试全部通过，前后HEAD/tree/状态和二进制哈希不变；不累计为224项。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8、默认debug=2、jobs=2、locked/offline，独占target
+串行执行。严格frontend all-targets Clippy（`-W clippy::all -D warnings`，40.24秒）、
+workspace all-targets check（1分14秒）、fmt、docs867、diff通过。连接中断时尺寸日志为空且
+进程已不存在，仅补跑该尺寸检查后通过：相对 `3fe17177`，2310手写Rust、36项既有超长，
+未改豁免；没有盲目重跑未知测试。完整选择、日志和哈希留仓库外，不入Git。
+
+不变Boolean参数在条件true时不证明会退出，返回图仅表示condition-false出口后的静态
+消费，须连同原Continue边界使用。未运行损坏/Abort、全量frontend/codegen/workspace测试、
+native、Linux或正式CI；不证明动态实例、一般changing owner、header/exit phi、条件合流
+后缀或Phase4。SPEC-0341与D10/E2保持in-progress。仅本地分步提交，未推送、开PR或合并main。
