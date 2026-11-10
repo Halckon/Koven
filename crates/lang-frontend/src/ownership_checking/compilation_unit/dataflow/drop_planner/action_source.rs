@@ -30,7 +30,9 @@ impl ActionSource {
         &mut self,
         call: crate::type_checking::UnitExpressionId,
         callable: Option<crate::type_checking::UnitItemId>,
-        expected: Option<Vec<UnitLoanFact>>,
+        expected: Option<
+            Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Expected>,
+        >,
     ) -> usize {
         let index = self.regions.len();
         self.regions.push(

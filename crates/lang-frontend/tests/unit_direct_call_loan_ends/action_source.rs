@@ -225,3 +225,127 @@ fn region_complete_normal_return_requires_actual_closed_actions() {
         assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
     }
 }
+
+#[test]
+fn region_zero_arguments_requires_entered_normal_edge() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    let observed = observe("fun number(): Int = 1\nfun run(): Int = number()");
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let [region] = observation.regions() else {
+            panic!("actual entered zero-argument call")
+        };
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(region.action_ids().len(), 0);
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Unsupported);
+        assert_eq!(region.protocol_version(), 1);
+        assert_eq!(region.families().len(), 2);
+    }
+    let absent = observe("fun run(): Int = 1");
+    for unit in &absent.units {
+        assert!(unit.loan_action_observations()[0].regions().is_empty());
+    }
+}
+
+#[test]
+fn region_two_named_literals_keep_reverse_end_and_drop_order() {
+    use lang_frontend::ownership_checking::{UnitDirectCallLoanRegion, UnitLoanActionCoverage};
+    let observed = observe(
+        "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(b = \"first\", a = \"second\") }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let region: &UnitDirectCallLoanRegion = &observation.regions()[0];
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(region.action_ids().len(), 6);
+        for id in region.action_ids() {
+            assert!(observation.action(&id).is_some());
+        }
+    }
+}
+
+#[test]
+fn region_ineligible_families_and_contexts_never_become_complete() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    for text in [
+        "fun inspect(value: String?): Int = 1\nfun run(): Unit { inspect(\"conversion\") }",
+        "fun inspect(value: String): Int = 1\nfun run(): Unit { val named = \"kept\"; inspect(named) }",
+        "fun inspect(value: String): Int = 1\nfun run(flag: Boolean): Unit { if (flag) { inspect(\"branch\") } }",
+        "fun inspect(value: String): Int = 1\nfun run(flag: Boolean): Unit { while (flag) { inspect(\"loop\"); break } }",
+        "fun inspect(value: String): Int = 1\nfun outer(a: String, own n: Int): Unit {}\nfun run(): Unit { outer(\"outer\", inspect(\"nested\")) }",
+        "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"interpolated ${1}\") }",
+        "class Node { fun inspect(value: String): Int = 1 }\nfun run(): Unit { Node().inspect(\"receiver\") }",
+    ] {
+        let observed = observe(text);
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert!(!unit.loan_action_observations()[0].regions().is_empty());
+            assert!(
+                unit.loan_action_observations()[0]
+                    .regions()
+                    .iter()
+                    .all(|region| region.coverage() != UnitLoanActionCoverage::Complete),
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn region_catalog_cannot_cross_reanalysis() {
+    let text = "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }";
+    let first = observe(text);
+    let second = observe(text);
+    for (left, right) in first.units.iter().zip(&second.units) {
+        let left = &left.loan_action_observations()[0];
+        let right = &right.loan_action_observations()[0];
+        for id in left.regions()[0].action_ids() {
+            assert!(left.clone().action(&id).is_some());
+            assert!(right.action(&id).is_none());
+        }
+    }
+}
+
+#[test]
+fn region_sequential_calls_use_full_record_cursors() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    let observed = observe(
+        "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"first\"); inspect(\"second\") }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        assert_eq!(observation.regions().len(), 2);
+        for region in observation.regions() {
+            assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+            assert_eq!(region.action_ids().len(), 3);
+            for id in region.action_ids() {
+                assert!(observation.action(&id).is_some());
+            }
+        }
+        assert_ne!(
+            observation.regions()[0].action_ids().next(),
+            observation.regions()[1].action_ids().next()
+        );
+    }
+}
+
+#[test]
+fn region_zero_certificate_catalog_is_checked_without_actions() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    let text = "fun number(): Int = 1\nfun run(): Int = number()";
+    let first = observe(text);
+    let second = observe(text);
+    for (left, right) in first.units.iter().zip(&second.units) {
+        let left = &left.loan_action_observations()[0];
+        let right = &right.loan_action_observations()[0];
+        let region = &left.regions()[0];
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(region.action_ids().len(), 0);
+        assert!(left.owns_region(region));
+        assert!(left.clone().owns_region(&region.clone()));
+        assert!(!right.owns_region(region));
+    }
+}

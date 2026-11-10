@@ -1,18 +1,28 @@
 //! Conservative lexical/typed admission, separate from actual action closure validation.
 use super::*;
-use crate::ownership_checking::{LoanKind, UnitLoanFact, UnitLoanTarget};
+use crate::ownership_checking::compilation_unit::loan_region_validation::Expected;
+use crate::ownership_checking::{LoanKind, UnitLoanTarget};
 use crate::type_checking::{CallableResultSource, UnitCallTarget, UnitItemId};
+
+pub(super) struct AdmissionIndex {
+    callables: BTreeMap<usize, UnitItemId>,
+    loans: BTreeMap<UnitExpressionId, Vec<usize>>,
+}
 
 impl DropPlanner<'_, '_> {
     pub(super) fn enter_loan_region(&mut self, call: ExpressionId, state: &ValueState) -> usize {
-        let callable = self.loan_region_callables().get(&call.index()).copied();
+        let callable = self
+            .loan_region_index()
+            .callables
+            .get(&call.index())
+            .copied();
         let expected = callable.and_then(|_| self.loan_region_expected(call, state));
         self.iteration_actions
             .enter_region(self.checker.unit_expression(call), callable, expected)
     }
 
-    fn loan_region_callables(&self) -> &BTreeMap<usize, UnitItemId> {
-        self.loan_region_callables.get_or_init(|| {
+    fn loan_region_index(&self) -> &AdmissionIndex {
+        self.loan_region_index.get_or_init(|| {
             let mut calls = BTreeMap::new();
             for &item in self.checker.parsed.roots() {
                 let Ok(node) = self.checker.parsed.ast().items().get(item) else {
@@ -75,7 +85,14 @@ impl DropPlanner<'_, '_> {
                     }
                 }
             }
-            calls
+            let mut loans = BTreeMap::<_, Vec<_>>::new();
+            for (index, loan) in self.checker.loans.iter().enumerate() {
+                loans.entry(loan.call()).or_default().push(index);
+            }
+            AdmissionIndex {
+                callables: calls,
+                loans,
+            }
         })
     }
 
@@ -83,7 +100,7 @@ impl DropPlanner<'_, '_> {
         &self,
         expression: ExpressionId,
         state: &ValueState,
-    ) -> Option<Vec<UnitLoanFact>> {
+    ) -> Option<Vec<Expected>> {
         if !self.loop_boundaries.is_empty()
             || !state.iterations.is_empty()
             || !state.pending_loans.is_empty()
@@ -142,12 +159,11 @@ impl DropPlanner<'_, '_> {
         if contracts.len() != arguments.len() {
             return None;
         }
-        let loans: Vec<_> = self
-            .checker
+        let loans = self
+            .loan_region_index()
             .loans
-            .iter()
-            .filter(|loan| loan.call() == id)
-            .collect();
+            .get(&id)
+            .map_or(&[][..], Vec::as_slice);
         if loans.len() != arguments.len() {
             return None;
         }
@@ -156,15 +172,14 @@ impl DropPlanner<'_, '_> {
             let typed = call.arguments()[index];
             let contract = contracts[index];
             let argument_id = self.checker.unit_expression(argument.value);
-            let Expression::String { parts, .. } = self
+            let node = self
                 .checker
                 .parsed
                 .ast()
                 .expressions()
                 .get(argument.value)
-                .ok()?
-                .payload()
-            else {
+                .ok()?;
+            let Expression::String { parts, .. } = node.payload() else {
                 return None;
             };
             if !parts.iter().all(|part| matches!(part, StringPart::Text(_)))
@@ -187,18 +202,23 @@ impl DropPlanner<'_, '_> {
             }
             let matches: Vec<_> = loans
                 .iter()
-                .copied()
+                .map(|&index| &self.checker.loans[index])
                 .filter(|loan| loan.argument() == argument_id)
                 .collect();
             let [loan] = matches.as_slice() else {
                 return None;
             };
-            if loan.kind() != LoanKind::Shared
+            if loan.begin_span() != node.span()
+                || loan.parameter_span() != contract.parameter_span()
+                || loan.kind() != LoanKind::Shared
                 || loan.target() != &UnitLoanTarget::Temporary(argument_id)
             {
                 return None;
             }
-            expected.push((*loan).clone());
+            expected.push(Expected {
+                loan: (*loan).clone(),
+                origin: node.span(),
+            });
         }
         Some(expected)
     }

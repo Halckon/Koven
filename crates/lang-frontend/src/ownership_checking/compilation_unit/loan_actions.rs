@@ -3,7 +3,7 @@ use super::{UnitDropPoint, UnitIterationCleanupAction, UnitLoanFact};
 use crate::name_resolution::SourceUnitId;
 use std::sync::Arc;
 
-/// Coverage of the declared source observation, not a callable-completeness claim.
+/// Coverage of a declared source or normal-edge region, never implicit callable completeness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitLoanActionCoverage {
     /// A separately validated declared region; never a whole-source certificate.
@@ -62,6 +62,13 @@ impl UnitLoanActionObservation {
     #[must_use]
     pub fn regions(&self) -> &[super::UnitDirectCallLoanRegion] {
         &self.regions
+    }
+
+    /// Check the exact catalog of a region, including a Complete-empty certificate.
+    /// Cloning preserves membership; equal source/call indices from reanalysis do not.
+    #[must_use]
+    pub fn owns_region(&self, region: &super::UnitDirectCallLoanRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
     }
 
     /// Identify a static record without accepting identities from another observation.

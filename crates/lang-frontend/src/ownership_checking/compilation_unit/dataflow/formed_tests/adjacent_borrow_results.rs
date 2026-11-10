@@ -921,6 +921,13 @@ fn actual_loan_action_source_is_revoked_after_independent_source_failure() {
             assert_eq!(raw.loan_action_observations.len(), 1);
             assert!(
                 raw.loan_action_observations[0]
+                    .regions()
+                    .iter()
+                    .any(|region| region.coverage()
+                        == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+            );
+            assert!(
+                raw.loan_action_observations[0]
                     .actions()
                     .iter()
                     .any(|action| matches!(
