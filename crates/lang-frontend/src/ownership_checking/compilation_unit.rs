@@ -10,6 +10,8 @@ pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
 mod loan_binding_region_validation;
 mod loan_binding_regions;
 pub use loan_binding_regions::UnitBorrowBindingRegion;
+mod loan_binding_dependency_drop;
+pub use loan_binding_dependency_drop::UnitLoanBindingDependencyDrop;
 mod loan_binding_child_actions;
 pub use loan_binding_child_actions::{
     UnitLoanBindingChildCommit, UnitLoanBindingChildRetirement, UnitLoanBindingChildUseReturn,

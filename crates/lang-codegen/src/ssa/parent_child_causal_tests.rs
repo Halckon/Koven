@@ -5,7 +5,7 @@ use lang_frontend::ownership_checking::{
     legacy_ownership_eq, with_loan_observation,
 };
 
-const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; consume(child) }";
+pub(super) const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; consume(child) }";
 
 #[test]
 fn parent_child_requires_actual_partial_causal_links_with_true_off() {
@@ -158,7 +158,7 @@ fn parent_child_requires_actual_partial_causal_links_with_true_off() {
     }
 }
 
-fn verify_parent_child_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
+pub(super) fn verify_parent_child_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
     let module = &program.modules[0];
     let caller = module.function(entry).unwrap();
     let [

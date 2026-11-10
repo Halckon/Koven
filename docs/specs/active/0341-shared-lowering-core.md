@@ -11784,3 +11784,29 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
   不外推资源证明、一般终止性、release 或正式 CI；临时原件仍需交付时按证据保留合同归档。
 - 独立只读终审已核双父、合成字节、十二项真实结果、原 artifact/profile、binary 与输入/日志 SHA；
   最终仅本 Spec 偏离冻结输入，其冻结 git 对象及其余 4235 输入仍匹配，无新增阻断。
+
+### 已批准后继：parent-child 实际 Drop 依赖闭合与独立区域覆盖
+
+- 从 clean `bda599637a45fd6c3136c661bcbade8cb4a0e6f8` 新隔离树实施，不重复原样 probe。
+  固定单 local String 根、单 BorrowCall result parent、单 raw Name child、单普通 Unit consumer；
+  不新增 siblings、多层、wrapper、控制或 parent/root 后用，不改语言、ABI、路由和原 cleanup emitter。
+- 阶段一单独完成实际 Drop 因果关系，仍 Partial：child 的实际 remove/BindingEnd 发布退休句柄，
+  沿原 parent transport 携至其实际 remove/SourceRetired；同一退休批次恰 child→该 parent，
+  用同 catalog、same_record 的 source Begin/handoff/commit/use/retirement 身份合成依赖，
+  不从 canonical root、Span 或 point 相等反查。child 的合格唯一 use-return 也是本片闭合条件。
+- 同根去重继续 fail-closed：明确 PendingChild/Closed/Lost 证据状态；错序、重复、第三同根退休、
+  缺链或歧义永久 Lost，不能把 None 当可补槽或选择最后一个 parent cause。
+  ChildState 的 Retired 若携新句柄，合流亦须 same_record，否则 Lost；旧 transport Eq 仍只 binding/source。
+- 最终边只能由实际 removed OwnerSnapshot 核验成功、旧 facts 去重确实新增后取得的 Cleanup handle 闭合；
+  Drop 尝试、早退或去重未 append 不能借旧 Drop。只发布独立只读关系，保原十 actions 与旧投影，
+  不添加执行动作、不授 absence/Complete、不接新 production receipt。
+- 阶段一先独立缺关联红：原样真实 on/off ownership、legacy Eq、十 SSA/LLVM、Partial 前置成功后，
+  因没有该关系失败；红 binary 在绿色构建覆盖前保存并独立实读 SHA。绿色再完整双 Unit 布局，
+  逐 ID 核 child retirement→parent source retirement→new Drop 及原 source/commit/use 链。
+- 阶段一完整终审冻结后才进入阶段二，另做缺 Complete 红→绿，不用同一红覆盖两项能力。
+  新 parent-child 区域必须独立于旧七事件 binding_regions，避免旧 receipt 消费十事件而新增拒绝。
+  entry 在 parent 声明前，已形成唯一活 owner 为正面前提，不宣称覆盖 owner 形成；
+  completion 在完整 root block cleanup 后，scope0、全部 active义务清空，核未过滤完整区间及实际 Drop 关联。
+  source/callable 仍 Partial，新区域不授权旧 oracle 退休或本片之外的生命周期。
+- 每阶段仅 fresh 审定的小 ordinary exact；foreign/fault/Abort/counter/压力及 CI-only 仅编译不执行。
+  borrow target 独占串行、LLVM21、默认 debug2，不降档、不复制 target；本地分步提交，不推送。

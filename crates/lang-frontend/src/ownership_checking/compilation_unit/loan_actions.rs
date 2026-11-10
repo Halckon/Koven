@@ -92,9 +92,17 @@ pub struct UnitLoanActionObservation {
     pub(super) actions: Vec<UnitLoanAction>,
     pub(super) regions: Vec<super::UnitDirectCallLoanRegion>,
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
+    pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
 }
 
 impl UnitLoanActionObservation {
+    /// Verified local parent/child dependency-to-Drop relations from actual cleanup publication.
+    /// Empty does not prove absence; entries do not certify whole-lifecycle coverage.
+    #[must_use]
+    pub fn binding_dependency_drops(&self) -> &[super::UnitLoanBindingDependencyDrop] {
+        &self.binding_dependency_drops
+    }
+
     /// Independently entered binding regions. Missing entries do not prove absence.
     #[must_use]
     pub fn binding_regions(&self) -> &[super::UnitBorrowBindingRegion] {
