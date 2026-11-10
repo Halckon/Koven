@@ -132,7 +132,7 @@ impl UnitOwnerReplaceBreakObservationV1 {
     pub fn statement(&self) -> UnitStatementId {
         self.statement
     }
-    /// Actual Boolean condition, retaining admitted comparison and Group/Not identities.
+    /// Actual Boolean condition, retaining admitted logical, comparison and Group/Not identities.
     pub fn condition(&self) -> UnitExpressionId {
         self.condition
     }
