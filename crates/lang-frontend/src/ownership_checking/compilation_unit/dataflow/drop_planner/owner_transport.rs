@@ -5,6 +5,7 @@ pub(super) mod choice;
 pub(super) mod loops;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
+pub(super) mod replace_return_consumer;
 #[cfg(test)]
 mod tests;
 

@@ -124,11 +124,7 @@ impl LoopTransaction {
             .iter()
             .find(|declaration| declaration.symbol() == function)?
             .callable()?;
-        if signature.receiver().is_some()
-            || !signature.type_parameters().is_empty()
-            || checker.typed.types().get(signature.return_type())
-                != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
-        {
+        if signature.receiver().is_some() || !signature.type_parameters().is_empty() {
             return None;
         }
         let mut parameter_symbols = BTreeSet::new();
@@ -158,6 +154,19 @@ impl LoopTransaction {
         };
         let replacing =
             replace_break::ReplaceBreakInput::admit(checker, elements, &parameter_symbols);
+        let returns_owner = replacing.as_ref().is_some_and(|input| matches!(input.consumer_target, crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Return(_)));
+        let result = if returns_owner {
+            BuiltinType::String
+        } else {
+            BuiltinType::Unit
+        };
+        if checker.typed.types().get(signature.return_type())
+            != Some(&UnitTypeKind::Builtin(result))
+            || (returns_owner
+                && signature.result_source() != crate::type_checking::CallableResultSource::Owned)
+        {
+            return None;
+        }
         let (statement, mut invariant) = if let Some(input) = &replacing {
             (input.statement, None)
         } else {
@@ -634,6 +643,24 @@ impl LoopTransaction {
             boundary.call_consumer = Some(consumer);
             if !boundary.is_consistent() {
                 boundary.call_consumer = None;
+            }
+        }
+    }
+}
+
+impl LoopTransaction {
+    pub(in super::super) fn complete_replace_return_consumer(
+        &mut self,
+        consumer: crate::ownership_checking::UnitOwnerReplaceBreakReturnConsumerV1,
+    ) {
+        if let Some(boundary) = &mut self.replace_result
+            && boundary.consumer.is_none()
+            && boundary.call_consumer.is_none()
+            && boundary.return_consumer.is_none()
+        {
+            boundary.return_consumer = Some(consumer);
+            if !boundary.is_consistent() {
+                boundary.return_consumer = None;
             }
         }
     }

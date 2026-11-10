@@ -114,6 +114,7 @@ impl BindConsumerCarrier {
 pub(in super::super) enum ReplaceConsumerCarrier {
     Bind(BindConsumerCarrier),
     Call(super::replace_call_consumer::CallConsumerCarrier),
+    Return(super::replace_return_consumer::ReturnConsumerCarrier),
 }
 impl ReplaceConsumerCarrier {
     pub(in super::super) fn handoff(
@@ -143,6 +144,10 @@ impl ReplaceConsumerCarrier {
                 condition, body, target, boundary,
             )
             .map(Self::Call),
+            S::Return(target) => super::replace_return_consumer::ReturnConsumerCarrier::handoff(
+                condition, body, target, boundary,
+            )
+            .map(Self::Return),
         }
     }
     pub(in super::super) fn take(
@@ -153,12 +158,13 @@ impl ReplaceConsumerCarrier {
         match self {
             Self::Bind(value) => value.take(expression, actual).map(Self::Bind),
             Self::Call(value) => value.take(expression, actual).map(Self::Call),
+            Self::Return(value) => value.take(expression, actual).map(Self::Return),
         }
     }
     fn bind(self, expression: UnitExpressionId, actual: &OwnedValue) -> Option<Self> {
         match self {
             Self::Bind(value) => value.bind(expression, actual).map(Self::Bind),
-            Self::Call(_) => None,
+            Self::Call(_) | Self::Return(_) => None,
         }
     }
     fn drop(
@@ -168,7 +174,7 @@ impl ReplaceConsumerCarrier {
     ) -> Option<UnitOwnerReplaceBreakConsumerV1> {
         match self {
             Self::Bind(value) => value.drop(point, actual),
-            Self::Call(_) => None,
+            Self::Call(_) | Self::Return(_) => None,
         }
     }
 }

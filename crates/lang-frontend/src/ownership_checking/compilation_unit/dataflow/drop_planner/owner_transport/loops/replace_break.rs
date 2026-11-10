@@ -92,6 +92,12 @@ impl ReplaceBreakInput {
                 statement: UnitStatementId::new(checker.source_unit, *suffix),
                 retired,
             }
+        } else if let Some(target) =
+            super::super::replace_return_consumer::admit(checker, *suffix, root)
+        {
+            crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Return(
+                target,
+            )
         } else {
             crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Call(
                 super::super::replace_call_consumer::admit(checker, *suffix, root)?,
@@ -340,6 +346,7 @@ impl ReplaceBreakInput {
             suffix: self.consumer_target.clone(),
             consumer: None,
             call_consumer: None,
+            return_consumer: None,
             identity: prefix.identity,
             callable: prefix.callable,
             completed_identity,

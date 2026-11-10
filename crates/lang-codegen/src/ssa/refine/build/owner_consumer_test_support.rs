@@ -15,6 +15,9 @@ pub(crate) enum OwnerFault {
     DuplicateOwnCall,
     WrongOwnCallSlot,
     MissingOwnCall,
+    DuplicateOwnerReturn,
+    WrongReturnPayload,
+    MissingOwnerReturn,
 }
 thread_local! {
     static FAULT: Cell<Option<OwnerFault>> = const { Cell::new(None) };

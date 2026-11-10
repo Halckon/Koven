@@ -15,12 +15,13 @@ pub use invariant::{
     UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
 };
 pub(in crate::ownership_checking::compilation_unit) use replace_break::{
-    CallConsumerTarget, ReplaceBreakSuffix,
+    CallConsumerTarget, ReplaceBreakSuffix, ReturnConsumerTarget,
 };
 pub use replace_break::{
     UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1,
     UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
-    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1,
+    UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1,
 };
 
 /// Structural control edges of a sealed While body, not an executed finite trace.

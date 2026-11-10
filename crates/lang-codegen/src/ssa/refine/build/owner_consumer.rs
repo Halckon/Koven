@@ -1,4 +1,4 @@
-//! The sealed B suffix authorizes one selected value. Existing emitters retain all
+//! A sealed bounded suffix authorizes one edge-selected value. Existing emitters retain all
 //! physical effects; this plan owns admission, action order and cleanup reconciliation.
 use super::{BlockRef, Builder, RTerm, RefineInputs, Slot};
 use crate::ssa::lowering_support::{LoweringError, LoweringErrorKind, error};
@@ -9,7 +9,7 @@ use lang_frontend::{
         UnitDropPoint, UnitDropTarget, UnitOwnerCallable, UnitOwnerOrigin,
         UnitOwnerReplaceBreakCallActionV1 as CallAction,
         UnitOwnerReplaceBreakConsumerActionV1 as Action, UnitOwnerReplaceBreakObservationV1,
-        UnitOwnerTransportEvent,
+        UnitOwnerReplaceBreakReturnActionV1 as ReturnAction, UnitOwnerTransportEvent,
     },
     source::Span,
     type_checking::{UnitExpressionId, UnitItemId, UnitStatementId},
@@ -24,6 +24,7 @@ pub(super) struct OwnerPlan<'a> {
     retired: Option<UnitSymbolId>,
     pub(super) drop_index: Option<usize>,
     pub(super) call: Option<(UnitExpressionId, crate::ssa::model::FunctionId)>,
+    pub(super) return_expression: Option<UnitExpressionId>,
     pub(super) root_slot: Option<Slot>,
     bound: Option<Slot>,
     exit: Option<BlockRef>,
@@ -57,6 +58,7 @@ impl<'a> OwnerPlan<'a> {
             .filter(|boundary| {
                 boundary.suffix_consumer_v1().is_some()
                     || boundary.suffix_call_consumer_v1().is_some()
+                    || boundary.suffix_return_consumer_v1().is_some()
             });
         let Some(boundary) = found.next() else {
             return Ok(None);
@@ -65,9 +67,11 @@ impl<'a> OwnerPlan<'a> {
         if found.next().is_some() || !boundary.is_consistent() {
             return Err(fail());
         }
-        let (initializer, root, retired, drop_index, call, incoming) =
+        let (initializer, root, retired, drop_index, call, return_expression, incoming) =
             if let Some(consumer) = boundary.suffix_consumer_v1() {
-                if boundary.suffix_call_consumer_v1().is_some() {
+                if boundary.suffix_call_consumer_v1().is_some()
+                    || boundary.suffix_return_consumer_v1().is_some()
+                {
                     return Err(fail());
                 }
                 let [
@@ -106,10 +110,13 @@ impl<'a> OwnerPlan<'a> {
                     Some(*retired),
                     Some(*index),
                     None,
+                    None,
                     consumer.incoming(),
                 )
-            } else {
-                let consumer = boundary.suffix_call_consumer_v1().ok_or_else(fail)?;
+            } else if let Some(consumer) = boundary.suffix_call_consumer_v1() {
+                if boundary.suffix_return_consumer_v1().is_some() {
+                    return Err(fail());
+                }
                 let [
                     CallAction::Take(argument, root),
                     CallAction::Call {
@@ -160,6 +167,40 @@ impl<'a> OwnerPlan<'a> {
                     None,
                     None,
                     Some((*call, callee)),
+                    None,
+                    consumer.incoming(),
+                )
+            } else {
+                let consumer = boundary.suffix_return_consumer_v1().ok_or_else(fail)?;
+                let [
+                    ReturnAction::Take(payload, root),
+                    ReturnAction::Return {
+                        expression,
+                        payload: delivered,
+                    },
+                ] = consumer.actions()
+                else {
+                    return Err(fail());
+                };
+                if payload != delivered
+                    || *payload != consumer.payload()
+                    || *expression != consumer.return_expression()
+                    || expression.source_unit() != inputs.source_unit
+                    || inputs
+                        .owned
+                        .drops()
+                        .iter()
+                        .any(|d| d.target() == UnitDropTarget::Named(*root))
+                {
+                    return Err(fail());
+                }
+                (
+                    *payload,
+                    *root,
+                    None,
+                    None,
+                    None,
+                    Some(*expression),
                     consumer.incoming(),
                 )
             };
@@ -195,6 +236,7 @@ impl<'a> OwnerPlan<'a> {
             retired,
             drop_index,
             call,
+            return_expression,
             root_slot: None,
             bound: None,
             exit: None,
@@ -458,7 +500,7 @@ impl Builder<'_, '_> {
         let Some(plan) = &self.owner_plan else {
             return Ok(None);
         };
-        if plan.call.is_some()
+        if (plan.call.is_some() || plan.return_expression.is_some())
             && (target == UnitDropTarget::Named(plan.root) || plan.root_slot == Some(slot))
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -544,7 +586,8 @@ impl Builder<'_, '_> {
                 || plan
                     .drop_index
                     .is_some_and(|index| !self.consumed_drops.contains(&index))
-                || (plan.call.is_some() && !self.dead.contains(&plan.root)))
+                || ((plan.call.is_some() || plan.return_expression.is_some())
+                    && !self.dead.contains(&plan.root)))
         {
             return Err(error(LoweringErrorKind::MissingFact, self.inputs.span));
         }

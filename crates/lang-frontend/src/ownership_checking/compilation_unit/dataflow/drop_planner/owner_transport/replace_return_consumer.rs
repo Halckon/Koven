@@ -1,0 +1,138 @@
+//! Move the saved path alternatives through the actual Name and Return traversal.
+use super::replace_consumer::{ReplaceConsumerCarrier, snapshot};
+use super::*;
+use crate::ownership_checking::compilation_unit::owner_transport::ReturnConsumerTarget;
+use crate::ownership_checking::{
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1 as Action,
+    UnitOwnerReplaceBreakReturnConsumerV1,
+};
+
+pub(super) fn admit(
+    checker: &Checker<'_>,
+    statement: StatementId,
+    root: UnitSymbolId,
+) -> Option<ReturnConsumerTarget> {
+    let ast = checker.parsed.ast();
+    let Statement::Expression { expression } = ast.statements().get(statement).ok()?.payload()
+    else {
+        return None;
+    };
+    let Expression::Return {
+        value: Some(payload),
+        ..
+    } = ast.expressions().get(*expression).ok()?.payload()
+    else {
+        return None;
+    };
+    let payload_node = ast.expressions().get(*payload).ok()?;
+    if !matches!(payload_node.payload(), Expression::Name)
+        || checker.reference_symbol(payload_node.span()) != Some(root)
+        || checker
+            .typed
+            .expression_category(checker.unit_expression(*payload))
+            != Some(ExpressionCategory::Place)
+        || checker
+            .typed
+            .expression_type(checker.unit_expression(*payload))
+            .and_then(|ty| checker.typed.types().get(ty))
+            != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        || checker
+            .typed
+            .expression_type(checker.unit_expression(*expression))
+            .and_then(|ty| checker.typed.types().get(ty))
+            != Some(&UnitTypeKind::Builtin(BuiltinType::Nothing))
+    {
+        return None;
+    }
+    Some(ReturnConsumerTarget {
+        expression: checker.unit_expression(*expression),
+        payload: checker.unit_expression(*payload),
+        statement: UnitStatementId::new(checker.source_unit, statement),
+    })
+}
+
+#[derive(Clone, Debug)]
+pub(in super::super) struct ReturnConsumerCarrier {
+    incoming: [OwnedValue; 2],
+    target: ReturnConsumerTarget,
+    actions: Vec<Action>,
+}
+impl ReturnConsumerCarrier {
+    pub(super) fn handoff(
+        condition: &OwnedValue,
+        body: OwnedValue,
+        target: ReturnConsumerTarget,
+        boundary: &UnitOwnerReplaceBreakObservationV1,
+    ) -> Option<Self> {
+        if snapshot(condition).as_ref() != Some(boundary.condition_false_exit())
+            || snapshot(&body).as_ref() != Some(boundary.body_completion())
+            || !boundary.is_consistent()
+        {
+            return None;
+        }
+        Some(Self {
+            incoming: [condition.clone(), body],
+            target,
+            actions: Vec::new(),
+        })
+    }
+    pub(super) fn take(
+        mut self,
+        expression: UnitExpressionId,
+        actual: Option<&OwnedValue>,
+    ) -> Option<Self> {
+        if expression != self.target.payload
+            || actual != Some(&self.incoming[0])
+            || !self.actions.is_empty()
+        {
+            return None;
+        }
+        self.actions
+            .push(Action::Take(expression, self.incoming[0].symbol));
+        Some(self)
+    }
+    fn deliver(
+        mut self,
+        expression: UnitExpressionId,
+        payload: UnitExpressionId,
+        owner: Option<&UnitOwnerId>,
+        state: &ValueState,
+    ) -> Option<UnitOwnerReplaceBreakReturnConsumerV1> {
+        if expression != self.target.expression || payload != self.target.payload
+            || self.actions != [Action::Take(payload, self.incoming[0].symbol)]
+            // Unsupported legacy observation clears its scalar result, never the path carrier.
+            || owner.is_some() || state.position(self.incoming[0].symbol).is_some()
+            || state.replace_consumer.is_some()
+        {
+            return None;
+        }
+        self.actions.push(Action::Return {
+            expression,
+            payload,
+        });
+        Some(UnitOwnerReplaceBreakReturnConsumerV1 {
+            incoming: [snapshot(&self.incoming[0])?, snapshot(&self.incoming[1])?],
+            target: self.target,
+            actions: self.actions,
+        })
+    }
+}
+impl DropPlanner<'_, '_> {
+    pub(in super::super) fn deliver_replace_return_consumer(
+        &self,
+        expression: ExpressionId,
+        payload: ExpressionId,
+        result: EvaluatedOwner,
+        state: &ValueState,
+    ) -> Option<UnitOwnerReplaceBreakReturnConsumerV1> {
+        let Some(ReplaceConsumerCarrier::Return(carrier)) = result.replace_consumer else {
+            return None;
+        };
+        carrier.deliver(
+            self.checker.unit_expression(expression),
+            self.checker.unit_expression(payload),
+            result.owner.as_ref(),
+            state,
+        )
+    }
+}

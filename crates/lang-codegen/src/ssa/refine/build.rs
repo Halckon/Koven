@@ -12,9 +12,9 @@ mod inout;
 mod map;
 mod owner_call;
 mod owner_consumer;
-mod owner_return;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
+mod owner_return;
 mod place;
 mod range_borrow;
 mod range_view;

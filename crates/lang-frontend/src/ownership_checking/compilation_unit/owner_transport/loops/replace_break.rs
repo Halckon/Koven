@@ -1,8 +1,13 @@
 mod call_consumer;
 mod consumer;
+mod return_consumer;
 pub(in crate::ownership_checking::compilation_unit) use call_consumer::CallConsumerTarget;
 pub use call_consumer::{UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1};
 pub use consumer::{UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1};
+pub(in crate::ownership_checking::compilation_unit) use return_consumer::ReturnConsumerTarget;
+pub use return_consumer::{
+    UnitOwnerReplaceBreakReturnActionV1, UnitOwnerReplaceBreakReturnConsumerV1,
+};
 // One actual replacement followed by Break and an optional bounded consumer.
 use super::super::{
     UnitOwnerCallable, UnitOwnerId, UnitOwnerObservation, UnitOwnerObservationStatus,
@@ -55,6 +60,8 @@ impl UnitOwnerReplaceBreakStateV1 {
 #[derive(Clone, Debug)]
 pub struct UnitOwnerReplaceBreakObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) suffix: ReplaceBreakSuffix,
+    pub(in crate::ownership_checking::compilation_unit) return_consumer:
+        Option<UnitOwnerReplaceBreakReturnConsumerV1>,
     pub(in crate::ownership_checking::compilation_unit) call_consumer:
         Option<UnitOwnerReplaceBreakCallConsumerV1>,
     pub(in crate::ownership_checking::compilation_unit) consumer:
@@ -93,8 +100,16 @@ pub(in crate::ownership_checking::compilation_unit) enum ReplaceBreakSuffix {
         retired: UnitSymbolId,
     },
     Call(CallConsumerTarget),
+    Return(ReturnConsumerTarget),
 }
 impl UnitOwnerReplaceBreakObservationV1 {
+    /// Actual Take followed by delivery through the unique owned String Return.
+    pub fn suffix_return_consumer_v1(&self) -> Option<&UnitOwnerReplaceBreakReturnConsumerV1> {
+        self.return_consumer
+            .as_ref()
+            .filter(|consumer| self.is_consistent() && consumer.matches_boundary(self))
+    }
+
     /// Actual Take followed by transfer into the checked ordinary own call.
     pub fn suffix_call_consumer_v1(&self) -> Option<&UnitOwnerReplaceBreakCallConsumerV1> {
         self.call_consumer
@@ -178,7 +193,19 @@ impl UnitOwnerReplaceBreakObservationV1 {
                 .call_consumer
                 .as_ref()
                 .is_some_and(|consumer| !consumer.matches_boundary(self))
-            || (self.consumer.is_some() && self.call_consumer.is_some())
+            || self
+                .return_consumer
+                .as_ref()
+                .is_some_and(|consumer| !consumer.matches_boundary(self))
+            || [
+                self.consumer.is_some(),
+                self.call_consumer.is_some(),
+                self.return_consumer.is_some(),
+            ]
+            .into_iter()
+            .filter(|present| *present)
+            .count()
+                > 1
             || !self.inputs.is_consistent()
             || !self.producers.is_consistent()
             || self.inputs.callable() != self.callable

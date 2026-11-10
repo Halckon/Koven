@@ -154,3 +154,15 @@ callee 仍使用既有 own 参数清理，body detached P 仍由旧 emitter 清�
 普通 SSA/LLVM 证据核选中P/Q确为调用参数、caller只清理detached P、callee唯一参数Drop；
 双Unit普通native输出证明false/true传值，不作析构计数或heap无泄漏证明。
 此片不纳入多参、receiver、泛型/间接调用、通用后缀或一般循环；精确验收见SPEC-0341。
+
+## 共同结果作为唯一 String 返回值
+
+独立受限 Return 后继保留相同prefix/while，仅允许唯一`return held`尾句和owned String
+函数结果；完整Return形状未成立时，其它loop及原B/Call仍要求既有Unit结果。
+真实Name Consume产生的P/Q carrier随payload交付，核root已从当前state移出，沿原Return
+cleanup完成后封印Take/Return。旧scalar投影不补造Q，原catalog与边角色不变。
+
+refine复用同一两出口及Name Take核验，另核Return expression、payload槽和已deliver的root；
+旧`finish_return`唯一发射成功后才提交消费。返回函数禁止Drop选中root，caller沿原结果
+接收/清理规则工作，body detached P仍按旧规则清理。双Unit普通SSA/LLVM及native覆盖
+false/true返回；输出不是析构计数证明，不扩展借用返回、capture、Resource或一般循环。
