@@ -9540,3 +9540,49 @@ frontend基线、protocol4 exact、workspace行为集合；所有CI-only人工�
 注入、压力、资源计数及native行为均未运行，仅随目标编译。未运行正式双宿主CI，LLVM
 verifier不代替native释放计数；不退休Single、不称source/callable Complete、不关闭
 Spec/D10/E2，未push、PR或merge。
+
+### 第五批双 callable 与 P2 Compatibility 证据组合（2026-11-10）
+
+从干净`d8e062de`快进到冻结owner`59360f694676281bd04aca55bbd09ab0b32bfd79`，
+再保父链merge固定borrow`0ca221db49f658a9abfcab2384f75ef655202a37`，精确代码头
+`7b635a1c870432f4c2930b7395fb630b84edf048`、树
+`05ed47c85c6a484487effa40df6848426f1e48a1`。唯一Spec尾部冲突保留两侧全部历史；
+不纳入其他待批片，不改原worker树，不cherry-pick重建合同。相对第四批仅测试与文档变化，
+无production变更，原carrier门、B单emitter双ledger、四开关和全局撤销保持原样。
+
+精确普通选择沿用第四批476项，仅增加以下两项：
+- `native_tests::boxed_enum_tests::unit_source::owner_replace_break_downstream_tests::bounded_replace_break_same_analysis_callables_keep_products_and_receipts_local`。
+- `ssa::loan_region_ssa_tests::certified_receiver_region_has_real_unit_ssa_lifecycle`。
+
+独立逐源/helper审计确认前者同轮双callable×Basic/Constant独立身份、receipt与普通native
+输出，不含人工故障或释放计数；后者双Unit输入的P2完整区间与真实SSA/LLVM，仅为
+Compatibility证据，显式断言refine路由为空，不宣称已迁移refine。两者均非生产证书接线，
+无新语言能力红测。所有新旧CI-only故障/计数/校准/Abort/压力、十项direct、四项iteration
+Abort及两个混合破损owner条目仍排除，不使用模块过滤以免误选CI-only。
+
+本轮串行复用原owner target，Cargo `--locked --offline -j 2`，默认debug2，无
+CARGO_PROFILE_DEV_DEBUG、CARGO_PROFILE_TEST_DEBUG、RUSTFLAGS、CARGO_ENCODED_RUSTFLAGS
+覆盖；LLVM_SYS_211_PREFIX仍为`/opt/homebrew/opt/llvm@21`，Rust1.96.0/macOS AArch64。
+frontend和codegen使用第四批同一no-run命令，均按实际compiler-artifact定位binary，
+先`--exact --list --format terse`核名，再`--exact`运行，核实际成功集合及二进制hash。
+外置选择/manifest/日志留`/private/tmp/koven-owner-loan-combination-batch5-evidence`；
+临时路径不是永久真源，固定提交测试、原集合来源及以上两项增量界定可重建输入。
+
+实际478普通全部成功：134 lib（1.13s）、331 direct（0.27s）、1 iteration（0.06s）、
+12 codegen（7.33s），0失败/忽略，filtered分别450、10、218、2817。
+frontend no-run4.11s，codegen no-run1m04s。过程偏差：codegen构建已success，但`-vv`
+触发llvm-sys构建脚本文本混在JSON流，最初外置脚本JSONDecodeError而未启动后端测试。
+保留原始日志，脚本改为只允许JSON行或已逐行核实的`[llvm-sys 211.1.1] `前缀，仍严格
+核build-finished成功和实际profile，然后复用该精确输入刚构建的binary完成12项；不重跑
+前端466项、不重编、不改Rust。这是验收解析修正，不是行为红测。所有artifact实际
+profile.debuginfo=2，选中binary名称集合及成功集合相等。
+
+独立只读复核固定HEAD/tree、478选择与实际成功集合、四个binary hash、构建成功及
+默认debug2均一致；确认103行llvm-sys前缀文本及严格解析处理，无阻断。
+严格`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --all-targets -j 2 -- -W clippy::all -D warnings`通过40.70s；
+`cargo check --locked --offline --workspace --all-targets -j 2`通过19.31s；
+`cargo fmt --all -- --check`、docs879、diff及尺寸`--base 3fe1920a`通过。
+尺寸2291手写Rust、36既有超千行，无额度变更；两新增测试所在文件485/629行。
+最终仅追加本账本文档，无Rust再变动。未执行正式CI、Linux、sanitizer、压力、故障与
+计数校准；普通native不证明释放计数义务。未push、PR或合main，Spec/D10/E2仍in-progress，
+不退休旧oracle，不把P2 Compatibility或P4并列实证称为证书生产消费完成。
