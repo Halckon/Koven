@@ -547,3 +547,5 @@ mod replace_break_call;
 mod replace_break_return;
 
 mod replace_break_grouped_condition;
+
+mod replace_break_negated_condition;
