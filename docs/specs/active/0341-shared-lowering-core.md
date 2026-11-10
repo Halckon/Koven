@@ -11285,3 +11285,34 @@ FE `338dc6f4072615c0b26306a3cfc244fa3cb22805333f2adfb3b637b9d6838240`，
 hash仍匹配；4207冻结对象与清单一致，当前仅两docs不同、非docs无漂移。四项共15次
 有限SSA/LLVM lower，一项仅前端合流；不含native或CI-only执行。终审后仅docs补账本，
 不重跑或修改Rust，本地提交且不推送。
+
+### 单binding跨statement完整覆盖认证（2026-11-10）
+
+基于 `0b456820` 的真实Partial因果链，本片独立认证一个声明清楚的正常区域，不把因果记录
+非空自动升级Complete。保持普通非泛型、无receiver、无参Unit caller的精确三statement：
+`val owner = plainString`、`borrow val item = view(owner)`、`consume(item)`；单String根、
+单binding、普通单Borrow参数consumer返回Unit，无控制、重绑定、parent/sibling/wrapper。
+原语言/ABI/route、cleanup producer及P1–P4 call-only合同不变，production receipt另片。
+
+区域入口在owner声明已经真实正常完成后、borrow声明执行前。正面核同callable/source的
+原AST/typed形成、唯一当前OwnedValue的symbol/declaration/origin/scope和形成事实；本区域
+不声称覆盖owner形成全生命周期。实际entry cursor至完整正常body处理后的completion cursor
+覆盖全部未过滤动作，包含borrow initializer、commit、consumer及原binding/source退休和
+清理。entry/exit审全部active pending/transport/capture/owner/loop/replacement状态，不能
+以历史事实索引空集替代运行状态。保留原statement外层owner观察wrapper，不绕过旧执行。
+
+独立validator必须逐角色核同catalog及真实引用：source Begin→handoff→consumer metadata
+Begin/use-return→binding End→source退休→实际owner Drop；consumer正常返回不是binding
+End，不新增第三SSA loan。仅consumer AfterStatement即时退休且实际owner已移除、唯一新
+Cleanup Drop append成功才可闭合。retirement句柄沿原drop尝试携带到实际移除及push_fact，
+保护早退、去重未append、歧义或缺边均不借旧相等Drop补齐，不按Span/root查最近事件。
+完整未过滤区间若有额外/漏动作、entry/completion缺失或活跃义务未清空，保持Partial。
+
+公开为独立binding区域，非第五个call-only协议。区域身份包含同轮source/callable/binding
+和声明边界；source/callable仍Partial，off无新区域且旧facts/执行等价，Unsupported/缺失
+不授absence。metadata不改变旧Eq、合流资格或cleanup顺序，错误/deferred沿既有撤销路径。
+
+先新增普通原样真实缺覆盖红：旧因果七事件、真实on/off产品、SSA/LLVM均仍成立，但无
+独立Complete binding区域。再接实际entry/completion、Drop因果carry及独立验证成为绿。
+局部普通邻控按fresh source/helper审后exact执行；foreign/破损/Abort/计数/压力/CI-only
+只编译不运行。后端production消费缺证红不混入本片。
