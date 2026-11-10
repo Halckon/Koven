@@ -30,28 +30,13 @@ impl Default for ActionSource {
 impl ActionSource {
     pub(super) fn enter_region(
         &mut self,
-        call: crate::type_checking::UnitExpressionId,
-        callable: Option<crate::type_checking::UnitItemId>,
-        expected: Option<
-            Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Expected>,
-        >,
-        receiver_protocol: bool,
-        receiver: Option<
-            crate::ownership_checking::compilation_unit::loan_region_validation::ExpectedReceiver,
-        >,
+        mut candidate: crate::ownership_checking::compilation_unit::loan_region_validation::Candidate,
     ) -> usize {
         let index = self.regions.len();
-        self.regions.push(
-            crate::ownership_checking::compilation_unit::loan_region_validation::Candidate {
-                call,
-                callable,
-                expected,
-                receiver_protocol,
-                receiver,
-                start: self.records.len(),
-                end: None,
-            },
-        );
+        // Only actual planner entry/completion owns these cursors, never admission.
+        candidate.start = self.records.len();
+        candidate.end = None;
+        self.regions.push(candidate);
         index
     }
     pub(super) fn complete_region(&mut self, index: usize) {

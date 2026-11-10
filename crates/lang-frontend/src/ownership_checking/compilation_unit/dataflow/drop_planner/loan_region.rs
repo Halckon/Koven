@@ -1,13 +1,13 @@
 //! Conservative lexical/typed admission, separate from actual action closure validation.
 use super::*;
-use crate::ownership_checking::compilation_unit::loan_region_validation::Expected;
+use crate::ownership_checking::compilation_unit::loan_region_validation::{Candidate, Expected};
 use crate::ownership_checking::{LoanKind, UnitLoanTarget};
 use crate::type_checking::{CallableResultSource, UnitCallTarget, UnitItemId};
 
 pub(super) struct AdmissionIndex {
     callables: BTreeMap<usize, UnitItemId>,
     pub(super) receivers: BTreeMap<UnitExpressionId, Vec<usize>>,
-    loans: BTreeMap<UnitExpressionId, Vec<usize>>,
+    pub(super) loans: BTreeMap<UnitExpressionId, Vec<usize>>,
 }
 
 impl DropPlanner<'_, '_> {
@@ -23,15 +23,26 @@ impl DropPlanner<'_, '_> {
             .typed
             .call(self.checker.unit_expression(call))
             .is_some_and(|call| call.receiver().is_some());
+        let protocol = if receiver_protocol {
+            2
+        } else if self.is_named_loan_region(call) {
+            3
+        } else {
+            1
+        };
         let receiver =
             callable.and_then(|item| self.loan_receiver_region_expected(call, item, state));
-        self.iteration_actions.enter_region(
-            self.checker.unit_expression(call),
+        let named = callable.and_then(|item| self.loan_named_region_expected(call, item, state));
+        self.iteration_actions.enter_region(Candidate {
+            call: self.checker.unit_expression(call),
             callable,
             expected,
-            receiver_protocol,
+            protocol,
             receiver,
-        )
+            named,
+            start: 0,
+            end: None,
+        })
     }
 
     pub(super) fn loan_region_index(&self) -> &AdmissionIndex {

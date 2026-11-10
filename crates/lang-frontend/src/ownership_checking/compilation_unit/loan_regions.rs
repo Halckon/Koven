@@ -23,6 +23,7 @@ pub enum UnitLoanRegionFamily {
 /// Admission requires independent calls in a flat ordinary function, with Int/Unit results
 /// and, for protocol 1, plain String literal Borrow arguments (including zero arguments).
 /// Protocol 2 requires zero arguments and an explicit owned non-Resource class parameter.
+/// Protocol 3 requires one Shared String argument backed by an explicit owned caller parameter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitDirectCallLoanRegion {
     pub(super) identity: Arc<()>,
@@ -51,6 +52,12 @@ impl UnitDirectCallLoanRegion {
     /// Exact local families covered when coverage is Complete.
     #[must_use]
     pub const fn families(&self) -> &'static [UnitLoanRegionFamily] {
+        if self.protocol == 3 {
+            return &[
+                UnitLoanRegionFamily::DirectSharedArgument,
+                UnitLoanRegionFamily::NamedSourceDrop,
+            ];
+        }
         if self.protocol == 2 {
             return &[
                 UnitLoanRegionFamily::SharedReceiver,

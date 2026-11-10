@@ -111,7 +111,8 @@ fn ci_only_broken_region_models_do_not_certify_complete() {
     wrong_origin[0].origin = expected[1].origin;
     assert!(!validates(region.call(), &wrong_origin, &actions));
     let wrong_callable = Candidate {
-        receiver_protocol: false,
+        protocol: 1,
+        named: None,
         receiver: None,
         call: region.call(),
         callable: Some(UnitItemId::new(
@@ -127,7 +128,8 @@ fn ci_only_broken_region_models_do_not_certify_complete() {
         UnitLoanActionCoverage::Partial
     );
     let absent_completion = Candidate {
-        receiver_protocol: false,
+        protocol: 1,
+        named: None,
         receiver: None,
         call: region.call(),
         callable: region.callable(),
@@ -150,7 +152,8 @@ fn ci_only_empty_region_requires_all_positive_boundary_evidence() {
     let shared = fixture.shared();
     let region = &shared.loan_action_observations()[0].regions()[0];
     let candidate = |expected, start, end| Candidate {
-        receiver_protocol: false,
+        protocol: 1,
+        named: None,
         receiver: None,
         call: region.call(),
         callable: region.callable(),
@@ -252,7 +255,8 @@ fn ci_only_broken_receiver_region_intervals_do_not_certify_complete() {
         call: region.call(),
         callable: region.callable(),
         expected: None,
-        receiver_protocol: true,
+        protocol: 2,
+        named: None,
         receiver: Some(ExpectedReceiver {
             receiver: receiver.clone(),
             root: place.root(),
@@ -302,6 +306,165 @@ fn ci_only_broken_receiver_region_intervals_do_not_certify_complete() {
     candidate.receiver = None;
     assert_eq!(
         receiver_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Unsupported
+    );
+}
+
+#[test]
+fn loan_named_cross_source_keeps_parameter_and_caller_identity() {
+    let fixture = Fixture::new(&[
+        ("a.ko", "fun inspect(value: String): Int = 1"),
+        (
+            "b.ko",
+            "fun run(own source: String): Unit { inspect(source) }",
+        ),
+    ]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    let observation = shared
+        .loan_action_observations()
+        .iter()
+        .find(|entry| !entry.regions().is_empty())
+        .unwrap();
+    let region = &observation.regions()[0];
+    assert_eq!(region.protocol_version(), 3);
+    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+    let other = shared
+        .loan_action_observations()
+        .iter()
+        .find(|entry| entry.source() != observation.source())
+        .unwrap();
+    assert!(!other.owns_region(region));
+    for id in region.action_ids() {
+        assert!(other.action(&id).is_none());
+        if let Some(UnitLoanAction::Begin(loan)) = observation.action(&id) {
+            assert_eq!(loan.call().source_unit(), observation.source());
+            assert_ne!(
+                loan.begin_span().source_id(),
+                loan.parameter_span().unwrap().source_id()
+            );
+        }
+    }
+}
+
+// Deliberate product corruption is CI-only, not a local ordinary test selection.
+#[test]
+fn ci_only_broken_named_region_does_not_certify_complete() {
+    use super::super::{UnitIterationCleanupAction, UnitLoanTarget};
+    let fixture = Fixture::new(&[(
+        "a.ko",
+        "fun inspect(value: String): Int = 1\nfun run(own first: String, own second: String): Unit { inspect(first); inspect(second) }",
+    )]);
+    let shared = fixture.shared();
+    let observation = &shared.loan_action_observations()[0];
+    let region = &observation.regions()[0];
+    let actions: Vec<_> = region
+        .action_ids()
+        .map(|id| observation.action(&id).unwrap().clone())
+        .collect();
+    let [
+        UnitLoanAction::Begin(loan),
+        _,
+        UnitLoanAction::Cleanup {
+            action: UnitIterationCleanupAction::Drop(drop),
+            ..
+        },
+    ] = actions.as_slice()
+    else {
+        panic!("actual named interval");
+    };
+    let UnitLoanTarget::Place(place) = loan.target() else {
+        panic!("actual named root");
+    };
+    let mut candidate = Candidate {
+        call: region.call(),
+        callable: region.callable(),
+        expected: None,
+        protocol: 3,
+        receiver: None,
+        named: Some(ExpectedNamed {
+            loan: loan.clone(),
+            root: place.root(),
+            argument_origin: loan.begin_span(),
+            call_origin: loan.end_span(),
+            owner_origin: drop.value_origin(),
+        }),
+        start: 0,
+        end: Some(3),
+    };
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Complete
+    );
+    let mut broken = actions.clone();
+    broken.swap(0, 1);
+    assert_eq!(
+        named_coverage(&candidate, &broken),
+        UnitLoanActionCoverage::Partial
+    );
+    let mut broken = actions.clone();
+    broken[2] = broken[1].clone();
+    assert_eq!(
+        named_coverage(&candidate, &broken),
+        UnitLoanActionCoverage::Partial
+    );
+    assert_eq!(
+        named_coverage(&candidate, &actions[..2]),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.end = Some(4);
+    let mut extra = actions.clone();
+    extra.push(actions[1].clone());
+    assert_eq!(
+        named_coverage(&candidate, &extra),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.end = Some(3);
+    candidate.named.as_mut().unwrap().owner_origin = loan.begin_span();
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.named.as_mut().unwrap().owner_origin = drop.value_origin();
+    candidate.named.as_mut().unwrap().call_origin = loan.begin_span();
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.named.as_mut().unwrap().call_origin = loan.end_span();
+    let second = observation.regions()[1].action_ids().next().unwrap();
+    let UnitLoanAction::Begin(second) = observation.action(&second).unwrap() else {
+        panic!("second root");
+    };
+    let UnitLoanTarget::Place(second_place) = second.target() else {
+        panic!("second place");
+    };
+    candidate.named.as_mut().unwrap().root = second_place.root();
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.named.as_mut().unwrap().root = place.root();
+    candidate.call = second.call();
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.call = region.call();
+    candidate.end = None;
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.end = Some(3);
+    candidate.start = 4;
+    assert_eq!(
+        named_coverage(&candidate, &actions),
+        UnitLoanActionCoverage::Partial
+    );
+    candidate.named = None;
+    assert_eq!(
+        named_coverage(&candidate, &actions),
         UnitLoanActionCoverage::Unsupported
     );
 }

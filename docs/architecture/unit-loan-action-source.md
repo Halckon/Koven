@@ -56,3 +56,18 @@ Borrow/Inout参数、Two-Phase、this、投影/转换、temporary/Rc、provider/
 result仍不准入；borrowed-result原诊断不变。仅证明当前Shared token退休及实际owner销毁，
 不是通用permission restoration证书，不证明callee必返或source/callable Complete。
 receiver专用on/off全产物差分与跨source错误/deferred撤销均保持；catalog身份仍不能跨重分析。
+
+## 单Named参数源 direct call 正常返回区域
+
+protocol 3声明DirectSharedArgument/NamedSourceDrop两族，只接上述flat caller的普通
+Name/Declaration调用，无receiver/泛型、Owned Int/Unit结果。唯一实参必须直接引用本caller
+显式Own String参数，唯一callee参数为同型Shared Borrow；命名实参仍保持typed参数映射。
+Own marker、Owned binding和仍在ValueState中的根及形成span共同证明来源，callee契约、
+operand的Place category、loan/place身份、使用与call span都独立匹配。未准入的Named候选
+为Unsupported，不能把其空动作解释成absence。
+
+不增加动作生成或旧投影：复用已有真实Begin、EndCallLoan和Named Drop，并验证完整
+未过滤区间恰好三项同call闭合，Drop origin必须是参数形成span；真实进入后根仍live
+缺Drop为Partial。protocol 1/2仍各按原合同认证，未知协议编号不认证Complete。
+Borrow/Inout/local源、Group/投影/转换、多参数、borrowed result及控制/嵌套仍不准入。
+这是有界正常边证据，不证明通用权限恢复、callee必返或整个source/callable。

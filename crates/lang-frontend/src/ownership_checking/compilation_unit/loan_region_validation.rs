@@ -16,11 +16,20 @@ pub(super) struct ExpectedReceiver {
     pub(super) owner_origin: crate::source::Span,
 }
 
+pub(super) struct ExpectedNamed {
+    pub(super) loan: UnitLoanFact,
+    pub(super) root: crate::name_resolution::UnitSymbolId,
+    pub(super) argument_origin: crate::source::Span,
+    pub(super) call_origin: crate::source::Span,
+    pub(super) owner_origin: crate::source::Span,
+}
+
 pub(super) struct Candidate {
     pub(super) call: UnitExpressionId,
     pub(super) callable: Option<UnitItemId>,
     pub(super) expected: Option<Vec<Expected>>,
-    pub(super) receiver_protocol: bool,
+    pub(super) protocol: u32,
+    pub(super) named: Option<ExpectedNamed>,
     pub(super) receiver: Option<ExpectedReceiver>,
     pub(super) start: usize,
     pub(super) end: Option<usize>,
@@ -34,9 +43,11 @@ impl Candidate {
         let records = self
             .end
             .map_or(self.start..self.start, |end| self.start..end);
-        let coverage = if self.receiver_protocol {
+        let coverage = if self.protocol == 3 {
+            named_coverage(&self, actions)
+        } else if self.protocol == 2 {
             receiver_coverage(&self, actions)
-        } else {
+        } else if self.protocol == 1 {
             match (
                 &self.expected,
                 self.end.and_then(|end| actions.get(self.start..end)),
@@ -51,6 +62,8 @@ impl Candidate {
                 }
                 (Some(_), _) => UnitLoanActionCoverage::Partial,
             }
+        } else {
+            UnitLoanActionCoverage::Unsupported
         };
         UnitDirectCallLoanRegion {
             identity,
@@ -58,8 +71,43 @@ impl Candidate {
             callable: self.callable,
             coverage,
             records,
-            protocol: if self.receiver_protocol { 2 } else { 1 },
+            protocol: self.protocol,
         }
+    }
+}
+
+fn named_coverage(candidate: &Candidate, actions: &[UnitLoanAction]) -> UnitLoanActionCoverage {
+    use super::{UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget};
+    use crate::ownership_checking::LoanKind;
+    let Some(expected) = &candidate.named else {
+        return UnitLoanActionCoverage::Unsupported;
+    };
+    let Some(actions) = candidate
+        .end
+        .and_then(|end| actions.get(candidate.start..end))
+    else {
+        return UnitLoanActionCoverage::Partial;
+    };
+    let loan = &expected.loan;
+    let point = UnitDropPoint::CallReturn(candidate.call);
+    let valid = candidate
+        .callable
+        .is_some_and(|item| item.source_unit() == candidate.call.source_unit())
+        && loan.call() == candidate.call
+        && loan.argument().source_unit() == candidate.call.source_unit()
+        && expected.root.source_unit() == candidate.call.source_unit()
+        && loan.kind() == LoanKind::Shared
+        && loan.begin_span() == expected.argument_origin
+        && loan.end_span() == expected.call_origin
+        && matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == expected.root)
+        && matches!(actions, [UnitLoanAction::Begin(begin), UnitLoanAction::Cleanup { point: end_point, action: UnitIterationCleanupAction::EndCallLoan(end) }, UnitLoanAction::Cleanup { point: drop_point, action: UnitIterationCleanupAction::Drop(drop) }]
+            if begin == loan && end == loan && *end_point == point && *drop_point == point
+                && drop.point() == point && drop.target() == UnitDropTarget::Named(expected.root)
+                && drop.value_origin() == expected.owner_origin);
+    if valid {
+        UnitLoanActionCoverage::Complete
+    } else {
+        UnitLoanActionCoverage::Partial
     }
 }
 

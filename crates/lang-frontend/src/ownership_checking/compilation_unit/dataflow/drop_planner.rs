@@ -10,6 +10,7 @@ mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
+mod loan_named_region;
 mod loan_provenance;
 mod loan_receiver_region;
 mod loan_region;

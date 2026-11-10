@@ -452,3 +452,33 @@ fn loan_receiver_observer_preserves_nonempty_legacy_return_projection() {
         assert_eq!(observed, disabled);
     });
 }
+
+#[test]
+fn loan_named_observer_preserves_all_existing_planner_products() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun inspect(value: String): Int = 1\nfun run(own source: String): Unit { inspect(source); inspect(source) }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.direct_call_loan_ends.len(), 2);
+        assert_eq!(
+            observed.direct_call_loan_ends,
+            disabled.direct_call_loan_ends
+        );
+        assert!(
+            observed.loan_action_observations[0]
+                .regions()
+                .iter()
+                .any(|region| region.protocol_version() == 3
+                    && region.coverage()
+                        == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+        );
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}
