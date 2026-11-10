@@ -57,7 +57,7 @@ source 不再具名但仍被合法 capture 持有时，保存唯一 retained-sou
 
 ### 3. 控制边、替换与调用交接
 
-按 [0038](0038-path-qualified-owner-transport.md) 的路径化 incoming 运输当前根实例及
+按 [0038](../accepted/0038-path-qualified-owner-transport.md) 的路径化 incoming 运输当前根实例及
 其选择关系。先读取全部旧来源再并行提交；未选槽、已移空槽和新一轮缺席的目标显式清空。
 来源图可递归，Owned 边必须指向形成前已存在的实际实例；不能用正在覆写的 phi 地址
 作为旧环境身份。Shared 关系不被当作 Owned 析构递归边。
@@ -84,7 +84,7 @@ shared capture loan end；被借 source 的 drop 则必须晚于所有保护它�
 实施前须逐项核真实 action、cleanup 点与
 refine/SSA 映射，记录同一动作还是不同层事件；若确实矛盾，停止该接线并另行决定，
 不能静默改 accepted 0034。跨槽依赖及 retained 级联只有完成这份映射后才能进入
-[0040](0040-complete-loan-lifecycle-evidence.md) 的路径内清理序列。
+[0040](../accepted/0040-complete-loan-lifecycle-evidence.md) 的路径内清理序列。
 
 Phase 3 提供事实与独立实例回放，refine 负责机械落实，SSA verifier 独立复核。
 若以后接受 0025 的 drop thunk，只能选一个位置执行某项子值释放；旧静态 captured drop
@@ -132,6 +132,6 @@ retained 义务与原清理动作必须统一接合，不能仅增加形成事�
 ## 关联
 
 - 相关 Spec：[SPEC-0341](../../specs/active/0341-shared-lowering-core.md)；具体增量须在接受后立实施合同。
-- 依赖：[0038](0038-path-qualified-owner-transport.md)、[0040](0040-complete-loan-lifecycle-evidence.md)。
+- 依赖：[0038](../accepted/0038-path-qualified-owner-transport.md)、[0040](../accepted/0040-complete-loan-lifecycle-evidence.md)。
 - 相关既有决定：[0034](../accepted/0034-refine-closures-and-callable-views.md)；ABI 候选复用 0025/0036。
 - 取代的 ADR：无；不改写 0009/0016/0029/0034。被以下 ADR 取代：无。

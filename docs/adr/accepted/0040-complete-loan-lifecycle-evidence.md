@@ -1,16 +1,19 @@
 # ADR-0040：有覆盖证明的 loan 生命周期与统一清理顺序
 
-> **性质**：架构决策提案 · **状态**：proposed · **读取时机**：设计完整 Unit loan 结束流、来源延续和 absence/顺序见证退休时 · **唯一真源**：本提案；Borrow 语义与 ABI 沿用既有决定
+> **性质**：架构决策记录 · **状态**：accepted · **读取时机**：设计完整 Unit loan 结束流、来源延续和 absence/顺序见证退休时 · **唯一真源**：本 ADR；Borrow 语义与 ABI 沿用既有决定
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用。2026-11-10 的请求只要求起草。下述产品、覆盖与接线方案待接受，不授权扩展
-普通借用语言能力，不修改 [ADR-0016](../accepted/0016-interprocedural-borrow-abi.md) 或
-[ADR-0029](../accepted/0029-ordinary-borrow-result-continuation.md)。
+2026-11-10 用户询问推荐方案后，对“动态 owner 和普通借用并行，随后动态 capture；
+owner 先做有界真实 P/Q consumer，借用建立完整生命周期证据”回复：
+“可以，先按这个来，后续有问题再review”。据此接受本 ADR 的推荐方向。
+首片范围与验证由 SPEC-0341 的“已批准 owner/loan 并行首片”限定；接受不表示实现完成，
+不接受 ADR-0025/0036，不启用 Guide 之外的语言能力。动态 capture 的后续实施另按
+ADR-0039 的依赖与审议处理，不因本次接受而声称其 ABI 或阶段映射已经解决。
 
 ## 背景
 
@@ -24,7 +27,7 @@ forward 是来源转交而非 end。各表的空集合因此不能证明整个�
 有合法后继/终止，以及如何把 result、source、receiver、capture/provider 和 owner drop
 放在可复核的同点顺序中，使 Single 的完整 absence/唯一结束 oracle 可以退休。
 
-## 决策提议
+## 决策
 
 ### 1. 单一真实动作来源，有限 CFG 生命周期产品
 
@@ -92,7 +95,7 @@ Complete 不一定表示事件数大于零：合法零事件须有覆盖了全�
 ### 5. 与 owner/capture 及后端的边界
 
 目标为与 [0038](0038-path-qualified-owner-transport.md) 的 owner 边和
-[0039](0039-dynamic-capture-instance-provenance.md) 的实例/槽建立显式引用，不合并成
+[0039](../proposed/0039-dynamic-capture-instance-provenance.md) 的实例/槽建立显式引用，不合并成
 无类型大 context。普通直线调用可以先形成自己的完整覆盖，不必等待动态 capture ABI。
 若声称整个 callable 完整，则所有真实涉及的家族必须覆盖，不能只跳过 capture/provider。
 
@@ -100,7 +103,7 @@ refine 仍消费 validated 事实，SSA verifier 继续独立校验 Begin/End/ov
 LLVM 继续 ADR-0016/0029 的地址 ABI，不增加 first-class reference 或借用计数 runtime。
 旧 Single 的精确身份、完整顺序、缺席和资源 oracle 在相应 Unit 能力真实接线前保留。
 
-## 待决选择
+## 已接受的推荐选择
 
 | 决策 | 推荐 | 其他选择及限制 |
 |---|---|---|
@@ -109,7 +112,7 @@ LLVM 继续 ADR-0016/0029 的地址 ABI，不增加 first-class reference 或借
 | 首批 | 复用现有完成分支，闭合普通 direct/result/receiver 的顺序与撤销 | 不先写完整 NLL，也不等待所有 closure native ABI |
 | retirement | 每项旧 oracle 对应可重复的 Unit 同强度证据才删 | 仅 grep 无调用或两模式都接受不够 |
 
-以上均待接受。拟纳入的 Inout-forward、parent binding、provider、projected/nullable 与
+本次接受表中的推荐列。拟纳入的 Inout-forward、parent binding、provider、projected/nullable 与
 嵌套结果范围由具体 Spec 和 Guide 准入共同决定，不能由“通用图支持”自动启用。
 
 ## 替代方案
@@ -134,7 +137,7 @@ raw 表、全局失败门与下游消费逐族对账，不能只增加若干 End
 - 独立 validator 检查重复/漏 End、错 parent/source、外来分析、错控制边、End-before-child
   与 Drop-before-End；破损/注入负控只在 CI，普通源码测试不替代这些守卫。
 - 双 Unit 入口保留原诊断全文及旧生命周期 oracle；Phase 3、SSA、native、释放计数分账，
-  精确组合头双宿主 CI 与独立复审后才认领相应退休；本草案没有运行或通过这些验收。
+  精确组合头双宿主 CI 与独立复审后才认领相应退休；本次接受没有运行或通过这些验收。
 
 ## 关联
 

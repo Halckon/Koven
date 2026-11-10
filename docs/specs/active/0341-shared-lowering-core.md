@@ -8174,3 +8174,41 @@ owner既有大型压力/破损模型守卫仅随all-targets编译；未运行完
 行为测试、Linux或sanitizer。原始命令、选择和日志保留仓外，稳定原源与断言在上述代码头
 及各候选提交中可追溯；本批最终发布头仍须由[#390正式CI](https://github.com/Halckon/Koven/pull/390)
 验证当前main和精确head，旧 `ca322bc5` 的绿灯不能替代。D10/E2与SPEC-0341保持in-progress。
+
+
+### 已批准 owner/loan 并行首片（2026-11-10）
+
+状态：approved，尚未实施。用户接受推荐方向后，ADR-0038/0040 在本分支转 accepted；
+本节限定 Phase 3 首片，不关闭 D10/E2、不改变 Guide、不接受 0025/0036，也不启动
+动态 capture 的未决阶段映射。依赖基线 main `3fe1920a`；0037 实施 `ef5ded79` 和
+借用候选 `d6a21333` 等仍需按真实父链合批、去重并重验，不能凭本节视作已纳入。
+
+**Owner 首片**：复用 0037 的固定 Boolean 参数、String root、一次 Replace 后裸 Break。
+仅增加唯一实际尾句 `val retired = held` 的真实 take、bind、最终 Drop 观察，显式关联
+condition-false 的 P 与 Break 的 Q。进入实现前先保留合法源码的能力红测。生产 hook
+须来自实际状态交接，不能重放分支、回填事件或把旧 condition state 的 P 冒充 Q。
+封闭产品须证明两条 incoming 完整、实际消费恰一次、原定义与跨 catalog 身份不变；
+只观察双出口仍不足以宣称共同消费。若真实 planner 交接无法满足，应保留红测并报告
+具体缺口，而非放宽 validator。排除通用 suffix、header phi、多根、Group/Not、alias、
+borrow/capture、Resource 与一般循环能力，保留既有合法输入/旧观察契约。
+
+**Loan 首片**：复用已完成 direct/result/receiver 观察，先为一个明确登记的普通直线
+直接调用区域形成真实统一动作序列及覆盖证据。首个成功范围限定无 closure/provider、
+无嵌套控制、无 source-error/deferred 的普通 direct call；receiver/result 的已有实际
+事件不得遗漏或从旧表排序补造，未封闭的家族须明确 Partial/Unsupported，不得宣称
+整个 callable Complete。Begin、handoff、End、权限恢复和 owner Drop 保留真实身份及
+顺序，结果/父来源交接不当作 End。Complete-empty 必须由同一覆盖认证器正面证明；
+没有事件、仅 observer 未拒绝或删除 unsupported 样例都不能替代覆盖证明。
+
+**共同验收**：双 Unit 输入入口，跨 source/重分析身份，observer on/off 完整旧产物
+一致；合法非候选不扩大语言拒绝，非空前缀后独立 source 错误/deferred 全局撤销 raw
+及公开新产品。保留旧源码、诊断全文与独立 oracle。Owner 核 P/Q 同 index 不同 catalog、
+零轮/一轮真实消费；loan 核正常结束、handoff、零事件完整与未支持空表区分、同点
+End-before-Drop。破损模型、注入、Abort 与大型守卫遵守既有 CI-only 约束。
+
+提交前定向行为、相关共享契约、严格 Clippy、workspace check、fmt、docs、size、diff
+和独立复审分别登记；不并发争用同一 Cargo target。Phase 4、SSA/native、释放计数、
+双宿主正式 CI 另列未运行，不用 Phase 3 成功退休 Single oracle。后续集中同一批次
+评估，不重写 §170、parent-binding receiver 脏树，也不自动推送或合并。
+
+本次仅完成接受与首片合同记录；没有新增生产实现或运行 Rust/native 验收。

@@ -1,15 +1,19 @@
 # ADR-0038：按控制边封闭动态 owner 运输与合流
 
-> **性质**：架构决策提案 · **状态**：proposed · **读取时机**：设计 D10/E2 的变更 owner、循环入边及共同后继事实时 · **唯一真源**：本提案；语言规则仍以 Guide 为准
+> **性质**：架构决策记录 · **状态**：accepted · **读取时机**：设计 D10/E2 的变更 owner、循环入边及共同后继事实时 · **唯一真源**：本 ADR；语言规则仍以 Guide 为准
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用。2026-11-10 用户要求先起草 D10/E2 剩余工作所需 ADR；起草不是接受或实施授权。
-下列方案与首片选择均待确认，不修改任何 accepted ADR、现行 Guide 或已有观察产品。
+2026-11-10 用户询问推荐方案后，对“动态 owner 和普通借用并行，随后动态 capture；
+owner 先做有界真实 P/Q consumer，借用建立完整生命周期证据”回复：
+“可以，先按这个来，后续有问题再review”。据此接受本 ADR 的推荐方向。
+首片范围与验证由 SPEC-0341 的“已批准 owner/loan 并行首片”限定；接受不表示实现完成，
+不接受 ADR-0025/0036，不启用 Guide 之外的语言能力。动态 capture 的后续实施另按
+ADR-0039 的依赖与审议处理，不因本次接受而声称其 ABI 或阶段映射已经解决。
 
 ## 背景
 
@@ -21,13 +25,13 @@ proposed
 本地 ADR-0037 已于提交 `03851b2a6fe8695059e2cfa88880759ed019c6ff` 接受，实施末头
 `ef5ded79e4350873be019bc4c178106025af3dec` 尚未纳入本基线。它仅证明一次根 Replace 后
 立即 Break 的独立 P/Q catalogs、四次真实快照及两条出口；不提供共同 exit、phi 或后缀。
-本 ADR 复用而不复制该成果，若以后采纳首片，先纳入其已审实现并重新验证组合头。
+本 ADR 复用而不复制该成果，实施本次首片前，先纳入其已审实现并重新验证组合头。
 
 真正缺失的是跨不同来源及不同控制边的统一义务：哪个 incoming 持有哪个值，哪个路径已
 终止，合流后的消费如何只作用于被选择的实际 owner。继续按每个组合放宽旧 validator
 会制造新的平行合同。静态 producer 也不能代表同一构造点跨循环形成的多个运行实例。
 
-## 决策提议
+## 决策
 
 ### 1. Phase 3 发布路径化运输合同，Phase 4 继续使用既定 refine/SSA
 
@@ -63,9 +67,9 @@ Return payload 先交付再清理，Break 到对应 loop exit，Continue 到对�
 [Guide 10](../../guide/10-ownership-borrowing-drop.md) 的 ASAP、资源词法逆序与 Abort 无 unwind
 不变。borrow/capture 保护存在时，须联合相应已验证生命周期，不能单凭 owner 图授权 drop。
 
-### 4. 两出口 Choice 的首片选项，尚未选择
+### 4. 两出口 Choice 的首片选择：B
 
-0037 已有两出口，接下来是否增加共同后继能力，以及是否限定唯一尾句，须独立确认：
+0037 已有两出口。本次选择 B 作为有界观察首片；A/C 保留为已评估替代方案：
 
 | 选项 | 范围与实际证明 | 取舍 |
 |---|---|---|
@@ -78,7 +82,7 @@ Return payload 先交付再清理，Break 到对应 loop exit，Continue 到对�
 Group/Not、更多参数或 alias。条件 false 路径实际持 P，Break 路径实际持 Q；共同 consumer
 必须由有 incoming 关联的真实取值事实证明。若原 planner 只读旧 condition state 的 P，
 不得据该单次读取宣称已消费 Q；须先设计真实路径状态/结果交接，不能回填或重放造事实。
-仅展示两条出口时无须增加一个“伪消费”来满足 validator。B/C 未选定前不实施。
+仅展示两条出口时无须增加一个“伪消费”来满足 validator。本次仅选择 B；C 不在首片实施范围。
 
 ### 5. 循环推广采用有限 CFG 合同，不以有界轨迹代替归纳证明
 
@@ -115,7 +119,7 @@ Single witness 或把普通运行成功当成动态无泄漏证明。
 
 - 首片 B 依赖 0037 正式纳入并验证；其已有代码不得重新开发。§170 的不变 join suffix
   是独立脏树，保全等待自身闭环，不以本 ADR 覆盖或宣称已完成。
-- capture 实例依赖 [0039](0039-dynamic-capture-instance-provenance.md)；loan 保护和消费顺序
+- capture 实例依赖 [0039](../proposed/0039-dynamic-capture-instance-provenance.md)；loan 保护和消费顺序
   与 [0040](0040-complete-loan-lifecycle-evidence.md)接合。无 capture/loan 的首片可先独立批准。
 - 验收须保留原源及旧 oracle：双 Unit 入口、跨 source/重分析、P/Q 同 index 不同 catalog、
   零轮/一轮出口、真实 consumer 恰一次，observer on/off 完整旧产物一致、错误/deferred 原子撤销。
@@ -126,7 +130,7 @@ Single witness 或把普通运行成功当成动态无泄漏证明。
 
 ## 关联
 
-- 相关 Spec：[SPEC-0341](../../specs/active/0341-shared-lowering-core.md)，接受后另定实施切片，不自动改为完成。
+- 相关 Spec：[SPEC-0341](../../specs/active/0341-shared-lowering-core.md)，已批准首片见该 Spec，不自动改为完成。
 - 复用的本地 ADR：0037，未在本基线收录，完整身份见背景；不在本提案复制或重新接受。
 - 取代的 ADR：无；拟新增 Phase 3 运输合同，不改写 0006/0032 的 SSA/refine 决定。
 - 被以下 ADR 取代：无。

@@ -5,14 +5,16 @@
 ## 范围与精确基线
 
 用户要求“建议为D10/E2的剩余工作，先起草好完整需要的ADR”，并强调优先动态 owner/借用、
-不要重复开发。本次仅起草，没有接受新决定、修改实现、推送或合并。
+不要重复开发。初始提交仅起草；后续已按用户批准接受 0038/0040，选择 0038 B 首片，
+并在 SPEC-0341 登记并行首片合同。未修改生产实现、推送或合并。
 
 - 远端 main：`3fe1920a6735b71f5a330ea8a8549371615fce88`，包含 #408。
 - [#390](https://github.com/Halckon/koven/pull/390) 已合；merge
   `054f0ee1` 是上述 main 的祖先。其已完成 owner/borrow 切片不可重新开发。
-- 原主工作树仍在 `cc1e5b41`，另有未跟踪 `scripts/koven_cbm_eval.sh`；未修改。
-- 本次独立分支 `feature/spec-0341-remaining-adrs-20261110` 从精确 main 新建，只编辑本文、
-  三份 proposed ADR、ADR 索引与文档库存门禁。SPEC-0341 与 E2 继续 in-progress/active。
+- 初次盘点时主工作树为 `cc1e5b41`；后续只读核对已到 `3fe1920a`。原未跟踪
+  `scripts/koven_cbm_eval.sh` 未由本次修改。
+- 本次独立分支 `feature/spec-0341-remaining-adrs-20261110` 从精确 main 新建；初始只编辑本文、
+  三份 proposed ADR、索引与库存。后续接受同步扩及 SPEC-0341 与 roadmap。SPEC-0341 与 E2 继续 in-progress/active。
 - 仓库内 `.agents/skills` 无本任务可读取的技能文件；遵守根与 docs 的 AGENTS 及 ADR-0001。
 
 这是当前剩余架构空白的完整分类，不声称穷尽未来实现中新发现的语义冲突。若实现暴露
@@ -33,22 +35,22 @@ Guide 留白，应暂停相应部分并另行决策，不能由草案补写语�
 0037 编号保留，不复制其文件到本分支，不改 accepted 库存冒充已合入。新草案从 0038 起。
 未来整合 0037 时合并其真实提交和库存，不另建同号文件或重写接受记录。
 
-## 新起草的三项长期决策
+## 三项长期决策与当前状态
 
-| 草案 | 需决定的内容 | 明确不包含 |
+| 决策 / 草案 | 合同内容 | 明确不包含 |
 |---|---|---|
-| [0038 路径化 owner 运输](proposed/0038-path-qualified-owner-transport.md) | 跨 catalog/控制边的开放输入输出、Choice/phi、循环回边与共同消费证明 | 不决定新 drop 语义、不把 0037 两出口视作共同结果、不擅自选尾句限制 |
+| [0038 路径化 owner 运输](accepted/0038-path-qualified-owner-transport.md) | 跨 catalog/控制边的开放输入输出、Choice/phi、循环回边与共同消费证明 | 不决定新 drop 语义、不把 0037 两出口视作共同结果、不擅自选尾句限制 |
 | [0039 动态 capture 实例](proposed/0039-dynamic-capture-instance-provenance.md) | 形成时冻结实例/槽来源，Owned/Shared 义务、retained source 与实际调用交接 | 不重新选择 0025 native ABI、不接受 0036、不启用任意 opaque/递归能力 |
-| [0040 完整 loan 生命周期](proposed/0040-complete-loan-lifecycle-evidence.md) | 真实动作统一顺序、parent/result/forward 关系、覆盖认证与真正 absence | 不启用条件借用、完整 NLL、一等引用或 runtime 借用计数 |
+| [0040 完整 loan 生命周期](accepted/0040-complete-loan-lifecycle-evidence.md) | 真实动作统一顺序、parent/result/forward 关系、覆盖认证与真正 absence | 不启用条件借用、完整 NLL、一等引用或 runtime 借用计数 |
 
 0039 还登记了必须先核清的层间顺序：accepted 0034 的 SSA closure-drop-before-loan-end，
 与当前 Unit 观察“逆序 End 组连续且紧邻环境 Drop”的动作映射；不擅自认定等义或改序。
 
 三者可分开审议：0038 的无借用 String 首片与 0040 的普通调用首片可独立推进；0039 的
-动态 capture 需要二者的身份/边/清理合同接合。每份均有候选方案、替代方案、验收和待决项。
+动态 capture 需要二者的身份/边/清理合同接合。0038/0040 的推荐方向已接受，0039 保留待决项；各自的实施与验收仍须分账。
 
 **首个明确选择**：0038 列出“只保留两出口 / 唯一实际尾句消费 / 通用后缀”三个选项。
-推荐第二项作为首片，但当前未选择。唯一尾句是观察能力的有界范围，不是 Koven 语言规则，
+已选择第二项作为首片；0038/0040 已 accepted，0039 仍 proposed。唯一尾句是观察能力的有界范围，不是 Koven 语言规则，
 更不能用现有 planner 从 P 取值的一次执行伪证 Q 分支已消费。
 
 ## 在途成果与防重复账本
@@ -89,8 +91,8 @@ Guide 留白，应暂停相应部分并另行决策，不能由草案补写语�
 ## 推荐审议与实施顺序
 
 1. 先核对并整合已完成 owner/borrow 候选，保全两棵脏树；具体发布/合并另按授权执行。
-2. 审议 0038 的两出口后继选择和基础路径合同，同时审议 0040 的覆盖/顺序合同。
-3. 接受后立精确首片 Spec：先 bounded owner 的实际共同消费、普通 loan 的完整顺序/覆盖；
+2. 0038 选项 B 与 0040 推荐合同已接受；复用本次接受记录，不重复征询。
+3. 已在 SPEC-0341 登记精确首片合同：先 bounded owner 的实际共同消费、普通 loan 的完整顺序/覆盖；
    不因草案存在自行实施、不等待无关 ABI 决策才继续已被接受的实现片。
 4. 再审议并分批落实 0039 的非递归/循环/嵌套实例来源；递归与 Exclusive native 各复用
    0025/0036 的审议和实施，不偷渡接受。
@@ -105,8 +107,8 @@ Guide 留白，应暂停相应部分并另行决策，不能由草案补写语�
 
 用户已同意按推荐方向先推进、后续 review：优先并行推进 0038 选项 B 的有界真实
 P/Q 共同 consumer 与 0040 的普通借用完整生命周期，随后推进动态 capture。本条记录
-工作方向，不替代 ADR 状态迁移及精确首片 Spec；当前 proposed 文件仍须在实施前
-按已批准范围同步接受依据、库存与依赖，不把后续一般 phi 或所有 native ABI 一并启用。
+工作方向；随后已将 0038/0040 的接受依据、库存与首片 Spec 同步。0039 仍 proposed，
+不把后续一般 phi 或所有 native ABI 一并启用。
 
 再次只读核对上述 Exclusive 参数分支：工作树干净，实际实现提交为表中 d6a21333，
 不是仅有分支名。其 Spec 记录 339 个去重普通行为测试、Clippy、workspace check、
