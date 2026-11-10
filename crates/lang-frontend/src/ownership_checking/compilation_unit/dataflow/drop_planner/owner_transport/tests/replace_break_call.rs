@@ -137,7 +137,7 @@ fn replace_break_call_declines_neighbor_shapes() {
         ),
         format!(
             "{SINK}\n{}",
-            RUN.replace("while(flag)", "while((flag == true))")
+            RUN.replace("while(flag)", "while((flag == flag))")
         ),
         format!(
             "{SINK}\n{}",

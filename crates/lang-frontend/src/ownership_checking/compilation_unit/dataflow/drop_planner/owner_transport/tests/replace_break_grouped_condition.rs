@@ -281,8 +281,8 @@ fn grouped_replace_break_keeps_general_conditions_outside_transport() {
             "flag && flag",
             "(flag || flag)",
             "!((flag && flag))",
-            "((flag == true))",
-            "!(!(flag != false))",
+            "((flag == flag))",
+            "!(!((flag != false) == true))",
         ] {
             let text = source(consumer, condition);
             let f = Fixture::new(&[("condition-neighbor.ko", &text)]);
