@@ -8610,3 +8610,25 @@ wrapper/consumer/provider/capture或整个source/callable。没有接ownerPhase4
 合批必须另核owner×loan on/off四组合和跨source全局撤销联合证据，准入若触及replace_consumer
 须明确拒绝或处理，不把当前形状隔离当永久保证。本片未做该组合验收，未运行正式CI、
 SSA/LLVM行为或native计数，不退休Single oracle、不关闭Spec/D10/E2；未推送、PR或合并。
+
+### Loan 同步consumer实际依赖边下一片（2026-11-10，实施范围）
+
+续接`91649628`，不依赖待确认ownerPhase4或隔离组合头。本片推进实际transfer→retirement
+关系，不新增同构Complete协议：在旧source token从pending移入同步PendingTransport的
+真实位置记录transfer，并把不透明catalog句柄随该transport携带；正常完成时从实际
+source/consumer token退休记录引用该句柄，不按Span或最终描述符列表反向猜父边。
+
+独立核句柄属于同一catalog、指向先前transfer，source token完整一致、consumer call/
+argument、Shared模式、root及实际caller SourceUnitId/SourceId一致；callee parameter_span
+可跨文件。失配只降级观察引用为None，保留真实退休及旧projection，不改变语言诊断/清理。
+公开retirement快照保持结构Eq，getter才产生catalog-bound ActionId，重分析不得解析旧ID。
+旧borrow_call_transports改同源保序投影，observer off保留旧表源，不增加iteration执行动作。
+
+观察metadata不参与PendingTransport原语义Eq/合流资格。同一前缀clone共享句柄；语义
+相同但句柄不同/缺失的合流只清空观察引用，不能任选分支或影响旧transport是否保留。
+有transfer而无retirement可能是consumer未完成，不补End，不认证wrapper/unwind或动态
+唯一消费。source/callable仍Partial；callee返回映射与完整权限依赖认证另待证据。
+
+先普通能力红测，再核Group、命名双实参/同根逆序退休、later Return、跨源/重分析/clone、
+非空全Analysis on/off与独立source错误/deferred raw/public撤销；人工引用损坏/合流负控
+只编译。沿用default debug2、borrow原target串行与全部十旧项/CI-only排除，本地提交。
