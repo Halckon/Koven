@@ -8179,7 +8179,7 @@ owner既有大型压力/破损模型守卫仅随all-targets编译；未运行完
 ## 180. 一次根替换后 Break 的协议提案
 
 状态：仅提案与现有源码基线；新协议实施等待
-[ADR-0037](../../adr/proposed/0037-replace-break-owner-boundaries.md)正式接受。
+[ADR-0037](../../adr/accepted/0037-replace-break-owner-boundaries.md)正式接受。
 用户已确认最小设计/实施范围，但本节不将范围确认当成 ADR 仓库接受。
 
 去重输入为 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 与已发布 #390
@@ -8216,3 +8216,16 @@ Rust1.96/LLVM21.1.8、locked/offline、默认debug、jobs2；复用本线独占�
 ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::loop_replace_break_baseline::outer_replace_break_preserves_actual_primitive_and_cleanup_baseline -- --exact`。
 独立复跑前后测试源码与二进制hash不变；没有执行模型破坏/故障注入/Abort用例。
 纯提案及本账本后继未变Rust字节，不冒称在文档提交重跑行为；新协议实施仍待ADR正式接受。
+
+
+### §180 正式接受与实施启用
+
+2026-11-10 用户明确同意正式接受限定范围 ADR-0037 并据此实施。本次已将 ADR 迁至
+accepted、同步索引与库存；§180 状态转为 in-progress。上述 proposed 阶段及其基线验收
+作为已发生历史保留，不以正式接受反向宣称新能力已实现。当前 main 已合入 #390，推进至
+`054f0ee102981de17520cb1c7998a4b290370354`；其 tree 与依赖 dd351525 完全相同。
+本片继续在原隔离树开发，不改 main、旧分支或用户文件，不推送。
+
+获准实施合同即 ADR 的最小形状、独立双 catalog/六事件/四实际读取、两条互斥出口与
+失败原子性。先新增真实能力红测，再接最小生产路径、独立复审及本地分步提交；
+一般 phi、共同出口、后续消费和 §170 受阻工作不在本片范围。

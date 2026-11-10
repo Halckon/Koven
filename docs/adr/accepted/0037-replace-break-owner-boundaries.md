@@ -1,18 +1,18 @@
 # ADR-0037：一次根替换后 Break 的独立 owner 出口
 
-> **性质**：架构决策记录 · **状态**：proposed · **读取时机**：实现或消费循环内根替换后 Break 的 owner 观察时 · **唯一真源**：本 ADR
+> **性质**：架构决策记录 · **状态**：accepted · **读取时机**：实现或消费循环内根替换后 Break 的 owner 观察时 · **唯一真源**：本 ADR
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-待正式接受。用户已同意按“一次替换后立即 Break 的真实两条出口”设计并实施；本提案将
-其具体身份、不变量和非目标写出供审阅。该范围确认不自动将本文件标记为 accepted。
-接受后先按 [ADR-0001](../accepted/0001-record-architecture-decisions.md) 与
-[文档治理](../../AGENTS.md#4-spec-与-adr-生命周期)完成状态、目录和库存迁移，再启用
-[SPEC-0341 §180](../../specs/active/0341-shared-lowering-core.md#180-一次根替换后-break-的协议提案)的实施。
+2026-11-10，用户在明确询问“接受这个限定范围的 ADR-0037，并据此实施”后回复“同意”。
+接受范围只包括一次 root Replace 后立即 Break 的双 catalog 身份与两条独立出口；
+不开放一般 phi、共同出口或后续消费。此前设计范围确认与此次正式接受分开记录。
+本次按 [ADR-0001](0001-record-architecture-decisions.md) 完成 accepted 迁移与库存同步；
+实施及实际验收由 [SPEC-0341 §180](../../specs/active/0341-shared-lowering-core.md#180-一次根替换后-break-的协议提案)维护。
 
 ## 背景
 
@@ -24,7 +24,7 @@ proposed
 已规定 replace 的原子交换、旧值返回和保持完整初始化；其 ASAP 与 jump 规则仍是语言真源。
 本提案只观察现有合法语义，不改变 drop、借用、控制流、诊断、SSA、LLVM 或 runtime 行为。
 
-## 拟议决策
+## 决策
 
 ### 首片边界
 
