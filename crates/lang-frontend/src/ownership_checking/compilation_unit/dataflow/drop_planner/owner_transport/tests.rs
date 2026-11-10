@@ -406,3 +406,5 @@ fun run(flag: Boolean): Unit { val owner = "kept"; var other = "other"; borrow v
 }
 
 mod loop_replace_break_baseline;
+
+mod loop_replace_break;

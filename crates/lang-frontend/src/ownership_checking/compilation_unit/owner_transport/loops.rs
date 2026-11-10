@@ -1,5 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
 mod invariant;
+mod replace_break;
 use super::{UnitOwnerCallable, UnitOwnerObservation, UnitOwnerValueObservationV1};
 use crate::ownership_checking::UnitDropPoint;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
@@ -13,6 +14,7 @@ pub use invariant::{
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
 };
+pub use replace_break::{UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1};
 
 /// Structural control edges of a sealed While body, not an executed finite trace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -274,6 +276,7 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
     }
     if !complete {
         for observation in &mut observations {
+            observation.replace_break_value = None;
             observation.loop_value = None;
             observation.invariant_loop_value = None;
         }

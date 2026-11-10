@@ -44,6 +44,7 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            replace_break_value: None,
         });
     }
 
@@ -70,6 +71,7 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            replace_break_value: None,
         });
     }
 
