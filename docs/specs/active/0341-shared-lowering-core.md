@@ -10208,3 +10208,47 @@ P2真off实证限Basic双Unit；静态Complete2过滤与off空计划不等于完
 精确fa8c547c独立只读终审无阻断，确认P2/P4角色与原owner授权独立、窄shape未扩大，
 重算两SHA与profile及14条普通exact日志逐项一致；同analysis sibling证据与代码相符。
 审计未代执行测试。其后仅提交本账本与架构页面，无Rust漂移。
+
+### Return 与 Protocol 2 receipt 集中合流验收（2026-11-10）
+
+新隔离分支`feature/spec-0341-return-p2-combination-20261110`从已发布`a3bdf8d1`
+保真合入owner`e70132f789ce4755b6ede618ac7b2ff8bdb1406f`与
+P2`5b2bd01324f94c7a85bb97cac17bcc858102d91d`。main/远端main实核仍`a775568f`。
+精确Rust合成头`b61e59572e2dedbf4cc2e10ff7a51f5f0160d2b4`，tree
+`49cab56131d02d9d60e7e35c5f627b35c7a2ae0a`。refine.rs与build.rs自动合并保留双方
+不同区域接线；仅Spec追加冲突，双方历史逐字保留。没有生产修补或额外测试。
+
+旧492加Return六项与P2两项，去重为500普通exact，全部在本合成输入重编执行。
+默认frontend为140lib＋331direct＋1iteration＝472，codegen显式
+`loan-observation-test-support`为28。前端名单是上一批137lib加Return三项；
+后端为上一批23加Return三项、P2 Unit真off及receipt sibling两项。
+新项/helper已逐源审查：continue邻控仅分析，native仅常规两出口输出；
+所有CI-only人工破损、错误payload、重放、漏提交、panic及旧十direct/四iteration
+Abort和两项混合破损排除继续有效，未运行全lib或故障测试。
+
+环境Rust1.96.0/macOS AArch64/LLVM21.1.8，沿用既有owner target，默认debug2；
+无DEV/TEST_DEBUG或RUSTFLAGS/ENCODED覆盖、不复制target、不降档。
+全部Cargo串行`--locked --offline -j 2`，LLVM前缀为系统llvm@21。
+codegen命令`cargo test -p lang-codegen --features loan-observation-test-support --lib
+--no-run --message-format=json -vv`加上述公共参数；编译1m26s，先关键20项23.51s，
+再余8项25.30s。frontend命令`cargo test -p lang-frontend --lib --test
+ownership_iteration --test unit_direct_call_loan_ends --no-run --message-format=json -vv`
+加公共参数，编译1m10s；140/331/1分别1.15s/0.29s/0.06s。先exact list核真实名称，
+再exact运行，成功集合、四binary SHA、实际profile/features均独立只读复核一致。
+103条非JSON构建输出均为已限定llvm-sys前缀，解析器没有把其他文本吞作成功。
+
+默认`cargo check -p lang-cli --message-format=json -vv`加公共参数通过8.52s，
+实际frontend/codegen/kovenc三artifact均features=[]、debug2、test=false。
+严格feature双crate all-targets Clippy（`-W clippy::all -D warnings`）54.31s、
+默认workspace all-targets check45.37s、fmt、diff通过；均不执行测试。
+docs881、尺寸`--base a775568f`通过：2316手写Rust、36旧超千行，无额度变更。
+两项纯读Python exact核CI路由和显式测试feature选择通过。独审确认三处交集保全、
+500唯一选择与实际成功集、20＋8互斥分组和四binary hash无阻断；审计未代执行测试。
+临时证据前缀`/private/tmp/koven-return-p2-evidence`含manifest、选择、build与分组日志，
+不承诺长期保留；固定代码头及各片名单界定可重建输入。
+
+本批P2已有受限production receipt，旧“无P2 receipt”仅属前批历史；不扩宽route。
+Return由旧emitter唯一发射，P2/P4及B/Call账本独立。真off仅已测Basic双入口，
+不外推Const或Return所有形状；普通native不证明计数/泄漏义务。正式双宿主CI、
+sanitizer、资源计数/压力及全部CI-only仍待新头正式验证，不沿用#410旧头绿灯。
+本轮仅本地冻结，不push或更新#410，不合main，不关闭Spec/D10/E2或退休oracle。
