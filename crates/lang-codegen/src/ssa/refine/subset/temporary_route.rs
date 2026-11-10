@@ -90,6 +90,16 @@ impl Checker<'_, '_> {
         {
             return None;
         }
+        // Parameter slots form a complete permutation; evaluation remains source ordered.
+        let mut parameters = call
+            .arguments()
+            .iter()
+            .map(|a| a.parameter_index())
+            .collect::<Vec<_>>();
+        parameters.sort_unstable();
+        if parameters != (0..arguments.len()).collect::<Vec<_>>() {
+            return None;
+        }
         for (index, source) in arguments.iter().enumerate() {
             let source = source.value;
             let Expression::String { parts, .. } = expressions.get(source).ok()?.payload() else {
@@ -101,7 +111,6 @@ impl Checker<'_, '_> {
                 || !self.string(ty)
                 || argument.mode() != ParameterMode::Borrow
                 || argument.argument_index() != index
-                || argument.parameter_index() != index
                 || argument.category() != ExpressionCategory::Temporary
                 || argument.crosses_thread()
                 || self.c(argument.parameter_type()) != ty

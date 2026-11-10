@@ -16,6 +16,15 @@ impl Plans {
         else {
             return Ok(result);
         };
+        // Stage one migrates the caller only. Receipt admission still covers the
+        // previously implemented source-order parameter mapping until stage two.
+        if inputs.typed.call(call).is_none_or(|call| {
+            call.arguments()
+                .iter()
+                .any(|a| a.argument_index() != a.parameter_index())
+        }) {
+            return Ok(result);
+        }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
         let callable = UnitItemId::new(inputs.source_unit, item);
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
