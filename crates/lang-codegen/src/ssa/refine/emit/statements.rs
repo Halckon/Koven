@@ -1,6 +1,53 @@
 //! Mechanical statement emission, including aliases and optional production receipts.
 use super::*;
-use crate::ssa::refine::loan_receipt::Emitted;
+/// Each protocol retains its own plans, role identities and final receipt.
+pub(super) struct LoanReceipts {
+    consumer: crate::ssa::refine::loan_receipt::Emitted,
+    receiver: crate::ssa::refine::receiver_receipt::Emitted,
+    named: crate::ssa::refine::named_receipt::Emitted,
+    temporary: crate::ssa::refine::temporary_receipt::Emitted,
+}
+impl LoanReceipts {
+    pub(super) fn new(
+        body: &RefinedBody,
+        function: &Function,
+        span: Span,
+    ) -> Result<Self, LoweringError> {
+        Ok(Self {
+            consumer: crate::ssa::refine::loan_receipt::Emitted::new(
+                &body.loan_plans,
+                function,
+                span,
+            )?,
+            receiver: crate::ssa::refine::receiver_receipt::Emitted::new(
+                &body.receiver_plans,
+                function,
+                span,
+            )?,
+            named: crate::ssa::refine::named_receipt::Emitted::new(
+                &body.named_plans,
+                function,
+                span,
+            )?,
+            temporary: crate::ssa::refine::temporary_receipt::Emitted::new(
+                &body.temporary_plans,
+                function,
+                span,
+            )?,
+        })
+    }
+    pub(super) fn finish(
+        self,
+        body: &RefinedBody,
+        function: &Function,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.consumer.finish(&body.loan_plans, function, span)?;
+        self.receiver.finish(&body.receiver_plans, function, span)?;
+        self.named.finish(&body.named_plans, function, span)?;
+        self.temporary.finish(&body.temporary_plans, function, span)
+    }
+}
 
 impl Emitter<'_> {
     pub(super) fn statements(
@@ -8,9 +55,7 @@ impl Emitter<'_> {
         body: &RefinedBody,
         block: BlockRef,
         target: BlockId,
-        receipt: &mut Emitted,
-        receiver_receipt: &mut crate::ssa::refine::receiver_receipt::Emitted,
-        named_receipt: &mut crate::ssa::refine::named_receipt::Emitted,
+        receipts: &mut LoanReceipts,
     ) -> Result<(), LoweringError> {
         for statement in &body.blocks[block.0].statements {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
@@ -38,24 +83,27 @@ impl Emitter<'_> {
                 self.defined.insert(*slot, entity);
             }
             match statement.loan_tag {
-                Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => receipt.statement(
-                    &body.loan_plans,
-                    tag,
-                    self.function,
-                    instruction,
-                    &self.current,
-                    statement.span,
-                )?,
-                Some(crate::ssa::refine::body::LoanTag::Receiver(tag)) => receiver_receipt
-                    .statement(
+                Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => {
+                    receipts.consumer.statement(
+                        &body.loan_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::Receiver(tag)) => {
+                    receipts.receiver.statement(
                         &body.receiver_plans,
                         tag,
                         self.function,
                         instruction,
                         &self.current,
                         statement.span,
-                    )?,
-                Some(crate::ssa::refine::body::LoanTag::Named(tag)) => named_receipt.statement(
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::Named(tag)) => receipts.named.statement(
                     &body.named_plans,
                     tag,
                     self.function,
@@ -63,6 +111,16 @@ impl Emitter<'_> {
                     &self.current,
                     statement.span,
                 )?,
+                Some(crate::ssa::refine::body::LoanTag::Temporary(tag)) => {
+                    receipts.temporary.statement(
+                        &body.temporary_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
                 None => {}
             }
         }

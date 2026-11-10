@@ -71,3 +71,69 @@ fn check(require_receipt: bool) {
         );
     }
 }
+
+#[test]
+fn non_target_temporary_shapes_preserve_routes_and_no_receipts() {
+    for (case, text) in [
+        "fun inspect(): Int = 1\nfun run(): Unit { inspect() }",
+        "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"a\", \"b\") }",
+        "fun inspect(value: String): Boolean = true\nfun run(): Unit { inspect(\"a\") }",
+        "fun inspect(value: String): Int = 1\nfun run(flag: Boolean): Unit { inspect(\"a\") }",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "temporary-boundary.ko", text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "temporary-boundary.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, owned) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            if case <= 1 {
+                let regions = owned
+                    .ownership()
+                    .loan_action_observations()
+                    .iter()
+                    .flat_map(|o| o.regions())
+                    .collect::<Vec<_>>();
+                let [region] = regions.as_slice() else {
+                    panic!("one actual P1 boundary region");
+                };
+                assert_eq!(region.protocol_version(), 1);
+                assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                assert_eq!(region.action_ids().count(), if case == 0 { 0 } else { 6 });
+            }
+            let run = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap();
+            let ((lowered, routing), receipts) =
+                super::super::refine::temporary_receipt::observe(|| {
+                    super::super::refine::observe_routing(|| {
+                        super::super::unit_lower::lower_scalar_unit_with_entry(
+                            &sources,
+                            &inputs,
+                            &names,
+                            &types,
+                            &typed,
+                            &owned,
+                            run.id(),
+                        )
+                    })
+                });
+            let (program, _) = lowered.unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            assert!(routing.is_empty());
+            assert!(receipts.is_empty());
+        }
+    }
+}

@@ -720,3 +720,10 @@ mod named_siblings;
 
 #[path = "temporary_loan_route_tests.rs"]
 mod temporary_route;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "temporary_loan_receipt_tests.rs"]
+mod temporary_receipts;
+
+#[path = "temporary_loan_sibling_tests.rs"]
+mod temporary_siblings;

@@ -138,3 +138,9 @@ impl Checker<'_, '_> {
         .then_some(id)
     }
 }
+
+pub(in crate::ssa::refine) fn bounded_temporary_call(
+    inputs: &super::RefineInputs<'_>,
+) -> Option<UnitExpressionId> {
+    super::query_checker(inputs).bounded_temporary_call()
+}

@@ -19,7 +19,7 @@ mod receiver;
 mod receiver_route;
 mod scalar_text;
 mod tagged;
-mod temporary_route;
+pub(super) mod temporary_route;
 mod value;
 mod when;
 

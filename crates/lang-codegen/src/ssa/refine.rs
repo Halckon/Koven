@@ -500,9 +500,4 @@ fn record_owner_return(
 
 pub(crate) mod named_receipt;
 
-#[cfg(test)]
-pub(crate) mod temporary_receipt {
-    pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
-        (lower(), Vec::new())
-    }
-}
+pub(crate) mod temporary_receipt;

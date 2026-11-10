@@ -19,6 +19,13 @@ impl Builder<'_, '_> {
             &self.bindings,
             span,
         )?;
+        self.body.temporary_plans.enter(
+            call,
+            self.unit(value_expression),
+            value,
+            &self.temporaries,
+            span,
+        )?;
         let target = self.body.slots[value.0];
         let EntityType::Value(target) = target else {
             return Err(error(LoweringErrorKind::InvalidModel, span));

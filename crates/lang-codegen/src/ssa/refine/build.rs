@@ -160,6 +160,7 @@ pub(super) fn build(
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
             receiver_plans: super::receiver_receipt::Plans::new(inputs)?,
             named_plans: super::named_receipt::Plans::new(inputs)?,
+            temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
         block: None,

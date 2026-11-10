@@ -141,6 +141,7 @@ impl Builder<'_, '_> {
                 let bytes =
                     string_literal::decode_plain(self.inputs.parsed, source_text, expression)?
                         .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+                self.body.temporary_plans.form(id, &bytes, span)?;
                 let string = self.ssa_type(self.expression_type(expression)?, span)?;
                 Ok(Lowered::Value(self.typed_value(
                     ROp::StringLiteral { string, bytes },
