@@ -434,15 +434,16 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
                 && match (&observation.outcome, observation.unit) {
                     (Ok(()), false) => observation.entry_identity_ok,
                     (Err(error), true) => {
-                        // Published 054a74d: the real Rc If proof now rejects the
-                        // reader return before the historical invalid SSA is built.
-                        // These are the unchanged source's full return spans after
-                        // its existing "package p\n" prefix, not a success oracle.
+                        // SPEC-0401 retired the Rc If proof entry that used to reject
+                        // the enclosing reader return; the Unit route now rejects the
+                        // payload operation itself before invalid SSA is built. These
+                        // are the unchanged source's `.value` read spans after its
+                        // existing "package p\n" prefix, not a success oracle.
                         let expected_span = match observation.case {
-                            "normal" => (265, 283),
-                            "break" => (221, 239),
-                            "continue" => (284, 302),
-                            "return" => (229, 247),
+                            "normal" => (272, 283),
+                            "break" => (228, 239),
+                            "continue" => (291, 302),
+                            "return" => (236, 247),
                             _ => return false,
                         };
                         !observation.entry_identity_ok
@@ -454,12 +455,12 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
                                     span: Some(span),
                                 }) if (span.start(), span.end()) == expected_span
                             )
-                            && error.span_text.as_deref() == Some("Ok(\"return owner.value\")")
+                            && error.span_text.as_deref() == Some("Ok(\"owner.value\")")
                     }
                     _ => false,
                 }
         }),
-        "observed boundary is exactly four single LLVM successes and four source-anchored Unit live-If return rejections"
+        "observed boundary is exactly four single LLVM successes and four source-anchored Unit payload-operation rejections"
     );
 }
 
