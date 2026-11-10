@@ -7445,3 +7445,31 @@ all-targets check、fmt、docs及diff均通过；867 Markdown、2308手写Rust�
 常量、调用、二元运算、比较、局部 alias、模式/nullable 参数及同一参数的双条件继续拒绝。
 本片不证明运行次数、终止性、改变 owner 的循环、一般 header/exit phi、动态实例或
 Phase 4；SPEC-0341 与 D10/E2 保持 in-progress。仅本地分步提交，不推送、改PR或合并main。
+
+
+### §172 与 main cc1e5b41 的本地组合复验
+
+Mac 恢复后先完成上述纯文档提交 `01b5aca143ced5d52444d16b6d8314e1b2ec88c0`。
+组合前再次核对，实际 main 已推进至 `cc1e5b41223fabe0248dd4bc2742e95aae9b810a`
+（#406），#390 仍为 `ca322bc5`。在新的隔离分支保留原提交链形成本地组合
+`ac2bf48a3e4f3163397ed1018f3931bd6fc97210`，树
+`4f72887bf0b34c6f5ad7541a85b7e209b75dc115`，有序父为该 main 与 `01b5aca1`。
+共同基底 `6ce85b07` 上主线16条、功能侧119条变更路径互不相交；独立审阅逐路径
+核对 blob 与文件模式，双方完整保全，无额外修改、冲突或 §170 WIP 吸纳。原树保持 clean。
+
+在该精确组合上重新编译12个 frontend 目标，逐完整名称 `--exact` 执行216项不同普通
+测试，每项1 passed、0 failed/ignored。选择为上表原168项，加 `type_callable::inout_storage`
+17项、完整 `type_map` 19项、`type_checking::control_join_regressions` 3项和完整
+`control_branch_join` 9项；原168已含全部16项 `while_flow_facts`，不重复计数。
+新增邻控覆盖主线已合入的 Inout/recovery、Map key、退出路径写回及嵌套循环跳转事实。
+这次为新的组合结果，不把旧基线168项或此前4项复验累加成测试总数。
+
+同一 Mac/Rust/LLVM、默认 debug、jobs=2、locked/offline、独占 target 串行执行。
+严格 frontend all-targets Clippy（`-W clippy::all -D warnings`，29.94秒）、workspace
+all-targets check（47.57秒）、fmt、docs867、相对 `cc1e5b41` 的 Rust尺寸门禁及diff
+均通过；2308手写Rust、36项既有超长，未改尺寸豁免。中途连接短暂中断后读取原会话
+和日志，未盲目重跑或把未返回阶段记为通过；最终串行命令以0退出。
+
+完整测试选择、逐项日志、二进制哈希保留仓库外临时验收文件，不入Git。未运行完整
+frontend/codegen/workspace测试、损坏/Abort套件、native、Linux或正式CI。此组合只为
+本地验证和后续单PR整合保留，未推送、修改现有PR或合入main；D10/E2仍in-progress。
