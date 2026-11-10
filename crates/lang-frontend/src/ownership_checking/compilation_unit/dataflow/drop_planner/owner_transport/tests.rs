@@ -545,3 +545,5 @@ fn consumer_dependency_observer_preserves_all_planner_snapshots() {
 mod replace_break_call;
 
 mod replace_break_return;
+
+mod replace_break_grouped_condition;
