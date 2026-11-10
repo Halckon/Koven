@@ -175,8 +175,19 @@ fn owned_source_continue_nested_scope_boundaries() {
             let error = result
                 .err()
                 .expect("cross-loop owner proof remains unsupported");
-            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            assert_eq!(analysis.sources.slice(error.span.unwrap()).unwrap(), "keys");
+            let source = analysis.parsed.source_id();
+            assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
+            assert_eq!(analysis.sources.source_text(source), Ok(text));
+            let expected_span = analysis.sources.span(source, 23, 27).unwrap();
+            assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
+            assert_eq!(
+                error,
+                crate::ssa::LoweringError {
+                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+                    span: Some(expected_span),
+                },
+                "the original Legacy boundary stays at its declaration, not a later use"
+            );
         }
     }
 }
