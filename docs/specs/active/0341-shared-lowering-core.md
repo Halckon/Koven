@@ -9158,3 +9158,82 @@ sanitizer、Linux、正式双宿主CI、完整frontend/codegen行为或任何CI-
 --base 3fe1920a`通过2287手写Rust、36旧超长，未增加尺寸额度；`git diff --check`通过。
 独立只读终审核真实父链、model合流职责、旧投影/撤销及471项精确成功集合/binary/profile，
 无剩余阻断；文档只追加本批事实，未把历史分支结果冒充本批。仅文档追加后不重复Rust行为。
+### Loan 同步结果链normal-return覆盖下一片（2026-11-10，实证范围）
+
+续接`5f8445c9`，目标不再增加身份包装，而是让已有source Begin→transfer→consumer Begin→
+真实consumer/source退休关系参与完整区域闭合验证。先实证单层`consume(view(owner))`，
+caller为现有flat普通函数，owner为其显式Own String参数，内外普通direct call均单Shared
+参数、无receiver/泛型/控制流，内层borrowed String结果来自唯一参数，外层Owned Int/Unit。
+语言准入沿既有检查器，不开放borrowed结果或权限新语义。
+
+成功标准为实际entry/completion之间未过滤动作全部核对，两个acquisition句柄和transfer
+引用均指向区间内正确记录，实际正常退休后同点Named Drop及独立owner形成来源匹配。
+根仍live、额外/缺失/失配动作不能Complete，未准入shape明确Unsupported；整个source/
+callable仍Partial。若实际动作或独立typed/ownership来源映射不足，先保留实证与缺口，
+不靠旧表拼接、删动作或扩大准入补造Complete。不能把此nested-result合同混入旧direct-only
+protocol1/3；如实证可闭合，使用显式不同的结果延续家族声明，复用同一region与validator。
+wrapper/export、一般parent权限恢复、callee内部/Abort/unwind、动态唯一消费与owner后端
+均非本片目标。普通逐源/helper exact、默认debug2、原target串行及所有CI-only排除不变。
+
+实证收窄：上述Own参数例实际仅两个Begin及Named Drop，旧source transport要求
+formed_owned本地形成根，因此缺transfer/retirement，不能Complete；该红测结果保留。
+本片不扩大旧transport gate，改用已支持的单个不可变local String字面量形成根，caller仅
+此声明与其后普通直线call。参数例固定为未覆盖边界。认证准入须独立核该声明、Owned
+binding/formed_owned及真实ValueState origin/declaration；真实结果链其余条件不变。
+显式新protocol4只声明同步borrow-result延续及NamedSourceDrop，不修改protocol1/2/3。
+
+### Loan 同步结果链完整区域实证（2026-11-10，protocol4）
+
+范围`0abc80ed`，literal能力红测及收窄合同`445f0c06`，实现`1476cd10`。
+首次Own参数样例0 passed/1 failed/337 filtered是范围假设被实证否定：只有两Begin＋Drop，
+旧formed_owned门下无真实transfer/retirement；不能算literal实现的能力红测。随后原样
+local literal缺证红测独立得到0 passed/1 failed/338 filtered，完整五项实际动作已存在而
+区域未认证。断连前该构建已完成4.48s，恢复后先核日志/树/进程，没有盲重跑；其实际binary
+SHA256为`2fb291a460d419d6b2515c02725d32ecd4b70fb6e5191b2d44575cc32a48b906`。
+接线后对应literal测试1 passed/340 filtered，未以参数样例假阳性冒充闭合证据。
+
+protocol4只认证明确的同步结果延续及NamedSourceDrop，不修改protocol1/2/3。完整未过滤
+区间五项和三条catalog-bound绝对引用全部核验，actual Named Drop必须在正常退休后同点。
+local能力由不可变声明、formed_owned与唯一仍存的ValueState正面建立；普通local不存在
+参数binding descriptor时不伪造它，若已有descriptor则必须Owned。Drop.value_origin实际
+匹配name marker，literal formation_span独立核语法和类型。现存replacement/control与所有
+pending/transport/capture状态明确排除；本树未含replace_consumer，未来owner合批必须
+显式接入该状态拒绝/处理。未接owner后端，未修改旧source transport门或语言能力。
+
+最终确切输入331 direct＋15 lib＝346项普通exact通过，不与前片342或中间执行重复累计。
+新增direct四项为consumer_action_link中的：
+`owned_parameter_consumer_stays_uncovered_without_real_transport`、
+`normal_consumer_closes_declared_source_chain_and_root`、
+`live_consumer_root_requires_actual_later_destruction`、
+`consumer_coverage_does_not_admit_mutable_or_nonliteral_formation`。
+参数/mutable/多声明核protocol4 Unsupported；单nested后接普通消费使根live，前区间四项
+无Drop核Partial；唯一literal完整五项核Complete及明确family。live-root未扩大成多个
+nested调用准入，Group、一般alias/字段/控制仍未认证。每项及helper逐源核普通有限输入。
+
+复用15项lib，强化原consumer依赖的全planner on/off差分、跨文件来源/region归属及真实
+独立source错误/deferred raw/public撤销，先证明新Complete区域真实存在再核全撤销。
+最终direct331 passed/0 failed/10 filtered，lib15 passed/0 failed/557 filtered，exact list
+和实际成功集合均逐项匹配白名单。新增一项CI-only人工区域损坏守卫核缺/额外动作、调序、
+owner origin、foreign catalog、错误acquisition、缺transfer和错Drop point；本线累计10项
+CI-only仅编译，未认领执行。十旧direct排除、四旧iteration Abort与所有故障/压力未运行。
+
+中间完整普通选择330 passed/1 failed（lib未开始），因新增concat形成负例错误假定可准入。
+实际既有L0164拒绝`val owner="left"+"right"; consume(view(owner))`，最终保精确code/
+message/SourceId/152..163与新旧表全空，不放宽原拒绝，修正后才重验上述最终346项。
+最终build3 no-run1.54s；实际`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`，
+随后运行已编译binary exact名单。两个artifact profile.debuginfo=2且rustc含`-C debuginfo=2`；
+`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、`RUSTFLAGS`、
+`CARGO_ENCODED_RUSTFLAGS`均未设置。复用
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`，串行、不复制/clean/降档。
+严格frontend all-targets Clippy16.09s、workspace all-targets check16.49s通过，沿前片命令
+另设`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，不执行LLVM/native行为。fmt、docs877、
+尺寸2277 Rust/36旧超限与diff通过，未增加旧额度；独立只读复审无剩余阻断。
+
+最终direct binary SHA256：`8a8def93d91772186f45e59b9b4160db695df89563e16347c4ff69d182743197`，
+lib：`18a30458e43dc3fca648539bf09ceab53b8ad2282be65929a58f50261c446ecd`。
+331名单：`ff88610eb76fd23a6b812aa27bab7a79335a48f95fbb5b3704f29d65fd6ada60`，
+15名单仍`399c6364bcc2cb59cf6456ab7362af1c2e2c9d20203f604c97b34cfc55636fd3`。
+日志/名单/脚本留仓库外，所有旧偏差仍保留。新caller AST准入扫描尚未缓存，未声称压力或
+全量性能验收。Complete只适用于此正常返回区域，不证明callee内部/Abort/unwind、wrapper、
+动态唯一消费、通用parent权限恢复或整个source/callable；不退休Single oracle，不关闭
+Spec/D10/E2，未运行正式CI，未推送、PR或合并。

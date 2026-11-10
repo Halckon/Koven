@@ -14,16 +14,20 @@ pub enum UnitLoanRegionFamily {
     SharedReceiver,
     /// Actual destruction of the independently established named owner.
     NamedSourceDrop,
+    /// Complete local source-to-result-to-synchronous-consumer normal-return chain.
+    SynchronousResultContinuation,
 }
 
 /// One actually entered caller-side normal-return region. Protocol 1 covers literal arguments;
 /// protocol 2 covers a Shared explicit receiver backed by an owned class parameter.
 /// Complete covers only the listed local families: it does not prove the callee returns,
-/// callee-internal/Abort paths, outer loans, result handoffs or the callable.
+/// callee-internal/Abort paths, outer loans, unrelated handoffs or the callable.
 /// Admission requires independent calls in a flat ordinary function, with Int/Unit results
 /// and, for protocol 1, plain String literal Borrow arguments (including zero arguments).
 /// Protocol 2 requires zero arguments and an explicit owned non-Resource class parameter.
 /// Protocol 3 requires one Shared String argument backed by an explicit owned caller parameter.
+/// Protocol 4 covers one nested borrowed result from a formed local String into a synchronous
+/// consumer, including both acquisitions, continuation, retirement and actual source destruction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitDirectCallLoanRegion {
     pub(super) identity: Arc<()>,
@@ -52,6 +56,12 @@ impl UnitDirectCallLoanRegion {
     /// Exact local families covered when coverage is Complete.
     #[must_use]
     pub const fn families(&self) -> &'static [UnitLoanRegionFamily] {
+        if self.protocol == 4 {
+            return &[
+                UnitLoanRegionFamily::SynchronousResultContinuation,
+                UnitLoanRegionFamily::NamedSourceDrop,
+            ];
+        }
         if self.protocol == 3 {
             return &[
                 UnitLoanRegionFamily::DirectSharedArgument,

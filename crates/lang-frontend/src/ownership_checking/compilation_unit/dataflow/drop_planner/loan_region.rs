@@ -12,7 +12,7 @@ pub(super) struct AdmissionIndex {
 
 impl DropPlanner<'_, '_> {
     pub(super) fn enter_loan_region(&mut self, call: ExpressionId, state: &ValueState) -> usize {
-        let callable = self
+        let mut callable = self
             .loan_region_index()
             .callables
             .get(&call.index())
@@ -23,7 +23,13 @@ impl DropPlanner<'_, '_> {
             .typed
             .call(self.checker.unit_expression(call))
             .is_some_and(|call| call.receiver().is_some());
-        let protocol = if receiver_protocol {
+        let consumer = self.loan_consumer_region_expected(call, state);
+        if let Some((item, _)) = &consumer {
+            callable = Some(*item);
+        }
+        let protocol = if self.is_consumer_loan_region(call) {
+            4
+        } else if receiver_protocol {
             2
         } else if self.is_named_loan_region(call) {
             3
@@ -40,6 +46,7 @@ impl DropPlanner<'_, '_> {
             protocol,
             receiver,
             named,
+            consumer: consumer.map(|(_, expected)| expected),
             start: 0,
             end: None,
         })

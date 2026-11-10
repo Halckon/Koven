@@ -115,6 +115,16 @@ fn consumer_dependency_cross_source_keeps_external_parameter_spans() {
         .iter()
         .find(|entry| entry.source() != observation.source())
         .unwrap();
+    let region = observation
+        .regions()
+        .iter()
+        .find(|region| region.protocol_version() == 4)
+        .unwrap();
+    assert_eq!(
+        region.coverage(),
+        crate::ownership_checking::UnitLoanActionCoverage::Complete
+    );
+    assert!(!other.owns_region(region));
     for action in observation.actions() {
         if let UnitLoanAction::BorrowConsumerRetired(retired) = action {
             let handle = retired.transfer().unwrap();

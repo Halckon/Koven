@@ -527,6 +527,14 @@ fn consumer_dependency_observer_preserves_all_planner_snapshots() {
         let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
         let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
         assert_eq!(observed.borrow_call_transports.len(), 1);
+        assert!(
+            observed.loan_action_observations[0]
+                .regions()
+                .iter()
+                .any(|region| region.protocol_version() == 4
+                    && region.coverage()
+                        == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+        );
         assert!(observed.loan_action_observations[0].actions().iter().any(|action| matches!(action, crate::ownership_checking::UnitLoanAction::BorrowConsumerRetired(retired) if retired.transfer().is_some())));
         assert!(disabled.loan_action_observations.is_empty());
         observed.loan_action_observations.clear();

@@ -1,4 +1,4 @@
-//! Actual synchronous transport links; no additional Complete family.
+//! Actual synchronous transport links and explicitly bounded normal-return coverage.
 use super::*;
 use lang_frontend::ownership_checking::{UnitLoanAction, UnitLoanActionCoverage};
 
@@ -251,5 +251,136 @@ fn consumer_acquisitions_reference_actual_registered_begin_records() {
             );
         }
         assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    }
+}
+
+#[test]
+fn owned_parameter_consumer_stays_uncovered_without_real_transport() {
+    let observed = observe(
+        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(own owner: String): Unit { consume(view(owner)) }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        assert!(unit.borrow_call_transports().is_empty());
+        for observation in unit.loan_action_observations() {
+            let regions: Vec<_> = observation
+                .regions()
+                .iter()
+                .filter(|region| region.protocol_version() == 4)
+                .collect();
+            assert_eq!(regions.len(), 1);
+            assert_eq!(regions[0].coverage(), UnitLoanActionCoverage::Unsupported);
+        }
+    }
+}
+
+#[test]
+fn normal_consumer_closes_declared_source_chain_and_root() {
+    let observed = observe(SOURCE);
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let regions: Vec<_> = observation
+            .regions()
+            .iter()
+            .filter(|region| region.protocol_version() == 4)
+            .collect();
+        let [region] = regions.as_slice() else {
+            panic!("one explicit result-chain region");
+        };
+        assert_eq!(
+            region.coverage(),
+            UnitLoanActionCoverage::Complete,
+            "{observation:#?}"
+        );
+        assert!(observation.owns_region(region));
+        assert_eq!(region.families(), &[lang_frontend::ownership_checking::UnitLoanRegionFamily::SynchronousResultContinuation, lang_frontend::ownership_checking::UnitLoanRegionFamily::NamedSourceDrop]);
+        let actions: Vec<_> = region
+            .action_ids()
+            .map(|id| observation.action(&id).unwrap())
+            .collect();
+        assert!(matches!(
+            actions.as_slice(),
+            [
+                UnitLoanAction::Begin(_),
+                UnitLoanAction::BorrowConsumerTransfer { .. },
+                UnitLoanAction::Begin(_),
+                UnitLoanAction::BorrowConsumerRetired(_),
+                UnitLoanAction::Cleanup {
+                    action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(_),
+                    ..
+                }
+            ]
+        ));
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    }
+}
+
+#[test]
+fn live_consumer_root_requires_actual_later_destruction() {
+    let observed = observe(
+        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; consume(view(owner)); consume(owner) }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let regions: Vec<_> = observation
+            .regions()
+            .iter()
+            .filter(|region| region.protocol_version() == 4)
+            .collect();
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0].coverage(), UnitLoanActionCoverage::Partial);
+        assert_eq!(regions[0].action_ids().len(), 4);
+        assert!(observation.actions().iter().any(|action| matches!(
+            action,
+            UnitLoanAction::Cleanup {
+                action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(_),
+                ..
+            }
+        )));
+    }
+}
+
+#[test]
+fn consumer_coverage_does_not_admit_mutable_or_nonliteral_formation() {
+    for declaration in [
+        "var owner = \"kept\"",
+        "val unrelated = \"other\"; val owner = \"kept\"",
+    ] {
+        let observed = observe(&format!(
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run(): Unit {{ {declaration}; consume(view(owner)) }}"
+        ));
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            let regions: Vec<_> = unit
+                .loan_action_observations()
+                .iter()
+                .flat_map(|entry| entry.regions())
+                .filter(|region| region.protocol_version() == 4)
+                .collect();
+            assert_eq!(regions.len(), 1);
+            assert_eq!(regions[0].coverage(), UnitLoanActionCoverage::Unsupported);
+        }
+    }
+    let rejected = observe(
+        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"left\" + \"right\"; consume(view(owner)) }",
+    );
+    for unit in &rejected.units {
+        let [diagnostic] = unit.diagnostics() else {
+            panic!("existing unsupported continuation");
+        };
+        assert_eq!(diagnostic.code().to_string(), "L0164");
+        assert_eq!(
+            diagnostic.message(),
+            "caller borrow result continuation is not yet proven"
+        );
+        let span = diagnostic.primary_span();
+        assert_eq!(
+            (span.source_id(), span.start(), span.end()),
+            (rejected.parsed.source_id(), 152, 163)
+        );
+        assert!(unit.loan_action_observations().is_empty());
+        assert!(unit.borrow_call_transports().is_empty());
     }
 }

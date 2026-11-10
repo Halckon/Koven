@@ -114,3 +114,23 @@ L0164拒绝并全局撤销，没有借此开放语言准入或补造End。只补
 合流仍保留原末状态pending，只对输入中缺项、不同深度、缺失/不同句柄或重复语义候选清空
 观察元数据；无歧义clone保留，不回填缺失引用。receiver句柄本片为None，observer off不增
 Begin。本证据仍Partial，不证明动态唯一消费、wrapper或权限恢复。
+
+## 同步结果链normal-return区域
+
+protocol 4复用实际region入口/正常完成及同一动作catalog，独立核未过滤区间恰为source
+Begin、实际transfer、consumer Begin、真实consumer/source退休、同CallReturn的Named Drop。
+前三条依赖句柄必须指向本区间的对应绝对记录且属于本catalog；tokens、call/argument、
+Shared/root、source及Drop origin逐项一致，不凭非空、排序旧表或局部链代替完整区域。
+
+准入只含普通非receiver函数内唯一首个不可变local String纯字面量声明，随后一个单层
+nested-result调用及普通Name/标量/String实参direct调用。内外无receiver/泛型/abort，
+内层单Shared String参数声明唯一Borrow返回来源，外层单Shared String消费且Owned Int/Unit
+结果；独立typed合同、唯一loan及真实BorrowCallUse映射核一致。本地val没有普通参数
+binding descriptor时以声明、formed_owned及唯一仍在state的真实owner为正证；若有descriptor
+则必须Owned。literal形成span与owner name marker分开，实际Drop.value_origin匹配后者。
+
+现存owner choice/loop/branch、replacement及全部pending/transport/capture状态显式排除。
+根仍live无Drop则Partial；不符合准入则Unsupported，参数根旧transport未支持也不补End。
+protocol1/2/3不变，source/callable仍Partial；不证明callee内部、Abort/unwind、wrapper、
+动态唯一消费或通用权限恢复。本树未含owner replace_consumer，未来合批须显式接入该状态
+拒绝/处理，不能把当前shape隔离当成永久保证。

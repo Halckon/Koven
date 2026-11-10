@@ -36,6 +36,14 @@ fn consumer_dependency_prefix_is_revoked_from_raw_and_public_products() {
                 raw.borrow_call_transports,
                 accepted.shared().borrow_call_transports()
             );
+            assert!(
+                raw.loan_action_observations[0]
+                    .regions()
+                    .iter()
+                    .any(|region| region.protocol_version() == 4
+                        && region.coverage()
+                            == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+            );
             assert!(raw.loan_action_observations[0].actions().iter().any(|action| matches!(action, crate::ownership_checking::UnitLoanAction::BorrowConsumerRetired(retired) if retired.transfer().is_some())));
         },
     );
