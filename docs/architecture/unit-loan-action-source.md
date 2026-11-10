@@ -140,3 +140,12 @@ BorrowCall生成另一result Loan并保留source依赖，consumer直接使用res
 End source、Drop原owner；不是两个SSA BorrowBegin。测试核真实refine路由、同轮typed
 callee映射、完整单block八指令与独立SSA/LLVM verifier。certificate仅在测试读取，生产
 lowering仍消费原facts；这不是新增证书consumer，也不证明native释放计数或旧oracle可退休。
+
+固定protocol2名义receiver原样源码也有双Unit入口的并列Phase3/SSA/verified LLVM证据。
+原样`class Node { fun touch(): Int = 1 }`及`fun run(own node: Node): Unit { node.touch() }`
+在当前路由仍是Compatibility，并未进入refine。测试锁同catalog的ReceiverBegin、实际
+ReceiverEnd及Named Drop，关联caller/call/root和typed method receiver；真实SSA从Node
+owner入口建立RootPlace与Shared loan，call使用该loan，随后End同loan再Drop原owner。
+Int结果不是Node owner；callee receiver是独立function-qualified Shared参数，不产生
+payload owner或Drop。这是已有能力的身份证据补齐，refine准入仍是独立缺口；没有生产
+证书receipt、执行责任迁移或native释放计数，也不退休旧oracle。
