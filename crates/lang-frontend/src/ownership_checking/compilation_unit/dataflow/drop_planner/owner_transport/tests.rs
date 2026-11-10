@@ -289,3 +289,5 @@ mod closed_while_transfers;
 mod loop_negated_conditions;
 
 mod invariant_continue_suffix;
+
+mod loop_input_alias;
