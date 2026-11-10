@@ -8358,3 +8358,28 @@ lib为`fbbdd7bf8e1d72e184f086b89c318417290f712cd445ef081ea23fc1994f3d98`。默�
 Phase 4行为、SSA/LLVM执行、native释放计数、Linux及正式双宿主CI未运行；未退休Single
 oracle，未推送、PR或合并。后续先在精确组合头运行正式CI破损守卫，再按已批准合同扩展
 真实continuation/receiver家族，不能把当前局部证书提升成整个调用者的完整生命周期结论。
+
+### Loan Shared receiver 正常返回独立下一片（2026-11-10，实施范围）
+
+继续`8bf3f160`的既有分支与真实动作源，在ADR-0040及已批准普通receiver生命周期范围内
+新增有界normal-return证据，不改Guide或默认启用新语言能力。上片protocol 1直线String
+实参/零实参合同保留；本片另声明Shared receiver协议，不默默扩大原direct-only合同。
+
+首个候选仅为零显式实参、Owned Int/Unit结果、普通非Resource MoveOnly nominal方法，
+receiver是当前顶层普通caller的真实Owned参数根、无投影/转换。复用既有flat调用区域，
+从真实pending注册记录Shared receiver Begin，从原正常token extract位置记录End；旧
+`receiver_call_return_ends`改为同源只读投影。新的正常receiver End不加入旧iteration
+cleanup执行流，不增加或双跑后端执行责任。observer关闭时仍保留旧return投影。
+
+只有从独立源码/typed/Owned binding证明的根，且实际receiver End之后同CallReturn
+存在唯一Named root Drop，才能认证这个新区域Complete；不得从End反推owner或权限
+恢复，不制造Drop。来源仍live时保留Partial；Borrow/Inout参数、Two-Phase、this、
+字段/投影、temporary/Rc、provider/capture、borrowed result、泛型与控制范围不准入。
+不认证callee必返、内部/Abort路径或整个source/callable；上片source总体状态保持。
+
+先保存普通`run(own node: Node) { node.touch() }`能力红测，保留旧receiver end、Drop及
+identity oracle；再补on/off完整旧产物、非空Complete前缀后独立source错误/deferred全局
+raw/public撤销，以及source/catalog/协议边界。仅运行逐源/helper核实普通exact选择，
+十项旧排除及任何CI-only故障/Abort/压力/破损一律不跑，新破损负控只编译。
+保持默认debug2实际profile核验、原target串行，不复制或降低档位；既有偏差保留。
+本节只限定实施范围，尚不表示新receiver区域已实现或验收；独审与最终准确结果另记。
