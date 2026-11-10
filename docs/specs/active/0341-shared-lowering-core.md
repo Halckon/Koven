@@ -11230,8 +11230,8 @@ region Unsupported已实跑观察。source整体Partial此前仅getter静态结�
 
 公开引用仅经同catalog/先后/角色核验后可用，缺引用保None/Partial；不从相等旧描述
 补配。新增metadata不进入PendingBindingTransport语义Eq，原合流retain资格不变；不同
-句柄或use历史只降级证据，后续use不能把已丢历史重新升级。普通控制邻控仅验证旧表/
-SSA与on-off等价，不认证控制。首片仍单本地String根/单binding/普通consumer，不泛化
+句柄或use历史只降级证据，后续use不能把已丢历史重新升级。普通控制邻控仅验证前端成功合流、旧表与on-off等价；其if不在既有lowering子集，
+不声称该控制源码有SSA/LLVM成功证据，也不认证控制。首片仍单本地String根/单binding/普通consumer，不泛化
 parent/sibling/wrapper。完整跨两statement binding region及可选production receipt另以
 独立能力红推进，未闭合之前不发布Complete；不改变P3/P4 call-only范围或授absence。
 

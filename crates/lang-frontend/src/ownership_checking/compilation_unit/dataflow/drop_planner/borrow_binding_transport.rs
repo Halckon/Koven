@@ -149,13 +149,10 @@ impl DropPlanner<'_, '_> {
     ) -> Option<(UnitBorrowBindingTransportFact, PendingBindingTransport)> {
         // Invoked only after an actual initialized binding is removed. Existing
         // child-before-parent termination and owner cleanup remain authoritative.
-        let Some(index) = state
+        let index = state
             .borrow_binding_transports
             .iter()
-            .position(|pending| pending.binding == binding)
-        else {
-            return None;
-        };
+            .position(|pending| pending.binding == binding)?;
         let pending = state.borrow_binding_transports.remove(index);
         let transaction = UnitBorrowBindingTransportFact {
             source: pending.source.clone(),

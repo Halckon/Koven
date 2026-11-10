@@ -195,7 +195,7 @@ fn verify_binding_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
 }
 
 #[test]
-fn binding_metadata_preserves_successful_merge_and_true_off() {
+fn binding_metadata_preserves_frontend_merge_and_true_off() {
     let text = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = view(owner); if(flag) { consume(item) } else { consume(item) }; consume(item) }";
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "binding-merge.ko", text);
