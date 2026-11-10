@@ -10078,3 +10078,19 @@ docs880、diff及尺寸`--base a775568f`通过：2305手写Rust、36既有超千
 正式双宿主CI、所有CI-only负控/panic/Abort、sanitizer、压力/资源计数未本地执行；
 真实off仍限已测Basic输入，不外推新Call端到端off、常量capability或所有shape；
 P2无production receipt，不退休旧oracle，不关闭Spec/D10/E2。
+
+### 已批准：变化 owner 两出口向唯一 String Return 移交（2026-11-10）
+
+用户对“动态 owner 增加 P/Q 选中值直接作为 String 返回的受限路径；借用扩展限定
+protocol2生产核验”回复“是的”。本片只做owner侧，基于已发布`a3bdf8d1`另建
+`feature/spec-0341-owner-return-20261110`，保真父链，不修改发布头或借用树。
+
+原固定Boolean参数、String字面量root、一次Replace后裸Break保持，函数返回String，
+唯一尾句为`return held`。Phase3从真实Name Take与Return payload交付发布独立封印，
+保持真实P/Q两个catalog及边角色；Phase4核返回表达式、payload槽及归属，旧Return
+emitter唯一发出，当前函数不Drop选中值，调用方沿既有规则接收。原B/Call不变。
+排除多根、一般循环、任意suffix、借用/捕获返回、Resource及语言/ABI扩展。
+
+状态in-progress：先普通真实Return缺产品授权红测，再分步实现；Basic/Const双Unit、
+两边SSA/LLVM/普通native及旧能力回归。故障/破损/计数等CI-only仅编译，不本地执行。
+最终固定头独审与门禁后本地交付，集中合流PR，不自行发布、不退休旧oracle。
