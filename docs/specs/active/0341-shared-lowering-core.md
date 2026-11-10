@@ -9627,3 +9627,21 @@ docs880、diff及尺寸`--base a775568f`通过：2288手写Rust、36既有超千
 本轮原始构建日志均纯JSON，无新增脚本解析偏差。最终仅追加本账本文档，没有Rust再改动。
 原冻结组合c27d9ae0仍clean；不改main，不push/PR，正式CI、Linux、sanitizer、压力及
 全部CI-only故障/资源计数仍未运行。Spec/D10/E2保持in-progress，不新增旧oracle退休声明。
+
+### Protocol 4 可选生产核验 receipt（2026-11-10，实施中）
+
+用户批准在冻结 `f51edf929084a05b99d93d1889d0c34c24688c54` 上接入受限生产核验。
+范围仅同轮已认证 Complete protocol 4：绑定 catalog action 身份、当前 callable/call
+实例、真实 source/result Slot 与实际 SSA instruction/entity，正常返回必须完整闭合。
+既有 producer 仍唯一生成 Begin/BorrowCall/End/Drop；不重放测试八指令，不按 Span
+事后拼配。statement 标记随直线块合并运输；Alias 不伪造 SSA instruction。
+
+核验按实例工作，兼容已准入 outer Unit/Int 及目标调用前后 plaincall，不把整个函数
+限定为八指令。内部错配返回结构化 lowering error。observer-off、Partial、Unsupported
+及缺席继续旧 facts 路径且无 receipt，不授 absence、不新增语言拒绝。B owner ledger
+保持独立；不迁 protocol 2、不扩 shape、不宣称 source/callable Complete、不退休 oracle。
+
+实施验收：先普通缺 receipt 红测，再实际构造接线；普通正例及 Partial/observer-off
+边界、Int/邻接 plaincall 精确执行。所有人工破损、Abort、压力与资源计数只编译。
+固定唯一 target、默认 debug2 与 LLVM21 配置沿用委托约束，串行构建，先从本轮
+Cargo manifest 核 binary 与测试名再 exact。实际结果随后补充；本段不声称已实现或验收。
