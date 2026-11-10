@@ -5066,3 +5066,27 @@ Parser 诊断增量，会把 error postfix 消费的内层 `[` 的配对
 通过，零失败、忽略或过滤。覆盖同／跨行、保留字与非法字符、
 跨行分组的两条后继声明、内外层配对、Error key Span 和尾项。
 扩大前端 Lexer／Parser／Source 验收在运行。
+
+## 208. R3 部分构造的循环退出与 Abort 本机对照
+
+在现有 normal／return 用例之外，按 Guide 10、11 的 operand
+求值和 Abort 合同复审两个构造入口。普通类和 `arrayOf<Leaf>`
+先将 MoveOnly 前缀交付给待提交构造，后续实参分别执行
+break、continue 或 `error("construction-stop")`。单文件及项目
+共 12 组均通过 check 和 build，再比较真实进程输出和退出状态。
+
+| 退出 | 两类构造的实际运行 |
+|---|---|
+| break | 退出 0，按顺序输出 jump、prefix、exit，prefix 析构一次 |
+| continue | 两轮各输出 jump、prefix，最后输出 exit，退出 0 |
+| Abort | SIGABRT，stdout 仅 jump，stderr 首行为 `abort: construction-stop`，带实际源码位置 |
+
+独立负对照 `Pair(prefix, prefix)` 的两个公开入口均只报告 L0131。
+主位置是第二实参，标签保留第一次移动与第二形参声明位置。
+
+本机 arm64 CLI 产物 SHA-256 为
+`f2bcb4cf86d9302814e5a44f84b576e75d770cb6e931ea0d36e57b88c17164c5`，
+来自 §203 的构建。生产源码与 #407 head `2155d5f3` 一致，
+两提交的 crate 差异只涉及消费者测试。本节证据限这 12 组
+直接循环退出、两组所有权负控及本机环境。更广的循环、资源
+故障和双宿主动态矩阵仍按 R3/R4 门槛验收。
