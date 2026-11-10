@@ -61,3 +61,8 @@ fn check(receipt: bool) {
         );
     }
 }
+
+#[test]
+fn finite_literal_call_requires_real_production_receipt() {
+    check(true);
+}

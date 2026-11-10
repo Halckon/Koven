@@ -17,7 +17,11 @@ impl Plans {
             return Ok(result);
         };
         // Stage one migrates callers; receipt expansion is a separate capability.
-        if inputs.typed.call(call).is_none_or(|c| c.arguments().len() > 2) {
+        if inputs
+            .typed
+            .call(call)
+            .is_none_or(|c| c.arguments().len() > 2)
+        {
             return Ok(result);
         }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
