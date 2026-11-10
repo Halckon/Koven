@@ -234,7 +234,7 @@ fn two_literal_int_unit_same_bytes_and_empty_preserve_true_off() {
     }
 }
 #[test]
-fn reordered_named_literals_use_refine_with_staged_receipt_boundary() {
+fn reordered_named_literals_use_refine_with_production_receipt() {
     let text = "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(b = \"first\", a = \"second\") }";
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "reordered.ko", text);
@@ -283,6 +283,6 @@ fn reordered_named_literals_use_refine_with_staged_receipt_boundary() {
         crate::llvm::render_verified_program(&program).unwrap();
         let caller = program.modules[0].function(entry).unwrap();
         assert_eq!(routes.as_slice(), std::slice::from_ref(&caller.name));
-        assert!(receipts.is_empty());
+        assert_eq!(receipts.len(), 1);
     }
 }

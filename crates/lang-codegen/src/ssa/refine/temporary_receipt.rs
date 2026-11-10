@@ -36,6 +36,7 @@ struct Plan {
 #[derive(Clone, Debug)]
 struct Operand {
     fact: UnitLoanFact,
+    parameter_index: usize,
     literal: Option<Vec<u8>>,
     borrowed: bool,
     drop_index: usize,
@@ -81,10 +82,20 @@ impl Plan {
             .iter()
             .flat_map(|a| [a.owner, a.place, a.loan])
     }
-    fn loans(&self, span: Span) -> Result<Vec<Slot>, LoweringError> {
-        self.operands
-            .iter()
-            .map(|a| a.loan.ok_or_else(|| invalid(span)))
+    fn parameter_loans(&self, span: Span) -> Result<Vec<Slot>, LoweringError> {
+        let mut slots = vec![None; self.operands.len()];
+        for operand in &self.operands {
+            let slot = slots
+                .get_mut(operand.parameter_index)
+                .ok_or_else(|| invalid(span))?;
+            let loan = operand.loan.ok_or_else(|| invalid(span))?;
+            if slot.replace(loan).is_some() {
+                return Err(invalid(span));
+            }
+        }
+        slots
+            .into_iter()
+            .map(|slot| slot.ok_or_else(|| invalid(span)))
             .collect()
     }
 }
@@ -230,7 +241,7 @@ impl Plans {
                     },
                 ) if *callee == p.callee
                     && receiver.is_none()
-                    && *arguments == p.loans(span)?
+                    && *arguments == p.parameter_loans(span)?
                     && results.len() == usize::from(p.returns_value) => {}
                 (Step::End(i), ROp::BorrowEnd { loan })
                     if Some(*loan) == p.operands[i].loan && results.is_empty() => {}

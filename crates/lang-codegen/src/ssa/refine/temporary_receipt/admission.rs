@@ -16,15 +16,6 @@ impl Plans {
         else {
             return Ok(result);
         };
-        // Stage one migrates the caller only. Receipt admission still covers the
-        // previously implemented source-order parameter mapping until stage two.
-        if inputs.typed.call(call).is_none_or(|call| {
-            call.arguments()
-                .iter()
-                .any(|a| a.argument_index() != a.parameter_index())
-        }) {
-            return Ok(result);
-        }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
         let callable = UnitItemId::new(inputs.source_unit, item);
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
@@ -185,7 +176,10 @@ fn operands(
             || begin.target() != &UnitLoanTarget::Temporary(id)
             || end != begin
             || argument.argument_index() != index
-            || argument.parameter_index() != index
+            || argument.parameter_index() >= n
+            || operands
+                .iter()
+                .any(|a| a.parameter_index == argument.parameter_index())
             || inputs.owned.loans().iter().filter(|f| *f == begin).count() != 1
             || inputs
                 .owned
@@ -232,6 +226,7 @@ fn operands(
         }
         operands.push(Operand {
             fact: begin.clone(),
+            parameter_index: argument.parameter_index(),
             literal: None,
             borrowed: false,
             drop_index: *drop_index,

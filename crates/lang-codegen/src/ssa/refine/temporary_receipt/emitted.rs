@@ -132,9 +132,9 @@ impl Emitted {
             ) if *callee == p.callee
                 && receiver.is_none()
                 && *arguments
-                    == p.operands
-                        .iter()
-                        .map(|a| entity(a.loan))
+                    == p.parameter_loans(span)?
+                        .into_iter()
+                        .map(|slot| entity(Some(slot)))
                         .collect::<Result<Vec<_>, _>>()?
                 && data.results.len() == usize::from(p.returns_value)
                 && data.results.iter().all(|e| matches!(e, EntityId::Value(_))) => {}
