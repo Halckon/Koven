@@ -75,6 +75,7 @@ pub use compilation_unit::{
     UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
     UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
     UnitOwnerObservation, UnitOwnerObservationStatus, UnitOwnerOrigin, UnitOwnerProducerCatalogV1,
+    UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
     UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1, UnitOwnerTransportEvent,
     UnitOwnerUnsupportedReason, UnitOwnerValueEventV1, UnitOwnerValueObservationV1,
     UnitOwnerValueV1, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact,

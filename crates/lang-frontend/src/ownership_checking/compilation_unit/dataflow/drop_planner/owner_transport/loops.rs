@@ -326,6 +326,7 @@ impl LoopTransaction {
 // Exhaustive destructuring makes new planner slots require an explicit boundary decision.
 fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
     let ValueState {
+        replace_consumer,
         lambda,
         borrow_bindings,
         pending_borrow_results,
@@ -344,7 +345,8 @@ fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
         closure_asap,
         this,
     } = state;
-    (lambda.is_none()
+    (replace_consumer.is_none()
+        && lambda.is_none()
         && this.is_none()
         && borrow_bindings.is_empty()
         && pending_borrow_results.is_empty()
@@ -540,7 +542,7 @@ impl DropPlanner<'_, '_> {
                     };
                     if let Some(completion) = completion {
                         if transaction.replacing.is_some() {
-                            replacement_body = Some(collected);
+                            replacement_body = Some((collected, body_state));
                         } else {
                             body_transport = collected
                                 .value_observation_v1()
@@ -556,10 +558,23 @@ impl DropPlanner<'_, '_> {
         }
         self.drop_loop_exit(id, state);
         if collecting
-            && let (Some(transaction), Some(collected)) = (&mut self.owner_loop, replacement_body)
+            && let (Some(transaction), Some((collected, mut body_state))) =
+                (&mut self.owner_loop, replacement_body)
             && let Some(input) = &mut transaction.replacing
         {
             transaction.replace_result = input.finish(collected, state);
+            if let (Some(boundary), Some(condition), Some(body)) = (
+                transaction.replace_result.as_ref(),
+                state.values.first(),
+                body_state.values.pop(),
+            ) {
+                state.replace_consumer = super::replace_consumer::ReplaceConsumerCarrier::handoff(
+                    condition,
+                    body,
+                    input.consumer_target.clone(),
+                    boundary,
+                );
+            }
         }
         if collecting
             && let (Some(transaction), Some((transport, completion))) =
@@ -588,5 +603,21 @@ impl DropPlanner<'_, '_> {
             }
         }
         Ok(true)
+    }
+}
+
+impl LoopTransaction {
+    pub(in super::super) fn complete_replace_consumer(
+        &mut self,
+        consumer: crate::ownership_checking::UnitOwnerReplaceBreakConsumerV1,
+    ) {
+        if let Some(boundary) = &mut self.replace_result
+            && boundary.consumer.is_none()
+        {
+            boundary.consumer = Some(consumer);
+            if !boundary.is_consistent() {
+                boundary.consumer = None;
+            }
+        }
     }
 }

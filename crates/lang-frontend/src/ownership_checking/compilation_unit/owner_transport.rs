@@ -10,7 +10,9 @@ pub use loops::{
     UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1,
-    UnitOwnerNormalArmBoundaryV1, UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
+    UnitOwnerNormalArmBoundaryV1, UnitOwnerReplaceBreakConsumerActionV1,
+    UnitOwnerReplaceBreakConsumerV1, UnitOwnerReplaceBreakObservationV1,
+    UnitOwnerReplaceBreakStateV1,
 };
 pub(super) mod values;
 pub use values::{

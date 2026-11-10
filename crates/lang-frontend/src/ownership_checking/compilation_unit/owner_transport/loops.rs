@@ -14,7 +14,10 @@ pub use invariant::{
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
 };
-pub use replace_break::{UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1};
+pub use replace_break::{
+    UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
+};
 
 /// Structural control edges of a sealed While body, not an executed finite trace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

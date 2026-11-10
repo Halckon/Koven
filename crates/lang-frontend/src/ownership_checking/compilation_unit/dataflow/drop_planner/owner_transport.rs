@@ -3,6 +3,7 @@ mod branch;
 mod capture;
 pub(super) mod choice;
 pub(super) mod loops;
+pub(super) mod replace_consumer;
 #[cfg(test)]
 mod tests;
 
@@ -17,6 +18,7 @@ use crate::type_checking::{OwnershipPrimitiveKind, UnitItemId};
 /// One evaluation frame owns its result. Nested calls cannot overwrite their parent's slot.
 pub(super) struct EvaluatedOwner {
     pub(super) continues: bool,
+    pub(super) replace_consumer: Option<replace_consumer::ReplaceConsumerCarrier>,
     pub(super) owner: Option<UnitOwnerId>,
 }
 
@@ -367,7 +369,9 @@ impl DropPlanner<'_, '_> {
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
         let mut owner = None;
-        let continues = self.expression_inner(id, usage, state, &mut owner)?;
+        let mut replace_consumer = None;
+        let continues =
+            self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer)?;
         if let Some(choice) = &mut self.owner_choice {
             choice.expression_completed(
                 self.checker.unit_expression(id),
@@ -384,7 +388,11 @@ impl DropPlanner<'_, '_> {
                 owner: owner.clone(),
             });
         }
-        Ok(EvaluatedOwner { continues, owner })
+        Ok(EvaluatedOwner {
+            continues,
+            owner,
+            replace_consumer,
+        })
     }
 
     // Independent of the legacy observation, which rejects the preceding String If.

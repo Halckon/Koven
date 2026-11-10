@@ -1,4 +1,6 @@
-//! One actual replacement followed by Break; the two exits never form a common value.
+mod consumer;
+pub use consumer::{UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1};
+// One actual replacement followed by Break and an optional bounded consumer.
 use super::super::{
     UnitOwnerCallable, UnitOwnerId, UnitOwnerObservation, UnitOwnerObservationStatus,
     UnitOwnerOrigin, UnitOwnerProducerCatalogV1, UnitOwnerTransportEvent,
@@ -46,9 +48,14 @@ impl UnitOwnerReplaceBreakStateV1 {
 }
 
 /// Bounded open-body witness: P is consumed in the body, Q remains at its Break exit.
-/// The independent condition-false exit still carries P. No phi or suffix is provided.
+/// The independent condition-false exit still carries P. Only the exact suffix may consume both incoming alternatives.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerReplaceBreakObservationV1 {
+    pub(in crate::ownership_checking::compilation_unit) suffix_initializer: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) suffix_statement: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) retired: UnitSymbolId,
+    pub(in crate::ownership_checking::compilation_unit) consumer:
+        Option<UnitOwnerReplaceBreakConsumerV1>,
     pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) completed_identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) completed_jump: UnitExpressionId,
@@ -76,6 +83,13 @@ pub struct UnitOwnerReplaceBreakObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) edges: Vec<UnitOwnerLoopEdgeV1>,
 }
 impl UnitOwnerReplaceBreakObservationV1 {
+    /// Complete actual consumption by the unique admitted tail, when available.
+    pub fn suffix_consumer_v1(&self) -> Option<&UnitOwnerReplaceBreakConsumerV1> {
+        self.consumer
+            .as_ref()
+            .filter(|consumer| self.is_consistent() && consumer.matches_boundary(self))
+    }
+
     /// Actual callable, shared by both catalogs.
     pub fn callable(&self) -> UnitOwnerCallable {
         self.callable
@@ -137,7 +151,11 @@ impl UnitOwnerReplaceBreakObservationV1 {
         let p = self.entry.owner();
         let q = self.post_break.owner();
         let root = self.entry.symbol;
-        if !self.inputs.is_consistent()
+        if self
+            .consumer
+            .as_ref()
+            .is_some_and(|consumer| !consumer.matches_boundary(self))
+            || !self.inputs.is_consistent()
             || !self.producers.is_consistent()
             || self.inputs.callable() != self.callable
             || self.producers.callable() != self.callable
@@ -262,7 +280,7 @@ impl UnitOwnerReplaceBreakObservationV1 {
     }
 }
 impl UnitOwnerObservation {
-    /// Separate one-replacement Break capability; no common exit, phi or suffix projection.
+    /// Separate one-replacement Break capability with an optional exact suffix consumer.
     pub fn replace_break_observation_v1(&self) -> Option<&UnitOwnerReplaceBreakObservationV1> {
         let value = self.replace_break_value.as_deref()?;
         (self.loop_value.is_none() && self.invariant_loop_value.is_none() && self.choice_value.is_none()

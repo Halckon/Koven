@@ -582,6 +582,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         usage: DropExpressionUse,
         state: &mut ValueState,
         owner_result: &mut Option<crate::ownership_checking::UnitOwnerId>,
+        replace_consumer: &mut Option<owner_transport::replace_consumer::ReplaceConsumerCarrier>,
     ) -> Result<bool, OwnershipCheckingError> {
         if self.checker.is_constant_use(id) {
             return Ok(true);
@@ -737,6 +738,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     match usage {
                         DropExpressionUse::Consume => {
                             let value = self.take_named(id, symbol, state);
+                            *replace_consumer = state.replace_consumer.take().and_then(|carrier| {
+                                carrier.take(self.checker.unit_expression(id), value.as_ref())
+                            });
                             *owner_result = self.moved_owner(id, value);
                         }
                         DropExpressionUse::Read => {
@@ -1337,6 +1341,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             PlannerDropTarget::Named(value.symbol),
             value.origin,
         ));
+        self.drop_replace_consumer(point, &value, state);
         for source in shared_sources {
             // Match-edge liveness excludes reads in the selected entry body.
             if !matches!(point, PlannerDropPoint::WhenAlternativeMatch { .. })

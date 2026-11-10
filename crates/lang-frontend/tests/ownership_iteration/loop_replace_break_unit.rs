@@ -176,6 +176,27 @@ fn check(rooted: bool, text: &str, admitted: bool) {
             (statement, condition, body, jump)
         );
         assert_eq!(value.callable(), o.callable());
+        let consumer = value.suffix_consumer_v1().expect("complete bounded suffix");
+        assert_eq!(
+            consumer.incoming(),
+            &[
+                value.condition_false_exit().clone(),
+                value.break_boundary().clone(),
+            ]
+        );
+        use lang_frontend::ownership_checking::UnitOwnerReplaceBreakConsumerActionV1 as A;
+        let (_, used, _) = declaration("retired");
+        assert_eq!(
+            consumer.actions(),
+            [
+                A::Take(used, value.entry().symbol()),
+                A::Bind(used, dropped_symbol("retired")),
+                A::Drop(
+                    UnitDropPoint::AfterStatement(suffix),
+                    dropped_symbol("retired")
+                ),
+            ]
+        );
         let p = value.entry().owner();
         let q = value.break_boundary().owner();
         assert_ne!(p, q);

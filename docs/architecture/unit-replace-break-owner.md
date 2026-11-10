@@ -5,7 +5,8 @@
 合同为 [ADR-0037](../adr/accepted/0037-replace-break-owner-boundaries.md)，验收见
 [SPEC-0341 §180](../specs/active/0341-shared-lowering-core.md#180-一次根替换后-break-的协议提案)。
 这是与[闭合 body](unit-loop-owner-transport.md)和[不变输入](unit-invariant-loop-owner.md)
-互斥的独立能力，不是完整循环运输、共同出口、header/exit phi 或后缀消费。
+互斥的独立能力；[ADR-0038 B](../adr/accepted/0038-path-qualified-owner-transport.md)
+增加唯一尾句的两入边消费，不是完整循环运输、通用 header/exit phi 或一般后缀。
 
 ## 实际准入
 
@@ -21,7 +22,7 @@ Replace 仅支持普通 Name callee、无显式类型实参、两个无命名前
 Group/Not、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
 opaque call、正常回边、Continue、条件分支、嵌套或后续使用能力均不准入。限制只撤销
 本观察产品，不新增语言诊断或改变既有成功源码。函数末尾直接移出用于保留真实 liveness，
-其普通 cleanup 仍执行，但本产品不把它当成已验证的分离出口后缀消费。
+其普通 cleanup 保持不变；只有实际路径 carrier 完整经过该尾句，才另发布封闭消费证明。
 
 ## 实际 producer 与四个读点
 
@@ -52,7 +53,8 @@ primitive commit 写入的 origin，symbol、声明、scope 不变；两份 P �
 `replace_break_observation_v1()` 返回 `UnitOwnerReplaceBreakObservationV1`，只读查询
 control IDs、两个 catalog、entry/post-Break/body-completion/condition-false 四状态、
 真实六事件及 EnterBody/BreakExit/ConditionFalseExit 三条结构边。它没有共同 exit、
-closed body transport、phi、runtime generation 或 suffix API。
+closed body transport、通用 phi 或 runtime generation。`suffix_consumer_v1()` 只返回下面
+严格 B 的完整尾句消费；原双出口 getter 不把缺少 consumer 的边界冒充完整消费。
 
 私有 validator 同时核两 catalog 的完整 identity、来源、callable、稠密定义，实际 prefix、
 六事件、边界元数据、完成身份与准确 Break，以及三条边。body raw 允许引用外来 P，但只
@@ -64,4 +66,20 @@ events/definitions 清空；新能力与所有旧循环/Choice getter 互斥。�
 不能代替本能力自己的 catalog、事件和四边界证据。
 
 这些是静态控制边与实际分析转换证明，不等于 runtime 实例、析构次数或 native 能力。
-一般动态循环、多个 owner、header phi、共同出口和真实后缀消费仍未实现。
+一般动态循环、多个 owner、header phi 和一般后缀仍未实现。
+
+## 唯一尾句的真实状态交接
+
+双出口验证后，原 condition state 的 P 身份与实际完成的 body state 中移出的 Q 共同进入
+`ValueState` 的严格 B carrier。Q 不从快照倒造；原 catalog/token 不重编号。单 owner 字段
+保留旧 planner 兼容投影，不将该 P 当作 Q，也不向旧 hook 重放或补造 Q 事件。
+
+唯一 Name 的真实 take 把 carrier 移交给本次 `EvaluatedOwner`，真实声明 bind 后存回
+`ValueState`，实际 ASAP Drop 完成后消耗 carrier。三个实际转换按序记录 Take/Bind/Drop，
+表示一个按边选择的值消费一次，不是同时消费两个值。公开 incoming 固定为 condition-false P、
+Break Q；每项保留完整状态身份，匹配原两出口和两个 catalog。
+
+consumer 独立匹配准入时保留的 suffix initializer、statement、retired 身份，核三个动作
+恰一次和准确顺序。carrier 不进入普通 branch merge，原边界检查拒绝其泄漏；不能推广
+通用 phi、额外尾句、alias、borrow/capture。新 consumer 嵌入原 replace 产品，共享全局
+source-error/deferred 撤销。实际源、双入口、跨 source/重分析和旧产物 on/off 检查见 Spec。

@@ -40,6 +40,29 @@ fn check(f: &Fixture, file: usize, owned: &CompilationUnitOwnership) {
         .replace_break_observation_v1()
         .expect("actual Replace then Break must publish separate P/Q exits");
     assert!(value.is_consistent());
+    let consumer = value
+        .suffix_consumer_v1()
+        .expect("actual bounded suffix handoff");
+    assert_eq!(
+        consumer.incoming(),
+        &[
+            value.condition_false_exit().clone(),
+            value.break_boundary().clone(),
+        ]
+    );
+    let (suffix, used) = declaration(f, file, "retired");
+    use crate::ownership_checking::UnitOwnerReplaceBreakConsumerActionV1 as A;
+    assert_eq!(
+        consumer.actions(),
+        [
+            A::Take(used, f.local(file, "held")),
+            A::Bind(used, f.local(file, "retired")),
+            A::Drop(
+                UnitDropPoint::AfterStatement(suffix),
+                f.local(file, "retired")
+            ),
+        ]
+    );
     let ast = f.parsed[file].ast();
     let source = f.source(file);
     let controls: Vec<_> = ast
@@ -462,9 +485,62 @@ fn replace_break_suffix_requires_actual_q_handoff() {
         eprintln!(
             "actual suffix hooks: take={takes:?}, bind={bindings:?}, drop={drops:?}; P={p:?}; Q={q:?}"
         );
-        assert!(
-            takes.contains(&q) && bindings.contains(&q) && drops.contains(&q),
-            "missing real state handoff: Break Q never reaches the actual retired take/bind/drop; the scalar condition-false P is not a path-qualified consumer"
+        // Legacy scalar hooks must not gain replayed Q events. The actual state carrier
+        // supplies both alternatives to a single take/bind/drop, not two copies.
+        assert_eq!(takes.as_slice(), std::slice::from_ref(&p));
+        assert!(bindings.is_empty() && drops.is_empty());
+        let consumer = boundary.suffix_consumer_v1().expect(
+            "missing real state handoff: Break Q never reaches the actual retired take/bind/drop; the scalar condition-false P is not a path-qualified consumer",
+        );
+        assert_eq!(consumer.incoming()[0].owner(), p);
+        assert_eq!(consumer.incoming()[1].owner(), q);
+        use crate::ownership_checking::UnitOwnerReplaceBreakConsumerActionV1 as A;
+        let (statement, _) = declaration(&f, 0, "retired");
+        assert_eq!(
+            consumer.actions(),
+            [
+                A::Take(initializer, f.local(0, "held")),
+                A::Bind(initializer, retired),
+                A::Drop(UnitDropPoint::AfterStatement(statement), retired),
+            ]
         );
     });
+}
+
+// Deliberate product corruption: compiled locally, executed only by official CI.
+#[test]
+fn replace_break_consumer_rejects_damaged_targets_and_actions() {
+    use crate::ownership_checking::UnitOwnerReplaceBreakConsumerActionV1 as A;
+    let f = Fixture::new(&[("root.ko", SOURCE)]);
+    let owned = f.shared();
+    let original = owned.owner_observations()[0]
+        .replace_break_observation_v1()
+        .unwrap();
+    for variant in 0..7 {
+        let mut damaged = original.clone();
+        let consumer = damaged.consumer.as_mut().unwrap();
+        match variant {
+            0 => {
+                consumer.initializer = damaged.argument;
+                consumer.actions[0] = A::Take(damaged.argument, damaged.entry.symbol);
+                consumer.actions[1] = A::Bind(damaged.argument, consumer.retired);
+            }
+            1 => {
+                consumer.statement = damaged.previous_statement;
+                consumer.actions[2] = A::Drop(
+                    UnitDropPoint::AfterStatement(consumer.statement),
+                    consumer.retired,
+                );
+            }
+            2 => consumer.incoming.swap(0, 1),
+            3 => consumer.incoming[1] = consumer.incoming[0].clone(),
+            4 => consumer.actions.push(consumer.actions[2].clone()),
+            5 => {
+                consumer.actions.remove(0);
+            }
+            _ => consumer.retired = damaged.previous,
+        }
+        assert!(!damaged.is_consistent(), "variant {variant}");
+        assert!(damaged.suffix_consumer_v1().is_none());
+    }
 }
