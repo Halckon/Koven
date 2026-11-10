@@ -5170,3 +5170,27 @@ break 和 continue 保留外层资源至循环后，return 先清理外层
 §210 同树的 frontend all-targets Clippy 以 `-D warnings` 通过。
 本节构造对照覆盖 macOS arm64 的可观察输出和退出，资源计数
 及 Linux 动态证据仍以各自实际测试范围为准。
+
+## 213. R2 已检查的循环跳转可达性与条件写回
+
+以 `69b76b5b` 的编译器源码为基线，两种公开入口实跑发现
+`return` 之后的 break/continue 和前一实参已 return 的后继
+break 都会让 Elvis fallback 的写回污染正常布尔合流，后继
+`return x` 误报 L0084。正式回归覆盖三个类型入口，旧实现
+先在 Single 的断言失败。
+
+Single 和 Unit 分别记录原 AST 表达式身份与 source-qualified
+身份。已检查的正常合流排除不可达跳转。Unit 仍独立计算局部
+循环完成性，Single 与 Unit 在检查不可达代码内部时维持保守的
+静态诊断。调用扫描依已检查的完成性保留 callee 及可求值的
+实参前缀，包含实际退出的 operand。循环预扫描仍以语法保守
+收集。独立复核核对了跳转身份、trial/replay 回滚、静态假分支、
+不可达创建点的 lambda 及嵌套循环出口。
+
+六组前端套件共 370 项通过，零失败、忽略或过滤，前端全目标
+Clippy 与 CLI 构建通过。公开单文件和项目各 7 组，四组无
+可达写回通过，真正能到循环出口的两组均只报 L0084。
+另有一组把写回后 return 与可达 break 放在互斥分支，当前
+两入口仍报 L0084。该路径需要将写入与各跳转边关联，单列为
+后续 R2，不能以跳转可达性代替分支内效果。CLI SHA-256 为
+`e2bd71ba0fda89436522721a334c3b4ecb9b380d16df67dc5b48a40a17b01cd0`。

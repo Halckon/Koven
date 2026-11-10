@@ -127,6 +127,7 @@ pub(super) fn collect_expression_mutation_targets(
         Pending::Expression(expression),
         |_| true,
         |_| Ok(true),
+        |_| true,
     )
 }
 
@@ -134,16 +135,18 @@ pub(super) fn collect_normal_expression_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
     includes_inout: impl Fn(ExpressionId) -> bool,
-    conditional_rhs_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    expression_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    includes_loop_jump: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    if !conditional_rhs_completes(expression)? {
+    if !expression_completes(expression)? {
         return Ok(Vec::new());
     }
     collect_mutation_targets(
         outcomes,
         Pending::Expression(expression),
         includes_inout,
-        conditional_rhs_completes,
+        expression_completes,
+        includes_loop_jump,
     )
 }
 
@@ -156,6 +159,7 @@ pub(super) fn collect_statement_mutation_targets(
         Pending::Statement(statement),
         |_| true,
         |_| Ok(true),
+        |_| true,
     )
 }
 
@@ -163,7 +167,8 @@ fn collect_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     root: Pending,
     includes_inout: impl Fn(ExpressionId) -> bool,
-    conditional_rhs_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    expression_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    includes_loop_jump: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
     let ast = outcomes.ast;
     let mut pending = vec![root];
@@ -172,7 +177,7 @@ fn collect_mutation_targets(
     while let Some(node) = pending.pop() {
         match node {
             Pending::ConditionalRhs(rhs) => {
-                if conditional_rhs_completes(rhs)? {
+                if expression_completes(rhs)? {
                     pending.push(Pending::Expression(rhs));
                 } else if let Some(&previous_jumps) = loop_jumps.last() {
                     // Only a jump to a loop already in this scan can make
@@ -207,7 +212,9 @@ fn collect_mutation_targets(
                 | Expression::Literal(_)
                 | Expression::SuperMember { .. } => {}
                 Expression::Break { .. } | Expression::Continue { .. } => {
-                    if let Some(jumps) = loop_jumps.last_mut() {
+                    if let Some(jumps) = loop_jumps.last_mut()
+                        && includes_loop_jump(expression)
+                    {
                         *jumps += 1;
                     }
                 }
@@ -305,10 +312,16 @@ fn collect_mutation_targets(
                                 .then_some(argument.value)
                         }));
                     }
-                    for argument in arguments.iter().rev() {
-                        pending.push(Pending::Expression(argument.value));
+                    let first_operand = pending.len();
+                    for operand in std::iter::once(*callee)
+                        .chain(arguments.iter().map(|argument| argument.value))
+                    {
+                        pending.push(Pending::Expression(operand));
+                        if !expression_completes(operand)? {
+                            break;
+                        }
                     }
-                    pending.push(Pending::Expression(*callee));
+                    pending[first_operand..].reverse();
                 }
                 Expression::Index { receiver, index } => {
                     pending.push(Pending::Expression(*index));

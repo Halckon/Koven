@@ -183,10 +183,19 @@ impl BodyChecker<'_> {
         Ok(())
     }
 
-    pub(super) fn record_pending_loop_jump(&mut self, jump: LoopJump) {
+    pub(super) fn record_pending_loop_jump(
+        &mut self,
+        expression: UnitExpressionId,
+        jump: LoopJump,
+    ) {
         if let Some(exits) = self.pending_loop_exits.last_mut() {
             if matches!(jump, LoopJump::Break) && !exits.suppress_ordinary_break {
                 exits.ordinary_break = true;
+            }
+            if self.body_path_reachable {
+                self.unreachable_loop_jumps.remove(&expression);
+            } else {
+                self.unreachable_loop_jumps.insert(expression);
             }
             if self.loop_depth <= self.suppressed_loop_depth {
                 return;
@@ -268,6 +277,12 @@ impl BodyChecker<'_> {
             |rhs| {
                 Ok(self.operand_falls_through(source, rhs)
                     && !self.expression_has_pending_abrupt_exit(source, rhs)?)
+            },
+            |jump| {
+                !self.body_path_reachable
+                    || !self
+                        .unreachable_loop_jumps
+                        .contains(&UnitExpressionId::new(source, jump))
             },
         )
         .map_err(TypeCheckingError::from)?
