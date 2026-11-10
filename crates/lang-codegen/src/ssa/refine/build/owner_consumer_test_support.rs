@@ -3,6 +3,12 @@ use std::cell::{Cell, RefCell};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerFault {
+    MissingReturnReplaceReceipt,
+    DuplicateReturnReplaceReceipt,
+    ReturnReplaceOldIsRoot,
+    ReturnReplaceDropIsOld,
+    MissingReturnReplaceDropReceipt,
+    DuplicateReturnReplaceDropReceipt,
     DuplicateTake,
     DuplicateBind,
     DuplicateDrop,

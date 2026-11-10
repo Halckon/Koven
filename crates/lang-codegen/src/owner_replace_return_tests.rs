@@ -256,3 +256,44 @@ fn suffix_replace_hooks_preserve_existing_ordinary_consumers() {
         crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     }
 }
+
+// CI-only: never include these mutations in a local execution selection.
+fn reject_suffix_receipt_fault(fault: crate::ssa::OwnerFault) {
+    let source = UnitSource::analyze("suffix-receipt-ci.ko", SOURCE).unwrap();
+    source.assert_frontend_clean();
+    let result = crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()));
+    let Err(error) = result else {
+        panic!("missing or invalid protocol receipt must fail loud");
+    };
+    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::InvalidModel);
+}
+
+#[test]
+fn ci_only_suffix_return_rejects_missing_replace_receipt() {
+    reject_suffix_receipt_fault(crate::ssa::OwnerFault::MissingReturnReplaceReceipt);
+}
+
+#[test]
+fn ci_only_suffix_return_rejects_duplicate_replace_receipt() {
+    reject_suffix_receipt_fault(crate::ssa::OwnerFault::DuplicateReturnReplaceReceipt);
+}
+
+#[test]
+fn ci_only_suffix_return_rejects_old_is_root() {
+    reject_suffix_receipt_fault(crate::ssa::OwnerFault::ReturnReplaceOldIsRoot);
+}
+
+#[test]
+fn ci_only_suffix_return_rejects_drop_is_old() {
+    reject_suffix_receipt_fault(crate::ssa::OwnerFault::ReturnReplaceDropIsOld);
+}
+
+#[test]
+fn ci_only_suffix_return_rejects_missing_drop_receipt() {
+    reject_suffix_receipt_fault(crate::ssa::OwnerFault::MissingReturnReplaceDropReceipt);
+}
+
+#[test]
+fn ci_only_suffix_return_rejects_duplicate_drop_receipt() {
+    reject_suffix_receipt_fault(crate::ssa::OwnerFault::DuplicateReturnReplaceDropReceipt);
+}

@@ -11910,3 +11910,20 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
   交付时按证据保留合同归档。本区域 Complete 不升级 source/callable，不新增 receipt 或退休 oracle。
 - 独立只读终审已核两阶段边界、真实红/绿/最终七项、raw artifact/profile 与执行后二进制 SHA；
   最终仅两 docs 偏离 4248 冻结输入，其冻结 git 对象及其余 4246 输入仍匹配，无新增阻断。
+
+
+### Suffix Replace→Return 回执安全回归（2026-11-10）
+
+仅为既有共同出口 replacement consumer 增加 cfg(test) 故障注入：漏/重
+post-RootReplace 回执、old 错作 root、Drop 错用 old、漏/重 installed-R Drop 回执。
+全部故障用例只在官方 CI 执行，本地仅编译，不能称为拒绝路径已实跑。
+普通正控仍使用原样有限源码、同轮实际 Unit 产品与 SSA/LLVM；不改公共产品、存储、
+getter、loop validator 或语言 ABI，不实施待决定的开放 loop Return endpoint。
+
+本地测试头 `3b3c1699`：六个新增 CI-only exact 已由 `cargo test -p lang-codegen
+--lib --no-run` 编译，全部未执行；原样 `actual_old_slot_requires_authorization` 与
+`both_units_authorize_distinct_old_and_installed_slots` 两项普通 exact 各实际通过，后者
+覆盖真实 Basic/Const，两者验证 SSA/LLVM，不代表六条故障拒绝路径通过。codegen all-targets
+Clippy `-D warnings`、fmt、docs 与尺寸门禁通过；debug=2，无 profile/RUSTFLAGS 降级。
+准备时首次 no-run 漏设 target，已停止本任务默认目录编译并改约定独占 target，未执行测试。
+本批未运行 native、官方 CI，也未推送；原循环体 Return probe 冻结头保持不变。
