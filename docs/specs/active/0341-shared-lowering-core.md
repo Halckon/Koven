@@ -8450,3 +8450,22 @@ lib为`a39cc89dbcfd9d055ef909cc4463f22915c143b1dbca44fe3cb7a2584d67b940`；日�
 一般CFG、callee动态必返或整个source/callable；source仍Partial/Unsupported。未运行
 Phase 4、SSA/LLVM行为、native计数、Linux或正式双宿主CI，Single oracle不退休。
 Spec与D10/E2继续in-progress；本片局部Complete不得替代整体覆盖证明。未推送、PR或合并。
+
+### Loan 单Named参数源直线区域下一片（2026-11-10，实施范围）
+
+续接`71b85631`，在ADR-0040普通借用生命周期范围内另声明protocol 3；不改protocol 1
+字面量或protocol 2 receiver合同，也不接owner Phase 4。首候选仅为flat顶层caller中
+普通Name/Declaration direct call、无receiver/泛型、Owned Int/Unit结果，唯一实参为
+本caller显式Own String参数的直接Name，唯一callee参数为同类型Shared Borrow。
+
+实际acquisition、正常EndCallLoan与Named Drop已在统一动作源，本片只补独立准入与
+完整区间验证，不复制旧End表或新增执行动作。参数Own marker、Owned binding、真实
+ValueState及形成span共同证明根来源；typed/contract/loan/place与使用span须一致。
+真实Begin→EndCallLoan→同CallReturn Named Drop闭合才Complete；根后续仍live则
+Partial。Borrow/Inout或local根、Group/投影/转换、多参数、borrowed result、嵌套/控制、
+receiver/Rc/provider不准入；不从End推断通用权限恢复，不宣称source/callable Complete。
+
+先保留现有真实End/Drop oracle的能力红测，再做最小认证与普通安全exact回归、完整on/off、
+跨source/catalog与raw/public失败撤销；新破损守卫只编译。默认debug2、既有target串行、
+十项旧排除与全部CI-only/Abort/压力边界不变。`33938ade`是独立codegen carrier清理，
+本片不修改其树或依赖其未合并内容。此节仅限定范围，尚不表示protocol 3已完成。
