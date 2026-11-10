@@ -9719,3 +9719,45 @@ rustc 含 `-C debuginfo=2`。构建完成后逐项从该 binary exact list 核�
 名单SHA256、核本树Cargo artifact/debug2/build-finished以及六条实际成功记录，均一致。
 复审未执行测试，未把静态负控或文档检查当作运行证据。最终文档提交仅记录本轮结果，
 不声称在文档头重跑Rust；未push、PR或merge。
+
+### Optional P4 receipt 与既有 owner/loan 普通集合联合验收（2026-11-10）
+
+另建隔离验收分支`feature/spec-0341-p4-receipt-validation-20261110`，固定输入
+`1ef893491245cede3d6bed9e3101ac341bd9bf3c`（Rust代码`c81259c3`），树
+`b5f21cde061677f33b8db8558083588a11f734c1`，祖先含f51edf92与main a775568f。
+原开发树与旧冻结树未改；不纳入observer-off后续开发。本次只验证固定产品，不增加
+类似测试、生产补丁或另一个receipt合同。
+
+独立逐源/helper准入复核：旧478与前述六项取并集，重复恰为P2/P4两项，准确总数482，
+其中前端466（134 lib、331 direct、1 iteration），codegen16。新增四项为Int consumer
+相邻plaincalls、Partial live root、双P4 callable、B/P4 sibling，完整exact名称取前段
+六项表排除旧P2/P4；不将双入口重复计数。B/P4 sibling虽然注册在native_tests，实际
+仅SSA/LLVM，无native执行。旧集合中的普通native仍按旧白名单验收，不扩大为计数测试。
+
+新receipt observe只收集成功产物；CI snapshot默认None，人工构造/破损仅由四项
+ci_only开启，均禁止执行。保持所有旧CI-only、十direct、四iteration Abort及两项混合
+破损owner排除，不使用模块filter。Partial/空计划保持旧路径，P2 Compatibility不迁移，
+旧effect producer、B授权与Drop消费顺序不替换。当前缺席的端到端observer-off新证据
+不以Partial或本次普通集合替代，后续片独立验收。
+
+本轮Cargo沿用`--locked --offline -j 2`、默认debug2、原owner target，不copy/clean；
+四项profile/RUSTFLAGS覆盖均未设置，LLVM_SYS_211_PREFIX为`/opt/homebrew/opt/llvm@21`。
+从本验收树重新no-run编译，按实际artifact定位binary，先exact list核名再exact执行，
+核成功名称集合/二进制hash。外置manifest、选择与分组日志留
+`/private/tmp/koven-p4-receipt-combined-evidence`，临时目录不是永久真源；固定提交、
+前轮478名单来源及前段六项并集为可重建输入。既有旧478或单独六项绿灯不冒充本轮结果。
+
+本轮实际482普通全部成功，0失败/忽略：codegen两组8+8互斥（22.75s/27.25s，
+各2829 filtered），前端134 lib 1.16s、331 direct 0.28s、1 iteration 0.06s，filtered
+分别450/10/218。codegen no-run1m25s、frontend no-run40.12s。每组成功集合与所选
+精确名称相等。未发现普通兼容失败，无生产修复；既有B普通native确实重跑，新B/P4
+sibling仅SSA/LLVM，不能把其路径名误读为native或物理释放计数证据。
+
+独立证据复核HEAD/tree无漂移，482名单、分组成功集合及四binary hash一致，实际
+artifact debuginfo=2/opt_level=0/test=true，build-finished成功；无CI-only执行。
+严格双crate all-targets Clippy（`-W clippy::all -D warnings`）通过58.29s；
+workspace all-targets check通过1m01s，均`--locked --offline -j 2`；fmt通过。
+docs880、diff及尺寸`--base a775568f`通过，2296手写Rust、36既有超千行，无额度修改。
+本轮最终只追加本账本文档，无Rust再改动。未运行observer-off后继代码、正式CI、Linux、
+sanitizer、压力或任何CI-only故障/资源计数；不把482普通通过外推为这些义务完成。
+不push/PR/合main，Spec/D10/E2状态与旧oracle保留。
