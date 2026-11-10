@@ -8212,3 +8212,55 @@ End-before-Drop。破损模型、注入、Abort 与大型守卫遵守既有 CI-o
 评估，不重写 §170、parent-binding receiver 脏树，也不自动推送或合并。
 
 本次仅完成接受与首片合同记录；没有新增生产实现或运行 Rust/native 验收。
+
+### ADR-0040 loan 实际动作源第一增量（2026-11-10）
+
+在 main `3fe1920a` 上独立建立 `feature/spec-0341-loan-action-coverage`，快进接受合同
+`23d70006`，保留父链。红测提交 `781b66b1` 证明普通 String temporary direct call
+已有实际 End/Drop，却没有 acquisition 记录：预期 Begin=1、实际0，1项失败。
+实现及最终代码输入 `65ddd0f3914a2f729102b0fa9f78c4a3a5260b7f` 在真实已完成实参的
+pending 注册点追加 Begin；同一 `ActionSource` 保存原 cleanup，旧投影只读 Cleanup，
+旧清理下标/顺序不变，不排序旧表，不重推 loan 或增加第二次执行。
+
+本增量只发布 source 范围的 Partial/Unsupported 观察。静态 record 具有封闭 catalog ID，
+支持同产品 clone、拒绝重分析/外来 catalog，并保留原 call/argument/target 身份。
+SourceUnitId 相同下标不能证明同一分析；独立 SourceMap 的 Span 也不保证结构相等。
+开发中这两个错误测试假设分别实际失败后修正，catalog 拒绝负控保留，未放宽生产判断。
+receiver/result 既有观察继续保留，但 activation、handoff、权限恢复、callable/path/动态
+activation 身份仍未统一认证。空表为 Unsupported，不发布 Complete 或 Complete-empty。
+这是已批准首片的基础增量，不是首片完整覆盖完成；D10/E2 与本 Spec 仍 in-progress。
+
+未重做或合并 `d6a21333`、`06d72a7b`、`103ed130` 及四个 result 候选；此步只需主干已支持
+普通直线 direct temporary。后续登记区域/动作家族与独立覆盖认证器时仍须保留父链合批、
+按精确组合头复验，不能把这些候选的旧测试当成本分支结果。既有脏工作树未改。
+
+| 验收项 | 最终代码输入上的实际结果 |
+|---|---|
+| direct/receiver/result 既有邻控及新增实际源 | `cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends -j 2` 加下列六个既定 `--skip`；300 passed、6 filtered、0 failed/ignored；其中293既有＋7新增，不累计重复运行 |
+| 新增能力 | 双 rooted/memory 输入的 Begin→End→Drop、Unsupported-empty、result/receiver仍Partial、同源独立实参、嵌套顺序、later Return未求值后缀、重分析catalog；ID公开可命名、clone及越界亦有断言 |
+| raw/public原子门与observer | `cargo test --locked --offline -p lang-frontend --lib loan_action_ -j 2`；2 passed、547 filtered；真实非空合法前缀后独立source错误/deferred清空raw及公开新表；observer开关逐项比较完整旧Analysis |
+| 静态门禁 | frontend `--all-targets` Clippy含 `-W clippy::all -D warnings`、workspace `--all-targets` check、workspace fmt与diff均通过；新增测试修正后重跑相关direct/lib及静态门禁 |
+| 文档与尺寸 | `check_docs.py`通过877 Markdown；`check_rust_sizes.py --base 3fe1920a`通过，36项既有超限额度不变；独审确认旧超限文件仅增加注册、传递、撤销和开关接线 |
+| 独立只读复审 | 单一源旧索引、真实Begin位置、raw/public撤销、observer全产物差分、封闭catalog与增长边界无阻断；复审未代跑Cargo，不认领Complete或退休 |
+
+六个 direct 过滤项保持：`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、
+`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、
+`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、
+`abort_and_normal_return_do_not_invent_prefix_unwind_events`。原测试与正式CI选择不改。
+
+**额外实际运行及选择偏差**：此前误将 `ownership_iteration` 完整目标作为普通本机邻控，
+实际218项通过，而非事前按旧账本估计的36项。逐源码复核发现其中4项包含本任务约定
+仅CI运行的Abort源码：`control_exits::aborting_while_condition_has_no_iteration_backedge_cleanup`、
+`control_exits::source_evaluation_exit_never_creates_a_provider_owner`、
+`origin_fixed_point::loop_origin_fixed_point_keeps_jump_edges_and_unreachable_tail_separate`、
+`source_loans::source_index_exit_cleans_only_the_evaluated_backing_owner`。这是测试选择偏差，
+不将218项计为本次合规门禁或并入上述302项；没有隐去实际执行，也未再运行这些项。
+后续iteration选择须逐源码列出普通exact清单，不能只依赖测试名或目标分类。
+
+本机macOS arm64、Rust1.96.0、LLVM21.1.8，locked/offline、jobs=2、debug=0，复用已有
+借用target并串行Cargo。阶段四行为、SSA/native执行、释放计数、Linux、破损模型/注入、
+大型守卫与正式双宿主CI未运行。没有推送、PR、合并或Single oracle退休。
+后续具体步骤是给普通直线call登记区域与家族，再对真实Begin/continuation/cleanup义务
+建立独立覆盖认证；不得凭本增量非空或空动作表把Partial/Unsupported改成Complete。
