@@ -127,3 +127,9 @@ owner 与 loan 观察独立开关；同一已检查输入的四种组合移除�
 同步 consumer 的组合正例还解析实际 source Begin、transfer、consumer Begin 与 retirement
 的同 catalog 公开句柄并核严格顺序；独立 source 错误/deferred 后这些依赖和旧 transport
 一并撤销。依赖仍是 Partial 静态记录，不授予一般 parent 权限恢复或动态唯一消费能力。
+
+protocol4 的 flat-state 准入显式拒绝活跃 `replace_consumer`，与现有 loop/replacement/
+pending/capture 门并列。当前 B 的 var/while/尾句绑定与 protocol4 的 val literal/调用尾部
+语法不相交；这一事实不是省略状态门的理由，也不构成普通源码缺陷红测。合法兄弟函数
+组合另核区域完整五动作和正常退休后同点根 Drop；双 End 保存在有序 retirement transaction
+中，不虚构额外动作或把整个 source 升级为 Complete。

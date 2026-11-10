@@ -9237,3 +9237,64 @@ lib：`18a30458e43dc3fca648539bf09ceab53b8ad2282be65929a58f50261c446ecd`。
 全量性能验收。Complete只适用于此正常返回区域，不证明callee内部/Abort/unwind、wrapper、
 动态唯一消费、通用parent权限恢复或整个source/callable；不退休Single oracle，不关闭
 Spec/D10/E2，未运行正式CI，未推送、PR或合并。
+
+### 严格 B 与 protocol4 显式状态门组合（2026-11-10）
+
+在隔离组合冻结头`23fb0a2e`上以普通merge `ed191a36`合入固定borrow
+`2e9f93770d61ab3525e904496a895f02a862bb40`，保留真实父链；仅本Spec追加冲突逐段并集，
+无cherry-pick、历史删除或其他候选合入。borrow后续新片与0400不纳入，不改其原树。
+
+精确Rust输入`d98b0096633831066c6b4092e369b6bad5944f2b`、树
+`f5b7376bc2ce0b2eeca332517438c655e4b5d449`。合流后production最小补齐为protocol4的
+flat-state门显式要求`state.replace_consumer.is_none()`；其余control/replacement/pending/
+transport/capture门不变。内部gate改为`pub(super)`供同planner测试，不开放公共API。
+相对上一冻结头，owner后端、真实P/Q carrier、唯一旧emitter与双账本没有production修改。
+
+当前普通语法交集经独审确认为空：严格B为var literal、while replace/break和唯一Name尾句
+绑定；protocol4要求首句val literal、后续直接call并排除活动控制帧。补显式状态门是防御合同
+补齐，不能冒充普通源码红→绿，也不把当前形状互斥当永久安全保证。
+`ci_only_active_b_carrier_rejects_flat_consumer_region_gate`从真实B快照/target人工构造
+carrier，核otherwise-flat状态插入拒绝、移除恢复；仅编译未执行，不计普通可达性或passed。
+不改变已有语言准入，也不以伪造普通输入制造红测；各分支既有能力红测原记录保留。
+
+原3项联合普通测试强化：四开关的consumer正例先证明唯一protocol4 Complete，使用公开
+region全部action_ids核连续未过滤的五项：source Begin、transfer、consumer Begin、retirement、
+同CallReturn的根Drop；三条handle精确指向区间位置。两个End由retirement transaction的
+`[consumer, source]`保序承载，不增造两个动作。Drop origin匹配实际声明marker，literal
+formation span仍独立核准入，source整体保持Partial。五族×四开关仍比较完整旧Analysis。
+
+多source正例保留原mixed Partial consumer，另增独立合格sibling，核两笔旧transport一一
+映射、不重复且仅sibling为Complete；raw/public均先证明非空。随后独立普通错误或真实
+closure replace deferred撤销全部loan观察、完整region及旧transport，owner保持原错误/
+deferred策略。没有把mixed函数放宽为Complete，也没有漏清新增观察字段。
+
+精确frontend普通466项通过：134 lib（116安全owner＋15loan＋3联合）、331 direct和1
+iteration。331包含新protocol4四项，参数/可变/多声明Unsupported、live-root Partial和
+完整literal区域Complete及已有concat L0164边界均保留。十direct旧排除和两owner混合破损
+不运行；新增CI-only门负控未加入原3个exact名单，不用整个owner_loan_combination过滤器执行。
+独立逐源码/helper复审前两批与新清单，去重475项普通选择、90个继承源码文件，另核增强
+联合模块；旧借用10项CI-only与本次新门负控均仅编译，人工状态不冒称普通验证。
+
+沿用Mac AArch64、Rust1.96.0、LLVM21.1.8、locked/offline/jobs2及原owner独占target，
+串行、不复制、不clean、不降档。无DEV/TEST_DEBUG、RUSTFLAGS或CARGO_ENCODED_RUSTFLAGS覆盖，
+实际test artifact profile.debuginfo=2，rustc含`-C debuginfo=2`；LLVM prefix不变。
+构建及执行命令沿上一批：frontend三target/codegen lib分别no-run JSON/vv，再以精确名单
+`--exact --list --format terse`核全部命中后`--exact`执行，逐项对成功集合，不累加重复运行。
+本批仓外名单、binary摘要和日志在`/private/tmp/koven-owner-loan-combination-batch3-evidence`，
+临时路径仅供本地复核，持久真源为上述提交、测试源码及明确选择边界。
+
+本批最终475个唯一普通exact全部通过，0 failed/ignored：466前端＋9后端。后端9项沿用
+前批已逐源审查的五个B普通测试、两个refine邻控和两个String/closure普通native邻控；
+本次codegen重新编译28.86s、实际执行5.37s，真实receipt、P/Q槽身份、唯一旧emitter/双账本、
+原样SSA/LLVM和双Unit普通native通过，不把旧分支结果移作本批，也不累加重复验收。
+
+最终`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --all-targets -j 2
+-- -W clippy::all -D warnings`通过29.15s；`cargo check --locked --offline --workspace
+--all-targets -j 2`通过21.47s；fmt、docs879与diff通过。尺寸`--base 3fe1920a`通过，
+2289手写Rust、36旧超长，policy及额度未增加。独立只读终审核精确头/tree、完整名单、
+逐项成功集合、binary/profile和文档边界，无剩余阻断。仅追加文档后不重复Rust行为。
+
+CI-only carrier门、借用人工损坏及所有Abort/故障/压力守卫未执行，仅编译；普通native
+不证明runtime释放计数或无泄漏。Linux、sanitizer、正式双宿主CI、全量行为、整个source/
+callable完整覆盖均未验。保留Single和全部旧oracle，Spec/D10/E2不关闭；无push/PR/main
+合并，后续单PR仍需正式精确头CI。原main及其他工作树未修改。

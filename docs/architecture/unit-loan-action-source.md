@@ -129,8 +129,9 @@ nested-result调用及普通Name/标量/String实参direct调用。内外无rece
 binding descriptor时以声明、formed_owned及唯一仍在state的真实owner为正证；若有descriptor
 则必须Owned。literal形成span与owner name marker分开，实际Drop.value_origin匹配后者。
 
-现存owner choice/loop/branch、replacement及全部pending/transport/capture状态显式排除。
+现存owner choice/loop/branch、replacement、活跃replace_consumer及全部pending/transport/capture
+状态显式排除。
 根仍live无Drop则Partial；不符合准入则Unsupported，参数根旧transport未支持也不补End。
 protocol1/2/3不变，source/callable仍Partial；不证明callee内部、Abort/unwind、wrapper、
-动态唯一消费或通用权限恢复。本树未含owner replace_consumer，未来合批须显式接入该状态
-拒绝/处理，不能把当前shape隔离当成永久保证。
+动态唯一消费或通用权限恢复。与owner合批后已显式拒绝活跃replace_consumer；当前caller
+shape与严格B不相交，但不把该隔离当永久保证，也不把人工状态负控当普通可达性证明。
