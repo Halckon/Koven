@@ -15,6 +15,8 @@ mod local_object_constant_qualifier_tests;
 mod nullable_rc_proof_tests;
 #[path = "native_nullable_when_tests.rs"]
 mod nullable_when_tests;
+#[path = "owner_boolean_comparison_tests.rs"]
+mod owner_boolean_comparison_tests;
 #[path = "owner_group_condition_tests.rs"]
 mod owner_group_condition_tests;
 #[path = "owner_negated_condition_tests.rs"]
