@@ -1,10 +1,22 @@
 //! Explicitly enabled test support, never part of the default dependency graph.
 use super::CompilationUnitOwnership;
+use std::cell::Cell;
+thread_local! { static ENABLED: Cell<bool> = const { Cell::new(true) }; }
+
+pub(in crate::ownership_checking) fn enabled() -> bool {
+    ENABLED.get()
+}
 
 /// Run ownership analysis with the requested observation setting in this thread.
 #[doc(hidden)]
 pub fn with_loan_observation<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
-    let _ = enabled;
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ENABLED.set(self.0);
+        }
+    }
+    let _restore = Restore(ENABLED.replace(enabled));
     run()
 }
 

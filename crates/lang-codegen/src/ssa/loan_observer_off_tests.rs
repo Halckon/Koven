@@ -77,3 +77,33 @@ fn real_frontend_observer_off_preserves_products_ssa_and_owner_receipts() {
         );
     }
 }
+
+fn observed() -> bool {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "scope.ko", SOURCE);
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let (environment, types) = standard_environments();
+    let (_, _, owned) = unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+    !owned.ownership().loan_action_observations().is_empty()
+}
+
+#[test]
+fn observation_scope_restores_nested_state_and_does_not_cross_threads() {
+    assert!(observed());
+    with_loan_observation(false, || {
+        assert!(!observed());
+        with_loan_observation(true, || assert!(observed()));
+        assert!(!observed());
+        assert!(std::thread::spawn(observed).join().unwrap());
+        assert!(!observed());
+    });
+    assert!(observed());
+}
+
+#[test]
+fn ci_only_observation_scope_restores_after_panic() {
+    let result =
+        std::panic::catch_unwind(|| with_loan_observation(false, || panic!("CI-only unwind")));
+    assert!(result.is_err());
+    assert!(observed());
+}
