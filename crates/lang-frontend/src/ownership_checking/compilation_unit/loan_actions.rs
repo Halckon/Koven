@@ -39,6 +39,12 @@ pub enum UnitLoanAction {
     BorrowBindingUseReturned(super::UnitLoanBindingUseReturn),
     /// Actual retirement of the source carried by a removed local borrow binding.
     BorrowBindingSourceRetired(super::UnitLoanBindingSourceRetirement),
+    /// Actual initialization of a direct child of a live result binding.
+    BorrowBindingChildCommitted(super::UnitLoanBindingChildCommit),
+    /// Actual return of a call using that child; not a child or parent binding end.
+    BorrowBindingChildUseReturned(super::UnitLoanBindingChildUseReturn),
+    /// Actual child removal while the original parent source transport remains live.
+    BorrowBindingChildRetired(super::UnitLoanBindingChildRetirement),
     /// Actual move of a source token into synchronous consumer transport; not an End.
     BorrowConsumerTransfer {
         /// The exact moved source token, not a reconstructed parent.

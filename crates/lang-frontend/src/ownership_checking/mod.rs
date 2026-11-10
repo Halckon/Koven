@@ -67,6 +67,7 @@ pub use compilation_unit::{
     UnitExclusiveCallPrefixEndFact, UnitIterationCleanupAction, UnitIterationExitKind,
     UnitIterationExitPlan, UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanAction,
     UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+    UnitLoanBindingChildCommit, UnitLoanBindingChildRetirement, UnitLoanBindingChildUseReturn,
     UnitLoanBindingSourceRetirement, UnitLoanBindingUseReturn, UnitLoanConsumerRetirement,
     UnitLoanFact, UnitLoanRegionFamily, UnitLoanTarget, UnitMapIterationLoan,
     UnitMapIterationOwnershipPlan, UnitNonNullAssertionOwnershipPlan,

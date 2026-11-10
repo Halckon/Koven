@@ -11639,3 +11639,23 @@ borrow_result.rs 的实际 child 移除和 End 发布；refine lower_result_plac
 本轮 codegen all-targets 显式测试支持 feature 的严格 Clippy 36.45s，通过；fmt/diff通过。
 独立只读终审核原始 artifact、实际 binary、唯一 exact 日志及真实 FE/SSA 身份，无新增阻断。
 未运行其它测试、native、全 workspace/CLI/release 或正式 CI；最终仅补文档，不重跑 Rust。
+
+### 2026-11-10 parent→child 的 Partial 因果发布片
+
+本片续接原样实证冻结6944b4a4，不重复以probe绿替代能力红。仅补既有单String根、单
+BorrowCall result parent、单Name child与单普通consumer的实际事件引用；不新增语言、ABI、
+路由或执行责任。首个独立红须先通过真实 on/off 旧产品等价与十条SSA/LLVM，再因缺少
+child commit/use-return/retirement 的实际因果引用失败。
+
+child initializer正常完成且加入live bindings时，从其真实parent实例携带source Begin及
+parent handoff句柄，记录child commit；child不具有source_loan，不新造source transport。
+consumer实际正常返回移除pending call token时，按真实operand binding记录child use-return，
+不是结束child或parent loan。child真正从live bindings移除时，以实际BindingEnd记录关联
+child commit、已观察的qualified use及同parent运输身份。引用必须同catalog、先后正确，
+不能按Span、canonical owner相等、最终旧表描述或最近同名binding补造。
+
+观察身份不参与旧语义Eq；merge/重复或失配后的证据只能sticky降级，不得由后续一次use
+恢复。原parent/source retirement与同根Drop因果降级规则不变，本片不解除该歧义。
+source/callable仍Partial，既有parent-child范围没有Complete证书或production receipt；
+缺引用不授absence。完整覆盖认证及receipt须另立能力红，不将三层合并为一次完成声明。
+所有foreign/故障/Abort/计数/压力负控仅编译，普通执行限fresh审过的小集合。
