@@ -11400,3 +11400,48 @@ CI-only故障仅编译，未运行foreign、注入、Abort、计数、压力或�
 sanitizer及一般循环/多owner/loan合运仍未完成。Cargo JSON证实两个test artifact均
 opt0/debug2/test=true、features空；二进制SHA、源码hash、选择名单与失败摘要保留在上述
 证据目录，不复用旧大筛选集合。不推送，不改变main及借用隔离树。
+
+### 双参数 own-call 与 binding Complete 本地保父链合流（2026-11-10）
+
+本批代码冻结 `0a8945b1d33af5904fa302663e5f2fc1c5947407`，双父为借用
+`ff9c1d464c79ee03159a88c0c235f7a31b9908e7` 与 owner
+`680215d3017e0947dd8d86b9167a6c71854cd02a`，共祖 `a35f8c22`。
+独立 worktree 保留两条父链；唯一冲突为本 Spec 的新增尾段，合并严格保留借用全文、
+分隔空行及 owner 新尾段，其余路径逐字等于对应父，不增生产代码或测试。
+本地主仓 main/origin/main 仍为 `9e7fed92`，没有另合主干、probe 或改动主仓既存文档。
+
+执行前重新审阅两个父输入的本体及全部共享 helper，去重后 FE2 + CG11 = 13 个唯一
+ordinary exact，未继承历史大集合。真实同 catalog 分析、原产品 lowering 与观察器均
+未启用 foreign/fault/forced-route；相邻 CI-only 只编译。owner FE compare 对实际 fixture
+重新规划后仅在比较用本地结果清 owner 观察；借用 legacy comparator 则克隆两原产品清
+loan 观察作比较，真正 off 产品直接 lower，两者不能混称同一实现。
+
+独占 `/private/tmp/koven-choice-replace-forwarding-target`，LLVM21 prefix，未设置 debug
+或 RUSTFLAGS 覆盖、未复制/清理 target。默认 CLI check 9.43s，原 Cargo JSON 中 frontend、
+codegen、kovenc 三实际 artifact features 均为空；显式 loan-observation-test-support 的
+两 crate lib no-run 1m04s，实际 opt0/debug2/test=true，两个 test artifact 仅此 feature。
+实际二进制经 exact-list 后逐项执行，FE2 每项1通过/616过滤，CG11 每项1通过/2913过滤。
+13项全部通过，无额外最终选择。2个 native exact 单列：双参数8次、原单参数2次，合计
+10次有限 emit/link/run，每个程序各执行 false/true 两出口，不额外计作测试数量；没有
+资源计数或一般循环终止性证明。借用6项保留26次SSA/LLVM及一个仅前端merge邻控分账。
+本批是同构建精确回归，并未新增 owner pair 与 binding region 同一程序交叉形状证明。
+
+严格两 crate feature all-targets Clippy 47.50s、默认 workspace all-targets check 28.28s
+通过，后者覆盖默认 test gate；fmt、docs884及 diff 检查通过。尺寸以共同祖先为 base，
+沿用现有额度，不新设例外。过程偏差独立记录：只读沙箱 ps/heredoc 临时文件操作被拒，
+在既定 require_escalated 环境重新检查后才继续；没有部分源码修改。尾门禁脚本误名为
+check_rust_file_sizes.py 导致 exit2，保留失败日志并补运行真实 check_rust_sizes.py；
+不是 Rust 或能力测试失败，不因该脚本偏差重复 Rust 构建/执行。
+
+证据保留于 `/private/tmp/koven-pair-binding-coverage-evidence`：manifest.json、两 selection、
+原 Cargo JSON、两 exact 日志、runner、门禁日志及4215项冻结 tracked SHA。FE binary SHA
+`97f04643494f6f2bc8e621ef26dee0ba1fbf702e18b4bbed9a443fb282468904`；CG binary SHA
+`c04f616d432b63450f09506fcff6be2d449cbc666bb715ba89a0fbb95c85f100`。
+收尾仅修改本 Spec；冻结对象与当前源码/配置分别核验，不能称收尾文档仍与冻结字节相同。
+binding Complete 仍仅已形成 owner 后的指定区域，source/callable Partial、未接 binding
+production receipt；不宣称全量/正式双宿主 CI、sanitizer、release 或资源证明，不推送/PR。
+
+精确 `0a8945b1` 独立只读终审无新增阻断：双父/共祖与29+10路径并集、Spec尾段保全、
+4215冻结输入、两个实际binary/raw artifact、13项名单/runner/原日志及默认CLI三空feature
+均核对一致。收尾仅Spec变化，非docs零漂移；尺寸误名exit2与正确补跑分别保留。
+独审确认上述有限native与借用FE-only分账及覆盖限制，随后仅docs本地提交，不重跑Rust。
