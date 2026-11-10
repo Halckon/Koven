@@ -8304,3 +8304,51 @@ End-before-Drop。破损模型、注入、Abort 与大型守卫遵守既有 CI-o
 评估，不重写 §170、parent-binding receiver 脏树，也不自动推送或合并。
 
 本次仅完成接受与首片合同记录；没有新增生产实现或运行 Rust/native 验收。
+
+### ADR-0038 B：唯一尾句的真实两入边 carrier（2026-11-10）
+
+本地 owner 首片实施头 `4ff61d89d0b9c45419632fa112f240e65033fb8c`，代码树
+`3aa737972110c1d8768f72ead2199faaaeb6113b`。隔离分支基于 main `3fe1920a`，
+通过普通 merge `72858945`、`60578376` 保留 0037 `ef5ded79` 与批准合同 `23d70006`
+真实父链；仅合并三处文档尾部/ADR 库存并集，不改原工作树或其历史。
+
+能力红测提交 `c7e7b926` 的合法原源实际失败：测试专用实例局部 probe 看到尾句 Move
+只取 condition P，legacy Unsupported 随后清除求值 owner，retired Binding/Drop owner
+hooks 为空；原双出口仍有效。新实现不向这些旧 hook 补造 Q。实际完成的 body state 中
+Q 移入严格 B carrier，与 condition P 保留完整原 catalog 身份；carrier 经真实 Name take、
+`EvaluatedOwner`、真实 binding、实际 ASAP Drop 转移一次。新产品记录一个按边选择值的
+Take/Bind/Drop 三动作，incoming 显式保留 condition-false P 与 Break Q，不产生新 producer。
+
+同一原源绿色断言保留旧 scalar hook 的上述实际观察，另核新 carrier 的两入边和三动作；
+不把旧三种 scalar 事件要求改成回放 Q 来取绿。此为 Phase 3 有界观察，既有 cleanup 与
+observer on/off 完整产物保持；未实现一般 phi、更多后缀、borrow/capture 或下游运输。
+事实见[根替换后 Break](../../architecture/unit-replace-break-owner.md#唯一尾句的真实状态交接)。
+
+| 验收项 | 实际范围与结果 |
+|---|---|
+| 能力 red→green | `loop_replace_break::replace_break_suffix_requires_actual_q_handoff`；原源实际失败后由真实 carrier 提供完整消费，旧 scalar probe 不参与生产产品 |
+| 最终普通精确集合 | 精确实施头重新编译并固定 binary/SHA256；lib116＋`ownership_iteration`双入口1，共117不同 ordinary exact 通过，0失败/忽略；早先同名复跑不累加 |
+| 身份、边界与撤销 | 原本片真实 P/Q 各index0不同catalog、双source/重分析、相同字面量、两Unit形式、18合法非候选与source-error原子撤销继续通过；新增consumer逐项核incoming/Take/Bind/Drop |
+| 旧共享契约 | 上述lib116覆盖Choice、closed/invariant循环、实际借用表及完整on/off对照；没有全量运行frontend或iteration |
+| 严格静态门禁 | frontend `--all-targets` Clippy `-W clippy::all -D warnings`通过；`cargo check --locked --offline --workspace --all-targets`通过；fmt与diff通过 |
+| 文档与尺寸 | docs878；检查器41直接测试通过；size `--base 3fe1920a`通过，2264手写Rust、36历史超长；planner1578行，原1669额度不提高 |
+| 独立复审 | 真实Q交接、单次consumer、严格范围与撤销无剩余阻断；同source错绑漏洞已补独立准入target锚点并复审通过；五行planner接线职责合理 |
+| CI-only守卫 | 新7变体consumer破损、原双出口破损及deferred注入已编译，未本地执行；正式精确头CI另验 |
+
+**执行偏差如实保留**：第一次沿用旧 owner 清单运行119个 exact，事后逐源码及helper复审
+发现其中两个“普通”名下混有损坏模型：`owner_transport_tests::swap::
+root_swap_then_replace_preserves_actual_owners`（删除/重复Swap、别名及foreign owner），
+`owner_transport_tests::if_observation::
+mutually_exclusive_consumption_replays_from_the_same_incoming_owner`（展平If、清空else、
+foreign owner）。两项已经实际执行，不能声称本轮完全未执行破损模型；不计入上述117普通
+验收，后续整项排除且未重跑，不修改旧测试来隐藏偏差。原119日志和最终117精确名称/binary
+manifest均保留仓外。逐源复核未发现Abort、deferred注入或大型压力守卫混入。
+`choice_admission::actual_choice_is_delivered_bound_and_dropped_while_legacy_stays_unsupported`
+另含移除可选产品以验证旧投影隔离的断言，未制造不一致运输模型，保留分类说明。
+
+Mac AArch64、Rust1.96/LLVM21.1.8、locked/offline、默认debug=2、jobs2，复用原owner独占
+target并串行Cargo，未新建/复制target。Clippy首次测试clone写法告警已修正；文档直接测试
+首次只读sandbox不能创建临时fixture，取得正常写权限后41通过，两者均不算能力红测。
+未运行Phase4、SSA/LLVM/native、runtime释放计数、Linux、sanitizer或正式双宿主CI。
+本地完成owner首片实现及上述验收，不宣称整个D10/E2完成；loan并行片未纳入此树，动态
+capture未启动。无push、PR、main合并；§170与parent-binding receiver原脏树不动。
