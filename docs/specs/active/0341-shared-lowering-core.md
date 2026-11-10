@@ -11543,3 +11543,50 @@ Cargo JSON保留opt0/debug2/test=true、features空及无profile覆盖；manifes
 binary SHA、13项名单/结果、两份原始SOURCE与各自红头字节一致证明。两次实际红的raw
 日志未覆盖。早期尺寸脚本名称误写导致文件不存在，纠正为仓库check_rust_sizes.py后通过，
 不将该调用失败算尺寸验收。后续仅文档冻结，不重新编译Rust；无push/PR或一般owner完成声明。
+
+### 2026-11-10 alias Return 与 binding receipt 本地双父合流验收
+
+本批仅合流既有能力，不新增语义、ABI、路由或 cleanup producer。冻结合成代码为
+`8fb578c8ff1b7f72ebe21c1db87a28a43d17eabf`，双父分别为借用
+`38c1179fec7d16dd53ef9a839e4288c9c9592c16` 与 owner
+`ceee6a510ff982098e039e36e7a0c455d64537c8`，共祖为
+`680215d3017e0947dd8d86b9167a6c71854cd02a`；既有 pair 父链保留，未重复 cherry-pick。
+主干及本地 origin/main 仍为 `9e7fed92`，本批未另合 main，未 push 或创建 PR。
+
+两线修改路径仅本 Spec 相交。owner 正文保留共祖前缀，借用正文因此前合法合流并非该前缀；
+实际解决为借用全文加一个分隔换行、再追加 owner 相对共祖的完整新增尾段。
+其余 42 与 12 个非交集路径逐字保留对应父，生产代码无冲突改写。
+4224 个冻结 tracked 输入的路径与 SHA 保存在仓库外证据目录；后续仅本 Spec 账本变更，
+冻结对象与当前源码/配置分别核对，不称追加账本后的全部当前字节仍等于旧清单。
+
+证据目录为 `/private/tmp/koven-alias-binding-receipt-evidence`：`manifest.json`、
+`source-input-hashes.json`、两份 selection、原 Cargo JSON、exact 日志及 runner 日志保留。
+输入清单 SHA 为 `81ec935efccf6c047cfab95ed9fec8c61fa25901ad6f2cfe79e2e34afd289671`。
+FE 名单 SHA 为 `038d3c32eac201df0f9cf846f5ea39c6151972d9cbd94218ff28b4624ac3f5c7`，
+CG 名单 SHA 为 `a5f7d6f47c01296df8d3960825863883c5b43bade6409c385db1be16d73e8ff6`。
+实际 FE binary SHA 为 `a9031ad0bdd415bf8833f395b7cf803de269b86ed77bf88678c63890025d5320`，
+CG binary SHA 为 `acfb6c7b0bbbcd71c83745863a4027e49459545765136ffa624da9958ef310f2`。
+
+仅使用 owner target 串行构建，LLVM21、默认 opt0/debug2，无 profile 或 RUSTFLAGS 覆盖。
+默认 CLI check 9.27s，原 JSON 中 frontend/codegen/kovenc 三实际 artifact 均 features=[]。
+显式 loan-observation-test-support 的两 crate lib no-run 1m05s；实际 test artifact 均
+opt0/debug2/test=true，仅该测试支持 feature。默认 workspace all-targets 29.21s，
+显式 feature 两 crate all-targets 严格 Clippy 45.71s；fmt、docs884、尺寸2370文件/35项
+既有超限及 diff 检查全部通过，未提高尺寸额度。
+
+fresh 审阅后只运行 owner13 与借用8 的去重并集，交集为零：FE4、CG17，共21 unique exact。
+每项先 exact-list 再单独 exact；FE各1通过/618 filtered，CG各1通过/2922 filtered，
+原名单、manifest、runner 与成功日志同序一致。三项 native exact 分别运行2、2、8个有限程序，
+合计12次，不额外累计为测试数；其余14项 CG 中13项合计46次 SSA/LLVM lower，另1项仅
+frontend merge，不能声称该控制源码成功 lower。FE4 为固定普通 fixture 验证。
+owner FE 比较只归一化重新规划的本地 observed 结果；loan 比较才 clone 两原产品清观察表。
+真实 observer-off 重新分析所得原产品直接 lower，未关闭 receipt 或删表伪装 off。
+
+所有选中本体及 helper 均重新审查；foreign、故障注入、Abort、资源计数、压力及 CI-only
+均未执行，故障观察器保持默认未激活。此为同构建独立回归，不是新增 alias Return 与 binding
+同程序交叉证据；不证明一般资源性质、正式 CI 或 release。binding source/callable 仍 Partial，
+原 oracle 未退休。只读摘要命令曾因 sandbox 不允许 shell heredoc 临时文件而未执行，随后
+经明确 require_escalated 执行成功；只读 ps 同样经明确授权后确认无 Cargo/rustc 活动。
+这两次沙箱工具边界不计 Rust 或能力失败。
+独立只读终审核对双父、冲突正文、冻结输入、实际 artifact/profile、两 binary 与全部21项
+原始结果及上述分账，无新增阻断；最终仅本 Spec 文档提交，非文档输入未漂移。
