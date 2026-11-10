@@ -371,7 +371,19 @@ fn owned_source_continue_declaration_identity_and_groups() {
     )
     .err()
     .expect("alias is not a fresh initializer seed");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+    let source = analysis.parsed.source_id();
+    assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
+    assert_eq!(analysis.sources.source_text(source), Ok(text));
+    let expected_span = analysis.sources.span(source, 53, 57).unwrap();
+    assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
+    assert_eq!(
+        error,
+        crate::ssa::LoweringError {
+            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+            span: Some(expected_span),
+        },
+        "the original alias boundary stays at keys, not original or a later use"
+    );
 }
 
 #[test]
