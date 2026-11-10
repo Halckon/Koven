@@ -417,3 +417,65 @@ fn exiting_boolean_fallback_preserves_the_when_subject_generation() {
         assert_inout_diagnostic_spans(&text, expected);
     }
 }
+
+#[test]
+fn conditional_scan_distinguishes_callable_exit_from_nested_loop_jumps() {
+    for (body, expected) in [
+        (
+            "loop { left ?: take(write(&x), return 0); break }; true",
+            &[][..],
+        ),
+        (
+            "loop { left ?: take(write(&x), break); break }; true",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "var retry = flag; loop { if (retry) { retry = false; left ?: take(write(&x), continue) }; break }; true",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "loop { left ?: if (flag) { loop { break }; x = null; return 0 } else { return 0 }; break }; true",
+            &[][..],
+        ),
+        (
+            "loop { before(&x) ?: take(0, return 0); break }; true",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "loop { left ?: if (flag) { for (index in range(write(&x), break)) {}; return 0 } else { return 0 }; break }; true",
+            &[("L0084", "x")][..],
+        ),
+    ] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun before(inout target: Int?): Boolean? {{ target = null; return true }}
+             fun range(a: Int, b: Int): IntRange = 0..0
+             fun run(left: Boolean?, flag: Boolean): Int {{
+                 var x: Int? = 7
+                 if (x != null && (if (flag) {{ {body} }} else {{ true }})) {{ return x }}
+                 return 0
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
+fn when_generation_uses_normal_writes_from_nested_conditions() {
+    for (jump, expected) in [("return 0", &[][..]), ("break", &[("L0084", "x")][..])] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun run(input: Int?, left: Boolean?, flag: Boolean): Int {{
+                 var x = input
+                 return when (x) {{
+                     (if (flag && (if (flag) {{ loop {{ left ?: take(write(&x), {jump}); break }}; true }} else {{ true }})) {{ 1 }} else {{ 2 }}) -> 0
+                     null -> 0
+                     else -> x
+                 }}
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}

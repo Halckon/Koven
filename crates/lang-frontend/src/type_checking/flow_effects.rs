@@ -13,6 +13,12 @@ use crate::{
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
+    ConditionalRhs(ExpressionId),
+    KeepWritesOnLoopJump {
+        first_write: usize,
+        previous_jumps: usize,
+    },
+    EnterLoop(StatementId),
     LeaveLoop,
 }
 
@@ -162,18 +168,49 @@ fn collect_mutation_targets(
     let ast = outcomes.ast;
     let mut pending = vec![root];
     let mut targets = Vec::new();
-    let mut nested_loops = 0;
+    let mut loop_jumps = Vec::new();
     while let Some(node) = pending.pop() {
         match node {
-            Pending::LeaveLoop => nested_loops -= 1,
+            Pending::ConditionalRhs(rhs) => {
+                if conditional_rhs_completes(rhs)? {
+                    pending.push(Pending::Expression(rhs));
+                } else if let Some(&previous_jumps) = loop_jumps.last() {
+                    // Only a jump to a loop already in this scan can make
+                    // writes on this otherwise abrupt path observable.
+                    pending.push(Pending::KeepWritesOnLoopJump {
+                        first_write: targets.len(),
+                        previous_jumps,
+                    });
+                    pending.push(Pending::Expression(rhs));
+                }
+            }
+            Pending::KeepWritesOnLoopJump {
+                first_write,
+                previous_jumps,
+            } => {
+                if loop_jumps.last() == Some(&previous_jumps) {
+                    targets.truncate(first_write);
+                }
+            }
+            Pending::EnterLoop(body) => {
+                loop_jumps.push(0);
+                pending.push(Pending::LeaveLoop);
+                pending.push(Pending::Statement(body));
+            }
+            Pending::LeaveLoop => {
+                loop_jumps.pop();
+            }
             Pending::Expression(expression) => match ast.expressions().get(expression)?.payload() {
                 Expression::Error
                 | Expression::Name
                 | Expression::This
                 | Expression::Literal(_)
-                | Expression::Break { .. }
-                | Expression::Continue { .. }
                 | Expression::SuperMember { .. } => {}
+                Expression::Break { .. } | Expression::Continue { .. } => {
+                    if let Some(jumps) = loop_jumps.last_mut() {
+                        *jumps += 1;
+                    }
+                }
                 // 创建 callable 不执行其声明体；不能把捕获体中的写入算作当前求值效果。
                 Expression::Lambda { .. } => {}
                 Expression::Group { expression }
@@ -239,25 +276,15 @@ fn collect_mutation_targets(
                     right,
                     ..
                 } => {
-                    let include_right = match operator {
+                    match operator {
                         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-                            if outcomes.rhs_is_bypassed(*left, *operator) =>
-                        {
-                            false
-                        }
-                        // An abrupt RHS can affect the enclosing condition
-                        // when a loop within this scan catches its jump.
+                            if outcomes.rhs_is_bypassed(*left, *operator) => {}
                         BinaryOperator::LogicalAnd
                         | BinaryOperator::LogicalOr
-                        | BinaryOperator::Elvis
-                            if nested_loops == 0 =>
-                        {
-                            conditional_rhs_completes(*right)?
+                        | BinaryOperator::Elvis => {
+                            pending.push(Pending::ConditionalRhs(*right));
                         }
-                        _ => true,
-                    };
-                    if include_right {
-                        pending.push(Pending::Expression(*right));
+                        _ => pending.push(Pending::Expression(*right)),
                     }
                     pending.push(Pending::Expression(*left));
                 }
@@ -322,21 +349,15 @@ fn collect_mutation_targets(
                 Statement::While {
                     condition, body, ..
                 } => {
-                    nested_loops += 1;
-                    pending.push(Pending::LeaveLoop);
-                    pending.push(Pending::Statement(*body));
+                    pending.push(Pending::EnterLoop(*body));
                     pending.push(Pending::Expression(*condition));
                 }
                 Statement::For { source, body, .. } => {
-                    nested_loops += 1;
-                    pending.push(Pending::LeaveLoop);
-                    pending.push(Pending::Statement(*body));
+                    pending.push(Pending::EnterLoop(*body));
                     pending.push(Pending::Expression(*source));
                 }
                 Statement::Loop { body, .. } => {
-                    nested_loops += 1;
-                    pending.push(Pending::LeaveLoop);
-                    pending.push(Pending::Statement(*body));
+                    pending.push(Pending::EnterLoop(*body));
                 }
                 Statement::Expression { expression } => {
                     pending.push(Pending::Expression(*expression));
