@@ -106,7 +106,11 @@ fn plan_with_owner_observation(
     checker: &Checker<'_>,
     enabled: bool,
 ) -> Result<Analysis, OwnershipCheckingError> {
-    plan_with_observations(checker, enabled, true)
+    #[cfg(feature = "loan-observation-test-support")]
+    let loan_enabled = super::super::loan_observation_test_support::enabled();
+    #[cfg(not(feature = "loan-observation-test-support"))]
+    let loan_enabled = true;
+    plan_with_observations(checker, enabled, loan_enabled)
 }
 
 fn plan_with_observations(

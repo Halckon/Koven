@@ -9761,3 +9761,83 @@ docs880、diff及尺寸`--base a775568f`通过，2296手写Rust、36既有超千
 本轮最终只追加本账本文档，无Rust再改动。未运行observer-off后继代码、正式CI、Linux、
 sanitizer、压力或任何CI-only故障/资源计数；不把482普通通过外推为这些义务完成。
 不push/PR/合main，Spec/D10/E2状态与旧oracle保留。
+### Protocol 4 真实 observer-off 端到端补证（2026-11-10，实施中）
+
+续接本地 `1ef89349`，按已批准范围增加默认关闭的窄测试支持 feature
+`loan-observation-test-support`。frontend 提供隐藏的同步 scope API，codegen 同名 feature
+经既有 normal 依赖转发；不增加 dev-dependency 或修改四逻辑边检查器。原 dev-dependency
+建议会触发现有 duplicate direct declaration 门禁，故采用此路线。显式启用会把测试支持
+编入 frontend 库，`doc(hidden)` 不是安全边界；默认生产/发布图不启用，不读取TLS。
+
+scope 只接真实 planner 的 loan observation bool，不改 owner 开关、不删已生成产品或关闭
+receipt 核验。以同 sources/names/typed 做两次真实 ownership 分析，off 原产品直接传
+codegen；只读比较 helper 仅在独立 clone 上去掉新增 catalog 用于旧产品全量对照。
+私有RAII保存并恢复前态，不公开可跨线程移动的guard；普通嵌套与线程隔离精确执行，
+panic恢复负控仅编译。先普通缺off红测，再接真实scope，最终核P4 receipt有/无及旧SSA/
+LLVM/B产品等价。默认CLI check与feature测试构建分别核各实际artifact.features。
+
+正式CI仅在 `check_core.sh` 的codegen测试命令显式启用，精确选择合同同步；不在本地
+运行该全量命令。发布 `package_preview.py` 的CLI release命令不启用features；所有
+显式all-features构建仍可能编入hook，不能称为cfg(test)隔离。此前全部target、debug2、
+CI-only不执行与本地不push/PR/merge约束继续有效。
+
+普通能力红测先以未接线scope（直接执行closure）运行：真实二次ownership仍有catalog，
+`real_frontend_observer_off_preserves_products_ssa_and_owner_receipts` 在明确off断言失败，
+0 passed/1 failed/2837 filtered；不是清表或禁用receipt的模拟失败。feature no-run成功后
+从Cargo JSON取binary并exact list核名再运行；frontend/library与codegen/test实际features
+均仅 `loan-observation-test-support`，debug2。binary SHA256为
+`a114dfd016cc430d9120ef1002d0bb67623051142358275e3d4942224f19eb73`。
+本轮先做feature红测，默认CLI图对照后置串行执行，不声称先验证了默认图。
+
+真实scope接线代码为 `242691c63954a4cf7cb7ec513f4058deaa47978e`，红测提交
+`1a8d445b`。首个实现构建27.19s成功；同红测及普通嵌套/线程隔离各1 passed、0 failed、
+2839 filtered，真实off原产品无catalog且直接进入codegen，无P4 receipt；on有receipt，
+完整旧ownership副本、SSA/LLVM文本和B授权/物理Drop相等。没有中间Rust编译或行为失败。
+只读比较沿现有产品Eq语义，不修改传给lowering的任一原产物；B分离另由实际receipt检查。
+
+最终同代码feature no-run完成0.25s，复用经Cargo确认的新feature artifact；frontend与
+codegen的features均精确为 `["loan-observation-test-support"]`，实际debug2/opt_level0，
+前者test=false、后者test=true。从该轮JSON取binary、逐名exact list后运行前轮六项普通
+测试，再按顺序追加以下两项，共8个唯一测试全部通过，每项1 passed/0 failed/0 ignored/
+2839 filtered，内部双输入不另累计：
+
+| 验收项 | exact测试（前缀 `ssa::loan_region_ssa_tests::observer_off::`） | 实际结果 |
+|---|---|---|
+| 同names/typed真实on/off ownership到SSA/LLVM/B receipt | `real_frontend_observer_off_preserves_products_ssa_and_owner_receipts` | 通过；Basic rooted/memory两输入 |
+| 正常嵌套恢复与单新线程默认on隔离 | `observation_scope_restores_nested_state_and_does_not_cross_threads` | 通过；无故障注入 |
+
+feature binary SHA256：`6a5e0316b2554c4711021db9ea98b645f5629bd962bf04fa7788b3e248c5b8ef`；
+八项逐行完整名单SHA256：`64dddd6dbd0baf77d36011bc3b055d06761313ac3b9bd63dfbc05d8da491811f`。
+最终manifest、选择和日志为仓库外 `/private/tmp/koven-p4-off-final-manifest.json` 及同前缀
+`-selection.txt/-exact.log/.json/.stderr`；红测和首绿日志分别在 `koven-p4-off-red`、
+`koven-p4-off-build1` 前缀。临时路径不保证永久保留，固定提交/测试/摘要界定重建输入。
+
+默认图单独执行 `cargo check --locked --offline -p lang-cli --message-format=json -vv -j 2`，
+13.95s通过；从本树实际artifact核 `lang_frontend`、`lang_codegen`、`kovenc` 三者features
+均为 `[]`、debug2/test=false，不只看CLI自身。原始日志为
+`/private/tmp/koven-p4-off-default-cli.{json,stderr}`。初次按纯JSON解析失败，随后前缀
+校验误限llvm-sys再次失败；实际逐行核11条 `[serde_core 1.0.229] cargo:` 构建脚本输出后
+窄允许该前缀，复用同次已成功构建完成artifact核验，未重编或把解析失败当作能力红测。
+发布脚本只静态核既有CLI release argv无feature；没有执行release构建或发布。
+
+严格feature门禁为
+`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --features lang-codegen/loan-observation-test-support --all-targets -j 2 -- -D warnings`，通过50.85s；
+默认 `cargo check --locked --offline --workspace --all-targets -j 2` 通过37.01s。
+原依赖边检查仍为5成员/4允许边，未修改checker、未新增dev edge，Cargo.lock无变化。
+仅执行两个逐源核验的纯读Python exact：`CheckCiResultsTests.test_unit_migration_routes_and_exact_regressions_run_on_both_hosts` 与
+`CheckCiResultsTests.test_loan_observation_support_is_explicit_test_only_selection`，均通过。
+恢复脚本故障stub的精确新命令预期只作源码更新，不执行；CI完整测试命令亦未本地运行。
+fmt、docs880、diff与尺寸 `--base 1ef89349` 通过：2298手写Rust文件、36既有超千行。
+旧 `compilation_unit.rs` 仅+3行feature模块注册（1078行），`drop_planner.rs` 仅+4行净增长
+（1592行）接现有bool；算法与scope在独立模块，既有额度及拆分政策不变。
+
+唯一target、LLVM21.1.8、Rust1.96.0/macOS AArch64与默认debug2保持，四项环境覆盖仍未设置；
+全部Cargo串行。新增 `ci_only_observation_scope_restores_after_panic` 及前轮全部CI-only
+破损/Abort/压力/资源计数仅编译，不执行。未重跑旧478、native、sanitizer、正式双宿主CI。
+本片补齐上述Basic普通输入的真实off证据，不外推为常量capability off或所有形状覆盖，
+不迁Compatibility、不修改执行责任、不退休oracle、不关闭Spec/D10/E2，未push/PR/merge。
+
+独立只读复审精确 `242691c6` 无阻断，重算binary/选择hash与八条实际成功日志一致；
+默认三crate无feature、feature图debug2、11条serde_core前缀及0.25s均另行核实。
+两旧超千行文件的本轮有界注册/选择接线增长经独审认可，不修改1156/1669既有额度。
+最终仅补文档，不在文档头重复声称执行Rust；所有未运行边界保持如上。

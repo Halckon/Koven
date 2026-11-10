@@ -11,3 +11,6 @@ lang-frontend.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+loan-observation-test-support = ["lang-frontend/loan-observation-test-support"]

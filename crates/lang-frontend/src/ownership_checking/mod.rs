@@ -150,3 +150,9 @@ pub use ownership_primitive::{
     FieldReplaceOwnershipPlan, OwnershipPrimitiveOwnershipPlan, OwnershipPrimitiveValueTransfer,
     UnitFieldReplaceOwnershipPlan, UnitOwnershipPrimitiveOwnershipPlan,
 };
+
+#[cfg(feature = "loan-observation-test-support")]
+#[doc(hidden)]
+pub use compilation_unit::loan_observation_test_support::{
+    legacy_ownership_eq, with_loan_observation,
+};
