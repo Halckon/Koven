@@ -11053,3 +11053,57 @@ receipt或absence。计划保留N个独立临时身份，即使bytes相同也不
 样例，覆盖不同/相同bytes、非平凡命名置换、Int/Unit与双Unit真off；每项重新审
 source/helper。foreign、注入、Abort、counter、pressure、CI-only只编译。
 所有生产动作仍来自旧producer，不改语言/ABI/释放责任，不扩其它协议或退休oracle。
+
+#### 非零有限arity实施与验收账本
+
+基底233736f8，新隔离树/分支仅本片。768cb61f提交原样三literal route红：真实同轮
+Complete1九action、SSA/LLVM成功后，routed=[]不等于实际caller；新构建1m22s，
+单exact退出101、2898filtered。7e8fd5fd仅把完整typed/ownership门的非空arity放开，
+receipt暂保旧一/二域；23.46s新构建、同exact通过。1b60cf51另加receipt缺证红，
+13.12s新构建，先route及SSA/LLVM成功，再actual receipt0!=1退出101、2899filtered。
+dbd213c0最小生产绿，25.45s新构建、同receipt exact通过；没有把同一次红当两项能力。
+
+生产保原Vec计划和唯一Call，不新增协议或producer动作。私有instruction_count检查
+非零与checked5N+1，支配admission的3N、2N-1-i/3N-1-i，step的3N/4N/5N、
+emitter的3i+2及finish计数。有效step保证stage增量可表示；结构化内部错误不影响
+独立typed路由。FE既有checked3N认证及旧求值/End/Drop顺序未改。参数映射与所有
+source身份逐项核，未给任意人为arity上限，也未承诺大arity资源或线性复杂度。
+
+最终代码9b2e93da78cc2d9c37eb633b78f7d7d788cd20f7。普通oracle泛化为const N，旧N2
+源码保持，新固定N3 Int置换[1,2,0]和N4 Unit置换[1,3,0,2]各双Unit真off，共8次
+有限lower；不是无界矩阵。真实9/12action、16/21instruction、9/12entity、同bytes
+独立根、空字符串、callee独立loan和完整Call参数序均核。End/Drop分别按source逆序，
+不反转Call向量。off重新分析ownership且原off产品直接lower，比较旧facts才clone归一。
+原三literal负边界因已批准准入移出，零action/Boolean结果/带参caller边界保持。
+
+精确18唯一ordinary全通过，每项1pass/0fail/2902filtered；包括原单/双literal、
+命名映射、P2/P3/P4生命周期与同analysis owner B/Call/Return邻控。总76次有限
+SSA/LLVM lower不另累计tests，全部无native。新两项及既有九项P1 CI-only仅编译，
+foreign/fault/Abort/counter/pressure/强制路由未执行，普通观察器未激活故障注入。
+
+偏差如实保留：阶段一fmt --check指出临时guard换行，脚本未停而提交，后续rustfmt
+修正且最终fmt通过；测试helper泛化两次编译失败E0308、E0507分别涉及引用层级与
+误移动UnitLoanFact，原日志保留，最终保借用而非clone。独审发现新true-off测试
+缺feature gate的默认test图风险，添加该单项gate并通过默认codegen all-targets check。
+这些都不是能力红测。只读ps及一次摘要heredoc因sandbox权限失败，未改变进程或源码；
+进程检查经已授权escalated执行，摘要未绕过重试。runner末尾旧15文案执行前改为18。
+
+独占borrow target、LLVM21.1.8、默认opt0/debug2，无profile/RUSTFLAGS覆盖、无复制/
+清理target。最终feature no-run27.57s，实际本树test artifact仅loan-support feature；
+先新binary逐exact --list核名后运行。feature严格codegen all-targets Clippy36.15s、
+默认codegen all-targets check22.99s、fmt、docs884、尺寸2344手写Rust/35旧超限
+（base233736f8）、diff均exit0，不增加额度。默认CLI/workspace/release/正式CI未在本片
+重做，不沿用先前证明扩称；Constant off/native/资源证明与旧oracle退休不在范围。
+
+证据 `/private/tmp/koven-finite-p1-evidence`：final-manifest.json、final-selection.txt、
+final-exact.log、final-runner.log、原始Cargo JSON、2352源码/config hash及分阶段红绿/
+helper编译失败日志。冻结2352文件与9b2e93da一致，最终仅两docs追加，不改变源码。
+实际binary SHA256 `145175371bc0c83dd6941464779aa5760c4296cf7c97e78f58cefb4272195b35`；
+selection `477d9f22d3840642f15897423a7372b49e464f8d2eddcb2457054a9a89aec33a`；
+source清单 `9ed774290d9d7b560e785cec32c13a7bbda17e050b39e0462aa2bbb0dabee8c4`。
+临时产物不承诺永久保存，以固定代码头及精确测试源码为复现依据。
+
+精确9b2e93da独立只读终审无新增阻断：2352源码/config、实际binary/selection及
+原Cargo artifact/profile、18逐项结果和两阶段红绿、静态终态均匹配；审阅者未运行
+测试或编辑。终审后仅补两docs并复核docs/diff，本地提交清树；borrow target已释放，
+未push/PR/发布，不将固定3/4代表外推大arity资源或线性性能。
