@@ -5,6 +5,18 @@ impl Builder<'_, '_> {
         let id = UnitStatementId::new(self.inputs.source_unit, statement);
         if self.body.binding_plans.has_entry(id) {
             self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
             let block = self.current(self.inputs.span)?;
             self.body
                 .binding_plans
