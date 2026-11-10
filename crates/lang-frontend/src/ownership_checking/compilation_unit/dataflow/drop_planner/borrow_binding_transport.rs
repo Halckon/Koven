@@ -1,4 +1,5 @@
 //! Carry actual pending source tokens through explicit local borrow bindings.
+mod child;
 mod observation;
 use super::action_source::ActionHandle;
 use super::{DropPlanner, PlannerDropPoint, ValueState};
@@ -19,6 +20,7 @@ pub(super) struct PendingBindingTransport {
     handoff: Option<ActionHandle>,
     use_return: UseReturn,
     observable: bool,
+    child: child::ChildState,
 }
 
 #[derive(Clone, Debug)]
@@ -74,11 +76,16 @@ impl PendingBindingTransport {
                 self.use_return = UseReturn::Ambiguous;
             }
             self.observable &= other.observable;
+            self.child.reconcile(&other.child);
+            if self.source_begin.is_none() || self.handoff.is_none() {
+                self.child.lose();
+            }
         } else {
             self.source_begin = None;
             self.handoff = None;
             self.use_return = UseReturn::Ambiguous;
             self.observable = false;
+            self.child.lose();
         }
     }
 }
@@ -138,6 +145,7 @@ impl DropPlanner<'_, '_> {
                 handoff: None,
                 use_return: UseReturn::Unused,
                 observable,
+                child: child::ChildState::Never,
             });
     }
 

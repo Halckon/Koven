@@ -125,6 +125,13 @@ fn parent_child_requires_actual_partial_causal_links_with_true_off() {
             .iter()
             .find(|fact| fact.binding() == child_commit.binding())
             .unwrap();
+        assert!(child_fact.source_loan().is_none());
+        for owned in [&on, &off] {
+            let [transport] = owned.ownership().borrow_binding_transports() else {
+                panic!("only the parent owns an original source transport")
+            };
+            assert_eq!(transport.binding(), parent_commit.binding());
+        }
         assert_eq!(child_fact.parent(), Some(child_commit.parent()));
         assert_eq!(child_fact.initializer(), child_commit.initializer());
         assert_eq!(used.binding(), child_commit.binding());
@@ -240,5 +247,67 @@ fn verify_parent_child_ssa(program: &Program, entry: FunctionId, routes: &[Strin
             callee.entity(EntityId::Loan(*parameter)).unwrap().ty,
             caller.entity(EntityId::Loan(*source)).unwrap().ty
         );
+    }
+}
+
+#[test]
+fn parent_child_metadata_preserves_frontend_merge_and_true_off() {
+    let text = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(own flag: Boolean): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; if (flag) { consume(child) } else { consume(child) }; consume(child) }";
+    let mut sources = SourceMap::new();
+    let (source, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "parent-child-merge.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "parent-child-merge.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, on) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let off = with_loan_observation(false, || {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap()
+        });
+        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+        assert!(off.ownership().loan_action_observations().is_empty());
+        let [observation] = on.ownership().loan_action_observations() else {
+            panic!("one actual source catalog")
+        };
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+        assert!(observation.binding_regions().is_empty());
+        let retired = observation
+            .actions()
+            .iter()
+            .filter_map(|action| match action {
+                UnitLoanAction::BorrowBindingChildRetired(retired) => Some(retired),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [retired] = retired.as_slice() else {
+            panic!("one actual child retirement after merge")
+        };
+        assert!(
+            retired.use_return().is_none(),
+            "ambiguous branch uses cannot be replaced by the final use"
+        );
+        for owned in [&on, &off] {
+            let [transport] = owned.ownership().borrow_binding_transports() else {
+                panic!("one original parent source transport")
+            };
+            assert_eq!(transport.binding(), retired.parent());
+        }
+        let child = on
+            .ownership()
+            .borrow_results()
+            .bindings()
+            .iter()
+            .find(|binding| binding.binding() == retired.binding())
+            .unwrap();
+        assert_eq!(child.parent(), Some(retired.parent()));
+        assert!(child.source_loan().is_none());
+        // This fixed source proves frontend merge and observation isolation only.
+        // No lowering success or control-flow Complete coverage is claimed here.
     }
 }

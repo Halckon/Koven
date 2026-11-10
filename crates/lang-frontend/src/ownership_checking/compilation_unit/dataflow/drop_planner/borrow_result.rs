@@ -157,6 +157,7 @@ impl DropPlanner<'_, '_> {
                 point: point.into_unit(self.checker.source_unit),
             };
             let binding_end = self.iteration_actions.end_borrow_binding(fact);
+            self.retire_borrow_binding_child(binding, point, binding_end.clone(), state);
             let cause = transport.and_then(|(transaction, pending)| {
                 let retirement = pending.publish_retirement(
                     &mut self.iteration_actions,

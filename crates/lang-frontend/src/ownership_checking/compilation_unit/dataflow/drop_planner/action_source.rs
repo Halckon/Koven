@@ -1,4 +1,5 @@
 //! The cleanup projections and acquisition observation share one append-only source.
+pub(super) mod binding_child_links;
 mod binding_links;
 mod binding_regions;
 pub(super) use binding_regions::BindingDropCause;
@@ -42,6 +43,9 @@ enum Record {
     BorrowBindingEnd(BindingEnd),
     BorrowBindingUseReturned(binding_links::UseReturn),
     BorrowBindingSourceRetired(binding_links::SourceRetirement),
+    BorrowBindingChildCommitted(binding_child_links::Commit),
+    BorrowBindingChildUseReturned(binding_child_links::UseReturn),
+    BorrowBindingChildRetired(binding_child_links::Retirement),
     BorrowConsumerTransfer {
         source: UnitLoanFact,
         acquisition: Option<ActionHandle>,
@@ -301,6 +305,9 @@ impl ActionSource {
             | Record::BorrowBindingEnd(_)
             | Record::BorrowBindingUseReturned(_)
             | Record::BorrowBindingSourceRetired(_)
+            | Record::BorrowBindingChildCommitted(_)
+            | Record::BorrowBindingChildUseReturned(_)
+            | Record::BorrowBindingChildRetired(_)
             | Record::BorrowConsumerTransfer { .. }
             | Record::BorrowConsumerRetired { .. } => None,
         })
@@ -315,6 +322,8 @@ impl ActionSource {
         if !self.enabled {
             return Vec::new();
         }
+        let child_links =
+            binding_child_links::validate(&self.records, &self.identity, source, file);
         let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
@@ -358,6 +367,18 @@ impl ActionSource {
                         },
                     )
                 }
+                Record::BorrowBindingChildCommitted(fact) => fact.into_action(
+                    identity.clone(),
+                    child_links.get(&index).copied().unwrap_or_default(),
+                ),
+                Record::BorrowBindingChildUseReturned(fact) => fact.into_action(
+                    identity.clone(),
+                    child_links.get(&index).copied().unwrap_or_default(),
+                ),
+                Record::BorrowBindingChildRetired(fact) => fact.into_action(
+                    identity.clone(),
+                    child_links.get(&index).copied().unwrap_or_default(),
+                ),
                 Record::BorrowConsumerTransfer {
                     source,
                     consumer,

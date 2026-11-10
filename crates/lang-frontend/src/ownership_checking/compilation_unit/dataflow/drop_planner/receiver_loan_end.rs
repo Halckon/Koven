@@ -166,11 +166,17 @@ impl DropPlanner<'_, '_> {
                         .end_receiver(UnitReceiverCallReturnEndFact { receiver });
                 }
                 Action::EndCallLoan(loan) => {
-                    self.observe_binding_use_return(
+                    if let Some((loan, acquisition)) = self.finish_binding_child_use(
                         loan,
                         acquisition,
                         &mut state.borrow_binding_transports,
-                    );
+                    ) {
+                        self.observe_binding_use_return(
+                            loan,
+                            acquisition,
+                            &mut state.borrow_binding_transports,
+                        );
+                    }
                 }
                 _ => {}
             }

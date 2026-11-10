@@ -46,6 +46,7 @@ impl DropPlanner<'_, '_> {
                 self.commit_borrow_call_handoff(binding, continues, state);
                 if continues {
                     state.borrow_bindings.push(binding);
+                    self.commit_borrow_binding_child(binding, initializer, state);
                 }
             }
             if !continues {
