@@ -5110,3 +5110,23 @@ break、continue 或 `error("construction-stop")`。单文件及项目
 本机与托管基线的对照范围是结果矩阵，各自产物的原始记录单独
 验证。该次覆盖用于确认候选变化未改变语料分类。R5 的同一冻结
 候选、sanitizer 以及完整验收程序仍需单独收口。
+
+## 210. R1 扩大验收与 R4 本机 LLDB 断点复跑
+
+§207 的扩大前端检查完成。隔离 target 的 frontend lib 及
+75 个 Lexer、Parser、Source 集成目标共 967 项通过，零失败、
+忽略或过滤。用同一代码树构建公开 CLI，SHA-256 为
+`5f0c2586fed22f9b4b959b690645747c0626a30e27e14a0b175a1d79459f41b3`。
+单文件和项目分别验证六种错误输入。非法字符只报 L0001，
+保留字只报 L0002，真实缺分隔符和普通非法 token 各保留 L0034，
+跨行分组按序报告 L0001、L0010，嵌套下标各保留两个 L0001。
+两入口共 12 组退出 1，诊断序列与预期一致。
+
+#407 精确 head `2155d5f3` 的本机 codegen lib 在普通运行中
+通过 LLDB 行表定位，实际进程断点用例按权限默认忽略。单独执行
+同一个测试二进制的
+`llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame --exact --ignored`，
+1 项通过，零失败或忽略，2818 项过滤。断点命中并得到
+`app at debug.ko:4:5`。测试二进制 SHA-256 为
+`cc114a9a9b3666f77dcaf1f931b2e0a254384efc17c90c8480a01c77ab4cdaa2`。
+该证据覆盖本机真实调试器启动；托管 CI 的权限边界仍单列。
