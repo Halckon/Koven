@@ -92,10 +92,25 @@ SSA 结构断言确认原 P 分别进入 true/false 边、唯一 RootReplace 取
 root 与 false 的原 root 进入同一 exit 参数；body 只 Drop detached 旧值，尾句只 Drop
 选中参数，并独立通过 SSA verifier 与 LLVM verifier。调用源码存在不等于 native 已运行。
 
-这证明原样合法输入在现有后端的兼容性，不证明后端消费新 B 产品：当前 production
-codegen 没有调用 `replace_break_observation_v1()` 或 `suffix_consumer_v1()`；测试查询
-只核 Phase 3 产品存在，不替代真实下游接线。没有修改 production lowering、扩大首片
-合同、退休 Single oracle 或验证 runtime 释放次数。精确验收仍见 SPEC-0341。
+上述旧 oracle 继续独立保留，不能单独证明新 B 产品的生产消费。
+
+## 严格 B 的 Phase 4 单次消费
+
+`ssa/refine/build/owner_consumer.rs` 在发射前从当前 owned Unit 与 callable 选择封闭 B
+产品，按各自 catalog 的完整 opaque identity 将 P/Q 绑定到原 String producer。
+While 的 condition-false 与真实 Break 钩子按角色记录 CFG 端点；Take 前核两入边精确覆盖，
+不 zip 前驱顺序，不造 phi、owner definition 或 AST ownership 事实。
+
+Name Take 从计划选中槽交付，实际 Alias Bind 发前授权、发后记账；后缀 Drop 必须取得
+已完成 Take/Bind 的 receipt，且匹配唯一旧 cleanup index、point、target 与 binding slot。
+旧 `emit_drops` 仍是唯一物理发射器，成功发射后才消费 receipt；函数结束同时核新计划
+完整性与旧 `check_all_drops_consumed`。原 RootReplace/Inout 与 body detached P 清理不变。
+无可选 B 产品的合法输入仍用原路径，已选计划的任何失败不回退。
+
+实际 root/Take/Bind/Drop 顺序与物理 Drop receipt 有普通见证；原样 SSA/LLVM、双 Unit、
+同字面量、重分析身份、合法非候选及普通 native false/true 已在固定代码头验收。
+普通运行不证明释放计数；故障负控只编译，正式双宿主 CI、计数和 sanitizer 未运行。
+精确输入、命令和剩余范围见 SPEC-0341；不退休旧 oracle，不扩通用 phi/capture/Resource。
 
 ## 与 loan 动作源的组合边界
 

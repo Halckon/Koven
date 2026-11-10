@@ -8929,3 +8929,43 @@ ledger 对账。保留 `check_all_drops_consumed`，不为新产品全局跳过�
 原候选提交仅记录源码核实和接线建议，未运行 Cargo、Rust/native、计数或 CI；不重复上一节
 测试。文档提交的实际 docs/diff 检查与结果另在交付报告记录。原工作树与未提交改动保留，
 不推送、开 PR 或合并；SPEC-0341、D10/E2 继续 in-progress。
+
+### 严格 B Phase 4 本地接线验收（2026-11-10）
+
+用户批准本节限定的后端接线后，从组合冻结头
+`2c50c3a0acb9f79e33f9d7728fd82015c8b62a60` 保真实父链接入候选合同
+`3b0c08b46e9ad120e71bce7a80fbfaaef6ae96dd`；合并头 `b10eb7e9`，批准状态头
+`ef7dada4`。生产代码与最终测试固定于 `567d7af09a97c5deca88665348a20a3669cbc7aa`，
+红测头为 `5052a9b6`。未借入后续 loan 未完变更，未修改原脏树或 0400。
+
+私有 `OwnerPlan` 在发射前选择同 Unit/callable 的封闭 B consumer，用各自 catalog 的
+完整 owner 身份解析 P/Q producer；While/Break 按角色接实际 CFG 端点，Take 前核恰两入边。
+Name 从计划交付 selected slot，Bind 发前授权、Alias 发后记账；旧 Drop emitter 发前取得
+Take/Bind receipt，成功物理发射后才消费。receipt 核旧 cleanup index、target、bound slot，
+构造时精确核 point。函数完成同时核产品三动作和原 `check_all_drops_consumed`，不跳过旧账。
+原 Inout、RootReplace 和 detached P cleanup 保留，无第二个 Drop emitter、AST 造事实或失败回退。
+
+| 验收 | 精确选择与结果 |
+|---|---|
+| 真实能力红→绿 | `owner_replace_break_downstream_tests::bounded_replace_break_physical_drop_has_product_authorization` 在红测头 1 failed：旧 SSA 仍合法，但实际退休 Drop 缺 Take/Bind receipt；最终同 exact 通过，另核真实 root/Take/Bind/Drop 顺序及槽身份 |
+| 本片普通行为 | 同模块五个 `bounded_replace_break_*` exact 各一次，共 5 passed；包括保留的原样 SSA/LLVM oracle、上述 receipt、双 Unit×同字面量×重分析 8 case、合法 Group 条件非候选，以及双 Unit 普通 native false/true；无 ignore/零命中 |
+| 共享路径邻控 | `ssa::refine_tests::{nullable_int_while_reassignment_carries_loop_state,inout_scalar_parameters_replace_the_callers_binding}` 与 `native_tests::{dynamic_strings_cross_borrow_value_and_return_boundaries_with_exact_bytes,move_closure_drops_or_invokes_its_owned_string_capture_once}` 四个逐源/helper 审查的普通 exact，4 passed |
+| 负控 | `ci_only_bounded_replace_break_rejects_replayed_actions_and_corrupt_receipts` 的重复 Take/Bind/Drop、错 slot/index、漏旧 finish 六类只经 `cargo test --locked -p lang-codegen --lib --no-run` 编译；未执行，不计 passed |
+| 静态门禁 | `cargo clippy --locked -p lang-codegen --all-targets -- -D warnings`、`cargo check --locked --workspace --all-targets`、`cargo fmt --all -- --check` 通过 |
+| 文档和尺寸 | `python3 scripts/check_docs.py`：879 Markdown；`python3 scripts/check_rust_sizes.py --base 2c50c3a0acb9f79e33f9d7728fd82015c8b62a60`：2283 Rust，36 旧超长；`git diff --check` 通过。build.rs 993，expression.rs 保持 1003，未增加尺寸例外 |
+
+最终行为合计 9 个唯一普通 exact，逐源/helper 审查后只运行正常输入；未运行故障注入、
+计数、预期 Abort 或 stress 测试，不从测试名推定安全。
+Cargo 串行复用释放后的原 owner target；实际 test artifact profile 为 debug=2，未复制 target、
+降档或清理。组合基底的 453 项 frontend 普通行为未重跑，不能算作新头执行；本次没有 frontend
+生产或公开 API 改动。原样 B 下游 oracle 已在本次代码输入重验，不移用旧 SSA 绿灯。
+
+本地普通 native 只证明正常功能/输出，不证明无泄漏或释放次数。完整 codegen 行为、正式
+macOS/Linux 双宿主 CI、故障负控执行、runtime 计数与 sanitizer 尚未运行，继续由正式 CI 验收。
+不扩通用 phi/capture/Resource，不退休 Single/旧 oracle；SPEC-0341、D10/E2 保持 in-progress。
+未 push、开 PR 或合并 main。验收不把接线存在或普通成功等同于全部 owner 组合已完成。
+
+固定代码头已完成新上下文独立终审，无阻断：核真实 root/Take/Bind/Drop 序列、selected 与
+root 槽一致、按角色绑定 P/Q、唯一物理 Drop 及双账本、非测试构建不含故障注入路径。
+六类负控的编译不等于执行，也不声称已覆盖 foreign/missing/deferred 产品或错入边注入。
+这些更宽的产品破损组合与正式 CI 仍是未验边界，不因局部终审而关闭 D10/E2。
