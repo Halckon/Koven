@@ -42,5 +42,12 @@ native ABI 提议；SPEC-0211 的 Phase 3 事实运输不以其被接受为前�
 [0036 独占闭包捕获使用持久根槽](proposed/0036-exclusive-closure-capture-storage.md)
 拟为 SPEC-0392 增加经验证的独占槽身份、写回与清理规则。
 
+[0038 路径化 owner 运输](proposed/0038-path-qualified-owner-transport.md)、
+[0039 动态 capture 实例](proposed/0039-dynamic-capture-instance-provenance.md)与
+[0040 完整 loan 生命周期](proposed/0040-complete-loan-lifecycle-evidence.md)
+为 D10/E2 剩余工作的待审草案；没有接受或实施新协议。已有决定、在途复用、待决选项及
+非 ADR 工作见[决策盘点](d10-e2-decision-map.md)。0037 编号保留给已有本地 accepted 候选，
+未纳入本基线，不在此复制或重新接受。
+
 新决策使用 [TEMPLATE.md](TEMPLATE.md) 并先放入 `proposed/`。改变 accepted 决定时新增 ADR；完整被取代的旧记录
 进入 archive 并建立双向取代关系；局部扩展保留旧 ADR 的其他决定，只追加双向关系。
