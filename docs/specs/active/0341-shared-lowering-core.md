@@ -11224,3 +11224,14 @@ FE四正例、五合法邻控，Basic/Const各四种映射的SSA/LLVM及八次na
 默认debug2、LLVM21.1.8、独占owner target；日志保留于
 `/private/tmp/koven-owner-pair-call-evidence`。clippy/check、最终头独立审查及正式双宿主CI
 仍待记录，不认领D10/E2完成，也不push/PR。
+
+
+该片生产冻结11f418313cf6a30c71204661237620e839e0e541；c27c86fc仅将架构事实合入
+原段满足200行上限。两crate all-targets clippy -D warnings、workspace all-targets check、
+fmt及docs884通过。独立只读审查该生产头的四生产文件与新FE/backend完整测试，未发现
+阻断；不将该审查视为全部历史helper认证。最终manifest逐个选择FE2和CG5共7个exact，
+其中新增4exact与旧单参3exact分账；新增内部例数仍为FE4+5、SSA/LLVM8、native8。
+CI-only故障仅编译，未运行foreign、注入、Abort、计数、压力或强制route；正式双宿主CI、
+sanitizer及一般循环/多owner/loan合运仍未完成。Cargo JSON证实两个test artifact均
+opt0/debug2/test=true、features空；二进制SHA、源码hash、选择名单与失败摘要保留在上述
+证据目录，不复用旧大筛选集合。不推送，不改变main及借用隔离树。
