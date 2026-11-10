@@ -11210,3 +11210,32 @@ result_action_source测试依赖故障拒绝helper，本地只编译，不作为
 另建单一普通原样probe：真实FE→观察原action/旧facts→正常lower→SSA/LLVM，
 记录实际路由和操作；无force/修改facts/native/foreign/故障/资源计数。若原样不支持，
 先报告诊断，不自行扩大语言准入。后继认证/生产消费合同以该实证与真实发布点为前置。
+
+#### 单binding首片因果链接合同
+
+原样probe dd84209c实际成功：view与run走既有refine，consume复用binding结果loan，
+八SSA操作为literal/root/sourceBegin/BorrowCall/consume(result)/End(result)/End(source)/
+Drop(owner)。FE实际两Begin的canonical root均为owner，不能靠它选择binding；两P3
+region Unsupported已实跑观察。source整体Partial此前仅getter静态结论，后续普通测试
+明确断言。无需路由/语言准入增量，probe成功不代表完整认证或receipt。
+
+第一阶段新增Partial因果证据，保现BorrowHandoffCommitted/BindingEnd旧payload与全部
+旧public projections。BorrowBindingUseReturned记录普通consumer真实pending token正常
+移除，回指该consumer Begin、已成功commit的binding及source Begin；这是metadata使用
+结束，不结束仍live的binding/result SSA loan。BorrowBindingSourceRetired记录实际binding
+移除后的source退休transaction，回指source Begin、commit、唯一use-return与BindingEnd。
+句柄从实际pending token move携带，commit实际发布返回当前catalog句柄；consumer必须由
+原raw Name operand解析为live binding，而不是canonical owner或Span匹配。退休观察以
+共同事务保持BindingEnd(result)→source retirement，再由旧路径Drop，绝不增执行动作。
+
+公开引用仅经同catalog/先后/角色核验后可用，缺引用保None/Partial；不从相等旧描述
+补配。新增metadata不进入PendingBindingTransport语义Eq，原合流retain资格不变；不同
+句柄或use历史只降级证据，后续use不能把已丢历史重新升级。普通控制邻控仅验证旧表/
+SSA与on-off等价，不认证控制。首片仍单本地String根/单binding/普通consumer，不泛化
+parent/sibling/wrapper。完整跨两statement binding region及可选production receipt另以
+独立能力红推进，未闭合之前不发布Complete；不改变P3/P4 call-only范围或授absence。
+
+首阶段普通缺证红在真实on/off重分析、完整旧facts对照、双Unit SSA/LLVM及八操作
+身份通过后检查实际因果动作/同catalog引用；API stub无人发布应失败。后续真实发布点
+实现再跑同源绿。foreign/破损/Abort/计数/压力与CI-only仅编译，旧result_action_source
+及cross_source外来查询helper不执行。

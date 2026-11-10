@@ -35,6 +35,10 @@ pub enum UnitLoanAction {
             UnitDropPoint,
         >,
     ),
+    /// Actual return of a call using a live local borrow binding; not a binding end.
+    BorrowBindingUseReturned(super::UnitLoanBindingUseReturn),
+    /// Actual retirement of the source carried by a removed local borrow binding.
+    BorrowBindingSourceRetired(super::UnitLoanBindingSourceRetirement),
     /// Actual move of a source token into synchronous consumer transport; not an End.
     BorrowConsumerTransfer {
         /// The exact moved source token, not a reconstructed parent.

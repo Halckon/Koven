@@ -741,3 +741,7 @@ mod finite_literal;
 
 #[path = "binding_lifecycle_probe_tests.rs"]
 mod binding_lifecycle_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "binding_causal_links_tests.rs"]
+mod binding_causal_links;
