@@ -1,4 +1,4 @@
-//! Incremental actual planner actions. No complete lifecycle certificate is issued yet.
+//! Actual planner actions with separately scoped normal-edge region certificates.
 use super::{UnitDropPoint, UnitIterationCleanupAction, UnitLoanFact};
 use crate::name_resolution::SourceUnitId;
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 /// Coverage of the declared source observation, not a callable-completeness claim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitLoanActionCoverage {
-    /// Reserved for a separately validated closed region; this observer never issues it.
+    /// A separately validated declared region; never a whole-source certificate.
     Complete,
     /// Actual actions are present, but unregistered lifecycle families remain.
     Partial,
@@ -33,8 +33,8 @@ pub enum UnitLoanAction {
 /// This is not a dynamic loan/activation identity.
 #[derive(Clone, Debug)]
 pub struct UnitLoanActionId {
-    identity: Arc<()>,
-    index: usize,
+    pub(super) identity: Arc<()>,
+    pub(super) index: usize,
 }
 
 impl PartialEq for UnitLoanActionId {
@@ -54,9 +54,16 @@ pub struct UnitLoanActionObservation {
     pub(super) identity: Arc<()>,
     pub(super) source: SourceUnitId,
     pub(super) actions: Vec<UnitLoanAction>,
+    pub(super) regions: Vec<super::UnitDirectCallLoanRegion>,
 }
 
 impl UnitLoanActionObservation {
+    /// Entered ordinary-call regions. Missing entries do not prove absence.
+    #[must_use]
+    pub fn regions(&self) -> &[super::UnitDirectCallLoanRegion] {
+        &self.regions
+    }
+
     /// Identify a static record without accepting identities from another observation.
     #[must_use]
     pub fn action_id(&self, index: usize) -> Option<UnitLoanActionId> {

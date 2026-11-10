@@ -4,6 +4,9 @@ pub use drop_point::{
     UnitConditionalReceiverDropFact, UnitDropFact, UnitDropPoint, UnitDropTarget,
 };
 
+mod loan_region_validation;
+mod loan_regions;
+pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
 mod loan_actions;
 pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,

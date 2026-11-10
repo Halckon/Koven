@@ -11,6 +11,7 @@ mod control;
 mod iteration;
 mod lambda;
 mod loan_provenance;
+mod loan_region;
 mod map;
 mod model;
 mod nullable_comparison;
@@ -241,6 +242,7 @@ struct DropPlanner<'a, 'checker> {
     call_return_copy_source: Option<UnitSymbolId>,
     checker: &'a Checker<'checker>,
     loan_provenance: std::cell::OnceCell<loan_provenance::LoanProvenance>,
+    loan_region_callables: std::cell::OnceCell<BTreeMap<usize, crate::type_checking::UnitItemId>>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
     liveness: liveness::Liveness,
     facts: Vec<PlannerDropFact>,
@@ -283,6 +285,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             call_return_copy_source: None,
             checker,
             loan_provenance: std::cell::OnceCell::new(),
+            loan_region_callables: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),
             liveness,
             facts: Vec::new(),
@@ -878,6 +881,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Call {
                 callee, arguments, ..
             } => {
+                let loan_region = self.enter_loan_region(id, state);
                 let returns = !self
                     .checker
                     .is_nothing_expression(self.checker.unit_expression(id));
@@ -1122,6 +1126,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some((root, point)) = copied_drop {
                     self.drop_named_asap(point, root, state);
                 }
+                self.iteration_actions.complete_region(loan_region);
                 Ok(true)
             }
             Expression::Index { receiver, index } => {

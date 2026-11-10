@@ -207,3 +207,21 @@ fn later_operand_return_does_not_invent_suffix_acquisitions() {
         )));
     }
 }
+
+#[test]
+fn region_complete_normal_return_requires_actual_closed_actions() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    let observed =
+        observe("fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }");
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let [region] = observation.regions() else {
+            panic!("one entered call")
+        };
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert!(region.callable().is_some());
+        assert_eq!(region.action_ids().count(), 3);
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    }
+}
