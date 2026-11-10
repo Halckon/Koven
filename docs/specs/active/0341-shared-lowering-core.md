@@ -7575,3 +7575,52 @@ workspace all-targets check（40.48秒）、fmt、docs867、diff通过；相对 
 这仍是静态不变owner的来源与退出消费证据，不证明运行次数、终止性、动态实例、一般
 changing owner、header/exit phi、条件合流后缀或Phase4。SPEC-0341与D10/E2保持
 in-progress。仅本地分步提交，未推送、改现有PR、新开PR或合入main。
+
+
+## 178. 一跳具名输入进入真实条件循环边界（2026-11-10）
+
+以实际 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 新建隔离分支，快进复用
+§176 `19d597e81c433bbce6d32823702d95767034b0f1`。开始核192条远端分支、在途PR与
+本地候选，收尾再核 main/#390 仍为 `cc1e5b41`/`ca322bc5`；不存在重复能力。§170 WIP
+未读取复用或修改，其他线候选不纳入本轮组合；保留旧§176工作树与父链。
+
+本片把已证明的一跳 seed literal→Name move→held 输入接入既有九类末尾 If：
+NN→NormalJoin、CC→SplitContinue、CB/BC/BB→SplitExit、NC/CN/NB/BN→MixedJoin。
+生产只删除 loops.rs 的 alias＋Conditional 五行拒绝门及 invariant.rs 四行废弃 helper。
+五raw事件capture、唯一真实literal producer、完整held OwnedValue、17槽检查、真实分臂
+快照、正常merge后读取、双终端空merge、cleanup、suffix门与公开类型均未改变。
+
+四个条件类型依旧没有post_loop字段或getter；私有suffix_boundaries仍返回None。
+公开catalog与边界证明真实literal producer→held身份，不提供完整incoming move图或
+最终消费图。旧retired Drop仅用于清理兼容对照，不把它或静态边界当成条件后缀运输。
+
+原源码测试 `real_named_input_reaches_the_actual_normal_join` 先以缺少正常合流产物失败，
+红提交 `01dc6861db040c91f2df52d75fd1532c43d796ea`，最小改动后同名同源码转绿。
+实现/测试/架构提交 `e544586f76f28b9df11acb93ec659dde441c8dc5`，树
+`b063b732c47f620e7d8d368f3d2d871cd811b9ec`；本节为其后的纯文档追加。
+
+| 验收项 | 实际范围 |
+|---|---|
+| 真实分臂与合流 | 新3项lib普通测试为原红见证、`named_input_preserves_each_real_conditional_path`、`conditional_named_input_keeps_unsupported_states_and_atomic_failure`；360组矩阵为5条件对 ×2种Unit声明 ×4类body ×9完成组合。复用原四类完整oracle，精确目标getter唯一命中、AST/edge/每臂快照/实际join/backedge保持；双终端不制造共同body binding |
+| 身份与拒绝 | 24份合法否例、九组合跨文件和同源二次分析、3类整体失败清空；相同raw AST索引不能跨source/analysis解析token，输入/body catalog双向隔离，seed/held无Drop、retired唯一AfterStatement Drop；合法单源均完整比较观察开关前后的Analysis |
+| 公开入口 | `conditional_named_input_matches_both_public_routes` 的360正＋12负经MemoryDocument与双源Rooted，共744次分析、1116个source inputs（1080准入、36拒绝）。复用增强后的四类helper，新负例明确核全部六invariant getter为空，正例核四条件getter恰一命中 |
+| 旧源码保全 | §176私有与公开两处九If生成源码完整保留，精确转为对应能力。非作者逐字重建并比较旧九份a.ko/b.ko；第一源原字节进入分析，第二源只改函数声明。匹配原输入使用完整等值，不用If子串推断准入；旧helper主体与其它拒绝语义保全 |
+| 独立复验 | 非作者审生产/测试/架构，指出并修正公开负例/唯一性与旧源码改名问题后复审通过；核228条日志、选择、12目标来源和哈希，再在上述clean提交独立执行4项新普通测试通过，前后HEAD/tree/clean与12份二进制哈希不变 |
+
+最终逐完整名称 `--exact --nocapture` 执行228项不同普通测试：lib113、ownership_iteration28、
+multifile_ownership_checking5、ownership_closures2、ownership_borrow_continuation1、
+multifile_constant_qualification11、unit_direct_call_loan_ends4、while_flow_facts16、
+type_callable/inout_storage17、type_map19、type_checking/control_join_regressions3、
+control_branch_join9。原224全部保留，无重复，恰增3lib＋1公开；每项1 passed、
+0 failed/ignored/measured。中间红绿、补强复跑与独立4项不累加，测试总数仍为228。
+12目标先编译后执行；完整选择、逐项日志和二进制SHA256保留仓库外，不入Git。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8、默认debug=2、jobs=2、locked/offline，独占target
+串行。严格frontend all-targets Clippy（`-W clippy::all -D warnings`，28.27秒）、workspace
+all-targets check（45.76秒）、fmt、docs867、diff通过；相对 `19d597e8` 的Rust尺寸门禁
+通过，2314手写Rust、36项既有超长，未改豁免。架构页删除重复空行后保持200行上限，未删旧合同正文。
+
+旧损坏封印/Abort仅编译未执行，未运行完整frontend/codegen/workspace测试、native、
+Linux或正式CI。本片不证明changing owner、header/exit phi、动态实例、循环终止、
+条件后缀消费或Phase4；SPEC-0341与D10/E2仍in-progress。仅本地分步提交，未推送、
+改现有PR、新开PR或合入main；新合流仍须另行验证其精确组合。
