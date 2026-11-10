@@ -9841,3 +9841,50 @@ fmt、docs880、diff与尺寸 `--base 1ef89349` 通过：2298手写Rust文件、
 默认三crate无feature、feature图debug2、11条serde_core前缀及0.25s均另行核实。
 两旧超千行文件的本轮有界注册/选择接线增长经独审认可，不修改1156/1669既有额度。
 最终仅补文档，不在文档头重复声称执行Rust；所有未运行边界保持如上。
+
+### P4 receipt 联合账本与真实 observer-off 最终合批（2026-11-10）
+
+另建隔离分支`feature/spec-0341-p4-off-combination-20261110`，保父链合入冻结
+`2dc022e8d41cd45f6154de7bb2d2211881a32732`与
+`852c0e98b1db219e6468140be65174be99a9d593`，共同祖先1ef89349；原冻结树不动。
+唯一Spec尾部冲突保留两侧真实历史。实际合成代码头
+`4be8b6db135dbe126c2b7c13d272386dd5bc0aca`，树
+`584882edee87f36c1ea7d027dde0e295b8421c01`，没有额外生产修改。
+
+独立准入复核旧482与前段off八项名单去重，准确484：前端466默认图，后端18显式
+`loan-observation-test-support`图。仅新增真实off等价及正常嵌套/单新线程隔离两项，
+不存在panic或压力执行；panic恢复ci_only继续只编译。旧helper默认on，RAII恢复前态，
+真实off产品未清表直接lowering；只读比较helper只改独立clone。不得把feature隔离
+称为cfg(test)：显式all-features会启用hook。本轮另跑默认CLI并核frontend/codegen/
+kovenc三crate artifact.features=[]，不以CLI自身或旧代码头结果替代。
+
+串行复用原owner target、默认debug2、四项profile/RUSTFLAGS覆盖未设置，
+LLVM_SYS_211_PREFIX为`/opt/homebrew/opt/llvm@21`；不copy/clean/降档。
+后端no-run显式`--features loan-observation-test-support`，前端no-run不加feature；
+其余选项为`--locked --offline --message-format=json -vv -j 2`，原测试target不变。
+每组从本轮artifact取binary，exact list核名后exact运行并核完整成功集合/hash。
+外置证据为`/private/tmp/koven-p4-off-combined-evidence`；固定合成头与原482/八项
+并集界定可重建输入，不把前片或旧组合绿灯冒充最终合成。
+
+实际484普通全绿，0失败/忽略：feature后端18分两组10+8互斥（25.20s/29.85s，
+filtered2830/2832）；默认前端134 lib 1.09s、331 direct 0.36s、1 iteration 0.06s，
+filtered450/10/218。codegen no-run1m28s、frontend no-run48.12s。后端构建实际
+frontend/library与codegen/test features均精确为`["loan-observation-test-support"]`，
+默认前端三测试artifact均features=[]；全部debug2。新增两项确实列出且执行，不能
+用不启feature时的零命中过关。所有CI-only包括panic恢复守卫均只编译。
+两个已逐源核纯读Python exact（CI路由及显式测试feature选择）通过，未执行恢复故障stub
+或check_core全量行为命令。尺寸以a775568f为base通过，2298手写Rust/36旧超千行，
+无额度变更；旧注册/bool接线增长范围与前片相同。
+
+默认CLI实际新跑`cargo check --locked --offline -p lang-cli --message-format=json -vv -j 2`
+12.42s成功，frontend、codegen、kovenc三者features=[]、debug2/test=false。
+原始流含11条已逐行检查的`[serde_core 1.0.229] cargo:`文本，其余JSON的artifact及
+build-finished成功单独核实，没有重编或将解析处理当能力红测。独立复核484实际集合、
+四binary hash、默认/feature两图与HEAD/tree完全一致，无CI-only执行或Rust漂移。
+
+严格feature Clippy命令为`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --features lang-codegen/loan-observation-test-support --all-targets -j 2 -- -W clippy::all -D warnings`，通过42.97s；
+默认`cargo check --locked --offline --workspace --all-targets -j 2`通过35.28s。
+fmt、docs880、diff通过；依赖边及release命令未改变，未执行release构建或发布。
+最终仅追加本账本文档，无Rust再修改。原2dc022e8冻结树仍clean；未push/PR/合main。
+全部CI-only、正式双宿主CI、Linux、sanitizer、压力/资源计数仍未执行；off实证限此Basic
+rooted/memory输入，不外推为常量capability或所有shape覆盖，不退休旧oracle，不关闭Spec/D10/E2。
