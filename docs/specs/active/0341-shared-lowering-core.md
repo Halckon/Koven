@@ -5024,3 +5024,66 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+
+### 活动 provider 外部 Shared 来源的循环内转发（2026-11-10）
+
+从 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 独立推进 Phase 3 有界观察。
+实施前核已有五片 `c718d72e`、`67f3b97d`、`fd846873`、`812ba9b4`、`3364b51f`
+均独立保留，72条相关本地分支的 forwarded producer 仅两版，均仍使用整个 iteration
+非空即拒绝的门；#390/#391 的既有头未包含本片，不重放或改写在途成果。
+
+先行 Inout wrapper 候选被现有 P3 L0164 拒绝；已有
+`typed_inout_borrow_return_keeps_p3_unsupported_flow_diagnostic` 锁定此边界，不能靠
+放宽观察门制造已验证来源。该探针及编译/行为失败日志移至仓库外保留，探针工作树
+恢复原样，未提交失败正例，也未修改来源检查器或 Inout 准入。
+
+本片真实红测另证明 Shared 参数在无关 for 内已有两条合法 forwarded/source loan，
+但仅循环外一条发布 transport。将 blanket gate 收窄为当前活动 frame 的来源重叠检查：
+记录根等于参数来源根，或 frame 对应借用 binding 的已验证 canonical origin 为同根
+Place 时，仍排除。只读消费现有 origin lease，不递归 AST、不重推 alias、不要求
+origin.is_root()，故两层 alias、字段 alias 与调用结果 alias 同样保留排除。
+
+其他资格不变：ValueParameter、Shared binding、root place、无 receiver 的直接声明
+borrow call、真实 Shared token 及 call/argument/origin 精确匹配。只有实际正常 inner
+return 才把原 pending token 移到 forwarding state，wrapper 实际 Return 再交付。
+逐个检查全部活动 frame；已经退出的同根 provider 不污染后续仍位于无关外层 for 的
+交接，无关 alias 不被误拦。没有扩大循环内借用 binding、Inout、receiver、投影来源、
+动态 owner、语言语义或 native 能力。
+
+两个嵌套临时 provider 的 Return 固定核八步完整清理：内层 element/provider/source/
+临时值，再到外层同序；两份 exit plan 与 iteration_cleanup_at 的完整序列相同，
+没有被转发 token 的 EndCallLoan 或参数 payload Drop。provider source 清理与这里
+延续的参数 source 是不同 loan。source 求值中的 Return 不清尚未 Acquire 的 provider。
+此片不构造新 cleanup 动作；owner 观察开关的完整 Analysis 对照，不是旧版前后差分。
+
+| 验收项 | 本片实际选择 | 结果 |
+|---|---|---|
+| 新公开源码合同 | `loop_forward_source.rs`，8项 Rooted/Memory 双入口、1项跨文件 Rooted 正反序；完整固定身份向量 | 9项通过，计入下行，不另累加 |
+| 直接调用回归 | `unit_direct_call_loan_ends`，下列6项整项过滤 | 120 passed |
+| 私有共享邻控 | 新 owner 开关完整 Analysis 等价1项、`adjacent_borrow_results` 7项、Group-only lookup 1项 | 9 passed |
+| 原来源与借用邻控 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments`、`ownership_receiver_backedge`、`ownership_borrow_origins` | 14 + 13 + 4 + 5 passed；nested过滤1项 |
+| 既有 provider 清理见证 | `ownership_iteration` 中 `nested_return_plan_orders_each_scope_before_its_provider`、`when_source_return_does_not_clean_up_an_uncreated_provider` | 2 + 1 = 3 passed；首过滤器含 Single/Unit 各1项，原见证保留 |
+| 编译与静态质量 | frontend all-targets Clippy（`-W clippy::all -D warnings`）、workspace all-targets check | 通过；check仅证明下游编译 |
+| 提交门禁 | workspace fmt check、docs、diff、相对 `cc1e5b41` 尺寸检查 | 通过：863 Markdown、2243 Rust、36项既有超长，额度不变 |
+
+Mac arm64/Rust1.96、LLVM21、默认 debug、jobs=2、locked/offline、自有复用 target 串行。
+共168项不同普通测试通过，含10项新增，不重复累计单项与过滤器复跑。
+独审提出的 alias probe 实际抓到仅比较记录根的漏拦，补 canonical origin 排除后全部
+新增测试通过。原红测、alias 失败和绿测保留仓库外；新增 oracle 首次误用 private
+place 构造 API 的编译错误也保留，已改为只读原 root 比较，不伪造事实。
+
+direct-call 整项过滤 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、
+`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、
+`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、
+`abort_and_normal_return_do_not_invent_prefix_unwind_events`；nested 过滤
+`inout_receiver_and_nonreturning_sources_do_not_publish_call_uses`。原测试和 CI 选择不变。
+未运行 Abort、压力、故障注入、native、Linux、完整 frontend/workspace 测试或正式 CI。
+
+静态 Return site 的事实不保证运行时命中次数、循环终止或动态实例恰一次释放；source
+继续转发也不是 source end、caller 动态身份映射或全局 absence/统一顺序证明。旧 Single
+见证全部保留，独立代码与文档复审无未解决 P1/P2。新增文件749行，其余增长 Rust
+文件亦低于1000行，不提高尺寸额度。仅本地
+提交，不推送、新建 PR 或合并；SPEC-0341 与 D10/E2 仍 in-progress。

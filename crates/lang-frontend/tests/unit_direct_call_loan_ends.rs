@@ -896,3 +896,6 @@ mod receiver_prefix;
 
 #[path = "unit_direct_call_loan_ends/constructed_argument.rs"]
 mod constructed_argument;
+
+#[path = "unit_direct_call_loan_ends/loop_forward_source.rs"]
+mod loop_forward_source;

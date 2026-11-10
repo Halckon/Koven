@@ -216,3 +216,23 @@ fn terminal_if_observation_preserves_full_legacy_cleanup_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn unrelated_iteration_forwarding_preserves_complete_owner_analysis() {
+    for (source, count) in [
+        (
+            "fun view(source: String): borrow String from source = source\nfun wrap(input: String): borrow String from input { for (_ in listOf(1)) { for (_ in listOf(2)) { return view(input) } }; return view((input)) }",
+            2,
+        ),
+        (
+            "fun view(source: List<Int>): borrow List<Int> from source = source\nfun wrap(input: List<Int>): borrow List<Int> from input { borrow val alias = input; for (_ in alias) { return view(input) }; return view((input)) }",
+            1,
+        ),
+    ] {
+        let fixture = Fixture::new(&[("root.ko", source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        assert_eq!(owned.borrow_forward_transports().len(), count);
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}
