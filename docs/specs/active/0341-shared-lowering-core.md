@@ -10252,3 +10252,16 @@ Return由旧emitter唯一发射，P2/P4及B/Call账本独立。真off仅已测Ba
 不外推Const或Return所有形状；普通native不证明计数/泄漏义务。正式双宿主CI、
 sanitizer、资源计数/压力及全部CI-only仍待新头正式验证，不沿用#410旧头绿灯。
 本轮仅本地冻结，不push或更新#410，不合main，不关闭Spec/D10/E2或退休oracle。
+
+### P/Q 条件透明 Group 实施合同（2026-11-10）
+
+基于合流冻结`9de0bc94`，按用户继续并行本地开发的授权，补既有语言 Group 的透明运输，
+不改变语言、ABI或ADR架构。仅原唯一Boolean参数Name的纯Group链可作为ReplaceBreak
+条件；保留实际外层condition身份和真实false/Break边角色，原B/Call/Return唯一suffix、
+一次Replace及bare Break、P/Q catalog和旧唯一emitter不变。不扩Not、短路、调用、一般
+循环、多根、任意suffix或Resource策略。共享boolean_parameter同时支持Not，不能以
+直接删除Name门的方式扩大范围。
+
+状态in-progress：先以合法有限源码证明实际生产receipt缺失，再实现最小接线；覆盖
+Basic/Const、两边SSA/LLVM/native和旧能力邻控。CI-only仅编译，不本地执行；所有
+静态门禁、精确头独审及分步本地提交后交付，不推送、不触发远端CI、不改既有发布头。
