@@ -35,6 +35,9 @@ pub(super) fn record(plans: &Plans, function: &Function, receipts: &[Receipt]) {
 
 fn capture() -> Snapshot {
     let text = "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }";
+    capture_source(text)
+}
+fn capture_source(text: &str) -> Snapshot {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "ci-receipt.ko", text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
@@ -67,15 +70,15 @@ fn checked(
     rebind: bool,
 ) -> Result<Emitted, LoweringError> {
     let mut emitted = Emitted::new(&snapshot.plans, &snapshot.function, snapshot.span)?;
-    let plan = &snapshot.plans.entries[0].operands[0];
-    let mut current: BTreeMap<_, _> = [plan.owner, plan.place, plan.loan]
-        .into_iter()
+    let plan = &snapshot.plans.entries[0];
+    let mut current: BTreeMap<_, _> = plan
+        .slots()
         .map(Option::unwrap)
         .zip(snapshot.receipt.entities.iter().copied())
         .collect();
     for (role, id) in snapshot.receipt.instructions.iter().take(count).enumerate() {
         if rebind && role == 3 {
-            current.insert(plan.loan.unwrap(), snapshot.receipt.entities[0]);
+            current.insert(plan.operands[0].loan.unwrap(), snapshot.receipt.entities[0]);
         }
         let tag = Tag { plan: 0, role };
         emitted.statement(
@@ -186,4 +189,54 @@ fn ci_only_missing_or_changed_formation_is_rejected() {
     assert!(checked(&snapshot, 6, false, false).is_err());
     snapshot.plans.entries[0].operands[0].literal = Some(b"wrong source".to_vec());
     assert!(checked(&snapshot, 6, false, false).is_err());
+}
+
+#[test]
+fn ci_only_pair_rejects_swapped_arguments_or_reused_owner() {
+    let original = capture_source(
+        "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"same\", \"same\") }",
+    );
+    for swap_call in [false, true] {
+        let mut snapshot = original.clone();
+        let id = snapshot.receipt.instructions[if swap_call { 6 } else { 4 }];
+        let instruction = snapshot
+            .function
+            .instructions
+            .iter_mut()
+            .find(|i| i.id == id)
+            .unwrap();
+        if swap_call {
+            let Operation::DirectCall { arguments, .. } = &mut instruction.operation else {
+                panic!("actual call")
+            };
+            arguments.swap(0, 1);
+        } else {
+            let Operation::RootPlace { owner } = &mut instruction.operation else {
+                panic!("actual root")
+            };
+            let EntityId::Value(first) = snapshot.receipt.entities[0] else {
+                panic!("actual owner")
+            };
+            *owner = first;
+        }
+        assert!(checked(&snapshot, 11, false, false).is_err());
+    }
+}
+#[test]
+fn ci_only_pair_rejects_duplicate_drop_identity_and_wrong_retirement_order() {
+    let snapshot = capture_source(
+        "fun inspect(a: String, b: String): Unit {}\nfun run(): Unit { inspect(\"a\", \"b\") }",
+    );
+    let mut broken = snapshot.clone();
+    broken.receipt.instructions.swap(7, 8);
+    assert!(checked(&broken, 11, false, false).is_err());
+    let mut plans = snapshot.plans.clone();
+    let first = plans.entries[0].operands[0].drop_index;
+    let second = plans.entries[0].operands[1].drop_index;
+    plans.entries[0].stage = 9;
+    plans.entries[0].operands[1].drop_authorized = false;
+    let target = UnitDropTarget::Temporary(plans.entries[0].operands[1].fact.argument());
+    let slot = plans.entries[0].operands[1].owner.unwrap();
+    assert_ne!(first, second);
+    assert!(plans.drop_fact(first, target, slot, snapshot.span).is_err());
 }
