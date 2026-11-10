@@ -171,7 +171,7 @@ impl PendingBindingTransport {
         actions: &mut super::action_source::ActionSource,
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
-    ) {
+    ) -> Option<ActionHandle> {
         if self.observable {
             let use_return = match self.use_return {
                 UseReturn::Unique(handle) => Some(handle),
@@ -183,7 +183,9 @@ impl PendingBindingTransport {
                 self.handoff,
                 use_return,
                 binding_end,
-            );
+            )
+        } else {
+            None
         }
     }
 }

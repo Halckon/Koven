@@ -1,5 +1,7 @@
 //! The cleanup projections and acquisition observation share one append-only source.
 mod binding_links;
+mod binding_regions;
+pub(super) use binding_regions::BindingDropCause;
 mod consumer_links;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
@@ -26,6 +28,9 @@ pub(super) struct ActionSource {
     records: Vec<Record>,
     cleanups: usize,
     regions: Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Candidate>,
+    binding_regions:
+        Vec<crate::ownership_checking::compilation_unit::loan_binding_region_validation::Candidate>,
+    active_binding_region: Option<usize>,
     pub(super) enabled: bool,
 }
 
@@ -58,6 +63,8 @@ impl Default for ActionSource {
             records: Vec::new(),
             cleanups: 0,
             regions: Vec::new(),
+            binding_regions: Vec::new(),
+            active_binding_region: None,
             enabled: true,
         }
     }
@@ -80,8 +87,20 @@ impl ActionSource {
     }
 
     pub(super) fn push(&mut self, cleanup: (PlannerDropPoint, UnitIterationCleanupAction)) {
+        self.push_with_binding_drop(cleanup, None);
+    }
+
+    pub(super) fn push_with_binding_drop(
+        &mut self,
+        cleanup: (PlannerDropPoint, UnitIterationCleanupAction),
+        cause: Option<BindingDropCause>,
+    ) {
+        let handle = self.next_handle();
         self.records.push(Record::Cleanup(cleanup));
         self.cleanups += 1;
+        if let Some(cause) = cause {
+            self.record_binding_drop(cause, handle);
+        }
     }
 
     pub(super) fn begin(&mut self, loan: UnitLoanFact) -> Option<ActionHandle> {
@@ -181,8 +200,9 @@ impl ActionSource {
         handoff: Option<ActionHandle>,
         use_return: Option<ActionHandle>,
         binding_end: ActionHandle,
-    ) {
+    ) -> Option<ActionHandle> {
         if self.enabled {
+            let handle = self.next_handle();
             self.records.push(Record::BorrowBindingSourceRetired(
                 binding_links::SourceRetirement {
                     transaction,
@@ -192,6 +212,9 @@ impl ActionSource {
                     binding_end,
                 },
             ));
+            Some(handle)
+        } else {
+            None
         }
     }
 
@@ -367,12 +390,17 @@ impl ActionSource {
             .into_iter()
             .map(|region| region.finish(identity.clone(), &actions))
             .collect();
+        let binding_regions = self
+            .binding_regions
+            .into_iter()
+            .map(|region| region.finish(identity.clone(), &actions))
+            .collect();
         vec![crate::ownership_checking::UnitLoanActionObservation {
             identity,
             source,
             actions,
             regions,
-            binding_regions: Vec::new(),
+            binding_regions,
         }]
     }
 }

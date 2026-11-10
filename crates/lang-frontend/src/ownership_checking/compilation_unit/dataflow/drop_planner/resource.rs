@@ -84,8 +84,18 @@ impl DropPlanner<'_, '_> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
+        self.drop_named_asap_with_binding_drop(point, symbol, state, None);
+    }
+
+    pub(super) fn drop_named_asap_with_binding_drop(
+        &mut self,
+        point: PlannerDropPoint,
+        symbol: UnitSymbolId,
+        state: &mut ValueState,
+        cause: Option<super::action_source::BindingDropCause>,
+    ) {
         if self.is_asap_owner(symbol, state) {
-            self.drop_named(point, symbol, state);
+            self.drop_named_with_binding_drop(point, symbol, state, cause);
         }
     }
 

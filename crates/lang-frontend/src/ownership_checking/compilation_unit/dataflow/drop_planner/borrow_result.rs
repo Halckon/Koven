@@ -98,8 +98,9 @@ impl DropPlanner<'_, '_> {
         id: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        let continues = self.statement_inner(id, state)?;
-        if continues {
+        self.enter_binding_region(id, state);
+        let result = self.statement_inner(id, state);
+        if matches!(result, Ok(true)) {
             let point = PlannerDropPoint::AfterStatement(id);
             let selected = self
                 .checker
@@ -111,7 +112,8 @@ impl DropPlanner<'_, '_> {
                 .collect();
             self.end_selected_borrow_bindings(point, state, &selected);
         }
-        Ok(continues)
+        self.finish_binding_region_statement(id, matches!(result, Ok(true)), state);
+        result
     }
     pub(super) fn borrow_source_protected(&self, symbol: UnitSymbolId, state: &ValueState) -> bool {
         state.borrow_bindings.iter().chain(&state.pending_borrow_results).any(|binding| self.checker.borrow_results.bindings.iter().any(|fact| fact.binding == *binding && matches!(&fact.origin, crate::ownership_checking::UnitLoanTarget::Place(place) if place.root() == symbol)))
@@ -141,7 +143,8 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
         selected: &std::collections::BTreeSet<UnitSymbolId>,
     ) {
-        let mut roots = Vec::new();
+        let mut roots: Vec<(UnitSymbolId, Option<super::action_source::BindingDropCause>)> =
+            Vec::new();
         for index in (0..state.borrow_bindings.len()).rev() {
             let binding = state.borrow_bindings[index];
             if !selected.contains(&binding) {
@@ -154,9 +157,15 @@ impl DropPlanner<'_, '_> {
                 point: point.into_unit(self.checker.source_unit),
             };
             let binding_end = self.iteration_actions.end_borrow_binding(fact);
-            if let Some((transaction, pending)) = transport {
-                pending.publish_retirement(&mut self.iteration_actions, transaction, binding_end);
-            }
+            let cause = transport.and_then(|(transaction, pending)| {
+                let retirement = pending.publish_retirement(
+                    &mut self.iteration_actions,
+                    transaction,
+                    binding_end,
+                )?;
+                self.iteration_actions
+                    .binding_drop_cause(binding, retirement)
+            });
             if let Some(fact) = self
                 .checker
                 .borrow_results
@@ -164,12 +173,18 @@ impl DropPlanner<'_, '_> {
                 .iter()
                 .find(|fact| fact.binding == binding)
                 && let crate::ownership_checking::UnitLoanTarget::Place(place) = &fact.origin
-                && !roots.contains(&place.root())
             {
-                roots.push(place.root());
+                if let Some((_, existing)) =
+                    roots.iter_mut().find(|(root, _)| *root == place.root())
+                {
+                    // Preserve the old single cleanup attempt, but no binding wins ambiguity.
+                    *existing = None;
+                } else {
+                    roots.push((place.root(), cause));
+                }
             }
         }
-        for root in roots {
+        for (root, cause) in roots {
             let live = match point {
                 PlannerDropPoint::AfterStatement(id) => {
                     self.liveness.statement_after[id.index()].contains(&root)
@@ -177,7 +192,7 @@ impl DropPlanner<'_, '_> {
                 _ => true,
             };
             if !live {
-                self.drop_named_asap(point, root, state);
+                self.drop_named_asap_with_binding_drop(point, root, state, cause);
             }
         }
     }

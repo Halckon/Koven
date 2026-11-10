@@ -29,7 +29,7 @@ fn recorded(shared: &CompilationUnitOwnership) -> ActionSource {
         binding: transaction.binding(),
         point: transaction.point(),
     });
-    actions.retire_binding_source(
+    let _ = actions.retire_binding_source(
         transaction,
         source_begin,
         Some(handoff),

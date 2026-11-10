@@ -71,7 +71,7 @@ fn single_binding_requires_independent_complete_region() {
         );
         let actions = observation.actions();
         let [
-            UnitLoanAction::Begin(_),
+            UnitLoanAction::Begin(source_loan),
             UnitLoanAction::BorrowHandoffCommitted(commit),
             UnitLoanAction::Begin(_),
             UnitLoanAction::BorrowBindingUseReturned(used),
@@ -95,10 +95,119 @@ fn single_binding_requires_independent_complete_region() {
         assert!(observation.owns_binding_region(region));
         assert_eq!(region.binding(), end.binding());
         assert_eq!(
+            region.callable(),
+            lang_frontend::type_checking::UnitItemId::new(run.source_unit(), run.root())
+        );
+        assert_eq!(region.source_call(), source_loan.call());
+        assert_eq!(region.consumer_call(), used.loan().call());
+        let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) = source_loan.target()
+        else {
+            panic!("local owner root")
+        };
+        assert_eq!(region.root(), place.root());
+        assert_ne!(region.root(), region.binding());
+        let lang_frontend::parser::Item::Function {
+            form:
+                lang_frontend::parser::FunctionForm::Explicit {
+                    body: lang_frontend::parser::FunctionBody::Block(body),
+                    ..
+                },
+            ..
+        } = parsed.ast().items().get(run.root()).unwrap().payload()
+        else {
+            panic!("actual caller body")
+        };
+        let lang_frontend::parser::Statement::Block { elements } =
+            parsed.ast().statements().get(*body).unwrap().payload()
+        else {
+            panic!("actual root block")
+        };
+        assert_eq!(elements.len(), 3);
+        assert_eq!(
+            region.entry_statement(),
+            lang_frontend::type_checking::UnitStatementId::new(run.source_unit(), elements[1])
+        );
+        assert_eq!(
+            region.completion_statement(),
+            lang_frontend::type_checking::UnitStatementId::new(run.source_unit(), *body)
+        );
+        let lang_frontend::ownership_checking::UnitDropPoint::AfterStatement(retirement_point) =
+            retired.transaction().point()
+        else {
+            panic!("actual immediate statement retirement")
+        };
+        assert_eq!(
+            retirement_point,
+            lang_frontend::type_checking::UnitStatementId::new(run.source_unit(), elements[2])
+        );
+        assert_eq!(
             region.action_ids().collect::<Vec<_>>(),
             (0..actions.len())
                 .map(|i| observation.action_id(i).unwrap())
                 .collect::<Vec<_>>()
         );
+    }
+}
+
+#[test]
+fn extra_use_and_later_owner_read_do_not_gain_binding_completeness() {
+    for suffix in [
+        "consume(item); consume(item)",
+        "consume(item); consume(owner)",
+    ] {
+        let text = format!(
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run(): Unit {{ val owner = \"kept\"; borrow val item = view(owner); {suffix} }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "binding-boundary.ko", &text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "binding-boundary.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, on) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+            assert!(off.ownership().loan_action_observations().is_empty());
+            let [observation] = on.ownership().loan_action_observations() else {
+                panic!("one source catalog")
+            };
+            assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+            assert!(observation.binding_regions().is_empty());
+            let run = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap();
+            let mut outputs = Vec::new();
+            for owned in [&on, &off] {
+                let (program, _) = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    owned,
+                    run.id(),
+                )
+                .unwrap();
+                verify_program(&program).unwrap();
+                outputs.push((
+                    crate::ssa::render_program(&program),
+                    crate::llvm::render_verified_program(&program).unwrap(),
+                ));
+            }
+            assert_eq!(outputs[0], outputs[1]);
+        }
     }
 }

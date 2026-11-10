@@ -10,6 +10,7 @@ mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
+mod loan_binding_region;
 mod loan_consumer_region;
 mod loan_named_region;
 mod loan_provenance;
@@ -1257,6 +1258,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
+        self.drop_named_with_binding_drop(point, symbol, state, None);
+    }
+
+    fn drop_named_with_binding_drop(
+        &mut self,
+        point: PlannerDropPoint,
+        symbol: UnitSymbolId,
+        state: &mut ValueState,
+        cause: Option<action_source::BindingDropCause>,
+    ) {
         if self.call_return_copy_source == Some(symbol)
             || self.borrow_source_protected(symbol, state)
             || state.capture_borrow_protects(symbol)
@@ -1309,7 +1320,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         let closure = state.take_closure(symbol);
         if let Some(value) = state.remove_value(symbol) {
-            self.drop_owned_value(point, value, closure, state);
+            self.drop_owned_value_with_binding_drop(point, value, closure, state, cause);
         }
     }
 
@@ -1319,6 +1330,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         value: OwnedValue,
         closure: Option<ExpressionId>,
         state: &mut ValueState,
+    ) {
+        self.drop_owned_value_with_binding_drop(point, value, closure, state, None);
+    }
+
+    fn drop_owned_value_with_binding_drop(
+        &mut self,
+        point: PlannerDropPoint,
+        value: OwnedValue,
+        closure: Option<ExpressionId>,
+        state: &mut ValueState,
+        cause: Option<action_source::BindingDropCause>,
     ) {
         let mut shared_sources = Vec::new();
         if let Some(closure) = closure {
@@ -1356,11 +1378,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 owner: owner.clone(),
             });
         }
-        self.push_fact(PlannerDropFact::new(
-            point,
-            PlannerDropTarget::Named(value.symbol),
-            value.origin,
-        ));
+        let cause = cause.and_then(|cause| {
+            self.iteration_actions
+                .verify_removed_binding_owner(cause, &value)
+        });
+        self.push_fact_with_binding_drop(
+            PlannerDropFact::new(point, PlannerDropTarget::Named(value.symbol), value.origin),
+            cause,
+        );
         self.drop_replace_consumer(point, &value, state);
         for source in shared_sources {
             // Match-edge liveness excludes reads in the selected entry body.
@@ -1526,7 +1551,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn push_fact(&mut self, mut fact: PlannerDropFact) {
+    fn push_fact(&mut self, fact: PlannerDropFact) {
+        self.push_fact_with_binding_drop(fact, None);
+    }
+
+    fn push_fact_with_binding_drop(
+        &mut self,
+        mut fact: PlannerDropFact,
+        cause: Option<action_source::BindingDropCause>,
+    ) {
         // Normalize once before both the flat drop product and ordered cleanup consume it.
         if let crate::ownership_checking::UnitDropTarget::Temporary(expression) =
             fact.into_unit(self.checker.source_unit).target()
@@ -1542,12 +1575,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
-            self.iteration_actions.push((
-                fact.point(),
-                crate::ownership_checking::UnitIterationCleanupAction::Drop(
-                    fact.into_unit(self.checker.source_unit),
+            self.iteration_actions.push_with_binding_drop(
+                (
+                    fact.point(),
+                    crate::ownership_checking::UnitIterationCleanupAction::Drop(
+                        fact.into_unit(self.checker.source_unit),
+                    ),
                 ),
-            ));
+                cause,
+            );
         }
     }
 
