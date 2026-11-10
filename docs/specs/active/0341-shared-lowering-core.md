@@ -8698,3 +8698,44 @@ pending旧动作/loop深度与合流资格不变。相同前缀clone保留句柄
 同步consumer的真实token生命周期，不认领wrapper、动态唯一消费、parent权限恢复、
 全CFG或整个source/callable Complete。仍Partial，错误/deferred全局撤销边界不变。
 先能力红测，再普通exact/独审；既有7项CI-only和十旧项排除，默认debug2与原target串行。
+
+### Loan acquisition句柄实证（2026-11-10，已实现Partial）
+
+范围`d351b9cc`、红测`38a5bd17`、实现`0e7b5c41`。新普通测试
+`consumer_action_link::consumer_acquisitions_reference_actual_registered_begin_records`
+实际红测0 passed/1 failed/336 filtered，真实缺口为退休token没有acquisition引用；
+最小接线后同项green。source Begin→transfer→consumer Begin→retirement引用来自实际
+pending token携带的同catalog句柄，独立验证不按最终facts搜索补回。新增引用失效不抹掉
+原transfer/transaction，不新增执行Cleanup，不改变旧projection、observer-off或语言准入。
+
+最终精确输入通过327 direct＋15 lib＝342项，不与前片341、单项green或中间342重复累计。
+沿用前片326普通direct和15普通lib白名单，仅加上述一项；全部源码/helper逐项审查，
+Group、命名同根兄弟、clone/reanalysis与跨文件helper改用公开acquisition引用并核顺序。
+原完整on/off、raw/public全局撤销及旧固定身份oracle继续通过。direct为327 passed/
+0 failed/10 filtered，lib为15 passed/0 failed/556 filtered；exact list及实际成功集合
+均与白名单逐项一致，未执行十旧排除、四旧iteration Abort或其他CI-only集合。
+
+新增两项CI-only负控仅编译：pending合流核同前缀clone、异record/catalog、None、缺项、
+depth变化、重复语义候选及三路先清后遇匹配不恢复；acquisition负控核正常及9种失配，
+同时保留旧transfer/transaction。累计9项本线CI-only不认领执行通过。重复语义候选clone
+也保守清观察，故“clone保留”仅指无歧义前缀；旧末状态pending资格/顺序不变。
+
+补强build2曾因测试helper把retirement写成retired而编译失败，已修；build4普通342绿后，
+Clippy要求等价简化validator的否定布尔表达式。修正后最终build5重新精确执行全部342，
+不是拿旧binary顶替。build1 no-run43.56s、最终build5 no-run5.08s；不计作多份通过数量。
+实际构建仍为前片locked/offline frontend direct＋lib no-run JSON/vv/-j2命令，使用
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`且串行，不复制/clean/降档。
+实际两个artifact profile.debuginfo=2、rustc `-C debuginfo=2`；四个DEV/TEST_DEBUG及
+RUSTFLAGS/CARGO_ENCODED_RUSTFLAGS覆盖均未设置。Clippy/check另设
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，前片同命令严格Clippy22.05s、workspace
+all-targets check31.88s通过。fmt、docs877、尺寸2275 Rust/36旧超限及diff通过，未增加额度。
+独立只读复审无生产阻断，其三路负控顺序建议已采纳；不认领未运行的人工负控结果。
+
+最终direct binary SHA256：`7a71fa12b26f204eb7488a14959651123aeaad388b301fad4d82191daca0a8ef`，
+lib：`f3b13914c8f8fc47f86caed8abf8d8ff06ce468d26ffc148c8579b9fed188129`。
+327名单：`11cf1e86f37cc69644334a646ee5b9f4d14f8900233b3634cf3ab806d882b1d7`，
+15名单沿前片`399c6364bcc2cb59cf6456ab7362af1c2e2c9d20203f604c97b34cfc55636fd3`。
+原始日志、名单及逐项核对脚本留仓库外，前片全部失败/配置/选择偏差记录仍保留。
+本片没有增加Complete协议，不证明wrapper/动态唯一消费/parent权限恢复或整个source/
+callable；不接ownerPhase4、不认领固定owner组合验收，不跑正式CI/SSA/LLVM行为，
+不关闭Spec/D10/E2，未推送、PR或合并。
