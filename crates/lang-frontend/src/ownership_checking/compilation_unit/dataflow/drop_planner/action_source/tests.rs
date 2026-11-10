@@ -74,13 +74,77 @@ fn ci_only_duplicate_binding_records_preserve_identity_and_legacy_deduplication(
         assert_eq!(source.borrow_binding_ends(), [end]);
         assert_eq!(source.len(), 0);
         assert_eq!(source.iter().count(), 0);
-        let observations = source.finish(end.binding().source_unit());
+        let observations =
+            source.finish(end.binding().source_unit(), fixture.parsed[1].source_id());
         if enabled {
             let observation = &observations[0];
             assert_eq!(observation.actions().len(), 2);
             assert_ne!(observation.action_id(0), observation.action_id(1));
         } else {
             assert!(observations.is_empty());
+        }
+    }
+}
+
+#[test]
+fn consumer_dependency_cross_source_keeps_external_parameter_spans() {
+    let fixture = Fixture::new(&[
+        (
+            "a.ko",
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}",
+        ),
+        (
+            "b.ko",
+            "fun run(): Unit { val owner = \"kept\"; consume(view(owner)) }",
+        ),
+    ]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    let observation = shared
+        .loan_action_observations()
+        .iter()
+        .find(|entry| {
+            entry
+                .actions()
+                .iter()
+                .any(|action| matches!(action, UnitLoanAction::BorrowConsumerRetired(_)))
+        })
+        .unwrap();
+    let other = shared
+        .loan_action_observations()
+        .iter()
+        .find(|entry| entry.source() != observation.source())
+        .unwrap();
+    for action in observation.actions() {
+        if let UnitLoanAction::BorrowConsumerRetired(retired) = action {
+            let handle = retired.transfer().unwrap();
+            assert!(observation.action(&handle).is_some());
+            assert!(other.action(&handle).is_none());
+            for (id, loan) in [
+                (
+                    retired.consumer_begin().unwrap(),
+                    &retired.transaction().ended_loans()[0],
+                ),
+                (
+                    retired.source_begin().unwrap(),
+                    &retired.transaction().ended_loans()[1],
+                ),
+            ] {
+                assert_eq!(
+                    observation.action(&id),
+                    Some(&UnitLoanAction::Begin((*loan).clone()))
+                );
+                assert!(other.action(&id).is_none());
+            }
+
+            for loan in retired.transaction().ended_loans() {
+                assert_eq!(loan.call().source_unit(), observation.source());
+                assert_eq!(loan.begin_span().source_id(), fixture.parsed[1].source_id());
+                assert_ne!(
+                    loan.parameter_span().unwrap().source_id(),
+                    loan.begin_span().source_id()
+                );
+            }
         }
     }
 }

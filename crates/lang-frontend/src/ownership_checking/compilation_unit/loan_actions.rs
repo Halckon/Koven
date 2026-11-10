@@ -35,6 +35,17 @@ pub enum UnitLoanAction {
             UnitDropPoint,
         >,
     ),
+    /// Actual move of a source token into synchronous consumer transport; not an End.
+    BorrowConsumerTransfer {
+        /// The exact moved source token, not a reconstructed parent.
+        source: UnitLoanFact,
+        /// The selected synchronous consumer.
+        consumer: crate::type_checking::UnitExpressionId,
+        /// Its argument receiving the borrowed result, including transparent Group syntax.
+        argument: crate::type_checking::UnitExpressionId,
+    },
+    /// Actual consumer/source retirement with a separately verified transfer reference.
+    BorrowConsumerRetired(UnitLoanConsumerRetirement),
     /// An action from the single existing cleanup source, without sorting old tables.
     Cleanup {
         /// Source-qualified cleanup point; separate records are never coalesced by span.
@@ -133,5 +144,48 @@ impl super::CompilationUnitOwnership {
     #[must_use]
     pub fn loan_action_observations(&self) -> &[UnitLoanActionObservation] {
         &self.loan_action_observations
+    }
+}
+
+/// Partial evidence of actual synchronous retirement; not a complete lifecycle certificate.
+/// Equality compares structural snapshots. The exposed transfer ID remains catalog-bound.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoanConsumerRetirement {
+    pub(super) identity: Arc<()>,
+    pub(super) transfer: Option<usize>,
+    pub(super) source_begin: Option<usize>,
+    pub(super) consumer_begin: Option<usize>,
+    pub(super) transaction: super::UnitBorrowCallTransportFact,
+}
+impl UnitLoanConsumerRetirement {
+    /// Validated actual source acquisition; None is incomplete evidence, not absence.
+    #[must_use]
+    pub fn source_begin(&self) -> Option<UnitLoanActionId> {
+        self.source_begin.map(|index| UnitLoanActionId {
+            identity: self.identity.clone(),
+            index,
+        })
+    }
+    /// Validated actual consumer acquisition from the retired pending token.
+    #[must_use]
+    pub fn consumer_begin(&self) -> Option<UnitLoanActionId> {
+        self.consumer_begin.map(|index| UnitLoanActionId {
+            identity: self.identity.clone(),
+            index,
+        })
+    }
+    /// Validated reference to the actual earlier transfer record, when identity is proved.
+    /// None means the observation did not prove this edge, never absence of an obligation.
+    #[must_use]
+    pub fn transfer(&self) -> Option<UnitLoanActionId> {
+        self.transfer.map(|index| UnitLoanActionId {
+            identity: self.identity.clone(),
+            index,
+        })
+    }
+    /// The existing real consumer-then-source retirement transaction.
+    #[must_use]
+    pub const fn transaction(&self) -> &super::UnitBorrowCallTransportFact {
+        &self.transaction
     }
 }

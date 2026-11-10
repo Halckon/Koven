@@ -8,11 +8,37 @@ use crate::{
     type_checking::{CallableResultSource, UnitCallTarget, UnitExpressionId},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(super) struct PendingTransport {
     consumer: UnitExpressionId,
     argument: UnitExpressionId,
     source: UnitLoanFact,
+    transfer: Option<super::action_source::ActionHandle>,
+}
+
+// Observation metadata must never change the old semantic branch-merge equivalence.
+impl PartialEq for PendingTransport {
+    fn eq(&self, other: &Self) -> bool {
+        self.consumer == other.consumer
+            && self.argument == other.argument
+            && self.source == other.source
+    }
+}
+impl Eq for PendingTransport {}
+impl PendingTransport {
+    pub(super) fn reconcile_transfer(&mut self, alternatives: &[Self]) {
+        for other in alternatives.iter().filter(|other| *other == self) {
+            let same = self
+                .transfer
+                .as_ref()
+                .zip(other.transfer.as_ref())
+                .is_some_and(|(left, right)| left.same_record(right));
+            if !same {
+                self.transfer = None;
+                break;
+            }
+        }
+    }
 }
 
 impl DropPlanner<'_, '_> {
@@ -55,23 +81,37 @@ impl DropPlanner<'_, '_> {
                 continue;
             }
             let source = use_fact.source_loan();
-            let Some(index) = state.pending_loans.iter().position(|(action, _)| {
-                matches!(action, Action::EndCallLoan(loan)
+            let Some(index) =
+                state
+                    .pending_loans
+                    .iter()
+                    .position(|super::model::PendingLoan(action, _, _)| {
+                        matches!(action, Action::EndCallLoan(loan)
                     if loan.call() == source.call()
                     && loan.argument() == source.argument()
                     && loan.target() == use_fact.origin()
                     && self.observes_borrow_auxiliary(loan, state))
-            }) else {
+                    })
+            else {
                 continue;
             };
             // This is the exact token that the call-local retain would otherwise discard.
             // Move it, rather than copying a checker descriptor into a claimed end event.
-            let (Action::EndCallLoan(source), _) = state.pending_loans.remove(index) else {
+            let super::model::PendingLoan(Action::EndCallLoan(source), _, acquisition) =
+                state.pending_loans.remove(index)
+            else {
                 unreachable!("matched actual source token")
             };
+            let transfer = self.iteration_actions.transfer_consumer(
+                &source,
+                use_fact.call(),
+                use_fact.argument(),
+                acquisition,
+            );
             state.borrow_call_transports.push(PendingTransport {
                 consumer: use_fact.call(),
                 argument: use_fact.argument(),
+                transfer: Some(transfer),
                 source,
             });
         }
@@ -99,15 +139,24 @@ impl DropPlanner<'_, '_> {
             }) else {
                 continue;
             };
-            let (Action::EndCallLoan(consumer), _) = state.pending_loans.remove(index) else {
+            let super::model::PendingLoan(Action::EndCallLoan(consumer), _, acquisition) =
+                state.pending_loans.remove(index)
+            else {
                 unreachable!("matched actual consumer token")
             };
-            let PendingTransport { source, .. } =
-                state.borrow_call_transports.remove(transport_index);
+            let PendingTransport {
+                source, transfer, ..
+            } = state.borrow_call_transports.remove(transport_index);
             // The consumer retires first, then releases its transported ancestor.
             // This side product does not add iteration/native cleanup actions.
-            self.borrow_call_transports
-                .push(UnitBorrowCallTransportFact { source, consumer });
+            self.iteration_actions.retire_consumer(
+                transfer,
+                UnitBorrowCallTransportFact { source, consumer },
+                acquisition,
+            );
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

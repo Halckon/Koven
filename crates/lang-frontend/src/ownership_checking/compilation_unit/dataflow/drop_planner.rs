@@ -178,6 +178,7 @@ fn plan_with_observations(
     let receiver_call_return_ends = planner.iteration_actions.receiver_return_ends();
     let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
     let borrow_ends = planner.iteration_actions.borrow_binding_ends();
+    let borrow_call_transports = planner.iteration_actions.consumer_transports();
     let drops = planner
         .facts
         .into_iter()
@@ -190,12 +191,14 @@ fn plan_with_observations(
         .collect();
     Ok(Analysis {
         owner_observations: planner.owner_observations,
-        loan_action_observations: planner.iteration_actions.finish(checker.source_unit),
+        loan_action_observations: planner
+            .iteration_actions
+            .finish(checker.source_unit, checker.parsed.source_id()),
         direct_call_loan_ends,
         string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
         borrow_call_handoffs,
-        borrow_call_transports: planner.borrow_call_transports,
+        borrow_call_transports,
         borrow_binding_transports: planner.borrow_binding_transports,
         borrow_forward_transports: planner.borrow_forward_transports,
         exclusive_call_prefix_ends,
@@ -231,7 +234,6 @@ struct DropPlanner<'a, 'checker> {
         bool,
     )>,
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
-    borrow_call_transports: Vec<crate::ownership_checking::UnitBorrowCallTransportFact>,
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
@@ -273,7 +275,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
             iteration_actions: action_source::ActionSource::default(),
-            borrow_call_transports: Vec::new(),
             borrow_binding_transports: Vec::new(),
             borrow_forward_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),

@@ -10,6 +10,7 @@ pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
 mod loan_actions;
 pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+    UnitLoanConsumerRetirement,
 };
 
 mod loan;

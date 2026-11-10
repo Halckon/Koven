@@ -959,3 +959,6 @@ mod named_action_region;
 
 #[path = "unit_direct_call_loan_ends/result_action_source.rs"]
 mod result_action_source;
+
+#[path = "unit_direct_call_loan_ends/consumer_action_link.rs"]
+mod consumer_action_link;

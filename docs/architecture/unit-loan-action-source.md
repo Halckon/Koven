@@ -88,3 +88,29 @@ binding提交时刻。真实辅助临时Drop可以先于该commit；本观察不
 身份。callee返回来源、完整parent权限依赖、一般result/consumer/wrapper/provider/capture
 及辅助退休顺序尚未认证；source/callable不会因新表非空成为Complete。现有protocol1/2/3
 仍核完整区间；错误/deferred继续在raw和公开边界撤销新观察与旧投影。
+
+## 同步consumer实际依赖边
+
+`BorrowConsumerTransfer`在真实source pending移入PendingTransport时记录；不透明句柄随
+transport保留，`BorrowConsumerRetired`在正常完成且真实source/consumer token退休处
+引用它。旧borrow_call_transports是退休记录的同源保序投影，observer off仍保留该源，
+两类新记录不进入旧iteration Cleanup计数或执行流。
+
+独立validator核同catalog、先前transfer、完整source token、consumer call/argument、
+Shared与root，以及实际caller的SourceUnitId和SourceId；callee parameter_span允许跨源。
+失配仅使公开依赖引用为None，不删真实退休或旧投影。快照结构Eq不含不透明身份语义，
+getter返回catalog-bound ActionId，clone可解析而重分析不可。
+
+句柄不参与原PendingTransport语义Eq；同前缀clone保留句柄，语义相同但句柄不同或缺失的
+合流保留原transport资格并清空观察引用，不任选分支。实际later Return输入仍被既有
+L0164拒绝并全局撤销，没有借此开放语言准入或补造End。只补Partial关系证据，不认证
+完整acquisition依赖、wrapper/unwind、动态唯一消费、权限恢复或source/callable Complete。
+
+
+同一catalog的Begin现在返回ActionHandle，随实际pending token进入transfer与retirement，
+不扫描事实表补来源。独立acquisition验证只沿既有合法transfer引用核source Begin < transfer
+< consumer Begin < retirement、Begin类型与完整token，公开两个catalog-bound引用；缺失或
+失配只撤这两个引用，原transfer与transaction仍保留。PendingLoan的Eq只比较旧action/depth，
+合流仍保留原末状态pending，只对输入中缺项、不同深度、缺失/不同句柄或重复语义候选清空
+观察元数据；无歧义clone保留，不回填缺失引用。receiver句柄本片为None，observer off不增
+Begin。本证据仍Partial，不证明动态唯一消费、wrapper或权限恢复。
