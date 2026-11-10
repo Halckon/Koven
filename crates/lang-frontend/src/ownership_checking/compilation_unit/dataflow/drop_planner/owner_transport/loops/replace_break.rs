@@ -113,9 +113,7 @@ impl ReplaceBreakInput {
             return None;
         };
         // Keep the actual outer Group/Not condition; true-body and false-exit roles do not swap.
-        if conditional::boolean_parameter(checker, *condition, parameters).is_none() {
-            return None;
-        }
+        conditional::boolean_parameter(checker, *condition, parameters)?;
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
