@@ -1,4 +1,5 @@
 //! The cleanup projections and acquisition observation share one append-only source.
+mod binding_links;
 mod consumer_links;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
@@ -34,6 +35,8 @@ enum Record {
     ReceiverEnd(crate::ownership_checking::UnitReceiverCallReturnEndFact),
     BorrowHandoffCommitted(UnitBorrowCallHandoffFact),
     BorrowBindingEnd(BindingEnd),
+    BorrowBindingUseReturned(binding_links::UseReturn),
+    BorrowBindingSourceRetired(binding_links::SourceRetirement),
     BorrowConsumerTransfer {
         source: UnitLoanFact,
         acquisition: Option<ActionHandle>,
@@ -124,14 +127,72 @@ impl ActionSource {
             .collect()
     }
 
-    pub(super) fn commit_borrow_handoff(&mut self, fact: UnitBorrowCallHandoffFact) {
+    pub(super) fn commit_borrow_handoff(
+        &mut self,
+        fact: UnitBorrowCallHandoffFact,
+    ) -> ActionHandle {
         // Even observer-off retains the source used by the old public projection.
+        let handle = self.next_handle();
         self.records.push(Record::BorrowHandoffCommitted(fact));
+        handle
     }
 
-    pub(super) fn end_borrow_binding(&mut self, fact: BindingEnd) {
+    pub(super) fn end_borrow_binding(&mut self, fact: BindingEnd) -> ActionHandle {
         // Each actual retirement has its own record. Only the old projection deduplicates.
+        let handle = self.next_handle();
         self.records.push(Record::BorrowBindingEnd(fact));
+        handle
+    }
+
+    fn next_handle(&self) -> ActionHandle {
+        ActionHandle {
+            identity: self.identity.clone(),
+            index: self.records.len(),
+        }
+    }
+
+    pub(super) fn return_binding_use(
+        &mut self,
+        binding: UnitSymbolId,
+        loan: UnitLoanFact,
+        source_begin: Option<ActionHandle>,
+        handoff: Option<ActionHandle>,
+        begin: Option<ActionHandle>,
+    ) -> Option<ActionHandle> {
+        if !self.enabled {
+            return None;
+        }
+        let handle = self.next_handle();
+        self.records
+            .push(Record::BorrowBindingUseReturned(binding_links::UseReturn {
+                binding,
+                loan,
+                source_begin,
+                handoff,
+                begin,
+            }));
+        Some(handle)
+    }
+
+    pub(super) fn retire_binding_source(
+        &mut self,
+        transaction: crate::ownership_checking::UnitBorrowBindingTransportFact,
+        source_begin: Option<ActionHandle>,
+        handoff: Option<ActionHandle>,
+        use_return: Option<ActionHandle>,
+        binding_end: ActionHandle,
+    ) {
+        if self.enabled {
+            self.records.push(Record::BorrowBindingSourceRetired(
+                binding_links::SourceRetirement {
+                    transaction,
+                    source_begin,
+                    handoff,
+                    use_return,
+                    binding_end,
+                },
+            ));
+        }
     }
 
     pub(super) fn borrow_handoffs(&self) -> Vec<UnitBorrowCallHandoffFact> {
@@ -215,6 +276,8 @@ impl ActionSource {
             | Record::ReceiverEnd(_)
             | Record::BorrowHandoffCommitted(_)
             | Record::BorrowBindingEnd(_)
+            | Record::BorrowBindingUseReturned(_)
+            | Record::BorrowBindingSourceRetired(_)
             | Record::BorrowConsumerTransfer { .. }
             | Record::BorrowConsumerRetired { .. } => None,
         })
@@ -229,6 +292,7 @@ impl ActionSource {
         if !self.enabled {
             return Vec::new();
         }
+        let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
@@ -245,6 +309,32 @@ impl ActionSource {
                     UnitLoanAction::BorrowHandoffCommitted(fact)
                 }
                 Record::BorrowBindingEnd(fact) => UnitLoanAction::BorrowBindingEnd(fact),
+                Record::BorrowBindingUseReturned(fact) => {
+                    let links = binding_links.get(&index).copied().unwrap_or_default();
+                    UnitLoanAction::BorrowBindingUseReturned(
+                        crate::ownership_checking::UnitLoanBindingUseReturn {
+                            identity: identity.clone(),
+                            binding: fact.binding,
+                            loan: fact.loan,
+                            source_begin: links.source_begin,
+                            handoff: links.handoff,
+                            begin: links.begin,
+                        },
+                    )
+                }
+                Record::BorrowBindingSourceRetired(fact) => {
+                    let links = binding_links.get(&index).copied().unwrap_or_default();
+                    UnitLoanAction::BorrowBindingSourceRetired(
+                        crate::ownership_checking::UnitLoanBindingSourceRetirement {
+                            identity: identity.clone(),
+                            transaction: fact.transaction,
+                            source_begin: links.source_begin,
+                            handoff: links.handoff,
+                            use_return: links.use_return,
+                            binding_end: links.binding_end,
+                        },
+                    )
+                }
                 Record::BorrowConsumerTransfer {
                     source,
                     consumer,

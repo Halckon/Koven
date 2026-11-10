@@ -363,6 +363,11 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
             .iter()
             .all(|state| state.borrow_binding_transports.contains(transport))
     });
+    for transport in &mut merged.borrow_binding_transports {
+        for state in &states {
+            transport.reconcile(&state.borrow_binding_transports);
+        }
+    }
     merged.borrow_call_transports.retain(|transport| {
         states
             .iter()

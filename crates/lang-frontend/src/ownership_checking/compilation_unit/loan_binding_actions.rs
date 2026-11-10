@@ -97,7 +97,8 @@ impl UnitLoanBindingSourceRetirement {
         })
     }
 
-    /// Validated preceding use return carried by this binding.
+    /// The unique observed qualified use return carried by this binding.
+    /// This is not evidence that all uses were covered; None does not prove absence.
     #[must_use]
     pub fn use_return(&self) -> Option<UnitLoanActionId> {
         self.use_return.map(|index| UnitLoanActionId {

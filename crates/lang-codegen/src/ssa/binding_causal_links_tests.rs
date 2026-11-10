@@ -59,12 +59,10 @@ fn binding_lifecycle_requires_actual_causal_links_with_true_off() {
             panic!("one actual source catalog")
         };
         assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
-        assert!(
-            observation
-                .regions()
-                .iter()
-                .all(|r| r.coverage() == UnitLoanActionCoverage::Unsupported)
-        );
+        assert_eq!(observation.regions().len(), 2);
+        assert!(observation.regions().iter().all(|r| {
+            r.protocol_version() == 3 && r.coverage() == UnitLoanActionCoverage::Unsupported
+        }));
         let actions = observation.actions();
         let [
             UnitLoanAction::Begin(source_loan),
@@ -193,5 +191,80 @@ fn verify_binding_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
             callee.entity(EntityId::Loan(*parameter)).unwrap().ty,
             caller.entity(EntityId::Loan(*source)).unwrap().ty
         );
+    }
+}
+
+#[test]
+fn binding_metadata_preserves_successful_merge_and_true_off() {
+    let text = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = view(owner); if(flag) { consume(item) } else { consume(item) }; consume(item) }";
+    let mut sources = SourceMap::new();
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "binding-merge.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "binding-merge.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, on) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let off = with_loan_observation(false, || {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap()
+        });
+        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+        assert_eq!(on.ownership().borrow_binding_transports().len(), 1);
+        assert_eq!(off.ownership().borrow_binding_transports().len(), 1);
+        assert!(off.ownership().loan_action_observations().is_empty());
+        let [observation] = on.ownership().loan_action_observations() else {
+            panic!("one actual source catalog")
+        };
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+        let retired = observation
+            .actions()
+            .iter()
+            .filter_map(|action| match action {
+                UnitLoanAction::BorrowBindingSourceRetired(retired) => Some(retired),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [retired] = retired.as_slice() else {
+            panic!("one actual source retirement after merge")
+        };
+        assert!(
+            retired.use_return().is_none(),
+            "ambiguous earlier uses cannot be replaced by the final use"
+        );
+        let run = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run")
+            .unwrap();
+        let mut outputs = Vec::new();
+        for owned in [&on, &off] {
+            let (lowered, routes) = crate::ssa::refine::observe_routing(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    owned,
+                    run.id(),
+                )
+            });
+            let (program, entry) = lowered.unwrap();
+            verify_program(&program).unwrap();
+            let caller = program.modules[0].function(entry).unwrap();
+            assert!(routes.contains(&caller.name));
+            outputs.push((
+                crate::ssa::render_program(&program),
+                crate::llvm::render_verified_program(&program).unwrap(),
+            ));
+        }
+        assert_eq!(outputs[0], outputs[1]);
     }
 }

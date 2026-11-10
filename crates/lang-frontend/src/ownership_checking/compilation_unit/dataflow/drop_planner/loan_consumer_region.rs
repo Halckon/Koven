@@ -163,7 +163,7 @@ impl DropPlanner<'_, '_> {
             && state.closure_asap.is_empty()
     }
 
-    fn consumer_region_loan(
+    pub(super) fn consumer_region_loan(
         &self,
         expression: ExpressionId,
         argument: ExpressionId,

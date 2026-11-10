@@ -161,12 +161,16 @@ impl DropPlanner<'_, '_> {
         &mut self,
         binding: crate::name_resolution::UnitSymbolId,
         continues: bool,
+        state: &mut ValueState,
     ) {
         let mut remaining = Vec::new();
         for fact in self.pending_borrow_handoffs.drain(..) {
             if fact.binding() == binding {
                 if continues {
-                    self.iteration_actions.commit_borrow_handoff(fact);
+                    let handle = self.iteration_actions.commit_borrow_handoff(fact);
+                    for pending in &mut state.borrow_binding_transports {
+                        pending.commit_handoff(binding, handle.clone());
+                    }
                 }
             } else {
                 remaining.push(fact);

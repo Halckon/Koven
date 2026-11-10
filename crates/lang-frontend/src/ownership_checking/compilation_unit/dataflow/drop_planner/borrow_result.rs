@@ -148,12 +148,15 @@ impl DropPlanner<'_, '_> {
                 continue;
             }
             state.borrow_bindings.remove(index);
-            self.finish_borrow_binding_transport(binding, point, state);
+            let transport = self.finish_borrow_binding_transport(binding, point, state);
             let fact = BorrowBindingEndFact {
                 binding,
                 point: point.into_unit(self.checker.source_unit),
             };
-            self.iteration_actions.end_borrow_binding(fact);
+            let binding_end = self.iteration_actions.end_borrow_binding(fact);
+            if let Some((transaction, pending)) = transport {
+                pending.publish_retirement(&mut self.iteration_actions, transaction, binding_end);
+            }
             if let Some(fact) = self
                 .checker
                 .borrow_results
