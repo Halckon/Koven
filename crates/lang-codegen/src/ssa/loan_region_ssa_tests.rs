@@ -753,3 +753,6 @@ mod binding_coverage;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "binding_receipt_tests.rs"]
 mod binding_receipts;
+
+#[path = "parent_child_lifecycle_probe_tests.rs"]
+mod parent_child_lifecycle_probe;

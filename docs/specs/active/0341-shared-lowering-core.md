@@ -11590,3 +11590,27 @@ owner FE 比较只归一化重新规划的本地 observed 结果；loan 比较�
 这两次沙箱工具边界不计 Rust 或能力失败。
 独立只读终审核对双父、冲突正文、冻结输入、实际 artifact/profile、两 binary 与全部21项
 原始结果及上述分账，无新增阻断；最终仅本 Spec 文档提交，非文档输入未漂移。
+
+### 2026-11-10 parent→child 直接别名生命周期：原样实证首阶段
+
+本阶段从冻结 `6e606a9379443a980a5d8bef968b0dde42662382` 的独立分支开展，
+只准备并验证现行语言普通源码，不修改生产或既有语义、ABI、路由、唯一 cleanup emitter。
+固定来源为单个本地 String literal owner、`view(owner)` 得到的单个 result parent、
+`borrow val child = parent` 的单个 Name child，以及 `consume(child)` 的单个普通调用。
+没有 sibling、多层别名、wrapper、投影、控制流或 parent 后续使用；不以近似旧测试替代原样证据。
+
+原样 probe 使用一个 MemoryDocument 的真实 names/types/ownership，正常选择 lowering 路由，
+打印同轮 action catalog、handoff、transport、binding/end 事实及真实 SSA；通过 SSA verifier
+与 LLVM verifier后，按实际实体核 BorrowCall result→SharedReborrow source、consumer 复用
+child，以及 child End→parent End→source End→原 owner Drop。观察 routing 不强制 routing，
+不按 Span 或相同 canonical owner 拼接身份，不运行 native、资源计数、故障或 foreign 查询。
+本阶段结果待执行，不把 probe 成功等同于新因果链、Complete 覆盖或生产 receipt。
+
+后续若获协调继续，需在真实 child 初始化正常完成处保存 parent activation/commit 身份，
+在真实 child 移除处关联其 retirement；parent/source 退休与实际 Drop 继续沿旧唯一发布点。
+新观察身份不得进入旧语义 Eq，丢失或歧义只能降级。因果事实仍 Partial，完整覆盖认证和
+可选生产 receipt 必须各有独立能力红测；source/callable Complete 与旧 oracle 退休不在范围内。
+
+| 本阶段验收 | 精确目标 | 实际结果 |
+|---|---|---|
+| 原样 parent/child 生命周期 | `ssa::loan_region_ssa_tests::parent_child_lifecycle_probe::original_parent_child_lifecycle_records_real_dependency_and_ssa` | 待独立 helper 审阅与实际构建/执行 |
