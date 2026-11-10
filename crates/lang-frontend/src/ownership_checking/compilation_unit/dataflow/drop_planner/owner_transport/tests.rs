@@ -553,3 +553,5 @@ mod replace_break_negated_condition;
 mod replace_break_boolean_comparison;
 
 mod replace_break_short_circuit;
+
+mod replace_break_leaf_not;
