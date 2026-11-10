@@ -8841,9 +8841,9 @@ Linux、sanitizer或正式双宿主CI，不退休Single oracle、不关闭SPEC/D
 Rust尺寸policy47项直接测试通过。最终docs879、尺寸`--base 3fe1920a`（2281手写Rust、
 36旧超长）及diff检查通过；未提高尺寸额度，不以继承头结果代替。
 
-### 候选：B 产品的 Phase 4 单次消费合同（2026-11-10）
+### 已批准：B 产品的 Phase 4 单次消费合同（2026-11-10）
 
-**状态：proposed／待批准，未实施。** 本节只提出 ADR-0038 B 的下一片接线合同，
+**状态：approved／in-progress。** 用户对限定 B 后端接线、新计划验证授权、旧 emitter 唯一发射及双账本核对的请求回复“可以”。本节限定 ADR-0038 B 的下一片接线合同，
 不扩大前述已批准 Phase 3 首片，不改变 accepted ADR 或 Guide，不关闭 D10/E2。
 只读评估基底为 `285ac9f81f1263c1222def8c3f6ea0a8fc1a436d`；该头的新 getter 在
 codegen 仅由 `owner_replace_break_downstream_tests.rs` 读取，没有生产消费者。
@@ -8910,9 +8910,7 @@ ledger 对账。保留 `check_all_drops_consumed`，不为新产品全局跳过�
 - frontend `owner_transport/loops/replace_break/consumer.rs` 定义 incoming 和三动作，
   `matches_boundary` 校验其与完整边界一致。
 
-需要审议的是：是否批准此严格 B 的 Phase 4 接线；是否采用“新产品授权和动作完整性、
-旧 emitter 唯一发射并双账本对账”的责任转移；如何在测试中证明生产消费真实依赖产品，
-而不是仅保留旧成功结果。批准前不实施生产接线或扩展 accepted 决策。
+本次已批准严格 B 的 Phase 4 接线及“新产品授权和动作完整性、旧 emitter 唯一发射并双账本对账”的责任转移。实施须证明生产消费真实依赖产品，不能仅保留旧成功结果；不改写 accepted 决策，也不扩大 B 准入。
 
 #### 批准后的验收门槛
 
@@ -8928,6 +8926,6 @@ ledger 对账。保留 `check_all_drops_consumed`，不为新产品全局跳过�
 5. 独立复审重点为装饰性 getter 接线、边顺序误配、双 Drop、漏账及错误回退；定向行为、
    共享契约、静态门禁、正式精确头双宿主 CI 分别记账，不退休原 oracle。
 
-本候选仅记录源码核实和接线建议，未运行 Cargo、Rust/native、计数或 CI；不重复上一节
+原候选提交仅记录源码核实和接线建议，未运行 Cargo、Rust/native、计数或 CI；不重复上一节
 测试。文档提交的实际 docs/diff 检查与结果另在交付报告记录。原工作树与未提交改动保留，
 不推送、开 PR 或合并；SPEC-0341、D10/E2 继续 in-progress。
