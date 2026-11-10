@@ -11625,8 +11625,9 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
 准备期 Rust Debug/字段访问、模块注册、AST marker 与 descriptor 引用编译错误，以及格式
 排序失败均保留，不能算能力红；真实能力红只有原 receipt 缺失和后端 MissingFact。
 原始日志、严格选择名单、默认debug2编译profile、源码与binary SHA保留于
-`/private/tmp/koven-owner-replace-return-evidence`。生产冻结 `3ae388fa` 后重新构建，两轮最终
-7 exact均真实每项1测试通过，末轮包含旧Analysis on/off一致性；默认debug2/opt0，未降profile。
+`/private/tmp/koven-owner-replace-return-evidence`。冻结前后两轮
+7 exact均真实每项1测试通过；生产头 `3ae388fa` 重建后的末轮包含旧Analysis on/off一致性，
+默认debug2/opt0，未降profile。
 两crate all-targets Clippy -D warnings、workspace all-targets check、fmt、docs885、diff与
 尺寸门禁通过（2374手写Rust、35历史超限，未新增超限或提升预算）。静态首轮frame enum
 体积警告以Box可选frame修正，Architecture索引遗漏也已补齐；原失败日志保留。
