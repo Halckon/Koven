@@ -5,6 +5,10 @@ const SOURCE: &str = "fun inspect(a: String, b: String): Int = 1\nfun run(): Uni
 fn named_literal_caller_requires_real_refine_route() {
     check(false);
 }
+#[test]
+fn named_literal_call_requires_real_production_receipt() {
+    check(true);
+}
 fn check(receipt: bool) {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-literal.ko", SOURCE);
