@@ -11262,3 +11262,17 @@ Basic/Const两次SSA/LLVM及两次正常native已通过；native输出outer/next
 尺寸门禁相对680215d3通过，2350手写Rust、35旧超千行；无新增超限或policy额度变化。
 实现/测试未改main、680215d3冻结树或借用树；更全面回归、静态门禁与独立精确头审查待记。
 证据保留于`/private/tmp/koven-owner-alias-return-evidence`，不推送或认领D10/E2完成。
+
+
+生产冻结46336675d5d641126c50faa3804439ee5f61f84c；独立只读审其六生产差异未发现阻断，
+完整终态证据仍须独立核验，不把生产审查当历史helper认证。两crate all-targets clippy
+-D warnings、workspace all-targets check、fmt、docs884、尺寸及diff检查通过。
+最终fresh allowlist为FE4/CG9，共13个exact全部通过（新alias5，旧B/Return/pair8），
+每项均独立选择且日志确实运行1项。新alias五项内含FE一原源与六合法邻控、一次直接授权、
+Basic/Const两次SSA/LLVM及两次native，不能把exact数量等同内部例数。普通回归只使用
+本轮完整核过的helper闭包，不沿用旧大集合；非本清单测试与所有foreign/注入/Abort/计数/
+压力/强制route不执行。新CI-only五类破损仅编译，正式双宿主CI和sanitizer仍未运行。
+Cargo JSON保留opt0/debug2/test=true、features空及无profile覆盖；manifest包括source与
+binary SHA、13项名单/结果、两份原始SOURCE与各自红头字节一致证明。两次实际红的raw
+日志未覆盖。早期尺寸脚本名称误写导致文件不存在，纠正为仓库check_rust_sizes.py后通过，
+不将该调用失败算尺寸验收。后续仅文档冻结，不重新编译Rust；无push/PR或一般owner完成声明。
