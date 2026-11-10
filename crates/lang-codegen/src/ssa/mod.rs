@@ -46,6 +46,8 @@ mod borrow_result_support;
 #[cfg(test)]
 mod borrow_storage_contract_tests;
 #[cfg(test)]
+mod loan_region_ssa_tests;
+#[cfg(test)]
 mod map_consume_fixture_tests;
 #[cfg(test)]
 mod map_consume_lowering_tests;
