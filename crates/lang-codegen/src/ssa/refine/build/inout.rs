@@ -263,6 +263,7 @@ impl Builder<'_, '_> {
                 [(_, binding, loan)],
                 Some(replacement),
             ) => {
+                self.owner_replace(id, *binding, replacement, span)?;
                 let old_slot = self.body.slot(EntityType::Value(target));
                 self.push(
                     ROp::RootReplace {

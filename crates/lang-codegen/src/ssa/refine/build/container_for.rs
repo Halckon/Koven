@@ -63,6 +63,14 @@ impl Builder<'_, '_> {
         let body_block = self.body.block();
         let finished = self.body.block();
         let exit = self.body.block();
+        self.owner_while(
+            statement,
+            self.unit(condition),
+            UnitStatementId::new(self.inputs.source_unit, loop_body),
+            finished,
+            exit,
+            span,
+        )?;
         self.goto(header, span)?;
         self.block = Some(header);
         self.condition(condition, body_block, finished)?;
@@ -95,6 +103,7 @@ impl Builder<'_, '_> {
             let mark = self.enter(finished);
             self.leave_unclaimed(mark, span)?;
             self.emit_drops(&facts)?;
+            self.owner_false_edge(statement, exit, span)?;
             self.goto(exit, span)?;
         }
         if !self.body.blocks[exit.0].has_predecessor {
@@ -240,6 +249,7 @@ impl Builder<'_, '_> {
         } else {
             (frame.continue_target, span)
         };
+        self.owner_break_edge(self.unit(expression), target, jump_span)?;
         self.terminate(RTerm::Goto(target), jump_span)?;
         Ok(Lowered::Diverged)
     }

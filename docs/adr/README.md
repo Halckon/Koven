@@ -34,6 +34,13 @@ scope 逃逸修复由 0363 维护，闭包家族实施由 0364 维护。
 
 [0035 最终调试产物发布](accepted/0035-final-debug-artifact-publication.md)按 2026-10-29 用户选择接受；由 SPEC-0366 实施。
 
+[0037 一次根替换后 Break 的独立 owner 出口](accepted/0037-replace-break-owner-boundaries.md)
+按 2026-11-10 用户明确确认接受；只涵盖有界双 catalog 见证，不开放一般 phi 或后缀消费。
+[0038 路径化 owner 运输](accepted/0038-path-qualified-owner-transport.md)与
+[0040 完整 loan 生命周期](accepted/0040-complete-loan-lifecycle-evidence.md)按 2026-11-10
+用户对推荐方向的批准接受；0038 首片选 B，0040 先普通调用生命周期，实施由 SPEC-0341
+限定。accepted 不表示共同消费、完整覆盖或下游已经实现。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为
@@ -41,6 +48,11 @@ native ABI 提议；SPEC-0211 的 Phase 3 事实运输不以其被接受为前�
 
 [0036 独占闭包捕获使用持久根槽](proposed/0036-exclusive-closure-capture-storage.md)
 拟为 SPEC-0392 增加经验证的独占槽身份、写回与清理规则。
+
+[0039 动态 capture 实例](proposed/0039-dynamic-capture-instance-provenance.md)仍为后续草案，
+先解决 owner/loan 依赖和阶段映射；0025/0036 未随本次方向批准而接受。
+已有决定与在途复用见[决策盘点](d10-e2-decision-map.md)。0037 编号保留给已有本地
+accepted 候选，未纳入本基线，不在此复制或重新接受。
 
 新决策使用 [TEMPLATE.md](TEMPLATE.md) 并先放入 `proposed/`。改变 accepted 决定时新增 ADR；完整被取代的旧记录
 进入 archive 并建立双向取代关系；局部扩展保留旧 ADR 的其他决定，只追加双向关系。

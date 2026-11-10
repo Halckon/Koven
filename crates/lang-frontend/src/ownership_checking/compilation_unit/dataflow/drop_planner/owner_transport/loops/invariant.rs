@@ -275,6 +275,9 @@ impl LoopTransaction {
         identity: &std::sync::Arc<()>,
         state: &ValueState,
     ) -> bool {
+        if let Some(input) = &mut self.replacing {
+            return input.jump_boundary(completion, identity, state);
+        }
         let Some(input) = &mut self.invariant else {
             return empty_boundary(state);
         };
@@ -295,6 +298,9 @@ impl LoopTransaction {
         true
     }
     pub(super) fn entry_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(input) = &mut self.replacing {
+            return input.enter(state);
+        }
         if let Some(input) = &mut self.invariant {
             input.entry = input.snapshot(state);
             input.entry.is_some()
@@ -303,6 +309,9 @@ impl LoopTransaction {
         }
     }
     pub(super) fn body_completion_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(input) = &mut self.replacing {
+            return input.complete_body(state);
+        }
         if let Some(input) = &mut self.invariant {
             if let Some(joining) = &input.joining {
                 if !joining.is_complete()
@@ -333,9 +342,13 @@ impl DropPlanner<'_, '_> {
         if let (Some(transaction), Some(observation)) =
             (&mut self.owner_loop, &self.owner_observation)
             && transaction.statement == id
-            && let Some(input) = &mut transaction.invariant
         {
-            input.capture(self.checker, observation, state, self.scope_depth);
+            if let Some(input) = &mut transaction.invariant {
+                input.capture(self.checker, observation, state, self.scope_depth);
+            }
+            if let Some(input) = &mut transaction.replacing {
+                input.capture(observation, state, self.scope_depth);
+            }
         }
     }
 }

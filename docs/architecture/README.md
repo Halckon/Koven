@@ -50,7 +50,11 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | Source、Span、Lexer、Parser、AST | [Source 与语法前端](source-and-syntax.md) |
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md)、[Unit owner transport 观察](unit-owner-transport.md)、[受限 Choice value](unit-choice-transport.md)、[While body 与输入边界](unit-loop-owner-transport.md)、[不变输入循环边界](unit-invariant-loop-owner.md) |
+| 普通 loan acquisition、cleanup 投影与覆盖边界 | [Loan 实际动作源](unit-loan-action-source.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
+| 同轮 Complete2 的有界生产身份核验与真实 on/off | [Receiver production receipts](receiver-production-receipts.md) |
+| 普通 Borrow 参数的精确 caller 路由与 Complete3 生产核验 | [Named loan production receipts](named-loan-production-receipts.md) |
+| 单/双临时 String caller 的精确路由与非空 Complete1 核验 | [Temporary loan production receipts](temporary-loan-production-receipts.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
 | 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |
@@ -74,6 +78,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | Diagnostic、fixture、矩阵与压力测试 | [诊断与测试](diagnostics-and-tests.md) |
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |
 
+- [Unit 根替换后 Break](unit-replace-break-owner.md)：真实替换的双 catalog、独立出口与严格 B 尾句 carrier，不提供一般 phi
 - [Unit 不变循环输入后缀](unit-invariant-loop-suffix.md)：正常或裸 Break While 退出路径的真实输入 Move/Bind/Drop
 - [Owned root 原子所有权置换](root-ownership-primitives.md)：replace / swap 的正常 commit、SSA 与 native 边界
 - [Owned local 一级字段 replace](direct-field-replace.md)：独立 field facts、显式字段交换与有界直接验证

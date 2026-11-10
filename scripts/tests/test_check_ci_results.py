@@ -5,6 +5,7 @@ import re
 import shlex
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -101,7 +102,7 @@ class CheckCiResultsTests(unittest.TestCase):
         core = (root / "scripts/check_core.sh").read_text()
         self.assertEqual([
             "cargo test --locked -p lang-frontend --lib",
-            "cargo test --locked -p lang-codegen",
+            "cargo test --locked -p lang-codegen --features loan-observation-test-support",
             "cargo test --locked -p lang-cli --no-fail-fast",
             "cargo test --locked -p lang-lsp",
             "cargo test --locked -p lang-std",
@@ -155,6 +156,26 @@ class CheckCiResultsTests(unittest.TestCase):
             actual.extend(shlex.split(command) for command in stage_target_occurrences(stage, target))
         self.maxDiff = None
         self.assertEqual(expected, actual)
+
+    def test_loan_observation_support_is_explicit_test_only_selection(self):
+        root = Path(__file__).resolve().parents[2]
+        feature = "loan-observation-test-support"
+        frontend = tomllib.loads((root / "crates/lang-frontend/Cargo.toml").read_text())
+        codegen = tomllib.loads((root / "crates/lang-codegen/Cargo.toml").read_text())
+        for manifest in (frontend, codegen):
+            self.assertEqual([], manifest["features"].get("default", []))
+            self.assertNotIn("lang-frontend", manifest.get("dev-dependencies", {}))
+        self.assertEqual([], frontend["features"][feature])
+        self.assertEqual(["lang-frontend/" + feature], codegen["features"][feature])
+        self.assertEqual({"workspace": True}, codegen["dependencies"]["lang-frontend"])
+        core = (root / "scripts/check_core.sh").read_text()
+        self.assertEqual(["cargo test --locked -p lang-codegen --features " + feature],
+                         [line for line in core.splitlines() if "--features" in line])
+        producer = (root / "scripts/package_preview.py").read_text()
+        build = producer.split("build_args = [", 1)[1].split("]", 1)[0]
+        self.assertIn("'cargo', 'build', '--locked', '--release', '-p', 'lang-cli'", build)
+        self.assertNotIn("--features", build)
+        self.assertNotIn("--all-features", build)
 
     def test_single_unit_cli_contracts_are_present_in_unfiltered_cli_matrix(self):
         root = Path(__file__).resolve().parents[2]

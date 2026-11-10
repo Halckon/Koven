@@ -10,12 +10,19 @@ mod field;
 mod heap;
 mod inout;
 mod map;
+mod named_argument;
+mod owner_call;
+mod owner_consumer;
+#[cfg(test)]
+pub(crate) mod owner_consumer_test_support;
+mod owner_return;
 mod place;
 mod range_borrow;
 mod range_view;
 mod rc;
 mod receiver;
 mod scalar_text;
+mod statements;
 mod tagged;
 mod value;
 mod when;
@@ -36,7 +43,7 @@ use lang_frontend::{
 
 use super::{
     RefineBody, RefineInputs, RefineTypes,
-    body::{BlockRef, ROp, RStmt, RTerm, RefinedBody, Slot},
+    body::{BlockRef, ROp, RTerm, RefinedBody, Slot},
 };
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -52,6 +59,7 @@ pub(super) enum Lowered {
 
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
+    owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -146,8 +154,15 @@ pub(super) fn build(
 ) -> Result<RefinedBody, LoweringError> {
     let mut builder = Builder {
         inputs,
+        owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         types,
-        body: RefinedBody::default(),
+        body: RefinedBody {
+            loan_plans: super::loan_receipt::Plans::new(inputs)?,
+            receiver_plans: super::receiver_receipt::Plans::new(inputs)?,
+            named_plans: super::named_receipt::Plans::new(inputs)?,
+            temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
+            ..RefinedBody::default()
+        },
         block: None,
         bindings: BTreeMap::new(),
         borrowed: BTreeMap::new(),
@@ -179,6 +194,7 @@ pub(super) fn build(
         builder.bind_thunk_entry(thunk, entities)?;
         builder.lower_thunk_body(thunk, unit_return)?;
         builder.check_all_drops_consumed()?;
+        builder.finish_owner_plan()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -239,6 +255,8 @@ pub(super) fn build(
         RefineBody::Lambda(_) => unreachable!(),
     }
     builder.check_all_drops_consumed()?;
+    builder.finish_owner_plan()?;
+    builder.finish_loan_receipts()?;
     Ok(builder.body)
 }
 
@@ -378,22 +396,6 @@ impl Builder<'_, '_> {
                 .is_some_and(|block| self.entry_this_dead.contains(&block));
             self.dead_block = self.block;
         }
-    }
-
-    fn push(&mut self, op: ROp, results: Vec<Slot>, span: Span) -> Result<(), LoweringError> {
-        self.sync_dead();
-        let block = self.current(span)?;
-        self.body.blocks[block.0]
-            .statements
-            .push(RStmt { op, results, span });
-        Ok(())
-    }
-
-    /// Appends `op` producing one fresh slot of `ty`.
-    fn value(&mut self, op: ROp, ty: EntityType, span: Span) -> Result<Slot, LoweringError> {
-        let slot = self.body.slot(ty);
-        self.push(op, vec![slot], span)?;
-        Ok(slot)
     }
 
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
@@ -538,7 +540,7 @@ impl Builder<'_, '_> {
         facts: &[(usize, UnitDropTarget, Span)],
     ) -> Result<(), LoweringError> {
         self.sync_dead();
-        for (_, target, span) in facts {
+        for (index, target, span) in facts {
             let slot = match target {
                 UnitDropTarget::Named(symbol) => {
                     if let Some(ty) = self.symbol_type(*symbol)
@@ -580,13 +582,34 @@ impl Builder<'_, '_> {
                 _ => None,
             }
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
+            self.authorize_loan_drops(*index, *target, slot, *span)?;
+            let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
+            self.owner_drop_emitted(receipt, *span)?;
+            #[cfg(test)]
+            super::record_owner_drop(
+                *target,
+                *index,
+                slot.0,
+                receipt.map(owner_consumer::DropReceipt::witness),
+            );
         }
         Ok(())
     }
 
     pub(super) fn finish_drops(&mut self, facts: &[(usize, UnitDropTarget, Span)]) {
         for (index, target, _) in facts {
+            #[cfg(test)]
+            if self
+                .owner_plan
+                .as_ref()
+                .is_some_and(|plan| plan.drop_index == Some(*index))
+                && owner_consumer_test_support::take_fault(
+                    owner_consumer_test_support::OwnerFault::MissingFinish,
+                )
+            {
+                continue;
+            }
             if let UnitDropTarget::Temporary(expression) = target {
                 self.temporaries.remove(expression);
             }
@@ -837,6 +860,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         slot: Slot,
     ) -> Result<(), LoweringError> {
+        self.owner_result(self.unit(expression), slot)?;
         let ty = self.expression_type(expression)?;
         let unit = self.unit(expression);
         let pending = self.inputs.owned.drops().iter().any(|fact| {

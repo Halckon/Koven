@@ -151,12 +151,22 @@ impl Builder<'_, '_> {
         let crate::ssa::model::EntityType::Value(ty) = self.body.slots[value.0] else {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         };
+        self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
         let binding = self.value(
             ROp::Alias { source: value },
             crate::ssa::model::EntityType::Value(ty),
             span,
         )?;
         self.bindings.insert(symbol, binding);
+        self.owner_binding_emitted(symbol, binding);
+        #[cfg(test)]
+        if self.owner_is_suffix(symbol)
+            && super::owner_consumer_test_support::take_fault(
+                super::owner_consumer_test_support::OwnerFault::DuplicateBind,
+            )
+        {
+            self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
+        }
         Ok(Lowered::Unit)
     }
 

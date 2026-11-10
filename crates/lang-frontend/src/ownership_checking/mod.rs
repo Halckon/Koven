@@ -62,9 +62,11 @@ pub use compilation_unit::{
     UnitClosureDescriptor, UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
     UnitConstantMaterializationPlan, UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation, UnitDelegationOwnershipPlan, UnitDirectCallLoanEndFact,
-    UnitDropFact, UnitDropPoint, UnitDropTarget, UnitExclusiveCallPrefixEndFact,
-    UnitIterationCleanupAction, UnitIterationExitKind, UnitIterationExitPlan,
-    UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanFact, UnitLoanTarget,
+    UnitDirectCallLoanRegion, UnitDropFact, UnitDropPoint, UnitDropTarget,
+    UnitExclusiveCallPrefixEndFact, UnitIterationCleanupAction, UnitIterationExitKind,
+    UnitIterationExitPlan, UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanAction,
+    UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+    UnitLoanConsumerRetirement, UnitLoanFact, UnitLoanRegionFamily, UnitLoanTarget,
     UnitMapIterationLoan, UnitMapIterationOwnershipPlan, UnitNonNullAssertionOwnershipPlan,
     UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact,
     UnitNullableWhenUseKind, UnitOwnerCallable, UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1,
@@ -75,14 +77,17 @@ pub use compilation_unit::{
     UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
     UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
     UnitOwnerObservation, UnitOwnerObservationStatus, UnitOwnerOrigin, UnitOwnerProducerCatalogV1,
-    UnitOwnerTransportEvent, UnitOwnerUnsupportedReason, UnitOwnerValueEventV1,
-    UnitOwnerValueObservationV1, UnitOwnerValueV1, UnitOwnershipBindingDescriptor,
-    UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
-    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
-    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
-    check_compilation_unit_ownership,
+    UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1,
+    UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1,
+    UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1, UnitOwnerTransportEvent,
+    UnitOwnerUnsupportedReason, UnitOwnerValueEventV1, UnitOwnerValueObservationV1,
+    UnitOwnerValueV1, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact,
+    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitReceiverCallPrefixEndFact,
+    UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
+    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
+    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{
@@ -146,4 +151,10 @@ pub fn check_ownership(
 pub use ownership_primitive::{
     FieldReplaceOwnershipPlan, OwnershipPrimitiveOwnershipPlan, OwnershipPrimitiveValueTransfer,
     UnitFieldReplaceOwnershipPlan, UnitOwnershipPrimitiveOwnershipPlan,
+};
+
+#[cfg(feature = "loan-observation-test-support")]
+#[doc(hidden)]
+pub use compilation_unit::loan_observation_test_support::{
+    legacy_ownership_eq, with_loan_observation,
 };

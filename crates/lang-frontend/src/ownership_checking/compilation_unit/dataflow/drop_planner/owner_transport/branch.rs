@@ -153,13 +153,24 @@ impl DropPlanner<'_, '_> {
         value: Option<ExpressionId>,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        if let Some(value) = value
-            && !self.expression(value, DropExpressionUse::Consume, state)?
-        {
-            return Ok(false);
-        }
+        let return_consumer = if let Some(value) = value {
+            let result =
+                self.evaluate_owner_expression(value, DropExpressionUse::Consume, state)?;
+            if !result.continues {
+                return Ok(false);
+            }
+            // Preserve the actual payload carrier before the existing cleanup, not a P projection.
+            self.deliver_replace_return_consumer(id, value, result, state)
+        } else {
+            None
+        };
         self.finish_return_iterations(id, state);
         self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
+        if let Some(consumer) = return_consumer
+            && let Some(transaction) = &mut self.owner_loop
+        {
+            transaction.complete_replace_return_consumer(consumer);
+        }
         if self.owner_branch_depth != 0 {
             if value.is_none() {
                 self.owner_event(UnitOwnerTransportEvent::UnitReturn {

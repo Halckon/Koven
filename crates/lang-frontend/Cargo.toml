@@ -7,3 +7,6 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+loan-observation-test-support = []
