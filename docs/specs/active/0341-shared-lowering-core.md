@@ -8632,3 +8632,55 @@ argument、Shared模式、root及实际caller SourceUnitId/SourceId一致；call
 先普通能力红测，再核Group、命名双实参/同根逆序退休、later Return、跨源/重分析/clone、
 非空全Analysis on/off与独立source错误/deferred raw/public撤销；人工引用损坏/合流负控
 只编译。沿用default debug2、borrow原target串行与全部十旧项/CI-only排除，本地提交。
+
+### Loan consumer依赖边实证（2026-11-10，已实现Partial）
+
+范围提交`1d0b3113`，能力红测`378f4ddc`，实现`a5ce1722`。原真实transport存在而统一
+retirement/父transfer引用缺失，首项红测实际失败；最小实现后该项green。最终生产与普通
+测试补强输入通过326 direct＋15 lib＝341项，不与前片333或中间执行重复累计。
+
+- direct沿用321项，新增consumer_action_link中的5项：
+  `consumer_retirement_references_its_actual_transfer_record`、
+  `grouped_and_named_sibling_consumers_keep_actual_distinct_links`、
+  `later_return_keeps_existing_rejection_and_publishes_no_dependency`、
+  `consumer_link_survives_snapshot_clone_but_not_reanalysis`、
+  `nonowning_parameter_source_does_not_gain_transport_coverage`。
+  最终326 passed、0 failed、10 filtered。
+- lib沿用12项，新增owner_transport中的
+  `consumer_dependency_observer_preserves_all_planner_snapshots`、result_action_source中的
+  `consumer_dependency_prefix_is_revoked_from_raw_and_public_products`和action_source中的
+  `consumer_dependency_cross_source_keeps_external_parameter_spans`。
+  最终15 passed、0 failed、554 filtered。原始及公开新观察、旧transport投影均显式撤销。
+- 逐源/helper核普通有限输入，exact list集合与白名单相等后运行exact，并核实际成功集合。
+  同根命名兄弟按真实逆序退休句柄关联，保留既有固定身份oracle；跨分析SourceId与catalog
+  同时核验，跨文件callee parameter_span允许不同来源。clone仍可解析原句柄。
+- 中间新增later Return测试错误期待已有准入，完整direct执行得到325 passed、1 failed、
+  10 filtered，lib未开始。实际既有L0164拒绝`consume(view(owner), return)`，修正为精确
+  message、SourceId及157..168并核新旧两表全空后，才取得上述完整341结果。未开放语言。
+- 两个新增CI-only人工负控覆盖损坏句柄/token/source身份及相同/不同/缺失合流句柄，
+  加前片共7项只编译不运行。它们靠exact白名单隔离，不是ignore隔离，不运行全lib。
+  十旧direct排除、四旧iteration Abort及所有故障/压力/破损集合均未执行。
+
+最终行为构建build4使用默认debug2，两个实际artifact profile.debuginfo=2，rustc含
+`-C debuginfo=2`；未设置`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、
+`RUSTFLAGS`、`CARGO_ENCODED_RUSTFLAGS`。复用
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`，不复制/clean/降档。
+命令为`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`，
+然后直接运行已编译binary的exact白名单。断连前no-run39.68s已完成，未重复该基线；
+最终补强build4为4.83s。direct binary SHA256：
+`b73a58abfa17860aedc2876f57bc65031d4db9babfeb3400ddea4d73a1ca1295`，lib：
+`dc88a6c512f88f92036f74c33db3d9694aa68f535e966e32f6e47d3292acc547`。
+326项名单SHA256为`75ef8dab5f7060b2d791aa0eb6555dfe24272b42edfd7979eb464822c961add3`，
+15项名单为`399c6364bcc2cb59cf6456ab7362af1c2e2c9d20203f604c97b34cfc55636fd3`。
+
+行为绿后Clippy发现仅CI-only断言clone lint，首次修正多一层引用产生E0277，随后改为
+`std::slice::from_ref(transaction)`；生产和普通测试未变。最终该CI-only源码经静态编译，
+没有冒称新binary行为重验。严格frontend all-targets Clippy通过9.84s，workspace all-targets
+check通过32.80s，均在上述target另设`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，
+使用前片所列locked/offline命令串行完成。fmt、docs877、尺寸2275 Rust/36旧超限与diff通过，
+未增加历史额度。独立只读复审无阻断。完整日志与白名单保留仓库外，所有此前偏差仍保留。
+
+本片只补真实transfer→retirement依赖，未证明完整acquisition/parent权限链，不认证wrapper、
+unwind、动态唯一消费或source/callable Complete；失配引用降为None仍保留原退休和旧表。
+未接ownerPhase4，未认领隔离owner组合结果，未跑正式CI/SSA/LLVM行为，不关闭Spec/D10/E2，
+未推送、PR或合并。
