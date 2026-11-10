@@ -1,3 +1,4 @@
+mod action_source;
 mod assignment;
 mod binding;
 mod borrow_binding_transport;
@@ -85,6 +86,7 @@ pub(super) struct Analysis {
         Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     pub(super) borrow_forward_transports:
         Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
+    pub(super) loan_action_observations: Vec<crate::ownership_checking::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
@@ -173,6 +175,7 @@ fn plan_with_owner_observation(
         .collect();
     Ok(Analysis {
         owner_observations: planner.owner_observations,
+        loan_action_observations: vec![planner.iteration_actions.finish(checker.source_unit)],
         direct_call_loan_ends,
         string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
@@ -218,10 +221,7 @@ struct DropPlanner<'a, 'checker> {
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     receiver_call_return_ends: Vec<crate::ownership_checking::UnitReceiverCallReturnEndFact>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
-    iteration_actions: Vec<(
-        PlannerDropPoint,
-        crate::ownership_checking::UnitIterationCleanupAction,
-    )>,
+    iteration_actions: action_source::ActionSource,
     iteration_exits: Vec<(
         UnitStatementId,
         crate::ownership_checking::UnitIterationExitKind,
@@ -260,7 +260,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_conditional_scopes: Vec::new(),
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
-            iteration_actions: Vec::new(),
+            iteration_actions: action_source::ActionSource::default(),
             borrow_call_handoffs: Vec::new(),
             borrow_call_transports: Vec::new(),
             borrow_binding_transports: Vec::new(),
