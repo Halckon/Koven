@@ -134,9 +134,9 @@ impl DropPlanner<'_, '_> {
         ))
     }
 
-    fn consumer_region_state_is_flat(&self, state: &ValueState) -> bool {
-        // Explicitly reject every currently represented replacement/control frame.
-        // A future owner replace-consumer frame must join this gate when integrated.
+    pub(super) fn consumer_region_state_is_flat(&self, state: &ValueState) -> bool {
+        // Reject every active replacement/control frame explicitly. Current syntax
+        // disjointness is not a durable substitute for the state boundary.
         self.scope_depth == 1
             && self.loop_boundaries.is_empty()
             && self.owner_choice.is_none()
@@ -148,6 +148,7 @@ impl DropPlanner<'_, '_> {
             && state.this.is_none()
             && state.iterations.is_empty()
             && state.replacements.is_empty()
+            && state.replace_consumer.is_none()
             && state.borrow_bindings.is_empty()
             && state.pending_borrow_results.is_empty()
             && state.borrow_initializer_sources.is_empty()

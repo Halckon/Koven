@@ -16,6 +16,10 @@ node.touch()
 consume(view(owner))
 borrow val item = view(owner)
 println(item)
+}
+fun complete_consumer(): Unit {
+val region_owner = "region"
+consume(view(region_owner))
 }"#;
 
 // Only resolve carried public handles. Descriptor equality is checked afterward,
@@ -26,17 +30,23 @@ fn assert_consumer_dependencies(
 ) {
     assert_eq!(
         transports.len(),
-        1,
-        "one real synchronous consumer transport"
+        2,
+        "mixed Partial and separate Complete sibling transports"
     );
     let mut count = 0;
+    let mut seen = Vec::new();
     for observation in observations {
         for (retired_index, action) in observation.actions().iter().enumerate() {
             let Action::BorrowConsumerRetired(retirement) = action else {
                 continue;
             };
             count += 1;
-            assert_eq!(retirement.transaction(), &transports[0]);
+            assert!(transports.contains(retirement.transaction()));
+            assert!(
+                !seen.contains(&retirement.transaction()),
+                "distinct real consumer transactions"
+            );
+            seen.push(retirement.transaction());
             let [consumer, source] = retirement.transaction().ended_loans();
             let source_id = retirement
                 .source_begin()
@@ -77,7 +87,121 @@ fn assert_consumer_dependencies(
             assert_eq!(consumer.call().source_unit(), observation.source());
         }
     }
-    assert_eq!(count, 1, "nonempty acquisition-to-retirement evidence");
+    assert_eq!(
+        count, 2,
+        "nonempty mixed and sibling acquisition-to-retirement evidence"
+    );
+}
+
+// Protocol 4 certifies the entire unfiltered local interval. Its retirement
+// transaction carries consumer End then source End; neither is a new action.
+fn assert_complete_consumer_region(
+    fixture: &Fixture,
+    file: usize,
+    root_name: &str,
+    observations: &[crate::ownership_checking::UnitLoanActionObservation],
+) {
+    use crate::ownership_checking::{
+        UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanActionCoverage,
+        UnitLoanRegionFamily, UnitLoanTarget,
+    };
+    let complete: Vec<_> = observations
+        .iter()
+        .flat_map(|observation| {
+            observation
+                .regions()
+                .iter()
+                .filter(|region| {
+                    region.protocol_version() == 4
+                        && region.coverage() == UnitLoanActionCoverage::Complete
+                })
+                .map(move |region| (observation, region))
+        })
+        .collect();
+    let [(observation, region)] = complete.as_slice() else {
+        panic!("one real Complete protocol 4 sibling")
+    };
+    assert!(observation.owns_region(region));
+    assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    assert_eq!(
+        region.families(),
+        &[
+            UnitLoanRegionFamily::SynchronousResultContinuation,
+            UnitLoanRegionFamily::NamedSourceDrop
+        ]
+    );
+    let source_call = UnitExpressionId::new(
+        fixture.source(file),
+        fixture.expression(file, &format!("view({root_name})")),
+    );
+    let consumer_call = UnitExpressionId::new(
+        fixture.source(file),
+        fixture.expression(file, &format!("consume(view({root_name}))")),
+    );
+    assert_eq!(region.call(), consumer_call);
+    assert_eq!(
+        region.callable().unwrap().source_unit(),
+        fixture.source(file)
+    );
+    let ids: Vec<_> = region.action_ids().collect();
+    let records: Vec<_> = ids
+        .iter()
+        .map(|id| {
+            observation
+                .action(id)
+                .expect("public region handle resolves")
+        })
+        .collect();
+    let [
+        Action::Begin(source),
+        Action::BorrowConsumerTransfer {
+            source: moved,
+            consumer: call,
+            argument,
+        },
+        Action::Begin(consumer),
+        Action::BorrowConsumerRetired(retired),
+        Action::Cleanup {
+            point,
+            action: UnitIterationCleanupAction::Drop(drop),
+        },
+    ] = records.as_slice()
+    else {
+        panic!("complete unfiltered acquisition/retirement/destruction interval")
+    };
+    assert_eq!(source.call(), source_call);
+    assert_eq!(consumer.call(), consumer_call);
+    assert_eq!(consumer.argument(), source_call);
+    assert_eq!(*call, consumer_call);
+    assert_eq!(*argument, source_call);
+    assert_eq!(moved, source);
+    assert_eq!(source.target(), consumer.target());
+    let root = fixture.local(file, root_name);
+    assert!(
+        matches!(source.target(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == root)
+    );
+    assert_eq!(retired.source_begin().as_ref(), Some(&ids[0]));
+    assert_eq!(retired.transfer().as_ref(), Some(&ids[1]));
+    assert_eq!(retired.consumer_begin().as_ref(), Some(&ids[2]));
+    assert_eq!(retired.transaction().ended_loans(), [consumer, source]);
+    assert_eq!(*point, UnitDropPoint::CallReturn(consumer_call));
+    assert_eq!(drop.point(), *point);
+    assert_eq!(drop.target(), UnitDropTarget::Named(root));
+    let declaration = fixture.names.names().source_units()[root.source_unit().index()]
+        .resolution()
+        .symbols()[root.symbol().index()]
+    .span();
+    assert_eq!(drop.value_origin(), declaration);
+    let start = (0..observation.actions().len())
+        .find(|&i| observation.action_id(i).as_ref() == Some(&ids[0]))
+        .unwrap();
+    for (offset, id) in ids.iter().enumerate() {
+        assert_eq!(
+            observation.action_id(start + offset).as_ref(),
+            Some(id),
+            "full interval retains exact order"
+        );
+    }
 }
 
 fn assert_public_cleared(shared: &CompilationUnitOwnership) {
@@ -160,6 +284,14 @@ fn reject(suffix: &str, deferred: bool) {
     assert_consumer_dependencies(
         shared.loan_action_observations(),
         shared.borrow_call_transports(),
+    );
+
+    assert_complete_consumer_region(&accepted, 1, "region_owner", &raw.loan_action_observations);
+    assert_complete_consumer_region(
+        &accepted,
+        1,
+        "region_owner",
+        shared.loan_action_observations(),
     );
 
     // Both positive sources remain unchanged and precede an independent source.
