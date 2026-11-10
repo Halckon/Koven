@@ -10094,3 +10094,39 @@ emitter唯一发出，当前函数不Drop选中值，调用方沿既有规则接
 状态in-progress：先普通真实Return缺产品授权红测，再分步实现；Basic/Const双Unit、
 两边SSA/LLVM/普通native及旧能力回归。故障/破损/计数等CI-only仅编译，不本地执行。
 最终固定头独审与门禁后本地交付，集中合流PR，不自行发布、不退休旧oracle。
+
+### 受限 String Return 实施与普通验收（2026-11-10）
+
+合同`aa81bb2f`、真实红头`03849bfb`，基底为已发布`a3bdf8d1`。红源码已通过旧frontend、
+SSA与LLVM，并有唯一实际String Return；旧emitter成功完成后观察的授权receipt为None，
+而真实payload槽为Some(2)，同一普通exact据此失败。没有空collector、伪造产物或故障注入。
+
+实现`5a294b69`，最终Rust输入`4e7f17b5`只追加两个公开动作字段的文档注释。
+新增独立`UnitOwnerReplaceBreakReturnConsumerV1`及Take/Return动作；真实Name Consume
+保留P/Q carrier，核root已移出state，按原Return cleanup完成后封印。仅完整Return
+suffix匹配时允许owned String函数结果，原B/Call及其它loop的Unit门保持。
+后端核同轮callable、Return expression、已选payload槽及旧deliver状态，旧finish_return
+唯一发射成功后提交；禁止当前函数Drop已移交的选中root，caller沿旧规则接收和清理。
+
+新增前端3 ordinary覆盖真实payload、同Unit跨source callable隔离、合法邻形不发布；
+共用原compare保观察on/off完整旧Analysis，非Return后端off端到端声明。新增后端3
+ordinary覆盖原红、Basic/Const双Unit完整SSA的P/Q入边到实际Return payload、返回函数
+只清理detached P以及caller两次结果分别唯一Drop，另有普通native输出outer/next。
+原B/Call和B/P4 sibling回归保留。native输出不是析构计数或heap/Resource证明。
+
+选择集由上一own-call片已审147 ordinary追加本片6项组成，共153唯一exact：前端140，
+后端13。新frontend破损/deferred与后端重放/错payload/漏提交守卫均为CI-only，只编译。
+外置构建、名单、binary hash与结果位于`/private/tmp/koven-owner-return-evidence`；
+固定代码头、三个测试模块及上一147名单界定可重建输入。不推送、不新开PR或合main，
+正式双宿主CI、负控执行、sanitizer及计数仍待；旧oracle及SPEC-0341/D10/E2不退休。
+
+最终Rust头重新no-run后153普通全部通过，0失败/忽略；两binary的实际debug2、名单与
+完整成功集逐项核实。沿用独占owner target，Cargo jobs=2串行locked/offline，普通binary
+另以test-threads=1运行。两crate严格all-targets Clippy（-W clippy::all -D warnings）、
+workspace all-targets check、fmt、docs880、diff及尺寸basea3bdf8d1均通过：2310手写Rust、
+36旧超千行，原expression.rs1003未增、build.rs990，无预算或政策修改。
+
+固定`4e7f17b5`独立只读终审无阻断：产品/实际Return授权消费、旧唯一发射及B/Call
+排他不变，manifest的codehead/tree、两binary SHA、实际debug2/features空集和140+13
+成功集合均复核一致。审阅者未运行Cargo或行为测试。本片本地实现与普通验收完成；
+上述正式CI与计数边界保持，不据此宣称其已执行或通过。
