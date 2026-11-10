@@ -513,3 +513,5 @@ fn result_action_observer_preserves_nonempty_handoff_and_end_products() {
         assert_eq!(observed, disabled);
     });
 }
+
+mod owner_loan_combination;

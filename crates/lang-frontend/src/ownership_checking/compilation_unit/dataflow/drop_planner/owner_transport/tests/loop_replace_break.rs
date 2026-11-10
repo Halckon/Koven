@@ -6,9 +6,9 @@ use crate::ownership_checking::{
 };
 use crate::parser::{Expression, Item, NameMarker, Statement};
 use crate::type_checking::UnitStatementId;
-const SOURCE: &str = r#"fun run(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; val retired = held }"#;
+pub(super) const SOURCE: &str = r#"fun run(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; val retired = held }"#;
 
-fn declaration(f: &Fixture, file: usize, name: &str) -> (UnitStatementId, UnitExpressionId) {
+pub(super) fn declaration(f: &Fixture, file: usize, name: &str) -> (UnitStatementId, UnitExpressionId) {
     let ast = f.parsed[file].ast();
     let found: Vec<_> = ast
         .statements()
@@ -34,7 +34,7 @@ fn declaration(f: &Fixture, file: usize, name: &str) -> (UnitStatementId, UnitEx
     assert_eq!(found.len(), 1);
     found[0]
 }
-fn check(f: &Fixture, file: usize, owned: &CompilationUnitOwnership) {
+pub(super) fn check(f: &Fixture, file: usize, owned: &CompilationUnitOwnership) {
     let o = &owned.owner_observations()[file];
     let value = o
         .replace_break_observation_v1()
