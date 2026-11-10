@@ -1,4 +1,6 @@
 //! The existing RootReplace and Drop emitters establish distinct installed/old slots.
+#[cfg(test)]
+use super::super::owner_consumer_test_support::{OwnerFault, take_fault};
 use super::*;
 use lang_frontend::{
     ownership_checking::UnitOwnerReplaceBreakReturnConsumerV1,
@@ -157,6 +159,16 @@ impl Builder<'_, '_> {
         let Some(frame) = plan.return_replacement.as_mut().filter(|r| r.call == call) else {
             return Ok(());
         };
+        #[cfg(test)]
+        if take_fault(OwnerFault::MissingReturnReplaceReceipt) {
+            return Ok(());
+        }
+        #[cfg(test)]
+        let old = if take_fault(OwnerFault::ReturnReplaceOldIsRoot) {
+            root
+        } else {
+            old
+        };
         if plan.stage != 7
             || plan.root_slot != Some(root)
             || frame.produced != Some(replacement)
@@ -169,6 +181,10 @@ impl Builder<'_, '_> {
         plan.stage = 8;
         #[cfg(test)]
         super::super::owner_consumer_test_support::record_action("replace_result", old.0);
+        #[cfg(test)]
+        if take_fault(OwnerFault::DuplicateReturnReplaceReceipt) {
+            return self.return_replace_emitted(call, root, replacement, old, span);
+        }
         Ok(())
     }
     pub(in super::super) fn authorize_return_replace_drop(
@@ -183,6 +199,18 @@ impl Builder<'_, '_> {
         };
         let Some(frame) = &plan.return_replacement else {
             return Ok(None);
+        };
+        // Only the suffix's real cleanup may consume this CI-only mutation.
+        #[cfg(test)]
+        let slot = if index == frame.drop_index
+            && target == UnitDropTarget::Named(plan.root)
+            && take_fault(OwnerFault::ReturnReplaceDropIsOld)
+        {
+            frame
+                .old
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+        } else {
+            slot
         };
         if frame.old == Some(slot) {
             return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -221,6 +249,10 @@ impl Builder<'_, '_> {
             .return_replacement
             .as_ref()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        #[cfg(test)]
+        if take_fault(OwnerFault::MissingReturnReplaceDropReceipt) {
+            return Ok(());
+        }
         if plan.stage != 8
             || frame.old != Some(receipt.selected)
             || frame.drop_index != receipt.index
@@ -234,6 +266,10 @@ impl Builder<'_, '_> {
             "replace_installed_drop",
             receipt.bound.0,
         );
+        #[cfg(test)]
+        if take_fault(OwnerFault::DuplicateReturnReplaceDropReceipt) {
+            return self.return_replace_drop_emitted(receipt, span);
+        }
         Ok(())
     }
 }
