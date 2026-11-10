@@ -5046,3 +5046,26 @@ lexical 和最终汇总通过。PR 专用 Evidence 按范围跳过。
 §198–200 三个功能提交与该主干合流。双方共用的历史账本逐字
 保留，主干新增 §197 在本批追加内容之前。合流只增加 §197 和
 本节证据，crate 内容与 §201 的 3063 项本机验证树逐字一致。
+
+## 203. R4 兼容路由内联 nullable 局部初始化的诊断
+
+§200 的红测在 `89428235` 将 MissingFact 定位到先执行的
+`var x: Int? = 7`。含 Elvis 的 callable 超出 Refine 子集，
+Compatibility 随后尝试包装已成功降低的局部值，但这条路由
+没有默认登记该内联标量局部类型。单独的 `left ?: 0` 已在
+Elvis Span 返回 UnsupportedNode。
+
+先复用既有 inline nullable 表示判定，再将分类限制为真实
+Compatibility 路由下的具名局部初始化。只有 initializer 已降低为
+Value、其前端类型精确匹配 Boolean 或整数的 nullable 内层，且
+目标类型映射不存在时，才在绑定 Span 返回 UnsupportedNode。
+已登记的映射继续走原适配，String、名义类型、Map 和 Range
+保持各自的专用登记与判定。独立复核核对了实际路由、已登记
+映射及其他适配位置，未发现阻断。
+
+后端两组共 15 项通过，覆盖正常 CFG 与 SSA/LLVM 见证及 9 项
+原生泛型/资源用例。既有泛型 nullable null 映射负控仍通过。
+严格 codegen Clippy 和 CLI 构建通过。两种提前退出形态及单独
+Elvis 值经本机单文件和项目入口检查通过，构建均返回
+UnsupportedNode 且未发布文件。显式 if 对照两入口均原生运行，
+输出 `bypass` 和 `return`。Elvis native 能力继续按 Guide 15 分期。
