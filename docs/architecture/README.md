@@ -53,6 +53,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | 普通 loan acquisition、cleanup 投影与覆盖边界 | [Loan 实际动作源](unit-loan-action-source.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | 同轮 Complete2 的有界生产身份核验与真实 on/off | [Receiver production receipts](receiver-production-receipts.md) |
+| 普通 Borrow 参数的精确 caller 路由与 Complete3 生产核验 | [Named loan production receipts](named-loan-production-receipts.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
 | 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |

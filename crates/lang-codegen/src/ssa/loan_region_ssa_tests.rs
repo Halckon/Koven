@@ -707,3 +707,13 @@ mod receiver_receipts;
 
 #[path = "receiver_receipt_sibling_tests.rs"]
 mod receiver_receipt_siblings;
+
+#[path = "named_loan_route_tests.rs"]
+mod named_route;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "named_loan_receipt_tests.rs"]
+mod named_receipts;
+
+#[path = "named_loan_sibling_tests.rs"]
+mod named_siblings;

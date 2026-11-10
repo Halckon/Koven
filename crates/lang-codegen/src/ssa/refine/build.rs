@@ -10,6 +10,7 @@ mod field;
 mod heap;
 mod inout;
 mod map;
+mod named_argument;
 mod owner_call;
 mod owner_consumer;
 #[cfg(test)]
@@ -158,6 +159,7 @@ pub(super) fn build(
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
             receiver_plans: super::receiver_receipt::Plans::new(inputs)?,
+            named_plans: super::named_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
         block: None,
@@ -253,14 +255,7 @@ pub(super) fn build(
     }
     builder.check_all_drops_consumed()?;
     builder.finish_owner_plan()?;
-    builder
-        .body
-        .loan_plans
-        .finish(&builder.consumed_drops, inputs.span)?;
-    builder
-        .body
-        .receiver_plans
-        .finish(&builder.consumed_drops, inputs.span)?;
+    builder.finish_loan_receipts()?;
     Ok(builder.body)
 }
 
@@ -586,12 +581,7 @@ impl Builder<'_, '_> {
                 _ => None,
             }
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
-            self.body
-                .loan_plans
-                .drop_fact(*index, *target, slot, *span)?;
-            self.body
-                .receiver_plans
-                .drop_fact(*index, *target, slot, *span)?;
+            self.authorize_loan_drops(*index, *target, slot, *span)?;
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
             self.owner_drop_emitted(receipt, *span)?;

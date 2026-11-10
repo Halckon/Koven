@@ -8,7 +8,7 @@
 Slot，原 push 分别核 RootPlace、Shared Begin、receiver DirectCall、同 loan End 及原
 NamedDrop；每个计划唯一消费原 drop index，漏阶段、错身份和重复闭合为结构化内部错误。
 
-稳定 RStmt 标记显式区分 P2 Receiver 与 P4 Consumer，各用独立计划/receipt；标记随
+稳定 RStmt 标记区分 P2 Receiver、P4 Consumer 与 [P3 Named](named-loan-production-receipts.md)，各用独立计划/receipt；标记随
 合块移动，Alias 不生成 SSA 指令。原 append_instruction 处核原参数 owner、place、
 caller-local loan 的冻结实体及五条实际 InstructionId；callee 使用独立 entry loan。
 Int 方法结果为普通 Value，Unit 无结果，不增加 owner Call 授权或动作。P4、B Drop、

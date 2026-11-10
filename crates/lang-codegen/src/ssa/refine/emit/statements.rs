@@ -10,6 +10,7 @@ impl Emitter<'_> {
         target: BlockId,
         receipt: &mut Emitted,
         receiver_receipt: &mut crate::ssa::refine::receiver_receipt::Emitted,
+        named_receipt: &mut crate::ssa::refine::named_receipt::Emitted,
     ) -> Result<(), LoweringError> {
         for statement in &body.blocks[block.0].statements {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
@@ -54,6 +55,14 @@ impl Emitter<'_> {
                         &self.current,
                         statement.span,
                     )?,
+                Some(crate::ssa::refine::body::LoanTag::Named(tag)) => named_receipt.statement(
+                    &body.named_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
                 None => {}
             }
         }
