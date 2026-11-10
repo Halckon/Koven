@@ -183,3 +183,17 @@ checker 的回滚记录或顺序产物，也不改变实际退出动作和事实
 索引仅改变查询成本；Shared receiver 的 Borrow/Inout、普通字段、具体 this 与首层直接
 binding 资格和实际 token 退休保持。索引在 alias 解析为 canonical source place 后查询；
 This provider 仍使用原 This 身份检查，不混入只含 Place 根的集合。
+
+## 有界 owned 参数 caller 的 refine 路由
+
+SPEC-0341 的有界路由现使单一显式 `own` 非 Resource 普通 class 参数、Unit block
+仅一条零实参 Shared receiver 调用的 caller 进入 refine。首片仅非泛型 caller、
+无类型实参的 class/call instance，方法 owned 结果限 Int/Unit。来源必须为原始 Name 根与
+非 safe Member；typed descriptor、Owned binding、真实 CallReturn receiver end 及
+同根 Drop 均匹配，且整个函数仍通过原 signature/body/drop subset。
+迁移触发不读取 loan observation 或 protocol 2 Complete；caller/callee 各自选路，
+原样 Node/run 中 run 迁移而 touch 保持原路径。已有 refine producer 唯一生成
+RootPlace、BorrowBegin、DirectCall、BorrowEnd 与 NamedDrop，不增加 P2 receipt。
+真实 frontend off 重分析后原样 lowering 的等价性与原实体顺序 oracle 保留；不扩大
+implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
+这不是全体 receiver 迁移或旧 Compatibility/oracle 退休；其它既有迁移触发仍独立生效。

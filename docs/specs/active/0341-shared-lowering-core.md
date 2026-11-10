@@ -9905,3 +9905,61 @@ temporary、projection、two-phase、borrow-result、控制流与 replacement �
 后续核 rooted/memory 双 Unit 和真实 frontend on/off 重分析等价。仅逐源审计普通
 exact；所有 CI-only 只编译。本机默认 debug2、独占 borrow target，不运行全量、
 native、故障或资源计数，不修改其他隔离树；本地分步提交，不 push。
+
+首片进一步限定非泛型 caller、无类型实参的 receiver class/call instance，方法 owned
+结果仅 Int/Unit，caller 为 Unit block。此限制与完整 subset 共同守门，不反向关闭
+其它已迁移原因。型参边界由独立 AST/typed predicate 静态核验，非 Complete2 授权。
+
+### 有界 receiver 路由实施与本地验收
+
+隔离输入为 main `2d79c4d642a9a51d46a3ca4f74d43088442a59a5`，分支
+`feature/spec-0341-bounded-receiver-route`；Spec 与原样能力红测提交9ed0fc19，
+生产/测试代码头`09743f1df1d8da9e83322e24a24a818a2feaf128`。
+新`refine/subset/receiver_route.rs`仅提供只读路由谓词，原完整signature/body/drop
+检查之后与既有迁移原因作OR。它不读取观察表、coverage或protocol，不改任何
+Begin/End/Drop生产者、receiver通用准入或callee路由，不连接P2receipt。
+
+| 验收项 | 精确选择与输入 | 实际结果 |
+|---|---|---|
+| 原样能力红测 | `ssa::loan_region_ssa_tests::certified_receiver_region_has_real_unit_ssa_lifecycle`；9ed0fc19 | lowering成功后实际routed=[]、期望[koven.run.d1]；0通过/1失败/2839filtered |
+| 原样红转绿 | 同一exact，独立窄trigger初稿 | 1通过/0失败/2839filtered；双入口原五指令实体/顺序oracle未改 |
+| 最终普通回归 | 前述真实off实施八项，加下列receiver_route两项；09743f1d | 10个唯一exact全通过，各1通过/0失败/0忽略/2841filtered；双入口不另累计 |
+| 新off路由等价 | `ssa::loan_region_ssa_tests::receiver_route::receiver_route_is_independent_of_real_frontend_observation` | 同names/types真正重分析off，完整旧facts副本比较；原off产品直接lower，on/off均只有caller迁移、无P2receipt，完整SSA/LLVM相同 |
+| 新普通边界 | `ssa::loan_region_ssa_tests::receiver_route::neighboring_receiver_shapes_keep_existing_routes` | Boolean结果、Borrow参数、两次调用、非零实参四份普通源，rooted/memory均保既有Compatibility并验证SSA/LLVM |
+| 严格featureClippy | `cargo clippy --locked --offline -p lang-codegen --features loan-observation-test-support --all-targets -j 2 -- -W clippy::all -D warnings` | 最终通过26.95s；全部CI-only仍仅编译 |
+| 静态门禁 | fmt、docs、diff、尺寸`--base 2d79c4d6` | 通过；880Markdown，2300手写Rust/36旧超千行，无额度变化；新模块166/128行，subset960行 |
+
+no-run统一命令为`cargo test --locked --offline -p lang-codegen --features loan-observation-test-support --lib --no-run --message-format=json -vv -j 2`。
+仅用`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`与
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，Rust1.96.0/LLVM21.1.8、macOS AArch64。
+DEV_DEBUG/TEST_DEBUG/RUSTFLAGS/ENCODED覆盖均未设置，实际artifact为本隔离树src/lib.rs、
+opt0/debug2/test=true、feature精确`[loan-observation-test-support]`，build-finished=true。
+每轮完成编译后从manifest取binary，逐项exact list确认名称，再执行exact；不运行旧binary。
+
+红测no-run1m34s；初稿build1 32.03s后原样绿，build2 24.75s后10项绿；独审提出
+泛型与结果范围需更窄，父确认后收紧，build3 11.52s后同10项绿。首次严格Clippy
+只发现新增测试name断言的cloned_ref_to_slice_refs，改为等价只读slice，未改生产；
+Clippy2通过后最终build4 20.63s、10项全部重验。此前各次绿仅为阶段结果，不替代最终。
+泛型排除静态核AST type_parameters、实例substitutions、nominal/call type_arguments；
+未执行泛型负例，不把其它既有独立迁移原因反向关闭。初次普通sandbox ps被拒，随后
+require_escalated只读进程核查成功；borrow target锁空闲后才编译，0401任务原样保留。
+仓库根与docs下均未找到.agents技能目录；没有假称读取不存在的技能。
+
+最终binary SHA256为
+`cda49b080db87d479f1c5d2b9f5f3c731e6a8819ebc56ab76637c82f7a684fd6`，
+十项换行名单SHA256为
+`336e3083594f07a5c2363ad778419197dcf58d8ccc8833b7196005725830aac6`。
+本机临时证据前缀`/private/tmp/koven-p2-route-final4`保manifest、selection与exact日志，
+构建证据为`/private/tmp/koven-p2-route-build4.json/.stderr`；临时目录不承诺长期留存，
+固定代码头和上述精确选择可重建证据，不将raw入库。
+
+本轮只改codegen私有路由和测试，没有新增frontend API/feature/依赖或共享产物。
+没有重跑旧484组合、workspace/默认CLI check、release、native、Linux、sanitizer、
+资源计数、压力或任何CI-only（包括panic/人工破损）。真实off证据限Basic双Unit，
+不外推常量capability；Int方法有原样实体oracle，Unit结果仅由既有subset及新谓词静态
+准入，不声称新增Unit方法实跑。正式双宿主CI留父级集中PR；未push/PR/合main，
+不退休任何旧oracle，不关闭Spec/D10/E2。
+
+独立只读终审精确09743f1d无阻断：复核完整subset后的窄OR、泛型/结果边界及旧producer、
+P4/frontend无diff；独立重算final4两个SHA并逐一核十条1pass/2841filtered日志、本树
+artifact/debug2与20.63s、Clippy2 26.95s。审计没有代执行测试，不外推未运行范围。
