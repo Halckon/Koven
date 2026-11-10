@@ -10460,3 +10460,84 @@ receipt红→绿；完整subset及既有非目标trigger保留，不靠nullablea
 off/Partial/Unsupported/缺席保原路径，不发布absence，不扩大语言ABI或全callable覆盖。
 普通来源/helper重新审核，双Unit真off及少量必要邻控；所有CI-only负控仅编译。
 实际红绿/门禁与偏差后补，保持默认debug2/既定独占target，仅本地提交不发布。
+
+### P1 两阶段本地验收账本
+
+隔离树 `koven-temporary-loan-production-receipt-20261110`，分支
+`feature/spec-0341-temporary-loan-production-receipt`，基线 `1744661eef2eeb770284812cf0688349a40b95c6`。
+原样 `inspect("temporary")` 的无参 Unit caller 经只读核实仍走 Compatibility；
+依持续开发授权先新增精确 typed/ownership 路由，不以 nullable anchor 代替原样。
+Spec/route 红测提交 `485753ee`，route 独立转绿提交 `8da8c3ce`，receipt 独立红测
+提交 `cc04d6fb`，最终代码冻结 `22d2489a6019312d9a23c025cbbb42cf9c278fa2`。
+
+| 阶段 | 实际结果 |
+|---|---|
+| route 红 | no-run 1m30s；原样 Complete1、lowering、SSA verifier、LLVM 均成功后 routing=[] 与 [koven.run.d1] 不符，0 passed/1 failed/2868 filtered |
+| route 绿 | no-run21.96s；同 exact 1 passed/0 failed/2868 filtered，精确只有 caller迁移、callee保持独立；先提交再开始receipt |
+| receipt 红 | no-run20.59s；真实refine/SSA/LLVM成功后观察stub为0、期望1，0 passed/1 failed/2869 filtered；不把route红重复计算 |
+| receipt 初绿 | build1 46.88s首次编译成功，两个能力exact各1 passed/0 failed/2869 filtered |
+| 普通回归候选 | build2 28.47s；8唯一ordinary全部通过，含Int/Unit/空字符串真off及七族sibling |
+| oracle加强 | build3 24.78s只编译、未执行；补明确Complete-empty0action/双literal6action后，再按独审建议补固定literal字节和实际String Shared/Int/Unit类型 |
+| 最终输入 | build4 22.97s；8唯一ordinary各1 passed/0 failed/0 ignored/2877 filtered，双入口、三来源和on/off分支不另累计 |
+| 静态门禁 | feature-enabled codegen all-targets严格Clippy首轮47.87s通过；fmt/diff/docs883通过；尺寸--base1744661e通过，2335手写Rust、35历史超千行，无新额度或例外 |
+
+本轮无非预期Rust编译/测试失败；route红首版注释误写P3，在route实现提交修为P1，
+未改变原样输入或失败断言。Complete1的“非空”指三action区间，不要求literal bytes非空。
+零action Complete-empty与六action双literal均保留原route、无receipt，未把空表当absence。
+普通Boolean结果与额外Boolean caller参数也保原路径；其它泛型/投影/插值/控制等
+排除保持静态guard，不宣称已逐例运行。Partial不选为静态守门，未造人工Partial运行。
+
+production在原decode_plain后按实际expression ID激活，在原StringLiteral push取得owner
+Slot；adapt后核同Slot和temporary表，原RootPlace→Shared Begin→普通Call→End→Drop
+唯一生成动作。独立同catalog三action、唯一旧loan/end/Drop index、完整argument contract、
+source token/callable/call实例→FunctionId均核验；actual append冻结六InstructionId及
+owner/place/caller-local loan，callee entryloan独立。Temporary/Receiver/Named/Consumer
+四族tag互斥；LoanReceipts仅聚合独立tracker，避免共享statements参数持续增长，不合并
+角色计划。Alias/current/defined、owner B/Call/Return授权顺序与唯一cleanup均保持。
+近限文件subset998/build989/expression989/emit980；新增主体独立模块，不机械压行。
+
+最终选择（统一前缀 `ssa::loan_region_ssa_tests::`）：
+- `temporary_route::temporary_borrow_caller_uses_refine_without_migrating_callee`
+- `temporary_route::temporary_borrow_requires_real_production_receipt`
+- `temporary_route::non_target_temporary_shapes_preserve_routes_and_no_receipts`
+- `temporary_receipts::temporary_int_unit_and_empty_string_preserve_real_observer_off_products`
+- `temporary_siblings::temporary_named_receiver_and_owner_siblings_keep_receipts_separate`
+- `certified_consumer_region_has_real_unit_ssa_lifecycle`
+- `certified_receiver_region_has_real_unit_ssa_lifecycle`
+- `named_receipts::named_int_and_unit_receipts_preserve_real_observer_off_products`
+
+八项/helper均在本轮重新阅读：ordinary parsed/analyze调用真实FE，后续只SSA verifier、
+LLVM rendering与只读receipt观察，无foreign查询或产品破损，未激活故障注入，未执行native。
+新sibling在同analysis直接包含P1/P2/P3/P4/B/Call/Return源码，未复用旧owner测试集合。
+Int/Unit及空字符串在Basic rooted/memory双入口真正重新analyze off；原off产品直接
+lower，legacy比较只归一化副本，完整SSA/LLVM逐字相等。固定literal字节、StringOwner、
+caller/callee Shared String target和Int结果实际类型同时核对，Unit无结果。
+未继承旧331的323safe8excluded等名单，也未执行旧owner exact。
+
+构建命令固定 `cargo test --locked --offline -p lang-codegen --features loan-observation-test-support --lib --no-run --message-format=json -vv -j 2`；
+严格命令 `cargo clippy --locked --offline -p lang-codegen --features loan-observation-test-support --all-targets -j 2 -- -W clippy::all -D warnings`。
+Cargo串行使用 `/private/tmp/koven-exclusive-loop-prefix-target` 与
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`（实际21.1.8）；启动前锁空闲，
+DEV_DEBUG/TEST_DEBUG/RUSTFLAGS/ENCODED均未设置，未复制/clean/降档target。
+最终JSON确认当前隔离树src/lib.rs、opt0/debug2/test=true、feature仅
+loan-observation-test-support、build-finished=true；逐项按该binary --exact --list核名后执行。
+
+最终binary `lang_codegen-2ac0a1105ce1786c` SHA256：
+`432c0ead9b663acacb85c37b8d9e48cd6535e56702305900626b90e040bcda92`；
+八项selection SHA256：`f04f4f375d85b150686dfd310d2f158aff688b23ca33eeace084087fa109dea8`。
+临时证据 `/private/tmp/koven-p1-final-{manifest.json,exact.log}`、
+`/private/tmp/koven-p1-final-selection.txt`、`koven-p1-receipt-build4.{json,stderr}`；
+两红为 `koven-p1-route-red-*`、`koven-p1-receipt-red-*`，build2候选结果保留phase2前缀。
+原始输出不入库；临时文件不承诺长期保留，固定提交源码/本账本摘要为重做依据。
+
+新增5项CI-only：foreign catalog、重复/缺阶段、重绑/错callee、foreign instruction、
+缺失/变更formation，只编译未执行。没有全量/native/resource/Abort/panic/人工破损/
+压力/release/Linux/Constant off验收，不宣称全借用覆盖、全callable Complete或旧oracle退休。
+ConstEnabled下raw String不是constant selection的静态证据已核，未由此宣称实跑。
+没有语言ABI或新清理责任变化；0401及其它树进程保持不动，仅本地提交，不push/PR/合并。
+
+精确代码头 `22d2489a6019312d9a23c025cbbb42cf9c278fa2` 经独立只读终审无新增阻断；
+25个相关源码/helper字节与冻结提交一致，八项普通来源及helper重新核验，实际build4
+artifact、debug2/feature、八条exact日志及binary/selection两SHA均匹配。测试编译包含
+默认未激活的故障钩子；普通helper未设置capture或fault，新五项CI-only仅编译。
+独审未执行测试；终审后仅修正文档措辞与补充本账本，不改Rust或重复执行测试。

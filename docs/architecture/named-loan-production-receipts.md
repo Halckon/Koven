@@ -12,7 +12,7 @@ Int/Unit 结果；typed 与旧 ownership 的 Shared loan、CallReturn End/NamedD
 contract、唯一原 End/Drop、source token 到 callable/caller/callee 实例。真实普通 Borrow
 producer 在 adapt 后绑定原 owner Slot，随后原 RootPlace/Shared Begin/DirectCall 的
 arguments=[loan]、同 loan End、NamedDrop 逐步闭合；唯一 producer 不增加任何动作。
-RStmt 的 Named 标记与 Receiver/Consumer 分家，随合块移动，Alias 不产指令。
+RStmt 的 Named 标记与 Receiver/Consumer/[Temporary](temporary-loan-production-receipts.md) 分家，随合块移动，Alias 不产指令。
 实际 append_instruction 后冻结参数 owner/place/caller loan 与五个 InstructionId；
 callee entry loan 保持独立，遗漏、重复、错身份返回结构化内部错误，不靠 Span 后扫。
 
