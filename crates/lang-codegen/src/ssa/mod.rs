@@ -17,7 +17,9 @@ mod refine;
 #[cfg(test)]
 pub(crate) use refine::loan_receipt::observe as observe_loan_receipts;
 #[cfg(test)]
-pub(crate) use refine::{OwnerFault, observe_owner_actions, observe_owner_drops, with_owner_fault};
+pub(crate) use refine::{
+    OwnerFault, observe_owner_actions, observe_owner_calls, observe_owner_drops, with_owner_fault,
+};
 #[cfg(test)]
 mod refine_string_when_tests;
 #[cfg(test)]

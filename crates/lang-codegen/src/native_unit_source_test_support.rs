@@ -15,6 +15,8 @@ mod local_object_constant_qualifier_tests;
 mod nullable_rc_proof_tests;
 #[path = "native_nullable_when_tests.rs"]
 mod nullable_when_tests;
+#[path = "owner_own_call_tests.rs"]
+mod owner_own_call_tests;
 #[path = "owner_replace_break_ci_tests.rs"]
 mod owner_replace_break_ci_tests;
 #[path = "owner_replace_break_downstream_tests.rs"]

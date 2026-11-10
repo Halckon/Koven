@@ -11,6 +11,7 @@ mod heap;
 mod inout;
 mod map;
 mod owner_consumer;
+mod owner_call;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
 mod place;

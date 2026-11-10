@@ -964,7 +964,7 @@ impl Builder<'_, '_> {
                 return Ok(Lowered::Diverged);
             }
             if self.is_unit(return_type) {
-                self.push(op, Vec::new(), span)?;
+                self.owner_unit_call(call, op, span)?;
                 Lowered::Unit
             } else if let Some(&callable) = self.inputs.callable_returns.get(&callee) {
                 Lowered::Value(self.value(op, EntityType::Value(callable), span)?)

@@ -429,3 +429,40 @@ fn record_owner_drop(
         }
     });
 }
+
+#[cfg(test)]
+type OwnerCallWitness = (
+    lang_frontend::type_checking::UnitExpressionId,
+    crate::ssa::model::FunctionId,
+    Vec<usize>,
+    Option<usize>,
+);
+#[cfg(test)]
+thread_local! {
+    static OWNER_CALLS: std::cell::RefCell<Option<Vec<OwnerCallWitness>>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn observe_owner_calls<T>(lower: impl FnOnce() -> T) -> (T, Vec<OwnerCallWitness>) {
+    OWNER_CALLS.with(|events| *events.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let events = OWNER_CALLS.with(|events| events.borrow_mut().take().unwrap_or_default());
+    (result, events)
+}
+#[cfg(test)]
+fn record_owner_call(
+    call: lang_frontend::type_checking::UnitExpressionId,
+    callee: crate::ssa::model::FunctionId,
+    arguments: &[body::Slot],
+    receipt: Option<usize>,
+) {
+    OWNER_CALLS.with(|events| {
+        if let Some(events) = events.borrow_mut().as_mut() {
+            events.push((
+                call,
+                callee,
+                arguments.iter().map(|s| s.0).collect(),
+                receipt,
+            ));
+        }
+    });
+}
