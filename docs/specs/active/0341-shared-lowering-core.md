@@ -11316,3 +11316,51 @@ Cleanup Drop append成功才可闭合。retirement句柄沿原drop尝试携带�
 独立Complete binding区域。再接实际entry/completion、Drop因果carry及独立验证成为绿。
 局部普通邻控按fresh source/helper审后exact执行；foreign/破损/Abort/计数/压力/CI-only
 只编译不运行。后端production消费缺证红不混入本片。
+
+#### 独立binding区域认证实施与验收（2026-11-10）
+
+基于clean `0b456820`，Spec `dcde4337` 固定已形成owner为entry前提的两statement区域；
+未声称owner形成在区间内。API空stub/普通能力红 `5b3d57a2` 先完成首rooted布局真实on/off、
+七因果记录与八SSA/verified LLVM，再于缺独立binding区域失败（0/1/2909）；红未执行完
+第二Unit布局。编译1m01s、opt0/debug2/support，区别于上一片缺因果链接红。
+
+冻结代码 `50f1bdf8e06f6f522fa4e61efcc3a99dbc94d255` 新增独立 UnitBorrowBindingRegion，
+普通caller三statement准入，入口核唯一真实OwnedValue及typed/raw身份，body正常尾全active
+空状态才completion；原item后续drop_all因此无动作。完整未过滤七事件区间逐身份验证，
+consumer AfterStatement即时退休的handle沿原drop尝试到实际remove及唯一新Cleanup append；
+entry/removed完整owner快照核一致，保护早退、去重未append、重复/错配不借旧相等Drop。
+原函数签名与None路径执行顺序不变，未增加End/Drop、未变语言ABI/route/Eq或P1–P4。
+source/callable仍Partial；独立区域Complete不代表production receipt或旧oracle可退休。
+
+首green build46.08s，主例1/0/2910，两Unit真实off及原SSA/LLVM保持，公开region身份逐一
+核实际caller/root/binding/sourcecall/consumer/entry/body与即时retirement点。
+
+过程偏差：补actualremoved快照的Python精确替换发现两处匹配并assert中止，已部分写入
+validator/entry快照和import，尚未写cause/Named push/CI构造；该shell后续fmt/diff仍执行，
+不能以shell0判整项成功。只读确认后用set-e和精确struct匹配补齐，再fmt/diff成功。
+这是编辑脚本偏差，不是Rust编译或能力红；本轮实际Rust编译与Clippy无失败。
+
+静态feature-enabled前端/后端Clippy38.71s、默认workspace all-targets32.31s，fmt/docs884、
+尺寸2359手写文件/35旧超限（base0b456820）及diff通过。主planner1598→1634仅必要wrapper/
+接线，保1669既有例外，不提高额度。新增两项CI-only缺/foreign/重复/错Drop及边界破损负控
+在两crate test no-run中编译但不执行；无native、Abort、counter、压力、正式CI或release。
+
+最终静态后两crate no-run实际0.13s，六个唯一ordinary exact均1/0/0/2910 filtered：Complete
+主例、extra-use/后读owner边界、原causal true-off、前端merge true-off、P4生命周期与P3
+Int/Unit true-off。五项共26次有限SSA/LLVM lower，一项仅FE；未执行frontend test binary。
+两新增CI-only负控仅编译，不把人工破损用作普通能力见证。
+
+证据目录 `/private/tmp/koven-binding-coverage-evidence` 的final-selection、run-final、
+final-manifest及原exact日志同名同序；4213冻结tracked输入保source-input-hashes，
+冻结后仅Spec/架构文案不同。CG SHA256
+`ffe429cfaf31b6d18645dae45981b3bd299f15424d45aa28b8b26a290a3c31cb`，FE
+`90dcc7ee49e4a4f02d182878e4b86d3aa03c9a3892df9fd3d6f230260a196de7`，selection
+`77ecad1149ba1b88993b62c2cac9c5b455f99a6b10b8872f4e09444d931d6add`，输入清单
+`e9a81350715d08ca843acdf81f603f6b7f762da636e1dce8a8c72f73558839f4`。
+实际两test artifacts opt0/debug2/test=true、仅loan-observation-test-support；未另采CLI
+artifact features证据，不把workspace成功外推成CLI/release/正式CI验收。
+
+精确 `50f1bdf8` 独立只读终审无阻断：4213冻结对象、两binary、raw artifacts、六项
+selection/manifest/runner/原日志均匹配；当前仅两docs变化，非docs无漂移。本次仅审过
+旧1669限额内1598→1634必要薄wrapper增长，不推广新额度。最后docs分账复核通过，
+随后仅文档本地提交清树，不重跑Rust、不推送。

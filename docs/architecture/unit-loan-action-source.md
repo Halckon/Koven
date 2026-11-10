@@ -107,8 +107,19 @@ transport的旧语义Eq仅比较binding/source；merge不改变原保留资格�
 并非all-use证明，None不授absence。原样双Unit真off保持完整旧facts及SSA/LLVM；控制
 邻控仅证明前端合流/off与sticky降级，其if仍未被该后端子集支持。
 
-该增量仍Partial，原样两P3 call region仍Unsupported。尚未认证跨statement完整region、
-Drop因果闭合或生产receipt，不泛化parent/sibling/wrapper，也不改变旧协议含义。
+这些单独因果记录仍为Partial证据，原样两P3 call region仍Unsupported。另有独立
+`UnitBorrowBindingRegion`认证精确无参、非泛型Unit caller中的三statement形状：plain
+String owner声明、直接borrow binding声明、唯一普通Unit consumer。入口位于owner已
+真实形成后、borrow声明前，核唯一当前OwnedValue与typed/raw声明身份；不覆盖owner形成。
+完整正常body收尾且全部active义务为空后才completion，区间保留全部未过滤七事件。
+
+retirement句柄沿原ASAP尝试、实际owner移除及唯一新Cleanup append保存直接因果边。
+entry/removed快照包括owner token、symbol、origin、declaration和scope；独立validator
+核同catalog/先后/角色及consumer AfterStatement即时退休Drop。保护早退、去重无新append、
+重复/错配、额外动作或不完整边界不能以旧相等Drop补齐，保持Partial。旧None路径与唯一
+cleanup producer不变。公开binding区域有独立catalog归属与完整action_ids，不是第五个
+call-only协议；source/callable仍Partial，off保旧产品，额外use/后读owner不在该准入。
+尚无binding production receipt，不泛化parent/sibling/wrapper，不退休旧oracle。
 
 ## 同步consumer实际依赖边
 
