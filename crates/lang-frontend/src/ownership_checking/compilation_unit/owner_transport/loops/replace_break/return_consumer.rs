@@ -8,7 +8,9 @@ pub enum UnitOwnerReplaceBreakReturnActionV1 {
     Take(UnitExpressionId, UnitSymbolId),
     /// The evaluated payload is delivered before the existing Return cleanup.
     Return {
+        /// The actual explicit Return expression.
         expression: UnitExpressionId,
+        /// The Name payload already taken from the selected root.
         payload: UnitExpressionId,
     },
 }
