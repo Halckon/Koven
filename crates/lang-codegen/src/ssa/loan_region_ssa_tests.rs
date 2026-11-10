@@ -325,3 +325,305 @@ fn assert_lifecycle(
         }
     }
 }
+
+#[test]
+fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
+    use lang_frontend::ownership_checking::{
+        UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanRegionFamily,
+        UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    };
+    use lang_frontend::type_checking::{ParameterMode, UnitCallTarget, UnitItemId};
+    let text =
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch() }";
+    let mut sources = SourceMap::new();
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "receiver.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "receiver.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let declarations: Vec<_> = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|d| d.name() == "run")
+            .collect();
+        let [run] = declarations.as_slice() else {
+            panic!("unique caller")
+        };
+        let observation = &owned.ownership().loan_action_observations()[0];
+        let [region] = observation.regions() else {
+            panic!("one receiver region")
+        };
+        assert!(observation.owns_region(region));
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+        assert_eq!(region.protocol_version(), 2);
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(
+            region.families(),
+            &[
+                UnitLoanRegionFamily::SharedReceiver,
+                UnitLoanRegionFamily::NamedSourceDrop
+            ]
+        );
+        assert_eq!(
+            region.callable(),
+            Some(UnitItemId::new(run.source_unit(), run.root()))
+        );
+        let ids: Vec<_> = region.action_ids().collect();
+        assert_eq!(ids.len(), observation.actions().len());
+        for (index, id) in ids.iter().enumerate() {
+            assert_eq!(Some(id), observation.action_id(index).as_ref());
+        }
+        let actions: Vec<_> = ids
+            .iter()
+            .map(|id| observation.action(id).unwrap())
+            .collect();
+        let [
+            UnitLoanAction::ReceiverBegin(begin),
+            UnitLoanAction::ReceiverEnd(end),
+            UnitLoanAction::Cleanup {
+                point,
+                action: UnitIterationCleanupAction::Drop(drop),
+            },
+        ] = actions.as_slice()
+        else {
+            panic!("entire catalog-bound receiver interval")
+        };
+        assert_eq!(begin, end.receiver());
+        assert_eq!(begin.call(), region.call());
+        assert_eq!(region.call().source_unit(), run.source_unit());
+        assert_eq!(begin.kind(), UnitReceiverOwnershipKind::SharedLoan);
+        assert!(!begin.is_receiver_reservation());
+        assert_eq!(begin.activation_point(), None);
+        assert_eq!(*point, UnitDropPoint::CallReturn(region.call()));
+        assert_eq!(end.point(), *point);
+        assert_eq!(drop.point(), *point);
+        let UnitReceiverOwnershipTarget::Place(root) = begin.target() else {
+            panic!("named root")
+        };
+        assert!(root.is_root());
+        let binding = owned
+            .ownership()
+            .bindings()
+            .iter()
+            .find(|binding| binding.symbol() == root.root())
+            .unwrap();
+        assert_eq!(
+            binding.kind(),
+            lang_frontend::ownership_checking::OwnershipBindingKind::Owned
+        );
+        assert_span(binding.declaration_span(), source, (44, 58));
+        assert_eq!(drop.target(), UnitDropTarget::Named(root.root()));
+        assert_eq!(
+            owned.ownership().receiver_call_return_ends(),
+            std::slice::from_ref(end)
+        );
+        assert!(owned.ownership().drops().contains(drop));
+        assert_span(begin.begin_span(), source, (68, 72));
+        assert_span(begin.end_span(), source, (68, 80));
+        assert_span(drop.value_origin(), source, (48, 52));
+        let call = typed.types().call(region.call()).unwrap();
+        assert_eq!(call.expression(), begin.call());
+        assert!(call.arguments().is_empty());
+        let receiver = call.receiver().unwrap();
+        assert_eq!(receiver.origin(), begin.source());
+        assert_eq!(receiver.mode(), ParameterMode::Borrow);
+        assert_eq!(receiver.ty(), begin.receiver_type());
+        let UnitCallTarget::Symbol(target) = call.target() else {
+            panic!("nominal method")
+        };
+        assert_eq!(target.source_unit(), run.source_unit());
+        let local_names = names
+            .names()
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_unit() == target.source_unit())
+            .unwrap();
+        let method = local_names
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.id() == target.symbol())
+            .unwrap();
+        assert_eq!(method.name(), "touch");
+        let owner_symbol = local_names
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.id() == root.root().symbol())
+            .unwrap();
+        assert_eq!(root.root().source_unit(), run.source_unit());
+        assert_eq!(owner_symbol.name(), "node");
+        assert_eq!(owner_symbol.span(), drop.value_origin());
+        assert_span(method.span(), source, (17, 22));
+        let (lowered, routed) = super::refine::observe_routing(|| {
+            super::unit_lower::lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                &owned,
+                run.id(),
+            )
+        });
+        let (program, entry) = lowered.unwrap();
+        // The unchanged nominal-receiver source still uses Compatibility, not refine.
+        assert!(routed.is_empty());
+        verify_program(&program).unwrap();
+        assert_receiver_lifecycle(
+            &program,
+            entry,
+            source,
+            begin.begin_span(),
+            begin.end_span(),
+            drop.value_origin(),
+        );
+        let llvm = crate::llvm::render_verified_program(&program).unwrap();
+        for name in ["f0.koven.run.d1", "f1.koven.Node.touch.s2"] {
+            assert!(llvm.lines().any(|line| line.starts_with("define ")
+                && (line.contains(&format!("@{name}("))
+                    || line.contains(&format!("@\"{name}\"(")))));
+        }
+    }
+}
+
+fn assert_receiver_lifecycle(
+    program: &Program,
+    entry: FunctionId,
+    source: SourceId,
+    begin: Span,
+    end: Span,
+    owner_origin: Span,
+) {
+    let [module] = program.modules.as_slice() else {
+        panic!("one module")
+    };
+    assert_eq!(module.functions.len(), 2);
+    let run = module.function(entry).unwrap();
+    assert_span(run.origin.span(), source, (36, 82));
+    let [block] = run.blocks.as_slice() else {
+        panic!("one caller block")
+    };
+    let [EntityId::Value(owner)] = block.parameters.as_slice() else {
+        panic!("owner entry")
+    };
+    let EntityType::Value(node) = run.entity(EntityId::Value(*owner)).unwrap().ty else {
+        panic!("owned Node")
+    };
+    assert!(matches!(
+        module.types[node.index()],
+        SsaTypeKind::HeapOwner { .. }
+    ));
+    assert_eq!(run.receiver, None);
+    assert_eq!(
+        (run.values.len(), run.places.len(), run.loans.len()),
+        (2, 1, 1)
+    );
+    assert_eq!(
+        block.instructions,
+        run.instructions.iter().map(|i| i.id).collect::<Vec<_>>()
+    );
+    let [root, acquire, call, retire, destroy] = run.instructions.as_slice() else {
+        panic!("full receiver lifecycle")
+    };
+    assert!(run.instructions.iter().all(|i| i.block == block.id));
+    let [EntityId::Place(place)] = root.results.as_slice() else {
+        panic!("actual root place")
+    };
+    let [EntityId::Loan(loan)] = acquire.results.as_slice() else {
+        panic!("actual receiver loan")
+    };
+    let [EntityId::Value(result)] = call.results.as_slice() else {
+        panic!("method result")
+    };
+    assert_ne!(owner, result);
+    let EntityType::Value(integer) = run.entity(EntityId::Value(*result)).unwrap().ty else {
+        panic!("owned Int result")
+    };
+    assert_eq!(
+        module.types[integer.index()],
+        SsaTypeKind::Integer {
+            bits: 32,
+            signed: true
+        }
+    );
+    assert_eq!(root.operation, Operation::RootPlace { owner: *owner });
+    assert_eq!(
+        acquire.operation,
+        Operation::BorrowBegin {
+            place: *place,
+            kind: LoanKind::Shared
+        }
+    );
+    let Operation::DirectCall {
+        callee,
+        receiver,
+        arguments,
+    } = &call.operation
+    else {
+        panic!("method call")
+    };
+    assert_eq!(*receiver, Some(EntityId::Loan(*loan)));
+    assert!(arguments.is_empty());
+    assert_eq!(retire.operation, Operation::BorrowEnd { loan: *loan });
+    assert_eq!(destroy.operation, Operation::Drop { owner: *owner });
+    assert!(retire.results.is_empty() && destroy.results.is_empty());
+    for (instruction, span) in [
+        (root, begin),
+        (acquire, begin),
+        (call, end),
+        (retire, end),
+        (destroy, owner_origin),
+    ] {
+        assert_eq!(instruction.origin, Origin::Source(span));
+    }
+    let loan_type = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: node,
+    };
+    assert_eq!(run.entity(EntityId::Loan(*loan)).unwrap().ty, loan_type);
+    assert!(
+        matches!(&block.terminator.as_ref().unwrap().kind, TerminatorKind::Return { values } if values.is_empty())
+    );
+    let method = module.function(*callee).unwrap();
+    assert_span(method.origin.span(), source, (13, 33));
+    assert_eq!(method.receiver, Some(loan_type));
+    assert_eq!(method.return_types, vec![integer]);
+    let [callee_block] = method.blocks.as_slice() else {
+        panic!("one callee block")
+    };
+    let [EntityId::Loan(parameter)] = callee_block.parameters.as_slice() else {
+        panic!("callee receiver")
+    };
+    assert_ne!(parameter.function(), loan.function());
+    assert_eq!(
+        method.entity(EntityId::Loan(*parameter)).unwrap().ty,
+        loan_type
+    );
+    let [constant] = method.instructions.as_slice() else {
+        panic!("no callee owner or cleanup")
+    };
+    assert_eq!(
+        constant.operation,
+        Operation::Constant(ScalarConstant::Integer(1))
+    );
+    let [EntityId::Value(value)] = constant.results.as_slice() else {
+        panic!("constant result")
+    };
+    assert_eq!(
+        method.entity(EntityId::Value(*value)).unwrap().ty,
+        EntityType::Value(integer)
+    );
+    assert_eq!(
+        callee_block.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return {
+            values: vec![*value]
+        }
+    );
+}

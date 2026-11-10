@@ -9483,3 +9483,60 @@ codegen lib no-run 静态编译成功。外置日志与 binary hash 在
 `/private/tmp/koven-owner-multi-callable-evidence/manifest.json`；固定代码和 exact 名称为可重建输入。
 codegen all-targets 严格 Clippy、workspace all-targets check、fmt、文档879及尺寸护栏通过（2291 手写 Rust、36 既有超千行，
 本测试文件485行），无额度修改。CI-only 全部未执行；未推送或触发远端 CI。
+### Loan nominal receiver跨阶段身份实证（2026-11-10，protocol2）
+
+续接`efbe58c7`，测试与当前事实提交`667bd7d8168f8620b3041203aae58512481f30c1`。
+固定原样源码为`class Node { fun touch(): Int = 1 }`及
+`fun run(own node: Node): Unit { node.touch() }`。双Unit入口实际走Compatibility，refine
+observer均为空；普通class Shared receiver尚无migrated准入，不能继承protocol4的refine
+结论。首probe通过仅为已有能力证据补齐，不是新backend能力；未加anchor或改源码/生产。
+后续protocol2 refine准入是独立实施决策，本片不处理。
+
+唯一新增普通exact为`ssa::loan_region_ssa_tests::certified_receiver_region_has_real_unit_ssa_lifecycle`。
+最终1 passed / 0 failed / 0 ignored / 2817 filtered，同一测试内rooted与memory document
+两入口均完成，不按入口累计。逐源核parsed/analyze、routing observer、SSA/verified LLVM
+helper均为正常有限输入。核同catalog全部三项ReceiverBegin/ReceiverEnd/Named Drop、
+逐index原action ID、region caller/call/root、真实end/drop及Owned参数binding；typed
+receiver来源/类型/模式与method symbol一致。完整参数声明44..58与名称marker48..52
+分别锁定，不混成同一Span。SSA从Node Value入口建立RootPlace与Shared loan，真实
+DirectCall接收该loan，End同loan后Drop原owner；Int结果与owner分开，callee独立
+function-qualified Shared receiver不拥有payload。caller结果、callee常量/返回均核同
+signed32 Int；完整五操作、block顺序、来源及callee路径另经独立SSA与LLVM verifier。
+
+过程偏差全部保留：build1因测试试图Debug打印Program触发E0277，未执行；改用已有
+render_program后build2成功23.65s。build2尚在编译时曾提前运行旧binary，实际0 passed /
+2817 filtered，未命中不计成功。随后build3完成后从Cargo JSON取binary并先--list核名，
+probe实际1 passed / 2817 filtered，双入口routes为空，揭示上述Compatibility边界。
+强化build4因引用比较E0308及误写常量枚举I32（实际Integer）E0599编译失败；build5因
+测试切片试图move非Copy end触发E0507；均未执行，后改借用slice。build6编译通过但未
+运行，等待独审补强。build7编译后exact为0 passed / 1 failed / 2817 filtered：测试误将
+完整参数declaration span等同Drop名称marker。依真实角色改为分别断言，生产不变；
+这些测试假设/编译失败不是语言能力红测。build7失败binary SHA256为
+`c31394768d4a052e4c1e4e182b735803043c454d972d44cc5e93b82b2ea1ce22`。
+
+最终build8 no-run19.46s，实际命令为
+`cargo test --locked --offline -p lang-codegen --lib --no-run --message-format=json -vv -j 2`；
+完成后从JSON取唯一executable，以测试全名--list核名，再直接binary运行该名加
+`--exact --nocapture`。唯一target为`/private/tmp/koven-exclusive-loop-prefix-target`，
+Cargo串行、不copy/clean/降档。codegen构建与严格Clippy设置
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，实际LLVM21.1.8；
+`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、`RUSTFLAGS`及
+`CARGO_ENCODED_RUSTFLAGS`均未设置。manifest debuginfo=2、opt_level=0、test=true，
+rustc含`-C debuginfo=2`。中途另一个Cargo进程经只读环境核实属于owner的不同target，
+未干预。最初sandbox内ps受限后按授权升权只读检查成功，没有绕过操作拒绝。
+
+最终binary SHA256为`a3212950ec1ef5ff60aed37930faf71c31c443dd95404032294eb63e9e8f07fc`；
+exact名单SHA256为`01919d6fa46f1411a8a325b92c81d0f7fbfabaeff3e3840d1dfb5e5d20b28444`。
+原始编译/失败/probe/最后exact日志保留在仓库外`/private/tmp/koven-receiver-ssa-*`，包含
+`build1`至`build8` JSON/stderr、`probe.log`零命中、`probe3.log`、`final.log`失败以及
+`build8-exact.log`和`build8-selection.log`；临时目录不保证长期留存，稳定证据为上述
+提交中的原样测试及本账本，不将原始日志入库。最终严格
+`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`通过11.29s；
+fmt、docs877、diff与尺寸`--base HEAD`通过，2278手写Rust文件/36旧超限，测试文件629行，
+不增额度。独立只读复审与最终身份补强复核均无剩余阻断。
+
+本片没有生产receipt/证书consumer、执行责任切换、新shape或语义变化；不重跑既有
+frontend基线、protocol4 exact、workspace行为集合；所有CI-only人工破损、Abort、故障
+注入、压力、资源计数及native行为均未运行，仅随目标编译。未运行正式双宿主CI，LLVM
+verifier不代替native释放计数；不退休Single、不称source/callable Complete、不关闭
+Spec/D10/E2，未push、PR或merge。
