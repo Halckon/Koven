@@ -212,10 +212,62 @@ fn borrowed_result_verifier_rejects_wrong_source_and_owned_result_contracts_with
 
 #[test]
 fn borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa() {
+    use crate::{
+        native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource},
+        test_support::diagnostics::assert_eq_diagnostic,
+    };
+    use lang_frontend::diagnostic::{Diagnostic, Severity, codes};
+
     let entry = "fun entry() { val source = \"kept\"; borrow val item = view(source); consume(source); println((item)) }";
+    let text = format!("{PROVIDER}{entry}");
+    let rejected = UnitSource::analyze("result.ko", &text)
+        .err()
+        .expect("moving a live borrowed source cannot acquire executable Unit capability");
+    assert!(matches!(rejected.kind, SourceRejectionKind::Diagnostics));
     assert_eq!(
-        single(&format!("{PROVIDER}{entry}")).err().unwrap().kind,
-        LoweringErrorKind::FrontendDiagnostics
+        rejected.report.stages,
+        [("parse", 0), ("names", 0), ("types", 0), ("ownership", 1)]
+    );
+    let [(stage, diagnostic)] = rejected.report.diagnostics.as_slice() else {
+        panic!("exactly the original source-move conflict");
+    };
+    assert_eq!(*stage, "ownership");
+    let source = diagnostic.primary_span().source_id();
+    assert_eq!(rejected.sources.source_name(source), Ok("result.ko"));
+    assert_eq!(rejected.sources.source_text(source), Ok(text.as_str()));
+    for (start, end, fragment) in [
+        (255, 261, "source"),
+        (238, 244, "source"),
+        (140, 158, "own source: String"),
+    ] {
+        assert_eq!(&text[start..end], fragment);
+    }
+    // Frozen on 9369cc72: Unit keeps the original conflict and adds its selected parameter.
+    // The full diagnostic includes every label in order, with no ignored notes or help.
+    let mut expected = Diagnostic::new(
+        &rejected.sources,
+        Severity::Error,
+        codes::catalog().unwrap().resolve("L0135").unwrap(),
+        "move conflicts with an active loan",
+        rejected.sources.span(source, 255, 261).unwrap(),
+    )
+    .unwrap();
+    for (start, end, message) in [
+        (238, 244, "conflicting loan starts here"),
+        (140, 158, "selected parameter declared here"),
+    ] {
+        expected
+            .add_label(
+                &rejected.sources,
+                rejected.sources.span(source, start, end).unwrap(),
+                message,
+            )
+            .unwrap();
+    }
+    assert_eq_diagnostic!(
+        rejected.report.diagnostics,
+        [("ownership", expected)],
+        "complete original conflict with Unit parameter context"
     );
 }
 

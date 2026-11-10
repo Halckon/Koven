@@ -119,6 +119,7 @@ pub(super) fn analyze(
         dataflow.conditional_receiver_deliveries.clear();
         dataflow.loans.clear();
         dataflow.direct_call_loan_ends.clear();
+        dataflow.string_clone_loan_ends.clear();
         dataflow.borrow_call_handoffs.clear();
         dataflow.borrow_call_transports.clear();
         dataflow.borrow_binding_transports.clear();
@@ -126,6 +127,7 @@ pub(super) fn analyze(
         dataflow.borrow_call_prefix_ends.clear();
         dataflow.exclusive_call_prefix_ends.clear();
         dataflow.receiver_call_prefix_ends.clear();
+        dataflow.receiver_call_return_ends.clear();
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();

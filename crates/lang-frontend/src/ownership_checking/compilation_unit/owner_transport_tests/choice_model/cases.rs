@@ -1,6 +1,6 @@
 //! Synthetic transport graphs use actual source-qualified identities and producer tokens.
 //! The catalog's real source has a Unit If: these graphs do not assert typed String-If
-//! admission. Production remains Unsupported for the real String-result consumers.
+//! admission. Legacy observation remains Unsupported for real String-result consumers.
 use super::*;
 
 const SOURCE: &str = r#"fun run(): Unit {
@@ -465,7 +465,41 @@ fn choice_graph_rejects_uncovered_branch_cleanup_points() {
     };
     *point = UnitDropPoint::CallReturn(ids.call);
     assert!(
-        !model.is_consistent(),
-        "legacy CallReturn support must not widen Choice cleanup"
+        model.is_consistent(),
+        "a matching adjacent Replace proves installed Choice CallReturn cleanup"
     );
+    for mutation in 0..6 {
+        let mut invalid = model.clone();
+        match mutation {
+            0 => {
+                let Event::Drop(point, _, _) = &mut invalid.suffix[2] else {
+                    unreachable!()
+                };
+                *point = UnitDropPoint::CallReturn(control);
+            }
+            1 => {
+                let Event::Drop(_, root, _) = &mut invalid.suffix[2] else {
+                    unreachable!()
+                };
+                *root = ids.previous;
+            }
+            2 => {
+                let Event::Drop(_, _, value) = &mut invalid.suffix[2] else {
+                    unreachable!()
+                };
+                *value = Value::Definition(ids.old.clone());
+            }
+            3 => {
+                invalid.suffix.swap(2, 3);
+            } // Binding breaks the adjacent commit witness.
+            4 => {
+                invalid.suffix.remove(1);
+            } // No real Replace.
+            5 => {
+                invalid.suffix.insert(3, invalid.suffix[2].clone());
+            }
+            _ => unreachable!(),
+        }
+        assert!(!invalid.is_consistent(), "CallReturn mutation {mutation}");
+    }
 }

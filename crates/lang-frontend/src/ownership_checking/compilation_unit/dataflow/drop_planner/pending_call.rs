@@ -382,6 +382,16 @@ impl DropPlanner<'_, '_> {
         owner: Option<crate::ownership_checking::UnitOwnerId>,
         state: &mut ValueState,
     ) {
+        if self.owner_choice.is_some() {
+            let registered = self.pending_value_registered(call, argument, state);
+            if let Some(choice) = &mut self.owner_choice {
+                choice.replacement_pending(
+                    self.checker.unit_expression(call),
+                    self.checker.unit_expression(argument),
+                    registered,
+                );
+            }
+        }
         let Some(owner) = owner else {
             return;
         };
@@ -405,6 +415,24 @@ impl DropPlanner<'_, '_> {
             );
         }
     }
+    pub(super) fn pending_value_registered(
+        &self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        state: &ValueState,
+    ) -> bool {
+        state
+            .pending_temporaries
+            .iter()
+            .filter(|pending| {
+                pending.control == call
+                    && matches!(pending.target, PendingOwner::Temporary(id) if id == argument)
+                    && pending.transfers_at_call
+            })
+            .count()
+            == 1
+    }
+
     pub(super) fn take_pending_identity(
         &self,
         call: ExpressionId,
