@@ -10860,3 +10860,20 @@ fmt、docs 883、尺寸 2341 手写 Rust/35 旧超限（base c956f3bf）及 diff
 SHA 全匹配，41 成功名称/名单/实际 profile/Cargo JSON 一致；frontend 每项 1pass/
 602filtered，codegen 每项 1pass/2889filtered。审阅者未执行测试或修改文件。
 终审后仅补此文档，未重编 Rust；owner target 已无占用。仅本地提交，不 push/PR/发布。
+
+### 单层同参数短路 P/Q 运输准备合同（2026-11-10）
+
+基于固定main合成代码`4f72af76`（main9e7fed92与e839f4bd），按持续本地开发授权，
+准备严格同一Boolean参数的`flag && flag`/`flag || flag`。两个leaf只允许透明Group，
+必须指向原唯一参数；整体可Group/Not。暂不放开leaf Not、第二参数/Name身份、literal、
+比较叶、调用、嵌套短路、一般loop或Resource。原B/Call/Return、Replace及bare Break不变。
+
+短路内部多条条件边必须沿原CFG汇聚至body/finished；owner exit仍严格只有finished→exit
+和Break→exit两条入边，不放宽OwnerPlan incoming2，不引一般phi。条件阶段尚未安装
+suffix carrier，纯Boolean读取后必须实证P未变；merge_value_states清carrier规则不改。
+新的普通SSA oracle沿实际参数/edge追溯P/Q，不假设只有一个Conditional，不按edge顺序
+或Not奇偶指定owner角色。原emitter、清理和全部语言/ABI规则保持。
+
+当前仅准备Spec与普通真实receipt缺失测试，owner target由main合成验收独占，尚未编译
+或执行本片测试，不声称已红。待明确释放后再审普通helper、运行真实红并实现；所有
+foreign/fault/Abort/counter/压力及待定矩阵只编译，不push，不改发布或其他脏树。
