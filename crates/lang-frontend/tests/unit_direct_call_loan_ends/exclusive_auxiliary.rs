@@ -107,18 +107,31 @@ fn assert_handoff_with_prefixes(
             let parameter = loan.parameter_span().unwrap();
             assert_eq!(parameter.source_id(), observed.parsed.source_id());
             assert_eq!(observed.sources.slice(parameter), Ok(parameter_text));
-            let UnitLoanTarget::Place(place) = loan.target() else {
-                panic!("owned auxiliary root");
-            };
-            assert!(place.is_root());
-            assert_eq!(place.root().source_unit(), indexed.id());
-            assert!(unit.formed_owned_locals().contains(&place.root()));
-            let symbol = &local.resolution().symbols()[place.root().symbol().index()];
-            let root_name = argument_text.trim_matches(['(', ')']);
-            assert_eq!(symbol.name(), root_name);
-            assert_eq!(observed.sources.slice(symbol.span()), Ok(root_name));
-            if kind == LoanKind::Exclusive {
-                assert_ne!(place, source_place);
+            match loan.target() {
+                UnitLoanTarget::Place(place) => {
+                    assert!(place.is_root());
+                    assert_eq!(place.root().source_unit(), indexed.id());
+                    assert!(unit.formed_owned_locals().contains(&place.root()));
+                    let symbol = &local.resolution().symbols()[place.root().symbol().index()];
+                    let root_name = argument_text.trim_matches(['(', ')']);
+                    assert_eq!(symbol.name(), root_name);
+                    assert_eq!(observed.sources.slice(symbol.span()), Ok(root_name));
+                    if kind == LoanKind::Exclusive {
+                        assert_ne!(place, source_place);
+                    }
+                }
+                UnitLoanTarget::Temporary(owner) => {
+                    assert_eq!(kind, LoanKind::Shared);
+                    assert_eq!(*owner, loan.argument());
+                    let drops: Vec<_> = unit
+                        .drops()
+                        .iter()
+                        .filter(|drop| drop.target() == UnitDropTarget::Temporary(*owner))
+                        .collect();
+                    assert_eq!(drops.len(), 1);
+                    assert_eq!(drops[0].point(), handoff.point());
+                }
+                other => panic!("owned root or actual Shared temporary: {other:?}"),
             }
             let Expression::Call { arguments, .. } = node(loan.call()).payload() else {
                 panic!("actual call");
@@ -584,4 +597,40 @@ fun run(): Unit { val owner = "kept"; var other = "other"; borrow val item = vie
         assert_eq!(contract.parameter_span(), Some(parameter));
         unit.validate().unwrap();
     }
+}
+
+// These two inputs exercise the union of the independently delivered root and
+// temporary gates. The expected order follows actual operands, never LoanKind.
+#[test]
+fn exclusive_root_then_shared_temporary_keep_both_auxiliary_endpoints() {
+    let call = "view(owner, &other, \"temporary\")";
+    let observed = observe(&format!(
+        r#"fun view(source: String, inout aux: String, extra: String): borrow String from source = source
+fun run(): Unit {{ val owner = "kept"; var other = "other"; borrow val item = {call}; println(item); println(other) }}"#
+    ));
+    assert_handoff(
+        &observed,
+        call,
+        &[
+            ("other", "inout aux: String", LoanKind::Exclusive),
+            ("\"temporary\"", "extra: String", LoanKind::Shared),
+        ],
+    );
+}
+
+#[test]
+fn shared_temporary_then_exclusive_root_keep_original_pending_order() {
+    let call = "view(owner, \"temporary\", &other)";
+    let observed = observe(&format!(
+        r#"fun view(source: String, extra: String, inout aux: String): borrow String from source = source
+fun run(): Unit {{ val owner = "kept"; var other = "other"; borrow val item = {call}; println(item); println(other) }}"#
+    ));
+    assert_handoff(
+        &observed,
+        call,
+        &[
+            ("\"temporary\"", "extra: String", LoanKind::Shared),
+            ("other", "inout aux: String", LoanKind::Exclusive),
+        ],
+    );
 }
