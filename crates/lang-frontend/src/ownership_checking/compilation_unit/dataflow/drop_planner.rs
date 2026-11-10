@@ -197,6 +197,8 @@ fn plan_with_owner_observation(
 }
 
 struct DropPlanner<'a, 'checker> {
+    #[cfg(test)]
+    owner_hook_probe: Option<Vec<crate::ownership_checking::UnitOwnerTransportEvent>>,
     owner_observation_enabled: bool,
     owner_choice: Option<owner_transport::choice::ChoiceTransaction>,
     owner_loop: Option<owner_transport::loops::LoopTransaction>,
@@ -250,6 +252,8 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            #[cfg(test)]
+            owner_hook_probe: None,
             owner_observation_enabled: true,
             owner_choice: None,
             owner_loop: None,

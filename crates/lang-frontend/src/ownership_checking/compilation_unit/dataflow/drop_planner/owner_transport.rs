@@ -143,6 +143,10 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn owner_event(&mut self, event: UnitOwnerTransportEvent) {
+        #[cfg(test)]
+        if let Some(probe) = &mut self.owner_hook_probe {
+            probe.push(event.clone());
+        }
         if let Some(observation) = &mut self.owner_observation
             && observation.status == UnitOwnerObservationStatus::Complete
         {

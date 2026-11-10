@@ -410,3 +410,61 @@ fn replace_break_deferred_publication_withholds_the_complete_product() {
     );
     assert!(owned.owner_observations()[0].replace_break_value.is_none());
 }
+
+/// Capability red test, not a complete incoming/consumer acceptance oracle.
+/// The instance-local probe records only real hooks, including those withheld by the
+/// legacy Unsupported sink. It never feeds events back into any planner/product.
+#[test]
+fn replace_break_suffix_requires_actual_q_handoff() {
+    let f = Fixture::new(&[("root.ko", SOURCE)]);
+    let owned = f.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    compare_and_inspect(&f, &f.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_hook_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let boundary = planner.owner_observations[0]
+            .replace_break_observation_v1()
+            .expect("the existing actual P/Q exits remain available");
+        let p = boundary.condition_false_exit().owner();
+        let q = boundary.break_boundary().owner();
+        assert_ne!(p, q);
+        let (_, initializer) = declaration(&f, 0, "retired");
+        let retired = f.local(0, "retired");
+        let actual = planner.owner_hook_probe.as_ref().unwrap();
+        let takes: Vec<_> = actual
+            .iter()
+            .filter_map(|event| match event {
+                E::Move {
+                    expression, owner, ..
+                } if *expression == initializer => Some(owner.clone()),
+                _ => None,
+            })
+            .collect();
+        let bindings: Vec<_> = actual
+            .iter()
+            .filter_map(|event| match event {
+                E::Binding { symbol, owner, .. } if *symbol == retired => Some(owner.clone()),
+                _ => None,
+            })
+            .collect();
+        let drops: Vec<_> = actual
+            .iter()
+            .filter_map(|event| match event {
+                E::Drop { symbol, owner, .. } if *symbol == retired => Some(owner.clone()),
+                _ => None,
+            })
+            .collect();
+        eprintln!(
+            "actual suffix hooks: take={takes:?}, bind={bindings:?}, drop={drops:?}; P={p:?}; Q={q:?}"
+        );
+        assert!(
+            takes.contains(&q) && bindings.contains(&q) && drops.contains(&q),
+            "missing real state handoff: Break Q never reaches the actual retired take/bind/drop; the scalar condition-false P is not a path-qualified consumer"
+        );
+    });
+}
