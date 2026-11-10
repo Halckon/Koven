@@ -1,5 +1,13 @@
 //! compilation-unit source call 的 Value delivery 与同步 shared-Borrow lowering。
 
+use super::{
+    LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
+    resolve_concrete_type, span_key,
+};
+use crate::ssa::{
+    LoweringError, LoweringErrorKind,
+    model::{EntityId, EntityType, LoanId, Operation, Origin, PlaceAccess, TerminatorKind},
+};
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::{UnitDropPoint, UnitValueDeliveryKind},
@@ -9,14 +17,6 @@ use lang_frontend::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallDescriptor,
         UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
     },
-};
-use super::{
-    LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
-    resolve_concrete_type, span_key,
-};
-use crate::ssa::{
-    LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, LoanId, Operation, Origin, PlaceAccess, TerminatorKind},
 };
 
 pub(super) struct LoweredCallArguments {

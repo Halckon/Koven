@@ -14,9 +14,7 @@ use lang_frontend::{
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{
-        CheckedArithmeticOperator, ComparisonOperator, EntityType, LoanKind, ScalarConstant,
-    },
+    model::{CheckedArithmeticOperator, ComparisonOperator, EntityType, LoanKind, ScalarConstant},
     refine::body::{RAbort, ROp, RTerm, Slot},
 };
 

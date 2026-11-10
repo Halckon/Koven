@@ -19,14 +19,14 @@ use lang_frontend::{
 };
 
 use super::{
-    FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error,
-    require_value, resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
+    FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
+    resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityType, FunctionId,
-        LoanKind, Module, Operation, Origin, SsaTypeId,
+        ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityType, FunctionId, LoanKind,
+        Module, Operation, Origin, SsaTypeId,
     },
 };
 

@@ -4,7 +4,10 @@ pub(super) mod handoff;
 pub(super) mod handoff_runtime;
 pub(super) mod transport;
 use super::{LoweringError, LoweringErrorKind};
-#[cfg_attr(not(test), expect(unused_imports, reason = "test-only provenance helpers"))]
+#[cfg_attr(
+    not(test),
+    expect(unused_imports, reason = "test-only provenance helpers")
+)]
 pub(super) use formation::{
     BindingDeclaration, Birth, Formation, OwnerUpdate, continuation, named_formation,
 };

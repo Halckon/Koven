@@ -328,8 +328,7 @@ impl UnitExpressionLowerer<'_> {
             .map(|data| data.ty);
         let supported_storage = matches!(owner_type, Some(EntityType::Value(storage))
             if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::NullableHandle { inner })
-                if matches!(self.ssa_types.get(inner.index()), Some(SsaTypeKind::HeapOwner { .. }))))
-            ;
+                if matches!(self.ssa_types.get(inner.index()), Some(SsaTypeKind::HeapOwner { .. }))));
         if !supported_storage {
             return Ok(None);
         }

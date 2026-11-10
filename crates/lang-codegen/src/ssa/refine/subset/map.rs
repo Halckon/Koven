@@ -697,12 +697,16 @@ impl Checker<'_, '_> {
                 };
                 let origin_matches = symbol == place.root()
                     || (self.for_borrowed.contains(&symbol)
-                        && self.inputs.owned.borrow_results().bindings().iter().any(
-                            |fact| {
+                        && self
+                            .inputs
+                            .owned
+                            .borrow_results()
+                            .bindings()
+                            .iter()
+                            .any(|fact| {
                                 fact.binding() == symbol
                                     && fact.origin() == &UnitLoanTarget::Place(place.clone())
-                            },
-                        ));
+                            }));
                 if !origin_matches {
                     return false;
                 }

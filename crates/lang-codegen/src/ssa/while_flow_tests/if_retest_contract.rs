@@ -344,11 +344,13 @@ pub(super) fn assert_retest(program: &Program, source: &str, unit: bool) {
     let break_block = function.block(break_predecessor).unwrap();
     assert!(matches!(term(break_block), TerminatorKind::Branch(edge) if edge.target == loop_exit));
     assert!(
-        source_origin(&break_block.terminator.as_ref().unwrap().origin, spans.outer)
-            || source_origin(
-                &break_block.terminator.as_ref().unwrap().origin,
-                spans.broken
-            )
+        source_origin(
+            &break_block.terminator.as_ref().unwrap().origin,
+            spans.outer
+        ) || source_origin(
+            &break_block.terminator.as_ref().unwrap().origin,
+            spans.broken
+        )
     );
     for state in &trace.exits[&break_predecessor] {
         assert_finished(*state);

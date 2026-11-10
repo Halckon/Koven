@@ -369,8 +369,7 @@ fn validate_binding(
         |statement| {
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
             owned.map_iterations().iter().any(|plan| {
-                plan.descriptor().statement() == statement
-                    && plan.source() == Some(fact.origin())
+                plan.descriptor().statement() == statement && plan.source() == Some(fact.origin())
             })
         },
     )?;

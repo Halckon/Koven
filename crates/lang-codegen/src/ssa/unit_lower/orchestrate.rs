@@ -827,10 +827,7 @@ fn lower_unit_impl(
             borrow_return: None,
             carrier_return: None,
         };
-        if !matches!(
-            crate::ssa::refine::route(&inputs),
-            CallableRoute::Refine
-        ) {
+        if !matches!(crate::ssa::refine::route(&inputs), CallableRoute::Refine) {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 plan.span,
