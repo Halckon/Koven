@@ -32,10 +32,7 @@ impl UnitExpressionLowerer<'_> {
         ) {
             return Ok(None);
         }
-        if !descriptor.non_null_when_true()
-            || self.thunk_expression.is_some()
-            || !self.is_direct_function_body_if(control, span)?
-        {
+        if !descriptor.non_null_when_true() || !self.is_direct_function_body_if(control, span)? {
             return Ok(None);
         }
         let node = self

@@ -137,7 +137,6 @@ impl UnitExpressionLowerer<'_> {
         }
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
-        let baseline_closures = self.closure_bindings.clone();
         let baseline_frames = self.pending_call_frames.clone();
         let baseline_receiver = self.current_receiver;
         let baseline_consumed_receiver = self.consumed_receiver;
@@ -186,7 +185,6 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, right_block, &carried, &carried_loans, span)?;
         self.borrow_bindings =
             self.rebind_carried_loans(right_block, carried.len(), &carried_loans, span)?;
-        self.closure_bindings = baseline_closures.clone();
         let right_result = self.lower(right)?;
         let mut exits = Vec::with_capacity(2);
         if right_result != LoweredValue::Diverged {
@@ -205,9 +203,6 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 nullable_proofs: self.nullable_proofs.clone(),
-                closure_bindings: self.closure_bindings.clone(),
-                capture_loans: self.capture_loans.clone(),
-                result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 pending_call_frames: self.pending_call_frames.clone(),
                 temporaries: self.temporaries.clone(),
@@ -222,7 +217,6 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, short_block, &carried, &carried_loans, span)?;
         self.borrow_bindings =
             self.rebind_carried_loans(short_block, carried.len(), &carried_loans, span)?;
-        self.closure_bindings = baseline_closures;
         self.emit_drops(UnitDropPoint::BranchExit {
             control,
             branch: plan.map_or(1, |plan| 1 - plan.rhs_branch()),
@@ -248,9 +242,6 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             nullable_proofs: self.nullable_proofs.clone(),
-            closure_bindings: self.closure_bindings.clone(),
-            capture_loans: self.capture_loans.clone(),
-            result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             pending_call_frames: self.pending_call_frames.clone(),
             temporaries: self.temporaries.clone(),

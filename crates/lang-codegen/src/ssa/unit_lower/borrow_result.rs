@@ -444,7 +444,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
         self.borrow_bindings.insert(symbol, loan);
-        self.result_source_loans.insert(symbol, Vec::new());
         Ok(LoweredValue::Unit)
     }
 
@@ -480,7 +479,6 @@ impl UnitExpressionLowerer<'_> {
                     Origin::Source(span),
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            self.result_source_loans.remove(&fact.binding());
         }
         Ok(())
     }

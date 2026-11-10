@@ -65,7 +65,6 @@ impl UnitExpressionLowerer<'_> {
         }
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
-        let baseline_closures = self.closure_bindings.clone();
         let baseline_frames = self.pending_call_frames.clone();
         let baseline_receiver = self.current_receiver;
         let baseline_consumed_receiver = self.consumed_receiver;
@@ -179,11 +178,9 @@ impl UnitExpressionLowerer<'_> {
             then_borrows = self.borrow_bindings.clone();
         }
         let then_proofs = self.nullable_proofs.clone();
-        let then_captures = self.capture_loans.clone();
         let then_pending = self.pending_operands.clone();
         let then_frames = self.pending_call_frames.clone();
         let then_temporaries = self.temporaries.clone();
-        let then_sources = self.result_source_loans.clone();
         let then_receiver = self.current_receiver;
         let then_consumed_receiver = self.consumed_receiver;
         self.current_receiver = baseline_receiver;
@@ -220,11 +217,9 @@ impl UnitExpressionLowerer<'_> {
             else_borrows = self.borrow_bindings.clone();
         }
         let else_proofs = self.nullable_proofs.clone();
-        let else_captures = self.capture_loans.clone();
         let else_pending = self.pending_operands.clone();
         let else_frames = self.pending_call_frames.clone();
         let else_temporaries = self.temporaries.clone();
-        let else_sources = self.result_source_loans.clone();
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
@@ -236,9 +231,6 @@ impl UnitExpressionLowerer<'_> {
             then_baseline,
             then_borrows,
             then_proofs,
-            then_sources,
-            baseline_closures.clone(),
-            then_captures,
             then_pending,
             then_frames,
             then_temporaries,
@@ -259,9 +251,6 @@ impl UnitExpressionLowerer<'_> {
                 else_baseline,
                 else_borrows,
                 else_proofs,
-                else_sources.clone(),
-                baseline_closures.clone(),
-                else_captures,
                 else_pending,
                 else_frames,
                 else_temporaries,
@@ -283,9 +272,6 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
             self.nullable_proofs = else_proofs;
-            self.result_source_loans = else_sources;
-            self.closure_bindings = baseline_closures;
-            self.capture_loans = else_captures;
             self.pending_operands = else_pending;
             self.pending_call_frames = else_frames;
             self.temporaries = else_temporaries;
@@ -301,9 +287,6 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 nullable_proofs: self.nullable_proofs.clone(),
-                closure_bindings: self.closure_bindings.clone(),
-                capture_loans: self.capture_loans.clone(),
-                result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 pending_call_frames: self.pending_call_frames.clone(),
                 temporaries: self.temporaries.clone(),

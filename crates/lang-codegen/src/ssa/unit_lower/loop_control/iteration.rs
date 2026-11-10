@@ -256,7 +256,6 @@ impl UnitExpressionLowerer<'_> {
         self.current_receiver = context.entry_receiver;
         self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_loop(&baseline, false_block, &context, span)?;
-        self.closure_bindings = context.entry_closure_bindings.clone();
         self.loops.push(context);
         self.emit_drops(UnitDropPoint::LoopExit(statement_id))?;
         self.pending_operands.truncate(retained_start);

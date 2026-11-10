@@ -1,4 +1,4 @@
-//! 未提交的同步调用前缀；ABI 地址槽随本帧结束，源码 owner 由 frontend drop facts 决定。
+//! 未提交的同步调用前缀；源码 owner 由 frontend drop facts 决定。
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -11,35 +11,11 @@ pub(super) struct PendingCallFrame {
     pub(super) created_loans: Vec<usize>,
     /// Argument temporaries whose ordinary direct-call prefix was validated.
     pub(super) control_prefix_temporaries: Vec<UnitExpressionId>,
-    /// (owner, shared-loan) slots for sealed source addresses with no user storage LoanFact.
-    pub(super) abi_slots: Vec<(usize, usize)>,
-    /// 字段置换的父 owner 槽位；整体借用与控制退出仍核对其身份。
-    pub(super) field_replace_owner: Option<usize>,
     /// 保留共享字段 loan 的稳定 root，供跨控制流 cleanup 与 proof guard 使用。
     pub(super) shared_field_roots: Vec<UnitSymbolId>,
-    /// 独占 root 的 owner 槽位须与 binding 保持同一 CFG identity。
-    pub(super) exclusive_root_owners: Vec<usize>,
 }
 
 impl UnitExpressionLowerer<'_> {
-    pub(super) fn drop_abi_call_owners(
-        &mut self,
-        owners: Vec<ValueId>,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        for owner in owners.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::Drop { owner },
-                    Vec::new(),
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        }
-        Ok(())
-    }
-
     /// Iteration facts authorize the same CFG-safe call prefixes through both unit views.
     /// Span containment selects the capability slice, never an ownership or cleanup action.
     pub(super) fn supports_control_prefix(&self, span: Span) -> bool {
@@ -113,7 +89,6 @@ impl UnitExpressionLowerer<'_> {
             || descriptor.result_source() != CallableResultSource::Owned
             || descriptor.aborts()
             || descriptor.prints_line()
-            || self.thunk_expression.is_some()
         {
             return Ok(false);
         }
@@ -366,49 +341,6 @@ impl UnitExpressionLowerer<'_> {
         ) && !symbol.is_synthetic())
     }
 
-    pub(super) fn end_pending_abi_call_slots(
-        &mut self,
-        minimum_loop_depth: usize,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        for frame in self
-            .pending_call_frames
-            .iter()
-            .rev()
-            .filter(|frame| frame.loop_depth >= minimum_loop_depth)
-        {
-            for &(owner, loan) in frame.abi_slots.iter().rev() {
-                let Some(EntityId::Loan(loan)) = self.pending_operands.get(loan).copied() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let owner = require_value(
-                    *self
-                        .pending_operands
-                        .get(owner)
-                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
-                    span,
-                )?;
-                self.function
-                    .append_instruction(
-                        self.block,
-                        Operation::BorrowEnd { loan },
-                        Vec::new(),
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                self.function
-                    .append_instruction(
-                        self.block,
-                        Operation::Drop { owner },
-                        Vec::new(),
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            }
-        }
-        Ok(())
-    }
-
     /// 槽位在 CFG 重绑定后仍稳定；不可保存旧 block 的 LoanId。
     pub(super) fn end_pending_call_loans(
         &mut self,
@@ -437,23 +369,6 @@ impl UnitExpressionLowerer<'_> {
                     .append_instruction(
                         self.block,
                         Operation::BorrowEnd { loan },
-                        Vec::new(),
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            }
-            for &(owner, _) in self.pending_call_frames[frame_index].abi_slots.iter().rev() {
-                let value = require_value(
-                    *self
-                        .pending_operands
-                        .get(owner)
-                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
-                    span,
-                )?;
-                self.function
-                    .append_instruction(
-                        self.block,
-                        Operation::Drop { owner: value },
                         Vec::new(),
                         Origin::Source(span),
                     )

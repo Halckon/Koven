@@ -24,8 +24,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
         // The original no-else, While, Rc and Map entries retain their own rules.
-        if self.thunk_expression.is_some()
-            || !self.nullable_proofs.is_empty()
+        if !self.nullable_proofs.is_empty()
             || !self.loops.is_empty()
             || !self.substitutions.is_empty()
         {

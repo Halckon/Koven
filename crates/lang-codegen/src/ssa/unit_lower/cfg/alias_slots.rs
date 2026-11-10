@@ -6,10 +6,8 @@ use super::{
     lowering_error,
 };
 use crate::ssa::{
-    carry::{
-        AliasRole, AliasSlot, CaptureLoan, IncomingRole, ResultSourceLoan, SourceSlot, Temporary,
-    },
-    model::{EntityId, EntityType, LoanId, ValueId},
+    carry::{AliasSlot, IncomingRole, SourceSlot, Temporary},
+    model::{EntityId, EntityType, ValueId},
 };
 
 impl SourceSlot for CarriedBinding {
@@ -57,8 +55,6 @@ impl SourceSlot for CarriedAccess {
     fn empty(source: EntityId, ty: EntityType) -> Self {
         Self {
             nullable_proofs: Vec::new(),
-            range_sources: Vec::new(),
-            captures: Vec::new(),
             symbol: None,
             receiver: None,
             source,
@@ -78,26 +74,6 @@ impl AliasSlot<Temporary, UnitExpressionId> for CarriedBinding {
     }
 }
 
-impl AliasSlot<CaptureLoan, (UnitExpressionId, usize)> for CarriedAccess {
-    fn alias_source(source: LoanId) -> EntityId {
-        CaptureLoan::entity(source)
-    }
-
-    fn keys_mut(&mut self) -> &mut Vec<(UnitExpressionId, usize)> {
-        &mut self.captures
-    }
-}
-
-impl AliasSlot<ResultSourceLoan, (UnitSymbolId, usize)> for CarriedAccess {
-    fn alias_source(source: LoanId) -> EntityId {
-        ResultSourceLoan::entity(source)
-    }
-
-    fn keys_mut(&mut self) -> &mut Vec<(UnitSymbolId, usize)> {
-        &mut self.range_sources
-    }
-}
-
 #[derive(Clone, Copy)]
 pub(super) enum MergeRole {
     Result,
@@ -106,8 +82,6 @@ pub(super) enum MergeRole {
     NamedBorrow(UnitSymbolId),
     Pending(usize),
     Temporary(UnitExpressionId),
-    Capture(UnitExpressionId, usize),
-    ResultSource(UnitSymbolId, usize),
     NullableProof(UnitSymbolId),
 }
 
@@ -132,10 +106,6 @@ impl IncomingRole<BranchExit> for MergeProjection {
             MergeRole::NamedBorrow(symbol) => EntityId::Loan(exit.borrow_bindings[&symbol]),
             MergeRole::Pending(index) => exit.pending_operands[index],
             MergeRole::Temporary(key) => EntityId::Value(exit.temporaries[&key]),
-            MergeRole::Capture(call, index) => EntityId::Loan(exit.capture_loans[&(call, index)]),
-            MergeRole::ResultSource(symbol, index) => {
-                EntityId::Loan(exit.result_source_loans[&symbol][index])
-            }
             MergeRole::NullableProof(symbol) => EntityId::Loan(exit.nullable_proofs[&symbol].loan),
         };
         Ok(entity)

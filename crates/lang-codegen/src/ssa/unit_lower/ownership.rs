@@ -144,10 +144,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         match self.bindings.remove(&symbol) {
-            Some(LoweredValue::Value(bound)) if bound == value => {
-                self.closure_bindings.remove(&symbol);
-                Ok(())
-            }
+            Some(LoweredValue::Value(bound)) if bound == value => Ok(()),
             Some(LoweredValue::Unit | LoweredValue::Diverged | LoweredValue::Value(_)) | None => {
                 Err(lowering_error(LoweringErrorKind::MissingFact, span))
             }
@@ -257,7 +254,6 @@ impl UnitExpressionLowerer<'_> {
             })
             .transpose()?
             .flatten();
-        self.validate_closure_drop_facts(&facts)?;
         // 条件 receiver 按 frontend 发布的位置与无条件 drop 交错，Copyable 仍跳过。
         for index in 0..=facts.len() {
             if let Some((fact, owner)) = conditional_drop
@@ -331,10 +327,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             },
             UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
-                Some(LoweredValue::Value(value)) => {
-                    self.closure_bindings.remove(&symbol);
-                    value
-                }
+                Some(LoweredValue::Value(value)) => value,
                 Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
                     return Err(lowering_error(
                         LoweringErrorKind::MissingFact,
@@ -484,32 +477,6 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
-        let live_closures = facts
-            .iter()
-            .filter_map(|fact| match fact.target() {
-                UnitDropTarget::Named(symbol) => self.closure_bindings.get(&symbol).copied(),
-                UnitDropTarget::This(_)
-                | UnitDropTarget::Temporary(_)
-                | UnitDropTarget::Captured { .. }
-                | UnitDropTarget::ReplacedElement(_)
-                | UnitDropTarget::ReplacedField { .. }
-                | UnitDropTarget::ReplacedCapture { .. } => None,
-            })
-            .collect::<Vec<_>>();
-        let live_closure_facts = facts
-            .iter()
-            .copied()
-            .filter(|fact| match fact.target() {
-                UnitDropTarget::Named(symbol) => self.closure_bindings.contains_key(&symbol),
-                UnitDropTarget::Captured { closure, .. } => live_closures.contains(&closure),
-                UnitDropTarget::This(_)
-                | UnitDropTarget::Temporary(_)
-                | UnitDropTarget::ReplacedElement(_)
-                | UnitDropTarget::ReplacedField { .. }
-                | UnitDropTarget::ReplacedCapture { .. } => false,
-            })
-            .collect::<Vec<_>>();
-        self.validate_closure_drop_facts(&live_closure_facts)?;
         for fact in facts {
             let symbol = match fact.target() {
                 UnitDropTarget::Named(symbol) => symbol,
@@ -524,10 +491,8 @@ impl UnitExpressionLowerer<'_> {
             };
             self.end_nullable_proof(symbol, span)?;
             let Some(binding) = self.bindings.remove(&symbol) else {
-                self.closure_bindings.remove(&symbol);
                 continue;
             };
-            self.closure_bindings.remove(&symbol);
             let LoweredValue::Value(owner) = binding else {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             };

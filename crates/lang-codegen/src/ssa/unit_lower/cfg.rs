@@ -2,7 +2,6 @@
 
 mod alias_slots;
 mod nullable;
-mod range;
 mod rebind;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -18,7 +17,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    carry::{self, CaptureLoan, IncomingColumns, SourceSlot, Temporary, TypeAtMiss},
+    carry::{self, IncomingColumns, SourceSlot, Temporary, TypeAtMiss},
     model::{
         BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
     },
@@ -35,9 +34,6 @@ pub(super) struct BranchExit {
     pub(super) pending_operands: Vec<EntityId>,
     pub(super) pending_call_frames: Vec<super::call_lifetimes::PendingCallFrame>,
     pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
-    pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
-    pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
-    pub(super) result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
 }
 
 #[derive(Clone)]
@@ -53,8 +49,6 @@ pub(super) struct CarriedBinding {
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
     nullable_proofs: Vec<nullable::CarriedNullableProof>,
-    range_sources: Vec<(UnitSymbolId, usize)>,
-    captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
     receiver: Option<super::ReceiverBinding>,
     source: EntityId,
@@ -149,13 +143,6 @@ impl UnitExpressionLowerer<'_> {
             slot.receiver = Some(receiver);
             carry::seed_slot(&mut carried, slot);
         }
-        carry::collect_aliases::<CaptureLoan, _, _>(
-            self.function,
-            self.capture_loans.iter().map(|(&key, &id)| (key, id)),
-            &mut carried,
-            lowering_error(LoweringErrorKind::InvalidModel, span),
-        )?;
-        self.carry_range_sources(&mut carried, span)?;
         self.carry_nullable_proofs(&mut carried, span)?;
         Ok(carried)
     }
@@ -219,16 +206,6 @@ impl UnitExpressionLowerer<'_> {
             if slot.pending.is_empty() {
                 continue;
             }
-            // 普通 Value 实参保留独立 snapshot；原语 root 已被 exclusive loan 锁定，
-            // 不允许循环改写，必须与其 loan 一起携带同一个 binding/owner identity。
-            if self.pending_call_frames.iter().any(|frame| {
-                frame
-                    .exclusive_root_owners
-                    .iter()
-                    .any(|index| slot.pending.contains(index))
-            }) {
-                continue;
-            }
             let ty = self
                 .typed
                 .symbol_type(symbol)
@@ -279,9 +256,6 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.nullable_proofs.clear();
-            self.closure_bindings.clear();
-            self.capture_loans.clear();
-            self.result_source_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
             return Ok(LoweredValue::Diverged);
@@ -294,9 +268,6 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
             self.nullable_proofs = first.nullable_proofs.clone();
-            self.closure_bindings = first.closure_bindings.clone();
-            self.capture_loans = first.capture_loans.clone();
-            self.result_source_loans = first.result_source_loans.clone();
             self.temporaries = first.temporaries.clone();
             self.pending_operands = first.pending_operands.clone();
             self.pending_call_frames = first.pending_call_frames.clone();
@@ -319,9 +290,6 @@ impl UnitExpressionLowerer<'_> {
             exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
                 || exit.borrow_bindings.keys().copied().collect::<Vec<_>>() != loan_symbols
                 || exit.temporaries.keys().ne(first.temporaries.keys())
-                || exit.closure_bindings != first.closure_bindings
-                || exit.capture_loans.keys().ne(first.capture_loans.keys())
-                || range::keys(&exit.result_source_loans) != range::keys(&first.result_source_loans)
                 || exit.consumed_receiver != first.consumed_receiver
                 || match (first.receiver, exit.receiver) {
                     (None, None) => false,
@@ -431,17 +399,6 @@ impl UnitExpressionLowerer<'_> {
             .chain(first.temporaries.keys().copied().map(MergeRole::Temporary))
             .chain(
                 first
-                    .capture_loans
-                    .keys()
-                    .map(|&(call, index)| MergeRole::Capture(call, index)),
-            )
-            .chain(
-                range::keys(&first.result_source_loans)
-                    .into_iter()
-                    .map(|(symbol, index)| MergeRole::ResultSource(symbol, index)),
-            )
-            .chain(
-                first
                     .nullable_proofs
                     .keys()
                     .copied()
@@ -474,9 +431,7 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         }
-        let source_offset =
-            first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
-        let proof_offset = source_offset + range::keys(&first.result_source_loans).len();
+        let proof_offset = first.pending_operands.len() + first.temporaries.len();
         self.validate_nullable_merge_columns(
             &exits,
             &edge_arguments,
@@ -515,7 +470,7 @@ impl UnitExpressionLowerer<'_> {
         self.temporaries = first
             .temporaries
             .keys()
-            .zip(&pending_indices[first.pending_operands.len()..])
+            .zip(&pending_indices[first.pending_operands.len()..proof_offset])
             .map(|(expression, index)| {
                 let EntityId::Value(value) = parameters[*index] else {
                     return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
@@ -523,24 +478,6 @@ impl UnitExpressionLowerer<'_> {
                 Ok((*expression, value))
             })
             .collect::<Result<_, _>>()?;
-        self.capture_loans = first
-            .capture_loans
-            .keys()
-            .zip(&pending_indices[first.pending_operands.len() + first.temporaries.len()..])
-            .map(|(key, index)| {
-                let EntityId::Loan(loan) = parameters[*index] else {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                };
-                Ok((*key, loan))
-            })
-            .collect::<Result<_, _>>()?;
-        self.result_source_loans = range::rebind(
-            &first.result_source_loans,
-            pending_indices[source_offset..proof_offset]
-                .iter()
-                .map(|index| parameters[*index]),
-            span,
-        )?;
         let proof_parameters = pending_indices[proof_offset..]
             .iter()
             .map(|index| parameters[*index])
@@ -590,7 +527,6 @@ impl UnitExpressionLowerer<'_> {
         )?;
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
-        self.closure_bindings = first.closure_bindings.clone();
         Ok(result)
     }
 
@@ -709,15 +645,6 @@ impl UnitExpressionLowerer<'_> {
                     .map(EntityId::Loan)
             } else if slot.receiver.is_some() {
                 receiver(slot.receiver)
-            } else if let Some((symbol, index)) = slot.range_sources.first() {
-                state
-                    .result_source_loans
-                    .get(symbol)
-                    .and_then(|loans| loans.get(*index))
-                    .copied()
-                    .map(EntityId::Loan)
-            } else if let Some(key) = slot.captures.first() {
-                state.capture_loans.get(key).copied().map(EntityId::Loan)
             } else if let Some(role) = slot.nullable_proofs.first() {
                 state
                     .nullable_proofs
@@ -736,22 +663,6 @@ impl UnitExpressionLowerer<'_> {
                     .iter()
                     .any(|index| state.pending_operands.get(*index) != Some(&entity))
             {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            if slot.range_sources.iter().any(|(symbol, index)| {
-                state
-                    .result_source_loans
-                    .get(symbol)
-                    .and_then(|loans| loans.get(*index))
-                    .copied()
-                    .map(EntityId::Loan)
-                    != Some(entity)
-            }) {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            if slot.captures.iter().any(|key| {
-                state.capture_loans.get(key).copied().map(EntityId::Loan) != Some(entity)
-            }) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             if slot.nullable_proofs.iter().any(|role| {

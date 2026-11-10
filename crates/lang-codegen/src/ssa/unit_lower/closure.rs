@@ -7,10 +7,7 @@ use lang_frontend::{
     name_resolution::{
         Namespace, SourceUnitId, SymbolKind, UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{
-        ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource, UnitDropFact,
-        UnitDropTarget,
-    },
+    ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource},
     parser::{Expression, Statement},
     source::Span,
     type_checking::{
@@ -258,75 +255,8 @@ impl UnitExpressionLowerer<'_> {
                 Ok(Some(UnitExpressionId::new(self.source_unit, expression)))
             }
             Expression::Group { expression } => self.closure_origin(*expression),
-            Expression::Name => Ok(self
-                .references
-                .get(&span_key(node.span()))
-                .and_then(|symbol| self.closure_bindings.get(symbol))
-                .copied()),
             _ => Ok(None),
         }
-    }
-
-    pub(super) fn validate_closure_drop_facts(
-        &self,
-        facts: &[UnitDropFact],
-    ) -> Result<(), LoweringError> {
-        for fact in facts {
-            let UnitDropTarget::Captured { closure, .. } = fact.target() else {
-                continue;
-            };
-            if !facts.iter().any(|candidate| {
-                matches!(candidate.target(), UnitDropTarget::Named(symbol)
-                    if self.closure_bindings.get(&symbol) == Some(&closure))
-                    || matches!(candidate.target(), UnitDropTarget::Temporary(expression)
-                        if self.closure_origin(expression.expression()).ok().flatten() == Some(closure))
-            }) {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    fact.value_origin(),
-                ));
-            }
-        }
-        for fact in facts {
-            let closure = match fact.target() {
-                UnitDropTarget::Named(symbol) => self.closure_bindings.get(&symbol).copied(),
-                UnitDropTarget::Temporary(expression) => {
-                    self.closure_origin(expression.expression())?
-                }
-                _ => None,
-            };
-            let Some(closure) = closure else { continue };
-            let plan = self
-                .callable_plans
-                .get(&(self.closure_scope, closure))
-                .ok_or_else(|| {
-                    lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
-                })?;
-            let expected = plan
-                .captures
-                .iter()
-                .rev()
-                .filter(|capture| capture.effect == ClosureCaptureEffect::Move)
-                .map(|capture| UnitClosureCaptureSource::Symbol(capture.symbol))
-                .collect::<Vec<_>>();
-            let actual = facts
-                .iter()
-                .filter_map(|candidate| match candidate.target() {
-                    UnitDropTarget::Captured {
-                        closure: candidate,
-                        source,
-                    } if candidate == closure => Some(source),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            if actual != expected {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    fact.value_origin(),
-                ));
-            }
-        }
-        Ok(())
     }
 }
 

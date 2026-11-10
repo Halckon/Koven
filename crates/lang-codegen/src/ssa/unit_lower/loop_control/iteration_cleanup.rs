@@ -2,10 +2,7 @@
 use super::{iteration::IterationState, *};
 use crate::ssa::model::{EntityId, LoanId, Operation};
 
-use lang_frontend::{
-    ownership_checking::UnitIterationCleanupAction as Action,
-    type_checking::{BorrowReturnOrigin, CallableResultSource, UnitCallReceiverOrigin},
-};
+use lang_frontend::ownership_checking::UnitIterationCleanupAction as Action;
 
 impl UnitExpressionLowerer<'_> {
     pub(in super::super) fn emit_iteration_cleanup(
@@ -13,14 +10,6 @@ impl UnitExpressionLowerer<'_> {
         _point: UnitDropPoint,
         actions: &[Action],
     ) -> Result<(), LoweringError> {
-        let drops = actions
-            .iter()
-            .filter_map(|action| match action {
-                Action::Drop(fact) => Some(*fact),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        self.validate_closure_drop_facts(&drops)?;
         for action in actions {
             match action {
                 Action::Drop(fact) => {
@@ -95,32 +84,13 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
                 Action::EndReceiverLoan(fact) => {
-                    // Trusted range receivers travel as ABI parameter zero in the
-                    // argument frame. Use their exact frontend receiver identity;
-                    // nominal receiver frames keep their existing cleanup contract.
-                    let range_receiver = self.typed.call(fact.call()).is_some_and(|call| {
-                        matches!(call.result_source(),
-                            CallableResultSource::Carrier(contract)
-                                if contract.origin() == BorrowReturnOrigin::Receiver)
-                    });
                     let slots = self
                         .pending_call_frames
                         .iter()
                         .rev()
-                        .filter(|frame| frame.call == fact.call())
-                        .find_map(
-                            |frame| match (frame.receiver, range_receiver, fact.source()) {
-                                (true, _, _) => Some(frame.created_loans.clone()),
-                                (false, true, UnitCallReceiverOrigin::Expression(receiver)) => {
-                                    frame
-                                        .loan_arguments
-                                        .iter()
-                                        .find(|(argument, _)| *argument == receiver)
-                                        .map(|(_, slots)| slots.clone())
-                                }
-                                _ => None,
-                            },
-                        )
+                        .filter(|frame| frame.call == fact.call() && frame.receiver)
+                        .map(|frame| frame.created_loans.clone())
+                        .next()
                         .ok_or_else(|| {
                             lowering_error(LoweringErrorKind::MissingFact, fact.begin_span())
                         })?;
