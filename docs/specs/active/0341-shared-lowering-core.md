@@ -11615,3 +11615,14 @@ slot 后授权原 Return；不能将现在持有 R 的 root slot 当旧值，也
 实施先锁定普通同源 Phase 3 缺 receipt 红，再证明真实回调闭合；随后以 Phase 4 原 emitter
 授权缺失红和同源绿证明消费，不通过扩大 admission 单独取得绿灯。故障、foreign catalog、
 资源/计数器及强制路由只在官方 CI 执行，本地仅编译；普通 helper 每轮重新审计。
+
+
+本地实施：Phase 3 `86ef47ba` 在真实回调闭合后使同源 receipt 红变绿；新 catalog 仅保存
+R，P/Q 不重编号。Phase 4 同头普通原样测试先取得 MissingFact（1 exact），随后复用原
+RootReplace post-push、installed-R Drop 回执与 finish_return 闭合授权。最终普通选择为
+7 exact（FE2/CG5），内部包括4合法排除邻居、2种 Unit SSA/LLVM、2 native 程序和4旧
+consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行；不继承历史大名单。
+准备期 Rust Debug/字段访问、模块注册、AST marker 与 descriptor 引用编译错误，以及格式
+排序失败均保留，不能算能力红；真实能力红只有原 receipt 缺失和后端 MissingFact。
+原始日志、严格选择名单、默认debug2编译profile、源码与binary SHA保留于
+`/private/tmp/koven-owner-replace-return-evidence`；静态门禁及最终头待冻结补记。

@@ -91,4 +91,30 @@ fn suffix_replace_return_requires_closed_path_receipt() {
             .unwrap()
             .span()
     );
+    let parts = fixture.parts(&owned);
+    compare(&fixture, &parts);
+}
+
+#[test]
+fn suffix_replace_return_keeps_unproved_legal_neighbors_outside_receipt() {
+    for suffix in [
+        "return replace(&held, (\"last\"))",
+        "return replace(&held, \"la\" + \"st\")",
+        "return (replace(&held, \"last\"))",
+        "val old = replace(&held, \"last\"); return old",
+    ] {
+        let text = SOURCE.replace("return replace(&held, \"last\")", suffix);
+        let fixture = Fixture::new(&[("suffix-replace-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.clone().validate().is_ok());
+        assert_eq!(
+            owned
+                .owner_observations()
+                .iter()
+                .filter_map(|o| o.replace_break_observation_v1())
+                .count(),
+            0
+        );
+    }
 }

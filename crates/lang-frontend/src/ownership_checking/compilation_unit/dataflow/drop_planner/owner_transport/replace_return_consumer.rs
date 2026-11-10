@@ -62,7 +62,7 @@ pub(in super::super) struct ReturnConsumerCarrier {
     target: ReturnConsumerTarget,
     actions: Vec<Action>,
     bound: Option<OwnedValue>,
-    replacement: Option<replacement::Frame>,
+    replacement: Option<Box<replacement::Frame>>,
 }
 impl ReturnConsumerCarrier {
     pub(super) fn handoff(
@@ -79,9 +79,11 @@ impl ReturnConsumerCarrier {
         }
         Some(Self {
             incoming: [condition.clone(), body],
-            replacement: target
-                .replacement
-                .map(|_| replacement::Frame::new(boundary.input_producers().callable())),
+            replacement: target.replacement.map(|_| {
+                Box::new(replacement::Frame::new(
+                    boundary.input_producers().callable(),
+                ))
+            }),
             target,
             actions: Vec::new(),
             bound: None,

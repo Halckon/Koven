@@ -156,6 +156,7 @@ callee 仍使用既有 own 参数清理，body detached P 仍由旧 emitter 清�
 此片不含三参、默认Borrow Int、非literal、receiver、泛型/间接调用或通用后缀；见SPEC-0341。
 
 ## 共同结果作为唯一 String 返回值
+[共同出口再次 Replace 的返回与清理](unit-replace-return-owner.md)另记录真实 R/旧结果双义务。
 
 受限Return保留相同prefix/while，允许直接`return held`或唯一`val forwarded = held; return forwarded`，
 结果仍为owned String；完整Return形状未成立时，其它loop及原B/Call仍要求既有Unit结果。

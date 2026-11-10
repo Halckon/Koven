@@ -14,6 +14,10 @@ fn suffix_replace_return_original_source_probe() {
     let source = UnitSource::analyze("suffix-replace-return.ko", SOURCE).unwrap();
     source.assert_frontend_clean();
     assert!(matches!(source.products, OwnedProducts::Basic(..)));
+    assert_suffix_shape(&source);
+}
+
+fn assert_suffix_shape(source: &UnitSource) {
     use crate::ssa::model::{EntityId, Operation, TerminatorKind};
     use lang_frontend::ownership_checking::UnitDropPoint;
     let suffix = "replace(&held, \"last\")";
@@ -116,4 +120,139 @@ fn suffix_replace_return_actual_old_slot_requires_authorization() {
     };
     assert!(receipt.2.is_some());
     assert_eq!(receipt.1, receipt.2);
+}
+
+#[test]
+fn suffix_replace_return_native_delivers_selected_old_value() {
+    let text = SOURCE.replace(
+        "val first = run(false); val second = run(true)",
+        "val first = run(false); println(first); val second = run(true); println(second)",
+    );
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                text.replace("run(true)", "run(ON)")
+            )
+        } else {
+            text.clone()
+        };
+        let source = UnitSource::analyze("suffix-replace-return-native.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        super::assert_native_output(&source, b"outer\nnext\n");
+    }
+}
+
+#[test]
+fn suffix_replace_return_both_units_authorize_distinct_old_and_installed_slots() {
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                SOURCE.replace("run(true)", "run(ON)")
+            )
+        } else {
+            SOURCE.to_owned()
+        };
+        let source = UnitSource::analyze("suffix-replace-return-dual.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        assert_suffix_shape(&source);
+        let ((lowered, returns), actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()))
+        });
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let [receipt] = returns.as_slice() else {
+            panic!("one explicit Return");
+        };
+        let old = receipt.2.unwrap();
+        assert_eq!(receipt.1, Some(old));
+        let root = actions[0].1;
+        assert_ne!(root, old);
+        assert_eq!(
+            actions,
+            [
+                ("root", root),
+                ("replace_result", old),
+                ("replace_installed_drop", root)
+            ]
+        );
+    }
+}
+
+// Explicit protocol faults are compiled locally and executed only by official CI.
+#[test]
+fn ci_only_suffix_replace_return_rejects_incomplete_or_wrong_handoffs() {
+    use crate::ssa::OwnerFault::{
+        DuplicateOwnerReturn, MissingFinish, MissingOwnerReturn, WrongReturnPayload,
+    };
+    for fault in [
+        DuplicateOwnerReturn,
+        MissingOwnerReturn,
+        WrongReturnPayload,
+        MissingFinish,
+    ] {
+        let source = UnitSource::analyze("suffix-replace-return-ci.ko", SOURCE).unwrap();
+        source.assert_frontend_clean();
+        assert!(
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry())).is_err()
+        );
+    }
+}
+
+#[test]
+fn suffix_replace_hooks_preserve_existing_ordinary_consumers() {
+    let texts = [
+        SOURCE.replace("return replace(&held, \"last\")", "return held"),
+        SOURCE.replace(
+            "return replace(&held, \"last\")",
+            "val forwarded = held; return forwarded",
+        ),
+        SOURCE
+            .replace(
+                "fun run(flag: Boolean): String",
+                "fun run(flag: Boolean): Unit",
+            )
+            .replace("return replace(&held, \"last\")", "val retired = held"),
+        format!(
+            "fun sink(own value: String, own count: Int): Unit {{}}\n{}",
+            SOURCE
+                .replace(
+                    "fun run(flag: Boolean): String",
+                    "fun run(flag: Boolean): Unit"
+                )
+                .replace("return replace(&held, \"last\")", "sink(held, 7)")
+        ),
+    ];
+    for (index, text) in texts.iter().enumerate() {
+        let source = UnitSource::analyze("existing-owner-consumer.ko", text).unwrap();
+        source.assert_frontend_clean();
+        let boundaries = source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.replace_break_observation_v1())
+            .collect::<Vec<_>>();
+        let [boundary] = boundaries.as_slice() else {
+            panic!("one original closed consumer");
+        };
+        match index {
+            0 | 1 => assert!(boundary.suffix_return_consumer_v1().is_some()),
+            2 => assert!(boundary.suffix_consumer_v1().is_some()),
+            3 => assert!(boundary.suffix_call_consumer_v1().is_some()),
+            _ => unreachable!(),
+        }
+        let (program, entry) = source.lower_entry(source.entry()).unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    }
 }

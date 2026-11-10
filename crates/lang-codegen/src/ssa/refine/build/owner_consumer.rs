@@ -1,5 +1,6 @@
 //! A sealed bounded suffix authorizes one edge-selected value. Existing emitters retain all
 //! physical effects; this plan owns admission, action order and cleanup reconciliation.
+mod replacement;
 use super::{BlockRef, Builder, RTerm, RefineInputs, Slot};
 use crate::ssa::lowering_support::{LoweringError, LoweringErrorKind, error};
 use lang_frontend::{
@@ -14,6 +15,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{UnitExpressionId, UnitItemId, UnitStatementId},
 };
+use replacement::ReturnReplacementPlan;
 
 pub(super) struct ReturnBindingPlan {
     pub(super) symbol: UnitSymbolId,
@@ -33,6 +35,7 @@ pub(super) struct OwnerPlan<'a> {
     pub(super) call_layout: Option<(usize, usize)>,
     pub(super) return_expression: Option<UnitExpressionId>,
     pub(super) return_binding: Option<ReturnBindingPlan>,
+    pub(super) return_replacement: Option<ReturnReplacementPlan>,
     pub(super) root_slot: Option<Slot>,
     bound: Option<Slot>,
     exit: Option<BlockRef>,
@@ -49,6 +52,7 @@ pub(super) struct DropReceipt {
     selected: Slot,
     bound: Slot,
     index: usize,
+    replacement: bool,
 }
 
 impl<'a> OwnerPlan<'a> {
@@ -76,6 +80,7 @@ impl<'a> OwnerPlan<'a> {
             return Err(fail());
         }
         let mut return_binding = None;
+        let mut return_replacement = None;
         let (initializer, root, retired, drop_index, call, return_expression, incoming) =
             if let Some(consumer) = boundary.suffix_consumer_v1() {
                 if boundary.suffix_call_consumer_v1().is_some()
@@ -191,6 +196,22 @@ impl<'a> OwnerPlan<'a> {
                     None,
                     consumer.incoming(),
                 )
+            } else if let Some(consumer) = boundary.suffix_return_consumer_v1()
+                && consumer.replacement_producers().is_some()
+            {
+                let (replacement, root) = ReturnReplacementPlan::new(inputs, consumer)?;
+                let call = replacement.call;
+                let index = replacement.drop_index;
+                return_replacement = Some(replacement);
+                (
+                    call,
+                    root,
+                    None,
+                    Some(index),
+                    None,
+                    Some(consumer.return_expression()),
+                    consumer.incoming(),
+                )
             } else {
                 let consumer = boundary.suffix_return_consumer_v1().ok_or_else(fail)?;
                 let (initializer, root, payload, expression, alias) = match consumer.actions() {
@@ -280,6 +301,7 @@ impl<'a> OwnerPlan<'a> {
                 .map(|c| (c.parameter_index(), c.arity())),
             return_expression,
             return_binding,
+            return_replacement,
             root_slot: None,
             bound: None,
             exit: None,
@@ -309,6 +331,12 @@ impl Builder<'_, '_> {
         slot: Slot,
     ) -> Result<(), LoweringError> {
         if let Some(plan) = &mut self.owner_plan {
+            if let Some(replacement) = &mut plan.return_replacement
+                && expression == replacement.argument
+                && (plan.stage != 0 || replacement.produced.replace(slot).is_some())
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
             for role in 0..2 {
                 if expression == plan.producers[role] && plan.produced[role].replace(slot).is_some()
                 {
@@ -514,6 +542,9 @@ impl Builder<'_, '_> {
         replacement: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        if self.authorize_return_replace(call, root, replacement, span)? {
+            return Ok(());
+        }
         let Some(plan) = &mut self.owner_plan else {
             return Ok(());
         };
@@ -588,6 +619,9 @@ impl Builder<'_, '_> {
         let Some(plan) = &self.owner_plan else {
             return Ok(None);
         };
+        if let Some(receipt) = self.authorize_return_replace_drop(index, target, slot, span)? {
+            return Ok(Some(receipt));
+        }
         if (plan.call.is_some() || plan.return_expression.is_some())
             && (target == UnitDropTarget::Named(plan.root) || plan.root_slot == Some(slot))
         {
@@ -630,6 +664,7 @@ impl Builder<'_, '_> {
             selected: plan.root_slot.ok_or_else(fail)?,
             bound: slot,
             index,
+            replacement: false,
         }))
     }
 
@@ -639,6 +674,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         if let Some(receipt) = receipt {
+            if receipt.replacement {
+                return self.return_replace_drop_emitted(receipt, span);
+            }
             let plan = self
                 .owner_plan
                 .as_mut()
