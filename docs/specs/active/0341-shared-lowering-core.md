@@ -8384,3 +8384,94 @@ Mac AArch64，Rust1.96/LLVM21.1.8；locked/offline、jobs2，复用原 owner tar
 carrier已接线。未运行native、释放计数、Linux、sanitizer、CI-only或正式双宿主CI；
 未重新运行原117前端测试、workspace check（无公开API/生产变化）。不退休旧oracle，
 D10/E2仍in-progress，无push/PR/main合并，其他脏树不动。
+
+### 候选：B 产品的 Phase 4 单次消费合同（2026-11-10）
+
+**状态：proposed／待批准，未实施。** 本节只提出 ADR-0038 B 的下一片接线合同，
+不扩大前述已批准 Phase 3 首片，不改变 accepted ADR 或 Guide，不关闭 D10/E2。
+只读评估基底为 `285ac9f81f1263c1222def8c3f6ea0a8fc1a436d`；该头的新 getter 在
+codegen 仅由 `owner_replace_break_downstream_tests.rs` 读取，没有生产消费者。
+上一节已有 SSA/LLVM 成功不构成本节能力红测，也不能证明产品已接线。
+
+#### 范围、入口和责任
+
+建议复用现有 `ssa::refine`、slot→SSA、verifier 与 LLVM，不新增 owner CFG、runtime
+registry 或 `unit_lower` 组合特例。范围仍为固定 Boolean 参数、String root、一次
+Replace 后裸 Break、唯一 `val retired = held`。一般循环、更多 suffix、Group/Not、
+alias、多根、Resource、持续 borrow/capture 均不纳入。Replace 自身已有的瞬时 Inout
+loan 必须保留；“无 borrow 首片”不表示删除原语的独占访问及其结束动作。
+
+只从当前 validated owned Unit 获取完整 boundary 与 consumer，精确绑定当前
+callable、source、While、condition、body、jump。P/Q 必须以各自 catalog 与完整 opaque
+owner identity 解析到已有 producer，不能按裸 index、Span 或符号拼写配对。
+`incoming()` 的发布顺序为 condition-false P、Break Q；CFG 的前驱枚举顺序不承诺相同，
+必须按边角色和真实端点对应，不能直接 zip。定义身份不变，Choice 不新建 producer。
+
+责任划分如下：
+
+- Phase 3 决定实际来源、边关联、真实 Take/Bind/Drop、cleanup 点及封闭性。
+- refine 将已验证身份映射到当前函数实例的 slot/CFG；产品授权后缀读取、绑定与清理，
+  每个动作实际兑现一次。AST 只确定求值顺序和 CFG 形状，不补造 ownership 事实。
+- 现有 RootReplace 仍先形成 RHS，再写回 root slot 并交付 detached 旧值；SSA 构造
+  将 false P 和 Break Q 对应到同一 exit 参数，不 clone/retain 两个候选。
+- 不另写 phi 构造或第二套 lowering；LLVM 与 runtime ABI 保持原合同。
+
+#### 准入与单次消费
+
+建议在发射前完成适用性选择，保持 ADR-0032 的 whole-callable 确定性 route。
+合法非候选缺少可选 B 产品时仍走既有能力路径，不新增语言拒绝。选中 B consumer 后，
+身份不匹配、缺失动作或重复消费必须结构化失败，不得先试新路径、失败再退回旧路径。
+不能在产品缺失时重新识别 AST 形状来补造该产品，也不能把所有 String/While 都纳入。
+
+建议最小实现让产品消费计划授权并兑现 Take/Bind/Drop，复用现有 Drop emitter 作为
+唯一物理发射器。`Drop(AfterStatement(suffix), retired)` 必须精确对应一个旧 cleanup
+obligation，核对 point、target、当前 selected slot；同一次实际发射后，同时记账新动作
+与旧 drop index。禁止以下捷径：
+
+- 新计划先发 Drop，随后普通 `drops(point)` 再发一次。
+- 只把旧 index 标为 consumed，没有实际发射。
+- 仅调用 getter/assert 或事后检查 SSA，全部授权、目标映射和完整性仍独立依赖旧表。
+- 按两个 incoming 各发一个后缀 Drop，或用旧 condition P 代替 selected slot。
+
+body 中 detached P 的 `previous` Drop 仍由原 cleanup 路径负责，仅在进入 body 的路径
+执行；它不是共同结果 Drop。后缀只清理实际被选择的 P 或 Q。函数结束时必须同时核验：
+所有产品动作恰一次兑现、incoming 精确覆盖、选择值只交付一次、新产品与旧 cleanup
+ledger 对账。保留 `check_all_drops_consumed`，不为新产品全局跳过旧事实。
+
+现有 consumer 的 Drop action 已带 suffix statement 身份；不能未经需要先增加冗余
+公开 getter。具体私有计划类型与索引结构由实施设计决定，不在本候选中预置通用框架。
+
+#### 源码依据与待审选择
+
+以下是上述基底的定位依据，而非新实现声明：
+
+- `ssa/unit_lower/orchestrate.rs` 调用 `refine::route` 后才调用 `refine::lower`；
+  `ssa/refine.rs` 定义确定性 route。
+- `ssa/refine/build/container_for.rs::while_loop` 构造既有 CFG，false cleanup 与 Break
+  各自完成；`build/inout.rs` 发射既有 RootReplace。
+- `ssa/refine/build/field.rs::local_variable` 是现有绑定入口；`build.rs` 的 `drops`、
+  `collect_drops`、`emit_drops`、`finish_drops` 和 `check_all_drops_consumed` 管理旧账本。
+- frontend `owner_transport/loops/replace_break/consumer.rs` 定义 incoming 和三动作，
+  `matches_boundary` 校验其与完整边界一致。
+
+需要审议的是：是否批准此严格 B 的 Phase 4 接线；是否采用“新产品授权和动作完整性、
+旧 emitter 唯一发射并双账本对账”的责任转移；如何在测试中证明生产消费真实依赖产品，
+而不是仅保留旧成功结果。批准前不实施生产接线或扩展 accepted 决策。
+
+#### 批准后的验收门槛
+
+1. 先增加真实能力红测：证明生产入口尚未兑现新产品消费计划，不能将既有 SSA 成功
+   包装为 red→green。普通路径用实际消费见证核对产品动作与 emitter 的唯一对应。
+2. 原样 B 的双 Unit 入口、false/true、P/Q 同 index 不同 catalog、同字面量及
+   source/重分析身份；核 Take/Bind/Drop 顺序、selected slot 和旧 obligation 对账。
+3. 保留上一节原样 SSA/LLVM oracle，并在新精确头重验；旧头绿灯不能移作新接线证据。
+   普通 native 功能执行与释放计数分列，无崩溃不能证明无泄漏。
+4. 合法非候选保持既有行为；source-error/deferred 不得获得可消费计划。missing、foreign、
+   duplicate 产品/动作、重复 Drop、deferred 注入等负控只编译，本地不执行；Abort、
+   破损、故障、计数与压力守卫继续交正式 CI。不得复跑前节列明的两个混合破损 exact。
+5. 独立复审重点为装饰性 getter 接线、边顺序误配、双 Drop、漏账及错误回退；定向行为、
+   共享契约、静态门禁、正式精确头双宿主 CI 分别记账，不退休原 oracle。
+
+本候选仅记录源码核实和接线建议，未运行 Cargo、Rust/native、计数或 CI；不重复上一节
+测试。文档提交的实际 docs/diff 检查与结果另在交付报告记录。原工作树与未提交改动保留，
+不推送、开 PR 或合并；SPEC-0341、D10/E2 继续 in-progress。
