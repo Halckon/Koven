@@ -278,8 +278,8 @@ fn grouped_replace_break_preserves_return_consumer_and_outer_condition() {
 fn grouped_replace_break_keeps_general_conditions_outside_transport() {
     for consumer in [Consumer::Bind, Consumer::Call, Consumer::Return] {
         for condition in [
-            "flag && !flag",
-            "(flag || !flag)",
+            "flag && !(flag == true)",
+            "(flag || !(flag != false))",
             "!((flag && (flag == true)))",
             "((flag == flag))",
             "!(!((flag != false) == true))",

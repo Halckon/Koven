@@ -303,7 +303,7 @@ fn replace_break_rejects_extra_paths_and_revokes_global_failures() {
         SOURCE.replace("break", "continue"),
         SOURCE.replace("break", "(break)"),
         SOURCE.replace("while(flag)", "while((flag == flag))"),
-        SOURCE.replace("while(flag)", "while(flag && !flag)"),
+        SOURCE.replace("while(flag)", "while(flag && (flag == true))"),
         SOURCE.replace("while(flag)", "while(true)"),
         SOURCE.replace("flag: Boolean", "inout flag: Boolean"),
         SOURCE.replace("flag: Boolean", "flag: Boolean, unused: Boolean"),

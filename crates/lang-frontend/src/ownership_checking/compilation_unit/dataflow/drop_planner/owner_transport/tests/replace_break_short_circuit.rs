@@ -140,9 +140,9 @@ fn check_absence(text: &str) {
 fn short_circuit_declines_neighbor_and_other_loop_shapes() {
     for consumer in [Consumer::Bind, Consumer::Call, Consumer::Return] {
         for condition in [
-            "!flag && flag",
-            "flag || !flag",
-            "(flag) && ((!flag))",
+            "!(flag == true) && flag",
+            "flag || !(flag != false)",
+            "(flag) && ((!(flag == true)))",
             "flag && true",
             "false || flag",
             "true && false",

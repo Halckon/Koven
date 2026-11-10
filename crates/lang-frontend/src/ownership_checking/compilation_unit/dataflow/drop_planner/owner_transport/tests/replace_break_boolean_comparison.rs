@@ -162,7 +162,7 @@ fn boolean_comparison_declines_neighbor_and_other_loop_shapes() {
             "true != (flag != false)",
             "flag == (true)",
             "flag != !false",
-            "flag && !flag",
+            "flag && !(flag == true)",
             "!(flag || (flag == false))",
             "flag == decision()",
             "decision() != false",

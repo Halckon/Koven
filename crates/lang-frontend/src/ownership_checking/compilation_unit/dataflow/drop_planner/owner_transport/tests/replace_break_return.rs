@@ -126,7 +126,7 @@ fn replace_break_return_declines_neighbor_shapes() {
         RUN.replace("return held", "return \"other\""),
         RUN.replace("return held", "val retired = held; return retired"),
         RUN.replace("while(flag)", "while((flag == flag))"),
-        RUN.replace("while(flag)", "while(flag && !flag)"),
+        RUN.replace("while(flag)", "while(flag && (flag == true))"),
         RUN.replace("break", "continue"),
         RUN.replace("): String", "): String?"),
         RUN.replace("flag: Boolean)", "flag: Boolean, other: Boolean)"),

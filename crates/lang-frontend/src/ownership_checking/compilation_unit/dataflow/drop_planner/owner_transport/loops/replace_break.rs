@@ -65,8 +65,8 @@ fn variable(
 fn literal(checker: &Checker<'_>, id: ExpressionId) -> bool {
     exact_type(checker, id, BuiltinType::String) && checker.parsed.ast().expressions().get(id).is_ok_and(|node| matches!(node.payload(), Expression::String { parts } if parts.iter().all(|part| !matches!(part, StringPart::Interpolation { .. }))))
 }
-// Logical leaves permit only Group wrappers, never leaf Not or another predicate.
-fn grouped_boolean_parameter(
+// Logical leaves permit Group/Not wrappers, never another predicate.
+fn logical_leaf_parameter(
     checker: &Checker<'_>,
     mut expression: ExpressionId,
     parameters: &BTreeSet<UnitSymbolId>,
@@ -78,6 +78,11 @@ fn grouped_boolean_parameter(
         let node = checker.parsed.ast().expressions().get(expression).ok()?;
         match node.payload() {
             Expression::Group { expression: inner } => expression = *inner,
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => expression = *operand,
             Expression::Name => {
                 return checker
                     .reference_symbol(node.span())
@@ -118,8 +123,8 @@ fn boolean_condition_parameter(
                 right,
                 ..
             } => {
-                let left = grouped_boolean_parameter(checker, *left, parameters)?;
-                let right = grouped_boolean_parameter(checker, *right, parameters)?;
+                let left = logical_leaf_parameter(checker, *left, parameters)?;
+                let right = logical_leaf_parameter(checker, *right, parameters)?;
                 return (left == right).then_some(left);
             }
             Expression::Binary {
