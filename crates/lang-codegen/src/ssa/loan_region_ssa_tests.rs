@@ -717,3 +717,6 @@ mod named_receipts;
 
 #[path = "named_loan_sibling_tests.rs"]
 mod named_siblings;
+
+#[path = "temporary_loan_route_tests.rs"]
+mod temporary_route;

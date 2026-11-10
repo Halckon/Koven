@@ -10447,3 +10447,16 @@ docs882与diff通过。尺寸以main `a775568f`为基底，2327手写Rust、35�
 未调整profile/预算或清理target。全部Cargo复用既有owner target并串行；四项
 DEV/TEST_DEBUG、RUSTFLAGS/ENCODED覆盖均未设置。保持active与Partial边界，未push、
 新建PR或合main；本地结果不代替下一精确发布头的正式CI。
+
+## 2026-11-10 单临时 String P1 路由与生产核验
+
+持续本地开发授权下，首片仅无参数、非泛型 Unit caller 的单一直线普通 Declaration
+Borrow调用，唯一实参为原始纯文本 String literal，正常 owned Int/Unit 结果。
+Complete-empty、多临时借用、插值、控制、投影、borrow-result及其它形状不由本片新增路由。
+原样尚走Compatibility，先独立typed/ownership精确trigger route红→绿，再独立缺生产
+receipt红→绿；完整subset及既有非目标trigger保留，不靠nullableanchor，不强迁callee。
+第二阶段只消费同轮非空Complete1；真实形成→RootPlace→Shared Begin→DirectCall→End→
+原TemporaryDrop六角色核验，原producer唯一，不重复发动作、不按Span后扫。
+off/Partial/Unsupported/缺席保原路径，不发布absence，不扩大语言ABI或全callable覆盖。
+普通来源/helper重新审核，双Unit真off及少量必要邻控；所有CI-only负控仅编译。
+实际红绿/门禁与偏差后补，保持默认debug2/既定独占target，仅本地提交不发布。
