@@ -10,7 +10,9 @@ pub use loops::{
     UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1,
-    UnitOwnerNormalArmBoundaryV1,
+    UnitOwnerNormalArmBoundaryV1, UnitOwnerReplaceBreakConsumerActionV1,
+    UnitOwnerReplaceBreakConsumerV1, UnitOwnerReplaceBreakObservationV1,
+    UnitOwnerReplaceBreakStateV1,
 };
 pub(super) mod values;
 pub use values::{
@@ -261,6 +263,7 @@ pub struct UnitOwnerObservation {
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
     pub(super) loop_value: Option<Box<UnitOwnerLoopObservationV1>>,
+    pub(super) replace_break_value: Option<Box<UnitOwnerReplaceBreakObservationV1>>,
     pub(super) invariant_loop_value: Option<Box<InvariantLoopValueV1>>,
 }
 impl UnitOwnerObservation {

@@ -108,6 +108,7 @@ pub(super) struct Analysis {
     pub(super) borrow_call_transports: Vec<super::UnitBorrowCallTransportFact>,
     pub(super) borrow_binding_transports: Vec<super::UnitBorrowBindingTransportFact>,
     pub(super) borrow_forward_transports: Vec<super::UnitBorrowForwardTransportFact>,
+    pub(super) loan_action_observations: Vec<super::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
@@ -225,6 +226,7 @@ pub(super) fn analyze(
     let mut borrow_call_transports = Vec::new();
     let mut borrow_binding_transports = Vec::new();
     let mut borrow_forward_transports = Vec::new();
+    let mut loan_action_observations = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut string_clone_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
@@ -324,6 +326,7 @@ pub(super) fn analyze(
         visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
+        loan_action_observations.extend(drop_analysis.loan_action_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
         string_clone_loan_ends.extend(drop_analysis.string_clone_loan_ends);
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
@@ -390,6 +393,7 @@ pub(super) fn analyze(
     if !formed_publication::finalize(typed, &diagnostics, &deferred, &mut formed_owned_locals) {
         nullable_whens.clear();
         borrow_return_origins.clear();
+        loan_action_observations.clear();
         direct_call_loan_ends.clear();
         borrow_call_handoffs.clear();
         borrow_call_prefix_ends.clear();
@@ -402,6 +406,13 @@ pub(super) fn analyze(
         borrow_binding_transports.clear();
         borrow_results = Default::default();
     }
+    // Raw consumers share the public gate. Deferred keeps the legacy diagnostic
+    // projection, but no sealed loop/B capability may survive global rejection.
+    owner_observations = super::owner_transport::publish_observations(
+        owner_observations,
+        diagnostics.is_empty() && typed.has_valid_type_facts(),
+        deferred.is_empty(),
+    );
     nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
     borrow_return_origins.sort_by_key(|fact| fact.expression());
     borrow_results.bindings.sort_by_key(|fact| fact.binding);
@@ -431,6 +442,7 @@ pub(super) fn analyze(
         formed_owned_locals,
         loans,
         owner_observations,
+        loan_action_observations,
         direct_call_loan_ends,
         string_clone_loan_ends,
         borrow_call_handoffs,

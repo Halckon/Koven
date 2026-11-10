@@ -1,5 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
 mod invariant;
+mod replace_break;
 use super::{UnitOwnerCallable, UnitOwnerObservation, UnitOwnerValueObservationV1};
 use crate::ownership_checking::UnitDropPoint;
 use crate::type_checking::{UnitExpressionId, UnitStatementId};
@@ -12,6 +13,10 @@ pub use invariant::{
     UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
+};
+pub use replace_break::{
+    UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
 };
 
 /// Structural control edges of a sealed While body, not an executed finite trace.
@@ -253,7 +258,7 @@ impl UnitOwnerObservation {
     /// Separate sealed loop capability; legacy status/events and Choice remain unchanged.
     pub fn loop_observation_v1(&self) -> Option<&UnitOwnerLoopObservationV1> {
         self.loop_value.as_deref().filter(|value| {
-            self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
+            self.replace_break_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
                 point: UnitDropPoint::AfterStatement(statement), reason: super::UnitOwnerUnsupportedReason::Syntax
             } if statement == value.statement)
                 && value.callable == self.callable
@@ -274,6 +279,7 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
     }
     if !complete {
         for observation in &mut observations {
+            observation.replace_break_value = None;
             observation.loop_value = None;
             observation.invariant_loop_value = None;
         }

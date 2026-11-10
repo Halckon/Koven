@@ -37,7 +37,7 @@ impl DropPlanner<'_, '_> {
             .pending_loans
             .iter()
             .rev()
-            .filter_map(|(action, _)| match action {
+            .filter_map(|super::model::PendingLoan(action, _, _)| match action {
                 UnitIterationCleanupAction::EndCallLoan(loan) if loan.call() == call_id => {
                     Some(loan.clone())
                 }
@@ -90,7 +90,7 @@ impl DropPlanner<'_, '_> {
                 index += 1;
                 continue;
             }
-            let (UnitIterationCleanupAction::EndCallLoan(loan), _) =
+            let super::model::PendingLoan(UnitIterationCleanupAction::EndCallLoan(loan), _, _) =
                 state.pending_loans.remove(index)
             else {
                 unreachable!("matched actual pending token")
@@ -166,7 +166,7 @@ impl DropPlanner<'_, '_> {
         for fact in self.pending_borrow_handoffs.drain(..) {
             if fact.binding() == binding {
                 if continues {
-                    self.borrow_call_handoffs.push(fact);
+                    self.iteration_actions.commit_borrow_handoff(fact);
                 }
             } else {
                 remaining.push(fact);

@@ -67,7 +67,7 @@ impl DropPlanner<'_, '_> {
         {
             return;
         }
-        let Some(index) = state.pending_loans.iter().position(|(action, _)| {
+        let Some(index) = state.pending_loans.iter().position(|super::model::PendingLoan(action, _, _)| {
             matches!(action, Action::EndCallLoan(loan)
                 if loan.call() == forwarded.call()
                 && loan.argument() == forwarded.argument()
@@ -77,7 +77,9 @@ impl DropPlanner<'_, '_> {
         }) else { return; };
         // Remove the real token before the call-local retain can discard it. The
         // verified descriptor selects the token but never manufactures a transfer.
-        let (Action::EndCallLoan(source), _) = state.pending_loans.remove(index) else {
+        let super::model::PendingLoan(Action::EndCallLoan(source), _, _) =
+            state.pending_loans.remove(index)
+        else {
             unreachable!("matched actual source token")
         };
         state

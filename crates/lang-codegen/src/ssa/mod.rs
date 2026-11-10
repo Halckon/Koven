@@ -15,6 +15,8 @@ mod map_result;
 mod map_source;
 mod refine;
 #[cfg(test)]
+pub(crate) use refine::{OwnerFault, observe_owner_actions, observe_owner_drops, with_owner_fault};
+#[cfg(test)]
 mod refine_string_when_tests;
 #[cfg(test)]
 mod refine_subset_tests;
@@ -45,6 +47,8 @@ mod borrow_result_contract_tests;
 mod borrow_result_support;
 #[cfg(test)]
 mod borrow_storage_contract_tests;
+#[cfg(test)]
+mod loan_region_ssa_tests;
 #[cfg(test)]
 mod map_consume_fixture_tests;
 #[cfg(test)]

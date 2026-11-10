@@ -313,6 +313,7 @@ impl DropPlanner<'_, '_> {
                 return Ok((
                     None,
                     EvaluatedOwner {
+                        replace_consumer: None,
                         continues: self.statement(id, state)?,
                         owner: None,
                     },
@@ -326,6 +327,7 @@ impl DropPlanner<'_, '_> {
             return Ok((
                 None,
                 EvaluatedOwner {
+                    replace_consumer: None,
                     continues: true,
                     owner: None,
                 },
@@ -337,6 +339,7 @@ impl DropPlanner<'_, '_> {
                 return Ok((
                     None,
                     EvaluatedOwner {
+                        replace_consumer: None,
                         continues: false,
                         owner: None,
                     },
@@ -349,6 +352,7 @@ impl DropPlanner<'_, '_> {
             _ => (
                 None,
                 EvaluatedOwner {
+                    replace_consumer: None,
                     continues: self.statement(tail, state)?,
                     owner: None,
                 },

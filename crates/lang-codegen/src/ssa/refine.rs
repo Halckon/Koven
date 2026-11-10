@@ -6,6 +6,10 @@
 //! a failure is an error; there is no fallback to the per-family lowering.
 mod body;
 mod build;
+#[cfg(test)]
+pub(crate) use build::owner_consumer_test_support::{
+    OwnerFault, observe_owner_actions, with_owner_fault,
+};
 mod emit;
 mod subset;
 
@@ -393,4 +397,34 @@ pub(in crate::ssa) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<S
     let result = lower();
     let names = ROUTED.with(|routed| routed.borrow_mut().take().unwrap_or_default());
     (result, names)
+}
+
+#[cfg(test)]
+type OwnerDropWitness = (UnitDropTarget, usize, usize, Option<(usize, usize, usize)>);
+#[cfg(test)]
+thread_local! {
+    static OWNER_DROPS: std::cell::RefCell<Option<Vec<OwnerDropWitness>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Observe only Drop operations already emitted by the production emitter.
+#[cfg(test)]
+pub(crate) fn observe_owner_drops<T>(lower: impl FnOnce() -> T) -> (T, Vec<OwnerDropWitness>) {
+    OWNER_DROPS.with(|events| *events.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let events = OWNER_DROPS.with(|events| events.borrow_mut().take().unwrap_or_default());
+    (result, events)
+}
+
+#[cfg(test)]
+fn record_owner_drop(
+    target: UnitDropTarget,
+    index: usize,
+    slot: usize,
+    receipt: Option<(usize, usize, usize)>,
+) {
+    OWNER_DROPS.with(|events| {
+        if let Some(events) = events.borrow_mut().as_mut() {
+            events.push((target, index, slot, receipt));
+        }
+    });
 }

@@ -153,9 +153,7 @@ impl DropPlanner<'_, '_> {
                 binding,
                 point: point.into_unit(self.checker.source_unit),
             };
-            if !self.borrow_ends.contains(&fact) {
-                self.borrow_ends.push(fact);
-            }
+            self.iteration_actions.end_borrow_binding(fact);
             if let Some(fact) = self
                 .checker
                 .borrow_results

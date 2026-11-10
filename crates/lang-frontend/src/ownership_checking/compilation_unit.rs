@@ -4,6 +4,15 @@ pub use drop_point::{
     UnitConditionalReceiverDropFact, UnitDropFact, UnitDropPoint, UnitDropTarget,
 };
 
+mod loan_region_validation;
+mod loan_regions;
+pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
+mod loan_actions;
+pub use loan_actions::{
+    UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+    UnitLoanConsumerRetirement,
+};
+
 mod loan;
 pub use loan::{
     UnitBorrowBindingTransportFact, UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact,
@@ -416,6 +425,7 @@ pub struct CompilationUnitOwnership {
     receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
     receiver_call_return_ends: Vec<UnitReceiverCallReturnEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
+    loan_action_observations: Vec<UnitLoanActionObservation>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
     borrow_call_transports: Vec<UnitBorrowCallTransportFact>,
@@ -671,6 +681,11 @@ impl CompilationUnitOwnership {
             },
             borrow_call_handoffs: if successful && dataflow.deferred.is_empty() {
                 dataflow.borrow_call_handoffs
+            } else {
+                Vec::new()
+            },
+            loan_action_observations: if successful && dataflow.deferred.is_empty() {
+                dataflow.loan_action_observations
             } else {
                 Vec::new()
             },
