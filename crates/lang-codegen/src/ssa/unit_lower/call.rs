@@ -245,25 +245,6 @@ impl UnitExpressionLowerer<'_> {
                     loan_arguments: Vec::new(),
                     loop_depth: self.loops.len(),
                     pending_start: receiver_start,
-                    shared_field_roots: self
-                        .owned
-                        .receiver_fact(call)
-                        .into_iter()
-                        .filter_map(|fact| {
-                            use lang_frontend::ownership_checking::{
-                                UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
-                            };
-                            match fact.target() {
-                                UnitReceiverOwnershipTarget::Place(place)
-                                    if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
-                                        && !place.is_root() =>
-                                {
-                                    Some(place.root())
-                                }
-                                _ => None,
-                            }
-                        })
-                        .collect(),
                     control_prefix_temporaries: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
@@ -510,7 +491,6 @@ impl UnitExpressionLowerer<'_> {
                 loan_arguments: Vec::new(),
                 loop_depth: self.loops.len(),
                 pending_start: self.pending_operands.len(),
-                shared_field_roots: Vec::new(),
                 created_loans: Vec::new(),
                 control_prefix_temporaries: Vec::new(),
             });

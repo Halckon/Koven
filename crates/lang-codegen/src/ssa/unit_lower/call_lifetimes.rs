@@ -11,8 +11,6 @@ pub(super) struct PendingCallFrame {
     pub(super) created_loans: Vec<usize>,
     /// Argument temporaries whose ordinary direct-call prefix was validated.
     pub(super) control_prefix_temporaries: Vec<UnitExpressionId>,
-    /// 保留共享字段 loan 的稳定 root，供跨控制流 cleanup 与 proof guard 使用。
-    pub(super) shared_field_roots: Vec<UnitSymbolId>,
 }
 
 impl UnitExpressionLowerer<'_> {
