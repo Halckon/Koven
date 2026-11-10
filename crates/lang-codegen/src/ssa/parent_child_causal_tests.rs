@@ -277,6 +277,7 @@ fn parent_child_metadata_preserves_frontend_merge_and_true_off() {
         };
         assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
         assert!(observation.binding_regions().is_empty());
+        assert!(observation.binding_dependency_drops().is_empty());
         let retired = observation
             .actions()
             .iter()

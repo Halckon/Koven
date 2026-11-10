@@ -1,8 +1,9 @@
 //! The cleanup projections and acquisition observation share one append-only source.
 pub(super) mod binding_child_links;
+mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
-pub(super) use binding_regions::BindingDropCause;
+pub(super) use binding_dependency_drops::BindingDropCause;
 mod consumer_links;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
@@ -32,6 +33,7 @@ pub(super) struct ActionSource {
     binding_regions:
         Vec<crate::ownership_checking::compilation_unit::loan_binding_region_validation::Candidate>,
     active_binding_region: Option<usize>,
+    dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
     pub(super) enabled: bool,
 }
 
@@ -69,6 +71,7 @@ impl Default for ActionSource {
             regions: Vec::new(),
             binding_regions: Vec::new(),
             active_binding_region: None,
+            dependency_drops: Vec::new(),
             enabled: true,
         }
     }
@@ -214,6 +217,8 @@ impl ActionSource {
                     handoff,
                     use_return,
                     binding_end,
+                    dependency: None,
+                    dependency_seen: false,
                 },
             ));
             Some(handle)
@@ -325,6 +330,15 @@ impl ActionSource {
         let child_links =
             binding_child_links::validate(&self.records, &self.identity, source, file);
         let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
+        let binding_dependency_drops = binding_dependency_drops::validate(
+            &self.records,
+            &self.identity,
+            &self.dependency_drops,
+            &child_links,
+            &binding_links,
+            source,
+            file,
+        );
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
@@ -422,7 +436,7 @@ impl ActionSource {
             actions,
             regions,
             binding_regions,
-            binding_dependency_drops: Vec::new(),
+            binding_dependency_drops,
         }]
     }
 }

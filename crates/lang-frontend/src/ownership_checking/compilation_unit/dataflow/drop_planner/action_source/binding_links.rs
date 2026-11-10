@@ -21,6 +21,8 @@ pub(super) struct SourceRetirement {
     pub(super) handoff: Option<ActionHandle>,
     pub(super) use_return: Option<ActionHandle>,
     pub(super) binding_end: ActionHandle,
+    pub(super) dependency: Option<super::binding_dependency_drops::ParentRetirement>,
+    pub(super) dependency_seen: bool,
 }
 
 #[derive(Clone, Copy, Default)]

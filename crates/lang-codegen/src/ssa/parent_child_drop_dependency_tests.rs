@@ -174,3 +174,74 @@ fn parent_child_requires_actual_partial_drop_dependency_with_true_off() {
         }
     }
 }
+
+#[test]
+fn later_parent_or_owner_use_preserves_old_products_without_drop_dependency() {
+    let cases = [
+        (
+            "later-parent.ko",
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; consume(child); consume(parent) }",
+        ),
+        (
+            "later-owner.ko",
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; consume(child); consume(owner) }",
+        ),
+    ];
+    for (path, text) in cases {
+        let mut sources = SourceMap::new();
+        let (source, parsed) = unit_lower_test_support::parsed(&mut sources, path, text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", path, source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, on) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+            assert!(off.ownership().loan_action_observations().is_empty());
+            let run = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|declaration| declaration.name() == "run")
+                .unwrap();
+            let mut outputs = Vec::new();
+            for owned in [&on, &off] {
+                let (lowered, routes) = crate::ssa::refine::observe_routing(|| {
+                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        owned,
+                        run.id(),
+                    )
+                });
+                let (program, _) =
+                    lowered.expect("ordinary later use retains its existing lowering");
+                verify_program(&program).unwrap();
+                outputs.push((
+                    routes,
+                    crate::ssa::render_program(&program),
+                    crate::llvm::render_verified_program(&program).unwrap(),
+                ));
+            }
+            assert_eq!(outputs[0], outputs[1]);
+            let [observation] = on.ownership().loan_action_observations() else {
+                panic!("one actual source catalog")
+            };
+            assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+            assert!(observation.binding_regions().is_empty());
+            assert!(observation.binding_dependency_drops().is_empty());
+        }
+    }
+}

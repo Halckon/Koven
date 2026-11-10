@@ -29,6 +29,7 @@ fn ci_only_child_metadata_never_changes_semantic_eq_or_recovers_lost_commit() {
         handoff: Some(handoff),
         use_return: UseReturn::Unused,
         observable: true,
+        dependency_owner: None,
         child: ChildState::Never,
     };
     // State reconciliation compares record identity, not the role or equal descriptors.
@@ -76,7 +77,10 @@ fn ci_only_child_metadata_never_changes_semantic_eq_or_recovers_lost_commit() {
             ..
         }
     ));
-    let mut retired = ChildState::Retired;
+    let mut retired = ChildState::Retired {
+        binding: child,
+        retirement: source_begin.clone().unwrap(),
+    };
     retired.activate(child, source_begin);
     assert!(matches!(retired, ChildState::Lost));
 }

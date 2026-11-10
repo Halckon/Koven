@@ -88,21 +88,24 @@ impl ActionSource {
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn retire_binding_child(
         &mut self,
         fact: Retirement,
-    ) {
-        if self.enabled {
-            self.records.push(Record::BorrowBindingChildRetired(fact));
+    ) -> Option<ActionHandle> {
+        if !self.enabled {
+            return None;
         }
+        let handle = self.next_handle();
+        self.records.push(Record::BorrowBindingChildRetired(fact));
+        Some(handle)
     }
 }
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct Links {
-    source_begin: Option<usize>,
-    parent_handoff: Option<usize>,
-    commit: Option<usize>,
-    begin: Option<usize>,
-    use_return: Option<usize>,
-    binding_end: Option<usize>,
+    pub(super) source_begin: Option<usize>,
+    pub(super) parent_handoff: Option<usize>,
+    pub(super) commit: Option<usize>,
+    pub(super) begin: Option<usize>,
+    pub(super) use_return: Option<usize>,
+    pub(super) binding_end: Option<usize>,
 }
 
 impl Commit {
