@@ -66,3 +66,28 @@ fn check(receipt: bool) {
 fn finite_literal_call_requires_real_production_receipt() {
     check(true);
 }
+
+#[test]
+fn finite_literal_non_involutive_mappings_preserve_true_off() {
+    super::multi_temporary::products::check_cases(
+        &[(
+            "fun inspect(a: String, b: String, c: String): Int = 1\nfun run(): Unit { inspect(c = \"zero\", a = \"one\", b = \"two\") }",
+            [b"zero".as_slice(), b"one".as_slice(), b"two".as_slice()],
+            1,
+        )],
+        [1, 2, 0],
+    );
+    super::multi_temporary::products::check_cases(
+        &[(
+            "fun inspect(a: String, b: String, c: String, d: String): Unit {}\nfun run(): Unit { inspect(c = \"same\", a = \"\", d = \"same\", b = \"last\") }",
+            [
+                b"same".as_slice(),
+                b"".as_slice(),
+                b"same".as_slice(),
+                b"last".as_slice(),
+            ],
+            0,
+        )],
+        [1, 3, 0, 2],
+    );
+}

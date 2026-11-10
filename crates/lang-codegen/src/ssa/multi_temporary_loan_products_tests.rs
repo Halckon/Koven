@@ -23,9 +23,9 @@ fn two_literal_int_unit_same_bytes_and_empty_preserve_true_off() {
     );
 }
 
-pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
-    cases: &[(&str, [&[u8]; 2], usize)],
-    parameter_sources: [usize; 2],
+pub(in crate::ssa::loan_region_ssa_tests) fn check_cases<const N: usize>(
+    cases: &[(&str, [&[u8]; N], usize)],
+    parameter_sources: [usize; N],
 ) {
     for &(text, bytes, result_count) in cases {
         let mut sources = SourceMap::new();
@@ -53,7 +53,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
             assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
             assert_eq!(region.protocol_version(), 1);
             let mapped = typed.types().call(region.call()).unwrap();
-            let expected_mapping = (0..2)
+            let expected_mapping = (0..N)
                 .map(|source| {
                     (
                         source,
@@ -71,26 +71,29 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
             );
 
             let ids = region.action_ids().collect::<Vec<_>>();
-            assert_eq!(ids.len(), 6);
+            assert_eq!(ids.len(), 3 * N);
             let actions = ids
                 .iter()
                 .map(|id| observation.action(id).unwrap())
                 .collect::<Vec<_>>();
-            let [
-                UnitLoanAction::Begin(first),
-                UnitLoanAction::Begin(second),
-                ..,
-            ] = actions.as_slice()
-            else {
-                panic!("two begin records")
-            };
-            assert_ne!(first.argument(), second.argument());
-            assert_ne!(first.target(), second.target());
-            for (i, begin) in [first, second].iter().enumerate() {
+            let begins = actions[..N]
+                .iter()
+                .map(|action| match action {
+                    UnitLoanAction::Begin(begin) => *begin,
+                    _ => panic!("source-order Begin"),
+                })
+                .collect::<Vec<_>>();
+            for (i, begin) in begins.iter().enumerate() {
+                assert!(begins[..i].iter().all(|previous| {
+                    previous.argument() != begin.argument() && previous.target() != begin.target()
+                }));
                 let parameter = expected_mapping[i].1;
                 assert_eq!(
                     sources.slice(begin.parameter_span().unwrap()).unwrap(),
-                    ["a: String", "b: String"][parameter]
+                    format!(
+                        "{}: String",
+                        char::from(b'a' + u8::try_from(parameter).unwrap())
+                    )
                 );
                 let contract = on
                     .ownership()
@@ -105,7 +108,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
                     action:
                         lang_frontend::ownership_checking::UnitIterationCleanupAction::EndCallLoan(end),
                     ..
-                } = actions[3 - i]
+                } = actions[2 * N - 1 - i]
                 else {
                     panic!("exact reverse End")
                 };
@@ -114,7 +117,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
                     action:
                         lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop),
                     ..
-                } = actions[5 - i]
+                } = actions[3 * N - 1 - i]
                 else {
                     panic!("exact reverse Drop")
                 };
@@ -152,7 +155,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
                 let caller = module.function(entry).unwrap();
                 assert_eq!(routes.as_slice(), std::slice::from_ref(&caller.name));
                 assert_eq!(receipts.len(), count);
-                assert_eq!(caller.instructions.len(), 11);
+                assert_eq!(caller.instructions.len(), 5 * N + 1);
                 let mut entities = Vec::new();
                 let mut loans = Vec::new();
                 let mut owners = Vec::new();
@@ -202,7 +205,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
                         .iter()
                         .all(|e| entities.iter().filter(|other| *other == e).count() == 1)
                 );
-                let call = &caller.instructions[6];
+                let call = &caller.instructions[3 * N];
                 let Operation::DirectCall {
                     callee,
                     receiver,
@@ -235,7 +238,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
                 let method = module.function(*callee).unwrap();
                 assert_eq!(method.return_types.len(), result_count);
                 assert_eq!(method.instructions.len(), result_count);
-                assert_eq!(method.blocks[0].parameters.len(), 2);
+                assert_eq!(method.blocks[0].parameters.len(), N);
                 for (i, param) in method.blocks[0].parameters.iter().enumerate() {
                     let EntityId::Loan(param) = param else {
                         panic!("callee loan")
@@ -246,15 +249,17 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
                         caller.entity(EntityId::Loan(loans[i])).unwrap().ty
                     );
                 }
-                for i in 0..2 {
+                for i in 0..N {
                     assert_eq!(
-                        caller.instructions[7 + i].operation,
-                        Operation::BorrowEnd { loan: loans[1 - i] }
+                        caller.instructions[3 * N + 1 + i].operation,
+                        Operation::BorrowEnd {
+                            loan: loans[N - 1 - i]
+                        }
                     );
                     assert_eq!(
-                        caller.instructions[9 + i].operation,
+                        caller.instructions[4 * N + 1 + i].operation,
                         Operation::Drop {
-                            owner: owners[1 - i]
+                            owner: owners[N - 1 - i]
                         }
                     );
                 }

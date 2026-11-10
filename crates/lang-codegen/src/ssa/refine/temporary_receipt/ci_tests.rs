@@ -271,3 +271,29 @@ fn ci_only_named_mapping_rejects_source_order_call_vector() {
     arguments.swap(0, 1);
     assert!(checked(&snapshot, 11, false, false).is_err());
 }
+
+#[test]
+fn ci_only_finite_arity_rejects_unrepresentable_stage_budget() {
+    assert_eq!(instruction_count(0), None);
+    assert_eq!(instruction_count(usize::MAX), None);
+    assert_eq!(instruction_count(usize::MAX / 5 + 1), None);
+}
+
+#[test]
+fn ci_only_finite_arity_rejects_non_involutive_call_vector_corruption() {
+    let mut snapshot = capture_source(
+        "fun inspect(a: String, b: String, c: String): Int = 1\nfun run(): Unit { inspect(c = \"same\", a = \"same\", b = \"same\") }",
+    );
+    let id = snapshot.receipt.instructions[9];
+    let instruction = snapshot
+        .function
+        .instructions
+        .iter_mut()
+        .find(|i| i.id == id)
+        .unwrap();
+    let Operation::DirectCall { arguments, .. } = &mut instruction.operation else {
+        panic!("actual ordinary call");
+    };
+    arguments.rotate_left(1);
+    assert!(checked(&snapshot, 16, false, false).is_err());
+}
