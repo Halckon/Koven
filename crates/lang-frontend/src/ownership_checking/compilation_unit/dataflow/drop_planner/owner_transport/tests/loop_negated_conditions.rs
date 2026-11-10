@@ -86,10 +86,7 @@ fn check(
     assert!(observation.value_observation_v1().is_none());
     assert!(observation.events().is_empty() && observation.definitions().is_empty());
     if let Some(boundary) = observation.invariant_loop_observation_v1() {
-        assert_eq!(
-            boundary.post_loop_transport_v1().is_some(),
-            boundary.continue_boundary().is_none()
-        );
+        assert!(boundary.post_loop_transport_v1().is_some());
     }
     if let Some(boundary) = observation.invariant_break_observation_v1() {
         assert!(boundary.post_loop_transport_v1().is_some());

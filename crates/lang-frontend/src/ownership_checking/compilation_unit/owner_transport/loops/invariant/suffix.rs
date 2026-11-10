@@ -6,6 +6,8 @@ use crate::ownership_checking::{
 
 #[derive(Clone, Debug)]
 pub(in crate::ownership_checking::compilation_unit) struct PostLoopTransport {
+    completion: super::super::LoopBodyCompletion,
+    body_identity: std::sync::Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) expression: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) retired: UnitSymbolId,
@@ -28,7 +30,9 @@ impl PostLoopTransport {
         else {
             return None;
         };
-        (evidence.is_consistent()
+        (self.completion == evidence.closed.completion
+            && std::sync::Arc::ptr_eq(&self.body_identity, &evidence.closed.body_identity)
+            && evidence.is_consistent()
             && graph.is_consistent()
             && graph.choice().is_none()
             && graph.suffix().is_empty()
@@ -64,12 +68,16 @@ impl PostLoopTransport {
 }
 
 impl UnitOwnerInvariantLoopObservationV1 {
-    /// Actual prefix and post-loop consumption on the normal exit path, together with
+    /// Actual prefix and post-loop consumption on the condition-false exit path, together with
     /// this observation's unchanged loop boundaries. Not a phi or runtime trace.
-    /// Only straight-line normal bodies provide this optional capability.
+    /// Straight-line normal or bare Continue bodies retain their distinct witnessed backedges.
     pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
         if !self.is_consistent()
-            || self.evidence.closed.completion != super::super::LoopBodyCompletion::Fallthrough
+            || !matches!(
+                self.evidence.closed.completion,
+                super::super::LoopBodyCompletion::Fallthrough
+                    | super::super::LoopBodyCompletion::Continue(_)
+            )
         {
             return None;
         }
@@ -93,8 +101,11 @@ impl InvariantLoopValueV1 {
         match self {
             Self::Backedge(value)
                 if value.is_consistent()
-                    && value.evidence.closed.completion
-                        == super::super::LoopBodyCompletion::Fallthrough
+                    && matches!(
+                        value.evidence.closed.completion,
+                        super::super::LoopBodyCompletion::Fallthrough
+                            | super::super::LoopBodyCompletion::Continue(_)
+                    )
                     && value.post_loop.is_none() =>
             {
                 Some(&value.evidence)
@@ -113,10 +124,15 @@ impl InvariantLoopValueV1 {
         entry: UnitOwnerLoopBindingV1,
         transport: UnitOwnerValueObservationV1,
     ) {
-        if self.suffix_boundaries().is_none() {
+        let Some(boundaries) = self.suffix_boundaries() else {
             return;
-        }
+        };
+        // Retain the control sealed at collection, not a later relabeling of evidence.
+        let completion = boundaries.closed.completion;
+        let body_identity = boundaries.closed.body_identity.clone();
         let suffix = Box::new(PostLoopTransport {
+            completion,
+            body_identity,
             statement,
             expression,
             retired,

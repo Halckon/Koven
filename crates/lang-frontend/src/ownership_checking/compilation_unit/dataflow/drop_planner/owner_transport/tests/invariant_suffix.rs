@@ -9,10 +9,11 @@ use crate::type_checking::UnitStatementId;
 
 const SOURCE: &str = r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { val local = "inner" }; val retired = held }"#;
 
-fn check(
+pub(super) fn check(
     fixture: &Fixture,
     index: usize,
     owned: &crate::ownership_checking::CompilationUnitOwnership,
+    expected_continue: Option<UnitExpressionId>,
 ) {
     let legacy = &owned.owner_observations()[index];
     assert!(legacy.definitions().is_empty() && legacy.events().is_empty());
@@ -128,7 +129,10 @@ fn check(
     }
     assert_eq!(boundaries.entry(), boundaries.backedge());
     assert_eq!(boundaries.entry(), boundaries.exit());
-    assert!(boundaries.continue_boundary().is_none());
+    assert_eq!(
+        boundaries.continue_boundary(),
+        expected_continue.map(|jump| (jump, boundaries.entry()))
+    );
     assert_eq!(
         owned
             .drops()
@@ -154,7 +158,7 @@ fn assert_source(text: &str, producers: usize, replacements: usize) {
     let fixture = Fixture::new(&[("root.ko", text)]);
     let owned = fixture.shared();
     assert!(owned.clone().validate().is_ok(), "{text}");
-    check(&fixture, 0, &owned);
+    check(&fixture, 0, &owned, None);
     let body = owned.owner_observations()[0]
         .invariant_loop_observation_v1()
         .unwrap()
@@ -214,7 +218,7 @@ fn suffix_admission_preserves_prior_control_capabilities() {
         if jump == "continue" {
             let original = observed.invariant_loop_observation_v1().unwrap();
             assert!(original.continue_boundary().is_some());
-            assert!(original.post_loop_transport_v1().is_none());
+            assert!(original.post_loop_transport_v1().is_some());
         } else {
             assert!(observed.invariant_break_observation_v1().is_some());
         }
@@ -286,7 +290,7 @@ fn suffix_sources_and_failed_analyses_do_not_leak_transport() {
     let again = fixture.shared();
     assert!(owned.clone().validate().is_ok() && again.clone().validate().is_ok());
     for index in 0..2 {
-        check(&fixture, index, &owned);
+        check(&fixture, index, &owned, None);
         let original = owned.owner_observations()[index]
             .invariant_loop_observation_v1()
             .unwrap();

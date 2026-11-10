@@ -215,7 +215,7 @@ fn break_suffix_keeps_normal_continue_and_conditional_contracts_separate() {
         let original = &owned.owner_observations()[0];
         assert!(original.invariant_break_observation_v1().is_none());
         let boundary = original.invariant_loop_observation_v1().unwrap();
-        assert_eq!(boundary.post_loop_transport_v1().is_some(), jump.is_empty());
+        assert!(boundary.post_loop_transport_v1().is_some());
         assert_eq!(boundary.continue_boundary().is_some(), !jump.is_empty());
         compare(&fixture, &fixture.parts(&owned));
     }

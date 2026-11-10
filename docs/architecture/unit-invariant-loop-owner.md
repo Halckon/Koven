@@ -18,7 +18,7 @@ liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点�
 普通 While rejection 清空前，核真实 prefix collector Complete、唯一 String producer 与
 恰好 Result/Binding 两事件，token、initializer、symbol 都对应实际单个 OwnedValue。
 只从该 collector 保留 producer catalog，不从 AST、drop 或 symbol 反造 owner。随后照常
-拒绝普通观察，旧定义和事件为空。基础边界本身不提供后缀事件或最终消费证明；正常直线
+拒绝普通观察，旧定义和事件为空。基础边界本身不提供后缀事件或最终消费证明；正常直线或裸 Continue
 While 可另外取得[后缀消费能力](unit-invariant-loop-suffix.md)。输入 catalog 自身不能代替闭合运输。
 
 entry 在实际 condition 正常完成后读取；正常 backedge 在实际 body scope cleanup 后读取，

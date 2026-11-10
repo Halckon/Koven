@@ -14,7 +14,7 @@ use lang_frontend::{
 };
 
 const SOURCE: &str = r#"fun run(flag: Boolean) { val held = "outer"; while(flag) { val local = "inner" }; val retired = held }"#;
-fn check(rooted: bool, text: &str, admitted: bool) {
+pub(super) fn check(rooted: bool, text: &str, admitted: bool, expected_continue: bool) {
     let second = text.replace("run", "second");
     let mut sources = SourceMap::new();
     let ids = [
@@ -135,6 +135,42 @@ fn check(rooted: bool, text: &str, admitted: bool) {
                 UnitExpressionId::new(source, condition),
                 UnitStatementId::new(source, body)
             )
+        );
+        use lang_frontend::ownership_checking::UnitOwnerLoopEdgeV1 as Edge;
+        let backedge = if expected_continue {
+            let jump = ast
+                .expressions()
+                .iter()
+                .find_map(|(id, node)| {
+                    matches!(
+                        node.payload(),
+                        lang_frontend::parser::Expression::Continue { .. }
+                    )
+                    .then_some(UnitExpressionId::new(source, id))
+                })
+                .expect("actual Continue AST");
+            assert_eq!(
+                boundaries.continue_boundary(),
+                Some((jump, boundaries.entry()))
+            );
+            Edge::ContinueBackedge(UnitDropPoint::ControlTransfer(jump), boundaries.condition())
+        } else {
+            assert!(boundaries.continue_boundary().is_none());
+            Edge::Backedge(
+                UnitDropPoint::AfterStatement(boundaries.body()),
+                boundaries.condition(),
+            )
+        };
+        assert_eq!(
+            boundaries.edges(),
+            [
+                Edge::EnterBody(boundaries.condition(), boundaries.body()),
+                backedge,
+                Edge::ConditionFalseExit(
+                    boundaries.condition(),
+                    UnitDropPoint::LoopExit(boundaries.statement())
+                )
+            ]
         );
         let [
             Event::Create(created_at, owner),
@@ -264,7 +300,10 @@ fn actual_suffix_consumption_matches_both_public_unit_inputs() {
     assert_eq!(cases.len(), 17);
     for (text, admitted) in cases {
         for rooted in [false, true] {
-            check(rooted, &text, admitted);
+            // Preserve the original exact former Continue rejection as the new capability.
+            let continued =
+                text == SOURCE.replace("val local = \"inner\"", "val local = \"inner\"; continue");
+            check(rooted, &text, admitted || continued, continued);
         }
     }
 }
