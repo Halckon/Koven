@@ -10669,3 +10669,20 @@ bytes、两binary/selection SHA、manifest与原始feature JSON、默认CLI三�
 均匹配；两日志7+23逐项等于审定名单，无额外test。四native exact内12次普通运行仍
 只计四tests，静态日志和实际耗时一致。终审者未运行测试；终审后仅追加本账本，
 不改Rust、不重编。owner target锁空闲，原两树与main工作区保持原样。
+
+### P/Q 单次 Boolean 比较条件实施合同（2026-11-10）
+
+基于冻结`c956f3bf`，按持续并行本地开发授权，只补现行Boolean相等/不等语义的受限
+P/Q运输。条件恰好一次`==`或`!=`，一端原Group/Not链到唯一Boolean参数Name，另一端
+裸Boolean literal，左右皆可；比较整体可原Group/Not包装。拒绝双Name、双literal、
+嵌套比较、literal包装、短路/调用/多参数，不引入语言、ABI或Resource决定。
+
+P/Q专用条件准入保存实际参数symbol供本LoopTransaction使用，其他loop继续原共享
+boolean_parameter；不放宽共享helper或body If观察。完整条件false仍是P，实际body
+Replace/Break仍是Q，不按比较、literal或Not方向交换catalog。原B/Call/Return唯一
+suffix、瞬时Inout、旧唯一emitter和清理不变。
+
+状态in-progress：实际普通Return receipt红→最小实现→Basic/Const两Unit与两边
+SSA/LLVM/native。每项新/邻控重新逐helper审定、记录实际源码hash，仅小集合exact；
+foreign、故障/损坏、Abort、计数、压力及待定矩阵只编译。分步本地提交、固定头独审
+与门禁，不推送、不触发远端CI，不改main或他人docs脏树，不绕过真实工具审批。
