@@ -152,7 +152,7 @@ impl Builder<'_, '_> {
                     self.reference(span)?;
                     return Ok(Lowered::Unit);
                 }
-                self.name(expression, span).map(Lowered::Value)
+                self.owner_name(expression, span).map(Lowered::Value)
             }
             // ADR-0034 §4: a returned lambda keeps its concrete callable identity.
             Expression::Lambda { .. } => self.form_callable(expression, span).map(Lowered::Value),

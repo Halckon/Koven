@@ -10,6 +10,9 @@ mod field;
 mod heap;
 mod inout;
 mod map;
+mod owner_consumer;
+#[cfg(test)]
+pub(crate) mod owner_consumer_test_support;
 mod place;
 mod range_borrow;
 mod range_view;
@@ -52,6 +55,7 @@ pub(super) enum Lowered {
 
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
+    owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -146,6 +150,7 @@ pub(super) fn build(
 ) -> Result<RefinedBody, LoweringError> {
     let mut builder = Builder {
         inputs,
+        owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         types,
         body: RefinedBody::default(),
         block: None,
@@ -179,6 +184,7 @@ pub(super) fn build(
         builder.bind_thunk_entry(thunk, entities)?;
         builder.lower_thunk_body(thunk, unit_return)?;
         builder.check_all_drops_consumed()?;
+        builder.finish_owner_plan()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -239,6 +245,7 @@ pub(super) fn build(
         RefineBody::Lambda(_) => unreachable!(),
     }
     builder.check_all_drops_consumed()?;
+    builder.finish_owner_plan()?;
     Ok(builder.body)
 }
 
@@ -580,15 +587,33 @@ impl Builder<'_, '_> {
                 _ => None,
             }
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
+            let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
+            self.owner_drop_emitted(receipt, *span)?;
             #[cfg(test)]
-            super::record_owner_drop(*target, *index, slot.0, None);
+            super::record_owner_drop(
+                *target,
+                *index,
+                slot.0,
+                receipt.map(owner_consumer::DropReceipt::witness),
+            );
         }
         Ok(())
     }
 
     pub(super) fn finish_drops(&mut self, facts: &[(usize, UnitDropTarget, Span)]) {
         for (index, target, _) in facts {
+            #[cfg(test)]
+            if self
+                .owner_plan
+                .as_ref()
+                .is_some_and(|plan| plan.drop_index == *index)
+                && owner_consumer_test_support::take_fault(
+                    owner_consumer_test_support::OwnerFault::MissingFinish,
+                )
+            {
+                continue;
+            }
             if let UnitDropTarget::Temporary(expression) = target {
                 self.temporaries.remove(expression);
             }
@@ -839,6 +864,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         slot: Slot,
     ) -> Result<(), LoweringError> {
+        self.owner_result(self.unit(expression), slot)?;
         let ty = self.expression_type(expression)?;
         let unit = self.unit(expression);
         let pending = self.inputs.owned.drops().iter().any(|fact| {

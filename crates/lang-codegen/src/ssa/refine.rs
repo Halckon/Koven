@@ -6,6 +6,10 @@
 //! a failure is an error; there is no fallback to the per-family lowering.
 mod body;
 mod build;
+#[cfg(test)]
+pub(crate) use build::owner_consumer_test_support::{
+    OwnerFault, observe_owner_actions, with_owner_fault,
+};
 mod emit;
 mod subset;
 
@@ -412,7 +416,12 @@ pub(crate) fn observe_owner_drops<T>(lower: impl FnOnce() -> T) -> (T, Vec<Owner
 }
 
 #[cfg(test)]
-fn record_owner_drop(target: UnitDropTarget, index: usize, slot: usize, receipt: Option<(usize, usize, usize)>) {
+fn record_owner_drop(
+    target: UnitDropTarget,
+    index: usize,
+    slot: usize,
+    receipt: Option<(usize, usize, usize)>,
+) {
     OWNER_DROPS.with(|events| {
         if let Some(events) = events.borrow_mut().as_mut() {
             events.push((target, index, slot, receipt));

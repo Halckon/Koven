@@ -197,23 +197,192 @@ fn assert_selected_owner(source: &UnitSource, function: &Function) {
 
 #[test]
 fn bounded_replace_break_physical_drop_has_product_authorization() {
-    use lang_frontend::ownership_checking::{UnitDropTarget, UnitOwnerReplaceBreakConsumerActionV1 as A};
-    let source = UnitSource::analyze("bounded-owner-consumer.ko", SOURCE).expect("ordinary B source");
+    use lang_frontend::ownership_checking::{
+        UnitDropTarget, UnitOwnerReplaceBreakConsumerActionV1 as A,
+    };
+    let source =
+        UnitSource::analyze("bounded-owner-consumer.ko", SOURCE).expect("ordinary B source");
     source.assert_frontend_clean();
-    let OwnedProducts::Basic(_, owned) = &source.products else { panic!("basic Unit") };
-    let boundary = owned.ownership().owner_observations().iter()
-        .find_map(|o| o.replace_break_observation_v1()).expect("B boundary");
-    let A::Drop(point, retired) = boundary.suffix_consumer_v1().unwrap().actions()[2] else { panic!("Drop") };
-    let index = owned.ownership().drops().iter().position(|d| d.point() == point && d.target() == UnitDropTarget::Named(retired)).unwrap();
-    let (result, events) = crate::ssa::observe_owner_drops(|| {
-        source.lower_entry(source.declaration("entry", SymbolKind::Function))
+    let OwnedProducts::Basic(_, owned) = &source.products else {
+        panic!("basic Unit")
+    };
+    let boundary = owned
+        .ownership()
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.replace_break_observation_v1())
+        .expect("B boundary");
+    let A::Drop(point, retired) = boundary.suffix_consumer_v1().unwrap().actions()[2] else {
+        panic!("Drop")
+    };
+    let index = owned
+        .ownership()
+        .drops()
+        .iter()
+        .position(|d| d.point() == point && d.target() == UnitDropTarget::Named(retired))
+        .unwrap();
+    let ((result, events), actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::observe_owner_drops(|| {
+            source.lower_entry(source.declaration("entry", SymbolKind::Function))
+        })
     });
     let (program, _) = result.expect("ordinary B lowering");
     verify_program(&program).expect("selected owner SSA");
-    let selected = events.iter().filter(|e| e.0 == UnitDropTarget::Named(retired)).collect::<Vec<_>>();
-    assert_eq!(selected.len(), 1, "one physical suffix Drop, not one per incoming");
+    let selected = events
+        .iter()
+        .filter(|e| e.0 == UnitDropTarget::Named(retired))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected.len(),
+        1,
+        "one physical suffix Drop, not one per incoming"
+    );
     assert_eq!(selected[0].1, index, "exact legacy cleanup obligation");
-    let (_, bound, authorized_index) = selected[0].3.expect("physical Drop must consume a completed product Take/Bind authorization");
-    assert_eq!(bound, selected[0].2, "authorized selected binding reaches emitter");
+    let (taken, bound, authorized_index) = selected[0]
+        .3
+        .expect("physical Drop must consume a completed product Take/Bind authorization");
+    assert_eq!(
+        bound, selected[0].2,
+        "authorized selected binding reaches emitter"
+    );
     assert_eq!(authorized_index, index);
+    assert_eq!(
+        actions,
+        [
+            ("root", taken),
+            ("take", taken),
+            ("bind", bound),
+            ("drop", bound)
+        ]
+    );
+    assert_ne!(taken, bound);
+}
+
+#[test]
+fn bounded_replace_break_dual_units_same_literal_and_reanalysis_keep_receipts_local() {
+    for constant in [false, true] {
+        for same_literal in [false, true] {
+            let mut text = if same_literal {
+                SOURCE.replace("next", "outer")
+            } else {
+                SOURCE.to_owned()
+            };
+            if constant {
+                text = format!(
+                    "const val ON: Boolean = true\n{}",
+                    text.replace("run(true)", "run(ON)")
+                );
+            }
+            let mut previous_owner = None;
+            for name in ["first-owner-source.ko", "second-owner-source.ko"] {
+                let source = UnitSource::analyze(name, &text).expect("ordinary source");
+                source.assert_frontend_clean();
+                assert_eq!(
+                    matches!(source.products, OwnedProducts::Constant(..)),
+                    constant
+                );
+                let owned = match &source.products {
+                    OwnedProducts::Basic(_, owned) => owned.ownership(),
+                    OwnedProducts::Constant(_, owned) => owned.ownership(),
+                };
+                let boundary = owned
+                    .owner_observations()
+                    .iter()
+                    .find_map(|o| o.replace_break_observation_v1())
+                    .unwrap();
+                let p = boundary.condition_false_exit().owner();
+                let q = boundary.break_boundary().owner();
+                assert_ne!(p, q);
+                assert!(boundary.input_producers().definition(q.clone()).is_none());
+                assert!(boundary.body_producers().definition(p.clone()).is_none());
+                if let Some(previous) = previous_owner {
+                    assert_ne!(p, previous);
+                }
+                previous_owner = Some(p);
+                let (result, drops) =
+                    crate::ssa::observe_owner_drops(|| source.lower_entry(source.entry()));
+                let (program, entry) = result.expect("both Unit capabilities lower");
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                assert_eq!(
+                    drops.len(),
+                    2,
+                    "detached P and selected owner, no extra Drop"
+                );
+                assert_eq!(drops.iter().filter(|d| d.3.is_some()).count(), 1);
+                let authorized = drops.iter().find(|d| d.3.is_some()).unwrap();
+                let (selected, bound, index) = authorized.3.unwrap();
+                assert_ne!(selected, bound, "Take precedes the actual Alias binding");
+                assert_eq!((bound, index), (authorized.2, authorized.1));
+            }
+        }
+    }
+}
+
+#[test]
+fn bounded_replace_break_absent_optional_product_keeps_ordinary_lowering() {
+    let text = SOURCE.replace("while(flag)", "while((flag))");
+    let source =
+        UnitSource::analyze("ordinary-grouped-condition.ko", &text).expect("legal noncandidate");
+    source.assert_frontend_clean();
+    let OwnedProducts::Basic(_, owned) = &source.products else {
+        panic!("basic")
+    };
+    assert!(owned.ownership().owner_observations().iter().all(|o| {
+        o.replace_break_observation_v1()
+            .and_then(|b| b.suffix_consumer_v1())
+            .is_none()
+    }));
+    let (result, drops) = crate::ssa::observe_owner_drops(|| source.lower_entry(source.entry()));
+    let (program, entry) = result.expect("optional B must not reject legal noncandidate");
+    verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(drops.len(), 2);
+    assert!(drops.iter().all(|d| d.3.is_none()));
+}
+
+#[test]
+fn bounded_replace_break_both_runtime_edges_reach_native_in_both_units() {
+    let text = SOURCE.replace(
+        "run(false); run(true)",
+        "println(\"before\"); run(false); println(\"middle\"); run(true); println(\"after\")",
+    );
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                text.replace("run(true)", "run(ON)")
+            )
+        } else {
+            text.clone()
+        };
+        let source = UnitSource::analyze("bounded-owner-native.ko", &text)
+            .expect("ordinary B native source");
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        super::assert_native_output(&source, b"before\nmiddle\nafter\n");
+    }
+}
+
+#[test]
+fn ci_only_bounded_replace_break_rejects_replayed_actions_and_corrupt_receipts() {
+    use crate::ssa::OwnerFault::*;
+    for fault in [
+        DuplicateTake,
+        DuplicateBind,
+        DuplicateDrop,
+        WrongSlot,
+        WrongIndex,
+        MissingFinish,
+    ] {
+        let source = UnitSource::analyze("ci-only-owner-receipt.ko", SOURCE).unwrap();
+        let result = crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()));
+        assert!(
+            result.is_err(),
+            "selected B never falls back after a broken action or ledger"
+        );
+    }
 }
