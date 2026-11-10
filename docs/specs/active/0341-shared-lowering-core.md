@@ -8739,3 +8739,20 @@ lib：`f3b13914c8f8fc47f86caed8abf8d8ff06ce468d26ffc148c8579b9fed188129`。
 本片没有增加Complete协议，不证明wrapper/动态唯一消费/parent权限恢复或整个source/
 callable；不接ownerPhase4、不认领固定owner组合验收，不跑正式CI/SSA/LLVM行为，
 不关闭Spec/D10/E2，未推送、PR或合并。
+
+### Loan 同步结果链normal-return覆盖下一片（2026-11-10，实证范围）
+
+续接`5f8445c9`，目标不再增加身份包装，而是让已有source Begin→transfer→consumer Begin→
+真实consumer/source退休关系参与完整区域闭合验证。先实证单层`consume(view(owner))`，
+caller为现有flat普通函数，owner为其显式Own String参数，内外普通direct call均单Shared
+参数、无receiver/泛型/控制流，内层borrowed String结果来自唯一参数，外层Owned Int/Unit。
+语言准入沿既有检查器，不开放borrowed结果或权限新语义。
+
+成功标准为实际entry/completion之间未过滤动作全部核对，两个acquisition句柄和transfer
+引用均指向区间内正确记录，实际正常退休后同点Named Drop及独立owner形成来源匹配。
+根仍live、额外/缺失/失配动作不能Complete，未准入shape明确Unsupported；整个source/
+callable仍Partial。若实际动作或独立typed/ownership来源映射不足，先保留实证与缺口，
+不靠旧表拼接、删动作或扩大准入补造Complete。不能把此nested-result合同混入旧direct-only
+protocol1/3；如实证可闭合，使用显式不同的结果延续家族声明，复用同一region与validator。
+wrapper/export、一般parent权限恢复、callee内部/Abort/unwind、动态唯一消费与owner后端
+均非本片目标。普通逐源/helper exact、默认debug2、原target串行及所有CI-only排除不变。
