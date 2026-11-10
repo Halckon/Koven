@@ -135,7 +135,7 @@ fn replace_break_call_declines_neighbor_shapes() {
             "{SINK}\n{}",
             RUN.replace("sink(held)", "sink(held); val after = 1")
         ),
-        format!("{SINK}\n{}", RUN.replace("while(flag)", "while((flag))")),
+        format!("{SINK}\n{}", RUN.replace("while(flag)", "while((!flag))")),
         format!("{SINK}\n{}", RUN.replace("while(flag)", "while(!flag)")),
         format!("{SINK}\n{}", RUN.replace("break", "continue")),
         format!("fun sink(own value: String): Int = 1\n{RUN}"),

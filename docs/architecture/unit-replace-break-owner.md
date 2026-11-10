@@ -11,7 +11,7 @@
 ## 实际准入
 
 普通非泛型顶层 Unit 函数只有一个无 mode marker 的精确 Boolean 参数，函数体依次为
-外层 var 字符串字面量、While、直接 val 移出该根。While 条件是该参数的 Name；body
+外层 var 字符串字面量、While、直接 val 移出该根。While 条件是该参数的 Name 或仅包裹该 Name 的纯 Group 链；body
 恰为 val 接收 checked root Replace 的旧值、一个 bare Break。三个绑定精确为非 nullable
 String，两个字面量没有插值；名称与文本内容不参与准入身份判断。
 
@@ -19,7 +19,7 @@ Replace 仅支持普通 Name callee、无显式类型实参、两个无命名前
 带 Inout marker 的直接根 Name，第二个是无模式标记的字面量；实际 ownership primitive
 必须为 String Replace，只有该完整根，两个 descriptor operand 与真实 AST 实参顺序完全相同。
 
-Group/Not、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
+Not（包括 Group 内 Not）、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
 opaque call、正常回边、Continue、条件分支、嵌套或后续使用能力均不准入。限制只撤销
 本观察产品，不新增语言诊断或改变既有成功源码。函数末尾直接移出用于保留真实 liveness，
 其普通 cleanup 保持不变；只有实际路径 carrier 完整经过该尾句，才另发布封闭消费证明。
@@ -166,3 +166,7 @@ refine复用同一两出口及Name Take核验，另核Return expression、payloa
 旧`finish_return`唯一发射成功后才提交消费。返回函数禁止Drop选中root，caller沿原结果
 接收/清理规则工作，body detached P仍按旧规则清理。双Unit普通SSA/LLVM及native覆盖
 false/true返回；输出不是析构计数证明，不扩展借用返回、capture、Resource或一般循环。
+
+条件准入逐层仅剥 Group 检查 Name 终点，每层仍核精确 Boolean，保留实际最外层
+condition ID。共享 Boolean 条件 helper 的 Not 能力不因此进入本 P/Q 产品。前端普通
+on/off 对照保旧 Analysis；后端仍消费同轮封印和真实条件块，不从剥壳语法重建入边。
