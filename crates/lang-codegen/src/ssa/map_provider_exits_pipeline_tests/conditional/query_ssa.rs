@@ -844,7 +844,7 @@ fn source_inventory(
                     )?;
                 } else {
                     need(
-                        inherits(&graph, entity, block)?,
+                        inherits(graph, entity, block)?,
                         "conditional identity inherited source role dominates block",
                         (block, entity),
                     )?;
