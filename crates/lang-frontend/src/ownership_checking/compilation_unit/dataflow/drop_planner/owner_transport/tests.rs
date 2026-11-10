@@ -291,3 +291,5 @@ mod loop_negated_conditions;
 mod invariant_continue_suffix;
 
 mod loop_input_alias;
+
+mod loop_input_alias_conditional;
