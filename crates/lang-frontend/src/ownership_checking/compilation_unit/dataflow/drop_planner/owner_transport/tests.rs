@@ -216,3 +216,23 @@ fn terminal_if_observation_preserves_full_legacy_cleanup_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn exclusive_borrow_auxiliary_preserves_all_cleanup_with_owner_observation() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        r#"fun view(source: String, inout aux: String, own next: Int): borrow String from source = source
+fun run(flag: Boolean): Unit { val owner = "kept"; var other = "other"; borrow val item = view(owner, &other, if (flag) { return } else { 0 }); println(item) }"#,
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    let [handoff] = shared.borrow_call_handoffs() else {
+        panic!("real handoff");
+    };
+    let [loan] = handoff.auxiliary_loan_ends() else {
+        panic!("real exclusive token");
+    };
+    assert_eq!(loan.kind(), crate::ownership_checking::LoanKind::Exclusive);
+    assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
+    compare(&fixture, &fixture.parts(&shared));
+}

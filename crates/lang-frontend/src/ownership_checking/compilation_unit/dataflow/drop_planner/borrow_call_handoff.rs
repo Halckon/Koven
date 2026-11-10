@@ -44,12 +44,12 @@ impl DropPlanner<'_, '_> {
                 _ => None,
             })
             .collect();
-        // Bound this observation to root Shared places. No receiver, projection,
-        // temporary, exclusive source, or carrier capability is implied.
-        if loans.iter().any(|loan| {
-            loan.kind() != LoanKind::Shared
-                || !matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root())
-        }) {
+        // All observed operands remain root places. The selected source must stay
+        // Shared; unrelated Exclusive roots retire only at actual normal return.
+        if loans
+            .iter()
+            .any(|loan| !matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root()))
+        {
             return;
         }
         let matching: Vec<_> = loans
@@ -59,7 +59,7 @@ impl DropPlanner<'_, '_> {
         let [source_loan] = matching.as_slice() else {
             return;
         };
-        if source_loan.target() != binding.origin() {
+        if source_loan.kind() != LoanKind::Shared || source_loan.target() != binding.origin() {
             return;
         }
         let UnitLoanTarget::Place(place) = source_loan.target() else {
@@ -84,7 +84,7 @@ impl DropPlanner<'_, '_> {
             };
             if loan.call() != call_id
                 || loan.argument() == source_loan.argument()
-                || !self.observes_borrow_auxiliary(loan, state)
+                || !self.observes_borrow_root(loan, state)
             {
                 index += 1;
                 continue;
@@ -108,13 +108,21 @@ impl DropPlanner<'_, '_> {
         loan: &crate::ownership_checking::UnitLoanFact,
         state: &ValueState,
     ) -> bool {
+        loan.kind() == LoanKind::Shared && self.observes_borrow_root(loan, state)
+    }
+
+    // Keep Exclusive auxiliary retirement separate from Shared source transport.
+    fn observes_borrow_root(
+        &self,
+        loan: &crate::ownership_checking::UnitLoanFact,
+        state: &ValueState,
+    ) -> bool {
         let UnitLoanTarget::Place(place) = loan.target() else {
             return false;
         };
         let root = place.root();
         let provenance = self.loan_provenance();
-        loan.kind() == LoanKind::Shared
-            && place.is_root()
+        place.is_root()
             && !provenance.iteration_providers.contains(&root)
             && provenance.formed_owned.contains(&root)
             && state.position(root).is_some()

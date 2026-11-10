@@ -827,7 +827,7 @@ impl CompilationUnitOwnership {
         &self.borrow_forward_transports
     }
 
-    /// 已完成的具名 Shared 根实参借用返回交接；不包含完整 loan-end 流。
+    /// 已完成的具名 Shared 根来源借用返回交接；不包含完整 loan-end 流。
     #[must_use]
     pub fn borrow_call_handoffs(&self) -> &[UnitBorrowCallHandoffFact] {
         &self.borrow_call_handoffs
