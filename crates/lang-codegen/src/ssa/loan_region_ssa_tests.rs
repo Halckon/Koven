@@ -749,3 +749,7 @@ mod binding_causal_links;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "binding_coverage_tests.rs"]
 mod binding_coverage;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "binding_receipt_tests.rs"]
+mod binding_receipts;
