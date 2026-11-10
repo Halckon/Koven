@@ -300,7 +300,7 @@ impl UnitExpressionLowerer<'_> {
         let subject = match (is_null(left_leaf), is_null(right_leaf)) {
             (true, false) => right,
             (false, true) => left,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         if !self.heap_if_root_operand(subject, root, false, span)? {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));

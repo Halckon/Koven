@@ -139,8 +139,7 @@ impl UnitExpressionLowerer<'_> {
                 when_true: carried_control_edge(then_block, &carried, &carried_loans),
                 when_false: carried_control_edge(else_block, &carried, &carried_loans),
             }
-        }
-        ;
+        };
         self.function
             .set_terminator(self.block, terminator, Origin::Source(span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;

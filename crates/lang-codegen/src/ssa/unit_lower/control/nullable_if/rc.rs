@@ -85,7 +85,7 @@ impl UnitExpressionLowerer<'_> {
         let subject = match (is_null(left), is_null(right)) {
             (true, false) => right,
             (false, true) => left,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         let subject = nodes
             .get(subject)

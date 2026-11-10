@@ -1,4 +1,5 @@
 //! Contextual null delivery must not lend another control's result identity.
+use super::super::*;
 use super::*;
 use crate::ssa::model::{Module, SsaTypeKind};
 use crate::ssa::unit_lower_test_support::{declaration, parsed};

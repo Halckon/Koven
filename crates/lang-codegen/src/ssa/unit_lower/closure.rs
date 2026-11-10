@@ -7,9 +7,7 @@ use lang_frontend::{
     name_resolution::{
         Namespace, SourceUnitId, SymbolKind, UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{
-        ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource,
-    },
+    ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource},
     parser::{Expression, Statement},
     source::Span,
     type_checking::{
