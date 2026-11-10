@@ -11849,3 +11849,25 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
 - 上述阶段一独立冻结后才继续阶段二缺 Complete 红；当前因果关系成功不自动升级覆盖认证。
 - 独立只读终审已核真实红/首绿/最终六项、原 artifact 与执行后二进制 SHA、4242 冻结输入及
   26 份原件哈希；最终仅两 docs 偏离清单，冻结对象和其余 4240 输入仍匹配，无新增阻断。
+
+### 已批准阶段二：独立 parent-child 完整区域
+
+- 从阶段一 clean `e5a99113b4230715a510d4c4fb33af388cb53262` 新隔离树实施；
+  不改原树、不合 main。独立缺 Complete 红以前一阶段真实 Drop 关联、十 actions/十 SSA/LLVM、
+  双产品真 on/off 与完整 legacy Eq 为前置；红二进制在覆盖前独立实读 SHA，不用旧红代替。
+- 精确普通非泛型无 receiver/参数的 Unit caller，四个原始 statement：已形成 local String owner、
+  BorrowCall result parent、raw Name child、普通 consumer(child)；不扩 siblings、多层、wrapper、
+  控制、replacement、parent/root 后用或额外动作。既有语义、路由、ABI 与唯一 emitter 不变。
+- entry 在 parent 声明实际进入之前，只把已形成唯一活 owner 及真实 token/声明作为正面前提，
+  不声称覆盖 owner 形成。显式核 parent/child 两声明与 initializer、source/consumer 精确 typed 映射。
+  exit 在完整 root body drop_scope/borrow-end wrapper 后，scope0 且全部 active 义务为空；
+  不在 consumerReturn 提前封口，不绕 owner collector 的保存恢复或后续正常清理。
+- 认证必须检查原始未过滤 [entry,end) 十记录、两 binding facts/endpoint 全集与本轮完整 dependency：
+  child 无 source_loan，parent 只有原 source transport；source/handoff/commit/use、各退休与新 Drop
+  的同 catalog 引用全部在本区间内。不能凭 parent.use_return=None 或局部关系成功推全部覆盖。
+- 使用新独立 parent-child region 类型/集合；旧 binding_regions 与七记录 receipt 消费器完全不选新区域。
+  缺边、额外动作、未完成或 active 残留不授 Complete；失败/deferred 沿现观察产品全撤销。
+  新区域只认证该有限区间，source/callable 仍 Partial；本片不接新 receipt，不授全函数 absence，
+  不退休旧 oracle。两阶段红分别保留，阶段一 Partial 产品不自动升级。
+- 仅 fresh 审核普通小集合本地 exact，foreign/fault/Abort/counter/pressure 与 CI-only 只编译；
+  借用 target 独占默认 debug2/LLVM21，不降档、复制或清理；本地分步提交，不推送。

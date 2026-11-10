@@ -436,6 +436,7 @@ impl ActionSource {
             actions,
             regions,
             binding_regions,
+            child_regions: Vec::new(),
             binding_dependency_drops,
         }]
     }

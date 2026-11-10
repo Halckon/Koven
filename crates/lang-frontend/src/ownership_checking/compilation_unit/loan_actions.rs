@@ -92,10 +92,23 @@ pub struct UnitLoanActionObservation {
     pub(super) actions: Vec<UnitLoanAction>,
     pub(super) regions: Vec<super::UnitDirectCallLoanRegion>,
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
+    pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
 }
 
 impl UnitLoanActionObservation {
+    /// Independently entered direct parent/child regions. Missing entries prove no absence.
+    #[must_use]
+    pub fn child_regions(&self) -> &[super::UnitBorrowChildRegion] {
+        &self.child_regions
+    }
+
+    /// Check the exact observation catalog rather than equal binding descriptors.
+    #[must_use]
+    pub fn owns_child_region(&self, region: &super::UnitBorrowChildRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Verified local parent/child dependency-to-Drop relations from actual cleanup publication.
     /// Empty does not prove absence; entries do not certify whole-lifecycle coverage.
     #[must_use]
