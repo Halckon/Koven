@@ -257,14 +257,31 @@ fn established_binding_releases_its_source_on_return_prefix_abandonment() {
 }
 
 #[test]
-fn incomplete_initializer_or_uncovered_group_does_not_gain_a_transport() {
+fn completed_group_transports_its_source_but_incomplete_initializer_does_not() {
     for initializer in ["select(owner, return)", "(select(owner, 0))"] {
         let observed = observe(&format!(
             "fun select(source: String, own n: Int): borrow String from source = source\nfun run(): Unit {{ val owner = \"kept\"; borrow val item = {initializer}; println(item) }}"
         ));
         assert_units_admitted(&observed);
         for unit in &observed.units {
-            assert!(unit.borrow_binding_transports().is_empty());
+            if initializer.starts_with('(') {
+                let [transport] = unit.borrow_binding_transports() else {
+                    panic!("the original grouped call now transports its real source");
+                };
+                let [binding] = unit.borrow_results().bindings() else {
+                    panic!("the original result binding");
+                };
+                assert_eq!(transport.binding(), binding.binding());
+                assert_eq!(
+                    transport.source_loan().call(),
+                    binding.source_loan().unwrap().call()
+                );
+                assert_ne!(transport.source_loan().call(), binding.initializer());
+                assert_eq!(transport.point(), unit.borrow_results().ends()[0].point());
+                assert_eq!(point_text(&observed, transport.point()), "println(item)");
+            } else {
+                assert!(unit.borrow_binding_transports().is_empty());
+            }
         }
     }
 }
