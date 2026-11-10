@@ -9641,17 +9641,81 @@ docs880、diff及尺寸`--base a775568f`通过：2288手写Rust、36既有超千
 及缺席继续旧 facts 路径且无 receipt，不授 absence、不新增语言拒绝。B owner ledger
 保持独立；不迁 protocol 2、不扩 shape、不宣称 source/callable Complete、不退休 oracle。
 
-实施验收：先普通缺 receipt 红测，再实际构造接线；普通正例及 Partial/observer-off
-边界、Int/邻接 plaincall 精确执行。所有人工破损、Abort、压力与资源计数只编译。
+原验收计划：先普通缺 receipt 红测，再实际构造接线；精确执行普通正例、Partial
+边界与 Int/邻接 plaincall。observer-off 受现有私有入口限制，端到端未运行，详见后文。所有人工破损、Abort、压力与资源计数只编译。
 固定唯一 target、默认 debug2 与 LLVM21 配置沿用委托约束，串行构建，先从本轮
 Cargo manifest 核 binary 与测试名再 exact。实际结果随后补充；本段不声称已实现或验收。
 
 首个普通红测沿用原样 `certified_consumer_region_has_real_unit_ssa_lifecycle`，只增加
 生产 receipt 观察断言。no-run 成功后从本轮 Cargo JSON 取唯一测试 binary，先 exact
-list 核名，再 exact 实跑：0 passed、1 failed、2828 filtered；实际降低成功，但 receipt
+list 核名，再 exact 实跑：0 passed、1 failed、2828 filtered；实际 lowering 成功，但 receipt
 为0，预期1。这是真实缺接线红测，不是故障注入或测试源码能力假设失败。binary SHA256
 `b81dd3d9834752ec520d96edab687064531ce485079e7bbdfa275564e9cfcb96`。
 命令为 `cargo test --locked --offline -p lang-codegen --lib --no-run --message-format=json -vv -j 2`，
 实际 artifact debuginfo=2、opt_level=0；LLVM21.1.8。唯一 target 为
 `/private/tmp/koven-exclusive-loop-prefix-target`，构建前无活动 Cargo/rustc，四项覆盖变量
 未设置。原始日志在仓库外 `/private/tmp/koven-p4-receipt-red.{json,stderr,log}`。
+
+实现接线保留现行 refine 路由，Compatibility 仍走旧行为，不自动迁移所有 frontend
+Complete4。静态核实旧 Compatibility 的 nested call-use 仍会原样拒绝；不为 receipt
+放宽准入。正常返回指 consumer 的局部续点，不要求后续整函数 terminator 是 Return。
+生产 `Plans` 核同 catalog 全记录、三项 retired 引用、source/callable/实例映射及原 Drop
+index；RStmt 标记由原 producer 当场形成，emit 对真实 append 身份逐步冻结 source/result
+与 owner，最后逐计划恰一次闭合。B 原授权/提交/consumed_drops 顺序未替换。
+
+中间过程如实记录：build1 仅编译失败（模块可见性、引用比较及 Drop 字段名），未执行；
+build2 编译通过，同一普通红测1 passed/2828 filtered，binary SHA256
+`fd54e0be94f578780414579b26e8c02f56a845de58a8baa35e07b0e668773286`。
+build3/4 分别因新增测试误用 Program.function、Operation.operands API 编译失败；build5
+仅因 CI-only 子模块路径错误编译失败，均未运行测试，不记作语言能力红测。
+build6 编译34.43s，实际 debug2，五个普通 exact 均1 passed/2835 filtered：原P4、原P2、
+Int consumer 加前后 plaincall、Partial live root、同轮双P4 callable；binary SHA256
+`3e220d72d128592a947956f202d185122783551b6464fd36c0bba447f2836fb2`。
+四项 CI-only 破损测试只编译，覆盖错catalog receipt、重复/遗漏角色与stage、Slot重绑/
+错误callee、外来函数instruction。其 fixture 捕获成功生产产物，只复核原实际instruction
+身份，不再生成SSA操作。初次严格Clippy因提取helper后的 needless_borrow 失败，已修。
+最终新增 B/P4 sibling 普通测试与身份接点精简后的统一验收另记，不复用中间binary绿灯。
+
+observer-off 开关目前只在 frontend 私有测试路径；本片不新增公共开关、不模拟删除必需
+证据。保持既有 frontend off 全产物证据及生产 empty-plan 分支，未声称本次实跑端到端
+codegen observer-off 等价。Partial 不替代此未运行项。所有 native、CI-only、Abort、
+压力、资源计数、正式双宿主 CI 未执行；不关闭 Spec/D10/E2，不push/PR/merge。
+
+最终代码固定 `c81259c3377e413c66b6f3dbc1cb77d1382fc1c7`；本地分步提交为范围
+`2bdfeea5`、普通缺 receipt 红测 `04079b80`、生产与测试 `c81259c3`。最终重新编译29.12s，
+使用前述同一 no-run 命令、唯一 target、LLVM21.1.8 和默认 debug2；Rust1.96.0/macOS
+AArch64。四项覆盖变量均未设置，实际 artifact debuginfo=2、opt_level=0、test=true，
+rustc 含 `-C debuginfo=2`。构建完成后逐项从该 binary exact list 核名再运行，不提前跑旧binary。
+
+最终普通精确选择（每项1 passed、0 failed、0 ignored、2836 filtered）：
+
+| 验收项 | exact 测试（均在 `lang-codegen --lib`） | 实际结果 |
+|---|---|---|
+| 原样P4同catalog到实际SSA receipt与旧oracle | `ssa::loan_region_ssa_tests::certified_consumer_region_has_real_unit_ssa_lifecycle` | 通过，rooted/memory两入口 |
+| P2保持旧Compatibility边界 | `ssa::loan_region_ssa_tests::certified_receiver_region_has_real_unit_ssa_lifecycle` | 通过，未迁P2 |
+| outer Int及前后plaincall | `ssa::loan_region_ssa_tests::receipts::int_consumer_with_neighboring_plain_calls_has_local_receipt` | 通过，不限制全函数八指令 |
+| live root Partial | `ssa::loan_region_ssa_tests::receipts::partial_live_source_preserves_legacy_lowering_without_receipt` | 通过，无receipt、旧SSA/LLVM有效 |
+| 同轮双P4 callable | `ssa::loan_region_ssa_tests::receipts::sibling_callables_keep_catalog_and_ssa_receipts_local` | 通过，catalog action/callable/SSA实体互异 |
+| 同轮B/P4 sibling | `native_tests::boxed_enum_tests::unit_source::owner_replace_break_downstream_tests::owner_loan_receipt_sibling_tests::bounded_owner_and_protocol4_siblings_keep_receipts_and_drops_separate` | 通过，Basic/Constant两入口，B授权及P4物理Drop/receipt分离；仅SSA/LLVM，无native执行 |
+
+最终 binary SHA256 为 `08971c5cb86e4152e7dc495cb8a0a8596ce24c60facd87666e1739e735870597`，
+六项完整名称（逐行、末行换行）SHA256 为
+`dfb827090641f8aaf32cbc613427a1b8bccd1abd646f02c7c279f62574a6abd5`。
+仓库外 `/private/tmp/koven-p4-receipt-final-manifest.json` 保存实际artifact、六项返回码和
+成功集；同前缀 `.json/.stderr/-exact.log/-selection.txt` 保存原始编译与逐项日志。
+临时路径不保证永久保留；固定代码提交、上述exact集合与摘要为可重建验收身份，不入库dump。
+
+严格 `cargo clippy --locked --offline -p lang-codegen --all-targets -j 2 -- -D warnings`
+通过26.50s；`cargo fmt --all -- --check`、文档880、diff和尺寸 `--base HEAD`
+（实施比较基线 `04079b80`）通过：2296手写Rust文件、36既有超千行，无额度改动。
+`build.rs` 988行、`emit.rs` 980行；两个原statement helper按生成/发射职责提取，未迁公共IR。
+前述四项新CI-only及所有既有人工破损/Abort/资源计数仅随目标编译；六项白名单不含它们。
+未执行workspace全量、native、Linux、sanitizer或正式CI，既有oracle与Spec状态均保留。
+
+本轮共6个唯一普通测试通过；每项内部双入口不另累计。未重跑旧478组合名单，
+不以其历史绿灯替代本轮六项，亦不将本轮六项外推为全量兼容性验收。
+
+独立只读复审确认精确代码头 `c81259c3` 无Rust漂移或剩余阻断；另行重算最终binary与
+名单SHA256、核本树Cargo artifact/debug2/build-finished以及六条实际成功记录，均一致。
+复审未执行测试，未把静态负控或文档检查当作运行证据。最终文档提交仅记录本轮结果，
+不声称在文档头重跑Rust；未push、PR或merge。
