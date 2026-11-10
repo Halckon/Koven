@@ -727,3 +727,7 @@ mod temporary_receipts;
 
 #[path = "temporary_loan_sibling_tests.rs"]
 mod temporary_siblings;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "multi_temporary_loan_tests.rs"]
+mod multi_temporary;

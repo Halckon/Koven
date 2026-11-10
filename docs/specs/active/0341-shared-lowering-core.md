@@ -10669,3 +10669,29 @@ bytes、两binary/selection SHA、manifest与原始feature JSON、默认CLI三�
 均匹配；两日志7+23逐项等于审定名单，无额外test。四native exact内12次普通运行仍
 只计四tests，静态日志和实际耗时一致。终审者未运行测试；终审后仅追加本账本，
 不改Rust、不重编。owner target锁空闲，原两树与main工作区保持原样。
+
+### 2026-11-10 双临时 String P1 路由与生产核验合同
+
+基于冻结Not+P1合流`c956f3bf`，持续本地开发授权内，将原单literal首片精确扩至两个
+独立raw Text-only String literal。无参非泛型Unit caller、唯一普通Declaration Borrow
+call、无receiver/控制/替换/borrow-result、正常Owned Int/Unit及完整subset门保留。
+两个typed argument_index与parameter_index均等于源码位置；命名实参重排、三及更多
+literal和Complete-empty仍排除，不反禁其它既有route。typed/ownership触发不看证书/off。
+同字节literal仍是不同expression、temporary owner、place及loan，不得以字节合并。
+
+先原样双literal route真实红→最小绿并提交，再receipt缺证真实红→生产核验绿。
+旧producer已证实按源码顺序逐个形成StringLiteral/RootPlace/Begin，再唯一DirectCall；
+Refine按实际loan列表逆序End，Drop仍按原owned.drops发布顺序。FE原pending loan和
+pending temporary分别逆序结束，既有Complete1验证器要求Begin源码顺序、End逆序、
+Drop逆序；核验遵循这些既有路径，不为receipt重排任何动作。
+
+同轮非空Complete1六action归一份call-level计划，含两个独立operand状态，保留原ID、
+完整旧loan/contract/Drop index与callable/instance身份。稳定语句tag核实际形成及
+共享call完整参数向量；一份receipt闭合十一真实指令、六实体，callee参数loan独立。
+单literal作为原有N=1路径继续六指令/三实体，不新造protocol或手写指令回放。
+observer-off/Partial/Unsupported/缺席保旧产品，不造absence，不退休oracle或改语言ABI。
+
+普通有限双入口测试覆盖不同字节、相同字节、空字节、Int/Unit、真实重新分析off与原
+single/其它家族少量邻控；每项/helper重新审查。foreign/故障/Abort/counter/压力及待核
+矩阵只编译，绝不本地执行。默认debug2、借用target独占串行、精确binary/profile/名单
+账本、独审及分步本地提交，不push/PR；不将main新头或其它人的dirty docs带入。
