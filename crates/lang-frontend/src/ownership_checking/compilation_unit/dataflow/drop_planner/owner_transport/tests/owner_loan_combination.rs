@@ -75,8 +75,8 @@ fn four_switches_preserve_b_consumer_and_all_legacy_products() {
                             ),
                         ]
                     );
-                    // Complete AST-qualified action sequence is checked above by
-                    // the original B oracle, before comparing every legacy field.
+                    // The independent B oracle above remains unchanged. Here the
+                    // combined fixture checks exact actions and every legacy field.
                 }
                 if loan {
                     let observations = &actual.loan_action_observations;

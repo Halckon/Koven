@@ -406,6 +406,13 @@ pub(super) fn analyze(
         borrow_binding_transports.clear();
         borrow_results = Default::default();
     }
+    // Raw consumers share the public gate. Deferred keeps the legacy diagnostic
+    // projection, but no sealed loop/B capability may survive global rejection.
+    owner_observations = super::owner_transport::publish_observations(
+        owner_observations,
+        diagnostics.is_empty() && typed.has_valid_type_facts(),
+        deferred.is_empty(),
+    );
     nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
     borrow_return_origins.sort_by_key(|fact| fact.expression());
     borrow_results.bindings.sort_by_key(|fact| fact.binding);
