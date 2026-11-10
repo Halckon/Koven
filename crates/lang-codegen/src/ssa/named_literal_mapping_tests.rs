@@ -65,3 +65,23 @@ fn check(receipt: bool) {
         );
     }
 }
+
+#[test]
+fn named_literal_mapping_preserves_source_order_and_true_off() {
+    super::multi_temporary::products::check_cases(
+        &[
+            (SOURCE, [b"first".as_slice(), b"second".as_slice()], 1),
+            (
+                "fun inspect(a: String, b: String): Unit {}\nfun run(): Unit { inspect(b = \"same\", a = \"same\") }",
+                [b"same".as_slice(), b"same".as_slice()],
+                0,
+            ),
+            (
+                "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(b = \"\", a = \"\") }",
+                [b"".as_slice(), b"".as_slice()],
+                1,
+            ),
+        ],
+        [1, 0],
+    );
+}

@@ -68,4 +68,4 @@ fn check(receipt: bool) {
 }
 
 #[path = "multi_temporary_loan_products_tests.rs"]
-mod products;
+pub(super) mod products;

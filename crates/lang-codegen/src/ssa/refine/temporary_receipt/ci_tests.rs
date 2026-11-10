@@ -240,3 +240,34 @@ fn ci_only_pair_rejects_duplicate_drop_identity_and_wrong_retirement_order() {
     assert_ne!(first, second);
     assert!(plans.drop_fact(first, target, slot, snapshot.span).is_err());
 }
+
+#[test]
+fn ci_only_named_mapping_rejects_duplicate_or_out_of_range_parameter_slots() {
+    let original = capture_source(
+        "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(b = \"same\", a = \"same\") }",
+    );
+    for invalid_parameter in [0, 2] {
+        let mut snapshot = original.clone();
+        snapshot.plans.entries[0].operands[0].parameter_index = invalid_parameter;
+        assert!(checked(&snapshot, 11, false, false).is_err());
+    }
+}
+
+#[test]
+fn ci_only_named_mapping_rejects_source_order_call_vector() {
+    let mut snapshot = capture_source(
+        "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(b = \"same\", a = \"same\") }",
+    );
+    let id = snapshot.receipt.instructions[6];
+    let instruction = snapshot
+        .function
+        .instructions
+        .iter_mut()
+        .find(|i| i.id == id)
+        .unwrap();
+    let Operation::DirectCall { arguments, .. } = &mut instruction.operation else {
+        panic!("actual ordinary call");
+    };
+    arguments.swap(0, 1);
+    assert!(checked(&snapshot, 11, false, false).is_err());
+}

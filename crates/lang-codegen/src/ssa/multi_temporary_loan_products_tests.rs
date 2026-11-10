@@ -5,19 +5,29 @@ use lang_frontend::ownership_checking::{
 };
 #[test]
 fn two_literal_int_unit_same_bytes_and_empty_preserve_true_off() {
-    for (text, bytes, result_count) in [
-        (SOURCE, [b"left".as_slice(), b"right".as_slice()], 1),
-        (
-            "fun inspect(a: String, b: String): Unit {}\nfun run(): Unit { inspect(\"same\", \"same\") }",
-            [b"same".as_slice(), b"same".as_slice()],
-            0,
-        ),
-        (
-            "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"\", \"\") }",
-            [b"".as_slice(), b"".as_slice()],
-            1,
-        ),
-    ] {
+    check_cases(
+        &[
+            (SOURCE, [b"left".as_slice(), b"right".as_slice()], 1),
+            (
+                "fun inspect(a: String, b: String): Unit {}\nfun run(): Unit { inspect(\"same\", \"same\") }",
+                [b"same".as_slice(), b"same".as_slice()],
+                0,
+            ),
+            (
+                "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"\", \"\") }",
+                [b"".as_slice(), b"".as_slice()],
+                1,
+            ),
+        ],
+        [0, 1],
+    );
+}
+
+pub(in crate::ssa::loan_region_ssa_tests) fn check_cases(
+    cases: &[(&str, [&[u8]; 2], usize)],
+    parameter_sources: [usize; 2],
+) {
+    for &(text, bytes, result_count) in cases {
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-off.ko", text);
         let (environment, types) = standard_environments();
@@ -42,6 +52,24 @@ fn two_literal_int_unit_same_bytes_and_empty_preserve_true_off() {
             };
             assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
             assert_eq!(region.protocol_version(), 1);
+            let mapped = typed.types().call(region.call()).unwrap();
+            let expected_mapping = (0..2)
+                .map(|source| {
+                    (
+                        source,
+                        parameter_sources.iter().position(|i| *i == source).unwrap(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                mapped
+                    .arguments()
+                    .iter()
+                    .map(|a| (a.argument_index(), a.parameter_index()))
+                    .collect::<Vec<_>>(),
+                expected_mapping
+            );
+
             let ids = region.action_ids().collect::<Vec<_>>();
             assert_eq!(ids.len(), 6);
             let actions = ids
@@ -59,6 +87,20 @@ fn two_literal_int_unit_same_bytes_and_empty_preserve_true_off() {
             assert_ne!(first.argument(), second.argument());
             assert_ne!(first.target(), second.target());
             for (i, begin) in [first, second].iter().enumerate() {
+                let parameter = expected_mapping[i].1;
+                assert_eq!(
+                    sources.slice(begin.parameter_span().unwrap()).unwrap(),
+                    ["a: String", "b: String"][parameter]
+                );
+                let contract = on
+                    .ownership()
+                    .call_argument_contracts()
+                    .iter()
+                    .find(|c| c.call() == region.call() && c.argument() == begin.argument())
+                    .unwrap();
+                assert_eq!(contract.parameter_index(), parameter);
+                assert_eq!(contract.parameter_span(), begin.parameter_span());
+
                 let UnitLoanAction::Cleanup {
                     action:
                         lang_frontend::ownership_checking::UnitIterationCleanupAction::EndCallLoan(end),
@@ -172,7 +214,10 @@ fn two_literal_int_unit_same_bytes_and_empty_preserve_true_off() {
                 assert!(receiver.is_none());
                 assert_eq!(
                     *arguments,
-                    loans.iter().map(|l| EntityId::Loan(*l)).collect::<Vec<_>>()
+                    parameter_sources
+                        .iter()
+                        .map(|i| EntityId::Loan(loans[*i]))
+                        .collect::<Vec<_>>()
                 );
                 assert_eq!(call.results.len(), result_count);
                 if let [e] = call.results.as_slice() {
