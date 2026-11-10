@@ -73,6 +73,13 @@ implies 不变，不新建运行时条件。replacement/alias、跨 loop phi see
 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
 这里的生产修复仅作用于 single；temporary/Borrow 路径保持原实现。
 
+普通 continue 的四份原嵌套/顺序循环源码另有 strict MemoryDocument Unit 对照：fresh inner、
+独立 inner、同源 nested 与同源 sequential 均取得原 main 的 verified SSA/LLVM；每份保留两个
+真实 source-qualified iteration plan 与 element access。Legacy 仍只接受 fresh inner，其他
+三份在原 keys 声明处 UnsupportedNode；完整 kind/source/23..27 范围固定且旧见证保留。
+这是既有能力差分的 test-only 合同，净退休0，不据此证明任意循环 owner/phi、native 释放或
+两个入口的完整行为等价。
+
 single owned source的单条件Return现由[0314](../archive/specs/0314-owned-source-conditional-return.md)
 独立证明：3 exits/3 incoming，Return不入phi；真实Entry和唯一Fallthrough先建立Header，
 再分别核Return path∧Header presence精确Drop、正常live Exit运输或dead absent Exit。

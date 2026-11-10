@@ -8012,3 +8012,36 @@ Rust size guard 全部通过。2243个 Rust 文件、36项历史超长，额度�
 未运行 frontend/workspace 全量测试、native、Linux、额外压力/故障注入或正式 CI，
 不推送或自动合并。D10/E2 与 SPEC-0341 仍为 in-progress；此片不实现一般
 CFG/NLL、动态 owner 实例、完整借用事件流或 Phase 4/native。
+
+
+### 普通 continue 嵌套与顺序循环的原源 Unit 差分（2026-11-10）
+
+本片从实际 main `6ce85b07f9e36fcd322544c93f33274d6ba15c1b` 隔离建立，
+定点核对 #390 `ca322bc5` 与该文件历史，未重复上一片 L0135/L0133 诊断强化。
+只增强 `owned_source_continue_nested_scope_boundaries` 原一个测试，四份源码表逐字保留：
+fresh inner、独立 inner、同源 nested 与同源 sequential。不吸纳其他未合入候选，生产、
+共享 harness、工具链及 CI selector 均未改；合队须同时保留 #390 的原诊断片，不能整文件替换。
+
+在同一基底实际记录原 Legacy 与 strict Unit 基线：Legacy fresh inner 成功，其余三份均在
+原 keys 声明的23..27处 UnsupportedNode；Unit 四份均成功。`0789a421` 首先固定三份
+Legacy 完整 kind/source/span，旧成功路径和所有原见证保持；后续代码提交 `093ccdb319e2be7c1ec7dcd5b3d13ddcd28f4bfc`
+（tree `9863b344d1d02775004e85f3cffe46c0b93e0cee`）再增加严格 Unit 同源对照，净退休0。
+Unit 必须通过最终类型准入、四阶段零诊断及原 basic capability，保留单一 MemoryDocument
+和原 main 的完整 source identity；同轮两份 typed/ownership iteration descriptor、原 main
+实际 SSA entry、两个 element access 及 verified LLVM 均有断言，不接受空集或替代 root。
+不把三项既有能力差异写成语义等价，也不修改 Legacy 拒绝边界来获得绿灯。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 原四输入及 continue 邻控 | `cargo test --locked --offline -p lang-codegen --lib ssa::lower_frontend_tests::owned_source_continue_tests::` | 19 passed，0 failed/ignored，2798 filtered |
+| 严格静态检查 | codegen all-targets Clippy，`-W clippy::all -D warnings`，locked/offline | 通过 |
+| 工程门禁 | workspace fmt、docs、相对 `6ce85b07` Rust尺寸、diff | 通过；863 Markdown、2242 Rust、36项历史超长，本片不改额度 |
+| 独立只读复审 | 原源/Legacy、strict admission、实际 entry、两循环和架构边界及旧片差异 | 无 blocker；复审仅核读日志，未自行运行测试 |
+
+原19个测试身份保留；本文件 direct Legacy analyze 7→7、lower_scalar_file 6→6。
+19项是最终不同测试数，基线及固定Legacy后的原单项复跑不累加。Mac AArch64、Rust1.96.0、
+LLVM21.1.8、debug=0、jobs=2、locked/offline，独占target串行。原始观测及命令日志留本片
+忽略的 `.local-artifacts/`，原源码和固定断言入库；不依赖临时日志解释验收范围。
+未运行完整 codegen/frontend/workspace 测试、native 进程、Linux、故障注入或 sanitizer。
+仅本地提交待统一队列，无推送、开PR或合并，精确发布头CI另验；D10/E2和SPEC-0341仍
+in-progress，任意循环 owner/phi、完整借用全序、全部 Single 退休与 Phase4并未闭合。

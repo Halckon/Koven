@@ -248,9 +248,84 @@ fn owned_source_continue_nested_scope_boundaries() {
             let error = result
                 .err()
                 .expect("cross-loop owner proof remains unsupported");
-            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            assert_eq!(analysis.sources.slice(error.span.unwrap()).unwrap(), "keys");
+            let source = analysis.parsed.source_id();
+            assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
+            assert_eq!(analysis.sources.source_text(source), Ok(text));
+            let expected_span = analysis.sources.span(source, 23, 27).unwrap();
+            assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
+            assert_eq!(
+                error,
+                crate::ssa::LoweringError {
+                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+                    span: Some(expected_span),
+                },
+                "the original Legacy boundary stays at its declaration, not a later use"
+            );
         }
+
+        // The same ordinary inputs are all supported by Unit. This is a comparison,
+        // not retirement of the three distinct Legacy rejection witnesses above.
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
+
+        let unit = UnitSource::analyze("lowering.ko", text)
+            .expect("strict unchanged nested-loop Unit admission");
+        unit.assert_frontend_clean();
+        assert!(unit.ownership().deferred().is_empty());
+        assert_eq!(unit.parsed().roots().len(), 1);
+        let [document] = unit.names().names().index().source_units() else {
+            panic!("one original MemoryDocument");
+        };
+        assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+        assert_eq!(document.source_id(), unit.parsed().source_id());
+        assert_eq!(
+            unit.sources().source_name(document.source_id()),
+            Ok("lowering.ko")
+        );
+        assert_eq!(unit.sources().source_text(document.source_id()), Ok(text));
+        assert_eq!(unit.basic_types().types().sequential_iterations().len(), 2);
+        assert_eq!(unit.ownership().iterations().len(), 2);
+        for plan in unit.ownership().iterations() {
+            let descriptor = plan.descriptor();
+            assert_eq!(descriptor.statement().source_unit(), document.id());
+            assert_eq!(
+                unit.types().sequential_iteration(descriptor.statement()),
+                Some(descriptor)
+            );
+        }
+        let declaration = unit.declaration("main", SymbolKind::Function);
+        assert_eq!(
+            unit.sources().slice(unit.declaration_span(declaration)),
+            Ok(text)
+        );
+        let (program, entry) = unit
+            .lower_entry(declaration)
+            .expect("the same nested or sequential loops lower through Unit");
+        let [module] = program.modules.as_slice() else {
+            panic!("one original source module");
+        };
+        let [function] = module.functions.as_slice() else {
+            panic!("only the original main root is lowered");
+        };
+        assert_eq!(function.id(), entry);
+        assert_eq!(
+            function.origin,
+            crate::ssa::model::Origin::Source(unit.declaration_span(declaration))
+        );
+        assert_eq!(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    crate::ssa::model::Operation::ContainerElementPlace { .. }
+                ))
+                .count(),
+            2,
+            "both original loops retain element access"
+        );
+        crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("the actual Unit entry and complete two-loop SSA verify through LLVM");
     }
 }
 
