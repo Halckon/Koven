@@ -24,6 +24,17 @@ pub enum UnitLoanAction {
     ReceiverBegin(super::UnitReceiverOwnershipFact),
     /// Normal-return retirement, observed without adding an execution cleanup.
     ReceiverEnd(super::UnitReceiverCallReturnEndFact),
+    /// Successful initializer commit of the existing source-to-binding handoff.
+    /// Its historical CallReturn/auxiliary descriptors are not new End events here.
+    BorrowHandoffCommitted(super::UnitBorrowCallHandoffFact),
+    /// Actual removal of an initialized borrow binding, before its owner cleanup.
+    /// This record is not a generic parent-permission restoration certificate.
+    BorrowBindingEnd(
+        crate::ownership_checking::BorrowBindingEndFact<
+            crate::name_resolution::UnitSymbolId,
+            UnitDropPoint,
+        >,
+    ),
     /// An action from the single existing cleanup source, without sorting old tables.
     Cleanup {
         /// Source-qualified cleanup point; separate records are never coalesced by span.
