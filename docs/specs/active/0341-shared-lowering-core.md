@@ -11150,3 +11150,53 @@ Clippy、workspace all-targets check、fmt、docs884、diff与尺寸base233736f8
 helper审计、manifest及所有门禁日志。没有执行foreign、fault/损坏、Abort、计数、压力、
 待定矩阵、sanitizer或正式双宿主CI；未推送、未改原main脏树或发布头。owner target已空闲
 释放；当前只认领本片受限行为，不外推一般循环、资源或backend off端到端。
+
+### 叶 Not owner 与有限arity P1 本地合流（2026-11-10）
+
+冻结代码merge `4f02015de940bf0f7b5973cf94634ebb300f7c19` 保留双父
+`b48437290dc94dfa4172ac98fa05bd11b8a96f65` 与
+`3d9fa62f2cfea022b3472534cb99830990aff491`，共同基底233736f8。
+新隔离树开始前两原树clean，main/origin/main/只读远端ls-remote均9e7fed92；不自动
+夹带其它main、独立Bag probe或旧账本分支，不改变原树用户文档。P1改11路径、owner
+改15路径只交集本Spec；共同正文prefix核后保P1全文、分隔空行和owner新增尾段，
+其余非交集文件逐字等对应父。仅预期文档冲突，无新生产/ABI/清理或路由改动。
+
+两父43+18无重名，本合成树fresh source/helper审定后执行61unique ordinary：FE19、
+codegen42，全通过且无额外选择，分别每项1pass/610filtered和1pass/2905filtered。
+FE为323个固定普通fixture；owner17个静态exact含64次正常lower/63次显式LLVM，
+physical_drop只核SSA；另外7native exact共34次有限emit/link/run（2/6/2/2/2/8/12），
+仅算7tests，不作为资源计数或一般终止性证明。P1十八为76次有限SSA/LLVM、无native；
+这些次数不另累计tests。全部foreign、故障/注入、Abort、counter、pressure、强制路由、
+CI-only与未审矩阵只编译不执行，普通observer不启capture/fault。源内native循环均
+最多一轮裸break，无额外输入/递归；运行成功及精确stdout由实际测试日志证实。
+
+这是同构建回归及原七族sibling证据，不声称新增叶Not与N3/N4同程序交叉验证。
+FE compare从当前fixture重新规划两份本地Analysis，只清observed局部owner_observations
+作相等对照，不是clone比较器，也不回灌lower；P1 legacy比较才clone归一。P1真off
+重新分析ownership并把原off产品直接lower。数学恒真/假与保守双出口不混写。
+
+独占owner target、LLVM21.1.8、默认opt0/debug2；无profile/RUSTFLAGS覆盖、无复制/
+清理target。默认CLI check11.03s，原frontend/codegen/kovenc三artifact全features=[]。
+feature no-run1m26s，两本树test artifact只loan-support、opt0/debug2/test=true；
+先新binary逐--exact --list核名，再执行精确名单。feature两crate严格all-targets
+Clippy53.93s、默认workspace all-targets35.63s（含cfg gate编译）、fmt、docs884、
+尺寸2346手写Rust/35旧超限（base233736f8）、diff均exit0，无额度增加。
+本合流无Rust编译/测试失败；准备hash清单时git ls-files非ASCII转义路径曾使脚本
+报FileNotFoundError，尚未启动Cargo，改NUL分隔读取后成功，不记能力红或源码失败。
+
+证据 `/private/tmp/koven-leaf-finite-p1-evidence` 保存manifest.json、frontend/codegen
+selection及exact日志、runner、原Cargo JSON、helper审计和4200全部tracked输入hash。
+4200清单冻结4f02015d，含fixture/config/docs；追加本账本后仅Spec当前bytes不同，
+生产及其它输入仍同冻结，不称全部当前文件零差异。临时产物不承诺永久保存，双父/
+merge及精确测试源码为复现依据。FE binary SHA256
+`f5e19871ea7946fa81cb20b53e9a118e5bb27533a121f7714e0fa42b5d51b202`，selection
+`5fa842f96362a049bffd25e9a279d9cb77daff577de9fc046f60649064c1e5e7`；CG binary
+`da00471a118e9edae3af54946b318d8e9c92bcaa61c6f093b1f613891c1fe7af`，selection
+`babc51aee80eda84035ef1afba942bdc91ded29c3d03619e4f9b9bab76ae1be3`；输入清单
+`3b19f298ddb9ae39f2e2d93b24e5550858b3059f525c76ed65105a0a92f47a9e`。
+正式双宿主CI、release、资源证明与大arity压力仍未执行，旧oracle不退休，不push/PR。
+
+精确4f02015d独立只读终审无新增阻断：双父/逐字合流、4200冻结输入、执行后双binary
+与selection、原artifact/profile、61逐项结果和全部静态终态均匹配；审阅者未编辑或
+代执行。终审后仅补本Spec，docs/diff复核后本地提交清树，不重编Rust；owner target
+已释放。native结果不独立证明RHS动态跳过次数，不作计数或一般终止性承诺。
