@@ -89,6 +89,27 @@ binding提交时刻。真实辅助临时Drop可以先于该commit；本观察不
 及辅助退休顺序尚未认证；source/callable不会因新表非空成为Complete。现有protocol1/2/3
 仍核完整区间；错误/deferred继续在raw和公开边界撤销新观察与旧投影。
 
+## 单binding跨语句Partial因果引用
+
+对于单本地String根、单borrow binding和普通单参数String Borrow consumer，source Begin
+句柄从真实pending token移入binding transport，成功initializer commit保存实际Handoff
+句柄。普通consumer正常return提取原token时，以raw operand解析到binding，发布
+`BorrowBindingUseReturned`并引用source Begin、Handoff和该consumer metadata Begin。
+consumer复用binding结果SSA loan，不产生第三条SSA loan，也不在return时结束binding。
+
+实际binding移除先保旧transport投影，再发布相邻的BindingEnd→
+`BorrowBindingSourceRetired`观察transaction。validator只沿携带句柄核同catalog、严格
+先后、角色与完整事实；不以Span或相等描述搜索补配。原唯一producer仍End result→
+End source→Drop owner，不由这些观察生成执行动作。
+
+transport的旧语义Eq仅比较binding/source；merge不改变原保留资格，metadata歧义或重复/
+不合格use只降级，后续use不能恢复已丢历史。公开use_return只代表唯一已观察合格use，
+并非all-use证明，None不授absence。原样双Unit真off保持完整旧facts及SSA/LLVM；控制
+邻控仅证明前端合流/off与sticky降级，其if仍未被该后端子集支持。
+
+该增量仍Partial，原样两P3 call region仍Unsupported。尚未认证跨statement完整region、
+Drop因果闭合或生产receipt，不泛化parent/sibling/wrapper，也不改变旧协议含义。
+
 ## 同步consumer实际依赖边
 
 `BorrowConsumerTransfer`在真实source pending移入PendingTransport时记录；不透明句柄随

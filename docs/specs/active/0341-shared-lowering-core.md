@@ -11239,3 +11239,49 @@ parent/sibling/wrapper。完整跨两statement binding region及可选production
 身份通过后检查实际因果动作/同catalog引用；API stub无人发布应失败。后续真实发布点
 实现再跑同源绿。foreign/破损/Abort/计数/压力与CI-only仅编译，旧result_action_source
 及cross_source外来查询helper不执行。
+
+#### 单binding Partial因果链实施与验收（2026-11-10）
+
+冻结代码 `5b3df2af6d20f02aa9fb0f87aae1a9b8f1177a73`，从 `a35f8c22` 独立树实施，
+未改变语言/ABI/route及旧cleanup producer。source Begin句柄沿实际PendingLoan move保存，
+成功initializer commit返回真实handle，consumer正常return提取原token并从raw operand识别
+binding。实际移除先保旧transport投影，再连续发布BindingEnd与SourceRetired观察。
+metadata不入旧binding/source语义Eq，合流歧义与重复/不合格use只降证据，后续use不恢复。
+公开use_return仅指唯一已观察合格use，不证明all-use覆盖；本片仍Partial，无新region认证、
+Complete、absence授权或production receipt，不退休oracle。
+
+原样probe `dd84209c` 显示view/run既有refine、两P3 Unsupported、实际八SSA；它未断言
+source Partial，该项由后继能力测试实测。缺证红 `dce5e9b9` 的on/off旧表与SSA/LLVM先成功，
+在首rooted布局缺七事件而失败（0/1/2907），不能算第二布局完成。API stub本身没有producer。
+`248b2fa6` 接入实际发布后核心同源绿（1/0/2908），双Unit真实off重ownership，原off产品
+直接lower，比较helper仅clone归一化；result/source两loan与consumer复用身份均验证。
+
+过程偏差保留：新增merge邻控原假设if可lower，但完成首布局全部FE旧表/retirement断言后，
+后端UnsupportedNode 178..227拒绝；这是测试对既有subset的错误假设，不是能力缺证红。
+`5074793e` 将其收为frontend-only，最终测试名明确frontend_merge；不扩route、不宣称
+该控制源码SSA/LLVM成功。严格Clippy首报question_mark，最终等价改?；原失败日志保留。
+只读hash用shell heredoc遇沙箱临时文件限制，改无临时文件python-c完成，不是Rust失败。
+
+静态：feature-enabled前端/后端严格Clippy39.43s、默认workspace all-targets29.34s、
+fmt、docs884、尺寸2353手写文件/35旧超限（base a35f8c22）与diff均通过。最终两crate
+no-run27.43s，真实opt0/debug2/test、仅loan-observation-test-support，两个新增前端
+CI-only破损/合流负控只编译不执行。未运行release、正式CI或额外资源/压力证明。
+
+证据目录 `/private/tmp/koven-binding-lifecycle-evidence` 保留各阶段raw Cargo JSON、
+manifest、选择、原日志及4207冻结tracked输入SHA；代码冻结后仅本账本/架构docs可不同。
+
+最终五个唯一ordinary exact全部通过，各1/0/0/2908 filtered：原样probe、因果链双Unit
+true-off、frontend-only merge true-off、既有P4生命周期、P3 Int/Unit true-off。只前端merge
+不lower；其余固定有限源码验证SSA/LLVM，无native。测试名/顺序与final-selection、
+runner、manifest及原log一致，前端test binary仅编译，未执行。
+
+最终CG binary SHA256 `980b794f470ae54b202785a6792ef84e4f1b506aca8f74404812cad5190b3a6e`，
+FE `338dc6f4072615c0b26306a3cfc244fa3cb22805333f2adfb3b637b9d6838240`，
+五项selection `c3326dff039c4bc0f647c99188f4d4c4a162ed00c779342769ad75091b918937`，
+4207输入清单 `87fb475ed1e9ba258b5ccc058f0cc8231dd9e8351bceb82ea28c0e59669ae09b`。
+未单独采默认CLI artifact features证据，不把默认workspace成功表述成该实证。
+
+精确 `5b3df2af` 独立只读终审无阻断：五名单/manifest/runner/原log同序，执行后两binary
+hash仍匹配；4207冻结对象与清单一致，当前仅两docs不同、非docs无漂移。四项共15次
+有限SSA/LLVM lower，一项仅前端合流；不含native或CI-only执行。终审后仅docs补账本，
+不重跑或修改Rust，本地提交且不推送。
