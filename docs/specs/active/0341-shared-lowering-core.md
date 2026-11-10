@@ -10860,3 +10860,24 @@ fmt、docs 883、尺寸 2341 手写 Rust/35 旧超限（base c956f3bf）及 diff
 SHA 全匹配，41 成功名称/名单/实际 profile/Cargo JSON 一致；frontend 每项 1pass/
 602filtered，codegen 每项 1pass/2889filtered。审阅者未执行测试或修改文件。
 终审后仅补此文档，未重编 Rust；owner target 已无占用。仅本地提交，不 push/PR/发布。
+
+
+## 已批准的双 literal 命名参数映射增量（2026-11-10）
+
+用户已要求今晚持续并行本地开发、本地提交；本片按既有语言和 ADR-0040 核验合同，
+从固定 main 合成头 `4f72af76` 独立推进，不改变 ABI、参数求值或清理责任。
+仅扩展现有两个普通 String literal Borrow 实参的已验证命名重排；保非泛型无参 Unit
+caller、单 Declaration 调用及 Int/Unit 结果等原边界。Complete-empty、三 literal、
+插值、投影、receiver、borrow-result 与控制转移不因本片开放。
+
+源码 argument_index 决定实际形成和 Begin 顺序；parameter_index 是独立的参数映射，
+必须构成两个参数的精确置换。唯一 DirectCall 按参数序核完整向量，End 和 Drop 分别
+沿同轮旧事实及真实 producer 顺序核对，不重排、不重复发出动作。相同 bytes 不合并
+argument identity、temporary Slot 或 SSA 实体。仍只选择同轮 Complete1；off、Partial
+及 Unsupported 保持原路径，覆盖声明不升级为整个 callable Complete，也不退休 oracle。
+
+实施分两阶段保留真实失败证据：原样命名重排 caller 路由红到绿；随后已迁 caller
+缺实际 receipt 的独立红到绿。两阶段都以普通源码正常分析和真实路由为准，不加 anchor
+或强制路径。验收包括不同/相同 bytes、Int/Unit、双 Unit 及真实 observer-off；测试
+逐项与 helper 重审，所有 foreign、破损、注入、Abort、计数和压力仅编译，不在本机执行。
+此处仅记录范围，尚未执行本片红测、实现或验收。
