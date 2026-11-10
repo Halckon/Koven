@@ -386,6 +386,7 @@ pub(super) fn analyze(
         borrow_return_origins.clear();
         borrow_forward_transports.clear();
         receiver_call_prefix_ends.clear();
+        exclusive_call_prefix_ends.clear();
         borrow_call_transports.clear();
         borrow_binding_transports.clear();
         borrow_results = Default::default();

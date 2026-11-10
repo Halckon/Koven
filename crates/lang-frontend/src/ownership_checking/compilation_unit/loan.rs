@@ -126,7 +126,7 @@ impl UnitDirectCallLoanEndFact {
     }
 }
 
-/// Exclusive 根实参因 return 放弃调用前缀的实际结束事件。
+/// Exclusive 根实参因 return/break/continue 放弃调用前缀的实际结束事件。
 /// 仅为观测切片，不覆盖正常返回、投影、receiver 或完整 owner 图。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitExclusiveCallPrefixEndFact {
@@ -156,7 +156,7 @@ impl UnitExclusiveCallPrefixEndFact {
         self.preceding_drops
     }
 
-    /// 同一分析、同 source-qualified Return point 中先行的实际 EndCallLoan 动作数。
+    /// 同一分析、同 source-qualified 控制转移点中先行的实际 EndCallLoan 动作数。
     /// 与 direct/borrow-prefix 切片共用同点顺序，含未公开的动作，编号可能有空隙。
     /// 不含 receiver/result/drop 动作，不是全局执行索引或完整 loan-end 流。
     #[must_use]

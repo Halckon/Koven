@@ -216,3 +216,17 @@ fn terminal_if_observation_preserves_full_legacy_cleanup_analysis() {
         compare(&fixture, &fixture.parts(&owned));
     }
 }
+
+#[test]
+fn owner_observation_preserves_exclusive_loop_exit_prefix_events() {
+    for jump in ["break", "continue"] {
+        let text = format!(
+            "class Item(val n: Int)\nfun run(): Unit {{ loop {{ var a = Item(1); replace(&a, {jump}) }} }}"
+        );
+        let fixture = Fixture::new(&[("root.ko", &text)]);
+        let shared = fixture.shared();
+        assert!(shared.clone().validate().is_ok());
+        assert_eq!(shared.exclusive_call_prefix_ends().len(), 1);
+        compare(&fixture, &fixture.parts(&shared));
+    }
+}
