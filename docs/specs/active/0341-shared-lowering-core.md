@@ -8550,3 +8550,63 @@ wrapper/consumer/provider/capture覆盖仍待后片；现有protocol1/2/3合同�
 同源兄弟/parent-child、历史辅助描述、跨catalog/source、全Analysis on/off与raw/public
 错误/deferred撤销。所有选择仍逐源/helper核普通exact；十旧排除及CI-only/Abort/压力
 不执行，默认debug2、既有target串行、不复制。与ownerPhase4或0400无依赖。
+
+### Loan 结果binding同源增量验收（2026-11-10）
+
+范围`406f46ae`、能力红测`18a6c1ab`、实现`73d85279`续接`fad15eab`，无候选重复实现或
+owner/0400合并。红测先证旧handoff、binding End和owner Drop均存在，再因统一动作源
+缺实际commit记录失败（1 failed、325 filtered）；迁移原发布位置后同一测试转绿。
+
+本片不新增协议或Complete认证，只增加`BorrowHandoffCommitted`、`BorrowBindingEnd`
+的真实记录。前者仅在原initializer continues提交分支；后者在实际binding移除及原transport
+处理后、owner清理前。旧handoff/borrow_ends改同源投影，后者保留首次出现去重，而原始
+退休记录不按binding/point合并。observer off仍保存旧表源，新记录不进入Cleanup计数或
+执行流。原child→parent→Drop顺序不变；source延续不当End，历史辅助描述不补造退休。
+
+最终333个唯一普通成功项（321 direct＋12 lib），包含前片324，不与前片或补强前重复加总：
+
+- direct保留前片315精确项，新增`result_action_source::`六项：
+  `committed_result_and_binding_end_share_the_actual_action_source`、
+  `abandoned_initializer_has_no_committed_result_or_binding_end`、
+  `child_binding_retires_before_parent_and_actual_owner_drop`、
+  `siblings_keep_distinct_handoffs_and_protect_the_shared_source`、
+  `historical_auxiliary_description_does_not_replay_an_end_at_commit`、
+  `result_action_ids_remain_catalog_bound_across_reanalysis`。
+  真实辅助temporary Drop先于commit、parent-child及siblings不误合并、放弃initializer
+  保持原Return prefix且无结果提交/End；最终321 passed、0 failed、10 filtered。
+- lib保留前片9项，新增owner_transport测试
+  `result_action_observer_preserves_nonempty_handoff_and_end_products`、
+  adjacent_borrow_results::result_action_source测试
+  `result_action_prefix_is_revoked_from_raw_and_public_products`、action_source测试
+  `result_action_cross_source_preserves_caller_and_callee_lineage`。
+  最终12 passed、0 failed、552 filtered；原始/公开新动作与旧handoff/End在真实独立source
+  错误/deferred后全部撤销，公开`borrow_results().ends()`也已显式核空。
+- 每项及helper均逐源核普通有限输入，先`--exact --list --format terse`核白名单，再
+  `--exact`运行并逐项核成功集合。十项旧direct排除和四项旧iteration Abort未执行。
+  本线五项CI-only守卫仅编译；新增人工重复记录守卫核原始双record不同ID、旧投影单项
+  及observer off，不计作本机执行通过，未跑故障/破损/压力集合。
+- 最终补强输入的严格frontend all-targets Clippy通过（24.79s），workspace all-targets
+  check通过（19.88s）；fmt、docs 877、尺寸2271 Rust/36旧超限与diff通过。
+  独立只读复审无阻断；drop_planner.rs移除旧向量后1584→1577，未提高历史尺寸额度。
+
+仍为macOS arm64/Rust1.96.0默认配置，两个实际test artifact的profile.debuginfo均为2，
+rustc含`-C debuginfo=2`，无`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、
+`RUSTFLAGS`或`CARGO_ENCODED_RUSTFLAGS`覆盖。复用
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`并串行Cargo，不复制/clean/降档。
+实际构建为`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`。
+静态Clippy/check另设`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，分别运行
+`cargo clippy --locked --offline -p lang-frontend --all-targets -j 2 -- -D warnings`和
+`cargo check --locked --offline --workspace --all-targets -j 2`，不执行LLVM/native行为。
+
+37文件direct测试源码清单摘要为`b25d587cb3da5c04c676b58cfe9f51ad659ebbf134565bdb2602cadf9b0b7009`；
+321项direct名单摘要`5ff03cbd7bcf2f73d5dd4ca098ec71811dde7a256cf967c733b7f806a27f6cf9`，
+12项lib名单摘要`e641cb6bfa9c7c46c3bd6fa29d9f48afd25f1e409e5dc8f4ae7464549ad5be94`。
+实际direct二进制SHA256为`dd9b1859610e8d303c4b9216936baadba8365899a8f6a1e6a29eb46ef4fdf303`，
+lib为`6961b5c37c864103e83db7520699c42502f848366097cb49ca4df1e49b7432d7`。
+摘要方法沿用前片，原始日志/名单留仓库外；所有既有debug0与选择偏差记录保持。
+
+本片仍Partial，不认证完整callee返回映射、动态parent/权限恢复、auxiliary独立退休顺序、
+wrapper/consumer/provider/capture或整个source/callable。没有接ownerPhase4；未来与owner
+合批必须另核owner×loan on/off四组合和跨source全局撤销联合证据，准入若触及replace_consumer
+须明确拒绝或处理，不把当前形状隔离当永久保证。本片未做该组合验收，未运行正式CI、
+SSA/LLVM行为或native计数，不退休Single oracle、不关闭Spec/D10/E2；未推送、PR或合并。
