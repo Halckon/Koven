@@ -8,6 +8,7 @@ use crate::ownership_checking::{
 pub(in crate::ownership_checking::compilation_unit) struct PostLoopTransport {
     completion: super::super::LoopBodyCompletion,
     body_identity: std::sync::Arc<()>,
+    input_alias: Option<(UnitSymbolId, UnitExpressionId)>,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) expression: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) retired: UnitSymbolId,
@@ -21,8 +22,7 @@ impl PostLoopTransport {
         let graph = &self.transport;
         let source = evidence.closed.statement().source_unit();
         let [
-            Event::Create(initializer, created),
-            Event::Bind(held, bound, Value::Definition(input)),
+            prefix @ ..,
             Event::Move(expression, moved_from, Value::Definition(moved)),
             Event::Bind(retired, used, Value::Definition(installed)),
             Event::Drop(point, dropped, Value::Definition(consumed)),
@@ -30,7 +30,46 @@ impl PostLoopTransport {
         else {
             return None;
         };
-        (self.completion == evidence.closed.completion
+        let owner = evidence.entry.owner();
+        let input_matches = match (self.input_alias, prefix) {
+            (
+                None,
+                [
+                    Event::Create(initializer, created),
+                    Event::Bind(held, bound, Value::Definition(input)),
+                ],
+            ) => {
+                initializer == bound
+                    && *held == evidence.entry.symbol()
+                    && *created == owner
+                    && *input == owner
+            }
+            (
+                Some((seed, alias)),
+                [
+                    Event::Create(initializer, created),
+                    Event::Bind(first, bound, Value::Definition(input)),
+                    Event::Move(expression, source, Value::Definition(forwarded)),
+                    Event::Bind(held, received, Value::Definition(installed)),
+                ],
+            ) => {
+                initializer == bound
+                    && *first == seed
+                    && *source == seed
+                    && *expression == alias
+                    && *received == alias
+                    && *held == evidence.entry.symbol()
+                    && seed != *held
+                    && seed != self.retired
+                    && seed.source_unit() == evidence.closed.statement().source_unit()
+                    && [created, input, forwarded, installed]
+                        .into_iter()
+                        .all(|value| *value == owner)
+            }
+            _ => false,
+        };
+        (input_matches
+            && self.completion == evidence.closed.completion
             && std::sync::Arc::ptr_eq(&self.body_identity, &evidence.closed.body_identity)
             && evidence.is_consistent()
             && graph.is_consistent()
@@ -52,15 +91,13 @@ impl PostLoopTransport {
             && self.expression.source_unit() == source
             && self.retired.source_unit() == source
             && self.retired != evidence.entry.symbol()
-            && *initializer == *bound
-            && *held == evidence.entry.symbol()
-            && *moved_from == *held
+            && *moved_from == evidence.entry.symbol()
             && *expression == self.expression
             && *used == *expression
             && *retired == self.retired
             && *dropped == *retired
             && *point == UnitDropPoint::AfterStatement(self.statement)
-            && [created, input, moved, installed, consumed]
+            && [moved, installed, consumed]
                 .into_iter()
                 .all(|owner| *owner == evidence.entry.owner()))
         .then_some(graph)
@@ -70,6 +107,7 @@ impl PostLoopTransport {
 impl UnitOwnerInvariantLoopObservationV1 {
     /// Actual prefix and post-loop consumption on the condition-false exit path, together with
     /// this observation's unchanged loop boundaries. Not a phi or runtime trace.
+    /// The input is a direct literal binding or one actual named move from that binding.
     /// Straight-line normal or bare Continue bodies retain their distinct witnessed backedges.
     pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
         if !self.is_consistent()
@@ -86,7 +124,8 @@ impl UnitOwnerInvariantLoopObservationV1 {
 }
 impl UnitOwnerInvariantBreakObservationV1 {
     /// Actual prefix and post-loop consumption, together with this unchanged Break
-    /// and condition-false exit evidence. Not a general exit phi or runtime trace.
+    /// and condition-false exit evidence. The input is direct or one actual named move.
+    /// Not a general exit phi or runtime trace.
     pub fn post_loop_transport_v1(&self) -> Option<&UnitOwnerValueObservationV1> {
         if !self.is_consistent() {
             return None;
@@ -121,6 +160,7 @@ impl InvariantLoopValueV1 {
         statement: UnitStatementId,
         expression: UnitExpressionId,
         retired: UnitSymbolId,
+        input_alias: Option<(UnitSymbolId, UnitExpressionId)>,
         entry: UnitOwnerLoopBindingV1,
         transport: UnitOwnerValueObservationV1,
     ) {
@@ -133,6 +173,7 @@ impl InvariantLoopValueV1 {
         let suffix = Box::new(PostLoopTransport {
             completion,
             body_identity,
+            input_alias,
             statement,
             expression,
             retired,

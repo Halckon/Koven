@@ -11,6 +11,7 @@ use crate::ownership_checking::{
 pub(super) struct InvariantInput {
     symbol: UnitSymbolId,
     initializer: ExpressionId,
+    alias: Option<(UnitSymbolId, ExpressionId)>,
     suffix: StatementId,
     use_expression: ExpressionId,
     retired: UnitSymbolId,
@@ -26,6 +27,7 @@ pub(super) struct InvariantInput {
 impl InvariantInput {
     pub(super) fn admit(
         checker: &Checker<'_>,
+        seed: Option<StatementId>,
         prefix: StatementId,
         suffix: StatementId,
     ) -> Option<Self> {
@@ -55,7 +57,20 @@ impl InvariantInput {
                 && exact_type(checker, *initializer, BuiltinType::String))
             .then_some((symbol, *initializer))
         };
-        let (symbol, initializer) = variable(prefix)?;
+        let (symbol, bound) = variable(prefix)?;
+        let (initializer, alias) = if let Some(seed) = seed {
+            let (seed, initializer) = variable(seed)?;
+            let node = ast.expressions().get(bound).ok()?;
+            if seed == symbol
+                || !matches!(node.payload(), Expression::Name)
+                || checker.reference_symbol(node.span()) != Some(seed)
+            {
+                return None;
+            }
+            (initializer, Some((seed, bound)))
+        } else {
+            (bound, None)
+        };
         let Expression::String { parts } = ast.expressions().get(initializer).ok()?.payload()
         else {
             return None;
@@ -77,6 +92,7 @@ impl InvariantInput {
         Some(Self {
             symbol,
             initializer,
+            alias,
             suffix,
             use_expression,
             retired,
@@ -91,7 +107,11 @@ impl InvariantInput {
         })
     }
 
-    // Before the ordinary While rejection clears its prefix, require the actual Result/Bind.
+    pub(super) fn has_alias(&self) -> bool {
+        self.alias.is_some()
+    }
+
+    // Before ordinary While rejection, retain only the actual direct or one-move prefix.
     fn capture(
         &mut self,
         checker: &Checker<'_>,
@@ -116,6 +136,7 @@ impl InvariantInput {
                 initializer: bound,
                 owner: binding,
             },
+            tail @ ..,
         ] = observation.events.as_slice()
         else {
             return;
@@ -124,10 +145,46 @@ impl InvariantInput {
             || value.scope_depth != scope
             || *expression != initializer
             || *bound != initializer
-            || *symbol != self.symbol
+            || *symbol != self.alias.map_or(self.symbol, |(seed, _)| seed)
             || result != owner
             || binding != owner
         {
+            return;
+        }
+        let forwarded = match (self.alias, tail) {
+            (None, []) => true,
+            (
+                Some((seed, alias)),
+                [
+                    UnitOwnerTransportEvent::Move {
+                        expression,
+                        symbol,
+                        owner: moved,
+                    },
+                    UnitOwnerTransportEvent::Result {
+                        expression: result,
+                        owner: returned,
+                    },
+                    UnitOwnerTransportEvent::Binding {
+                        symbol: held,
+                        initializer: bound,
+                        owner: installed,
+                    },
+                ],
+            ) => {
+                let alias = checker.unit_expression(alias);
+                *expression == alias
+                    && *result == alias
+                    && *bound == alias
+                    && *symbol == seed
+                    && *held == self.symbol
+                    && [moved, returned, installed]
+                        .into_iter()
+                        .all(|value| value == owner)
+            }
+            _ => false,
+        };
+        if !forwarded {
             return;
         }
         let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {

@@ -33,6 +33,9 @@ impl DropPlanner<'_, '_> {
                     UnitStatementId::new(self.checker.source_unit, id),
                     self.checker.unit_expression(input.use_expression),
                     input.retired,
+                    input
+                        .alias
+                        .map(|(seed, expression)| (seed, self.checker.unit_expression(expression))),
                     entry,
                     graph,
                 );

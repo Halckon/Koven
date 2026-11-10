@@ -3,7 +3,7 @@
 > **性质**：实现事实 · **状态**：current · **读取时机**：核对正常、裸 Continue 或裸 Break While 后真实输入消费与旧观察隔离 · **唯一真源**：loops/invariant/suffix 收集器与 post_loop_transport_v1 封印
 
 本页补充[不变输入循环边界](unit-invariant-loop-owner.md)，不修改 Guide ASAP、循环存活或
-[闭合 body](unit-loop-owner-transport.md)合同。只准入原三语句 String 输入的直线正常 While、末尾唯一裸 Continue 或裸 Break；
+[闭合 body](unit-loop-owner-transport.md)合同。只准入直接三语句或一跳具名 move 四语句 String 输入的直线正常 While、末尾唯一裸 Continue 或裸 Break；
 末尾 If、其它载体、外层 owner 的循环内使用与不精确 suffix 均不取得本能力。
 
 ## 实际 suffix 与旧观察隔离
@@ -11,7 +11,7 @@
 `UnitOwnerInvariantLoopObservationV1` 与 `UnitOwnerInvariantBreakObservationV1` 各自提供
 独立 optional `post_loop_transport_v1()`。
 原 `is_consistent()` 与边界 getter 不依赖它成功，原 Continue 能力也不会被转换成正常完成。
-While 之前保存真实 Complete prefix collector，保留其原 Result/Binding、producer 及 Arc；
+While 之前保存真实 Complete prefix collector，保留其原 Result/Binding，以及一跳输入的真实 Move/Result/Binding、producer 及 Arc；
 不是按 AST 或 Drop 重造 owner。原 While 继续拒绝普通观察，definitions/events 为空。
 
 仅在精确 suffix statement 到达且真实对应循环产物完整时，核 scope、无 loop/branch/Choice、
@@ -73,3 +73,19 @@ ContinueBackedge 指向完整原条件，不能替换为普通 Backedge 或 Brea
 不变 Boolean 参数经 Group/Not 构成条件；条件 true 的裸 Continue 循环不因此证明会退出。
 本能力只给 condition-false 出口之后的静态消费证据，不是每轮执行、终止性或 header/exit phi。
 末尾 If 的所有组合仍不取得后缀能力，与本片无关的未完成工作不纳入。验收见 SPEC-0341 §174。
+
+
+## 一跳具名前缀的独立来源封存
+
+直接输入仍严格五项事件。一跳输入严格七项：Create(literal)、Bind(seed)、Move(seed)、
+Bind(held)、Move(held)、Bind(retired)、Drop(retired)。唯一 producer 仍是原 literal；
+seed 与 held 都没有 Drop，最终消费仅为原 AfterStatement(suffix) 对 retired 的一次 Drop。
+
+收集器另封存准入并经真实 raw 事件核验的 seed symbol 与 alias Name expression；
+getter 不从后来替换的 graph 推断该来源。Some/None 分别要求精确七/五事件，seed 与
+held/retired 不同，原 literal、两次 move、绑定表达式、owner/catalog 逐项吻合。因而
+不能擦掉实际 incoming move 降格为直接输入，也不能给直接产物补造 alias 前缀。
+原 completion/body Arc、scope、17槽、suffix 单次执行与成功发布门均保留。
+
+这只扩展直线 normal、裸 Continue/Break 的静态输入来源，不扩大 body、If 或 phi 合同。
+源码、公开入口与仅编译的损坏封印守卫见 SPEC-0341 §176。

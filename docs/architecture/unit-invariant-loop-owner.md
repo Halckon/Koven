@@ -9,14 +9,16 @@
 
 独立 `invariant_loop_observation_v1()` 不放宽旧空入边 getter；两者互斥。仅一个无 mode marker
 Boolean 参数，函数恰三句：精确 String 的 `val held = "outer"`、直线闭合 While、精确 String
-的 `val retired = held`。前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
-Group/var/nullable。body 复用[闭合 body](unit-loop-owner-transport.md)的 String 本地构造、move、Group、root Replace，可在末尾
+的 `val retired = held`。直接前缀只收无插值 literal，后缀只收同 symbol 的 Name；两者不接受
+Group/var/nullable。仅直线 normal、裸 Continue/Break 另可接受四句形式，在 literal 声明后
+用一次精确 Name move 绑定 held；该具名前缀不准入末尾 If。body 复用[闭合 body](unit-loop-owner-transport.md)的 String 本地构造、move、Group、root Replace，可在末尾
 追加唯一裸 Continue；此回边能力仍拒绝 Break 或任何 If，Break 另见下节的独立出口能力。
 locals 从空集合开始，不能引用、替换或移动 held；后缀未来使用使其按既有
 liveness 跨过 body 和 LoopExit，未修改 Guide 的 ASAP 或 loop 固定点。
 
 普通 While rejection 清空前，核真实 prefix collector Complete、唯一 String producer 与
-恰好 Result/Binding 两事件，token、initializer、symbol 都对应实际单个 OwnedValue。
+直接输入时恰好 Result/Binding 两事件（一次 move 输入的五事件见末节），token、
+initializer、symbol 都对应实际单个 OwnedValue。
 只从该 collector 保留 producer catalog，不从 AST、drop 或 symbol 反造 owner。随后照常
 拒绝普通观察，旧定义和事件为空。基础边界本身不提供后缀事件或最终消费证明；正常直线或裸 Continue
 While 可另外取得[后缀消费能力](unit-invariant-loop-suffix.md)。输入 catalog 自身不能代替闭合运输。
@@ -43,7 +45,7 @@ body 使用不同 Arc 的新 catalog，只拥有 body-local producers；外层 o
 ## 单个不变输入 owner 的真实 Break 出口
 
 `invariant_break_observation_v1()` 返回独立 `UnitOwnerInvariantBreakObservationV1`，
-不提供 `backedge()`。准入复用同一个三语句 String 输入合同，body 只能以唯一裸 Break
+不提供 `backedge()`。准入复用三语句直接输入或上述一次 move 的四语句 String 输入合同，body 只能以唯一裸 Break
 结束；不接收 If、Group/非末尾/嵌套跳转、其它 carrier 或对外层输入的读取/move/replace。
 旧回边类型、方法签名及 normal/Continue 的范围不变，其 getter 不接收 Break。
 
@@ -175,3 +177,20 @@ Continue 组合同时有一个 ContinueBackedge 和一个普通 body Backedge；
 branch.rs 的 push/merge/清理顺序、旧 public NN/JumpArm 类型与普通 Choice 均不改。
 LoopExit 仍清理原 condition state，没有把 Break state 回灌；这不是一般出口运输、phi、
 变更 owner、suffix 最终消费、动态实例或 Phase 4/native。证据与未运行范围见 SPEC-0341 §164。
+
+
+## 一次真实具名 move 形成循环输入
+
+四句形式仅为 `val seed = "outer"`、`val held = seed`、原直线 While 与
+`val retired = held`。seed、held、retired 都是精确 String 的 val，两个消费表达式必须
+是解析到对应 symbol 的原 Name；不接受 Group、nullable、var、第二层 alias、调用或插值 producer。
+仅 normal、裸 Continue、裸 Break 复用原独立控制能力；九种末尾 If 仍限原三句直接输入。
+
+真实 prefix collector 必须依次包含 literal Result、seed Binding、seed Name Move、
+同 Name Result、held Binding，五项都解析到同一个真实 literal producer。不是把 seed
+的 OwnedValue 改名：capture 从当前 singleton 取得原 binding 路径建立的 held 值，其
+origin、declaration、scope 和 token 参与后续完整相等比较；原17槽与全部控制快照不变。
+
+输入仍是一个不变 owner。对应[后缀消费](unit-invariant-loop-suffix.md)保留新增 move
+来源，不把 held 声明当成新 producer；没有实现 changing owner、一般入边合流或 phi。
+验收与未运行范围见 SPEC-0341 §176。

@@ -157,7 +157,18 @@ impl LoopTransaction {
             [statement] => (*statement, None),
             [prefix, statement, suffix] => (
                 *statement,
-                Some(invariant::InvariantInput::admit(checker, *prefix, *suffix)?),
+                Some(invariant::InvariantInput::admit(
+                    checker, None, *prefix, *suffix,
+                )?),
+            ),
+            [seed, prefix, statement, suffix] => (
+                *statement,
+                Some(invariant::InvariantInput::admit(
+                    checker,
+                    Some(*seed),
+                    *prefix,
+                    *suffix,
+                )?),
             ),
             _ => return None,
         };
@@ -231,6 +242,11 @@ impl LoopTransaction {
                 return None;
             }
             locals.insert(symbol);
+        }
+        if invariant.as_ref().is_some_and(|input| input.has_alias())
+            && matches!(expected, LoopBodyCompletion::Conditional { .. })
+        {
+            return None;
         }
         let required_parameters = if matches!(expected, LoopBodyCompletion::Conditional { .. }) {
             2

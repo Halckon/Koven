@@ -120,3 +120,6 @@ mod loop_negated_conditions_unit;
 
 #[path = "ownership_iteration/invariant_continue_suffix_owner_unit.rs"]
 mod invariant_continue_suffix_owner_unit;
+
+#[path = "ownership_iteration/loop_input_alias_unit.rs"]
+mod loop_input_alias_unit;
