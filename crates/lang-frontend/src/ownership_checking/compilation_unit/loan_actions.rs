@@ -156,6 +156,16 @@ pub struct UnitLoanConsumerRetirement {
     pub(super) transaction: super::UnitBorrowCallTransportFact,
 }
 impl UnitLoanConsumerRetirement {
+    /// Validated actual source acquisition; None is incomplete evidence, not absence.
+    #[must_use]
+    pub fn source_begin(&self) -> Option<UnitLoanActionId> {
+        None
+    }
+    /// Validated actual consumer acquisition from the retired pending token.
+    #[must_use]
+    pub fn consumer_begin(&self) -> Option<UnitLoanActionId> {
+        None
+    }
     /// Validated reference to the actual earlier transfer record, when identity is proved.
     /// None means the observation did not prove this edge, never absence of an obligation.
     #[must_use]

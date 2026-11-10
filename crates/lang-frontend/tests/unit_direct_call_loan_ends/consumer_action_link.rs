@@ -194,3 +194,32 @@ fn nonowning_parameter_source_does_not_gain_transport_coverage() {
         assert_ne!(observation.coverage(), UnitLoanActionCoverage::Complete);
     }
 }
+
+#[test]
+fn consumer_acquisitions_reference_actual_registered_begin_records() {
+    let observed = observe(SOURCE);
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let retirement = observation
+            .actions()
+            .iter()
+            .find_map(|action| match action {
+                UnitLoanAction::BorrowConsumerRetired(retired) => Some(retired),
+                _ => None,
+            })
+            .expect("actual retirement");
+        let [consumer, source] = retirement.transaction().ended_loans();
+        for (id, expected) in [
+            (retirement.source_begin(), source),
+            (retirement.consumer_begin(), consumer),
+        ] {
+            let id = id.expect("actual acquisition handle must travel with the retired token");
+            assert_eq!(
+                observation.action(&id),
+                Some(&UnitLoanAction::Begin(expected.clone()))
+            );
+        }
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    }
+}
