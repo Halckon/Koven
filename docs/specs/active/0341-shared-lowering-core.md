@@ -7704,3 +7704,59 @@ nested的inout_receiver_and_nonreturning_sources_do_not_publish_call_uses亦仅�
 原错误日志保留仓外；初版const夹具不适合普通Unit helper，最终以内层String literal测
 相同输入清理边界，不修改helper或旧合同。新领域测试417行，compilation_unit.rs仍1030行，
 未改尺寸政策或扩大额度。独立代码复审无阻断；D10/E2不归档，不推送或新建PR。
+
+
+### 透明 Group 借用初始化器的真实交接（2026-11-10）
+
+从 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 独立推进 Phase 3 观察合同，
+不叠加另三片 Exclusive loop-prefix `c718d72e`、失败原子撤销 `67f3b97d` 或
+插值 String 临时借用 `fd846873`。实施前核对 #390/#391 在途头及24个保留旧 Group
+关闭见证的相关本地分支，未发现本片实现；不改写、合入或清理其他分支和未提交工作。
+
+既有透明 Group initializer 已产生真实 borrow binding、source loan 和 result endpoint，
+但正常交接索引仍用外层 Group，实际 pending token 则属于内层 Call；Return 放弃候选
+同样误以外层 Group 查 typed call。本片复用现有 Group-only 原调用查询，仅归一化这两个
+私有 lookup，随后仍须通过原 typed/result/source/receiver 资格门。公开 binding 的原
+initializer 身份不变，source-qualified key 重新绑定当前 checker 的 source；不把不同
+source 的局部 ExprId 当成同一调用，也不把 alias/nested consumer 当作直接初始化器。
+
+正常路径从真实 pending 队列移出原 source token，经 binding state 保留至真实终止；
+辅助来源按原求值顺序结束。未完成初始化器仅在 source 已求值且后参实际 Return 时观察
+既有 prefix 结束，source 尚未建立时不制造 token。双层 Group、具名反排、未使用 binding
+的原声明 endpoint、后续 Return、跨文件来源及错误/deferred 撤销均保持各自实际身份。
+owner 观察开关前后的完整分析产物，扣除 owner 观察表后相同；没有新增 cleanup 动作。
+
+本节仅取代历史“真实 source token 的 local binding 运输切片”中 Group initializer
+关闭的边界，保留该节原结论和运行证据。两项原 Group fixture 原文继续作为正向见证，
+其原 incomplete/nested 反控仍保留；parent 来源、receiver、provider、投影、temporary
+等资格与循环中的既有拒绝不放宽。不是完整借用流、CFG/NLL、新语言能力或 native 证明。
+
+| 验收项 | 本片实际选择 | 结果 |
+|---|---|---|
+| 新真实源码合同 | `grouped_initializer.rs` 的7项 Rooted/Memory 双入口与1项跨文件 Rooted 正反输入顺序；固定身份 oracle、全表 singleton 与实际 drop 关联 | 全部通过，包含在下行119项内 |
+| direct-call 回归 | `unit_direct_call_loan_ends`，下列6项过滤 | 119 passed |
+| 私有共享合同 | `adjacent_borrow_results` 7项、Group-only lookup 1项、新 owner 等价1项 | 9 passed |
+| 旧借用邻控 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments`、`ownership_receiver_backedge` | 14 + 13 + 4 passed；nested过滤1项 |
+| 编译与静态质量 | frontend all-targets Clippy（`-D warnings`）、workspace all-targets check | 通过 |
+| 提交门禁 | workspace fmt check、docs、diff、相对 `cc1e5b41` 尺寸检查 | 通过：863 Markdown、2243 Rust、36项既有超长，额度不变 |
+
+Mac arm64/Rust1.96、LLVM21、默认 debug、jobs=2、locked/offline、自有复用 target 串行，
+共159项不同普通测试通过，含9项新增；不重复累计单独 grouped 过滤器的12项。
+先以真实源码确认旧 binding/source/end 已存在但缺 handoff 的失败；实现后曾因测试用
+子串 `(view(owner))` 同时匹配 nested consumer 而失败，改为精确 declaration 子串后通过，
+不把该测试选择器失误记为生产缺陷。原始红/绿日志保留仓库外，源码见证保留测试目录。
+
+本地 direct-call 明确过滤 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、
+`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、
+`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、
+`abort_and_normal_return_do_not_invent_prefix_unwind_events`；
+nested 过滤 `inout_receiver_and_nonreturning_sources_do_not_publish_call_uses`。
+这些原测试及正式 CI 选择均未改动，不计为本片已通过。未运行完整 frontend/workspace
+测试、native、Linux、压力、Abort 或故障注入；workspace check 仅证明下游编译。
+
+独立只读代码复核未发现阻塞项，核实每 source 独立 Checker、原 token 搬运/退休、
+公开 initializer 身份和旧资格门保全。新文件458行；历史 `compilation_unit.rs` 1030行
+未增长，其余变更 Rust 文件均低于1000行，不提高尺寸额度。仅准备本地提交，不推送、
+新建 PR 或合并；本片不能替代精确组合头正式 CI，SPEC-0341 与 D10/E2 仍 in-progress。

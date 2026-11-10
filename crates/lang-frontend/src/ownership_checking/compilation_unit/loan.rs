@@ -182,7 +182,7 @@ impl UnitBorrowCallHandoffFact {
         &self.auxiliary_loan_ends
     }
 
-    /// 同一正常返回初始化的显式 borrow val；仅直接 initializer、owned 根来源。
+    /// 同一正常返回初始化的显式 borrow val；仅直接或透明 Group initializer、owned 根来源。
     #[must_use]
     pub const fn binding(&self) -> crate::name_resolution::UnitSymbolId {
         self.binding
@@ -269,7 +269,7 @@ impl UnitBorrowCallTransportFact {
     }
 }
 
-/// Actual source token carried from a direct initializer to local binding termination.
+/// Actual source token carried from a direct/grouped initializer to local binding termination.
 /// This bounded transaction is not a complete loan-end stream or a shared cleanup order.
 /// Parent/provider/projected sources and forwarded results are not covered.
 #[derive(Clone, Debug, PartialEq, Eq)]

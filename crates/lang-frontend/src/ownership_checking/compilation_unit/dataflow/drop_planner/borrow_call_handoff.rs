@@ -225,6 +225,7 @@ impl DropPlanner<'_, '_> {
         crate::type_checking::UnitExpressionId,
         crate::type_checking::UnitExpressionId,
     )> {
+        let initializer = self.checker.borrow_result_call(initializer)?;
         let call_id = self.checker.unit_expression(initializer);
         let call = self.checker.typed.call(call_id)?;
         if call.receiver().is_some()

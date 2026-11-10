@@ -938,3 +938,6 @@ mod borrow_publication;
 
 #[path = "unit_direct_call_loan_ends/interpolated_string.rs"]
 mod interpolated_string;
+
+#[path = "unit_direct_call_loan_ends/grouped_initializer.rs"]
+mod grouped_initializer;

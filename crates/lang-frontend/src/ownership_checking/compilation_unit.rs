@@ -836,7 +836,7 @@ impl CompilationUnitOwnership {
         &self.borrow_call_transports
     }
 
-    /// 真实 source token 从直接 initializer 运输到 local binding 实际终止；不是完整流。
+    /// 真实 source token 从直接或透明 Group initializer 运输到 local binding 实际终止；不是完整流。
     #[must_use]
     pub fn borrow_binding_transports(&self) -> &[UnitBorrowBindingTransportFact] {
         &self.borrow_binding_transports

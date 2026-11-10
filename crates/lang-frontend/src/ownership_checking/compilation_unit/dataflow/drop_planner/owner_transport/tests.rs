@@ -333,3 +333,15 @@ fun run(flag: Boolean): Unit { read("${"inner"}-${if (flag) { return } else { 0 
     assert_eq!(shared.drops().len(), 3);
     compare(&fixture, &fixture.parts(&shared));
 }
+
+#[test]
+fn owner_observation_preserves_grouped_initializer_handoff_and_unwind() {
+    let source = "fun view(source: String): borrow String from source = source\nfun select(source: String, tail: Unit): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val item = ((view(owner))); println(item) }\nfun abandon(): Unit { val owner = \"kept\"; borrow val item = ((select(owner, return))) }";
+    let fixture = Fixture::new(&[("root.ko", source)]);
+    let shared = fixture.shared();
+    shared.clone().validate().unwrap();
+    assert_eq!(shared.borrow_call_handoffs().len(), 1);
+    assert_eq!(shared.borrow_binding_transports().len(), 1);
+    assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
+    compare(&fixture, &fixture.parts(&shared));
+}
