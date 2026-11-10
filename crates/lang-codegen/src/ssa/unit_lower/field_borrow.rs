@@ -141,11 +141,6 @@ impl UnitExpressionLowerer<'_> {
         let EntityId::Loan(loan) = values[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        self.pending_call_frames
-            .last_mut()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .shared_field_roots
-            .push(place.root());
         Ok(Some(loan))
     }
 
@@ -179,24 +174,6 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn lower_owned_field_borrow_place(
-        &mut self,
-        expression: ExpressionId,
-        place: &UnitOwnershipPlace,
-        target: SsaTypeId,
-        span: Span,
-    ) -> Result<PlaceId, LoweringError> {
-        let field = self.lower_owned_shared_field_place(expression, place, target, span)?;
-        self.pending_call_frames
-            .last_mut()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .shared_field_roots
-            .push(place.root());
-        Ok(field)
-    }
-
-    /// Receiver loans are prepared before their pending frame exists. The caller
-    /// registers the checked root when it installs that frame for argument evaluation.
-    pub(super) fn lower_owned_shared_field_place(
         &mut self,
         expression: ExpressionId,
         place: &UnitOwnershipPlace,

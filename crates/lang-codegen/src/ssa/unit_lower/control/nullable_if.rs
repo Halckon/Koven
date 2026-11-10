@@ -1,8 +1,7 @@
-//! Bounded nullable entries: root Borrow and Rc/heap Ifs.
+//! Bounded nullable entries: root Borrow and heap Ifs.
 #[cfg(test)]
 mod field_tests;
 mod heap;
-mod rc;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
@@ -10,8 +9,8 @@ use super::*;
 use crate::ssa::model::{LoanId, SsaTypeKind};
 use lang_frontend::{
     ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
-    parser::{BinaryOperator, FunctionBody, FunctionForm, Item},
-    type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitExpressionId, UnitTypeKind},
+    parser::{BinaryOperator, Item},
+    type_checking::{UnitCallableTarget, UnitExpressionId, UnitTypeKind},
 };
 
 #[derive(Clone, Copy)]
@@ -24,7 +23,7 @@ pub(super) struct NullableIfEntry {
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Reuse the proof entry only for a required root Borrow or Rc/heap If.
+    /// Reuse the proof entry only for a compatibility root Borrow heap If.
     pub(super) fn prepare_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -56,93 +55,12 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
-            return Ok(Some(entry));
-        }
         if self.migrated_family_compatibility
             && let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)?
         {
             return Ok(Some(entry));
         }
         Ok(None)
-    }
-
-    /// Follow the actual current source instance to its own top-level block elements.
-    pub(in crate::ssa::unit_lower) fn is_direct_function_body_if(
-        &self,
-        control: UnitExpressionId,
-        span: Span,
-    ) -> Result<bool, LoweringError> {
-        let key = self
-            .source_plan
-            .source(self.source_token)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.function_ids.get(key) != Some(&self.function.id) {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        if key.deinit_owner().is_some() {
-            return Ok(false);
-        }
-        let UnitCallableTarget::Declaration(target) = key.target() else {
-            return Ok(false);
-        };
-        let index = self.names.names().index();
-        let declaration = index
-            .declarations()
-            .get(target.index())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let source = index
-            .source_units()
-            .get(self.source_unit.index())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if control.source_unit() != self.source_unit
-            || declaration.id() != target
-            || declaration.source_unit() != self.source_unit
-            || source.id() != self.source_unit
-            || source.source_id() != self.parsed.source_id()
-            || declaration.name_span().source_id() != self.parsed.source_id()
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let (_, item, _) = unwrap_modified(self.parsed, declaration.root())?;
-        let Item::Function { form, .. } = item else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let body = match form {
-            FunctionForm::ImplicitUnitBlock(body)
-            | FunctionForm::Explicit {
-                body: FunctionBody::Block(body),
-                ..
-            } => body,
-            _ => return Ok(false),
-        };
-        let node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(body)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Statement::Block { elements } = node.payload() else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let mut hits = 0;
-        for &statement in elements {
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(statement)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if let Statement::Expression { expression } = node.payload()
-                && self.ungroup_map_if_expression(*expression, span)? == control.expression()
-            {
-                hits += 1;
-            }
-        }
-        if hits > 1 {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        Ok(hits == 1)
     }
 
     pub(in crate::ssa::unit_lower) fn ungroup_map_if_expression(

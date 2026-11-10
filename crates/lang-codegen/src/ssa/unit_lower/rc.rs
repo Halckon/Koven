@@ -1,13 +1,9 @@
-//! compilation-unit intrinsic `Rc<T>` construction 与 effect 事实校验。
+//! compilation-unit intrinsic `Rc<T>` construction lowering。
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::RcOwnershipEffectKind,
     source::Span,
-    type_checking::{
-        ExpressionCategory, IntrinsicTypeConstructor, RcOperationKind, UnitConstructionTarget,
-        UnitExpressionId, UnitRcOperationDescriptor, UnitTypeKind,
-    },
+    type_checking::{IntrinsicTypeConstructor, UnitConstructionTarget, UnitTypeKind},
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
@@ -67,42 +63,5 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
-    }
-
-    pub(super) fn validated_rc_operation(
-        &self,
-        id: UnitExpressionId,
-        span: Span,
-    ) -> Result<UnitRcOperationDescriptor, LoweringError> {
-        let descriptor = self
-            .typed
-            .rc_operation(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let mut effects = self
-            .owned
-            .rc_effects()
-            .iter()
-            .copied()
-            .filter(|effect| effect.expression() == id);
-        let effect = effects
-            .next()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let expected = match descriptor.kind() {
-            RcOperationKind::Share => RcOwnershipEffectKind::Retain,
-            RcOperationKind::Value => RcOwnershipEffectKind::BorrowPayload,
-        };
-        if id.source_unit() != self.source_unit
-            || descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.source_unit
-            || effects.next().is_some()
-            || effect.receiver() != descriptor.receiver()
-            || effect.payload_type() != descriptor.payload_type()
-            || effect.kind() != expected
-            || self.typed.expression_category(descriptor.receiver())
-                != Some(ExpressionCategory::Place)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        Ok(descriptor)
     }
 }
