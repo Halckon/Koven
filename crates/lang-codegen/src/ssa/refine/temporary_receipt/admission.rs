@@ -16,14 +16,6 @@ impl Plans {
         else {
             return Ok(result);
         };
-        // Stage one migrates callers; receipt expansion is a separate capability.
-        if inputs
-            .typed
-            .call(call)
-            .is_none_or(|c| c.arguments().len() > 2)
-        {
-            return Ok(result);
-        }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
         let callable = UnitItemId::new(inputs.source_unit, item);
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
@@ -112,6 +104,7 @@ fn operands(
     let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
     let typed = inputs.typed.call(call).ok_or_else(fail)?;
     let n = typed.arguments().len();
+    instruction_count(n).ok_or_else(fail)?;
     let lang_frontend::parser::Expression::Call { arguments: raw, .. } = inputs
         .parsed
         .ast()
@@ -129,8 +122,7 @@ fn operands(
         .filter(|c| c.call() == call)
         .collect::<Vec<_>>();
     let point = UnitDropPoint::CallReturn(call);
-    if !(1..=2).contains(&n)
-        || actions.len() != 3 * n
+    if actions.len() != 3 * n
         || raw.len() != n
         || contracts.len() != n
         || inputs

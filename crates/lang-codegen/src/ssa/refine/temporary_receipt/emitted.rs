@@ -27,10 +27,7 @@ impl Emitted {
     ) -> Result<Self, LoweringError> {
         let mut receipts = Vec::new();
         for p in &plans.entries {
-            if !(1..=2).contains(&p.operands.len())
-                || p.stage != 5 * p.operands.len() + 1
-                || p.caller != function.id()
-            {
+            if instruction_count(p.operands.len()) != Some(p.stage) || p.caller != function.id() {
                 return Err(invalid(span));
             }
             receipts.push(Receipt {
@@ -170,7 +167,7 @@ impl Emitted {
                 || r.callable != p.callable
                 || r.call != p.call
                 || r.caller != function.id()
-                || r.instructions.len() != 5 * p.operands.len() + 1
+                || instruction_count(p.operands.len()) != Some(r.instructions.len())
                 || r.entities.len() != 3 * p.operands.len()
             {
                 return Err(invalid(span));

@@ -54,12 +54,18 @@ enum Step {
     End(usize),
     Drop(usize),
 }
+// This single budget also bounds every 2N/3N/4N and 3i+2 index below.
+// It is an internal representation check, not a caller routing condition.
+fn instruction_count(n: usize) -> Option<usize> {
+    if n == 0 {
+        return None;
+    }
+    n.checked_mul(5)?.checked_add(1)
+}
 impl Plan {
     fn step(&self, stage: usize) -> Option<Step> {
         let n = self.operands.len();
-        if !(1..=2).contains(&n) {
-            return None;
-        }
+        instruction_count(n)?;
         if stage < 3 * n {
             return Some(match stage % 3 {
                 0 => Step::Literal(stage / 3),
@@ -266,7 +272,7 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         if self.entries.iter().any(|p| {
-            p.stage != 5 * p.operands.len() + 1
+            instruction_count(p.operands.len()) != Some(p.stage)
                 || p.operands
                     .iter()
                     .any(|a| !a.drop_authorized || !consumed.contains(&a.drop_index))
