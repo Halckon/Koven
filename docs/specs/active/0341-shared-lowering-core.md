@@ -11659,3 +11659,10 @@ child commit、已观察的qualified use及同parent运输身份。引用必须�
 source/callable仍Partial，既有parent-child范围没有Complete证书或production receipt；
 缺引用不授absence。完整覆盖认证及receipt须另立能力红，不将三层合并为一次完成声明。
 所有foreign/故障/Abort/计数/压力负控仅编译，普通执行限fresh审过的小集合。
+
+独立能力红冻结 `4029f96bd43352ef9791aa70c00834da3bad6f39`，只有三种公共只读payload/variant
+空发布stub与普通测试，无实际planner发布改动。`parent_child_requires_actual_partial_causal_links_with_true_off`
+经fresh闭包审核后独立执行：no-run 55.13s、真实debug2；首Rooted布局已完成原on/off产品
+等价、两次原产品lower/十条SSA/LLVM及Partial边界，随后在测试87行因所需10动作实际仅7
+失败，0 passed / 1 failed / 2924 filtered。第二MemoryDocument布局未到达；这与原样probe
+成功分账，不把该红写成语言/SSA缺能力。原始causal-red日志及manifest保留，后续实现不覆盖。

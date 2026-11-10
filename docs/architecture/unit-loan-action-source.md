@@ -191,3 +191,10 @@ owner入口建立RootPlace与Shared loan，call使用该loan，随后End同loan�
 Int结果不是Node owner；callee receiver是独立function-qualified Shared参数，不产生
 payload owner或Drop。这是已有能力的身份证据补齐，refine准入仍是独立缺口；没有生产
 证书receipt、执行责任迁移或native释放计数，也不退休旧oracle。
+
+## 直接parent/child的Partial引用
+
+单String结果parent的Name child在真实initializer完成时携带parent的source/handoff句柄；
+consumer实际返回及child实际移除分别记录ChildUseReturned/ChildRetired，后者引用原BindingEnd。
+child不新建source transport；单child观察状态不入旧Eq，失证或歧义后不能由后续use恢复。
+这些引用仍Partial，不闭合多binding的Drop，不扩binding Complete/receipt；旧十条SSA与emitter不变。
