@@ -517,6 +517,24 @@ fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
             1,
             "Complete2 requires a production receipt"
         );
+        let receipt = &receiver_receipts[0];
+        assert_eq!(receipt.ids, ids);
+        assert_eq!(Some(receipt.callable), region.callable());
+        assert_eq!(receipt.call, region.call());
+        assert_eq!(receipt.caller, entry);
+        let actual = program.modules[0].function(entry).unwrap();
+        assert_eq!(
+            receipt.instructions,
+            actual.instructions.iter().map(|i| i.id).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            receipt.entities,
+            [
+                actual.blocks[0].parameters[0],
+                actual.instructions[0].results[0],
+                actual.instructions[1].results[0]
+            ]
+        );
         // The bounded caller migrates independently of its ordinary method callee.
         let caller = program.modules[0].function(entry).unwrap();
         assert_eq!(routed.as_slice(), std::slice::from_ref(&caller.name));
@@ -682,3 +700,10 @@ mod observer_off;
 
 #[path = "receiver_route_tests.rs"]
 mod receiver_route;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "receiver_receipt_tests.rs"]
+mod receiver_receipts;
+
+#[path = "receiver_receipt_sibling_tests.rs"]
+mod receiver_receipt_siblings;

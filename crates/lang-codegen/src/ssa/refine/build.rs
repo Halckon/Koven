@@ -156,6 +156,7 @@ pub(super) fn build(
         types,
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
+            receiver_plans: super::receiver_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
         block: None,
@@ -254,6 +255,10 @@ pub(super) fn build(
     builder
         .body
         .loan_plans
+        .finish(&builder.consumed_drops, inputs.span)?;
+    builder
+        .body
+        .receiver_plans
         .finish(&builder.consumed_drops, inputs.span)?;
     Ok(builder.body)
 }
@@ -582,6 +587,9 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
             self.body
                 .loan_plans
+                .drop_fact(*index, *target, slot, *span)?;
+            self.body
+                .receiver_plans
                 .drop_fact(*index, *target, slot, *span)?;
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;

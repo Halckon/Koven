@@ -38,26 +38,30 @@ fn receiver_route_is_independent_of_real_frontend_observation() {
             .find(|d| d.name() == "run")
             .unwrap();
         let mut outputs = Vec::new();
-        for owned in [&on, &off] {
-            let ((lowered, routed), receipts) = super::super::refine::loan_receipt::observe(|| {
-                super::super::refine::observe_routing(|| {
-                    super::super::unit_lower::lower_scalar_unit_with_entry(
-                        &sources,
-                        &inputs,
-                        &names,
-                        &types,
-                        &typed,
-                        owned,
-                        run.id(),
-                    )
-                })
-            });
+        for (owned, expected) in [(&on, 1), (&off, 0)] {
+            let (((lowered, routed), receipts), receiver_receipts) =
+                super::super::refine::receiver_receipt::observe(|| {
+                    super::super::refine::loan_receipt::observe(|| {
+                        super::super::refine::observe_routing(|| {
+                            super::super::unit_lower::lower_scalar_unit_with_entry(
+                                &sources,
+                                &inputs,
+                                &names,
+                                &types,
+                                &typed,
+                                owned,
+                                run.id(),
+                            )
+                        })
+                    })
+                });
             let (program, entry) = lowered.unwrap();
             assert_eq!(
                 routed.as_slice(),
                 std::slice::from_ref(&program.modules[0].function(entry).unwrap().name)
             );
-            assert!(receipts.is_empty(), "protocol 2 has no production receipt");
+            assert!(receipts.is_empty(), "P2 must not produce a P4 receipt");
+            assert_eq!(receiver_receipts.len(), expected);
             verify_program(&program).unwrap();
             let [end] = owned.ownership().receiver_call_return_ends() else {
                 panic!("one actual end");
@@ -108,18 +112,22 @@ fn neighboring_receiver_shapes_keep_existing_routes() {
                 .iter()
                 .find(|d| d.name() == "run")
                 .unwrap();
-            let (lowered, routed) = super::super::refine::observe_routing(|| {
-                super::super::unit_lower::lower_scalar_unit_with_entry(
-                    &sources,
-                    &inputs,
-                    &names,
-                    &types,
-                    &typed,
-                    &owned,
-                    run.id(),
-                )
-            });
+            let ((lowered, routed), receipts) =
+                super::super::refine::receiver_receipt::observe(|| {
+                    super::super::refine::observe_routing(|| {
+                        super::super::unit_lower::lower_scalar_unit_with_entry(
+                            &sources,
+                            &inputs,
+                            &names,
+                            &types,
+                            &typed,
+                            &owned,
+                            run.id(),
+                        )
+                    })
+                });
             let (program, _) = lowered.unwrap();
+            assert!(receipts.is_empty());
             assert!(routed.is_empty(), "no new caller trigger for {text}");
             verify_program(&program).unwrap();
             crate::llvm::render_verified_program(&program).unwrap();
