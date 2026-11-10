@@ -5024,3 +5024,61 @@ diff、相对d193a65f尺寸门禁通过：863 Markdown、2233 Rust、37项主线
 Linux x86_64/Rust1.96、默认debug、jobs=2、locked/offline、独占target串行；LLVM21
 缺失，未运行本地workspace/native/LLVM或frontend全量。须等待包含d193a65f的精确发布头
 正式CI与最新main再核对；SPEC-0341与D10/E2仍in-progress，原分支和所有祖先历史保留。
+
+
+### 实际临时辅助 owner 的借用返回结束（2026-11-10）
+
+从 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 独立补 Phase 3 正常交接观察。
+已核 #390 `ca322bc5`、#391 `a94a83d7` 与91条相关本地分支的 handoff/pending 实现；
+原 temporary 辅助关闭门仍在，未重复实施。另四片 `c718d72e`、`67f3b97d`、
+`fd846873`、`812ba9b4` 保持独立，不叠加其 loop、raw 撤销、direct String 或 Group
+initializer 能力；其他分支、旧 Single 见证及未提交工作不变。
+
+真实红测先证明 source transport、辅助 Shared temporary loan 和 CallReturn drop 均已
+存在，但根限定的 handoff 门令正常交接观察缺失。本片仅新增辅助资格查询：loan 的
+call/argument 必须属于当前 source，target 必须精确等于 Temporary(argument)，并匹配
+实际 pending owner 的同 call/argument 与非 transfers_at_call 状态。此 owner 只会在
+operand 正常求值完成后登记；既不按最终类型/AST 猜测执行，也不从 descriptor 重建 token。
+
+正常返回仍从原 pending 队列按既有顺序移出原辅助 token；该调用随后原本就会 retain
+移除它们。临时 owner 不移出、不重建，其现行逆序 drop 保留。来源继续严格使用既有
+Shared owned 名称根资格；source 的 call/binding/forward transport helper 未改。
+独立查询不会把 temporary、借用绑定、provider 或父字段提升为返回来源。parent、receiver、
+Exclusive、Group initializer、循环准入及失败 raw 表均未扩展。
+
+实际已登记的完成 String、Group、插值、拼接、factory 返回值、构造值及条件继续结果
+均以同一 pending owner 证明准入。具名混合两临时值与 owned 根保持原 pending 顺序，
+临时值则逆序清理；Return-before-source 不制造 source token，未完成 initializer 不
+发布正常 handoff。原 mixed Return/Name 源码逐字保留并追加固定身份检验：退出前缀与
+正常交接分别成立，正常 source 仍到真实 result endpoint 才结束，不能合为同一路径事件。
+
+本节仅扩展历史辅助观察中 temporary 的关闭边界，保留历史结论与运行证据；它不提供
+全部辅助来源、Return 临时辅助公开结束表、跨切片全序、动态实例、完整 NLL 或 native
+能力。临时父字段、own Value、temporary source 与借用 parent 的原排除见证继续存在。
+
+| 验收项 | 本片实际选择 | 结果 |
+|---|---|---|
+| 新公开合同 | `borrow_temporary_auxiliary.rs`，8项 Rooted/Memory 双入口及1项跨文件 Rooted 正反序 | 9项通过，计入下行，不另累加 |
+| direct-call 回归 | `unit_direct_call_loan_ends`，下列6项整项过滤 | 120 passed；不重复累计原119项及追加1项 |
+| 私有邻控 | 新 owner 观察开关完整 Analysis 等价1项、`adjacent_borrow_results` 7项、Group-only lookup 1项 | 9 passed；开关等价不是与旧版本前后差分 |
+| 旧借用邻控 | `ownership_borrow_continuation`、`ownership_nested_borrow_arguments`、`ownership_receiver_backedge` | 14 + 13 + 4 passed，含 temporary source 拒绝；nested过滤1项 |
+| 编译与静态质量 | frontend all-targets Clippy（`-W clippy::all -D warnings`）、workspace all-targets check | 最终复核通过，含追加原 mixed 见证 |
+| 提交门禁 | workspace fmt check、docs、diff、相对 `cc1e5b41` 尺寸检查 | 通过：863 Markdown、2243 Rust、36项既有超长，额度不变 |
+
+Mac arm64/Rust1.96、LLVM21、默认 debug、jobs=2、locked/offline、自有复用 target 串行。
+共160项不同普通测试通过，含10项新增；不累计过滤器、单项和回归重复执行。原始行为红测、新 oracle
+首次缺类型注解的编译错误及后续绿测日志保留仓库外，真实源码/固定 byte 身份留测试目录。
+
+direct-call 明确过滤 `nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、
+`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、
+`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、
+`abort_and_normal_return_do_not_invent_prefix_unwind_events`；nested 过滤
+`inout_receiver_and_nonreturning_sources_do_not_publish_call_uses`。原测试及 CI selector
+均未修改；未运行 Abort、压力、故障注入、native、Linux 或完整 frontend/workspace 测试。
+workspace check 仅证明下游编译，不替代精确组合头正式 CI。
+
+独立只读代码与文档复核无未解决 P1/P2，确认来源资格、原 token 与实际 pending owner 匹配、cleanup
+不变及旧见证保留；新文件589行，所有增长 Rust 文件均低于1000行，不提高尺寸额度。
+本片只做本地提交，不推送、新建 PR 或合并。SPEC-0341 与 D10/E2 仍 in-progress。

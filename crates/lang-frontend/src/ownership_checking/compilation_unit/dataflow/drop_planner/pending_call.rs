@@ -24,6 +24,18 @@ pub(super) struct PendingTemporary {
     iteration_scopes: Vec<crate::type_checking::UnitStatementId>,
 }
 
+impl PendingTemporary {
+    pub(super) fn holds_borrowed_temporary(
+        &self,
+        call: ExpressionId,
+        argument: ExpressionId,
+    ) -> bool {
+        self.control == call
+            && !self.transfers_at_call
+            && matches!(self.target, PendingOwner::Temporary(owner) if owner == argument)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingCaptureBorrow {
     pub(super) call: ExpressionId,

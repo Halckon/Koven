@@ -44,11 +44,12 @@ impl DropPlanner<'_, '_> {
                 _ => None,
             })
             .collect();
-        // Bound this observation to root Shared places. No receiver, projection,
-        // temporary, exclusive source, or carrier capability is implied.
+        // The source remains a Shared owned root. Auxiliary temporaries additionally
+        // require the exact still-pending borrowed owner, not just a typed category.
         if loans.iter().any(|loan| {
             loan.kind() != LoanKind::Shared
-                || !matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root())
+                || !(matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root())
+                    || self.observes_temporary_borrow_auxiliary(loan, state))
         }) {
             return;
         }
@@ -84,7 +85,8 @@ impl DropPlanner<'_, '_> {
             };
             if loan.call() != call_id
                 || loan.argument() == source_loan.argument()
-                || !self.observes_borrow_auxiliary(loan, state)
+                || !(self.observes_borrow_auxiliary(loan, state)
+                    || self.observes_temporary_borrow_auxiliary(loan, state))
             {
                 index += 1;
                 continue;
@@ -103,6 +105,25 @@ impl DropPlanner<'_, '_> {
                 auxiliary_loan_ends,
             });
     }
+    fn observes_temporary_borrow_auxiliary(
+        &self,
+        loan: &crate::ownership_checking::UnitLoanFact,
+        state: &ValueState,
+    ) -> bool {
+        // This proof is only for auxiliary retirement. It must not grant source
+        // transport to a temporary or use a backing/parent owner for its projection.
+        loan.kind() == LoanKind::Shared
+            && loan.call().source_unit() == self.checker.source_unit
+            && loan.argument().source_unit() == self.checker.source_unit
+            && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument())
+            && state.pending_temporaries.iter().any(|pending| {
+                pending.holds_borrowed_temporary(
+                    loan.call().expression(),
+                    loan.argument().expression(),
+                )
+            })
+    }
+
     pub(super) fn observes_borrow_auxiliary(
         &self,
         loan: &crate::ownership_checking::UnitLoanFact,
