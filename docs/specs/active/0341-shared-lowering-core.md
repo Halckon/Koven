@@ -9420,3 +9420,47 @@ rustc为`-C debuginfo=2`。最终binary SHA256为
 无剩余阻断。本次不重跑既有frontend346基线，不运行CI-only、native、正式双宿主CI或
 workspace行为集合；这些未验收项不以LLVM verifier替代。既有偏差账本仍完整保留，
 本轮不删除Single、不称source/callable Complete、不关闭D10/E2，未推送或合并。
+
+### 第四批 owner 后继与 loan SSA 证据组合（2026-11-10）
+
+复用隔离组合分支，从`dcd8204d`快进到冻结owner
+`74f130499140d7e18afac76c65637cc679c70fb0`，再普通merge固定borrow
+`efbe58c7e4a9a35e2f69638cf70c9c732830ec00`；精确代码头为
+`409cd71519d079bfe3bca0a71157ce4b964b7f9a`，树为
+`8cc6ce4f2fd1364d015b3d8297aa4204431d8ed5`。两个文档冲突逐段保留旧验收历史，
+专题页保留已接入的活跃replace_consumer拒绝，再加入SSA事实；没有重新制造共同合同，
+没有纳入borrow后续开发或0400。相对固定owner仅加borrow普通测试及注册；相对第三批
+确实继承owner的false_block角色失败关闭加强，不能称生产零变更。既有emitter仍唯一
+发射，B双ledger、显式carrier门、四开关和raw/public全局撤销测试保持不变。
+
+本轮精确普通集合为第三批475项加唯一普通
+`ssa::loan_region_ssa_tests::certified_consumer_region_has_real_unit_ssa_lifecycle`，共476项。
+134 frontend lib、331 direct、1 iteration、10 codegen逐项成功，均0失败/忽略；filtered
+分别450、10、218、2817。每组先对binary使用`--exact --list --format terse`核集合，
+再`--exact`执行并核实际成功名称集合，不使用模块过滤。新增SSA项真实源码/helper已独审，
+只核双Unit入口SSA/LLVM，并非生产证书消费、native计数或能力红测。旧9 codegen含普通
+native实证继续执行；不是新增故障或计数执行。普通行为耗时依次1.46s、0.30s、0.05s、5.44s。
+
+新增4个owner CI-only身份串用、incoming角色破损、物理Drop计数与故意Abort校准全部只编译；
+此前所有CI-only、十项direct排除、四项iteration Abort及两个混合破损owner测试仍排除。
+没有以代码命名替代helper审核，独审确认故障/计数路径不进入普通调用链。普通helper中的
+观测只记录，故障状态默认None。本机未运行CI-only、正式CI、Linux、sanitizer或压力；
+普通native成功不证明释放计数或内存泄漏义务。
+
+串行复用既有owner target，Cargo为`--locked --offline -j 2`，默认debug2，四项
+`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、`RUSTFLAGS`、
+`CARGO_ENCODED_RUSTFLAGS`均未设置；实际artifact debuginfo=2和rustc参数已核。
+Rust1.96.0/macOS AArch64，LLVM_SYS_211_PREFIX为`/opt/homebrew/opt/llvm@21`。
+frontend命令为`cargo test --locked --offline -p lang-frontend --lib --test ownership_iteration --test unit_direct_call_loan_ends --no-run --message-format=json -vv -j 2`，4.82s；
+codegen命令为`cargo test --locked --offline -p lang-codegen --lib --no-run --message-format=json -vv -j 2`，1m04s。
+本轮外置manifest、逐组名单/二进制hash、构建与行为日志位于
+`/private/tmp/koven-owner-loan-combination-batch4-evidence`；临时目录不是永久验收真源，
+可重建的固定代码头、第三批名单来源及本段唯一增量共同界定精确输入。
+独立只读复核确认476名称集、成功集、binary hash、实际profile一致，无合流阻断。
+
+静态门禁：`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --all-targets -j 2 -- -W clippy::all -D warnings`通过（46.63s）；
+`cargo check --locked --offline --workspace --all-targets -j 2`通过（20.32s）；
+`cargo fmt --all -- --check`、文档879、diff检查通过；
+`python3 scripts/check_rust_sizes.py --base 3fe1920a`通过，2291手写Rust、36既有超千行，
+无额度/政策修改。all-targets只编译，不扩大行为执行集合。验收后仅追加本段文档，
+无Rust变化；未推送、PR或合main，Spec/D10/E2保持in-progress，不退休Single或其他旧oracle。
