@@ -5109,3 +5109,25 @@ Evidence 按范围跳过。
 本地 codegen 借用结果合同 12 项通过，2806 项过滤。frontend
 借用 continuation 和结果套件分别 14、12 项通过，无过滤。
 三组均零失败、忽略。
+
+## 206. R0 Map slot 返回消费者与直接调用清点
+
+只读 Map 包装保留原始两条声明和空 `entry`。在 strict MemoryDocument
+Unit 中显式选择原 `view`，按声明 Span 确认实际函数，核对
+`MapRequireValue` 的 slot loan 直接进入 BorrowReturn，且无 Copy
+或 SharedRetain。只选择空 entry 时按同一声明 Span 确认 view
+未发射。独立复核另核对旧 whole-file 发射见证仍单独通过。这样
+分别验证普通借用返回合同和两条路径的实际实例规划边界。
+
+按 §151 的调用形状在 `cc1e5b41` 重跑清点。较 §177 的
+`fae780dc`，frontend tests 的 `resolve_names` 由 67 文件 /
+135 行增至 68 / 138，`check_types` 由 56 / 89 增至 57 / 92。
+新增三处来自 Inout 的三入口对照及 Map 的两处 Single 见证。
+其他计数一致，含 codegen src 的 `check_types` 15 / 18、
+`check_ownership` 14 / 17、`lower_scalar_file_with_entry` 4 / 8。
+§205–206 的迁移保留共享旧入口给独立负控，因此直接调用计数
+本身无法度量迁移完成度。此口径仍不覆盖间接调用或仓外 API。
+
+最终候选直接复跑 `require_tests`，三项通过、零失败或忽略。
+空入口对照按独立复核意见检查实际函数 origin，不靠缺少借用
+元数据推断未发射。

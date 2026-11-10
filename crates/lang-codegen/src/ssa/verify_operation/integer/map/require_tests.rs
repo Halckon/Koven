@@ -94,25 +94,60 @@ fn map_require_memory_and_rooted_verify_real_slot_and_source_end_order() {
     }
 }
 
+const READONLY_WRAPPER: &str = "fun view(source: Map<String, String>): borrow String from source = source.requireValue(\"key\")\nfun entry() {}";
+
 #[test]
 fn map_require_readonly_source_can_return_its_slot_through_ordinary_wrapper() {
-    let text = "fun view(source: Map<String, String>): borrow String from source = source.requireValue(\"key\")\nfun entry() {}";
-    // The legacy no-entry witness checks emission of an unreachable wrapper.
-    let program = crate::ssa::borrow_result_contract_tests::single(text).unwrap();
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let unit = UnitSource::analyze("require-wrapper.ko", READONLY_WRAPPER).unwrap();
+    unit.assert_frontend_clean();
+    let declaration = unit.declaration("view", SymbolKind::Function);
+    let (program, view) = unit.lower_entry(declaration).unwrap();
     verify_program(&program).unwrap();
-    let function = program.modules[0]
-        .functions
+    let module = program.module(view.module()).unwrap();
+    let function = module.function(view).unwrap();
+    let view_origin = Origin::Source(unit.declaration_span(declaration));
+    assert_eq!(function.origin, view_origin);
+    assert!(function.borrow_return.is_some());
+    let query = function
+        .instructions
         .iter()
-        .find(|f| f.borrow_return.is_some())
-        .unwrap();
-    assert!(
-        function
-            .instructions
-            .iter()
-            .any(|i| matches!(i.operation, Operation::MapRequireValue { .. }))
-    );
+        .find(|i| matches!(i.operation, Operation::MapRequireValue { .. }))
+        .expect("the selected wrapper borrows the original slot");
+    let [EntityId::Loan(slot)] = query.results.as_slice() else {
+        panic!("the slot is a loan");
+    };
+    assert!(function.blocks.iter().any(|block| matches!(
+        block.terminator.as_ref().map(|term| &term.kind),
+        Some(TerminatorKind::BorrowReturn { loan }) if loan == slot
+    )));
     assert!(!function.instructions.iter().any(|i| matches!(
         i.operation,
         Operation::Copy { .. } | Operation::SharedRetain { .. }
     )));
+
+    let entry = unit.declaration("entry", SymbolKind::Function);
+    let (program, _) = unit.lower_entry(entry).unwrap();
+    verify_program(&program).unwrap();
+    assert!(
+        program
+            .modules
+            .iter()
+            .flat_map(|module| &module.functions)
+            .all(|function| function.origin != view_origin && function.borrow_return.is_none())
+    );
+}
+
+#[test]
+fn legacy_whole_file_emits_unselected_map_require_wrapper() {
+    let program = crate::ssa::borrow_result_contract_tests::single(READONLY_WRAPPER).unwrap();
+    verify_program(&program).unwrap();
+    assert!(
+        program.modules[0]
+            .functions
+            .iter()
+            .any(|f| f.borrow_return.is_some())
+    );
 }
