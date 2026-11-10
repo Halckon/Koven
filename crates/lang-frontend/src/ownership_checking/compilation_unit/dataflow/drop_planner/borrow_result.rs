@@ -100,6 +100,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         self.enter_binding_region(id, state);
+        self.enter_child_region(id, state);
         let result = self.statement_inner(id, state);
         if matches!(result, Ok(true)) {
             let point = PlannerDropPoint::AfterStatement(id);
@@ -114,6 +115,7 @@ impl DropPlanner<'_, '_> {
             self.end_selected_borrow_bindings(point, state, &selected);
         }
         self.finish_binding_region_statement(id, matches!(result, Ok(true)), state);
+        self.finish_child_region_statement(id, matches!(result, Ok(true)), state);
         result
     }
     pub(super) fn borrow_source_protected(&self, symbol: UnitSymbolId, state: &ValueState) -> bool {

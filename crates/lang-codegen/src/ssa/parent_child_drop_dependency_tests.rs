@@ -242,6 +242,7 @@ fn later_parent_or_owner_use_preserves_old_products_without_drop_dependency() {
             assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
             assert!(observation.binding_regions().is_empty());
             assert!(observation.binding_dependency_drops().is_empty());
+            assert!(observation.child_regions().is_empty());
         }
     }
 }

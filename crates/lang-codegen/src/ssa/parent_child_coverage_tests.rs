@@ -181,5 +181,152 @@ fn parent_child_requires_independent_complete_region_with_true_off() {
         assert_eq!(region.parent(), dependency.parent());
         assert_eq!(region.child(), dependency.child());
         assert_eq!(region.action_ids().collect::<Vec<_>>(), ids);
+        assert_eq!(
+            region.callable(),
+            lang_frontend::type_checking::UnitItemId::new(run.source_unit(), run.root())
+        );
+        assert_eq!(region.source_call(), source_loan.call());
+        assert_eq!(region.consumer_call(), consumer.call());
+        let lang_frontend::parser::Item::Function {
+            form:
+                lang_frontend::parser::FunctionForm::Explicit {
+                    body: lang_frontend::parser::FunctionBody::Block(body),
+                    ..
+                },
+            ..
+        } = parsed.ast().items().get(run.root()).unwrap().payload()
+        else {
+            panic!("actual ordinary caller block")
+        };
+        let lang_frontend::parser::Statement::Block { elements } =
+            parsed.ast().statements().get(*body).unwrap().payload()
+        else {
+            panic!("actual root body")
+        };
+        assert_eq!(elements.len(), 4);
+        assert_eq!(
+            region.entry_statement(),
+            lang_frontend::type_checking::UnitStatementId::new(run.source_unit(), elements[1])
+        );
+        assert_eq!(
+            region.completion_statement(),
+            lang_frontend::type_checking::UnitStatementId::new(run.source_unit(), *body)
+        );
+        assert_eq!(
+            *point,
+            lang_frontend::ownership_checking::UnitDropPoint::AfterStatement(
+                lang_frontend::type_checking::UnitStatementId::new(run.source_unit(), elements[3])
+            )
+        );
+        let facts = on.ownership().borrow_results().bindings();
+        assert_eq!(facts.len(), 2);
+        let actual_parent = facts
+            .iter()
+            .find(|fact| fact.binding() == region.parent())
+            .unwrap();
+        let actual_child = facts
+            .iter()
+            .find(|fact| fact.binding() == region.child())
+            .unwrap();
+        assert_eq!(actual_parent.parent(), None);
+        assert_eq!(actual_parent.source_loan(), Some(source_loan));
+        assert_eq!(actual_child.parent(), Some(region.parent()));
+        assert_eq!(actual_child.source_loan(), None);
+        assert_eq!(actual_parent.initializer(), region.source_call());
+        let lang_frontend::parser::Statement::LocalVariable { declaration } = parsed
+            .ast()
+            .statements()
+            .get(elements[2])
+            .unwrap()
+            .payload()
+        else {
+            panic!("actual child declaration")
+        };
+        let lang_frontend::parser::Item::Variable { initializer, .. } =
+            parsed.ast().items().get(*declaration).unwrap().payload()
+        else {
+            panic!("actual child variable")
+        };
+        assert!(matches!(
+            parsed
+                .ast()
+                .expressions()
+                .get(*initializer)
+                .unwrap()
+                .payload(),
+            lang_frontend::parser::Expression::Name
+        ));
+        assert_eq!(
+            actual_child.initializer(),
+            lang_frontend::type_checking::UnitExpressionId::new(run.source_unit(), *initializer)
+        );
+        let ends = on.ownership().borrow_results().ends();
+        assert_eq!(ends.len(), 2);
+        assert!(ends.iter().all(|end| end.point() == *point));
+        for binding in [region.parent(), region.child()] {
+            assert_eq!(
+                ends.iter().filter(|end| end.binding() == binding).count(),
+                1
+            );
+        }
+    }
+}
+
+#[test]
+fn extra_plain_statement_keeps_partial_dependency_without_complete_region() {
+    const EXTRA: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun ping(): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; consume(child); ping() }";
+    let mut sources = SourceMap::new();
+    let (source, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "extra-child-statement.ko", EXTRA);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "extra-child-statement.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, on) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let off = with_loan_observation(false, || {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap()
+        });
+        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+        assert!(off.ownership().loan_action_observations().is_empty());
+        let [observation] = on.ownership().loan_action_observations() else {
+            panic!("one source catalog")
+        };
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+        assert_eq!(observation.actions().len(), 10);
+        assert_eq!(observation.binding_dependency_drops().len(), 1);
+        assert!(observation.binding_regions().is_empty());
+        assert!(observation.child_regions().is_empty());
+        let run = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run")
+            .unwrap();
+        let mut outputs = Vec::new();
+        for owned in [&on, &off] {
+            let (program, _) = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                owned,
+                run.id(),
+            )
+            .unwrap();
+            verify_program(&program).unwrap();
+            outputs.push((
+                crate::ssa::render_program(&program),
+                crate::llvm::render_verified_program(&program).unwrap(),
+            ));
+        }
+        assert_eq!(outputs[0], outputs[1]);
     }
 }

@@ -3,6 +3,7 @@ pub(super) mod binding_child_links;
 mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
+mod child_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
 mod consumer_links;
 use super::PlannerDropPoint;
@@ -33,6 +34,9 @@ pub(super) struct ActionSource {
     binding_regions:
         Vec<crate::ownership_checking::compilation_unit::loan_binding_region_validation::Candidate>,
     active_binding_region: Option<usize>,
+    child_regions:
+        Vec<crate::ownership_checking::compilation_unit::loan_child_region_validation::Candidate>,
+    active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
     pub(super) enabled: bool,
 }
@@ -71,6 +75,8 @@ impl Default for ActionSource {
             regions: Vec::new(),
             binding_regions: Vec::new(),
             active_binding_region: None,
+            child_regions: Vec::new(),
+            active_child_region: None,
             dependency_drops: Vec::new(),
             enabled: true,
         }
@@ -430,13 +436,29 @@ impl ActionSource {
             .into_iter()
             .map(|region| region.finish(identity.clone(), &actions))
             .collect();
+        let child_regions = self
+            .child_regions
+            .into_iter()
+            .map(|region| {
+                let mut matching = binding_dependency_drops.iter().filter(|dependency| {
+                    dependency.root() == region.scope.root
+                        && dependency.parent() == region.scope.parent
+                        && dependency.child() == region.scope.child
+                });
+                let dependency = matching.next().filter(|_| matching.next().is_none());
+                let removed = dependency.and_then(|dependency| {
+                    binding_dependency_drops::removed_owner(&self.dependency_drops, dependency)
+                });
+                region.finish(identity.clone(), &actions, dependency, removed)
+            })
+            .collect();
         vec![crate::ownership_checking::UnitLoanActionObservation {
             identity,
             source,
             actions,
             regions,
             binding_regions,
-            child_regions: Vec::new(),
+            child_regions,
             binding_dependency_drops,
         }]
     }

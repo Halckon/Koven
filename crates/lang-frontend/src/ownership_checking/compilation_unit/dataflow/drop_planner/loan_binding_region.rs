@@ -52,7 +52,7 @@ impl DropPlanner<'_, '_> {
         );
     }
 
-    fn binding_region_boundary_clear(&self, state: &ValueState) -> bool {
+    pub(super) fn binding_region_boundary_clear(&self, state: &ValueState) -> bool {
         self.loop_boundaries.is_empty()
             && self.owner_choice.is_none()
             && self.owner_loop.is_none()

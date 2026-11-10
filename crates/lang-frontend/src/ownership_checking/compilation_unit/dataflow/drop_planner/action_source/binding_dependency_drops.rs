@@ -241,5 +241,26 @@ pub(super) fn validate(
         .collect()
 }
 
+// Read only the owner removed by the same actual append represented by the validated relation.
+pub(super) fn removed_owner(
+    appended: &[AppendedDrop],
+    dependency: &UnitLoanBindingDependencyDrop,
+) -> Option<
+    crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot,
+> {
+    let id = dependency.cleanup();
+    let mut matching = appended.iter().filter(|entry| {
+        Arc::ptr_eq(&entry.cleanup.identity, &id.identity) && entry.cleanup.index == id.index
+    });
+    let owner = matching.next()?.cause.removed_owner.as_ref()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    Some(crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot {
+        owner: owner.owner.clone(), symbol: owner.symbol, origin: owner.origin,
+        declaration: owner.declaration, scope_depth: owner.scope_depth,
+    })
+}
+
 #[cfg(test)]
 mod tests;

@@ -9,6 +9,7 @@ mod loan_regions;
 pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
 mod loan_binding_region_validation;
 mod loan_binding_regions;
+mod loan_child_region_validation;
 mod loan_child_regions;
 pub use loan_binding_regions::UnitBorrowBindingRegion;
 pub use loan_child_regions::UnitBorrowChildRegion;
