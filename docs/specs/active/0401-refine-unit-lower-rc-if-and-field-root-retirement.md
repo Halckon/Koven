@@ -29,8 +29,8 @@
 
 ### 2.2 退役 `Rc` `if` 辅助函数与调用帧只写字段
 
-- **可空 `Rc` `if` 证明入口与 `Rc` 操作校验死代码**（自 `SPEC-0393` 起恒不可达）：
-  - `control/nullable_if/rc.rs::prepare_rc_nullable_if_entry` 仅当 `then_branch` 内包含 `owned.rc_effects()` 时才生效，而所有含 `rc_operation` 的表达式均由 `ssa::refine` 唯一承接且在 `unit_lower` 中直接拒绝；
+- **可空 `Rc` `if` 证明入口与 `Rc` 操作校验死代码**（自 `SPEC-0393` 起无成功路径）：
+  - `control/nullable_if/rc.rs::prepare_rc_nullable_if_entry` 仅当 `then_branch` 内包含 `owned.rc_effects()` 时才生效，而所有含 `rc_operation` 的表达式均由 `ssa::refine` 唯一承接，在 `unit_lower` 中必然于该操作节点被拒绝；该入口唯一可观测效果是把拒绝位置提前到包围的 `return` 语句；
   - 从 `crates/lang-codegen/src/ssa/unit_lower/control/nullable_if.rs` 移除 `mod rc;`、`prepare_rc_nullable_if_entry` 分支及唯一被其调用的 `is_direct_function_body_if`；
   - 从 `crates/lang-codegen/src/ssa/unit_lower/rc.rs` 移除唯一被 `control/nullable_if/rc.rs` 调用的 `validated_rc_operation`（保留 `lower_rc_construction`）。
 - **调用帧只写不读的 `shared_field_roots` 与冗余包装函数**：
@@ -40,5 +40,6 @@
 ## 3. 验收标准
 
 - [x] 删除 `crates/lang-codegen/src/ssa/unit_lower/control/nullable_if/rc.rs`，并完成 `is_direct_function_body_if`、`validated_rc_operation`、`shared_field_roots` 与 `lower_owned_shared_field_place` 的清理。
+- [x] 修正受该入口影响的阶段边界证据：`ssa::rc_nullable_while_bounded_tests` 与 `ssa::rc_nullable_while_memory_document_tests` 记录单元路径的 `Rc<T>?` `if` 载荷读取现在在 `owner.value` 操作节点被拒绝，而非包围的 `return owner.value`；单纯路径与既有 LLVM 成功见证不变。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。

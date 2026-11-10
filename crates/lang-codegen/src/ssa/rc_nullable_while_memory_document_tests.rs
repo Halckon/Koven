@@ -24,20 +24,28 @@ fn original_memory_source(case: &str, text: &str) -> UnitSource {
 fn original_payload_sources_keep_precise_memory_document_return_boundary() {
     for (case, text) in sources() {
         let unit = original_memory_source(case, text);
-        // Locate the actual Return node in the original bytes, not an offset
-        // obtained by subtracting the Rooted witness's injected package prefix.
+        // Locate the actual Return node and its payload in the original bytes, not
+        // offsets obtained by subtracting the Rooted witness's injected prefix.
         let returns = unit
             .parsed()
             .ast()
             .expressions()
             .iter()
             .filter_map(|(_, node)| {
-                (matches!(node.payload(), Expression::Return { .. })
-                    && unit.sources().slice(node.span()) == Ok("return owner.value"))
-                .then_some(node.span())
+                let Expression::Return {
+                    value: Some(value), ..
+                } = node.payload()
+                else {
+                    return None;
+                };
+                if unit.sources().slice(node.span()) != Ok("return owner.value") {
+                    return None;
+                }
+                let payload = unit.parsed().ast().expressions().get(*value).ok()?;
+                Some((node.span(), payload.span()))
             })
             .collect::<Vec<_>>();
-        let [expected] = returns.as_slice() else {
+        let [(return_span, payload_span)] = returns.as_slice() else {
             panic!("{case}: one original payload-return expression");
         };
         let occurrence = text.match_indices("return owner.value").collect::<Vec<_>>();
@@ -45,10 +53,11 @@ fn original_payload_sources_keep_precise_memory_document_return_boundary() {
             panic!("{case}: one exact original return spelling");
         };
         assert_eq!(
-            (expected.start(), expected.end()),
+            (return_span.start(), return_span.end()),
             (*start, start + matched.len())
         );
-        assert_eq!(expected.source_id(), unit.parsed().source_id());
+        assert_eq!(return_span.source_id(), unit.parsed().source_id());
+        assert_eq!(unit.sources().slice(*payload_span), Ok("owner.value"));
         let entry = unit.declaration("entry", SymbolKind::Function);
         let lower_result = crate::ssa::with_per_family_lowering(|| unit.lower_entry(entry));
         let error = lower_result
@@ -61,8 +70,8 @@ fn original_payload_sources_keep_precise_memory_document_return_boundary() {
         );
         assert_eq!(
             error.span,
-            Some(*expected),
-            "{case}: complete original return span"
+            Some(*payload_span),
+            "{case}: payload operation span inside the original return"
         );
     }
 }
