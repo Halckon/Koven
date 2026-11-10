@@ -256,7 +256,7 @@ impl DropPlanner<'_, '_> {
         binding_end: ActionHandle,
         state: &mut ValueState,
     ) -> Option<ActionHandle> {
-        let Some(parent) = state.borrow_binding_transports.iter_mut().find(|parent| matches!(&parent.child, ChildState::Live { binding: child, .. } if *child == binding)) else { return None; };
+        let parent = state.borrow_binding_transports.iter_mut().find(|parent| matches!(&parent.child, ChildState::Live { binding: child, .. } if *child == binding))?;
         let evidence = parent.child_parent_evidence();
         let ChildState::Live { commit, used, .. } =
             std::mem::replace(&mut parent.child, ChildState::Lost)
