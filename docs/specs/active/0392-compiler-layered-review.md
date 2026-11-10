@@ -5130,3 +5130,43 @@ break、continue 或 `error("construction-stop")`。单文件及项目
 `app at debug.ko:4:5`。测试二进制 SHA-256 为
 `cc114a9a9b3666f77dcaf1f931b2e0a254384efc17c90c8480a01c77ab4cdaa2`。
 该证据覆盖本机真实调试器启动；托管 CI 的权限边界仍单列。
+
+## 211. R4/R5 已合入主干的动态资源基线
+
+[主干 CI 42732776388](https://github.com/Halckon/Koven/actions/runs/42732776388)
+在 `cc1e5b41` 实际完成双宿主定向、预览生产及独立安装、Editor
+lexical 和 CI Passed。PR 专用 Evidence 按范围跳过。
+
+独立下载两个 generated-owners 归档并核对干净编译器提交、完整
+16 例清单、输入哈希、诊断及 native 进程结果。各宿主 8 个合法
+程序和 8 个拒绝程序与重新计算的 oracle 一致。合法程序对应 24
+次预期分配，逐例 counter 运行成功，非法程序未产出 LLVM。Linux
+另核对合法程序的 ASan/LSan、检测器校准、检查器变异和最小化
+复现。macOS 的资源计数通过，ASan/LSan 校准按既定平台限制
+标为 partial。
+
+另核对同一主干的 Linux x86_64 native-sanitizers 归档。
+LLVM 21.1.8 下 12 个 ASan/LSan 开关对照的退出状态、输出和
+故障类别符合预期，报告能定位实际测试函数和四字节泄漏。
+Map 正控与 12 个 provider 程序的 ASan/LSan 输出和退出结果
+通过，provider 的源码、IR、输出 oracle 及函数清单哈希一致。
+此为已合入主干的动态证据，生成 Koven LLVM IR 的 UBSan 未覆盖。
+
+## 212. R3 两个构造前缀与嵌套词法析构顺序
+
+复用 §210 的本机 CLI，以两个带析构标记的工厂实参扩展 §208。
+普通类用逆声明顺序的具名实参，数组用相同的 operand 顺序。
+两个入口各实跑普通类和数组的正常提交、break、continue、
+return、Abort，共 20 组通过 check、build 和真实进程对照。
+
+两种构造都先按源码顺序完成 B、A。break、continue、return
+先按 A、B 逆序清理未完成的构造前缀，再清理循环体内资源。
+break 和 continue 保留外层资源至循环后，return 先清理外层
+资源再回到调用者。正常提交后普通类按字段逆序清理，数组按
+元素逆序清理。Abort 只留下已完成求值的标记，SIGABRT 退出，
+无析构输出。初版工厂试图从借用 String 参数移出值，两入口
+均正确报 L0133；改用 `own` 形参后执行上述矩阵。
+
+§210 同树的 frontend all-targets Clippy 以 `-D warnings` 通过。
+本节构造对照覆盖 macOS arm64 的可观察输出和退出，资源计数
+及 Linux 动态证据仍以各自实际测试范围为准。
