@@ -112,17 +112,8 @@ impl ReplaceBreakInput {
         else {
             return None;
         };
-        // Inspect only Group wrappers here: the shared Boolean helper also admits Not.
-        // Keep the actual outer condition identity for traversal, edges and consumers.
-        let mut leaf = *condition;
-        while let Expression::Group { expression } = ast.expressions().get(leaf).ok()?.payload() {
-            leaf = *expression;
-        }
-        if !matches!(
-            ast.expressions().get(leaf).ok()?.payload(),
-            Expression::Name
-        ) || conditional::boolean_parameter(checker, *condition, parameters).is_none()
-        {
+        // Keep the actual outer Group/Not condition; true-body and false-exit roles do not swap.
+        if conditional::boolean_parameter(checker, *condition, parameters).is_none() {
             return None;
         }
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {

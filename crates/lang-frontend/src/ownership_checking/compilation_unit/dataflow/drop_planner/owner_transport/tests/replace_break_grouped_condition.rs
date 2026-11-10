@@ -1,4 +1,4 @@
-//! Ordinary Group-only condition sources must retain real outer identities and all consumers.
+//! Ordinary grouped sources and shared checks retain actual condition and consumer identities.
 use super::*;
 use crate::ownership_checking::{
     UnitDropPoint, UnitDropTarget, UnitOwnerLoopEdgeV1 as Edge, UnitOwnerOrigin,
@@ -264,11 +264,17 @@ fn grouped_replace_break_preserves_return_consumer_and_outer_condition() {
     }
 }
 #[test]
-fn grouped_replace_break_keeps_not_outside_transport() {
+fn grouped_replace_break_keeps_general_conditions_outside_transport() {
     for consumer in [Consumer::Bind, Consumer::Call, Consumer::Return] {
-        for condition in ["!flag", "(!flag)", "!((flag))", "((!((flag))))", "!(!flag)"] {
+        for condition in [
+            "flag && flag",
+            "(flag || flag)",
+            "!((flag && flag))",
+            "((flag == true))",
+            "!(!(flag != false))",
+        ] {
             let text = source(consumer, condition);
-            let f = Fixture::new(&[("not-neighbor.ko", &text)]);
+            let f = Fixture::new(&[("condition-neighbor.ko", &text)]);
             let owned = f.shared();
             assert!(
                 owned.clone().validate().is_ok(),
