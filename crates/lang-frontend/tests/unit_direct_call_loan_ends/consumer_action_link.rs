@@ -253,3 +253,39 @@ fn consumer_acquisitions_reference_actual_registered_begin_records() {
         assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
     }
 }
+
+#[test]
+fn owned_parameter_consumer_stays_uncovered_without_real_transport() {
+    let observed = observe(
+        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(own owner: String): Unit { consume(view(owner)) }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        assert!(unit.borrow_call_transports().is_empty());
+        for observation in unit.loan_action_observations() {
+            assert!(
+                observation
+                    .regions()
+                    .iter()
+                    .all(|region| region.coverage() != UnitLoanActionCoverage::Complete)
+            );
+        }
+    }
+}
+
+#[test]
+fn normal_consumer_closes_declared_source_chain_and_root() {
+    let observed = observe(SOURCE);
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        assert!(
+            observation
+                .regions()
+                .iter()
+                .any(|region| region.coverage() == UnitLoanActionCoverage::Complete),
+            "no closed result-chain region: {observation:#?}"
+        );
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    }
+}

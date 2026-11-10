@@ -8756,3 +8756,10 @@ callable仍Partial。若实际动作或独立typed/ownership来源映射不足�
 protocol1/3；如实证可闭合，使用显式不同的结果延续家族声明，复用同一region与validator。
 wrapper/export、一般parent权限恢复、callee内部/Abort/unwind、动态唯一消费与owner后端
 均非本片目标。普通逐源/helper exact、默认debug2、原target串行及所有CI-only排除不变。
+
+实证收窄：上述Own参数例实际仅两个Begin及Named Drop，旧source transport要求
+formed_owned本地形成根，因此缺transfer/retirement，不能Complete；该红测结果保留。
+本片不扩大旧transport gate，改用已支持的单个不可变local String字面量形成根，caller仅
+此声明与其后普通直线call。参数例固定为未覆盖边界。认证准入须独立核该声明、Owned
+binding/formed_owned及真实ValueState origin/declaration；真实结果链其余条件不变。
+显式新protocol4只声明同步borrow-result延续及NamedSourceDrop，不修改protocol1/2/3。
