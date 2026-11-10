@@ -8527,3 +8527,26 @@ lib为`6429b6bc129b845c1ff7dfd9380ce2a0b765922f42232d05ba9bf3c73e3da87a`；摘�
 source/callable仍Partial/Unsupported；一般权限恢复、borrowed-result交接、多参数/一般CFG、
 Rc/provider与动态activation尚未认证。未接owner Phase4，未执行SSA/LLVM行为、native、
 Linux/双宿主正式CI；不退休Single oracle，不关闭Spec或D10/E2。未推送、PR或合并。
+
+### Loan 结果binding交接与终止同源增量（2026-11-10，实施范围）
+
+续接`fad15eab`，按ADR-0040推进source→result关系，不再新增同构Complete协议。
+将既有`commit_borrow_call_handoff`在初始化实际继续时的提交记录，以及已初始化borrow
+binding从真实状态移除后的End记录，迁入同一ActionSource。旧handoff和borrow_ends
+成为同源投影，observer off仍保留它们；pending候选、失败/放弃initializer不发布提交。
+
+handoff保留原真实pending source loan与binding映射，不将来源当End，不推造新parent身份。
+其历史CallReturn/辅助loan描述不代表辅助loan在binding提交时结束，不能由复合旧fact
+倒放辅助动作或排序旧表。新binding End仅记录实际退休，旧表维持首次出现去重，原始
+动作记录不按binding/point相等合并；static记录仍不是动态激活或跨CFG执行轨迹。
+新记录不进入旧iteration Cleanup或计数，不增加后端执行责任、不重排原child→parent→Drop。
+
+目标是让已有Begin、真实handoff commit、binding End与owner Drop可在同一catalog中
+区分来源延续和终止，先只发布Partial/Unsupported，不给borrowed-result区域Complete。
+完整callee return来源映射、parent依赖认证、一般权限恢复、auxiliary retirement独立顺序、
+wrapper/consumer/provider/capture覆盖仍待后片；现有protocol1/2/3合同不变。
+
+先用普通成功binding源码核旧handoff/End/Drop存在的能力红测，再补放弃initializer、
+同源兄弟/parent-child、历史辅助描述、跨catalog/source、全Analysis on/off与raw/public
+错误/deferred撤销。所有选择仍逐源/helper核普通exact；十旧排除及CI-only/Abort/压力
+不执行，默认debug2、既有target串行、不复制。与ownerPhase4或0400无依赖。
