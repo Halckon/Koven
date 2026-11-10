@@ -232,22 +232,7 @@ impl Checker<'_> {
                 type_arguments,
                 arguments,
                 ..
-            } => {
-                let invalidated = arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
-                    })
-                    .filter_map(|argument| self.stable_flow_key(argument.value))
-                    .collect::<Vec<_>>();
-                let result =
-                    self.check_call(id, span, callee, type_arguments, arguments, expected)?;
-                for key in invalidated {
-                    self.flow_facts.remove(&key);
-                    *self.flow_versions.entry(key).or_default() += 1;
-                }
-                result
-            }
+            } => self.check_call(id, span, callee, type_arguments, arguments, expected)?,
             Expression::Index { receiver, index } => {
                 self.check_container_index(id, receiver, index)?
             }
@@ -279,7 +264,7 @@ impl Checker<'_> {
             && !self.is_deferred(result.ty)
         {
             self.mismatch(span, expected_span, result.ty, expected)?;
-            result.ty = self.error_type();
+            result.ty = self.rejected_expected_type(id);
         }
         self.record_non_null_use(id, result.ty);
         self.record_null_comparison(id);

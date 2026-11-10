@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-use super::{Checker, FlowKey};
+use super::{CallRecovery, Checker, FlowKey};
 
 /// 一个 callable candidate trial 可以改变的完整类型检查状态。
 ///
@@ -36,6 +36,7 @@ pub(super) struct TrialState {
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
     flow_versions: BTreeMap<FlowKey, u64>,
+    call_recoveries: BTreeMap<usize, CallRecovery>,
     destructurings: Vec<DestructuringDescriptor>,
     iterations: Vec<crate::type_checking::SequentialIterationDescriptor>,
     iteration_recovery: super::iteration::IterationRecovery,
@@ -78,6 +79,7 @@ impl Checker<'_> {
             external_types: self.external_types.clone(),
             flow_facts: self.flow_facts.clone(),
             flow_versions: self.flow_versions.clone(),
+            call_recoveries: self.call_recoveries.clone(),
             destructurings: self.destructurings.clone(),
             iterations: self.iterations.clone(),
             iteration_recovery: self.iteration_recovery.clone(),
@@ -119,6 +121,7 @@ impl Checker<'_> {
         self.external_types = state.external_types;
         self.flow_facts = state.flow_facts;
         self.flow_versions = state.flow_versions;
+        self.call_recoveries = state.call_recoveries;
         self.destructurings = state.destructurings;
         self.iterations = state.iterations;
         self.iteration_recovery = state.iteration_recovery;

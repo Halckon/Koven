@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-use super::{Checker, ExprCheck, container::ContainerCall};
+use super::{CallRecovery, Checker, ExprCheck, container::ContainerCall};
 
 impl Checker<'_> {
     /// 判定给定类型是否满足 `Hashable` 能力约束。
@@ -403,10 +403,10 @@ impl Checker<'_> {
 
         let arg = &arguments[0];
         let arg_result = self.check_pending_receiver_operand(receiver, arg.value, key_type)?;
-        if !self.is_error(arg_result.ty)
+        let key_mismatch = !self.is_error(arg_result.ty)
             && !self.is_deferred(arg_result.ty)
-            && !self.assignable(arg_result.ty, key_type)
-        {
+            && !self.assignable(arg_result.ty, key_type);
+        if key_mismatch {
             self.mismatch(
                 self.ast().expressions().get(arg.value)?.span(),
                 None,
@@ -441,21 +441,48 @@ impl Checker<'_> {
                 falls_through: receiver_falls_through && arg_result.falls_through,
             });
         }
-        let nullable_val = self.types.intern(TypeKind::Nullable(value_type));
-        self.map_descriptors
-            .gets
-            .push(crate::type_checking::MapGetDescriptor::new(
-                call_expression,
-                receiver,
-                arg.value,
-                key_type,
-                value_type,
-                nullable_val,
-            ));
-        Ok(ExprCheck {
-            ty: nullable_val,
-            falls_through: receiver_falls_through && arg_result.falls_through,
-        })
+        if key_mismatch {
+            return Ok(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_falls_through && arg_result.falls_through,
+            });
+        }
+        Ok(self.finish_map_get(
+            call_expression,
+            receiver,
+            (arg.value, arg_result),
+            (key_type, value_type),
+            receiver_falls_through,
+        ))
+    }
+
+    fn finish_map_get(
+        &mut self,
+        expression: ExpressionId,
+        receiver: ExpressionId,
+        (key, checked_key): (ExpressionId, ExprCheck),
+        (key_type, value_type): (TypeId, TypeId),
+        receiver_falls_through: bool,
+    ) -> ExprCheck {
+        let falls_through = receiver_falls_through && checked_key.falls_through;
+        let recovery = self.call_operand_recovery(key, checked_key.ty);
+        if recovery == Some(CallRecovery::Rejected) {
+            return ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            };
+        }
+        let ty = self.types.intern(TypeKind::Nullable(value_type));
+        if let Some(recovery) = recovery {
+            self.call_recoveries.insert(expression.index(), recovery);
+        } else {
+            self.map_descriptors
+                .gets
+                .push(crate::type_checking::MapGetDescriptor::new(
+                    expression, receiver, key, key_type, value_type, ty,
+                ));
+        }
+        ExprCheck { ty, falls_through }
     }
 
     fn check_map_contains_call(
@@ -649,6 +676,7 @@ impl Checker<'_> {
         receiver_result: ExprCheck,
         index: ExpressionId,
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        self.call_recoveries.remove(&expression.index());
         let Some((_constructor, key_type, value_type)) = self.map_parts(receiver_result.ty) else {
             return Ok(None);
         };
@@ -666,13 +694,17 @@ impl Checker<'_> {
                 "map index key type does not match map key type",
                 self.ast().expressions().get(index)?.span(),
             )?;
+            self.call_recoveries
+                .insert(expression.index(), CallRecovery::Rejected);
             return Ok(Some(ExprCheck {
                 ty: self.error_type(),
                 falls_through: receiver_result.falls_through && index_result.falls_through,
             }));
         }
 
-        if self.is_error(index_result.ty) {
+        if self.is_error(index_result.ty)
+            && self.call_operand_recovery(index, index_result.ty) == Some(CallRecovery::Rejected)
+        {
             return Ok(Some(ExprCheck {
                 ty: self.error_type(),
                 falls_through: receiver_result.falls_through && index_result.falls_through,
@@ -688,6 +720,8 @@ impl Checker<'_> {
                 "cannot move MoveOnly map value by index; use requireValue or withValue",
                 self.ast().expressions().get(expression)?.span(),
             )?;
+            self.call_recoveries
+                .insert(expression.index(), CallRecovery::Rejected);
             return Ok(Some(ExprCheck {
                 ty: self.error_type(),
                 falls_through: receiver_result.falls_through && index_result.falls_through,
@@ -700,26 +734,20 @@ impl Checker<'_> {
                 "nullable map values require withValue to distinguish Missing from Found(null)",
                 self.ast().expressions().get(expression)?.span(),
             )?;
+            self.call_recoveries
+                .insert(expression.index(), CallRecovery::Rejected);
             return Ok(Some(ExprCheck {
                 ty: self.error_type(),
                 falls_through: receiver_result.falls_through && index_result.falls_through,
             }));
         }
-        let nullable_val = self.types.intern(TypeKind::Nullable(value_type));
-        self.map_descriptors
-            .gets
-            .push(crate::type_checking::MapGetDescriptor::new(
-                expression,
-                receiver,
-                index,
-                key_type,
-                value_type,
-                nullable_val,
-            ));
-        Ok(Some(ExprCheck {
-            ty: nullable_val,
-            falls_through: receiver_result.falls_through && index_result.falls_through,
-        }))
+        Ok(Some(self.finish_map_get(
+            expression,
+            receiver,
+            (index, index_result),
+            (key_type, value_type),
+            receiver_result.falls_through,
+        )))
     }
 
     /// 检查 Map 下标赋值 `mutableMap[key] = value`。

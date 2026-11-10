@@ -72,6 +72,13 @@ use super::{
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::FlowKey;
 
+// Rejection takes precedence when more than one operand needs recovery.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CallRecovery {
+    Pending,
+    Rejected,
+}
+
 #[derive(Clone, Copy)]
 struct ExprCheck {
     ty: TypeId,
@@ -167,6 +174,7 @@ struct Checker<'a> {
     captured_mutable_symbols: BTreeSet<SymbolId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
     flow_versions: BTreeMap<FlowKey, u64>,
+    call_recoveries: BTreeMap<usize, CallRecovery>,
     source_references: Vec<(ScopeId, ReferenceTarget)>,
     nominal_by_symbol: BTreeMap<SymbolId, NominalId>,
     nominal_by_scope: BTreeMap<ScopeId, NominalId>,
@@ -385,6 +393,7 @@ impl<'a> Checker<'a> {
             captured_mutable_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
             flow_versions: BTreeMap::new(),
+            call_recoveries: BTreeMap::new(),
             source_references: names
                 .references()
                 .iter()

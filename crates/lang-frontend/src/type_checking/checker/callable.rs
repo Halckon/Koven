@@ -44,7 +44,13 @@ impl Checker<'_> {
         arguments: Vec<CallArgument>,
         expected: Option<TypeId>,
     ) -> Result<ExprCheck, TypeCheckingError> {
-        if let Some(result) = self.check_special_call(
+        let invalidated = arguments
+            .iter()
+            .filter(|argument| matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_))))
+            .filter_map(|argument| self.stable_flow_key(argument.value))
+            .collect::<Vec<_>>();
+        self.call_recoveries.remove(&expression.index());
+        let result = if let Some(result) = self.check_special_call(
             expression,
             call_span,
             callee,
@@ -52,12 +58,23 @@ impl Checker<'_> {
             &arguments,
             expected,
         )? {
-            self.note_pending_call_exit(expression, callee, &arguments)?;
-            return Ok(result);
-        }
-        let result =
-            self.check_ordinary_call(expression, call_span, callee, &type_arguments, &arguments)?;
+            result
+        } else {
+            self.check_ordinary_call(expression, call_span, callee, &type_arguments, &arguments)?
+        };
         self.note_pending_call_exit(expression, callee, &arguments)?;
+        // Apply only this call's effect, before the enclosing expected-type check.
+        // Argument checking may already have applied writes from nested calls.
+        let recovery = self.call_operand_recovery(expression, result.ty);
+        if let Some(recovery) = recovery {
+            self.call_recoveries.insert(expression.index(), recovery);
+        }
+        if recovery != Some(CallRecovery::Rejected) {
+            for key in invalidated {
+                self.flow_facts.remove(&key);
+                *self.flow_versions.entry(key).or_default() += 1;
+            }
+        }
         Ok(result)
     }
 
@@ -121,8 +138,9 @@ impl Checker<'_> {
                     aborts: false,
                     prints_line: false,
                 });
-            } else if self.is_error(callee_result.ty) || self.is_deferred(callee_result.ty) {
+            } else if let Some(recovery) = self.call_operand_recovery(callee, callee_result.ty) {
                 self.check_pending_untyped_arguments(callee, arguments)?;
+                self.call_recoveries.insert(expression.index(), recovery);
                 return Ok(ExprCheck {
                     ty: callee_result.ty,
                     falls_through: true,
@@ -219,15 +237,17 @@ impl Checker<'_> {
         }
 
         let mut argument_types = Vec::with_capacity(arguments.len());
-        let mut poisoned = false;
+        let mut recovery = None;
         let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for argument in arguments {
             let result =
                 self.check_pending_operand(argument.value, None, None, &mut reaches_argument)?;
-            poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
+            recovery = recovery.max(self.call_operand_recovery(argument.value, result.ty));
             argument_types.push(result.ty);
         }
-        if poisoned {
+        if let Some(recovery) = recovery {
+            // Keep the legacy recovery type without treating an unresolved overload as rejected.
+            self.call_recoveries.insert(expression.index(), recovery);
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -290,7 +310,7 @@ impl Checker<'_> {
         lambda_arguments: &[bool],
     ) -> Result<ExprCheck, TypeCheckingError> {
         let mut argument_types = vec![None; arguments.len()];
-        let mut poisoned = false;
+        let mut recovery = None;
         let mut reaches_argument = self.pending_call_receiver_exit(callee)?;
         for (index, argument) in arguments.iter().enumerate() {
             if lambda_arguments[index] {
@@ -299,10 +319,12 @@ impl Checker<'_> {
             }
             let result =
                 self.check_pending_operand(argument.value, None, None, &mut reaches_argument)?;
-            poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
+            recovery = recovery.max(self.call_operand_recovery(argument.value, result.ty));
             argument_types[index] = Some(result.ty);
         }
-        if poisoned {
+        if let Some(recovery) = recovery {
+            // Keep the legacy recovery type without treating an unresolved overload as rejected.
+            self.call_recoveries.insert(expression.index(), recovery);
             return Ok(ExprCheck {
                 ty: self.error_type(),
                 falls_through: true,

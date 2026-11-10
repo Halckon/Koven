@@ -8,13 +8,50 @@ use crate::{
     type_checking::{
         BuiltinType, CallArgumentDescriptor, CallDescriptor, CallableTarget, DeferredReason,
         ExpressionCategory, ExternalTypeBinding, FunctionParameterType, IntrinsicCallable,
-        OwnershipPrimitiveDescriptor, OwnershipPrimitiveKind, ParameterMode, TypeKind,
+        OwnershipPrimitiveDescriptor, OwnershipPrimitiveKind, ParameterMode, TypeId, TypeKind,
     },
 };
 
-use super::{Checker, ExprCheck, TypeCheckingError};
+use super::{CallRecovery, Checker, ExprCheck, TypeCheckingError};
 
 impl Checker<'_> {
+    fn ownership_primitive_recovery(
+        &mut self,
+        expression: ExpressionId,
+        valid: bool,
+        explicit_type: Option<TypeId>,
+        operands: [(ExpressionId, TypeId); 2],
+    ) -> Option<ExprCheck> {
+        let recoveries = operands.map(|(operand, ty)| self.call_operand_recovery(operand, ty));
+        let deferred = explicit_type.is_some_and(|ty| self.is_deferred(ty))
+            || operands
+                .iter()
+                .zip(recoveries)
+                .any(|(&(_, ty), recovery)| recovery.is_some() && !self.is_error(ty));
+        let rejected_here = !valid || explicit_type.is_some_and(|ty| self.is_error(ty));
+        if !deferred && !rejected_here && !operands.iter().any(|&(_, ty)| self.is_error(ty)) {
+            return None;
+        }
+        let recovery = if rejected_here {
+            CallRecovery::Rejected
+        } else {
+            recoveries
+                .into_iter()
+                .flatten()
+                .max()
+                .unwrap_or(CallRecovery::Pending)
+        };
+        self.call_recoveries.insert(expression.index(), recovery);
+        Some(ExprCheck {
+            ty: if deferred {
+                self.deferred(DeferredReason::Call)
+            } else {
+                self.error_type()
+            },
+            falls_through: true,
+        })
+    }
+
     pub(super) fn check_intrinsic_ownership_primitive_call(
         &mut self,
         expression: ExpressionId,
@@ -153,9 +190,6 @@ impl Checker<'_> {
         }
         let mut reachable = true;
         let arg0_result = self.check_pending_operand(arg0.value, None, None, &mut reachable)?;
-        if self.is_error(arg0_result.ty) {
-            valid = false;
-        }
         if self.primitive_field_has_temporary_receiver(arg0.value)?
             || self.expression_categories[arg0.value.index()] != ExpressionCategory::Place
             || self.is_mutable_element_place(arg0.value) == Some(false)
@@ -210,9 +244,8 @@ impl Checker<'_> {
             None,
             &mut reachable,
         )?;
-        if self.is_error(arg1_result.ty) {
-            valid = false;
-        } else if !self.is_deferred(arg1_result.ty)
+        if !self.is_error(arg1_result.ty)
+            && !self.is_deferred(arg1_result.ty)
             && !self.is_deferred(t)
             && !self.assignable(arg1_result.ty, t)
         {
@@ -225,20 +258,13 @@ impl Checker<'_> {
             valid = false;
         }
 
-        if self.is_deferred(t)
-            || self.is_deferred(arg0_result.ty)
-            || self.is_deferred(arg1_result.ty)
-        {
-            return Ok(ExprCheck {
-                ty: self.deferred(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        if !valid || self.is_error(t) {
-            return Ok(ExprCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
+        if let Some(recovery) = self.ownership_primitive_recovery(
+            expression,
+            valid,
+            explicit_t,
+            [(arg0.value, arg0_result.ty), (arg1.value, arg1_result.ty)],
+        ) {
+            return Ok(recovery);
         }
 
         let function = self.types.intern(TypeKind::Function {
@@ -348,9 +374,6 @@ impl Checker<'_> {
         }
         let mut reachable = true;
         let arg0_result = self.check_pending_operand(arg0.value, None, None, &mut reachable)?;
-        if self.is_error(arg0_result.ty) {
-            valid = false;
-        }
         if self.expression_categories[arg0.value.index()] != ExpressionCategory::Place
             || self.is_mutable_element_place(arg0.value) == Some(false)
             || self.is_read_only_container_size(arg0.value)?
@@ -373,9 +396,6 @@ impl Checker<'_> {
             valid = false;
         }
         let arg1_result = self.check_pending_operand(arg1.value, None, None, &mut reachable)?;
-        if self.is_error(arg1_result.ty) {
-            valid = false;
-        }
         if self.expression_categories[arg1.value.index()] != ExpressionCategory::Place
             || self.is_mutable_element_place(arg1.value) == Some(false)
             || self.is_read_only_container_size(arg1.value)?
@@ -444,20 +464,13 @@ impl Checker<'_> {
         };
 
         let unit = self.builtin(BuiltinType::Unit);
-        if self.is_deferred(t)
-            || self.is_deferred(arg0_result.ty)
-            || self.is_deferred(arg1_result.ty)
-        {
-            return Ok(ExprCheck {
-                ty: self.deferred(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        if !valid || self.is_error(t) {
-            return Ok(ExprCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
+        if let Some(recovery) = self.ownership_primitive_recovery(
+            expression,
+            valid,
+            explicit_t,
+            [(arg0.value, arg0_result.ty), (arg1.value, arg1_result.ty)],
+        ) {
+            return Ok(recovery);
         }
 
         let function = self.types.intern(TypeKind::Function {
