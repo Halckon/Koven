@@ -11784,3 +11784,11 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
   不外推资源证明、一般终止性、release 或正式 CI；临时原件仍需交付时按证据保留合同归档。
 - 独立只读终审已核双父、合成字节、十二项真实结果、原 artifact/profile、binary 与输入/日志 SHA；
   最终仅本 Spec 偏离冻结输入，其冻结 git 对象及其余 4235 输入仍匹配，无新增阻断。
+
+### Suffix Replace→Return 回执安全回归（2026-11-10）
+
+仅为既有共同出口 replacement consumer 增加 cfg(test) 故障注入：漏/重
+post-RootReplace 回执、old 错作 root、Drop 错用 old、漏/重 installed-R Drop 回执。
+全部故障用例只在官方 CI 执行，本地仅编译，不能称为拒绝路径已实跑。
+普通正控仍使用原样有限源码、同轮实际 Unit 产品与 SSA/LLVM；不改公共产品、存储、
+getter、loop validator 或语言 ABI，不实施待决定的开放 loop Return endpoint。
