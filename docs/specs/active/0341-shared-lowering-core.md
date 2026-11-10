@@ -8303,3 +8303,58 @@ direct二进制SHA256为`47312d5dcbdddfd72c5e65ad1e5c7766c3faa69c2c5b97cf2c53ca4
 lib为`09b51741ccab62281773d0ccf560c041542b8be7834aaf948c6d6ceb08b24a55`。
 这是默认配置下有界行为基线复验；Complete产品尚未实施，后续实现须以其精确输入重新
 验收。前轮默认静态/跨crate门禁缺口仍须补齐，不能将旧debug=0静态结果改标为debug=2。
+
+### Loan 普通 direct call 正常返回区域认证（2026-11-10）
+
+延续同一分支和默认配置基线，不合并其他候选或改动既有脏树。能力红测提交
+`96a54527`：真实进入的普通String temporary调用只获Partial，期望区域Complete，
+实际1项失败。实现代码输入`613c2aa8394a8824c37d37554bba9224ea14e659`接入独立validator，
+同一红测转绿；最终验收覆盖下列完整普通选择，不累计中间单项重跑。
+
+区域protocol 1只覆盖**调用者侧正常返回边**的Shared实参建立/结束及对应String临时
+owner Drop，不证明callee动态必然返回、callee内部/Abort路径、整个callable或source。
+首批准入限定顶层普通函数的独立call语句（整body只有call语句）或单call表达式body，
+callee为普通Name/Declaration、Owned Int/Unit结果、无泛型/receiver，全部实参是无插值
+String字面量直接映射到String Borrow参数，也允许零实参。命名参数按源码求值顺序保留；
+命名变量/Group、nullable转换、控制、nested call及既有pending/provider/capture义务不准入。
+
+候选仅在真实通用Call入口登记，以全混合record游标定位；所有call尾部清理结束后才记录
+静态正常完成。validator不筛选/排序区间，严格核全部Begin、逆序End、逆序Drop与唯一
+call/argument身份、同CallReturn点及独立AST字面量span；额外/缺失/错序均不能Complete。
+按call一次索引checker事实，避免逐call全量扫描。零参数须有真实planner入口/正常后继、
+AST/typed零参数与空区间，才可Complete-empty；没有调用不能凭空造空证书。
+
+`owns_region`以catalog身份核验非空和零动作证书，clone保留归属，重分析即使source/call
+下标相同也被拒绝。source总体仍Partial/Unsupported，专用String/Rc/construction等早返回
+可能没有region，缺region不证明absence。未准入region为Unsupported，准入但未完成或
+未闭合为Partial。原raw/public全局撤销门同时撤销region；加强后的真实错误/deferred
+邻控先证明非空合法前缀已有Complete，再核所有source新观察全部消失。
+
+| 验收项 | 最终代码输入的实际结果 |
+|---|---|
+| 默认普通direct精确选择 | 同次默认编译二进制，`--exact --list`核名后一次执行303个完整白名单：既有安全296＋新增7；303 passed、0失败/忽略；原10项受限选择继续全部排除 |
+| 7项区域普通证据 | 单literal、两命名literal、连续call完整record游标、零参数正面Complete-empty、转换/变量/控制/嵌套/插值/receiver降级、非空catalog、零动作catalog跨重分析/clone；双rooted/memory输入 |
+| 普通lib精确选择 | 原2项raw/public全局撤销和observer完整旧Analysis对照＋新增cross-source正反输入顺序/caller与callee parameter lineage，3 passed；不会命中CI-only破损测试 |
+| 配置证明 | 无`CARGO_PROFILE_*`、`RUSTFLAGS`或`CARGO_ENCODED_RUSTFLAGS`覆盖；原target、locked/offline、jobs=2；两个实际测试artifact JSON均debuginfo=2，实际rustc含`-C debuginfo=2` |
+| 默认静态门禁 | frontend all-targets严格Clippy（`-W clippy::all -D warnings`）、workspace all-targets check均成功，frontend artifact JSON debuginfo=2；fmt、docs877、diff通过 |
+| 尺寸与独审 | 相对main `3fe1920a`尺寸通过：2264手写Rust、36项既有超限，额度不变；独审核真实边界、完整序列、独立AST span、零证书归属、撤销和普通测试来源，无阻断 |
+
+最终普通测试共306个唯一成功项；前节默认基线298项单列，不与本次重复加总。两项新增
+CI-only破损模型守卫覆盖缺/重End、缺/错序Begin/Drop、错点/AST origin/callable source、
+额外动作及零参数缺完成/Unsupported/越界/非空区间，只随默认no-run及all-targets编译，
+未本机执行；不能把编译成功当作负控通过。十项旧排除及iteration四项Abort没有重跑。
+先前debug=0与选择偏差记录均保留。中间脚本曾因zsh只读`status`变量在测试后退出，
+未启动后续lib；已改用普通变量并分别执行，最终列表与成功集合独立核对，不将未启动项计入。
+
+最终35文件测试源码摘要为`847b9e563e21e4c141b0c1315e0be8f3733167347aacd9504ed5320127a24150`。
+direct二进制SHA256为`8f931a0d3001cbc00153947abe76e23102b5085d248b873aa0715e4ad349998b`，
+lib为`fbbdd7bf8e1d72e184f086b89c318417290f712cd445ef081ea23fc1994f3d98`。默认构建仍为
+`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`，
+只设置`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`；Clippy/check另设
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，无target复制或并发Cargo。
+
+本片建立有界正常返回区域的Complete能力，不关闭D10/E2或Spec。receiver activation、
+借用结果handoff/permission restoration、一般CFG/动态activation及整个callable覆盖仍未完成。
+Phase 4行为、SSA/LLVM执行、native释放计数、Linux及正式双宿主CI未运行；未退休Single
+oracle，未推送、PR或合并。后续先在精确组合头运行正式CI破损守卫，再按已批准合同扩展
+真实continuation/receiver家族，不能把当前局部证书提升成整个调用者的完整生命周期结论。
