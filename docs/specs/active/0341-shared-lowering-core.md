@@ -11613,4 +11613,29 @@ child，以及 child End→parent End→source End→原 owner Drop。观察 rou
 
 | 本阶段验收 | 精确目标 | 实际结果 |
 |---|---|---|
-| 原样 parent/child 生命周期 | `ssa::loan_region_ssa_tests::parent_child_lifecycle_probe::original_parent_child_lifecycle_records_real_dependency_and_ssa` | 待独立 helper 审阅与实际构建/执行 |
+| 原样 parent/child 生命周期 | `ssa::loan_region_ssa_tests::parent_child_lifecycle_probe::original_parent_child_lifecycle_records_real_dependency_and_ssa` | 冻结d5d57e4f，单MemoryDocument实际通过，1 passed / 2923 filtered；SSA与LLVM验证通过 |
+
+首阶段实际证据保存在 `/private/tmp/koven-parent-child-lifecycle-evidence` 的 probe-build.jsonl、
+probe-manifest.json、probe-exact.log 和 runner；冻结头为
+`d5d57e4fa7f8b5fe25e652b5636b6d45c4af9119`，生产零差异。仅该普通 exact 经 fresh helper
+独审后执行，无额外测试。borrow target 串行、LLVM21，实际 test artifact 为 opt0/debug2、
+仅 loan-observation-test-support；no-run 1m01s。执行前后二进制 SHA 为
+`55acc019d8d60fe5efd4e0c05ebb0d4a751185c62a01d4eff85630d6a832e87f`。
+
+原样实跑 route 为 view 与 run。run 的十条 SSA 为原 literal owner v0、RootPlace p0、source l0、
+BorrowCall result l1、SharedReborrow child l2、consume(l2)、End l2、End l1、End l0、Drop v0。
+测试按真实实体和相对顺序核验，不按 Span 拼接、不强制函数指令总数；未产生新的 consumer loan。
+前端原 binding 记录为 parent s6 与 child s7，child.parent=Some(s6)、source_loan=None。
+原七动作是 source Begin、parent handoff、consumer Begin、child End、parent End、source退休、
+Drop；source退休有 source_begin=0、handoff=1、binding_end=4，而 use_return=None。
+两个旧 call region 实际为 Unsupported，binding_regions 为空。这是缺失因果关联的现状实证，
+不是新的能力红测或 Complete/receipt 认证；source Partial 仍由原产品合同决定，未新增覆盖断言。
+
+后续接点已静态定位：binding.rs 的 initializer 正常完成与真实 live binding 插入；
+borrow_result.rs 的实际 child 移除和 End 发布；refine lower_result_place 的 SharedReborrow。
+旧 parent transport 只搬运一次 BorrowCall source token，不能为 child 复制 source transport。
+同根多 binding 退休时原 Drop cause 被降级，后续需要真实 child→parent 退休依赖证据才可讨论
+解除该歧义，不可直接放宽去重规则。本阶段不修改这些生产点，等待协调后再开展独立因果能力。
+本轮 codegen all-targets 显式测试支持 feature 的严格 Clippy 36.45s，通过；fmt/diff通过。
+独立只读终审核原始 artifact、实际 binary、唯一 exact 日志及真实 FE/SSA 身份，无新增阻断。
+未运行其它测试、native、全 workspace/CLI/release 或正式 CI；最终仅补文档，不重跑 Rust。
