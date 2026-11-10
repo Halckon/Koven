@@ -938,3 +938,35 @@ fn actual_loan_action_source_is_revoked_after_independent_source_failure() {
         },
     );
 }
+
+#[test]
+fn loan_receiver_complete_prefix_is_revoked_from_raw_and_public_products() {
+    assert_rejections_clear(
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch() }",
+        false,
+        |accepted, raw| {
+            assert_eq!(raw.receiver_call_return_ends.len(), 1);
+            assert_eq!(
+                raw.receiver_call_return_ends,
+                accepted.shared().receiver_call_return_ends()
+            );
+            assert!(
+                raw.loan_action_observations[0]
+                    .regions()
+                    .iter()
+                    .any(|region| region.protocol_version() == 2
+                        && region.coverage()
+                            == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+            );
+            assert!(
+                raw.loan_action_observations[0]
+                    .actions()
+                    .iter()
+                    .any(|action| matches!(
+                        action,
+                        crate::ownership_checking::UnitLoanAction::ReceiverEnd(_)
+                    ))
+            );
+        },
+    );
+}

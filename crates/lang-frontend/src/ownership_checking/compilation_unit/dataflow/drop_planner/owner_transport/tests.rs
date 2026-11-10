@@ -423,3 +423,32 @@ fn loan_action_observer_preserves_all_existing_planner_products() {
         assert_eq!(observed, disabled);
     });
 }
+
+#[test]
+fn loan_receiver_observer_preserves_nonempty_legacy_return_projection() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.receiver_call_return_ends.len(), 2);
+        assert_eq!(
+            observed.receiver_call_return_ends,
+            disabled.receiver_call_return_ends
+        );
+        assert!(
+            observed.loan_action_observations[0]
+                .regions()
+                .iter()
+                .any(|region| region.coverage()
+                    == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+        );
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}

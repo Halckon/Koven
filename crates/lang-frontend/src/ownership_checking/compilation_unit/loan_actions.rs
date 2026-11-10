@@ -20,6 +20,10 @@ pub enum UnitLoanActionCoverage {
 pub enum UnitLoanAction {
     /// The evaluated argument registered this exact pending call token.
     Begin(UnitLoanFact),
+    /// The evaluated Shared receiver registered its actual pending token.
+    ReceiverBegin(super::UnitReceiverOwnershipFact),
+    /// Normal-return retirement, observed without adding an execution cleanup.
+    ReceiverEnd(super::UnitReceiverCallReturnEndFact),
     /// An action from the single existing cleanup source, without sorting old tables.
     Cleanup {
         /// Source-qualified cleanup point; separate records are never coalesced by span.

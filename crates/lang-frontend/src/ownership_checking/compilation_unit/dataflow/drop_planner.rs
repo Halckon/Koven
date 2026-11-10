@@ -11,6 +11,7 @@ mod control;
 mod iteration;
 mod lambda;
 mod loan_provenance;
+mod loan_receiver_region;
 mod loan_region;
 mod map;
 mod model;
@@ -173,6 +174,7 @@ fn plan_with_observations(
     let borrow_call_prefix_ends = planner.borrow_call_prefix_ends();
     let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
     let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
+    let receiver_call_return_ends = planner.iteration_actions.receiver_return_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -195,7 +197,7 @@ fn plan_with_observations(
         borrow_forward_transports: planner.borrow_forward_transports,
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
-        receiver_call_return_ends: planner.receiver_call_return_ends,
+        receiver_call_return_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
@@ -229,7 +231,6 @@ struct DropPlanner<'a, 'checker> {
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
-    receiver_call_return_ends: Vec<crate::ownership_checking::UnitReceiverCallReturnEndFact>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
     iteration_actions: action_source::ActionSource,
     iteration_exits: Vec<(
@@ -277,7 +278,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             borrow_binding_transports: Vec::new(),
             borrow_forward_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
-            receiver_call_return_ends: Vec::new(),
             borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
             planned_iterations: std::collections::BTreeSet::new(),

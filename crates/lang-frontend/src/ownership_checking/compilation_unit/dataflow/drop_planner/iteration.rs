@@ -281,7 +281,7 @@ impl DropPlanner<'_, '_> {
 
     /// Receiver 已在实参之前求值；其loan与实参一起逆序结束。
     pub(super) fn register_iteration_receiver_loan(
-        &self,
+        &mut self,
         call: ExpressionId,
         state: &mut ValueState,
     ) {
@@ -293,6 +293,7 @@ impl DropPlanner<'_, '_> {
                         | crate::ownership_checking::UnitReceiverOwnershipKind::ExclusiveLoan
                 )
         }) {
+            self.iteration_actions.begin_receiver(fact.clone());
             state.pending_loans.push((
                 Action::EndReceiverLoan(fact.clone()),
                 self.loop_boundaries.len(),

@@ -389,3 +389,154 @@ fn receiver_region_owned_parameter_requires_actual_begin_end_and_drop() {
         assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
     }
 }
+
+#[test]
+fn receiver_region_live_root_is_partial_until_actual_last_use_drop() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage::{Complete, Partial};
+    let observed = observe(
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        let regions = observation.regions();
+        assert_eq!(regions.len(), 2);
+        assert_eq!(regions[0].coverage(), Partial);
+        assert_eq!(regions[0].action_ids().len(), 2);
+        assert_eq!(regions[1].coverage(), Complete);
+        assert_eq!(regions[1].action_ids().len(), 3);
+        assert_eq!(unit.receiver_call_return_ends().len(), 2);
+        assert_eq!(observation.coverage(), Partial);
+    }
+}
+
+#[test]
+fn receiver_region_two_owned_roots_keep_distinct_formation_origins() {
+    use lang_frontend::ownership_checking::{
+        UnitLoanAction, UnitLoanActionCoverage, UnitLoanRegionFamily,
+    };
+    let observed = observe(
+        "class Node { fun touch(): Int = 1 }\nfun run(own first: Node, own second: Node): Unit { first.touch(); second.touch() }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let observation = &unit.loan_action_observations()[0];
+        assert_eq!(observation.regions().len(), 2);
+        let mut origins = Vec::new();
+        for region in observation.regions() {
+            assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+            assert_eq!(
+                region.families(),
+                &[
+                    UnitLoanRegionFamily::SharedReceiver,
+                    UnitLoanRegionFamily::NamedSourceDrop
+                ]
+            );
+            let actions: Vec<_> = region
+                .action_ids()
+                .map(|id| observation.action(&id).unwrap())
+                .collect();
+            let [
+                UnitLoanAction::ReceiverBegin(begin),
+                UnitLoanAction::ReceiverEnd(end),
+                UnitLoanAction::Cleanup {
+                    action:
+                        lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop),
+                    ..
+                },
+            ] = actions.as_slice()
+            else {
+                panic!("entire interval");
+            };
+            assert_eq!(begin, end.receiver());
+            assert_ne!(drop.value_origin(), begin.begin_span());
+            origins.push(drop.value_origin());
+        }
+        assert_ne!(origins[0], origins[1]);
+    }
+}
+
+#[test]
+fn receiver_region_unadmitted_roots_and_reservations_are_not_complete() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    // Ordinary finite source programs only, no corrupted products or Abort calls.
+    for source in [
+        "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch() }",
+        "class Node { fun touch(): Int = 1 }\nfun run(inout node: Node): Unit { node.touch() }",
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { ((node)).touch() }",
+        "class Node { fun touch(): Int = 1 }\nfun run(): Unit { Node().touch() }",
+        "class Node { inout fun touch(): Int = 1 }\nfun run(inout node: Node): Unit { node.touch() }",
+        "class Node { fun touch(): Int = 1; deinit() {} }\nfun run(own node: Node): Unit { node.touch() }",
+        "class Node { fun touch(): Int = 1 }\nclass Holder(val node: Node)\nfun run(own holder: Holder): Unit { holder.node.touch() }",
+        "class Node { fun touch(): Int = 1; fun outer(): Unit { this.touch() } }",
+    ] {
+        let observed = observe(source);
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            let observation = &unit.loan_action_observations()[0];
+            assert!(!observation.regions().is_empty());
+            assert!(
+                observation
+                    .regions()
+                    .iter()
+                    .all(|region| region.coverage() != UnitLoanActionCoverage::Complete),
+                "{source}"
+            );
+            assert_ne!(observation.coverage(), UnitLoanActionCoverage::Complete);
+        }
+    }
+}
+
+#[test]
+fn receiver_borrow_result_keeps_existing_rejection_and_no_certificate() {
+    let observed = observe(
+        "class Node { fun view(): borrow Node from this = this }\nfun run(own node: Node): Unit { node.view() }",
+    );
+    for unit in &observed.units {
+        assert_eq!(unit.diagnostics().len(), 2);
+        for (diagnostic, (start, end, message)) in unit.diagnostics().iter().zip([
+            (
+                25,
+                31,
+                "borrow result source requires an unsupported receiver or inout continuation",
+            ),
+            (
+                88,
+                99,
+                "caller borrow result continuation is not yet proven",
+            ),
+        ]) {
+            assert_eq!(diagnostic.code().to_string(), "L0164");
+            assert_eq!(diagnostic.message(), message);
+            let span = diagnostic.primary_span();
+            assert_eq!(
+                (span.source_id(), span.start(), span.end()),
+                (observed.parsed.source_id(), start, end)
+            );
+        }
+        assert!(unit.loan_action_observations().is_empty());
+        assert!(unit.receiver_call_return_ends().is_empty());
+    }
+}
+
+#[test]
+fn receiver_region_record_and_certificate_identity_cannot_cross_reanalysis() {
+    use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+    let source =
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch() }";
+    let left = observe(source);
+    let right = observe(source);
+    assert_units_admitted(&left);
+    assert_units_admitted(&right);
+    for (left, right) in left.units.iter().zip(&right.units) {
+        let left = &left.loan_action_observations()[0];
+        let right = &right.loan_action_observations()[0];
+        let region = &left.regions()[0];
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert!(left.owns_region(region));
+        assert!(!right.owns_region(region));
+        for id in region.action_ids() {
+            assert!(right.action(&id).is_none());
+        }
+    }
+}

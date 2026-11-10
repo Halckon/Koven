@@ -11,6 +11,8 @@ pub(super) struct ActionSource {
 
 enum Record {
     Begin(UnitLoanFact),
+    ReceiverBegin(crate::ownership_checking::UnitReceiverOwnershipFact),
+    ReceiverEnd(crate::ownership_checking::UnitReceiverCallReturnEndFact),
     Cleanup((PlannerDropPoint, UnitIterationCleanupAction)),
 }
 
@@ -33,6 +35,10 @@ impl ActionSource {
         expected: Option<
             Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Expected>,
         >,
+        receiver_protocol: bool,
+        receiver: Option<
+            crate::ownership_checking::compilation_unit::loan_region_validation::ExpectedReceiver,
+        >,
     ) -> usize {
         let index = self.regions.len();
         self.regions.push(
@@ -40,6 +46,8 @@ impl ActionSource {
                 call,
                 callable,
                 expected,
+                receiver_protocol,
+                receiver,
                 start: self.records.len(),
                 end: None,
             },
@@ -61,6 +69,37 @@ impl ActionSource {
         }
     }
 
+    pub(super) fn begin_receiver(
+        &mut self,
+        receiver: crate::ownership_checking::UnitReceiverOwnershipFact,
+    ) {
+        if self.enabled
+            && receiver.kind() == crate::ownership_checking::UnitReceiverOwnershipKind::SharedLoan
+        {
+            self.records.push(Record::ReceiverBegin(receiver));
+        }
+    }
+
+    pub(super) fn end_receiver(
+        &mut self,
+        end: crate::ownership_checking::UnitReceiverCallReturnEndFact,
+    ) {
+        // Kept with observation disabled: the legacy table is a projection of this source.
+        self.records.push(Record::ReceiverEnd(end));
+    }
+
+    pub(super) fn receiver_return_ends(
+        &self,
+    ) -> Vec<crate::ownership_checking::UnitReceiverCallReturnEndFact> {
+        self.records
+            .iter()
+            .filter_map(|record| match record {
+                Record::ReceiverEnd(end) => Some(end.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn len(&self) -> usize {
         self.cleanups
     }
@@ -70,7 +109,7 @@ impl ActionSource {
     ) -> impl Iterator<Item = &(PlannerDropPoint, UnitIterationCleanupAction)> {
         self.records.iter().filter_map(|record| match record {
             Record::Cleanup(cleanup) => Some(cleanup),
-            Record::Begin(_) => None,
+            Record::Begin(_) | Record::ReceiverBegin(_) | Record::ReceiverEnd(_) => None,
         })
     }
 
@@ -88,6 +127,8 @@ impl ActionSource {
             .into_iter()
             .map(|record| match record {
                 Record::Begin(loan) => UnitLoanAction::Begin(loan),
+                Record::ReceiverBegin(receiver) => UnitLoanAction::ReceiverBegin(receiver),
+                Record::ReceiverEnd(end) => UnitLoanAction::ReceiverEnd(end),
                 Record::Cleanup((point, action)) => UnitLoanAction::Cleanup {
                     point: point.into_unit(source),
                     action,

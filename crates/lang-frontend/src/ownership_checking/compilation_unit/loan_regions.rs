@@ -10,19 +10,26 @@ pub enum UnitLoanRegionFamily {
     DirectSharedArgument,
     /// Destruction of the corresponding independently owned String temporary.
     ArgumentTemporaryDrop,
+    /// Shared explicit owned-parameter receiver acquisition and normal retirement.
+    SharedReceiver,
+    /// Actual destruction of the independently established named owner.
+    NamedSourceDrop,
 }
 
-/// One actually entered caller-side normal-return region, protocol version 1.
+/// One actually entered caller-side normal-return region. Protocol 1 covers literal arguments;
+/// protocol 2 covers a Shared explicit receiver backed by an owned class parameter.
 /// Complete covers only the listed local families: it does not prove the callee returns,
-/// callee-internal/Abort paths, outer loans, receivers, result handoffs or the callable.
+/// callee-internal/Abort paths, outer loans, result handoffs or the callable.
 /// Admission requires independent calls in a flat ordinary function, with Int/Unit results
-/// and only plain String literal Borrow arguments (including zero arguments).
+/// and, for protocol 1, plain String literal Borrow arguments (including zero arguments).
+/// Protocol 2 requires zero arguments and an explicit owned non-Resource class parameter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitDirectCallLoanRegion {
     pub(super) identity: Arc<()>,
     pub(super) call: UnitExpressionId,
     pub(super) callable: Option<UnitItemId>,
     pub(super) coverage: UnitLoanActionCoverage,
+    pub(super) protocol: u32,
     pub(super) records: Range<usize>,
 }
 impl UnitDirectCallLoanRegion {
@@ -39,11 +46,17 @@ impl UnitDirectCallLoanRegion {
     /// Fixed normal-return protocol version, independent of source-wide coverage.
     #[must_use]
     pub const fn protocol_version(&self) -> u32 {
-        1
+        self.protocol
     }
     /// Exact local families covered when coverage is Complete.
     #[must_use]
     pub const fn families(&self) -> &'static [UnitLoanRegionFamily] {
+        if self.protocol == 2 {
+            return &[
+                UnitLoanRegionFamily::SharedReceiver,
+                UnitLoanRegionFamily::NamedSourceDrop,
+            ];
+        }
         &[
             UnitLoanRegionFamily::DirectSharedArgument,
             UnitLoanRegionFamily::ArgumentTemporaryDrop,

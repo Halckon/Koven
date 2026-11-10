@@ -6,6 +6,7 @@ use crate::type_checking::{CallableResultSource, UnitCallTarget, UnitItemId};
 
 pub(super) struct AdmissionIndex {
     callables: BTreeMap<usize, UnitItemId>,
+    pub(super) receivers: BTreeMap<UnitExpressionId, Vec<usize>>,
     loans: BTreeMap<UnitExpressionId, Vec<usize>>,
 }
 
@@ -17,11 +18,23 @@ impl DropPlanner<'_, '_> {
             .get(&call.index())
             .copied();
         let expected = callable.and_then(|_| self.loan_region_expected(call, state));
-        self.iteration_actions
-            .enter_region(self.checker.unit_expression(call), callable, expected)
+        let receiver_protocol = self
+            .checker
+            .typed
+            .call(self.checker.unit_expression(call))
+            .is_some_and(|call| call.receiver().is_some());
+        let receiver =
+            callable.and_then(|item| self.loan_receiver_region_expected(call, item, state));
+        self.iteration_actions.enter_region(
+            self.checker.unit_expression(call),
+            callable,
+            expected,
+            receiver_protocol,
+            receiver,
+        )
     }
 
-    fn loan_region_index(&self) -> &AdmissionIndex {
+    pub(super) fn loan_region_index(&self) -> &AdmissionIndex {
         self.loan_region_index.get_or_init(|| {
             let mut calls = BTreeMap::new();
             for &item in self.checker.parsed.roots() {
@@ -89,7 +102,12 @@ impl DropPlanner<'_, '_> {
             for (index, loan) in self.checker.loans.iter().enumerate() {
                 loans.entry(loan.call()).or_default().push(index);
             }
+            let mut receivers = BTreeMap::<_, Vec<_>>::new();
+            for (index, receiver) in self.checker.receiver_facts.iter().enumerate() {
+                receivers.entry(receiver.call()).or_default().push(index);
+            }
             AdmissionIndex {
+                receivers,
                 callables: calls,
                 loans,
             }

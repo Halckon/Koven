@@ -162,8 +162,8 @@ impl DropPlanner<'_, '_> {
             if let Action::EndReceiverLoan(receiver) = action
                 && self.observes_bounded_receiver(&receiver)
             {
-                self.receiver_call_return_ends
-                    .push(UnitReceiverCallReturnEndFact { receiver });
+                self.iteration_actions
+                    .end_receiver(UnitReceiverCallReturnEndFact { receiver });
             }
         }
     }
