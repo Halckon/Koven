@@ -9914,3 +9914,41 @@ Resource、一般循环或新 runtime。既有 main/旁线 owned-call-temporary 
 Basic/Const 双 Unit、两出口实际 SSA/LLVM/native、精确调用参数与 caller/callee 清理为
 普通验收。错误封印/动作重放/计数校准等 CI-only 仅编译，正式双宿主 CI 仍另行验收。
 保留旧 oracle，不关闭 SPEC-0341/D10/E2；本地提交后集中交付，不单独新开 PR。
+
+### 受限 own 调用实施与普通验收（2026-11-10）
+
+合同头`f0574ac2`后，真实红测试头`368444f1`保留普通源码及旧SSA/LLVM验证，
+观察唯一旧emitter成功push的实际sink调用；当时无Call产品授权，实测receipt=None，
+与实际参数槽Some(2)不符。不是空collector或人工破损输入。首次构建与前端并行落盘
+交叉，不作红输入证据；精准恢复前端后重新静态构建稳定红头，随后执行同名ordinary exact。
+
+实现固定`b8fe8d604d130fe7e63987f5df4306a52b9f1032`。Phase 3新增独立
+`UnitOwnerReplaceBreakCallConsumerV1`及Take/Call动作；真实carrier经Name Take进入
+同一个PendingTemporary，仅在旧transfers_at_call分支完成移交后封印。旧Unsupported
+观察的scalar owner仍为None，不回填P事件；P/Q由已核Take的carrier持有。目标来自同Unit
+checked declaration、签名和精确symbol，不按名字。原B getter/动作/清理保持。
+
+Phase 4共享原P/Q producer与两出口角色核验，Call产品另解实际dispatch FunctionId，
+核Name Take槽、唯一参数及旧deliver已标记的root状态。只有原Unit DirectCall成功发射后
+提交完成；caller若出现选中root Drop则拒绝。旧B仍要求Take/Bind/Drop双ledger；
+调用分支没有伪造Drop index，callee仍走原own参数清理，不新增运行时或语言拒绝。
+
+新增前端3 ordinary核真实pending移交、同Unit跨source解析、合法邻形不发布；共用原
+compare核观察on/off完整旧Analysis，不外推为新Call后端off端到端证明。frontend最初
+两fixture缺函数间换行造成L0047，已仅修源码分隔符；不计生产红转绿。
+后端新增3 ordinary核真实调用授权、Basic/Const两Unit完整SSA的P/Q入边与callee参数Drop，
+及正常native输出outer/next。caller只Drop detached旧P；callee空体/打印体沿旧规则清理。
+native输出不证明析构计数、heap或Resource无泄漏。
+
+普通选择为前端既有已审134+新3，后端旧6 B+B/P4 sibling+新3，共147唯一exact。
+只用名单运行，全部CI-only（新frontend破损/deferred、后端重放/错槽/漏提交）仅编译。
+外置构建、选择、binary hash及结果在`/private/tmp/koven-owner-own-call-evidence`；
+固定代码头、精确测试文件及名单来源`2d79c4d6`的134普通集界定可重建输入。
+
+固定代码头最终重建并复核147普通全部通过（前端137、后端10），0失败/忽略；
+实际test artifact debuginfo=2，target沿用原owner目录，Cargo以jobs=2串行且locked/offline。
+前端/codegen lib no-run均成功，含CI-only仅静态编译。两crate all-targets严格Clippy
+`-W clippy::all -D warnings`、workspace all-targets check、fmt、docs880与diff通过；
+尺寸base2d79c4d6通过，2303手写Rust、36旧超千行，原expression.rs1003未增，build.rs989。
+旧drop_planner.rs1598仅+6实际交接hook，算法在新模块，不改额度或拆分政策。
+正式双宿主CI、负控执行、sanitizer/资源计数仍未运行；未推送、PR或合main，旧oracle不退休。
