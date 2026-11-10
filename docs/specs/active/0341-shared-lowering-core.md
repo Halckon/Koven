@@ -11784,3 +11784,28 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
   不外推资源证明、一般终止性、release 或正式 CI；临时原件仍需交付时按证据保留合同归档。
 - 独立只读终审已核双父、合成字节、十二项真实结果、原 artifact/profile、binary 与输入/日志 SHA；
   最终仅本 Spec 偏离冻结输入，其冻结 git 对象及其余 4235 输入仍匹配，无新增阻断。
+
+### 循环体 owned Return 终止边：原样实证与候选合同（2026-11-10）
+
+从本地组合 `bda59963` 新隔离树，仅调查原样
+`var held = "outer"; while(flag) { val previous = replace(&held, "next"); return held }; return held`。
+本阶段只批准 probe/合同，不实施 endpoint、不放宽 loop validator 或语言准入。
+既有 Guide 10 owned Return 与 Replace、ADR-0038 的终止边规则、语言/ABI 不变。
+
+普通原样 probe 经实际 Basic 四阶段零诊断、SSA verifier 与 LLVM render 通过。run 的
+SSA 只有条件与两个终止块：两条件边各带 P；true 进入 body 后原 RootReplace 的 installed
+Q 直接作为该块 Return payload，detached P 在旧 AfterStatement(previous) Drop 后才
+Return；false 块直接 Return 自身 P 参数。没有 body→loop-exit、正常回边或公共 owner join；
+两个 Return 的 source span 独立。caller 原两次接收与各一次 Drop 未改变。
+当前 owner observation 仍 Unsupported，没有 loop/replace-break 产品；编译绿不是新能力绿。
+
+受限候选仅一个 Boolean 参数、一个 String 根、一次 Replace 后立即 owned Return；不含
+Break/Continue、额外分支/后继、alias、borrow/capture 或一般循环归纳。
+最小工程方案须先复用真实 P→Q producer/Replace 前缀，再由实际 Return payload evaluation
+保存 Q delivery，旧 cleanup 完成、body 实际返回 false 后核终止回执；condition-false P
+另在其真实尾句 Return 闭合。Return 不能冒充 Break，也不能把不存在的 Q 加入 exit incoming。
+公共 endpoint 表示及封印仍待该实证检查点审议；不新开按组合命名的平行 getter，不修改旧
+closed-body“全部 Dropped”validator 来接受已返回的 Q，不从清理事实倒造 producer。
+
+原始 SOURCE、测试字节、运行前 binary SHA、默认debug2/opt0 artifact与完整facts/SSA日志保留在
+`/private/tmp/koven-loop-owned-return-evidence`。本阶段未跑 native、未做能力红绿，CI-only仅编译。

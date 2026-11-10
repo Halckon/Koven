@@ -21,6 +21,8 @@ mod owner_alias_return_tests;
 mod owner_boolean_comparison_tests;
 #[path = "owner_group_condition_tests.rs"]
 mod owner_group_condition_tests;
+#[path = "owner_loop_return_tests.rs"]
+mod owner_loop_return_tests;
 #[path = "owner_negated_condition_tests.rs"]
 mod owner_negated_condition_tests;
 #[path = "owner_own_call_tests.rs"]
