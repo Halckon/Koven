@@ -157,17 +157,36 @@ impl ReplaceBreakInput {
         elements: &[StatementId],
         parameters: &BTreeSet<UnitSymbolId>,
     ) -> Option<Self> {
-        let [prefix, statement, suffix] = elements else {
-            return None;
+        let (prefix, statement, suffix, binding) = match elements {
+            [prefix, statement, suffix] => (prefix, statement, suffix, None),
+            [prefix, statement, binding, suffix] => (prefix, statement, suffix, Some(binding)),
+            _ => return None,
         };
         if parameters.len() != 1 {
             return None;
         }
         let ast = checker.parsed.ast();
         let (root, initial) = variable(checker, *prefix, VariableKind::Var)?;
-        let consumer_target = if let Some((retired, used)) =
-            variable(checker, *suffix, VariableKind::Val)
-        {
+        let consumer_target = if let Some(binding) = binding {
+            let (symbol, initializer) = variable(checker, *binding, VariableKind::Val)?;
+            let node = ast.expressions().get(initializer).ok()?;
+            if symbol == root
+                || !matches!(node.payload(), Expression::Name)
+                || checker.reference_symbol(node.span()) != Some(root)
+            {
+                return None;
+            }
+            let mut target =
+                super::super::replace_return_consumer::admit(checker, *suffix, symbol)?;
+            target.binding = Some((
+                checker.unit_expression(initializer),
+                UnitStatementId::new(checker.source_unit, *binding),
+                symbol,
+            ));
+            crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Return(
+                target,
+            )
+        } else if let Some((retired, used)) = variable(checker, *suffix, VariableKind::Val) {
             let used_node = ast.expressions().get(used).ok()?;
             if root == retired
                 || !matches!(used_node.payload(), Expression::Name)

@@ -48,6 +48,7 @@ pub(super) fn admit(
         expression: checker.unit_expression(*expression),
         payload: checker.unit_expression(*payload),
         statement: UnitStatementId::new(checker.source_unit, statement),
+        binding: None,
     })
 }
 
@@ -56,6 +57,7 @@ pub(in super::super) struct ReturnConsumerCarrier {
     incoming: [OwnedValue; 2],
     target: ReturnConsumerTarget,
     actions: Vec<Action>,
+    bound: Option<OwnedValue>,
 }
 impl ReturnConsumerCarrier {
     pub(super) fn handoff(
@@ -74,6 +76,7 @@ impl ReturnConsumerCarrier {
             incoming: [condition.clone(), body],
             target,
             actions: Vec::new(),
+            bound: None,
         })
     }
     pub(super) fn take(
@@ -81,14 +84,49 @@ impl ReturnConsumerCarrier {
         expression: UnitExpressionId,
         actual: Option<&OwnedValue>,
     ) -> Option<Self> {
-        if expression != self.target.payload
-            || actual != Some(&self.incoming[0])
-            || !self.actions.is_empty()
+        if let Some((initializer, _, symbol)) = self.target.binding
+            && expression == self.target.payload
+        {
+            if self.bound.as_ref() != actual
+                || actual.is_none()
+                || self.actions
+                    != [
+                        Action::Take(initializer, self.incoming[0].symbol),
+                        Action::Bind(initializer, symbol),
+                    ]
+            {
+                return None;
+            }
+            self.actions.push(Action::Take(expression, symbol));
+        } else {
+            let initial = self.target.binding.map_or(self.target.payload, |b| b.0);
+            if expression != initial
+                || actual != Some(&self.incoming[0])
+                || !self.actions.is_empty()
+                || self.bound.is_some()
+            {
+                return None;
+            }
+            self.actions
+                .push(Action::Take(expression, self.incoming[0].symbol));
+        }
+        Some(self)
+    }
+    pub(super) fn bind(
+        mut self,
+        expression: UnitExpressionId,
+        actual: &OwnedValue,
+    ) -> Option<Self> {
+        let (initializer, _, symbol) = self.target.binding?;
+        if expression != initializer
+            || actual.symbol != symbol
+            || self.bound.is_some()
+            || self.actions != [Action::Take(initializer, self.incoming[0].symbol)]
         {
             return None;
         }
-        self.actions
-            .push(Action::Take(expression, self.incoming[0].symbol));
+        self.actions.push(Action::Bind(initializer, symbol));
+        self.bound = Some(actual.clone());
         Some(self)
     }
     fn deliver(
@@ -98,8 +136,20 @@ impl ReturnConsumerCarrier {
         owner: Option<&UnitOwnerId>,
         state: &ValueState,
     ) -> Option<UnitOwnerReplaceBreakReturnConsumerV1> {
+        let expected = if let Some((initializer, _, symbol)) = self.target.binding {
+            if self.bound.is_none() || state.position(symbol).is_some() {
+                return None;
+            }
+            vec![
+                Action::Take(initializer, self.incoming[0].symbol),
+                Action::Bind(initializer, symbol),
+                Action::Take(payload, symbol),
+            ]
+        } else {
+            vec![Action::Take(payload, self.incoming[0].symbol)]
+        };
         if expression != self.target.expression || payload != self.target.payload
-            || self.actions != [Action::Take(payload, self.incoming[0].symbol)]
+            || self.actions != expected
             // Unsupported legacy observation clears its scalar result, never the path carrier.
             || owner.is_some() || state.position(self.incoming[0].symbol).is_some()
             || state.replace_consumer.is_some()

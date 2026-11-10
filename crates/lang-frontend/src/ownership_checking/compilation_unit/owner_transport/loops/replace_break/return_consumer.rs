@@ -6,6 +6,8 @@ use super::*;
 pub enum UnitOwnerReplaceBreakReturnActionV1 {
     /// The exact Name takes the selected incoming value once.
     Take(UnitExpressionId, UnitSymbolId),
+    /// The actual post-insert immutable binding carries the same selected owner.
+    Bind(UnitExpressionId, UnitSymbolId),
     /// The evaluated payload is delivered before the existing Return cleanup.
     Return {
         /// The actual explicit Return expression.
@@ -20,6 +22,8 @@ pub(in crate::ownership_checking::compilation_unit) struct ReturnConsumerTarget 
     pub(in crate::ownership_checking::compilation_unit) expression: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) payload: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) binding:
+        Option<(UnitExpressionId, UnitStatementId, UnitSymbolId)>,
 }
 
 /// Complete P/Q selection delivered by the function's unique owned String Return.
@@ -36,7 +40,7 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
     pub fn incoming(&self) -> &[UnitOwnerReplaceBreakStateV1; 2] {
         &self.incoming
     }
-    /// Actual Take then payload delivery, with no caller Drop.
+    /// Actual Takes and optional binding before payload delivery, with no caller Drop.
     pub fn actions(&self) -> &[UnitOwnerReplaceBreakReturnActionV1] {
         &self.actions
     }
@@ -54,6 +58,43 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
             return false;
         };
         let source = boundary.statement.source_unit();
+        let mut expected = if let Some((initializer, statement, symbol)) = target.binding {
+            if initializer.source_unit() != source
+                || statement.source_unit() != source
+                || symbol.source_unit() != source
+                || symbol == boundary.entry.symbol
+                || initializer == self.payload()
+                || statement == target.statement
+                || [
+                    boundary.condition,
+                    boundary.jump,
+                    boundary.call,
+                    boundary.initial,
+                    boundary.argument,
+                    self.return_expression(),
+                ]
+                .contains(&initializer)
+                || [
+                    boundary.statement,
+                    boundary.body,
+                    boundary.previous_statement,
+                ]
+                .contains(&statement)
+            {
+                return false;
+            }
+            vec![
+                A::Take(initializer, boundary.entry.symbol),
+                A::Bind(initializer, symbol),
+                A::Take(self.payload(), symbol),
+            ]
+        } else {
+            vec![A::Take(self.payload(), boundary.entry.symbol)]
+        };
+        expected.push(A::Return {
+            expression: self.return_expression(),
+            payload: self.payload(),
+        });
         self.target == *target
             && self.incoming
                 == [
@@ -86,13 +127,6 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
                 boundary.previous_statement,
             ]
             .contains(&target.statement)
-            && self.actions
-                == [
-                    A::Take(self.payload(), boundary.entry.symbol),
-                    A::Return {
-                        expression: self.return_expression(),
-                        payload: self.payload(),
-                    },
-                ]
+            && self.actions == expected
     }
 }

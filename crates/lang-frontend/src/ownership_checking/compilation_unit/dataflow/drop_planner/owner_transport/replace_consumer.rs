@@ -164,7 +164,8 @@ impl ReplaceConsumerCarrier {
     fn bind(self, expression: UnitExpressionId, actual: &OwnedValue) -> Option<Self> {
         match self {
             Self::Bind(value) => value.bind(expression, actual).map(Self::Bind),
-            Self::Call(_) | Self::Return(_) => None,
+            Self::Return(value) => value.bind(expression, actual).map(Self::Return),
+            Self::Call(_) => None,
         }
     }
     fn drop(
