@@ -735,3 +735,6 @@ mod multi_temporary;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "named_literal_mapping_tests.rs"]
 mod named_literal_mapping;
+
+#[path = "finite_literal_tests.rs"]
+mod finite_literal;

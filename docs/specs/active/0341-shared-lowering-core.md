@@ -11033,3 +11033,23 @@ selection `09db3871261b3bd8b3de495e337f1f908d7ddfdd865457b07dd715e632b9668f`。
 原artifact/51日志/runner、默认三CLI[]和全部静态终态均一致；审阅者未执行测试或编辑。
 终审后仅补Spec，docs/diff复核后本地提交，不重编Rust。owner target已释放，未push/PR/
 发布；正式双宿主CI、资源证明与独立Bag行为对照仍不在本批范围，旧oracle不退休。
+
+### P1 非零有限 literal arity 实施合同（2026-11-10）
+
+在233736f8上扩展既有单call Vec计划，解除恰一/二literal限制，接受非零有限N，
+不新增协议或人为arity上限。其余完整subset、无参非泛型Unit caller、单普通Declaration
+Borrow String调用、raw Text-only literal、Int/Unit结果边界不变。typed映射独立于
+observer/Complete1触发路由；参数槽必须是完整置换。源码序形成Literal/Root/Begin，
+唯一Call按参数序，End和Drop分别沿原producer源码逆序，不重排或重复cleanup。
+
+同轮Complete1的3N动作可选核验；Complete-empty、Partial、Unsupported和真off不造
+receipt或absence。计划保留N个独立临时身份，即使bytes相同也不能合并。阶段长度
+5N+1和3N实体/动作索引以checked预算验证；内部不可表示返回结构化错误，不由receipt
+状态增加语言拒绝。现有逐operand身份扫描有二次复杂度，不宣称线性或无限资源，
+不运行大arity、压力或资源计数样例。
+
+先原样三literal合法源码真实route红到绿，阶段一receipt暂保旧一/二域；再单独
+执行缺production receipt红到绿，不用一次红代表两项能力。普通验收仅固定3/4参数
+样例，覆盖不同/相同bytes、非平凡命名置换、Int/Unit与双Unit真off；每项重新审
+source/helper。foreign、注入、Abort、counter、pressure、CI-only只编译。
+所有生产动作仍来自旧producer，不改语言/ABI/释放责任，不扩其它协议或退休oracle。
