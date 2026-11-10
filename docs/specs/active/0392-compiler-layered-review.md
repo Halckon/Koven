@@ -5090,3 +5090,23 @@ break、continue 或 `error("construction-stop")`。单文件及项目
 两提交的 crate 差异只涉及消费者测试。本节证据限这 12 组
 直接循环退出、两组所有权负控及本机环境。更广的循环、资源
 故障和双宿主动态矩阵仍按 R3/R4 门槛验收。
+
+## 209. R5 本机 conformance 与已合入双宿主基线对照
+
+在 macOS arm64 用 §208 所述 CLI 和 `conformance/baseline-aef3f4f8.tsv`
+执行完整语料回归门禁，证据标记 `7c18d202`。154 个 probe 中 137 个
+达到预期，分别为 121 个原生运行、13 个诊断和 3 个 Abort。
+六个 v1 验收程序均属已登记未实现。23 项已知未实现包含这六个
+程序，内部错误、入口差异、回归、意外通过、未审阅和错误输出
+均为零。P2 基础 A 组 58/74，目标至少 70 项。
+
+独立下载 [#406 实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42727705752)
+上合成提交 `dbb1c85a` 的 Linux 和 macOS conformance 证据。
+三份产物分别通过 `--verify-evidence`，两份托管产物另通过
+`--compare-evidence` 的同提交双宿主验证。三份 `matrix.tsv`
+逐字节相同，覆盖 160 个用例的单文件和项目结果记号，SHA-256 为
+`c774542544b88775c12e95b9e8437362cbaa72d450257785e368303cb27579e6`。
+
+本机与托管基线的对照范围是结果矩阵，各自产物的原始记录单独
+验证。该次覆盖用于确认候选变化未改变语料分类。R5 的同一冻结
+候选、sanitizer 以及完整验收程序仍需单独收口。
