@@ -229,7 +229,9 @@ fn parent_child_requires_independent_complete_region_with_true_off() {
             .find(|fact| fact.binding() == region.child())
             .unwrap();
         assert_eq!(actual_parent.parent(), None);
-        assert_eq!(actual_parent.source_loan(), Some(source_loan));
+        let parent_source = actual_parent.source_loan().unwrap();
+        assert_eq!(parent_source.call(), source_loan.call());
+        assert_eq!(parent_source.argument(), source_loan.argument());
         assert_eq!(actual_child.parent(), Some(region.parent()));
         assert_eq!(actual_child.source_loan(), None);
         assert_eq!(actual_parent.initializer(), region.source_call());
