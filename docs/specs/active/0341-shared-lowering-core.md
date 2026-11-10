@@ -10265,3 +10265,74 @@ RootPlace/Begin/DirectCall/End/原 NamedDrop 指令与 catalog 身份；独立�
 沿用唯一 producer，不改变语言/ABI，不退休旧 oracle；off、Partial、Unsupported、缺席维持旧路径。
 真实双 Unit 与 off 重分析、P2/P4/owner 邻控采用逐源审定 ordinary exact；所有 CI-only 破损仅编译。
 本地保持 debug2、既定独占 target，不运行全量/native，不发布。验收结果后补，不由设计宣称通过。
+
+### P3 两阶段本地验收账本
+
+隔离树 `koven-named-loan-production-receipt-20261110`，分支
+`feature/spec-0341-named-loan-production-receipt`；基线 `9de0bc94d3a8854350c1c5e18cd1053ad51bbadb`。
+先只读确认原样普通 P3 走 Compatibility，因此未用 nullable anchor 冒充原样能力。
+在本轮持续开发授权下明确增加精确 caller route，再独立接 receipt；无新语言/ABI决定。
+Spec/route 红测 `4746a2d3`，路由实现 `b667a84d`，receipt 红测 `9174390f`，
+生产与普通/CI-only测试代码冻结 `21f945bd03717ef99cb05bfafd58d95d25c2e1ae`。
+
+| 阶段 | 实际结果 |
+|---|---|
+| route 红 | no-run 1m37s；原样 Complete3 分析、实际 lowering、SSA verifier、LLVM 成功后，routing=[] 与 [koven.run.d1] 不符；0 passed/1 failed/2856 filtered |
+| route 绿 | no-run 26.42s；同 exact 1 passed/0 failed/2856 filtered，精确只迁 caller，不迁 callee；独立提交后才开始下一阶段 |
+| receipt 红 | no-run 38.06s；实际 refine/SSA/LLVM 成功后，空观察 stub 返回 0 而期望 1；0 passed/1 failed/2857 filtered，不把 route 红重复算作 receipt 红 |
+| 首次实现构建 | build1 因 helper 缺 LoanKind 导入、named predicate 可见性及两处引用层级共5编译错误失败；修正并移除旧 unused import，不是能力红测 |
+| 初步 receipt 绿 | build2 1m22s；两个新能力 exact 各1 passed/0 failed/2857 filtered |
+| 普通回归补齐 | 新 sibling 首次 fmt 因闭括号缺失失败，修复后 build3 30.66s；最终7个唯一 ordinary exact 各1 passed/0 failed/0 ignored/2864 filtered |
+| 静态检查 | feature-enabled codegen all-targets 严格 Clippy 首次33.15s通过；fmt、diff、docs882通过；尺寸 --base 9de0bc94 通过，2325手写Rust、35历史超千行，无提高例外额度 |
+
+生产 identity 闭合在独立 `named_receipt`；同 catalog 完整 Begin/EndCallLoan/Drop、
+唯一原 loan/end/drop、argument contract 与 caller/callee 实例均核验。原 ordinary Borrow
+producer 仅机械移到 `build/named_argument.rs`，保 adapt→RootPlace→Begin 顺序；
+P2/P4 的生产实现模块不变。共用 statement tag 新增 Named 判别，跨家族冲突拒绝；
+所有 loan finish/drop hook 在 `build/statements.rs` 依原顺序调用，owner授权顺序不改。
+近限文件 subset996/build988/emit992/expression988；原expression1003降至988，
+不通过压行或新增额度规避尺寸合同。
+
+最终选择的5个新增 ordinary（前缀 `ssa::loan_region_ssa_tests::`）：
+- `named_route::named_borrow_caller_uses_refine_without_migrating_callee`
+- `named_route::named_borrow_requires_real_production_receipt`
+- `named_route::neighboring_named_shapes_preserve_legacy_routes_without_receipts`
+- `named_receipts::named_int_and_unit_receipts_preserve_real_observer_off_products`
+- `named_siblings::named_receiver_consumer_and_all_owner_siblings_keep_receipts_separate`
+
+另重新逐源/helper审阅并执行同前缀 `certified_consumer_region_has_real_unit_ssa_lifecycle`
+与 `certified_receiver_region_has_real_unit_ssa_lifecycle`，保留原精确生命周期oracle。
+七项只调用普通 parsing/analysis、真实 lowering、SSA verifier、LLVM rendering 和只读
+receipt observer；无 native、计数、故障开关、foreign-ID 查询或改写分析产品。
+同analysis sibling直接包含P2/P3/P4/B/Call/Return来源，不复用旧owner测试白名单。
+Int/Unit各在Basic rooted/memory两入口真实重analyze off，原off产物直接lower；旧facts
+比较仅副本归一，SSA/LLVM逐字比较。入口/返回型/on-off分支不另累计测试个数。
+四个邻形为Borrow根、两次调用、Boolean结果、额外Boolean参数，保旧路由且无P3 receipt。
+泛型、投影/临时值、控制等排除保持静态守门，不宣称已逐例执行。
+
+构建命令固定 `cargo test --locked --offline -p lang-codegen --features loan-observation-test-support --lib --no-run --message-format=json -vv -j 2`；
+严格命令 `cargo clippy --locked --offline -p lang-codegen --features loan-observation-test-support --all-targets -j 2 -- -W clippy::all -D warnings`。
+全部 Cargo 串行使用 `/private/tmp/koven-exclusive-loop-prefix-target` 与
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`（实际21.1.8）；未设DEV_DEBUG、TEST_DEBUG、
+RUSTFLAGS或ENCODED。最终JSON确认当前隔离树lang_codegen test artifact、opt0/debug2、
+feature仅loan-observation-test-support且build-finished=true；先按实际binary --exact --list核名再运行。
+
+最终binary `lang_codegen-2ac0a1105ce1786c` SHA256：
+`8ad7a6e1f69aa29af930d08af8f85da1294396a97144beff2846baf0420e340b`；
+七项selection SHA256：`66c84329128670792083921718811121ce1265f2b36eeb6b48373a8c69e823a4`。
+临时证据 `/private/tmp/koven-p3-final-{manifest.json,exact.log}` 与
+`/private/tmp/koven-p3-final-selection.txt`、`koven-p3-receipt-build3.{json,stderr}`，
+两红证据分别 `koven-p3-route-red-*`、`koven-p3-receipt-red-*`；原始输出不入库，
+这些临时文件不承诺长期保留，固定提交源码与本账本摘要为可重做依据。
+
+新增4项CI-only（foreign catalog、重复/缺阶段、重绑/错callee、foreign instruction）
+仅编译，未执行。没有继承旧含foreign查询的owner ordinary名单；本轮没有执行任何
+旧owner exact、全量、native/resource、Abort/panic/人工破损、release、Linux、Constant off，
+不宣称全借用覆盖/absence/旧oracle退休或发布验收。只做本地提交，不push/PR/合并；
+0401其它树构建未改动。本轮普通源没有新增语言拒绝。
+
+独立只读终审对精确代码头 `21f945bd` 无阻断：核路由 typed/own guard、同 catalog
+唯一 loan/end/drop 与 contract、原 Borrow producer 机械抽取、三族 tag 互斥、真实
+SSA 冻结身份和五角色、callee 独立及 shared owner 顺序；重新审阅普通 helper 无
+foreign 查询或故障注入。独审重算 binary/selection 哈希与七条日志、本树 debug2
+artifact 均一致；审阅者未编辑或执行测试。代码冻结后仅追加文档，不重跑无变化 Rust。
