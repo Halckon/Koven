@@ -10078,3 +10078,20 @@ docs880、diff及尺寸`--base a775568f`通过：2305手写Rust、36既有超千
 正式双宿主CI、所有CI-only负控/panic/Abort、sanitizer、压力/资源计数未本地执行；
 真实off仍限已测Basic输入，不外推新Call端到端off、常量capability或所有shape；
 P2无production receipt，不退休旧oracle，不关闭Spec/D10/E2。
+
+
+## 已批准的 protocol 2 receiver 生产核验（2026-11-10）
+
+用户同意将既有生产核验从 protocol 4 扩到已进入 refine 的受限 protocol 2 receiver。
+范围为前段已迁非泛型、显式 own 非 Resource class 参数根、零实参 Shared receiver、
+Int/Unit owned 结果及单一直线正常返回 caller，且同轮 catalog 发布 Complete2。
+不改 route，不以 Complete2 取代完整 subset。off/Partial/Unsupported/缺席保旧行为，
+不新增语言拒绝、不授 absence、不退休 oracle。P4、B/Call owner 证据保持独立。
+
+从真实 receiver producer 绑定 call、参数 owner Slot 和新 loan；稳定标记随 RStmt
+移动，实际 SSA append 处核 RootPlace→Begin→DirectCall→End→原 NamedDrop 身份与
+顺序，每个选中实例必须唯一闭合。callee entry loan 与 caller loan 各自局部，不强套
+P4 source/result 角色、不回放手写五指令、不按 Span 事后补配；旧 producer 唯一发动作。
+先执行原样合法 P2 缺 receipt 红测，再最小生产实现及 Basic 双 Unit 真 on/off、
+边界、P4/B/Call 邻控。新增破损守卫仅 CI 编译、本机不执行；独占 borrow target、
+默认 debug2、有限普通 exact，不跑全量/native/资源计数、不 push。

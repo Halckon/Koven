@@ -497,18 +497,26 @@ fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
         assert_eq!(owner_symbol.name(), "node");
         assert_eq!(owner_symbol.span(), drop.value_origin());
         assert_span(method.span(), source, (17, 22));
-        let (lowered, routed) = super::refine::observe_routing(|| {
-            super::unit_lower::lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                &owned,
-                run.id(),
-            )
-        });
+        let ((lowered, routed), receiver_receipts) =
+            super::refine::receiver_receipt::observe(|| {
+                super::refine::observe_routing(|| {
+                    super::unit_lower::lower_scalar_unit_with_entry(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        &owned,
+                        run.id(),
+                    )
+                })
+            });
         let (program, entry) = lowered.unwrap();
+        assert_eq!(
+            receiver_receipts.len(),
+            1,
+            "Complete2 requires a production receipt"
+        );
         // The bounded caller migrates independently of its ordinary method callee.
         let caller = program.modules[0].function(entry).unwrap();
         assert_eq!(routed.as_slice(), std::slice::from_ref(&caller.name));
