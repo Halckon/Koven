@@ -11249,3 +11249,16 @@ refine依真实Alias前/后回调核selected槽到alias槽，旧finish_return唯
 额外使用、分支或一般循环。先普通原样缺receipt红，再双Unit SSA/LLVM/native同源绿。
 foreign、注入、Abort、计数及压力负控仅编译。当前仅静态准备，owner target由合流门禁
 占用，未调用Cargo/native；本合同不声明实现或验证完成，不push/PR。
+
+
+准备头d28cf60e的原样FE exact实际失败（receipt0应1，613filtered），raw保留red.log。
+前端真实carrier实现58f784ab同源绿；该头fresh codegen exact随后以MissingFact失败
+（2894filtered），证明旧两动作授权未接新产品，而不是仅补观察就宣称下游完成。
+后端保原root槽与真实Alias槽，依post-insert/第二次take构成独立阶段，Return必须交付alias槽；
+现已同源codegen绿。新增普通FE四动作及单P/单Q定义核验、六个合法未覆盖suffix邻控，
+Basic/Const两次SSA/LLVM及两次正常native已通过；native输出outer/next，不作释放计数证明。
+旧一跳alias拒绝项迁为两跳，完整旧含continue的边界测试未本地执行；新有限邻控独立覆盖。
+原merge规则、B/Call和唯一finish_return不变。五类CI-only重取/重绑/Return破损仅编译。
+尺寸门禁相对680215d3通过，2350手写Rust、35旧超千行；无新增超限或policy额度变化。
+实现/测试未改main、680215d3冻结树或借用树；更全面回归、静态门禁与独立精确头审查待记。
+证据保留于`/private/tmp/koven-owner-alias-return-evidence`，不推送或认领D10/E2完成。

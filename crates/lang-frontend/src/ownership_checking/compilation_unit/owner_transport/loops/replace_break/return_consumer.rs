@@ -63,6 +63,7 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
                 || statement.source_unit() != source
                 || symbol.source_unit() != source
                 || symbol == boundary.entry.symbol
+                || symbol == boundary.previous
                 || initializer == self.payload()
                 || statement == target.statement
                 || [
