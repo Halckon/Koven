@@ -12,6 +12,7 @@ mod loop_route;
 use loop_route::LoopRoute;
 pub(super) use loop_route::accepts;
 mod map;
+mod named_route;
 mod range_borrow;
 mod rc;
 mod receiver;
@@ -231,7 +232,10 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.has_local_destructuring
             || checker.scope_requires_refine())
         && checker.drops_supported()
-        && (checker.nullable || checker.migrated || checker.bounded_receiver_route());
+        && (checker.nullable
+            || checker.migrated
+            || checker.bounded_receiver_route()
+            || checker.bounded_named_call().is_some());
     (accepted, signature && checker.loop_route_retry)
 }
 
