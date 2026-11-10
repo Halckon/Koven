@@ -5069,3 +5069,43 @@ Value、其前端类型精确匹配 Boolean 或整数的 nullable 内层，且
 Elvis 值经本机单文件和项目入口检查通过，构建均返回
 UnsupportedNode 且未发布文件。显式 if 对照两入口均原生运行，
 输出 `bypass` 和 `return`。Elvis native 能力继续按 Guide 15 分期。
+
+
+
+## 204. R2 Boolean flow 批次合入与 R4 合流
+
+[PR #406](https://github.com/Halckon/Koven/pull/406) 的 head `c76fbbfe`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42727705752)
+通过。双宿主严格 Check/Clippy、定向和最终门禁通过，两端日志
+均逐名确认六项新增回归。Editor lexical 按范围跳过，macOS
+既有 LLDB 用例因权限忽略。六份预览归档独立下载，两端各 12
+项消费命令、哨兵和清理通过，生产及消费清单与实算哈希一致。
+无未决审阅线程。
+
+基线 `144793e1`，合成 `dbb1c85a`，实际合入 `cc1e5b41`，
+合成和合入树均为 `aa23d91496ca0374fcbf65581304be99c12653a7`。
+[合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42732776388)
+已启动。[#405 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42727311444)
+已通过双宿主定向、预览、Editor lexical 和最终汇总，PR 专用
+Evidence 按范围跳过。
+
+§203 的 R4 代码与 `cc1e5b41` 合流，编译器源码及测试与
+`aaddfcae` 的本机验证树逐字一致。合流保留主干插入的 §197
+及追加的 §201–202，并保留两边原始记录。
+
+## 205. R0 借用结果的阶段拒绝消费者
+
+迁移 `borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa`
+到 strict MemoryDocument Unit。保留原 provider 和调用源码，直接
+核对 parse/names/types 零诊断、ownership 唯一 L0135，且主位置
+是 `consume(source)` 的实参字节。相同源码的公开单文件和项目
+均拒绝且只有 L0135，项目诊断另保原文件身份。
+
+独立复核确认本用例检查的是语义准入。旧 lowering 入口的 ownership
+拒绝由原专用负控覆盖。调用方 CFG 与块返回的 Legacy UnsupportedNode、
+全文件发射未选 Map wrapper 和 nullable factory 边界仍使用原
+辅助入口，属于各自的路径见证。
+
+本地 codegen 借用结果合同 12 项通过，2806 项过滤。frontend
+借用 continuation 和结果套件分别 14、12 项通过，无过滤。
+三组均零失败、忽略。
