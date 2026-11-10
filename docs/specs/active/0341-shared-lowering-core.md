@@ -11967,3 +11967,27 @@ status 偏差与 question_mark 风格失败、阶段2的 E0308 oracle 编译偏�
 均保留原父账本和日志，没有重跑红、补造哈希或用本轮最终产物覆盖历史证据限制。
 独立只读终审已逐项复核双父、冻结输入、实际 artifact/binary/九项日志与最终文档分账，无新增阻断；
 审阅者未执行项目测试。文档收尾不重跑未变 Rust，保留原代码头与最终文档头的区别。
+
+
+### 已批准：独立 parent-child Complete 区域的生产 receipt
+
+从冻结 `6f8eb32a` 新隔离分支实现，不改原发布头。消费范围仅当前 callable、同 catalog 的
+Complete child_regions，旧七记录 binding receipt 保持独立，source/callable 仍 Partial。
+Owner 实际形成只是 entry 前提；区域自 parent 声明前到正常根 body cleanup 后。
+九个真实 SSA 角色为 RootPlace、source Begin、BorrowCall parent、SharedReborrow child、
+consumer DirectCall、End child、End parent、End source、Drop 原 owner；五实体分别是
+owner/place/source/parent/child。完整函数仍十 SSA，不把前端 consumer Begin 伪造为第三 acquisition。
+
+准入核原十 action IDs、真实 dependency 七引用、两 binding/end 与 caller/两 callee 的 typed 合同。
+Parent 真实 initializer/source operand/commit 及 child 原 Name initializer 各自绑定实际 Slot；
+child 无 source_loan，created sources 为空，parent 恰一 source。普通 consumer 复用实际 child Slot，
+不依据 canonical root 或 Span 猜配。退休按真实 binding remove 对应 child→parent→source 三 End；
+Drop 仍原唯一 producer，核其唯一 index/Named root/owner，completion 必须在真实 body cleanup 后。
+独立 tag 随 RStmt 进入 append，冻结九 InstructionIds 与五 EntityIds，拒绝跨家族双认领或 alias 替换。
+缺 Complete/off/Partial 不激活新核验；不新增路由、语言、ABI、cleanup 权限或公共 owner endpoint。
+
+独立能力红先以原样 dual Unit/on-off 实际产品通过旧 Eq、十 SSA/LLVM、完整十动作、dependency、
+独立 Complete 及公开边界身份，再断生产 receipt on=1/off=0。初始 stub 只返回空观察列表；
+若首 Rooted 即缺 receipt，红只记录已完成该布局前置，不称第二布局已跑。红原 artifact/source/binary
+须在 green 重建覆盖前独立实读核验。实现后原选择转绿并补九角色/五实体精确 oracle，普通小集合
+逐 helper fresh 审查；所有 foreign/fault/Abort/counter/压力/CI-only 仅编译，绝不本地运行。
