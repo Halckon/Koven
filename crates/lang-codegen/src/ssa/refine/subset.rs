@@ -15,6 +15,7 @@ mod map;
 mod range_borrow;
 mod rc;
 mod receiver;
+mod receiver_route;
 mod scalar_text;
 mod tagged;
 mod value;
@@ -230,7 +231,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.has_local_destructuring
             || checker.scope_requires_refine())
         && checker.drops_supported()
-        && (checker.nullable || checker.migrated);
+        && (checker.nullable || checker.migrated || checker.bounded_receiver_route());
     (accepted, signature && checker.loop_route_retry)
 }
 
