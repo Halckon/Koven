@@ -66,7 +66,7 @@ Guide 留白，应暂停相应部分并另行决策，不能由草案补写语�
 | `feature/spec-0341-concat-result-loan` | `bb2767ddc1d1f9b27a050718e1ead1530ffac093` | concat temporary 结束候选，复用 |
 | `feature/spec-0341-rc-share-result-loan` | `2b3929e3aa660c8c851959fb4a81e6a53790a8dd` | Rc.share 返回值借用结束候选，复用 |
 | `feature/spec-0341-exclusive-borrow-auxiliary` | `3ac51b741e511184a4f099d790567ca40db6ca62` | 已为 main 祖先，不能再次当未开发工作 |
-| `feature/spec-0341-exclusive-parameter-prefix` | `3fe1920a6735b71f5a330ea8a8549371615fce88` | 名称存在但 HEAD 仅 main；不按分支名虚报实现 |
+| `feature/spec-0341-exclusive-parameter-prefix` | `d6a213338907a069151ede584d4d7defdad51072` | Inout 参数 Exclusive 退出前缀已本地提交；复用，不重复开发，尚未合入 main |
 | `feature/spec-0341-invariant-join-suffix` | `216dc17484f611dbabce221a1936e8dffae5e49a` | §170：8 个已跟踪文件未提交，独立脏树，只读保全 |
 | `feature/spec-0341-parent-binding-receiver` | `44500fbf52a676d0c018d819fb7589a17c4ac008` | 8 个已跟踪文件未提交，独立脏树，只读保全 |
 
@@ -100,3 +100,21 @@ Guide 留白，应暂停相应部分并另行决策，不能由草案补写语�
 本次实际文档验收：`python3 scripts/check_docs.py` 通过（876 Markdown），`git diff --check`
 通过。独立复审发现的 capture 顺序、callee 求值和内部槽交接表述已修正，并保留阶段映射
 待核点。未运行 Rust、故障注入、native 或新官方 CI；文档通过不等于协议已实现或被接受。
+
+## 后续核对（2026-11-10）
+
+用户已同意按推荐方向先推进、后续 review：优先并行推进 0038 选项 B 的有界真实
+P/Q 共同 consumer 与 0040 的普通借用完整生命周期，随后推进动态 capture。本条记录
+工作方向，不替代 ADR 状态迁移及精确首片 Spec；当前 proposed 文件仍须在实施前
+按已批准范围同步接受依据、库存与依赖，不把后续一般 phi 或所有 native ABI 一并启用。
+
+再次只读核对上述 Exclusive 参数分支：工作树干净，实际实现提交为表中 d6a21333，
+不是仅有分支名。其 Spec 记录 339 个去重普通行为测试、Clippy、workspace check、
+fmt、docs、size 与 diff 通过；本次只读取提交证据，未重跑这些验收，也不称 native、
+Linux 或完整行为套件通过。该头与 owner ef5ded79 均非 main 3fe1920a 的祖先，
+应进入后续统一合批评估，不重复实现或视作已发布。
+
+安全下一步是复用 0037 的实际双出口并建立有 incoming 关联的真实 consumer 交接，
+同时从现有 direct/result/receiver 动作源核清统一顺序及覆盖；不能用旧 condition state
+的 P 读取冒充 Q 消费，也不能拼接现有空表冒充完整 absence。原 §170 与
+parent-binding receiver 脏树继续保留，未改写、重置或覆盖。
