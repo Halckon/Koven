@@ -11033,3 +11033,13 @@ selection `09db3871261b3bd8b3de495e337f1f908d7ddfdd865457b07dd715e632b9668f`。
 原artifact/51日志/runner、默认三CLI[]和全部静态终态均一致；审阅者未执行测试或编辑。
 终审后仅补Spec，docs/diff复核后本地提交，不重编Rust。owner target已释放，未push/PR/
 发布；正式双宿主CI、资源证明与独立Bag行为对照仍不在本批范围，旧oracle不退休。
+
+### 同参数短路叶 Not 实施合同
+
+从233736f8隔离继续既定Boolean语义：P/Q条件保持单层`&&`/`||`，两叶允许
+Group/Not链到同一唯一Boolean参数，整体Group/Not仍可用。每层exact Boolean、
+ordinary outcomes及非constant守卫不变；不放比较叶、嵌套logical、多参数、调用、一般loop
+或Resource。不改语言、ABI、原merge清carrier、严格两owner出口或唯一物理emitter。
+先以真实普通源码通过旧SSA/LLVM后缺Return receipt作红测，再实现最小准入门；
+Basic/Const验证实际沿途P、出口P/Q、caller清理及正常native真值表。所有foreign、fault、
+Abort、计数和压力仅编译，不执行；本片仅本地提交，不发布。
