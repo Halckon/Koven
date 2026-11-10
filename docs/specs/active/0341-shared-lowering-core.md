@@ -10447,3 +10447,17 @@ docs882与diff通过。尺寸以main `a775568f`为基底，2327手写Rust、35�
 未调整profile/预算或清理target。全部Cargo复用既有owner target并串行；四项
 DEV/TEST_DEBUG、RUSTFLAGS/ENCODED覆盖均未设置。保持active与Partial边界，未push、
 新建PR或合main；本地结果不代替下一精确发布头的正式CI。
+
+### P/Q 条件纯 Group/Not 链实施合同（2026-11-10）
+
+基于合流冻结`1744661e`，按持续并行本地开发授权，补既有Boolean取反语义的受限P/Q
+运输。原唯一Boolean参数Name外只允许Group/Not链，保每层精确Boolean和原实际最外层
+condition身份。产品false出口仍对应完整条件求值false时的P，Break仍对应实际进入body
+完成Replace后的Q；不按参数真假或Not奇偶交换catalog，不改语言/ABI或旧emitter。
+原唯一B/Call/Return suffix、一次Replace后bare Break、原清理/瞬时Inout不变；不扩
+短路、调用、一般循环、多根、Resource、任意suffix或未定语言设计。
+
+状态in-progress：先普通实际Return receipt红测，再最小生产接线；Basic/Const、奇偶
+取反两边SSA/LLVM/native及重新逐helper审定邻控。旧污染白名单不继承，foreign查询、
+损坏/故障、Abort、计数、压力只编译。精确源码hash、固定头独审、静态门禁与本地分步
+提交后交付；不推送、不触发远端CI，不绕过真实工具审批。
