@@ -386,3 +386,100 @@ fn ci_only_bounded_replace_break_rejects_replayed_actions_and_corrupt_receipts()
         );
     }
 }
+
+#[test]
+fn bounded_replace_break_same_analysis_callables_keep_products_and_receipts_local() {
+    use lang_frontend::ownership_checking::{
+        UnitDropTarget, UnitOwnerReplaceBreakConsumerActionV1 as A,
+    };
+    let run = SOURCE.split("\nfun entry").next().unwrap();
+    let text = format!(
+        "{run}\n{}\nfun entry(): Unit {{ run(false); other(true); run(true); other(false); println(\"done\") }}",
+        run.replace("fun run(", "fun other(")
+    );
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                text.replace("(true)", "(ON)")
+            )
+        } else {
+            text.clone()
+        };
+        let source = UnitSource::analyze("two-b-callables.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        let owned = match &source.products {
+            OwnedProducts::Basic(_, owned) => owned.ownership(),
+            OwnedProducts::Constant(_, owned) => owned.ownership(),
+        };
+        let boundaries = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.replace_break_observation_v1())
+            .collect::<Vec<_>>();
+        assert_eq!(boundaries.len(), 2);
+        for (i, boundary) in boundaries.iter().enumerate() {
+            let other = boundaries[1 - i];
+            let p = boundary.condition_false_exit().owner();
+            let q = boundary.break_boundary().owner();
+            assert!(boundary.input_producers().definition(p.clone()).is_some());
+            assert!(boundary.body_producers().definition(q.clone()).is_some());
+            assert_ne!(p, other.condition_false_exit().owner());
+            assert_ne!(q, other.break_boundary().owner());
+        }
+        let (result, drops) =
+            crate::ssa::observe_owner_drops(|| source.lower_entry(source.entry()));
+        let (program, entry) = result.unwrap();
+        verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let authorized = drops.iter().filter(|d| d.3.is_some()).collect::<Vec<_>>();
+        assert_eq!(
+            authorized.len(),
+            2,
+            "one receipt per callable, not per call site"
+        );
+        let mut indices = Vec::new();
+        for boundary in boundaries {
+            let A::Drop(point, retired) = boundary.suffix_consumer_v1().unwrap().actions()[2]
+            else {
+                panic!("Drop action")
+            };
+            let index = owned
+                .drops()
+                .iter()
+                .position(|d| d.point() == point && d.target() == UnitDropTarget::Named(retired))
+                .unwrap();
+            let matches = authorized
+                .iter()
+                .filter(|d| d.0 == UnitDropTarget::Named(retired) && d.1 == index)
+                .collect::<Vec<_>>();
+            assert_eq!(matches.len(), 1);
+            let event = matches[0];
+            let (selected, bound, receipt_index) = event.3.unwrap();
+            assert_ne!(selected, bound);
+            assert_eq!((bound, receipt_index), (event.2, index));
+            indices.push(index);
+        }
+        assert_ne!(indices[0], indices[1]);
+        let functions = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .filter(|f| {
+                source
+                    .sources
+                    .slice(f.origin.span())
+                    .is_ok_and(|s| s.starts_with("fun run(") || s.starts_with("fun other("))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(functions.len(), 2);
+        for function in functions {
+            assert_selected_owner(&source, function);
+        }
+        super::assert_native_output(&source, b"done\n");
+    }
+}
