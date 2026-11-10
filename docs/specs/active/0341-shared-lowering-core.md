@@ -10265,3 +10265,43 @@ sanitizer、资源计数/压力及全部CI-only仍待新头正式验证，不沿
 状态in-progress：先以合法有限源码证明实际生产receipt缺失，再实现最小接线；覆盖
 Basic/Const、两边SSA/LLVM/native和旧能力邻控。CI-only仅编译，不本地执行；所有
 静态门禁、精确头独审及分步本地提交后交付，不推送、不触发远端CI、不改既有发布头。
+
+### Group 条件实施、选择纠偏与验收（2026-11-10）
+
+合同`2e9120da`，backend普通真实红`2fa5ebcb`，frontend测试`86e19477`，实现固定
+`18599f8c`。红源码是正常有限的嵌套Group条件，旧SSA/LLVM已经成功、真实Return的
+payload为Some(2)，但授权为None；同exact据此失败。新增产品不从AST补造P/Q，唯一
+生产行为差异是Group链Name终点门，完整外层condition仍由旧Boolean helper核类型和
+真实两分支，旧实际遍历、catalog、false/Break边与B/Call/Return emitter不变。
+
+新增前端4普通覆盖1/2/4层Group、三种消费者、实际外层ID、原P/Q目录归属、旧Analysis
+on/off对照及Not混合邻形；新增后端3普通覆盖真实receipt、Basic/Const两Unit实际入边
+和Return payload/Drop、普通native输出outer/next。旧Group排除项迁为Group-Not或Not。
+没有更改Guide、ABI、通用Boolean helper、旧清理或任何资源策略。
+
+本轮发现并纠正旧名单的安全分类错误，不能把已发生的执行写成未执行：复用旧名单的
+144项frontend批已执行完成，其中loop_replace_break模块的
+`actual_replace_break_preserves_distinct_exit_owners`与
+`replace_break_keeps_actual_source_and_analysis_identities`调用含foreign catalog查询
+的旧helper。原16项backend批在终止前已有15项完成，其中
+`bounded_replace_break_dual_units_same_literal_and_reanalysis_keep_receipts_local`
+也含此查询。最后一项旧Return native被终止，不能声称整批通过；原日志全部保留。
+这些是当时已定位的至少三项，不是完整误分类数；完整受影响范围由专项审计补充。
+旧批整体不纳入本片纯普通验收，后续不复跑未重新审定项。public iteration的
+`loop_replace_break_unit::replace_break_matches_both_public_input_routes`亦含原有foreign
+查询，在本片执行前排除，只编译。以上查询均早于本片，未修改事实来掩盖旧分类失误。
+
+重新独立逐helper复审的闭合集合仅16项：新Group前端4项、后端3项，旧own-call3项、
+Return3项及B的original_source/physical_drop/absent3项。使用独立safe名单/日志，不覆盖
+原批记录；未选择命名CI-only、故障注入、Abort或计数测试。本地计数、sanitizer、正式
+双宿主CI仍未执行，不以native输出证明资源次数，不退休旧oracle。
+
+固定代码`18599f8c`的上述16项已全部通过，0失败/忽略；实际defaultdebug2、features空集、
+build-finished和两binary SHA/完整成功集合均由独立runner逐项核对。两crate严格
+all-targets Clippy、workspace all-targets check、fmt、docs881、diff和尺寸门禁均通过：
+2318手写Rust、36旧超千行，无预算或政策修改。原批及纠偏后的safe结果、构建与manifest
+保存在`/private/tmp/koven-owner-group-condition-evidence`，owner target已释放。
+
+固定`18599f8c`最终独立只读复核无生产阻断，16项safe名单与独立选择完全一致，
+codehead/tree、两binary SHA及成功集合精确匹配。本片本地实现与纠偏后的受限验收
+完成；旧批误分类专项审计不由此宣称完成，正式CI与资源证据边界保持。
