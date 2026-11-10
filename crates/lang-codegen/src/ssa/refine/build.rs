@@ -12,6 +12,7 @@ mod inout;
 mod map;
 mod owner_call;
 mod owner_consumer;
+mod owner_return;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
 mod place;

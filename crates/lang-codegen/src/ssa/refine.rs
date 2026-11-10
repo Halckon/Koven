@@ -466,3 +466,33 @@ fn record_owner_call(
         }
     });
 }
+
+#[cfg(test)]
+type OwnerReturnWitness = (
+    lang_frontend::type_checking::UnitExpressionId,
+    Option<usize>,
+    Option<usize>,
+);
+#[cfg(test)]
+thread_local! {
+    static OWNER_RETURNS: std::cell::RefCell<Option<Vec<OwnerReturnWitness>>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn observe_owner_returns<T>(lower: impl FnOnce() -> T) -> (T, Vec<OwnerReturnWitness>) {
+    OWNER_RETURNS.with(|events| *events.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let events = OWNER_RETURNS.with(|events| events.borrow_mut().take().unwrap_or_default());
+    (result, events)
+}
+#[cfg(test)]
+fn record_owner_return(
+    expression: lang_frontend::type_checking::UnitExpressionId,
+    payload: Option<usize>,
+    receipt: Option<usize>,
+) {
+    OWNER_RETURNS.with(|events| {
+        if let Some(events) = events.borrow_mut().as_mut() {
+            events.push((expression, payload, receipt));
+        }
+    });
+}
