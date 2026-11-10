@@ -9888,3 +9888,20 @@ fmt、docs880、diff通过；依赖边及release命令未改变，未执行relea
 最终仅追加本账本文档，无Rust再修改。原2dc022e8冻结树仍clean；未push/PR/合main。
 全部CI-only、正式双宿主CI、Linux、sanitizer、压力/资源计数仍未执行；off实证限此Basic
 rooted/memory输入，不外推为常量capability或所有shape覆盖，不退休旧oracle，不关闭Spec/D10/E2。
+
+
+## 已批准的有界 Shared receiver caller 路由（2026-11-10）
+
+用户批准限定形状 Shared receiver caller 进入 refine，保留原清理规则。此段覆盖
+SPEC-0358 对本有界形状未触发迁移的旧限制，不改写历史账本或 ADR。仅显式 own
+非 Resource 普通 class 参数根、零实参 Shared receiver、整个 caller 单一直线正常
+返回调用；完整 signature/body/drop subset 仍须通过。trigger 只读 typed receiver、
+ownership 事实及精确 AST 形状，不依赖 protocol 2 Complete 或观察开关。
+caller 与 callee 独立选择；原样 Node/run 只迁 run，不强迁 touch。旧生产者唯一
+生成 Begin/End/NamedDrop，不增加 P2 receipt、不退休旧生命周期 oracle。隐式 this、
+temporary、projection、two-phase、borrow-result、控制流与 replacement 不在新增范围。
+
+先执行原样普通 receiver 生命周期测试的 caller route 红测，保留完整实体与顺序断言；
+后续核 rooted/memory 双 Unit 和真实 frontend on/off 重分析等价。仅逐源审计普通
+exact；所有 CI-only 只编译。本机默认 debug2、独占 borrow target，不运行全量、
+native、故障或资源计数，不修改其他隔离树；本地分步提交，不 push。

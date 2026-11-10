@@ -509,8 +509,9 @@ fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
             )
         });
         let (program, entry) = lowered.unwrap();
-        // The unchanged nominal-receiver source still uses Compatibility, not refine.
-        assert!(routed.is_empty());
+        // The bounded caller migrates independently of its ordinary method callee.
+        let caller = program.modules[0].function(entry).unwrap();
+        assert_eq!(routed, [caller.name.clone()]);
         verify_program(&program).unwrap();
         assert_receiver_lifecycle(
             &program,
