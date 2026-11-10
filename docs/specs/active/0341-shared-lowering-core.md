@@ -9464,3 +9464,22 @@ codegen命令为`cargo test --locked --offline -p lang-codegen --lib --no-run --
 `python3 scripts/check_rust_sizes.py --base 3fe1920a`通过，2291手写Rust、36既有超千行，
 无额度/政策修改。all-targets只编译，不扩大行为执行集合。验收后仅追加本段文档，
 无Rust变化；未推送、PR或合main，Spec/D10/E2保持in-progress，不退休Single或其他旧oracle。
+
+### 2026-11-10 严格 B 同 analysis 多 callable 普通隔离证据
+
+继承第四批冻结头`d8e062de`，测试代码固定`792a7fcc`；仅增加
+`owner_replace_break_downstream_tests::bounded_replace_break_same_analysis_callables_keep_products_and_receipts_local`，
+无生产实现变化或新增消费形状。既有双 Unit/重分析测试每个 analysis 只有一个 B 函数，
+本项补同一 analysis 内两个同形函数：相同局部名和字面量，Basic/Const 两种 Unit，
+各自原样严格 B 函数体，caller 交错调用 false/true 两边。
+
+普通正向断言核两个真实目录的 owner 身份不同、各自合法目录归属、完整 retired 符号与
+旧 Drop index 对应唯一授权 receipt、两个函数各自通过原 P/Q SSA oracle；真实 LLVM
+验证及对象/链接/native 运行输出`done`。没有跨目录错误输入、故障注入、计数或预期 Abort。
+此项是缺失回归证据的补充，不是生产缺陷红转绿，也不能替代 CI-only 或 heap 资源证明。
+
+本地只执行上述一个普通 exact（1 passed），实际 Cargo test artifact debuginfo=2；
+codegen lib no-run 静态编译成功。外置日志与 binary hash 在
+`/private/tmp/koven-owner-multi-callable-evidence/manifest.json`；固定代码和 exact 名称为可重建输入。
+codegen all-targets 严格 Clippy、workspace all-targets check、fmt、文档879及尺寸护栏通过（2291 手写 Rust、36 既有超千行，
+本测试文件485行），无额度修改。CI-only 全部未执行；未推送或触发远端 CI。
