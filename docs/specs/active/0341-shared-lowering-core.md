@@ -8469,3 +8469,61 @@ receiver/Rc/provider不准入；不从End推断通用权限恢复，不宣称sou
 跨source/catalog与raw/public失败撤销；新破损守卫只编译。默认debug2、既有target串行、
 十项旧排除与全部CI-only/Abort/压力边界不变。`33938ade`是独立codegen carrier清理，
 本片不修改其树或依赖其未合并内容。此节仅限定范围，尚不表示protocol 3已完成。
+
+### Loan 单Named参数源本片验收（2026-11-10）
+
+范围`61f53a73`、能力红测`d437d67e`、实现`5837ba00`连续提交，复用`71b85631`，
+不依赖或修改`33938ade`的codegen树。红测保留已有真实EndCallLoan及Named Drop断言，
+在region Unsupported对Complete处实际失败（1 failed、319 filtered），最小实现后转绿。
+初次no-run缺测试module path时未执行测试，修正接线后才取得上述真实红测。
+
+protocol 3现从独立当前caller Own String参数、Owned binding、ValueState与形成span
+证明Named源，不重推owner/权限，不增加执行动作。独审要求的typed/contract/operand
+Place category与argument/loan_begin/call/end Span一致性已补齐后重新编译和运行最终选择。
+真实Begin→EndCallLoan→同CallReturn Named Drop完整三项闭合才认证；连续调用首项
+Partial、末项Complete，双根的Drop origin不混淆。原protocol 1/2和全部旧投影不变。
+
+本片最终324个唯一普通成功项（315 direct＋9 lib），包含上片315而不重复累加：
+
+- direct沿用上片309精确项，新增`named_action_region::`的6项：
+  `named_owned_argument_requires_actual_closed_region`、
+  `named_root_stays_partial_until_its_actual_last_call_drop`、
+  `two_named_roots_keep_their_own_drop_formation_origins`、
+  `named_protocol_does_not_admit_other_sources_or_call_shapes`、
+  `named_certificate_and_records_do_not_cross_reanalysis`、
+  `named_unit_result_preserves_the_same_closed_obligations`。
+  命名实参、Int/Unit、双根和live根均用真实普通有限源码；最后315 passed、0 failed、10 filtered。
+- lib沿用上片6项，新增owner_transport测试
+  `loan_named_observer_preserves_all_existing_planner_products`、
+  adjacent_borrow_results::named_loan_region测试
+  `loan_named_complete_prefix_is_revoked_from_raw_and_public_products`、loan_region_validation测试
+  `loan_named_cross_source_keeps_parameter_and_caller_identity`。
+  最后9 passed、0 failed、551 filtered；on/off核完整Analysis，跨source普通错误/deferred
+  在真实Complete前缀之后核raw/public全撤销，非人为注入。
+- 所有选择先逐源/helper核普通边界，再用`--exact --list --format terse`核集合、`--exact`
+  执行并比对成功集合。十项旧direct排除及四项旧iteration Abort未执行。四项CI-only
+  破损守卫仅编译；新增守卫覆盖缺/多/错序动作、错root/owner origin/call span/call identity、
+  缺完成、越界及未准入，未把编译成功算成负控执行通过。
+- frontend all-targets严格Clippy通过（24.02s），workspace all-targets check通过（20.52s）；
+  fmt、docs 877、尺寸2268 Rust/36项旧超限与diff通过。独立只读复审无阻断项，
+  drop_planner.rs仅新增模块接线1583→1584行，未提高旧1669额度。
+
+默认配置继续为macOS arm64、Rust1.96.0，实际两个test artifact的profile.debuginfo均为2，
+对应rustc含`-C debuginfo=2`。无`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、
+`RUSTFLAGS`或`CARGO_ENCODED_RUSTFLAGS`覆盖。只设置
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`，串行复用，不复制/clean/降档；
+构建命令为`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`。
+Clippy/check另设`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，命令仍分别为
+`cargo clippy --locked --offline -p lang-frontend --all-targets -j 2 -- -D warnings`与
+`cargo check --locked --offline --workspace --all-targets -j 2`，不执行LLVM或native行为测试。
+
+36文件direct测试源码清单摘要为`6e1d6d94b117b2412eabd54ee67353766fbeeae5b5c4ec0a5a8678717a7b51f0`；
+315项direct名单摘要`944a7073ced03915544cb33fe2890f69d423c7747e15ad81215abbe0ab2bc9b7`，
+9项lib名单摘要`8e9d4e0b734569c39b19ba0ff13a79bc07edd727874bb8d0df227e762c0102d3`。
+实际direct二进制SHA256为`a0032bd72d09704a41e0037a003d74765333be65c42ad785049d31ade2830dcd`，
+lib为`6429b6bc129b845c1ff7dfd9380ce2a0b765922f42232d05ba9bf3c73e3da87a`；摘要方法与上片一致，
+原始日志/名单留仓库外临时证据。既有debug0、错误选择和各次真实数量记录不变。
+
+source/callable仍Partial/Unsupported；一般权限恢复、borrowed-result交接、多参数/一般CFG、
+Rc/provider与动态activation尚未认证。未接owner Phase4，未执行SSA/LLVM行为、native、
+Linux/双宿主正式CI；不退休Single oracle，不关闭Spec或D10/E2。未推送、PR或合并。
