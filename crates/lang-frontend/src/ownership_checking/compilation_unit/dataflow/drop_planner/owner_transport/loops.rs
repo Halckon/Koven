@@ -196,7 +196,10 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let parameter = conditional::boolean_parameter(checker, *condition, &parameter_symbols)?;
+        let parameter = match &replacing {
+            Some(input) => input.parameter,
+            None => conditional::boolean_parameter(checker, *condition, &parameter_symbols)?,
+        };
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };

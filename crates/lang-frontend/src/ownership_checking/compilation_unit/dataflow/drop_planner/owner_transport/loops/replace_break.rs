@@ -3,6 +3,7 @@ use super::*;
 use crate::ownership_checking::{
     UnitOwnerProducerCatalogV1, UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
 };
+use crate::parser::{BinaryOperator, LiteralKind, PrefixOperator};
 use crate::source::Span;
 
 pub(super) struct ReplaceBreakInput {
@@ -10,6 +11,7 @@ pub(super) struct ReplaceBreakInput {
         crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix,
     pub(super) statement: StatementId,
     pub(super) condition: ExpressionId,
+    pub(super) parameter: UnitSymbolId,
     pub(super) body: StatementId,
     pub(super) jump: UnitExpressionId,
     initial: UnitExpressionId,
@@ -63,6 +65,55 @@ fn variable(
 fn literal(checker: &Checker<'_>, id: ExpressionId) -> bool {
     exact_type(checker, id, BuiltinType::String) && checker.parsed.ast().expressions().get(id).is_ok_and(|node| matches!(node.payload(), Expression::String { parts } if parts.iter().all(|part| !matches!(part, StringPart::Interpolation { .. }))))
 }
+// P/Q-only condition admission. Other loop families retain their original Name-chain gate.
+fn boolean_condition_parameter(
+    checker: &Checker<'_>,
+    expression: ExpressionId,
+    parameters: &BTreeSet<UnitSymbolId>,
+) -> Option<UnitSymbolId> {
+    if checker.ordinary_condition_outcomes(expression) != (true, true) {
+        return None;
+    }
+    let ast = checker.parsed.ast();
+    let mut current = expression;
+    loop {
+        if !exact_type(checker, current, BuiltinType::Boolean) {
+            return None;
+        }
+        match ast.expressions().get(current).ok()?.payload() {
+            Expression::Group { expression } => current = *expression,
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => current = *operand,
+            Expression::Name => {
+                return conditional::boolean_parameter(checker, current, parameters);
+            }
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::Equal | BinaryOperator::NotEqual,
+                right,
+                ..
+            } => {
+                let literal = |id| {
+                    exact_type(checker, id, BuiltinType::Boolean)
+                        && ast.expressions().get(id).is_ok_and(|node| {
+                            matches!(node.payload(), Expression::Literal(LiteralKind::Boolean(_)))
+                        })
+                };
+                let parameter = match (literal(*left), literal(*right)) {
+                    (true, false) => *right,
+                    (false, true) => *left,
+                    _ => return None,
+                };
+                // The parameter side is only the old Group/Not -> Name chain, never another comparison.
+                return conditional::boolean_parameter(checker, parameter, parameters);
+            }
+            _ => return None,
+        }
+    }
+}
 impl ReplaceBreakInput {
     pub(super) fn admit(
         checker: &Checker<'_>,
@@ -112,8 +163,8 @@ impl ReplaceBreakInput {
         else {
             return None;
         };
-        // Keep the actual outer Group/Not condition; true-body and false-exit roles do not swap.
-        conditional::boolean_parameter(checker, *condition, parameters)?;
+        // Keep the actual outer condition; comparison and Not never swap P/Q edge roles.
+        let parameter = boolean_condition_parameter(checker, *condition, parameters)?;
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
@@ -190,6 +241,7 @@ impl ReplaceBreakInput {
             consumer_target,
             statement: *statement,
             condition: *condition,
+            parameter,
             body: *body,
             jump: checker.unit_expression(*jump),
             initial: checker.unit_expression(initial),

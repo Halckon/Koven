@@ -11,7 +11,7 @@
 ## 实际准入
 
 普通非泛型顶层 Unit 函数只有一个无 mode marker 的精确 Boolean 参数，函数体依次为
-外层 var 字符串字面量、While、直接 val 移出该根。While 条件是该参数的 Name 或仅包裹该 Name 的纯 Group/Not 链；body
+外层 var 字符串字面量、While、直接 val 移出该根。While 条件是该参数的 Name/Group/Not链，或下述受限Boolean比较；body
 恰为 val 接收 checked root Replace 的旧值、一个 bare Break。三个绑定精确为非 nullable
 String，两个字面量没有插值；名称与文本内容不参与准入身份判断。
 
@@ -19,7 +19,7 @@ Replace 仅支持普通 Name callee、无显式类型实参、两个无命名前
 带 Inout marker 的直接根 Name，第二个是无模式标记的字面量；实际 ownership primitive
 必须为 String Replace，只有该完整根，两个 descriptor operand 与真实 AST 实参顺序完全相同。
 
-短路/比较条件、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
+短路/一般比较条件、额外参数、别名输入、额外 body 语句、var 旧值绑定、nullable、字段/index、
 opaque call、正常回边、Continue、条件分支、嵌套或后续使用能力均不准入。限制只撤销
 本观察产品，不新增语言诊断或改变既有成功源码。函数末尾直接移出用于保留真实 liveness，
 其普通 cleanup 保持不变；只有实际路径 carrier 完整经过该尾句，才另发布封闭消费证明。
@@ -172,3 +172,15 @@ false/true返回；输出不是析构计数证明，不扩展借用返回、capt
 进入body并完成Break后仍运输Q，不按Not奇偶反转产品角色。While旧Unsupported之前
 保存P前缀，实际Read条件不改变该owner；不扩大body If的Not观察权限。前端on/off
 对照保旧Analysis；后端消费同轮封印和真实条件块，不从剥壳语法重建入边。
+
+## 单次 Boolean literal 比较条件
+
+P/Q专用准入另允许单次`==`/`!=`：一端原Group/Not链到唯一Boolean参数，另一端裸
+Boolean literal，左右皆可，比较整体可Group/Not包装。每层精确Boolean与实际两出口
+检查保留；参数端必须属于本callable参数，literal端须为裸Bool，不接受const名称、
+双Name、双literal、literal包装、嵌套比较或调用。
+
+私有ReplaceBreakInput保存经专用准入确认的参数symbol供该LoopTransaction读取；其他
+loop仍走原共享boolean_parameter，body If观察门不变。比较按旧表达式路径真实左右Read，
+不会生成owner或重建P/Q；完整条件false与实际Break仍按边角色绑定P/Q，不按operator、
+literal或Not方向交换catalog。backend emitter和原清理不变。

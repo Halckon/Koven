@@ -10763,3 +10763,56 @@ bytes、清单SHA、实际binary/selection、原始JSON的debug2/feature/test与
 12unique日志逐项等于名单，各1pass/2886filtered，无native或CI-only执行。73d22163后
 仅已审普通/CI-only测试，无生产漂移；严格Drop全集检查只在当前窄shape适用。终审者
 未执行测试；其结论后仅补文档，不改Rust或重编。借用target释放，仅本地交付。
+
+
+### P/Q 单次 Boolean 比较条件实施合同（2026-11-10）
+
+基于冻结`c956f3bf`，按持续并行本地开发授权，只补现行Boolean相等/不等语义的受限
+P/Q运输。条件恰好一次`==`或`!=`，一端原Group/Not链到唯一Boolean参数Name，另一端
+裸Boolean literal，左右皆可；比较整体可原Group/Not包装。拒绝双Name、双literal、
+嵌套比较、literal包装、短路/调用/多参数，不引入语言、ABI或Resource决定。
+
+P/Q专用条件准入保存实际参数symbol供本LoopTransaction使用，其他loop继续原共享
+boolean_parameter；不放宽共享helper或body If观察。完整条件false仍是P，实际body
+Replace/Break仍是Q，不按比较、literal或Not方向交换catalog。原B/Call/Return唯一
+suffix、瞬时Inout、旧唯一emitter和清理不变。
+
+状态in-progress：实际普通Return receipt红→最小实现→Basic/Const两Unit与两边
+SSA/LLVM/native。每项新/邻控重新逐helper审定、记录实际源码hash，仅小集合exact；
+foreign、故障/损坏、Abort、计数、压力及待定矩阵只编译。分步本地提交、固定头独审
+与门禁，不推送、不触发远端CI，不改main或他人docs脏树，不绕过真实工具审批。
+
+### 单次 Boolean 比较实施与受限验收（2026-11-10）
+
+合同`f443766a`，普通真实红`36693a6d`，frontend红源`84be554e`，最终Rust输入
+`f4768221`。红源码`while(flag == true)`已通过旧SSA/LLVM并完成真实Return，payload为
+Some(2)但receipt为None，同exact失败。没有伪造产物、空collector或故障注入。
+
+新P/Q私有条件准入只收单Eq/Ne、一裸Bool和一原参数链，沿用exact_type的非constant-use
+及精确Boolean检查，保完整condition两种outcomes。保存实际parameter供已准入replacing
+分支读取；其他loop仍原boolean_parameter。旧真实求值、body If观察权限、P/Q角色、
+consumer和backend唯一emitter均未改，不按比较/literal/Not方向交换catalog。
+
+新增前端4普通覆盖8种比较组合×参数/整体包装、真实AST/op/literal/参数symbol、
+B/Call/Return产品及合法边界；另用正常closed-loop/body-If比较源证明共享门未扩张。
+共享check_transport提取保旧Group/Not结构及全部P/Q/Drop断言。旧比较拒绝项迁为
+双Name或嵌套比较，原断言保留；污染check/public iteration只编译，不调用。
+
+新增后端3普通覆盖真实receipt、10条件的Basic/Const完整SSA角色/slot/payload/Drop，
+以及同analysis10个有限sibling callable的真值表native输出。每Unit一个正常可执行，
+不是压力矩阵、析构计数或heap/Resource证明；返回函数仍只清理detached P，caller
+沿旧规则清理选中值。所有原B/Call/Return及Group/Not受限邻控保留。
+
+显式重审29项仅11前端+18后端，全部通过且0失败/忽略；不读旧污染大名单生成选择集。
+完整成功集合与exact选择一致，实际defaultdebug2/features空集及两binary SHA已核，
+2995源码/配置SHA逐文件对照真实bytes全匹配。严格两crate all-targets Clippy、workspace
+all-targets check、fmt、docs883、diff及尺寸base`c956f3bf`均通过：2339手写Rust，
+35旧超千行，无预算或政策修改。证据位于`/private/tmp/koven-owner-boolean-comparison-evidence`。
+
+本片不执行foreign查询、故障/损坏、Abort、计数、压力、sanitizer或正式双宿主CI；
+前端on/off旧Analysis对照不外推后端off端到端。严格继承指定c956f3bf，不夹带当时新main
+9e7fed92或修改其脏树，不宣称本片门禁已证明该新主干合流。owner target已释放，不推送。
+
+固定`f4768221`独立只读终审无阻断：生产/测试diff、代码tree、源码清单SHA、两实际
+binary SHA、11/18成功exact集合及debug2/features空集均复核匹配，审阅者未代运行。
+本片本地实现与受限验收完成，正式CI、资源证明及新main合流边界保持，不退休旧oracle。

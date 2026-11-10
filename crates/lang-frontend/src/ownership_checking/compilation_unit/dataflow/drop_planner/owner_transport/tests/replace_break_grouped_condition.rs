@@ -14,7 +14,7 @@ pub(super) enum Consumer {
     Call,
     Return,
 }
-fn source(consumer: Consumer, condition: &str) -> String {
+pub(super) fn source(consumer: Consumer, condition: &str) -> String {
     let run = loop_replace_break::SOURCE;
     let text = match consumer {
         Consumer::Bind => run.to_owned(),
@@ -29,6 +29,47 @@ fn source(consumer: Consumer, condition: &str) -> String {
     text.replace("while(flag)", &format!("while({condition})"))
 }
 pub(super) fn check(consumer: Consumer, condition: &str, groups: usize, negations: usize) {
+    check_transport(consumer, condition, |f, outer| {
+        let ast = f.parsed[0].ast();
+        let mut leaf = outer.expression();
+        let (mut actual_groups, mut actual_negations) = (0, 0);
+        loop {
+            match ast.expressions().get(leaf).unwrap().payload() {
+                Expression::Group { expression } => {
+                    actual_groups += 1;
+                    leaf = *expression;
+                }
+                Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand,
+                    ..
+                } => {
+                    actual_negations += 1;
+                    leaf = *operand;
+                }
+                _ => break,
+            }
+        }
+        assert_eq!((actual_groups, actual_negations), (groups, negations));
+        assert!(matches!(
+            ast.expressions().get(leaf).unwrap().payload(),
+            Expression::Name
+        ));
+        assert_eq!(
+            f.sources
+                .slice(ast.expressions().get(leaf).unwrap().span())
+                .unwrap(),
+            "flag"
+        );
+        assert_ne!(outer, UnitExpressionId::new(f.source(0), leaf));
+    });
+}
+
+pub(super) fn check_transport(
+    consumer: Consumer,
+    condition: &str,
+    inspect: impl FnOnce(&Fixture, UnitExpressionId),
+) {
     let text = source(consumer, condition);
     let f = Fixture::new(&[("grouped.ko", &text)]);
     let owned = f.shared();
@@ -80,37 +121,7 @@ pub(super) fn check(consumer: Consumer, condition: &str, groups: usize, negation
             .unwrap(),
         condition
     );
-    let mut leaf = outer.expression();
-    let (mut actual_groups, mut actual_negations) = (0, 0);
-    loop {
-        match ast.expressions().get(leaf).unwrap().payload() {
-            Expression::Group { expression } => {
-                actual_groups += 1;
-                leaf = *expression;
-            }
-            Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand,
-                ..
-            } => {
-                actual_negations += 1;
-                leaf = *operand;
-            }
-            _ => break,
-        }
-    }
-    assert_eq!((actual_groups, actual_negations), (groups, negations));
-    assert!(matches!(
-        ast.expressions().get(leaf).unwrap().payload(),
-        Expression::Name
-    ));
-    assert_eq!(
-        f.sources
-            .slice(ast.expressions().get(leaf).unwrap().span())
-            .unwrap(),
-        "flag"
-    );
-    assert_ne!(*outer, UnitExpressionId::new(f.source(0), leaf));
+    inspect(&f, *outer);
     let jump = UnitExpressionId::new(f.source(0), f.expression(0, "break"));
     assert_eq!(
         boundary.edges(),
@@ -270,8 +281,8 @@ fn grouped_replace_break_keeps_general_conditions_outside_transport() {
             "flag && flag",
             "(flag || flag)",
             "!((flag && flag))",
-            "((flag == true))",
-            "!(!(flag != false))",
+            "((flag == flag))",
+            "!(!((flag != false) == true))",
         ] {
             let text = source(consumer, condition);
             let f = Fixture::new(&[("condition-neighbor.ko", &text)]);
