@@ -8383,3 +8383,70 @@ raw/public撤销，以及source/catalog/协议边界。仅运行逐源/helper核
 十项旧排除及任何CI-only故障/Abort/压力/破损一律不跑，新破损负控只编译。
 保持默认debug2实际profile核验、原target串行，不复制或降低档位；既有偏差保留。
 本节只限定实施范围，尚不表示新receiver区域已实现或验收；独审与最终准确结果另记。
+
+### Loan Shared receiver 本片验收（2026-11-10）
+
+范围提交`a2268506`、能力红测`6e8a6b50`、实现与普通回归提交`7d1345ba`，均续接
+`8bf3f160`，没有重做前片或合并其他候选。首个红测先核已有receiver正常End与Named
+Drop真实存在，再因区域Unsupported失败；实现后同一能力测试转绿。方法typed target
+实际为Symbol，准入按真实target修正，protocol 1的Declaration/无receiver门未放宽。
+
+本片protocol 2实现事实见[动作源专题](../../architecture/unit-loan-action-source.md)。
+Shared Begin与正常End都来自真实planner位置，旧return表同源投影保留原筛选家族和顺序，
+observer off仍保留旧表。正常End不加入旧iteration执行流或旧prefix计数。当前caller的
+显式Own参数、Owned binding和实际ValueState共同证明owner；独立参数形成span与
+receiver使用span分开。只有完整Begin→End→同CallReturn Named Drop三项闭合才Complete。
+同根连续两次调用首项Partial、末项Complete，两Owned根保持各自Drop与形成origin。
+
+最终唯一普通成功项315（309 direct＋6 lib），不是与前节298基线或306结果累加：
+
+- direct保留前片303项精确白名单，逐源核新增6项`action_source::`测试：
+  `receiver_region_owned_parameter_requires_actual_begin_end_and_drop`、
+  `receiver_region_live_root_is_partial_until_actual_last_use_drop`、
+  `receiver_region_two_owned_roots_keep_distinct_formation_origins`、
+  `receiver_region_unadmitted_roots_and_reservations_are_not_complete`、
+  `receiver_borrow_result_keeps_existing_rejection_and_no_certificate`、
+  `receiver_region_record_and_certificate_identity_cannot_cross_reanalysis`。
+  最终309 passed、0 failed、10 filtered；十项旧排除不变，所有源/helper均为普通有限输入。
+- lib保留前片3项普通exact，新增owner_transport测试
+  `loan_receiver_observer_preserves_nonempty_legacy_return_projection`、adjacent_borrow_results测试
+  `loan_receiver_complete_prefix_is_revoked_from_raw_and_public_products`、loan_region_validation测试
+  `loan_receiver_cross_source_retains_declaration_and_caller_identity`。
+  最终6 passed、0 failed、550 filtered；先`--exact --list --format terse`核名单集合，
+  再`--exact`运行并逐项核成功集合。新增helper核完整Analysis on/off及独立source
+  错误/deferred后的raw/public撤销，不只隐藏公开字段。
+- Resource、Borrow/Inout参数、Group、temporary、字段、This及Two-Phase普通对照不认证
+  Complete。borrowed-result仍报两条原L0164，精确message、source与primary span分别
+  25..31、88..99，所有新观察及旧receiver return表撤销。初轮将该例误放入admitted数组，
+  得到307通过/1失败，lib未启动；这是测试预期错误，未改语言能力，拆出真实拒绝断言后
+  在最终输入重核完整315项，不把初轮或补强前重复成功累计。
+- 三项CI-only破损守卫只随no-run、all-targets编译，未本机执行。新增receiver守卫覆盖
+  End-before-Begin、重复End、缺Drop、错owner origin、缺完成、缺caller及未准入；
+  不能把编译通过说成负控已通过。旧四项iteration Abort和十项direct排除均未重跑。
+- 严格frontend all-targets Clippy、workspace all-targets check通过；精确诊断补强后分别
+  0.81s、0.66s，前轮相应34.32s、28.94s。fmt、docs 877、尺寸2265 Rust/36项旧超限、
+  diff检查通过。独立只读复审核同源旧表/observer off、参数owner事实、完整区间与
+  catalog/全局撤销无阻断项；drop_planner.rs仍1583行，未提高旧额度。
+
+环境为macOS arm64、Rust1.96.0；实际test compiler-artifact profile.debuginfo为2，
+rustc命令含`-C debuginfo=2`，没有设置`CARGO_PROFILE_DEV_DEBUG`、
+`CARGO_PROFILE_TEST_DEBUG`、`RUSTFLAGS`或`CARGO_ENCODED_RUSTFLAGS`。
+全程复用`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`并串行Cargo；
+无复制target、clean或降低debug档位。默认构建命令为
+`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`。
+Clippy/check另设`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，分别执行
+`cargo clippy --locked --offline -p lang-frontend --all-targets -j 2 -- -D warnings`及
+`cargo check --locked --offline --workspace --all-targets -j 2`；LLVM前缀不用于frontend行为执行。
+
+最终35文件direct测试源码摘要（排序后的逐文件SHA256清单再SHA256）为
+`ea4c2e2ff4c8b51e5b3f111c37bc554db09765564827ec038923bafcda2d4b78`；
+direct名单摘要为`49b4506951069367f1860faac8fb758f176c7223dda37d85672581dd15812847`，
+lib名单摘要为`93f068a56dcc316e04fc92abb5202cc2436fb47af47d5e3341abec030e451e33`。
+最终direct二进制SHA256为`dfc2b4152d6ab20d99c330b7d46bc3c067ff82c03dddaf40ddff1e1cc19d6f13`，
+lib为`a39cc89dbcfd9d055ef909cc4463f22915c143b1dbca44fe3cb7a2584d67b940`；日志和完整清单
+留仓库外临时证据，不将原始dump入库。既有debug0与选择偏差账本不变。
+
+本片未认证一般permission restoration、结果handoff、Two-Phase activation、Rc/provider、
+一般CFG、callee动态必返或整个source/callable；source仍Partial/Unsupported。未运行
+Phase 4、SSA/LLVM行为、native计数、Linux或正式双宿主CI，Single oracle不退休。
+Spec与D10/E2继续in-progress；本片局部Complete不得替代整体覆盖证明。未推送、PR或合并。
