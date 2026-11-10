@@ -97,6 +97,12 @@ field source（包括 Field symbol root）与 Inout source 的 native 表示仍�
 局部/外围 owner 与 conditional receiver 的唯一释放顺序，Report 直接读取教程原源码另核 String drop。
 测试入口为 `native/unit_for_*tests.rs`；single provider/native 回归单独保留。
 
+普通 continue 的透明分组、跨函数同名 keys 和 alias 三份原源码另保留 strict Unit 对照。
+同轮 source-qualified root 精确指向各自 keys 声明；跨函数两 provider 分别为 Array/List，
+实际 main→first 调用定位原 first()，callee 与原声明身份一致，SSA/LLVM均验证。
+Legacy 两成功路径及 alias 在 keys 53..57 的完整 UnsupportedNode 拒绝原样保留，净退休0。
+这些 test-only 身份合同不代表一般 alias/owner phi 闭合、完整跨入口等价或 native 释放证明。
+
 ## Compilation-unit 前端事实
 
 `UnitSequentialIterationDescriptor` 与 `UnitIterationOwnershipPlan` 通过 source-qualified statement

@@ -8045,3 +8045,42 @@ LLVM21.1.8、debug=0、jobs=2、locked/offline，独占target串行。原始观�
 未运行完整 codegen/frontend/workspace 测试、native 进程、Linux、故障注入或 sanitizer。
 仅本地提交待统一队列，无推送、开PR或合并，精确发布头CI另验；D10/E2和SPEC-0341仍
 in-progress，任意循环 owner/phi、完整借用全序、全部 Single 退休与 Phase4并未闭合。
+
+
+### 普通 continue 分组、同名声明与 alias 的原源身份对照（2026-11-10）
+
+本片从实际 main `144793e1e594fa041c34b22c2e65baab3a5e7c69` 隔离建立，定点核对
+#390 `ca322bc5` 与既有代码提交。只增强 `owned_source_continue_declaration_identity_and_groups`
+的三份原输入，不重复已提交的五份 ownership 诊断或四份 nested/sequential 对照。
+三份原源码逐字保留，透明 Group、函数边界、Array/List、同名 keys 和真实 first() 调用均未改写。
+
+实际基线中，Legacy 与 strict Unit 均接受分组和双函数输入；alias 仅 Unit 可 lowering，
+Legacy 在 keys 声明53..57处 UnsupportedNode。`55ef5f1c` 首先保全两条原成功路径并
+固定 alias 的完整 kind/source/span；后续 `89e54f438e4647737325de92ccc69f420bead062`
+（tree `d733ff010209b4b8fc6b36e900de97c98d4dc5fa`）增加独立 Unit 对照与架构事实。
+全部 Legacy 见证保留，旧入口净退休0，不把已有差异解释为两个入口完整等价。
+
+Unit 通过严格最终类型准入、四阶段零诊断和原 basic capability；原 MemoryDocument 字节、
+解析根、真实 main entry 和函数数量均固定。每函数恰一同轮 iteration，provider 分别核对
+Array/List，source-qualified Place root 必须匹配原 keys 声明23、24/131或53的精确位置；
+两个同名根不能合并。实际 SSA 保留每函数一次 element access，main→first 同时核 caller、
+callee、空参数/receiver和原 first() 范围；最后以真实 entry验证SSA/LLVM，不由字符串名称猜callee。
+
+| 验收项 | 实际选择 | 结果 |
+|---|---|---|
+| 原三输入及 continue 邻控 | `cargo test --locked --offline -p lang-codegen --lib ssa::lower_frontend_tests::owned_source_continue_tests::` | 19 passed，0 failed/ignored，2798 filtered |
+| 严格静态检查 | codegen all-targets Clippy，`-W clippy::all -D warnings`，locked/offline | 通过 |
+| 工程门禁 | workspace fmt、docs、相对 `144793e1` Rust尺寸、diff | 通过；863 Markdown、2242 Rust、36项历史超长，不改额度；目标测试文件662行 |
+| 独立只读复审 | 原源/旧见证、严格准入、声明/provider/call身份及架构边界 | 无 blocker；复审核读日志，未自行运行测试 |
+
+原19个测试身份及该测试文件 Legacy analyze 7→7、lower_scalar_file 6→6保持；最终19项不重复
+累计原单项基线和固定Legacy后的复跑。Mac AArch64、Rust1.96.0、LLVM21.1.8，debug=0、
+jobs=2、locked/offline，独占target串行。完整基线和命令日志留本片忽略的 `.local-artifacts/`，
+原源码与固定合同入库；无生产、共享harness、工具链或CI selector修改。
+未运行全量codegen/frontend/workspace、native进程、Linux、故障注入或sanitizer；没有验证
+与其他候选的组合。本片仅本地提交待统一队列，不推送、开PR或合并；合队保留同文件的
+既有诊断及nested合同，精确发布头CI另验。一般alias/owner phi、完整借用全序、全部Single
+退休及Phase4仍未闭合，D10/E2与SPEC-0341保持in-progress。
+
+完成前 main 已推进到 #406 `cc1e5b41223fabe0248dd4bc2742e95aae9b810a`，该批改类型流，
+未改本片目标文件。本片仍只在 `144793e1` 基底验收，未合入或验证新main组合；合队后须重验。

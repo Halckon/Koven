@@ -519,6 +519,173 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
     }
 }
 
+// These original sources have different Legacy/Unit alias outcomes. Keep both oracles.
+fn assert_continue_identity_unit(text: &str, expected: &[(&str, SequentialContainerKind, usize)]) {
+    use crate::{
+        native_tests::boxed_enum_tests::unit_source::UnitSource,
+        ssa::model::{Operation, Origin},
+    };
+    use lang_frontend::{
+        name_resolution::{SourceUnitKey, SymbolKind},
+        ownership_checking::{UnitIterationSourceAccess, UnitLoanTarget},
+        type_checking::IterationProvider,
+    };
+
+    let unit = UnitSource::analyze("lowering.ko", text).expect("strict original identity source");
+    unit.assert_frontend_clean();
+    assert!(unit.ownership().deferred().is_empty());
+    let [document] = unit.names().names().index().source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    let source = unit.parsed().source_id();
+    assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(document.source_id(), source);
+    assert_eq!(unit.sources().source_name(source), Ok("lowering.ko"));
+    assert_eq!(unit.sources().source_text(source), Ok(text));
+    assert_eq!(unit.parsed().roots().len(), expected.len());
+    assert_eq!(
+        unit.basic_types().types().sequential_iterations().len(),
+        expected.len()
+    );
+    assert_eq!(unit.ownership().iterations().len(), expected.len());
+    let main = unit.declaration("main", SymbolKind::Function);
+    let (program, entry) = unit
+        .lower_entry(main)
+        .expect("the unchanged identity source lowers");
+    let [module] = program.modules.as_slice() else {
+        panic!("one source module");
+    };
+    assert_eq!(module.functions.len(), expected.len());
+    assert_eq!(
+        module.function(entry).unwrap().origin,
+        Origin::Source(unit.declaration_span(main))
+    );
+    let mut roots = Vec::new();
+    for &(name, container, keys_start) in expected {
+        let declaration = unit.declaration(name, SymbolKind::Function);
+        let span = unit.declaration_span(declaration);
+        let functions = module
+            .functions
+            .iter()
+            .filter(|function| function.origin == Origin::Source(span))
+            .collect::<Vec<_>>();
+        let [function] = functions.as_slice() else {
+            panic!("one lowered original declaration {name}");
+        };
+        let plans = unit
+            .ownership()
+            .iterations()
+            .iter()
+            .filter(|plan| {
+                let statement = plan.descriptor().statement();
+                assert_eq!(statement.source_unit(), document.id());
+                let loop_span = unit
+                    .parsed()
+                    .ast()
+                    .statements()
+                    .get(statement.statement())
+                    .unwrap()
+                    .span();
+                assert_eq!(loop_span.source_id(), source);
+                span.start() <= loop_span.start() && loop_span.end() <= span.end()
+            })
+            .collect::<Vec<_>>();
+        let [plan] = plans.as_slice() else {
+            panic!("one actual loop in {name}");
+        };
+        let descriptor = plan.descriptor();
+        assert_eq!(
+            unit.types().sequential_iteration(descriptor.statement()),
+            Some(descriptor)
+        );
+        assert_eq!(
+            descriptor.provider(),
+            IterationProvider::Sequential(container)
+        );
+        assert_eq!(plan.source_access(), UnitIterationSourceAccess::Owned);
+        let Some(UnitLoanTarget::Place(place)) = plan.source() else {
+            panic!("the original named source root");
+        };
+        assert!(place.is_root());
+        assert_eq!(place.root().source_unit(), document.id());
+        assert!(
+            !roots.contains(&place.root()),
+            "same-spelled roots in distinct functions cannot collapse"
+        );
+        roots.push(place.root());
+        let symbols = unit.names().names().source_units()[0]
+            .resolution()
+            .symbols()
+            .iter()
+            .filter(|symbol| symbol.id() == place.root().symbol())
+            .collect::<Vec<_>>();
+        let [symbol] = symbols.as_slice() else {
+            panic!("one actual keys declaration");
+        };
+        let keys = unit
+            .sources()
+            .span(source, keys_start, keys_start + 4)
+            .unwrap();
+        assert_eq!(unit.sources().slice(keys), Ok("keys"));
+        assert_eq!(symbol.span(), keys);
+        assert_eq!(symbol.name(), "keys");
+        assert!(span.start() <= keys.start() && keys.end() <= span.end());
+        assert_eq!(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    Operation::ContainerElementPlace { .. }
+                ))
+                .count(),
+            1
+        );
+    }
+    let calls = module
+        .functions
+        .iter()
+        .flat_map(|function| &function.instructions)
+        .filter(|instruction| matches!(instruction.operation, Operation::DirectCall { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), expected.len() - 1);
+    if expected.len() == 2 {
+        let first = unit.declaration("first", SymbolKind::Function);
+        let first = module
+            .functions
+            .iter()
+            .find(|function| function.origin == Origin::Source(unit.declaration_span(first)))
+            .unwrap();
+        let [call] = calls.as_slice() else {
+            panic!("one original main-to-first call");
+        };
+        assert!(
+            module
+                .function(entry)
+                .unwrap()
+                .instructions
+                .iter()
+                .any(|instruction| std::ptr::eq(instruction, *call))
+        );
+        let Operation::DirectCall {
+            callee,
+            receiver,
+            arguments,
+        } = &call.operation
+        else {
+            unreachable!();
+        };
+        assert_eq!(*callee, first.id());
+        assert!(receiver.is_none() && arguments.is_empty());
+        let Origin::Source(span) = call.origin else {
+            panic!("original call origin");
+        };
+        assert_eq!(unit.sources().slice(span), Ok("first()"));
+    }
+    crate::llvm::render_verified_program_with_entry(&program, entry)
+        .expect("original roots and actual call verify through LLVM");
+}
+
 #[test]
 fn owned_source_continue_declaration_identity_and_groups() {
     for text in [
@@ -539,6 +706,15 @@ fn owned_source_continue_declaration_identity_and_groups() {
         )
         .unwrap();
         crate::llvm::render_verified_program(&program).unwrap();
+        let expected = if text.starts_with("fun first") {
+            vec![
+                ("first", SequentialContainerKind::Array, 24),
+                ("main", SequentialContainerKind::List, 131),
+            ]
+        } else {
+            vec![("main", SequentialContainerKind::Array, 23)]
+        };
+        assert_continue_identity_unit(text, &expected);
     }
     let text = "fun main(): Unit { val original = arrayOf(1, 2); val keys = original; for (key in keys) { if (key == 2) { continue } }; keys.size }";
     let analysis = analyze(text);
@@ -555,7 +731,20 @@ fn owned_source_continue_declaration_identity_and_groups() {
     )
     .err()
     .expect("alias is not a fresh initializer seed");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+    let source = analysis.parsed.source_id();
+    assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
+    assert_eq!(analysis.sources.source_text(source), Ok(text));
+    let expected_span = analysis.sources.span(source, 53, 57).unwrap();
+    assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
+    assert_eq!(
+        error,
+        crate::ssa::LoweringError {
+            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+            span: Some(expected_span),
+        },
+        "the original alias boundary stays at keys, not original or a later use"
+    );
+    assert_continue_identity_unit(text, &[("main", SequentialContainerKind::Array, 53)]);
 }
 
 #[test]
