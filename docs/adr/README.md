@@ -42,5 +42,8 @@ native ABI 提议；SPEC-0211 的 Phase 3 事实运输不以其被接受为前�
 [0036 独占闭包捕获使用持久根槽](proposed/0036-exclusive-closure-capture-storage.md)
 拟为 SPEC-0392 增加经验证的独占槽身份、写回与清理规则。
 
+[0037 一次根替换后 Break 的独立 owner 出口](proposed/0037-replace-break-owner-boundaries.md)
+拟为 SPEC-0341 增加有界双 catalog 见证；未接受，不开放一般 phi 或后缀消费。
+
 新决策使用 [TEMPLATE.md](TEMPLATE.md) 并先放入 `proposed/`。改变 accepted 决定时新增 ADR；完整被取代的旧记录
 进入 archive 并建立双向取代关系；局部扩展保留旧 ADR 的其他决定，只追加双向关系。

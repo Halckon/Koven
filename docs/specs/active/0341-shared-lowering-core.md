@@ -8174,3 +8174,45 @@ owner既有大型压力/破损模型守卫仅随all-targets编译；未运行完
 行为测试、Linux或sanitizer。原始命令、选择和日志保留仓外，稳定原源与断言在上述代码头
 及各候选提交中可追溯；本批最终发布头仍须由[#390正式CI](https://github.com/Halckon/Koven/pull/390)
 验证当前main和精确head，旧 `ca322bc5` 的绿灯不能替代。D10/E2与SPEC-0341保持in-progress。
+
+
+## 180. 一次根替换后 Break 的协议提案
+
+状态：仅提案与现有源码基线；新协议实施等待
+[ADR-0037](../../adr/proposed/0037-replace-break-owner-boundaries.md)正式接受。
+用户已确认最小设计/实施范围，但本节不将范围确认当成 ADR 仓库接受。
+
+去重输入为 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 与已发布 #390
+`dd3515251821d10a733334359518dd869e26c957`（tree `369d198b2415b37d4d79339dbb7e936a37372802`）。
+新隔离分支基于该 main 并快进复用完整 #390；旧分支、已有 oracle 和受阻 §170 WIP 不动。
+#407 的 Elvis native 边界与本片不重叠。本节不将父链或其它片 CI 算成本片验收。
+
+候选只观察外层 String root 的真实 `replace` 后立即 bare Break：实际 prefix 输入 P、
+fresh body 输出 Q、六项实际运输事件，以及分别为 P/Q 的两条互斥出口。
+不接受一般回边/phi、多输入、条件合流、共同出口或后缀消费；尾部直接移出仅用于 liveness。
+不修改 Guide、普通 planner 状态传播、cleanup、SSA、LLVM 或 runtime；正式合同见 ADR。
+
+| 验收项 | 目标/过滤器 | 本片结果 |
+|---|---|---|
+| 真实源码既有原语与 cleanup 基线 | frontend lib `loop_replace_break_baseline::outer_replace_break_preserves_actual_primitive_and_cleanup_baseline` | 1普通exact通过：两source×implicit/explicit Unit；各原source分别完整on/off对照，不等于新能力红绿 |
+| ADR 提案、编号及 Spec 链接 | `check_docs.py`、其直接测试、`git diff --check` | docs868、检查器41项直接测试、diff通过 |
+| 新能力红绿、身份/边界与公开入口 | 接受 ADR 后实施 | 尚未实施或运行 |
+| 新增测试静态门禁 | `cargo fmt --all -- --check`、frontend `--all-targets` strict Clippy、sizes `--base dd351525` | 全通过；2322手写Rust/36历史超限，本片新测试128行 |
+| 独立审查与基线复跑 | 本片6文件静审；同一普通exact二进制复跑 | 无剩余阻断；复跑1通过，不重复计作第二种用例 |
+| workspace、新头CI及其它宿主/native | 未改变跨crate API，不以旧证据替代 | 未运行；新能力尚未实施 |
+
+在 ADR accepted 与本节实施前置闭合前，不新增跨 catalog 产品或放宽原 validator。
+本地提案/基线提交不发布远端，不将 D10/E2、一般动态 owner 或本片能力标为完成。
+
+基线首轮因测试 helper 按文本查找 `held` 命中两个真实 Name 而失败；已改为实际声明
+NameMarker 定位 initializer/statement，并补精确 While/Syntax 拒绝点后重跑通过。
+该失败不是新能力红测。现只证明 checked Replace plan 与旧 cleanup，不证明跨 catalog
+P/Q、实际运输事件、post-Break/condition-false 快照或 native/runtime 释放次数。
+
+测试基线本地提交 `252c0bb1a7c75194838f6684b626f2e01aba0c4f`（tree
+`c4bd0b892495deb26f022251e796bc2ec72be783`），唯一父为上述 #390 头。Mac AArch64
+Rust1.96/LLVM21.1.8、locked/offline、默认debug、jobs2；复用本线独占的既有 target，未降低
+编译档位。精确命令为 `cargo test --locked --offline -p lang-frontend --lib
+ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::loop_replace_break_baseline::outer_replace_break_preserves_actual_primitive_and_cleanup_baseline -- --exact`。
+独立复跑前后测试源码与二进制hash不变；没有执行模型破坏/故障注入/Abort用例。
+纯提案及本账本后继未变Rust字节，不冒称在文档提交重跑行为；新协议实施仍待ADR正式接受。
