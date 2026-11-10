@@ -11810,3 +11810,42 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
   source/callable 仍 Partial，新区域不授权旧 oracle 退休或本片之外的生命周期。
 - 每阶段仅 fresh 审定的小 ordinary exact；foreign/fault/Abort/counter/压力及 CI-only 仅编译不执行。
   borrow target 独占串行、LLVM21、默认 debug2，不降档、不复制 target；本地分步提交，不推送。
+
+### parent-child 阶段一：真实退休到新 Drop 关联验收
+
+- 基线 `bda59963`；缺关联红 `4b9f9511`，生产首绿 `c289ec6a`，最终代码冻结
+  `bb20fc2bb93a0fb5b5abb04b3637cc48b5c6908b`。原树及 main 未改，本地分步提交、未推送。
+- 实际 source PendingLoan 移除后、parent transport 建立前捕获唯一活 String owner 身份；
+  metadata 不入旧 Eq，合流失配后不补采。child 的真实退休句柄随原 parent 运输到其退休，
+  同批 PendingChild→Closed，错序/缺链/第三同根退休永久 Lost；原重复 root 的旧 cause 清空仍保留。
+  parent 的私有附着只允许一次，重复附着永久清证。实际 removed owner 校验及真正新 Cleanup append
+  才发布独立 `binding_dependency_drops`；去重未 append 不借旧 Drop，也不挑选重复关系。
+- 原十 actions、十 SSA、旧投影和唯一 emitter 不变；关系逐 ID 核 source Begin/handoff、child commit/use、
+  child retirement、parent SourceRetired 与新 Drop。source/callable 仍 Partial，旧 binding_regions 不变；
+  本片没有 parent-child Complete、absence 权限或新 production receipt。
+- 独立红实际 no-run 1m11s，opt0/debug2/test/support；仅核心 exact 失败 0/1/0/2932 filtered，
+  断点是缺独立关系。此前首 Rooted 的 on/off、完整旧事实相等、十 actions/十 SSA/LLVM 已通过，
+  第二布局未执行。执行前后及绿色覆盖前已独立实读红 binary SHA
+  `fafd635a2dacd34ba61b379cf66a01838ce354aff5fea3c5ce5a4871cb56f56e`，不重演红测。
+- 首生产 no-run 41.15s；核心 exact 1/0/0/2933，完整双 Unit 真 on/off 成功。
+  最终 no-run 22.75s；fresh 审定六项逐 exact 均 1/0/0/2933，无额外选择。
+  五项共 26 次有限 SSA/LLVM lower，另一个歧义 merge 仅 FE；0 native。
+  later-parent/later-owner 两普通源保持旧产品且无关系，FE merge 也明确不发布关系；
+  旧 single-binding receipt、P4 和 P3 真 off 为邻控。两项新增 CI-only 仅编译，未激活故障注入。
+- 最终输入清单包含 4242 个 tracked 文件，SHA
+  `b0278c10b46d78bd9a40901c933050f3014d0315d46d8fbae2d713a1106bc2c3`；六项选择 SHA
+  `29b9e8ed6d4e44a876c42a5342389fa38606c093a663ad26703023aa4671813e`。
+  实际 CG binary SHA `8a25d974eb0918f7787f66cb8f0de2bf80dcb2df9080de3eef124c310918f20c`，
+  原 Cargo artifact 绑定本树 opt0/debug2/test=true、仅 loan-observation-test-support。
+- 严格 frontend/codegen Clippy all-targets/support 38.55s；默认 workspace all-targets 32.40s；
+  fmt、docs 885、尺寸（base 为最终代码，2387 文件/35 项历史超限）、diff 均通过，旧尺寸额度未提高。
+  本片未另做 CLI artifact 空 feature、release 或正式 CI 验收，不据 workspace 成功外推。
+- 过程偏差保留：红前 fmt 检查仅导入布局失败后已修正；红 runner 完成后外层 zsh 赋只读 status
+  变量 exit1，不是第二能力红。首 Clippy 因新增 Option 方法的 question_mark 告警失败，
+  等价改为 `?` 后重跑通过；最终六项使用修复后新构建，不沿用首绿 binary。
+  只读定位两次旧路径不存在、默认沙箱 ps/heredoc 限制分别以授权进程检查/无临时文件读取完成，
+  均非 Rust 或能力失败。完整原件在 `/private/tmp/koven-parent-child-drop-evidence`，
+  含各阶段 JSON/log/manifest、源码与选择哈希；交付时仍须按证据保留合同归档。
+- 上述阶段一独立冻结后才继续阶段二缺 Complete 红；当前因果关系成功不自动升级覆盖认证。
+- 独立只读终审已核真实红/首绿/最终六项、原 artifact 与执行后二进制 SHA、4242 冻结输入及
+  26 份原件哈希；最终仅两 docs 偏离清单，冻结对象和其余 4240 输入仍匹配，无新增阻断。
