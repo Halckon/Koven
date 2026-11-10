@@ -79,8 +79,26 @@ fn assert_links(observed: &Observed, count: usize) {
             assert_eq!(source, source_loan);
             assert_eq!(*consumer, consumer_loan.call());
             assert_eq!(*argument, consumer_loan.argument());
-            let source_begin = actions.iter().position(|action| matches!(action, UnitLoanAction::Begin(actual) if actual == source_loan)).unwrap();
-            let consumer_begin = actions.iter().position(|action| matches!(action, UnitLoanAction::Begin(actual) if actual == consumer_loan)).unwrap();
+            let source_id = retirement
+                .source_begin()
+                .expect("carried source acquisition");
+            let consumer_id = retirement
+                .consumer_begin()
+                .expect("carried consumer acquisition");
+            assert_eq!(
+                observation.action(&source_id),
+                Some(&UnitLoanAction::Begin(source_loan.clone()))
+            );
+            assert_eq!(
+                observation.action(&consumer_id),
+                Some(&UnitLoanAction::Begin(consumer_loan.clone()))
+            );
+            let source_begin = (0..actions.len())
+                .find(|&i| observation.action_id(i).as_ref() == Some(&source_id))
+                .unwrap();
+            let consumer_begin = (0..actions.len())
+                .find(|&i| observation.action_id(i).as_ref() == Some(&consumer_id))
+                .unwrap();
             assert!(
                 source_begin < transfer_index
                     && transfer_index < consumer_begin
@@ -172,6 +190,18 @@ fn consumer_link_survives_snapshot_clone_but_not_reanalysis() {
             })
             .unwrap();
         assert!(cloned.action(&handle).is_some());
+        for action in left.actions() {
+            if let UnitLoanAction::BorrowConsumerRetired(retired) = action {
+                for id in [
+                    retired.source_begin().unwrap(),
+                    retired.consumer_begin().unwrap(),
+                ] {
+                    assert!(cloned.action(&id).is_some());
+                    assert!(right.action(&id).is_none());
+                }
+            }
+        }
+
         assert!(right.action(&handle).is_none());
     }
 }

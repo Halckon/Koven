@@ -10,11 +10,11 @@ use std::sync::Arc;
 type BindingEnd = BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>;
 
 #[derive(Clone, Debug)]
-pub(super) struct ConsumerTransferHandle {
+pub(super) struct ActionHandle {
     identity: Arc<()>,
     index: usize,
 }
-impl ConsumerTransferHandle {
+impl ActionHandle {
     pub(super) fn same_record(&self, other: &Self) -> bool {
         self.index == other.index && Arc::ptr_eq(&self.identity, &other.identity)
     }
@@ -36,11 +36,13 @@ enum Record {
     BorrowBindingEnd(BindingEnd),
     BorrowConsumerTransfer {
         source: UnitLoanFact,
+        acquisition: Option<ActionHandle>,
         consumer: crate::type_checking::UnitExpressionId,
         argument: crate::type_checking::UnitExpressionId,
     },
     BorrowConsumerRetired {
-        transfer: Option<ConsumerTransferHandle>,
+        transfer: Option<ActionHandle>,
+        acquisition: Option<ActionHandle>,
         transaction: crate::ownership_checking::UnitBorrowCallTransportFact,
     },
     Cleanup((PlannerDropPoint, UnitIterationCleanupAction)),
@@ -79,10 +81,16 @@ impl ActionSource {
         self.cleanups += 1;
     }
 
-    pub(super) fn begin(&mut self, loan: UnitLoanFact) {
-        if self.enabled {
-            self.records.push(Record::Begin(loan));
+    pub(super) fn begin(&mut self, loan: UnitLoanFact) -> Option<ActionHandle> {
+        if !self.enabled {
+            return None;
         }
+        let handle = ActionHandle {
+            identity: self.identity.clone(),
+            index: self.records.len(),
+        };
+        self.records.push(Record::Begin(loan));
+        Some(handle)
     }
 
     pub(super) fn begin_receiver(
@@ -153,13 +161,15 @@ impl ActionSource {
         source: &UnitLoanFact,
         consumer: crate::type_checking::UnitExpressionId,
         argument: crate::type_checking::UnitExpressionId,
-    ) -> ConsumerTransferHandle {
-        let handle = ConsumerTransferHandle {
+        acquisition: Option<ActionHandle>,
+    ) -> ActionHandle {
+        let handle = ActionHandle {
             identity: self.identity.clone(),
             index: self.records.len(),
         };
         self.records.push(Record::BorrowConsumerTransfer {
             source: source.clone(),
+            acquisition,
             consumer,
             argument,
         });
@@ -168,10 +178,12 @@ impl ActionSource {
 
     pub(super) fn retire_consumer(
         &mut self,
-        transfer: Option<ConsumerTransferHandle>,
+        transfer: Option<ActionHandle>,
         transaction: crate::ownership_checking::UnitBorrowCallTransportFact,
+        acquisition: Option<ActionHandle>,
     ) {
         self.records.push(Record::BorrowConsumerRetired {
+            acquisition,
             transfer,
             transaction,
         });
@@ -218,6 +230,8 @@ impl ActionSource {
             return Vec::new();
         }
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
+        let acquisitions =
+            consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -235,6 +249,7 @@ impl ActionSource {
                     source,
                     consumer,
                     argument,
+                    ..
                 } => UnitLoanAction::BorrowConsumerTransfer {
                     source,
                     consumer,
@@ -245,6 +260,8 @@ impl ActionSource {
                         crate::ownership_checking::UnitLoanConsumerRetirement {
                             identity: identity.clone(),
                             transfer: consumer_links.get(&index).copied(),
+                            source_begin: acquisitions.get(&index).map(|&(source, _)| source),
+                            consumer_begin: acquisitions.get(&index).map(|&(_, consumer)| consumer),
                             transaction,
                         },
                     )

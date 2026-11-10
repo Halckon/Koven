@@ -18,6 +18,7 @@ pub(super) fn validate(
         let Record::BorrowConsumerRetired {
             transfer: Some(handle),
             transaction,
+            ..
         } = record
         else {
             continue;
@@ -29,6 +30,7 @@ pub(super) fn validate(
             source,
             consumer,
             argument,
+            ..
         }) = records.get(handle.index)
         else {
             continue;
@@ -47,6 +49,47 @@ pub(super) fn validate(
         }
     }
     links
+}
+
+/// Follow only carried handles; never discover acquisitions by searching token facts.
+pub(super) fn acquisitions(
+    records: &[Record],
+    identity: &Arc<()>,
+    links: &BTreeMap<usize, usize>,
+) -> BTreeMap<usize, (usize, usize)> {
+    let mut proven = BTreeMap::new();
+    for (&retired, &transfer) in links {
+        let Record::BorrowConsumerTransfer {
+            acquisition: Some(source),
+            ..
+        } = &records[transfer]
+        else {
+            continue;
+        };
+        let Record::BorrowConsumerRetired {
+            acquisition: Some(consumer),
+            transaction,
+            ..
+        } = &records[retired]
+        else {
+            continue;
+        };
+        if !(Arc::ptr_eq(&source.identity, identity)
+            && Arc::ptr_eq(&consumer.identity, identity)
+            && source.index < transfer
+            && transfer < consumer.index
+            && consumer.index < retired)
+        {
+            continue;
+        }
+        let [ended_consumer, ended_source] = transaction.ended_loans();
+        if matches!(records.get(source.index), Some(Record::Begin(actual)) if actual == ended_source)
+            && matches!(records.get(consumer.index), Some(Record::Begin(actual)) if actual == ended_consumer)
+        {
+            proven.insert(retired, (source.index, consumer.index));
+        }
+    }
+    proven
 }
 
 #[cfg(test)]

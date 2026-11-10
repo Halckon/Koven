@@ -151,13 +151,14 @@ impl DropPlanner<'_, '_> {
     /// final descriptors. This does not add iteration actions or claim cross-table order.
     pub(super) fn finish_call_pending_loans(&mut self, call: ExpressionId, state: &mut ValueState) {
         let call = self.checker.unit_expression(call);
-        for (action, _) in state
-            .pending_loans
-            .extract_if(.., |(action, _)| match action {
-                Action::EndCallLoan(loan) => loan.call() == call,
-                Action::EndReceiverLoan(receiver) => receiver.call() == call,
-                _ => false,
-            })
+        for super::model::PendingLoan(action, _, _) in
+            state
+                .pending_loans
+                .extract_if(.., |super::model::PendingLoan(action, _, _)| match action {
+                    Action::EndCallLoan(loan) => loan.call() == call,
+                    Action::EndReceiverLoan(receiver) => receiver.call() == call,
+                    _ => false,
+                })
         {
             if let Action::EndReceiverLoan(receiver) = action
                 && self.observes_bounded_receiver(&receiver)

@@ -105,3 +105,12 @@ getter返回catalog-bound ActionId，clone可解析而重分析不可。
 合流保留原transport资格并清空观察引用，不任选分支。实际later Return输入仍被既有
 L0164拒绝并全局撤销，没有借此开放语言准入或补造End。只补Partial关系证据，不认证
 完整acquisition依赖、wrapper/unwind、动态唯一消费、权限恢复或source/callable Complete。
+
+
+同一catalog的Begin现在返回ActionHandle，随实际pending token进入transfer与retirement，
+不扫描事实表补来源。独立acquisition验证只沿既有合法transfer引用核source Begin < transfer
+< consumer Begin < retirement、Begin类型与完整token，公开两个catalog-bound引用；缺失或
+失配只撤这两个引用，原transfer与transaction仍保留。PendingLoan的Eq只比较旧action/depth，
+合流仍保留原末状态pending，只对输入中缺项、不同深度、缺失/不同句柄或重复语义候选清空
+观察元数据；无歧义clone保留，不回填缺失引用。receiver句柄本片为None，observer off不增
+Begin。本证据仍Partial，不证明动态唯一消费、wrapper或权限恢复。

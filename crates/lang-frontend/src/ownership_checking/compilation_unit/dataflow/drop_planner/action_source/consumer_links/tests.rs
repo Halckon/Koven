@@ -9,8 +9,8 @@ const SOURCE: &str = "fun view(source: String): borrow String from source = sour
 fn recorded(transaction: &UnitBorrowCallTransportFact) -> ActionSource {
     let [consumer, source] = transaction.ended_loans();
     let mut actions = ActionSource::default();
-    let handle = actions.transfer_consumer(source, consumer.call(), consumer.argument());
-    actions.retire_consumer(Some(handle), transaction.clone());
+    let handle = actions.transfer_consumer(source, consumer.call(), consumer.argument(), None);
+    actions.retire_consumer(Some(handle), transaction.clone(), None);
     actions
 }
 
@@ -80,7 +80,7 @@ fn ci_only_invalid_consumer_handles_never_grant_a_dependency_id() {
     assert_unlinked(actions, &fixture, &transaction);
     let mut actions = recorded(&transaction);
     let mut other = ActionSource::default();
-    let foreign = other.transfer_consumer(source, consumer.call(), consumer.argument());
+    let foreign = other.transfer_consumer(source, consumer.call(), consumer.argument(), None);
     let Record::BorrowConsumerRetired { transfer, .. } = &mut actions.records[1] else {
         panic!("fixture record");
     };
@@ -162,4 +162,64 @@ fn ci_only_invalid_consumer_handles_never_grant_a_dependency_id() {
         &fixture,
         &foreign_transaction,
     );
+}
+
+#[test]
+fn ci_only_invalid_acquisitions_preserve_existing_transport_link() {
+    let fixture = Fixture::new(&[("a.ko", SOURCE)]);
+    let transaction = fixture.shared().borrow_call_transports()[0].clone();
+    let [consumer, source] = transaction.ended_loans();
+    for fault in 0..10 {
+        let mut actions = ActionSource::default();
+        let source_handle = actions.begin(source.clone());
+        let transfer =
+            actions.transfer_consumer(source, consumer.call(), consumer.argument(), source_handle);
+        let consumer_handle = actions.begin(consumer.clone());
+        actions.retire_consumer(Some(transfer), transaction.clone(), consumer_handle);
+        match fault {
+            0 => {}
+            1..=4 => {
+                let Record::BorrowConsumerTransfer { acquisition, .. } = &mut actions.records[1]
+                else {
+                    unreachable!()
+                };
+                match fault {
+                    1 => *acquisition = None,
+                    2 => acquisition.as_mut().unwrap().index = usize::MAX,
+                    3 => acquisition.as_mut().unwrap().index = 1,
+                    _ => *acquisition = ActionSource::default().begin(source.clone()),
+                }
+            }
+            5..=7 => {
+                let Record::BorrowConsumerRetired { acquisition, .. } = &mut actions.records[3]
+                else {
+                    unreachable!()
+                };
+                match fault {
+                    5 => *acquisition = None,
+                    6 => acquisition.as_mut().unwrap().index = 0,
+                    _ => *acquisition = ActionSource::default().begin(consumer.clone()),
+                }
+            }
+            8 => actions.records[0] = Record::Begin(consumer.clone()),
+            _ => actions.records[2] = Record::Begin(source.clone()),
+        }
+        assert_eq!(
+            actions.consumer_transports(),
+            std::slice::from_ref(&transaction)
+        );
+        let observation = actions
+            .finish(source.call().source_unit(), fixture.parsed[0].source_id())
+            .remove(0);
+        let UnitLoanAction::BorrowConsumerRetired(retired) = &observation.actions()[3] else {
+            unreachable!()
+        };
+        assert!(
+            retired.transfer().is_some(),
+            "old real relation remains independently valid"
+        );
+        assert_eq!(retired.transaction(), &transaction);
+        assert_eq!(retired.source_begin().is_some(), fault == 0);
+        assert_eq!(retired.consumer_begin().is_some(), fault == 0);
+    }
 }

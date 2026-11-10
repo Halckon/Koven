@@ -39,18 +39,25 @@ impl DropPlanner<'_, '_> {
         let Some(source) = binding.source_loan() else {
             return;
         };
-        let Some(index) = state.pending_loans.iter().position(|(action, _)| {
-            matches!(action, Action::EndCallLoan(loan)
+        let Some(index) =
+            state
+                .pending_loans
+                .iter()
+                .position(|super::model::PendingLoan(action, _, _)| {
+                    matches!(action, Action::EndCallLoan(loan)
                 if loan.call() == source.call()
                 && loan.argument() == source.argument()
                 && loan.target() == binding.origin()
                 && self.observes_borrow_auxiliary(loan, state))
-        }) else {
+                })
+        else {
             return;
         };
         // The normal-return retain must not discard this token. Move it intact;
         // the binding endpoint alone cannot stand in for a source-token end.
-        let (Action::EndCallLoan(source), _) = state.pending_loans.remove(index) else {
+        let super::model::PendingLoan(Action::EndCallLoan(source), _, _) =
+            state.pending_loans.remove(index)
+        else {
             unreachable!("matched actual source token")
         };
         state

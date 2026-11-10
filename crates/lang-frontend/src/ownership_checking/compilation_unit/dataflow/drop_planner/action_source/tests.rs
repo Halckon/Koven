@@ -120,6 +120,23 @@ fn consumer_dependency_cross_source_keeps_external_parameter_spans() {
             let handle = retired.transfer().unwrap();
             assert!(observation.action(&handle).is_some());
             assert!(other.action(&handle).is_none());
+            for (id, loan) in [
+                (
+                    retired.consumer_begin().unwrap(),
+                    &retired.transaction().ended_loans()[0],
+                ),
+                (
+                    retired.source_begin().unwrap(),
+                    &retired.transaction().ended_loans()[1],
+                ),
+            ] {
+                assert_eq!(
+                    observation.action(&id),
+                    Some(&UnitLoanAction::Begin((*loan).clone()))
+                );
+                assert!(other.action(&id).is_none());
+            }
+
             for loan in retired.transaction().ended_loans() {
                 assert_eq!(loan.call().source_unit(), observation.source());
                 assert_eq!(loan.begin_span().source_id(), fixture.parsed[1].source_id());
