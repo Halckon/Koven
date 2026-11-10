@@ -8124,3 +8124,53 @@ macOS arm64、Rust1.96.0、LLVM21.1.8，locked/offline、debug=0、jobs=2，独�
 未运行完整codegen/frontend/workspace行为测试、Linux、故障注入或sanitizer；未组合前两片
 continue本地成果与#390复验，不借用旧CI当作新组合证据。只本地提交，无推送、合并或新PR；
 统一队列应保留各片旧见证、在最新main的精确组合头重新验收。D10/E2与SPEC-0341仍in-progress。
+
+### #390 已完成 D10/E2 切片合批验收（2026-11-10）
+
+本批在既有 #390 `ca322bc558be5336efdc701434cb432e5b7c509e` 上保留父链合流，
+main 基底为 `cc1e5b41223fabe0248dd4bc2742e95aae9b810a`。先 fast-forward 至
+owner `19d597e8`，再以普通 merge 保留七个借用完成片 `c718d72e`、`67f3b97d`、
+`fd846873`、`812ba9b4`、`3364b51f`、`351fb93a`、`3ac51b74`，owner §178 最终头
+`1f6cd0cb`，以及 nested/identity/return 对照 `4f0c2499`、`667c83f7`、`82117953`。
+不把其他工作树的未提交内容或 §170 在途成果纳入，也不重写候选分支。
+
+共享 handoff 冲突保留 owned root 与实际 pending Shared temporary 的资格并集；
+辅助退休保留 Exclusive root 和 Shared temporary，来源与两个 source transport 调用方
+仍限定 Shared。新增正序/反序两项真实混合实参测试，逐项核 call/argument/parameter、
+原 `&` marker、pending 顺序及 temporary 唯一 CallReturn Drop；来源继续到
+`println(item)` 的 AfterStatement，结果 end 与 binding transport 身份一致。
+Exclusive 三出口、插值结束、Group 内部索引及全部 raw 失败撤销同时保留。
+
+验证代码头 `fc7f60b2db9df3b3ab8590941a2b182fa15b8c2c`，代码树
+`98c749a5e24c87e9cfa2f74503e7d3e2b6fffeab`。先对指定目标 `--no-run --message-format=json`
+记录实际测试二进制；同一二进制 `--list --format terse` 固定选择，以 `--exact --skip`
+排除补集，每目标一次运行，逐项对比完整成功名称集合、计数及二进制 SHA256。
+不以编译成功、零命中或前一候选日志代替本轮执行。
+
+| 本批验收 | 实际范围与结果 |
+|---|---|
+| frontend 去重组合 | 22目标690项通过，0失败/忽略；原§178的228项全部保留；上一548项中538同名、3项因能力变化重命名并保留旧源，7项按下述边界未运行，按合同身份为541旧项＋149新增 |
+| frontend 选择 | lib151（原owner普通合同、邻接raw失败门、七片owner观察及Group lookup）；unit_direct_call_loan_ends293；ownership_iteration36；continuation14、nested13、receiver4、origins5；其余15目标174项为原消费者、条件流、类型、解析恢复及插值输入清理邻控 |
+| codegen 去重组合 | 209项通过，0失败/忽略；旧119完整保留，增加 owned_source_return_tests 全族90；owned_source_continue_tests 19已在119内，不重复累计 |
+| native 边界 | 上述209中44项实际生成目标文件、链接并运行（旧14＋return族30）；八份新增return边界原源仍只证明strict Unit准入和SSA/LLVM差分，不冒充native证据 |
+| 静态门禁 | `cargo clippy --locked --offline -p lang-frontend -p lang-codegen --all-targets -- -W clippy::all -D warnings`、`cargo check --locked --offline --workspace --all-targets`、`cargo fmt --all -- --check`及diff全部通过 |
+| 文档与尺寸 | `python3 scripts/check_docs.py`与`python3 scripts/check_rust_sizes.py --base cc1e5b41223fabe0248dd4bc2742e95aae9b810a`通过；867 Markdown、2321手写Rust、36项既有超长，额度不变；dataflow聚合后1171行，仍低于既有1248额度 |
+| 独立复核 | 11候选祖先、独占文件blob、原验收正文、注册并集、共享gate、旧continue诊断与新混合测试均无阻断；另核899完整成功集合、输入身份和二进制哈希，未将重复运行累加 |
+
+本机为macOS arm64、Rust1.96.0、LLVM21.1.8；locked/offline、jobs=2、debug=0、
+独占既有target，Cargo串行。首次日志汇总使用行首匹配，两个有并发诊断输出的目标被
+误报名称缺失；两目标进程实际退出0，保留原日志并按完整精确名称及成功总数复核，
+没有修改测试、隐藏真实失败或为计数重跑。此前单独10项混合邻控不重复加入899。
+
+本地沿用七个明确未运行项：direct-call中的
+`nonreturning_suffix_and_unreachable_calls_publish_no_cleanup`、
+`constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path`、
+`abort_does_not_publish_receiver_prefix_ends`、
+`copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges`、
+`abort_does_not_unwind_the_temporary_field_parent`、
+`abort_and_normal_return_do_not_invent_prefix_unwind_events`，以及nested的
+`inout_receiver_and_nonreturning_sources_do_not_publish_call_uses`。原测试和正式CI选择未改。
+owner既有大型压力/破损模型守卫仅随all-targets编译；未运行完整frontend/codegen/workspace
+行为测试、Linux或sanitizer。原始命令、选择和日志保留仓外，稳定原源与断言在上述代码头
+及各候选提交中可追溯；本批最终发布头仍须由[#390正式CI](https://github.com/Halckon/Koven/pull/390)
+验证当前main和精确head，旧 `ca322bc5` 的绿灯不能替代。D10/E2与SPEC-0341保持in-progress。
