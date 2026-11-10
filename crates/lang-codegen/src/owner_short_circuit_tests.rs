@@ -2,7 +2,7 @@
 use super::{OwnedProducts, UnitSource};
 use crate::ssa::model::{Definition, Edge, EntityId, Function, Operation, TerminatorKind};
 use std::collections::BTreeSet;
-const SOURCE: &str = "fun run(flag: Boolean): String { var held = \"outer\"; while(flag && flag) { val previous = replace(&held, \"next\"); break }; return held }\nfun entry(): Unit { val first = run(false); val second = run(true) }";
+pub(super) const SOURCE: &str = "fun run(flag: Boolean): String { var held = \"outer\"; while(flag && flag) { val previous = replace(&held, \"next\"); break }; return held }\nfun entry(): Unit { val first = run(false); val second = run(true) }";
 fn edges(term: &TerminatorKind) -> Vec<&Edge> {
     match term {
         TerminatorKind::Branch(edge) => vec![edge],
@@ -70,12 +70,15 @@ fn short_circuit_actual_return_requires_owner_receipt() {
 }
 #[test]
 fn short_circuit_real_cfg_preserves_p_before_two_owner_exits() {
-    for condition in [
+    check_cfg(&[
         "flag && flag",
         "flag || flag",
         "!((flag) && (flag))",
         "!((flag) || (flag))",
-    ] {
+    ]);
+}
+pub(super) fn check_cfg(conditions: &[&str]) {
+    for condition in conditions {
         for constant in [false, true] {
             let text = SOURCE.replace("flag && flag", condition);
             let text = if constant {
@@ -237,12 +240,15 @@ fn short_circuit_real_cfg_preserves_p_before_two_owner_exits() {
 }
 #[test]
 fn short_circuit_native_preserves_skip_and_evaluated_results() {
-    for (condition, expected) in [
+    check_native(&[
         ("flag && flag", b"outer\nnext\n".as_slice()),
         ("flag || flag", b"outer\nnext\n".as_slice()),
         ("!((flag) && (flag))", b"next\nouter\n".as_slice()),
         ("!((flag) || (flag))", b"next\nouter\n".as_slice()),
-    ] {
+    ]);
+}
+pub(super) fn check_native(cases: &[(&str, &[u8])]) {
+    for (condition, expected) in cases {
         for constant in [false, true] {
             let text = SOURCE.replace("flag && flag", condition).replace(
                 "val first = run(false); val second = run(true)",

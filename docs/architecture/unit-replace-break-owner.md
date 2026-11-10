@@ -187,9 +187,11 @@ literal或Not方向交换catalog。backend emitter和原清理不变。
 
 ## 单层同参数短路条件
 
-P/Q专用准入可接受一个`&&`或`||`，两叶仅Group到同一原唯一Boolean参数Name，
-整体可Group/Not。叶Not、literal、比较、调用、嵌套短路、第二输入仍不准入。其它
-loop族仍旧共享门，原merge_value_states清除suffix carrier规则不放宽。
+P/Q专用准入可接受一个`&&`或`||`，两叶各自仅Group/Not到同一原唯一Boolean参数Name，
+整体也可Group/Not。每层仍核精确Boolean并拒绝constant use；完整条件的既有普通结果
+必须同时包含true/false，不因叶Not或参数相关性改写该结果。literal、比较、调用、嵌套
+短路、第二输入仍不准入。其它loop族仍旧共享门，原merge_value_states清除suffix carrier
+规则不放宽；不按叶Not奇偶交换P/Q边角色。
 
 条件真实Read发生在suffix carrier安装之前；短路skip/evaluated的P按原状态与CFG
 转发，entry再次核真实P。内部条件边先汇聚到body或finished，之后仍只有finished和

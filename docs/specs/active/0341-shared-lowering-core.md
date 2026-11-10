@@ -11107,3 +11107,46 @@ source清单 `9ed774290d9d7b560e785cec32c13a7bbda17e050b39e0462aa2bbb0dabee8c4`�
 原Cargo artifact/profile、18逐项结果和两阶段红绿、静态终态均匹配；审阅者未运行
 测试或编辑。终审后仅补两docs并复核docs/diff，本地提交清树；borrow target已释放，
 未push/PR/发布，不将固定3/4代表外推大arity资源或线性性能。
+
+
+### 同参数短路叶 Not 实施合同
+
+从233736f8隔离继续既定Boolean语义：P/Q条件保持单层`&&`/`||`，两叶允许
+Group/Not链到同一唯一Boolean参数，整体Group/Not仍可用。每层exact Boolean、
+ordinary outcomes及非constant守卫不变；不放比较叶、嵌套logical、多参数、调用、一般loop
+或Resource。不改语言、ABI、原merge清carrier、严格两owner出口或唯一物理emitter。
+先以真实普通源码通过旧SSA/LLVM后缺Return receipt作红测，再实现最小准入门；
+Basic/Const验证实际沿途P、出口P/Q、caller清理及正常native真值表。所有foreign、fault、
+Abort、计数和压力仅编译，不执行；本片仅本地提交，不发布。
+
+### 同参数短路叶 Not 受限验收
+
+基底233736f8保父链隔离；f029de6e先提交合同和普通backend红测/原CFG helper提取，
+5af29dc1增加4个frontend普通exact。红binary编译输入f029de6e，运行时HEAD已是仅新增
+前端测试的5af29dc1；两者生产相同。唯一实际Return红测通过旧lower、SSA verifier、LLVM，
+真实payload为Some(2)而产品receipt为None，exit101，原日志保留，无注入或假造事件。
+
+生产固定f9d617249a95b74d189db1169753aff909b7629d（treea485e66b），只在P/Q私有
+logical leaf helper增加Not剥层并改名；普通outcomes、逐层exact Boolean/非constant、
+同参数symbol、共享loop门、merge及incoming2均未改。7个旧测试文件中已准入负例改为
+仍不准入的比较叶，原断言保留；含混合foreign的旧helper/public测试仍仅编译。
+
+新前端4项核真实左右AST/Span/Group/Not层数/同一参数symbol，B/Call/Return三consumer
+与原清理on/off一致，正常邻形拒准入。新backend3项覆盖实际receipt、Basic/Const
+SSA/LLVM与正常native；复用完整原CFG断言，沿真实BlockParameter入边追P，核Replace
+输入P及真实Q、最终两Branch分别P/Q、返回payload与caller旧Drop，不假定Not边顺序。
+混合叶Not在数学上恒真/恒假，但现有typed ordinary结果保守为双outcome；测试明示该事实，
+未为产品放宽守卫。native相应验证outer/outer或next/next，不把静态双出口说成两边都在
+该具体源运行；同否定及双否定源覆盖两种runtime结果。正常输出不等于析构计数证明。
+
+最终19前端+24后端共43唯一普通exact全部通过，成功集合与显式selection逐项一致；
+本轮逐helper重新审过原36及新7，不继承历史大白名单。两binary实际debug2/features空集，
+3001源码/配置SHA和artifact SHA实际核对，manifest固定f9d61724。严格两crate all-targets
+Clippy、workspace all-targets check、fmt、docs884、diff与尺寸base233736f8通过：
+2345手写Rust、35旧超千行，无预算改变。独立只读审核核生产/helper及最终tree、hash、
+19+24成功集合无阻断，审核者未代执行测试。
+
+证据目录`/private/tmp/koven-owner-short-circuit-leaf-not-evidence`保留red、build、selection、
+helper审计、manifest及所有门禁日志。没有执行foreign、fault/损坏、Abort、计数、压力、
+待定矩阵、sanitizer或正式双宿主CI；未推送、未改原main脏树或发布头。owner target已空闲
+释放；当前只认领本片受限行为，不外推一般循环、资源或backend off端到端。
