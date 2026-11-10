@@ -935,3 +935,6 @@ mod exclusive_loop_prefix;
 
 #[path = "unit_direct_call_loan_ends/borrow_publication.rs"]
 mod borrow_publication;
+
+#[path = "unit_direct_call_loan_ends/interpolated_string.rs"]
+mod interpolated_string;

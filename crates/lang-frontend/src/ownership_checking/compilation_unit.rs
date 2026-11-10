@@ -819,7 +819,7 @@ impl CompilationUnitOwnership {
 
     /// 普通直接调用 Borrow 实参的实际结束事件，保持 planner 的结束动作顺序。
     /// 仅覆盖 owned-result、无 receiver 的 declaration/symbol call：operand 为可分组的
-    /// owned val/var 或具名参数根、无插值 String 字面量、已验证构造形成的完整 MoveOnly
+    /// owned val/var 或具名参数根、已完成求值的 String 字面量（含插值）、已验证构造形成的完整 MoveOnly
     /// temporary，或沿 typed Field/Group 链证明的 MoveOnly temporary 父字段。
     /// 构造与字段 target 均须匹配实际 owner。排除普通工厂调用结果、借用绑定、provider
     /// 来源/绑定、其他投影、借用结果、来源移交、Inout、receiver 与 capture end。

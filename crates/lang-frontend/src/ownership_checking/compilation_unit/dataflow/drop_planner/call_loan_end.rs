@@ -6,7 +6,7 @@ use crate::{
         LoanKind, UnitDirectCallLoanEndFact, UnitIterationCleanupAction as Action, UnitLoanFact,
         UnitLoanTarget,
     },
-    parser::{Expression, StringPart},
+    parser::Expression,
     type_checking::{CallableResultSource, ExpressionCategory, UnitCallTarget},
 };
 use std::collections::BTreeMap;
@@ -85,10 +85,11 @@ impl DropPlanner<'_, '_> {
                         && self.is_move_only_temporary(loan.argument().expression())
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
                 }
-                Expression::String { parts } => {
-                    // plain String 自己求值成 owner；不接受 interpolation 或投影。
+                Expression::String { .. } => {
+                    // The argument token is registered only after every interpolation
+                    // completed. It borrows the outer String, not any interpolation input.
                     return kind == LoanKind::Shared
-                        && parts.iter().all(|part| matches!(part, StringPart::Text(_)))
+                        && self.is_move_only_temporary(loan.argument().expression())
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
                 }
                 _ => return false,

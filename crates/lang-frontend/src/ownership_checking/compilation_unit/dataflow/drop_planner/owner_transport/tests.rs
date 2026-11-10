@@ -321,3 +321,15 @@ fn owner_observation_preserves_all_three_borrow_publication_tables() {
     assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
     compare(&fixture, &fixture.parts(&shared));
 }
+
+#[test]
+fn owner_observation_preserves_interpolated_string_loan_ends_and_input_cleanup() {
+    let source = r#"fun read(item: String): Unit {}
+fun run(flag: Boolean): Unit { read("${"inner"}-${if (flag) { return } else { 0 }}") }"#;
+    let fixture = Fixture::new(&[("root.ko", source)]);
+    let shared = fixture.shared();
+    shared.clone().validate().unwrap();
+    assert_eq!(shared.direct_call_loan_ends().len(), 1);
+    assert_eq!(shared.drops().len(), 3);
+    compare(&fixture, &fixture.parts(&shared));
+}

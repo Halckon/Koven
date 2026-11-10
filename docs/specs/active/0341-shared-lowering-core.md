@@ -7660,3 +7660,47 @@ nested的 `inout_receiver_and_nonreturning_sources_do_not_publish_call_uses` 亦
 独立只读代码复审无阻断；dataflow 1157→1160仅三行失败撤销接线，明确复审并沿用
 1248例外上限，baseline/owner/split_plan不变；新领域测试96行。红绿日志保留仓外，
 不复制运行产物入库。未推送或新建PR；D10/E2仍in-progress，组合验收及发布头CI另核。
+
+
+## 已完成插值 String 的直接借用结束观察（2026-11-10）
+
+独立 Phase 3 切片基于 main cc1e5b41223fabe0248dd4bc2742e95aae9b810a。核对26个
+相关在途分支仍为plain-String资格；与 c718d72e Exclusive循环退出、67f3b97d raw
+三表撤销分别验收，不混入receiver/parent-binding工作或其受阻文档，不重复已有清理修复。
+
+真实先行红测中，已完成插值实参有Shared loan及严格的Temporary(argument) target，
+但direct结束表为空。现限定原无receiver、owned-result declaration/symbol调用，
+String字面量需为原始argument的MoveOnly temporary且target完全匹配；分组保原始身份。
+普通factory与binary String结果虽有实际temporary loan/drop，仍不取得该观察资格。
+
+只有完整插值成功才登记外层实参token；正常返回复用既有finish_direct_call_loans
+真实移走该call token并记录CallReturn，退出仍来自原depth-aware unwind，不从end_span
+推断执行。不修改注册时机、String输入清理、owner/receiver/source准入或循环证明。
+部分/未完成插值只能清理已形成的内层输入；外层String不是它的父loan或共享payload。
+本片不提供完整事件流、全局absence、动态实例计数或native能力。
+
+| 验收项 | 选择 | 本地结果 |
+|---|---|---|
+| 普通事件族 | unit_direct_call_loan_ends，排除下述6个整项 | 120 passed，含9个新双入口合同 |
+| owner开关 | --lib owner_observation_preserves_interpolated_string | 1 passed；仅移除观察字段后比较完整drop_planner::Analysis |
+| 借用邻控 | continuation、nested、receiver_backedge；nested排除下述1项 | 14＋13＋4 passed |
+| Unit迭代退出 | ownership_iteration control_exits_unit | 6 passed |
+| 原插值输入清理 | ownership_constants interpolated_string_constants_release_inner_owners_before_returning_outer_string | 1 passed，保留旧Single见证，不代表普通Unit常量入口准入 |
+| 质量与消费者 | frontend all-targets Clippy（-D warnings）、workspace all-targets check | 通过 |
+| 静态提交门 | fmt、check_docs.py、相对cc1e5b41尺寸门、diff | 通过；未改尺寸额度 |
+
+新合同固定完整source-qualified事件向量，核正常/Group、Return/for Break/Continue、
+真实token→outer drop→EndElement顺序、部分与未访问、内层输入清理、嵌套已完成call不
+重放、named参数逆序及Exclusive序号空隙、内层loop不结束外层token。错误/deferred正控
+先证明公开表非空再核撤销；raw撤销候选67f3b97d未混入，组合仍须另验。
+
+Mac AArch64/Rust1.96/LLVM21，locked/offline、默认debug、jobs=2、本人target串行复用。
+159个唯一普通测试，新增10项；先行8项单跑不重复累计。完整保留但仅编译的6项为
+nonreturning_suffix_and_unreachable_calls_publish_no_cleanup、constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path、
+abort_does_not_publish_receiver_prefix_ends、copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges、
+abort_does_not_unwind_the_temporary_field_parent、abort_and_normal_return_do_not_invent_prefix_unwind_events；
+nested的inout_receiver_and_nonreturning_sources_do_not_publish_call_uses亦仅编译。
+未运行Abort、native、Linux、故障注入、压力、frontend/workspace全量测试或正式CI。
+原错误日志保留仓外；初版const夹具不适合普通Unit helper，最终以内层String literal测
+相同输入清理边界，不修改helper或旧合同。新领域测试417行，compilation_unit.rs仍1030行，
+未改尺寸政策或扩大额度。独立代码复审无阻断；D10/E2不归档，不推送或新建PR。
