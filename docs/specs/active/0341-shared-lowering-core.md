@@ -11701,3 +11701,46 @@ compilation_unit入口增加4行，复杂逻辑与测试保留独立模块。架
 Complete或新production receipt；source/callable仍Partial，旧oracle与唯一emitter保留。
 独立只读终审核原始红绿产物、4231冻结输入、五项实际日志及文档分账，无新增阻断；
 最后仅本Spec提交，非文档源码保持冻结字节，未重跑Rust。
+
+
+### 共同出口 Replace 结果 Return：受限合同（2026-11-10）
+
+从本地组合 `6e606a93` 开始，保持既有 String P/Q、一次 Replace→Break 与共同出口，
+仅研究尾句 `return replace(&held, "last")`。Guide 10 的既有 root Replace/owned Return
+语义、ADR-0038 路径身份、语言 ABI 和旧 emitter 不变；不扩大循环、借用、一般 RHS、
+alias、Group 或额外后继使用。此段记录实施合同，不宣称能力已经完成。
+
+原样普通 probe 经真实 Basic 准入、SSA verifier 和 LLVM render 通过；旧编译路径可用，
+但 owner observation 为 Unsupported，未发布 replace-break consumer。实际 suffix call
+的旧 cleanup 是 `CallReturn` 对 held 的 Drop，不是 Return 的 ControlTransfer cleanup。
+SSA 共同出口第二个 RootReplace 安装 literal R，第一结果随后 Drop，第二结果作为
+Return payload；调用者普通接收与清理照旧。该结果不是 owner receipt 的能力绿灯。
+
+需要由真实 String 完成、Value pending 注册、checked Replace commit、实际 root removal
+及 payload evaluation 完成，依次证明 Create(R)→Pending(R)→Replace(P/Q,R)→
+CallReturn Drop(R)→Return(P/Q)。P/Q 保留原两个 catalog，R 必须来自真实 producer 完成，
+不得由 drop、AST 形状或旧 condition 的 P 投影倒造；Place 求值也不是 Take(root)。
+旧通用 owner observation 在该控制边之后不活跃，不能假设它会生成 R identity。
+后端必须绑定原 RootReplace 实际产生的 old-result slot，并在实际 Drop 新 installed
+slot 后授权原 Return；不能将现在持有 R 的 root slot 当旧值，也不能重发 Replace/Drop。
+
+实施先锁定普通同源 Phase 3 缺 receipt 红，再证明真实回调闭合；随后以 Phase 4 原 emitter
+授权缺失红和同源绿证明消费，不通过扩大 admission 单独取得绿灯。故障、foreign catalog、
+资源/计数器及强制路由只在官方 CI 执行，本地仅编译；普通 helper 每轮重新审计。
+
+
+本地实施：Phase 3 `86ef47ba` 在真实回调闭合后使同源 receipt 红变绿；新 catalog 仅保存
+R，P/Q 不重编号。Phase 4 同头普通原样测试先取得 MissingFact（1 exact），随后复用原
+RootReplace post-push、installed-R Drop 回执与 finish_return 闭合授权。最终普通选择为
+7 exact（FE2/CG5），内部包括4合法排除邻居、2种 Unit SSA/LLVM、2 native 程序和4旧
+consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行；不继承历史大名单。
+准备期 Rust Debug/字段访问、模块注册、AST marker 与 descriptor 引用编译错误，以及格式
+排序失败均保留，不能算能力红；真实能力红只有原 receipt 缺失和后端 MissingFact。
+原始日志、严格选择名单、默认debug2编译profile、源码与binary SHA保留于
+`/private/tmp/koven-owner-replace-return-evidence`。冻结前后两轮
+7 exact均真实每项1测试通过；生产头 `3ae388fa` 重建后的末轮包含旧Analysis on/off一致性，
+默认debug2/opt0，未降profile。
+两crate all-targets Clippy -D warnings、workspace all-targets check、fmt、docs885、diff与
+尺寸门禁通过（2374手写Rust、35历史超限，未新增超限或提升预算）。静态首轮frame enum
+体积警告以Box可选frame修正，Architecture索引遗漏也已补齐；原失败日志保留。
+此后仅验收文档提交，不改变该生产头已测试的Rust字节。未推送、未跑官方CI。

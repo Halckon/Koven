@@ -34,7 +34,12 @@ impl Builder<'_, '_> {
             .as_ref()
             .filter(|p| p.return_expression == Some(identity))
         {
-            let (selected, required_stage) = if let Some(binding) = &plan.return_binding {
+            let (selected, required_stage) = if let Some(replacement) = &plan.return_replacement {
+                if !self.consumed_drops.contains(&replacement.drop_index) {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                (replacement.old, 9)
+            } else if let Some(binding) = &plan.return_binding {
                 if !self.dead.contains(&binding.symbol) {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 }

@@ -31,6 +31,8 @@ mod owner_pair_call_tests;
 mod owner_replace_break_ci_tests;
 #[path = "owner_replace_break_downstream_tests.rs"]
 mod owner_replace_break_downstream_tests;
+#[path = "owner_replace_return_tests.rs"]
+mod owner_replace_return_tests;
 #[path = "native_owner_replacement_success_tests.rs"]
 mod owner_replacement_success_tests;
 #[path = "owner_return_tests.rs"]

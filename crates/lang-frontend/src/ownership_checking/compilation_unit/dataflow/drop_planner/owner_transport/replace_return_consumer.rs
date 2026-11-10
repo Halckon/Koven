@@ -1,4 +1,5 @@
 //! Move the saved path alternatives through the actual Name and Return traversal.
+mod replacement;
 use super::replace_consumer::{ReplaceConsumerCarrier, snapshot};
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::ReturnConsumerTarget;
@@ -25,12 +26,14 @@ pub(super) fn admit(
         return None;
     };
     let payload_node = ast.expressions().get(*payload).ok()?;
-    if !matches!(payload_node.payload(), Expression::Name)
-        || checker.reference_symbol(payload_node.span()) != Some(root)
-        || checker
+    let replacement = replacement::admit(checker, *payload, root);
+    let named = matches!(payload_node.payload(), Expression::Name)
+        && checker.reference_symbol(payload_node.span()) == Some(root)
+        && checker
             .typed
             .expression_category(checker.unit_expression(*payload))
-            != Some(ExpressionCategory::Place)
+            == Some(ExpressionCategory::Place);
+    if (!named && replacement.is_none())
         || checker
             .typed
             .expression_type(checker.unit_expression(*payload))
@@ -48,6 +51,7 @@ pub(super) fn admit(
         expression: checker.unit_expression(*expression),
         payload: checker.unit_expression(*payload),
         statement: UnitStatementId::new(checker.source_unit, statement),
+        replacement,
         binding: None,
     })
 }
@@ -58,6 +62,7 @@ pub(in super::super) struct ReturnConsumerCarrier {
     target: ReturnConsumerTarget,
     actions: Vec<Action>,
     bound: Option<OwnedValue>,
+    replacement: Option<Box<replacement::Frame>>,
 }
 impl ReturnConsumerCarrier {
     pub(super) fn handoff(
@@ -74,6 +79,11 @@ impl ReturnConsumerCarrier {
         }
         Some(Self {
             incoming: [condition.clone(), body],
+            replacement: target.replacement.map(|_| {
+                Box::new(replacement::Frame::new(
+                    boundary.input_producers().callable(),
+                ))
+            }),
             target,
             actions: Vec::new(),
             bound: None,
@@ -136,7 +146,13 @@ impl ReturnConsumerCarrier {
         owner: Option<&UnitOwnerId>,
         state: &ValueState,
     ) -> Option<UnitOwnerReplaceBreakReturnConsumerV1> {
-        let expected = if let Some((initializer, _, symbol)) = self.target.binding {
+        let expected = if let Some(frame) = &self.replacement {
+            frame.completed_actions(
+                self.target.payload,
+                self.target.replacement?,
+                self.incoming[0].symbol,
+            )?
+        } else if let Some((initializer, _, symbol)) = self.target.binding {
             if self.bound.is_none() || state.position(symbol).is_some() {
                 return None;
             }
@@ -163,6 +179,7 @@ impl ReturnConsumerCarrier {
         Some(UnitOwnerReplaceBreakReturnConsumerV1 {
             incoming: [snapshot(&self.incoming[0])?, snapshot(&self.incoming[1])?],
             target: self.target,
+            replacement_producers: self.replacement.map(|frame| frame.catalog),
             actions: self.actions,
         })
     }

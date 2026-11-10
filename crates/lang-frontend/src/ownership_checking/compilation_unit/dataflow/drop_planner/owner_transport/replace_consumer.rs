@@ -202,6 +202,9 @@ impl DropPlanner<'_, '_> {
         value: &OwnedValue,
         state: &mut ValueState,
     ) {
+        if self.drop_replace_return(point, value, state) {
+            return;
+        }
         if let Some(carrier) = state.replace_consumer.take()
             && let Some(consumer) = carrier.drop(point.into_unit(self.checker.source_unit), value)
             && let Some(transaction) = &mut self.owner_loop

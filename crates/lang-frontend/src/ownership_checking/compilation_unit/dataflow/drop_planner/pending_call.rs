@@ -419,6 +419,7 @@ impl DropPlanner<'_, '_> {
                 );
             }
         }
+        self.pending_replace_return(call, argument, state);
         let Some(owner) = owner else {
             return;
         };

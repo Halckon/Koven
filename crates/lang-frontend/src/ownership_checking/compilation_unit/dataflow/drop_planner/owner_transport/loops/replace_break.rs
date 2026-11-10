@@ -178,6 +178,9 @@ impl ReplaceBreakInput {
             }
             let mut target =
                 super::super::replace_return_consumer::admit(checker, *suffix, symbol)?;
+            if target.replacement.is_some() {
+                return None;
+            }
             target.binding = Some((
                 checker.unit_expression(initializer),
                 UnitStatementId::new(checker.source_unit, *binding),
