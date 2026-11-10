@@ -11744,3 +11744,43 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
 尺寸门禁通过（2374手写Rust、35历史超限，未新增超限或提升预算）。静态首轮frame enum
 体积警告以Box可选frame修正，Architecture索引遗漏也已补齐；原失败日志保留。
 此后仅验收文档提交，不改变该生产头已测试的Rust字节。未推送、未跑官方CI。
+
+### 本地合流验收：suffix Replace Return 与 parent-child Partial 因果链
+
+- 本批仅保真合流，不增加语言、ABI、路由、cleanup 或认证范围。冻结合成头
+  `422ecb8c21a0cceb73e183e071f91bc68eb30539`，双父为借用
+  `6e3b5c7d681ad5353b2068d956d754a8cfd0666a` 与 owner
+  `4c298fa12f0c1f06b06eb1f5207bf9e545911b72`，共基 `6e606a93`。
+  两原树保持 clean；未合入新的 main，main 与本地 origin/main 仍 `9e7fed92`；主仓既有文档改动未动。
+- 唯一冲突为本 Spec：两父均保留共基正文，结果为借用全文、分隔空行、owner 新增尾段。
+  其余分支增量逐字保留对应父；没有重复 cherry-pick、squash 或新生产修改。
+- 精确名单为 owner 七项与借用五项的无重名并集，FE2 + CG10 共十二项。
+  每项及完整 helper 在合成树重新审阅；先核新产物 `--exact --list` 唯一命中，再逐项执行。
+  FE 每项 `1 passed / 0 failed / 0 ignored / 622 filtered`，CG 每项相同通过数、`2931 filtered`。
+  一个 native exact 包含 Basic/Constant 两个有限程序；其余后端明确 28 次 SSA/LLVM lower，
+  另有一个仅 frontend 的 metadata merge 对照。程序数、lower 数不另累计为 tests。
+- 真正关闭 loan observation 后重新 ownership analysis，原 off 产品直接 lower；旧产品比较仅在副本归一。
+  owner FE compare 则对同 fixture 的本地重新规划结果清观察字段后比较，不是改原产品或借用式 clone helper。
+  所有 ordinary 均未激活 foreign、fault、强制 route、Abort、资源计数或压力路径；CI-only 只编译未执行。
+- 独占 `/private/tmp/koven-choice-replace-forwarding-target` 串行执行，LLVM21 前缀
+  `/opt/homebrew/opt/llvm@21`；未设置 debug/RUSTFLAGS 降档、未复制或清空 target。
+  默认 CLI check 9.16s，三个实际 frontend/codegen/kovenc artifact 均 `features=[]`、opt0/debug2；
+  显式 `loan-observation-test-support` 双 crate lib no-run 1m04s，两 test artifact 均 opt0/debug2。
+  严格双 crate feature/all-targets Clippy 42.99s、默认 workspace/all-targets check 27.15s；
+  fmt、docs（885）、尺寸（2381 手写 Rust / 35 旧超限，base 为冻结头）、diff 均通过，未提升尺寸额度。
+- 输入、产物及选择证据保存在本机 `/private/tmp/koven-replace-return-child-evidence`：
+  `source-input-hashes.json` 绑定冻结头全部 4236 tracked 输入；`manifest.json` 绑定原 Cargo JSON、
+  两 binary、精确名单及逐项退出码，原 stdout/stderr 和 runner 保留在同目录供本批复核，不入库。
+  FE binary SHA256 `e1b8858843862f1c2fe738d54a3d1614fb2f951a046164ff9bfc616f330cefe4`；
+  CG binary SHA256 `1096c52ca92f8042be6ed9063f3b93ebe442ddbd4d62c71e0e32185a86427048`。
+  输入清单 SHA256 `5666b617a88c19efc8f04a8933004fa4a90b733381d860c7c72c2e888734d895`。
+  最终仅本节文档追加区别于冻结输入；非文档源码、配置和 fixture 不变。
+- 过程偏差：只读 SHA 核验的 shell heredoc 被默认沙箱临时文件限制阻止，授权升级后同一只读核验成功；
+  另两次只读定位使用旧路径未找到文件，改为实际路径读取。均非 Rust 编译失败或能力红测。
+  owner 原 Phase 4 红未在重建前捕获执行时 binary SHA，旧源码提交、artifact 与原日志仍保留；
+  本轮最终 binary SHA 不补齐该旧红限制，没有重跑、补造或隐藏它。
+- 本批是同构建中的独立回归，未新增 suffix Replace Return 与 parent-child 同一程序交叉源码。
+  parent-child 仍 Partial，不授 Complete、Drop 全覆盖或新 receipt；source/callable 也未升级，旧 oracle 未退休。
+  不外推资源证明、一般终止性、release 或正式 CI；临时原件仍需交付时按证据保留合同归档。
+- 独立只读终审已核双父、合成字节、十二项真实结果、原 artifact/profile、binary 与输入/日志 SHA；
+  最终仅本 Spec 偏离冻结输入，其冻结 git 对象及其余 4235 输入仍匹配，无新增阻断。
