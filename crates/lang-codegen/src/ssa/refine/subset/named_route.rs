@@ -160,6 +160,8 @@ impl Checker<'_, '_> {
     }
 }
 
-pub(super) fn bounded_named_call(inputs: &super::RefineInputs<'_>) -> Option<UnitExpressionId> {
+pub(in crate::ssa::refine) fn bounded_named_call(
+    inputs: &super::RefineInputs<'_>,
+) -> Option<UnitExpressionId> {
     super::query_checker(inputs).bounded_named_call()
 }

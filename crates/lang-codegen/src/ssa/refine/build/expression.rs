@@ -11,7 +11,7 @@ pub(super) use super::scalar_text::{checked_operator, comparison_operator};
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
-    model::{EntityType, LoanKind, ScalarConstant},
+    model::{EntityType, ScalarConstant},
     refine::body::{RAbort, ROp, RTerm, Slot},
 };
 
@@ -860,28 +860,13 @@ impl Builder<'_, '_> {
                     lowered_slots[param_slot] = Some(value);
                 }
                 ParameterMode::Borrow => {
-                    let value = self.adapt_borrowed(value, value_expression, parameter_type)?;
-                    let target = self.body.slots[value.0];
-                    let EntityType::Value(target) = target else {
-                        return Err(error(LoweringErrorKind::InvalidModel, span));
-                    };
-                    // The loan originates at the borrowed argument; it ends at the call.
-                    let argument_span = self.span(value_expression);
-                    let place = self.value(
-                        ROp::RootPlace { owner: value },
-                        EntityType::Place(target),
+                    let loan = self.named_argument_loan(
+                        call,
+                        value_expression,
+                        value,
+                        parameter_type,
                         call_arg_span,
-                    )?;
-                    let loan = self.value(
-                        ROp::BorrowBegin {
-                            place,
-                            kind: LoanKind::Shared,
-                        },
-                        EntityType::Loan {
-                            kind: LoanKind::Shared,
-                            target,
-                        },
-                        argument_span,
+                        span,
                     )?;
                     loans.push(loan);
                     self.pending_call_loans.push(loan);

@@ -66,3 +66,52 @@ fn check(require_receipt: bool) {
         );
     }
 }
+
+#[test]
+fn neighboring_named_shapes_preserve_legacy_routes_without_receipts() {
+    for text in [
+        "fun inspect(value: String): Int = 1\nfun run(source: String): Unit { inspect(source) }",
+        "fun inspect(value: String): Int = 1\nfun run(own source: String): Unit { inspect(source); inspect(source) }",
+        "fun inspect(value: String): Boolean = true\nfun run(own source: String): Unit { inspect(source) }",
+        "fun inspect(value: String): Int = 1\nfun run(own source: String, flag: Boolean): Unit { inspect(source) }",
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "named-boundary.ko", text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "named-boundary.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, owned) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let run = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap();
+            let ((lowered, routing), receipts) =
+                super::super::refine::named_receipt::observe(|| {
+                    super::super::refine::observe_routing(|| {
+                        super::super::unit_lower::lower_scalar_unit_with_entry(
+                            &sources,
+                            &inputs,
+                            &names,
+                            &types,
+                            &typed,
+                            &owned,
+                            run.id(),
+                        )
+                    })
+                });
+            let (program, _) = lowered.unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            assert!(routing.is_empty());
+            assert!(receipts.is_empty());
+        }
+    }
+}

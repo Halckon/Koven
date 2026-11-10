@@ -12,7 +12,7 @@ mod loop_route;
 use loop_route::LoopRoute;
 pub(super) use loop_route::accepts;
 mod map;
-mod named_route;
+pub(super) mod named_route;
 mod range_borrow;
 mod rc;
 mod receiver;

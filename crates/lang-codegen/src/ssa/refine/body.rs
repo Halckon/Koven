@@ -807,6 +807,7 @@ impl ROp {
 pub(super) enum LoanTag {
     Consumer(super::loan_receipt::Tag),
     Receiver(super::receiver_receipt::Tag),
+    Named(super::named_receipt::Tag),
 }
 
 #[derive(Clone, Debug)]
@@ -925,6 +926,7 @@ pub(super) struct RBlock {
 pub(super) struct RefinedBody {
     pub(super) loan_plans: super::loan_receipt::Plans,
     pub(super) receiver_plans: super::receiver_receipt::Plans,
+    pub(super) named_plans: super::named_receipt::Plans,
     pub(super) slots: Vec<EntityType>,
     pub(super) blocks: Vec<RBlock>,
     pub(super) parameters: Vec<Slot>,
