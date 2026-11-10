@@ -24,12 +24,17 @@ impl Builder<'_, '_> {
             .body
             .temporary_plans
             .statement(&op, &results, block, span)?;
-        let loan_tag = match (consumer, receiver, named, temporary) {
-            (Some(tag), None, None, None) => Some(LoanTag::Consumer(tag)),
-            (None, Some(tag), None, None) => Some(LoanTag::Receiver(tag)),
-            (None, None, Some(tag), None) => Some(LoanTag::Named(tag)),
-            (None, None, None, Some(tag)) => Some(LoanTag::Temporary(tag)),
-            (None, None, None, None) => None,
+        let binding = self
+            .body
+            .binding_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (consumer, receiver, named, temporary, binding) {
+            (Some(tag), None, None, None, None) => Some(LoanTag::Consumer(tag)),
+            (None, Some(tag), None, None, None) => Some(LoanTag::Receiver(tag)),
+            (None, None, Some(tag), None, None) => Some(LoanTag::Named(tag)),
+            (None, None, None, Some(tag), None) => Some(LoanTag::Temporary(tag)),
+            (None, None, None, None, Some(tag)) => Some(LoanTag::Binding(tag)),
+            (None, None, None, None, None) => None,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
         self.body.blocks[block.0].statements.push(RStmt {
@@ -67,6 +72,9 @@ impl Builder<'_, '_> {
             .finish(&self.consumed_drops, self.inputs.span)?;
         self.body
             .temporary_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .binding_plans
             .finish(&self.consumed_drops, self.inputs.span)
     }
     pub(super) fn authorize_loan_drops(
@@ -83,6 +91,7 @@ impl Builder<'_, '_> {
         self.body.named_plans.drop_fact(index, target, slot, span)?;
         self.body
             .temporary_plans
-            .drop_fact(index, target, slot, span)
+            .drop_fact(index, target, slot, span)?;
+        self.body.binding_plans.drop_fact(index, target, slot, span)
     }
 }

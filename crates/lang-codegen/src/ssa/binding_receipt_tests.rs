@@ -37,6 +37,7 @@ fn complete_binding_requires_real_production_receipt() {
             .unwrap();
         let mut outputs = Vec::new();
         let mut observed = Vec::new();
+        let mut actual = Vec::new();
         for owned in [&on, &off] {
             let ((lowered, routes), receipts) =
                 crate::ssa::refine::binding_receipt::observe(|| {
@@ -55,6 +56,22 @@ fn complete_binding_requires_real_production_receipt() {
             let (program, entry) = lowered.unwrap();
             verify_program(&program).unwrap();
             super::binding_causal_links::verify_binding_ssa(&program, entry, &routes);
+            let caller = program.modules[0].function(entry).unwrap();
+            actual.push((
+                entry,
+                caller
+                    .instructions
+                    .iter()
+                    .skip(1)
+                    .map(|i| i.id)
+                    .collect::<Vec<_>>(),
+                caller
+                    .instructions
+                    .iter()
+                    .take(4)
+                    .map(|i| i.results[0])
+                    .collect::<Vec<_>>(),
+            ));
             observed.push(receipts);
             outputs.push((
                 crate::ssa::render_program(&program),
@@ -157,5 +174,83 @@ fn complete_binding_requires_real_production_receipt() {
             "Complete binding must have a real production receipt"
         );
         assert!(observed[1].is_empty());
+        let receipt = &observed[0][0];
+        assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+        assert_eq!(receipt.callable, region.callable());
+        assert_eq!(receipt.binding, region.binding());
+        assert_eq!(receipt.root, region.root());
+        assert_eq!(receipt.source_call, region.source_call());
+        assert_eq!(receipt.consumer_call, region.consumer_call());
+        assert_eq!(receipt.entry_statement, region.entry_statement());
+        assert_eq!(receipt.completion_statement, region.completion_statement());
+        assert_eq!(receipt.caller, actual[0].0);
+        assert_eq!(receipt.instructions, actual[0].1);
+        assert_eq!(receipt.entities, actual[0].2);
+    }
+}
+
+#[test]
+fn extra_use_and_later_owner_read_keep_old_path_without_binding_receipt() {
+    for suffix in [
+        "consume(item); consume(item)",
+        "consume(item); consume(owner)",
+    ] {
+        let text = format!(
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run(): Unit {{ val owner = \"kept\"; borrow val item = view(owner); {suffix} }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "binding-boundary.ko", &text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "binding-boundary.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, on) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+            assert!(off.ownership().loan_action_observations().is_empty());
+            let [observation] = on.ownership().loan_action_observations() else {
+                panic!("one source catalog")
+            };
+            assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+            assert!(observation.binding_regions().is_empty());
+            let run = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap();
+            let mut outputs = Vec::new();
+            for owned in [&on, &off] {
+                let (lowered, receipts) = crate::ssa::refine::binding_receipt::observe(|| {
+                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        owned,
+                        run.id(),
+                    )
+                });
+                assert!(receipts.is_empty());
+                let (program, _) = lowered.unwrap();
+                verify_program(&program).unwrap();
+                outputs.push((
+                    crate::ssa::render_program(&program),
+                    crate::llvm::render_verified_program(&program).unwrap(),
+                ));
+            }
+            assert_eq!(outputs[0], outputs[1]);
+        }
     }
 }

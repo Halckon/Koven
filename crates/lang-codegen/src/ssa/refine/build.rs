@@ -1,6 +1,8 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
 mod assignment;
+mod binding_receipt;
+mod borrow_binding;
 mod callable;
 mod condition;
 mod container;
@@ -161,6 +163,7 @@ pub(super) fn build(
             receiver_plans: super::receiver_receipt::Plans::new(inputs)?,
             named_plans: super::named_receipt::Plans::new(inputs)?,
             temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
+            binding_plans: super::binding_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
         block: None,
@@ -931,18 +934,6 @@ impl Builder<'_, '_> {
 
 impl Builder<'_, '_> {
     // ---- statements ----
-
-    pub(super) fn statement(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
-        let result = self.statement_inner(statement)?;
-        let point =
-            UnitDropPoint::AfterStatement(UnitStatementId::new(self.inputs.source_unit, statement));
-        if result != Lowered::Diverged {
-            self.drops(point)?;
-        } else {
-            self.unreachable_drop_points.push(point);
-        }
-        Ok(result)
-    }
 
     fn statement_inner(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
         let node = self

@@ -502,9 +502,4 @@ pub(crate) mod named_receipt;
 
 pub(crate) mod temporary_receipt;
 
-#[cfg(test)]
-pub(crate) mod binding_receipt {
-    pub(crate) fn observe<T>(run: impl FnOnce() -> T) -> (T, Vec<()>) {
-        (run(), Vec::new())
-    }
-}
+pub(crate) mod binding_receipt;
