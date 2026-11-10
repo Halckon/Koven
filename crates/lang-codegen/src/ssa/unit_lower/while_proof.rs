@@ -5,17 +5,9 @@ impl UnitExpressionLowerer<'_> {
     /// Entry qualification is minted from actual entry Shared(Boolean) parameters.
     /// The existing named access slots keep that root identity across CFG rebinding.
     pub(super) fn ensure_no_while_proof_carriers(&self, span: Span) -> Result<(), LoweringError> {
-        if !self.pending_call_frames.is_empty() || !self.pending_operands.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        self.ensure_while_proof_non_call_carriers(span)
-    }
-
-    pub(super) fn ensure_while_proof_non_call_carriers(
-        &self,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        if self.function.borrow_return.is_some()
+        if !self.pending_call_frames.is_empty()
+            || !self.pending_operands.is_empty()
+            || self.function.borrow_return.is_some()
             || self.function.carrier_return.is_some()
             || !self.capture_loans.is_empty()
             || !self.result_source_loans.is_empty()

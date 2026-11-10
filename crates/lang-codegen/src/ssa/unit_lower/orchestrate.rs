@@ -518,7 +518,6 @@ fn lower_unit_impl(
             })
         };
         let refine_callables = closure::refine_callables(&callable_plans, plan.id);
-        let mut compatibility = false;
         if let Some((entry, entities, modes, borrow_return, carrier_return)) = refine_entry {
             let refine_body = match &plan.body {
                 FunctionPlanBody::Expression(expression) => {
@@ -563,9 +562,7 @@ fn lower_unit_impl(
                 borrow_return,
                 carrier_return,
             };
-            let route = crate::ssa::refine::route(&inputs);
-            compatibility = matches!(route, CallableRoute::Compatibility);
-            if matches!(route, CallableRoute::Refine) {
+            if matches!(crate::ssa::refine::route(&inputs), CallableRoute::Refine) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {
                     types.intern(module, typed, ty, plan.instance.span())?;
                 }
@@ -681,7 +678,6 @@ fn lower_unit_impl(
             }
         }
         let mut lowerer = UnitExpressionLowerer {
-            migrated_family_compatibility: compatibility,
             sources,
             parsed,
             source_unit: plan.instance.source_unit(),

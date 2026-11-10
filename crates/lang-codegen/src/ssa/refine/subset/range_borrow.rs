@@ -131,6 +131,29 @@ impl Checker<'_, '_> {
         )
     }
 
+    fn if_requires_refine(&self, condition: ExpressionId) -> bool {
+        let root = self.ungrouped(condition);
+        let Some(fact) = self.inputs.typed.null_comparison(self.id(root)) else {
+            return false;
+        };
+        matches!(
+            self.kind(self.c(fact.nullable_type())),
+            Some(UnitTypeKind::Nullable(inner)) if self.class(*inner) || self.string(*inner)
+        ) && (self
+            .inputs
+            .typed
+            .non_null_uses()
+            .iter()
+            .any(|use_fact| use_fact.symbol() == fact.symbol())
+            || self.inputs.owned.loans().iter().any(|loan| {
+                matches!(
+                    loan.target(),
+                    UnitLoanTarget::Place(place)
+                        if place.is_root() && place.root() == fact.symbol()
+                )
+            }))
+    }
+
     fn expr_requires_refine(&self, expr_id: ExpressionId, payload: &Expression) -> bool {
         let id = self.id(expr_id);
         let typed = self.inputs.typed;
@@ -141,6 +164,11 @@ impl Checker<'_, '_> {
                 .callables
                 .get(&id)
                 .is_some_and(|callable| !callable.captures.is_empty())
+            || self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, id)
+                .is_some_and(|site| !site.delegation().is_empty())
             || typed
                 .non_null_assertion(id)
                 .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
@@ -193,13 +221,15 @@ impl Checker<'_, '_> {
         {
             return true;
         }
-        matches!(
-            payload,
-            Expression::Assignment { target, .. }
-                if self.is_field_target(*target)
+        match payload {
+            Expression::Assignment { target, .. } => {
+                self.is_field_target(*target)
                     || self.is_element_target(*target)
                     || self.is_map_put_target(*target)
-        )
+            }
+            Expression::If { condition, .. } => self.if_requires_refine(*condition),
+            _ => false,
+        }
     }
 
     /// Strips outer proof views for any binding reassigned inside `loop_span`.

@@ -22,7 +22,6 @@ mod handoff;
 mod loop_control;
 mod map;
 mod map_borrow;
-mod map_consume;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -166,7 +165,6 @@ impl From<ReceiverBinding> for ConsumedReceiver {
 }
 
 struct UnitExpressionLowerer<'a> {
-    migrated_family_compatibility: bool,
     sources: &'a SourceMap,
     parsed: &'a lang_frontend::parser::ParsedFile,
     source_unit: SourceUnitId,
@@ -267,15 +265,7 @@ impl UnitExpressionLowerer<'_> {
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
         ) {
-            let root_borrow_call = match node.payload() {
-                Expression::Call { arguments, .. } => {
-                    self.can_call_with_nullable_root_proof(unit_expression, arguments, span)?
-                }
-                _ => false,
-            };
-            if !root_borrow_call {
-                self.reject_live_if_proof(span)?;
-            }
+            self.reject_live_if_proof(span)?;
         }
         if self.typed.range_size(unit_expression).is_some()
             || self.typed.string_operation(unit_expression).is_some()
