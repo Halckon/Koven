@@ -8259,8 +8259,18 @@ activation 身份仍未统一认证。空表为 Unsupported，不发布 Complete
 不将218项计为本次合规门禁或并入上述302项；没有隐去实际执行，也未再运行这些项。
 后续iteration选择须逐源码列出普通exact清单，不能只依赖测试名或目标分类。
 
-本机macOS arm64、Rust1.96.0、LLVM21.1.8，locked/offline、jobs=2、debug=0，复用已有
-借用target并串行Cargo。阶段四行为、SSA/native执行、释放计数、Linux、破损模型/注入、
-大型守卫与正式双宿主CI未运行。没有推送、PR、合并或Single oracle退休。
+本机macOS arm64、Rust1.96.0、LLVM21.1.8，locked/offline、jobs=2，复用已有借用target
+并串行Cargo。红测、最终direct/lib、上述额外iteration、Clippy与workspace check实际均设置
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`、
+`CARGO_PROFILE_DEV_DEBUG=0`、`CARGO_PROFILE_TEST_DEBUG=0`。执行iteration与其后新增测试、
+Clippy/workspace check的批次，以及最终direct/lib和静态重验批次，另显式设置
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`；更早的frontend红测/定向测试没有在命令中
+显式设置该prefix，不能据此推定其继承值。
+
+**配置选择偏差**：debug=0是本轮主动指定的非默认调试信息档位，不是已核实的既有target
+或环境固定配置。没有核对原候选默认debug=2档位；上述成功结果仅证明实际debug=0输入，
+不能称为默认配置验收，默认配置验收尚未完成。保留全部真实结果，不因补记而重跑Rust。
+阶段四行为、SSA/native执行、释放计数、Linux、破损模型/注入、大型守卫与正式双宿主CI
+未运行。没有推送、PR、合并或Single oracle退休。
 后续具体步骤是给普通直线call登记区域与家族，再对真实Begin/continuation/cleanup义务
 建立独立覆盖认证；不得凭本增量非空或空动作表把Partial/Unsupported改成Complete。
