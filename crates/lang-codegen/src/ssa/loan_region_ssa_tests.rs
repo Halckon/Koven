@@ -666,3 +666,7 @@ fn assert_receiver_lifecycle(
 
 #[path = "loan_receipt_tests.rs"]
 mod receipts;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "loan_observer_off_tests.rs"]
+mod observer_off;

@@ -1073,3 +1073,6 @@ pub(crate) fn check_compilation_unit_ownership_recovering(
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
     analysis::analyze(sources, inputs, names, environment, typed, false)
 }
+
+#[cfg(feature = "loan-observation-test-support")]
+pub(super) mod loan_observation_test_support;

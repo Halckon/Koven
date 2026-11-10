@@ -9739,3 +9739,11 @@ LLVM/B产品等价。默认CLI check与feature测试构建分别核各实际arti
 运行该全量命令。发布 `package_preview.py` 的CLI release命令不启用features；所有
 显式all-features构建仍可能编入hook，不能称为cfg(test)隔离。此前全部target、debug2、
 CI-only不执行与本地不push/PR/merge约束继续有效。
+
+普通能力红测先以未接线scope（直接执行closure）运行：真实二次ownership仍有catalog，
+`real_frontend_observer_off_preserves_products_ssa_and_owner_receipts` 在明确off断言失败，
+0 passed/1 failed/2837 filtered；不是清表或禁用receipt的模拟失败。feature no-run成功后
+从Cargo JSON取binary并exact list核名再运行；frontend/library与codegen/test实际features
+均仅 `loan-observation-test-support`，debug2。binary SHA256为
+`a114dfd016cc430d9120ef1002d0bb67623051142358275e3d4942224f19eb73`。
+本轮先做feature红测，默认CLI图对照后置串行执行，不声称先验证了默认图。
