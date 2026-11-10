@@ -212,9 +212,13 @@ impl UnitExpressionLowerer<'_> {
         if receiver.is_none() && descriptor.receiver().is_some() {
             return Ok(LoweredValue::Diverged);
         }
-        if !resolved.delegation().is_empty() {
+        let receiver = if resolved.delegation().is_empty() {
+            receiver
+        } else if self.migrated_family_compatibility {
+            self.lower_delegated_call_receiver(call, receiver, resolved.delegation(), span)?
+        } else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
+        };
         let mut receiver = receiver;
         if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
             // Value receiver 在实参全部完成前仍由当前调用方持有。

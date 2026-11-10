@@ -1,6 +1,7 @@
-//! Bounded nullable entries: Rc Ifs.
+//! Bounded nullable entries: root Borrow and Rc/heap Ifs.
 #[cfg(test)]
 mod field_tests;
+mod heap;
 mod rc;
 
 use super::super::unwrap_modified;
@@ -8,6 +9,7 @@ use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofS
 use super::*;
 use crate::ssa::model::{LoanId, SsaTypeKind};
 use lang_frontend::{
+    ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
     parser::{BinaryOperator, FunctionBody, FunctionForm, Item},
     type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitExpressionId, UnitTypeKind},
 };
@@ -22,7 +24,7 @@ pub(super) struct NullableIfEntry {
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Reuse the proof entry only for a required Rc If.
+    /// Reuse the proof entry only for a required root Borrow or Rc/heap If.
     pub(super) fn prepare_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -33,26 +35,36 @@ impl UnitExpressionLowerer<'_> {
         if !self.nullable_proofs.is_empty() || result_required {
             return Ok(None);
         }
-        // Nullable `String?` ifs lower only in `ssa::refine` (SPEC-0398).
-        if self
-            .typed
-            .null_comparison(UnitExpressionId::new(self.source_unit, condition))
-            .is_some_and(|fact| {
-                matches!(
-                    self.typed.types().get(fact.nullable_type()),
-                    Some(UnitTypeKind::Nullable(inner))
-                        if matches!(
-                            self.typed.types().get(*inner),
-                            Some(UnitTypeKind::Builtin(
-                                lang_frontend::type_checking::BuiltinType::String
-                            ))
-                        )
-                )
-            })
+        // Nullable `String?` ifs lower only in `ssa::refine` (SPEC-0398); a mixed
+        // compatibility body keeps its older inline-nullable handling.
+        if !self.migrated_family_compatibility
+            && self
+                .typed
+                .null_comparison(UnitExpressionId::new(self.source_unit, condition))
+                .is_some_and(|fact| {
+                    matches!(
+                        self.typed.types().get(fact.nullable_type()),
+                        Some(UnitTypeKind::Nullable(inner))
+                            if matches!(
+                                self.typed.types().get(*inner),
+                                Some(UnitTypeKind::Builtin(
+                                    lang_frontend::type_checking::BuiltinType::String
+                                ))
+                            )
+                    )
+                })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        self.prepare_rc_nullable_if_entry(control, condition, span)
+        if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
+        }
+        if self.migrated_family_compatibility
+            && let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)?
+        {
+            return Ok(Some(entry));
+        }
+        Ok(None)
     }
 
     /// Follow the actual current source instance to its own top-level block elements.
@@ -150,6 +162,21 @@ impl UnitExpressionLowerer<'_> {
                 _ => return Ok(expression),
             }
         }
+    }
+
+    pub(in crate::ssa::unit_lower) fn map_if_body_is_empty(
+        &self,
+        body: Option<StatementId>,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let Some(body) = body else { return Ok(true) };
+        let node = self
+            .parsed
+            .ast()
+            .statements()
+            .get(body)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        Ok(matches!(node.payload(), Statement::ControlBody { elements } if elements.is_empty()))
     }
 
     #[allow(clippy::too_many_arguments)]

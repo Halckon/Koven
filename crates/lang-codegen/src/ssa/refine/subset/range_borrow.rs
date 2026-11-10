@@ -139,19 +139,7 @@ impl Checker<'_, '_> {
         matches!(
             self.kind(self.c(fact.nullable_type())),
             Some(UnitTypeKind::Nullable(inner)) if self.class(*inner) || self.string(*inner)
-        ) && (self
-            .inputs
-            .typed
-            .non_null_uses()
-            .iter()
-            .any(|use_fact| use_fact.symbol() == fact.symbol())
-            || self.inputs.owned.loans().iter().any(|loan| {
-                matches!(
-                    loan.target(),
-                    UnitLoanTarget::Place(place)
-                        if place.is_root() && place.root() == fact.symbol()
-                )
-            }))
+        )
     }
 
     fn expr_requires_refine(&self, expr_id: ExpressionId, payload: &Expression) -> bool {

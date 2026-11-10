@@ -254,7 +254,7 @@ fn routing_and_refined_output_do_not_depend_on_input_order() {
 }
 
 #[test]
-fn outer_non_null_view_with_loop_reassignment_routes_to_legacy() {
+fn outer_non_null_view_with_loop_reassignment_routes_to_refine() {
     let source = r#"fun f(): Unit {
         var outer: String? = "first"
         if (outer != null) {
@@ -267,8 +267,8 @@ fn outer_non_null_view_with_loop_reassignment_routes_to_legacy() {
     }"#;
     let (res, routed) = route(source);
     assert!(
-        !routed,
-        "reassigning an outer-narrowed variable inside a loop must not route to refine"
+        routed,
+        "a reassigned nullable String proof has no legacy fallback (SPEC-0399)"
     );
     assert!(res.is_ok());
 }
