@@ -932,3 +932,6 @@ mod constructed_receiver_combination;
 
 #[path = "unit_direct_call_loan_ends/exclusive_loop_prefix.rs"]
 mod exclusive_loop_prefix;
+
+#[path = "unit_direct_call_loan_ends/borrow_publication.rs"]
+mod borrow_publication;

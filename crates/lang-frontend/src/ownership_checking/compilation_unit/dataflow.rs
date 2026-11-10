@@ -390,6 +390,9 @@ pub(super) fn analyze(
     if !formed_publication::finalize(typed, &diagnostics, &deferred, &mut formed_owned_locals) {
         nullable_whens.clear();
         borrow_return_origins.clear();
+        direct_call_loan_ends.clear();
+        borrow_call_handoffs.clear();
+        borrow_call_prefix_ends.clear();
         borrow_forward_transports.clear();
         receiver_call_prefix_ends.clear();
         exclusive_call_prefix_ends.clear();

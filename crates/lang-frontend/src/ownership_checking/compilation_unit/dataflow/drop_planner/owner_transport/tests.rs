@@ -305,3 +305,19 @@ fn owner_observation_preserves_exclusive_loop_exit_prefix_events() {
         compare(&fixture, &fixture.parts(&shared));
     }
 }
+
+#[test]
+fn owner_observation_preserves_all_three_borrow_publication_tables() {
+    let source = "fun view(source: String, aux: String): borrow String from source = source\nfun prefix(source: String, tail: Unit): borrow String from source = source\nfun sink(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; sink(aux); borrow val item = view(owner, aux); println(item) }\nfun abandon(): Unit { val root = \"root\"; borrow val item = prefix(root, return) }";
+    let fixture = Fixture::new(&[("root.ko", source)]);
+    let shared = fixture.shared();
+    shared.clone().validate().unwrap();
+    assert_eq!(shared.direct_call_loan_ends().len(), 1);
+    assert_eq!(shared.borrow_call_handoffs().len(), 1);
+    assert_eq!(
+        shared.borrow_call_handoffs()[0].auxiliary_loan_ends().len(),
+        1
+    );
+    assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
+    compare(&fixture, &fixture.parts(&shared));
+}

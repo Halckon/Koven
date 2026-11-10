@@ -19,6 +19,9 @@ fn assert_cleared(raw: &Analysis) {
     assert!(raw.formed_owned_locals.is_empty());
     assert!(raw.nullable_whens.is_empty());
     assert!(raw.borrow_return_origins.is_empty());
+    assert!(raw.direct_call_loan_ends.is_empty());
+    assert!(raw.borrow_call_handoffs.is_empty());
+    assert!(raw.borrow_call_prefix_ends.is_empty());
     assert!(raw.borrow_results.bindings.is_empty());
     assert!(raw.borrow_results.ends.is_empty());
     assert!(raw.borrow_results.forwarded.is_empty());
@@ -122,6 +125,9 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
         // Observe dataflow::analyze directly: CompilationUnitOwnership::new must not
         // hide a missing clear in the earlier production gate.
         assert_cleared(&raw);
+        assert!(shared.direct_call_loan_ends().is_empty());
+        assert!(shared.borrow_call_handoffs().is_empty());
+        assert!(shared.borrow_call_prefix_ends().is_empty());
         assert!(shared.exclusive_call_prefix_ends().is_empty());
     }
 }
@@ -858,4 +864,48 @@ fn real_errors_revoke_exclusive_return_and_loop_exit_prefixes() {
             );
         });
     }
+}
+
+#[test]
+fn real_errors_revoke_direct_call_end_table() {
+    let text =
+        "fun sink(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; sink(owner) }";
+    assert_rejections_clear(text, false, |accepted, raw| {
+        assert_eq!(raw.direct_call_loan_ends.len(), 1);
+        assert_eq!(
+            raw.direct_call_loan_ends,
+            accepted.shared().direct_call_loan_ends()
+        );
+    });
+}
+
+#[test]
+fn real_errors_revoke_borrow_handoff_and_auxiliary_ends() {
+    let text = "fun view(source: String, aux: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(owner, aux); println(item) }";
+    assert_rejections_clear(text, false, |accepted, raw| {
+        let [handoff] = raw.borrow_call_handoffs.as_slice() else {
+            panic!("one actual handoff");
+        };
+        assert_eq!(handoff.auxiliary_loan_ends().len(), 1);
+        assert_ne!(
+            handoff.source_loan().argument(),
+            handoff.auxiliary_loan_ends()[0].argument()
+        );
+        assert_eq!(
+            raw.borrow_call_handoffs,
+            accepted.shared().borrow_call_handoffs()
+        );
+    });
+}
+
+#[test]
+fn real_errors_revoke_borrow_prefix_end_table() {
+    let text = "fun view(source: String, tail: Unit): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, return) }";
+    assert_rejections_clear(text, false, |accepted, raw| {
+        assert_eq!(raw.borrow_call_prefix_ends.len(), 1);
+        assert_eq!(
+            raw.borrow_call_prefix_ends,
+            accepted.shared().borrow_call_prefix_ends()
+        );
+    });
 }
