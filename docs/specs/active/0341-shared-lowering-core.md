@@ -7524,3 +7524,54 @@ workspace all-targets check（1分14秒）、fmt、docs867、diff通过。连接
 消费，须连同原Continue边界使用。未运行损坏/Abort、全量frontend/codegen/workspace测试、
 native、Linux或正式CI；不证明动态实例、一般changing owner、header/exit phi、条件合流
 后缀或Phase4。SPEC-0341与D10/E2保持in-progress。仅本地分步提交，未推送、开PR或合并main。
+
+
+## 176. 一次真实具名 move 形成不变循环输入（2026-11-10）
+
+在 main `cc1e5b41223fabe0248dd4bc2742e95aae9b810a` 新建独立分支，再快进复用已验收
+§174 `f7296f31`。开始及收尾均核 main、#390 `ca322bc5`、#407 与本地在途分支；未发现
+相同 invariant 输入能力。未吸纳 §170 WIP 或其它线未提交成果，保全原工作树和旧见证。
+
+本片只接四句：seed 无插值 String literal、held 从 seed 的一次精确 Name move、原直线
+While、retired 从 held 的精确 Name move。三个绑定均为精确 String val；normal、裸
+Continue、裸 Break 沿用原控制能力，九种末尾 If 的四句形式拒绝，原三句 If 能力不变。
+不接受第二层 alias、Group/nullable/var 输入、调用或插值 producer、额外语句及外层输入
+的循环内操作。没有更改语言语义、17槽边界、快照算法、body 遍历、jump/LoopExit cleanup。
+
+capture 核实际五条 raw 事件：literal Result、seed Binding、seed Name Move、该 Name
+Result、held Binding，且所有 token 来自唯一原 literal producer。预扫 AST 仅准入；
+held 的完整 OwnedValue 仍从真实 binding 后 singleton 读取，不能由 seed 改名或重造。
+后缀图严格七事件，新增 incoming Move/Bind；单独封存 seed symbol 与 Name expression，
+阻止图被改写为直接五事件或另一个同源 alias。直接输入仍严格五事件，completion/body Arc、
+input/body catalog 隔离、原 suffix 单次执行及错误分析整体清空均保留。
+
+原 `actual_named_move_supplies_the_loop_input` 确实先失败，红提交
+`a306842bbab58377c6637b46a67fecff64eeb77d`；同名、同源码加入实现后转绿。
+实现/测试/架构提交 `6cd7e192155735d019240617229ad0ea4830e57b`，树
+`fa0355718696aceb17a0ad80219cff804a96ca0e`；本节是之后的纯文档追加。
+
+| 验收项 | 实际范围 |
+|---|---|
+| 真实来源与控制 | 3项新lib普通测试：原红见证、`named_input_preserves_actual_control_and_source_identities`、`named_input_keeps_exact_admission_and_failed_publication_boundaries`；120组正向源码为5条件 ×2种Unit声明 ×4类body ×normal/Continue/Break，核真实7事件、唯一literal producer及准确控制边 |
+| 拒绝与隔离 | 19份合法否例、9种If四句拒绝/旧三句准入、3类失败全撤销；跨文件及同源码二次分析拒绝外来token；单源合法正负例完整比较观察开关前后的Analysis产物，seed/held无Drop、retired唯一AfterStatement Drop |
+| 公开入口 | `loop_input_alias_unit::named_loop_input_matches_both_public_routes` 的120正＋18负经MemoryDocument与双源Rooted，共276次分析、414个source inputs（360准入、54拒绝）；核typed兼容、原AST完整来源、七事件和input/body/foreign catalog隔离，不把重复源码算成额外形状 |
+| 仅编译守卫 | 新V1损坏模型覆盖擦除incoming move、改seed、改alias expression、缺Move、直接输入伪造alias；与旧completion/body Arc等守卫一同编译未执行。未独立注入raw Result缺失，不能声称raw破损全覆盖 |
+| 独立复验 | 非作者审查生产/测试/架构及224项日志、选择和12份二进制哈希；在上述clean提交直接运行4项新增普通测试全部通过，前后HEAD/tree/状态与二进制哈希不变。该复跑不累加到测试总数 |
+
+最终逐完整名称 `--exact` 执行224项不同普通测试：lib110、ownership_iteration27、
+multifile_ownership_checking5、ownership_closures2、ownership_borrow_continuation1、
+multifile_constant_qualification11、unit_direct_call_loan_ends4、while_flow_facts16、
+type_callable/inout_storage17、type_map19、type_checking/control_join_regressions3、
+control_branch_join9。原§174的220项全部保留，恰增3lib＋1公开；每项1 passed、
+0 failed/ignored/measured。12目标先编译，再按选择逐项运行；日志/选择/二进制SHA256
+留仓库外，不入Git，不把中间复跑或独立复验重复计数。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8、默认debug=2、jobs=2、locked/offline，独占target
+串行执行。严格frontend all-targets Clippy（`-W clippy::all -D warnings`，26.30秒）、
+workspace all-targets check（40.48秒）、fmt、docs867、diff通过；相对 `f7296f31` 的
+尺寸门禁通过，2312手写Rust、36项既有超长，未增加豁免。
+
+未运行损坏/Abort套件、完整frontend/codegen/workspace测试、native、Linux或正式CI。
+这仍是静态不变owner的来源与退出消费证据，不证明运行次数、终止性、动态实例、一般
+changing owner、header/exit phi、条件合流后缀或Phase4。SPEC-0341与D10/E2保持
+in-progress。仅本地分步提交，未推送、改现有PR、新开PR或合入main。
