@@ -1,5 +1,5 @@
 //! Carry one actual retirement through its original named-owner destruction attempt.
-use super::{ActionHandle, ActionSource};
+use super::{ActionHandle, ActionSource, BindingDropCause};
 use crate::{
     name_resolution::UnitSymbolId,
     ownership_checking::{
@@ -11,8 +11,7 @@ use crate::{
     type_checking::UnitStatementId,
 };
 
-pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct BindingDropCause
-{
+pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct RegionDropCause {
     candidate: usize,
     retirement: ActionHandle,
     removed_owner: Option<OwnerSnapshot>,
@@ -70,18 +69,20 @@ impl ActionSource {
         retirement: ActionHandle,
     ) -> Option<BindingDropCause> {
         let candidate = self.active_binding_region?;
-        (self.binding_regions[candidate].scope.binding == binding).then_some(BindingDropCause {
-            candidate,
-            retirement,
-            removed_owner: None,
-        })
+        (self.binding_regions[candidate].scope.binding == binding).then_some(
+            BindingDropCause::Region(RegionDropCause {
+                candidate,
+                retirement,
+                removed_owner: None,
+            }),
+        )
     }
 
-    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn verify_removed_binding_owner(
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn verify_removed_region_owner(
         &mut self,
-        mut cause: BindingDropCause,
+        mut cause: RegionDropCause,
         value: &super::super::OwnedValue,
-    ) -> Option<BindingDropCause> {
+    ) -> Option<RegionDropCause> {
         let candidate = self.binding_regions.get_mut(cause.candidate)?;
         let actual = OwnerSnapshot {
             owner: value.owner.clone(),
@@ -104,7 +105,7 @@ impl ActionSource {
         Some(cause)
     }
 
-    pub(super) fn record_binding_drop(&mut self, cause: BindingDropCause, drop: ActionHandle) {
+    pub(super) fn record_region_drop(&mut self, cause: RegionDropCause, drop: ActionHandle) {
         let Some(candidate) = self.binding_regions.get_mut(cause.candidate) else {
             return;
         };

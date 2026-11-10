@@ -17,7 +17,10 @@ pub(super) enum ChildState {
         commit: ActionHandle,
         used: UseReturn,
     },
-    Retired,
+    Retired {
+        binding: UnitSymbolId,
+        retirement: ActionHandle,
+    },
     Lost,
 }
 
@@ -39,7 +42,17 @@ impl ChildState {
 
     pub(super) fn reconcile(&mut self, other: &Self) {
         match (self, other) {
-            (Self::Never, Self::Never) | (Self::Retired, Self::Retired) => {}
+            (Self::Never, Self::Never) => {}
+            (
+                Self::Retired {
+                    binding,
+                    retirement,
+                },
+                Self::Retired {
+                    binding: other_binding,
+                    retirement: other_retirement,
+                },
+            ) if binding == other_binding && retirement.same_record(other_retirement) => {}
             (
                 Self::Live {
                     binding,
@@ -242,11 +255,11 @@ impl DropPlanner<'_, '_> {
         point: PlannerDropPoint,
         binding_end: ActionHandle,
         state: &mut ValueState,
-    ) {
-        let Some(parent) = state.borrow_binding_transports.iter_mut().find(|parent| matches!(&parent.child, ChildState::Live { binding: child, .. } if *child == binding)) else { return; };
+    ) -> Option<ActionHandle> {
+        let parent = state.borrow_binding_transports.iter_mut().find(|parent| matches!(&parent.child, ChildState::Live { binding: child, .. } if *child == binding))?;
         let evidence = parent.child_parent_evidence();
         let ChildState::Live { commit, used, .. } =
-            std::mem::replace(&mut parent.child, ChildState::Retired)
+            std::mem::replace(&mut parent.child, ChildState::Lost)
         else {
             unreachable!("selected live child")
         };
@@ -254,15 +267,21 @@ impl DropPlanner<'_, '_> {
             UseReturn::Unique(handle) => Some(handle),
             _ => None,
         };
-        self.iteration_actions
-            .retire_binding_child(binding_child_links::Retirement {
-                binding,
-                parent: evidence,
-                commit,
-                use_return,
-                binding_end,
-                point: point.into_unit(self.checker.source_unit),
-            });
+        let retirement =
+            self.iteration_actions
+                .retire_binding_child(binding_child_links::Retirement {
+                    binding,
+                    parent: evidence,
+                    commit,
+                    use_return,
+                    binding_end,
+                    point: point.into_unit(self.checker.source_unit),
+                })?;
+        parent.child = ChildState::Retired {
+            binding,
+            retirement: retirement.clone(),
+        };
+        Some(retirement)
     }
 }
 

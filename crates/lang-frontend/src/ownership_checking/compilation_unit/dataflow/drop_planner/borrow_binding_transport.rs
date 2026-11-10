@@ -1,5 +1,6 @@
 //! Carry actual pending source tokens through explicit local borrow bindings.
 mod child;
+pub(super) mod dependency_drop;
 mod observation;
 use super::action_source::ActionHandle;
 use super::{DropPlanner, PlannerDropPoint, ValueState};
@@ -21,6 +22,7 @@ pub(super) struct PendingBindingTransport {
     use_return: UseReturn,
     observable: bool,
     child: child::ChildState,
+    dependency_owner: Option<super::OwnedValue>,
 }
 
 #[derive(Clone, Debug)]
@@ -76,15 +78,20 @@ impl PendingBindingTransport {
                 self.use_return = UseReturn::Ambiguous;
             }
             self.observable &= other.observable;
+            if self.dependency_owner != other.dependency_owner {
+                self.dependency_owner = None;
+            }
             self.child.reconcile(&other.child);
             if self.source_begin.is_none() || self.handoff.is_none() {
                 self.child.lose();
+                self.dependency_owner = None;
             }
         } else {
             self.source_begin = None;
             self.handoff = None;
             self.use_return = UseReturn::Ambiguous;
             self.observable = false;
+            self.dependency_owner = None;
             self.child.lose();
         }
     }
@@ -136,6 +143,9 @@ impl DropPlanner<'_, '_> {
             unreachable!("matched actual source token")
         };
         let observable = self.observes_binding_source(binding.binding(), &source, state);
+        let dependency_owner = observable
+            .then(|| self.binding_dependency_owner(&source, state))
+            .flatten();
         state
             .borrow_binding_transports
             .push(PendingBindingTransport {
@@ -146,6 +156,7 @@ impl DropPlanner<'_, '_> {
                 use_return: UseReturn::Unused,
                 observable,
                 child: child::ChildState::Never,
+                dependency_owner,
             });
     }
 
@@ -181,17 +192,26 @@ impl PendingBindingTransport {
         binding_end: ActionHandle,
     ) -> Option<ActionHandle> {
         if self.observable {
-            let use_return = match self.use_return {
-                UseReturn::Unique(handle) => Some(handle),
+            let use_return = match &self.use_return {
+                UseReturn::Unique(handle) => Some(handle.clone()),
                 UseReturn::Unused | UseReturn::Ambiguous => None,
             };
-            actions.retire_binding_source(
+            let retirement = actions.retire_binding_source(
                 transaction,
                 self.source_begin,
                 self.handoff,
                 use_return,
                 binding_end,
-            )
+            )?;
+            if matches!(self.use_return, UseReturn::Unused)
+                && let child::ChildState::Retired {
+                    retirement: child, ..
+                } = self.child
+                && let Some(owner) = self.dependency_owner
+            {
+                actions.attach_binding_dependency(&retirement, child, owner);
+            }
+            Some(retirement)
         } else {
             None
         }

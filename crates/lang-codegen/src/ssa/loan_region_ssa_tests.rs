@@ -760,3 +760,11 @@ mod parent_child_lifecycle_probe;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_causal_tests.rs"]
 mod parent_child_causal;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "parent_child_drop_dependency_tests.rs"]
+mod parent_child_drop_dependency;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "parent_child_coverage_tests.rs"]
+mod parent_child_coverage;

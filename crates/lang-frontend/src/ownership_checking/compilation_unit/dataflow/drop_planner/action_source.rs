@@ -1,8 +1,10 @@
 //! The cleanup projections and acquisition observation share one append-only source.
 pub(super) mod binding_child_links;
+mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
-pub(super) use binding_regions::BindingDropCause;
+mod child_regions;
+pub(super) use binding_dependency_drops::BindingDropCause;
 mod consumer_links;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
@@ -32,6 +34,10 @@ pub(super) struct ActionSource {
     binding_regions:
         Vec<crate::ownership_checking::compilation_unit::loan_binding_region_validation::Candidate>,
     active_binding_region: Option<usize>,
+    child_regions:
+        Vec<crate::ownership_checking::compilation_unit::loan_child_region_validation::Candidate>,
+    active_child_region: Option<usize>,
+    dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
     pub(super) enabled: bool,
 }
 
@@ -69,6 +75,9 @@ impl Default for ActionSource {
             regions: Vec::new(),
             binding_regions: Vec::new(),
             active_binding_region: None,
+            child_regions: Vec::new(),
+            active_child_region: None,
+            dependency_drops: Vec::new(),
             enabled: true,
         }
     }
@@ -214,6 +223,8 @@ impl ActionSource {
                     handoff,
                     use_return,
                     binding_end,
+                    dependency: None,
+                    dependency_seen: false,
                 },
             ));
             Some(handle)
@@ -325,6 +336,15 @@ impl ActionSource {
         let child_links =
             binding_child_links::validate(&self.records, &self.identity, source, file);
         let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
+        let binding_dependency_drops = binding_dependency_drops::validate(
+            &self.records,
+            &self.identity,
+            &self.dependency_drops,
+            &child_links,
+            &binding_links,
+            source,
+            file,
+        );
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
@@ -416,12 +436,30 @@ impl ActionSource {
             .into_iter()
             .map(|region| region.finish(identity.clone(), &actions))
             .collect();
+        let child_regions = self
+            .child_regions
+            .into_iter()
+            .map(|region| {
+                let mut matching = binding_dependency_drops.iter().filter(|dependency| {
+                    dependency.root() == region.scope.root
+                        && dependency.parent() == region.scope.parent
+                        && dependency.child() == region.scope.child
+                });
+                let dependency = matching.next().filter(|_| matching.next().is_none());
+                let removed = dependency.and_then(|dependency| {
+                    binding_dependency_drops::removed_owner(&self.dependency_drops, dependency)
+                });
+                region.finish(identity.clone(), &actions, dependency, removed)
+            })
+            .collect();
         vec![crate::ownership_checking::UnitLoanActionObservation {
             identity,
             source,
             actions,
             regions,
             binding_regions,
+            child_regions,
+            binding_dependency_drops,
         }]
     }
 }

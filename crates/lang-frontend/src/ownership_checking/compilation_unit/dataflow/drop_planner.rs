@@ -11,6 +11,7 @@ mod control;
 mod iteration;
 mod lambda;
 mod loan_binding_region;
+mod loan_child_region;
 mod loan_consumer_region;
 mod loan_named_region;
 mod loan_provenance;

@@ -11809,3 +11809,185 @@ closed-body“全部 Dropped”validator 来接受已返回的 Q，不从清理�
 
 原始 SOURCE、测试字节、运行前 binary SHA、默认debug2/opt0 artifact与完整facts/SSA日志保留在
 `/private/tmp/koven-loop-owned-return-evidence`。本阶段未跑 native、未做能力红绿，CI-only仅编译。
+### 已批准后继：parent-child 实际 Drop 依赖闭合与独立区域覆盖
+
+- 从 clean `bda599637a45fd6c3136c661bcbade8cb4a0e6f8` 新隔离树实施，不重复原样 probe。
+  固定单 local String 根、单 BorrowCall result parent、单 raw Name child、单普通 Unit consumer；
+  不新增 siblings、多层、wrapper、控制或 parent/root 后用，不改语言、ABI、路由和原 cleanup emitter。
+- 阶段一单独完成实际 Drop 因果关系，仍 Partial：child 的实际 remove/BindingEnd 发布退休句柄，
+  沿原 parent transport 携至其实际 remove/SourceRetired；同一退休批次恰 child→该 parent，
+  用同 catalog、same_record 的 source Begin/handoff/commit/use/retirement 身份合成依赖，
+  不从 canonical root、Span 或 point 相等反查。child 的合格唯一 use-return 也是本片闭合条件。
+- 同根去重继续 fail-closed：明确 PendingChild/Closed/Lost 证据状态；错序、重复、第三同根退休、
+  缺链或歧义永久 Lost，不能把 None 当可补槽或选择最后一个 parent cause。
+  ChildState 的 Retired 若携新句柄，合流亦须 same_record，否则 Lost；旧 transport Eq 仍只 binding/source。
+- 最终边只能由实际 removed OwnerSnapshot 核验成功、旧 facts 去重确实新增后取得的 Cleanup handle 闭合；
+  Drop 尝试、早退或去重未 append 不能借旧 Drop。只发布独立只读关系，保原十 actions 与旧投影，
+  不添加执行动作、不授 absence/Complete、不接新 production receipt。
+- 阶段一先独立缺关联红：原样真实 on/off ownership、legacy Eq、十 SSA/LLVM、Partial 前置成功后，
+  因没有该关系失败；红 binary 在绿色构建覆盖前保存并独立实读 SHA。绿色再完整双 Unit 布局，
+  逐 ID 核 child retirement→parent source retirement→new Drop 及原 source/commit/use 链。
+- 阶段一完整终审冻结后才进入阶段二，另做缺 Complete 红→绿，不用同一红覆盖两项能力。
+  新 parent-child 区域必须独立于旧七事件 binding_regions，避免旧 receipt 消费十事件而新增拒绝。
+  entry 在 parent 声明前，已形成唯一活 owner 为正面前提，不宣称覆盖 owner 形成；
+  completion 在完整 root block cleanup 后，scope0、全部 active义务清空，核未过滤完整区间及实际 Drop 关联。
+  source/callable 仍 Partial，新区域不授权旧 oracle 退休或本片之外的生命周期。
+- 每阶段仅 fresh 审定的小 ordinary exact；foreign/fault/Abort/counter/压力及 CI-only 仅编译不执行。
+  borrow target 独占串行、LLVM21、默认 debug2，不降档、不复制 target；本地分步提交，不推送。
+
+### parent-child 阶段一：真实退休到新 Drop 关联验收
+
+- 基线 `bda59963`；缺关联红 `4b9f9511`，生产首绿 `c289ec6a`，最终代码冻结
+  `bb20fc2bb93a0fb5b5abb04b3637cc48b5c6908b`。原树及 main 未改，本地分步提交、未推送。
+- 实际 source PendingLoan 移除后、parent transport 建立前捕获唯一活 String owner 身份；
+  metadata 不入旧 Eq，合流失配后不补采。child 的真实退休句柄随原 parent 运输到其退休，
+  同批 PendingChild→Closed，错序/缺链/第三同根退休永久 Lost；原重复 root 的旧 cause 清空仍保留。
+  parent 的私有附着只允许一次，重复附着永久清证。实际 removed owner 校验及真正新 Cleanup append
+  才发布独立 `binding_dependency_drops`；去重未 append 不借旧 Drop，也不挑选重复关系。
+- 原十 actions、十 SSA、旧投影和唯一 emitter 不变；关系逐 ID 核 source Begin/handoff、child commit/use、
+  child retirement、parent SourceRetired 与新 Drop。source/callable 仍 Partial，旧 binding_regions 不变；
+  本片没有 parent-child Complete、absence 权限或新 production receipt。
+- 独立红实际 no-run 1m11s，opt0/debug2/test/support；仅核心 exact 失败 0/1/0/2932 filtered，
+  断点是缺独立关系。此前首 Rooted 的 on/off、完整旧事实相等、十 actions/十 SSA/LLVM 已通过，
+  第二布局未执行。执行前后及绿色覆盖前已独立实读红 binary SHA
+  `fafd635a2dacd34ba61b379cf66a01838ce354aff5fea3c5ce5a4871cb56f56e`，不重演红测。
+- 首生产 no-run 41.15s；核心 exact 1/0/0/2933，完整双 Unit 真 on/off 成功。
+  最终 no-run 22.75s；fresh 审定六项逐 exact 均 1/0/0/2933，无额外选择。
+  五项共 26 次有限 SSA/LLVM lower，另一个歧义 merge 仅 FE；0 native。
+  later-parent/later-owner 两普通源保持旧产品且无关系，FE merge 也明确不发布关系；
+  旧 single-binding receipt、P4 和 P3 真 off 为邻控。两项新增 CI-only 仅编译，未激活故障注入。
+- 最终输入清单包含 4242 个 tracked 文件，SHA
+  `b0278c10b46d78bd9a40901c933050f3014d0315d46d8fbae2d713a1106bc2c3`；六项选择 SHA
+  `29b9e8ed6d4e44a876c42a5342389fa38606c093a663ad26703023aa4671813e`。
+  实际 CG binary SHA `8a25d974eb0918f7787f66cb8f0de2bf80dcb2df9080de3eef124c310918f20c`，
+  原 Cargo artifact 绑定本树 opt0/debug2/test=true、仅 loan-observation-test-support。
+- 严格 frontend/codegen Clippy all-targets/support 38.55s；默认 workspace all-targets 32.40s；
+  fmt、docs 885、尺寸（base 为最终代码，2387 文件/35 项历史超限）、diff 均通过，旧尺寸额度未提高。
+  本片未另做 CLI artifact 空 feature、release 或正式 CI 验收，不据 workspace 成功外推。
+- 过程偏差保留：红前 fmt 检查仅导入布局失败后已修正；红 runner 完成后外层 zsh 赋只读 status
+  变量 exit1，不是第二能力红。首 Clippy 因新增 Option 方法的 question_mark 告警失败，
+  等价改为 `?` 后重跑通过；最终六项使用修复后新构建，不沿用首绿 binary。
+  只读定位两次旧路径不存在、默认沙箱 ps/heredoc 限制分别以授权进程检查/无临时文件读取完成，
+  均非 Rust 或能力失败。完整原件在 `/private/tmp/koven-parent-child-drop-evidence`，
+  含各阶段 JSON/log/manifest、源码与选择哈希；交付时仍须按证据保留合同归档。
+- 上述阶段一独立冻结后才继续阶段二缺 Complete 红；当前因果关系成功不自动升级覆盖认证。
+- 独立只读终审已核真实红/首绿/最终六项、原 artifact 与执行后二进制 SHA、4242 冻结输入及
+  26 份原件哈希；最终仅两 docs 偏离清单，冻结对象和其余 4240 输入仍匹配，无新增阻断。
+
+### 已批准阶段二：独立 parent-child 完整区域
+
+- 从阶段一 clean `e5a99113b4230715a510d4c4fb33af388cb53262` 新隔离树实施；
+  不改原树、不合 main。独立缺 Complete 红以前一阶段真实 Drop 关联、十 actions/十 SSA/LLVM、
+  双产品真 on/off 与完整 legacy Eq 为前置；红二进制在覆盖前独立实读 SHA，不用旧红代替。
+- 精确普通非泛型无 receiver/参数的 Unit caller，四个原始 statement：已形成 local String owner、
+  BorrowCall result parent、raw Name child、普通 consumer(child)；不扩 siblings、多层、wrapper、
+  控制、replacement、parent/root 后用或额外动作。既有语义、路由、ABI 与唯一 emitter 不变。
+- entry 在 parent 声明实际进入之前，只把已形成唯一活 owner 及真实 token/声明作为正面前提，
+  不声称覆盖 owner 形成。显式核 parent/child 两声明与 initializer、source/consumer 精确 typed 映射。
+  exit 在完整 root body drop_scope/borrow-end wrapper 后，scope0 且全部 active 义务为空；
+  不在 consumerReturn 提前封口，不绕 owner collector 的保存恢复或后续正常清理。
+- 认证必须检查原始未过滤 [entry,end) 十记录、两 binding facts/endpoint 全集与本轮完整 dependency：
+  child 无 source_loan，parent 只有原 source transport；source/handoff/commit/use、各退休与新 Drop
+  的同 catalog 引用全部在本区间内。不能凭 parent.use_return=None 或局部关系成功推全部覆盖。
+- 使用新独立 parent-child region 类型/集合；旧 binding_regions 与七记录 receipt 消费器完全不选新区域。
+  缺边、额外动作、未完成或 active 残留不授 Complete；失败/deferred 沿现观察产品全撤销。
+  新区域只认证该有限区间，source/callable 仍 Partial；本片不接新 receipt，不授全函数 absence，
+  不退休旧 oracle。两阶段红分别保留，阶段一 Partial 产品不自动升级。
+- 仅 fresh 审核普通小集合本地 exact，foreign/fault/Abort/counter/pressure 与 CI-only 只编译；
+  借用 target 独占默认 debug2/LLVM21，不降档、复制或清理；本地分步提交，不推送。
+
+### parent-child 阶段二：独立 Complete 区域验收
+
+- 新隔离树基于阶段一 `e5a99113`；独立缺覆盖红 `371e356b`，生产 `8cdfcf48`，
+  oracle 类型修正后最终代码冻结 `323fa9b7dc87fc8dddc26b8f6ad4dc082f3e20ca`。
+  原阶段一树不改、main 不合，本地分步提交，未推送。
+- 新 `UnitBorrowChildRegion` 与 `child_regions()` 独立于旧 `binding_regions()`，不触发七记录 receipt。
+  entry 是 parent 声明真实进入前的记录游标，唯一已形成 String owner 是前提而非被覆盖形成动作；
+  completion 在完整 root body cleanup wrapper 之后，scope0 与全部 active 义务为空。
+- 精确四原始 statement、parent/child 两 initializer 各唯一事实与各唯一端点、无入区旧 active、
+  出区全部 active 空及完整未过滤十记录联合证明本区域全集；不以两个 symbol 的过滤结果单独推全覆盖，
+  也不要求全 source 恰两 binding 而误拒其他 callable。原普通 fixture 直接核全产品两 facts/两 ends。
+  validator 逐 catalog ID 核所有依赖引用，并从已验证 cleanup ID 取唯一真实 AppendedDrop.removed_owner，
+  与入区 Some owner token、callable、声明等全字段核对；不由 Span/root 相等拼接清理。
+- 红 no-run 1m08s 成功、opt0/debug2/test/support；唯一 exact 实际 0/1/0/2934 filtered，
+  首 Rooted 的真 on/off、legacy Eq、十 actions/十 SSA/LLVM及阶段一七个依赖 ID 已先通过，
+  在缺独立 child region 处失败，第二布局未达。覆盖前独立实读红 binary SHA
+  `bad1f7de3214f7bf7195cb1a1d1898e48e18092453a4a41588091af5b03d7f96`；未重演红。
+- 首 green 编译成功 27.85s，核心 exact 1/0/0/2935，完整双 Unit 真 on/off 与公开字段 oracle 通过。
+  最终 fresh no-run 0.14s，七个 fresh 审定 ordinary exact 各 1/0/0/2935，名单无额外选择。
+  六项共 30 次有限 SSA/LLVM lower，另一个 merge 邻控仅 FE；0 native。
+  额外第五句 ping 保十 actions/一个真实 Drop 关系但不获 Complete，later parent/root use 与 merge 亦不获；
+  旧 single-binding receipt 与 P3 真 off、P4 同源双 Unit 邻控保留。两项新增 CI-only 仅编译，未执行故障构造。
+- 冻结输入 4248 个 tracked 文件，清单 SHA
+  `232d9603340b936925413d135f2431e1fd744825fb65591f1d2c89dd6fcc4e27`；七项选择 SHA
+  `9363b3d8b0ecb8289009eb30a836e918aa17f6e868bab09fe8b82a9f3cb45525`。
+  实际 CG binary SHA `297bba32bccba9e153553245c3ab919b478a4c7c5118ab584f9f7c534818e5ac`，
+  原 Cargo artifact 绑定本树 opt0/debug2/test=true、仅 loan-observation-test-support。
+- 严格 frontend/codegen Clippy all-targets/support 40.86s；默认 workspace all-targets 33.24s；
+  fmt、docs 885、尺寸（base 最终代码，2393 文件/35 项历史超限）、diff 通过。
+  旧大文件仅模块注册与薄 hook 增长，额度/拆分计划未变；不外推 CLI 空 feature artifact、release 或正式 CI。
+- 过程偏差：首 green no-run 的新测试将 BorrowSourceLoan 误与 UnitLoanFact 直接比较，E0308 后仅改为
+  完整 call/argument 身份比较，保存失败 JSON/log，生产无改；这是 oracle 编译错误，不是能力红。
+  一次只读 exec transport 断连，经环境列表确认 Mac connected、attach 同 ID 后恢复原 dirty 树；
+  两次只读旧模块路径未命中后定位实际模块，均未重跑 probe 或覆盖代码。
+  全部原件在 `/private/tmp/koven-parent-child-coverage-evidence`，含各阶段 artifact/log/manifest 与输入哈希；
+  交付时按证据保留合同归档。本区域 Complete 不升级 source/callable，不新增 receipt 或退休 oracle。
+- 独立只读终审已核两阶段边界、真实红/绿/最终七项、raw artifact/profile 与执行后二进制 SHA；
+  最终仅两 docs 偏离 4248 冻结输入，其冻结 git 对象及其余 4246 输入仍匹配，无新增阻断。
+
+
+### Suffix Replace→Return 回执安全回归（2026-11-10）
+
+仅为既有共同出口 replacement consumer 增加 cfg(test) 故障注入：漏/重
+post-RootReplace 回执、old 错作 root、Drop 错用 old、漏/重 installed-R Drop 回执。
+全部故障用例只在官方 CI 执行，本地仅编译，不能称为拒绝路径已实跑。
+普通正控仍使用原样有限源码、同轮实际 Unit 产品与 SSA/LLVM；不改公共产品、存储、
+getter、loop validator 或语言 ABI，不实施待决定的开放 loop Return endpoint。
+
+本地测试头 `3b3c1699`：六个新增 CI-only exact 已由 `cargo test -p lang-codegen
+--lib --no-run` 编译，全部未执行；原样 `actual_old_slot_requires_authorization` 与
+`both_units_authorize_distinct_old_and_installed_slots` 两项普通 exact 各实际通过，后者
+覆盖真实 Basic/Const，两者验证 SSA/LLVM，不代表六条故障拒绝路径通过。codegen all-targets
+Clippy `-D warnings`、fmt、docs 与尺寸门禁通过；debug=2，无 profile/RUSTFLAGS 降级。
+准备时首次 no-run 漏设 target，已停止本任务默认目录编译并改约定独占 target，未执行测试。
+本批未运行 native、官方 CI，也未推送；原循环体 Return probe 冻结头保持不变。
+
+### Owner receipt 安全钩子与 parent-child Complete 的本地合流验收
+
+本轮只合并已批准两条本地父链，不新增语义、路由、cleanup producer 或 child receipt。
+合成代码头 `43cf8b4592e176e33dd1067a382ee59a21d0b112` 的双父分别为
+`6abfda9ad85ad39ffd393c93805d8013d1c5eb33` 与 `1872ef9787ef67290db8dbc91c560c50052492af`，
+共祖 `bda599637a45fd6c3136c661bcbade8cb4a0e6f8`。只在本 Spec 尾部冲突；两父均保留共祖正文，
+合成精确保留借用全文、分隔空行及 owner 新尾段，其余路径逐字保留对应父内容。
+原树不改，main/local origin/远端 main 核为 `9e7fed92`，没有自动合入、push 或 PR。
+
+- Owner 增量为三个 Rust 文件的 test-only 六故障钩子/测试；新增导入及注入点均为 `cfg(test)`。
+  普通观察器不设置 `FAULT`，其线程局部默认 `None`；六个新 CI-only exact 仅编译，绝不本地执行。
+- Fresh 审核 owner 两个普通正控与借用七项，去重后九个唯一 exact，无交集；每项独立进程
+  先 exact-list 验唯一，再 exact 执行。九项均为 `1 passed / 0 failed / 0 ignored / 2941 filtered`。
+  Owner 两项共五次 SSA/LLVM lower；借用六项共三十次 lower，另一个仅 FE merge；总计三十五次
+  SSA/LLVM lower 加一个 FE-only test，零 native。命名空间含 native_tests 不表示执行本机程序。
+- 真 off 为重新运行所有权分析、原 off 产品直接 lower；legacy comparator 仅克隆后归一作比较。
+  P4 所选项只有同源双 Unit 正常 lower，不冒称其有 off 对照。额外语句/后用及 FE merge 保留旧路径。
+- 本轮是同一合成构建中的独立回归，没有新增 owner suffix 与 parent-child 同一源码交叉证明。
+  Child 只有独立区间 Complete，source/callable 仍 Partial；旧七记录 receipt 隔离，无新 child receipt，
+  旧 oracle 未退休，不授全 callable absence。
+
+证据目录 `/private/tmp/koven-safety-child-coverage-evidence` 保留原始 JSON、日志、runner、名单及哈希。
+`source-input-hashes.json` 绑定合成头的 4248 个 tracked 输入，SHA
+`7bbedb2433ba458af4c2fb8c26610d6780553a2aa348af4cf9f78dd0c782b994`；文档收尾后仅本 Spec 改变。
+九项 `final-selection.txt` SHA 为 `8326f9dae17749014a5504655ca8f367253045348a01fe0f0b1bdc6ada740868`。
+CG 二进制实读 SHA `92c13cdfd2cd50a6afd1973403c955f7d88bfc93b544ec23422e88072ee074f7`；
+FE 编译产物 SHA `0301413536786bef61a396895463558887757a099a9aa302e7b93db28051f1e9`，未执行 FE 测试二进制。
+实际 test artifacts 均 opt0/debug2/test=true，显式唯一 loan-observation-test-support feature；
+默认 CLI 原 JSON 中 frontend/codegen/kovenc 三 artifact 均 features=[]、opt0/debug2。
+默认 CLI check 8.91s、feature no-run 1m06s、strict frontend/codegen all-targets Clippy 42.02s、
+默认 workspace all-targets check 28.92s 均成功；fmt/diff exit0，docs 885，尺寸 2393/旧超限35通过，
+未提高历史尺寸额度。独占原 owner target 串行执行，没有复制 target、降调试信息或运行正式 CI/release。
+
+本轮无 Rust/行为失败。初次普通 sandbox ps 被系统限制，获准的提权只读核进程成功后才使用 target；
+旧 skill/模块只读路径未找到后定位真实路径，不改变代码或验收范围。阶段1的首红只 Rooted、外层 zsh
+status 偏差与 question_mark 风格失败、阶段2的 E0308 oracle 编译偏差及 owner 初次漏 target 的准备偏差
+均保留原父账本和日志，没有重跑红、补造哈希或用本轮最终产物覆盖历史证据限制。
+独立只读终审已逐项复核双父、冻结输入、实际 artifact/binary/九项日志与最终文档分账，无新增阻断；
+审阅者未执行项目测试。文档收尾不重跑未变 Rust，保留原代码头与最终文档头的区别。
