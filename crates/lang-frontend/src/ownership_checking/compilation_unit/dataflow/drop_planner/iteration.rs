@@ -262,7 +262,7 @@ impl DropPlanner<'_, '_> {
 
     /// 只登记已完成求值的实参，不能从同call的后续facts推测其已经建立。
     pub(super) fn register_iteration_pending_loans(
-        &self,
+        &mut self,
         call: ExpressionId,
         argument: ExpressionId,
         state: &mut ValueState,
@@ -271,6 +271,7 @@ impl DropPlanner<'_, '_> {
             loan.call() == self.checker.unit_expression(call)
                 && loan.argument() == self.checker.unit_expression(argument)
         }) {
+            self.iteration_actions.begin(loan.clone());
             state.pending_loans.push((
                 Action::EndCallLoan(loan.clone()),
                 self.loop_boundaries.len(),

@@ -951,53 +951,5 @@ mod loop_forward_source;
 #[path = "unit_direct_call_loan_ends/exclusive_auxiliary.rs"]
 mod exclusive_auxiliary;
 
-#[test]
-fn actual_action_source_preserves_acquisition_before_cleanup() {
-    use lang_frontend::ownership_checking::{
-        UnitIterationCleanupAction, UnitLoanAction, UnitLoanActionCoverage,
-    };
-    let observed =
-        observe("fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }");
-    for unit in &observed.units {
-        assert!(unit.diagnostics().is_empty());
-        assert!(unit.deferred().is_empty());
-        let observations = unit.loan_action_observations();
-        assert_eq!(observations.len(), 1);
-        assert_eq!(observations[0].coverage(), UnitLoanActionCoverage::Partial);
-        let actions = observations[0].actions();
-        let begins: Vec<_> = actions
-            .iter()
-            .enumerate()
-            .filter_map(|(index, action)| {
-                if let UnitLoanAction::Begin(loan) = action {
-                    Some((index, loan))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        assert_eq!(
-            begins.len(),
-            1,
-            "actual pending acquisition must be present, not inferred from Ends"
-        );
-        let (begin_index, loan) = begins[0];
-        let end_index = actions.iter().position(|action| matches!(action,
-            UnitLoanAction::Cleanup { action: UnitIterationCleanupAction::EndCallLoan(ended), .. } if ended == loan
-        )).unwrap();
-        let drop_index = actions
-            .iter()
-            .position(|action| {
-                matches!(
-                    action,
-                    UnitLoanAction::Cleanup {
-                        action: UnitIterationCleanupAction::Drop(_),
-                        ..
-                    }
-                )
-            })
-            .unwrap();
-        assert!(begin_index < end_index && end_index < drop_index);
-        assert_eq!(unit.direct_call_loan_ends()[0].loan(), loan);
-    }
-}
+#[path = "unit_direct_call_loan_ends/action_source.rs"]
+mod action_source;

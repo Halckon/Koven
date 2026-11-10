@@ -5,7 +5,9 @@ pub use drop_point::{
 };
 
 mod loan_actions;
-pub use loan_actions::{UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionObservation};
+pub use loan_actions::{
+    UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+};
 
 mod loan;
 pub use loan::{

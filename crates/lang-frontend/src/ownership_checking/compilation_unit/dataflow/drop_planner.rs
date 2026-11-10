@@ -102,6 +102,14 @@ fn plan_with_owner_observation(
     checker: &Checker<'_>,
     enabled: bool,
 ) -> Result<Analysis, OwnershipCheckingError> {
+    plan_with_observations(checker, enabled, true)
+}
+
+fn plan_with_observations(
+    checker: &Checker<'_>,
+    enabled: bool,
+    loan_actions_enabled: bool,
+) -> Result<Analysis, OwnershipCheckingError> {
     let liveness = liveness::build(checker, true)?;
     let mut deferred: Vec<_> = liveness
         .deferred
@@ -113,6 +121,7 @@ fn plan_with_owner_observation(
         .collect();
     let mut planner = DropPlanner::new(checker, liveness);
     planner.owner_observation_enabled = enabled;
+    planner.iteration_actions.enabled = loan_actions_enabled;
     let planner = planner.run()?;
     let iterations = planner.iteration_plans()?;
     let map_iterations = planner.map_iteration_plans()?;
@@ -175,7 +184,7 @@ fn plan_with_owner_observation(
         .collect();
     Ok(Analysis {
         owner_observations: planner.owner_observations,
-        loan_action_observations: vec![planner.iteration_actions.finish(checker.source_unit)],
+        loan_action_observations: planner.iteration_actions.finish(checker.source_unit),
         direct_call_loan_ends,
         string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,

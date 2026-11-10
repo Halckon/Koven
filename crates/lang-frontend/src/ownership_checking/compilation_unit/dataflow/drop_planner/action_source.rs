@@ -2,15 +2,25 @@
 use super::PlannerDropPoint;
 use crate::ownership_checking::{UnitIterationCleanupAction, UnitLoanFact};
 
-#[derive(Default)]
 pub(super) struct ActionSource {
     records: Vec<Record>,
     cleanups: usize,
+    pub(super) enabled: bool,
 }
 
 enum Record {
     Begin(UnitLoanFact),
     Cleanup((PlannerDropPoint, UnitIterationCleanupAction)),
+}
+
+impl Default for ActionSource {
+    fn default() -> Self {
+        Self {
+            records: Vec::new(),
+            cleanups: 0,
+            enabled: true,
+        }
+    }
 }
 
 impl ActionSource {
@@ -20,7 +30,9 @@ impl ActionSource {
     }
 
     pub(super) fn begin(&mut self, loan: UnitLoanFact) {
-        self.records.push(Record::Begin(loan));
+        if self.enabled {
+            self.records.push(Record::Begin(loan));
+        }
     }
 
     pub(super) fn len(&self) -> usize {
@@ -39,9 +51,13 @@ impl ActionSource {
     pub(super) fn finish(
         self,
         source: crate::name_resolution::SourceUnitId,
-    ) -> crate::ownership_checking::UnitLoanActionObservation {
+    ) -> Vec<crate::ownership_checking::UnitLoanActionObservation> {
         use crate::ownership_checking::UnitLoanAction;
-        crate::ownership_checking::UnitLoanActionObservation {
+        if !self.enabled {
+            return Vec::new();
+        }
+        vec![crate::ownership_checking::UnitLoanActionObservation {
+            identity: std::sync::Arc::new(()),
             source,
             actions: self
                 .records
@@ -54,6 +70,6 @@ impl ActionSource {
                     },
                 })
                 .collect(),
-        }
+        }]
     }
 }

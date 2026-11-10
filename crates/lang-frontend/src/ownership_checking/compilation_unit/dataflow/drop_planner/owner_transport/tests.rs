@@ -404,3 +404,22 @@ fun run(flag: Boolean): Unit { val owner = "kept"; var other = "other"; borrow v
     assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
     compare(&fixture, &fixture.parts(&shared));
 }
+
+#[test]
+fn loan_action_observer_preserves_all_existing_planner_products() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    let parts = fixture.parts(&shared);
+    compare_and_inspect(&fixture, &parts, |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert!(!observed.loan_action_observations.is_empty());
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}

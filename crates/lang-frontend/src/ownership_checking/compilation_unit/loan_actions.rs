@@ -1,6 +1,7 @@
 //! Incremental actual planner actions. No complete lifecycle certificate is issued yet.
 use super::{UnitDropPoint, UnitIterationCleanupAction, UnitLoanFact};
 use crate::name_resolution::SourceUnitId;
+use std::sync::Arc;
 
 /// Coverage of the declared source observation, not a callable-completeness claim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,15 +29,52 @@ pub enum UnitLoanAction {
     },
 }
 
+/// Opaque identity of one static record in one observation catalog.
+/// This is not a dynamic loan/activation identity.
+#[derive(Clone, Debug)]
+pub struct UnitLoanActionId {
+    identity: Arc<()>,
+    index: usize,
+}
+
+impl PartialEq for UnitLoanActionId {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity) && self.index == other.index
+    }
+}
+impl Eq for UnitLoanActionId {}
+
 /// Source-scoped partial evidence, not an absence or whole-callable oracle.
+/// Equality compares structural snapshots, not catalog identity. Action IDs are catalog-bound.
+/// Callable/path segments and dynamic activations are not certified. Equal descriptors or
+/// points cannot identify a dynamic loan or compare execution across branches/loops/callables.
 /// Result handoff, receiver activation and permission restoration remain uncovered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitLoanActionObservation {
+    pub(super) identity: Arc<()>,
     pub(super) source: SourceUnitId,
     pub(super) actions: Vec<UnitLoanAction>,
 }
 
 impl UnitLoanActionObservation {
+    /// Identify a static record without accepting identities from another observation.
+    #[must_use]
+    pub fn action_id(&self, index: usize) -> Option<UnitLoanActionId> {
+        self.actions.get(index).map(|_| UnitLoanActionId {
+            identity: Arc::clone(&self.identity),
+            index,
+        })
+    }
+
+    /// Resolve only a record from this catalog; reject catalogs created by reanalysis.
+    #[must_use]
+    pub fn action(&self, id: &UnitLoanActionId) -> Option<&UnitLoanAction> {
+        if !Arc::ptr_eq(&self.identity, &id.identity) {
+            return None;
+        }
+        self.actions.get(id.index)
+    }
+
     /// Same-analysis source identity of every record.
     #[must_use]
     pub const fn source(&self) -> SourceUnitId {
