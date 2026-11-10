@@ -9719,3 +9719,23 @@ rustc 含 `-C debuginfo=2`。构建完成后逐项从该 binary exact list 核�
 名单SHA256、核本树Cargo artifact/debug2/build-finished以及六条实际成功记录，均一致。
 复审未执行测试，未把静态负控或文档检查当作运行证据。最终文档提交仅记录本轮结果，
 不声称在文档头重跑Rust；未push、PR或merge。
+
+### Protocol 4 真实 observer-off 端到端补证（2026-11-10，实施中）
+
+续接本地 `1ef89349`，按已批准范围增加默认关闭的窄测试支持 feature
+`loan-observation-test-support`。frontend 提供隐藏的同步 scope API，codegen 同名 feature
+经既有 normal 依赖转发；不增加 dev-dependency 或修改四逻辑边检查器。原 dev-dependency
+建议会触发现有 duplicate direct declaration 门禁，故采用此路线。显式启用会把测试支持
+编入 frontend 库，`doc(hidden)` 不是安全边界；默认生产/发布图不启用，不读取TLS。
+
+scope 只接真实 planner 的 loan observation bool，不改 owner 开关、不删已生成产品或关闭
+receipt 核验。以同 sources/names/typed 做两次真实 ownership 分析，off 原产品直接传
+codegen；只读比较 helper 仅在独立 clone 上去掉新增 catalog 用于旧产品全量对照。
+私有RAII保存并恢复前态，不公开可跨线程移动的guard；普通嵌套与线程隔离精确执行，
+panic恢复负控仅编译。先普通缺off红测，再接真实scope，最终核P4 receipt有/无及旧SSA/
+LLVM/B产品等价。默认CLI check与feature测试构建分别核各实际artifact.features。
+
+正式CI仅在 `check_core.sh` 的codegen测试命令显式启用，精确选择合同同步；不在本地
+运行该全量命令。发布 `package_preview.py` 的CLI release命令不启用features；所有
+显式all-features构建仍可能编入hook，不能称为cfg(test)隔离。此前全部target、debug2、
+CI-only不执行与本地不push/PR/merge约束继续有效。
