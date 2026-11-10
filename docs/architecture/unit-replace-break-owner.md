@@ -83,3 +83,16 @@ consumer 独立匹配准入时保留的 suffix initializer、statement、retired
 恰一次和准确顺序。carrier 不进入普通 branch merge，原边界检查拒绝其泄漏；不能推广
 通用 phi、额外尾句、alias、borrow/capture。新 consumer 嵌入原 replace 产品，共享全局
 source-error/deferred 撤销。实际源、双入口、跨 source/重分析和旧产物 on/off 检查见 Spec。
+
+## 原样源码的既有下游证据
+
+独立普通测试 `owner_replace_break_downstream_tests` 保留上述原样 B 函数，另用入口
+分别调用 `run(false)` 与 `run(true)`，从严格真实 Unit 产品执行既有 lowering。
+SSA 结构断言确认原 P 分别进入 true/false 边、唯一 RootReplace 取实际 Q，Break 的新
+root 与 false 的原 root 进入同一 exit 参数；body 只 Drop detached 旧值，尾句只 Drop
+选中参数，并独立通过 SSA verifier 与 LLVM verifier。调用源码存在不等于 native 已运行。
+
+这证明原样合法输入在现有后端的兼容性，不证明后端消费新 B 产品：当前 production
+codegen 没有调用 `replace_break_observation_v1()` 或 `suffix_consumer_v1()`；测试查询
+只核 Phase 3 产品存在，不替代真实下游接线。没有修改 production lowering、扩大首片
+合同、退休 Single oracle 或验证 runtime 释放次数。精确验收仍见 SPEC-0341。

@@ -8352,3 +8352,35 @@ target并串行Cargo，未新建/复制target。Clippy首次测试clone写法告
 未运行Phase4、SSA/LLVM/native、runtime释放计数、Linux、sanitizer或正式双宿主CI。
 本地完成owner首片实现及上述验收，不宣称整个D10/E2完成；loan并行片未纳入此树，动态
 capture未启动。无push、PR、main合并；§170与parent-binding receiver原脏树不动。
+
+### 原样 B 的既有 SSA/LLVM 兼容证据（2026-11-10）
+
+独立测试提交 `04f12cde479c1b1f365ee1abb1d29cacdbc7e6f3` 基于 owner 完成头 `7f854095`，隔离分支
+`feature/spec-0341-owner-b-downstream-20261110` 保留真实父链。仅新增测试及注册，
+不修改生产代码、不扩 Phase 4 合同。原样 B 函数逐字保留，外围 entry 调用 false/true；
+严格 UnitSource helper 经真实 final admission、Unit ownership、sealed view 与现有
+lowering，不从 synthetic facts、Single fallback 或 CI-only 故障 helper 获取结果。
+
+| 验收项 | 精确目标/命令 | 实际结果 |
+|---|---|---|
+| 原样 B 下游结构 | `lang-codegen --lib` exact `native_tests::boxed_enum_tests::unit_source::owner_replace_break_downstream_tests::bounded_replace_break_original_source_reaches_existing_ssa_and_llvm` | 1普通通过；P true/false转交、唯一RootReplace、Q与false P同一exit参数、detached旧值body Drop及selected尾句Drop，原source span逐项核对；SSA及LLVM verifier通过 |
+| 严格静态质量 | `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| 格式、文档、尺寸 | fmt、docs、size `--base 7f854095`、diff | 通过；docs878，2265手写Rust，36历史超长，新测试196行 |
+| 独立复审 | 原源码、helper调用链、结构oracle和声明边界 | 只读复审无阻断；核实际1 passed与Clippy日志，未重复执行Cargo |
+
+Mac AArch64，Rust1.96/LLVM21.1.8；locked/offline、jobs2，复用原 owner target，
+执行前确认无Cargo/rustc活动并与并行worker分配不同target；全部Cargo串行。
+环境无profile/RUSTFLAGS覆盖，实际frontend及codegen test rustc均核得
+`-C debuginfo=2`。测试与所有调用helper逐源检查，无Abort、破损、故障注入或压力运行。
+
+首次测试调试打印误用不实现Debug的Program而编译失败；修正后首次exact路径误用
+源文件名而非真实注册模块，运行0 tests。两者日志保留且不计能力红测/验收；以binary
+`--list`确认上表完整路径后实际运行1测试通过，再补强结构断言重新运行1测试通过。
+本次没有生产行为变化，因此没有伪造“能力红→绿”。日志留仓外
+`/private/tmp/koven-owner-b-downstream-evidence`供本地复核，不作为持久验收真源；
+可重复证据以提交内fixture、完整测试名与结构断言为准。
+
+新 B getter 仍无production codegen消费者；本测试只证明既有下游兼容性，不能称新
+carrier已接线。未运行native、释放计数、Linux、sanitizer、CI-only或正式双宿主CI；
+未重新运行原117前端测试、workspace check（无公开API/生产变化）。不退休旧oracle，
+D10/E2仍in-progress，无push/PR/main合并，其他脏树不动。
