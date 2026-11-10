@@ -9586,3 +9586,44 @@ profile.debuginfo=2，选中binary名称集合及成功集合相等。
 最终仅追加本账本文档，无Rust再变动。未执行正式CI、Linux、sanitizer、压力、故障与
 计数校准；普通native不证明释放计数义务。未push、PR或合main，Spec/D10/E2仍in-progress，
 不退休旧oracle，不把P2 Compatibility或P4并列实证称为证书生产消费完成。
+
+### SPEC-0400 main 基线上的独立组合准备（2026-11-10）
+
+本地main/origin/main实际为`a775568fcbf1cf219460e0b6ec57dad1e7c80772`（#409），
+对象已在本地，无fetch。在此固定main上另建隔离分支
+`feature/spec-0341-owner-loan-main-20261110`，保父链merge冻结`c27d9ae0`，零冲突。
+原组合树保持不变。实际Rust代码头`212b2c2a1e28f2d59b9ab27edbfff6c654817457`，
+树`b242a2fe44e8ae2c3506ff256fdcf1cd36641874`。共同祖先仍3fe1920a；两边文件差分
+没有同路径重叠，但#409确实退休Compatibility生产载体，不能由无文本冲突推断行为等价。
+
+独立只读准入复核原478普通名单不需调整：P2 nominal receiver不走被删RangeView Carrier
+分支，实际receiver Begin/DirectCall/End/Named Drop路径保留；仍为Compatibility，
+不宣称进入refine。B/P4 refine、frontend撤销策略、显式replace_consumer门和三个联合
+测试未改。迁入result_tests的人工Fixture不在选择集、不进入普通helper链。没有新增
+相似测试或为合流制造生产补丁。所有CI-only故障/计数/校准/Abort/压力仅编译，旧排除
+保持；不按模块filter执行。
+
+本轮在新树新输入重编，同一478精确普通名单先执行两个loan_region_ssa_tests及B的
+physical_drop_has_product_authorization、same_analysis_callables_keep_products_and_receipts_local、
+absent_optional_product_keeps_ordinary_lowering五项（完整名称沿用第五批）；通过后执行
+剩余7 codegen，再134 lib、331 direct、1 iteration。五项不在后续组重复计数。
+Cargo命令及精确集合来源沿用第五批，默认debug2、四项覆盖变量未设置，串行复用
+原owner target，LLVM_SYS_211_PREFIX为`/opt/homebrew/opt/llvm@21`。外置manifest、
+逐组日志和实际binary hash位于`/private/tmp/koven-owner-loan-main-evidence`；临时目录
+不保证永久留存，固定提交及此前精确名单来源界定可重建输入。旧478绿灯不充作本轮结果。
+
+新合成头实际478普通全部通过，0失败/忽略：codegen关键5项1.98s、其余7项6.06s，
+前端134 lib 1.20s、331 direct 0.27s、1 iteration 0.06s；前端filtered450/10/218，
+后端两组filtered2824/2822，选择集合互斥并集为12。codegen no-run1m24s。
+这不是沿用旧binary结果，构建源路径为新隔离树，实际artifact debuginfo=2；无语义失败、
+无生产修复。P2完整五指令及Compatibility边界、P4完整链与B授权/隔离/fallback均有
+本次运行正证；不能据此推断完整正式CI或资源释放计数已验收。
+
+frontend no-run39.23s。独立证据复核478集合完全等于第五批，5+7互斥无遗漏，四个
+binary hash均匹配manifest且不同于旧组合；两次构建成功、实际debug2，无CI-only执行。
+严格双crate all-targets Clippy（`-W clippy::all -D warnings`）通过54.75s，
+workspace all-targets check通过35.50s，均`--locked --offline -j 2`；fmt通过。
+docs880、diff及尺寸`--base a775568f`通过：2288手写Rust、36既有超千行，无额度变更。
+本轮原始构建日志均纯JSON，无新增脚本解析偏差。最终仅追加本账本文档，没有Rust再改动。
+原冻结组合c27d9ae0仍clean；不改main，不push/PR，正式CI、Linux、sanitizer、压力及
+全部CI-only故障/资源计数仍未运行。Spec/D10/E2保持in-progress，不新增旧oracle退休声明。
