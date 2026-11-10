@@ -24,6 +24,7 @@ pub(super) struct OwnerPlan<'a> {
     retired: Option<UnitSymbolId>,
     pub(super) drop_index: Option<usize>,
     pub(super) call: Option<(UnitExpressionId, crate::ssa::model::FunctionId)>,
+    pub(super) call_layout: Option<(usize, usize)>,
     pub(super) return_expression: Option<UnitExpressionId>,
     pub(super) root_slot: Option<Slot>,
     bound: Option<Slot>,
@@ -135,6 +136,18 @@ impl<'a> OwnerPlan<'a> {
                 {
                     return Err(fail());
                 }
+                let descriptor = inputs.typed.call(*call).ok_or_else(fail)?;
+                let mapped = descriptor
+                    .arguments()
+                    .iter()
+                    .find(|a| a.argument_index() == consumer.argument_index())
+                    .ok_or_else(fail)?;
+                if descriptor.arguments().len() != consumer.arity()
+                    || mapped.parameter_index() != consumer.parameter_index()
+                    || mapped.mode() != lang_frontend::type_checking::ParameterMode::Value
+                {
+                    return Err(fail());
+                }
                 let site = inputs
                     .source_plan
                     .call_site(inputs.source_token, *call)
@@ -236,6 +249,9 @@ impl<'a> OwnerPlan<'a> {
             retired,
             drop_index,
             call,
+            call_layout: boundary
+                .suffix_call_consumer_v1()
+                .map(|c| (c.parameter_index(), c.arity())),
             return_expression,
             root_slot: None,
             bound: None,

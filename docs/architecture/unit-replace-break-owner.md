@@ -143,17 +143,17 @@ pending/capture 门并列。当前 B 的 var/while/尾句绑定与 protocol4 的
 ## 共同结果向唯一 own 调用移交
 
 独立受限后继允许唯一尾句为 `sink(held)`：目标是同 Unit 已解析顶层非泛型函数、
-唯一 own String 参数、Unit 返回。原 B 的绑定/析构尾句和产品不变。
+唯一 own String 或额外一个显式 own Int literal、Unit 返回；双参可反序 named。原 B 不变。
 Name 的真实 Take 保存 P/Q carrier，随同一个已登记 Value pending operand 移动；
 只有原 `transfers_at_call` 完成交付才封印独立 Take/Call 产品。旧 scalar owner 投影
 仍保持原值，不回填或重放 Q；两个原 catalog 和边角色保留。
 
-Phase 4 共用原两入边及根槽核验，独立核实际 dispatch target、实参槽和已交付状态，
+Phase 4 共用原两入边与根槽，核真实 argument/parameter index、arity、dispatch 与 selected 唯一槽，
 由既有 Unit DirectCall emitter 唯一发射。成功后记完成；caller 禁止再次析构选中root，
 callee 仍使用既有 own 参数清理，body detached P 仍由旧 emitter 清理。
 普通 SSA/LLVM 证据核选中P/Q确为调用参数、caller只清理detached P、callee唯一参数Drop；
 双Unit普通native输出证明false/true传值，不作析构计数或heap无泄漏证明。
-此片不纳入多参、receiver、泛型/间接调用、通用后缀或一般循环；精确验收见SPEC-0341。
+此片不含三参、默认Borrow Int、非literal、receiver、泛型/间接调用或通用后缀；见SPEC-0341。
 
 ## 共同结果作为唯一 String 返回值
 

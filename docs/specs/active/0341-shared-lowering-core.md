@@ -11364,3 +11364,39 @@ artifact features证据，不把workspace成功外推成CLI/release/正式CI验�
 selection/manifest/runner/原日志均匹配；当前仅两docs变化，非docs无漂移。本次仅审过
 旧1669限额内1598→1634必要薄wrapper增长，不推广新额度。最后docs分账复核通过，
 随后仅文档本地提交清树，不重跑Rust、不推送。
+
+
+### 有界 P/Q 双参数 own-call 实施合同（2026-11-10）
+
+从 a35f8c22 隔离实现唯一 own String 和一个显式 own Copy Int literal 的双参数直接 Unit 调用。
+保留原 prefix/While/Replace/Break 与唯一尾句；只增加真实实参到形参映射及 selected 槽授权。
+允许两种形参顺序、positional 与反序 named；无额外 owner、loan、调用或分支，不改语言/ABI。
+真实 pending Value transfer 才封印，原 DirectCall emitter 唯一执行，caller 不重复 Drop。
+先用新普通有限源码确认缺 receipt，再按同源绿、双 Unit SSA/LLVM/native 验证；foreign、
+故障注入、Abort 与计数负控只编译、不在本地执行。默认 debug2，独占 owner target。
+准备提交5577e372之后发现默认Int参数是SharedLoan，故明确限定显式own Int的Value copy，
+默认Borrow Int仍无receipt。恢复原准入与模型，在相同own Int源码确认receipt=0（1 exact
+失败、611 filtered）；恢复实现后同源四例通过。早期短名exact选0项和临时缺模型字段的
+编译失败均不算红；未把默认Borrow样例当最终Value合同红测。
+
+前端保存真实argument/parameter index与arity，并逐项核typed和ownership合同；refine核
+同轮typed映射，原DirectCall参数槽只有一次selected值。当前新普通exact四项已通过：
+FE四正例、五合法邻控，Basic/Const各四种映射的SSA/LLVM及八次native。callee仅用普通
+有限Int比较输出7，caller输出outer/7/next/7，不作析构计数或泄漏证明。最初native fixture
+的println(Int)类型失败及Int插值UnsupportedNode已改为上述合法oracle，不修改相关能力。
+完整helper审计仅执行同catalog查询、真实普通分析/lower与正常native，无foreign查询、
+注入、Abort、压力、计数或强制route。新增CI-only三类call故障×四种映射仅编译。
+默认debug2、LLVM21.1.8、独占owner target；日志保留于
+`/private/tmp/koven-owner-pair-call-evidence`。clippy/check、最终头独立审查及正式双宿主CI
+仍待记录，不认领D10/E2完成，也不push/PR。
+
+
+该片生产冻结11f418313cf6a30c71204661237620e839e0e541；c27c86fc仅将架构事实合入
+原段满足200行上限。两crate all-targets clippy -D warnings、workspace all-targets check、
+fmt及docs884通过。独立只读审查该生产头的四生产文件与新FE/backend完整测试，未发现
+阻断；不将该审查视为全部历史helper认证。最终manifest逐个选择FE2和CG5共7个exact，
+其中新增4exact与旧单参3exact分账；新增内部例数仍为FE4+5、SSA/LLVM8、native8。
+CI-only故障仅编译，未运行foreign、注入、Abort、计数、压力或强制route；正式双宿主CI、
+sanitizer及一般循环/多owner/loan合运仍未完成。Cargo JSON证实两个test artifact均
+opt0/debug2/test=true、features空；二进制SHA、源码hash、选择名单与失败摘要保留在上述
+证据目录，不复用旧大筛选集合。不推送，不改变main及借用隔离树。

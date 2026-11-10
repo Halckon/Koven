@@ -7,6 +7,7 @@ use crate::ownership_checking::{
     UnitOwnerReplaceBreakObservationV1,
 };
 use crate::type_checking::{CallableResultSource, UnitCallTarget, UnitCallableTarget};
+use std::collections::BTreeSet;
 
 pub(super) fn admit(
     checker: &Checker<'_>,
@@ -27,46 +28,28 @@ pub(super) fn admit(
     else {
         return None;
     };
-    let [argument] = arguments.as_slice() else {
-        return None;
-    };
-    let argument_node = ast.expressions().get(argument.value).ok()?;
-    if !type_arguments.is_empty()
-        || argument.named_prefix.is_some()
-        || argument.mode_marker.is_some()
+    if !matches!(arguments.len(), 1 | 2)
+        || !type_arguments.is_empty()
         || !matches!(
             ast.expressions().get(*callee).ok()?.payload(),
             Expression::Name
         )
-        || !matches!(argument_node.payload(), Expression::Name)
-        || checker.reference_symbol(argument_node.span()) != Some(root)
     {
         return None;
     }
     let call_id = checker.unit_expression(*expression);
-    let argument_id = checker.unit_expression(argument.value);
     let call = checker.typed.call(call_id)?;
     let UnitCallTarget::Declaration(declaration) = call.target() else {
         return None;
     };
     let declared = checker.typed.signatures().declaration(declaration)?;
     let signature = declared.callable()?;
-    let [parameter] = signature.parameters() else {
-        return None;
-    };
-    let [typed] = call.arguments() else {
-        return None;
-    };
-    let [contract] = checker.contracts_by_call.get(&call_id)?.as_slice() else {
-        return None;
-    };
+    let contracts = checker.contracts_by_call.get(&call_id)?;
     if checker.names.declaration_symbol(declaration) != Some(declared.symbol())
         || signature.target() != UnitCallableTarget::Declaration(declaration)
         || !signature.has_body()
         || signature.receiver().is_some()
         || !signature.type_parameters().is_empty()
-        || parameter.mode() != ParameterMode::Value
-        || parameter.symbol().is_none()
         || signature.result_source() != CallableResultSource::Owned
         || call.result_source() != CallableResultSource::Owned
         || call.receiver().is_some()
@@ -76,31 +59,73 @@ pub(super) fn admit(
             != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
         || call.return_type() != signature.return_type()
         || checker.typed.expression_type(call_id) != Some(call.return_type())
-        || checker.typed.types().get(parameter.ty())
-            != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-        || checker.typed.expression_type(argument_id) != Some(parameter.ty())
-        || typed.argument_index() != 0
-        || typed.parameter_index() != 0
-        || typed.mode() != ParameterMode::Value
-        || typed.parameter_type() != parameter.ty()
-        || typed.category() != ExpressionCategory::Place
-        || typed.crosses_thread()
-        || contract.call() != call_id
-        || contract.argument() != argument_id
-        || contract.parameter_index() != 0
-        || contract.parameter_type() != parameter.ty()
-        || contract.category() != typed.category()
-        || contract.crosses_thread()
-        || contract.kind() != UnitCallArgumentOwnershipKind::Value
-        || checker.typed.expression_category(argument_id) != Some(typed.category())
-        || checker.place(argument.value).ok()??.root() != root
-        || !checker.place(argument.value).ok()??.is_root()
+        || signature.parameters().len() != arguments.len()
+        || call.arguments().len() != arguments.len()
+        || contracts.len() != arguments.len()
     {
         return None;
     }
+    let mut selected = None;
+    let mut parameters = BTreeSet::new();
+    for (index, argument) in arguments.iter().enumerate() {
+        let argument_id = checker.unit_expression(argument.value);
+        let node = ast.expressions().get(argument.value).ok()?;
+        let typed = call
+            .arguments()
+            .iter()
+            .find(|a| a.argument_index() == index)?;
+        let parameter = signature.parameters().get(typed.parameter_index())?;
+        let contract = contracts.iter().find(|c| c.argument() == argument_id)?;
+        if !parameters.insert(typed.parameter_index())
+            || argument.mode_marker.is_some()
+            || (arguments.len() == 1 && argument.named_prefix.is_some())
+            || parameter.mode() != ParameterMode::Value
+            || parameter.symbol().is_none()
+            || typed.mode() != ParameterMode::Value
+            || typed.parameter_type() != parameter.ty()
+            || typed.crosses_thread()
+            || contract.call() != call_id
+            || contract.parameter_index() != typed.parameter_index()
+            || contract.parameter_type() != parameter.ty()
+            || contract.category() != typed.category()
+            || contract.crosses_thread()
+            || contract.kind() != UnitCallArgumentOwnershipKind::Value
+            || checker.typed.expression_category(argument_id) != Some(typed.category())
+            || checker.typed.expression_type(argument_id) != Some(parameter.ty())
+        {
+            return None;
+        }
+        match checker.typed.types().get(parameter.ty())? {
+            UnitTypeKind::Builtin(BuiltinType::String) => {
+                if selected.is_some()
+                    || !matches!(node.payload(), Expression::Name)
+                    || checker.reference_symbol(node.span()) != Some(root)
+                    || typed.category() != ExpressionCategory::Place
+                    || checker.place(argument.value).ok()??.root() != root
+                    || !checker.place(argument.value).ok()??.is_root()
+                {
+                    return None;
+                }
+                selected = Some((argument_id, index, typed.parameter_index()));
+            }
+            UnitTypeKind::Builtin(BuiltinType::Int) if arguments.len() == 2 => {
+                if !matches!(
+                    node.payload(),
+                    Expression::Literal(crate::parser::LiteralKind::Integer(_))
+                ) {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    let (argument_id, argument_index, parameter_index) = selected?;
     Some(CallConsumerTarget {
         call: call_id,
         argument: argument_id,
+        argument_index,
+        parameter_index,
+        arity: arguments.len(),
         statement: UnitStatementId::new(checker.source_unit, statement),
         target: declared.symbol(),
     })

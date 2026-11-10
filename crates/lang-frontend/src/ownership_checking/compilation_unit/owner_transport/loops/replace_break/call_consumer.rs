@@ -21,6 +21,9 @@ pub enum UnitOwnerReplaceBreakCallActionV1 {
 pub(in crate::ownership_checking::compilation_unit) struct CallConsumerTarget {
     pub(in crate::ownership_checking::compilation_unit) call: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) argument: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) argument_index: usize,
+    pub(in crate::ownership_checking::compilation_unit) parameter_index: usize,
+    pub(in crate::ownership_checking::compilation_unit) arity: usize,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) target: UnitSymbolId,
 }
@@ -51,6 +54,18 @@ impl UnitOwnerReplaceBreakCallConsumerV1 {
     pub fn argument(&self) -> UnitExpressionId {
         self.target.argument
     }
+    /// Source evaluation index of the selected owner operand.
+    pub fn argument_index(&self) -> usize {
+        self.target.argument_index
+    }
+    /// Declaration parameter slot receiving the selected owner.
+    pub fn parameter_index(&self) -> usize {
+        self.target.parameter_index
+    }
+    /// Exact checked call arity, including ordinary Copy operands.
+    pub fn arity(&self) -> usize {
+        self.target.arity
+    }
     /// Resolved top-level declaration symbol from the checked compilation unit.
     pub fn target(&self) -> UnitSymbolId {
         self.target.target
@@ -61,7 +76,10 @@ impl UnitOwnerReplaceBreakCallConsumerV1 {
             return false;
         };
         let source = boundary.statement.source_unit();
-        self.target == *target
+        matches!(self.arity(), 1 | 2)
+            && self.argument_index() < self.arity()
+            && self.parameter_index() < self.arity()
+            && self.target == *target
             && self.incoming
                 == [
                     boundary.condition_false.clone(),

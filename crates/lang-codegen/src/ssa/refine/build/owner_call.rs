@@ -23,7 +23,12 @@ impl Builder<'_, '_> {
                 if take_fault(OwnerFault::WrongOwnCallSlot)
                     && let ROp::DirectCall { arguments, .. } = &mut op
                 {
-                    arguments[0] = Slot(usize::MAX);
+                    let index = self
+                        .owner_plan
+                        .as_ref()
+                        .and_then(|p| p.call_layout)
+                        .map_or(0, |p| p.0);
+                    arguments[index] = Slot(usize::MAX);
                 }
             }
             op
@@ -44,9 +49,14 @@ impl Builder<'_, '_> {
             let selected = plan
                 .root_slot
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let (parameter_index, arity) = plan
+                .call_layout
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if plan.call != Some((call, *callee))
                 || plan.stage != 1
-                || arguments != &[selected]
+                || arguments.len() != arity
+                || arguments.get(parameter_index) != Some(&selected)
+                || arguments.iter().filter(|slot| **slot == selected).count() != 1
                 || !self.dead.contains(&plan.root)
             {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
