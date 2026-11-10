@@ -10816,3 +10816,47 @@ all-targets check、fmt、docs883、diff及尺寸base`c956f3bf`均通过：2339�
 固定`f4768221`独立只读终审无阻断：生产/测试diff、代码tree、源码清单SHA、两实际
 binary SHA、11/18成功exact集合及debug2/features空集均复核匹配，审阅者未代运行。
 本片本地实现与受限验收完成，正式CI、资源证明及新main合流边界保持，不退休旧oracle。
+
+### Boolean 比较 owner 与双 literal P1 本地合流（2026-11-10）
+
+冻结代码合流 `c627accc4ac2ffafecd90964a2f64c2397e67a62` 保留双父
+`c8887287606e8fceff9d6756b17bfae84591095d` 与
+`af25d5a70596e1c68d202b255c95bd682ec12d71`，共同基线 `c956f3bf`。
+仅本 Spec 尾段冲突，按共同正文、P1 完整尾段、分隔空行、owner 完整尾段并集保留；
+其余文件逐字等于相应父，没有新生产修改或新语言/ABI/释放责任决定。
+
+本批不合入 main `9e7fed92`。只读比较发现该主干退休 Compatibility 的 shared-field
+及 nullable Rc 旧路径，与本批增量无文件交集，但调用/field/nullable 共享行为仍须另行
+整合验收；本批绿色不证明新主干组合。main 及原工作树均未改动。
+
+两父名单重新逐源/helper 审核后执行 41 个唯一 ordinary exact：frontend 11、codegen 30
+（owner 18 加 P1 12，无重名）。前端只复用旧 SOURCE/declaration，不调用含 foreign 查询
+的旧 check；真实 off 重新分析原 ownership 并原样交给 lowering，归一化只用于 clone
+对照。观察器未激活故障注入。5 个 native exact 内共 14 次有限普通可执行运行单独计账，
+不累计为额外 tests，不作为资源计数、压力或析构证明。所有 foreign、故障/损坏、Abort、
+计数、压力、待定大矩阵与 CI-only 均未执行，仅随测试构建编译。
+
+使用独占 owner target，LLVM 21.1.8，未设置 debug 或 RUSTFLAGS 覆盖，未复制/清理 target。
+默认 CLI check 成功 8.81s，实际 frontend/codegen/kovenc 三 artifact features 均为空；
+feature no-run 成功 1m25s，两实际测试 artifact 均 opt0/debug2/test=true，且仅显式启用
+loan-observation-test-support。每个 exact 先由新 binary --list 确认唯一名称，再单项执行；
+41 项全通过、无失败或忽略。本批未运行 release、正式双宿主 CI 或全量测试。
+
+证据目录 `/private/tmp/koven-comparison-multi-p1-evidence` 保存 manifest、两名单/日志、
+原始 Cargo JSON 与 2348 源/config 哈希；临时文件不承诺永久保存，固定提交与本段合同
+为重做依据。frontend binary SHA256
+`0a7493979959b317a17480f231f931c64ca8ef113e7d2ef0d25cbbaf67fbbd6c`，selection SHA256
+`0c899beadccddd010bba75d4d29b142b356869a315413ffeae0833f5cb35bb54`；codegen binary SHA256
+`9234b899d0c1296aa883db81f1def2ac614d34a0f5e019200baecef9b397aed9`，selection SHA256
+`dc1f6bcc48dab0ca02d40058caf4defdb1b8b6866795819c22063e9bb6256180`。
+
+过程偏差：一次只读 Python heredoc 摘要因受限 shell 无法创建临时文件而未执行，改为
+不创建临时文件的 Python -c 只读摘要成功；没有重试被拒写入或绕过审批。这不是 Rust
+失败或能力红测；合流本身没有新增能力，不复跑两父红测，不将原红测算本批验收。
+
+严格 feature 两 crate all-targets Clippy 41.65s、默认 workspace all-targets check 34.37s、
+fmt、docs 883、尺寸 2341 手写 Rust/35 旧超限（base c956f3bf）及 diff 全部 exit0，
+未调整尺寸预算。精确 c627accc 独立只读终审无阻断：2348 源/config 与两 binary 重算
+SHA 全匹配，41 成功名称/名单/实际 profile/Cargo JSON 一致；frontend 每项 1pass/
+602filtered，codegen 每项 1pass/2889filtered。审阅者未执行测试或修改文件。
+终审后仅补此文档，未重编 Rust；owner target 已无占用。仅本地提交，不 push/PR/发布。
