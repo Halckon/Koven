@@ -11200,3 +11200,13 @@ merge及精确测试源码为复现依据。FE binary SHA256
 与selection、原artifact/profile、61逐项结果和全部静态终态均匹配；审阅者未编辑或
 代执行。终审后仅补本Spec，docs/diff复核后本地提交清树，不重编Rust；owner target
 已释放。native结果不独立证明RHS动态跳过次数，不作计数或一般终止性承诺。
+
+### 有界 P/Q 双参数 own-call 实施合同（2026-11-10）
+
+从 a35f8c22 隔离实现唯一 own String 和一个 Copy Int literal 的双参数直接 Unit 调用。
+保留原 prefix/While/Replace/Break 与唯一尾句；只增加真实实参到形参映射及 selected 槽授权。
+允许两种形参顺序、positional 与反序 named；无额外 owner、loan、调用或分支，不改语言/ABI。
+真实 pending Value transfer 才封印，原 DirectCall emitter 唯一执行，caller 不重复 Drop。
+先用新普通有限源码确认缺 receipt，再按同源绿、双 Unit SSA/LLVM/native 验证；foreign、
+故障注入、Abort 与计数负控只编译、不在本地执行。默认 debug2，独占 owner target。
+当前为准备合同，尚未通过红绿或正式 CI，不认领 D10/E2 完成。
