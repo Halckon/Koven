@@ -9346,3 +9346,77 @@ callable完整覆盖均未验。保留Single和全部旧oracle，Spec/D10/E2不�
 上述固定输入和选择。第三批组合475普通未整批重跑，不把其旧绿灯计为本片执行；未纳入借用
 正在进行的后续证据。此处完成的是严格 B 剩余 CI 验收准备及最小防御加固，正式验收仍待，
 不把所有动态 owner 或借用工作宣称完成。
+### Loan 覆盖证书到真实SSA的跨阶段实证（2026-11-10，范围）
+
+续接`2e9f9377`。当前codegen没有loan_action_observations/region证书消费者；Phase3区域
+Complete不能代替真实SSA/native义务或退休Single。下一步先以已认证local literal同步
+consumer为原样固定输入，双Unit入口走现行Unit lowering/refine和独立SSA verifier，检查
+source/result/consumer依赖、实际End与Named Drop的身份及正常顺序，不新增第五种shape。
+
+这是无预设能力实证：不强求frontend每个Begin都变成同名SSA操作，借用结果可能通过
+BorrowCall产生Loan并直接交付consumer；必须按实际LoanId/源依赖映射核对，不能只数
+操作或按函数名/Span猜关系。先报告现有能力/拒绝点，再决定是否需要具体接线合同；
+不擅改lowering、ABI、owner未合代码或语言，不将初次绿称为新实现，不认领native释放计数。
+只运行逐源/helper审计的普通有限SSA测试；人工破损/Abort/压力均不运行，既有borrow
+target、defaultdebug2与串行Cargo不变，LLVM prefix仅用于codegen工具链构建需要。
+
+后继生产接线最小合同（本次只整理，未实施）：
+
+1. 建议先接已具真实SSA实证的protocol4，再以同一个consumer扩展1/2/3，不另起形状协议。
+   backend只能查询已认证region/callable/family，不重新从AST推覆盖；声明region在对应
+   normal-return lowering入口被真实消费，并留可验证receipt，不能只是读取数量或打印日志。
+2. 建立同轮catalog record→具体lowering instance/function/call frame→SSA entity关系，
+   source/receiver/result角色分别映射；source位置不是跨阶段LoanId。protocol4的consumer
+   Begin映射已有BorrowCall result，不能再生成一条BorrowBegin。prototype中的callee
+   参数Loan与caller Loan保持分离；多实例不能仅以callable或Span作key。
+3. Complete范围内由唯一producer承担执行责任；验证或迁移原End/Drop生成点，禁止新证书
+   消费者与旧清理双发。protocol1 temporary Drop、2 receiver retirement、3 named root、
+   4 source/result链各自保持旧顺序，整个未过滤区间逐项消费。不能将当前测试中的手写
+   八指令oracle移作生产重放器，必须绑定真实正在形成的SSA实体。
+4. Partial/Unsupported或缺席不授absence，不扩大语言拒绝。迁移期间明确哪些仍由既有
+   validated facts承担，哪些Complete范围已接管；同轮已声明消费却丢record、错catalog/
+   instance/role的内部不一致须结构化失败，不能悄悄从Span补边。observer-off等价验证与
+   正式接管后必需产品的缺失行为需在实现前定清，不能依赖关闭观察来绕过证据。
+5. 先在精确头补四协议各自真实SSA/LLVM身份/完整顺序及Partial/Unsupported边界，再核
+   原始/公开错误deferred撤销与owner×loan组合；含owner replace_consumer时显式拒绝或
+   消费其真实关系。本分支未合owner产品，当前证据不能替代组合验收。
+6. retirement仍须逐项追溯旧Single的身份、完整顺序、absence及资源oracle；原源码等强
+   Unit证据、相关SSA/LLVM/native资源义务、CI-only破损/Abort守卫与精确头双宿主CI/独审
+   满足后才可删对应旧witness。当前只有protocol4固定源码的并列Phase3/SSA/LLVM证据，
+   没有生产receipt、统一实体映射/执行责任切换、其余三协议跨阶段账本或native释放计数，
+   也未执行正式CI，因此本轮不退休任何旧oracle。
+
+跨阶段实证验收：范围`8902cb1d`，普通测试及专题页`9f912755`。固定原样源码为
+`fun view(source: String): borrow String from source = source`、
+`fun consume(item: String): Unit {}`、
+`fun run(): Unit { val owner = "kept"; consume(view(owner)) }`。
+唯一普通exact为`ssa::loan_region_ssa_tests::certified_consumer_region_has_real_unit_ssa_lifecycle`，
+最终1 passed / 2816 filtered，同一test内rooted与memory document两入口均完成；不按两个
+入口重复累计。逐源检查unit_lower_test_support::parsed/analyze、refine observer及verified
+LLVM helper：均正常有限输入，不含故障注入/Abort/压力或native资源执行。
+测试核同catalog原始record IDs、transfer依赖、typed callee、实际形成/marker spans，
+以及真实Unit/refine SSA的完整八指令、source/result独立Loan身份、consumer参数、逆序
+End与原owner Drop；最后通过SSA与LLVM module verifier及真实instance限定定义检查。
+生产lowering没有读取新证书，因此这里只建立并列事实，不是消费receipt或接线完成。
+
+过程保留：首次较弱probe已1 passed；这不是新增backend能力红测。强化build2曾因
+引用/值比较类型E0277编译失败，未运行；build3与build4各0 passed / 1 failed，均在
+SSA及首入口LLVM verify后，失败原因分别是定义文本忽略internal属性、忽略实际
+`f{instance}.`前缀。依adapter真实命名规则修正测试，没有修改生产ABI或SSA。最终build5
+no-run9.42s，实际命令为`cargo test --locked --offline -p lang-codegen --lib --no-run --message-format=json -vv -j 2`，
+随后先核binary --list包含目标，再直接运行该binary加上述名称、`--exact --nocapture`。
+日志分别留`/private/tmp/koven-loan-ssa-probe.log`、`koven-loan-ssa-proof3.log`、
+`koven-loan-ssa-proof-final.log`及`koven-loan-ssa-proof-final-green.log`，后三者也位于
+`/private/tmp/`；build5 JSON/stderr同目录`koven-loan-ssa-proof-build5.*`。
+
+始终复用`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`，codegen构建
+及Clippy设置`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`；
+`CARGO_PROFILE_DEV_DEBUG`、`CARGO_PROFILE_TEST_DEBUG`、`RUSTFLAGS`、
+`CARGO_ENCODED_RUSTFLAGS`均未设置，实际artifact debuginfo=2、opt_level=0、test=true，
+rustc为`-C debuginfo=2`。最终binary SHA256为
+`6fe48ec51b6f5c0fd661fe8cfcf5225696deb62a1a96e1a45d0c880f4f86c660`。
+最终严格codegen all-targets Clippy13.92s、fmt、docs877、diff及尺寸2278 Rust/36旧超限通过；
+尺寸工具首次缺少--base报用法错误，补`--base HEAD`后通过，没有改额度。独立只读复审
+无剩余阻断。本次不重跑既有frontend346基线，不运行CI-only、native、正式双宿主CI或
+workspace行为集合；这些未验收项不以LLVM verifier替代。既有偏差账本仍完整保留，
+本轮不删除Single、不称source/callable Complete、不关闭D10/E2，未推送或合并。

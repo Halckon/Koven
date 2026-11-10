@@ -135,3 +135,9 @@ binding descriptor时以声明、formed_owned及唯一仍在state的真实owner�
 protocol1/2/3不变，source/callable仍Partial；不证明callee内部、Abort/unwind、wrapper、
 动态唯一消费或通用权限恢复。与owner合批后已显式拒绝活跃replace_consumer；当前caller
 shape与严格B不相交，但不把该隔离当永久保证，也不把人工状态负控当普通可达性证明。
+
+固定protocol4原样源码另有双Unit入口的真实SSA/LLVM实证：一个Shared source BorrowBegin，
+BorrowCall生成另一result Loan并保留source依赖，consumer直接使用result，随后End result、
+End source、Drop原owner；不是两个SSA BorrowBegin。测试核真实refine路由、同轮typed
+callee映射、完整单block八指令与独立SSA/LLVM verifier。certificate仅在测试读取，生产
+lowering仍消费原facts；这不是新增证书consumer，也不证明native释放计数或旧oracle可退休。
