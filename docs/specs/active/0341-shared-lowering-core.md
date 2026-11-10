@@ -10602,3 +10602,70 @@ sanitizer和资源证明未在本片执行；前端on/off对照不外推后端of
 binary实际SHA、7+15成功集合和debug2/features空集均复核匹配；审阅者未运行测试。
 尺寸基于`1744661e`通过，2329手写Rust、35旧超千行，无预算变化。本片本地实现与
 受限验收完成，owner target已释放，不推送、不发布新PR或改main，正式CI边界保持。
+
+### Not + P1 保父链本地合流验收（2026-11-10）
+
+持续本地开发授权下，将冻结P1 `bd52245283ff39e5f4fcca6bc610aa4ea411c771` 与
+Not `d4351ce8cc1c25cac306e70ac32c8550f32b3a1c` 合于独立分支，公共祖先
+`1744661eef2eeb770284812cf0688349a40b95c6`。代码冻结双父merge为
+`d32a03b720adfcd099a8536571c599764460669a`，不squash/cherry-pick、不丢父链。
+唯一冲突是本Spec两端追加段：核两父均保共祖完整prefix后，保P1全文与Not新增尾段，
+另加一个分隔空行。Rust无冲突或合流后改写，架构入口及两线事实保留各自实际并集。
+原两树clean；main已有proposal/docs未提交工作保持原样，没有纳入或清理。
+
+本轮重新逐source/helper核联合30唯一exact，不继承旧500或331安全标签：
+- frontend7：`replace_break_grouped_condition`四项与`replace_break_negated_condition`三项。
+- codegen Not15：`owner_group_condition_tests`、`owner_negated_condition_tests`、
+  `owner_own_call_tests`、`owner_return_tests`各三项，以及B下游的
+  `bounded_replace_break_original_source_reaches_existing_ssa_and_llvm`、
+  `bounded_replace_break_physical_drop_has_product_authorization`、
+  `bounded_replace_break_absent_optional_product_keeps_ordinary_lowering`。
+- codegen P1八：上一P1账本逐项名单原样，无重名；含真正P1/P3 off与P2/P4实际lifecycle。
+
+FE闭包只复用loop原SOURCE/declaration，不调用旧污染check；Fixture从同轮实际源码
+构造，compare只归一化比较产物。B旧dual/reanalysis、public iteration及foreign查询
+未选。UnitSource使用本轮原始products，四项普通native只链接运行有限输出程序：
+Group2、Not6、ownCall2、Return2，共12次程序，不计作额外test或析构/资源证明。
+P1 helper只核真实SSA/LLVM与生产receipt，off重新analyze后原样lower，比较只修改clone。
+普通helper未激活capture/fault；所有CI-only、人工破损/注入、Abort、counter、压力和
+范围待核矩阵仅编译不执行。独立审阅者逐源复读30项闭包并核两父非交集字节保全。
+
+| 本轮门禁 | 实际结果 |
+|---|---|
+| 默认CLI依赖图 | `cargo check --locked --offline -p lang-cli --message-format=json -j 2`，8.48s成功；本树frontend/codegen/CLI实际artifact features均[] |
+| feature no-run | `cargo test --locked --offline -p lang-frontend -p lang-codegen --features lang-codegen/loan-observation-test-support --lib --no-run --message-format=json -vv -j 2`，1m26s成功 |
+| 精确普通执行 | 从上项JSON取两binary，各项先`--exact --list`核名再单项执行；frontend7各1pass/598filtered，codegen23各1pass/2880filtered，全部0failed/0ignored |
+
+测试两artifact均来自本合流树，opt0/debug2/test=true、feature仅
+`loan-observation-test-support`。owner target独占串行为
+`/private/tmp/koven-choice-replace-forwarding-target`，全程LLVM prefix为
+`/opt/homebrew/opt/llvm@21`；未设DEV_DEBUG/TEST_DEBUG/RUSTFLAGS/ENCODED，未复制、
+clean或降档target，未用borrow target，0401进程38543及其它进程未触碰。
+
+过程偏差：默认sandbox的只读ps被OS拒绝，随后按已授权执行前核查用途以
+require_escalated重试同一未执行查询成功，没有绕用另一入口。默认CLI检查本身成功，
+初版证据脚本误期望target名`lang_cli`而assert失败，实际CLI target为`kovenc`；按
+三crate的本树source路径重新核features[]，保留错误说明，不冒充编译或能力红测。
+该shell用分号，assert后feature no-run已开始；只编译、没有未经审定执行测试。
+本轮无Rust编译或普通exact失败，没有重跑旧全量集合。
+
+frontend binary SHA256：`12dabf70ab12986f4f78abc71564fc1ea41660241e8a826fe3d2622dd767f0cd`；
+codegen binary SHA256：`4254d0d26d992ea84f40aad730430e2165cc4f7431c98500b7fe77e08de85efd`。
+frontend selection SHA256：`9f6cacf6c3e59a3be25c1a04b7dce078970a0d1f12a0d5715385da6dbcef329f`；
+codegen selection SHA256：`ac5173db585a774d3f3e29e005aa66d95b091210b5cb0c936aff8f3f6802694f`。
+临时证据目录`/private/tmp/koven-not-p1-combination-evidence`含manifest、两selection、
+逐项日志、默认CLI/feature JSON及2344源码/配置hash；原始输出不入库，不承诺长期保留。
+固定双父源码和上述选择边界为重做依据。本次不运行正式CI、Linux、sanitizer或release，
+不退休旧oracle、不扩语言ABI或释放职责，不push/PR/发布。
+
+冻结代码后静态门禁均成功：两crate feature-enabled all-targets严格Clippy（显式
+`-W clippy::all -D warnings`）42.15s；默认`cargo check --locked --offline --workspace
+--all-targets -j 2`35.81s；`cargo fmt --all -- --check`、docs883与diff通过。
+尺寸`--base1744661e`通过，2337手写Rust、35历史超千行，不增例外或额度；仅两父
+原有注册/接线增长，无合流新增Rust。静态门禁后两test binary重算hash仍与manifest相同。
+
+精确`d32a03b720adfcd099a8536571c599764460669a`独立只读终审无阻断：2344源码/配置
+bytes、两binary/selection SHA、manifest与原始feature JSON、默认CLI三个features[]
+均匹配；两日志7+23逐项等于审定名单，无额外test。四native exact内12次普通运行仍
+只计四tests，静态日志和实际耗时一致。终审者未运行测试；终审后仅追加本账本，
+不改Rust、不重编。owner target锁空闲，原两树与main工作区保持原样。
