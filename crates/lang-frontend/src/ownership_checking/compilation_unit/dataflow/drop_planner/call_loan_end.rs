@@ -121,7 +121,7 @@ impl DropPlanner<'_, '_> {
         let mut preceding_drops: BTreeMap<(bool, usize), usize> = BTreeMap::new();
         let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
-        for (point, action) in &self.iteration_actions {
+        for (point, action) in self.iteration_actions.iter() {
             let key = match point {
                 PlannerDropPoint::CallReturn(call) => (false, call.index()),
                 PlannerDropPoint::ControlTransfer(transfer) => (true, transfer.index()),
@@ -155,7 +155,7 @@ impl DropPlanner<'_, '_> {
         let mut preceding_drops = BTreeMap::new();
         let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
-        for (point, action) in &self.iteration_actions {
+        for (point, action) in self.iteration_actions.iter() {
             let PlannerDropPoint::ControlTransfer(transfer) = point else {
                 continue;
             };

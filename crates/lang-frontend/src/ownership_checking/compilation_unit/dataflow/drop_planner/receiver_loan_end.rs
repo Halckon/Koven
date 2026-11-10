@@ -162,8 +162,8 @@ impl DropPlanner<'_, '_> {
             if let Action::EndReceiverLoan(receiver) = action
                 && self.observes_bounded_receiver(&receiver)
             {
-                self.receiver_call_return_ends
-                    .push(UnitReceiverCallReturnEndFact { receiver });
+                self.iteration_actions
+                    .end_receiver(UnitReceiverCallReturnEndFact { receiver });
             }
         }
     }
@@ -171,7 +171,7 @@ impl DropPlanner<'_, '_> {
     pub(super) fn receiver_call_prefix_ends(&self) -> Vec<UnitReceiverCallPrefixEndFact> {
         let mut counts = BTreeMap::<_, (usize, usize, usize)>::new();
         let mut ends = Vec::new();
-        for (point, action) in &self.iteration_actions {
+        for (point, action) in self.iteration_actions.iter() {
             let PlannerDropPoint::ControlTransfer(transfer) = point else {
                 continue;
             };

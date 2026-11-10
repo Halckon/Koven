@@ -1,3 +1,4 @@
+mod action_source;
 mod assignment;
 mod binding;
 mod borrow_binding_transport;
@@ -9,7 +10,10 @@ mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
+mod loan_named_region;
 mod loan_provenance;
+mod loan_receiver_region;
+mod loan_region;
 mod map;
 mod model;
 mod nullable_comparison;
@@ -85,6 +89,7 @@ pub(super) struct Analysis {
         Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     pub(super) borrow_forward_transports:
         Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
+    pub(super) loan_action_observations: Vec<crate::ownership_checking::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
@@ -100,6 +105,14 @@ fn plan_with_owner_observation(
     checker: &Checker<'_>,
     enabled: bool,
 ) -> Result<Analysis, OwnershipCheckingError> {
+    plan_with_observations(checker, enabled, true)
+}
+
+fn plan_with_observations(
+    checker: &Checker<'_>,
+    enabled: bool,
+    loan_actions_enabled: bool,
+) -> Result<Analysis, OwnershipCheckingError> {
     let liveness = liveness::build(checker, true)?;
     let mut deferred: Vec<_> = liveness
         .deferred
@@ -111,6 +124,7 @@ fn plan_with_owner_observation(
         .collect();
     let mut planner = DropPlanner::new(checker, liveness);
     planner.owner_observation_enabled = enabled;
+    planner.iteration_actions.enabled = loan_actions_enabled;
     let planner = planner.run()?;
     let iterations = planner.iteration_plans()?;
     let map_iterations = planner.map_iteration_plans()?;
@@ -161,6 +175,9 @@ fn plan_with_owner_observation(
     let borrow_call_prefix_ends = planner.borrow_call_prefix_ends();
     let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
     let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
+    let receiver_call_return_ends = planner.iteration_actions.receiver_return_ends();
+    let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
+    let borrow_ends = planner.iteration_actions.borrow_binding_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -173,17 +190,18 @@ fn plan_with_owner_observation(
         .collect();
     Ok(Analysis {
         owner_observations: planner.owner_observations,
+        loan_action_observations: planner.iteration_actions.finish(checker.source_unit),
         direct_call_loan_ends,
         string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
-        borrow_call_handoffs: planner.borrow_call_handoffs,
+        borrow_call_handoffs,
         borrow_call_transports: planner.borrow_call_transports,
         borrow_binding_transports: planner.borrow_binding_transports,
         borrow_forward_transports: planner.borrow_forward_transports,
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
-        receiver_call_return_ends: planner.receiver_call_return_ends,
-        borrow_ends: planner.borrow_ends,
+        receiver_call_return_ends,
+        borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
         iteration_loan_ends,
@@ -213,17 +231,12 @@ struct DropPlanner<'a, 'checker> {
         bool,
     )>,
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
-    borrow_call_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     borrow_call_transports: Vec<crate::ownership_checking::UnitBorrowCallTransportFact>,
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
-    receiver_call_return_ends: Vec<crate::ownership_checking::UnitReceiverCallReturnEndFact>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
-    iteration_actions: Vec<(
-        PlannerDropPoint,
-        crate::ownership_checking::UnitIterationCleanupAction,
-    )>,
+    iteration_actions: action_source::ActionSource,
     iteration_exits: Vec<(
         UnitStatementId,
         crate::ownership_checking::UnitIterationExitKind,
@@ -234,18 +247,13 @@ struct DropPlanner<'a, 'checker> {
     call_return_copy_source: Option<UnitSymbolId>,
     checker: &'a Checker<'checker>,
     loan_provenance: std::cell::OnceCell<loan_provenance::LoanProvenance>,
+    loan_region_index: std::cell::OnceCell<loan_region::AdmissionIndex>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
     liveness: liveness::Liveness,
     facts: Vec<PlannerDropFact>,
     conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
-    borrow_ends: Vec<
-        crate::ownership_checking::BorrowBindingEndFact<
-            UnitSymbolId,
-            crate::ownership_checking::UnitDropPoint,
-        >,
-    >,
     binding_depths: BTreeMap<UnitSymbolId, usize>,
 }
 
@@ -264,13 +272,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_conditional_scopes: Vec::new(),
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
-            iteration_actions: Vec::new(),
-            borrow_call_handoffs: Vec::new(),
+            iteration_actions: action_source::ActionSource::default(),
             borrow_call_transports: Vec::new(),
             borrow_binding_transports: Vec::new(),
             borrow_forward_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
-            receiver_call_return_ends: Vec::new(),
             borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
             planned_iterations: std::collections::BTreeSet::new(),
@@ -278,13 +284,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             call_return_copy_source: None,
             checker,
             loan_provenance: std::cell::OnceCell::new(),
+            loan_region_index: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),
             liveness,
             facts: Vec::new(),
             conditional_receiver_facts: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
-            borrow_ends: Vec::new(),
             binding_depths: BTreeMap::new(),
         }
     }
@@ -877,6 +883,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Call {
                 callee, arguments, ..
             } => {
+                let loan_region = self.enter_loan_region(id, state);
                 let returns = !self
                     .checker
                     .is_nothing_expression(self.checker.unit_expression(id));
@@ -1121,6 +1128,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some((root, point)) = copied_drop {
                     self.drop_named_asap(point, root, state);
                 }
+                self.iteration_actions.complete_region(loan_region);
                 Ok(true)
             }
             Expression::Index { receiver, index } => {

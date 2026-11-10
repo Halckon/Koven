@@ -166,7 +166,7 @@ impl DropPlanner<'_, '_> {
         for fact in self.pending_borrow_handoffs.drain(..) {
             if fact.binding() == binding {
                 if continues {
-                    self.borrow_call_handoffs.push(fact);
+                    self.iteration_actions.commit_borrow_handoff(fact);
                 }
             } else {
                 remaining.push(fact);

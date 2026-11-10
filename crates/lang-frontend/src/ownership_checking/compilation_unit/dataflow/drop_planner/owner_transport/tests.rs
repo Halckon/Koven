@@ -408,3 +408,108 @@ fun run(flag: Boolean): Unit { val owner = "kept"; var other = "other"; borrow v
 mod loop_replace_break_baseline;
 
 mod loop_replace_break;
+#[test]
+fn loan_action_observer_preserves_all_existing_planner_products() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    let parts = fixture.parts(&shared);
+    compare_and_inspect(&fixture, &parts, |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert!(!observed.loan_action_observations.is_empty());
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}
+
+#[test]
+fn loan_receiver_observer_preserves_nonempty_legacy_return_projection() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.receiver_call_return_ends.len(), 2);
+        assert_eq!(
+            observed.receiver_call_return_ends,
+            disabled.receiver_call_return_ends
+        );
+        assert!(
+            observed.loan_action_observations[0]
+                .regions()
+                .iter()
+                .any(|region| region.coverage()
+                    == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+        );
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}
+
+#[test]
+fn loan_named_observer_preserves_all_existing_planner_products() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun inspect(value: String): Int = 1\nfun run(own source: String): Unit { inspect(source); inspect(source) }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.direct_call_loan_ends.len(), 2);
+        assert_eq!(
+            observed.direct_call_loan_ends,
+            disabled.direct_call_loan_ends
+        );
+        assert!(
+            observed.loan_action_observations[0]
+                .regions()
+                .iter()
+                .any(|region| region.protocol_version() == 3
+                    && region.coverage()
+                        == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+        );
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}
+
+#[test]
+fn result_action_observer_preserves_nonempty_handoff_and_end_products() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun view(source: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = view(parent); println(child) }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.borrow_call_handoffs.len(), 1);
+        assert_eq!(observed.borrow_ends.len(), 2);
+        assert!(
+            observed.loan_action_observations[0]
+                .actions()
+                .iter()
+                .any(|action| matches!(
+                    action,
+                    crate::ownership_checking::UnitLoanAction::BorrowHandoffCommitted(_)
+                ))
+        );
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}
