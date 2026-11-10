@@ -1,4 +1,4 @@
-//! 只读取语法的潜在写入收集；稳定来源解析与流事实失效由各类型检查入口负责。
+//! 收集可能影响流事实的写入；循环预扫描只用语法，已检查条件可排除仅退出路径。
 
 use std::{cell::OnceCell, collections::BTreeMap};
 
@@ -13,6 +13,7 @@ use crate::{
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
+    LeaveLoop,
 }
 
 /// Recognize an unconditional RHS without running constant evaluation in flow checking.
@@ -115,35 +116,56 @@ pub(super) fn collect_expression_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_expression_mutation_targets_with_inout_filter(outcomes, expression, |_| true)
+    collect_mutation_targets(
+        outcomes,
+        Pending::Expression(expression),
+        |_| true,
+        |_| Ok(true),
+    )
 }
 
-pub(super) fn collect_expression_mutation_targets_with_inout_filter(
+pub(super) fn collect_normal_expression_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
     includes_inout: impl Fn(ExpressionId) -> bool,
+    conditional_rhs_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(outcomes, Pending::Expression(expression), includes_inout)
+    if !conditional_rhs_completes(expression)? {
+        return Ok(Vec::new());
+    }
+    collect_mutation_targets(
+        outcomes,
+        Pending::Expression(expression),
+        includes_inout,
+        conditional_rhs_completes,
+    )
 }
 
 pub(super) fn collect_statement_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     statement: StatementId,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(outcomes, Pending::Statement(statement), |_| true)
+    collect_mutation_targets(
+        outcomes,
+        Pending::Statement(statement),
+        |_| true,
+        |_| Ok(true),
+    )
 }
 
 fn collect_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     root: Pending,
     includes_inout: impl Fn(ExpressionId) -> bool,
+    conditional_rhs_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
 ) -> Result<Vec<ExpressionId>, AstError> {
     let ast = outcomes.ast;
     let mut pending = vec![root];
     let mut targets = Vec::new();
-    // 覆盖可能执行的分支，仅排除已由布尔结构证明跳过的 RHS。
+    let mut nested_loops = 0;
     while let Some(node) = pending.pop() {
         match node {
+            Pending::LeaveLoop => nested_loops -= 1,
             Pending::Expression(expression) => match ast.expressions().get(expression)?.payload() {
                 Expression::Error
                 | Expression::Name
@@ -217,11 +239,24 @@ fn collect_mutation_targets(
                     right,
                     ..
                 } => {
-                    if !matches!(
-                        operator,
+                    let include_right = match operator {
                         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-                    ) || !outcomes.rhs_is_bypassed(*left, *operator)
-                    {
+                            if outcomes.rhs_is_bypassed(*left, *operator) =>
+                        {
+                            false
+                        }
+                        // An abrupt RHS can affect the enclosing condition
+                        // when a loop within this scan catches its jump.
+                        BinaryOperator::LogicalAnd
+                        | BinaryOperator::LogicalOr
+                        | BinaryOperator::Elvis
+                            if nested_loops == 0 =>
+                        {
+                            conditional_rhs_completes(*right)?
+                        }
+                        _ => true,
+                    };
+                    if include_right {
                         pending.push(Pending::Expression(*right));
                     }
                     pending.push(Pending::Expression(*left));
@@ -287,14 +322,20 @@ fn collect_mutation_targets(
                 Statement::While {
                     condition, body, ..
                 } => {
+                    nested_loops += 1;
+                    pending.push(Pending::LeaveLoop);
                     pending.push(Pending::Statement(*body));
                     pending.push(Pending::Expression(*condition));
                 }
                 Statement::For { source, body, .. } => {
+                    nested_loops += 1;
+                    pending.push(Pending::LeaveLoop);
                     pending.push(Pending::Statement(*body));
                     pending.push(Pending::Expression(*source));
                 }
                 Statement::Loop { body, .. } => {
+                    nested_loops += 1;
+                    pending.push(Pending::LeaveLoop);
                     pending.push(Pending::Statement(*body));
                 }
                 Statement::Expression { expression } => {

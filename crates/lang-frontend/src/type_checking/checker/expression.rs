@@ -910,14 +910,15 @@ impl Checker<'_> {
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
             let rhs_required = logical_rhs_is_required(self.ast(), left, operator)?;
-            let bypass_versions = self
-                .syntactic_boolean_outcomes
-                .rhs_is_bypassed(left, operator)
-                .then(|| self.flow_versions.clone());
+            let baseline_versions = self.flow_versions.clone();
             let right_result =
                 self.check_pending_logical_rhs(expression, left, operator, right, left_result)?;
-            if let Some(versions) = bypass_versions {
-                self.flow_versions = versions;
+            if self
+                .syntactic_boolean_outcomes
+                .rhs_is_bypassed(left, operator)
+                || !self.pending_checked_exit(right)
+            {
+                self.flow_versions = baseline_versions;
             } else {
                 let writes = self.expression_flow_writes(right)?;
                 baseline.retain(|key, _| !writes.contains(key));
