@@ -8819,3 +8819,17 @@ lib：`18a30458e43dc3fca648539bf09ceab53b8ad2282be65929a58f50261c446ecd`。
 全量性能验收。Complete只适用于此正常返回区域，不证明callee内部/Abort/unwind、wrapper、
 动态唯一消费、通用parent权限恢复或整个source/callable；不退休Single oracle，不关闭
 Spec/D10/E2，未运行正式CI，未推送、PR或合并。
+
+### Loan 覆盖证书到真实SSA的跨阶段实证（2026-11-10，范围）
+
+续接`2e9f9377`。当前codegen没有loan_action_observations/region证书消费者；Phase3区域
+Complete不能代替真实SSA/native义务或退休Single。下一步先以已认证local literal同步
+consumer为原样固定输入，双Unit入口走现行Unit lowering/refine和独立SSA verifier，检查
+source/result/consumer依赖、实际End与Named Drop的身份及正常顺序，不新增第五种shape。
+
+这是无预设能力实证：不强求frontend每个Begin都变成同名SSA操作，借用结果可能通过
+BorrowCall产生Loan并直接交付consumer；必须按实际LoanId/源依赖映射核对，不能只数
+操作或按函数名/Span猜关系。先报告现有能力/拒绝点，再决定是否需要具体接线合同；
+不擅改lowering、ABI、owner未合代码或语言，不将初次绿称为新实现，不认领native释放计数。
+只运行逐源/helper审计的普通有限SSA测试；人工破损/Abort/压力均不运行，既有borrow
+target、defaultdebug2与串行Cargo不变，LLVM prefix仅用于codegen工具链构建需要。
