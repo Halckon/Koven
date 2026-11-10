@@ -349,3 +349,43 @@ fn region_zero_certificate_catalog_is_checked_without_actions() {
         assert!(!right.owns_region(region));
     }
 }
+
+#[test]
+fn receiver_region_owned_parameter_requires_actual_begin_end_and_drop() {
+    use lang_frontend::ownership_checking::{UnitLoanActionCoverage, UnitReceiverOwnershipTarget};
+    let observed = observe(
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch() }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let [end] = unit.receiver_call_return_ends() else {
+            panic!("existing real receiver retirement")
+        };
+        let UnitReceiverOwnershipTarget::Place(place) = end.receiver().target() else {
+            panic!("owned parameter place")
+        };
+        assert!(place.is_root());
+        let drops: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| {
+                drop.point() == end.point() && drop.target() == UnitDropTarget::Named(place.root())
+            })
+            .collect();
+        assert_eq!(
+            drops.len(),
+            1,
+            "existing actual root Drop, not manufactured from receiver End"
+        );
+        let observation = &unit.loan_action_observations()[0];
+        let region = observation
+            .regions()
+            .iter()
+            .find(|region| region.call() == end.receiver().call())
+            .unwrap();
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(region.protocol_version(), 2);
+        assert_eq!(region.action_ids().len(), 3);
+        assert_eq!(observation.coverage(), UnitLoanActionCoverage::Partial);
+    }
+}
