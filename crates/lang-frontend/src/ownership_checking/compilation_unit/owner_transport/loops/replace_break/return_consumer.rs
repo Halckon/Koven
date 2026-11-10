@@ -4,6 +4,16 @@ use super::*;
 /// Actual transitions of one selected owned String return payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnitOwnerReplaceBreakReturnActionV1 {
+    /// A real suffix String completion creates the installed replacement.
+    Create(UnitExpressionId, UnitOwnerId),
+    /// The actual Value argument has registered its transfer temporary.
+    Pending(UnitExpressionId, UnitExpressionId, UnitOwnerId),
+    /// Checked root replacement installs R and detaches the selected P/Q.
+    Replace(UnitExpressionId, UnitSymbolId, UnitOwnerId),
+    /// Actual CallReturn removal retires the installed replacement, not P/Q.
+    Drop(UnitDropPoint, UnitSymbolId, UnitOwnerId),
+    /// The completed call delivers its detached old-value carrier.
+    Result(UnitExpressionId),
     /// The exact Name takes the selected incoming value once.
     Take(UnitExpressionId, UnitSymbolId),
     /// The actual post-insert immutable binding carries the same selected owner.
@@ -22,6 +32,7 @@ pub(in crate::ownership_checking::compilation_unit) struct ReturnConsumerTarget 
     pub(in crate::ownership_checking::compilation_unit) expression: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) payload: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) replacement: Option<UnitExpressionId>,
     pub(in crate::ownership_checking::compilation_unit) binding:
         Option<(UnitExpressionId, UnitStatementId, UnitSymbolId)>,
 }
@@ -32,10 +43,16 @@ pub(in crate::ownership_checking::compilation_unit) struct ReturnConsumerTarget 
 pub struct UnitOwnerReplaceBreakReturnConsumerV1 {
     pub(in crate::ownership_checking::compilation_unit) incoming: [UnitOwnerReplaceBreakStateV1; 2],
     pub(in crate::ownership_checking::compilation_unit) target: ReturnConsumerTarget,
+    pub(in crate::ownership_checking::compilation_unit) replacement_producers:
+        Option<UnitOwnerProducerCatalogV1>,
     pub(in crate::ownership_checking::compilation_unit) actions:
         Vec<UnitOwnerReplaceBreakReturnActionV1>,
 }
 impl UnitOwnerReplaceBreakReturnConsumerV1 {
+    /// Actual suffix producers, separate from both incoming catalogs.
+    pub fn replacement_producers(&self) -> Option<&UnitOwnerProducerCatalogV1> {
+        self.replacement_producers.as_ref()
+    }
     /// Condition-false P followed by Break Q, as mutually exclusive alternatives.
     pub fn incoming(&self) -> &[UnitOwnerReplaceBreakStateV1; 2] {
         &self.incoming
@@ -58,7 +75,46 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
             return false;
         };
         let source = boundary.statement.source_unit();
-        let mut expected = if let Some((initializer, statement, symbol)) = target.binding {
+        let mut expected = if let Some(argument) = target.replacement {
+            let Some(catalog) = &self.replacement_producers else {
+                return false;
+            };
+            let [definition] = catalog.definitions() else {
+                return false;
+            };
+            if target.binding.is_some()
+                || !catalog.is_consistent()
+                || catalog.callable() != boundary.callable
+                || definition.origin() != UnitOwnerOrigin::String(argument)
+                || argument.source_unit() != source
+                || [
+                    boundary.initial,
+                    boundary.argument,
+                    boundary.call,
+                    boundary.condition,
+                    boundary.jump,
+                    self.payload(),
+                    self.return_expression(),
+                ]
+                .contains(&argument)
+                || Arc::ptr_eq(&catalog.identity, &boundary.inputs.identity)
+                || Arc::ptr_eq(&catalog.identity, &boundary.producers.identity)
+            {
+                return false;
+            }
+            let owner = definition.id();
+            vec![
+                A::Create(argument, owner.clone()),
+                A::Pending(self.payload(), argument, owner.clone()),
+                A::Replace(self.payload(), boundary.entry.symbol, owner.clone()),
+                A::Drop(
+                    UnitDropPoint::CallReturn(self.payload()),
+                    boundary.entry.symbol,
+                    owner,
+                ),
+                A::Result(self.payload()),
+            ]
+        } else if let Some((initializer, statement, symbol)) = target.binding {
             if initializer.source_unit() != source
                 || statement.source_unit() != source
                 || symbol.source_unit() != source
@@ -96,7 +152,8 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
             expression: self.return_expression(),
             payload: self.payload(),
         });
-        self.target == *target
+        (target.replacement.is_some() == self.replacement_producers.is_some())
+            && self.target == *target
             && self.incoming
                 == [
                     boundary.condition_false.clone(),

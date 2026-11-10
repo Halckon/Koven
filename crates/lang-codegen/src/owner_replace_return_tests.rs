@@ -101,3 +101,19 @@ fn suffix_replace_return_original_source_probe() {
     let position = |id| exit.instructions.iter().position(|i| *i == id).unwrap();
     assert!(position(exchange.id) < position(drop.id));
 }
+
+#[test]
+fn suffix_replace_return_actual_old_slot_requires_authorization() {
+    let source = UnitSource::analyze("suffix-replace-return.ko", SOURCE).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, returns) =
+        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.expect("actual detached old slot requires authorized Return");
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let [receipt] = returns.as_slice() else {
+        panic!("one explicit Return");
+    };
+    assert!(receipt.2.is_some());
+    assert_eq!(receipt.1, receipt.2);
+}

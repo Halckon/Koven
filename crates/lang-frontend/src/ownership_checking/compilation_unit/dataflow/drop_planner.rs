@@ -797,6 +797,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                 }
                 *owner_result = self.define_string_owner(id);
+                self.replace_return_string(id, state);
                 // Release only interpolation inputs; the outer String and live named owners remain.
                 self.finish_pending_temporaries(id, PlannerDropPoint::AfterExpression(id), state);
                 Ok(true)
@@ -1113,6 +1114,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                     self.commit_choice_primitive(id, state);
+                    self.commit_replace_return(id, state);
                 }
                 let copied_source = self.continue_borrow_call_source(id, state);
                 self.finish_call_borrows(id, &mut borrowed_roots, state);
@@ -1142,6 +1144,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     self.drop_named_asap(point, root, state);
                 }
                 self.iteration_actions.complete_region(loan_region);
+                *replace_consumer = self.finish_replace_return_call(id, state);
                 Ok(true)
             }
             Expression::Index { receiver, index } => {
