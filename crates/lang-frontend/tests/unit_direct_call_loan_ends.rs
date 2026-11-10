@@ -947,3 +947,6 @@ mod borrow_temporary_auxiliary;
 
 #[path = "unit_direct_call_loan_ends/loop_forward_source.rs"]
 mod loop_forward_source;
+
+#[path = "unit_direct_call_loan_ends/exclusive_auxiliary.rs"]
+mod exclusive_auxiliary;

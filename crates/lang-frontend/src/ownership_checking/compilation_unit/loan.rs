@@ -174,7 +174,7 @@ pub struct UnitBorrowCallHandoffFact {
     pub(super) source_loan: UnitLoanFact,
 }
 impl UnitBorrowCallHandoffFact {
-    /// 正常返回时结束的辅助 Shared owned 根或实际 pending 临时 owner tokens，保持原 pending 顺序。
+    /// 正常返回时结束的 Shared/Exclusive owned 根或 Shared pending 临时辅助，保持原 pending 顺序。
     /// 排除来源 token；不覆盖借用绑定、provider、投影、父 owner 或全部 loan-end 流。
     /// 空列表不证明未覆盖的辅助 tokens 的状态，也不授予跨事件切片的统一顺序。
     #[must_use]

@@ -7930,3 +7930,85 @@ all-targets check（45.76秒）、fmt、docs867、diff通过；相对 `19d597e8`
 Linux或正式CI。本片不证明changing owner、header/exit phi、动态实例、循环终止、
 条件后缀消费或Phase4；SPEC-0341与D10/E2仍in-progress。仅本地分步提交，未推送、
 改现有PR、新开PR或合入main；新合流仍须另行验证其精确组合。
+
+### Shared 来源借用返回的 Exclusive 辅助结束（2026-11-10）
+
+基底 main 为 cc1e5b41223fabe0248dd4bc2742e95aae9b810a；另建独立分支，
+不修改原树或在途六片。逐项核对既有 handoff 实现后，补齐无关 Exclusive owned 根
+辅助实参的正常结束观察。Shared temporary 辅助片 3364b51f 保持独立，合批须同时
+保留两片准入与测试，不能以此片的 root 门替换其 temporary 证明。未推送或新建 PR。
+
+合法基线为具名 view(source: String, inout aux: String) 从 source 返回普通借用，
+caller 以 owned owner 和可变 other 初始化 borrow val。真实源码在 Rooted 与
+MemoryDocument 均通过 P3，且已有 Exclusive loan；修改前 handoff 为空，新增测试
+实际失败。首次误从主树运行的零命中过滤结果单独保留，不计行为证据或通过数。
+
+只移除 handoff 的全 Shared 实参限制，仍要求全部实际 loan target 为 root Place，
+所选唯一来源单独要求 Shared、与 binding origin 相同、formed owned 且当前仍活。
+辅助 token 来自同一次正常完成调用的 pending 队列，排除来源 argument，并核真实
+operand place、formed owned、当前存活及非 borrow binding/provider。正常返回按原
+pending 正序移出该调用的辅助 token，原 call-local retain、source transport、
+借用终止、ASAP drop 与 prefix unwind 次序不变，不从 descriptor 或 Span 合成结束。
+
+原 observes_borrow_auxiliary 继续以 Shared 包装共用 root 证明，两个 source transport
+调用方不取得 Exclusive 来源能力。公开注释区分 Shared 来源与 Shared/Exclusive
+辅助；列表只含有界正常退休，不是 direct/prefix 的统一结束序列，不提供全流或
+global absence。Inout 来源与含 Inout 的同步 borrow consumer 仍保持现行 L0164。
+
+新增8项公开合同由7项双入口与1项跨源 Rooted 顺序/倒序组成：
+
+- 完整辅助向量固定两个 Exclusive 加一个 Shared 的具名实参求值顺序、实际
+  call/argument、callee parameter、caller owned root 与原始 & marker。
+- 辅助正常返回后可再次 replace，来源在 item 使用前仍不可变异；同根重叠
+  Shared/Exclusive 实参继续 L0135。直线来源 token 保留至真实 println(item)
+  AfterStatement；混合 Return 与前置 for 继续保守结束于整个 body 的 AfterStatement。
+  每例固定实际终止 statement 的完整源码，binding end、transport 与唯一正常
+  source drop 均锁该点，不把复杂 CFG 的 scope end 冒充 last-use。
+- 后续实参 Return 时不发布该路径的完成 handoff；混合 Return 有独立前缀和正常
+  路径，Exclusive 前缀动作计入 source prefix 的先行计数。先于所有实参的 Return
+  不登记 Exclusive token，不可达调用不产生 handoff。
+- Inout 非 owning 参数、Copyable 根、已作为 provider 的根不列入辅助退休；字段
+  保持整次 handoff 排除。真实成功前缀后发生错误或 deferred 撤销公开 handoff，
+  不要求旧 deferred cleanup 表为空；source transport 的 Shared 门不扩展。
+- 跨源例核 caller SourceUnitId、callee declaration/parameter Span 与参数序号，
+  输入倒序仍有同一条真实 Exclusive token，而非按列表位置猜测来源。
+
+另新增1项 owner observation 开关的完整 Analysis 对照，包含混合 Return 与正常
+handoff；仅清除观察槽后要求完整旧产物相等。这不是 handoff 修改前后全产物等价。
+扩展测试中曾误把混合路径两份 source drop 限成一份，并对 deferred 旧 drops
+作空表假设；加强终止点时也确认复杂 CFG 仍采用 body scope end，而非直线 last-use。
+失败日志保留，修正测试后重验，未改生产清理或旧测试来规避失败。
+
+本机 Mac AArch64、Rust 1.96.0、LLVM 21.1.8，locked/offline、默认 debug、
+jobs=2、独占复用既有 target 串行。最终实际通过164项不同普通测试，其中9项新增；
+不重复累计红绿探针、独立8项或终止点强化前后的重复运行：
+
+| 本轮验收项 | 实际命令选择（均为 lang-frontend） | 结果 |
+|---|---|---|
+| 真实 handoff 与全部普通邻接切片 | cargo test --test unit_direct_call_loan_ends，以下6项 skip | 119 passed，6 filtered |
+| owner 开关完整 Analysis | cargo test --lib exclusive_borrow_auxiliary_preserves_all_cleanup_with_owner_observation | 1 passed |
+| raw 邻接失败门 | cargo test --lib adjacent_borrow_results | 7 passed |
+| 原 Group lookup helper | cargo test --lib only_groups_forward_the_original_call_to_the_typed_predicate | 1 passed |
+| continuation、origins、receiver | cargo test --no-fail-fast 的 ownership_borrow_continuation、ownership_borrow_origins、ownership_receiver_backedge | 14 + 5 + 4 passed |
+| nested borrow | 同批 ownership_nested_borrow_arguments，以下1项 skip | 13 passed，1 filtered |
+
+direct 保持以下6个未运行选择，不改原测试或 CI selector：
+nonreturning_suffix_and_unreachable_calls_publish_no_cleanup、
+constructed_borrow_aborts_without_unwinding_and_ends_on_the_normal_path、
+abort_does_not_publish_receiver_prefix_ends、
+copied_nullable_field_keeps_the_temporary_parent_on_both_call_edges、
+abort_does_not_unwind_the_temporary_field_parent、
+abort_and_normal_return_do_not_invent_prefix_unwind_events。
+nested 的 inout_receiver_and_nonreturning_sources_do_not_publish_call_uses 未运行；
+未运行项不计通过，普通例不替代 Abort、压力或故障注入合同。
+
+frontend all-targets Clippy（-W clippy::all -D warnings）、workspace all-targets
+check（仅编译）、fmt --check、check_docs（863 Markdown）、diff 与相对精确基底的
+Rust size guard 全部通过。2243个 Rust 文件、36项历史超长，额度不增；
+新增 exclusive_auxiliary.rs 为587行，既有 compilation_unit.rs 的1030行未增长。
+代码与合同已独立复审；所有旧源和断言保留，不按此片更改 Single witness。
+原始红绿及后续校验日志保留仓外，不入库。
+
+未运行 frontend/workspace 全量测试、native、Linux、额外压力/故障注入或正式 CI，
+不推送或自动合并。D10/E2 与 SPEC-0341 仍为 in-progress；此片不实现一般
+CFG/NLL、动态 owner 实例、完整借用事件流或 Phase 4/native。
