@@ -7393,3 +7393,55 @@ Mac AArch64、Rust 1.96.0、LLVM 21.1.8，locked/offline、debug=0、jobs=2，
 未运行完整frontend/codegen/workspace测试、Linux或额外sanitizer；本地结果不代替正式CI。
 发布继续使用既有 #390 的快进更新，不新建PR、不合并main；远端精确头及其双平台与Preview
 CI须在发布后另核。SPEC-0341、D10/E2保持in-progress，不据此宣称一般动态生命周期或Phase 4闭合。
+
+
+## 172. 闭合循环与条件臂的精确 Boolean 取反准入（2026-11-10）
+
+本片基于已发布 #390 `ca322bc558be5336efdc701434cb432e5b7c509e`，其中已含
+main `6ce85b07`。开始前核对190条远端分支与本地在途成果，未发现重复 owner 取反实现。
+§170 条件合流后缀的未完成工作未纳入。本片结束时 main 已推进至 `144793e1`（#405），
+其11个变更路径不与本片 owner 路径重叠；下面结果尚非该新 main 的组合验收。
+
+生产仅扩展 `owner_transport/loops/conditional.rs` 与 `owner_transport.rs`：闭合 While
+和终端 If 的条件现在可由同一 Boolean 参数经 Group、Prefix Not 交错包装组成。
+各层仍须为精确非 constant Boolean，外层真实 condition outcomes 仍须为 `(true, true)`；
+While 与 If 仍须追溯到不同的原参数身份，同一参数的相反极性不被误认成独立输入。
+观察记录保留整个取反条件的原 ExpressionId、SourceUnitId 和真实控制边，不把内层 Name
+当作条件，也不因奇数层 Not 对调 then/else。循环零次路径取决于完整条件结果。
+
+If 内 Not 的普通观察只在已经准入的实际条件链上放行，并要求当前 Conditional 事务、
+新鲜 body 身份、完整 value observation、精确 scope/boundary、尚未进入 split、没有
+pending jump/completed/owner choice 等状态同时匹配。查询仅识别该条件链中的原 Not ID，
+不写状态、不制造控制事件，也不一般性放行循环外 Prefix。没有改变 owner 状态、phi、
+清理规则或 body 遍历。架构事实同步至闭合 While、循环 invariant 和后缀三页。
+
+真实红提交 `73afe1cb` 的原 `while (!flag)` 见证先失败；最小准入实现后同项转绿。
+扩展矩阵随后实际暴露 If 观察仍拒绝 Prefix（1 passed、2 failed），补入上述严格活动条件
+门后3项全部转绿。测试编译中的 IfBranch 结构体模式与 tuple 更新错误已修正，未放宽
+生产类型或协议。最终源码提交 `65b6e3edc38a937cda5bd21ebc591d712587a2b7`，树
+`eb4b7946336216c4440648d958e1d5cb732e06ff`；本段为之后的纯文档追加。
+
+| 验收项 | 实际证据 |
+|---|---|
+| 原条件来源 | `negated_parameter_retains_actual_loop_condition` 固定整个 Not 条件、真实 body producer 与完整分析比较 |
+| 控制边矩阵 | `negated_while_and_if_preserve_all_real_completion_edges` 覆盖192组：empty/invariant ×4种条件对 ×12种 normal/continue/break 完成形式 ×2种 body；从真实 AST 固定完整有序控制边，保留原 normal/break 后缀支持和 continue 后缀拒绝 |
+| 拒绝与身份 | `negated_conditions_keep_unproved_sources_and_identity_closed` 覆盖17份合法拒绝输入、2源相同 raw ID 的来源隔离、2类非法源码原子清空；包含循环外普通 Not 拒绝，固定 Unsupported(Syntax) 的实际表达式位置；单源合法拒绝完整比较分析结果 |
+| 公开入口 | `negated_conditions_match_both_public_unit_inputs` 使用30份片段，经单源 MemoryDocument 和双源 Rooted 输入形成60次分析、90个 source inputs，其中72个准入、18个拒绝；核完整 typed 兼容、真实条件/跳转/分支顺序、原输入与 body catalog 分离及跨源 producer 拒绝 |
+| 旧见证保全 | 两条原取反源码仍留原拒绝数组，仅对应完整原输入改为正向断言；其他拒绝、sibling、完整清理比较保留，不删除旧源码或缩窄邻控 |
+
+最终不同普通测试共168项：frontend lib 104、ownership_iteration 25、
+multifile_ownership_checking 5、ownership_closures 2、ownership_borrow_continuation 1、
+multifile_constant_qualification 11、unit_direct_call_loan_ends 4、while_flow_facts 16。
+先编译8个目标，再逐完整名称 `--exact` 执行，每项1 passed、0 failed/ignored；
+红绿复跑与独立复验不重复计数。独立审阅建议补入循环外 Not 拒绝与澄清完整条件结果，
+两项已落实；复审在同一 clean 源码头独立执行4项新增测试，全部通过。
+
+Mac AArch64、Rust1.96.0、LLVM21.1.8、默认 debug、jobs=2，独占 target 串行执行。
+frontend all-targets Clippy（locked/offline、`-W clippy::all -D warnings`）、workspace
+all-targets check、fmt、docs及diff均通过；867 Markdown、2308手写Rust、36项既有超长，
+相对 `ca322bc5` 尺寸门禁未增加豁免。故障、损坏模型、Abort 套件仅编译未执行；没有运行
+完整 frontend/workspace 测试、Linux、native、精确头正式 CI 或新 main 组合。
+
+常量、调用、二元运算、比较、局部 alias、模式/nullable 参数及同一参数的双条件继续拒绝。
+本片不证明运行次数、终止性、改变 owner 的循环、一般 header/exit phi、动态实例或
+Phase 4；SPEC-0341 与 D10/E2 保持 in-progress。仅本地分步提交，不推送、改PR或合并main。
