@@ -80,12 +80,13 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
-        let (loop_value, invariant_loop_value) = self
+        let (loop_value, invariant_loop_value, replace_break_value) = self
             .owner_loop
             .take()
             .map(loops::LoopTransaction::finish)
             .unwrap_or_default();
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.replace_break_value = replace_break_value.map(Box::new);
             observation.loop_value = loop_value.map(Box::new);
             observation.invariant_loop_value = invariant_loop_value.map(Box::new);
             observation.choice_value = choice.map(Box::new);

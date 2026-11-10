@@ -1,12 +1,13 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 mod conditional;
 mod invariant;
+mod replace_break;
 use super::*;
-use crate::ownership_checking::UnitOwnerLoopObservationV1;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
     LoopBranchExit,
 };
+use crate::ownership_checking::{UnitOwnerLoopObservationV1, UnitOwnerReplaceBreakObservationV1};
 use crate::parser::VariableKind;
 use std::collections::BTreeSet;
 
@@ -26,6 +27,8 @@ pub(in super::super) struct LoopTransaction {
     result: Option<UnitOwnerLoopObservationV1>,
     invariant: Option<invariant::InvariantInput>,
     invariant_result: Option<InvariantLoopValueV1>,
+    replacing: Option<replace_break::ReplaceBreakInput>,
+    replace_result: Option<UnitOwnerReplaceBreakObservationV1>,
 }
 
 fn exact_type(checker: &Checker<'_>, expression: ExpressionId, builtin: BuiltinType) -> bool {
@@ -153,24 +156,30 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let (statement, mut invariant) = match elements.as_slice() {
-            [statement] => (*statement, None),
-            [prefix, statement, suffix] => (
-                *statement,
-                Some(invariant::InvariantInput::admit(
-                    checker, None, *prefix, *suffix,
-                )?),
-            ),
-            [seed, prefix, statement, suffix] => (
-                *statement,
-                Some(invariant::InvariantInput::admit(
-                    checker,
-                    Some(*seed),
-                    *prefix,
-                    *suffix,
-                )?),
-            ),
-            _ => return None,
+        let replacing =
+            replace_break::ReplaceBreakInput::admit(checker, elements, &parameter_symbols);
+        let (statement, mut invariant) = if let Some(input) = &replacing {
+            (input.statement, None)
+        } else {
+            match elements.as_slice() {
+                [statement] => (*statement, None),
+                [prefix, statement, suffix] => (
+                    *statement,
+                    Some(invariant::InvariantInput::admit(
+                        checker, None, *prefix, *suffix,
+                    )?),
+                ),
+                [seed, prefix, statement, suffix] => (
+                    *statement,
+                    Some(invariant::InvariantInput::admit(
+                        checker,
+                        Some(*seed),
+                        *prefix,
+                        *suffix,
+                    )?),
+                ),
+                _ => return None,
+            }
         };
         let Statement::While {
             condition, body, ..
@@ -185,63 +194,69 @@ impl LoopTransaction {
         if elements.is_empty() {
             return None;
         }
-        let mut expected = LoopBodyCompletion::Fallthrough;
+        let mut expected = replacing
+            .as_ref()
+            .map_or(LoopBodyCompletion::Fallthrough, |input| {
+                LoopBodyCompletion::Break(input.jump)
+            });
         let mut locals = BTreeSet::new();
-        for (index, statement) in elements.iter().enumerate() {
-            if let Statement::Expression { expression } =
-                ast.statements().get(*statement).ok()?.payload()
-            {
-                if index + 1 != elements.len() || locals.is_empty() {
+        if replacing.is_none() {
+            for (index, statement) in elements.iter().enumerate() {
+                if let Statement::Expression { expression } =
+                    ast.statements().get(*statement).ok()?.payload()
+                {
+                    if index + 1 != elements.len() || locals.is_empty() {
+                        return None;
+                    }
+                    let jump = checker.unit_expression(*expression);
+                    expected = match ast.expressions().get(*expression).ok()?.payload() {
+                        Expression::Continue { .. } => LoopBodyCompletion::Continue(jump),
+                        Expression::Break { .. } => LoopBodyCompletion::Break(jump),
+                        Expression::If { .. } => conditional::admit_split(
+                            checker,
+                            *expression,
+                            &parameter_symbols,
+                            parameter,
+                        )?,
+                        _ => return None,
+                    };
+                    let result_type = if expected.continues() {
+                        BuiltinType::Unit
+                    } else {
+                        BuiltinType::Nothing
+                    };
+                    if !exact_type(checker, *expression, result_type) {
+                        return None;
+                    }
+                    continue;
+                }
+                let Statement::LocalVariable { declaration } =
+                    ast.statements().get(*statement).ok()?.payload()
+                else {
+                    return None;
+                };
+                let Item::Variable {
+                    name,
+                    kind: VariableKind::Val | VariableKind::Var,
+                    initializer,
+                    ..
+                } = ast.items().get(*declaration).ok()?.payload()
+                else {
+                    return None;
+                };
+                let symbol = *checker.marker_symbol(*name)?;
+                if checker
+                    .typed
+                    .symbol_type(symbol)
+                    .and_then(|ty| checker.typed.types().get(ty))
+                    != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    || !checker.is_move_only_variable(symbol)
+                    || !local_value(checker, *initializer, &locals)
+                {
                     return None;
                 }
-                let jump = checker.unit_expression(*expression);
-                expected = match ast.expressions().get(*expression).ok()?.payload() {
-                    Expression::Continue { .. } => LoopBodyCompletion::Continue(jump),
-                    Expression::Break { .. } => LoopBodyCompletion::Break(jump),
-                    Expression::If { .. } => conditional::admit_split(
-                        checker,
-                        *expression,
-                        &parameter_symbols,
-                        parameter,
-                    )?,
-                    _ => return None,
-                };
-                let result_type = if expected.continues() {
-                    BuiltinType::Unit
-                } else {
-                    BuiltinType::Nothing
-                };
-                if !exact_type(checker, *expression, result_type) {
-                    return None;
-                }
-                continue;
+                locals.insert(symbol);
             }
-            let Statement::LocalVariable { declaration } =
-                ast.statements().get(*statement).ok()?.payload()
-            else {
-                return None;
-            };
-            let Item::Variable {
-                name,
-                kind: VariableKind::Val | VariableKind::Var,
-                initializer,
-                ..
-            } = ast.items().get(*declaration).ok()?.payload()
-            else {
-                return None;
-            };
-            let symbol = *checker.marker_symbol(*name)?;
-            if checker
-                .typed
-                .symbol_type(symbol)
-                .and_then(|ty| checker.typed.types().get(ty))
-                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                || !checker.is_move_only_variable(symbol)
-                || !local_value(checker, *initializer, &locals)
-            {
-                return None;
-            }
-            locals.insert(symbol);
         }
         let required_parameters = if matches!(expected, LoopBodyCompletion::Conditional { .. }) {
             2
@@ -292,6 +307,8 @@ impl LoopTransaction {
             result: None,
             invariant,
             invariant_result: None,
+            replacing,
+            replace_result: None,
         })
     }
 
@@ -300,8 +317,9 @@ impl LoopTransaction {
     ) -> (
         Option<UnitOwnerLoopObservationV1>,
         Option<InvariantLoopValueV1>,
+        Option<UnitOwnerReplaceBreakObservationV1>,
     ) {
-        (self.result, self.invariant_result)
+        (self.result, self.invariant_result, self.replace_result)
     }
 }
 
@@ -449,9 +467,11 @@ impl DropPlanner<'_, '_> {
                     && transaction.body == body
                     && transaction.result.is_none()
                     && transaction.invariant_result.is_none()
+                    && transaction.replace_result.is_none()
                     && transaction.entry_boundary(state)
             });
         let mut body_transport = None;
+        let mut replacement_body = None;
         if self.checker.ordinary_condition_outcomes(condition).0 {
             let mut body_state = state.clone();
             // The private body sink has a fresh catalog, never aliases the callable catalog,
@@ -519,9 +539,13 @@ impl DropPlanner<'_, '_> {
                         _ => None,
                     };
                     if let Some(completion) = completion {
-                        body_transport = collected
-                            .value_observation_v1()
-                            .map(|transport| (transport, completion));
+                        if transaction.replacing.is_some() {
+                            replacement_body = Some(collected);
+                        } else {
+                            body_transport = collected
+                                .value_observation_v1()
+                                .map(|transport| (transport, completion));
+                        }
                     }
                 }
             }
@@ -531,6 +555,12 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         self.drop_loop_exit(id, state);
+        if collecting
+            && let (Some(transaction), Some(collected)) = (&mut self.owner_loop, replacement_body)
+            && let Some(input) = &mut transaction.replacing
+        {
+            transaction.replace_result = input.finish(collected, state);
+        }
         if collecting
             && let (Some(transaction), Some((transport, completion))) =
                 (&mut self.owner_loop, body_transport)

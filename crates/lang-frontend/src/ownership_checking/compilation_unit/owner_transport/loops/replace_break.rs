@@ -51,6 +51,7 @@ impl UnitOwnerReplaceBreakStateV1 {
 pub struct UnitOwnerReplaceBreakObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) completed_identity: Arc<()>,
+    pub(in crate::ownership_checking::compilation_unit) completed_jump: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) callable: UnitOwnerCallable,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
@@ -145,6 +146,7 @@ impl UnitOwnerReplaceBreakObservationV1 {
             || !Arc::ptr_eq(&self.identity, &self.inputs.identity)
             || Arc::ptr_eq(&self.identity, &self.producers.identity)
             || !Arc::ptr_eq(&self.completed_identity, &self.producers.identity)
+            || self.completed_jump != self.jump
             || self
                 .inputs
                 .definition(p.clone())
