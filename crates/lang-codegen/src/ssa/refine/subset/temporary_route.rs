@@ -70,7 +70,7 @@ impl Checker<'_, '_> {
         else {
             return None;
         };
-        if !(1..=2).contains(&arguments.len())
+        if arguments.is_empty()
             || !matches!(expressions.get(*callee).ok()?.payload(), Expression::Name)
         {
             return None;

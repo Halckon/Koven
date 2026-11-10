@@ -16,6 +16,10 @@ impl Plans {
         else {
             return Ok(result);
         };
+        // Stage one migrates callers; receipt expansion is a separate capability.
+        if inputs.typed.call(call).is_none_or(|c| c.arguments().len() > 2) {
+            return Ok(result);
+        }
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
         let callable = UnitItemId::new(inputs.source_unit, item);
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
