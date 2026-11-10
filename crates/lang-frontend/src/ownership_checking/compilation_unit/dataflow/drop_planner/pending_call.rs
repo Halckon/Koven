@@ -14,6 +14,8 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(super) struct PendingTemporary {
     pub(super) owner: Option<crate::ownership_checking::UnitOwnerId>,
+    replace_call_consumer:
+        Option<super::owner_transport::replace_call_consumer::CallConsumerCarrier>,
     pub(super) control: ExpressionId,
     target: PendingOwner,
     origin: Span,
@@ -317,6 +319,7 @@ impl DropPlanner<'_, '_> {
     ) {
         state.pending_temporaries.push(PendingTemporary {
             owner: None,
+            replace_call_consumer: None,
             control,
             target,
             origin,
@@ -342,7 +345,19 @@ impl DropPlanner<'_, '_> {
             if state.pending_temporaries[index].control != control {
                 continue;
             }
-            let pending = state.pending_temporaries.remove(index);
+            let mut pending = state.pending_temporaries.remove(index);
+            if pending.transfers_at_call
+                && let PendingOwner::Temporary(argument) = pending.target
+                && let Some(carrier) = pending.replace_call_consumer.take()
+                && let Some(consumer) = carrier.transfer(
+                    self.checker.unit_expression(control),
+                    self.checker.unit_expression(argument),
+                    pending.owner.as_ref(),
+                )
+                && let Some(transaction) = &mut self.owner_loop
+            {
+                transaction.complete_replace_call_consumer(consumer);
+            }
             if let PendingOwner::This(receiver) = pending.target
                 && receiver.conditional_type.is_some()
             {
@@ -460,5 +475,36 @@ impl DropPlanner<'_, '_> {
                     && pending.transfers_at_call
             })
             .and_then(|pending| pending.owner.take())
+    }
+}
+
+impl DropPlanner<'_, '_> {
+    pub(super) fn register_replace_call_consumer(
+        &mut self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        carrier: Option<super::owner_transport::replace_consumer::ReplaceConsumerCarrier>,
+        state: &mut ValueState,
+    ) {
+        let Some(super::owner_transport::replace_consumer::ReplaceConsumerCarrier::Call(carrier)) =
+            carrier
+        else {
+            return;
+        };
+        if self.pending_value_registered(call, argument, state)
+            && let Some(pending) = state.pending_temporaries.iter_mut().find(|pending| {
+                pending.control == call
+                    && matches!(pending.target, PendingOwner::Temporary(id) if id == argument)
+                    && pending.transfers_at_call
+            })
+            && pending.replace_call_consumer.is_none()
+            && carrier.matches_pending(
+                self.checker.unit_expression(call),
+                self.checker.unit_expression(argument),
+                pending.owner.as_ref(),
+            )
+        {
+            pending.replace_call_consumer = Some(carrier);
+        }
     }
 }

@@ -10,8 +10,8 @@ mod field;
 mod heap;
 mod inout;
 mod map;
-mod owner_consumer;
 mod owner_call;
+mod owner_consumer;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
 mod place;
@@ -603,7 +603,7 @@ impl Builder<'_, '_> {
             if self
                 .owner_plan
                 .as_ref()
-                .is_some_and(|plan| plan.drop_index == *index)
+                .is_some_and(|plan| plan.drop_index == Some(*index))
                 && owner_consumer_test_support::take_fault(
                     owner_consumer_test_support::OwnerFault::MissingFinish,
                 )

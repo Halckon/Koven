@@ -7,7 +7,7 @@ use crate::ownership_checking::{
 };
 
 #[derive(Clone, Debug)]
-pub(in super::super) struct ConsumerTarget {
+pub(in super::super) struct BindConsumerTarget {
     pub(in super::super) initializer: UnitExpressionId,
     pub(in super::super) statement: UnitStatementId,
     pub(in super::super) retired: UnitSymbolId,
@@ -15,13 +15,13 @@ pub(in super::super) struct ConsumerTarget {
 
 /// State-owned path alternatives, never projected to a new producer token.
 #[derive(Clone, Debug)]
-pub(in super::super) struct ReplaceConsumerCarrier {
+pub(in super::super) struct BindConsumerCarrier {
     incoming: [OwnedValue; 2],
-    target: ConsumerTarget,
+    target: BindConsumerTarget,
     actions: Vec<Action>,
     bound: Option<OwnedValue>,
 }
-fn snapshot(value: &OwnedValue) -> Option<UnitOwnerReplaceBreakStateV1> {
+pub(super) fn snapshot(value: &OwnedValue) -> Option<UnitOwnerReplaceBreakStateV1> {
     Some(UnitOwnerReplaceBreakStateV1 {
         symbol: value.symbol,
         owner: value.owner.clone()?,
@@ -30,11 +30,11 @@ fn snapshot(value: &OwnedValue) -> Option<UnitOwnerReplaceBreakStateV1> {
         scope_depth: value.scope_depth,
     })
 }
-impl ReplaceConsumerCarrier {
+impl BindConsumerCarrier {
     pub(in super::super) fn handoff(
         condition: &OwnedValue,
         body: OwnedValue,
-        target: ConsumerTarget,
+        target: BindConsumerTarget,
         boundary: &UnitOwnerReplaceBreakObservationV1,
     ) -> Option<Self> {
         if snapshot(condition).as_ref() != Some(boundary.condition_false_exit())
@@ -107,6 +107,69 @@ impl ReplaceConsumerCarrier {
             retired: self.target.retired,
             actions: self.actions,
         })
+    }
+}
+/// Distinct capabilities share a planner slot, never each other's action protocol.
+#[derive(Clone, Debug)]
+pub(in super::super) enum ReplaceConsumerCarrier {
+    Bind(BindConsumerCarrier),
+    Call(super::replace_call_consumer::CallConsumerCarrier),
+}
+impl ReplaceConsumerCarrier {
+    pub(in super::super) fn handoff(
+        condition: &OwnedValue,
+        body: OwnedValue,
+        target: crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix,
+        boundary: &UnitOwnerReplaceBreakObservationV1,
+    ) -> Option<Self> {
+        use crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix as S;
+        match target {
+            S::Bind {
+                initializer,
+                statement,
+                retired,
+            } => BindConsumerCarrier::handoff(
+                condition,
+                body,
+                BindConsumerTarget {
+                    initializer,
+                    statement,
+                    retired,
+                },
+                boundary,
+            )
+            .map(Self::Bind),
+            S::Call(target) => super::replace_call_consumer::CallConsumerCarrier::handoff(
+                condition, body, target, boundary,
+            )
+            .map(Self::Call),
+        }
+    }
+    pub(in super::super) fn take(
+        self,
+        expression: UnitExpressionId,
+        actual: Option<&OwnedValue>,
+    ) -> Option<Self> {
+        match self {
+            Self::Bind(value) => value.take(expression, actual).map(Self::Bind),
+            Self::Call(value) => value.take(expression, actual).map(Self::Call),
+        }
+    }
+    fn bind(self, expression: UnitExpressionId, actual: &OwnedValue) -> Option<Self> {
+        match self {
+            Self::Bind(value) => value.bind(expression, actual).map(Self::Bind),
+            Self::Call(_) => None,
+        }
+    }
+    fn drop(
+        self,
+        point: UnitDropPoint,
+        actual: &OwnedValue,
+    ) -> Option<UnitOwnerReplaceBreakConsumerV1> {
+        match self {
+            Self::Bind(value) => value.drop(point, actual),
+            Self::Call(_) => None,
+        }
     }
 }
 impl DropPlanner<'_, '_> {

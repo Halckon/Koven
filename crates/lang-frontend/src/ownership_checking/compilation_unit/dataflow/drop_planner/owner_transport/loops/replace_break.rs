@@ -6,7 +6,8 @@ use crate::ownership_checking::{
 use crate::source::Span;
 
 pub(super) struct ReplaceBreakInput {
-    pub(super) consumer_target: super::super::replace_consumer::ConsumerTarget,
+    pub(super) consumer_target:
+        crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix,
     pub(super) statement: StatementId,
     pub(super) condition: ExpressionId,
     pub(super) body: StatementId,
@@ -76,14 +77,27 @@ impl ReplaceBreakInput {
         }
         let ast = checker.parsed.ast();
         let (root, initial) = variable(checker, *prefix, VariableKind::Var)?;
-        let (retired, used) = variable(checker, *suffix, VariableKind::Val)?;
-        let used_expression = used;
-        let used = ast.expressions().get(used).ok()?;
-        if root == retired
-            || !literal(checker, initial)
-            || !matches!(used.payload(), Expression::Name)
-            || checker.reference_symbol(used.span()) != Some(root)
+        let consumer_target = if let Some((retired, used)) =
+            variable(checker, *suffix, VariableKind::Val)
         {
+            let used_node = ast.expressions().get(used).ok()?;
+            if root == retired
+                || !matches!(used_node.payload(), Expression::Name)
+                || checker.reference_symbol(used_node.span()) != Some(root)
+            {
+                return None;
+            }
+            crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Bind {
+                initializer: checker.unit_expression(used),
+                statement: UnitStatementId::new(checker.source_unit, *suffix),
+                retired,
+            }
+        } else {
+            crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Call(
+                super::super::replace_call_consumer::admit(checker, *suffix, root)?,
+            )
+        };
+        if !literal(checker, initial) {
             return None;
         }
         let Statement::While {
@@ -171,11 +185,7 @@ impl ReplaceBreakInput {
             return None;
         }
         Some(Self {
-            consumer_target: super::super::replace_consumer::ConsumerTarget {
-                initializer: checker.unit_expression(used_expression),
-                statement: UnitStatementId::new(checker.source_unit, *suffix),
-                retired,
-            },
+            consumer_target,
             statement: *statement,
             condition: *condition,
             body: *body,
@@ -327,10 +337,9 @@ impl ReplaceBreakInput {
         let condition = UnitExpressionId::new(source, self.condition);
         let body_statement = UnitStatementId::new(source, self.body);
         let value = UnitOwnerReplaceBreakObservationV1 {
-            suffix_initializer: self.consumer_target.initializer,
-            suffix_statement: self.consumer_target.statement,
-            retired: self.consumer_target.retired,
+            suffix: self.consumer_target.clone(),
             consumer: None,
+            call_consumer: None,
             identity: prefix.identity,
             callable: prefix.callable,
             completed_identity,

@@ -7,6 +7,7 @@ use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{
         UnitDropPoint, UnitDropTarget, UnitOwnerCallable, UnitOwnerOrigin,
+        UnitOwnerReplaceBreakCallActionV1 as CallAction,
         UnitOwnerReplaceBreakConsumerActionV1 as Action, UnitOwnerReplaceBreakObservationV1,
         UnitOwnerTransportEvent,
     },
@@ -18,18 +19,19 @@ pub(super) struct OwnerPlan<'a> {
     boundary: &'a UnitOwnerReplaceBreakObservationV1,
     producers: [UnitExpressionId; 2],
     produced: [Option<Slot>; 2],
-    root: UnitSymbolId,
+    pub(super) root: UnitSymbolId,
     initializer: UnitExpressionId,
-    retired: UnitSymbolId,
-    pub(super) drop_index: usize,
-    root_slot: Option<Slot>,
+    retired: Option<UnitSymbolId>,
+    pub(super) drop_index: Option<usize>,
+    pub(super) call: Option<(UnitExpressionId, crate::ssa::model::FunctionId)>,
+    pub(super) root_slot: Option<Slot>,
     bound: Option<Slot>,
     exit: Option<BlockRef>,
     false_block: Option<BlockRef>,
     // Indexed by semantic role: condition-false P, then Break Q, never CFG order.
     incoming: [Option<BlockRef>; 2],
     replaced: bool,
-    stage: u8,
+    pub(super) stage: u8,
 }
 
 /// An authorization can only be issued after this plan's actual Take and Bind.
@@ -52,7 +54,10 @@ impl<'a> OwnerPlan<'a> {
             .iter()
             .filter(|observation| observation.callable() == callable)
             .filter_map(|observation| observation.replace_break_observation_v1())
-            .filter(|boundary| boundary.suffix_consumer_v1().is_some());
+            .filter(|boundary| {
+                boundary.suffix_consumer_v1().is_some()
+                    || boundary.suffix_call_consumer_v1().is_some()
+            });
         let Some(boundary) = found.next() else {
             return Ok(None);
         };
@@ -60,26 +65,105 @@ impl<'a> OwnerPlan<'a> {
         if found.next().is_some() || !boundary.is_consistent() {
             return Err(fail());
         }
-        let consumer = boundary.suffix_consumer_v1().ok_or_else(fail)?;
-        let [
-            Action::Take(initializer, root),
-            Action::Bind(binding, retired),
-            Action::Drop(point, dropped),
-        ] = consumer.actions()
-        else {
-            return Err(fail());
-        };
-        if initializer != binding
-            || retired != dropped
-            || *root != boundary.entry().symbol()
-            || initializer.source_unit() != inputs.source_unit
-        {
-            return Err(fail());
-        }
-        let UnitDropPoint::AfterStatement(statement) = point else {
-            return Err(fail());
-        };
-        if statement.source_unit() != inputs.source_unit {
+        let (initializer, root, retired, drop_index, call, incoming) =
+            if let Some(consumer) = boundary.suffix_consumer_v1() {
+                if boundary.suffix_call_consumer_v1().is_some() {
+                    return Err(fail());
+                }
+                let [
+                    Action::Take(initializer, root),
+                    Action::Bind(binding, retired),
+                    Action::Drop(point, dropped),
+                ] = consumer.actions()
+                else {
+                    return Err(fail());
+                };
+                if initializer != binding || retired != dropped {
+                    return Err(fail());
+                }
+                let UnitDropPoint::AfterStatement(statement) = point else {
+                    return Err(fail());
+                };
+                if statement.source_unit() != inputs.source_unit {
+                    return Err(fail());
+                }
+                let indices = inputs
+                    .owned
+                    .drops()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, fact)| {
+                        fact.point() == *point && fact.target() == UnitDropTarget::Named(*retired)
+                    })
+                    .map(|(index, _)| index)
+                    .collect::<Vec<_>>();
+                let [index] = indices.as_slice() else {
+                    return Err(fail());
+                };
+                (
+                    *initializer,
+                    *root,
+                    Some(*retired),
+                    Some(*index),
+                    None,
+                    consumer.incoming(),
+                )
+            } else {
+                let consumer = boundary.suffix_call_consumer_v1().ok_or_else(fail)?;
+                let [
+                    CallAction::Take(argument, root),
+                    CallAction::Call {
+                        call,
+                        argument: transferred,
+                        target,
+                    },
+                ] = consumer.actions()
+                else {
+                    return Err(fail());
+                };
+                if argument != transferred
+                    || *argument != consumer.argument()
+                    || *call != consumer.call()
+                    || *target != consumer.target()
+                {
+                    return Err(fail());
+                }
+                let site = inputs
+                    .source_plan
+                    .call_site(inputs.source_token, *call)
+                    .ok_or_else(fail)?;
+                if !site.delegation().is_empty() {
+                    return Err(fail());
+                }
+                let key = site.dispatch_key().ok_or_else(fail)?;
+                let lang_frontend::type_checking::UnitCallableTarget::Declaration(declaration) =
+                    key.target()
+                else {
+                    return Err(fail());
+                };
+                if inputs.names.names().declaration_symbol(declaration) != Some(*target) {
+                    return Err(fail());
+                }
+                let callee = *inputs.function_ids.get(key).ok_or_else(fail)?;
+                // A successfully transferred root has no caller cleanup obligation.
+                if inputs
+                    .owned
+                    .drops()
+                    .iter()
+                    .any(|d| d.target() == UnitDropTarget::Named(*root))
+                {
+                    return Err(fail());
+                }
+                (
+                    *argument,
+                    *root,
+                    None,
+                    None,
+                    Some((*call, callee)),
+                    consumer.incoming(),
+                )
+            };
+        if root != boundary.entry().symbol() || initializer.source_unit() != inputs.source_unit {
             return Err(fail());
         }
         let p = boundary
@@ -94,7 +178,7 @@ impl<'a> OwnerPlan<'a> {
         else {
             return Err(fail());
         };
-        if consumer.incoming()
+        if incoming
             != &[
                 boundary.condition_false_exit().clone(),
                 boundary.break_boundary().clone(),
@@ -102,27 +186,15 @@ impl<'a> OwnerPlan<'a> {
         {
             return Err(fail());
         }
-        let indices = inputs
-            .owned
-            .drops()
-            .iter()
-            .enumerate()
-            .filter(|(_, fact)| {
-                fact.point() == *point && fact.target() == UnitDropTarget::Named(*retired)
-            })
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        let [drop_index] = indices.as_slice() else {
-            return Err(fail());
-        };
         Ok(Some(Self {
             boundary,
             producers: [p, q],
             produced: [None, None],
-            root: *root,
-            initializer: *initializer,
-            retired: *retired,
-            drop_index: *drop_index,
+            root,
+            initializer,
+            retired,
+            drop_index,
+            call,
             root_slot: None,
             bound: None,
             exit: None,
@@ -139,7 +211,7 @@ impl Builder<'_, '_> {
     pub(super) fn owner_is_suffix(&self, symbol: UnitSymbolId) -> bool {
         self.owner_plan
             .as_ref()
-            .is_some_and(|plan| plan.retired == symbol)
+            .is_some_and(|plan| plan.retired == Some(symbol))
     }
 
     pub(super) fn owner_result(
@@ -246,9 +318,9 @@ impl Builder<'_, '_> {
             initializer != plan.producers[0]
                 || plan.produced[0] != Some(value)
                 || plan.root_slot.is_some()
-        } else if initializer == plan.initializer || symbol == plan.retired {
+        } else if initializer == plan.initializer || Some(symbol) == plan.retired {
             initializer != plan.initializer
-                || symbol != plan.retired
+                || Some(symbol) != plan.retired
                 || plan.stage != 1
                 || plan.root_slot != Some(value)
                 || plan.bound.is_some()
@@ -268,7 +340,7 @@ impl Builder<'_, '_> {
                 #[cfg(test)]
                 super::owner_consumer_test_support::record_action("root", binding.0);
             }
-            if symbol == plan.retired {
+            if Some(symbol) == plan.retired {
                 plan.bound = Some(binding);
                 plan.stage = 2;
                 #[cfg(test)]
@@ -386,10 +458,15 @@ impl Builder<'_, '_> {
         let Some(plan) = &self.owner_plan else {
             return Ok(None);
         };
+        if plan.call.is_some()
+            && (target == UnitDropTarget::Named(plan.root) || plan.root_slot == Some(slot))
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
         #[cfg(test)]
         let (index, slot) = {
             use super::owner_consumer_test_support::{OwnerFault, take_fault};
-            if target == UnitDropTarget::Named(plan.retired) {
+            if Some(target) == plan.retired.map(UnitDropTarget::Named) {
                 (
                     if take_fault(OwnerFault::WrongIndex) {
                         usize::MAX
@@ -406,12 +483,13 @@ impl Builder<'_, '_> {
                 (index, slot)
             }
         };
-        if index != plan.drop_index && target != UnitDropTarget::Named(plan.retired) {
+        if Some(index) != plan.drop_index && Some(target) != plan.retired.map(UnitDropTarget::Named)
+        {
             return Ok(None);
         }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        if index != plan.drop_index
-            || target != UnitDropTarget::Named(plan.retired)
+        if Some(index) != plan.drop_index
+            || Some(target) != plan.retired.map(UnitDropTarget::Named)
             || plan.stage != 2
             || plan.bound != Some(slot)
             || self.consumed_drops.contains(&index)
@@ -436,7 +514,7 @@ impl Builder<'_, '_> {
                 .as_mut()
                 .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
             if plan.stage != 2
-                || plan.drop_index != receipt.index
+                || plan.drop_index != Some(receipt.index)
                 || plan.bound != Some(receipt.bound)
                 || plan.root_slot != Some(receipt.selected)
             {
@@ -449,7 +527,10 @@ impl Builder<'_, '_> {
                 if super::owner_consumer_test_support::take_fault(
                     super::owner_consumer_test_support::OwnerFault::DuplicateDrop,
                 ) {
-                    let target = UnitDropTarget::Named(plan.retired);
+                    let target = UnitDropTarget::Named(
+                        plan.retired
+                            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?,
+                    );
                     self.owner_drop_authorization(receipt.index, target, receipt.bound, span)?;
                 }
             }
@@ -459,7 +540,11 @@ impl Builder<'_, '_> {
 
     pub(super) fn finish_owner_plan(&self) -> Result<(), LoweringError> {
         if let Some(plan) = &self.owner_plan
-            && (plan.stage != 3 || !self.consumed_drops.contains(&plan.drop_index))
+            && (plan.stage != 3
+                || plan
+                    .drop_index
+                    .is_some_and(|index| !self.consumed_drops.contains(&index))
+                || (plan.call.is_some() && !self.dead.contains(&plan.root)))
         {
             return Err(error(LoweringErrorKind::MissingFact, self.inputs.span));
         }

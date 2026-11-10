@@ -34,15 +34,23 @@ impl UnitOwnerReplaceBreakConsumerV1 {
     }
     pub(super) fn matches_boundary(&self, boundary: &UnitOwnerReplaceBreakObservationV1) -> bool {
         use UnitOwnerReplaceBreakConsumerActionV1 as A;
+        let ReplaceBreakSuffix::Bind {
+            initializer,
+            statement,
+            retired,
+        } = boundary.suffix
+        else {
+            return false;
+        };
         let source = boundary.statement.source_unit();
         self.incoming
             == [
                 boundary.condition_false.clone(),
                 boundary.post_break.clone(),
             ]
-            && self.initializer == boundary.suffix_initializer
-            && self.statement == boundary.suffix_statement
-            && self.retired == boundary.retired
+            && self.initializer == initializer
+            && self.statement == statement
+            && self.retired == retired
             && self.initializer.source_unit() == source
             && self.statement.source_unit() == source
             && self.retired.source_unit() == source

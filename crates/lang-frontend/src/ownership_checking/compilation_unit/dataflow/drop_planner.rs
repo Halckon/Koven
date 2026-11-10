@@ -1043,6 +1043,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             }
                             self.register_value_argument(id, argument.value, state)?;
                             self.register_pending_identity(id, argument.value, result.owner, state);
+                            self.register_replace_call_consumer(
+                                id,
+                                argument.value,
+                                result.replace_consumer,
+                                state,
+                            );
                         }
                         UnitCallArgumentOwnershipKind::SharedLoan
                         | UnitCallArgumentOwnershipKind::ExclusiveLoan => {

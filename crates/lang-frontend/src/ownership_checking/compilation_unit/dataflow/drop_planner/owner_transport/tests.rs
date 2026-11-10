@@ -541,3 +541,5 @@ fn consumer_dependency_observer_preserves_all_planner_snapshots() {
         assert_eq!(observed, disabled);
     });
 }
+
+mod replace_break_call;

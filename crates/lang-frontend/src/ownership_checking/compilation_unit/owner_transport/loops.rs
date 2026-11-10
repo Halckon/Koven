@@ -14,7 +14,11 @@ pub use invariant::{
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
 };
+pub(in crate::ownership_checking::compilation_unit) use replace_break::{
+    CallConsumerTarget, ReplaceBreakSuffix,
+};
 pub use replace_break::{
+    UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1,
     UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
     UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
 };

@@ -1,5 +1,8 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
 mod loops;
+pub(in crate::ownership_checking::compilation_unit) use loops::{
+    CallConsumerTarget, ReplaceBreakSuffix,
+};
 pub(super) use loops::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
     LoopBranchExit, publish_observations,
@@ -10,7 +13,8 @@ pub use loops::{
     UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1,
-    UnitOwnerNormalArmBoundaryV1, UnitOwnerReplaceBreakConsumerActionV1,
+    UnitOwnerNormalArmBoundaryV1, UnitOwnerReplaceBreakCallActionV1,
+    UnitOwnerReplaceBreakCallConsumerV1, UnitOwnerReplaceBreakConsumerActionV1,
     UnitOwnerReplaceBreakConsumerV1, UnitOwnerReplaceBreakObservationV1,
     UnitOwnerReplaceBreakStateV1,
 };

@@ -621,3 +621,20 @@ impl LoopTransaction {
         }
     }
 }
+
+impl LoopTransaction {
+    pub(in super::super) fn complete_replace_call_consumer(
+        &mut self,
+        consumer: crate::ownership_checking::UnitOwnerReplaceBreakCallConsumerV1,
+    ) {
+        if let Some(boundary) = &mut self.replace_result
+            && boundary.consumer.is_none()
+            && boundary.call_consumer.is_none()
+        {
+            boundary.call_consumer = Some(consumer);
+            if !boundary.is_consistent() {
+                boundary.call_consumer = None;
+            }
+        }
+    }
+}

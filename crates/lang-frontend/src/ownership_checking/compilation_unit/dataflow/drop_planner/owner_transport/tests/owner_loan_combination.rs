@@ -323,7 +323,8 @@ fn four_switches_preserve_b_consumer_and_all_legacy_products() {
 #[test]
 fn ci_only_active_b_carrier_rejects_flat_consumer_region_gate() {
     use super::super::super::{DropPlanner, OwnedValue, ValueState};
-    use super::super::replace_consumer::{ConsumerTarget, ReplaceConsumerCarrier};
+    use super::super::replace_consumer::ReplaceConsumerCarrier;
+    use crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix;
     let fixture = Fixture::new(&[("b.ko", loop_replace_break::SOURCE)]);
     let owned = fixture.shared();
     let boundary = owned.owner_observations()[0]
@@ -342,7 +343,7 @@ fn ci_only_active_b_carrier_rejects_flat_consumer_region_gate() {
     let carrier = ReplaceConsumerCarrier::handoff(
         &condition,
         body,
-        ConsumerTarget {
+        ReplaceBreakSuffix::Bind {
             initializer,
             statement,
             retired: fixture.local(0, "retired"),
