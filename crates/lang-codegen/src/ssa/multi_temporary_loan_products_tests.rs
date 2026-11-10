@@ -79,7 +79,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases<const N: usize>(
             let begins = actions[..N]
                 .iter()
                 .map(|action| match action {
-                    UnitLoanAction::Begin(begin) => *begin,
+                    UnitLoanAction::Begin(begin) => begin,
                     _ => panic!("source-order Begin"),
                 })
                 .collect::<Vec<_>>();
@@ -112,7 +112,7 @@ pub(in crate::ssa::loan_region_ssa_tests) fn check_cases<const N: usize>(
                 else {
                     panic!("exact reverse End")
                 };
-                assert_eq!(begin, end);
+                assert_eq!(*begin, end);
                 let UnitLoanAction::Cleanup {
                     action:
                         lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop),

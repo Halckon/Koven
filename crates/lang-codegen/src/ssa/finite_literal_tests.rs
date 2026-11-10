@@ -67,6 +67,7 @@ fn finite_literal_call_requires_real_production_receipt() {
     check(true);
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 #[test]
 fn finite_literal_non_involutive_mappings_preserve_true_off() {
     super::multi_temporary::products::check_cases(
