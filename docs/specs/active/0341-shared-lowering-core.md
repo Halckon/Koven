@@ -11460,3 +11460,44 @@ entry和completion须经过真实statement及cleanup；选中计划漏阶段/错
 先普通原样Complete+既有八SSA/LLVM成功，再断缺receipt形成独立红，之后最小接线及双Unit
 真实on/off绿。普通小集合逐helper鲜审，foreign/fault/Abort/counter/压力等CI-only仅编译。
 默认debug2/LLVM21、独占borrow target，不push/PR；production能力和覆盖认证分别留账。
+
+#### Binding production receipt 实施与验收账本
+
+合同头ef055fc2；独立红ca93d85c只新增测试与空观察stub，原样首先完成首Rooted布局的
+on/off真实分析、旧facts比较、八SSA/verified LLVM与Complete七IDs/入口退出身份，随后
+在binding_receipt_tests.rs154明确receipt0!=1，0通过/1失败/2914过滤。第二布局未达到，
+不称双布局红前置均完成。no-run1m02s；该红独立于前批覆盖认证缺口。
+
+生产1c93c68d引入独立Binding Plans/Emitted与tag，原binding初始化和退休职责机械提取到
+build/borrow_binding.rs，statement wrapper移至build/binding_receipt.rs；去除新增核验hook
+后旧算法保持。当前entry、实际source operand、commit、consumer快路径、retirement、Drop、
+completion分别验证；不是七op计数替代正常body完成。emit在实际append取得身份，Alias也
+核冻结实体。首green同exact通过1/0/2918，双Unit真on/off全字段完成，no-run39.94s。
+
+最终代码冻结`bb4faa608d2fdc3bcffb7395909c78147f90fb32`，相对首green仅入口增加12行：
+dead为空、this_dead=false、真实owner Slot为StringOwner Value。completion没有错误要求
+已Drop后的dead为空。该加固让活owner前提显式，不称已发现普通源码bug；最终重新构建验收。
+
+fresh审定8个唯一ordinary exact：新receipt主证/两个有限suffix边界、旧coverage主证、
+causal、FE-only merge、P4、P3 Int/Unit真off、owner单参数授权邻控。最后8项均1通过/0失败/
+0忽略/2918过滤。7项有SSA/LLVM共31次有限lower，1项仅前端merge；owner项虽位于native_tests
+命名空间，本项不执行native。没有资源计数、foreign、注入、Abort或压力运行。新3项CI-only
+覆盖catalog/漏completion或stage/实体重绑/consumer或retirement错配，仅编译不执行。
+
+全部写入/build使用既定提权，独占borrow target，LLVM21 prefix、默认opt0/debug2；未设置
+DEV_DEBUG/TEST_DEBUG/RUSTFLAGS、未复制target。显式loan-observation-test-support的最终
+CG no-run18.91s，原artifact test=true且仅此feature。严格feature all-targets Clippy33.18s、
+默认workspace all-targets check31.84s、fmt、docs884、size2368/35及diff通过。无单独CLI
+artifact/release/正式CI实证，不沿用前合流结论越称。本片无Rust编译失败，API路径只读探查
+有不存在文件的返回，不计能力红。runner最初未锁source清单，独审在执行前要求补HEAD与
+4222逐hash、执行后binary/HEAD及manifest输入hash；补好再许可运行，未执行弱版runner。
+
+证据目录`/private/tmp/koven-binding-receipt-evidence`保留两阶段原JSON/exact日志、
+final-manifest.json、final-selection.txt、runner及4222冻结tracked哈希。最终binary SHA
+`a4cb28c8e82407c5d3c6e28789e16f74efb5227e66345da214f7df6fe6c9af3c`。
+收尾只改Spec与架构，冻结对象和当前非docs分别核，不声称收尾文档仍与冻结字节一致。
+不改变语言/ABI/route/清理责任，不授source/callable Complete，不退休旧oracle，不push/PR。
+
+精确bb4faa60独立只读终审无新增阻断：原artifact/manifest、执行后binary、8名单与实际
+日志、4222冻结输入均核对一致；当前仅两docs不同，冻结docs对象仍匹配，非docs无漂移。
+独审确认31次SSA/LLVM与FE-only/CI-only边界、真实红绿及入口加固分账，随后仅docs提交。

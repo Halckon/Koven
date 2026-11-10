@@ -119,7 +119,16 @@ entry/removed快照包括owner token、symbol、origin、declaration和scope；�
 重复/错配、额外动作或不完整边界不能以旧相等Drop补齐，保持Partial。旧None路径与唯一
 cleanup producer不变。公开binding区域有独立catalog归属与完整action_ids，不是第五个
 call-only协议；source/callable仍Partial，off保旧产品，额外use/后读owner不在该准入。
-尚无binding production receipt，不泛化parent/sibling/wrapper，不退休旧oracle。
+refine现对同轮Complete binding区域提供独立可选production receipt，不泛化parent/sibling/
+wrapper，不退休旧oracle。entry绑定真实已形成活StringOwner Slot，initializer提交核实际
+binding→result及单source保存；consumer沿原borrowed-binding快路径复用result，不造第三loan。
+真实statement完成cleanup后才标completion。原RootPlace、source Begin、BorrowCall result、
+consumer DirectCall、result End、source End、owner Drop七角色随RStmt独立tag进入实际append；
+冻结caller/两个callee实例、七InstructionId和owner/place/source/result四实体，Alias不得改绑。
+原Drop index/Named root与原owner授权顺序不变，旧producer仍唯一执行。选中计划漏阶段或
+内部错配结构化失败；off/Partial/Unsupported/缺席不建计划，旧facts/route/cleanup保持。
+同原样双Unit真off已核完整receipt身份与SSA/LLVM；额外use/owner后读仍无binding receipt，
+控制合流邻控仅证明前端降级，不声称该控制源码已有SSA支持。
 
 ## 同步consumer实际依赖边
 
