@@ -7,14 +7,14 @@
 
 Unit drop planner 的 acquisition 注册与原 `iteration_actions` cleanup 现保存于同一
 append-only `ActionSource`。旧 direct/prefix/provider 切片只迭代其中 Cleanup，旧 cleanup
-下标保持，Begin/ReceiverBegin/ReceiverEnd 不参与旧计数；不从旧表排序拼出顺序，也不增加第二次 End/Drop 执行。
+下标保持，acquisition、receiver及result观察记录不参与旧计数；不从旧表排序拼出顺序，也不增加第二次 End/Drop 执行。
 `loan_action_observations()` 按 source 发布 Begin 和已有实际 cleanup 的观察，错误/deferred
 仍在 raw 与公开边界全局撤销。静态 record 的封闭 catalog ID 不可跨 source 产品或重分析解析；
 结构快照相等不表示 catalog 相同，记录顺序不是跨分支、循环或 callable 的执行时间线。
 
 source 总体仍只发布 Partial 或 Unsupported：有记录仍可能遗漏 result handoff、receiver
 activation 和权限恢复；空 source 动作表不能证明 absence。没有整个 callable、动态路径或
-activation 的完整证据，未退休 Single oracle。既有receiver正常End表改为同源投影，其他result观察独立保留。
+activation 的完整证据，未退休 Single oracle。receiver正常End、结果binding提交和End表已为同源投影；其他result观察独立保留。
 
 ## 普通 direct call 正常返回区域
 
@@ -71,3 +71,20 @@ operand的Place category、loan/place身份、使用与call span都独立匹配�
 缺Drop为Partial。protocol 1/2仍各按原合同认证，未知协议编号不认证Complete。
 Borrow/Inout/local源、Group/投影/转换、多参数、borrowed result及控制/嵌套仍不准入。
 这是有界正常边证据，不证明通用权限恢复、callee必返或整个source/callable。
+
+## 结果binding提交与真实退休记录
+
+`BorrowHandoffCommitted`在原成功initializer的continues提交点发布，保留真实pending
+source loan→binding映射；未完成/放弃的initializer没有提交记录。它不是source End，
+旧fact的CallReturn与auxiliary descriptors只是历史来源描述，不能把辅助End倒放到
+binding提交时刻。真实辅助临时Drop可以先于该commit；本观察不补造缺失的辅助退休动作。
+
+`BorrowBindingEnd`在已初始化binding从真实状态移除、原transport处理之后，owner Drop
+之前记录，保留现有child→parent退休和同源siblings的独立身份。原始记录按实际发布各自
+保留，不用binding/point相等合并；旧borrow_ends投影仍按首次出现去重，handoff投影保序。
+两族在observer关闭时仍保存旧表所需源记录，不进入旧iteration Cleanup计数或执行流。
+
+这一步只补Partial生命周期证据，不新增Complete协议，不引入跨函数LoanId或动态parent
+身份。callee返回来源、完整parent权限依赖、一般result/consumer/wrapper/provider/capture
+及辅助退休顺序尚未认证；source/callable不会因新表非空成为Complete。现有protocol1/2/3
+仍核完整区间；错误/deferred继续在raw和公开边界撤销新观察与旧投影。

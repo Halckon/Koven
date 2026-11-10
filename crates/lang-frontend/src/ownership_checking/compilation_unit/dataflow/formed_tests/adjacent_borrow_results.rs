@@ -129,6 +129,7 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
         assert_cleared(&raw);
         assert!(shared.direct_call_loan_ends().is_empty());
         assert!(shared.borrow_call_handoffs().is_empty());
+        assert!(shared.borrow_results().ends().is_empty());
         assert!(shared.borrow_call_prefix_ends().is_empty());
         assert!(shared.exclusive_call_prefix_ends().is_empty());
     }
@@ -972,3 +973,5 @@ fn loan_receiver_complete_prefix_is_revoked_from_raw_and_public_products() {
 }
 
 mod named_loan_region;
+
+mod result_action_source;

@@ -482,3 +482,31 @@ fn loan_named_observer_preserves_all_existing_planner_products() {
         assert_eq!(observed, disabled);
     });
 }
+
+#[test]
+fn result_action_observer_preserves_nonempty_handoff_and_end_products() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun view(source: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = view(parent); println(child) }",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
+        let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
+        assert_eq!(observed.borrow_call_handoffs.len(), 1);
+        assert_eq!(observed.borrow_ends.len(), 2);
+        assert!(
+            observed.loan_action_observations[0]
+                .actions()
+                .iter()
+                .any(|action| matches!(
+                    action,
+                    crate::ownership_checking::UnitLoanAction::BorrowHandoffCommitted(_)
+                ))
+        );
+        assert!(disabled.loan_action_observations.is_empty());
+        observed.loan_action_observations.clear();
+        assert_eq!(observed, disabled);
+    });
+}

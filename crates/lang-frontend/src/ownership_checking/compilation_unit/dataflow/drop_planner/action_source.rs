@@ -1,6 +1,11 @@
 //! The cleanup projections and acquisition observation share one append-only source.
 use super::PlannerDropPoint;
-use crate::ownership_checking::{UnitIterationCleanupAction, UnitLoanFact};
+use crate::name_resolution::UnitSymbolId;
+use crate::ownership_checking::{
+    BorrowBindingEndFact, UnitBorrowCallHandoffFact, UnitDropPoint, UnitIterationCleanupAction,
+    UnitLoanFact,
+};
+type BindingEnd = BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>;
 
 pub(super) struct ActionSource {
     records: Vec<Record>,
@@ -13,6 +18,8 @@ enum Record {
     Begin(UnitLoanFact),
     ReceiverBegin(crate::ownership_checking::UnitReceiverOwnershipFact),
     ReceiverEnd(crate::ownership_checking::UnitReceiverCallReturnEndFact),
+    BorrowHandoffCommitted(UnitBorrowCallHandoffFact),
+    BorrowBindingEnd(BindingEnd),
     Cleanup((PlannerDropPoint, UnitIterationCleanupAction)),
 }
 
@@ -85,6 +92,38 @@ impl ActionSource {
             .collect()
     }
 
+    pub(super) fn commit_borrow_handoff(&mut self, fact: UnitBorrowCallHandoffFact) {
+        // Even observer-off retains the source used by the old public projection.
+        self.records.push(Record::BorrowHandoffCommitted(fact));
+    }
+
+    pub(super) fn end_borrow_binding(&mut self, fact: BindingEnd) {
+        // Each actual retirement has its own record. Only the old projection deduplicates.
+        self.records.push(Record::BorrowBindingEnd(fact));
+    }
+
+    pub(super) fn borrow_handoffs(&self) -> Vec<UnitBorrowCallHandoffFact> {
+        self.records
+            .iter()
+            .filter_map(|record| match record {
+                Record::BorrowHandoffCommitted(fact) => Some(fact.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub(super) fn borrow_binding_ends(&self) -> Vec<BindingEnd> {
+        let mut ends = Vec::new();
+        for record in &self.records {
+            if let Record::BorrowBindingEnd(fact) = record
+                && !ends.contains(fact)
+            {
+                ends.push(*fact);
+            }
+        }
+        ends
+    }
+
     pub(super) fn len(&self) -> usize {
         self.cleanups
     }
@@ -94,7 +133,11 @@ impl ActionSource {
     ) -> impl Iterator<Item = &(PlannerDropPoint, UnitIterationCleanupAction)> {
         self.records.iter().filter_map(|record| match record {
             Record::Cleanup(cleanup) => Some(cleanup),
-            Record::Begin(_) | Record::ReceiverBegin(_) | Record::ReceiverEnd(_) => None,
+            Record::Begin(_)
+            | Record::ReceiverBegin(_)
+            | Record::ReceiverEnd(_)
+            | Record::BorrowHandoffCommitted(_)
+            | Record::BorrowBindingEnd(_) => None,
         })
     }
 
@@ -114,6 +157,10 @@ impl ActionSource {
                 Record::Begin(loan) => UnitLoanAction::Begin(loan),
                 Record::ReceiverBegin(receiver) => UnitLoanAction::ReceiverBegin(receiver),
                 Record::ReceiverEnd(end) => UnitLoanAction::ReceiverEnd(end),
+                Record::BorrowHandoffCommitted(fact) => {
+                    UnitLoanAction::BorrowHandoffCommitted(fact)
+                }
+                Record::BorrowBindingEnd(fact) => UnitLoanAction::BorrowBindingEnd(fact),
                 Record::Cleanup((point, action)) => UnitLoanAction::Cleanup {
                     point: point.into_unit(source),
                     action,
@@ -133,3 +180,6 @@ impl ActionSource {
         }]
     }
 }
+
+#[cfg(test)]
+mod tests;

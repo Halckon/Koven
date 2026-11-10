@@ -176,6 +176,8 @@ fn plan_with_observations(
     let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
     let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
     let receiver_call_return_ends = planner.iteration_actions.receiver_return_ends();
+    let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
+    let borrow_ends = planner.iteration_actions.borrow_binding_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -192,14 +194,14 @@ fn plan_with_observations(
         direct_call_loan_ends,
         string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
-        borrow_call_handoffs: planner.borrow_call_handoffs,
+        borrow_call_handoffs,
         borrow_call_transports: planner.borrow_call_transports,
         borrow_binding_transports: planner.borrow_binding_transports,
         borrow_forward_transports: planner.borrow_forward_transports,
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
         receiver_call_return_ends,
-        borrow_ends: planner.borrow_ends,
+        borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
         iteration_loan_ends,
@@ -227,7 +229,6 @@ struct DropPlanner<'a, 'checker> {
         bool,
     )>,
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
-    borrow_call_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     borrow_call_transports: Vec<crate::ownership_checking::UnitBorrowCallTransportFact>,
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
     borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
@@ -251,12 +252,6 @@ struct DropPlanner<'a, 'checker> {
     conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
-    borrow_ends: Vec<
-        crate::ownership_checking::BorrowBindingEndFact<
-            UnitSymbolId,
-            crate::ownership_checking::UnitDropPoint,
-        >,
-    >,
     binding_depths: BTreeMap<UnitSymbolId, usize>,
 }
 
@@ -274,7 +269,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
             iteration_actions: action_source::ActionSource::default(),
-            borrow_call_handoffs: Vec::new(),
             borrow_call_transports: Vec::new(),
             borrow_binding_transports: Vec::new(),
             borrow_forward_transports: Vec::new(),
@@ -293,7 +287,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             conditional_receiver_facts: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
-            borrow_ends: Vec::new(),
             binding_depths: BTreeMap::new(),
         }
     }
