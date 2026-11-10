@@ -10252,3 +10252,16 @@ Return由旧emitter唯一发射，P2/P4及B/Call账本独立。真off仅已测Ba
 不外推Const或Return所有形状；普通native不证明计数/泄漏义务。正式双宿主CI、
 sanitizer、资源计数/压力及全部CI-only仍待新头正式验证，不沿用#410旧头绿灯。
 本轮仅本地冻结，不push或更新#410，不合main，不关闭Spec/D10/E2或退休oracle。
+
+## 2026-11-10 普通参数 P3 caller 路由与生产核验
+
+用户授权持续本地开发后，本片分两个独立能力阶段；不以 nullable anchor 替代原样调用。
+第一阶段仅新增非泛型、唯一显式 own String 参数、Unit caller 单一直线调用的路由触发：
+无 receiver 的 Declaration 普通调用，唯一 Borrow 根实参，正常 owned Int/Unit 结果。
+完整 subset 仍须通过，触发只读 typed/ownership，独立于 Complete3 与 observer 开关；
+callee 独立分流，非目标既有 trigger 保留。先执行原样 route 红测，再最小实现、原测转绿并提交。
+第二阶段才新增同轮 Complete3 的可选生产 receipt，绑定真实 owner Slot、Shared loan、
+RootPlace/Begin/DirectCall/End/原 NamedDrop 指令与 catalog 身份；独立执行缺 receipt 红测。
+沿用唯一 producer，不改变语言/ABI，不退休旧 oracle；off、Partial、Unsupported、缺席维持旧路径。
+真实双 Unit 与 off 重分析、P2/P4/owner 邻控采用逐源审定 ordinary exact；所有 CI-only 破损仅编译。
+本地保持 debug2、既定独占 target，不运行全量/native，不发布。验收结果后补，不由设计宣称通过。
