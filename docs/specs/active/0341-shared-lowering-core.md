@@ -10881,3 +10881,57 @@ argument identity、temporary Slot 或 SSA 实体。仍只选择同轮 Complete1
 或强制路径。验收包括不同/相同 bytes、Int/Unit、双 Unit 及真实 observer-off；测试
 逐项与 helper 重审，所有 foreign、破损、注入、Abort、计数和压力仅编译，不在本机执行。
 此处仅记录范围，尚未执行本片红测、实现或验收。
+
+### 命名双 literal 映射实施与验收（2026-11-10）
+
+基线4f72af76、范围合同852ecad7；实现全在独立named-literal树，不夹带单源0401 probe
+或后续main合流账本。两个能力分别真实红绿，未用同一失败冒充两项能力：
+- route红ac503340：原样 `inspect(b = "first", a = "second")` 完成真实FE Complete1六action、
+  SSA/LLVM后，实际成功refine名单为空，与caller名断言失败；no-run53.27s。
+- route绿9c7ab1c2：只typed完整参数置换扩独立caller trigger，完整subset与旧trigger不变；
+  同exact通过，no-run28.33s。此阶段receipt显式保持旧顺序适用域，不使合法新route被旧核验拒绝。
+- receipt红3829c432：同源已通过路由/SSA/LLVM，新增独立receipt断言真实0!=1失败，
+  no-run16.17s；不是空observer模拟缺证、frontend拒绝或故障注入。
+- receipt绿e1d79dfc：移除阶段旧域guard，接实际参数映射核验，同exact通过，no-run29.93s。
+  最终普通/CI-only测试输入冻结9027aa930b8e83198e2ad1d0227f5741d462ceb0。
+
+最终route仍只收原1/2 raw Text-only String literal形状，typed argument_index必须等于
+源码位置，parameter_index完整覆盖0..n且唯一；不看Complete/observer、不重推签名。
+admission独立范围/唯一性核验并把parameter_index与同轮完整contract及parameter_span
+关联存入operand。operand不排序，形成/Begin保持源码序，End和Drop沿原真实路径各自核
+源码逆序。唯一Call的build与SSA append分别按parameter槽完整核向量，拒重复/缺失/越界。
+所有producer、四家族独立身份、owner授权/唯一cleanup、语义/ABI均未改。
+
+最终15unique ordinary exact全部通过，每项1pass/0fail/0ignored/2894filtered：原P1十二项
+中的命名重排边界已按批准能力改为 `reordered_named_literals_use_refine_with_production_receipt`，
+其余原证据保持；新增named_literal_mapping模块三项分别核route、receipt及source顺序/真实off。
+所有source/helper本轮fresh审核，不继承旧safe标签；没有额外失败或测试假设修正。
+
+增强pair helper由原exact与新named exact分别调用，每项3个有限源×2种Unit布局×on/off。
+原正序与命名倒序分别核typed映射、原参数声明span和contract index；不同bytes证明顺序，
+相同/空bytes仍核两个argument IDs与六个实际实体互不合并。实际十一操作始终
+F0/R0/B0/F1/R1/B1/Call/E1/E0/D1/D0；命名倒序Call为loan1/loan0，不能从Call再rev来解释End。
+Int真实一结果/Unit零结果，callee Shared入口独立。真实off重新ownership分析，原off产品
+直接lower，legacy比较仅clone归一化；on/off的SSA/LLVM相等。P2/P3/P4及同analysis owner邻控
+保持，Complete-empty、三literal和其他非目标原路径未放宽。
+
+P1新增两项CI-only（重复/越界参数槽、错误source序Call向量）与原七项都只编译不运行，
+普通helper不启SNAPSHOTS或故障开关。未运行foreign、破损、Abort、counter、pressure、
+强制路由、native或全量测试，不以本片证明Constant off、资源或旧oracle退休。
+
+独占borrow target、LLVM21.1.8，未设置DEV_DEBUG/TEST_DEBUG/RUSTFLAGS覆盖，未复制/清理target，
+不占owner target。最终新artifact opt0/debug2/test=true、仅loan-observation-test-support，
+no-run24.58s；严格feature codegen all-targets Clippy31.95s、fmt、docs884、尺寸2341手写Rust/
+35旧超限（base852ecad7）、diff均exit0，无预算调整。本片无公共API/依赖变化，未重跑
+workspace/defaultCLI/release或正式双宿主CI，不把前批门禁当本批运行。
+
+证据 `/private/tmp/koven-named-literal-mapping-evidence` 含四阶段manifest/build/exact、
+final15名单/manifest/log及2348源码/config SHA；临时文件不承诺永久保存，固定提交和本段
+精确测试合同为重做依据。binary SHA256
+`7ea962559d788fbd8d7e0a59226ec67a0a820f4b8e71b19409868855da0af2a7`；selection SHA256
+`9fed64e87f933a4365a0abc760807e9e503cab295251b7c9464e475e74bb3859`。
+
+精确9027aa93独立只读终审无新增阻断：2348源/config重hash、当前binary/selection、
+原始Cargo artifact与manifest一致；15唯一名单逐项等于实际成功日志和runner，
+两独立红绿的真实前置与失败断言均复核。审阅者未执行测试或编辑源码；终审后只补两份
+文档，不重编Rust。borrow target释放，本地分步提交，不push/PR/发布。
