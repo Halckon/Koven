@@ -66,3 +66,12 @@ Partial、Unsupported 和缺席没有 receipt，继续旧 facts；B owner ledger
 Compatibility 路由与旧拒绝不变，不表示所有 frontend Complete 区域都已获 backend 准入。
 仅观察成功 receipt 的测试接口不承担生产正确性。未迁 protocol 1/2/3、不授 source/callable
 完整覆盖、不退休旧 oracle；验收与未运行项见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md)。
+
+真实 observation-off 的端到端回归由默认关闭的 `loan-observation-test-support` feature
+提供：codegen 只转发既有 frontend 依赖，CI core 的codegen测试命令显式启用。隐藏同步
+scope 用线程局部RAII仅控制真实planner的loan观察，owner开关不变；原off产品直接lower，
+副本去catalog只用于旧facts比较，不是off来源。普通P4/B sibling的Basic rooted/memory
+两输入已核旧facts、完整SSA/LLVM及B receipt等价，P4 receipt随真实catalog有/无；嵌套
+恢复与线程隔离有普通测试，panic恢复仅编译。默认CLI检查的frontend/codegen/CLI三个
+artifact均无features；这不是release运行证明。显式启用feature或all-features会编入该API，
+`doc(hidden)`不隔离库代码；未调用scope时仍默认观察on，不提供正常生产运行时开关。

@@ -9747,3 +9747,56 @@ CI-only不执行与本地不push/PR/merge约束继续有效。
 均仅 `loan-observation-test-support`，debug2。binary SHA256为
 `a114dfd016cc430d9120ef1002d0bb67623051142358275e3d4942224f19eb73`。
 本轮先做feature红测，默认CLI图对照后置串行执行，不声称先验证了默认图。
+
+真实scope接线代码为 `242691c63954a4cf7cb7ec513f4058deaa47978e`，红测提交
+`1a8d445b`。首个实现构建27.19s成功；同红测及普通嵌套/线程隔离各1 passed、0 failed、
+2839 filtered，真实off原产品无catalog且直接进入codegen，无P4 receipt；on有receipt，
+完整旧ownership副本、SSA/LLVM文本和B授权/物理Drop相等。没有中间Rust编译或行为失败。
+只读比较沿现有产品Eq语义，不修改传给lowering的任一原产物；B分离另由实际receipt检查。
+
+最终同代码feature no-run完成0.25s，复用经Cargo确认的新feature artifact；frontend与
+codegen的features均精确为 `["loan-observation-test-support"]`，实际debug2/opt_level0，
+前者test=false、后者test=true。从该轮JSON取binary、逐名exact list后运行前轮六项普通
+测试，再按顺序追加以下两项，共8个唯一测试全部通过，每项1 passed/0 failed/0 ignored/
+2839 filtered，内部双输入不另累计：
+
+| 验收项 | exact测试（前缀 `ssa::loan_region_ssa_tests::observer_off::`） | 实际结果 |
+|---|---|---|
+| 同names/typed真实on/off ownership到SSA/LLVM/B receipt | `real_frontend_observer_off_preserves_products_ssa_and_owner_receipts` | 通过；Basic rooted/memory两输入 |
+| 正常嵌套恢复与单新线程默认on隔离 | `observation_scope_restores_nested_state_and_does_not_cross_threads` | 通过；无故障注入 |
+
+feature binary SHA256：`6a5e0316b2554c4711021db9ea98b645f5629bd962bf04fa7788b3e248c5b8ef`；
+八项逐行完整名单SHA256：`64dddd6dbd0baf77d36011bc3b055d06761313ac3b9bd63dfbc05d8da491811f`。
+最终manifest、选择和日志为仓库外 `/private/tmp/koven-p4-off-final-manifest.json` 及同前缀
+`-selection.txt/-exact.log/.json/.stderr`；红测和首绿日志分别在 `koven-p4-off-red`、
+`koven-p4-off-build1` 前缀。临时路径不保证永久保留，固定提交/测试/摘要界定重建输入。
+
+默认图单独执行 `cargo check --locked --offline -p lang-cli --message-format=json -vv -j 2`，
+13.95s通过；从本树实际artifact核 `lang_frontend`、`lang_codegen`、`kovenc` 三者features
+均为 `[]`、debug2/test=false，不只看CLI自身。原始日志为
+`/private/tmp/koven-p4-off-default-cli.{json,stderr}`。初次按纯JSON解析失败，随后前缀
+校验误限llvm-sys再次失败；实际逐行核11条 `[serde_core 1.0.229] cargo:` 构建脚本输出后
+窄允许该前缀，复用同次已成功构建完成artifact核验，未重编或把解析失败当作能力红测。
+发布脚本只静态核既有CLI release argv无feature；没有执行release构建或发布。
+
+严格feature门禁为
+`cargo clippy --locked --offline -p lang-frontend -p lang-codegen --features lang-codegen/loan-observation-test-support --all-targets -j 2 -- -D warnings`，通过50.85s；
+默认 `cargo check --locked --offline --workspace --all-targets -j 2` 通过37.01s。
+原依赖边检查仍为5成员/4允许边，未修改checker、未新增dev edge，Cargo.lock无变化。
+仅执行两个逐源核验的纯读Python exact：`CheckCiResultsTests.test_unit_migration_routes_and_exact_regressions_run_on_both_hosts` 与
+`CheckCiResultsTests.test_loan_observation_support_is_explicit_test_only_selection`，均通过。
+恢复脚本故障stub的精确新命令预期只作源码更新，不执行；CI完整测试命令亦未本地运行。
+fmt、docs880、diff与尺寸 `--base 1ef89349` 通过：2298手写Rust文件、36既有超千行。
+旧 `compilation_unit.rs` 仅+3行feature模块注册（1078行），`drop_planner.rs` 仅+4行净增长
+（1592行）接现有bool；算法与scope在独立模块，既有额度及拆分政策不变。
+
+唯一target、LLVM21.1.8、Rust1.96.0/macOS AArch64与默认debug2保持，四项环境覆盖仍未设置；
+全部Cargo串行。新增 `ci_only_observation_scope_restores_after_panic` 及前轮全部CI-only
+破损/Abort/压力/资源计数仅编译，不执行。未重跑旧478、native、sanitizer、正式双宿主CI。
+本片补齐上述Basic普通输入的真实off证据，不外推为常量capability off或所有形状覆盖，
+不迁Compatibility、不修改执行责任、不退休oracle、不关闭Spec/D10/E2，未push/PR/merge。
+
+独立只读复审精确 `242691c6` 无阻断，重算binary/选择hash与八条实际成功日志一致；
+默认三crate无feature、feature图debug2、11条serde_core前缀及0.25s均另行核实。
+两旧超千行文件的本轮有界注册/选择接线增长经独审认可，不修改1156/1669既有额度。
+最终仅补文档，不在文档头重复声称执行Rust；所有未运行边界保持如上。
