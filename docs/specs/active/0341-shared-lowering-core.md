@@ -10389,3 +10389,61 @@ feature仅loan-observation-test-support且build-finished=true；先按实际bina
 SSA 冻结身份和五角色、callee 独立及 shared owner 顺序；重新审阅普通 helper 无
 foreign 查询或故障注入。独审重算 binary/selection 哈希与七条日志、本树 debug2
 artifact 均一致；审阅者未编辑或执行测试。代码冻结后仅追加文档，不重跑无变化 Rust。
+
+## 2026-11-10 Group 与 P3 联合验收及旧名单分类纠正
+
+本地隔离合流代码头 `3d18f6b5310130ef13dd3f202ae760a0f4788d02`，双亲为 Group
+`fd4179d4ab5152f4dc1f6cb2e62117e906e4190a` 与 P3
+`6d11c3059579c2a151eb7233bbb7e25c8399409d`，共同基底 `9de0bc94`。
+本地 main、origin/main 与远端 main 均核为 `a775568f`。唯一冲突是本 Spec 尾部追加，
+保留两父完整原文；没有 Rust 冲突或语义修补。独立只读复核确认双父、干净代码头、
+两段追加逐字保全与无冲突标记，未代称独审运行测试。
+
+### 旧行为事实与分类分离
+
+专项逐源/helper 重审旧 500 加 Group 新 7 的 507 个唯一 exact，不以旧审核标签或
+总数减法推安全：443 项可作普通候选（frontend lib90、direct323、codegen30），
+54 项含真实 foreign catalog/analysis 句柄查询而排除（lib44、direct8、codegen1、
+public iteration1）。另10项有限笛卡尔矩阵已读完源码/helper、未见同类注入，但其
+本地执行范围仍待核，不在本轮执行；不自行用某个组合数定义压力阈值。
+
+旧 500 执行成功是历史事实，但不能再称全部纯普通。按原成功日志与新排除集精确
+求交，Group 原被中止批的144个 frontend 成功中有44项此类混合测试，15个 backend
+成功中有1项，共45项实际执行；末项旧 Return native 中止。先前至少三项只是当时
+初定位范围，不是最终完整数。保留所有旧日志，不将混合项改称未运行，不拆旧测试
+凑普通计数，也未为此次分类修正改动生产。
+
+审计产物为 `/private/tmp/koven-selection-reaudit-final.json`，SHA256
+`5baa46a3d4dedf8b32348251fb3ee298ac328dd9be20b55493f46bb9093051c7`；
+逐项包含来源、排除位置或独立 helper 记录及源码 hash。direct331 与 choice31 分项
+报告、普通白名单保存在同目录。它们是临时复核材料，不承诺长期保存；固定源码和
+本节摘要是可重做依据。未选项没有因出现在同一源文件而获得执行许可。
+
+### 本次合成输入的窄普通集合
+
+不重跑旧大集合。采用前节独立重审 Group16 加 P3七项，去重后23项：frontend4、
+codegen19。P3七项为上节五个新增 exact 加原 P2/P4两生命周期 exact，与 Group16
+无重名。所有新 helper 在合成源码复读；Group 原 native/source helper 未变，P3
+观察器仅记录真实生产结果，off 使用真实重分析产品；没有 foreign 查询或人工故障。
+
+两crate按 `cargo test --locked --offline -p <crate> --lib --no-run --message-format=json -j 2`
+串行重编；codegen显式加 `--features loan-observation-test-support`。实际编译耗时
+1m21s、31.41s，JSON核 build-finished、test artifact和 debug2；前端 features=[]，
+后端仅该测试 feature。随后 binary `--test-threads=1 --exact <完整23项分组名单>`：
+frontend4于0.09s、codegen19于69.76s全部成功，0失败/忽略，逐项成功集合与选择完全
+匹配。正常 native 只核实际输出，不声称资源次数；P3仍不宣称 native/Constant off。
+
+固定 tree `d1dd8d6ce6bc981c6cd9abf5a3694c903f636fec` 的构建、选择、binary SHA与
+精确成功日志保存在 `/private/tmp/koven-group-p3-evidence/manifest.json` 及邻接日志。
+本轮未执行54项混合、10项范围待核矩阵、任何命名 CI-only、人工损坏/故障、panic
+恢复、Abort、资源计数、压力或 sanitizer。所有这些守卫仅随 no-run/静态门禁编译。
+未执行剩余普通候选，不以443候选数冒充本轮行为通过数；未运行正式CI或Linux。
+
+静态门禁同代码头串行通过：默认 `cargo check --locked --offline -p lang-cli
+--message-format=json -j 2` 8.23s，frontend/codegen/CLI三crate features=[]且debug2；
+双crate显式 `lang-codegen/loan-observation-test-support` 的 all-targets Clippy
+`-W clippy::all -D warnings` 46.84s，workspace all-targets check 34.73s，fmt、
+docs882与diff通过。尺寸以main `a775568f`为基底，2327手写Rust、35历史超千行；
+未调整profile/预算或清理target。全部Cargo复用既有owner target并串行；四项
+DEV/TEST_DEBUG、RUSTFLAGS/ENCODED覆盖均未设置。保持active与Partial边界，未push、
+新建PR或合main；本地结果不代替下一精确发布头的正式CI。
