@@ -538,7 +538,7 @@ impl Builder<'_, '_> {
         facts: &[(usize, UnitDropTarget, Span)],
     ) -> Result<(), LoweringError> {
         self.sync_dead();
-        for (_, target, span) in facts {
+        for (index, target, span) in facts {
             let slot = match target {
                 UnitDropTarget::Named(symbol) => {
                     if let Some(ty) = self.symbol_type(*symbol)
@@ -581,6 +581,8 @@ impl Builder<'_, '_> {
             }
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
+            #[cfg(test)]
+            super::record_owner_drop(*target, *index, slot.0, None);
         }
         Ok(())
     }

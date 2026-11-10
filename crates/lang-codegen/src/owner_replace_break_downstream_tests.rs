@@ -194,3 +194,26 @@ fn assert_selected_owner(source: &UnitSource, function: &Function) {
         TerminatorKind::Return { .. }
     ));
 }
+
+#[test]
+fn bounded_replace_break_physical_drop_has_product_authorization() {
+    use lang_frontend::ownership_checking::{UnitDropTarget, UnitOwnerReplaceBreakConsumerActionV1 as A};
+    let source = UnitSource::analyze("bounded-owner-consumer.ko", SOURCE).expect("ordinary B source");
+    source.assert_frontend_clean();
+    let OwnedProducts::Basic(_, owned) = &source.products else { panic!("basic Unit") };
+    let boundary = owned.ownership().owner_observations().iter()
+        .find_map(|o| o.replace_break_observation_v1()).expect("B boundary");
+    let A::Drop(point, retired) = boundary.suffix_consumer_v1().unwrap().actions()[2] else { panic!("Drop") };
+    let index = owned.ownership().drops().iter().position(|d| d.point() == point && d.target() == UnitDropTarget::Named(retired)).unwrap();
+    let (result, events) = crate::ssa::observe_owner_drops(|| {
+        source.lower_entry(source.declaration("entry", SymbolKind::Function))
+    });
+    let (program, _) = result.expect("ordinary B lowering");
+    verify_program(&program).expect("selected owner SSA");
+    let selected = events.iter().filter(|e| e.0 == UnitDropTarget::Named(retired)).collect::<Vec<_>>();
+    assert_eq!(selected.len(), 1, "one physical suffix Drop, not one per incoming");
+    assert_eq!(selected[0].1, index, "exact legacy cleanup obligation");
+    let (_, bound, authorized_index) = selected[0].3.expect("physical Drop must consume a completed product Take/Bind authorization");
+    assert_eq!(bound, selected[0].2, "authorized selected binding reaches emitter");
+    assert_eq!(authorized_index, index);
+}
