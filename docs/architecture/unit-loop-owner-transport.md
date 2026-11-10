@@ -85,7 +85,7 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 ## 独立非空输入能力
 
 单个 immutable String 输入的真实 entry、正常/Continue 回边、Break 出口、双终端臂和
-双正常臂及正常/跳转混合臂合流，见[不变输入 owner 循环边界](unit-invariant-loop-owner.md)。直线 normal、裸 Continue/Break 的输入也可来自一次实际具名 move，条件 If 仍限直接输入。各能力独立
+双正常臂及正常/跳转混合臂合流，见[不变输入 owner 循环边界](unit-invariant-loop-owner.md)。各不变输入也可来自一次实际具名 move，条件 If 的边界仍不提供后缀消费图。各能力独立
 封印且互斥，不放宽本页空入边合同，也不授予一般 phi 或完整外层运输。
 
 ## 保留边界

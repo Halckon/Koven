@@ -107,10 +107,6 @@ impl InvariantInput {
         })
     }
 
-    pub(super) fn has_alias(&self) -> bool {
-        self.alias.is_some()
-    }
-
     // Before ordinary While rejection, retain only the actual direct or one-move prefix.
     fn capture(
         &mut self,

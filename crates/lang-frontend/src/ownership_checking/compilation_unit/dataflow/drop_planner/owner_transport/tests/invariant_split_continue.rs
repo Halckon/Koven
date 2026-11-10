@@ -13,7 +13,7 @@ fn source(body: &str) -> String {
         r#"fun run(flag: Boolean, other: Boolean) {{ val held = "outer"; while(flag) {{ {body} }}; val retired = held }}"#
     )
 }
-fn check(
+pub(super) fn check(
     fixture: &Fixture,
     index: usize,
     owned: &crate::ownership_checking::CompilationUnitOwnership,

@@ -243,11 +243,6 @@ impl LoopTransaction {
             }
             locals.insert(symbol);
         }
-        if invariant.as_ref().is_some_and(|input| input.has_alias())
-            && matches!(expected, LoopBodyCompletion::Conditional { .. })
-        {
-            return None;
-        }
         let required_parameters = if matches!(expected, LoopBodyCompletion::Conditional { .. }) {
             2
         } else {
