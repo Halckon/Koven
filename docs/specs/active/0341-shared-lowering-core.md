@@ -8274,3 +8274,32 @@ Clippy/workspace check的批次，以及最终direct/lib和静态重验批次，
 未运行。没有推送、PR、合并或Single oracle退休。
 后续具体步骤是给普通直线call登记区域与家族，再对真实Begin/continuation/cleanup义务
 建立独立覆盖认证；不得凭本增量非空或空动作表把Partial/Unsupported改成Complete。
+
+### Loan 默认配置基线复验与选择纠正（2026-11-10）
+
+以干净 `fbc0f3b8759132e12047d18caa952ba4860019f3` 为确切输入，逐源码及helper审计
+`unit_direct_call_loan_ends`全部306项，保守排除10项后固定296个完整exact名；两个
+`--lib loan_action_`项逐helper核为真实分析而非注入，保留2个完整exact名。
+相较前节六项排除，新增排除 `receiver_return::abort_after_completed_inner_receiver_does_not_invent_outer_return`
+（error/Abort源码），以及各生成32份函数/绑定的
+`borrow_binding_transport::repeated_local_binding_names_select_only_their_own_call_and_token`、
+`borrow_forward_transport::repeated_wrappers_keep_their_own_forwarded_call_and_return_edge`、
+`receiver_prefix::repeated_receiver_names_keep_each_functions_root_identity`（按压力保守排除）。
+因此前节300项也包含此次新识别的受限选择；保留其实际执行事实，但不再将300＋2称为
+全部符合本地选择约定的结果。此前iteration四项Abort及debug=0偏差均不撤销或隐去。
+
+未设置任何`CARGO_PROFILE_*`、`RUSTFLAGS`或`CARGO_ENCODED_RUSTFLAGS`；核当前环境、
+仓库与祖先Cargo配置无profile/debug覆盖。仅以
+`CARGO_TARGET_DIR=/private/tmp/koven-exclusive-loop-prefix-target`复用原target，执行
+`cargo test --locked --offline -p lang-frontend --test unit_direct_call_loan_ends --lib --no-run --message-format=json -vv -j 2`。
+两个真实测试artifact的JSON均为`profile.debuginfo=2`，实际rustc命令含`-C debuginfo=2`，
+不是只凭Cargo摘要推定默认档位。无target复制，未重跑iteration或十项排除。
+
+逐源审计35文件的路径/字节摘要为
+`2bc9765852050cbc6230b3f7ecb45388c8e47863b2e8fff5ba7187ad2d781c56`，运行前严格匹配。
+同次编译的两个二进制先`--exact --list`核名称集合，再以全部白名单完整名一次执行；
+实际分别296与2项通过、0失败/忽略，成功名称集合逐项一致，不累计前轮结果。
+direct二进制SHA256为`47312d5dcbdddfd72c5e65ad1e5c7766c3faa69c2c5b97cf2c53ca470aef5fe1`，
+lib为`09b51741ccab62281773d0ccf560c041542b8be7834aaf948c6d6ceb08b24a55`。
+这是默认配置下有界行为基线复验；Complete产品尚未实施，后续实现须以其精确输入重新
+验收。前轮默认静态/跨crate门禁缺口仍须补齐，不能将旧debug=0静态结果改标为debug=2。
