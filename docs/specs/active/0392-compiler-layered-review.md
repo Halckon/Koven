@@ -4906,6 +4906,28 @@ key 类型错误优先于待定恢复。外层期望类型的硬错也保留，�
 未发现阻断。另实跑确认暂定值经 `!!` 或 Elvis 包装后仍可使外层
 普通调用发布描述符，列为独立后续复审。
 
+## 197. R1 调用恢复合入与 R2 Single 批次合流
+
+[PR #404](https://github.com/Halckon/Koven/pull/404) 的 head `1c7fc66e`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42715152484)
+验收。双宿主各实际通过 9 项指定 Parser 回归、严格 Clippy 和
+最终门禁。Editor lexical 按范围跳过，macOS 既有 LLDB 用例因
+debugserver 权限忽略。六份预览产物独立下载校验，双宿主各 12 项
+独立消费、哨兵和清理通过，生产与消费清单的归档哈希均与实算一致。
+无未决审阅线程。基线 `c97c5a9b`、合成提交 `1434b4da`，实际合入
+`6ce85b07`。合成与合入树均为 `8bd014eba55b7feda60a8759e57e36ca5ec0811b`。
+[合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42720825998)
+已启动，双宿主 Workspace Check 与 Clippy 已通过，定向运行中。
+
+§193–196 的四个类型修复在 `6ce85b07` 合流为 `f6107a29`，
+测试树为 `af9d747458b0c0096bd6d4905c498d5cbdcdc40c`。合流前后类型源码
+与直接回归逐字相同，Parser 与该主干一致，双方历史账本完整保留。
+合流树 frontend 184 个目标共 3057 项通过，含 12 项文档测试，
+零失败、忽略或过滤。严格 workspace Clippy、CLI 构建、文档门禁
+通过。CLI 单文件和项目各实跑拒绝调用、有效写回、拒绝下标 key
+和拒绝 `.get` key 四组，均仅在原实参或应失效的后继读取报一条
+L0084。公共入口使用 Unit，旧 Single 事实由直接回归核对。
+
 ## 198. R2 Single 非空断言与 Elvis 的恢复和正常出口
 
 在 `f6107a29` 上，三入口公开类型 API 对照显示，待定 Map 查询
@@ -5005,3 +5027,22 @@ lexical 和最终汇总通过。PR 专用 Evidence 按范围跳过。
 同一基线的简单 Elvis 值报 UnsupportedNode，显式 if 对照正常
 构建运行，输出 `bypass` 和 `return`。R4 待查项是已延后能力
 在组合中的错误分类，Elvis native 实施仍按 Guide 15 分期。
+
+## 202. R2 Single 批次合入与 Boolean flow 合流
+
+[PR #405](https://github.com/Halckon/Koven/pull/405) 的 head `386e21fe`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42722572074)
+通过。双宿主严格 Check/Clippy、定向和最终门禁通过，两端日志各
+逐名确认 13 项 Inout 和 1 项 Map key 回归。Editor lexical 按范围
+跳过，macOS 既有 LLDB 用例因 debugserver 权限忽略。六份预览
+归档经独立下载，双宿主各 12 项消费命令、哨兵和清理通过，生产
+及消费清单的归档哈希与实算一致。无未决审阅线程。
+
+基线 `6ce85b07`，合成 `2e27355f`，实际合入 `144793e1`，
+合成与合入树均为 `9a88f98fea12e0a6ab9927c3ee43a953bfd01f14`。
+[合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42727311444)
+已启动，前置文档、格式、Editor 和三个 guard 均通过。
+
+§198–200 三个功能提交与该主干合流。双方共用的历史账本逐字
+保留，主干新增 §197 在本批追加内容之前。合流只增加 §197 和
+本节证据，crate 内容与 §201 的 3063 项本机验证树逐字一致。
