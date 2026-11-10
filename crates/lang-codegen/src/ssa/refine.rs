@@ -497,3 +497,10 @@ fn record_owner_return(
         }
     });
 }
+
+#[cfg(test)]
+pub(crate) mod named_receipt {
+    pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
+        (lower(), Vec::new())
+    }
+}
