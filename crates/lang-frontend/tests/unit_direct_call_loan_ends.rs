@@ -944,3 +944,6 @@ mod grouped_initializer;
 
 #[path = "unit_direct_call_loan_ends/borrow_temporary_auxiliary.rs"]
 mod borrow_temporary_auxiliary;
+
+#[path = "unit_direct_call_loan_ends/loop_forward_source.rs"]
+mod loop_forward_source;

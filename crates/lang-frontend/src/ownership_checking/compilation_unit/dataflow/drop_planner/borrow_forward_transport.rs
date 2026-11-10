@@ -26,7 +26,6 @@ impl DropPlanner<'_, '_> {
         if call.receiver().is_some()
             || !matches!(call.target(), UnitCallTarget::Declaration(_))
             || !matches!(call.result_source(), CallableResultSource::Borrow(_))
-            || !state.iterations.is_empty()
         {
             return;
         }
@@ -37,8 +36,27 @@ impl DropPlanner<'_, '_> {
             return;
         };
         // A borrowed parameter has no local owner to release. Do not generalize this
-        // handoff to local aliases, fields, receiver/provider roots or exclusive sources.
+        // handoff to local aliases, fields, receiver roots or exclusive sources.
+        // An unrelated active provider does not own this parameter token; an
+        // overlapping active provider still remains outside this observation.
         if !place.is_root()
+            || state.iterations.iter().any(|frame| {
+                frame.source_root.is_some_and(|provider| {
+                    provider == place.root()
+                        || self
+                            .checker
+                            .borrow_results
+                            .bindings()
+                            .iter()
+                            .any(|binding| {
+                                // The checker already canonicalized this stable alias;
+                                // field aliases protect the complete source root too.
+                                binding.binding() == provider
+                                    && matches!(binding.origin(), UnitLoanTarget::Place(origin)
+                                        if origin.root() == place.root())
+                            })
+                })
+            })
             || self.checker.symbol_kind(place.root()) != Some(SymbolKind::ValueParameter)
             || !self
                 .checker
