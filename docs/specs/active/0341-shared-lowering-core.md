@@ -11871,3 +11871,42 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
   不退休旧 oracle。两阶段红分别保留，阶段一 Partial 产品不自动升级。
 - 仅 fresh 审核普通小集合本地 exact，foreign/fault/Abort/counter/pressure 与 CI-only 只编译；
   借用 target 独占默认 debug2/LLVM21，不降档、复制或清理；本地分步提交，不推送。
+
+### parent-child 阶段二：独立 Complete 区域验收
+
+- 新隔离树基于阶段一 `e5a99113`；独立缺覆盖红 `371e356b`，生产 `8cdfcf48`，
+  oracle 类型修正后最终代码冻结 `323fa9b7dc87fc8dddc26b8f6ad4dc082f3e20ca`。
+  原阶段一树不改、main 不合，本地分步提交，未推送。
+- 新 `UnitBorrowChildRegion` 与 `child_regions()` 独立于旧 `binding_regions()`，不触发七记录 receipt。
+  entry 是 parent 声明真实进入前的记录游标，唯一已形成 String owner 是前提而非被覆盖形成动作；
+  completion 在完整 root body cleanup wrapper 之后，scope0 与全部 active 义务为空。
+- 精确四原始 statement、parent/child 两 initializer 各唯一事实与各唯一端点、无入区旧 active、
+  出区全部 active 空及完整未过滤十记录联合证明本区域全集；不以两个 symbol 的过滤结果单独推全覆盖，
+  也不要求全 source 恰两 binding 而误拒其他 callable。原普通 fixture 直接核全产品两 facts/两 ends。
+  validator 逐 catalog ID 核所有依赖引用，并从已验证 cleanup ID 取唯一真实 AppendedDrop.removed_owner，
+  与入区 Some owner token、callable、声明等全字段核对；不由 Span/root 相等拼接清理。
+- 红 no-run 1m08s 成功、opt0/debug2/test/support；唯一 exact 实际 0/1/0/2934 filtered，
+  首 Rooted 的真 on/off、legacy Eq、十 actions/十 SSA/LLVM及阶段一七个依赖 ID 已先通过，
+  在缺独立 child region 处失败，第二布局未达。覆盖前独立实读红 binary SHA
+  `bad1f7de3214f7bf7195cb1a1d1898e48e18092453a4a41588091af5b03d7f96`；未重演红。
+- 首 green 编译成功 27.85s，核心 exact 1/0/0/2935，完整双 Unit 真 on/off 与公开字段 oracle 通过。
+  最终 fresh no-run 0.14s，七个 fresh 审定 ordinary exact 各 1/0/0/2935，名单无额外选择。
+  六项共 30 次有限 SSA/LLVM lower，另一个 merge 邻控仅 FE；0 native。
+  额外第五句 ping 保十 actions/一个真实 Drop 关系但不获 Complete，later parent/root use 与 merge 亦不获；
+  旧 single-binding receipt 与 P3 真 off、P4 同源双 Unit 邻控保留。两项新增 CI-only 仅编译，未执行故障构造。
+- 冻结输入 4248 个 tracked 文件，清单 SHA
+  `232d9603340b936925413d135f2431e1fd744825fb65591f1d2c89dd6fcc4e27`；七项选择 SHA
+  `9363b3d8b0ecb8289009eb30a836e918aa17f6e868bab09fe8b82a9f3cb45525`。
+  实际 CG binary SHA `297bba32bccba9e153553245c3ab919b478a4c7c5118ab584f9f7c534818e5ac`，
+  原 Cargo artifact 绑定本树 opt0/debug2/test=true、仅 loan-observation-test-support。
+- 严格 frontend/codegen Clippy all-targets/support 40.86s；默认 workspace all-targets 33.24s；
+  fmt、docs 885、尺寸（base 最终代码，2393 文件/35 项历史超限）、diff 通过。
+  旧大文件仅模块注册与薄 hook 增长，额度/拆分计划未变；不外推 CLI 空 feature artifact、release 或正式 CI。
+- 过程偏差：首 green no-run 的新测试将 BorrowSourceLoan 误与 UnitLoanFact 直接比较，E0308 后仅改为
+  完整 call/argument 身份比较，保存失败 JSON/log，生产无改；这是 oracle 编译错误，不是能力红。
+  一次只读 exec transport 断连，经环境列表确认 Mac connected、attach 同 ID 后恢复原 dirty 树；
+  两次只读旧模块路径未命中后定位实际模块，均未重跑 probe 或覆盖代码。
+  全部原件在 `/private/tmp/koven-parent-child-coverage-evidence`，含各阶段 artifact/log/manifest 与输入哈希；
+  交付时按证据保留合同归档。本区域 Complete 不升级 source/callable，不新增 receipt 或退休 oracle。
+- 独立只读终审已核两阶段边界、真实红/绿/最终七项、raw artifact/profile 与执行后二进制 SHA；
+  最终仅两 docs 偏离 4248 冻结输入，其冻结 git 对象及其余 4246 输入仍匹配，无新增阻断。
