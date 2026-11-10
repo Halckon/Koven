@@ -11445,3 +11445,18 @@ production receipt；不宣称全量/正式双宿主 CI、sanitizer、release �
 4215冻结输入、两个实际binary/raw artifact、13项名单/runner/原日志及默认CLI三空feature
 均核对一致。收尾仅Spec变化，非docs零漂移；尺寸误名exit2与正确补跑分别保留。
 独审确认上述有限native与借用FE-only分账及覆盖限制，随后仅docs本地提交，不重跑Rust。
+
+### 单 binding Complete 受限生产核验合同（2026-11-10）
+
+从 clean9c067f77 新隔离树实施独立 Binding receipt，只选择同轮、当前实际 caller 实例的
+Complete binding region。source/callable仍Partial；observer-off、Partial、Unsupported或
+缺席维持旧路径，不新增语言、ABI、route或cleanup责任。旧producer唯一执行。
+entry_statement前绑定已形成的owner Slot，不声称覆盖StringLiteral形成；核原RootPlace、
+source Begin、BorrowCall result、普通consumer复用result、result End、source End、owner Drop
+七个真实SSA角色/四实体。consumer前端Begin/use-return不造第三SSA loan，不提前结束binding。
+entry和completion须经过真实statement及cleanup；选中计划漏阶段/错实例/不闭合结构化失败。
+独立family的RStmt tag随merge移动，在实际append_instruction取证，Alias无新指令；禁止Span
+配对、回扫拼链或复用P4角色。保owner授权/push/提交及原Drop消费顺序。
+先普通原样Complete+既有八SSA/LLVM成功，再断缺receipt形成独立红，之后最小接线及双Unit
+真实on/off绿。普通小集合逐helper鲜审，foreign/fault/Abort/counter/压力等CI-only仅编译。
+默认debug2/LLVM21、独占borrow target，不push/PR；production能力和覆盖认证分别留账。
