@@ -345,3 +345,20 @@ fn owner_observation_preserves_grouped_initializer_handoff_and_unwind() {
     assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
     compare(&fixture, &fixture.parts(&shared));
 }
+
+#[test]
+fn temporary_auxiliary_handoff_preserves_complete_owner_analysis() {
+    for tail in ["\"ready\"", "if (flag) { return } else { \"ready\" }"] {
+        let source = format!(
+            "fun select(source: String, aux: String): borrow String from source = source\nfun run(flag: Boolean): Unit {{ val owner = \"kept\"; borrow val item = select(owner, {tail}); println(item) }}"
+        );
+        let fixture = Fixture::new(&[("root.ko", &source)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        let [handoff] = owned.borrow_call_handoffs() else {
+            panic!("one normal handoff")
+        };
+        assert_eq!(handoff.auxiliary_loan_ends().len(), 1);
+        compare(&fixture, &fixture.parts(&owned));
+    }
+}

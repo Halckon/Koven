@@ -941,3 +941,6 @@ mod interpolated_string;
 
 #[path = "unit_direct_call_loan_ends/grouped_initializer.rs"]
 mod grouped_initializer;
+
+#[path = "unit_direct_call_loan_ends/borrow_temporary_auxiliary.rs"]
+mod borrow_temporary_auxiliary;
