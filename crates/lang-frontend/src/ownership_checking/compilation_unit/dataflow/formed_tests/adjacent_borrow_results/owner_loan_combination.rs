@@ -7,14 +7,78 @@ const B: &str = r#"fun run(flag: Boolean) { var held = "outer"; while(flag) { va
 const LOAN: &str = r#"fun inspect(value: String): Int = 1
 class Node { fun touch(): Int = 1 }
 fun view(source: String): borrow String from source = source
+fun consume(item: String): Unit {}
 fun loans(own node: Node): Unit {
 inspect("temporary")
 val owner = "kept"
 inspect(owner)
 node.touch()
+consume(view(owner))
 borrow val item = view(owner)
 println(item)
 }"#;
+
+// Only resolve carried public handles. Descriptor equality is checked afterward,
+// never used to discover a dependency or to claim a dynamic activation identity.
+fn assert_consumer_dependencies(
+    observations: &[crate::ownership_checking::UnitLoanActionObservation],
+    transports: &[crate::ownership_checking::UnitBorrowCallTransportFact],
+) {
+    assert_eq!(
+        transports.len(),
+        1,
+        "one real synchronous consumer transport"
+    );
+    let mut count = 0;
+    for observation in observations {
+        for (retired_index, action) in observation.actions().iter().enumerate() {
+            let Action::BorrowConsumerRetired(retirement) = action else {
+                continue;
+            };
+            count += 1;
+            assert_eq!(retirement.transaction(), &transports[0]);
+            let [consumer, source] = retirement.transaction().ended_loans();
+            let source_id = retirement
+                .source_begin()
+                .expect("actual source acquisition");
+            let transfer_id = retirement.transfer().expect("actual source transfer");
+            let consumer_id = retirement
+                .consumer_begin()
+                .expect("actual consumer acquisition");
+            assert_eq!(
+                observation.action(&source_id),
+                Some(&Action::Begin(source.clone()))
+            );
+            assert_eq!(
+                observation.action(&consumer_id),
+                Some(&Action::Begin(consumer.clone()))
+            );
+            assert_eq!(
+                observation.action(&transfer_id),
+                Some(&Action::BorrowConsumerTransfer {
+                    source: source.clone(),
+                    consumer: consumer.call(),
+                    argument: consumer.argument(),
+                })
+            );
+            let indices = [&source_id, &transfer_id, &consumer_id].map(|id| {
+                (0..observation.actions().len())
+                    .find(|&index| observation.action_id(index).as_ref() == Some(id))
+                    .expect("same catalog public handle")
+            });
+            assert!(
+                indices[0] < indices[1] && indices[1] < indices[2] && indices[2] < retired_index
+            );
+            assert_eq!(
+                observation.coverage(),
+                crate::ownership_checking::UnitLoanActionCoverage::Partial
+            );
+            assert_eq!(source.call().source_unit(), observation.source());
+            assert_eq!(consumer.call().source_unit(), observation.source());
+        }
+    }
+    assert_eq!(count, 1, "nonempty acquisition-to-retirement evidence");
+}
 
 fn assert_public_cleared(shared: &CompilationUnitOwnership) {
     assert!(shared.loan_action_observations().is_empty());
@@ -90,6 +154,12 @@ fn reject(suffix: &str, deferred: bool) {
     assert_eq!(
         raw.loan_action_observations,
         shared.loan_action_observations()
+    );
+
+    assert_consumer_dependencies(&raw.loan_action_observations, &raw.borrow_call_transports);
+    assert_consumer_dependencies(
+        shared.loan_action_observations(),
+        shared.borrow_call_transports(),
     );
 
     // Both positive sources remain unchanged and precede an independent source.

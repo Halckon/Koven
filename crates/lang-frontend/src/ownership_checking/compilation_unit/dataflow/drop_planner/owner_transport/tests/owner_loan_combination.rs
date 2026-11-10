@@ -19,7 +19,73 @@ const LOANS: &[(&str, &str)] = &[
         "result",
         "fun view(source: String): borrow String from source = source\nfun loans(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = view(parent); println(child) }",
     ),
+    (
+        "consumer",
+        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun loans(): Unit { val owner = \"kept\"; consume(view(owner)) }",
+    ),
 ];
+
+// Only resolve carried public handles. Descriptor equality is checked afterward,
+// never used to discover a dependency or to claim a dynamic activation identity.
+fn assert_consumer_dependencies(
+    observations: &[crate::ownership_checking::UnitLoanActionObservation],
+    transports: &[crate::ownership_checking::UnitBorrowCallTransportFact],
+) {
+    assert_eq!(
+        transports.len(),
+        1,
+        "one real synchronous consumer transport"
+    );
+    let mut count = 0;
+    for observation in observations {
+        for (retired_index, action) in observation.actions().iter().enumerate() {
+            let Action::BorrowConsumerRetired(retirement) = action else {
+                continue;
+            };
+            count += 1;
+            assert_eq!(retirement.transaction(), &transports[0]);
+            let [consumer, source] = retirement.transaction().ended_loans();
+            let source_id = retirement
+                .source_begin()
+                .expect("actual source acquisition");
+            let transfer_id = retirement.transfer().expect("actual source transfer");
+            let consumer_id = retirement
+                .consumer_begin()
+                .expect("actual consumer acquisition");
+            assert_eq!(
+                observation.action(&source_id),
+                Some(&Action::Begin(source.clone()))
+            );
+            assert_eq!(
+                observation.action(&consumer_id),
+                Some(&Action::Begin(consumer.clone()))
+            );
+            assert_eq!(
+                observation.action(&transfer_id),
+                Some(&Action::BorrowConsumerTransfer {
+                    source: source.clone(),
+                    consumer: consumer.call(),
+                    argument: consumer.argument(),
+                })
+            );
+            let indices = [&source_id, &transfer_id, &consumer_id].map(|id| {
+                (0..observation.actions().len())
+                    .find(|&index| observation.action_id(index).as_ref() == Some(id))
+                    .expect("same catalog public handle")
+            });
+            assert!(
+                indices[0] < indices[1] && indices[1] < indices[2] && indices[2] < retired_index
+            );
+            assert_eq!(
+                observation.coverage(),
+                crate::ownership_checking::UnitLoanActionCoverage::Partial
+            );
+            assert_eq!(source.call().source_unit(), observation.source());
+            assert_eq!(consumer.call().source_unit(), observation.source());
+        }
+    }
+    assert_eq!(count, 1, "nonempty acquisition-to-retirement evidence");
+}
 
 #[test]
 fn four_switches_preserve_b_consumer_and_all_legacy_products() {
@@ -30,6 +96,12 @@ fn four_switches_preserve_b_consumer_and_all_legacy_products() {
         let fixture = Fixture::new(&[("root.ko", &text)]);
         let owned = fixture.shared();
         assert!(owned.clone().validate().is_ok(), "{kind}");
+        if *kind == "consumer" {
+            assert_consumer_dependencies(
+                owned.loan_action_observations(),
+                owned.borrow_call_transports(),
+            );
+        }
         let b = Fixture::new(&[("b.ko", loop_replace_break::SOURCE)]);
         loop_replace_break::check(&b, 0, &b.shared());
         compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
@@ -80,7 +152,7 @@ fn four_switches_preserve_b_consumer_and_all_legacy_products() {
                 }
                 if loan {
                     let observations = &actual.loan_action_observations;
-                    if *kind != "result" {
+                    if !matches!(*kind, "result" | "consumer") {
                         assert!(
                             observations.iter().any(|o| o
                                 .regions()
@@ -110,6 +182,10 @@ fn four_switches_preserve_b_consumer_and_all_legacy_products() {
                                     .any(|a| matches!(a, Action::BorrowBindingEnd(_)))
                             );
                         }
+                        "consumer" => assert_consumer_dependencies(
+                            observations,
+                            &actual.borrow_call_transports,
+                        ),
                         _ => unreachable!(),
                     }
                 }
