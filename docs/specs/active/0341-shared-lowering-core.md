@@ -13507,3 +13507,10 @@ SourceRetired因果共存，仍不扩Complete/region/receipt或legacy Dependency
 默认CLI构建及实际help（features为空）、fmt/docs897/diff均通过；尺寸2452手写Rust
 文件、35历史超限，无新增豁免。仍用opt0/debug2，不执行CI-only、Abort或资源计数。
 最后只追加本Spec；未推送、未合main，正式CI和独立审查不能由此替代，D10/E2未整体完成。
+
+### Root-qualified edge 身份基础（2026-11-11，本地开发）
+
+依据 ADR-0038，首片将现有 sealed normal header 的结构边绑定同轮 catalog、callable、
+control 及 root，不改变 planner、旧 oracle 或 consumer 权限。此为一般多根/嵌套前置
+身份隔离，不提供多根 incoming 相关性或嵌套 CFG 完整证明。先以真实源码重分析探针
+验证同 AST ID 不等于同轮边；当前空 API 待实跑，尚无通过结论。

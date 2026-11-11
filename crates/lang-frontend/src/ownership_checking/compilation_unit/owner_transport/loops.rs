@@ -1,6 +1,8 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
 mod invariant;
 mod normal_backedge;
+mod qualified_edge;
+pub use qualified_edge::UnitOwnerRootEdgeV1;
 mod open;
 pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
     HeaderCompletion, HeaderCore, HeaderEquation, MixedParameterThreshold,
