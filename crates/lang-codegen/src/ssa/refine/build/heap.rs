@@ -11,7 +11,7 @@ use lang_frontend::{
 
 use super::{
     Builder, Lowered,
-    place::{OwnerLoan, OwnerRef},
+    field::{OwnerLoan, OwnerRef},
 };
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},

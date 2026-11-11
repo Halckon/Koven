@@ -6,7 +6,7 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallDescriptor, UnitCallReceiverOrigin, UnitExpressionId},
 };
 
-use super::{Builder, place::OwnerRef};
+use super::{Builder, field::OwnerRef};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind},

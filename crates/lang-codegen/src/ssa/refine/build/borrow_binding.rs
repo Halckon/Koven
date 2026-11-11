@@ -1,8 +1,104 @@
-//! Local borrow binding initialization and retirement, preserving original cleanup order.
+//! Local borrow binding initialization, statement loan-tag dispatch, and receipt retirement.
 use super::*;
-use crate::ssa::{borrow_result_support::ordinary_local, model::LoanKind};
+use crate::ssa::{
+    borrow_result_support::ordinary_local,
+    model::LoanKind,
+    refine::body::{LoanTag, RStmt},
+};
 use lang_frontend::ownership_checking::BorrowBindingStorage;
+
 impl Builder<'_, '_> {
+    pub(super) fn push(
+        &mut self,
+        op: ROp,
+        results: Vec<Slot>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.sync_dead();
+        let block = self.current(span)?;
+        let consumer = self.body.loan_plans.statement(&op, &results, block, span)?;
+        let receiver = self
+            .body
+            .receiver_plans
+            .statement(&op, &results, block, span)?;
+        let named = self
+            .body
+            .named_plans
+            .statement(&op, &results, block, span)?;
+        let temporary = self
+            .body
+            .temporary_plans
+            .statement(&op, &results, block, span)?;
+        let binding = self
+            .body
+            .binding_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (consumer, receiver, named, temporary, binding) {
+            (Some(tag), None, None, None, None) => Some(LoanTag::Consumer(tag)),
+            (None, Some(tag), None, None, None) => Some(LoanTag::Receiver(tag)),
+            (None, None, Some(tag), None, None) => Some(LoanTag::Named(tag)),
+            (None, None, None, Some(tag), None) => Some(LoanTag::Temporary(tag)),
+            (None, None, None, None, Some(tag)) => Some(LoanTag::Binding(tag)),
+            (None, None, None, None, None) => None,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        self.body.blocks[block.0].statements.push(RStmt {
+            op,
+            results,
+            span,
+            loan_tag,
+        });
+        Ok(())
+    }
+
+    /// Appends `op` producing one fresh slot of `ty`.
+    pub(super) fn value(
+        &mut self,
+        op: ROp,
+        ty: EntityType,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
+        let slot = self.body.slot(ty);
+        self.push(op, vec![slot], span)?;
+        Ok(slot)
+    }
+
+    pub(super) fn finish_loan_receipts(&self) -> Result<(), LoweringError> {
+        self.body
+            .loan_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .receiver_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .named_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .temporary_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .binding_plans
+            .finish(&self.consumed_drops, self.inputs.span)
+    }
+
+    pub(super) fn authorize_loan_drops(
+        &mut self,
+        index: usize,
+        target: UnitDropTarget,
+        slot: Slot,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.body.loan_plans.drop_fact(index, target, slot, span)?;
+        self.body
+            .receiver_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body.named_plans.drop_fact(index, target, slot, span)?;
+        self.body
+            .temporary_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body.binding_plans.drop_fact(index, target, slot, span)
+    }
+
     pub(super) fn local_borrow_binding(
         &mut self,
         symbol: UnitSymbolId,
@@ -150,9 +246,7 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
-}
 
-impl Builder<'_, '_> {
     pub(super) fn named_argument_loan(
         &mut self,
         call: UnitExpressionId,
@@ -201,9 +295,7 @@ impl Builder<'_, '_> {
         )?;
         Ok(loan)
     }
-}
 
-impl Builder<'_, '_> {
     pub(super) fn statement(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
         let id = UnitStatementId::new(self.inputs.source_unit, statement);
         if self.body.binding_plans.has_entry(id) {
@@ -249,6 +341,7 @@ impl Builder<'_, '_> {
         }
         Ok(result)
     }
+
     fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
         if !self.borrowed.is_empty()
             || !self.result_source_loans.is_empty()
@@ -267,6 +360,7 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
+
     pub(super) fn binding_consumer_argument(
         &mut self,
         call: UnitExpressionId,

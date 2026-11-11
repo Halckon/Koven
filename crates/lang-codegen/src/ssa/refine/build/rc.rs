@@ -7,7 +7,7 @@ use lang_frontend::{
     type_checking::{RcOperationKind, UnitConstructionTarget},
 };
 
-use super::{Builder, Lowered, place::OwnerLoan};
+use super::{Builder, Lowered, field::OwnerLoan};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind},
