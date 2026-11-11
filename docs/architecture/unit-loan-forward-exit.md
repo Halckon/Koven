@@ -99,5 +99,11 @@ BindingEnd关闭的集合token经独立cause匹配完整removed source快照及�
 多B直线另发布独立`multi_binding_regions()` Complete：沿真实全事件序列核每A
 发生时已返回B数，同一transport进度及活source快照，或末B后的已证source Drop。
 末A的原End经独立cause关联实际removed aux与原Drop；全7+B+2A记录、两owner
-事件及真实空义务出口共同闭合，旧Partial不受新失败污染。多B新CG receipt尚未实现。
+事件及真实空义务出口共同闭合，旧Partial不受新失败污染。
 见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多b动态辅助进度与完整区域实施中)。
+
+多B独立动态CG receipt按原A/B序列核10+4A+B真实角色、7+2A实体。每B call均
+共用原result loan，只有末B结束result/source并Drop；A各有fresh Place/Loan，
+末A才Drop aux。完整FE区间/集合/退休、typed/sourcePlan及两raw Drop独立准入，
+两owner入口冻结，append/alias逐项核验，原verifier后原子发布；旧见证保留。见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多b完整区域的真实动态后端收据实施中)。

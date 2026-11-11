@@ -172,6 +172,7 @@ pub(super) fn build(
             later_aux_plans: super::later_aux_receipt::Plans::new(inputs)?,
             auxiliary_sequence_plans: super::auxiliary_sequence_receipt::Plans::new(inputs)?,
             interleaved_aux_plans: super::interleaved_aux_receipt::Plans::new(inputs)?,
+            multi_binding_plans: super::multi_binding_receipt::Plans::new(inputs)?,
             forward_plans: super::forward_receipt::Plans::new(inputs)?,
             branch_plans: super::branch_receipt::Plans::new(inputs)?,
             nested_plans: super::nested_receipt::Plans::new(inputs)?,

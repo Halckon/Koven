@@ -494,5 +494,6 @@ pub(crate) mod binding_receipt;
 pub(crate) mod distinct_aux_receipt;
 pub(crate) mod interleaved_aux_receipt;
 pub(crate) mod later_aux_receipt;
+pub(crate) mod multi_binding_receipt;
 
 pub(crate) mod child_receipt;

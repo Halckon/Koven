@@ -14710,3 +14710,28 @@ Drop；两owner真实入口、精确owner事件与空义务出口共同验证。
 
 最终workspace all-targets、默认FE/CG lib no-run、fmt/diff与文档897项通过。无native
 全套或远端CI，仅本地提交未推送；多B独立真实CG receipt仍为下一片。
+
+#### 多B完整区域的真实动态后端收据（实施中）
+
+基于83c8a0da，独立CG协议消费多B完整区域及原Partial集合/退休证据。沿完整声明
+A/B顺序，对全部实际append逐角色验证，不以多个B的FE acquisition虚构多个SSA
+result loan。每B的实际call仍消费同一result loan，只有最后B结束result/source并
+Drop source；每A独立Place/Loan/Call/End，只有末A之后Drop aux。
+
+预算保持A1..8/B2..8，动态角色10+4A+B、实体7+2A，严格两个Drop实际次序及
+source0/1位置。独立同catalog/typed/sourcePlan准入、原7+B+2A动作与每返回身份
+对应；原verifier成功后原子发布，任何失败撤销pending。旧receipt/见证/policy不改，
+先真实missing-receipt红，再全矩阵绿；CI-only仅编译，本地提交不推送。
+
+实际lowering成功后missing receipt 0!=1真红转绿。最终CG普通84项通过，155词/
+1240执行组合含所有FE99个多B资格形状（792组合），保留44个单B及预算外邻界。
+逐全FE action/call ID与A/B顺序、连续10+4A+B实际指令、7+2A实体及observer开关
+SSA/LLVM等价核验；B9/A9仍合法旧执行但不获新receipt。独立复审确认完整原区间、
+每A相位/每B实际return cursor、两raw Drop与typed/sourcePlan；Plan补调用/argument
+身份唯一性防伪，不放宽旧资格。新增5组CI-only仅编译，未执行；原verifier后发布
+及失败回滚保持。日志multi-binding-receipt-*，FE/旧receipt生产及policy零改。
+
+最终Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff及
+文档897项通过。尺寸2601手写Rust文件/36历史超1000，唯一旧1684>1674失败保留；
+原文件/policy零改。build1014→1015仅Plans创建，经非作者review仍≤1025，emit987
+不增长；新模块与普通研究测试均<1000。无native全套或远端CI，本地提交未推送。

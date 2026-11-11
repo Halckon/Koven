@@ -1,4 +1,4 @@
-//! Ordinary research over real A(auxiliary)/B(binding) uses; no new receipt authority.
+//! Ordinary real A(auxiliary)/B(binding) execution and independently qualified receipt identities.
 use super::*;
 use lang_frontend::ownership_checking::{
     check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
@@ -19,7 +19,7 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
     }
     assert_eq!(words.len(), 22);
     // All 44 unique-binding positions within the A1..8 budget, plus all
-    // ten A9 positions. Keep the original multi-B words as negative evidence.
+    // ten A9 positions. Keep the original short multi-B words.
     for count in 1..=9 {
         for before in 0..=count {
             let word = format!("{}B{}", "A".repeat(before), "A".repeat(count - before));
@@ -36,7 +36,7 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
             .count(),
         44
     );
-    // Long repeated-binding evidence is an execution check, not new receipt authority.
+    // Long repeated-binding cases include both qualified and out-of-budget evidence.
     for word in [
         format!("A{}", "B".repeat(8)),
         format!("{}A", "B".repeat(8)),
@@ -49,6 +49,28 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
         words.push(word);
     }
     assert_eq!(words.len(), 73);
+    for length in 3..=6 {
+        for mask in 1..(1usize << length) - 1 {
+            let word = (0..length)
+                .map(|bit| if mask & (1 << bit) == 0 { 'A' } else { 'B' })
+                .collect::<String>();
+            if word.bytes().filter(|c| *c == b'B').count() >= 2 && !words.contains(&word) {
+                words.push(word);
+            }
+        }
+    }
+    words.push(format!("{}BB", "A".repeat(9)));
+    assert_eq!(words.len(), 155);
+    assert_eq!(
+        words
+            .iter()
+            .filter(|word| {
+                let a = word.bytes().filter(|c| *c == b'A').count();
+                (1..=8).contains(&a) && (2..=8).contains(&(word.len() - a))
+            })
+            .count(),
+        99
+    );
     for word in words {
         for source_index in 0..2 {
             let (parameters, arguments) = if source_index == 0 {
@@ -231,18 +253,23 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                 let mut previous = None;
                 for (setting, owned) in [("on", &on), ("off", &off)] {
                     let (
-                        (((((lowered, verified), old), asap), later), sequence),
-                        interleaved_receipts,
-                    ) = crate::ssa::refine::interleaved_aux_receipt::observe(|| {
-                        crate::ssa::refine::auxiliary_sequence_receipt::observe(|| {
-                            crate::ssa::refine::later_aux_receipt::observe(|| {
-                                crate::ssa::refine::distinct_aux_receipt::observe(|| {
-                                    crate::ssa::refine::aux_binding_receipt::observe(|| {
-                                        crate::ssa::unit_lower::observe_final_verifier(|| {
-                                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                                &sources, &inputs, &names, &types, &typed, owned,
-                                                entry,
-                                            )
+                        (
+                            (((((lowered, verified), old), asap), later), sequence),
+                            interleaved_receipts,
+                        ),
+                        multi_receipts,
+                    ) = crate::ssa::refine::multi_binding_receipt::observe(|| {
+                        crate::ssa::refine::interleaved_aux_receipt::observe(|| {
+                            crate::ssa::refine::auxiliary_sequence_receipt::observe(|| {
+                                crate::ssa::refine::later_aux_receipt::observe(|| {
+                                    crate::ssa::refine::distinct_aux_receipt::observe(|| {
+                                        crate::ssa::refine::aux_binding_receipt::observe(|| {
+                                            crate::ssa::unit_lower::observe_final_verifier(|| {
+                                                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                                    &sources, &inputs, &names, &types, &typed,
+                                                    owned, entry,
+                                                )
+                                            })
                                         })
                                     })
                                 })
@@ -261,6 +288,15 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                         sequence.len(),
                         usize::from(setting == "on" && qualified),
                         "new dynamic sequence receipt"
+                    );
+                    assert_eq!(
+                        multi_receipts.len(),
+                        usize::from(
+                            setting == "on"
+                                && (1..=8).contains(&a_count)
+                                && (2..=8).contains(&b_count)
+                        ),
+                        "new multi-binding receipt"
                     );
                     assert_eq!(verified.len(), 1);
                     assert!(old.is_empty());
@@ -515,6 +551,163 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                             actual[auxiliary_drop].operation,
                             Operation::Drop { owner: *aux_owner }
                         );
+                    }
+
+                    if let [receipt] = multi_receipts.as_slice() {
+                        use crate::ssa::refine::multi_binding_receipt::UseRole;
+                        let [region] = catalog.multi_binding_regions() else {
+                            panic!("one complete multi region");
+                        };
+                        let set = region.retirement().use_set();
+                        assert!(catalog.owns_multi_binding_region(region));
+                        assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+                        assert_eq!(receipt.ids.len(), 7 + b_count + 2 * a_count);
+                        assert_eq!(receipt.callable, set.callable());
+                        assert_eq!(receipt.binding, set.binding());
+                        assert_eq!(receipt.caller, entry);
+                        assert_eq!(
+                            receipt.calls,
+                            region
+                                .auxiliary_uses()
+                                .iter()
+                                .map(|u| u.loan().call())
+                                .collect::<Vec<_>>()
+                        );
+                        assert_eq!(
+                            receipt.consumer_calls,
+                            set.uses()
+                                .iter()
+                                .map(|u| u.loan().call())
+                                .collect::<Vec<_>>()
+                        );
+                        assert_eq!(receipt.entry_statement, region.entry_statement());
+                        assert_eq!(receipt.completion_statement, region.completion_statement());
+                        assert_eq!(receipt.instructions.len(), 10 + 4 * a_count + b_count);
+                        assert_eq!(receipt.entities.len(), 7 + 2 * a_count);
+                        assert_eq!(
+                            receipt.entities.iter().collect::<BTreeSet<_>>().len(),
+                            receipt.entities.len()
+                        );
+                        let function = program.modules[0].function(entry).unwrap();
+                        assert!(
+                            function.blocks[0]
+                                .instructions
+                                .windows(receipt.instructions.len())
+                                .any(|w| w == receipt.instructions)
+                        );
+                        let actual = receipt
+                            .instructions
+                            .iter()
+                            .map(|id| function.instruction(*id).unwrap())
+                            .collect::<Vec<_>>();
+                        assert!(actual.iter().all(|i| i.block == function.blocks[0].id));
+                        let [
+                            EntityId::Value(owner),
+                            EntityId::Value(aux_owner),
+                            EntityId::Place(place),
+                            EntityId::Loan(source),
+                            EntityId::Place(aux_place),
+                            EntityId::Loan(aux_loan),
+                            EntityId::Loan(result),
+                        ] = &receipt.entities[..7]
+                        else {
+                            panic!("seven semantic identities");
+                        };
+                        for (offset, owner, place, loan) in [
+                            (source_index * 2, owner, place, source),
+                            ((1 - source_index) * 2, aux_owner, aux_place, aux_loan),
+                        ] {
+                            assert_eq!(
+                                actual[offset].operation,
+                                Operation::RootPlace { owner: *owner }
+                            );
+                            assert_eq!(actual[offset].results, [EntityId::Place(*place)]);
+                            assert_eq!(
+                                actual[offset + 1].operation,
+                                Operation::BorrowBegin {
+                                    place: *place,
+                                    kind: LoanKind::Shared
+                                }
+                            );
+                            assert_eq!(actual[offset + 1].results, [EntityId::Loan(*loan)]);
+                        }
+                        assert!(
+                            matches!(&actual[4].operation,Operation::BorrowCall{source:s,arguments,..} if s==source && arguments[source_index]==EntityId::Loan(*source) && arguments[1-source_index]==EntityId::Loan(*aux_loan))
+                        );
+                        assert_eq!(actual[4].results, [EntityId::Loan(*result)]);
+                        assert_eq!(
+                            actual[5].operation,
+                            Operation::BorrowEnd { loan: *aux_loan }
+                        );
+                        let (mut next_a, mut next_b, mut cursor) = (0, 0, 6);
+                        let mut order = Vec::new();
+                        for letter in word.chars() {
+                            if letter == 'A' {
+                                order.push(UseRole::Auxiliary(next_a));
+                                let [EntityId::Place(place), EntityId::Loan(loan)] =
+                                    &receipt.entities[7 + 2 * next_a..9 + 2 * next_a]
+                                else {
+                                    panic!("A identities");
+                                };
+                                assert_eq!(
+                                    region.auxiliary_uses()[next_a].returned_binding_uses(),
+                                    next_b
+                                );
+                                assert_eq!(
+                                    actual[cursor].operation,
+                                    Operation::RootPlace { owner: *aux_owner }
+                                );
+                                assert_eq!(actual[cursor].results, [EntityId::Place(*place)]);
+                                assert_eq!(
+                                    actual[cursor + 1].operation,
+                                    Operation::BorrowBegin {
+                                        place: *place,
+                                        kind: LoanKind::Shared
+                                    }
+                                );
+                                assert_eq!(actual[cursor + 1].results, [EntityId::Loan(*loan)]);
+                                assert!(
+                                    matches!(&actual[cursor+2].operation,Operation::DirectCall{arguments,..} if arguments==&[EntityId::Loan(*loan)])
+                                );
+                                assert_eq!(
+                                    actual[cursor + 3].operation,
+                                    Operation::BorrowEnd { loan: *loan }
+                                );
+                                cursor += 4;
+                                next_a += 1;
+                                if next_a == a_count {
+                                    assert_eq!(
+                                        actual[cursor].operation,
+                                        Operation::Drop { owner: *aux_owner }
+                                    );
+                                    cursor += 1;
+                                }
+                            } else {
+                                order.push(UseRole::Binding(next_b));
+                                assert!(
+                                    matches!(&actual[cursor].operation,Operation::DirectCall{arguments,..} if arguments==&[EntityId::Loan(*result)])
+                                );
+                                cursor += 1;
+                                next_b += 1;
+                                if next_b == b_count {
+                                    assert_eq!(
+                                        actual[cursor].operation,
+                                        Operation::BorrowEnd { loan: *result }
+                                    );
+                                    assert_eq!(
+                                        actual[cursor + 1].operation,
+                                        Operation::BorrowEnd { loan: *source }
+                                    );
+                                    assert_eq!(
+                                        actual[cursor + 2].operation,
+                                        Operation::Drop { owner: *owner }
+                                    );
+                                    cursor += 3;
+                                }
+                            }
+                        }
+                        assert_eq!(receipt.order, order);
+                        assert_eq!(cursor, actual.len());
                     }
 
                     let output = (

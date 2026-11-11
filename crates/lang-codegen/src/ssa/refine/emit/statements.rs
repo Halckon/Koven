@@ -18,6 +18,7 @@ pub(super) struct LoanReceipts {
     later_aux: crate::ssa::refine::later_aux_receipt::Emitted,
     auxiliary_sequence: crate::ssa::refine::auxiliary_sequence_receipt::Emitted,
     interleaved_aux: crate::ssa::refine::interleaved_aux_receipt::Emitted,
+    multi_binding: crate::ssa::refine::multi_binding_receipt::Emitted,
     child: crate::ssa::refine::child_receipt::Emitted,
 }
 impl LoanReceipts {
@@ -104,6 +105,11 @@ impl LoanReceipts {
             )?,
             interleaved_aux: crate::ssa::refine::interleaved_aux_receipt::Emitted::new(
                 &body.interleaved_aux_plans,
+                function,
+                span,
+            )?,
+            multi_binding: crate::ssa::refine::multi_binding_receipt::Emitted::new(
+                &body.multi_binding_plans,
                 function,
                 span,
             )?,
@@ -210,6 +216,8 @@ impl LoanReceipts {
             .finish(&body.auxiliary_sequence_plans, function, span)?;
         self.interleaved_aux
             .finish(&body.interleaved_aux_plans, function, span)?;
+        self.multi_binding
+            .finish(&body.multi_binding_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
         self.nested.finish(&body.nested_plans, function, span)?;
         self.bounded.finish(&body.bounded_plans, function, span)?;
@@ -259,6 +267,11 @@ impl Emitter<'_> {
                 )?;
                 receipts.interleaved_aux.alias(
                     &body.interleaved_aux_plans,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.multi_binding.alias(
+                    &body.multi_binding_plans,
                     &self.current,
                     statement.span,
                 )?;
@@ -373,6 +386,16 @@ impl Emitter<'_> {
                 Some(crate::ssa::refine::body::LoanTag::InterleavedAux(tag)) => {
                     receipts.interleaved_aux.statement(
                         &body.interleaved_aux_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::MultiBinding(tag)) => {
+                    receipts.multi_binding.statement(
+                        &body.multi_binding_plans,
                         tag,
                         self.function,
                         instruction,
