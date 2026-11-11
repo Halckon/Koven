@@ -457,6 +457,7 @@ impl Builder<'_, '_> {
                     self.body.parameters.push(slot);
                     self.bindings.insert(*symbol, slot);
                     self.open_loop_parameter_bound(*symbol, *mode, slot)?;
+                    self.header_parameter_bound(*symbol, *mode, slot)?;
                 }
                 (crate::ssa::model::EntityId::Loan(_), Some(kind)) => {
                     let slot = self.body.slot(EntityType::Loan { kind, target: ty });

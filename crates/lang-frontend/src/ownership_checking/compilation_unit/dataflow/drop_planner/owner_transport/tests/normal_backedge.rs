@@ -628,3 +628,142 @@ fn ci_only_conditional_return_rejects_delivery_and_false_edge_damage() {
         assert!(!p.is_consistent());
     }
 }
+
+const PARAMETER_HEADER_SOURCE: &str = r#"fun run(limit: Int, own incoming: String): String {
+    var held = incoming
+    var index = 0
+    while(index < limit) {
+        val previous = replace(&held, "next")
+        index = index + 1
+    }
+    return held
+}"#;
+#[test]
+fn parameter_normal_header_preserves_actual_entry_producer() {
+    use crate::ownership_checking::{
+        UnitOwnerOpenLoopObservationV1 as O, UnitOwnerOrigin, UnitOwnerTransportEvent as E,
+    };
+    for text in [
+        PARAMETER_HEADER_SOURCE.to_string(),
+        PARAMETER_HEADER_SOURCE.replace(
+            "limit: Int, own incoming: String",
+            "own incoming: String, limit: Int",
+        ),
+        PARAMETER_HEADER_SOURCE.replace("incoming", "provided"),
+    ] {
+        let fixture = Fixture::new(&[("parameter-header.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.open_loop_observation_v1())
+            .collect::<Vec<_>>();
+        let [O::NormalBackedge(p)] = products.as_slice() else {
+            panic!("parameter normal header");
+        };
+        let parameter = p.input_parameter().unwrap();
+        assert!(p.is_consistent());
+        assert_eq!(p.initial_origin(), UnitOwnerOrigin::Parameter(parameter));
+        assert_ne!(parameter, p.root());
+        assert_eq!(p.input_producers().definitions().len(), 1);
+        assert_eq!(p.body_producers().definitions().len(), 1);
+        let [
+            E::Move {
+                expression,
+                symbol,
+                owner,
+            },
+            E::Result {
+                expression: result,
+                owner: result_owner,
+            },
+            E::Binding {
+                symbol: bound,
+                initializer,
+                owner: bound_owner,
+            },
+        ] = p.prefix_events()
+        else {
+            panic!("real Move Result Binding");
+        };
+        assert_eq!(
+            (*expression, *result, *initializer),
+            (p.initial(), p.initial(), p.initial())
+        );
+        assert_eq!((*symbol, *bound), (parameter, p.root()));
+        assert_eq!(owner, result_owner);
+        assert_eq!(owner, bound_owner);
+        assert_eq!(
+            p.input_producers()
+                .definition(owner.clone())
+                .unwrap()
+                .origin(),
+            UnitOwnerOrigin::Parameter(parameter)
+        );
+    }
+}
+#[test]
+fn parameter_normal_header_declines_legal_neighbor_families() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    for text in [
+        PARAMETER_HEADER_SOURCE.replace("var held = incoming", "var held = (incoming)"),
+        PARAMETER_HEADER_SOURCE.replace("var held = incoming", "var held = \"other\""),
+        PARAMETER_HEADER_SOURCE.replace("index = index + 1", "index = index + 1\n        continue"),
+        PARAMETER_HEADER_SOURCE.replace(
+            "index = index + 1",
+            "index = index + 1\n        if(index < 2) {break}",
+        ),
+        PARAMETER_HEADER_SOURCE.replace("index + 1", "index + 2"),
+        PARAMETER_HEADER_SOURCE.replace("limit: Int,", "limit: Int, stop: Int,"),
+        PARAMETER_HEADER_SOURCE.replace("index < limit", "index <= limit"),
+    ] {
+        let fixture = Fixture::new(&[("parameter-header-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        assert!(!owned.owner_observations().iter().any(|o| matches!(
+            o.open_loop_observation_v1(),
+            Some(
+                O::NormalBackedge(_)
+                    | O::ContinueBackedge(_)
+                    | O::MixedBackedge(_)
+                    | O::ConditionalBreakBackedge(_)
+                    | O::ConditionalReturnBackedge(_)
+            )
+        )));
+    }
+}
+#[test]
+fn ci_only_parameter_normal_header_rejects_origin_and_transport_damage() {
+    use crate::ownership_checking::compilation_unit::owner_transport::HeaderCompletion;
+    use crate::ownership_checking::{UnitOwnerOpenLoopObservationV1 as O, UnitOwnerOrigin};
+    let fixture = Fixture::new(&[("parameter-header-damage.ko", PARAMETER_HEADER_SOURCE)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::NormalBackedge(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..7 {
+        let mut p = (**original).clone();
+        match damage {
+            0 => p.core.initial_origin = UnitOwnerOrigin::String(p.initial()),
+            1 => p.core.initial_origin = UnitOwnerOrigin::Parameter(p.root()),
+            2 => {
+                p.core.prefix.remove(0);
+            }
+            3 => p.core.prefix.swap(0, 1),
+            4 => p.core.increment = None,
+            5 => p.core.completion = HeaderCompletion::Continue(p.core.assignment),
+            _ => p.core.cleaned = false,
+        }
+        assert!(!p.is_consistent());
+    }
+}

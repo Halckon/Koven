@@ -169,7 +169,7 @@ impl LoopTransaction {
         else {
             return None;
         };
-        if owner_parameter.is_none()
+        if (owner_parameter.is_none() || (integer_control && parameter_symbols.len() == 1))
             && (parameters.len() == 1
                 || (integer_control
                     && parameter_symbols.iter().all(|symbol| {
@@ -186,6 +186,7 @@ impl LoopTransaction {
                 checker,
                 elements,
                 &parameter_symbols,
+                owner_parameter,
                 UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
             )
         {

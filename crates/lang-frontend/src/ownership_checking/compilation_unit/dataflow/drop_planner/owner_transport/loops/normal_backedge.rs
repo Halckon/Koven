@@ -20,6 +20,7 @@ pub(super) struct NormalInput {
     increment: Option<ExpressionId>,
     root: UnitSymbolId,
     initial: UnitExpressionId,
+    initial_origin: UnitOwnerOrigin,
     argument: UnitExpressionId,
     call: UnitExpressionId,
     call_origin: crate::source::Span,
@@ -49,6 +50,7 @@ impl NormalInput {
         checker: &Checker<'_>,
         elements: &[StatementId],
         parameters: &BTreeSet<UnitSymbolId>,
+        owner_parameter: Option<UnitSymbolId>,
         callable: UnitOwnerCallable,
     ) -> Option<Self> {
         let [prefix, control, statement, suffix] = elements else {
@@ -59,9 +61,23 @@ impl NormalInput {
         }
         let ast = checker.parsed.ast();
         let (root, initial) = super::replace_break::variable(checker, *prefix, VariableKind::Var)?;
-        if !super::replace_break::literal(checker, initial) {
-            return None;
-        }
+        let initial_origin = match owner_parameter {
+            Some(parameter) => {
+                let node = ast.expressions().get(initial).ok()?;
+                if !matches!(node.payload(), Expression::Name)
+                    || checker.reference_symbol(node.span()) != Some(parameter)
+                    || !exact_type(checker, initial, BuiltinType::String)
+                    || parameter == root
+                {
+                    return None;
+                }
+                UnitOwnerOrigin::Parameter(parameter)
+            }
+            None if super::replace_break::literal(checker, initial) => {
+                UnitOwnerOrigin::String(checker.unit_expression(initial))
+            }
+            _ => return None,
+        };
         let Statement::LocalVariable { declaration } =
             ast.statements().get(*control).ok()?.payload()
         else {
@@ -231,6 +247,16 @@ impl NormalInput {
         {
             return None;
         }
+        if owner_parameter.is_some()
+            && (parameters.len() != 1
+                || increment.is_none()
+                || jump.is_some()
+                || mixed.is_some()
+                || conditional_break.is_some()
+                || conditional_return.is_some())
+        {
+            return None;
+        }
         let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;
         if target.binding.is_some() || target.replacement.is_some() {
             return None;
@@ -243,6 +269,7 @@ impl NormalInput {
             increment,
             root,
             initial: checker.unit_expression(initial),
+            initial_origin,
             argument: checker.unit_expression(incoming.value),
             call: checker.unit_expression(call),
             call_origin: call_node.span(),
@@ -382,10 +409,44 @@ impl NormalInput {
             self.valid = false;
             return;
         };
-        let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
-            self.valid = false;
-            return;
+        let catalog = if matches!(self.initial_origin, UnitOwnerOrigin::Parameter(_)) {
+            if observation.status != UnitOwnerObservationStatus::Complete
+                || !observation.is_consistent()
+            {
+                self.valid = false;
+                return;
+            }
+            UnitOwnerProducerCatalogV1 {
+                identity: observation.identity.clone(),
+                callable: observation.callable,
+                definitions: observation.definitions.clone(),
+            }
+        } else {
+            let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
+                self.valid = false;
+                return;
+            };
+            catalog
         };
+        let mut prefix = Vec::new();
+        if let UnitOwnerOrigin::Parameter(symbol) = self.initial_origin {
+            prefix.push(UnitOwnerTransportEvent::Move {
+                expression: self.initial,
+                symbol,
+                owner: owner.clone(),
+            });
+        }
+        prefix.extend([
+            UnitOwnerTransportEvent::Result {
+                expression: self.initial,
+                owner: owner.clone(),
+            },
+            UnitOwnerTransportEvent::Binding {
+                symbol: self.root,
+                initializer: self.initial,
+                owner: owner.clone(),
+            },
+        ]);
         if scope != 1
             || value.scope_depth != 1
             || value.symbol != self.root
@@ -393,19 +454,9 @@ impl NormalInput {
             || catalog.definitions().len() != 1
             || catalog
                 .definition(owner.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.initial))
-            || observation.events
-                != [
-                    UnitOwnerTransportEvent::Result {
-                        expression: self.initial,
-                        owner: owner.clone(),
-                    },
-                    UnitOwnerTransportEvent::Binding {
-                        symbol: self.root,
-                        initializer: self.initial,
-                        owner,
-                    },
-                ]
+                .is_none_or(|d| d.origin() != self.initial_origin)
+            || !catalog.is_consistent()
+            || observation.events != prefix
             || self.prefix.is_some()
         {
             self.valid = false;
@@ -549,6 +600,7 @@ impl NormalInput {
             condition: UnitExpressionId::new(source, self.condition),
             body: UnitStatementId::new(source, self.body),
             initial: self.initial,
+            initial_origin: self.initial_origin,
             argument: self.argument,
             call: self.call,
             previous: self.previous,

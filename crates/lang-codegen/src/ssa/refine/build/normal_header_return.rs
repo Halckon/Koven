@@ -3,6 +3,7 @@ use super::*;
 mod conditional_break;
 mod conditional_return;
 mod mixed;
+mod parameter;
 use lang_frontend::ownership_checking::{
     UnitOwnerCallable, UnitOwnerConditionalBreakBackedgeV1, UnitOwnerConditionalReturnBackedgeV1,
     UnitOwnerContinueBackedgeV1, UnitOwnerMixedBackedgeV1, UnitOwnerNormalBackedgeV1,
@@ -64,6 +65,8 @@ pub(super) struct ContinueReceipt {
 
 pub(super) struct Plan<'a> {
     boundary: Boundary<'a>,
+    parameter: Option<(UnitSymbolId, usize)>,
+    entry_read: bool,
     previous: UnitSymbolId,
     drop_index: usize,
     produced: [Option<Slot>; 2],
@@ -173,7 +176,31 @@ impl<'a> Plan<'a> {
         {
             return Err(fail());
         }
+        let parameter = match boundary {
+            Boundary::Normal(v) => v
+                .input_parameter()
+                .map(|symbol| {
+                    let indices = inputs
+                        .parameters
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, s)| **s == symbol)
+                        .map(|(i, _)| i)
+                        .collect::<Vec<_>>();
+                    let [index] = indices.as_slice() else {
+                        return Err(fail());
+                    };
+                    if inputs.modes.get(*index) != Some(&ParameterMode::Value) {
+                        return Err(fail());
+                    }
+                    Ok((symbol, *index))
+                })
+                .transpose()?,
+            _ => None,
+        };
         Ok(Some(Self {
+            parameter,
+            entry_read: false,
             boundary,
             previous: *previous,
             drop_index: *drop_index,
@@ -363,6 +390,9 @@ impl Builder<'_, '_> {
         expression: UnitExpressionId,
         slot: Slot,
     ) -> Result<(), LoweringError> {
+        if self.header_parameter_result(expression, slot)? {
+            return Ok(());
+        }
         if let Some(p) = &mut self.header_return_plan {
             for (i, id) in [p.boundary.initial(), p.boundary.argument()]
                 .iter()
@@ -717,9 +747,6 @@ impl Builder<'_, '_> {
         let initial_defs = definitions(initial);
         let q_defs = definitions(replacement);
         let root_defs = definitions(slot);
-        let [(p_block, p_index)] = initial_defs.as_slice() else {
-            return Err(fail());
-        };
         let [(q_block, q_index)] = q_defs.as_slice() else {
             return Err(fail());
         };
@@ -729,11 +756,26 @@ impl Builder<'_, '_> {
                 s.results == [slot] && matches!(s.op, ROp::Alias {source} if source == initial)
             })
             .ok_or_else(fail)?;
-        if *p_block != entry
+        let valid_initial = if let Some((parameter, index)) = p.parameter {
+            p.entry_read
+                && initial_defs.is_empty()
+                && self.body.parameters.get(index) == Some(&initial)
+                && self.bindings.get(&parameter) == Some(&initial)
+                && self.dead.contains(&parameter)
+                && self
+                    .body
+                    .parameters
+                    .iter()
+                    .filter(|s| **s == initial)
+                    .count()
+                    == 1
+        } else {
+            matches!(initial_defs.as_slice(), [(block,index)] if *block == entry && *index < entry_alias
+                && matches!(entry_statements[*index].op, ROp::StringLiteral { .. }))
+        };
+        if !valid_initial
             || *q_block != body
-            || *p_index >= entry_alias
             || q_index >= replace_index
-            || !matches!(entry_statements[*p_index].op, ROp::StringLiteral { .. })
             || !matches!(statements[*q_index].op, ROp::StringLiteral { .. })
             || root_defs != [(entry, entry_alias), (body, *replace_index)]
             || definitions(old) != [(body, *replace_index)]

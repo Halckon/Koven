@@ -13386,3 +13386,26 @@ lower、SSA verifier、LLVM、唯一Return及非空payload均通过，不是前�
 4310输入、实际Cargo artifact及保存binary SHA在执行前后绑定不变，原日志保留于
 主仓忽略目录 `.local-artifacts/owner-parameter-header-20261111T125330Z`。
 本阶段尚未生产接线或运行native，CI-only仅编译，不称新增能力完成。
+
+本片复用现NormalBackedge而未新增wrapper，Hcore封印initial_origin；只有一个Int
+及一个own String且raw参数Name、Int加一、纯Fallthrough可进入参数入口路径。
+真实Parameter catalog保留原身份，严格Move→Result→Binding，不创建第二个入口
+producer。后端从实际Value ABI绑定保存slot/index/symbol，Name只运输该slot；最终
+参数初值无指令定义、唯一ABI引用且原参数已消费，literal路径仍严格核StringLiteral。
+
+首次green的FE编译通过，CG新增SSA测试因StringLiteral模式漏string字段报E0027，
+未执行测试；仅修为bytes加其余字段忽略，原红与生产不改，旧编译日志保留。
+green2重新冻结4311输入及实际artifact，47 ordinary exact（FE20+CG27）全部
+各1 passed/0 failed/0 ignored。其中新5项加旧34项及Parameter open-loop的8项
+直接消费者回归，核原Parameter身份、真实entry→header、Q正常回边与H Return；
+Basic/Const覆盖0/1/2/7正常轮次及两个不同零轮caller串。新损坏负控与全部CI-only
+仅编译，不执行故障/Abort；普通native不证明一般循环或资源计数。
+输入/保存binary/runner/日志在本片持久目录green2逐一绑定，不使用旧组合或CI结果
+代替当前实测。正式CI、最新main/其他新分支合流仍待验，不宣称D10/E2整体完成。
+后续strict Clippy发现两处UnitOwnerOrigin已Copy仍调用clone；未加豁免，只移除
+两处clone，保留失败日志。green3重新冻结4311输入并通过默认/loan两套FE/CG
+all-target strict Clippy、默认workspace all-target check，再真实重编并重跑原47项，
+全部通过。最终交付以green3为准，不把green2的实测当作修正后结果。
+最终fmt、docs897、相对ba025f6f尺寸2444手写Rust/35历史超限、diff通过，无提高
+尺寸额度。独审重新核green3的47日志、真实artifact与保存binary；实测后仅Spec
+账本变化，完整输入最终绑定。本片仅本地完成，不包含正式CI或最新合流结论。

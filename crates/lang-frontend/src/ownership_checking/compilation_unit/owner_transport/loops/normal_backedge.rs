@@ -22,6 +22,7 @@ pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
     pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) initial: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) initial_origin: UnitOwnerOrigin,
     pub(in crate::ownership_checking::compilation_unit) argument: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) call: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) previous: UnitSymbolId,
@@ -475,6 +476,18 @@ header_accessors!(UnitOwnerNormalBackedgeV1);
 header_accessors!(UnitOwnerContinueBackedgeV1);
 header_accessors!(UnitOwnerMixedBackedgeV1);
 impl UnitOwnerNormalBackedgeV1 {
+    /// Actual entry producer origin; a consumed parameter is never recreated as a String.
+    pub fn initial_origin(&self) -> UnitOwnerOrigin {
+        self.core.initial_origin
+    }
+    /// The precise consumed input parameter for the parameter-origin slice.
+    pub fn input_parameter(&self) -> Option<UnitSymbolId> {
+        match self.core.initial_origin {
+            UnitOwnerOrigin::Parameter(symbol) => Some(symbol),
+            _ => None,
+        }
+    }
+
     /// True only for a complete ordinary backedge with no explicit jump role.
     pub fn is_consistent(&self) -> bool {
         self.core.completion == HeaderCompletion::Fallthrough && self.core.is_consistent()
@@ -520,19 +533,52 @@ impl HeaderCore {
         let p = self.entry.owner();
         let q = self.backedge.owner();
         let source = self.statement.source_unit();
-        self.increment.is_none_or(|id| {
-            id.source_unit() == source
-                && ![
-                    self.initial,
-                    self.argument,
-                    self.call,
-                    self.assignment,
-                    self.condition,
-                    self.target.payload,
-                    self.target.expression,
-                ]
-                .contains(&id)
-        }) && self.assignment_completed
+        let origin_valid = match self.initial_origin {
+            UnitOwnerOrigin::String(expression) => expression == self.initial,
+            UnitOwnerOrigin::Parameter(symbol) => {
+                symbol.source_unit() == source
+                    && symbol != self.root()
+                    && symbol != self.previous
+                    && self.completion == HeaderCompletion::Fallthrough
+                    && self.increment.is_some()
+            }
+            _ => false,
+        };
+        let mut prefix = Vec::new();
+        if let UnitOwnerOrigin::Parameter(symbol) = self.initial_origin {
+            prefix.push(E::Move {
+                expression: self.initial,
+                symbol,
+                owner: p.clone(),
+            });
+        }
+        prefix.extend([
+            E::Result {
+                expression: self.initial,
+                owner: p.clone(),
+            },
+            E::Binding {
+                symbol: self.root(),
+                initializer: self.initial,
+                owner: p.clone(),
+            },
+        ]);
+
+        origin_valid
+            && self.increment.is_none_or(|id| {
+                id.source_unit() == source
+                    && ![
+                        self.initial,
+                        self.argument,
+                        self.call,
+                        self.assignment,
+                        self.condition,
+                        self.target.payload,
+                        self.target.expression,
+                    ]
+                    .contains(&id)
+            })
+            && self.assignment_completed
             && self.body_completed
             && self.taken
             && self.delivered
@@ -548,7 +594,7 @@ impl HeaderCore {
             && self
                 .inputs
                 .definition(p.clone())
-                .is_some_and(|d| d.origin() == UnitOwnerOrigin::String(self.initial))
+                .is_some_and(|d| d.origin() == self.initial_origin)
             && self
                 .producers
                 .definition(q.clone())
@@ -591,18 +637,7 @@ impl HeaderCore {
             })
             && self.root().source_unit() == source
             && self.previous.source_unit() == source
-            && self.prefix
-                == [
-                    E::Result {
-                        expression: self.initial,
-                        owner: p.clone(),
-                    },
-                    E::Binding {
-                        symbol: self.root(),
-                        initializer: self.initial,
-                        owner: p.clone(),
-                    },
-                ]
+            && self.prefix == prefix
             && self.events
                 == [
                     E::Result {
