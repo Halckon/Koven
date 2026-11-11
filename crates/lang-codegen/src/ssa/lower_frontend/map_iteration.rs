@@ -1,22 +1,22 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
-mod borrowed;
 mod carrier;
 mod checked;
 mod cleanup;
+use cleanup::exit_shape;
 mod conditional;
-mod exit_shape;
 mod exits;
 mod formed;
 mod formed_runtime;
-mod guard;
 mod local;
 mod local_runtime;
 mod nested;
 mod qualify;
 mod resource;
 mod source;
+use source::borrowed;
 mod source_owner;
 mod temporary;
+use temporary::guard;
 
 use super::*;
 use crate::ssa::model::{Definition, MapContainerKind, Module, SsaTypeKind};

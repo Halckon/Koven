@@ -4,7 +4,6 @@ mod aggregate;
 mod binding;
 mod borrow_argument;
 mod borrow_result;
-mod call_lifetimes;
 #[cfg(test)]
 mod cleanup_guard_harness;
 mod constant_presence;

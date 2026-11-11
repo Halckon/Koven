@@ -1,8 +1,6 @@
 //! Transparent source syntax does not change the validated type, category or owner.
 mod formation;
-pub(super) mod handoff;
 pub(super) mod handoff_runtime;
-pub(super) mod transport;
 use super::{LoweringError, LoweringErrorKind};
 pub(super) use formation::{
     BindingDeclaration, Birth, Formation, OwnerUpdate, continuation, named_formation,
@@ -11,6 +9,223 @@ use lang_frontend::{
     ast::ExpressionId,
     parser::{Expression, ParsedFile},
 };
+
+pub(super) mod transport {
+    //! Model-only owner transport through witnessed mutations and every actual CFG incoming.
+    use super::{LoweringError, LoweringErrorKind};
+    use crate::ssa::model::{Definition, EntityId, Function, TerminatorKind};
+    use lang_frontend::source::Span;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    pub(in super::super) fn check(
+        function: &Function,
+        current: EntityId,
+        anchor: EntityId,
+        updates: &BTreeMap<EntityId, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let bad = || LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: Some(span),
+        };
+        let ty = function.entity(anchor).ok_or_else(bad)?.ty;
+        let mut pending = vec![current];
+        let mut dependencies = BTreeMap::new();
+        while let Some(entity) = pending.pop() {
+            if entity == anchor || dependencies.contains_key(&entity) {
+                continue;
+            }
+            let data = function.entity(entity).ok_or_else(bad)?;
+            if data.ty != ty {
+                return Err(bad());
+            }
+            let parents = if let Some(&input) = updates.get(&entity) {
+                vec![input]
+            } else {
+                let Definition::BlockParameter { block, index } = data.definition else {
+                    return Err(bad());
+                };
+                let parameters = &function.block(block).ok_or_else(bad)?.parameters;
+                if parameters.get(index) != Some(&entity) {
+                    return Err(bad());
+                }
+                let mut parents = Vec::new();
+                for predecessor in &function.blocks {
+                    let edges = match predecessor.terminator.as_ref().map(|t| &t.kind) {
+                        Some(TerminatorKind::Branch(edge)) => vec![edge],
+                        Some(TerminatorKind::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        }) => vec![when_true, when_false],
+                        Some(TerminatorKind::NullableBranch {
+                            when_null,
+                            when_non_null,
+                            ..
+                        }) => vec![when_null, when_non_null],
+                        _ => Vec::new(),
+                    };
+                    for edge in edges.into_iter().filter(|edge| edge.target == block) {
+                        if edge.arguments.len() != parameters.len() {
+                            return Err(bad());
+                        }
+                        parents.push(*edge.arguments.get(index).ok_or_else(bad)?);
+                    }
+                }
+                if parents.is_empty() {
+                    return Err(bad());
+                }
+                parents
+            };
+            if parents
+                .iter()
+                .any(|parent| function.entity(*parent).map(|e| e.ty) != Some(ty))
+            {
+                return Err(bad());
+            }
+            pending.extend(parents.iter().copied());
+            dependencies.insert(entity, parents);
+        }
+        if updates
+            .keys()
+            .any(|value| !dependencies.contains_key(value))
+        {
+            return Err(bad());
+        }
+        let mut anchored = BTreeSet::from([anchor]);
+        loop {
+            let before = anchored.len();
+            for (&entity, parents) in &dependencies {
+                if parents.iter().any(|parent| anchored.contains(parent)) {
+                    anchored.insert(entity);
+                }
+            }
+            if before == anchored.len() {
+                break;
+            }
+        }
+        if dependencies.keys().any(|entity| !anchored.contains(entity)) {
+            return Err(bad());
+        }
+        Ok(())
+    }
+}
+
+pub(super) mod handoff {
+    //! Original Return/local-Move syntax selects a terminal; consumers prove ownership and SSA.
+    use super::*;
+    use lang_frontend::{
+        parser::{Item, NameMarker, VariableKind},
+        source::Span,
+    };
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(in super::super) enum Handoff<R> {
+        Return {
+            expression: ExpressionId,
+            operand: ExpressionId,
+        },
+        Binding {
+            root: R,
+            initializer: ExpressionId,
+            marker: Span,
+        },
+    }
+
+    pub(in super::super) fn same_callable(parsed: &ParsedFile, left: Span, right: Span) -> bool {
+        let enclosing = |at| {
+            parsed
+                .ast()
+                .items()
+                .iter()
+                .filter(|(_, n)| {
+                    matches!(n.payload(), Item::Function { .. } | Item::Deinit { .. })
+                        && contains(n.span(), at)
+                })
+                .min_by_key(|(_, n)| n.span().end() - n.span().start())
+                .map(|(id, _)| id)
+        };
+        enclosing(left).is_some()
+            && enclosing(left) == enclosing(right)
+            && !parsed.ast().expressions().iter().any(|(_, n)| {
+                matches!(n.payload(), Expression::Lambda { .. }) && contains(n.span(), right)
+            })
+    }
+
+    pub(in super::super) fn find<R: Copy + Eq, T: Copy + Eq>(
+        parsed: &ParsedFile,
+        span: Span,
+        source: R,
+        storage: T,
+        mut reference: impl FnMut(Span) -> Result<R, LoweringError>,
+        mut declaration: impl FnMut(Span) -> Result<R, LoweringError>,
+        mut typed: impl FnMut(
+            ExpressionId,
+        ) -> Option<(T, lang_frontend::type_checking::ExpressionCategory)>,
+    ) -> Result<Option<Handoff<R>>, LoweringError> {
+        use lang_frontend::type_checking::ExpressionCategory;
+        let bad = || LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: Some(span),
+        };
+        let mut candidates = Vec::new();
+        let mut operand = |id| -> Result<bool, LoweringError> {
+            let id = transparent_expression(parsed, id, &mut typed)?;
+            let node = parsed.ast().expressions().get(id).map_err(|_| bad())?;
+            Ok(node.payload() == &Expression::Name
+                && reference(node.span())? == source
+                && typed(id) == Some((storage, ExpressionCategory::Place)))
+        };
+        for (expression, node) in parsed.ast().expressions().iter() {
+            if node.span().start() <= span.end() || !same_callable(parsed, span, node.span()) {
+                continue;
+            }
+            if let Expression::Return {
+                value: Some(value), ..
+            } = node.payload()
+                && operand(*value)?
+            {
+                candidates.push(Handoff::Return {
+                    expression,
+                    operand: *value,
+                });
+            }
+        }
+        for (_, node) in parsed.ast().items().iter() {
+            if node.span().start() <= span.end() || !same_callable(parsed, span, node.span()) {
+                continue;
+            }
+            if let Item::Variable {
+                kind: VariableKind::Val | VariableKind::Var,
+                name: NameMarker::Present(marker),
+                initializer,
+                ..
+            } = node.payload()
+                && operand(*initializer)?
+            {
+                candidates.push(Handoff::Binding {
+                    root: declaration(*marker)?,
+                    initializer: *initializer,
+                    marker: *marker,
+                });
+            }
+        }
+        match candidates.as_slice() {
+            [] => Ok(None),
+            [candidate] => Ok(Some(*candidate)),
+            _ => Err(LoweringError {
+                kind: LoweringErrorKind::UnsupportedNode,
+                span: Some(span),
+            }),
+        }
+    }
+
+    fn contains(outer: Span, inner: Span) -> bool {
+        outer.source_id() == inner.source_id()
+            && outer.start() <= inner.start()
+            && inner.end() <= outer.end()
+    }
+}
 
 /// Return the canonical expression of a pure Group chain. Consumers keep the
 /// original descriptor/loan source ID and independently verify its published root.
