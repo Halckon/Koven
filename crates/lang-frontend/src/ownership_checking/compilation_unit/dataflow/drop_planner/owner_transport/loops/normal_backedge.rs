@@ -1,15 +1,19 @@
 //! Normal-backedge collection at real planner entry, body completion and Return hooks.
 use super::*;
-use crate::ownership_checking::compilation_unit::owner_transport::{HeaderCompletion, HeaderCore};
+use crate::ownership_checking::compilation_unit::owner_transport::{
+    HeaderCompletion, HeaderCore, HeaderEquation,
+};
 use crate::ownership_checking::{
     UnitOwnerContinueBackedgeV1, UnitOwnerNormalBackedgeV1, UnitOwnerProducerCatalogV1,
 };
 use crate::parser::AssignmentOperator;
+mod binding;
 mod conditional_break;
 mod conditional_break_hooks;
 mod conditional_return;
 mod conditional_return_hooks;
 mod control;
+use binding::NormalSuffix;
 mod mixed;
 
 pub(super) struct NormalInput {
@@ -20,12 +24,13 @@ pub(super) struct NormalInput {
     increment: Option<ExpressionId>,
     root: UnitSymbolId,
     initial: UnitExpressionId,
+    initial_origin: UnitOwnerOrigin,
     argument: UnitExpressionId,
     call: UnitExpressionId,
     call_origin: crate::source::Span,
     previous: UnitSymbolId,
     previous_statement: UnitStatementId,
-    target: crate::ownership_checking::compilation_unit::owner_transport::ReturnConsumerTarget,
+    suffix: NormalSuffix,
     expected: Option<OwnedValue>,
     prefix: Option<UnitOwnerObservation>,
     entered: bool,
@@ -49,6 +54,8 @@ impl NormalInput {
         checker: &Checker<'_>,
         elements: &[StatementId],
         parameters: &BTreeSet<UnitSymbolId>,
+        owner_parameter: Option<UnitSymbolId>,
+        returns_unit: bool,
         callable: UnitOwnerCallable,
     ) -> Option<Self> {
         let [prefix, control, statement, suffix] = elements else {
@@ -59,9 +66,23 @@ impl NormalInput {
         }
         let ast = checker.parsed.ast();
         let (root, initial) = super::replace_break::variable(checker, *prefix, VariableKind::Var)?;
-        if !super::replace_break::literal(checker, initial) {
-            return None;
-        }
+        let initial_origin = match owner_parameter {
+            Some(parameter) => {
+                let node = ast.expressions().get(initial).ok()?;
+                if !matches!(node.payload(), Expression::Name)
+                    || checker.reference_symbol(node.span()) != Some(parameter)
+                    || !exact_type(checker, initial, BuiltinType::String)
+                    || parameter == root
+                {
+                    return None;
+                }
+                UnitOwnerOrigin::Parameter(parameter)
+            }
+            None if super::replace_break::literal(checker, initial) => {
+                UnitOwnerOrigin::String(checker.unit_expression(initial))
+            }
+            _ => return None,
+        };
         let Statement::LocalVariable { declaration } =
             ast.statements().get(*control).ok()?.payload()
         else {
@@ -231,10 +252,34 @@ impl NormalInput {
         {
             return None;
         }
-        let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;
-        if target.binding.is_some() || target.replacement.is_some() {
+        if owner_parameter.is_some()
+            && (parameters.len() != 1
+                || increment.is_none()
+                || jump.is_some()
+                || mixed.is_some()
+                || conditional_break.is_some()
+                || conditional_return.is_some())
+        {
             return None;
         }
+        let suffix = if returns_unit {
+            if owner_parameter.is_some()
+                || increment.is_none()
+                || jump.is_some()
+                || mixed.is_some()
+                || conditional_break.is_some()
+                || conditional_return.is_some()
+            {
+                return None;
+            }
+            NormalSuffix::BindDrop(Box::new(binding::BindInput::admit(checker, *suffix, root)?))
+        } else {
+            let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;
+            if target.binding.is_some() || target.replacement.is_some() {
+                return None;
+            }
+            NormalSuffix::Return(target)
+        };
         Some(Self {
             statement: *statement,
             condition: *condition,
@@ -243,12 +288,13 @@ impl NormalInput {
             increment,
             root,
             initial: checker.unit_expression(initial),
+            initial_origin,
             argument: checker.unit_expression(incoming.value),
             call: checker.unit_expression(call),
             call_origin: call_node.span(),
             previous,
             previous_statement: UnitStatementId::new(checker.source_unit, declaration),
-            target,
+            suffix,
             expected: None,
             prefix: None,
             entered: false,
@@ -382,10 +428,44 @@ impl NormalInput {
             self.valid = false;
             return;
         };
-        let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
-            self.valid = false;
-            return;
+        let catalog = if matches!(self.initial_origin, UnitOwnerOrigin::Parameter(_)) {
+            if observation.status != UnitOwnerObservationStatus::Complete
+                || !observation.is_consistent()
+            {
+                self.valid = false;
+                return;
+            }
+            UnitOwnerProducerCatalogV1 {
+                identity: observation.identity.clone(),
+                callable: observation.callable,
+                definitions: observation.definitions.clone(),
+            }
+        } else {
+            let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
+                self.valid = false;
+                return;
+            };
+            catalog
         };
+        let mut prefix = Vec::new();
+        if let UnitOwnerOrigin::Parameter(symbol) = self.initial_origin {
+            prefix.push(UnitOwnerTransportEvent::Move {
+                expression: self.initial,
+                symbol,
+                owner: owner.clone(),
+            });
+        }
+        prefix.extend([
+            UnitOwnerTransportEvent::Result {
+                expression: self.initial,
+                owner: owner.clone(),
+            },
+            UnitOwnerTransportEvent::Binding {
+                symbol: self.root,
+                initializer: self.initial,
+                owner: owner.clone(),
+            },
+        ]);
         if scope != 1
             || value.scope_depth != 1
             || value.symbol != self.root
@@ -393,19 +473,9 @@ impl NormalInput {
             || catalog.definitions().len() != 1
             || catalog
                 .definition(owner.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.initial))
-            || observation.events
-                != [
-                    UnitOwnerTransportEvent::Result {
-                        expression: self.initial,
-                        owner: owner.clone(),
-                    },
-                    UnitOwnerTransportEvent::Binding {
-                        symbol: self.root,
-                        initializer: self.initial,
-                        owner,
-                    },
-                ]
+                .is_none_or(|d| d.origin() != self.initial_origin)
+            || !catalog.is_consistent()
+            || observation.events != prefix
             || self.prefix.is_some()
         {
             self.valid = false;
@@ -530,7 +600,7 @@ impl NormalInput {
             return;
         };
         let source = self.initial.source_unit();
-        self.product = Some(HeaderCore {
+        let equation = HeaderEquation {
             completion: match self.expected_completion() {
                 LoopBodyCompletion::ConditionalReturn { control, .. } => {
                     HeaderCompletion::ConditionalReturn(control)
@@ -549,6 +619,7 @@ impl NormalInput {
             condition: UnitExpressionId::new(source, self.condition),
             body: UnitStatementId::new(source, self.body),
             initial: self.initial,
+            initial_origin: self.initial_origin,
             argument: self.argument,
             call: self.call,
             previous: self.previous,
@@ -568,18 +639,32 @@ impl NormalInput {
             entry: entry.clone(),
             backedge,
             false_sample: entry,
-            target: self.target.clone(),
             assignment: UnitExpressionId::new(source, self.assignment),
             increment: self.increment.map(|id| UnitExpressionId::new(source, id)),
             assignment_completed: self.assigned,
             body_completed: true,
-            taken: false,
-            delivered: false,
-            cleaned: false,
-        });
+        };
+        match &mut self.suffix {
+            NormalSuffix::Return(target) => {
+                self.product = Some(HeaderCore {
+                    equation,
+                    target: target.clone(),
+                    taken: false,
+                    delivered: false,
+                    cleaned: false,
+                })
+            }
+            NormalSuffix::BindDrop(input) => input.install(equation),
+        }
     }
     fn take(&mut self, expression: UnitExpressionId, value: Option<&OwnedValue>) {
-        if expression != self.target.payload {
+        let NormalSuffix::Return(target) = &mut self.suffix else {
+            if let NormalSuffix::BindDrop(input) = &mut self.suffix {
+                input.take(expression, value);
+            }
+            return;
+        };
+        if expression != target.payload {
             return;
         }
         let Some(product) = &mut self.product else {
@@ -598,13 +683,16 @@ impl NormalInput {
         payload: UnitExpressionId,
         state: &ValueState,
     ) {
+        let NormalSuffix::Return(target) = &self.suffix else {
+            return;
+        };
         let Some(product) = &mut self.product else {
             self.valid = false;
             return;
         };
         if !self.valid
-            || expression != self.target.expression
-            || payload != self.target.payload
+            || expression != target.expression
+            || payload != target.payload
             || !product.taken
             || product.delivered
             || !empty_boundary(state)
@@ -619,8 +707,11 @@ impl NormalInput {
         expression: UnitExpressionId,
         state: &ValueState,
     ) -> Option<UnitOwnerOpenLoopObservationV1> {
+        let NormalSuffix::Return(target) = &self.suffix else {
+            return None;
+        };
         let mut product = self.product.take()?;
-        if !self.valid || expression != self.target.expression || !empty_boundary(state) {
+        if !self.valid || expression != target.expression || !empty_boundary(state) {
             return None;
         }
         product.cleaned = true;

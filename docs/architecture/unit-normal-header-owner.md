@@ -92,3 +92,27 @@ refine 的细粒度完成收据仍独立保留。当前只覆盖此单根有限�
 后端将body Return与循环后Return的take及完成收据分开，两个实际payload分别授权。
 真实false join和正常回边沿原H守恒；true直接Return不进入header或loop exit，最终
 SSA完整incoming和参数来源另验。此片不涉及RHS提前退出、多根、嵌套或capture。
+
+## own 参数作为正常 header 入口
+
+NormalBackedge另支持一个Int limit与一个own String incoming，以原始Name绑定
+mutable root，再执行既有Int正常回边。H保存真实入口origin；Parameter保留函数入口
+catalog定义，经Move/Result/Binding运输，不将Name或Binding当作新producer。参数
+入口只准普通Fallthrough，不扩Continue、Mixed或条件Break/Return，也不扩大旧
+parameter open-loop族。
+
+后端在实际Value ABI参数绑定处取得唯一entry slot/index/symbol，Name结果仅确认
+同slot运输；参数初值必须无指令定义、唯一ABI引用，原参数已消费。literal初值仍
+要求真实entry StringLiteral，其他Q/root/detached census及Return校验保持原合同。
+
+## 正常 header 的本地最终消费
+
+单Int、literal初值及正常回边另可由唯一尾部`val retired = held`最终消费，函数
+返回Unit。共享私有HeaderEquation保留唯一P/Q→H守恒；Return与BindDrop端点
+分别封印，新产品不提供Return身份。真实Take后，只在该精确Consume表达式成功、
+同一owner及空后边界核验后保留原结果，随后实际Binding和AfterStatement Drop
+各自记录完成。不从候选快照补造owner，也不扩大旧失活观察或其他循环族。
+
+后端共享H校验，独立记录实际Name、Binding和物理Drop的消费收据；与旧两出口
+消费授权互斥，检查完整entry/回边/exit incoming及H至绑定槽的实际运输。正常
+有限native不等同资源计数或所有激活证明；其范围与实测记录见SPEC-0341。

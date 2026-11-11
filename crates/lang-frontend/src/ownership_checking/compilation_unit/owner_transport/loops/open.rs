@@ -374,6 +374,8 @@ impl UnitOwnerOpenLoopReturnV1 {
 /// Unified open-body endpoint contract; only Break leaves a live owner for a loop exit.
 #[derive(Clone, Debug)]
 pub enum UnitOwnerOpenLoopObservationV1 {
+    /// Normal header consumed by an actual terminal binding and Drop.
+    NormalBindDrop(Box<super::UnitOwnerNormalBindDropV1>),
     /// A real Break leaves Q live, preserving all existing suffix consumer contracts.
     BreakLive(Box<UnitOwnerReplaceBreakObservationV1>),
     /// A real body Return delivers Q; the condition-false path separately delivers P.
@@ -395,6 +397,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::BreakLive(v) => &v.identity,
             Self::ReturnDelivered(v) => &v.identity,
             Self::NormalBackedge(v) => &v.core.identity,
+            Self::NormalBindDrop(v) => &v.core.identity,
             Self::ContinueBackedge(v) => &v.core.identity,
             Self::MixedBackedge(v) => &v.core.identity,
             Self::ConditionalBreakBackedge(v) => &v.core.identity,
@@ -406,6 +409,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::BreakLive(v) => v.callable,
             Self::ReturnDelivered(v) => v.callable,
             Self::NormalBackedge(v) => v.core.callable,
+            Self::NormalBindDrop(v) => v.core.callable,
             Self::ContinueBackedge(v) => v.core.callable,
             Self::MixedBackedge(v) => v.core.callable,
             Self::ConditionalBreakBackedge(v) => v.core.callable,
@@ -417,6 +421,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::BreakLive(v) => v.statement,
             Self::ReturnDelivered(v) => v.statement,
             Self::NormalBackedge(v) => v.core.statement,
+            Self::NormalBindDrop(v) => v.core.statement,
             Self::ContinueBackedge(v) => v.core.statement,
             Self::MixedBackedge(v) => v.core.statement,
             Self::ConditionalBreakBackedge(v) => v.core.statement,
@@ -429,6 +434,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::BreakLive(value) => value.is_consistent(),
             Self::ReturnDelivered(value) => value.is_consistent(),
             Self::NormalBackedge(value) => value.is_consistent(),
+            Self::NormalBindDrop(value) => value.is_consistent(),
             Self::ContinueBackedge(value) => value.is_consistent(),
             Self::MixedBackedge(value) => value.is_consistent(),
             Self::ConditionalBreakBackedge(value) => value.is_consistent(),

@@ -169,7 +169,7 @@ impl LoopTransaction {
         else {
             return None;
         };
-        if owner_parameter.is_none()
+        if (owner_parameter.is_none() || (integer_control && parameter_symbols.len() == 1))
             && (parameters.len() == 1
                 || (integer_control
                     && parameter_symbols.iter().all(|symbol| {
@@ -179,13 +179,19 @@ impl LoopTransaction {
                             .and_then(|ty| checker.typed.types().get(ty))
                             == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
                     })))
-            && checker.typed.types().get(signature.return_type())
-                == Some(&UnitTypeKind::Builtin(BuiltinType::String))
-            && signature.result_source() == crate::type_checking::CallableResultSource::Owned
+            && (checker.typed.types().get(signature.return_type())
+                == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                || (checker.typed.types().get(signature.return_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    && signature.result_source()
+                        == crate::type_checking::CallableResultSource::Owned))
             && let Some(normal) = normal_backedge::NormalInput::admit(
                 checker,
                 elements,
                 &parameter_symbols,
+                owner_parameter,
+                checker.typed.types().get(signature.return_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Unit)),
                 UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
             )
         {
@@ -772,6 +778,7 @@ impl DropPlanner<'_, '_> {
                         UnitOwnerOpenLoopObservationV1::BreakLive(boundary) => Some(boundary),
                         UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
                         | UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::NormalBindDrop(_)
                         | UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
                         | UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(_)
                         | UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(_)

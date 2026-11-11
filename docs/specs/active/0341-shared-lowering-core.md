@@ -13366,3 +13366,90 @@ binding/child邻域2项。使用opt0/debug2；不执行CI-only、故障注入、
 默认CLI构建及实际help（features为空）、fmt、docs897、diff均通过。
 相对4150bbd8尺寸2442手写Rust文件、35历史超限，无新增豁免。最后仅追加此Spec；
 本地组合验证不替代正式CI或独立审查，不推送、不合main，D10/E2仍有后续范围。
+
+### own String 参数进入正常 Int header：待验证切片（2026-11-11）
+
+本片从已发布组合 `ba025f6f` 隔离推进ADR-0038的真实入口owner身份。最窄合同为
+一个不可变Int limit及一个own String incoming，`var held = incoming`，index从0
+开始、严格小于limit、body固定Replace及加一，正常回边，循环后直接Return根。
+保留Parameter原catalog/owner身份，经真实Move/Binding进入H，Name或Binding不
+制造新producer；零轮返回实际入口owner，后续激活Q与入口来源独立。
+
+不同时推广Continue/Break/条件Return、多个根、capture或新控制条件；既有Parameter
+无条件loop Return不是本片正常回边的证据。先用普通原样probe经Basic/lower/SSA/
+LLVM及唯一Return authority定位真实缺口；尚未执行，不称确认红或完成。后续独审、
+真实输入/binary绑定、本地分步提交，未获本批推送授权，不动其他工作树或target。
+
+真实普通红已确认：唯一exact `owned_parameter_normal_header_requires_actual_return_authority`
+第32行authority缺失失败（exit101，0 passed/1 failed/0 ignored）；前置Basic、真实
+lower、SSA verifier、LLVM、唯一Return及非空payload均通过，不是前置拒绝。
+4310输入、实际Cargo artifact及保存binary SHA在执行前后绑定不变，原日志保留于
+主仓忽略目录 `.local-artifacts/owner-parameter-header-20261111T125330Z`。
+本阶段尚未生产接线或运行native，CI-only仅编译，不称新增能力完成。
+
+本片复用现NormalBackedge而未新增wrapper，Hcore封印initial_origin；只有一个Int
+及一个own String且raw参数Name、Int加一、纯Fallthrough可进入参数入口路径。
+真实Parameter catalog保留原身份，严格Move→Result→Binding，不创建第二个入口
+producer。后端从实际Value ABI绑定保存slot/index/symbol，Name只运输该slot；最终
+参数初值无指令定义、唯一ABI引用且原参数已消费，literal路径仍严格核StringLiteral。
+
+首次green的FE编译通过，CG新增SSA测试因StringLiteral模式漏string字段报E0027，
+未执行测试；仅修为bytes加其余字段忽略，原红与生产不改，旧编译日志保留。
+green2重新冻结4311输入及实际artifact，47 ordinary exact（FE20+CG27）全部
+各1 passed/0 failed/0 ignored。其中新5项加旧34项及Parameter open-loop的8项
+直接消费者回归，核原Parameter身份、真实entry→header、Q正常回边与H Return；
+Basic/Const覆盖0/1/2/7正常轮次及两个不同零轮caller串。新损坏负控与全部CI-only
+仅编译，不执行故障/Abort；普通native不证明一般循环或资源计数。
+输入/保存binary/runner/日志在本片持久目录green2逐一绑定，不使用旧组合或CI结果
+代替当前实测。正式CI、最新main/其他新分支合流仍待验，不宣称D10/E2整体完成。
+后续strict Clippy发现两处UnitOwnerOrigin已Copy仍调用clone；未加豁免，只移除
+两处clone，保留失败日志。green3重新冻结4311输入并通过默认/loan两套FE/CG
+all-target strict Clippy、默认workspace all-target check，再真实重编并重跑原47项，
+全部通过。最终交付以green3为准，不把green2的实测当作修正后结果。
+最终fmt、docs897、相对ba025f6f尺寸2444手写Rust/35历史超限、diff通过，无提高
+尺寸额度。独审重新核green3的47日志、真实artifact与保存binary；实测后仅Spec
+账本变化，完整输入最终绑定。本片仅本地完成，不包含正式CI或最新合流结论。
+
+### 正常 header 的本地最终绑定消费：待验证切片（2026-11-11）
+
+本片从已验本地c57c4b48隔离推进ADR-0038的最终消费义务，不再扩控制组合。
+保留单Int limit、literal String初值、单根Replace与加一及正常回边；循环后唯一
+`val retired = held`，函数返回Unit。当前header仅直接Return；既有Break两出口
+绑定消费不能冒充多轮H。须保留真实H来源及Take→Bind→Drop，不创建新producer，
+实际清理消费与完整incoming分别验证，不以普通运行成功代替owner授权。
+
+首先仅增加普通原样probe，经FE Basic、真实lower、SSA与LLVM分层定位缺口，再核
+实际最终Drop身份及授权。前置失败另记，不提前称authority红；不执行native资源
+计数、fault或CI-only。本阶段尚未执行、未完成生产，不推送或改已冻结工作树。
+
+首次probe编译因测试调用私有UnitSymbolId::new报E0624，尚未执行；该失败仅为测试
+构造API错误，不作为消费缺口红。保留原编译日志，改用公开原身份查询后重新冻结验证。
+
+red2已真实确认消费授权缺口：唯一ordinary exact
+`normal_header_final_binding_requires_actual_drop_authority`在第71行授权缺失失败，
+exit101、0 passed/1 failed/0 ignored；此前Basic、原retired Drop fact、真实lower、
+SSA verifier、LLVM及精确实际Drop观察均通过。4312输入、实际Cargo artifact与保存
+binary SHA绑定；本地证据owner-header-bind-20261111T133204Z保留首编译失败和red2。
+此红仅证明最终Drop缺授权，尚未证明H来源或生产完成，不扩大为语言拒绝。
+
+生产候选抽唯一HeaderEquation与CG transport校验，分别保留旧Return及新BindDrop
+端点，不复制H守恒、不制造Return身份或producer。首次green编译有FE字段迁移与
+旧匹配遗漏错误，green2另遇CG抽模块后RAbort路径错误；各自保留原日志，未执行。
+green3真实FE22中21通过，新产品未发布；临时诊断证明准入、H安装及Take均成功，
+但原evaluate_owner_expression因旧观察失活清空实际owner，Binding得到None。
+修复仅对该BindDrop精确Consume成功完成且原Some owner匹配已Take身份、H方程、
+空后状态和未完成旗标的情况保留原结果，不从snapshot回填；Bind须真实完成旗标，
+新增损坏负控仅CI编译。临时诊断全移除，原失败输入/日志/二进制均保全。
+
+green4重新冻结4315输入并真实重编，52 ordinary（FE22+CG30）全部逐项通过：
+原Drop授权红、真实P/Q到H及H到最终Drop的完整incoming/slot来源、新Basic/Const
+0/1/2/7正常native和旧47项回归。saved binary SHA与实际Cargo产物及输入绑定，
+没有复用前轮失败或旧构建结果。CI-only不执行，普通native不证明资源计数、一般
+控制、参数入口BindDrop、多根或capture；最新main/组合与正式CI仍待验，本地不推送。
+
+随后strict Clippy提示NormalSuffix大枚举；仅为BindInput加Box，未豁免或改合同。
+green5重新冻结4315输入，通过默认/loan双strict Clippy及workspace all-target check，
+重新编译并真实重跑原52项全部通过。最终以green5为准，不用green4结果替代布局
+修正后的实测；原编译失败、21/22及Clippy失败和诊断证据均保留。
+最终fmt、docs897、相对c57c4b48尺寸2448手写Rust/35历史超限及diff门禁通过。
+独审核52日志、实际binary/artifact及完整生产；最终仅本地切片完成，合流/正式CI另验。

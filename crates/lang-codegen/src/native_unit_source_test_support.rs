@@ -27,6 +27,8 @@ mod owner_conditional_return_tests;
 mod owner_continue_header_tests;
 #[path = "owner_group_condition_tests.rs"]
 mod owner_group_condition_tests;
+#[path = "owner_header_bind_tests.rs"]
+mod owner_header_bind_tests;
 #[path = "owner_loop_return_tests.rs"]
 mod owner_loop_return_tests;
 #[path = "owner_mixed_loop_edge_tests.rs"]
@@ -39,6 +41,8 @@ mod owner_normal_backedge_tests;
 mod owner_own_call_tests;
 #[path = "owner_pair_call_tests.rs"]
 mod owner_pair_call_tests;
+#[path = "owner_parameter_header_tests.rs"]
+mod owner_parameter_header_tests;
 #[path = "owner_parameter_loop_tests.rs"]
 mod owner_parameter_loop_tests;
 #[path = "owner_parameter_mixed_tests.rs"]

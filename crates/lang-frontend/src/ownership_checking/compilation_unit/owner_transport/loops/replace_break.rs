@@ -205,6 +205,7 @@ impl UnitOwnerObservation {
             super::UnitOwnerOpenLoopObservationV1::BreakLive(value) => Some(value),
             super::UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
             | super::UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::NormalBindDrop(_)
             | super::UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
             | super::UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(_)
             | super::UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(_)

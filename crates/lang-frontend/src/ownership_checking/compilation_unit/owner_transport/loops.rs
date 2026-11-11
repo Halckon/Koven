@@ -3,12 +3,12 @@ mod invariant;
 mod normal_backedge;
 mod open;
 pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
-    HeaderCompletion, HeaderCore, MixedParameterThreshold,
+    HeaderCompletion, HeaderCore, HeaderEquation, MixedParameterThreshold,
 };
 pub use normal_backedge::{
     UnitOwnerConditionalBreakBackedgeV1, UnitOwnerConditionalReturnBackedgeV1,
     UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerMixedBackedgeV1,
-    UnitOwnerNormalBackedgeV1,
+    UnitOwnerNormalBackedgeV1, UnitOwnerNormalBindDropV1,
 };
 pub use open::{
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,

@@ -14,7 +14,7 @@ pub enum UnitOwnerHeaderSourceV1 {
 /// A sealed finite changing-owner loop with one normal backedge and one Return exit.
 /// The raw first traversal is retained as evidence, not mistaken for all activations.
 #[derive(Clone, Debug)]
-pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
+pub(in crate::ownership_checking::compilation_unit) struct HeaderEquation {
     pub(in crate::ownership_checking::compilation_unit) completion: HeaderCompletion,
     pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) callable: UnitOwnerCallable,
@@ -22,6 +22,7 @@ pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
     pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit) initial: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) initial_origin: UnitOwnerOrigin,
     pub(in crate::ownership_checking::compilation_unit) argument: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) call: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) previous: UnitSymbolId,
@@ -33,15 +34,32 @@ pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
     pub(in crate::ownership_checking::compilation_unit) entry: UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) backedge: UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) false_sample: UnitOwnerReplaceBreakStateV1,
-    pub(in crate::ownership_checking::compilation_unit) target: ReturnConsumerTarget,
     pub(in crate::ownership_checking::compilation_unit) assignment: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) increment: Option<UnitExpressionId>,
     pub(in crate::ownership_checking::compilation_unit) assignment_completed: bool,
     pub(in crate::ownership_checking::compilation_unit) body_completed: bool,
+}
+#[derive(Clone, Debug)]
+pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
+    pub(in crate::ownership_checking::compilation_unit) equation: HeaderEquation,
+    pub(in crate::ownership_checking::compilation_unit) target: ReturnConsumerTarget,
     pub(in crate::ownership_checking::compilation_unit) taken: bool,
     pub(in crate::ownership_checking::compilation_unit) delivered: bool,
     pub(in crate::ownership_checking::compilation_unit) cleaned: bool,
 }
+// Private implementation sharing only; public wrappers expose no Deref/conversion.
+impl std::ops::Deref for HeaderCore {
+    type Target = HeaderEquation;
+    fn deref(&self) -> &HeaderEquation {
+        &self.equation
+    }
+}
+impl std::ops::DerefMut for HeaderCore {
+    fn deref_mut(&mut self) -> &mut HeaderEquation {
+        &mut self.equation
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::ownership_checking::compilation_unit) enum HeaderCompletion {
     Fallthrough,
@@ -475,6 +493,18 @@ header_accessors!(UnitOwnerNormalBackedgeV1);
 header_accessors!(UnitOwnerContinueBackedgeV1);
 header_accessors!(UnitOwnerMixedBackedgeV1);
 impl UnitOwnerNormalBackedgeV1 {
+    /// Actual entry producer origin; a consumed parameter is never recreated as a String.
+    pub fn initial_origin(&self) -> UnitOwnerOrigin {
+        self.core.initial_origin
+    }
+    /// The precise consumed input parameter for the parameter-origin slice.
+    pub fn input_parameter(&self) -> Option<UnitSymbolId> {
+        match self.core.initial_origin {
+            UnitOwnerOrigin::Parameter(symbol) => Some(symbol),
+            _ => None,
+        }
+    }
+
     /// True only for a complete ordinary backedge with no explicit jump role.
     pub fn is_consistent(&self) -> bool {
         self.core.completion == HeaderCompletion::Fallthrough && self.core.is_consistent()
@@ -507,7 +537,7 @@ impl UnitOwnerContinueBackedgeV1 {
             && self.snapshot == self.core.backedge
     }
 }
-impl HeaderCore {
+impl HeaderEquation {
     fn root(&self) -> UnitSymbolId {
         self.entry.symbol()
     }
@@ -520,23 +550,51 @@ impl HeaderCore {
         let p = self.entry.owner();
         let q = self.backedge.owner();
         let source = self.statement.source_unit();
-        self.increment.is_none_or(|id| {
-            id.source_unit() == source
-                && ![
-                    self.initial,
-                    self.argument,
-                    self.call,
-                    self.assignment,
-                    self.condition,
-                    self.target.payload,
-                    self.target.expression,
-                ]
-                .contains(&id)
-        }) && self.assignment_completed
+        let origin_valid = match self.initial_origin {
+            UnitOwnerOrigin::String(expression) => expression == self.initial,
+            UnitOwnerOrigin::Parameter(symbol) => {
+                symbol.source_unit() == source
+                    && symbol != self.root()
+                    && symbol != self.previous
+                    && self.completion == HeaderCompletion::Fallthrough
+                    && self.increment.is_some()
+            }
+            _ => false,
+        };
+        let mut prefix = Vec::new();
+        if let UnitOwnerOrigin::Parameter(symbol) = self.initial_origin {
+            prefix.push(E::Move {
+                expression: self.initial,
+                symbol,
+                owner: p.clone(),
+            });
+        }
+        prefix.extend([
+            E::Result {
+                expression: self.initial,
+                owner: p.clone(),
+            },
+            E::Binding {
+                symbol: self.root(),
+                initializer: self.initial,
+                owner: p.clone(),
+            },
+        ]);
+
+        origin_valid
+            && self.increment.is_none_or(|id| {
+                id.source_unit() == source
+                    && ![
+                        self.initial,
+                        self.argument,
+                        self.call,
+                        self.assignment,
+                        self.condition,
+                    ]
+                    .contains(&id)
+            })
+            && self.assignment_completed
             && self.body_completed
-            && self.taken
-            && self.delivered
-            && self.cleaned
             && self.inputs.is_consistent()
             && self.producers.is_consistent()
             && self.inputs.callable() == self.callable
@@ -548,7 +606,7 @@ impl HeaderCore {
             && self
                 .inputs
                 .definition(p.clone())
-                .is_some_and(|d| d.origin() == UnitOwnerOrigin::String(self.initial))
+                .is_some_and(|d| d.origin() == self.initial_origin)
             && self
                 .producers
                 .definition(q.clone())
@@ -560,9 +618,7 @@ impl HeaderCore {
             && self.entry.declaration == self.backedge.declaration
             && self.entry.scope_depth == 1
             && self.backedge.scope_depth == 1
-            && self.target.binding.is_none()
-            && self.target.replacement.is_none()
-            && [self.body, self.previous_statement, self.target.statement]
+            && [self.body, self.previous_statement]
                 .iter()
                 .all(|id| id.source_unit() == source && *id != self.statement)
             && [
@@ -571,8 +627,6 @@ impl HeaderCore {
                 self.call,
                 self.assignment,
                 self.condition,
-                self.target.payload,
-                self.target.expression,
             ]
             .iter()
             .enumerate()
@@ -584,25 +638,12 @@ impl HeaderCore {
                         self.call,
                         self.assignment,
                         self.condition,
-                        self.target.payload,
-                        self.target.expression,
                     ][..i]
                         .contains(id)
             })
             && self.root().source_unit() == source
             && self.previous.source_unit() == source
-            && self.prefix
-                == [
-                    E::Result {
-                        expression: self.initial,
-                        owner: p.clone(),
-                    },
-                    E::Binding {
-                        symbol: self.root(),
-                        initializer: self.initial,
-                        owner: p.clone(),
-                    },
-                ]
+            && self.prefix == prefix
             && self.events
                 == [
                     E::Result {
@@ -639,6 +680,161 @@ impl HeaderCore {
     }
 }
 
+impl HeaderCore {
+    pub(in crate::ownership_checking::compilation_unit) fn is_consistent(&self) -> bool {
+        let ids = [self.target.payload, self.target.expression];
+        self.equation.is_consistent()
+            && self.taken
+            && self.delivered
+            && self.cleaned
+            && self.target.binding.is_none()
+            && self.target.replacement.is_none()
+            && self.target.statement.source_unit() == self.statement.source_unit()
+            && self.target.statement != self.statement
+            && ids[0] != ids[1]
+            && ids.iter().all(|id| {
+                id.source_unit() == self.statement.source_unit()
+                    && ![
+                        self.initial,
+                        self.argument,
+                        self.call,
+                        self.assignment,
+                        self.condition,
+                    ]
+                    .contains(id)
+                    && Some(*id) != self.increment
+            })
+    }
+}
+
 header_accessors!(UnitOwnerConditionalBreakBackedgeV1);
 
 header_accessors!(UnitOwnerConditionalReturnBackedgeV1);
+
+/// Normal changing header consumed by one real binding and its final Drop.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerNormalBindDropV1 {
+    pub(in crate::ownership_checking::compilation_unit) core: HeaderEquation,
+    pub(in crate::ownership_checking::compilation_unit) initializer: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) retired: UnitSymbolId,
+    pub(in crate::ownership_checking::compilation_unit) taken: UnitOwnerReplaceBreakStateV1,
+    pub(in crate::ownership_checking::compilation_unit) bound: UnitOwnerReplaceBreakStateV1,
+    pub(in crate::ownership_checking::compilation_unit) point: UnitDropPoint,
+    pub(in crate::ownership_checking::compilation_unit) empty: bool,
+    pub(in crate::ownership_checking::compilation_unit) result_completed: bool,
+}
+impl UnitOwnerNormalBindDropV1 {
+    /// Exact consumed Name of the exiting header.
+    pub fn initializer(&self) -> UnitExpressionId {
+        self.initializer
+    }
+    /// Actual terminal val declaration.
+    pub fn binding_statement(&self) -> UnitStatementId {
+        self.statement
+    }
+    /// Actual bound symbol dropped after the declaration.
+    pub fn retired(&self) -> UnitSymbolId {
+        self.retired
+    }
+    /// Actual Drop location; not a synthesized Return.
+    pub fn drop_point(&self) -> UnitDropPoint {
+        self.point
+    }
+    /// Validate the shared H equation and actual Take/Bind/Drop terminal evidence.
+    pub fn is_consistent(&self) -> bool {
+        self.core.is_consistent()
+            && self.core.completion == HeaderCompletion::Fallthrough
+            && self.core.increment.is_some()
+            && self.core.initial_origin == UnitOwnerOrigin::String(self.core.initial)
+            && self.taken == self.core.false_sample
+            && self.bound.owner == self.taken.owner
+            && self.bound.symbol == self.retired
+            && self.bound.scope_depth == 1
+            && self.bound.origin == self.bound.declaration
+            && self.retired.source_unit() == self.core.statement.source_unit()
+            && ![self.core.root(), self.core.previous].contains(&self.retired)
+            && self.statement.source_unit() == self.core.statement.source_unit()
+            && ![
+                self.core.statement,
+                self.core.body,
+                self.core.previous_statement,
+            ]
+            .contains(&self.statement)
+            && self.initializer.source_unit() == self.core.statement.source_unit()
+            && ![
+                self.core.initial,
+                self.core.argument,
+                self.core.call,
+                self.core.condition,
+                self.core.assignment,
+            ]
+            .contains(&self.initializer)
+            && Some(self.initializer) != self.core.increment
+            && self.point == UnitDropPoint::AfterStatement(self.statement)
+            && self.empty
+            && self.result_completed
+    }
+}
+
+impl UnitOwnerNormalBindDropV1 {
+    /// Shared finite header evidence.
+    pub fn callable(&self) -> UnitOwnerCallable {
+        self.core.callable
+    }
+    /// Shared finite header evidence.
+    pub fn statement(&self) -> UnitStatementId {
+        self.core.statement
+    }
+    /// Shared finite header evidence.
+    pub fn condition(&self) -> UnitExpressionId {
+        self.core.condition
+    }
+    /// Shared finite header evidence.
+    pub fn body(&self) -> UnitStatementId {
+        self.core.body
+    }
+    /// Shared finite header evidence.
+    pub fn root(&self) -> UnitSymbolId {
+        self.core.entry.symbol()
+    }
+    /// Shared finite header evidence.
+    pub fn initial(&self) -> UnitExpressionId {
+        self.core.initial
+    }
+    /// Shared finite header evidence.
+    pub fn argument(&self) -> UnitExpressionId {
+        self.core.argument
+    }
+    /// Shared finite header evidence.
+    pub fn call(&self) -> UnitExpressionId {
+        self.core.call
+    }
+    /// Shared finite header evidence.
+    pub fn input_producers(&self) -> &UnitOwnerProducerCatalogV1 {
+        &self.core.inputs
+    }
+    /// Shared finite header evidence.
+    pub fn body_producers(&self) -> &UnitOwnerProducerCatalogV1 {
+        &self.core.producers
+    }
+    /// Shared finite header evidence.
+    pub fn incoming(&self) -> [UnitOwnerHeaderSourceV1; 2] {
+        [
+            UnitOwnerHeaderSourceV1::Entry(self.core.entry.owner()),
+            UnitOwnerHeaderSourceV1::Backedge(self.core.backedge.owner()),
+        ]
+    }
+    /// Shared finite header evidence.
+    pub fn increment(&self) -> Option<UnitExpressionId> {
+        self.core.increment
+    }
+    /// Shared finite header evidence.
+    pub fn prefix_events(&self) -> &[UnitOwnerTransportEvent] {
+        &self.core.prefix
+    }
+    /// Shared finite header evidence.
+    pub fn body_events(&self) -> &[UnitOwnerTransportEvent] {
+        &self.core.events
+    }
+}
