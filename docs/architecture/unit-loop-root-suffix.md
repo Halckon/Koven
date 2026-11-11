@@ -30,3 +30,15 @@ tracker 不使用遗留 ValueState owner ID 推导退出时的新代际。完成
 
 真实源码覆盖部分/全部 live、逆序消费，以及额外语句、延迟 alias 清理、分支的拒绝。
 observer 开关等价保持。CI-only 缺 move/bind/drop/完成事件负控仅编译，执行留给远端 CI。
+
+## 已复用的实际 SSA / LLVM 路径
+
+现有通用 lowering 已能把上述受限多根源码生成真实 SSA header 参数和 LLVM phi；不再
+另写一套重复的 phi 算法，也不放宽入口或退休旧 witness。真实二根/三根、正逆 Replace
+顺序、全死/部分live/全live 的矩阵，将前端 call/root/input 定义逐项对照 SSA：入口边
+接原 String、正常回边接对应 RootReplace 新结果、body只消费对应 detached旧值，false
+边传当前header值并在出口/有限后缀恰drop一次。LLVM另核实际双前驱String phi数量。
+
+三根逆序的native运行只调用 `run(false)`，验证零轮出口与后缀可执行。当前纯Name且
+body不改guard的形状不能在true轮后自然终止，因此不声称该native测试执行过回边。
+这些测试复用原lowering和旧权限；新的边界产品尚未成为独立替代旧witness的下游授权。
