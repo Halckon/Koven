@@ -12384,3 +12384,46 @@ Basic/Const 两路、参数入口与两 Return 回执、原 SSA cleanup 顺序�
 `caf1b1db` 的 Rust size guard 均通过，无新增尺寸豁免。保存每阶段原 SOURCE、原始
 artifact、覆盖前 binary 副本/SHA、精确名单和逐项日志；首次 probe oracle 错误保留。
 本轮是局部 Parameter 输入能力，不代表一般动态 owner/循环归纳能力完成，未自行发布。
+
+### Parameter owner 与 wrapper live-source 本地合成验收（2026-11-11）
+
+- 新隔离树 `feature/spec-0341-parameter-forward-local-combination` 的代码冻结头为
+  `8e2a853ad06959616a8e3384177b1f7be6828148`，真双父为 wrapper `d25430ff` 与
+  owner `87341a0a`，共同祖先 `c85ac4b9`。现场远端 #412 仍 open/Draft，head
+  `caf1b1db`、base/main `03d70377`；新头保留该 PR head 祖先，本任务没有推送或合入 main。
+  main 的11份 proposal 脏改及未跟踪 docs/scripts、两原树和另一借用 target 均未修改。
+- 唯一文本冲突是本 Spec；本轮实核两父均以共祖正文为前缀，合成严格为 wrapper 全文、
+  分隔换行与 owner 新尾段，完整保留已有合流及两能力历史。解决冲突并核无标记后才提交。
+  另一个路径交集 `owner_transport/loops.rs` 自动合并，精确为 owner 版加
+  `forward_scope: _` 的两行观察元数据说明/忽略，不改变 Parameter 准入与 active 义务。
+  其余 wrapper16、owner15条非交集路径逐字等对应父；没有新生产算法或新语义。
+- fresh 审定实际17个唯一 ordinary exact：FE5、CG12，两父候选无重名。
+  每项均先 exact-list 核唯一，再独立 exact 进程；FE每项1 passed/638 filtered，
+  CG每项1 passed/2959 filtered，全部0 failed/0 ignored，runner末总结17。
+  两个 native exact 共4个有限程序，每个程序均验证 false 和 true 路径结果；不作资源计数证明。
+  另计17次显式 SSA/LLVM lower（owner13、wrapper4），native emit4次单列；
+  wrapper两项邻控仅FE，不冒称 Block/Group/branch 正常lower成功。
+- wrapper核心在两个 Unit 布局真实重新执行 observer-off ownership，原 on/off products 直接
+  lower；legacy comparator 仅对副本归一，不回灌。旧 forward 全家族事实仍保序投影，
+  窄表达式体 live-source 因果仍 Partial，不新增 Complete、receipt、cleanup 或跨函数 SSA 身份。
+  owner保留实际 Parameter entry→Name运输→root Alias及两个独立Return，旧String-only门不松。
+  本轮是同构建独立回归，没有新增同一程序混合 Parameter owner 与 wrapper 的交叉证明。
+- 默认 CLI check11.01s，原 JSON 中 frontend/codegen/kovenc 三实际 artifact 均 features=[]。
+  显式 loan-observation-test-support 双crate no-run2m28s；两 test artifact 均opt0/debug2，
+  不降档、不设RUSTFLAGS、不复制target。严格Clippy1m22s、默认workspace all-targets1m08s、
+  fmt、docs887、diff均成功；尺寸相对main `03d70377`核2412手写Rust、35旧超限，额度未改。
+  owner target独占串行；另一0403等待日志脚本未触碰，没有停止任何其他任务。
+- 原件保存在 `/private/tmp/koven-parameter-forward-evidence`：4269 tracked输入清单、
+  merge-inputs、两selection、run-exacts.py、原feature/defaultCLI JSON、默认CLI三artifact摘要、
+  manifest、两exact日志及静态日志。输入清单SHA为
+  `0d401b50a9bb47d4e28d01639e7bdb1f0b11c509c452d04c0122aa83848b4cee`；
+  FE binary SHA `4a2e649b12e7590798e3dad22c48c1d5714e599ffeee695195031fb03283917e`，
+  CG binary SHA `65d68ccbe0ffee4bcfe8349af5b6411eb11a614d5b55f95f22d8eb5b6a07d82a`。
+  执行前后HEAD及binary一致；收尾仅本Spec可偏离冻结输入，其余源码/配置不变。
+- 本轮构建纳入的 CI-only、foreign、fault、Abort、counter、压力项仅编译、未执行；
+  其余未审集合未执行，不宣称已全部编译。
+  各父原样假设失败、编译错误、能力红绿及历史证据限制保留，不重跑红或补造缺失证据。
+  本轮没有Rust失败或能力红；只读定位曾遇旧helper路径不存在，改查实际路径后读审，
+  不影响项目输入或门禁。正式CI/release及发布仍由后继流程处理，本任务不宣称完成。
+- 独立只读终审已核双父并集、17项实际结果、全部artifact/binary/输入/名单哈希及文档分账，
+  无新增阻断。此后仅本Spec收尾提交，不重跑冻结Rust，也不自行发布。
