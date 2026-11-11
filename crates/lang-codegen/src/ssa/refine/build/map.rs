@@ -4,7 +4,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
-    parser::{BinaryOperator, Expression, LiteralKind},
+    parser::{BinaryOperator, Expression},
     source::Span,
     type_checking::{BuiltinType, UnitTypeId, UnitTypeKind},
 };
@@ -474,16 +474,6 @@ impl Builder<'_, '_> {
         Ok(Lowered::Value(result))
     }
 
-    pub(super) fn is_null_literal(&self, mut expression: ExpressionId) -> bool {
-        while let Ok((Expression::Group { expression: inner }, _)) = self.node(expression) {
-            expression = inner;
-        }
-        matches!(
-            self.node(expression),
-            Ok((Expression::Literal(LiteralKind::Null), _))
-        )
-    }
-
     pub(super) fn wrap_map_result(
         &mut self,
         payload: Slot,
@@ -525,13 +515,14 @@ impl Builder<'_, '_> {
         if !matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual) {
             return Ok(None);
         }
-        let null_operand = if self.is_null_literal(right) {
-            Some(left)
-        } else if self.is_null_literal(left) {
-            Some(right)
-        } else {
-            None
-        };
+        let null_operand =
+            if crate::ssa::lowering_support::is_null_literal(self.inputs.parsed, right) {
+                Some(left)
+            } else if crate::ssa::lowering_support::is_null_literal(self.inputs.parsed, left) {
+                Some(right)
+            } else {
+                None
+            };
         if let Some(operand) = null_operand {
             let operand_ty = self.expression_type(operand)?;
             if !matches!(

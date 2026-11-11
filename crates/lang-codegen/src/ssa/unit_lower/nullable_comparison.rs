@@ -125,9 +125,9 @@ impl UnitExpressionLowerer<'_> {
         if !matches!(operator, Operator::Equal | Operator::NotEqual) {
             return Ok(None);
         }
-        let operand = if self.is_null_literal(right) {
+        let operand = if crate::ssa::lowering_support::is_null_literal(self.parsed, right) {
             left
-        } else if self.is_null_literal(left) {
+        } else if crate::ssa::lowering_support::is_null_literal(self.parsed, left) {
             right
         } else {
             return Ok(None);
@@ -189,19 +189,5 @@ impl UnitExpressionLowerer<'_> {
         }
         self.emit_drops(point)?;
         Ok(Some(result))
-    }
-
-    pub(super) fn is_null_literal(&self, expression: ExpressionId) -> bool {
-        match self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map(|node| node.payload())
-        {
-            Ok(Expression::Literal(LiteralKind::Null)) => true,
-            Ok(Expression::Group { expression }) => self.is_null_literal(*expression),
-            _ => false,
-        }
     }
 }

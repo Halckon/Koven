@@ -7,9 +7,11 @@ use lang_frontend::{
 };
 
 use super::{
-    LoweringError, LoweringErrorKind, lowering_support::string_literal::decode_plain,
-    unit_lower_test_support::parsed,
+    LoweringError, LoweringErrorKind,
+    lowering_support::{parsed_by_source_unit, string_literal::decode_plain},
+    unit_lower_test_support::{analyze, parsed},
 };
+use lang_frontend::{name_resolution::SourceUnitInput, type_checking::standard_environments};
 
 fn expression(text: &str) -> (SourceMap, ParsedFile, ExpressionId) {
     let mut sources = SourceMap::new();
@@ -171,4 +173,37 @@ fn text_before_interpolation_is_checked_but_interpolation_stops_later_text() {
     );
     let (_, file, id) = expression(r#""${17}\n""#);
     assert_eq!(decode_plain(&file, "", id), Ok(None));
+}
+
+#[test]
+fn canonical_lookup_preserves_borrowed_identity_first_match_and_missing_error() {
+    let mut sources = SourceMap::default();
+    let (a, first) = parsed(&mut sources, "a.ko", "fun a(): Unit {}");
+    let (z, last) = parsed(&mut sources, "z.ko", "fun z(): Unit {}");
+    let inputs = [
+        SourceUnitInput::new("root", "z.ko", z, &last),
+        SourceUnitInput::new("root", "a.ko", a, &first),
+    ];
+    let (names_env, types_env) = standard_environments();
+    let (names, _, _) = analyze(&sources, &inputs, &names_env, &types_env);
+    let result = parsed_by_source_unit(&inputs, &names).unwrap();
+    assert!(std::ptr::eq(result[0], &first));
+    assert!(std::ptr::eq(result[1], &last));
+    let clone = lang_frontend::parser::parse_file(
+        &sources,
+        &lang_frontend::lexer::lex(&sources, a).unwrap(),
+    )
+    .unwrap();
+    let duplicate = [
+        inputs[1],
+        SourceUnitInput::new("root", "a.ko", a, &clone),
+        inputs[0],
+    ];
+    assert!(std::ptr::eq(
+        parsed_by_source_unit(&duplicate, &names).unwrap()[0],
+        &first
+    ));
+    let missing = parsed_by_source_unit(&inputs[..1], &names).unwrap_err();
+    assert_eq!(missing.kind, LoweringErrorKind::MismatchedSource);
+    assert_eq!(missing.span, None);
 }

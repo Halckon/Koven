@@ -3,12 +3,9 @@
 mod carry;
 mod closure;
 mod constant_materialization;
-mod deinit;
 mod expression_core;
-mod inline_nullable;
 mod integer;
 mod integer_range;
-mod integer_range_type;
 #[cfg(test)]
 mod lower_frontend;
 mod map_result;
@@ -68,9 +65,6 @@ pub(crate) use nullable_map_consume_lowering_tests::ordinary_nullable_consume_so
 mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;
-mod unit_source_query;
-#[cfg(test)]
-mod unit_source_query_tests;
 pub(crate) mod verify;
 mod verify_borrow_result;
 mod verify_operation;

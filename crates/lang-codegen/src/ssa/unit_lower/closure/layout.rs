@@ -1,6 +1,7 @@
 //! Callable layouts precede source signatures; thunk declarations follow them.
 
 use super::*;
+use lang_frontend::parser::Statement;
 
 #[cfg(test)]
 #[path = "layout_tests.rs"]
@@ -355,4 +356,47 @@ pub(in crate::ssa::unit_lower) fn declare(
         }
     }
     Ok(closures)
+}
+
+fn lambda_tail_expression(
+    parsed: &lang_frontend::parser::ParsedFile,
+    body: StatementId,
+    span: Span,
+) -> Result<ExpressionId, LoweringError> {
+    let body = parsed
+        .ast()
+        .statements()
+        .get(body)
+        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let Statement::LambdaBody { elements } = body.payload() else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let last = elements
+        .last()
+        .copied()
+        .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+    let last = parsed
+        .ast()
+        .statements()
+        .get(last)
+        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let Statement::Expression { expression } = last.payload() else {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    };
+    Ok(*expression)
+}
+
+fn direct_reference_symbol(
+    parsed: &lang_frontend::parser::ParsedFile,
+    expression: ExpressionId,
+    references: &BTreeMap<(usize, usize), UnitSymbolId>,
+) -> Option<UnitSymbolId> {
+    let node = parsed.ast().expressions().get(expression).ok()?;
+    match node.payload() {
+        Expression::Name => references.get(&span_key(node.span())).copied(),
+        Expression::Group { expression } => {
+            direct_reference_symbol(parsed, *expression, references)
+        }
+        _ => None,
+    }
 }

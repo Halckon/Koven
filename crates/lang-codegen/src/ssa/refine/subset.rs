@@ -562,7 +562,7 @@ impl Checker<'_, '_> {
         let id = self.id(expression);
         if matches!(node.payload(), Expression::Call { .. })
             && let Some(receiver) =
-                crate::ssa::unit_source_query::non_completing_call_receiver(self.inputs.typed, id)
+                crate::ssa::lowering_support::non_completing_call_receiver(self.inputs.typed, id)
         {
             self.migrated = true;
             return receiver.source_unit() == self.inputs.source_unit

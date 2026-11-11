@@ -10,7 +10,7 @@ use lang_frontend::{
 use super::{
     LoweredValue, UnitExpressionLowerer, lowering_error, scalar::is_integer_builtin, span_key,
 };
-use crate::ssa::{LoweringError, LoweringErrorKind, model::CheckedArithmeticOperator};
+use crate::ssa::{LoweringError, LoweringErrorKind, integer::assignment_operator};
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_assignment(
@@ -128,14 +128,10 @@ impl UnitExpressionLowerer<'_> {
                 };
                 let target_ssa_type = self.expression_ssa_type(target, target_node.span())?;
                 self.require_matching_assignment_type(value, target_ssa_type, span)?;
+                let operator = assignment_operator(operator)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
                 (
-                    self.checked(
-                        assignment_operator(operator),
-                        left,
-                        right,
-                        target_ssa_type,
-                        span,
-                    )?,
+                    self.checked(operator, left, right, target_ssa_type, span)?,
                     false,
                 )
             }
@@ -170,16 +166,5 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         Ok(())
-    }
-}
-
-fn assignment_operator(operator: AssignmentOperator) -> CheckedArithmeticOperator {
-    match operator {
-        AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
-        AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
-        AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
-        AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
-        AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
-        AssignmentOperator::Assign => unreachable!("plain assignment has no arithmetic operator"),
     }
 }

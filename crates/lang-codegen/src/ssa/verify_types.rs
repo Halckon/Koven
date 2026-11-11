@@ -268,7 +268,7 @@ fn verify_type_definition(
         }
         SsaTypeKind::InlineNullable { inner, niche } => {
             if inner.module() != module.id
-                || super::inline_nullable::inline_nullable_niche(module, *inner) != Some(*niche)
+                || super::types::inline_nullable_niche(module, *inner) != Some(*niche)
             {
                 push_type_error(
                     errors,

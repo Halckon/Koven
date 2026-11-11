@@ -41,7 +41,7 @@ fn lower_unit_impl(
     #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
 ) -> Result<(Program, FunctionId), LoweringError> {
     let (sources, inputs) = source_inputs;
-    let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
+    let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
     let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
         .map(|_| Default::default())
         .collect();
@@ -119,7 +119,7 @@ fn lower_unit_impl(
     }
     for (source_ordinal, instance) in instances.into_iter().enumerate() {
         if instance.key().deinit_owner().is_some() {
-            let plan = deinit::declare(
+            let plan = callable_abi::declare_deinit(
                 module,
                 &parsed_by_source,
                 names,
@@ -710,7 +710,6 @@ fn lower_unit_impl(
             consumed_receiver: None,
             closure_binding_context: false,
             callable_plans: &callable_plans,
-            closure_scope: plan.id,
             temporaries: BTreeMap::new(),
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),

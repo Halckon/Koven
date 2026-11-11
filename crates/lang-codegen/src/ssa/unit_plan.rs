@@ -32,7 +32,7 @@ use lang_frontend::{
 };
 
 #[cfg(test)]
-use super::unit_source_query::parsed_by_source_unit;
+use super::lowering_support::parsed_by_source_unit;
 use super::{
     LoweringError, LoweringErrorKind,
     lowering_support::callable_instances::{CallableToken, SourceIdentity, SourceToken},

@@ -15,9 +15,7 @@ pub(crate) mod constant;
 mod construction;
 mod container;
 mod control;
-mod deinit;
 mod field_borrow;
-mod handoff;
 mod loop_control;
 mod map;
 mod nullable_comparison;
@@ -33,9 +31,9 @@ mod type_plan;
 
 #[cfg(test)]
 pub(crate) use borrow_result::validate_bindings;
-pub(crate) use handoff::lower_owned_unit_with_entry;
+pub(crate) use constant::lower_owned_unit_with_entry;
 #[cfg(test)]
-pub(crate) use handoff::lower_scalar_unit_with_entry;
+pub(crate) use constant::lower_scalar_unit_with_entry;
 
 use nullable_proof::NullableProofs;
 use std::collections::BTreeMap;
@@ -48,8 +46,8 @@ use lang_frontend::{
     },
     ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
-        Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
-        ParsedFile, Statement,
+        Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, ParsedFile,
+        Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -61,7 +59,9 @@ use lang_frontend::{
 
 use super::{
     LoweringError, LoweringErrorKind,
-    lowering_support::{error as lowering_error, string_literal},
+    lowering_support::{
+        error as lowering_error, parse_integer_literal_text, present_name, span_key, string_literal,
+    },
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
         Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
@@ -190,7 +190,6 @@ struct UnitExpressionLowerer<'a> {
     consumed_receiver: Option<ConsumedReceiver>,
     closure_binding_context: bool,
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
-    closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
     // Evaluated operands remain live until their call or construction consumes them.
     pending_operands: Vec<EntityId>,
@@ -873,9 +872,7 @@ fn parse_integer_literal(
     let text = sources
         .slice(span)
         .map_err(|_| lowering_error(LoweringErrorKind::MismatchedSource, span))?;
-    lang_frontend::type_checking::integer_literal_magnitude(text, kind)
-        .and_then(|value| i128::try_from(value).ok())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidLiteral, span))
+    parse_integer_literal_text(text, kind, span)
 }
 
 fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError> {
@@ -885,17 +882,6 @@ fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError>
             Err(lowering_error(LoweringErrorKind::InvalidModel, span))
         }
     }
-}
-
-const fn present_name(marker: NameMarker) -> Option<Span> {
-    match marker {
-        NameMarker::Present(span) => Some(span),
-        NameMarker::Missing(_) | NameMarker::Error(_) => None,
-    }
-}
-
-const fn span_key(span: Span) -> (usize, usize) {
-    (span.start(), span.end())
 }
 
 #[cfg(test)]

@@ -6,8 +6,9 @@ use lang_frontend::{
 
 use super::{Builder, Lowered};
 use crate::ssa::{
+    integer::assignment_operator,
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{CheckedArithmeticOperator, EntityType},
+    model::EntityType,
     refine::body::{RAbort, ROp, RTerm, Slot},
 };
 
@@ -71,16 +72,8 @@ impl Builder<'_, '_> {
             .builtin(lang_frontend::type_checking::BuiltinType::Boolean)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let boolean = self.ssa_type(boolean, span)?;
-        let operator = match operator {
-            AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
-            AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
-            AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
-            AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
-            AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
-            AssignmentOperator::Assign => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
-        };
+        let operator = assignment_operator(operator)
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
         let result = self.body.slot(EntityType::Value(ty));
         let failed = self.body.slot(EntityType::Value(boolean));
         self.push(
@@ -175,16 +168,8 @@ impl Builder<'_, '_> {
             .builtin(lang_frontend::type_checking::BuiltinType::Boolean)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let boolean = self.ssa_type(boolean, span)?;
-        let operator = match operator {
-            AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
-            AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
-            AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
-            AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
-            AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
-            AssignmentOperator::Assign => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
-        };
+        let operator = assignment_operator(operator)
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
         let result = self.body.slot(EntityType::Value(ssa_element_ty));
         let failed = self.body.slot(EntityType::Value(boolean));
         self.push(
