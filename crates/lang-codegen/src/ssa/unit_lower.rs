@@ -46,8 +46,8 @@ use lang_frontend::{
     },
     ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
-        Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
-        ParsedFile, Statement,
+        Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, ParsedFile,
+        Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -59,7 +59,9 @@ use lang_frontend::{
 
 use super::{
     LoweringError, LoweringErrorKind,
-    lowering_support::{error as lowering_error, parse_integer_literal_text, present_name, span_key, string_literal},
+    lowering_support::{
+        error as lowering_error, parse_integer_literal_text, present_name, span_key, string_literal,
+    },
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
         Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,

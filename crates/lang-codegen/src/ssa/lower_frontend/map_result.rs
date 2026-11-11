@@ -3,11 +3,7 @@ use super::{ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, e
 use crate::ssa::model::{
     ComparisonOperator, EntityId, EntityType, Operation, ScalarConstant, SsaTypeId, ValueId,
 };
-use lang_frontend::{
-    ast::ExpressionId,
-    parser::BinaryOperator,
-    source::Span,
-};
+use lang_frontend::{ast::ExpressionId, parser::BinaryOperator, source::Span};
 
 impl ExpressionLowerer<'_> {
     pub(super) fn map_result_expression_type(

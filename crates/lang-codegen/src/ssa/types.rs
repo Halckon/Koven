@@ -421,7 +421,11 @@ impl Module {
     }
 }
 
-pub(super) fn valid_deinit_signature(module: &Module, owner: SsaTypeId, function: FunctionId) -> bool {
+pub(super) fn valid_deinit_signature(
+    module: &Module,
+    owner: SsaTypeId,
+    function: FunctionId,
+) -> bool {
     matches!(module.type_kind(owner), Some(SsaTypeKind::HeapOwner { .. }))
         && module.function(function).is_some_and(|function| {
             function.receiver
@@ -432,7 +436,7 @@ pub(super) fn valid_deinit_signature(module: &Module, owner: SsaTypeId, function
                 && function.return_types.is_empty()
                 && !function.never_returns
         })
-
+}
 
 /// `Some(niche)` when `inner` may carry an inline nullable wrapper, `None` otherwise.
 pub(super) fn inline_nullable_niche(module: &Module, inner: SsaTypeId) -> Option<bool> {

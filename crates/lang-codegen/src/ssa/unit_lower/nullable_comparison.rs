@@ -190,5 +190,4 @@ impl UnitExpressionLowerer<'_> {
         self.emit_drops(point)?;
         Ok(Some(result))
     }
-
 }
