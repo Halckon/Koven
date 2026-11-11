@@ -30,11 +30,20 @@ fn capture() -> Snapshot {
     capture_topology(false)
 }
 fn capture_topology(both: bool) -> Snapshot {
+    capture_calls(both, false)
+}
+fn capture_calls(both: bool, distinct: bool) -> Snapshot {
     let text = "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source { if (flag) { return view(source) }; return view(source) }\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner, flag); consume(item) }";
     let text = if both {
         text.replace("}; return view(source)", "} else { return view(source) }")
     } else {
         text.to_owned()
+    };
+    let text = if distinct {
+        text.replacen("return view(source)", "return other(source)", 1)
+            + "\nfun other(source: String): borrow String from source = source"
+    } else {
+        text
     };
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "ci-branch.ko", &text);
@@ -198,5 +207,41 @@ fn ci_only_both_return_receipt_rejects_tail_topology_and_missing_exit() {
         let mut e = completed(&s);
         e.returned[fault] = false;
         assert!(e.finish(&s.plans, &s.function, s.span).is_err());
+    }
+}
+
+#[test]
+fn ci_only_distinct_branch_callees_cannot_be_swapped_or_duplicated() {
+    for both in [false, true] {
+        let s = capture_calls(both, true);
+        assert_ne!(s.receipt.paths[0].callee, s.receipt.paths[1].callee);
+        s.receipt.validate(&s.plans, &s.function, s.span).unwrap();
+        for fault in 0..3 {
+            let mut r = s.receipt.clone();
+            let left = r.paths[0].callee;
+            let right = r.paths[1].callee;
+            match fault {
+                0 => {
+                    r.paths[0].callee = right;
+                    r.paths[1].callee = left;
+                }
+                1 => r.paths[0].callee = right,
+                _ => r.paths[1].callee = left,
+            }
+            assert!(
+                r.validate(&s.plans, &s.function, s.span).is_err(),
+                "callee identity fault {fault}, both={both}"
+            );
+        }
+        // Mutating both the plan and receipt must still disagree with actual SSA.
+        let mut plans = s.plans.clone();
+        let p = plans.plan.as_mut().unwrap();
+        let left = p.paths[0].callee;
+        p.paths[0].callee = p.paths[1].callee;
+        p.paths[1].callee = left;
+        let mut r = s.receipt.clone();
+        r.paths[0].callee = p.paths[0].callee;
+        r.paths[1].callee = p.paths[1].callee;
+        assert!(r.validate(&plans, &s.function, s.span).is_err());
     }
 }

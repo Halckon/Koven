@@ -266,7 +266,6 @@ impl Plans {
                     || paths[1].branch.then_arm()
                     || paths[0].branch.control() == paths[1].branch.control()
                     || paths[0].branch.value() == paths[1].branch.value()
-                    || paths[0].callee != paths[1].callee
                     || paths[0].ids.iter().any(|id| paths[1].ids.contains(id))
                 {
                     return Err(fail());

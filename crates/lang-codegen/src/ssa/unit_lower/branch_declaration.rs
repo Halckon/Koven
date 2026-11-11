@@ -136,7 +136,6 @@ fn admitted(
         return None;
     }
     let mut calls = Vec::new();
-    let mut targets = Vec::new();
     for returned in returns {
         let Expression::Return {
             value: Some(value), ..
@@ -266,10 +265,8 @@ fn admitted(
             return None;
         }
         calls.push(call);
-        targets.push(target);
     }
     if calls[0] == calls[1]
-        || targets[0] != targets[1]
         || owned
             .borrow_return_origins()
             .iter()

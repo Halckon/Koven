@@ -135,7 +135,6 @@ impl DropPlanner<'_, '_> {
         };
         let callable = UnitItemId::new(self.checker.source_unit, item);
         let mut scopes = Vec::new();
-        let mut targets = Vec::new();
         for (arm, statement) in [*then_return, second_return].into_iter().enumerate() {
             let Statement::Expression {
                 expression: control,
@@ -255,12 +254,8 @@ impl DropPlanner<'_, '_> {
                 branch: Some(branch),
                 branch_entry: None,
             });
-            targets.push(target);
         }
-        if targets[0] != targets[1]
-            || scopes[0].body == scopes[1].body
-            || scopes[0].control == scopes[1].control
-        {
+        if scopes[0].body == scopes[1].body || scopes[0].control == scopes[1].control {
             return None;
         }
         Some(BranchForwardPlan {

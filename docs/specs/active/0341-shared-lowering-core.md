@@ -13677,3 +13677,28 @@ workspace all-target check 与 fmt/diff/docs897 通过；尺寸 2468 手写 Rust
 35 历史超限，无新增豁免。
 证据在本机同目录 branch-else-* 日志。
 此为有限两路径首片，不证明一般嵌套、多源、循环、异常或完整全路径借用体系。
+
+
+### 同根不同 callee 的独立两路径证据（2026-11-11）
+
+基于 `754f3925`，复用 TailContinuation / BothArmsReturn 的完整逐路径状态证明，
+仅去除 frontend planner、Unit declaration 准入与 receipt admission 的跨臂 callee
+相等门。每臂仍独立核直接调用、单 Borrow String 参数、Parameter(0) 返回来源、
+真实同根输入、typed result_source 与具体 dispatch → FunctionId，所有拓扑清空、
+join/fold 与实际 SSA 校验保持不变；旧验证器和见证不退休。
+
+真实红：frontend 新 ordinary 输入具有两条实际不同 callee 的 raw handoff，却无
+Complete region；后端两种拓扑 × rooted/memory × on/off 八组合均在借用声明
+UnsupportedNode，原 verifier 调用零次且 receipt 为零。新正控逐条核真实
+condition edge、BorrowCall 的不同 FunctionId、source/result/return 及 receipt
+action 身份，观测 on/off SSA/LLVM 一致。前端 grouped operand 与额外参数
+负控保持不准入；新 CI-only 交换/复制 callee（包括同时篡改 plan/receipt）必须
+被实际 SSA 身份检查拒绝，该测试只编译不在本机执行。
+
+验收：frontend 新两项、旧双臂一项与旧 cause 三项共 6 ordinary 通过；codegen
+精确 branch 模块新两项加旧四项共 6 ordinary 通过。双向独立代码复审无阻塞。
+双 crate feature all-target strict Clippy、默认双 crate lib no-run（含 CI-only）、
+workspace all-target check、fmt/diff/docs897 全通过；尺寸 2470 手写 Rust 文件、
+35 历史超限，无新增豁免。未运行 CI-only、native 全套或远端 CI。
+验收日志保存在本机既有检查点目录 distinct-callee-*。
+不推送，不证明一般嵌套、多源、循环或完整全路径借用体系。

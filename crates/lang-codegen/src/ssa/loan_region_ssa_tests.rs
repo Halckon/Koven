@@ -810,3 +810,7 @@ mod aux_source_second_receipts;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "branch_else_probe_tests.rs"]
 mod branch_else_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "branch_distinct_callee_probe_tests.rs"]
+mod branch_distinct_callee_probe_tests;
