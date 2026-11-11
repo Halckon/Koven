@@ -12825,3 +12825,23 @@ Partial/off旧产品及分支receipt为空均保留。新增两个手写SSA CI-o
 no-run、同五项ordinary各1 passed、all-targets feature strict Clippy21.63秒通过；
 fmt、docs891、尺寸2428文件/35历史超限及diff均通过。未运行native、全量或CI-only；
 最终账本提交仅改本文，不改上述已冻结Rust。后续与owner合流需重新核组合，不以此替代CI。
+
+### Continue header 与双 return 窄 lowering 合流验收（2026-11-11）
+
+隔离合流代码 `438ab3ce` 保留 owner `913bd6b8` 与借用 `871cd939` 双父，
+基线 `9164af82` 和最新 main `e659b66a` 在祖先链中。唯一 Spec 追加冲突两段均保留；
+其他文件逐一与各父头核对相同，未改原工作树及主树用户修改。
+
+新编译 FE5 / CG14 共19项普通 exact 均各1 passed。Continue native仅在Basic/Const
+执行有限0/1/2/7正常样例；Abort只核SSA结构，不执行故障/Abort/计数/压力测试。
+借用核双return真实最终verifier及两条独立loan运输，没有新增分支region Complete或
+production receipt，不宣称一般多出口、混合Continue/Break或D10/E2完成。CI-only仅编译。
+4290个tracked输入、fresh artifact、运行与保存binary和runner身份均独审吻合，执行前后
+未变；opt0/debug2，FE无额外feature，CG仅显式loan support。
+
+fmt、FE/CG all-targets strict Clippy、默认workspace all-targets、默认CLI build/--help、
+docs与相对e659b66a尺寸门禁通过；默认CLI artifact features=[]。原始证据唯一主目录为
+主仓忽略目录 `.local-artifacts/continue-branch-integration-evidence-20261111`，保存完整
+Cargo JSON、输入清单、runner和19项日志，以及两份已核SHA的测试binary副本。复用借用
+target前先保全其旧verified binary与映射，不碰owner在途target；未删除数据或缓存。
+此次末提交仅补本文，未推送、未合main，也没有此组合正式CI结论。
