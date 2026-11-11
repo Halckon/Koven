@@ -12465,3 +12465,25 @@ CG lib no-run外层170.41s/Cargo2m50s，原target/jobs2/LLVM21、opt0/debug2/tes
 实际CG SHA `943d6287a7c84c9207d0fd6efccbe339c4f9e12243ea686743b7df298ffec3cc`。
 原件保留在 `/private/tmp/koven-forward-exit-coverage-evidence/red`；执行前后及覆盖前已独核，
 不重跑或覆盖红证据。该阶段仅编译CG test及FE依赖，不声称FE CI-only测试已编译。
+
+
+#### 单wrapper局部出口生产与验收
+
+生产 `e1bd1d9b` 在原动作源记录真实 entry、pre/post 边界及 handoff 句柄，唯一原始
+forward/source 查询消除歧义后才允许 Complete。原红 exact 未修改，首绿实际1 passed。
+最终代码 `6d53fd17` 补新region的11类CI-only构造负控（仅编译）及Group/Block/branch
+普通旧形状不认证断言；三个ordinary exact各1 passed、2960 filtered，零native。核心
+双布局四次正常on/off SSA/verifier/LLVM成立，另外两项仅FE；不把FE Begin当作新SSA acquisition。
+
+最终输入4274 tracked文件，清单SHA `9488e597604caa3ba5ad56daef178c964d4a319268f993ff5871186b28bb713e`；
+CG binary SHA `4aec912c81d26be512b5041301f359ec969db34846d0199e0ed5d9d1f6259f85`。
+保留原target、LLVM21.1.8、opt0/debug2与显式loan support；执行前后输入及binary一致。
+原件在 `/private/tmp/koven-forward-exit-coverage-evidence/{red,green,final}`，包括原Cargo JSON、
+tracked清单、绑定manifest、runner、3项原日志及静态结果；本机临时保存不保证长期留存。
+
+FE lib no-run（包括新增CI-only）、fmt、FE/CG strict Clippy和默认workspace all-targets通过。
+三项ordinary、全部身份及红绿同源码经独立只读复核；所有其他未审/故障/计数/压力路径未运行。
+架构快照最初追加使旧入口超200行，已改为独立主题页并纳入架构索引；保留失败日志，
+最终docs通过（888篇）；尺寸相对b331d044通过（2417手写Rust、35旧超限，未改额度）。
+source/callable仍Partial，无新End、receipt或旧oracle退休。
+此头尚未纳入后续main `e659b66a`，合流后须重验；未推送、无官方CI结论。

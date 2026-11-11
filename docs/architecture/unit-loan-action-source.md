@@ -14,7 +14,7 @@ append-only `ActionSource`。旧 direct/prefix/provider 切片只迭代其中 Cl
 
 source 总体仍只发布 Partial 或 Unsupported：有记录仍可能遗漏 result handoff、receiver
 activation 和权限恢复；空 source 动作表不能证明 absence。没有整个 callable、动态路径或
-activation 的完整证据，未退休 Single oracle。receiver正常End、结果binding提交和End表已为同源投影；其他result观察独立保留。
+activation 的完整证据，未退休 Single oracle。receiver正常End、结果binding提交和End表已为同源投影；其他result观察独立保留。[wrapper局部出口](unit-loan-forward-exit.md)单独认证。
 
 ## 普通 direct call 正常返回区域
 
