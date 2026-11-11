@@ -12978,3 +12978,27 @@ binary、runner及精确名单/日志绑定；opt0/debug2，FE lib默认，FE集
 默认CLI build/真实--help、fmt/docs/相对95cecb86尺寸门禁均通过，CLI features=[]。
 尺寸2432手写Rust、35历史超限，未改额度。最终只追加本Spec；仍未推送、未合main，
 无本组合正式CI结论，也不将D10/E2标记完成。
+
+#### 参数驱动混合边后继探针
+
+基于已发布集成 `d0f09db0` 新独立分支。相邻真实缺口是固定 `index < 2` 无法由
+调用方选择Continue/Break阈值；最窄探针采用两个不同的不可变Int参数limit/stop，
+保持单String根、index零起点、while(index < limit)、加一及唯一尾If，split仅为
+`index < stop`。不扩普通Normal/Continue控制准入，不接受阈值算式、别名、额外
+赋值、捕获、多根或嵌套。现行Int/比较/If语义不变，只补ADR-0038的路径运输观察。
+
+原有有限H、真实split/arm/jump清理和Return证明必须复用，Continue仍只入header，
+Break与false H共同到exit。不得以参数个数放宽所有Boolean或普通循环族；阈值
+身份必须是当前callable另一Int参数而不是同名文本或外部symbol。参数任意取值
+不改index<limit限定的checked Add安全边界，Abort仍保留且不参加正常join。
+
+普通红探针只执行真实FE Basic/lower/SSA verifier/LLVM生成后断言Return receipt，
+入口(0,2)/(1,2)/(7,2)/(2,7)仅是原样源码，不执行native。先核全部前置，再记录
+最终缺授权红；前置失败不得跳过或改断言制造红。故障/foreign/压力仍CI-only。
+
+参数mixed原样红已实际确认：no-run opt0/debug2、仅loan support成功（14m04s），
+4296输入与保存binary SHA绑定。唯一exact依次通过FE Basic、lower、SSA verifier、
+LLVM，最终第30行缺Return authority断言失败：0 passed/1 failed/2984 filtered，
+exit101，无ignored，不执行native或CI-only。fmt/docs/diff通过；未改生产。
+新原始证据保留 `Koven/.local-artifacts/owner-parameter-mixed-20261111T080027Z`，
+至切片进入main且相应远端证据可用。此红是已定位缺口，不作为完成代码合流。
