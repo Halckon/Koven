@@ -3,7 +3,7 @@ mod invariant;
 mod normal_backedge;
 mod open;
 pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
-    HeaderCompletion, HeaderCore,
+    HeaderCompletion, HeaderCore, MixedParameterThreshold,
 };
 pub use normal_backedge::{
     UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerMixedBackedgeV1,

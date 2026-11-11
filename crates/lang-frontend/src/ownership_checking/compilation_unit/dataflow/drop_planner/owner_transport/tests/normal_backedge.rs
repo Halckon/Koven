@@ -326,3 +326,105 @@ fn ci_only_mixed_header_rejects_role_identity_and_arm_damage() {
         assert!(!p.is_consistent());
     }
 }
+
+fn parameter_mixed_source() -> String {
+    MIXED_SOURCE
+        .replace("limit: Int", "limit: Int, stop: Int")
+        .replace("index < 2", "index < stop")
+}
+#[test]
+fn parameter_mixed_header_binds_current_callable_thresholds() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = parameter_mixed_source();
+    for text in [
+        source.clone(),
+        source.replace("limit: Int, stop: Int", "stop: Int, limit: Int"),
+        source
+            .replace("limit", "maximum")
+            .replace("stop", "threshold"),
+    ] {
+        let fixture = Fixture::new(&[("parameter-mixed.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.open_loop_observation_v1())
+            .collect::<Vec<_>>();
+        let [O::MixedBackedge(p)] = products.as_slice() else {
+            panic!("exact parameter mixed product");
+        };
+        assert!(p.is_consistent());
+        let t = p.threshold.as_ref().unwrap();
+        assert_eq!(p.parameter_count, 2);
+        assert_eq!(t.callable, p.callable());
+        assert_ne!(t.symbols[0], t.symbols[1]);
+        assert_ne!(t.operands[0], t.operands[1]);
+    }
+}
+#[test]
+fn parameter_mixed_header_declines_legal_neighbors() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = parameter_mixed_source();
+    for text in [
+        source.replace("index < stop", "index < limit"),
+        source.replace("index < stop", "index < (stop)"),
+        source.replace("index < stop", "index < stop + 0"),
+        source.replace("index < stop", "index <= stop"),
+        source.replace("index < stop", "index < 2"),
+        source.replace("stop: Int", "stop: Int, unused: Int"),
+        source.replace("if(index < stop) { continue } else { break }", "continue"),
+        source.replace("if(index < stop) { continue } else { break }", ""),
+        source
+            .replace("stop: Int", "stop: Boolean")
+            .replace("index < stop", "stop"),
+        source.replace("index < limit", "index < stop"),
+        source.replace("index + 1", "index + 2"),
+    ] {
+        let fixture = Fixture::new(&[("parameter-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        assert!(!owned.owner_observations().iter().any(|o| matches!(
+            o.open_loop_observation_v1(),
+            Some(O::MixedBackedge(_) | O::NormalBackedge(_) | O::ContinueBackedge(_))
+        )));
+    }
+}
+#[test]
+fn ci_only_parameter_mixed_rejects_threshold_identity_damage() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = parameter_mixed_source();
+    let fixture = Fixture::new(&[("parameter-damage.ko", &source)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::MixedBackedge(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..8 {
+        let mut p = (**original).clone();
+        if damage == 0 {
+            p.threshold = None;
+        } else if damage == 1 {
+            p.parameter_count = 1;
+        } else {
+            let t = p.threshold.as_mut().unwrap();
+            match damage {
+                2 => t.symbols[1] = t.symbols[0],
+                3 => t.parameters[1] = t.parameters[0],
+                4 => t.operands[1] = t.operands[0],
+                5 => t.condition = p.split_condition,
+                6 => t.callable = crate::ownership_checking::UnitOwnerCallable::Lambda(p.split),
+                _ => t.operands[1] = p.core.assignment,
+            }
+        }
+        assert!(!p.is_consistent());
+    }
+}

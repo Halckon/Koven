@@ -57,3 +57,14 @@ entry、jump cleanup后及arm completion快照。两臂均终止时body状态不
 false边当前H与Break边当轮Q共同进入Return；实际SSA参数运输保留来源关联。
 正常/Continue旧CFG校验路径保留，checked Add Abort不进入正常join。此能力不
 代表任意If条件、多根或嵌套循环；验收和未覆盖范围仍以SPEC-0341本片账本为准。
+
+## 独立运行时混合阈值
+
+Mixed的split阈值还可来自当前callable另一个不可变Int参数：两个参数分别供应
+while的limit及split的stop，raw Name引用与symbol、声明参数集合、callable和
+source identity均由私有阈值证据保留。参数数目同时封印，不能删掉参数证据后
+冒充旧literal2路径；阈值算式、别名、同一参数供两边及额外参数不在此片内。
+
+只有双Int且最终Mixed准入成功才走此扩展，旧Normal/Continue/Boolean及带owner
+参数族不扩大。CG生产不新增plan，直接复用已有Mixed实际split/arm/jump/Return
+receipts；定向SSA测试追溯两个参数各自经block参数运输到真实比较与分支条件。

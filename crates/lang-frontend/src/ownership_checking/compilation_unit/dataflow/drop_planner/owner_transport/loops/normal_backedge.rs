@@ -43,11 +43,12 @@ impl NormalInput {
         checker: &Checker<'_>,
         elements: &[StatementId],
         parameters: &BTreeSet<UnitSymbolId>,
+        callable: UnitOwnerCallable,
     ) -> Option<Self> {
         let [prefix, control, statement, suffix] = elements else {
             return None;
         };
-        if parameters.len() != 1 {
+        if !(1..=2).contains(&parameters.len()) {
             return None;
         }
         let ast = checker.parsed.ast();
@@ -102,6 +103,9 @@ impl NormalInput {
                             checker,
                             *expression,
                             control_symbol,
+                            *condition,
+                            parameters,
+                            callable,
                         )?),
                     ),
                     _ => return None,
@@ -185,7 +189,7 @@ impl NormalInput {
             *target,
             *value,
         )?;
-        if mixed.is_some() && increment.is_none() {
+        if (mixed.is_some() && increment.is_none()) || (parameters.len() != 1 && mixed.is_none()) {
             return None;
         }
         let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;

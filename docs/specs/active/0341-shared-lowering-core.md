@@ -13002,3 +13002,46 @@ LLVM，最终第30行缺Return authority断言失败：0 passed/1 failed/2984 fi
 exit101，无ignored，不执行native或CI-only。fmt/docs/diff通过；未改生产。
 新原始证据保留 `Koven/.local-artifacts/owner-parameter-mixed-20261111T080027Z`，
 至切片进入main且相应远端证据可用。此红是已定位缺口，不作为完成代码合流。
+
+#### 参数mixed生产实施合同（待实际验收）
+
+复用唯一MixedBackedge与既有split/arm/jump/Return协议，不新增平行loop wrapper。
+仅当前函数恰好两个无mode不可变Int参数可进入新Mixed专用准入；失败不回退到
+旧Boolean、owner-parameter、Normal或Continue。旧literal2混合边仍只接受单Int。
+私有阈值证据绑定当前callable、精确参数集合、while RHS limit和split RHS stop的
+source-qualified表达式及symbol，要求互异、同源、集合完整且不同于index。
+生产端只读真实Name解析结果，不能按文本名字辨认参数或把任意scalar表达式当阈值。
+
+CG既有Mixed真实receipt路径应直接消费同轮封闭产品；除非出现真实缺口，不新增
+重复consumer。新增普通验收区分参数身份/合法邻形、真实SSA参数至比较及split运输、
+Basic/Const有限边界native；损坏私有证明与foreign/fault仍CI-only，仅编译。
+
+参数mixed首轮生产验证保留一次测试oracle失败：FE9全部通过，CG15中14通过
+（含原红转绿及六组Basic/Const native），新SSA来源测试在roots helper拒绝参数
+读取链，不能记为24通过。源码与独审核实无mode Int参数由Shared entry Loan进入，
+Name产生ReadLoan→SSA Read(Loan)；原helper仅识别block参数转发，遗漏合法读取。
+修正仅接受唯一def、单结果的Read(Loan)，递归到各自不同Shared Loan<Int>入口，
+仍拒Place、算术、调用、Copy/Alias等合成值，不改生产或原红断言。原失败日志保留。
+为避免继续检验过时输入，旧本任务Clippy被明确中止（退出255，不算通过），其后
+默认Clippy/workspace未执行；修改后将重新冻结输入、编译、运行并完成门禁。
+
+#### 参数mixed最终本地验收（green2）
+
+严格oracle修正后重新冻结4296输入，重新no-run并执行同一白名单24项；原红
+SOURCE/authority断言与所有生产代码不因该oracle修正改变。新证据单独保存于
+前述持久目录 `green2/`，不覆盖 `green/` 的23/24与取消记录；实际和保存binary
+SHA、输入、逐项日志及results清单经独立核验一致。
+
+| 验收 | 最终实际结果 |
+|---|---|
+| FE9 ordinary exact | 9/9，各1 passed；参数身份/合法邻形以及旧Mixed/Normal/Continue回归 |
+| CG15 ordinary exact | 15/15，各1 passed；原参数mixed红转绿、严格Shared Loan<Int>读取来源、Basic/Const六组有限native及旧12项回归 |
+| FE/CG no-run | 成功，opt0/debug2；FE默认、CG仅loan support；CI-only仅编译 |
+| FE/CG all-targets严格Clippy | loan support与默认分别通过，`-D warnings`；取消旧轮不计入 |
+| 默认workspace all-targets check | 通过，无warning；不是全量测试执行 |
+| fmt/docs/尺寸/diff | 通过；文档893，2433手写Rust，35项旧超限报告保留 |
+
+六组native为(0,2)/(1,2)/(7,2)/(2,7)/(2,0)/(2,-1)，输出outer后五次next，
+只证明这些正常路径，非溢出执行、泄漏计数或所有激活证明。CG生产零改动，复用
+已有真实Mixed receipts；本片仍不覆盖阈值算式/别名、多根、嵌套或联合capture。
+正式CI与后续最新main合流验证仍待完成，本地验收不代表整体D10/E2完成。

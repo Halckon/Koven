@@ -138,7 +138,7 @@ impl LoopTransaction {
                 .symbol_type(symbol)
                 .and_then(|ty| checker.typed.types().get(ty));
             match (ty, parameter.mode_marker) {
-                (Some(UnitTypeKind::Builtin(BuiltinType::Int)), None) if parameters.len() == 1 => {
+                (Some(UnitTypeKind::Builtin(BuiltinType::Int)), None) => {
                     integer_control = true;
                     parameter_symbols.insert(symbol);
                 }
@@ -170,12 +170,24 @@ impl LoopTransaction {
             return None;
         };
         if owner_parameter.is_none()
-            && parameters.len() == 1
+            && (parameters.len() == 1
+                || (integer_control
+                    && parameter_symbols.iter().all(|symbol| {
+                        checker
+                            .typed
+                            .symbol_type(*symbol)
+                            .and_then(|ty| checker.typed.types().get(ty))
+                            == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                    })))
             && checker.typed.types().get(signature.return_type())
                 == Some(&UnitTypeKind::Builtin(BuiltinType::String))
             && signature.result_source() == crate::type_checking::CallableResultSource::Owned
-            && let Some(normal) =
-                normal_backedge::NormalInput::admit(checker, elements, &parameter_symbols)
+            && let Some(normal) = normal_backedge::NormalInput::admit(
+                checker,
+                elements,
+                &parameter_symbols,
+                UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
+            )
         {
             return Some(Self {
                 statement: normal.statement,

@@ -1,5 +1,6 @@
 //! Live-Q split evidence collected at real arm and jump completion hooks.
 use super::*;
+use crate::ownership_checking::compilation_unit::owner_transport::MixedParameterThreshold;
 use crate::ownership_checking::{UnitOwnerMixedBackedgeV1, UnitOwnerReplaceBreakStateV1};
 use crate::parser::{BinaryOperator, LiteralKind};
 
@@ -12,6 +13,8 @@ struct Arm {
     completion: Option<Snapshot>,
 }
 pub(super) struct MixedInput {
+    parameter_count: usize,
+    threshold: Option<MixedParameterThreshold>,
     pub(super) role: LoopBodyCompletion,
     identity: Option<std::sync::Arc<()>>,
     entry: Option<Snapshot>,
@@ -22,6 +25,9 @@ impl MixedInput {
         checker: &Checker<'_>,
         expression: ExpressionId,
         control: UnitSymbolId,
+        loop_condition: ExpressionId,
+        parameters: &BTreeSet<UnitSymbolId>,
+        callable: UnitOwnerCallable,
     ) -> Option<Self> {
         let ast = checker.parsed.ast();
         let Expression::If {
@@ -49,20 +55,68 @@ impl MixedInput {
         };
         let left_node = ast.expressions().get(*left).ok()?;
         let right_node = ast.expressions().get(*right).ok()?;
-        let Expression::Literal(LiteralKind::Integer(kind)) = right_node.payload() else {
-            return None;
-        };
         if !matches!(left_node.payload(), Expression::Name)
             || checker.reference_symbol(left_node.span()) != Some(control)
             || !exact_type(checker, *left, BuiltinType::Int)
             || !exact_type(checker, *right, BuiltinType::Int)
-            || crate::type_checking::integer_literal_magnitude(
-                checker.sources.slice(right_node.span()).ok()?,
-                *kind,
-            ) != Some(2)
         {
             return None;
         }
+        let threshold = match (parameters.len(), right_node.payload()) {
+            (1, Expression::Literal(LiteralKind::Integer(kind))) => {
+                if crate::type_checking::integer_literal_magnitude(
+                    checker.sources.slice(right_node.span()).ok()?,
+                    *kind,
+                ) != Some(2)
+                {
+                    return None;
+                }
+                None
+            }
+            (2, Expression::Name) => {
+                let Expression::Binary {
+                    operator: BinaryOperator::Less,
+                    right: limit,
+                    ..
+                } = ast.expressions().get(loop_condition).ok()?.payload()
+                else {
+                    return None;
+                };
+                let limit_node = ast.expressions().get(*limit).ok()?;
+                if !matches!(limit_node.payload(), Expression::Name) {
+                    return None;
+                }
+                let symbols = [
+                    checker.reference_symbol(limit_node.span())?,
+                    checker.reference_symbol(right_node.span())?,
+                ];
+                if symbols[0] == symbols[1]
+                    || symbols.contains(&control)
+                    || !symbols.iter().all(|id| {
+                        parameters.contains(id)
+                            && checker
+                                .typed
+                                .symbol_type(*id)
+                                .and_then(|ty| checker.typed.types().get(ty))
+                                == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                    })
+                {
+                    return None;
+                }
+                let declared = parameters.iter().copied().collect::<Vec<_>>();
+                Some(MixedParameterThreshold {
+                    callable,
+                    parameters: [declared[0], declared[1]],
+                    symbols,
+                    operands: [
+                        checker.unit_expression(*limit),
+                        checker.unit_expression(*right),
+                    ],
+                    condition: checker.unit_expression(loop_condition),
+                })
+            }
+            _ => return None,
+        };
         let arm = |body: StatementId, is_continue: bool| {
             let Statement::ControlBody { elements } = ast.statements().get(body).ok()?.payload()
             else {
@@ -92,6 +146,8 @@ impl MixedInput {
             })
         };
         Some(Self {
+            parameter_count: parameters.len(),
+            threshold,
             role: LoopBodyCompletion::Conditional {
                 control: checker.unit_expression(expression),
                 condition: checker.unit_expression(*condition),
@@ -243,6 +299,8 @@ impl MixedInput {
         };
         let [a, b] = self.arms;
         Some(UnitOwnerMixedBackedgeV1 {
+            parameter_count: self.parameter_count,
+            threshold: self.threshold,
             core,
             split: control,
             split_condition: condition,

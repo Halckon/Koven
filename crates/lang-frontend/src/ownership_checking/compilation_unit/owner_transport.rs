@@ -1,7 +1,8 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
 mod loops;
 pub(in crate::ownership_checking::compilation_unit) use loops::{
-    CallConsumerTarget, HeaderCompletion, HeaderCore, ReplaceBreakSuffix, ReturnConsumerTarget,
+    CallConsumerTarget, HeaderCompletion, HeaderCore, MixedParameterThreshold, ReplaceBreakSuffix,
+    ReturnConsumerTarget,
 };
 pub(super) use loops::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,

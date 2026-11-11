@@ -63,9 +63,21 @@ pub struct UnitOwnerContinueBackedgeV1 {
     pub(in crate::ownership_checking::compilation_unit) snapshot: UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) stopped: bool,
 }
+// Current-callable declaration set, semantic limit/stop symbols, raw RHS IDs,
+// and the actual loop condition. None belongs exclusively to the literal-2 slice.
+#[derive(Clone, Debug)]
+pub(in crate::ownership_checking::compilation_unit) struct MixedParameterThreshold {
+    pub(in crate::ownership_checking::compilation_unit) callable: UnitOwnerCallable,
+    pub(in crate::ownership_checking::compilation_unit) parameters: [UnitSymbolId; 2],
+    pub(in crate::ownership_checking::compilation_unit) symbols: [UnitSymbolId; 2],
+    pub(in crate::ownership_checking::compilation_unit) operands: [UnitExpressionId; 2],
+    pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
+}
 /// A separately sealed Continue/header and Break/exit split of the current owner.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerMixedBackedgeV1 {
+    pub(in crate::ownership_checking::compilation_unit) parameter_count: usize,
+    pub(in crate::ownership_checking::compilation_unit) threshold: Option<MixedParameterThreshold>,
     pub(in crate::ownership_checking::compilation_unit) core: HeaderCore,
     pub(in crate::ownership_checking::compilation_unit) split: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) split_condition: UnitExpressionId,
@@ -115,6 +127,28 @@ impl UnitOwnerMixedBackedgeV1 {
             self.jumps[1],
         ];
         self.core.is_consistent()
+            && matches!(
+                (self.parameter_count, self.threshold.as_ref()),
+                (1, None) | (2, Some(_))
+            )
+            && self.threshold.as_ref().is_none_or(|t| {
+                let source = self.core.statement.source_unit();
+                t.callable == self.core.callable
+                    && t.condition == self.core.condition
+                    && t.parameters[0] != t.parameters[1]
+                    && t.symbols[0] != t.symbols[1]
+                    && t.symbols
+                        .iter()
+                        .all(|id| t.parameters.contains(id) && id.source_unit() == source)
+                    && t.operands[0] != t.operands[1]
+                    && t.operands.iter().all(|id| {
+                        id.source_unit() == source
+                            && !ids.contains(id)
+                            && *id != self.core.condition
+                            && *id != self.core.assignment
+                            && Some(*id) != self.core.increment
+                    })
+            })
             && self.core.completion == HeaderCompletion::Mixed(self.split)
             && self.core.increment.is_some()
             && self.roles
