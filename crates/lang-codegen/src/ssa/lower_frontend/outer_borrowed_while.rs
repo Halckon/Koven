@@ -1,8 +1,7 @@
-//! A nullable retest inside one owning List provider; presence is not non-nullness.
-mod carrier;
 mod provider;
 mod runtime;
 mod source;
+use source::carrier;
 use super::*;
 use lang_frontend::{
     ownership_checking::{

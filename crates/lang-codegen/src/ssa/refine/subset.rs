@@ -12,7 +12,6 @@ pub(super) use control::accepts;
 mod map;
 pub(super) mod named_route;
 mod range_borrow;
-mod rc;
 mod receiver;
 mod scalar_text;
 mod tagged;
