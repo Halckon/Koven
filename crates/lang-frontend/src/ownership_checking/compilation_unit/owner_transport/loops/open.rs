@@ -215,14 +215,20 @@ impl UnitOwnerOpenLoopPrefixV1 {
 pub enum UnitOwnerReturnActionV1 {
     /// A real consuming Name removed this exact root and owner.
     Take {
+        /// The source-qualified Name expression actually evaluated.
         expression: UnitExpressionId,
+        /// The binding removed by this Take.
         root: UnitSymbolId,
+        /// The exact current owner removed from that binding.
         owner: UnitOwnerId,
     },
     /// The evaluated payload was delivered before the ordinary Return cleanup.
     Return {
+        /// The actual terminal Return expression.
         expression: UnitExpressionId,
+        /// The evaluated Name operand delivered by this Return.
         payload: UnitExpressionId,
+        /// The transferred owner, no longer live in the returning function.
         owner: UnitOwnerId,
     },
 }
