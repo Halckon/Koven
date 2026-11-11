@@ -13754,3 +13754,29 @@ Clippy 通过，双向独立代码复审无阻塞问题。默认双 crate lib no
 35 历史超限，无新增豁免。
 证据在本机同目录 source-second-* 日志。
 本轮不推送，不退休旧见证，不宣称完成全部 D10/E2 或完整逐路径借用证明。
+
+### 夜间双线冻结合流（2026-11-11）
+
+用户授权本次先推送一版，之后并行成果仅本地提交，次日集中交付。此批固定取
+owner eaa4be48 与 borrow bbed9ee8，基于已发布 93404d2a 合入为 19032d58；不包含
+后续原子 batch 发布或显式 if/else 双 return。唯一合并冲突为本账本尾部追加，双方
+历史均保留；生产文件自动合并后重新验证。main 4150bbd8 未改动。
+
+集成验证使用独立 Cargo target 和默认 profile，命令均加 `--locked --offline`；
+借用/codegen 测试启用 `loan-observation-test-support`，所有普通 lib 运行明确
+`--skip ci_only`。frontend lib 640 passed（53 filtered），五个辅助 integration
+目标共 8 passed；`ordinary_auxiliary` 3 passed；codegen `ordinary_` 63 passed
+（包含所匹配的 native 正反例，不是完整 native suite）；旧
+`complete_binding_requires_real_production_receipt` 精确正控 1 passed。
+初次旧正控模块过滤匹配 0 项，已改用实际函数名重跑；不以 0 项计通过。
+初次 frontend 命令漏过滤，在编译阶段已停止（143，无测试执行），随后重跑普通集。
+
+双 crate feature all-target strict Clippy、默认 workspace all-target check、fmt、
+diff、docs897 及尺寸门禁通过（2473 手写 Rust 文件，35 历史超限，未提高额度）。
+原始日志留本机隔离集成工作树的 `.local-artifacts/integration/`；CI-only 仅编译，
+未本地执行；未执行完整 workspace test 或 Preview。旧远端 head 的 Preview DNS
+失败不是本合流的成功证据；依用户要求不排查 DNS，不改门禁、不声称 CI 全绿。
+
+能力仍按前述切片限定：owner 为控制身份/私有顺序闭合事务采集基础，借用为限定
+辅助区域与 receipt；多根 incoming、一般嵌套/复杂 CFG、完整逐路径证明和旧见证
+退休未完成。D10/E2 保持 active。远端推送及新头 CI 结果需另核实。
