@@ -36,6 +36,7 @@ pub(super) struct PendingForwardTransport {
     source: UnitLoanFact,
     cause: Option<ForwardCause>,
     nested_cause: Option<super::action_source::NestedForwardCause>,
+    bounded_cause: Option<super::action_source::BoundedCause>,
 }
 
 // Metadata cannot change the old semantic retain qualification.
@@ -47,6 +48,20 @@ impl PartialEq for PendingForwardTransport {
 impl Eq for PendingForwardTransport {}
 impl PendingForwardTransport {
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        let mut bounded = alternatives.iter().filter(|other| *other == self);
+        let same = bounded
+            .next()
+            .and_then(|other| {
+                self.bounded_cause
+                    .as_ref()
+                    .zip(other.bounded_cause.as_ref())
+            })
+            .is_some_and(|(a, b)| a.state == b.state && a.acquisition.same_record(&b.acquisition))
+            && bounded.next().is_none();
+        if !same {
+            self.bounded_cause = None;
+        }
+
         let mut nested = alternatives.iter().filter(|other| *other == self);
         let same_nested = nested
             .next()
@@ -83,6 +98,23 @@ impl PendingForwardTransport {
         }
     }
 
+    pub(super) fn reconcile_bounded_scope(
+        &mut self,
+        scope: Option<super::action_source::BoundedState>,
+    ) {
+        if !self
+            .bounded_cause
+            .as_ref()
+            .is_some_and(|c| Some(c.state) == scope)
+        {
+            self.bounded_cause = None;
+        }
+    }
+    pub(super) fn matches_bounded(&self, state: super::action_source::BoundedState) -> bool {
+        self.bounded_cause
+            .as_ref()
+            .is_some_and(|c| c.state == state)
+    }
     pub(super) fn matches_nested(
         &self,
         state: super::nested_forward_scope::NestedForwardState,
@@ -290,6 +322,20 @@ impl DropPlanner<'_, '_> {
             .push(PendingForwardTransport {
                 returned: origin.expression(),
                 source,
+                bounded_cause: acquisition
+                    .clone()
+                    .zip(state.bounded_forward.filter(|s| {
+                        self.iteration_actions.bounded_source_matches(
+                            *s,
+                            source_call,
+                            forwarded.argument(),
+                            place.root(),
+                        )
+                    }))
+                    .map(|(acquisition, state)| super::action_source::BoundedCause {
+                        acquisition,
+                        state,
+                    }),
                 nested_cause: acquisition
                     .clone()
                     .zip(state.nested_forward.filter(|nested| {
@@ -349,6 +395,7 @@ impl DropPlanner<'_, '_> {
             source,
             cause,
             nested_cause,
+            bounded_cause,
         } = state.borrow_forward_transports.remove(index);
         // Consume the transport state, not the live source loan. Ownership of the
         // token passes to the wrapper result; no loan-end or cleanup action is added.
@@ -364,6 +411,8 @@ impl DropPlanner<'_, '_> {
         );
         self.iteration_actions
             .record_nested_forward_handoff(nested_cause, state.nested_forward);
+        self.iteration_actions
+            .record_bounded_handoff(bounded_cause, state.bounded_forward);
     }
 }
 

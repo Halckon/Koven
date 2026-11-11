@@ -510,6 +510,7 @@ fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
         forward_scope: _,
         branch_forward_plan: _,
         nested_forward: _,
+        bounded_forward: _,
         replace_consumer,
         lambda,
         borrow_bindings,

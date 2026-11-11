@@ -13,6 +13,7 @@ impl DropPlanner<'_, '_> {
         let branch_usage = self.control_result_usage(id);
         self.observe_branch_condition(id, condition, state, false);
         self.observe_nested_condition(id, condition, state, false);
+        self.observe_bounded_condition(id, condition, state, false);
         let condition_result = self.expression(condition, DropExpressionUse::Read, state);
         if !matches!(condition_result, Ok(true)) {
             state.branch_forward_plan = None;
@@ -30,6 +31,7 @@ impl DropPlanner<'_, '_> {
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
         self.observe_branch_condition(id, condition, state, true);
         self.observe_nested_condition(id, condition, state, true);
+        self.observe_bounded_condition(id, condition, state, true);
         self.prepare_forward_split(id, condition, outcomes, state);
         self.prepare_nested_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
@@ -72,6 +74,7 @@ impl DropPlanner<'_, '_> {
         let base = state.clone();
         let branch_plan = base.branch_forward_plan;
         let nested_plan = base.nested_forward;
+        let bounded_plan = base.bounded_forward;
         let mut branch_states = Vec::new();
         let mut then_terminated = false;
         let mut else_terminated = false;
@@ -79,6 +82,7 @@ impl DropPlanner<'_, '_> {
             let mut then_state = base.clone();
             self.enter_forward_arm(id, true, &mut then_state);
             self.enter_nested_forward_arm(id, true, &mut then_state);
+            self.enter_bounded_arm(id, true, &mut then_state);
             self.drop_branch_entry(id, 0, &[], &mut then_state);
             self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
             self.conditional_break_arm_enter(id, then_branch, &then_state);
@@ -110,6 +114,7 @@ impl DropPlanner<'_, '_> {
                 let mut else_state = base;
                 self.enter_forward_arm(id, false, &mut else_state);
                 self.enter_nested_forward_arm(id, false, &mut else_state);
+                self.enter_bounded_arm(id, false, &mut else_state);
                 self.drop_branch_entry(id, 1, &[], &mut else_state);
                 self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
                 let (else_tail, else_result) =
@@ -134,6 +139,7 @@ impl DropPlanner<'_, '_> {
                 // Observe only the strictly admitted nested tail on this actual implicit edge.
                 // All legacy cleanup remains in the same order.
                 let mut implicit = base;
+                implicit.bounded_forward = None;
                 if then_terminated {
                     self.enter_forward_arm(id, false, &mut implicit);
                 } else {
@@ -237,6 +243,14 @@ impl DropPlanner<'_, '_> {
             &branch_states,
             state,
         );
+        self.observe_bounded_join(
+            bounded_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
         *state = self.merge_resource_states(id, branch_states);
         self.resume_nested_join(nested_continuation, state);
         self.finish_owner_loop_join(id, state);
@@ -263,6 +277,7 @@ impl DropPlanner<'_, '_> {
         }
         state.branch_forward_plan = None;
         state.nested_forward = None;
+        state.bounded_forward = None;
         result
     }
 
@@ -287,6 +302,7 @@ impl DropPlanner<'_, '_> {
         };
         self.observe_branch_return(state, false);
         self.observe_nested_return(id, state, false);
+        self.observe_bounded_return(id, state, false);
         self.finish_return_iterations(id, state);
         self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
         self.finish_conditional_return(id, state);
@@ -307,6 +323,7 @@ impl DropPlanner<'_, '_> {
         }
         self.observe_branch_return(state, true);
         self.observe_nested_return(id, state, true);
+        self.observe_bounded_return(id, state, true);
         Ok(false)
     }
 

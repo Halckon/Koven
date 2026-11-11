@@ -862,3 +862,7 @@ mod nested_cascade_tail_receipt_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "nested_else_cascade_tail_neighbor_tests.rs"]
 mod nested_else_cascade_tail_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "dynamic_terminal_tree_boundary_tests.rs"]
+mod dynamic_terminal_tree_boundary_tests;

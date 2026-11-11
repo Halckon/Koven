@@ -14064,3 +14064,41 @@ no-run、workspace全目标、fmt/diff、docs897及尺寸门禁通过：2502手�
 未执行。双向独立复审、strict feature all-target Clippy、默认双crate lib no-run、
 workspace全目标、fmt/diff、docs897及尺寸门禁通过：2505手写Rust文件、36历史超限，
 无新增额度。日志nested-route-*；本地提交不推送，native全套与远端CI未运行。
+
+### 动态有界完整终止树合同（2026-11-11）
+
+以`2beb5592`为基线推进声明驱动的有限树，不再为新形状增加topology枚举。
+本片预算为split深度最多3、split最多7、叶最多8；函数只有一棵完整if/else树，
+每臂恰一子树或直接同根borrowed declaration return。source第一，每个split
+独立Boolean参数按声明遍历顺序绑定。缺else、额外语句、tail continuation、多根、
+循环、重复/错误flag及超预算输入拒证，不截断后假装完整。
+
+计划用动态节点/路径表达预期结构，但不产生完成证据。实际condition/entry、
+叶Begin/Handoff与return清理、两子树终止后的join关闭token、根seal/close须独立
+发生且身份/父边/cursor连续，才允许局部Complete；catalog仍Partial。固定合同
+已覆盖的输入复用已有observer，首片不重复发布或退休旧消费者。前后端仍独立，
+本批先完成FE证书；CG对新树维持原borrow位置Unsupported，后续实际receipt须
+证明每层flag/source运输与真实terminal join，不能继承固定树验收结论。
+实现记录：初始真实typed/raw已成立但bounded region为0；链状四叶、混合五叶及
+完整八叶实际正控均已获得局部Complete。实际observer采用动态DFS状态、两子树
+关闭token的身份和连续记录区间，父join逐一消费对应token后才关闭；根seal/close
+与全部唯一leaf再次核验。原fixed覆盖的6类输入不重复发布，新5类合法邻界拒证。
+
+声明计划独立核预算、typed/raw同根返回及独立flag；发布器另核有界图结构、
+实际entries/父链与token，父链回放最多3步，索引与cursor算术失败关闭。全records
+中相同call/argument的Begin与相同call/Return的Handoff各须唯一，区间外无sidecar
+重复也拒绝。独立审查提出并已修复空actual访问、父链循环及cursor溢出风险。
+这仍非多根、循环、continuation或任意深度证明，旧见证保留。
+
+本片保留明确验收阻塞：未修改的尺寸门禁报告drop_planner.rs为1684行，超过原
+1674额度10行，错误已实际复现；增长仅2模块及begin/finish/close接线，算法在
+独立模块。调整持久化额度的动作未获授权，未执行；不压行、不机械拆分、不改策略
+来规避。compilation_unit.rs的1113行仍在既有1156额度内。待用户明确审批必要的
+精确例外，本片仅保存开发检查点，不宣称整体完成或可合并。
+
+验证记录：本片普通FE17项、CG25项通过；新正控先真红后绿，覆盖4/5/8叶、
+rooted/memory及observer开关。Clippy（含loan-observation-test-support、所有target、
+-D warnings）、默认lib no-run与workspace all-targets check均通过；CI-only只编译，
+未在本地执行。fmt、diff及文档897项检查通过。尺寸检查仍失败（2512个手写Rust文件，
+36个历史超1000行文件），唯一新增阻塞为上述1684>1674，不改变原额度。
+日志为本机bounded-tree-*系列；未执行native全套或远端CI，未推送。

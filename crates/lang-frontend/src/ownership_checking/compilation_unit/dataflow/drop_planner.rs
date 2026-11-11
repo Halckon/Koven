@@ -6,6 +6,7 @@ mod borrow_call_handoff;
 mod borrow_forward_transport;
 mod borrow_result;
 mod borrow_transport;
+mod bounded_forward_plan;
 mod branch_forward_scope;
 mod call_loan_end;
 mod control;
@@ -13,6 +14,7 @@ mod iteration;
 mod lambda;
 mod loan_auxiliary_binding_region;
 mod loan_binding_region;
+mod loan_bounded_forward_region;
 mod loan_branch_forward_region;
 mod loan_child_region;
 mod loan_consumer_region;
@@ -463,6 +465,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                     coverage: None,
                                 }
                             });
+                            let bounded_coverage =
+                                self.begin_bounded_coverage(id, body, &mut state);
                             let coverage = self.begin_branch_coverage(&mut state);
                             let nested_coverage = self.begin_nested_coverage(&mut state);
                             let continues = self.statement(body, &mut state)?;
@@ -471,6 +475,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             }
                             self.finish_branch_coverage(coverage, continues, &state);
                             self.finish_nested_coverage(nested_coverage, continues, &state);
+                            self.finish_bounded_coverage(bounded_coverage, continues, &state);
                         }
                     },
                 }
@@ -478,6 +483,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.iteration_actions.close_branch_callable(
                     crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
                 );
+                self.iteration_actions
+                    .close_bounded(crate::type_checking::UnitItemId::new(
+                        self.checker.source_unit,
+                        id,
+                    ));
                 self.iteration_actions.close_nested_callable(
                     crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
                 );

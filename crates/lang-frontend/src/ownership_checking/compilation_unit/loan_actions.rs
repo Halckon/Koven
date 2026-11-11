@@ -97,6 +97,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) bounded_forward_regions: Vec<super::UnitBoundedBorrowForwardRegion>,
     pub(super) nested_forward_regions: Vec<super::UnitBorrowNestedForwardRegion>,
     pub(super) nested_forward_lineages: Vec<super::UnitLoanNestedForwardLineage>,
     pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
@@ -106,6 +107,18 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
+    /// Independent bounded dynamic tree closures; absence grants no backend admission.
+    pub fn bounded_forward_regions(&self) -> &[super::UnitBoundedBorrowForwardRegion] {
+        &self.bounded_forward_regions
+    }
+    /// Check the original catalog identity, not an equal snapshot.
+    pub fn owns_bounded_forward_region(
+        &self,
+        region: &super::UnitBoundedBorrowForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Independent bounded nested closure; absence grants no proof or backend admission.
     pub fn nested_forward_regions(&self) -> &[super::UnitBorrowNestedForwardRegion] {
         &self.nested_forward_regions

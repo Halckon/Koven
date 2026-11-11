@@ -265,6 +265,7 @@ impl PendingLoan {
 pub(super) struct ValueState {
     /// Pure observation scope; never part of value availability or owner eligibility.
     pub(super) forward_scope: Option<super::borrow_forward_transport::ForwardScope>,
+    pub(super) bounded_forward: Option<super::action_source::BoundedState>,
     pub(super) nested_forward: Option<super::nested_forward_scope::NestedForwardState>,
     pub(super) branch_forward_plan: Option<super::branch_forward_scope::BranchForwardPlan>,
     pub(super) replace_consumer:
@@ -361,6 +362,7 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     }
     // Nested lineage never survives a live continuation merge, even a single survivor.
     merged.nested_forward = None;
+    merged.bounded_forward = None;
     // No general branch merge is authorized for the bounded suffix carrier.
     merged.replace_consumer = None;
     // Existing merge keeps the last state's pending actions. Only evidence degrades.
@@ -386,6 +388,7 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
         }
         transport.reconcile_scope(merged.forward_scope);
         transport.reconcile_nested_scope(merged.nested_forward);
+        transport.reconcile_bounded_scope(merged.bounded_forward);
     }
     merged.borrow_binding_transports.retain(|transport| {
         states
