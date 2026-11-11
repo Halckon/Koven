@@ -100,3 +100,6 @@ impl ActionSource {
         }).collect()
     }
 }
+
+#[cfg(test)]
+mod tests;
