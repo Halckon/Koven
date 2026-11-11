@@ -1,6 +1,7 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
 mod loan_bounded_forward_regions;
 pub use loan_bounded_forward_regions::{
+    UnitBoundedBorrowContinuation, UnitBoundedBorrowContinuationRegion,
     UnitBoundedBorrowForwardPath, UnitBoundedBorrowForwardRegion,
 };
 mod drop_point;

@@ -97,6 +97,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) bounded_continuation_regions: Vec<super::UnitBoundedBorrowContinuationRegion>,
     pub(super) bounded_forward_regions: Vec<super::UnitBoundedBorrowForwardRegion>,
     pub(super) nested_forward_regions: Vec<super::UnitBorrowNestedForwardRegion>,
     pub(super) nested_forward_lineages: Vec<super::UnitLoanNestedForwardLineage>,
@@ -107,6 +108,18 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
+    /// Independently observed single-continuation closures, never terminal-tree authority.
+    pub fn bounded_continuation_regions(&self) -> &[super::UnitBoundedBorrowContinuationRegion] {
+        &self.bounded_continuation_regions
+    }
+    /// Require the original observation catalog, not an equal snapshot.
+    pub fn owns_bounded_continuation_region(
+        &self,
+        region: &super::UnitBoundedBorrowContinuationRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Independent bounded dynamic tree closures; absence grants no backend admission.
     pub fn bounded_forward_regions(&self) -> &[super::UnitBoundedBorrowForwardRegion] {
         &self.bounded_forward_regions

@@ -14127,3 +14127,38 @@ balanced/shared-inner/auxiliary及binding），最终正控复验通过。Clippy
 FE drop_planner.rs 1684>1674；CG本片无新增尺寸错误，策略未改。
 原始证据为本机bounded-receipt-*日志。未跑native全套/远端CI，仅本地提交，不推送。
 该实现不涵盖多根、循环、continuation或无界树；尺寸阻塞未解除，不宣称可合并。
+
+
+### 有界单继续出口树：独立前端证明切片（实施中）
+
+在既有动态终止树预算内，支持恰好一个隐式 else 继续出口，其余叶均直接返回同源
+借用，树后恰有一个公共尾 return。split 深度不超过3、split不超过7、含继续出口的
+叶不超过8；源第一、独立 Boolean flags 按 DFS 参数顺序绑定。继续出口可位于任意
+祖先侧，不增加固定拓扑枚举；拒绝多个存活出口、额外语句、循环、共享flag及任意CFG。
+
+声明结构不代替实际事件。独立 continuation token 必须逐层绑定真实entry、candidate、
+source catalog、cursor和唯一存活状态；join消费已终止兄弟与唯一继续子证据，merge后
+精确核对原存活状态再签发父token。根resume仅一次，尾return在实际深度0执行，但来源
+保留hole祖先链。旧Closed/全终止join不放宽，新公开产品与终止树region隔离；旧固定
+协议优先，禁止同一函数重复发布。首片仅前端证明，CG仍精确Unsupported，不预告receipt。
+
+验收先真实普通红，再要求rooted/memory与观察开关下旧事实一致、实际路径/尾续接身份
+闭合；故障测试仅编译，覆盖跨候选token、跳级/重复resume、先外后内、污染存活状态。
+尺寸政策不改，drop_planner.rs既有1684>1674阻塞继续保留，不能宣称全验收。
+
+旧见证审计：observer-off仍依赖typed/raw，RangeView、carrier alias和一般CFG超出有界
+合同；fixed仍承担shared flag及既有continuation，原verifier仍是发布前提。本片不退休
+任何旧见证，也不以新的Complete局部证书代替whole-flow absence证明。
+
+实际验证：真实typed/raw成功而新region为空的红测试已转绿；3种单hole路径与6类邻界/
+fixed优先级案例均成立，FE普通19项、CG普通28项回归通过。后端新3形状仍在原borrow
+marker精确Unsupported且verifier/receipt为0；旧完整终止树全部25种有界拓扑的独立
+枚举也通过。最终新FE两项再验通过；Clippy -D warnings、默认FE/CG lib no-run、
+workspace all-targets check通过。新CI-only真实快照19类final故障及7类resume故障仅
+编译，未执行；两轮独立审查核对真实entry、原唯一survivor保留、逐级token消费及
+实际depth0尾返回，不从计划重建存活状态，不改变旧终止协议。
+
+尺寸复测2526手写Rust文件、36个历史超1000行文件，唯一错误仍为前序
+1684>1674；drop_planner.rs本片完全未改。compilation_unit.rs新公开类型导出+1行，
+独立逐diff评审确认职责必要，当前1116仍低于既有1156额度；策略未改。新候选958行。
+日志为本机single-continuation-*系列；仅本地保存，未推送、未跑native全套/远端CI。

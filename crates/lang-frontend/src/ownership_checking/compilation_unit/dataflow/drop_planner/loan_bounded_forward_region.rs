@@ -1,5 +1,15 @@
 //! Observe actual dynamic-tree boundaries without changing legacy cleanup.
+#[path = "single_continuation_hooks.rs"]
+mod single_continuation_hooks;
+#[path = "single_continuation_plan.rs"]
+pub(super) mod single_continuation_plan;
 use super::bounded_forward_plan::Kind;
+
+#[derive(Clone, Copy)]
+pub(super) enum BoundedCoverage {
+    Terminal(action_source::BoundedState),
+    Continuation(action_source::SingleState),
+}
 use super::*;
 impl DropPlanner<'_, '_> {
     pub(super) fn bounded_boundary_clear(
@@ -15,6 +25,7 @@ impl DropPlanner<'_, '_> {
             branch_forward_plan,
             nested_forward,
             bounded_forward,
+            single_continuation,
             replace_consumer,
             lambda,
             borrow_bindings,
@@ -39,7 +50,8 @@ impl DropPlanner<'_, '_> {
         } else {
             borrow_forward_transports.is_empty()
         };
-        *bounded_forward == expected
+        single_continuation.is_none()
+            && *bounded_forward == expected
             && nested_forward.is_none()
             && self.scope_depth == depth
             && self.owner_branch_depth == owner_depth
@@ -75,19 +87,23 @@ impl DropPlanner<'_, '_> {
         item: ItemId,
         body: StatementId,
         state: &mut ValueState,
-    ) -> Option<action_source::BoundedState> {
+    ) -> Option<BoundedCoverage> {
         if state.nested_forward.is_some()
             || state.branch_forward_plan.is_some()
             || state.forward_scope.is_some()
         {
             return None;
         }
-        let plan = self.bounded_forward_plan(item, body)?;
+        let Some(plan) = self.bounded_forward_plan(item, body) else {
+            return self
+                .begin_single_coverage(item, body, state)
+                .map(BoundedCoverage::Continuation);
+        };
         let base = (self.scope_depth, self.owner_branch_depth);
         let clear = self.bounded_boundary_clear(state, None, false, base.0, base.1);
         let scope = self.iteration_actions.begin_bounded(plan, base, clear);
         state.bounded_forward = Some(scope);
-        Some(scope)
+        Some(BoundedCoverage::Terminal(scope))
     }
     pub(super) fn observe_bounded_condition(
         &mut self,
@@ -96,6 +112,7 @@ impl DropPlanner<'_, '_> {
         state: &ValueState,
         after: bool,
     ) {
+        self.observe_single_condition(id, condition, state, after);
         let Some(scope) = state.bounded_forward else {
             return;
         };
@@ -125,6 +142,7 @@ impl DropPlanner<'_, '_> {
         side: bool,
         state: &mut ValueState,
     ) {
+        self.enter_single_arm(id, side, state);
         let Some(scope) = state.bounded_forward else {
             return;
         };
@@ -152,6 +170,7 @@ impl DropPlanner<'_, '_> {
         state: &ValueState,
         post: bool,
     ) {
+        self.observe_single_return(id, state, post);
         let Some(scope) = state.bounded_forward else {
             return;
         };
@@ -200,12 +219,17 @@ impl DropPlanner<'_, '_> {
     }
     pub(super) fn finish_bounded_coverage(
         &mut self,
-        scope: Option<action_source::BoundedState>,
+        scope: Option<BoundedCoverage>,
         continues: bool,
         state: &ValueState,
     ) {
-        let Some(scope) = scope else {
-            return;
+        let scope = match scope {
+            Some(BoundedCoverage::Terminal(scope)) => scope,
+            Some(BoundedCoverage::Continuation(scope)) => {
+                self.finish_single_coverage(scope, continues, state);
+                return;
+            }
+            None => return,
         };
         let Some((_, base)) = self.iteration_actions.bounded_node(scope) else {
             return;

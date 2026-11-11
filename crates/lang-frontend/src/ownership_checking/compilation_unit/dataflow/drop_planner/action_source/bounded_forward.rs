@@ -442,6 +442,7 @@ impl ActionSource {
         }
     }
     pub(in super::super) fn close_bounded(&mut self, callable: UnitItemId) {
+        self.close_single(callable);
         for c in self
             .bounded_regions
             .iter_mut()

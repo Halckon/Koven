@@ -90,3 +90,62 @@ impl UnitBoundedBorrowForwardRegion {
         &self.paths
     }
 }
+
+/// Actual single-survivor chain, separate from terminal child closure.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBoundedBorrowContinuation {
+    pub(super) entries: Vec<UnitLoanNestedForwardEdge>,
+    pub(super) resumptions: Vec<UnitLoanNestedForwardEdge>,
+    pub(super) tail_control: UnitExpressionId,
+}
+impl UnitBoundedBorrowContinuation {
+    /// Actual hole provenance, ordered from root to the implicit false entry.
+    pub fn entries(&self) -> &[UnitLoanNestedForwardEdge] {
+        &self.entries
+    }
+    /// Consumed survivor tokens, ordered from the innermost join to the root join.
+    pub fn resumptions(&self) -> &[UnitLoanNestedForwardEdge] {
+        &self.resumptions
+    }
+    /// The unique return executed after root continuation resumes.
+    pub const fn tail_control(&self) -> UnitExpressionId {
+        self.tail_control
+    }
+}
+/// Independently closed bounded single-continuation tree; not terminal-tree receipt authority.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBoundedBorrowContinuationRegion {
+    pub(super) identity: Arc<()>,
+    pub(super) callable: UnitItemId,
+    pub(super) root: UnitSymbolId,
+    pub(super) coverage: UnitLoanActionCoverage,
+    pub(super) split_count: usize,
+    pub(super) paths: Vec<UnitBoundedBorrowForwardPath>,
+    pub(super) continuation: Option<UnitBoundedBorrowContinuation>,
+}
+impl UnitBoundedBorrowContinuationRegion {
+    /// Exact wrapper declaration owning this certificate.
+    pub const fn callable(&self) -> UnitItemId {
+        self.callable
+    }
+    /// Single borrowed source parameter.
+    pub const fn source_parameter(&self) -> UnitSymbolId {
+        self.root
+    }
+    /// Coverage of only this independently closed tree and its tail.
+    pub const fn coverage(&self) -> UnitLoanActionCoverage {
+        self.coverage
+    }
+    /// Distinct actually entered splits.
+    pub const fn split_count(&self) -> usize {
+        self.split_count
+    }
+    /// Actual return order, with the resumed tail last; empty unless Complete.
+    pub fn paths(&self) -> &[UnitBoundedBorrowForwardPath] {
+        &self.paths
+    }
+    /// Actual survivor chain; absent unless every join, resume, tail and close was proved.
+    pub fn continuation(&self) -> Option<&UnitBoundedBorrowContinuation> {
+        self.continuation.as_ref()
+    }
+}

@@ -8,6 +8,8 @@ mod binding_regions;
 mod child_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
 mod bounded_forward;
+mod single_continuation;
+pub(super) use single_continuation::{SingleCause, SingleResume, SingleState};
 mod branch_forward_regions;
 mod consumer_links;
 mod forward_links;
@@ -60,6 +62,7 @@ pub(super) struct ActionSource {
     branch_forward_regions: Vec<branch_forward_regions::Candidate>,
     nested_regions: Vec<nested_forward_regions::Candidate>,
     bounded_regions: Vec<bounded_forward::Candidate>,
+    single_regions: Vec<single_continuation::Candidate>,
     nested_entries: Vec<nested_forward_lineage::Entry>,
     nested_handoffs: Vec<(usize, NestedForwardCause)>,
     branch_entries: Vec<(crate::ownership_checking::UnitLoanForwardBranch, usize)>,
@@ -117,6 +120,7 @@ impl Default for ActionSource {
             nested_entries: Vec::new(),
             nested_regions: Vec::new(),
             bounded_regions: Vec::new(),
+            single_regions: Vec::new(),
             nested_handoffs: Vec::new(),
             enabled: true,
         }
@@ -442,6 +446,7 @@ impl ActionSource {
         let nested_forward_lineages = self.nested_lineages(source, file);
         let nested_forward_regions = self.finish_nested_regions(&nested_forward_lineages);
         let bounded_forward_regions = self.finish_bounded();
+        let bounded_continuation_regions = self.finish_single();
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -576,6 +581,7 @@ impl ActionSource {
             branch_forward_regions,
             nested_forward_lineages,
             bounded_forward_regions,
+            bounded_continuation_regions,
             nested_forward_regions,
             binding_dependency_drops,
             auxiliary_retirements,

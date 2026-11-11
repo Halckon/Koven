@@ -42,6 +42,7 @@ fn ci_only_forward_merge_preserves_old_equality_and_only_loses_cause() {
     let foreign = ActionSource::default().begin(source.clone()).unwrap();
     let pending = |handle: Option<ActionHandle>| PendingForwardTransport {
         bounded_cause: None,
+        single_cause: None,
         nested_cause: None,
         returned: fact.returned_expression(),
         source: source.clone(),
