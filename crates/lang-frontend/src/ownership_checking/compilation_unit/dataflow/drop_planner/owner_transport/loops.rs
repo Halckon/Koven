@@ -704,6 +704,7 @@ impl DropPlanner<'_, '_> {
                 parent,
                 closed_product: None,
                 incoming_roots: self.owner_loop.root_entry(control).map(<[_]>::to_vec),
+                root_stages: (false, false),
             });
         }
         let result = self.owner_while_statement_scoped(id, condition, body, state);
@@ -721,6 +722,7 @@ impl DropPlanner<'_, '_> {
                 parent: self.owner_controls.current(),
                 closed_product,
                 incoming_roots: None,
+                root_stages: self.owner_loop.root_stages(control),
             });
         }
         result

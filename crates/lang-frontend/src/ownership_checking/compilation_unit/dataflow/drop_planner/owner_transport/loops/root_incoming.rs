@@ -2,6 +2,11 @@
 use super::*;
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 impl ControlTransactions {
+    #[cfg(test)]
+    pub(super) fn root_stages(&self, _control: UnitStatementId) -> (bool, bool) {
+        (false, false)
+    }
+
     pub(in super::super::super) fn record_root_entry(
         &mut self,
         control: UnitStatementId,

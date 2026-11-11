@@ -571,3 +571,5 @@ mod qualified_owner_edges;
 mod general_control_frontier;
 
 mod sequential_closed_transactions;
+
+mod multi_root_stages;
