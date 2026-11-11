@@ -62,7 +62,7 @@ pub(super) struct Plan {
     pub(super) callable: UnitItemId,
     pub(super) caller: FunctionId,
     pub(super) root: UnitSymbolId,
-    pub(super) flags: [UnitSymbolId; 2],
+    pub(super) flags: Vec<UnitSymbolId>,
     pub(super) splits: Vec<SplitPlan>,
     pub(super) paths: Vec<PathPlan>,
     pub(super) source: Option<Slot>,
@@ -157,6 +157,25 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 }
 
 impl Plan {
+    fn valid_shape(&self) -> bool {
+        let (splits, leaves) = self.counts();
+        self.splits.len() == splits && self.paths.len() == leaves && self.flags.len() == splits
+    }
+    fn counts(&self) -> (usize, usize) {
+        match self.topology {
+            UnitBorrowNestedForwardTopology::BalancedBoth => (3, 4),
+            UnitBorrowNestedForwardTopology::NestedThen
+            | UnitBorrowNestedForwardTopology::NestedElse => (2, 3),
+        }
+    }
+    fn parent_arm(&self, split: usize) -> Option<usize> {
+        match (self.topology, split) {
+            (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => Some(0),
+            (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => Some(1),
+            (_, 1) => self.nested_arm(),
+            _ => None,
+        }
+    }
     fn nested_arm(&self) -> Option<usize> {
         match self.topology {
             UnitBorrowNestedForwardTopology::NestedThen => Some(0),
@@ -172,6 +191,10 @@ impl Plan {
             (UnitBorrowNestedForwardTopology::NestedElse, 0) => vec![(0, 0)],
             (UnitBorrowNestedForwardTopology::NestedElse, 1) => vec![(0, 1), (1, 0)],
             (UnitBorrowNestedForwardTopology::NestedElse, 2) => vec![(0, 1), (1, 1)],
+            (UnitBorrowNestedForwardTopology::BalancedBoth, 0) => vec![(0, 0), (1, 0)],
+            (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => vec![(0, 0), (1, 1)],
+            (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => vec![(0, 1), (2, 0)],
+            (UnitBorrowNestedForwardTopology::BalancedBoth, 3) => vec![(0, 1), (2, 1)],
             _ => Vec::new(),
         }
     }

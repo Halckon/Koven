@@ -1,4 +1,4 @@
-//! Independent Unit-only admission of the fixed outer-then nested three-leaf shape.
+//! Independent Unit-only admission of the fixed nested three-leaf or balanced four-leaf shape.
 //! Raw checked facts preserve observer-off lowering; only a separate Complete region authorizes receipts.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -52,13 +52,15 @@ fn admitted(
     {
         return None;
     }
-    let [source, outer, inner] = callable.parameters() else {
+    let [source, outer, inner_flags @ ..] = callable.parameters() else {
         return None;
     };
     if source.mode() != ParameterMode::Borrow
         || outer.mode() != ParameterMode::Borrow
-        || inner.mode() != ParameterMode::Borrow
-        || inner.ty() != outer.ty()
+        || !(1..=2).contains(&inner_flags.len())
+        || inner_flags
+            .iter()
+            .any(|inner| inner.mode() != ParameterMode::Borrow || inner.ty() != outer.ty())
         || typed.types().get(source.ty()) != Some(&UnitTypeKind::Builtin(BuiltinType::String))
         || typed.types().get(outer.ty()) != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
         || callable.return_type() != source.ty()
@@ -66,7 +68,13 @@ fn admitted(
         return None;
     }
     let root = source.symbol()?;
-    let flags = [outer.symbol()?, inner.symbol()?];
+    let mut flags = vec![outer.symbol()?];
+    flags.extend(
+        inner_flags
+            .iter()
+            .map(|inner| inner.symbol())
+            .collect::<Option<Vec<_>>>()?,
+    );
     if root.source_unit() != unit
         || flags.iter().any(|flag| flag.source_unit() != unit)
         || !file.roots().contains(&declaration.root())
@@ -97,32 +105,49 @@ fn admitted(
     };
     let (outer_split, outer_condition, then_statement, else_statement) =
         split(file, *outer_statement)?;
-    let (inner_split, inner_condition, returns) =
-        match (split(file, then_statement), split(file, else_statement)) {
-            (Some((id, condition, left, middle)), None) => (
-                id,
-                condition,
-                [
-                    expression(file, left)?,
-                    expression(file, middle)?,
-                    expression(file, else_statement)?,
-                ],
-            ),
-            (None, Some((id, condition, middle, right))) => (
-                id,
-                condition,
-                [
-                    expression(file, then_statement)?,
-                    expression(file, middle)?,
-                    expression(file, right)?,
-                ],
-            ),
-            _ => return None,
-        };
-    if outer_split == inner_split {
+    let (splits, conditions, returns) = match (
+        split(file, then_statement),
+        split(file, else_statement),
+        flags.len(),
+    ) {
+        (Some((id, condition, left, middle)), None, 2) => (
+            vec![outer_split, id],
+            vec![outer_condition, condition],
+            vec![
+                expression(file, left)?,
+                expression(file, middle)?,
+                expression(file, else_statement)?,
+            ],
+        ),
+        (None, Some((id, condition, middle, right)), 2) => (
+            vec![outer_split, id],
+            vec![outer_condition, condition],
+            vec![
+                expression(file, then_statement)?,
+                expression(file, middle)?,
+                expression(file, right)?,
+            ],
+        ),
+        (Some((left, left_condition, tt, tf)), Some((right, right_condition, ft, ff)), 3) => (
+            vec![outer_split, left, right],
+            vec![outer_condition, left_condition, right_condition],
+            vec![
+                expression(file, tt)?,
+                expression(file, tf)?,
+                expression(file, ft)?,
+                expression(file, ff)?,
+            ],
+        ),
+        _ => return None,
+    };
+    if splits
+        .iter()
+        .enumerate()
+        .any(|(index, split)| splits[index + 1..].contains(split))
+    {
         return None;
     }
-    for (condition, flag) in [outer_condition, inner_condition].into_iter().zip(flags) {
+    for (condition, flag) in conditions.into_iter().zip(flags) {
         if !is_symbol(file, names, condition, flag)
             || typed.expression_type(UnitExpressionId::new(unit, condition)) != Some(outer.ty())
         {
@@ -136,6 +161,7 @@ fn admitted(
     {
         return None;
     }
+    let expected_returns = returns.len();
     let mut calls = Vec::new();
     for returned in returns {
         let Expression::Return {
@@ -276,7 +302,7 @@ fn admitted(
             .iter()
             .filter(|o| o.declaration_span() == contract.marker_span())
             .count()
-            != 3
+            != expected_returns
     {
         return None;
     }

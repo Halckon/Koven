@@ -6,19 +6,19 @@ struct Layout {
     blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockId, Vec<Slot>>,
     entities: BTreeMap<BlockId, Vec<EntityId>>,
-    split_blocks: [BlockId; 2],
-    leaf_blocks: [BlockId; 3],
+    split_blocks: Vec<BlockId>,
+    leaf_blocks: Vec<BlockId>,
     source: LoanId,
-    flags: [LoanId; 2],
-    sources: [LoanId; 3],
+    flags: Vec<LoanId>,
+    sources: Vec<LoanId>,
 }
 #[derive(Default)]
 pub(in crate::ssa::refine) struct Emitted {
     layout: Option<Layout>,
-    reads: [Option<(InstructionId, ValueId)>; 2],
-    calls: [Option<(InstructionId, LoanId)>; 3],
-    edges: [Option<[Edge; 2]>; 2],
-    returned: [bool; 3],
+    reads: Vec<Option<(InstructionId, ValueId)>>,
+    calls: Vec<Option<(InstructionId, LoanId)>>,
+    edges: Vec<Option<[Edge; 2]>>,
+    returned: Vec<bool>,
 }
 fn loan(value: Option<EntityId>, span: Span) -> Result<LoanId, LoweringError> {
     match value {
@@ -40,7 +40,17 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
-        Ok(Self::default())
+        let Some(p) = &plans.plan else {
+            return Ok(Self::default());
+        };
+        let (splits, leaves) = p.counts();
+        Ok(Self {
+            reads: vec![None; splits],
+            calls: vec![None; leaves],
+            edges: vec![None; splits],
+            returned: vec![false; leaves],
+            layout: None,
+        })
     }
     pub(in crate::ssa::refine) fn layout(
         &mut self,
@@ -55,9 +65,9 @@ impl Emitted {
             return Ok(());
         };
         if self.layout.is_some()
-            || blocks.len() != 5
-            || p.splits.len() != 2
-            || p.paths.len() != 3
+            || blocks.len() != p.counts().0 + p.counts().1
+            || p.splits.len() != p.counts().0
+            || p.paths.len() != p.counts().1
             || p.splits
                 .iter()
                 .any(|s| s.join.is_none_or(|j| blocks.contains_key(&j)))
@@ -89,55 +99,70 @@ impl Emitted {
             };
             loan(values.get(*index).copied(), span)
         };
-        let split_blocks = [resolve(p.splits[0].entry)?, resolve(p.splits[1].entry)?];
-        let leaf_blocks = [
-            resolve(p.paths[0].block)?,
-            resolve(p.paths[1].block)?,
-            resolve(p.paths[2].block)?,
-        ];
+        let split_blocks = p
+            .splits
+            .iter()
+            .map(|s| resolve(s.entry))
+            .collect::<Result<Vec<_>, _>>()?;
+        let leaf_blocks = p
+            .paths
+            .iter()
+            .map(|p| resolve(p.block))
+            .collect::<Result<Vec<_>, _>>()?;
         let unique = split_blocks
-            .into_iter()
-            .chain(leaf_blocks)
+            .iter()
+            .chain(&leaf_blocks)
             .collect::<std::collections::BTreeSet<_>>();
-        if unique.len() != 5 || function.blocks.first().map(|b| b.id) != Some(split_blocks[0]) {
+        if unique.len() != p.counts().0 + p.counts().1
+            || function.blocks.first().map(|b| b.id) != Some(split_blocks[0])
+        {
             return Err(invalid(span));
         }
         let source = mapped(p.splits[0].entry, p.source)?;
-        let outer = mapped(p.splits[0].entry, p.splits[0].flag)?;
-        let inner_entry = mapped(p.splits[0].entry, p.splits[1].flag)?;
-        let inner = mapped(p.splits[1].entry, p.splits[1].flag)?;
-        let inner_source = mapped(p.splits[1].entry, p.source)?;
-        let sources = [
-            mapped(p.paths[0].block, p.source)?,
-            mapped(p.paths[1].block, p.source)?,
-            mapped(p.paths[2].block, p.source)?,
-        ];
-        if source == outer
-            || source == inner_entry
-            || outer == inner_entry
-            || inner == inner_source
-            || function
-                .block(split_blocks[0])
-                .map(|b| b.parameters.as_slice())
-                != Some(
-                    &[
-                        EntityId::Loan(source),
-                        EntityId::Loan(outer),
-                        EntityId::Loan(inner_entry),
-                    ][..],
-                )
-            || function.block(split_blocks[1]).is_none_or(|b| {
-                b.parameters.len() != 2
-                    || !b.parameters.contains(&EntityId::Loan(inner))
-                    || !b.parameters.contains(&EntityId::Loan(inner_source))
-            })
-            || (0..3).any(|i| {
-                function
-                    .block(leaf_blocks[i])
-                    .map(|b| b.parameters.as_slice())
-                    != Some(&[EntityId::Loan(sources[i])][..])
-            })
+        let entry_flags = p
+            .splits
+            .iter()
+            .map(|s| mapped(p.splits[0].entry, s.flag))
+            .collect::<Result<Vec<_>, _>>()?;
+        let flags = p
+            .splits
+            .iter()
+            .map(|s| mapped(s.entry, s.flag))
+            .collect::<Result<Vec<_>, _>>()?;
+        let sources = p
+            .paths
+            .iter()
+            .map(|p2| mapped(p2.block, p.source))
+            .collect::<Result<Vec<_>, _>>()?;
+        let expected_entry = std::iter::once(source)
+            .chain(entry_flags)
+            .map(EntityId::Loan)
+            .collect::<Vec<_>>();
+        if expected_entry
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != p.counts().0 + 1
+            || function.block(split_blocks[0]).map(|b| &b.parameters) != Some(&expected_entry)
         {
+            return Err(invalid(span));
+        }
+        for i in 1..p.splits.len() {
+            let inner_source = mapped(p.splits[i].entry, p.source)?;
+            if inner_source == flags[i]
+                || function.block(split_blocks[i]).is_none_or(|b| {
+                    b.parameters.len() != 2
+                        || !b.parameters.contains(&EntityId::Loan(flags[i]))
+                        || !b.parameters.contains(&EntityId::Loan(inner_source))
+                })
+            {
+                return Err(invalid(span));
+            }
+        }
+        if leaf_blocks.iter().zip(&sources).any(|(block, source)| {
+            function.block(*block).map(|b| b.parameters.as_slice())
+                != Some(&[EntityId::Loan(*source)][..])
+        }) {
             return Err(invalid(span));
         }
         let mut final_parameters = BTreeMap::new();
@@ -156,7 +181,7 @@ impl Emitted {
             split_blocks,
             leaf_blocks,
             source,
-            flags: [outer, inner],
+            flags,
             sources,
         });
         Ok(())
@@ -184,7 +209,7 @@ impl Emitted {
                 let [EntityId::Value(value)] = data.results.as_slice() else {
                     return Err(invalid(span));
                 };
-                if i >= 2
+                if i >= p.counts().0
                     || self.reads[i].is_some()
                     || data.block != l.split_blocks[i]
                     || data.operation
@@ -201,7 +226,7 @@ impl Emitted {
                 let path = p.paths.get(i).ok_or_else(|| invalid(span))?;
                 let source = loan(path.source.and_then(|s| current.get(&s).copied()), span)?;
                 let result = loan(path.result.and_then(|s| current.get(&s).copied()), span)?;
-                if i >= 3
+                if i >= p.counts().1
                     || self.calls[i].is_some()
                     || data.block != l.leaf_blocks[i]
                     || source != l.sources[i]
@@ -299,7 +324,7 @@ impl Emitted {
                 && self.reads.iter().all(Option::is_none)
                 && self.calls.iter().all(Option::is_none)
                 && self.edges.iter().all(Option::is_none)
-                && self.returned == [false; 3]
+                && self.returned.is_empty()
             {
                 Ok(())
             } else {
@@ -307,16 +332,18 @@ impl Emitted {
             };
         };
         let l = self.layout.ok_or_else(|| invalid(span))?;
-        if self.returned != [true; 3]
-            || function.blocks.len() != 5
-            || function.instructions.len() != 5
+        if self.returned.len() != p.counts().1
+            || self.returned.iter().any(|returned| !returned)
+            || function.blocks.len() != p.counts().0 + p.counts().1
+            || function.instructions.len() != p.counts().0 + p.counts().1
         {
             return Err(invalid(span));
         }
-        let edges = [
-            self.edges[0].clone().ok_or_else(|| invalid(span))?,
-            self.edges[1].clone().ok_or_else(|| invalid(span))?,
-        ];
+        let edges = self
+            .edges
+            .into_iter()
+            .map(|edge| edge.ok_or_else(|| invalid(span)))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut splits = Vec::new();
         for (i, s) in p.splits.iter().enumerate() {
             let (read, value) = self.reads[i].ok_or_else(|| invalid(span))?;
@@ -379,15 +406,14 @@ impl Receipt {
     ) -> Result<(), LoweringError> {
         plans.finish(span)?;
         let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
-        let nested_arm = p.nested_arm().ok_or_else(|| invalid(span))?;
         if self.topology != p.topology
             || self.callable != p.callable
             || self.caller != p.caller
             || self.caller != function.id()
-            || self.splits.len() != 2
-            || self.paths.len() != 3
-            || function.blocks.len() != 5
-            || function.instructions.len() != 5
+            || self.splits.len() != p.counts().0
+            || self.paths.len() != p.counts().1
+            || function.blocks.len() != p.counts().0 + p.counts().1
+            || function.instructions.len() != p.counts().0 + p.counts().1
             || function.blocks.first().map(|b| b.id) != Some(self.entry)
             || self.splits[0].block != self.entry
         {
@@ -413,20 +439,21 @@ impl Receipt {
             )
         };
         let entry = function.block(self.entry).ok_or_else(|| invalid(span))?;
-        let [
-            EntityId::Loan(source),
-            EntityId::Loan(outer),
-            EntityId::Loan(inner),
-        ] = entry.parameters.as_slice()
-        else {
+        if entry.parameters.len() != p.counts().0 + 1 {
             return Err(invalid(span));
-        };
-        if self.source != *source
-            || self.splits[0].flag != *outer
-            || self.splits[0].edges[nested_arm].target != self.splits[1].block
-            || mapped(&self.splits[0].edges[nested_arm], *inner)? != self.splits[1].flag
-        {
+        }
+        let source = loan(entry.parameters.first().copied(), span)?;
+        let outer = loan(entry.parameters.get(1).copied(), span)?;
+        if self.source != source || self.splits[0].flag != outer {
             return Err(invalid(span));
+        }
+        for i in 1..self.splits.len() {
+            let parent_arm = p.parent_arm(i).ok_or_else(|| invalid(span))?;
+            let flag = loan(entry.parameters.get(i + 1).copied(), span)?;
+            let edge = &self.splits[0].edges[parent_arm];
+            if edge.target != self.splits[i].block || mapped(edge, flag)? != self.splits[i].flag {
+                return Err(invalid(span));
+            }
         }
         for (i, s) in self.splits.iter().enumerate() {
             let read = function.instruction(s.read).ok_or_else(|| invalid(span))?;
@@ -457,7 +484,7 @@ impl Receipt {
             .map(|s| s.block)
             .chain(self.paths.iter().map(|p| p.block))
             .collect::<std::collections::BTreeSet<_>>();
-        if ids.len() != 5 {
+        if ids.len() != p.counts().0 + p.counts().1 {
             return Err(invalid(span));
         }
         for (i, path) in self.paths.iter().enumerate() {

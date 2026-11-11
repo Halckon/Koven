@@ -35,8 +35,11 @@ fn capture_topology(mirror: bool) -> Snapshot {
     } else {
         text.to_owned()
     };
+    capture_text(&text)
+}
+fn capture_text(text: &str) -> Snapshot {
     let mut sources = SourceMap::new();
-    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "nested-ci.ko", &text);
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "nested-ci.ko", text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (environment, types) = standard_environments();
     let (names, typed, owned) =
@@ -194,5 +197,73 @@ fn ci_only_mirror_producer_requires_plain_leaf_return_before_inner_split() {
             stage == 3,
             "actual producer precondition stage {stage}"
         );
+    }
+}
+
+fn capture_balanced() -> Snapshot {
+    capture_text(
+        "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun last(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean, c: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { if (c) { return right(s) } else { return last(s) } } }\nfun consume(s: String): Unit {}\nfun run(a: Boolean, b: Boolean, c: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner,a,b,c); consume(item) }",
+    )
+}
+#[test]
+fn ci_only_balanced_receipt_rejects_cross_subtree_identity_and_incomplete_closure() {
+    let s = capture_balanced();
+    let foreign = capture_balanced();
+    s.receipt.validate(&s.plans, &s.function, s.span).unwrap();
+    for fault in 0..8 {
+        let mut r = s.receipt.clone();
+        match fault {
+            0 => r.topology = UnitBorrowNestedForwardTopology::NestedThen,
+            1 => {
+                r.paths[2].edges.remove(0);
+            }
+            2 => r.paths[2].edges[0] = r.splits[0].edges[0].clone(),
+            3 => r.splits[2].flag = r.splits[1].flag,
+            4 => r.paths[3].callee = r.paths[0].callee,
+            5 => r.paths[2].ids = foreign.receipt.paths[2].ids.clone(),
+            6 => r.splits[2].read = foreign.receipt.splits[2].read,
+            _ => {
+                r.paths.pop();
+            }
+        }
+        assert!(
+            r.validate(&s.plans, &s.function, s.span).is_err(),
+            "fault {fault}"
+        );
+    }
+    for split in [1, 2] {
+        let mut bad = s.plans.clone();
+        bad.plan.as_mut().unwrap().splits[split].join = None;
+        assert!(s.receipt.validate(&bad, &s.function, s.span).is_err());
+    }
+}
+#[test]
+fn ci_only_balanced_producer_requires_left_returns_and_join_before_right_split() {
+    let s = capture_balanced();
+    for fault in 0..4 {
+        let mut plans = s.plans.clone();
+        let p = plans.plan.as_mut().unwrap();
+        let entry = p.splits[2].entry.unwrap();
+        let arms = p.splits[2].arms.unwrap();
+        let control = p.splits[2].split;
+        let condition = p.splits[2].condition;
+        let borrowed = BTreeMap::from([
+            (p.root, p.source.unwrap()),
+            (p.flags[2], p.splits[2].flag.unwrap()),
+        ]);
+        p.splits[2].entry = None;
+        p.splits[2].join = None;
+        p.splits[2].done = false;
+        for path in &mut p.paths[2..] {
+            path.stage = 0;
+        }
+        match fault {
+            0 => p.paths[0].stage = 2,
+            1 => p.paths[1].stage = 2,
+            2 => p.splits[1].join = None,
+            _ => {}
+        }
+        let result = plans.split(control, condition, entry, arms, &borrowed, s.span);
+        assert_eq!(result.is_ok(), fault == 3);
     }
 }

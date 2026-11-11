@@ -1,4 +1,4 @@
-//! Real legal neighboring trees remain outside the fixed three-leaf receipt frontier.
+//! Real legal neighboring trees remain outside the fixed finite-tree receipt frontier.
 use super::*;
 use lang_frontend::{
     ownership_checking::{
@@ -11,6 +11,16 @@ use lang_frontend::{
 #[test]
 fn ordinary_balanced_neighbors_keep_exact_unsupported_boundary() {
     for (shape, body, count) in [
+        (
+            "three-parameter-shared-flag",
+            "if (outer) { if (left_flag) { return left(source) } else { return middle(source) } } else { if (left_flag) { return middle(source) } else { return right(source) } }",
+            4,
+        ),
+        (
+            "missing-right-else",
+            "if (outer) { if (left_flag) { return left(source) } else { return middle(source) } } else { if (right_flag) { return middle(source) }\nreturn right(source) }",
+            4,
+        ),
         (
             "reused-inner-flag",
             "if (outer) { if (left_flag) { return left(source) } else { return middle(source) } } else { if (left_flag) { return middle(source) } else { return right(source) } }",
@@ -30,6 +40,18 @@ fn ordinary_balanced_neighbors_keep_exact_unsupported_boundary() {
         let text = format!(
             "fun left(source: String): borrow String from source = source\nfun middle(source: String): borrow String from source = source\nfun right(source: String): borrow String from source = source\nfun wrap(source: String, outer: Boolean, left_flag: Boolean, right_flag: Boolean): borrow String from source {{ {body} }}\nfun consume(item: String): Unit {{}}\nfun run(outer: Boolean, left_flag: Boolean, right_flag: Boolean): Unit {{ val owner = \"kept\"; borrow val item = wrap(owner, outer, left_flag, right_flag); consume(item) }}"
         );
+        let text = if shape == "three-parameter-shared-flag" {
+            text.replace(
+                "fun wrap(source: String, outer: Boolean, left_flag: Boolean, right_flag: Boolean)",
+                "fun wrap(source: String, outer: Boolean, left_flag: Boolean)",
+            )
+            .replace(
+                "wrap(owner, outer, left_flag, right_flag)",
+                "wrap(owner, outer, left_flag)",
+            )
+        } else {
+            text
+        };
         let mut sources = SourceMap::new();
         let (source, parsed) =
             unit_lower_test_support::parsed(&mut sources, "nested-neighbor.ko", &text);

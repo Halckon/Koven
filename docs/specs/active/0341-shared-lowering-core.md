@@ -13880,3 +13880,29 @@ close24。完成再次核全部8条真实Begin/Handoff、四路径、六个实�
 fmt/diff/docs897及尺寸门禁均通过，2491手写Rust文件、36历史超限，无新额度。
 默认编译首次暴露新观察测试漏feature注册，已按同类模块补齐并重跑通过；
 不改生产合同。日志balanced-*，本片只本地提交，native全套与远端CI未执行。
+
+### 固定平衡四叶实际 codegen receipt（2026-11-11）
+
+基于 `86c6d088` 的前端独立Complete，恢复保存的后端真实正控，先确认四组合
+仍在333..339原borrow标记Unsupported，原verifier与receipt为0。仅接受固定四参数
+source/outer/left/right与三个对应条件，左右各两叶直接返回同一source；不接纳
+共享inner flag三参数四叶、缺else、额外语句、更深树或多源。
+
+独立Unit gate保持观察关闭也使用相同严格原typed/raw/ABI；receipt admission另核
+同catalog Complete BalancedBoth、四条Partial lineage、8条动作及各callee来源合同。
+容器按显式拓扑固定分配(3,4)，无占位叶，不以任意长度开放形状。
+producer进入右inner之前必须已观察左两叶实际Return与left join；outer join须
+两个真实inner join，均无live前驱，三join在最终layout全部消失且无fold。
+冻结7个实际block、3个Read、4个BorrowCall/Return，左右flag分别从entry参数经
+真实outer true/false边传递，四叶source沿TT/TF/FT/FF完整父链逐项核验。
+原最终verifier及UnitPublication接线不变，成功后提交，任一前置失败撤销暂存。
+
+实际正控和五邻界组共2项、原三叶4项普通测试已通过，含rooted/memory×on/off，
+四个callee两两独立、路径动作ID不重复、Read/Call真实所属块和SSA/LLVM等价。
+独立双向复审通过；CI-only追加跨子树父边、错flag、foreign身份、缺path/join及
+过早right split故障，只编译不执行。旧共享flag四叶和更深树仍在原标记拒绝。
+其余后端branch6/aux3/binding1及前端12项回归通过；strict feature all-target
+Clippy、默认lib no-run（含CI-only）、workspace全目标、fmt/diff、docs897与尺寸
+门禁全部通过。尺寸2491手写文件、36历史超限，无新增例外或额度；测试helper
+多余借用在构建前修正，不放宽lint。日志balanced-receipt-*，本地提交不推送，
+native全套、CI-only执行与远端CI未运行，未退休旧见证或声称一般全路径完整。
