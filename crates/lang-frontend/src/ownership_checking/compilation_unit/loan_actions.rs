@@ -97,10 +97,26 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
 }
 
 impl UnitLoanActionObservation {
+    /// Independent coverage of the narrowly declared branch region.
+    /// Absence grants no absence proof and never enables expression-wrapper receipts.
+    #[must_use]
+    pub fn branch_forward_regions(&self) -> &[super::UnitBorrowBranchForwardRegion] {
+        &self.branch_forward_regions
+    }
+
+    /// Check catalog identity, never an equal structural snapshot.
+    pub fn owns_branch_forward_region(
+        &self,
+        region: &super::UnitBorrowBranchForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Independently entered wrapper normal-exit regions. Missing entries prove no absence.
     #[must_use]
     pub fn forward_regions(&self) -> &[super::UnitBorrowForwardRegion] {

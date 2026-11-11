@@ -13045,3 +13045,62 @@ SHA、输入、逐项日志及results清单经独立核验一致。
 只证明这些正常路径，非溢出执行、泄漏计数或所有激活证明。CG生产零改动，复用
 已有真实Mixed receipts；本片仍不覆盖阈值算式/别名、多根、嵌套或联合capture。
 正式CI与后续最新main合流验证仍待完成，本地验收不代表整体D10/E2完成。
+### 同来源动态双出口独立路径覆盖合同（2026-11-11）
+
+本片从d0f09db0起步，仅覆盖已准入Shared String来源的动态Boolean参数Name条件、
+无else的if真臂直接return同一callee及唯一false尾return。source/callable仍Partial；
+两个Partial原因不能拼成线性Complete，不能扩大旧表达式region或其receipt准入，
+不新增End、Drop、权限恢复、跨函数LoanId或后端执行责任。
+
+独立branch产品按callable/source parameter/split/condition声明有限区域；只有整个
+声明范围通过独立认证才发布两个认证path，每path绑定原branch身份及本路径全部动作、
+实际Begin和live handoff。Partial不得发布有效认证句柄；不公开跨两臂的单一Range，
+路径枚举顺序不代表执行时序。旧Partial handoff产品及其getter保持原合同。
+
+认证必须独立对账声明预期两出口、实际split/臂/唯一false续接登记及真实Return生命周期。
+实际true终止后才能登记false唯一继续状态；缺失、重复或额外继续状态不能获Complete。
+每条路径从实际臂入口至Return完成保留全部record，不按角色筛选；区域入口和条件求值
+前后也须证明没有遗漏动作，不能仅凭Boolean Name语法或已有两个handoff推断覆盖。
+Return必须在value求值成功后、finish_return_iterations/drop_all之前核未清空义务，
+实际handoff及原清理完成后再核post；不能只在outer已清空状态看空表。旧表达式boundary
+不放宽；分支单独核真实scope层级与非owning参数，不能剥掉字段调用旧检查来假装闭合。
+遗漏pre/post、额外Begin/End/Drop、跨臂区间重叠、删选记录、完成后追加、错身份/跨catalog
+或复用acquisition均不认证。错误/deferred沿用原全局撤销边界。
+
+前置红版本只落只读API壳：catalog.branch_forward_regions()初始化为空，生产者和认证器均未
+实现，无硬编码证书。ordinary探针复用原源码和原AST/真实cause正控，再完成Rooted/Memory
+四次on/off ownership、旧产品等价、两条不同Begin的真实原因、source Partial及旧表达式
+regions为空，最后统一期待每布局一个新局部Complete区域。空壳预期是运行时0!=1，
+不是缺API编译失败。
+
+真实红78a616d7：FE no-run 270.20秒成功，4296个tracked输入与保存binary绑定；唯一
+ordinary exact实际0 passed/1 failed。Rooted/Memory均两模式ownership成功、实际causes=2、
+source Partial且branch_regions=0，最后精准0!=1；输入和binary执行前后一致。
+持久证据保存于主仓忽略目录的本片red目录，不使用编译失败或旧结果替代能力红。
+随后生产接入独立入口、condition、实际臂、Return清理前后、唯一续接、Block seal及
+callable close见证；以进入基准加相对scope/branch深度检查状态，不放宽旧边界。
+最终生产d5fa31ff已完成本地普通验收；两个path分别核原身份、完整动作区间、Begin/
+live handoff及无交叠，两布局仍source Partial，旧表达式region/receipt输入保持为空。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 普通源码独立路径覆盖能力红及后继实现 | unit_branch_forward_causes / ordinary_dynamic_branch_requires_independent_path_coverage | 78a616d7真实0 passed/1 failed；d5fa31ff真实1 passed |
+| 漏出口/重复臂/额外continuation、动作区间和状态破损 | branch_forward_regions/tests.rs 的 CI-only 正基线及24类破损 | 默认/feature严格Clippy及workspace编译通过；未本机运行 |
+| 原因链与三邻界 | unit_branch_forward_causes 其余两个ordinary exact | 各1 passed |
+| 旧表达式region/receipt与双出口lowering不回退 | 上述codegen五项ordinary exact | 各1 passed；不等于新分支receipt |
+
+
+最终FE no-run 299.39秒、CG no-run 1084.25秒，默认opt0/debug2，仅启用
+loan-observation-test-support。绑定4299 tracked输入，摘要
+`556075e9140001ef7afa6266022b2a7eecebd208a0009634df010e6ad7e5646c`；
+八项ordinary各核exact唯一并实跑1 passed，前后输入及binary身份一致。主仓忽略目录
+`.local-artifacts/borrow-branch-coverage-20261111/{red,green,codegen}`保留原Cargo JSON、
+输入/runner清单、实际日志及独立保存binary；额外回归runner摘要另存补充绑定。
+默认strict Clippy302.03秒、feature strict296.93秒、workspace all-targets61.20秒均过。
+最终fmt44.93秒、docs893/16.84秒、尺寸2436文件/35历史超限665.61秒、diff通过，
+没有提高尺寸例外。Architecture曾207行超过入口上限，已移除重复合同并更新原事实入口，
+恢复200行后真实重验；生产、负控交叉及完整证据均独审通过。最后账本提交仅改本文。
+
+本片不覆盖一般分支/循环/Abort、非该声明形状或分支后端receipt，不改变整source/callable
+Partial。24类CI-only只编译未运行；真实error/deferred全局原子撤销、逐字段状态污染与
+native尚未本片实测，不宣称完整故障覆盖或正式CI绿。未推送，后续合流须独立联合验收。

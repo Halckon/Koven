@@ -6,9 +6,11 @@ use crate::type_checking::{BorrowReturnOrigin, UnitCallTarget, UnitItemId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct BranchForwardPlan {
-    split: UnitExpressionId,
-    condition: UnitExpressionId,
-    scopes: [ForwardScope; 2],
+    pub(super) split: UnitExpressionId,
+    pub(super) condition: UnitExpressionId,
+    pub(super) flag: UnitSymbolId,
+    pub(super) scopes: [ForwardScope; 2],
+    pub(super) coverage: Option<usize>,
 }
 
 impl DropPlanner<'_, '_> {
@@ -245,6 +247,8 @@ impl DropPlanner<'_, '_> {
             split: self.checker.unit_expression(*split),
             condition: self.checker.unit_expression(*condition),
             scopes: [scopes[0], scopes[1]],
+            flag: flag_root,
+            coverage: None,
         })
     }
 
@@ -288,6 +292,22 @@ impl DropPlanner<'_, '_> {
             .enter_forward_branch(scope.branch.expect("planned arm"));
         state.forward_scope = scope.branch_entry.map(|_| scope);
         state.branch_forward_plan = None;
+        if let Some(candidate) = plan.coverage {
+            let clear =
+                self.iteration_actions
+                    .branch_base(candidate)
+                    .is_some_and(|(depth, owner)| {
+                        self.branch_boundary_clear(
+                            state,
+                            Some(scope),
+                            None,
+                            false,
+                            depth + 1,
+                            owner + 1,
+                        )
+                    });
+            self.iteration_actions.branch_arm(candidate, scope, clear);
+        }
     }
 
     pub(super) fn prepare_forward_return(

@@ -5,6 +5,7 @@ mod binding_links;
 mod binding_regions;
 mod child_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
+mod branch_forward_regions;
 mod consumer_links;
 mod forward_links;
 mod forward_regions;
@@ -41,6 +42,7 @@ pub(super) struct ActionSource {
     active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
     forward_regions: Vec<forward_regions::Candidate>,
+    branch_forward_regions: Vec<branch_forward_regions::Candidate>,
     branch_entries: Vec<(crate::ownership_checking::UnitLoanForwardBranch, usize)>,
     pub(super) enabled: bool,
 }
@@ -88,6 +90,7 @@ impl Default for ActionSource {
             active_child_region: None,
             dependency_drops: Vec::new(),
             forward_regions: Vec::new(),
+            branch_forward_regions: Vec::new(),
             branch_entries: Vec::new(),
             enabled: true,
         }
@@ -408,6 +411,7 @@ impl ActionSource {
             &self.branch_entries,
         );
         let forward_regions = self.validate_forward_regions(&forward_links);
+        let branch_forward_regions = self.validate_branch_regions(&forward_links);
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -534,6 +538,7 @@ impl ActionSource {
             binding_regions,
             child_regions,
             forward_regions,
+            branch_forward_regions,
             binding_dependency_drops,
         }]
     }

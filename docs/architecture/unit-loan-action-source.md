@@ -12,9 +12,9 @@ append-only `ActionSource`。旧 direct/prefix/provider 切片只迭代其中 Cl
 仍在 raw 与公开边界全局撤销。静态 record 的封闭 catalog ID 不可跨 source 产品或重分析解析；
 结构快照相等不表示 catalog 相同，记录顺序不是跨分支、循环或 callable 的执行时间线。
 
-source 总体仍只发布 Partial 或 Unsupported：有记录仍可能遗漏 result handoff、receiver
-activation 和权限恢复；空 source 动作表不能证明 absence。没有整个 callable、动态路径或
-activation 的完整证据，未退休 Single oracle。receiver正常End、结果binding提交和End表已为同源投影；其他result观察独立保留。[wrapper局部出口](unit-loan-forward-exit.md)单独认证。
+source仍Partial或Unsupported，空表不证明absence，Single oracle未退休。
+[wrapper局部出口](unit-loan-forward-exit.md)之外，双出口区域独立核声明、真实控制及完整路径动作，
+仅局部Complete发布两条path；不扩大旧receipt或增加End/Drop。[合同与验收](../specs/active/0341-shared-lowering-core.md#同来源动态双出口独立路径覆盖合同2026-11-11)。
 
 ## 普通 direct call 正常返回区域
 

@@ -11,6 +11,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         let branch_usage = self.control_result_usage(id);
+        self.observe_branch_condition(id, condition, state, false);
         let condition_result = self.expression(condition, DropExpressionUse::Read, state);
         if !matches!(condition_result, Ok(true)) {
             state.branch_forward_plan = None;
@@ -25,6 +26,7 @@ impl DropPlanner<'_, '_> {
         // Restore depth even when legacy traversal returns an error. Only the real
         // branch bodies and their cleanup run inside this admission boundary.
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
+        self.observe_branch_condition(id, condition, state, true);
         self.prepare_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
         self.owner_branch_depth += 1;
@@ -61,6 +63,7 @@ impl DropPlanner<'_, '_> {
                 .then_some(observation.events.len())
         });
         let base = state.clone();
+        let branch_plan = base.branch_forward_plan;
         let mut branch_states = Vec::new();
         let mut then_terminated = false;
         if reaches_then {
@@ -172,6 +175,7 @@ impl DropPlanner<'_, '_> {
             }
         }
         let continues = !branch_states.is_empty();
+        self.observe_branch_join(branch_plan, then_terminated, &branch_states);
         *state = self.merge_resource_states(id, branch_states);
         self.finish_owner_loop_join(id, state);
         Ok(continues)
@@ -215,6 +219,7 @@ impl DropPlanner<'_, '_> {
         } else {
             None
         };
+        self.observe_branch_return(state, false);
         self.finish_return_iterations(id, state);
         self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
         self.finish_open_loop_return(id, state);
@@ -232,6 +237,7 @@ impl DropPlanner<'_, '_> {
                 self.reject_owner_expression(id, UnitOwnerUnsupportedReason::Syntax);
             }
         }
+        self.observe_branch_return(state, true);
         Ok(false)
     }
 
