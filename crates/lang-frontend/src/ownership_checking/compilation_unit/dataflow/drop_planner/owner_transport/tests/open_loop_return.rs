@@ -1,12 +1,12 @@
 //! Ordinary source requires two independently delivered terminal endpoints.
 use super::*;
-use crate::{ownership_checking::UnitDropPoint, type_checking::UnitStatementId};
 use crate::ownership_checking::{
     CompilationUnitOwnership, UnitDropTarget, UnitOwnerCallable, UnitOwnerOpenLoopObservationV1,
     UnitOwnerOpenLoopReturnV1, UnitOwnerOrigin, UnitOwnerReturnActionV1 as A,
     UnitOwnerTransportEvent as E,
 };
 use crate::parser::{Expression, FunctionBody, FunctionForm, Item, Statement};
+use crate::{ownership_checking::UnitDropPoint, type_checking::UnitStatementId};
 
 const SOURCE: &str = r#"fun run(flag: Boolean): String {
     var held = "outer"
