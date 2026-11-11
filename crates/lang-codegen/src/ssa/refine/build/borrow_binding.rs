@@ -226,7 +226,8 @@ impl Builder<'_, '_> {
 impl Builder<'_, '_> {
     pub(super) fn statement(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
         let id = UnitStatementId::new(self.inputs.source_unit, statement);
-        self.child_entry(id)?;        if self.body.binding_plans.has_entry(id) {
+        self.child_entry(id)?;
+        if self.body.binding_plans.has_entry(id) {
             self.binding_quiescent(self.inputs.span)?;
             if !self.dead.is_empty()
                 || self.this_dead
