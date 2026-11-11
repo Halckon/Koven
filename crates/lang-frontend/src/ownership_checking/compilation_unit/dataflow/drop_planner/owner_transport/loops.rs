@@ -693,8 +693,6 @@ impl DropPlanner<'_, '_> {
         let entered = self.owner_controls.enter(control);
         if entered {
             self.owner_loop.select(Some(control));
-            self.owner_loop
-                .record_root_entry(control, state, self.owner_observation.as_ref());
         } else {
             self.owner_loop.clear();
         }

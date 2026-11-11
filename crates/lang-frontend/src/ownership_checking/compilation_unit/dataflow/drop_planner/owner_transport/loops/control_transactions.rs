@@ -4,6 +4,7 @@ use super::*;
 pub(in super::super::super) struct ControlTransactions {
     entries: Vec<(UnitStatementId, LoopTransaction)>,
     selected: Option<UnitStatementId>,
+    pub(super) root_entries: Vec<(UnitStatementId, root_incoming::RootIncoming)>,
 }
 impl ControlTransactions {
     pub(in super::super::super) fn begin(
@@ -18,6 +19,7 @@ impl ControlTransactions {
         Self {
             entries: vec![(control, transaction)],
             selected: Some(control),
+            root_entries: Vec::new(),
         }
     }
     fn closed_sequence(
@@ -68,6 +70,7 @@ impl ControlTransactions {
         Some(Self {
             entries,
             selected: None,
+            root_entries: Vec::new(),
         })
     }
     // A separate batch must not masquerade as a Complete straight-line observation.
@@ -131,6 +134,7 @@ impl ControlTransactions {
     }
     // The legacy projection has one product slot: never silently choose among many.
     pub(in super::super::super) fn take(&mut self) -> Option<LoopTransaction> {
+        self.root_entries.clear();
         let entries = std::mem::take(&mut self.entries);
         self.selected = None;
         if entries.len() != 1 {

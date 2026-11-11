@@ -132,3 +132,9 @@ callable/catalog身份、不同control/body与独立body catalog完整封存；�
 open/invariant或straight-line/Choice能力，deferred发布路径会清除整个batch。
 该结构目录不证明各循环组合可达、终止或运行时激活顺序，不授予跨循环owner运输。
 栈不平衡时先拒绝observation再清空事务；一般多根incoming和嵌套root仍待完成。
+
+真实While入口在条件求值前另保留私有root→owner向量。采集使用当时ValueState，逐项核对
+完整root frame及当前Complete observation的source、callable、catalog身份和definition
+成员；任一不符整组不记录，同control失败重采集会清除旧项，函数完成清空。它不是条件后
+状态、body/backedge equation或公开多根能力；已经Unsupported且清掉catalog的前缀不能
+凭残留owner ID恢复资格，也不改变借用排斥或旧witness。

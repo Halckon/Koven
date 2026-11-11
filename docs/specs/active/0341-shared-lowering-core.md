@@ -13638,3 +13638,24 @@ CI-only缺项、乱序、重复、跨analysis拼接/替换、旧产品冲突及d
 最终641项普通FE lib测试通过，45项ci_only过滤；FE all-target strict Clippy、LLVM21
 workspace all-target check、fmt/docs897/diff通过。独立源码复核未发现阻断；公开目录仍
 限定closed结构模板，不扩大组合可达性声明。未运行Preview、CI-only故障守卫或远端CI。
+
+### 真实多根控制入口关联（2026-11-11，本地）
+
+基于a454fbde，de320135以真实源码记录缺失入口的红checkpoint。条件求值前从实际
+ValueState原子保留control-keyed root→owner向量；先核ControlRootFrame整组约束，
+再核当前Complete observation的callable/source、Arc catalog身份及definition成员。
+没有按symbol重建owner或用原绑定token替代当前token；同control失败重采集先删旧项，
+函数结束清空，借用准入is_none不读取该私有观察数据。
+
+初始记录位置晚于旧While statement precheck，catalog已被该拒绝清空，导致真入口测试
+继续失败。修正为在真实statement precheck内、旧拒绝之前采集，不改变原拒绝本身。
+真实Int/index两根入口与Boolean循环前实际Replace的新producer关联均覆盖；已有opaque
+调用使observation提前Unsupported的前缀则仍不能用残留ID恢复资格。
+该快照仅代表条件求值前入口，不证明条件后的存活、body/backedge运输、嵌套语义或一般
+多根phi。公开产品保持旧边界，旧见证不退休。
+CI-only跨catalog、缺owner、未知definition、失败重采集清旧值和finish清理守卫只编译；
+其状态模型不替代真实入口测试。独立源码复审未发现现行私有采集路径阻断。
+
+最终普通FE lib测试644项通过、46项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。入口采集顺序修正另经独立复核，原拒绝
+仍执行，不提升已有Unsupported前缀。未推送，未处理Preview。

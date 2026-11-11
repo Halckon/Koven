@@ -287,6 +287,16 @@ impl DropPlanner<'_, '_> {
         state: &ValueState,
     ) -> Result<(), OwnershipCheckingError> {
         self.prepare_owner_loop_input(id, state);
+        if matches!(
+            self.checker.parsed.ast().statements().get(id)?.payload(),
+            Statement::While { .. }
+        ) {
+            self.owner_loop.record_root_entry(
+                crate::type_checking::UnitStatementId::new(self.checker.source_unit, id),
+                state,
+                self.owner_observation.as_ref(),
+            );
+        }
         if !self.owner_observation_active() {
             return Ok(());
         }

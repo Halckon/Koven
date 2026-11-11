@@ -48,7 +48,12 @@ mod tests {
 
     // Structural model only: these bound IDs come from real analysis, but the tuple
     // is assembled for this helper test. It is never published as a planner snapshot.
-    fn model() -> (UnitStatementId, UnitStatementId, ValueState) {
+    fn model() -> (
+        UnitStatementId,
+        UnitStatementId,
+        ValueState,
+        UnitOwnerObservation,
+    ) {
         let fixture = Fixture::new(&[(
             "frame.ko",
             r#"fun run() {
@@ -117,12 +122,13 @@ mod tests {
                 values,
                 ..ValueState::default()
             },
+            observation.clone(),
         )
     }
 
     #[test]
     fn root_frame_model_preserves_whole_vector_and_control_identity() {
-        let (control, other, state) = model();
+        let (control, other, state, _) = model();
         let frame = ControlRootFrame::capture(control, &state).unwrap();
         assert_eq!(frame.roots_for(control), Some(state.values.as_slice()));
         assert_eq!(frame.roots_for(control).unwrap().len(), 2);
@@ -132,7 +138,7 @@ mod tests {
 
     #[test]
     fn ci_only_root_frame_rejects_partial_and_aliased_vectors() {
-        let (control, _, state) = model();
+        let (control, _, state, _) = model();
         let mut missing = state.clone();
         missing.values[1].owner = None;
         assert!(ControlRootFrame::capture(control, &missing).is_none());
@@ -142,5 +148,31 @@ mod tests {
         let mut duplicate = state.clone();
         duplicate.values[1].symbol = duplicate.values[0].symbol;
         assert!(ControlRootFrame::capture(control, &duplicate).is_none());
+    }
+    #[test]
+    fn ci_only_root_incoming_rejects_foreign_missing_and_stale_catalog_capture() {
+        let (control, _, state, observation) = model();
+        let mut registry = ControlTransactions::default();
+        registry.record_root_entry(control, &state, Some(&observation));
+        assert_eq!(registry.root_entry(control).unwrap().len(), 2);
+        let mut foreign = observation.clone();
+        foreign.identity = std::sync::Arc::new(());
+        registry.record_root_entry(control, &state, Some(&foreign));
+        assert!(
+            registry.root_entry(control).is_none(),
+            "failed recapture must remove old entry"
+        );
+        registry.record_root_entry(control, &state, Some(&observation));
+        let mut missing = state.clone();
+        missing.values[1].owner = None;
+        registry.record_root_entry(control, &missing, Some(&observation));
+        assert!(registry.root_entry(control).is_none());
+        let mut unknown = state.clone();
+        unknown.values[1].owner.as_mut().unwrap().index = usize::MAX;
+        registry.record_root_entry(control, &unknown, Some(&observation));
+        assert!(registry.root_entry(control).is_none());
+        registry.record_root_entry(control, &state, Some(&observation));
+        registry.take();
+        assert!(registry.root_entry(control).is_none());
     }
 }
