@@ -12157,3 +12157,24 @@ P 的入口值分别进入 body/false，body 原 RootReplace 后 Drop detached P
 false 独立 Return P，caller 仅清理两个接收结果。没有 body→exit/backedge/common join。
 metadata 尚 Unsupported，probe通过不是能力绿。首次 `8b88aa88` 错把Boolean也断言为Value，
 原始源码、artifact、binary SHA和日志已保留；只修oracle，未改ABI，不算缺能力红。
+
+本轮局部能力已实证：`0ddc0b1c` 的 FE 原样缺产品红（0≠1）由 `bcd85b99` 转绿。
+输入 catalog 保留函数入口的真实 Parameter 定义；Move/Result/Binding 仅运输该 P。
+通用 catalog 的 Parameter origin 不授予旧 family 准入：legacy factory、Break 和五类
+invariant validator 显式保留 String 条件，Parameter 候选不回落 closed/invariant。
+旧公共 getter/storage 与原循环出口/cleanup 合同保持不变。
+
+后端 `4cc1ad59` 先取得原样缺终止回执红；FE 接线后再于 `19a1f520` 的独立测试取得
+真实参数入口链为空的红，不把已有 Name result 当 producer。`4da04ddb` 从实际
+bind_parameters 的 Value 槽绑定 P；同轮 typed 复核两个参数及 Boolean SharedLoan，
+Name result 核对原槽，实际 deliver 后核参数已 dead，再承接旧 Alias root。Q、旧
+RootReplace、detached P Drop、两个独立 Return emitter 与终止回执均复用原路径。
+
+测试代码头 `69fe482e`：本轮 fresh-helper 审计的 14 个 ordinary exact 全部通过
+（FE 5、codegen 9；测试内部的 10 个旧 String shape 不另计 exact）。包括真实
+Basic/Const 两路、参数入口与两 Return 回执、原 SSA cleanup 顺序及有限 native
+`outer`/`next` 输出。FE damage/foreign 测试仅编译，未本地运行；正式 CI 尚未验证。
+两 crate all-targets strict Clippy、workspace all-targets check、fmt、docs 和相对
+`caf1b1db` 的 Rust size guard 均通过，无新增尺寸豁免。保存每阶段原 SOURCE、原始
+artifact、覆盖前 binary 副本/SHA、精确名单和逐项日志；首次 probe oracle 错误保留。
+本轮是局部 Parameter 输入能力，不代表一般动态 owner/循环归纳能力完成，未自行发布。
