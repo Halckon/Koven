@@ -32,7 +32,7 @@
 
 ### 2.2 门控仅测试使用的编译单元入口与 `UnitCallablePlan` 查询
 
-- 在 `crates/lang-codegen/src/ssa/unit_lower/handoff.rs` 与 `crates/lang-codegen/src/ssa/unit_lower.rs` 中，为仅由测试调用的 `lower_scalar_unit_with_entry` 及其重导出添加 `#[cfg(test)]` 门控，并移除 `unit_lower.rs` 上的 `#[cfg_attr(not(test), expect(unused_imports, ...))]` 告警抑制（生产路径统一通过 `lower_scalar_unit_from_facts` 消费）。
+- 在 `crates/lang-codegen/src/ssa/unit_lower/handoff.rs` 与 `crates/lang-codegen/src/ssa/unit_lower.rs` 中，为仅由测试调用的 `lower_scalar_unit_with_entry` 及其重导出添加 `#[cfg(test)]` 门控，并移除 `unit_lower.rs` 上的 `#[cfg_attr(not(test), expect(unused_imports, ...))]` 告警抑制（生产路径统一通过 `lower_scalar_unit_from_facts` 消费）；同时把仅该包装使用的 `ValidatedCompilationUnitNames` 导入移入 `#[cfg(test)]` 块，避免非 test 构建出现未使用导入。
 - 在 `crates/lang-codegen/src/ssa/unit_lower/constant.rs` 中，为仅由测试调用的 `lower_constant_unit_with_entry` 及其测试专用导入添加 `#[cfg(test)]` 门控（生产路径统一通过 `lower_constant_unit_from_facts` 消费）。
 - 在 `crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs` 中，为仅由单元测试调用的 `UnitCallablePlan::borrowed_argument` 添加 `#[cfg(test)]` 门控（生产路径统一通过 `borrowed_arguments` 迭代器消费）。
 
@@ -46,4 +46,4 @@
 - [x] 删除 `is_borrow_result_binding`、`argument_has_loop_jump`、`unit_requires_refine` 与 `is_first_class_value` 四个死辅助函数。
 - [x] 为 `lower_scalar_unit_with_entry`、`lower_constant_unit_with_entry` 与 `UnitCallablePlan::borrowed_argument` 补充 `#[cfg(test)]` 门控，移除 `unit_lower.rs` 的 `unused_imports` 抑制，并完成跨模块 `span_contains` / `strictly_contains` 去重。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
-- [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+- [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR 为准。
