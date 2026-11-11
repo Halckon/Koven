@@ -13536,3 +13536,23 @@ control 及 root，不改变 planner、旧 oracle 或 consumer 权限。此为�
 上整体记录root-to-owner向量，保留根间相关性，禁止按每根独立Choice再取笛卡尔积。
 每条实际回边重新验证该向量；未进入或提前退出的嵌套循环不得伪造incoming，Return/
 Break/Continue分别归属真实目标。现有root-qualified edge是身份基础，不替代这些义务。
+
+### ControlRootFrame 内部原子根向量基础（2026-11-11，本地）
+
+从f6bfb4a5继续，将NormalInput的prefix、jump及body completion真实边界采集接入
+内部ControlRootFrame。该借用视图保留整个原values向量，不排序、分拆或组合路径；
+未初始化owner、重复root、重复owner、root symbol与control跨source或各owner的
+callable彼此不一致时向量整体失败。查询
+须给出相同source-qualified control，现有single_for仍只接受唯一根，旧准入不扩展。
+它不验证owner callable属于该control/root或跨catalog成员关系，不是跨分析capability，
+也尚未替换单槽LoopTransaction；
+真实owner catalog与incoming封闭验证仍由原HeaderEquation完成。
+
+真实normal_backedge 17项回归已通过。结构模型以实际分析的绑定ID构造二元测试向量，
+验证原子保序及控制ID隔离；该测试向量不是实际循环快照，不能用来宣称多根运行支持。
+模型1项已通过，CI-only缺owner/重复root/重复owner负控仅编译、不本地执行。
+最终重编后23项普通测试通过（normal17、qualified3、frontier2、模型1），FE all-target
+strict Clippy、fmt、docs897及diff通过。触及Rust文件均未达1000行，最大900行；
+无新公开API或codegen变化，本片未追加workspace/native，未运行CI-only或远端CI。
+
+本片只读独立复审未发现当前三处single_for接线的语义回归；按审查收窄source归属措辞。

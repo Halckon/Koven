@@ -3,6 +3,7 @@ mod conditional;
 mod invariant;
 mod normal_backedge;
 mod replace_break;
+mod root_frame;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,

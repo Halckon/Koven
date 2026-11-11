@@ -107,3 +107,9 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 同源码重新分析不相等；入口 body、正常回边及 condition-false 出口不可互换。它是原
 封闭产品的身份视图，不生成新 producer、drop 权限或一般多根/嵌套运输能力；旧 witness
 仍保留。真实源码及 observer on/off 检验见 SPEC-0341 的 root-qualified edge 验收。
+
+NormalInput的prefix、jump及body-completion采集使用私有`ControlRootFrame`借用视图：
+整组根保留原顺序，缺owner、重复root/owner、root symbol与control跨source或各owner
+callable彼此不一致时不返回部分
+结果。查询核同一control ID，现有consumer继续只取唯一根。它不发布能力或证明owner callable属于该control/root及跨catalog
+归属，仍由现有HeaderEquation验证实际catalog与运输；未改成一般嵌套事务管理器。

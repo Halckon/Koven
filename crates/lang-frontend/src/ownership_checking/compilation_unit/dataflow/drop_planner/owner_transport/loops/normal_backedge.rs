@@ -356,7 +356,10 @@ impl NormalInput {
         {
             return false;
         }
-        let Some([value]) = boundary_values(state) else {
+        let control = UnitStatementId::new(self.root.source_unit(), self.statement);
+        let Some(value) = super::root_frame::ControlRootFrame::capture(control, state)
+            .and_then(|frame| frame.single_for(control))
+        else {
             return false;
         };
         let Some(snapshot) = super::super::replace_consumer::snapshot(value) else {
@@ -420,7 +423,10 @@ impl NormalInput {
         state: &ValueState,
         scope: usize,
     ) {
-        let Some([value]) = boundary_values(state) else {
+        let control = UnitStatementId::new(self.root.source_unit(), self.statement);
+        let Some(value) = super::root_frame::ControlRootFrame::capture(control, state)
+            .and_then(|frame| frame.single_for(control))
+        else {
             self.valid = false;
             return;
         };
@@ -517,7 +523,10 @@ impl NormalInput {
             self.completed = Some(snapshot.clone());
             return true;
         }
-        let Some([value]) = boundary_values(state) else {
+        let control = UnitStatementId::new(self.root.source_unit(), self.statement);
+        let Some(value) = super::root_frame::ControlRootFrame::capture(control, state)
+            .and_then(|frame| frame.single_for(control))
+        else {
             return false;
         };
         let Some(expected) = &self.expected else {
