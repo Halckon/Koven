@@ -12750,3 +12750,19 @@ Partial/off旧产品及分支receipt为空均保留。新增两个手写SSA CI-o
 no-run、同五项ordinary各1 passed、all-targets feature strict Clippy21.63秒通过；
 fmt、docs891、尺寸2428文件/35历史超限及diff均通过。未运行native、全量或CI-only；
 最终账本提交仅改本文，不改上述已冻结Rust。后续与owner合流需重新核组合，不以此替代CI。
+
+### 同来源动态双出口 Partial 因果证据（2026-11-11）
+
+本片基于871cd939，仅给已准入的动态if真出口与唯一false尾return建立独立实际原因链；
+不发布branch Complete/region/receipt，也不增加End/Drop。声明计划不等于实际到达；
+真实臂入口须独立登记路径，false续接须确认true实际终止且只有唯一继续状态。Return
+求值前绑定call/value、control、condition和臂身份；仅沿原pending token传递acquisition。
+公开branch身份必须经过独立validator，不能只凭candidate/cause自称已验证。多继续、嵌套、
+未准入形状、错call/control/catalog等降为无原因raw handoff，旧语义和原子撤销不变。
+
+真实前置红df9fcf50：22.37秒no-run成功；4290输入与唯一FE binary冻结，普通exact
+`ordinary_dynamic_branch_has_two_distinct_actual_acquisition_causes`实际0 passed/1 failed。
+Rooted/Memory均ownership成功、两个raw handoff、source_begin/callable链接均零，Partial；
+legacy/on-off等价先通过，失败精确为缺少实际acquisition原因。不是lowering、Complete或
+receipt失败。证据及独立保存binary在主仓忽略目录
+`.local-artifacts/borrow-branch-causes-20261111/red`，独核输入/产物/runner前后身份一致。

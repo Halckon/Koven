@@ -6,6 +6,7 @@ mod borrow_call_handoff;
 mod borrow_forward_transport;
 mod borrow_result;
 mod borrow_transport;
+mod branch_forward_scope;
 mod call_loan_end;
 mod control;
 mod iteration;
@@ -448,6 +449,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             }
                         }
                         FunctionBody::Block(body) => {
+                            state.branch_forward_plan = self.branch_forward_plan(id, body);
                             if self.statement(body, &mut state)? {
                                 self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
                             }

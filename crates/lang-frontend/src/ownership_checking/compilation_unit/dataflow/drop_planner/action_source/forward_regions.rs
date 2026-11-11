@@ -20,6 +20,9 @@ impl ActionSource {
         &mut self,
         mut scope: ForwardScope,
     ) -> ForwardScope {
+        if scope.branch.is_some() || scope.branch_entry.is_some() || scope.control != scope.body {
+            return scope;
+        }
         scope.region = Some(self.forward_regions.len());
         self.forward_regions.push(Candidate {
             scope,
@@ -80,7 +83,8 @@ impl ActionSource {
             let scope = candidate.scope;
             let end = candidate.end.unwrap_or(candidate.start);
             let handoff = candidate.handoff.as_ref();
-            let complete = !candidate.ambiguous && candidate.pre_clear && candidate.post_clear
+            let complete = scope.branch.is_none() && scope.branch_entry.is_none() && scope.control == scope.body
+                && !candidate.ambiguous && candidate.pre_clear && candidate.post_clear
                 && candidate.end.is_some() && end == candidate.start + 2
                 && handoff.is_some_and(|handle| Arc::ptr_eq(&handle.identity, &self.identity)
                     && handle.index == candidate.start + 1

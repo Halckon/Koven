@@ -258,8 +258,49 @@ pub struct UnitLoanForwardHandoff {
     pub(super) source_begin: Option<usize>,
     pub(super) callable: Option<crate::type_checking::UnitItemId>,
     pub(super) transaction: super::UnitBorrowForwardTransportFact,
+    pub(super) branch: Option<UnitLoanForwardBranch>,
+}
+/// A normal branch edge actually entered by the planner, not whole-region coverage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitLoanForwardBranch {
+    pub(super) callable: crate::type_checking::UnitItemId,
+    pub(super) split: crate::type_checking::UnitExpressionId,
+    pub(super) condition: crate::type_checking::UnitExpressionId,
+    pub(super) then_arm: bool,
+    pub(super) control: crate::type_checking::UnitExpressionId,
+    pub(super) value: crate::type_checking::UnitExpressionId,
+}
+impl UnitLoanForwardBranch {
+    /// Enclosing wrapper declaration, qualified by its source unit.
+    pub const fn callable(&self) -> crate::type_checking::UnitItemId {
+        self.callable
+    }
+    /// The actual If expression whose edge was entered.
+    pub const fn split(&self) -> crate::type_checking::UnitExpressionId {
+        self.split
+    }
+    /// The condition evaluated before entering this edge.
+    pub const fn condition(&self) -> crate::type_checking::UnitExpressionId {
+        self.condition
+    }
+    /// True for the then edge; false for its sole normal continuation.
+    pub const fn then_arm(&self) -> bool {
+        self.then_arm
+    }
+    /// The explicit Return control, distinct from the returned call.
+    pub const fn control(&self) -> crate::type_checking::UnitExpressionId {
+        self.control
+    }
+    /// The actual returned call whose source acquisition is delivered.
+    pub const fn value(&self) -> crate::type_checking::UnitExpressionId {
+        self.value
+    }
 }
 impl UnitLoanForwardHandoff {
+    /// Validated actual branch entry. None grants no path or absence proof.
+    pub const fn branch(&self) -> Option<UnitLoanForwardBranch> {
+        self.branch
+    }
     /// Validated actual acquisition carried through the pending source move.
     /// None means this edge is unproved, never that the live obligation is absent.
     #[must_use]
@@ -269,7 +310,7 @@ impl UnitLoanForwardHandoff {
             index,
         })
     }
-    /// The enclosing expression-bodied wrapper, not the inner callee or its caller.
+    /// The enclosing wrapper, not the inner callee or its caller.
     /// None means this bounded callable identity was not proved.
     #[must_use]
     pub const fn callable(&self) -> Option<crate::type_checking::UnitItemId> {

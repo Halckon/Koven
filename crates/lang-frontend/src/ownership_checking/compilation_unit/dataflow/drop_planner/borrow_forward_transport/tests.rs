@@ -30,6 +30,9 @@ fn ci_only_forward_merge_preserves_old_equality_and_only_loses_cause() {
         region: None,
         callable: UnitItemId::new(wrap.source_unit(), wrap.root()),
         body: source.call(),
+        control: source.call(),
+        branch: None,
+        branch_entry: None,
         argument: source.argument(),
         root: place.root(),
     };

@@ -39,6 +39,9 @@ fn ci_only_invalid_forward_identity_never_grants_either_causal_getter() {
         region: None,
         callable: UnitItemId::new(wrap.source_unit(), wrap.root()),
         body: loan.call(),
+        control: loan.call(),
+        branch: None,
+        branch_entry: None,
         argument: loan.argument(),
         root: place.root(),
     };
@@ -46,7 +49,14 @@ fn ci_only_invalid_forward_identity_never_grants_either_causal_getter() {
     let file = fixture.parsed[0].source_id();
     let valid = recorded(fact, scope);
     assert_eq!(
-        validate(&valid.records, &valid.identity, source, file).get(&1),
+        validate(
+            &valid.records,
+            &valid.identity,
+            source,
+            file,
+            &valid.branch_entries
+        )
+        .get(&1),
         Some(&(0, scope.callable))
     );
     let original = valid.finish(source, file);
@@ -183,7 +193,14 @@ fn ci_only_invalid_forward_identity_never_grants_either_causal_getter() {
             "raw transaction retained under fault {fault}"
         );
         assert!(
-            validate(&actions.records, &actions.identity, source, checked_file).is_empty(),
+            validate(
+                &actions.records,
+                &actions.identity,
+                source,
+                checked_file,
+                &actions.branch_entries
+            )
+            .is_empty(),
             "fault {fault}"
         );
         let observed = actions.finish(source, checked_file);

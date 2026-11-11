@@ -100,6 +100,7 @@ impl DropPlanner<'_, '_> {
     pub(super) fn forward_region_boundary_clear(&self, state: &ValueState, live: bool) -> bool {
         let ValueState {
             forward_scope,
+            branch_forward_plan,
             replace_consumer,
             lambda,
             borrow_bindings,
@@ -126,6 +127,7 @@ impl DropPlanner<'_, '_> {
             borrow_forward_transports.is_empty()
         };
         self.scope_depth == 0
+            && branch_forward_plan.is_none()
             && self.loop_boundaries.is_empty()
             && self.owner_choice.is_none()
             && self.owner_loop.is_none()
