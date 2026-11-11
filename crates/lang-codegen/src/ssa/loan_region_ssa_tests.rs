@@ -739,6 +739,9 @@ mod named_literal_mapping;
 #[path = "finite_literal_tests.rs"]
 mod finite_literal;
 
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "aux_handoff_probe_tests.rs"]
+mod aux_handoff_probe;
 #[path = "binding_lifecycle_probe_tests.rs"]
 mod binding_lifecycle_probe;
 
