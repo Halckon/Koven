@@ -13,6 +13,8 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct Expected {
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) source_owner:
+        crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot,
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) scope: Scope,
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) source:
         UnitLoanFact,
@@ -57,6 +59,11 @@ pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) stru
 #[derive(Clone)]
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct Candidate {
     expected: Expected,
+    source_invalid: bool,
+    source_cleanup: Option<(
+        crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot,
+        ActionHandle,
+    )>,
     start: usize,
     source: Option<ActionHandle>,
     handoff: Option<ActionHandle>,
@@ -84,6 +91,8 @@ impl ActionSource {
         }
         self.binding_use_sets.push(Candidate {
             expected,
+            source_invalid: false,
+            source_cleanup: None,
             start: self.records.len(),
             source: None,
             handoff: None,
@@ -181,10 +190,8 @@ impl ActionSource {
         token: Token,
         transaction: &UnitBorrowBindingTransportFact,
         end: &ActionHandle,
-    ) {
-        let Some(c) = self.binding_use_sets.get_mut(token.candidate) else {
-            return;
-        };
+    ) -> Option<super::BindingDropCause> {
+        let c = self.binding_use_sets.get_mut(token.candidate)?;
         if !Arc::ptr_eq(&token.identity, &self.identity)
             || !Arc::ptr_eq(&end.identity, &self.identity)
             || !c.valid
@@ -199,9 +206,15 @@ impl ActionSource {
             || c.returns.last().is_none_or(|r| r.cursor > end.index)
         {
             c.valid = false;
-            return;
+            return None;
         }
         c.end = Some(end.clone());
+        Some(super::BindingDropCause::UseSet(UseSetDropCause {
+            identity: self.identity.clone(),
+            candidate: token.candidate,
+            end: end.clone(),
+            removed: None,
+        }))
     }
 }
 impl Candidate {
@@ -276,3 +289,102 @@ impl Candidate {
 
 #[cfg(test)]
 mod tests;
+
+/// One-shot cause from actual transport consumption, not an old single-use retirement handle.
+pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct UseSetDropCause {
+    identity: Arc<()>,
+    candidate: usize,
+    end: ActionHandle,
+    removed: Option<
+        crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot,
+    >,
+}
+impl ActionSource {
+    pub(super) fn verify_removed_use_set_owner(
+        &mut self,
+        mut cause: UseSetDropCause,
+        value: &super::super::OwnedValue,
+    ) -> Option<UseSetDropCause> {
+        use crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot;
+        let c = self.binding_use_sets.get_mut(cause.candidate)?;
+        let actual = OwnerSnapshot {
+            owner: value.owner.clone(),
+            symbol: value.symbol,
+            origin: value.origin,
+            declaration: value.declaration,
+            scope_depth: value.scope_depth,
+        };
+        if !Arc::ptr_eq(&cause.identity, &self.identity)
+            || c.source_invalid
+            || cause.removed.is_some()
+            || c.source_cleanup.is_some()
+            || !c
+                .end
+                .as_ref()
+                .is_some_and(|end| end.same_record(&cause.end))
+            || actual.owner.is_none()
+            || actual != c.expected.source_owner
+        {
+            c.source_invalid = true;
+            return None;
+        }
+        cause.removed = Some(actual);
+        Some(cause)
+    }
+    pub(super) fn record_use_set_source_drop(
+        &mut self,
+        cause: UseSetDropCause,
+        drop: ActionHandle,
+    ) {
+        let Some(c) = self.binding_use_sets.get_mut(cause.candidate) else {
+            return;
+        };
+        let Some(owner) = cause.removed else {
+            c.source_invalid = true;
+            return;
+        };
+        if !Arc::ptr_eq(&cause.identity, &self.identity)
+            || c.source_invalid
+            || c.source_cleanup.is_some()
+            || owner != c.expected.source_owner
+            || !c
+                .end
+                .as_ref()
+                .is_some_and(|end| end.same_record(&cause.end))
+            || !cause.end.precedes(&drop)
+        {
+            c.source_invalid = true;
+            return;
+        }
+        c.source_cleanup = Some((owner, drop));
+    }
+}
+impl Candidate {
+    pub(super) fn source_retirement(
+        &self,
+        identity: &Arc<()>,
+        actions: &[UnitLoanAction],
+    ) -> Option<(crate::ownership_checking::UnitOwnerId, UnitLoanActionId)> {
+        use crate::ownership_checking::{UnitDropTarget, UnitIterationCleanupAction};
+        let (owner, drop) = self.source_cleanup.as_ref()?;
+        let end = self.end.as_ref()?;
+        let expected = &self.expected.source_owner;
+        let owner_id = owner.owner.as_ref()?;
+        if self.source_invalid || owner!=expected || expected.symbol!=self.expected.scope.root
+            || expected.scope_depth!=1 || owner_id.callable!=crate::ownership_checking::UnitOwnerCallable::Function(self.expected.scope.callable)
+            || !Arc::ptr_eq(&drop.identity,identity) || !end.precedes(drop)
+            || !matches!(actions.get(drop.index),Some(UnitLoanAction::Cleanup{point,action:UnitIterationCleanupAction::Drop(d)})
+                if *point==UnitDropPoint::AfterStatement(self.expected.scope.consumer_statement)
+                && d.point()==*point && d.target()==UnitDropTarget::Named(expected.symbol) && d.value_origin()==expected.origin)
+            || actions.iter().filter(|a|matches!(a,UnitLoanAction::Cleanup{action:UnitIterationCleanupAction::Drop(d),..} if d.target()==UnitDropTarget::Named(expected.symbol))).count()!=1 {
+            return None;
+        }
+        Some((
+            owner_id.clone(),
+            UnitLoanActionId {
+                identity: drop.identity.clone(),
+                index: drop.index,
+            },
+        ))
+    }
+}

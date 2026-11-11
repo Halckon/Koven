@@ -68,3 +68,35 @@ fn ci_only_use_set_rejects_missing_reordered_and_foreign_returns() {
     missing.remove(original.returns[1].begin.index);
     assert!(original.finish(&identity, &missing).is_none());
 }
+
+#[test]
+fn ci_only_source_retirement_requires_actual_removed_owner_and_unique_drop_without_erasing_set() {
+    let (original, identity, actions) = capture();
+    assert!(original.source_retirement(&identity, &actions).is_some());
+    for fault in 0..9 {
+        let mut c = original.clone();
+        match fault {
+            0 => c.source_invalid = true,
+            1 => c.source_cleanup = None,
+            2 => c.source_cleanup.as_mut().unwrap().0.owner = None,
+            3 => c.source_cleanup.as_mut().unwrap().0.scope_depth += 1,
+            4 => c.source_cleanup.as_mut().unwrap().1.identity = Arc::new(()),
+            5 => c.source_cleanup.as_mut().unwrap().1.index = c.end.as_ref().unwrap().index,
+            6 => c.expected.source_owner.owner = None,
+            7 => c.expected.source_owner.symbol = c.expected.scope.binding,
+            _ => c.expected.source_owner.scope_depth = 0,
+        }
+        assert!(
+            c.source_retirement(&identity, &actions).is_none(),
+            "fault {fault}"
+        );
+        assert!(
+            c.finish(&identity, &actions).is_some(),
+            "new failure must not erase original use set"
+        );
+    }
+    let mut duplicate = actions.clone();
+    duplicate.push(actions[original.source_cleanup.as_ref().unwrap().1.index].clone());
+    assert!(original.source_retirement(&identity, &duplicate).is_none());
+    assert!(original.finish(&identity, &duplicate).is_some());
+}

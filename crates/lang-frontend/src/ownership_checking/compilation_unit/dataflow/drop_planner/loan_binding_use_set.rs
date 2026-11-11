@@ -300,6 +300,7 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(Expected {
+            source_owner,
             scope: scope.clone(),
             source_index: shape.source_index,
             source,

@@ -585,11 +585,23 @@ impl ActionSource {
                 region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
             })
             .collect();
-        let binding_use_sets = self
-            .binding_use_sets
-            .into_iter()
-            .filter_map(|c| c.finish(&identity, &actions))
-            .collect();
+        let mut binding_use_sets = Vec::new();
+        let mut binding_use_set_retirements = Vec::new();
+        for candidate in self.binding_use_sets {
+            let retirement = candidate.source_retirement(&identity, &actions);
+            if let Some(use_set) = candidate.finish(&identity, &actions) {
+                if let Some((source_owner, source_drop)) = retirement {
+                    binding_use_set_retirements.push(
+                        crate::ownership_checking::UnitLoanBindingUseSetRetirement {
+                            use_set: use_set.clone(),
+                            source_owner,
+                            source_drop,
+                        },
+                    );
+                }
+                binding_use_sets.push(use_set);
+            }
+        }
         let mut later_auxiliary_binding_regions = Vec::new();
         let mut auxiliary_sequence_regions = Vec::new();
         let mut interleaved_auxiliary_regions = Vec::new();
@@ -651,6 +663,7 @@ impl ActionSource {
             auxiliary_sequence_regions,
             interleaved_auxiliary_regions,
             binding_use_sets,
+            binding_use_set_retirements,
             auxiliary_binding_regions,
         }]
     }

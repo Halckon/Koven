@@ -14658,3 +14658,28 @@ BindingEnd处独立闭合，旧UseReturn/semantic equality不变。修复连续B
 36个历史超1000文件，唯一旧1684>1674失败保留，原文件/policy零改。
 compilation_unit1134→1136只模块/产品导出，经独立职责review仍≤1156。无native
 全套或远端CI；仅本地提交，不推送。
+
+#### 多B集合退休与实际source Drop的独立证据（实施中）
+
+基于4dcad3e9，先把真实use-set close token经原transport移除/BindingEnd携带到
+实际source owner移除与原Drop，仍只发布独立Partial退休证据。不得伪造旧
+BorrowBindingSourceRetired，或以最后一个B替代完整返回集合；旧Partial集合成功
+与新Drop证明失败隔离，不因新失败丢失已有use-set资格。
+
+专属cause只在旧cause不存在时使用，绑定同catalog/实际source owner全快照、唯一
+真实named cleanup与原Drop ID，一次消费。完整A/B进度、末A Drop及整region
+Complete紧接后续独立片，当前不授予完整区域或新CG receipt，旧witness不退休。
+
+AAAABB真实source退休证据0!=1红转绿，103词矩阵核同集合、真实source owner与
+原source Drop，覆盖aux已先Drop及仍live。独立审查确认非Clone cause由真实token
+消费产生，同catalog/末B AfterStatement、完整owner快照及唯一原Drop逐项匹配；
+旧cause优先，新失败与旧Partial集合状态隔离。整region与新CG receipt尚未授予。
+
+旧8目标9普通FE回归及CG84项通过；集合/退休两组CI-only仅编译，含新source证明
+失败仍保留旧Partial集合的隔离断言，未执行。Clippy发现Option返回可用问号的
+等价风格问题，修正后-D warnings通过；未放宽证明条件。日志multi-binding-retirement-*。
+尺寸仍2594手写Rust文件/36历史超1000，唯一旧1684>1674失败；原文件/policy零改。
+compilation_unit1136→1138只新产品导出，独立职责review确认仍≤1156。
+
+最终103词FE复验、workspace all-targets、默认FE/CG lib no-run、fmt/diff及文档897项
+通过；无native全套/远端CI。此检查点本地提交，未推送；下一片继续完整region。

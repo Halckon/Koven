@@ -107,6 +107,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) binding_use_set_retirements: Vec<super::UnitLoanBindingUseSetRetirement>,
     pub(super) binding_use_sets: Vec<super::UnitLoanBindingUseSet>,
     pub(super) interleaved_auxiliary_regions: Vec<super::UnitBorrowInterleavedAuxiliaryRegion>,
     pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
@@ -230,6 +231,17 @@ impl UnitLoanActionObservation {
         Arc::ptr_eq(&self.identity, &region.identity)
     }
 
+    /// Partial use-set consumption followed by actual source-owner Drop.
+    pub fn binding_use_set_retirements(&self) -> &[super::UnitLoanBindingUseSetRetirement] {
+        &self.binding_use_set_retirements
+    }
+    /// Identity membership for an independent retirement witness.
+    pub fn owns_binding_use_set_retirement(
+        &self,
+        r: &super::UnitLoanBindingUseSetRetirement,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &r.use_set.identity)
+    }
     /// Independent actual binding-use collections, with Partial coverage only.
     pub fn binding_use_sets(&self) -> &[super::UnitLoanBindingUseSet] {
         &self.binding_use_sets

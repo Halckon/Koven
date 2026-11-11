@@ -147,6 +147,22 @@ fn ordinary_multi_binding_use_sets_close_exact_actual_returns() {
                     usize::from(qualified),
                     "{word}/{layout}: complete actual use set"
                 );
+                let retirements = catalog.binding_use_set_retirements();
+                assert_eq!(
+                    retirements.len(),
+                    usize::from(qualified),
+                    "{word}/{layout}: real source retirement and Drop"
+                );
+                if let [retirement] = retirements {
+                    assert!(catalog.owns_binding_use_set_retirement(retirement));
+                    assert_eq!(retirement.coverage(), UnitLoanActionCoverage::Partial);
+                    assert_eq!(retirement.source_owner(), relation.source_owner());
+                    assert!(catalog.owns_binding_use_set(retirement.use_set()));
+                    assert_eq!(retirement.use_set(), &sets[0]);
+                    assert!(
+                        matches!(catalog.action(&retirement.source_drop()), Some(UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop), .. }) if matches!(handoff.source_loan().target(), lang_frontend::ownership_checking::UnitLoanTarget::Place(place) if drop.target() == lang_frontend::ownership_checking::UnitDropTarget::Named(place.root())))
+                    );
+                }
                 if let [set] = sets {
                     assert!(catalog.owns_binding_use_set(set));
                     assert_eq!(set.coverage(), UnitLoanActionCoverage::Partial);

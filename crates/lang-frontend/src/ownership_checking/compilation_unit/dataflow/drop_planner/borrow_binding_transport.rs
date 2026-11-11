@@ -241,15 +241,21 @@ impl DropPlanner<'_, '_> {
 }
 
 impl PendingBindingTransport {
+    pub(super) fn close_use_set_retirement(
+        &mut self,
+        actions: &mut super::action_source::ActionSource,
+        transaction: &UnitBorrowBindingTransportFact,
+        binding_end: &ActionHandle,
+    ) -> Option<super::action_source::BindingDropCause> {
+        let token = self.use_set.take()?;
+        actions.close_binding_use_set(token, transaction, binding_end)
+    }
     pub(super) fn publish_retirement(
-        mut self,
+        self,
         actions: &mut super::action_source::ActionSource,
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
     ) -> (Option<ActionHandle>, Option<ActionHandle>) {
-        if let Some(token) = self.use_set.take() {
-            actions.close_binding_use_set(token, &transaction, &binding_end);
-        }
         if self.observable {
             let use_return = match &self.use_return {
                 UseReturn::Unique(handle) => Some(handle.clone()),

@@ -69,3 +69,30 @@ impl UnitLoanBindingUseSet {
         &self.uses
     }
 }
+
+/// Independent consumption of an exact use set followed by actual source-owner destruction.
+/// This remains Partial: it does not certify the auxiliary lifecycle or an entire region.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoanBindingUseSetRetirement {
+    pub(super) use_set: UnitLoanBindingUseSet,
+    pub(super) source_owner: super::UnitOwnerId,
+    pub(super) source_drop: UnitLoanActionId,
+}
+impl UnitLoanBindingUseSetRetirement {
+    /// Original validated partial use collection, including its actual BindingEnd.
+    pub fn use_set(&self) -> &UnitLoanBindingUseSet {
+        &self.use_set
+    }
+    /// Actual source owner removed by the witnessed cleanup attempt.
+    pub fn source_owner(&self) -> &super::UnitOwnerId {
+        &self.source_owner
+    }
+    /// Same-catalog original cleanup Drop record.
+    pub fn source_drop(&self) -> UnitLoanActionId {
+        self.source_drop.clone()
+    }
+    /// No full region or auxiliary-lifecycle authority is granted.
+    pub fn coverage(&self) -> UnitLoanActionCoverage {
+        UnitLoanActionCoverage::Partial
+    }
+}

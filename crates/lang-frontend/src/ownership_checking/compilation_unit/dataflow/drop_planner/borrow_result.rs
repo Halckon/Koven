@@ -168,15 +168,21 @@ impl DropPlanner<'_, '_> {
             let binding_end = self.iteration_actions.end_borrow_binding(fact);
             let child_retirement =
                 self.retire_borrow_binding_child(binding, point, binding_end.clone(), state);
-            let (parent_retirement, auxiliary_retirement) = transport
-                .map(|(transaction, pending)| {
-                    pending.publish_retirement(
+            let (parent_retirement, auxiliary_retirement, use_set_cause) = transport
+                .map(|(transaction, mut pending)| {
+                    let use_set_cause = pending.close_use_set_retirement(
+                        &mut self.iteration_actions,
+                        &transaction,
+                        &binding_end,
+                    );
+                    let (parent, auxiliary) = pending.publish_retirement(
                         &mut self.iteration_actions,
                         transaction,
                         binding_end,
-                    )
+                    );
+                    (parent, auxiliary, use_set_cause)
                 })
-                .unwrap_or((None, None));
+                .unwrap_or((None, None, None));
             let cause = parent_retirement.clone().and_then(|retirement| {
                 self.iteration_actions
                     .binding_drop_cause(binding, retirement)
@@ -193,6 +199,7 @@ impl DropPlanner<'_, '_> {
                             .later_auxiliary_binding_drop_cause(binding, retirement)
                     })
             });
+            let aux_cause = aux_cause.or(use_set_cause);
             if let Some(fact) = self
                 .checker
                 .borrow_results
