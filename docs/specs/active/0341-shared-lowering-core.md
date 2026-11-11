@@ -12106,3 +12106,33 @@ all-targets check、fmt、docs（886页）、尺寸（2398 Rust、35历史超限
 import，补真实类型导入；均仅编译失败无测试执行。首轮strict Clippy的large-enum失败已
 保留并以单层Box修复。两阶段预期红、各阶段原始artifact/日志和执行前binary/source SHA
 分别保留，最终产物不覆盖红证据。独立终审与后续合流仍由协调任务完成。
+
+
+### 单 wrapper live-source 原样前置实证合同（2026-11-11）
+
+基底 `c85ac4b9` 包含 main `03d70377`、owner `39835135` 与借用 `11681a0a`，
+在独立 `feature/spec-0341-forward-loan-lifecycle` 树准备，不改合流树或生产逻辑。
+本阶段只有原样 probe；不因编写测试或本合同宣称已有新因果链、Complete 或 receipt。
+
+固定唯一 explicit Return wrapper：`view(source)` 返回 Shared 参数来源，
+`wrap(source) { return view(source) }` 将该 live token 交付正常返回；caller 以
+单本地 String owner、单 borrow val 和单普通 consume 使用结果。选择显式 Return
+是为了锁住现有 `finish_borrow_forward_transport` 的唯一已知实际发布点，不同时扩展
+表达式体、Group、多层 wrapper、控制、provider、receiver、投影或 Inout。
+
+新单 exact 使用已审普通 parsed/analyze helper，双 rooted/memory 原样正常分析；
+先核旧 forward 实际 source/call/argument/returned/Return、caller 与 wrapper 来源分离、
+Shared 参数无 payload owner/Drop，以及已注册 Begin 不被当作 source End。再经正常
+Unit 入口观察实际 route、SSA、verifier 与 LLVM render，不预设路由或操作数量，
+不修改 facts、force route、运行 native 或调用 foreign/fault/counter/pressure helper。
+新观察 API/生产发布未改，本 probe 不是缺新 API 的能力红。
+
+当前代码的具体缺口：实际 PendingLoan source 移动点丢弃 acquisition handle；
+实际 wrapper Return 只写旧 `borrow_forward_transports`，没有同 catalog 的 forward
+动作因果引用。probe 完成后再根据实际产物收窄后继合同；handoff 始终交付 live obligation，
+不得记作 End，不新增 cleanup、语言/ABI、公共 owner endpoint 或退休旧 oracle。
+source/callable 仍 Partial，覆盖认证与生产 receipt 必须分别取得后继证据。
+
+执行前先提交输入并独立审源码/helper；fresh no-run 后绑定 artifact、binary SHA 与输入，
+再仅执行这一个普通 exact。复用既有 borrow target，default debug2、LLVM21、串行 Cargo，
+构建前重核进程/锁/资源；不复制 target、不降 debug。所有 CI-only 仅编译，未运行项另记。
