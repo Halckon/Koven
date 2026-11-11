@@ -14,6 +14,10 @@ fn sequential_closed_transactions_capture_each_real_control_without_single_publi
         let owned = fixture.shared();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.clone().validate().is_ok());
+        let batch = owned.owner_observations()[0]
+            .closed_loop_batch_v1()
+            .expect("atomic real sequence publication");
+        assert_eq!(batch.products().len(), 2);
         assert!(
             owned
                 .owner_observations()

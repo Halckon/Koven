@@ -1,4 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod closed_batch;
+pub use closed_batch::UnitOwnerClosedLoopBatchV1;
 mod invariant;
 mod normal_backedge;
 mod qualified_edge;
