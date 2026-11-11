@@ -289,6 +289,14 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
     for (text, admitted) in [
         (normal.clone(), true),
         (
+            normal.replace("while(flag)", "val gate = flag; while(gate)"),
+            true,
+        ),
+        (
+            normal.replace("while(flag)", "var gate = flag; while(gate)"),
+            true,
+        ),
+        (
             normal
                 .replace("&left", "&temporary")
                 .replace("&right", "&left")
@@ -352,6 +360,36 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                 let roots = visits[0].incoming_roots.as_ref().unwrap();
                 let equation = visits[1].normal_equation.as_ref().unwrap();
                 assert_eq!(equation.control(), visits[0].control);
+                let (condition, body, binding) = equation.sites();
+                let crate::parser::Statement::While {
+                    condition: expected_condition,
+                    body: expected_body,
+                    ..
+                } = checker
+                    .parsed
+                    .ast()
+                    .statements()
+                    .get(equation.control().statement())
+                    .unwrap()
+                    .payload()
+                else {
+                    panic!("while")
+                };
+                assert_eq!(condition.expression(), *expected_condition);
+                assert_eq!(body.statement(), *expected_body);
+                assert_eq!(
+                    checker.reference_symbol(
+                        checker
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(*expected_condition)
+                            .unwrap()
+                            .span()
+                    ),
+                    Some(binding)
+                );
+                assert!(roots.iter().all(|(root, _)| *root != binding));
                 let entry = equation
                     .incoming(equation.control(), StaticRootPredecessor::ZeroBody)
                     .unwrap();

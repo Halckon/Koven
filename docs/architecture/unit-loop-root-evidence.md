@@ -116,3 +116,9 @@ header候选还须通过真实body末的状态形状门禁：复用既有boundar
 只核symbol集合，不使用Unsupported后可能残留的owner ID；代际关联仍来自独立token事务。
 形状失败仅拒绝header候选，不改旧planner行为或把普通回执升级为能力。此为后续激活
 归纳所需前置之一，仍未证明运行时header合并及任意轮次不变量。
+
+候选现在携带真实While condition表达式、body语句及Name解析到的Boolean binding，
+它们必须与control同source，guard binding不得与任何String root重合。身份在事务开始
+直接由AST/reference/type读取并只读保留，非由文本名称或Span相等推断。真实参数guard与
+局部val/var guard均覆盖，验证保留的是实际引用而非默认参数。该接线只标明以后重复header
+求值的真实位置，不预测条件结果、不声明guard在任意代码下不变，也不生成运行时激活。

@@ -13733,3 +13733,13 @@ LLVM21 workspace all-target check及fmt/diff通过。只读复审未发现错根
 定向10项通过；最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、
 LLVM21 workspace all-target check及fmt/diff通过。只读复审无阻断；纯观察元数据仍按
 boundary_values既有豁免，不把资源辅助状态闭合写成所有字段为空。未本机执行故障注入。
+
+### header guard 与 body 身份（2026-11-11，本地）
+
+基于70787815，将实际While condition/body及解析到的Boolean Name binding封入事务与
+候选，核same-source和guard/root分离。真实矩阵补局部val/var guard，逐项回查AST/reference；
+不假设所有Name都是参数，不扩大body合同或公开能力，不声称runtime activation已实现。
+
+最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过，新增guard矩阵断言随普通lib执行。只读复审无阻断；
+CI-only只编译未执行，本地保留、不推送。

@@ -22,6 +22,9 @@ pub(in super::super::super::super) struct RootTransferSlot {
 #[derive(Clone, Debug)]
 pub(in super::super::super::super) struct RootBoundaryEquation {
     control: UnitStatementId,
+    condition: UnitExpressionId,
+    body: UnitStatementId,
+    condition_binding: UnitSymbolId,
     entry: RootIncoming,
     normal: RootIncoming,
     transfers: Vec<RootTransferSlot>,
@@ -53,6 +56,13 @@ impl RootBoundaryEquation {
         (control == self.control()).then_some(self.transfers.as_slice())
     }
 
+    /// Real AST/reference identities; no condition outcome or activation count.
+    pub(in super::super::super::super) fn sites(
+        &self,
+    ) -> (UnitExpressionId, UnitStatementId, UnitSymbolId) {
+        (self.condition, self.body, self.condition_binding)
+    }
+
     fn same_roots(&self) -> bool {
         let Some(entry) = self.incoming(self.control, StaticRootPredecessor::ZeroBody) else {
             return false;
@@ -60,13 +70,19 @@ impl RootBoundaryEquation {
         let Some(normal) = self.incoming(self.control, StaticRootPredecessor::FirstBody) else {
             return false;
         };
-        self.transfers(self.control).is_some_and(|slots| {
-            slots.len() == entry.len()
-                && slots
-                    .iter()
-                    .zip(entry)
-                    .all(|(slot, (root, _))| slot.root == *root)
-        }) && entry.len() == normal.len()
+        let (condition, body, binding) = self.sites();
+        condition.source_unit() == self.control.source_unit()
+            && body.source_unit() == self.control.source_unit()
+            && binding.source_unit() == self.control.source_unit()
+            && entry.iter().all(|(root, _)| *root != binding)
+            && self.transfers(self.control).is_some_and(|slots| {
+                slots.len() == entry.len()
+                    && slots
+                        .iter()
+                        .zip(entry)
+                        .all(|(slot, (root, _))| slot.root == *root)
+            })
+            && entry.len() == normal.len()
             && entry
                 .iter()
                 .zip(normal)
@@ -82,6 +98,9 @@ impl RootBoundaryEquation {
 
 pub(in super::super) struct RootTokenTransaction {
     control: UnitStatementId,
+    condition: UnitExpressionId,
+    body: UnitStatementId,
+    condition_binding: UnitSymbolId,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
     roots: RootIncoming,
@@ -162,6 +181,9 @@ impl RootTokenTransaction {
         }
         let equation = RootBoundaryEquation {
             control: self.control,
+            condition: self.condition,
+            body: self.body,
+            condition_binding: self.condition_binding,
             entry: entry.clone(),
             normal: self.roots.clone(),
             transfers,
@@ -198,6 +220,18 @@ impl RootTokenTransaction {
             ast.expressions().get(*condition).ok()?.payload(),
             Expression::Name
         ) || !exact_type(checker, *condition, BuiltinType::Boolean)
+        {
+            return None;
+        }
+        let condition_binding =
+            checker.reference_symbol(ast.expressions().get(*condition).ok()?.span())?;
+        if condition_binding.source_unit() != control.source_unit()
+            || roots.iter().any(|(root, _)| *root == condition_binding)
+            || checker
+                .typed
+                .symbol_type(condition_binding)
+                .and_then(|ty| checker.typed.types().get(ty))
+                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
         {
             return None;
         }
@@ -243,6 +277,9 @@ impl RootTokenTransaction {
         }
         Some(Self {
             control,
+            condition: checker.unit_expression(*condition),
+            body: UnitStatementId::new(control.source_unit(), *body),
+            condition_binding,
             identity: std::sync::Arc::new(()),
             callable,
             roots: roots.clone(),
