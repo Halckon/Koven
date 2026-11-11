@@ -13013,10 +13013,28 @@ source Partial且branch_regions=0，最后精准0!=1；输入和binary执行前�
 持久证据保存于主仓忽略目录的本片red目录，不使用编译失败或旧结果替代能力红。
 随后生产接入独立入口、condition、实际臂、Return清理前后、唯一续接、Block seal及
 callable close见证；以进入基准加相对scope/branch深度检查状态，不放宽旧边界。
-当前生产与加强的两path完整身份/区间断言已落，尚未编译运行，不认领绿或正式CI。
+最终生产d5fa31ff已完成本地普通验收；两个path分别核原身份、完整动作区间、Begin/
+live handoff及无交叠，两布局仍source Partial，旧表达式region/receipt输入保持为空。
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 | --- | --- | --- |
-| 普通源码独立路径覆盖能力红及后继实现 | unit_branch_forward_causes / ordinary_dynamic_branch_requires_independent_path_coverage | 78a616d7真实0 passed/1 failed；生产后未编译、未运行 |
-| 漏出口/重复臂/额外continuation、动作区间和状态破损 | 后续CI-only定向负控 | 未实现、未执行；禁止本机注入运行 |
-| 旧表达式region/receipt与双出口lowering不回退 | 既有借用定向回归 | 本切片未运行 |
+| 普通源码独立路径覆盖能力红及后继实现 | unit_branch_forward_causes / ordinary_dynamic_branch_requires_independent_path_coverage | 78a616d7真实0 passed/1 failed；d5fa31ff真实1 passed |
+| 漏出口/重复臂/额外continuation、动作区间和状态破损 | branch_forward_regions/tests.rs 的 CI-only 正基线及24类破损 | 默认/feature严格Clippy及workspace编译通过；未本机运行 |
+| 原因链与三邻界 | unit_branch_forward_causes 其余两个ordinary exact | 各1 passed |
+| 旧表达式region/receipt与双出口lowering不回退 | 上述codegen五项ordinary exact | 各1 passed；不等于新分支receipt |
+
+
+最终FE no-run 299.39秒、CG no-run 1084.25秒，默认opt0/debug2，仅启用
+loan-observation-test-support。绑定4299 tracked输入，摘要
+`556075e9140001ef7afa6266022b2a7eecebd208a0009634df010e6ad7e5646c`；
+八项ordinary各核exact唯一并实跑1 passed，前后输入及binary身份一致。主仓忽略目录
+`.local-artifacts/borrow-branch-coverage-20261111/{red,green,codegen}`保留原Cargo JSON、
+输入/runner清单、实际日志及独立保存binary；额外回归runner摘要另存补充绑定。
+默认strict Clippy302.03秒、feature strict296.93秒、workspace all-targets61.20秒均过。
+最终fmt44.93秒、docs893/16.84秒、尺寸2436文件/35历史超限665.61秒、diff通过，
+没有提高尺寸例外。Architecture曾207行超过入口上限，已移除重复合同并更新原事实入口，
+恢复200行后真实重验；生产、负控交叉及完整证据均独审通过。最后账本提交仅改本文。
+
+本片不覆盖一般分支/循环/Abort、非该声明形状或分支后端receipt，不改变整source/callable
+Partial。24类CI-only只编译未运行；真实error/deferred全局原子撤销、逐字段状态污染与
+native尚未本片实测，不宣称完整故障覆盖或正式CI绿。未推送，后续合流须独立联合验收。
