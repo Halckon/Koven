@@ -12845,3 +12845,16 @@ docs与相对e659b66a尺寸门禁通过；默认CLI artifact features=[]。原�
 Cargo JSON、输入清单、runner和19项日志，以及两份已核SHA的测试binary副本。复用借用
 target前先保全其旧verified binary与映射，不碰owner在途target；未删除数据或缓存。
 此次末提交仅补本文，未推送、未合main，也没有此组合正式CI结论。
+
+### 第三批默认测试观察器功能门控修正（2026-11-11）
+
+`891e0869` 的默认 workspace check 虽成功，但测试重导出
+`observe_final_verifier` 留有 unused import 警告，不能作为默认严格 Clippy 通过。
+本补片仅使两层重导出及观察器函数与唯一消费者的
+`loan-observation-test-support` 功能门控一致，不改观察逻辑、生产 lowering 或语言语义。
+
+- 独立工作树实际执行默认 `cargo clippy --locked --offline --workspace --all-targets -- -D warnings`：通过。
+- 同树显式加入 `--features lang-codegen/loan-observation-test-support` 的 workspace 严格 Clippy：通过，消费者仍通过类型检查。
+- fmt、docs、diff 检查通过；三处 cfg 变更独立只读审核无阻断。
+- 本补片未重新执行行为测试或 CI-only 测试；此前19项的实测输入仍为 `438ab3ce`，不冒称新头重跑。
+- 新头尚无正式 CI，未推送或合入 main。
