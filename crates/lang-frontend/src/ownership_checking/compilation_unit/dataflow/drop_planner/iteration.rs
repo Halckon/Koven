@@ -262,7 +262,7 @@ impl DropPlanner<'_, '_> {
 
     /// 只登记已完成求值的实参，不能从同call的后续facts推测其已经建立。
     pub(super) fn register_iteration_pending_loans(
-        &self,
+        &mut self,
         call: ExpressionId,
         argument: ExpressionId,
         state: &mut ValueState,
@@ -271,16 +271,18 @@ impl DropPlanner<'_, '_> {
             loan.call() == self.checker.unit_expression(call)
                 && loan.argument() == self.checker.unit_expression(argument)
         }) {
-            state.pending_loans.push((
+            let acquisition = self.iteration_actions.begin(loan.clone());
+            state.pending_loans.push(super::model::PendingLoan(
                 Action::EndCallLoan(loan.clone()),
                 self.loop_boundaries.len(),
+                acquisition,
             ));
         }
     }
 
     /// Receiver 已在实参之前求值；其loan与实参一起逆序结束。
     pub(super) fn register_iteration_receiver_loan(
-        &self,
+        &mut self,
         call: ExpressionId,
         state: &mut ValueState,
     ) {
@@ -292,9 +294,11 @@ impl DropPlanner<'_, '_> {
                         | crate::ownership_checking::UnitReceiverOwnershipKind::ExclusiveLoan
                 )
         }) {
-            state.pending_loans.push((
+            self.iteration_actions.begin_receiver(fact.clone());
+            state.pending_loans.push(super::model::PendingLoan(
                 Action::EndReceiverLoan(fact.clone()),
                 self.loop_boundaries.len(),
+                None,
             ));
         }
     }
@@ -308,7 +312,7 @@ impl DropPlanner<'_, '_> {
     ) {
         for index in (0..state.pending_loans.len()).rev() {
             if state.pending_loans[index].1 >= minimum_depth {
-                let (action, _) = state.pending_loans.remove(index);
+                let super::model::PendingLoan(action, _, _) = state.pending_loans.remove(index);
                 if self.is_observed_borrow_source_unwind(point, &action, state) {
                     self.borrow_source_unwind_actions
                         .insert(self.iteration_actions.len());

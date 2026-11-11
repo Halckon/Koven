@@ -152,7 +152,7 @@ class CompositionContracts(unittest.TestCase):
                 if fail == "lang-cli":
                     self.assertEqual([
                         "cargo test --locked -p lang-frontend --lib",
-                        "cargo test --locked -p lang-codegen",
+                        "cargo test --locked -p lang-codegen --features loan-observation-test-support",
                         "cargo test --locked -p lang-cli --no-fail-fast",
                     ], calls)
                 if fail != "check_api_examples":

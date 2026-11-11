@@ -51,3 +51,27 @@ outer借用结果继续绑定/返回、temporary来源、actual receiver/Inout�
 实现入口为两套`borrow_call_use.rs`、`borrow_result.rs`、pending-call/drop-planner接线及
 single`call_lifetimes.rs`/unit`borrow.rs`；普通多参数内部返回见[既有快照](multi-parameter-borrow-results.md)。
 本片不表示完整M2B、任意表达式借用、receiver/Inout或完整NLL已实现。
+
+## Protocol 4 局部生产核验
+
+现行 refine 实例对同轮 Complete protocol 4 建立独立核验计划。catalog 原 action IDs、
+callable 与 source-plan 实例先关联；真实 call-use 激活后，当前 binding 的 owner Slot 经
+RootPlace/source Begin、BorrowCall result、consumer DirectCall、逆序 End 和 Named Drop
+逐步关联。原 producer 唯一发出操作，核验器不重放清理。statement 标记随直线块合并，
+SSA append 返回的真实 instruction/entity 身份闭合后才形成 receipt；Alias 不算指令，
+已绑定实体不能因 Slot 重绑而替换。正常续点是 consumer 返回后的局部清理，不要求整个
+函数最终 Return；outer Int/Unit 与邻接 plaincall 不依赖全函数指令数量。
+
+Partial、Unsupported 和缺席没有 receipt，继续旧 facts；B owner ledger 保持独立。
+Compatibility 路由与旧拒绝不变，不表示所有 frontend Complete 区域都已获 backend 准入。
+仅观察成功 receipt 的测试接口不承担生产正确性。未迁 protocol 1/2/3、不授 source/callable
+完整覆盖、不退休旧 oracle；验收与未运行项见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md)。
+
+真实 observation-off 的端到端回归由默认关闭的 `loan-observation-test-support` feature
+提供：codegen 只转发既有 frontend 依赖，CI core 的codegen测试命令显式启用。隐藏同步
+scope 用线程局部RAII仅控制真实planner的loan观察，owner开关不变；原off产品直接lower，
+副本去catalog只用于旧facts比较，不是off来源。普通P4/B sibling的Basic rooted/memory
+两输入已核旧facts、完整SSA/LLVM及B receipt等价，P4 receipt随真实catalog有/无；嵌套
+恢复与线程隔离有普通测试，panic恢复仅编译。默认CLI检查的frontend/codegen/CLI三个
+artifact均无features；这不是release运行证明。显式启用feature或all-features会编入该API，
+`doc(hidden)`不隔离库代码；未调用scope时仍默认观察on，不提供正常生产运行时开关。

@@ -43,9 +43,10 @@ impl DropPlanner<'_, '_> {
                 state
                     .pending_borrow_results
                     .retain(|pending| *pending != binding);
-                self.commit_borrow_call_handoff(binding, continues);
+                self.commit_borrow_call_handoff(binding, continues, state);
                 if continues {
                     state.borrow_bindings.push(binding);
+                    self.commit_borrow_binding_child(binding, initializer, state);
                 }
             }
             if !continues {
@@ -71,6 +72,7 @@ impl DropPlanner<'_, '_> {
                 declaration: marker_span(name),
                 scope_depth: self.scope_depth,
             });
+            self.bind_replace_consumer(result.replace_consumer, initializer, symbol, state);
             self.inserted_owner(symbol, initializer);
             if let Some(closure) = closure {
                 state.closures.insert(symbol, closure);

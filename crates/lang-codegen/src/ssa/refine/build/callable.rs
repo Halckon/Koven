@@ -55,6 +55,9 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         if !copies {
+            self.body
+                .loan_plans
+                .enter(call, argument_id, source, &self.bindings, span)?;
             return self.lower_result_call(actual, source, span, None);
         }
 

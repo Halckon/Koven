@@ -234,8 +234,37 @@ pub(super) struct OwnedThis {
     pub(super) conditional_type: Option<crate::type_checking::UnitTypeId>,
 }
 
+// Keep original pending action/depth semantics independent of observation identity.
+#[derive(Clone, Debug)]
+pub(super) struct PendingLoan(
+    pub(super) crate::ownership_checking::UnitIterationCleanupAction,
+    pub(super) usize,
+    pub(super) Option<super::action_source::ActionHandle>,
+);
+impl PartialEq for PendingLoan {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+impl Eq for PendingLoan {}
+impl PendingLoan {
+    fn reconcile(&mut self, alternatives: &[Self]) {
+        let mut matches = alternatives.iter().filter(|other| *other == self);
+        let same = matches
+            .next()
+            .and_then(|other| self.2.as_ref().zip(other.2.as_ref()))
+            .is_some_and(|(left, right)| left.same_record(right))
+            && matches.next().is_none();
+        if !same {
+            self.2 = None;
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
+    pub(super) replace_consumer:
+        Option<super::owner_transport::replace_consumer::ReplaceConsumerCarrier>,
     pub(super) lambda: Option<ExpressionId>,
     pub(super) borrow_bindings: Vec<UnitSymbolId>,
     pub(super) pending_borrow_results: Vec<UnitSymbolId>,
@@ -245,7 +274,7 @@ pub(super) struct ValueState {
         crate::type_checking::UnitExpressionId,
     )>,
     /// 实际已求值的实参loan与建立时loop深度；未求值后缀不得参与退出清理。
-    pub(super) pending_loans: Vec<(crate::ownership_checking::UnitIterationCleanupAction, usize)>,
+    pub(super) pending_loans: Vec<PendingLoan>,
     pub(super) borrow_call_transports: Vec<super::borrow_transport::PendingTransport>,
     pub(super) borrow_binding_transports:
         Vec<super::borrow_binding_transport::PendingBindingTransport>,
@@ -316,6 +345,14 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     let Some(mut merged) = states.pop() else {
         return ValueState::default();
     };
+    // No general branch merge is authorized for the bounded suffix carrier.
+    merged.replace_consumer = None;
+    // Existing merge keeps the last state's pending actions. Only evidence degrades.
+    for pending in &mut merged.pending_loans {
+        for state in &states {
+            pending.reconcile(&state.pending_loans);
+        }
+    }
     merged.borrow_forward_transports.retain(|transport| {
         states
             .iter()
@@ -326,11 +363,22 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
             .iter()
             .all(|state| state.borrow_binding_transports.contains(transport))
     });
+    for transport in &mut merged.borrow_binding_transports {
+        for state in &states {
+            transport.reconcile(&state.borrow_binding_transports);
+        }
+    }
     merged.borrow_call_transports.retain(|transport| {
         states
             .iter()
             .all(|state| state.borrow_call_transports.contains(transport))
     });
+    // Preserve old transport eligibility, but never select an arbitrary observer edge.
+    for transport in &mut merged.borrow_call_transports {
+        for state in &states {
+            transport.reconcile_transfer(&state.borrow_call_transports);
+        }
+    }
     merged.values.retain(|value| {
         states
             .iter()

@@ -6,7 +6,13 @@
 //! a failure is an error; there is no fallback to the per-family lowering.
 mod body;
 mod build;
+#[cfg(test)]
+pub(crate) use build::owner_consumer_test_support::{
+    OwnerFault, observe_owner_actions, with_owner_fault,
+};
 mod emit;
+pub(crate) mod loan_receipt;
+pub(crate) mod receiver_receipt;
 mod subset;
 
 use std::collections::BTreeMap;
@@ -394,3 +400,106 @@ pub(in crate::ssa) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<S
     let names = ROUTED.with(|routed| routed.borrow_mut().take().unwrap_or_default());
     (result, names)
 }
+
+#[cfg(test)]
+type OwnerDropWitness = (UnitDropTarget, usize, usize, Option<(usize, usize, usize)>);
+#[cfg(test)]
+thread_local! {
+    static OWNER_DROPS: std::cell::RefCell<Option<Vec<OwnerDropWitness>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Observe only Drop operations already emitted by the production emitter.
+#[cfg(test)]
+pub(crate) fn observe_owner_drops<T>(lower: impl FnOnce() -> T) -> (T, Vec<OwnerDropWitness>) {
+    OWNER_DROPS.with(|events| *events.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let events = OWNER_DROPS.with(|events| events.borrow_mut().take().unwrap_or_default());
+    (result, events)
+}
+
+#[cfg(test)]
+fn record_owner_drop(
+    target: UnitDropTarget,
+    index: usize,
+    slot: usize,
+    receipt: Option<(usize, usize, usize)>,
+) {
+    OWNER_DROPS.with(|events| {
+        if let Some(events) = events.borrow_mut().as_mut() {
+            events.push((target, index, slot, receipt));
+        }
+    });
+}
+
+#[cfg(test)]
+type OwnerCallWitness = (
+    lang_frontend::type_checking::UnitExpressionId,
+    crate::ssa::model::FunctionId,
+    Vec<usize>,
+    Option<usize>,
+);
+#[cfg(test)]
+thread_local! {
+    static OWNER_CALLS: std::cell::RefCell<Option<Vec<OwnerCallWitness>>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn observe_owner_calls<T>(lower: impl FnOnce() -> T) -> (T, Vec<OwnerCallWitness>) {
+    OWNER_CALLS.with(|events| *events.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let events = OWNER_CALLS.with(|events| events.borrow_mut().take().unwrap_or_default());
+    (result, events)
+}
+#[cfg(test)]
+fn record_owner_call(
+    call: lang_frontend::type_checking::UnitExpressionId,
+    callee: crate::ssa::model::FunctionId,
+    arguments: &[body::Slot],
+    receipt: Option<usize>,
+) {
+    OWNER_CALLS.with(|events| {
+        if let Some(events) = events.borrow_mut().as_mut() {
+            events.push((
+                call,
+                callee,
+                arguments.iter().map(|s| s.0).collect(),
+                receipt,
+            ));
+        }
+    });
+}
+
+#[cfg(test)]
+type OwnerReturnWitness = (
+    lang_frontend::type_checking::UnitExpressionId,
+    Option<usize>,
+    Option<usize>,
+);
+#[cfg(test)]
+thread_local! {
+    static OWNER_RETURNS: std::cell::RefCell<Option<Vec<OwnerReturnWitness>>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn observe_owner_returns<T>(lower: impl FnOnce() -> T) -> (T, Vec<OwnerReturnWitness>) {
+    OWNER_RETURNS.with(|events| *events.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let events = OWNER_RETURNS.with(|events| events.borrow_mut().take().unwrap_or_default());
+    (result, events)
+}
+#[cfg(test)]
+fn record_owner_return(
+    expression: lang_frontend::type_checking::UnitExpressionId,
+    payload: Option<usize>,
+    receipt: Option<usize>,
+) {
+    OWNER_RETURNS.with(|events| {
+        if let Some(events) = events.borrow_mut().as_mut() {
+            events.push((expression, payload, receipt));
+        }
+    });
+}
+
+pub(crate) mod named_receipt;
+
+pub(crate) mod temporary_receipt;
+
+pub(crate) mod binding_receipt;

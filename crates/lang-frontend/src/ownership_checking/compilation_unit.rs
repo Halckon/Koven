@@ -4,6 +4,29 @@ pub use drop_point::{
     UnitConditionalReceiverDropFact, UnitDropFact, UnitDropPoint, UnitDropTarget,
 };
 
+mod loan_region_validation;
+mod loan_regions;
+pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
+mod loan_binding_region_validation;
+mod loan_binding_regions;
+mod loan_child_region_validation;
+mod loan_child_regions;
+pub use loan_binding_regions::UnitBorrowBindingRegion;
+pub use loan_child_regions::UnitBorrowChildRegion;
+mod loan_binding_dependency_drop;
+pub use loan_binding_dependency_drop::UnitLoanBindingDependencyDrop;
+mod loan_binding_child_actions;
+pub use loan_binding_child_actions::{
+    UnitLoanBindingChildCommit, UnitLoanBindingChildRetirement, UnitLoanBindingChildUseReturn,
+};
+mod loan_binding_actions;
+pub use loan_binding_actions::{UnitLoanBindingSourceRetirement, UnitLoanBindingUseReturn};
+mod loan_actions;
+pub use loan_actions::{
+    UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+    UnitLoanConsumerRetirement,
+};
+
 mod loan;
 pub use loan::{
     UnitBorrowBindingTransportFact, UnitBorrowCallHandoffFact, UnitBorrowCallPrefixEndFact,
@@ -416,6 +439,7 @@ pub struct CompilationUnitOwnership {
     receiver_call_prefix_ends: Vec<UnitReceiverCallPrefixEndFact>,
     receiver_call_return_ends: Vec<UnitReceiverCallReturnEndFact>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
+    loan_action_observations: Vec<UnitLoanActionObservation>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
     borrow_call_transports: Vec<UnitBorrowCallTransportFact>,
@@ -671,6 +695,11 @@ impl CompilationUnitOwnership {
             },
             borrow_call_handoffs: if successful && dataflow.deferred.is_empty() {
                 dataflow.borrow_call_handoffs
+            } else {
+                Vec::new()
+            },
+            loan_action_observations: if successful && dataflow.deferred.is_empty() {
+                dataflow.loan_action_observations
             } else {
                 Vec::new()
             },
@@ -1058,3 +1087,6 @@ pub(crate) fn check_compilation_unit_ownership_recovering(
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
     analysis::analyze(sources, inputs, names, environment, typed, false)
 }
+
+#[cfg(feature = "loan-observation-test-support")]
+pub(super) mod loan_observation_test_support;

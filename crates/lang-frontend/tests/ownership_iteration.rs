@@ -126,3 +126,6 @@ mod loop_input_alias_unit;
 
 #[path = "ownership_iteration/loop_input_alias_conditional_unit.rs"]
 mod loop_input_alias_conditional_unit;
+
+#[path = "ownership_iteration/loop_replace_break_unit.rs"]
+mod loop_replace_break_unit;

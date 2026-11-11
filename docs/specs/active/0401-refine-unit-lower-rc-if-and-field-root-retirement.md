@@ -42,4 +42,4 @@
 - [x] 删除 `crates/lang-codegen/src/ssa/unit_lower/control/nullable_if/rc.rs`，并完成 `is_direct_function_body_if`、`validated_rc_operation`、`shared_field_roots` 与 `lower_owned_shared_field_place` 的清理。
 - [x] 修正受该入口影响的阶段边界证据：`ssa::rc_nullable_while_bounded_tests` 与 `ssa::rc_nullable_while_memory_document_tests` 记录单元路径的 `Rc<T>?` `if` 载荷读取现在在 `owner.value` 操作节点被拒绝，而非包围的 `return owner.value`；单纯路径与既有 LLVM 成功见证不变。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
-- [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+- [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2815 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR #411 为准。
