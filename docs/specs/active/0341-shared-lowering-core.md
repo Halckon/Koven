@@ -12528,3 +12528,31 @@ FE lib no-run（包括新增CI-only）、fmt、FE/CG strict Clippy和默认works
 最终docs通过（888篇）；尺寸相对b331d044通过（2417手写Rust、35旧超限，未改额度）。
 source/callable仍Partial，无新End、receipt或旧oracle退休。
 此头尚未纳入后续main `e659b66a`，合流后须重验；未推送、无官方CI结论。
+
+### 正常回边与 LiveForward 的 main 合流验收（2026-11-11）
+
+在独立工作树按真实 merge 父链保留 #412 `b331d044`、main `e659b66a`、
+owner `87ee2050` 与借用 `75f4c2d9`，合流代码 `e70e5571`。唯一冲突为本 Spec 的两段
+追加记录，均原样保留；frontend 公共导出自动合并，经独立逐文件比对没有丢失。
+主工作树用户未提交 proposal 与未跟踪文件未动；旧 main/旧 CI 不替代此次组合验收。
+
+owner 后端现有独立 header Return plan 已接实际 entry/header/body/false/exit CFG，
+完整定义 census 拒绝额外 H 改写，正常回边传新激活 Q，旧 H 在 Replace 后 Drop，
+false 出口按当前 H 授权真实 Return。此前 consumer 缺授权红已转绿；仅支持既有
+单 String root、局部 Boolean、一次 Replace 后 Boolean 赋值的 bounded 形状，
+不代表一般多轮、多根、任意条件或 Continue 已完成。旧固定 P/Q、Break 与 closed
+合同不放宽。借用单 wrapper region 可 Complete，但 source/callable 仍 Partial，
+无新 End、production receipt 或旧 oracle 退休。
+
+合流头 fresh FE 4 / CG 10 共 14 项 ordinary exact 各 1 passed，包含真实 Basic/Const
+两次 native 输出 outer/next（零/一轮）；不作为任意循环、泄漏计数或压力证明。
+新增 CI-only 构造负控只编译，其他未审/故障/Abort/计数/压力路径不执行。
+测试 artifact 为 opt0/debug2，FE 无额外 feature，CG 仅显式 loan support。
+4279 个 tracked 输入、两测试 binary 与 runner SHA 均独立核对，执行前后保持一致；
+原件在 /private/tmp/koven-two-line-integration-evidence，含 Cargo JSON、完整输入、精确
+名单与逐项原日志。旧红证据不覆盖或重跑。初始证据脚本的中文 git 路径引号解析曾失败，
+在任何构建前修复；不是项目编译失败或能力红。
+
+fmt、FE/CG all-targets strict Clippy、默认 workspace all-targets、默认 CLI build/--help、
+docs 与相对 e659b66a 的尺寸门禁均通过；默认 CLI artifact features=[]。
+最终 Spec 仅追加阶段结果，不改冻结 Rust；D10/E2 仍在推进，尚未推送、无此组合正式 CI。
