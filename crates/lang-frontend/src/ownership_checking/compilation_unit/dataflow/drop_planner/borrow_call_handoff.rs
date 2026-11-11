@@ -79,9 +79,8 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let source_loan = (*source_loan).clone();
-        let mut source_tokens = state.pending_loans.iter().filter_map(|pending| {
+        let mut source_tokens = state.pending_loans.iter().filter(|pending| {
             matches!(&pending.0, UnitIterationCleanupAction::EndCallLoan(loan) if *loan == source_loan)
-                .then_some(pending)
         });
         let source_begin = source_tokens.next().and_then(|pending| pending.2.clone());
         let source_unique = source_tokens.next().is_none();
