@@ -731,14 +731,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             return match plan.rhs {
                 UnitShortCircuitRhs::Never => Ok(true),
-                UnitShortCircuitRhs::Always => {
-                    self.expression(plan.right.expression(), DropExpressionUse::Read, state)
-                }
+                UnitShortCircuitRhs::Always => self.owner_short_circuit_rhs(plan, state),
                 UnitShortCircuitRhs::Conditional => {
                     let mut skipped = state.clone();
                     self.drop_branch_exit(id, 1 - plan.rhs_branch, &mut skipped);
                     let mut branches = vec![skipped];
-                    if self.expression(plan.right.expression(), DropExpressionUse::Read, state)? {
+                    if self.owner_short_circuit_rhs(plan, state)? {
                         self.drop_branch_exit(id, plan.rhs_branch, state);
                         branches.push(state.clone());
                     }

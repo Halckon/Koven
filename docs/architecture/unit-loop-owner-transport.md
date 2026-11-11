@@ -157,5 +157,11 @@ Call/Assignment在早退前独立置sticky失效，后续向量相同也不能�
 传播结果前恢复。回执按真实AST核对If/When类型与arm范围，拒绝跨source、非法索引
 或重复控制身份。When同entry的多个selector共享body，记录不区分匹配alternative。
 String When在既有literal-candidate内核实际进入body后才记录，同entry多selector不会制造多个body身份。
-它不覆盖selector判断历史、短路条件、循环迭代或join后的历史；
+它不覆盖selector判断历史、短路左侧判断历史、循环迭代或join后的历史；
 空栈不是无条件执行证明，也不能据此合成逐路径运输或动态trace。
+
+短路RHS也按实际UnitShortCircuitPlan记录同一祖先栈，&&的RHS边编号为0、||为1，
+在RHS结果传播前恢复；回执重新核对计划与编号。普通与constant-control两条入口复用
+同一hook，不改变既有分支清理。普通模式保守遍历，即使文本为false && RHS也可能
+记录RHS事实；constant-control的Never不进入hook。它是planner求值边，不是运行时
+可达证明，不保留左操作数判断历史，也不证明每条路径的root运输完整性。

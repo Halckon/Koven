@@ -6,7 +6,7 @@ pub(in super::super::super) struct RootWriteReceipt {
     pub(in super::super::super) root: UnitSymbolId,
     pub(in super::super::super) call: UnitExpressionId,
     pub(in super::super::super) producer: UnitExpressionId,
-    // Lexical If/When body ancestry only, not a complete path or runtime trace.
+    // Lexical If/When body and short-circuit RHS ancestry only, not a complete path or runtime trace.
     pub(in super::super::super) branch_arms: Vec<(UnitExpressionId, usize)>,
 }
 impl RootWriteReceipt {
@@ -26,6 +26,11 @@ impl RootWriteReceipt {
                     {
                         Some(Expression::If { .. }) => *arm < 2,
                         Some(Expression::When { entries, .. }) => *arm < entries.len(),
+                        Some(Expression::Binary { .. }) => checker
+                            .short_circuit_plan(id.expression())
+                            .ok()
+                            .flatten()
+                            .is_some_and(|plan| *arm == plan.rhs_branch),
                         _ => false,
                     }
                     && !self.branch_arms[..index]

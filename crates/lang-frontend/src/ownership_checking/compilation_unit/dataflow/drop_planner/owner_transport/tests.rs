@@ -46,6 +46,15 @@ fn compare_and_inspect(
     parts: &Parts,
     inspect: impl FnOnce(&Checker<'_>),
 ) -> usize {
+    compare_and_inspect_control_mode(fixture, parts, false, inspect)
+}
+
+fn compare_and_inspect_control_mode(
+    fixture: &Fixture,
+    parts: &Parts,
+    constant_control: bool,
+    inspect: impl FnOnce(&Checker<'_>),
+) -> usize {
     let inputs = fixture.inputs();
     let fields = traversal::collect_field_mutability(&inputs, fixture.names.names()).unwrap();
     let constructions = collect_construction_descriptors(
@@ -109,6 +118,7 @@ fn compare_and_inspect(
         fixture.typed.types(),
     )
     .unwrap();
+    checker.constant_control = constant_control;
     let drop_analysis = checker.run().unwrap();
     assert!(drop_analysis.deferred.is_empty());
     assert!(checker.primitive_deferred.is_empty());

@@ -229,3 +229,55 @@ fn actual_root_writes_keep_string_when_body_identity_not_selector_history() {
         assert_eq!(visits[1].root_stages, (true, false));
     });
 }
+
+#[test]
+fn actual_root_writes_qualify_evaluated_short_circuit_rhs_and_restore() {
+    for (left, operator, branch, expected) in [
+        ("flag", "&&", 0, 2),
+        ("flag", "||", 1, 2),
+        ("false", "&&", 0, 1),
+        ("true", "||", 1, 1),
+        ("true", "&&", 0, 2),
+        ("false", "||", 1, 2),
+    ] {
+        let replacement = format!(
+            "if({left} {operator} when {{ flag -> {{ val old = replace(&left, \"rhs\"); true }}; else -> false }}) {{ }}"
+        );
+        let text = SOURCE.replace("val first = replace(&left, \"next-left\")", &replacement);
+        let fixture = Fixture::new(&[("root-write-short-circuit.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.clone().validate().is_ok());
+        for constant_control in [false, true] {
+            compare_and_inspect_control_mode(
+                &fixture,
+                &fixture.parts(&owned),
+                constant_control,
+                |checker| {
+                    let expected = if constant_control { expected } else { 2 };
+                    let mut planner = super::super::super::DropPlanner::new(
+                        checker,
+                        super::super::super::liveness::build(checker, true).unwrap(),
+                    );
+                    planner.owner_control_probe = Some(Vec::new());
+                    let planner = planner.run().unwrap();
+                    let visits = planner.owner_control_probe.as_ref().unwrap();
+                    let writes = &visits[1].root_writes;
+                    assert_eq!(writes.len(), expected, "{text}");
+                    assert!(writes.last().unwrap().branch_arms.is_empty());
+                    if expected == 2 {
+                        assert_eq!(writes[0].branch_arms.len(), 2);
+                        assert_eq!(writes[0].branch_arms[0].1, branch);
+                        assert_eq!(writes[0].branch_arms[1].1, 0);
+                        assert!(
+                            checker
+                                .short_circuit_plan(writes[0].branch_arms[0].0.expression())
+                                .unwrap()
+                                .is_some()
+                        );
+                    }
+                },
+            );
+        }
+    }
+}
