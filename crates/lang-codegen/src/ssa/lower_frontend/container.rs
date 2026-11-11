@@ -1,16 +1,15 @@
 //! 已完成 typed container descriptor 到顺序容器 SSA 的窄化 lowering。
 
 mod access;
-mod runtime;
 
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::NameResolution,
     ownership_checking::OwnershipPlace,
-    parser::Expression,
+    parser::{CallArgument, Expression},
     source::Span,
     type_checking::{
-        BuiltinType, ContainerConstructionKind, IntrinsicTypeConstructor,
+        BuiltinType, ContainerConstructionKind, IntrinsicTypeConstructor, ParameterMode,
         SequentialContainerKind as FrontendContainerKind, TypeId, TypedFile,
     },
 };
@@ -20,8 +19,8 @@ use super::{
     nominal::NominalTypeMapper, place, span_key, value,
 };
 use crate::ssa::model::{
-    EntityId, EntityType, Module, Operation, PlaceId, ScalarConstant, SequentialContainerKind,
-    SsaTypeId,
+    ComparisonOperator, Edge, EntityId, EntityType, Module, Operation, Origin, PlaceAccess,
+    PlaceId, ScalarConstant, SequentialContainerKind, SsaTypeId, TerminatorKind,
 };
 
 impl NominalTypeMapper {
@@ -143,8 +142,6 @@ impl ExpressionLowerer<'_> {
         if self.typed.expression_type(expression) != Some(descriptor.container_type()) {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        // Runtime storage is demanded only after both operands complete; a Nothing prefix
-        // can legitimately have no pre-interned container layout.
         if descriptor.kind() != ContainerConstructionKind::RuntimeLength {
             self.validate_container_identity(
                 descriptor.container(),
@@ -160,15 +157,13 @@ impl ExpressionLowerer<'_> {
                     || descriptor
                         .parameter_modes()
                         .iter()
-                        .any(|mode| *mode != lang_frontend::type_checking::ParameterMode::Value)
+                        .any(|mode| *mode != ParameterMode::Value)
                 {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
                 let mut elements = Vec::with_capacity(arguments.len());
                 let move_only = self.typed.copyability(descriptor.element_type())
                     == Some(lang_frontend::type_checking::Copyability::MoveOnly);
-                // AST call arguments retain source order; ContainerConstruct consumes them in that
-                // same order, which is the repeated Value-delivery contract.
                 for argument in arguments {
                     match self.lower(argument.value)? {
                         LoweredValue::Value(element) => {
@@ -195,9 +190,6 @@ impl ExpressionLowerer<'_> {
                             {
                                 return Err(error(LoweringErrorKind::MissingFact, argument.span));
                             }
-                            // The canonical builtin identity was interned by NominalTypeMapper.
-                            // Materialize storage only after this operand has executed once;
-                            // ordinary calls and returns retain their no-result Unit ABI.
                             let target = self.expression_ssa_type(argument.value, argument.span)?;
                             let (_, results) = self.append(
                                 Operation::Constant(ScalarConstant::Unit),
@@ -244,6 +236,166 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
+    pub(super) fn lower_runtime_container(
+        &mut self,
+        expression: ExpressionId,
+        arguments: &[CallArgument],
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self
+            .typed
+            .container_construction(expression)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let [size, initializer] = arguments else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        if descriptor.parameter_modes() != [ParameterMode::Borrow, ParameterMode::Borrow] {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if self.runtime_operand_exits(size.value, size.span)? {
+            return Ok(LoweredValue::Diverged);
+        }
+        let (size_loan, ends_after_call) =
+            self.lower_borrow_argument(expression, size.value, size.span)?;
+        self.pending_call_loans.insert(
+            (expression.index(), size.value.index()),
+            ends_after_call.then_some(size_loan),
+        );
+        let size_type = self.expression_ssa_type(size.value, size.span)?;
+        let (_, results) = self.append(
+            Operation::Read {
+                source: PlaceAccess::Loan(size_loan),
+            },
+            vec![EntityType::Value(size_type)],
+            size.span,
+        )?;
+        let length = value(results[0]);
+        self.guard_nonnegative_length(length, size_type, span)?;
+        if self.runtime_operand_exits(initializer.value, initializer.span)? {
+            return Ok(LoweredValue::Diverged);
+        }
+        let initializer_type = self
+            .typed
+            .expression_type(initializer.value)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, initializer.span))?;
+        if matches!(
+            self.typed.types().get(initializer_type),
+            Some(lang_frontend::type_checking::TypeKind::Deferred(_))
+        ) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, initializer.span));
+        }
+        let (initializer_loan, ends_after_call) =
+            self.lower_borrow_argument(expression, initializer.value, initializer.span)?;
+        self.pending_call_loans.insert(
+            (expression.index(), initializer.value.index()),
+            ends_after_call.then_some(initializer_loan),
+        );
+        self.validate_container_identity(
+            descriptor.container(),
+            descriptor.element_type(),
+            descriptor.container_type(),
+            span,
+        )?;
+        let container = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self.append(
+            Operation::ContainerGenerateBorrowed {
+                container,
+                length,
+                initializer: initializer_loan,
+            },
+            vec![EntityType::Value(container)],
+            span,
+        )?;
+        self.finish_borrowed_call(expression, span)?;
+        Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    pub(in crate::ssa::lower_frontend) fn runtime_operand_exits(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let ty = self
+            .typed
+            .expression_type(expression)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if builtin_type(self.typed, ty) != Some(BuiltinType::Nothing) {
+            return Ok(false);
+        }
+        match self.lower(expression)? {
+            LoweredValue::Diverged => Ok(true),
+            _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+        }
+    }
+
+    fn guard_nonnegative_length(
+        &mut self,
+        length: crate::ssa::model::ValueId,
+        int: SsaTypeId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let boolean = self
+            .type_ids
+            .iter()
+            .find_map(|(frontend, ssa)| {
+                (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
+            })
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let (_, zero) = self.append(
+            Operation::Constant(ScalarConstant::Integer(0)),
+            vec![EntityType::Value(int)],
+            span,
+        )?;
+        let (_, negative) = self.append(
+            Operation::Compare {
+                operator: ComparisonOperator::LessThan,
+                left: length,
+                right: value(zero[0]),
+            },
+            vec![EntityType::Value(boolean)],
+            span,
+        )?;
+        let baseline = self.bindings.clone();
+        let carried = self.linear_binding_slots(&baseline, span)?;
+        let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
+        let arguments = carried
+            .slots
+            .iter()
+            .map(|slot| slot.source)
+            .collect::<Vec<_>>();
+        let abort = self
+            .function
+            .add_block(parameter_types.clone(), Origin::Source(span))
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        let success = self
+            .function
+            .add_block(parameter_types, Origin::Source(span))
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::Conditional {
+                    condition: value(negative[0]),
+                    when_true: Edge {
+                        target: abort,
+                        arguments: arguments.clone(),
+                    },
+                    when_false: Edge {
+                        target: success,
+                        arguments,
+                    },
+                },
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.function
+            .set_terminator(abort, TerminatorKind::Abort, Origin::Source(span))
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.block = success;
+        self.bindings = self.rebind_linear_bindings(&baseline, success, &carried, span)?;
+        Ok(())
+    }
+
     fn validate_container_identity(
         &self,
         frontend_kind: FrontendContainerKind,
@@ -270,8 +422,6 @@ impl ExpressionLowerer<'_> {
             }
             _ => false,
         };
-        // Operation verifier independently revalidates the SSA identity and element operands. This
-        // frontend-side check binds descriptor facts to the pre-interned identity before emission.
         if !matches {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }

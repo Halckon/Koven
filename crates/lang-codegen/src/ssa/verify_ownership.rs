@@ -1,16 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod aliases;
+use aliases::direct_fields;
 mod borrow_result;
 mod closure;
-mod direct_fields;
 mod field_exchange;
 #[cfg(test)]
 mod field_exchange_tests;
 mod map;
+use map::reborrow;
 mod provider_lifetime;
 mod range;
-mod reborrow;
 pub(super) mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;

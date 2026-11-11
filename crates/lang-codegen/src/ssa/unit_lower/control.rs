@@ -2,7 +2,6 @@
 
 mod branch;
 mod conditional;
-mod nullable_if;
 #[cfg(test)]
 mod result_tests;
 

@@ -97,7 +97,7 @@ impl Checker<'_, '_> {
             && self.expression_type_of(descriptor.left()) == Some(left_ty)
             && self.expression_type_of(descriptor.right()) == Some(right_ty)
             && self.expression_type(expression) == Some(result_ty)
-            && crate::ssa::integer_range::matches_fact(
+            && crate::ssa::integer::matches_range_fact(
                 self.inputs.parsed,
                 expression,
                 descriptor.left().expression(),

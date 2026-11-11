@@ -49,7 +49,9 @@ struct Proof<'a> {
 
 /// The erased environment is trusted only where every closure formation binds a checked
 /// shared view and no other instruction can call or expose the thunk directly.
-pub(super) fn trusted_view_fields(module: &Module) -> BTreeMap<FunctionId, BTreeSet<usize>> {
+pub(in crate::ssa) fn trusted_view_fields(
+    module: &Module,
+) -> BTreeMap<FunctionId, BTreeSet<usize>> {
     let mut fields = BTreeMap::<_, BTreeSet<_>>::new();
     let mut other_entries = BTreeSet::new();
     for instruction in module.functions.iter().flat_map(|body| &body.instructions) {

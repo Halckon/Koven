@@ -1,4 +1,4 @@
-//! Frontend aggregate projection and structural destructuring facts to SSA operations.
+//! Frontend aggregate projection, structural destructuring, and resource destructor declaration.
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -9,6 +9,192 @@ use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, error, place, value,
 };
 use crate::ssa::model::{EntityType, Operation, PlaceAccess};
+
+pub(in crate::ssa::lower_frontend) mod resource_deinit {
+    use lang_frontend::{
+        name_resolution::NameResolution,
+        parser::{Expression, ParsedFile},
+        source::Span,
+        type_checking::{
+            BuiltinType, DeinitDescriptor, IntrinsicTypeConstructor, NominalKind, ParameterMode,
+            TypeId, TypeKind, TypedFile,
+        },
+    };
+
+    use super::super::{LoweringError, LoweringErrorKind, error, nominal::NominalTypeMapper};
+    use crate::ssa::model::{EntityType, FunctionId, LoanKind, Module, Origin};
+
+    pub(in crate::ssa::lower_frontend) struct DeinitPlan {
+        pub(in crate::ssa::lower_frontend) id: FunctionId,
+        pub(in crate::ssa::lower_frontend) descriptor: DeinitDescriptor,
+        pub(in crate::ssa::lower_frontend) return_type: TypeId,
+        pub(in crate::ssa::lower_frontend) span: Span,
+    }
+
+    pub(in crate::ssa::lower_frontend) fn declare(
+        module: &mut Module,
+        mapper: &mut NominalTypeMapper,
+        parsed: &ParsedFile,
+        names: &NameResolution,
+        typed: &TypedFile,
+    ) -> Result<Vec<DeinitPlan>, LoweringError> {
+        let mut plans = Vec::new();
+        for nominal in typed.nominals() {
+            let Some(descriptor) = nominal.deinit() else {
+                continue;
+            };
+            let span = parsed
+                .ast()
+                .items()
+                .get(descriptor.item())
+                .map_err(|_| LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?
+                .span();
+            if descriptor.owner() != nominal.id()
+                || descriptor.receiver_mode() != ParameterMode::Borrow
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            if nominal.kind() != NominalKind::Class
+                || !nominal.type_parameters().is_empty()
+                || !nominal.interfaces().is_empty()
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            if parsed.ast().expressions().iter().any(|(_, node)| {
+                span.start() <= node.span().start()
+                    && node.span().end() <= span.end()
+                    && matches!(node.payload(), Expression::Lambda { .. })
+            }) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let owner = mapper.intern(module, names, typed, descriptor.receiver_type(), span)?;
+            let receiver = EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: owner,
+            };
+            let id = module
+                .add_instance_function(
+                    format!("__deinit.t{}", descriptor.receiver_type().index()),
+                    receiver,
+                    Vec::new(),
+                    Origin::Source(span),
+                )
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            module
+                .function_mut(id)
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                .add_block(vec![receiver], Origin::Source(span))
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            module
+                .set_deinit(owner, id)
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            let return_type = typed
+                .types()
+                .builtin(BuiltinType::Unit)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            plans.push(DeinitPlan {
+                id,
+                descriptor,
+                return_type,
+                span,
+            });
+        }
+        Ok(plans)
+    }
+
+    pub(in crate::ssa::lower_frontend) fn validate_type(
+        typed: &TypedFile,
+        ty: TypeId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let classification = typed.is_resource_type(ty);
+        if classification == Some(false) {
+            return Ok(());
+        }
+        if classification.is_none() {
+            if let Some(TypeKind::Nominal { arguments, .. }) = typed.types().get(ty)
+                && arguments
+                    .iter()
+                    .any(|argument| typed.is_resource_type(*argument) != Some(false))
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            return Ok(());
+        }
+        if let Some(TypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) = typed.types().get(ty)
+            && matches!(
+                constructor,
+                IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap
+            )
+            && let [key, value] = arguments.as_slice()
+        {
+            validate_type(typed, *key, span)?;
+            return validate_map_value_type(typed, *value, span);
+        }
+        if let Some(TypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) = typed.types().get(ty)
+            && matches!(
+                constructor,
+                IntrinsicTypeConstructor::Array
+                    | IntrinsicTypeConstructor::List
+                    | IntrinsicTypeConstructor::MutableList
+            )
+            && let [element] = arguments.as_slice()
+        {
+            return validate_type(typed, *element, span);
+        }
+        let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(ty) else {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let descriptor = typed
+            .nominals()
+            .iter()
+            .find(|value| value.id() == *nominal)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if !matches!(
+            descriptor.kind(),
+            NominalKind::Class | NominalKind::ValueClass
+        ) || !arguments.is_empty()
+            || !descriptor.type_parameters().is_empty()
+            || !descriptor.interfaces().is_empty()
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if descriptor.kind() == NominalKind::ValueClass {
+            for field in descriptor.fields() {
+                let field_type = typed
+                    .symbol_type(*field)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                validate_type(typed, field_type, span)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(in crate::ssa::lower_frontend) fn validate_map_value_type(
+        typed: &TypedFile,
+        ty: TypeId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if let Some(TypeKind::Nullable(inner)) = typed.types().get(ty)
+            && let Some(TypeKind::Nominal { nominal, .. }) = typed.types().get(*inner)
+            && typed.nominals().iter().any(|descriptor| {
+                descriptor.id() == *nominal && descriptor.kind() == NominalKind::Class
+            })
+        {
+            return validate_type(typed, *inner, span);
+        }
+        validate_type(typed, ty, span)
+    }
+}
 
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_aggregate_projection(
@@ -56,7 +242,6 @@ impl ExpressionLowerer<'_> {
         }
         let AggregateProjectionReceiver::Expression(receiver_expression) = projection.receiver()
         else {
-            // 隐式 `this` 的 native lowering 属于 SPEC-0191；当前必须保持确定性拒绝。
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
         let receiver_root = self
@@ -70,7 +255,6 @@ impl ExpressionLowerer<'_> {
                 && matches!(active.target(), lang_frontend::ownership_checking::LoanTarget::Place(path)
                     if !path.is_root() && path.root() == *root)
         })) {
-            // Source sibling paths can be disjoint, but SSA overlap is still parent-wide.
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         let receiver_type = self

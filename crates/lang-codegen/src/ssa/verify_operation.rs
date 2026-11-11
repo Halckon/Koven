@@ -1,10 +1,9 @@
 //! Typed SSA operation 的局部类型契约。
 
 mod integer;
-mod integer_range;
-mod nullable;
+pub(in crate::ssa) use integer::verify_borrow_result;
 mod range;
-mod text;
+use range::nullable;
 pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
@@ -14,10 +13,8 @@ use callable::{
     callable_invoke_contract, closure_construct_contract, direct_call_contract,
     function_address_contract,
 };
-mod borrowed_generate;
-mod constant_contract;
 mod map;
-use constant_contract::constant_contract;
+use integer::constant_contract;
 
 use super::{
     model::{
@@ -71,11 +68,11 @@ pub(super) fn verify_operation(
                 })
         }
         Operation::Utf8ErrorOffset { source } => {
-            text::shared_byte_array(module, function, *source)
+            integer::shared_byte_array(module, function, *source)
                 && single_value_result(&results).is_some_and(|ty| is_koven_int(module, ty))
         }
         Operation::StringCopyBytes { source } => {
-            text::shared_byte_array(module, function, *source)
+            integer::shared_byte_array(module, function, *source)
                 && single_value_result(&results).is_some_and(|ty| is_string_owner(module, ty))
         }
         Operation::StringCopySlice { source, start, end } => {
@@ -100,13 +97,13 @@ pub(super) fn verify_operation(
             checked_arithmetic_contract(module, function, *left, *right, &results)
         }
         Operation::IntegerRangeConstruct { first, bound, .. } => {
-            integer_range::construct(module, function, *first, *bound, &results)
+            integer::range_construct(module, function, *first, *bound, &results)
         }
         Operation::IntegerRangeContains { value, range } => {
-            integer_range::contains(module, function, *value, *range, &results)
+            integer::range_contains(module, function, *value, *range, &results)
         }
         Operation::IntegerRangeEqual { left, right } => {
-            integer_range::equal(module, function, *left, *right, &results)
+            integer::range_equal(module, function, *left, *right, &results)
         }
         Operation::CheckedIntegerConvert { operand } => {
             integer::checked_conversion_contract(module, function, *operand, &results)
@@ -332,7 +329,7 @@ pub(super) fn verify_operation(
             container,
             length,
             initializer,
-        } => borrowed_generate::contract(
+        } => integer::borrowed_generate_contract(
             module,
             function,
             *container,

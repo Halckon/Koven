@@ -2,7 +2,7 @@
 //! A source facts were first collected by the ordinary 12-path run on 9244391b.
 //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
 pub(super) mod delivery;
-mod future;
+use delivery::future;
 pub(super) mod handoff;
 pub(super) use delivery::Delivery;
 pub(super) mod provenance;

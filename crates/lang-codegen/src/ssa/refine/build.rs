@@ -14,13 +14,10 @@ mod map;
 mod owner_consumer;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
-mod place;
 mod range_borrow;
-mod range_view;
 mod rc;
-mod receiver;
+use rc::receiver;
 mod scalar_text;
-mod statements;
 mod tagged;
 mod value;
 mod when;

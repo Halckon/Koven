@@ -1,12 +1,82 @@
 //! Bounded path-correlated loan provenance for provider places; no may-origin union.
 use super::super::{
-    model::{BlockId, EntityId, Function, LoanId, Operation, PlaceId, TerminatorKind, ValueId},
-    verify::{VerifyError, VerifyErrorKind, VerifyLocation},
+    model::{
+        BlockId, Definition, EntityId, Function, LoanId, Operation, PlaceId, TerminatorKind,
+        ValueId,
+    },
+    verify::{VerifyError, VerifyErrorKind, VerifyLocation, compute_dominators},
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-#[path = "provider_entry_projection.rs"]
-mod entry_projection;
+struct EntryProjection {
+    dominators: Vec<BTreeSet<usize>>,
+}
+
+impl EntryProjection {
+    fn new(function: &Function) -> Self {
+        Self {
+            dominators: compute_dominators(function),
+        }
+    }
+
+    fn retain_entry(&self, function: &Function, block: BlockId, state: &mut State) {
+        // Edge parameters were copied simultaneously, and nullable proof births were
+        // installed, before this entry. Keep inactive references as well as live ones.
+        let mut loans = state
+            .loans
+            .keys()
+            .copied()
+            .filter(|loan| self.available(function, block, EntityId::Loan(*loan)))
+            .collect::<BTreeSet<_>>();
+        state
+            .places
+            .retain(|place, _| self.available(function, block, EntityId::Place(*place)));
+        state
+            .cursors
+            .retain(|value, _| self.available(function, block, EntityId::Value(*value)));
+        let mut pending = loans.iter().copied().collect::<Vec<_>>();
+        for reference in state.places.values().chain(state.cursors.values()) {
+            pending.extend(reference.lineage.iter().copied());
+        }
+        let mut expanded = BTreeSet::new();
+        while let Some(loan) = pending.pop() {
+            if !expanded.insert(loan) {
+                continue;
+            }
+            if let Some(reference) = state.loans.get(&loan) {
+                // These records need not dominate the entry: an alias/place can carry
+                // their original lineage. State::end needs their unchanged token identity.
+                loans.insert(loan);
+                pending.extend(reference.lineage.iter().copied());
+            }
+        }
+        state.loans.retain(|loan, _| loans.contains(loan));
+    }
+
+    fn available(&self, function: &Function, block: BlockId, entity: EntityId) -> bool {
+        // The caller has already proved structure and SSA dominance. An unavailable
+        // direct definition must execute again before any later legal direct use.
+        let definition = function.entity(entity).expect("verified entity").definition;
+        let defining_block = match definition {
+            Definition::BlockParameter { block, .. } => block,
+            Definition::InstructionResult { instruction, .. } => {
+                let defining_block = function
+                    .instruction(instruction)
+                    .expect("verified instruction")
+                    .block;
+                if defining_block == block {
+                    return false;
+                }
+                defining_block
+            }
+        };
+        self.dominators[block.index()].contains(&defining_block.index())
+    }
+}
+
+#[cfg(test)]
+#[path = "provider_entry_projection_tests.rs"]
+mod projection_tests;
 
 #[cfg(test)]
 #[path = "provider_lifetime_tests.rs"]
@@ -85,7 +155,7 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
             );
         }
     }
-    let projection = entry_projection::EntryProjection::new(function);
+    let projection = EntryProjection::new(function);
     let mut queue = VecDeque::from([(entry, initial)]);
     let mut visited = BTreeSet::<(BlockId, State)>::new();
     // Independent finite budget. Exhaustion is an explicit rejection, never acceptance.

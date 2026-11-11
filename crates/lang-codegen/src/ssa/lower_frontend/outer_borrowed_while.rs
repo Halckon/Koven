@@ -1,5 +1,3 @@
-//! A nullable retest inside one owning List provider; presence is not non-nullness.
-mod carrier;
 mod provider;
 mod runtime;
 mod source;
@@ -13,6 +11,7 @@ use lang_frontend::{
     },
     type_checking::{IterationProvider, SequentialContainerKind, SequentialIterationBinding},
 };
+use source::carrier;
 
 /// Only complete published facts and the bounded source relation construct this token.
 #[derive(Clone, PartialEq, Eq)]

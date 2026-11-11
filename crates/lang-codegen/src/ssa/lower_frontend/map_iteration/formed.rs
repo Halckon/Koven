@@ -1,5 +1,4 @@
 //! General ordinary local formation uses original Expression ownership, not a lexical carrier.
-pub(super) mod epoch;
 pub(super) mod retained;
 use super::*;
 use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
@@ -9,6 +8,7 @@ use lang_frontend::{
     parser::{NameMarker, VariableKind},
     type_checking::{ExpressionCategory, IntrinsicTypeConstructor, MapIterationKind},
 };
+pub(super) use retained as epoch;
 
 pub(super) fn formation(
     parsed: &ParsedFile,

@@ -2,11 +2,9 @@
 
 use super::{is_koven_int, single_value_result, value_type};
 use crate::ssa::model::{
-    EntityId, EntityType, Function, LoanKind, MapContainerKind, Module, Operation, Ownership,
-    SsaTypeId, SsaTypeKind,
+    EntityId, EntityType, Function, LoanId, LoanKind, MapContainerKind, Module, Operation,
+    Ownership, SsaTypeId, SsaTypeKind, ValueId,
 };
-
-mod iteration;
 
 #[cfg(test)]
 mod require_tests;
@@ -38,7 +36,7 @@ pub(super) fn verify_map_operation(
         | Operation::MapIterationNext { .. }
         | Operation::MapIterationKeyLoan { .. }
         | Operation::MapIterationValueLoan { .. } => {
-            iteration::verify(module, function, operation, results)
+            verify_map_iteration(module, function, operation, results)
         }
         Operation::MapConsume { owner, map_type } => {
             let Some(EntityType::Value(source_type)) = function
@@ -200,6 +198,83 @@ pub(super) fn verify_map_operation(
             } else {
                 false
             }
+        }
+        _ => false,
+    }
+}
+
+fn iteration_source_types(
+    module: &Module,
+    function: &Function,
+    source: LoanId,
+) -> Option<(SsaTypeId, SsaTypeId)> {
+    let EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    } = function.entity(EntityId::Loan(source))?.ty
+    else {
+        return None;
+    };
+    let (_, key, value) = module.map_container(target)?;
+    Some((key, value))
+}
+
+fn is_cursor(module: &Module, ty: SsaTypeId) -> bool {
+    matches!(
+        module.type_kind(ty),
+        Some(SsaTypeKind::Integer {
+            bits: 64,
+            signed: false
+        })
+    )
+}
+
+fn cursor_type(module: &Module, function: &Function, cursor: ValueId) -> Option<SsaTypeId> {
+    value_type(function, cursor).filter(|ty| is_cursor(module, *ty))
+}
+
+fn verify_map_iteration(
+    module: &Module,
+    function: &Function,
+    operation: &Operation,
+    results: &[EntityType],
+) -> bool {
+    let (source, cursor) = match *operation {
+        Operation::MapIterationFirst { source } => (source, None),
+        Operation::MapIterationHasNext { source, cursor }
+        | Operation::MapIterationNext { source, cursor }
+        | Operation::MapIterationKeyLoan { source, cursor }
+        | Operation::MapIterationValueLoan { source, cursor } => (source, Some(cursor)),
+        _ => return false,
+    };
+    let Some((key, value)) = iteration_source_types(module, function, source) else {
+        return false;
+    };
+    if cursor.is_some_and(|cursor| cursor_type(module, function, cursor).is_none()) {
+        return false;
+    }
+    match *operation {
+        Operation::MapIterationFirst { .. } => {
+            single_value_result(results).is_some_and(|ty| is_cursor(module, ty))
+        }
+        Operation::MapIterationNext { cursor, .. } => {
+            single_value_result(results) == cursor_type(module, function, cursor)
+        }
+        Operation::MapIterationHasNext { .. } => single_value_result(results)
+            .is_some_and(|ty| matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean))),
+        Operation::MapIterationKeyLoan { .. } => {
+            results
+                == [EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: key,
+                }]
+        }
+        Operation::MapIterationValueLoan { .. } => {
+            results
+                == [EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: value,
+                }]
         }
         _ => false,
     }

@@ -2,13 +2,11 @@
 
 mod carry;
 mod closure;
+use closure::integer;
 mod constant_materialization;
 mod expression_core;
-mod integer;
-mod integer_range;
 #[cfg(test)]
 mod lower_frontend;
-mod map_result;
 #[cfg(test)]
 mod map_source;
 mod refine;
@@ -66,8 +64,8 @@ mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;
 pub(crate) mod verify;
-mod verify_borrow_result;
 mod verify_operation;
+use verify_operation::verify_borrow_result;
 mod verify_ownership;
 mod verify_types;
 

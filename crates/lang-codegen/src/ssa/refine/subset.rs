@@ -4,22 +4,17 @@
 mod callable;
 mod container;
 mod control;
-mod drops;
 mod field;
 mod heap;
 mod inout;
-mod loop_route;
-use loop_route::LoopRoute;
-pub(super) use loop_route::accepts;
+use control::LoopRoute;
+pub(super) use control::accepts;
 mod map;
 pub(super) mod named_route;
 mod range_borrow;
-mod rc;
 mod receiver;
-mod receiver_route;
 mod scalar_text;
 mod tagged;
-pub(super) mod temporary_route;
 mod value;
 mod when;
 

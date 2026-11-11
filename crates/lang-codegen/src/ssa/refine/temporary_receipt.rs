@@ -1,6 +1,461 @@
 //! Optional bounded protocol-1 verification. Existing producers alone emit effects.
-mod admission;
-mod emitted;
+mod admission {
+    use super::*;
+    use lang_frontend::{
+        ownership_checking::{
+            UnitDropPoint, UnitIterationCleanupAction, UnitLoanAction, UnitLoanActionCoverage,
+            UnitLoanTarget,
+        },
+        type_checking::{BuiltinType, UnitCallableTarget, UnitTypeKind},
+    };
+    impl Plans {
+        pub(in crate::ssa::refine) fn new(
+            inputs: &super::super::RefineInputs<'_>,
+        ) -> Result<Self, LoweringError> {
+            let mut result = Self::default();
+            let Some(call) = super::super::subset::named_route::bounded_temporary_call(inputs)
+            else {
+                return Ok(result);
+            };
+            let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
+            let callable = UnitItemId::new(inputs.source_unit, item);
+            let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
+            for observation in inputs.owned.loan_action_observations() {
+                for region in observation.regions().iter().filter(|r| {
+                    r.protocol_version() == 1
+                        && r.coverage() == UnitLoanActionCoverage::Complete
+                        && r.callable() == Some(callable)
+                }) {
+                    if observation.source() != inputs.source_unit
+                        || !observation.owns_region(region)
+                        || region.call() != call
+                        || !result.entries.is_empty()
+                    {
+                        return Err(fail());
+                    }
+                    let ids = region.action_ids().collect::<Vec<_>>();
+                    let actions = ids
+                        .iter()
+                        .map(|id| observation.action(id).ok_or_else(fail))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let operands = operands(inputs, call, &actions)?;
+                    let caller_key = inputs
+                        .source_plan
+                        .source(inputs.source_token)
+                        .ok_or_else(fail)?;
+                    let UnitCallableTarget::Declaration(id) = caller_key.target() else {
+                        return Err(fail());
+                    };
+                    let declaration = inputs
+                        .names
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .find(|d| d.id() == id)
+                        .ok_or_else(fail)?;
+                    if UnitItemId::new(declaration.source_unit(), declaration.root()) != callable {
+                        return Err(fail());
+                    }
+                    let caller = *inputs.function_ids.get(caller_key).ok_or_else(fail)?;
+                    let site = inputs
+                        .source_plan
+                        .call_site(inputs.source_token, call)
+                        .ok_or_else(fail)?;
+                    if !site.delegation().is_empty() {
+                        return Err(fail());
+                    }
+                    let callee = *inputs
+                        .function_ids
+                        .get(site.dispatch_key().ok_or_else(fail)?)
+                        .ok_or_else(fail)?;
+                    if callee == caller {
+                        return Err(fail());
+                    }
+                    let ty = inputs
+                        .concrete(inputs.typed.call(call).ok_or_else(fail)?.return_type())
+                        .ok_or_else(fail)?;
+                    let returns_value = match inputs.typed.types().get(ty) {
+                        Some(UnitTypeKind::Builtin(BuiltinType::Int)) => true,
+                        Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => false,
+                        _ => return Err(fail()),
+                    };
+                    result.entries.push(Plan {
+                        ids,
+                        callable,
+                        caller,
+                        call,
+                        callee,
+                        operands,
+                        returns_value,
+                        stage: 0,
+                        block: None,
+                    });
+                }
+            }
+            Ok(result)
+        }
+    }
+
+    fn operands(
+        inputs: &super::super::RefineInputs<'_>,
+        call: UnitExpressionId,
+        actions: &[&UnitLoanAction],
+    ) -> Result<Vec<Operand>, LoweringError> {
+        let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
+        let typed = inputs.typed.call(call).ok_or_else(fail)?;
+        let n = typed.arguments().len();
+        instruction_count(n).ok_or_else(fail)?;
+        let lang_frontend::parser::Expression::Call { arguments: raw, .. } = inputs
+            .parsed
+            .ast()
+            .expressions()
+            .get(call.expression())
+            .map_err(|_| fail())?
+            .payload()
+        else {
+            return Err(fail());
+        };
+        let contracts = inputs
+            .owned
+            .call_argument_contracts()
+            .iter()
+            .filter(|c| c.call() == call)
+            .collect::<Vec<_>>();
+        let point = UnitDropPoint::CallReturn(call);
+        if actions.len() != 3 * n
+            || raw.len() != n
+            || contracts.len() != n
+            || inputs
+                .owned
+                .loans()
+                .iter()
+                .filter(|f| f.call() == call)
+                .count()
+                != n
+            || inputs
+                .owned
+                .direct_call_loan_ends()
+                .iter()
+                .filter(|f| f.loan().call() == call)
+                .count()
+                != n
+        {
+            return Err(fail());
+        }
+        let mut operands = Vec::<Operand>::new();
+        for (index, argument) in typed.arguments().iter().enumerate() {
+            let (
+                UnitLoanAction::Begin(begin),
+                UnitLoanAction::Cleanup {
+                    point: end_point,
+                    action: UnitIterationCleanupAction::EndCallLoan(end),
+                },
+                UnitLoanAction::Cleanup {
+                    point: drop_point,
+                    action: UnitIterationCleanupAction::Drop(drop),
+                },
+            ) = (
+                actions[index],
+                actions[2 * n - 1 - index],
+                actions[3 * n - 1 - index],
+            )
+            else {
+                return Err(fail());
+            };
+            let id = UnitExpressionId::new(inputs.source_unit, raw[index].value);
+            let matching = contracts
+                .iter()
+                .copied()
+                .filter(|c| c.argument() == id)
+                .collect::<Vec<_>>();
+            let [contract] = matching.as_slice() else {
+                return Err(fail());
+            };
+            if begin.call() != call
+                || begin.argument() != id
+                || begin.target() != &UnitLoanTarget::Temporary(id)
+                || end != begin
+                || argument.argument_index() != index
+                || argument.parameter_index() >= n
+                || operands
+                    .iter()
+                    .any(|a| a.parameter_index == argument.parameter_index())
+                || inputs.owned.loans().iter().filter(|f| *f == begin).count() != 1
+                || inputs
+                    .owned
+                    .direct_call_loan_ends()
+                    .iter()
+                    .filter(|f| f.loan() == begin && f.point() == point)
+                    .count()
+                    != 1
+                || *end_point != point
+                || *drop_point != point
+                || drop.point() != point
+                || drop.target() != UnitDropTarget::Temporary(id)
+                || drop.value_origin() != begin.begin_span()
+                || contract.kind()
+                    != lang_frontend::ownership_checking::UnitCallArgumentOwnershipKind::SharedLoan
+                || contract.parameter_index() != argument.parameter_index()
+                || contract.parameter_type() != argument.parameter_type()
+                || contract.category() != argument.category()
+                || contract.crosses_thread()
+                || argument.crosses_thread()
+                || contract.argument_span() != begin.begin_span()
+                || contract.loan_begin_span() != begin.begin_span()
+                || contract.call_span() != begin.end_span()
+                || contract.parameter_span() != begin.parameter_span()
+            {
+                return Err(fail());
+            }
+            let indices = inputs
+                .owned
+                .drops()
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| **f == *drop)
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>();
+            let [drop_index] = indices.as_slice() else {
+                return Err(fail());
+            };
+            if operands
+                .iter()
+                .any(|a| a.fact.argument() == id || a.drop_index == *drop_index)
+            {
+                return Err(fail());
+            }
+            operands.push(Operand {
+                fact: begin.clone(),
+                parameter_index: argument.parameter_index(),
+                literal: None,
+                borrowed: false,
+                drop_index: *drop_index,
+                owner: None,
+                place: None,
+                loan: None,
+                drop_authorized: false,
+            });
+        }
+        let actual = inputs
+            .owned
+            .drops()
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.point() == point)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        if actual
+            != operands
+                .iter()
+                .rev()
+                .map(|a| a.drop_index)
+                .collect::<Vec<_>>()
+        {
+            return Err(fail());
+        }
+        Ok(operands)
+    }
+}
+mod emitted {
+    use super::*;
+    #[cfg(test)]
+    #[path = "ci_tests.rs"]
+    mod ci_tests;
+    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
+    use std::collections::BTreeMap;
+    #[derive(Clone, Debug)]
+    pub(crate) struct Receipt {
+        pub(crate) ids: Vec<UnitLoanActionId>,
+        pub(crate) callable: UnitItemId,
+        pub(crate) caller: FunctionId,
+        pub(crate) call: UnitExpressionId,
+        pub(crate) instructions: Vec<InstructionId>,
+        /// Source-order triples: formed owner, root place, caller-local argument loan.
+        pub(crate) entities: Vec<EntityId>,
+    }
+    pub(in crate::ssa::refine) struct Emitted {
+        receipts: Vec<Receipt>,
+        blocks: Vec<Option<BlockId>>,
+    }
+    impl Emitted {
+        pub(in crate::ssa::refine) fn new(
+            plans: &Plans,
+            function: &Function,
+            span: Span,
+        ) -> Result<Self, LoweringError> {
+            let mut receipts = Vec::new();
+            for p in &plans.entries {
+                if instruction_count(p.operands.len()) != Some(p.stage) || p.caller != function.id()
+                {
+                    return Err(invalid(span));
+                }
+                receipts.push(Receipt {
+                    ids: p.ids.clone(),
+                    callable: p.callable,
+                    caller: p.caller,
+                    call: p.call,
+                    instructions: Vec::new(),
+                    entities: Vec::new(),
+                });
+            }
+            Ok(Self {
+                blocks: vec![None; receipts.len()],
+                receipts,
+            })
+        }
+        pub(in crate::ssa::refine) fn statement(
+            &mut self,
+            plans: &Plans,
+            tag: Tag,
+            function: &Function,
+            instruction: InstructionId,
+            current: &BTreeMap<Slot, EntityId>,
+            span: Span,
+        ) -> Result<(), LoweringError> {
+            let p = plans.entries.get(tag.plan).ok_or_else(|| invalid(span))?;
+            let r = self
+                .receipts
+                .get_mut(tag.plan)
+                .ok_or_else(|| invalid(span))?;
+            let data = function
+                .instruction(instruction)
+                .ok_or_else(|| invalid(span))?;
+            if r.caller != function.id()
+                || r.instructions.len() != tag.role
+                || self.blocks[tag.plan].is_some_and(|b| b != data.block)
+            {
+                return Err(invalid(span));
+            }
+            let entity = |slot: Option<Slot>| {
+                slot.and_then(|s| current.get(&s).copied())
+                    .ok_or_else(|| invalid(span))
+            };
+            for (slot, frozen) in p.slots().zip(&r.entities) {
+                if entity(slot)? != *frozen {
+                    return Err(invalid(span));
+                }
+            }
+            let step = p.step(tag.role).ok_or_else(|| invalid(span))?;
+            let mut produced = None;
+            match (step, &data.operation) {
+                (Step::Literal(i), Operation::StringLiteral { bytes, .. })
+                    if Some(bytes) == p.operands[i].literal.as_ref() =>
+                {
+                    let [owner @ EntityId::Value(_)] = data.results.as_slice() else {
+                        return Err(invalid(span));
+                    };
+                    if r.entities.len() != 3 * i || *owner != entity(p.operands[i].owner)? {
+                        return Err(invalid(span));
+                    }
+                    produced = Some(*owner);
+                }
+                (Step::Root(i), Operation::RootPlace { owner })
+                    if Some(&EntityId::Value(*owner)) == r.entities.get(3 * i) =>
+                {
+                    let [place @ EntityId::Place(_)] = data.results.as_slice() else {
+                        return Err(invalid(span));
+                    };
+                    if r.entities.len() != 3 * i + 1 || *place != entity(p.operands[i].place)? {
+                        return Err(invalid(span));
+                    }
+                    produced = Some(*place);
+                }
+                (
+                    Step::Begin(i),
+                    Operation::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                ) if Some(&EntityId::Place(*place)) == r.entities.get(3 * i + 1) => {
+                    let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
+                        return Err(invalid(span));
+                    };
+                    if r.entities.len() != 3 * i + 2
+                        || *loan != entity(p.operands[i].loan)?
+                        || id.function() != function.id()
+                    {
+                        return Err(invalid(span));
+                    }
+                    produced = Some(*loan);
+                }
+                (
+                    Step::Call,
+                    Operation::DirectCall {
+                        callee,
+                        receiver,
+                        arguments,
+                    },
+                ) if *callee == p.callee
+                    && receiver.is_none()
+                    && *arguments
+                        == p.parameter_loans(span)?
+                            .into_iter()
+                            .map(|slot| entity(Some(slot)))
+                            .collect::<Result<Vec<_>, _>>()?
+                    && data.results.len() == usize::from(p.returns_value)
+                    && data.results.iter().all(|e| matches!(e, EntityId::Value(_))) => {}
+                (Step::End(i), Operation::BorrowEnd { loan })
+                    if EntityId::Loan(*loan) == entity(p.operands[i].loan)?
+                        && data.results.is_empty() => {}
+                (Step::Drop(i), Operation::Drop { owner })
+                    if EntityId::Value(*owner) == entity(p.operands[i].owner)?
+                        && data.results.is_empty() => {}
+                _ => return Err(invalid(span)),
+            }
+            if let Some(e) = produced {
+                if r.entities.contains(&e) {
+                    return Err(invalid(span));
+                }
+                r.entities.push(e);
+            }
+            self.blocks[tag.plan] = Some(data.block);
+            r.instructions.push(instruction);
+            Ok(())
+        }
+        pub(in crate::ssa::refine) fn finish(
+            self,
+            plans: &Plans,
+            function: &Function,
+            span: Span,
+        ) -> Result<(), LoweringError> {
+            if self.receipts.len() != plans.entries.len()
+                || self.blocks.len() != plans.entries.len()
+            {
+                return Err(invalid(span));
+            }
+            for ((r, b), p) in self.receipts.iter().zip(&self.blocks).zip(&plans.entries) {
+                if r.ids != p.ids
+                    || r.callable != p.callable
+                    || r.call != p.call
+                    || r.caller != function.id()
+                    || instruction_count(p.operands.len()) != Some(r.instructions.len())
+                    || r.entities.len() != 3 * p.operands.len()
+                {
+                    return Err(invalid(span));
+                }
+                let block = b
+                    .and_then(|b| function.block(b))
+                    .ok_or_else(|| invalid(span))?;
+                if r.instructions
+                    .iter()
+                    .any(|id| !block.instructions.contains(id))
+                {
+                    return Err(invalid(span));
+                }
+            }
+            #[cfg(test)]
+            ci_tests::record(plans, function, &self.receipts);
+            #[cfg(test)]
+            RECEIPTS.with(|out| {
+                if let Some(out) = out.borrow_mut().as_mut() {
+                    out.extend(self.receipts);
+                }
+            });
+            Ok(())
+        }
+    }
+}
 use super::body::{BlockRef, ROp, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
