@@ -47,3 +47,6 @@ pub(super) fn validate(
     }
     links
 }
+
+#[cfg(test)]
+mod tests;

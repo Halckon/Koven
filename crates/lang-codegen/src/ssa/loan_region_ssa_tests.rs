@@ -779,3 +779,7 @@ mod forward_lifecycle_probe;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "forward_causal_links_tests.rs"]
 mod forward_causal_links;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_projection_tests.rs"]
+mod forward_projection;

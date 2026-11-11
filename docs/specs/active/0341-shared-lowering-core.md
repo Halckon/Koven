@@ -12248,3 +12248,25 @@ raw Name Shared参数实参，无显式类型实参、receiver、Group、控制�
 所有后继helper只能降级，不能重新从AST建立Some；scope与source_begin作为原子cause，
 完成scope丢失时一并失证。ValueState的owner私有穷尽解构只显式忽略此纯metadata，
 不添加owner资格条件；这不改原数据流或扩大控制认证。
+
+#### live-source Partial 核心接线实证与有限邻控
+
+生产冻结 `49c3cc9e` 经六文件全文独审、新artifact/4263输入/实际binary/runner绑定，
+同一原红exact未改字节并实际1 passed、0 failed、2952 filtered、exit0。双布局四次
+true on/off旧产品及原SSA/verifier/LLVM1389bytes前置、末端同catalog/先后source_begin、
+实际wrap callable与Partial均通过。旧原样probe保持字节不变，显式Block gate未改。
+
+成功no-run外层159.98s、Cargo2m39s，默认opt0/debug2/test、LLVM21及仅support feature；
+输入SHA `a79bca24e2b8cbd04bb0660fc22bbff705fc0a0d570b6ea98d24f84ac5615c78`，
+binary SHA `ffbc42da5d061316d0c331b912974e431c65995f0fc1e2f93e40ecdb128be579`。
+实际结果与前后SHA已独立终核，原件保留在证据根 `causal-green-core/`。源码检查的
+size guard以df334ae6为基通过；原大planner仍1638行净零增长，policy与旧例外不变。
+
+后继新增两个ordinary exact仅验证FE旧投影：
+`original_block_and_group_forward_facts_survive_true_off` 与
+`original_branch_returns_keep_both_raw_handoffs_without_a_cause`。普通parsed/analyze/真实off
+核双布局完整旧产物相等，显式Return/Group及分支返回的旧raw事务和顺序完整保留，
+窄scope外两个新因果getter均None；不将这些Block输入送入不支持的lowering。
+两个新CI-only守卫分别覆盖无效catalog/index/record/token/kind/target/point/SourceId/scope
+及构造合流的same-clone/不同或缺失句柄/歧义/丢scope/sticky降级，只计划编译，禁止本机执行。
+本小集合尚待fresh源码/helper/名单审及新artifact绑定，不以核心绿代替邻控验收。

@@ -289,3 +289,6 @@ impl DropPlanner<'_, '_> {
         );
     }
 }
+
+#[cfg(test)]
+mod tests;
