@@ -504,5 +504,4 @@ pub(crate) mod temporary_receipt;
 
 pub(crate) mod binding_receipt;
 
-#[cfg(test)]
 pub(crate) mod child_receipt;

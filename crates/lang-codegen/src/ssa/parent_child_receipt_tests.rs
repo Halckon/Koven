@@ -36,6 +36,7 @@ fn complete_parent_child_requires_real_production_receipt() {
             .unwrap();
         let mut outputs = Vec::new();
         let mut receipts = Vec::new();
+        let mut actual = Vec::new();
         for owned in [&on, &off] {
             let ((lowered, routes), receipt) = crate::ssa::refine::child_receipt::observe(|| {
                 crate::ssa::refine::observe_routing(|| {
@@ -54,6 +55,22 @@ fn complete_parent_child_requires_real_production_receipt() {
             let (program, entry) = lowered.unwrap();
             verify_program(&program).unwrap();
             verify_parent_child_ssa(&program, entry, &routes);
+            let caller = program.modules[0].function(entry).unwrap();
+            actual.push((
+                entry,
+                caller
+                    .instructions
+                    .iter()
+                    .skip(1)
+                    .map(|i| i.id)
+                    .collect::<Vec<_>>(),
+                caller
+                    .instructions
+                    .iter()
+                    .take(5)
+                    .map(|i| i.results[0])
+                    .collect::<Vec<_>>(),
+            ));
             outputs.push((
                 crate::ssa::render_program(&program),
                 crate::llvm::render_verified_program(&program).unwrap(),
@@ -281,5 +298,18 @@ fn complete_parent_child_requires_real_production_receipt() {
             "Complete child region requires a real production receipt"
         );
         assert!(receipts[1].is_empty());
+        let receipt = &receipts[0][0];
+        assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+        assert_eq!(receipt.callable, region.callable());
+        assert_eq!(receipt.caller, actual[0].0);
+        assert_eq!(receipt.root, region.root());
+        assert_eq!(receipt.parent, region.parent());
+        assert_eq!(receipt.child, region.child());
+        assert_eq!(receipt.source_call, region.source_call());
+        assert_eq!(receipt.consumer_call, region.consumer_call());
+        assert_eq!(receipt.entry_statement, region.entry_statement());
+        assert_eq!(receipt.completion_statement, region.completion_statement());
+        assert_eq!(receipt.instructions, actual[0].1);
+        assert_eq!(receipt.entities, actual[0].2);
     }
 }
