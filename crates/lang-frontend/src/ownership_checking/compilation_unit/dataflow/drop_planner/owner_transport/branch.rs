@@ -76,6 +76,7 @@ impl DropPlanner<'_, '_> {
         let nested_plan = base.nested_forward;
         let bounded_plan = base.bounded_forward;
         let single_plan = base.single_continuation;
+        let multi_plan = base.multi_continuation;
         let mut branch_states = Vec::new();
         let mut then_terminated = false;
         let mut else_terminated = false;
@@ -142,6 +143,7 @@ impl DropPlanner<'_, '_> {
                 let mut implicit = base;
                 implicit.bounded_forward = None;
                 self.enter_single_arm(id, false, &mut implicit);
+                self.enter_multi_arm(id, false, &mut implicit);
                 if then_terminated {
                     self.enter_forward_arm(id, false, &mut implicit);
                 } else {
@@ -177,6 +179,7 @@ impl DropPlanner<'_, '_> {
                 self.conditional_break_implicit(id, true, &implicit);
                 self.conditional_return_implicit(id, true, &implicit);
                 self.observe_single_hole(&implicit);
+                self.observe_multi_hole(&implicit);
                 branch_states.push(implicit);
             }
         }
@@ -262,8 +265,17 @@ impl DropPlanner<'_, '_> {
             &branch_states,
             state,
         );
+        let multi_resume = self.observe_multi_join(
+            multi_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
         *state = self.merge_resource_states(id, branch_states);
         self.resume_single_join(single_resume, state);
+        self.resume_multi_join(multi_resume, state);
         self.resume_nested_join(nested_continuation, state);
         self.finish_owner_loop_join(id, state);
         self.conditional_break_if_completed(id, continues, state);
@@ -291,6 +303,8 @@ impl DropPlanner<'_, '_> {
         state.nested_forward = None;
         state.bounded_forward = None;
         state.single_continuation = None;
+        state.multi_continuation = None;
+        state.multi_merge = None;
         result
     }
 

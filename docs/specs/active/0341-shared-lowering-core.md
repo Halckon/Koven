@@ -14239,3 +14239,35 @@ raw末项确为生成的公共tail，而不是仅按顺序自证。最终研究�
 single邻界普通测试通过，Clippy -D warnings、fmt/diff及文档897项通过。
 本片仅新增测试与研究记录，未改生产、原verifier、任何尺寸策略或旧见证；日志为
 multi-hole-*。未跑native全套/远端CI，仅本地提交。
+
+#### 多来源集合的独立前端证书（实施中）
+
+基于a64b10cb的92种真实多hole研究输入，本片只实施独立前端证书，不开放后端
+多前驱准入。保持深度≤3、结构叶≤8、同根String、DFS独立Boolean参数、至少两个
+隐式false hole及根后唯一公共tail；不扩single独有survivor协议或旧terminal证书。
+
+证明单位分离为物理交易与控制来源：每个终止叶保留自身真实Begin/Handoff，公共tail
+只允许一个真实交易；多个hole的到达路径引用它而不复制交易。实际分支入口产生来源，
+join消费各侧closed/live证据，两个live集合必须互斥，输出必须恰等于输入集合并集。
+逐次merge后的状态、candidate身份、cursor、source与真实entry须共同匹配；根必须
+覆盖全部实际hole，遗漏、重复、交叠、跨候选或伪造集合均失败封闭。
+
+后端仍在原borrow marker返回Unsupported，不运行最终verifier、不发布新receipt；
+observer-off与原typed/raw事实不变。局部Complete不证明任意CFG、循环、多根、callee
+内部或权限恢复；旧见证全部保留，既有尺寸1684>1674阻塞及策略不作调整。
+
+实际验收：先在two/rooted原typed/raw成功时观察到新区域0!=1的真实红，现已转绿。
+独立枚举92种多hole树，rooted/memory与observer on/off全部核对；新产品的真实入口
+路径、每个join两侧集合与精确并集由测试独立树生成器比对，terminal与唯一tail的
+动作ID均绑定原raw交易和typed callee。后端仍原borrow marker Unsupported，原final
+verifier及single/bounded receipt均为0。另有7类普通邻界与旧协议优先级校验。
+
+FE普通21项、CG普通31项（含92形状联合测试）通过；Clippy -D warnings、workspace
+all-targets check、默认FE/CG lib no-run、fmt/diff与文档897项通过。新CI-only真实快照
+19类final损坏及9类resume损坏只编译，未执行。两轮独立审阅核对实际then/else顺序、
+merge前完整输入保存、原pending精确匹配和tail单交易；未从计划重建live来源。
+
+尺寸复测2540手写Rust文件、36个历史超1000文件，唯一失败仍1684>1674；本片
+未修改drop_planner.rs或尺寸策略。新candidate774、独立final334、plan552、hooks274
+均低于1000。compilation_unit.rs仅公开新产品导出+2至1118，仍在既有1156额度内。
+日志为本机multi-proof-*；没有native全套或远端CI，本片仅本地提交、未推送。

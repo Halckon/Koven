@@ -16,6 +16,8 @@ impl DropPlanner<'_, '_> {
             nested_forward,
             bounded_forward,
             single_continuation,
+            multi_continuation,
+            multi_merge,
             replace_consumer,
             lambda,
             borrow_bindings,
@@ -40,7 +42,9 @@ impl DropPlanner<'_, '_> {
         } else {
             borrow_forward_transports.is_empty()
         };
-        *single_continuation == expected
+        multi_continuation.is_none()
+            && multi_merge.is_none()
+            && *single_continuation == expected
             && bounded_forward.is_none()
             && nested_forward.is_none()
             && self.scope_depth == depth

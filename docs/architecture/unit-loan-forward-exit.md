@@ -19,3 +19,13 @@ entry/source/result 保持当前函数本地身份，不生成额外 Begin/End/D
 不启用新验证；已准入后缺失、重复或身份破损是错误，不静默回退。
 该区域复用[实际动作源](unit-loan-action-source.md)，旧 raw/off/Eq 投影不变；失败或 deferred 撤销新旧产品。
 验收与未覆盖范围见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#单wrapper正常liveforward出口覆盖合同2026-11-11)。
+
+## 有界多继续出口的前端集合证明
+
+独立多继续出口产品将多个真实隐式false入口与唯一公共tail交易分开保存。深度≤3、
+结构叶≤8、同根String及独立Boolean参数内，每次真实join消费两侧closed/live token，
+核来源互斥与精确并集；原merge输入句柄在合流后再次匹配，根须覆盖全部hole。
+公共tail只引用一对真实Begin/Handoff，不按到达路径复制交易；旧single/terminal协议
+独立保留。该产品仅表示局部前端Complete，catalog/source仍Partial；后端多前驱
+准入尚未实现，仍返回原Unsupported且不发布receipt。实际边界与验证见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多来源集合的独立前端证书实施中)。

@@ -97,6 +97,8 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) bounded_multi_continuation_regions:
+        Vec<super::UnitBoundedBorrowMultiContinuationRegion>,
     pub(super) bounded_continuation_regions: Vec<super::UnitBoundedBorrowContinuationRegion>,
     pub(super) bounded_forward_regions: Vec<super::UnitBoundedBorrowForwardRegion>,
     pub(super) nested_forward_regions: Vec<super::UnitBorrowNestedForwardRegion>,
@@ -108,6 +110,20 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
+    /// Actual multi-source continuations; absence never grants admission.
+    pub fn bounded_multi_continuation_regions(
+        &self,
+    ) -> &[super::UnitBoundedBorrowMultiContinuationRegion] {
+        &self.bounded_multi_continuation_regions
+    }
+    /// Check exact catalog identity, not an equal snapshot.
+    pub fn owns_bounded_multi_continuation_region(
+        &self,
+        region: &super::UnitBoundedBorrowMultiContinuationRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Independently observed single-continuation closures, never terminal-tree authority.
     pub fn bounded_continuation_regions(&self) -> &[super::UnitBoundedBorrowContinuationRegion] {
         &self.bounded_continuation_regions

@@ -512,6 +512,8 @@ fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
         nested_forward: _,
         bounded_forward: _,
         single_continuation: _,
+        multi_continuation: _,
+        multi_merge: _,
         replace_consumer,
         lambda,
         borrow_bindings,

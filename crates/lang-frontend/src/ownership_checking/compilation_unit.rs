@@ -3,6 +3,8 @@ mod loan_bounded_forward_regions;
 pub use loan_bounded_forward_regions::{
     UnitBoundedBorrowContinuation, UnitBoundedBorrowContinuationRegion,
     UnitBoundedBorrowForwardPath, UnitBoundedBorrowForwardRegion,
+    UnitBoundedBorrowMultiContinuationRegion, UnitBoundedBorrowMultiJoin,
+    UnitBoundedBorrowSharedTail, UnitBoundedBorrowTailOrigin,
 };
 mod drop_point;
 pub use drop_point::{

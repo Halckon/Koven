@@ -261,10 +261,18 @@ impl PendingLoan {
     }
 }
 
+/// Exact observation inputs captured from the ordinary merge, never a declaration-derived union.
+#[derive(Clone, Debug)]
+pub(super) struct MultiMerge {
+    pub(super) inputs: Vec<super::action_source::MultiState>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
     /// Pure observation scope; never part of value availability or owner eligibility.
     pub(super) forward_scope: Option<super::borrow_forward_transport::ForwardScope>,
+    pub(super) multi_continuation: Option<super::action_source::MultiState>,
+    pub(super) multi_merge: Option<MultiMerge>,
     pub(super) single_continuation: Option<super::action_source::SingleState>,
     pub(super) bounded_forward: Option<super::action_source::BoundedState>,
     pub(super) nested_forward: Option<super::nested_forward_scope::NestedForwardState>,
@@ -348,6 +356,24 @@ pub(super) const fn marker_span(marker: NameMarker) -> Span {
 }
 
 pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
+    let multi_merge = states
+        .iter()
+        .map(|state| {
+            if state.multi_merge.is_none() {
+                state.multi_continuation
+            } else {
+                None
+            }
+        })
+        .collect::<Option<Vec<_>>>()
+        .filter(|inputs| {
+            inputs.first().is_some_and(|first| {
+                inputs
+                    .iter()
+                    .all(|state| state.candidate == first.candidate)
+            })
+        })
+        .map(|inputs| MultiMerge { inputs });
     let Some(mut merged) = states.pop() else {
         return ValueState::default();
     };
@@ -364,6 +390,8 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     // Nested lineage never survives a live continuation merge, even a single survivor.
     merged.nested_forward = None;
     merged.bounded_forward = None;
+    merged.multi_continuation = None;
+    merged.multi_merge = multi_merge;
     // Only the original unique survivor retains observation identity; no reconstruction.
     if !states.is_empty() {
         merged.single_continuation = None;
@@ -395,6 +423,7 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
         transport.reconcile_nested_scope(merged.nested_forward);
         transport.reconcile_bounded_scope(merged.bounded_forward);
         transport.reconcile_single_scope(merged.single_continuation);
+        transport.reconcile_multi_scope(merged.multi_continuation);
     }
     merged.borrow_binding_transports.retain(|transport| {
         states

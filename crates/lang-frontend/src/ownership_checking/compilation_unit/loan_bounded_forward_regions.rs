@@ -149,3 +149,131 @@ impl UnitBoundedBorrowContinuationRegion {
         self.continuation.as_ref()
     }
 }
+
+/// One physical shared-tail transaction, not one transaction per incoming control route.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBoundedBorrowSharedTail {
+    pub(super) identity: Arc<()>,
+    pub(super) callable: UnitItemId,
+    pub(super) root: UnitSymbolId,
+    pub(super) control: UnitExpressionId,
+    pub(super) value: UnitExpressionId,
+    pub(super) begin: usize,
+    pub(super) handoff: usize,
+}
+impl UnitBoundedBorrowSharedTail {
+    /// Exact wrapper owning the tail transaction.
+    pub const fn callable(&self) -> UnitItemId {
+        self.callable
+    }
+    /// Common source parameter, not a copied resource per incoming route.
+    pub const fn source_parameter(&self) -> UnitSymbolId {
+        self.root
+    }
+    /// Actual tail return expression.
+    pub const fn control(&self) -> UnitExpressionId {
+        self.control
+    }
+    /// Actual borrowed call returned by the tail.
+    pub const fn value(&self) -> UnitExpressionId {
+        self.value
+    }
+    /// Catalog identity of the single actual source acquisition.
+    pub fn source_begin(&self) -> UnitLoanActionId {
+        UnitLoanActionId {
+            identity: self.identity.clone(),
+            index: self.begin,
+        }
+    }
+    /// Catalog identity of the single actual handoff.
+    pub fn handoff(&self) -> UnitLoanActionId {
+        UnitLoanActionId {
+            identity: self.identity.clone(),
+            index: self.handoff,
+        }
+    }
+}
+/// One observed implicit false exit reaching the shared tail.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBoundedBorrowTailOrigin {
+    pub(super) edges: Vec<UnitLoanNestedForwardEdge>,
+}
+impl UnitBoundedBorrowTailOrigin {
+    /// Actual entry ancestry, outermost first; no duplicated tail acquisition.
+    pub fn edges(&self) -> &[UnitLoanNestedForwardEdge] {
+        &self.edges
+    }
+}
+/// Actual live join consuming disjoint source-route sets before its matching merge resumes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBoundedBorrowMultiJoin {
+    pub(super) split: UnitExpressionId,
+    pub(super) condition: UnitExpressionId,
+    pub(super) incoming: [Vec<usize>; 2],
+    pub(super) origins: Vec<usize>,
+}
+impl UnitBoundedBorrowMultiJoin {
+    /// Actual split whose two outcomes meet at this join.
+    pub const fn split(&self) -> UnitExpressionId {
+        self.split
+    }
+    /// Condition evaluated at that split.
+    pub const fn condition(&self) -> UnitExpressionId {
+        self.condition
+    }
+    /// Then/else origin indices; an empty set denotes a closed, non-surviving arm.
+    pub fn incoming(&self) -> &[Vec<usize>; 2] {
+        &self.incoming
+    }
+    /// Exact disjoint union, in origin-index order, consumed by the resumed parent.
+    pub fn origins(&self) -> &[usize] {
+        &self.origins
+    }
+}
+/// Independent finite multi-source continuation certificate, never single-survivor authority.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBoundedBorrowMultiContinuationRegion {
+    pub(super) identity: Arc<()>,
+    pub(super) callable: UnitItemId,
+    pub(super) root: UnitSymbolId,
+    pub(super) coverage: UnitLoanActionCoverage,
+    pub(super) split_count: usize,
+    pub(super) terminal_paths: Vec<UnitBoundedBorrowForwardPath>,
+    pub(super) tail: Option<UnitBoundedBorrowSharedTail>,
+    pub(super) origins: Vec<UnitBoundedBorrowTailOrigin>,
+    pub(super) joins: Vec<UnitBoundedBorrowMultiJoin>,
+}
+impl UnitBoundedBorrowMultiContinuationRegion {
+    /// Source-qualified wrapper declaration.
+    pub const fn callable(&self) -> UnitItemId {
+        self.callable
+    }
+    /// Common borrowed source parameter.
+    pub const fn source_parameter(&self) -> UnitSymbolId {
+        self.root
+    }
+    /// Coverage of this finite tree, exact live-origin unions and one shared tail only.
+    pub const fn coverage(&self) -> UnitLoanActionCoverage {
+        self.coverage
+    }
+    /// Count of actual distinct conditional splits.
+    pub const fn split_count(&self) -> usize {
+        self.split_count
+    }
+    /// Actual tree returns only, excluding the shared tail transaction.
+    pub fn terminal_paths(&self) -> &[UnitBoundedBorrowForwardPath] {
+        &self.terminal_paths
+    }
+    /// One physical tail transaction, present only for Complete coverage.
+    pub fn tail(&self) -> Option<&UnitBoundedBorrowSharedTail> {
+        self.tail.as_ref()
+    }
+    /// Actual holes in DFS order; their indices are used by join source sets.
+    pub fn origins(&self) -> &[UnitBoundedBorrowTailOrigin] {
+        &self.origins
+    }
+    /// Live joins in actual postorder, with explicitly checked incoming sets and union.
+    pub fn joins(&self) -> &[UnitBoundedBorrowMultiJoin] {
+        &self.joins
+    }
+}

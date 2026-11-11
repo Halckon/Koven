@@ -38,6 +38,7 @@ pub(super) struct PendingForwardTransport {
     nested_cause: Option<super::action_source::NestedForwardCause>,
     bounded_cause: Option<super::action_source::BoundedCause>,
     single_cause: Option<super::action_source::SingleCause>,
+    multi_cause: Option<super::action_source::MultiCause>,
 }
 
 // Metadata cannot change the old semantic retain qualification.
@@ -49,6 +50,16 @@ impl PartialEq for PendingForwardTransport {
 impl Eq for PendingForwardTransport {}
 impl PendingForwardTransport {
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        let mut multi = alternatives.iter().filter(|other| *other == self);
+        let same = multi
+            .next()
+            .and_then(|other| self.multi_cause.as_ref().zip(other.multi_cause.as_ref()))
+            .is_some_and(|(a, b)| a.state == b.state && a.acquisition.same_record(&b.acquisition))
+            && multi.next().is_none();
+        if !same {
+            self.multi_cause = None;
+        }
+
         let mut single = alternatives.iter().filter(|other| *other == self);
         let same = single
             .next()
@@ -109,6 +120,21 @@ impl PendingForwardTransport {
         }
     }
 
+    pub(super) fn reconcile_multi_scope(
+        &mut self,
+        scope: Option<super::action_source::MultiState>,
+    ) {
+        if !self
+            .multi_cause
+            .as_ref()
+            .is_some_and(|c| Some(c.state) == scope)
+        {
+            self.multi_cause = None;
+        }
+    }
+    pub(super) fn matches_multi(&self, state: super::action_source::MultiState) -> bool {
+        self.multi_cause.as_ref().is_some_and(|c| c.state == state)
+    }
     pub(super) fn reconcile_single_scope(
         &mut self,
         scope: Option<super::action_source::SingleState>,
@@ -348,6 +374,20 @@ impl DropPlanner<'_, '_> {
             .push(PendingForwardTransport {
                 returned: origin.expression(),
                 source,
+                multi_cause: acquisition
+                    .clone()
+                    .zip(state.multi_continuation.filter(|s| {
+                        self.iteration_actions.multi_source_matches(
+                            *s,
+                            source_call,
+                            forwarded.argument(),
+                            place.root(),
+                        )
+                    }))
+                    .map(|(acquisition, state)| super::action_source::MultiCause {
+                        acquisition,
+                        state,
+                    }),
                 single_cause: acquisition
                     .clone()
                     .zip(state.single_continuation.filter(|s| {
@@ -437,6 +477,7 @@ impl DropPlanner<'_, '_> {
             nested_cause,
             bounded_cause,
             single_cause,
+            multi_cause,
         } = state.borrow_forward_transports.remove(index);
         // Consume the transport state, not the live source loan. Ownership of the
         // token passes to the wrapper result; no loan-end or cleanup action is added.
@@ -456,6 +497,8 @@ impl DropPlanner<'_, '_> {
             .record_bounded_handoff(bounded_cause, state.bounded_forward);
         self.iteration_actions
             .record_single_handoff(single_cause, state.single_continuation);
+        self.iteration_actions
+            .record_multi_handoff(multi_cause, state.multi_continuation);
     }
 }
 

@@ -1,4 +1,8 @@
 //! Observe actual dynamic-tree boundaries without changing legacy cleanup.
+#[path = "multi_continuation_hooks.rs"]
+mod multi_continuation_hooks;
+#[path = "multi_continuation_plan.rs"]
+pub(super) mod multi_continuation_plan;
 #[path = "single_continuation_hooks.rs"]
 mod single_continuation_hooks;
 #[path = "single_continuation_plan.rs"]
@@ -9,6 +13,7 @@ use super::bounded_forward_plan::Kind;
 pub(super) enum BoundedCoverage {
     Terminal(action_source::BoundedState),
     Continuation(action_source::SingleState),
+    MultiContinuation(action_source::MultiState),
 }
 use super::*;
 impl DropPlanner<'_, '_> {
@@ -26,6 +31,8 @@ impl DropPlanner<'_, '_> {
             nested_forward,
             bounded_forward,
             single_continuation,
+            multi_continuation,
+            multi_merge,
             replace_consumer,
             lambda,
             borrow_bindings,
@@ -50,7 +57,9 @@ impl DropPlanner<'_, '_> {
         } else {
             borrow_forward_transports.is_empty()
         };
-        single_continuation.is_none()
+        multi_continuation.is_none()
+            && multi_merge.is_none()
+            && single_continuation.is_none()
             && *bounded_forward == expected
             && nested_forward.is_none()
             && self.scope_depth == depth
@@ -95,9 +104,12 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         let Some(plan) = self.bounded_forward_plan(item, body) else {
+            if let Some(scope) = self.begin_single_coverage(item, body, state) {
+                return Some(BoundedCoverage::Continuation(scope));
+            }
             return self
-                .begin_single_coverage(item, body, state)
-                .map(BoundedCoverage::Continuation);
+                .begin_multi_coverage(item, body, state)
+                .map(BoundedCoverage::MultiContinuation);
         };
         let base = (self.scope_depth, self.owner_branch_depth);
         let clear = self.bounded_boundary_clear(state, None, false, base.0, base.1);
@@ -113,6 +125,7 @@ impl DropPlanner<'_, '_> {
         after: bool,
     ) {
         self.observe_single_condition(id, condition, state, after);
+        self.observe_multi_condition(id, condition, state, after);
         let Some(scope) = state.bounded_forward else {
             return;
         };
@@ -143,6 +156,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) {
         self.enter_single_arm(id, side, state);
+        self.enter_multi_arm(id, side, state);
         let Some(scope) = state.bounded_forward else {
             return;
         };
@@ -171,6 +185,7 @@ impl DropPlanner<'_, '_> {
         post: bool,
     ) {
         self.observe_single_return(id, state, post);
+        self.observe_multi_return(id, state, post);
         let Some(scope) = state.bounded_forward else {
             return;
         };
@@ -227,6 +242,10 @@ impl DropPlanner<'_, '_> {
             Some(BoundedCoverage::Terminal(scope)) => scope,
             Some(BoundedCoverage::Continuation(scope)) => {
                 self.finish_single_coverage(scope, continues, state);
+                return;
+            }
+            Some(BoundedCoverage::MultiContinuation(scope)) => {
+                self.finish_multi_coverage(scope, continues, state);
                 return;
             }
             None => return,
