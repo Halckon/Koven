@@ -6,8 +6,8 @@ pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
     HeaderCompletion, HeaderCore, MixedParameterThreshold,
 };
 pub use normal_backedge::{
-    UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerMixedBackedgeV1,
-    UnitOwnerNormalBackedgeV1,
+    UnitOwnerConditionalBreakBackedgeV1, UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1,
+    UnitOwnerMixedBackedgeV1, UnitOwnerNormalBackedgeV1,
 };
 pub use open::{
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
@@ -103,6 +103,12 @@ pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
     Fallthrough,
     Continue(UnitExpressionId),
     Break(UnitExpressionId),
+    ConditionalBreak {
+        control: UnitExpressionId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+        jump: UnitExpressionId,
+    },
     Conditional {
         control: UnitExpressionId,
         condition: UnitExpressionId,
@@ -112,7 +118,7 @@ pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
 impl LoopBodyCompletion {
     pub(in crate::ownership_checking::compilation_unit) fn continues(self) -> bool {
         match self {
-            Self::Fallthrough => true,
+            Self::Fallthrough | Self::ConditionalBreak { .. } => true,
             Self::Continue(_) | Self::Break(_) => false,
             Self::Conditional { branches, .. } => branches.iter().any(|branch| branch.continues()),
         }
@@ -137,6 +143,27 @@ impl LoopBodyCompletion {
                 UnitDropPoint::ControlTransfer(jump),
                 UnitDropPoint::LoopExit(statement),
             )),
+            Self::ConditionalBreak {
+                control,
+                condition: branch_condition,
+                body: arm,
+                jump,
+            } => {
+                edges.push(UnitOwnerLoopEdgeV1::IfBranch {
+                    control,
+                    condition: branch_condition,
+                    branch: 0,
+                    body: arm,
+                });
+                edges.push(UnitOwnerLoopEdgeV1::BreakExit(
+                    UnitDropPoint::ControlTransfer(jump),
+                    UnitDropPoint::LoopExit(statement),
+                ));
+                edges.push(UnitOwnerLoopEdgeV1::Backedge(
+                    UnitDropPoint::AfterStatement(body),
+                    condition,
+                ));
+            }
             Self::Conditional {
                 control,
                 condition: branch_condition,
@@ -226,6 +253,7 @@ impl UnitOwnerLoopObservationV1 {
         };
         let source = function.source_unit();
         let completion_valid = match self.completion {
+            LoopBodyCompletion::ConditionalBreak { .. } => false,
             LoopBodyCompletion::Fallthrough => true,
             LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump) => {
                 jump.source_unit() == source

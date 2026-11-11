@@ -1,9 +1,11 @@
 //! A changing header is a slot equation, never a fixed P/Q producer identity.
 use super::*;
+mod conditional_break;
 mod mixed;
 use lang_frontend::ownership_checking::{
-    UnitOwnerCallable, UnitOwnerContinueBackedgeV1, UnitOwnerMixedBackedgeV1,
-    UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1, UnitOwnerTransportEvent,
+    UnitOwnerCallable, UnitOwnerConditionalBreakBackedgeV1, UnitOwnerContinueBackedgeV1,
+    UnitOwnerMixedBackedgeV1, UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1,
+    UnitOwnerTransportEvent,
 };
 
 // Private adapter keeps the two public edge roles distinct. It never exposes a
@@ -13,11 +15,12 @@ enum Boundary<'a> {
     Normal(&'a UnitOwnerNormalBackedgeV1),
     Continue(&'a UnitOwnerContinueBackedgeV1),
     Mixed(&'a UnitOwnerMixedBackedgeV1),
+    ConditionalBreak(&'a UnitOwnerConditionalBreakBackedgeV1),
 }
 macro_rules! boundary_getters {
     ($($name:ident -> $ty:ty),* $(,)?) => {$ (
         fn $name(self) -> $ty {
-            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name(), Self::Mixed(v) => v.$name() }
+            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name(), Self::Mixed(v) => v.$name(), Self::ConditionalBreak(v) => v.$name() }
         }
     )*};
 }
@@ -39,7 +42,7 @@ impl<'a> Boundary<'a> {
     }
     fn jump(self) -> Option<UnitExpressionId> {
         match self {
-            Self::Normal(_) | Self::Mixed(_) => None,
+            Self::Normal(_) | Self::Mixed(_) | Self::ConditionalBreak(_) => None,
             Self::Continue(v) => Some(v.jump()),
         }
     }
@@ -66,6 +69,7 @@ pub(super) struct Plan<'a> {
     increment: Option<([BlockRef; 3], [Slot; 4], usize)>,
     continued: Option<ContinueReceipt>,
     mixed: mixed::State,
+    conditional_break: conditional_break::State,
     taken: bool,
     completed: bool,
 }
@@ -99,6 +103,9 @@ impl<'a> Plan<'a> {
             UnitOwnerOpenLoopObservationV1::NormalBackedge(v) => Boundary::Normal(v),
             UnitOwnerOpenLoopObservationV1::ContinueBackedge(v) => Boundary::Continue(v),
             UnitOwnerOpenLoopObservationV1::MixedBackedge(v) => Boundary::Mixed(v),
+            UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(v) => {
+                Boundary::ConditionalBreak(v)
+            }
             _ => return Ok(None),
         };
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
@@ -168,6 +175,7 @@ impl<'a> Plan<'a> {
             increment: None,
             continued: None,
             mixed: mixed::State::default(),
+            conditional_break: conditional_break::State::default(),
             taken: false,
             completed: false,
         }))
@@ -196,7 +204,10 @@ impl Builder<'_, '_> {
         let Some(p) = &self.header_return_plan else {
             return Ok(None);
         };
-        if matches!(p.boundary, Boundary::Mixed(_)) {
+        if matches!(
+            p.boundary,
+            Boundary::Mixed(_) | Boundary::ConditionalBreak(_)
+        ) {
             return Ok(None);
         }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
@@ -595,6 +606,8 @@ impl Builder<'_, '_> {
         };
         if matches!(p.boundary, Boundary::Mixed(_)) {
             self.mixed_header_validate(backedge, span)?;
+        } else if matches!(p.boundary, Boundary::ConditionalBreak(_)) {
+            self.cb_validate(backedge, span)?;
         } else {
             match (p.boundary.jump(), p.continued) {
                 (None, None) => {}

@@ -263,7 +263,8 @@ impl InvariantInput {
                     .is_consistent()
                     .then_some(InvariantLoopValueV1::Backedge(value))
             }
-            LoopBodyCompletion::Conditional { .. } => None,
+            LoopBodyCompletion::Conditional { .. }
+            | LoopBodyCompletion::ConditionalBreak { .. } => None,
         }
     }
 }

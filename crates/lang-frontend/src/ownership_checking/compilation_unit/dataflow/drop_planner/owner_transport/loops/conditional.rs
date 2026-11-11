@@ -102,6 +102,13 @@ pub(super) fn admit_split(
 impl LoopTransaction {
     pub(super) fn expected_jump(&self) -> Option<LoopBodyCompletion> {
         match self.expected {
+            LoopBodyCompletion::ConditionalBreak { jump, .. }
+                if self.split_entered
+                    && self.active_branch == Some(0)
+                    && !self.branch_completed[0] =>
+            {
+                Some(LoopBodyCompletion::Break(jump))
+            }
             LoopBodyCompletion::Continue(_) | LoopBodyCompletion::Break(_)
                 if self.active_branch.is_none() =>
             {

@@ -68,3 +68,15 @@ source identity均由私有阈值证据保留。参数数目同时封印，不�
 只有双Int且最终Mixed准入成功才走此扩展，旧Normal/Continue/Boolean及带owner
 参数族不扩大。CG生产不新增plan，直接复用已有Mixed实际split/arm/jump/Return
 receipts；定向SSA测试追溯两个参数各自经block参数运输到真实比较与分支条件。
+
+## 条件 Break 与隐式正常回边
+
+双 Int 参数合同还覆盖尾部 `if(index < stop) { break }` 的无 else 形状。
+独立 ConditionalBreak 产品分别封印真实 Break 清理、隐式 false 分支清理、If 的
+正常继续及 body 正常完成，不构造不存在的 else body 或 Continue 身份。共享
+表达式门只为已准入产品的精确控制身份开放，旧 Mixed 两臂终止门禁不扩大。
+
+后端在真实 split、Break、if join 与 while 清理后的正常回边生产点取独立收据；
+完整 incoming 分别证明 entry/正常回边到 header、condition-false/Break 到 exit。
+发射阶段可合法折叠单前驱 if join；最终 SSA 的隐式 false 直接到 header，而
+refine 的细粒度完成收据仍独立保留。当前只覆盖此单根有限形状，不代表一般 If。

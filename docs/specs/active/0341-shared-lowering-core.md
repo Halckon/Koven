@@ -13152,3 +13152,27 @@ Cargo实际artifact、保存binary SHA及原日志保留于主仓忽略目录
 格式门禁首次发现新模块注册排序错误，旧失败日志保留；仅修正注册顺序，原探针源码
 及断言不改。重新冻结4301输入并编译、重跑同exact，仍在相同authority断言红；
 第二次fmt、docs893、diff均通过。最终红证据在同目录red2，非复用旧binary结果。
+
+生产现已接通独立 ConditionalBreak 产品：复用私有 H 核心，真实 split、then入口、
+Break清理、then结束、implicit入口/清理、If正常继续、body正常完成共8快照，
+后端独立收据与完整 incoming 核验后才授权最终 Return。旧 Mixed/Continue/closed
+门禁不放宽，原红 SOURCE/断言不修改。
+
+首轮生产FE为10/11，新正例未形成产品；诊断发现共享表达式门只准有else的If，
+新无else在split之前被拒。补门严格绑定当前已准入产品control、Unit、事务身份与
+真实body/赋值/未完成状态，临时日志移除。green2真实FE11/11、CG17/18；Mac
+断线恢复后核原持久结果，不盲目重跑。唯一结构测试误要求最终SSA保留已被发射器
+合法折叠的单前驱join；仅修oracle为严格implicit直接到header、header完整entry+
+implicit前驱，其余Break/exit/参数身份不变，未增加宽泛fallback或改生产CFG。
+
+重新冻结green3的4304输入并构建，29 ordinary exact（FE11+CG18）全部实际通过，
+各1 passed/0 failed/0 ignored，包含原authority红、最终SSA参数/完整incoming，
+及Basic/Const的5组正常native（零轮、Break、2/7轮正常回边）。新负控及原CI-only
+仅编译，不执行Abort/fault；有限native不证明一般循环或资源计数。green/red2、
+失败green/green2和诊断均保留在本片持久证据目录，保存binary与输入SHA绑定。
+当前仍基fa82cfc2，新main4150bbd8须隔离合流重验，不据本片宣称最新main或CI完成。
+默认与loan support两套FE/CG all-target strict Clippy、默认workspace all-target check
+均实际通过；fmt、docs893、相对fa82cfc2尺寸2441文件/35历史超限、diff通过，
+未提高尺寸额度。独审复核29日志、保存binary及真实Cargo artifact（opt0/debug2，
+FE默认、CG仅loan support）；实测输入后仅Architecture/Spec文档变化，无Rust漂移。
+本片仍只作本地完成切片，正式CI与最新main合流未验，不宣称D10/E2全部完成。

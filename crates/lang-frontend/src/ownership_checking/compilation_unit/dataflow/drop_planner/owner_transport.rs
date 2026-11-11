@@ -294,6 +294,9 @@ impl DropPlanner<'_, '_> {
                 self.owner_loop_jump_supported(id)
             }
             Expression::If {
+                else_branch: None, ..
+            } => self.conditional_break_expression_supported(id),
+            Expression::If {
                 else_branch: Some(_),
                 ..
             } => {

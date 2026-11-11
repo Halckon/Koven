@@ -428,3 +428,100 @@ fn ci_only_parameter_mixed_rejects_threshold_identity_damage() {
         assert!(!p.is_consistent());
     }
 }
+
+fn conditional_break_source() -> String {
+    parameter_mixed_source().replace("{ continue } else { break }", "{ break }")
+}
+#[test]
+fn conditional_break_header_seals_real_implicit_continuation() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = conditional_break_source();
+    for text in [
+        source.clone(),
+        source.replace("limit: Int, stop: Int", "stop: Int, limit: Int"),
+        source.replace("stop", "threshold"),
+    ] {
+        let fixture = Fixture::new(&[("conditional-break.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.open_loop_observation_v1())
+            .collect::<Vec<_>>();
+        let [O::ConditionalBreakBackedge(p)] = products.as_slice() else {
+            panic!("independent implicit false product");
+        };
+        assert!(p.is_consistent());
+        assert_eq!(p.snapshots.len(), 8);
+        assert_ne!(p.split_condition(), p.condition());
+        assert_ne!(p.break_body(), p.body());
+        assert_eq!(p.body_events().len(), 6);
+        assert_eq!(p.body_producers().definitions().len(), 1);
+    }
+}
+#[test]
+fn conditional_break_header_declines_legal_neighbors() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = conditional_break_source();
+    for text in [
+        source.replace("index < stop", "index < limit"),
+        source.replace("index < stop", "index <= stop"),
+        source.replace("index < stop", "index < (stop)"),
+        source.replace("index < stop", "index < 2"),
+        source.replace("{ break }", "{ continue }"),
+        source.replace("{ break }", "{ break } else {}"),
+        source.replace("{ break }", "{} else { break }"),
+        source.replace("index + 1", "index + 2"),
+        source.replace("stop: Int", "stop: Int, extra: Int"),
+    ] {
+        let fixture = Fixture::new(&[("conditional-break-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        assert!(!owned.owner_observations().iter().any(|o| matches!(
+            o.open_loop_observation_v1(),
+            Some(O::ConditionalBreakBackedge(_))
+        )));
+    }
+}
+#[test]
+fn ci_only_conditional_break_rejects_false_completion_and_role_damage() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    use crate::ownership_checking::compilation_unit::owner_transport::{
+        HeaderCompletion, LoopBodyCompletion,
+    };
+    let source = conditional_break_source();
+    let fixture = Fixture::new(&[("conditional-break-damage.ko", &source)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::ConditionalBreakBackedge(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..11 {
+        let mut p = (**original).clone();
+        match damage {
+            0 => p.split_sealed = false,
+            1 => {
+                p.snapshots.pop();
+            }
+            2 => p.snapshots[5] = p.core.entry.clone(),
+            3 => p.snapshots[6] = p.core.entry.clone(),
+            4 => p.snapshots[7] = p.core.entry.clone(),
+            5 => p.jump_role = LoopBodyCompletion::Continue(p.break_jump),
+            6 => p.core.completion = HeaderCompletion::Mixed(p.split),
+            7 => p.identity = std::sync::Arc::new(()),
+            8 => p.break_body = p.core.body,
+            9 => p.threshold.symbols[1] = p.threshold.symbols[0],
+            _ => p.core.cleaned = false,
+        }
+        assert!(!p.is_consistent());
+    }
+}

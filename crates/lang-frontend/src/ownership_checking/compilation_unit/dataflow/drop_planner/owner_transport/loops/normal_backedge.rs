@@ -5,6 +5,8 @@ use crate::ownership_checking::{
     UnitOwnerContinueBackedgeV1, UnitOwnerNormalBackedgeV1, UnitOwnerProducerCatalogV1,
 };
 use crate::parser::AssignmentOperator;
+mod conditional_break;
+mod conditional_break_hooks;
 mod control;
 mod mixed;
 
@@ -30,6 +32,7 @@ pub(super) struct NormalInput {
     product: Option<HeaderCore>,
     jump: Option<UnitExpressionId>,
     mixed: Option<mixed::MixedInput>,
+    conditional_break: Option<conditional_break::ConditionalBreakInput>,
     transfer: Option<(
         std::sync::Arc<()>,
         UnitExpressionId,
@@ -80,6 +83,7 @@ impl NormalInput {
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
+        let mut conditional_break = None;
         let (declaration, assignment_statement, jump, mixed) = match elements.as_slice() {
             [declaration, assignment] => (*declaration, *assignment, None, None),
             [declaration, assignment, tail] => {
@@ -95,6 +99,19 @@ impl NormalInput {
                         Some(checker.unit_expression(*expression)),
                         None,
                     ),
+                    Expression::If {
+                        else_branch: None, ..
+                    } => {
+                        conditional_break = Some(conditional_break::ConditionalBreakInput::admit(
+                            checker,
+                            *expression,
+                            control_symbol,
+                            *condition,
+                            parameters,
+                            callable,
+                        )?);
+                        (*declaration, *assignment, None, None)
+                    }
                     Expression::If { .. } => (
                         *declaration,
                         *assignment,
@@ -189,7 +206,9 @@ impl NormalInput {
             *target,
             *value,
         )?;
-        if (mixed.is_some() && increment.is_none()) || (parameters.len() != 1 && mixed.is_none()) {
+        if ((mixed.is_some() || conditional_break.is_some()) && increment.is_none())
+            || (parameters.len() != 1 && mixed.is_none() && conditional_break.is_none())
+        {
             return None;
         }
         let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;
@@ -218,12 +237,16 @@ impl NormalInput {
             product: None,
             jump,
             mixed,
+            conditional_break,
             transfer: None,
             finished_role: None,
             valid: true,
         })
     }
     pub(super) fn expected_completion(&self) -> LoopBodyCompletion {
+        if let Some(input) = &self.conditional_break {
+            return input.role;
+        }
         if let Some(mixed) = &self.mixed {
             return mixed.role;
         }
@@ -239,6 +262,13 @@ impl NormalInput {
         state: &ValueState,
         branch: Option<usize>,
     ) -> bool {
+        if let Some(input) = &mut self.conditional_break {
+            return self.valid
+                && self.entered
+                && self.assigned
+                && branch == Some(0)
+                && input.jump(completion, identity, state);
+        }
         if let Some(mixed) = &mut self.mixed {
             return self.valid
                 && self.entered
@@ -411,6 +441,13 @@ impl NormalInput {
         {
             return false;
         }
+        if self
+            .conditional_break
+            .as_mut()
+            .is_some_and(|input| !input.complete(state))
+        {
+            return false;
+        }
         self.completed = super::super::replace_consumer::snapshot(value);
         match (&self.completed, self.jump, &self.transfer) {
             (Some(snapshot), Some(jump), Some((_, actual, transferred))) => {
@@ -444,6 +481,10 @@ impl NormalInput {
                 .mixed
                 .as_ref()
                 .is_some_and(|m| !m.identity_matches(&body.identity))
+            || self
+                .conditional_break
+                .as_ref()
+                .is_some_and(|input| !input.identity_matches(&body.identity))
             || boundary_values(state) != Some(std::slice::from_ref(expected))
         {
             self.valid = false;
@@ -456,6 +497,9 @@ impl NormalInput {
         let source = self.initial.source_unit();
         self.product = Some(HeaderCore {
             completion: match self.expected_completion() {
+                LoopBodyCompletion::ConditionalBreak { control, .. } => {
+                    HeaderCompletion::ConditionalBreak(control)
+                }
                 LoopBodyCompletion::Conditional { control, .. } => HeaderCompletion::Mixed(control),
                 _ => self
                     .jump
@@ -545,7 +589,12 @@ impl NormalInput {
         if !product.is_consistent() {
             return None;
         }
-        if let Some(mixed) = self.mixed.take() {
+        if let Some(input) = self.conditional_break.take() {
+            let value = input.finish(product)?;
+            value.is_consistent().then_some(
+                UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(Box::new(value)),
+            )
+        } else if let Some(mixed) = self.mixed.take() {
             let value = mixed.finish(product)?;
             value
                 .is_consistent()
@@ -590,6 +639,10 @@ impl DropPlanner<'_, '_> {
             .mixed
             .as_ref()
             .is_some_and(|m| m.condition() == self.checker.unit_expression(id))
+            || normal
+                .conditional_break
+                .as_ref()
+                .is_some_and(|m| m.condition() == self.checker.unit_expression(id))
         {
             return normal.valid
                 && normal.entered
