@@ -26,7 +26,10 @@ impl Builder<'_, '_> {
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let step = &plan.evidence.steps()[index];
         let block = self.block.ok_or_else(fail)?;
-        if plan.replaced[index]
+        if plan.chain[index] != retirement::Stage::Ready
+            || plan.chain[..index]
+                .iter()
+                .any(|stage| *stage != retirement::Stage::Dropped)
             || plan.geometry.map(|g| g[2]) != Some(block)
             || plan.roots.get(index) != Some(&root)
         {
@@ -92,13 +95,14 @@ impl Builder<'_, '_> {
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::CounterReplaceDuplicateCommit,
         ) {
-            plan.replaced[permit.index] = true;
+            plan.chain[permit.index] = retirement::Stage::Dropped;
         }
-        if plan.replaced[permit.index] || plan.evidence.steps()[permit.index].call() != permit.call
+        if plan.chain[permit.index] != retirement::Stage::Ready
+            || plan.evidence.steps()[permit.index].call() != permit.call
         {
             return Err(fail());
         }
-        plan.replaced[permit.index] = true;
+        plan.chain[permit.index] = retirement::Stage::Replaced(old);
         #[cfg(test)]
         owner_consumer_test_support::record_action("counter-replace-permit-consumed", permit.index);
         Ok(())

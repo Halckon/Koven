@@ -2,6 +2,7 @@
 use super::*;
 mod boundary;
 mod emission;
+mod retirement;
 use crate::ssa::model::{CheckedArithmeticOperator, ComparisonOperator, ScalarConstant};
 use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitOwnerCallable, UnitOwnerCounterTailEvidenceV1,
@@ -13,7 +14,7 @@ pub(super) struct Plan<'a> {
     counter: Option<Slot>,
     guard: Option<Slot>,
     roots: Vec<Slot>,
-    replaced: Vec<bool>,
+    chain: Vec<retirement::Stage>,
 }
 impl<'a> Plan<'a> {
     pub(super) fn new(inputs: &RefineInputs<'a>) -> Result<Option<Self>, LoweringError> {
@@ -39,7 +40,7 @@ impl<'a> Plan<'a> {
             counter: None,
             guard: None,
             roots: Vec::new(),
-            replaced: vec![false; evidence.steps().len()],
+            chain: vec![retirement::Stage::Ready; evidence.steps().len()],
         }))
     }
 }
@@ -91,7 +92,11 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
-        if plan.replaced.iter().any(|done| !done) {
+        if plan
+            .chain
+            .iter()
+            .any(|stage| *stage != retirement::Stage::Dropped)
+        {
             return Err(fail());
         }
         let [entry, header, body, finished, _exit] = plan.geometry.ok_or_else(fail)?;

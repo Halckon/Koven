@@ -28,7 +28,11 @@ root/replacement和返回旧值，再提交该项。所有项最终必须恰好�
 lowering；这不是借用旧单根plan，也不从“没有receipt”推断所选范围允许跳过消费。
 
 这是局部发射消费合同，不是新的公开跨轮owner产品。typed/inout及通用drop权限仍保留，
-binding/drop尚未迁移为该permit链的一部分。CI-only覆盖缺失permit、错root、重复提交；
+返回旧值binding及其实际drop已加入同一强制链：Ready→Replaced(old)→Bound(binding)→Dropped。
+绑定匹配精确call与返回binding，drop匹配原始完整fact与绑定槽；每步均先授权、后核实际
+指令再提交，后根替换要求前根完成退休，最终不得留半完成项。只消费既有通用drop指令，
+不重复发射清理，并拒绝与旧owner/header drop receipt重叠。false-exit与suffix仍是前述
+完整审计，不在本次body退休permit链内。CI-only覆盖缺失permit、错来源、重复提交；
 本地只编译，普通native矩阵核真实每根消费记录。
 
 ## 实际后端消费

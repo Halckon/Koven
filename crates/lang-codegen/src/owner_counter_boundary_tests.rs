@@ -33,6 +33,15 @@ fn counter_tail_complete_boundary_consumes_live_suffix() {
                     .count(),
                 1
             );
+            for kind in [
+                "counter-binding-permit-consumed",
+                "counter-drop-permit-consumed",
+            ] {
+                assert_eq!(
+                    actions.iter().filter(|(action, _)| *action == kind).count(),
+                    2
+                );
+            }
             crate::ssa::verify::verify_program(&program).unwrap();
             crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
             super::super::assert_native_output(&source, b"");
@@ -55,6 +64,10 @@ fn ci_only_counter_boundary_rejects_missing_suffix_and_wrong_entry() {
     let source = UnitSource::analyze("counter-boundary-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::MissingCounterBindingPermit,
+        OwnerFault::MissingCounterDropPermit,
+        OwnerFault::CounterBindingWrongSource,
+        OwnerFault::CounterDropDuplicateCommit,
         OwnerFault::MissingCounterReplacePermit,
         OwnerFault::CounterReplaceWrongRoot,
         OwnerFault::CounterReplaceDuplicateCommit,
