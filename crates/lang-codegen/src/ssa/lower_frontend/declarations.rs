@@ -1,12 +1,74 @@
-//! Source function declaration collection, separate from lowering orchestration.
-use super::{LoweringError, LoweringErrorKind, error, orchestrate::unwrap_modified, present_name};
+//! Source function declaration collection, statement dispatch, and constant materialization.
+use super::{
+    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, error,
+    orchestrate::unwrap_modified, present_name, value,
+};
+use crate::ssa::{
+    constant_materialization,
+    model::EntityType,
+    statement_core::StatementLowering,
+};
 use lang_frontend::{
-    ast::ItemId,
+    ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, SymbolId, SymbolKind},
+    ownership_checking::DropPoint,
     parser::{ClassifierKind, Item, ParsedFile},
     source::Span,
     type_checking::{CallableDescriptor, TypedFile},
 };
+
+impl StatementLowering for ExpressionLowerer<'_> {
+    fn lower_inner(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+        self.lower_statement_inner(statement)
+    }
+
+    fn emit_after_statement(&mut self, statement: StatementId) -> Result<(), LoweringError> {
+        self.emit_drops(DropPoint::AfterStatement(statement))
+    }
+}
+
+impl ExpressionLowerer<'_> {
+    pub(super) fn lower_constant(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        let Some(descriptor) = self
+            .typed
+            .constants()
+            .and_then(|facts| facts.use_at(expression))
+        else {
+            return Ok(None);
+        };
+        let span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
+        let plan = self
+            .owned
+            .constant_materializations()
+            .and_then(|facts| facts.plan_at(expression))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let planned = plan.descriptor();
+        if planned.expression() != descriptor.expression()
+            || planned.target() != descriptor.target()
+            || planned.ty() != descriptor.ty()
+            || planned.value() != descriptor.value()
+        {
+            return Err(error(LoweringErrorKind::MismatchedAnalysis, span));
+        }
+        let ty = self.expression_ssa_type(expression, span)?;
+        let operation = constant_materialization::operation(plan.kind(), descriptor.value(), ty)
+            .map_err(|kind| error(kind, span))?;
+        let (_, results) = self.append(operation, vec![EntityType::Value(ty)], span)?;
+        Ok(Some(LoweredValue::Value(value(results[0]))))
+    }
+}
 
 pub(super) struct FunctionDeclaration {
     pub(super) item_id: ItemId,

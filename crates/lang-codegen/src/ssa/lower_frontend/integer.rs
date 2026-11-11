@@ -1,22 +1,162 @@
-//! Local facts and submission adapt into the shared integer expression algorithm.
+//! Local facts and submission adapt into the shared integer, checked, and range algorithms.
 use super::{
-    EntityType, ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, Operation,
-    error, value,
+    BlockId, BuiltinType, CheckedArithmeticOperator, EntityId, EntityType, ExpressionLowerer,
+    Function, LoweredValue, LoweringError, LoweringErrorKind, Operation, Span, SsaTypeId,
+    SymbolId, ValueId, builtin_type, error, value,
 };
-use crate::ssa::model::SsaTypeId;
+use crate::ssa::expression_core::checked::{self, CarryColumn, CheckedCarry, CheckedLowering};
 use lang_frontend::{
     ast::ExpressionId,
-    source::Span,
-    type_checking::{BuiltinType, IntegerOperationKind, TypeId, TypeKind},
+    type_checking::{IntegerOperationKind, TypeId, TypeKind},
 };
+use std::collections::BTreeMap;
+
+pub(in crate::ssa) struct CheckedRoles {
+    baseline: BTreeMap<SymbolId, LoweredValue>,
+    carried: super::control::LinearBindings,
+}
 
 impl ExpressionLowerer<'_> {
+    pub(super) fn checked(
+        &mut self,
+        operator: CheckedArithmeticOperator,
+        left: ValueId,
+        right: ValueId,
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        checked::lower_checked_arithmetic(self, operator, left, right, ty, span)
+    }
+
+    pub(super) fn checked_operation(
+        &mut self,
+        operation: Operation,
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        checked::lower_checked_operation(self, operation, ty, span)
+    }
+
+    pub(super) fn lower_integer_range(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let span = self.expression_span(expression)?;
+        let id = expression;
+        let descriptor = self
+            .typed
+            .integer_range_operation(id)
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != id
+            || self.typed.expression_type(descriptor.left()) != Some(descriptor.left_type())
+            || self.typed.expression_type(descriptor.right()) != Some(descriptor.right_type())
+            || self.typed.expression_type(id) != Some(descriptor.result_type())
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let types = [
+            descriptor.left_type(),
+            descriptor.right_type(),
+            descriptor.result_type(),
+        ]
+        .map(|ty| match self.typed.types().get(ty) {
+            Some(TypeKind::Builtin(builtin)) => Some(*builtin),
+            _ => None,
+        });
+        let left_id = descriptor.left();
+        let right_id = descriptor.right();
+        if !crate::ssa::integer::matches_range_fact(
+            self.parsed,
+            expression,
+            left_id,
+            right_id,
+            descriptor.kind(),
+            types,
+        ) {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let left = match self.lower(left_id)? {
+            LoweredValue::Value(value) => value,
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
+        };
+        let right = match self.lower(right_id)? {
+            LoweredValue::Value(value) => value,
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
+        };
+        let ty = self.expression_ssa_type(expression, span)?;
+        let (operation, negate) =
+            crate::ssa::integer::range_operation(descriptor.kind(), left, right);
+        let (_, results) = self.append(operation, vec![EntityType::Value(ty)], span)?;
+        let EntityId::Value(operand) = results[0] else {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        };
+        if !negate {
+            return Ok(LoweredValue::Value(operand));
+        }
+        let (_, results) = self.append(
+            Operation::BooleanNot { operand },
+            vec![EntityType::Value(ty)],
+            span,
+        )?;
+        let EntityId::Value(result) = results[0] else {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        };
+        Ok(LoweredValue::Value(result))
+    }
+
     pub(super) fn lower_integer_operation(
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
         let span = self.expression_span(expression)?;
         lower_integer(self, expression, span)
+    }
+}
+
+impl CheckedLowering for ExpressionLowerer<'_> {
+    type Roles = CheckedRoles;
+
+    fn boolean_type(&self) -> Option<SsaTypeId> {
+        self.type_ids.iter().find_map(|(frontend, ssa)| {
+            (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
+        })
+    }
+
+    fn ir_cursor(&mut self) -> (&mut Function, &mut BlockId) {
+        (&mut *self.function, &mut self.block)
+    }
+
+    fn capture_roles(&self, span: Span) -> Result<CheckedCarry<Self::Roles>, LoweringError> {
+        let baseline = self.bindings.clone();
+        let carried = self.linear_binding_slots(&baseline, span)?;
+        self.carry_checked_map(&carried, span)?;
+        let columns = carried
+            .slots
+            .iter()
+            .map(|slot| CarryColumn {
+                source: slot.source,
+                ty: slot.ty,
+            })
+            .collect();
+        Ok(CheckedCarry {
+            columns,
+            roles: CheckedRoles { baseline, carried },
+        })
+    }
+
+    fn restore_roles(
+        &mut self,
+        roles: Self::Roles,
+        from: BlockId,
+        success: BlockId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.bindings =
+            self.rebind_linear_bindings(&roles.baseline, success, &roles.carried, span)?;
+        self.resume_checked_map(from, &roles.carried, span)
     }
 }
 
