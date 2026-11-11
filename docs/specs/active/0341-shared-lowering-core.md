@@ -12744,3 +12744,9 @@ Partial/off旧产品及分支receipt为空均保留。新增两个手写SSA CI-o
 手动清理后已缺失，原2a409753红仅会话与本Spec留存，不能称已复核原日志；本轮为新建证据。
 本片仍不新增分支region Complete/production receipt，不实现一般循环/多出口覆盖或旧oracle
 退休；下一片须逐互斥出口证明原因与完整性，不能把两条handoff拼成单线性协议。未推送。
+
+最终归属调整 `59e1888d` 将本片新增singleton helper放回borrow_result私有领域，入口
+1858行，不提高原1860例外；语义守恒经独审。`attempt-7` 为最终代码新证据：66.41秒
+no-run、同五项ordinary各1 passed、all-targets feature strict Clippy21.63秒通过；
+fmt、docs891、尺寸2428文件/35历史超限及diff均通过。未运行native、全量或CI-only；
+最终账本提交仅改本文，不改上述已冻结Rust。后续与owner合流需重新核组合，不以此替代CI。
