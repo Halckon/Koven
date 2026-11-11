@@ -207,3 +207,38 @@ fn parameter_open_loop_requires_actual_entry_owner_and_return_receipts() {
     assert_eq!(body.1, body.2);
     assert_eq!(condition_false.1, condition_false.2);
 }
+
+#[test]
+fn parameter_open_loop_requires_real_entry_then_name_transfer() {
+    let source = UnitSource::analyze("parameter-entry-authority.ko", SOURCE).unwrap();
+    source.assert_frontend_clean();
+    let ((lowered, returns), actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()))
+    });
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let [
+        ("parameter_entry", parameter),
+        ("parameter_move", moved),
+        ("parameter_root", root),
+    ] = actions.as_slice()
+    else {
+        panic!(
+            "actual bind_parameters Value entry must precede Name transfer and root Alias: {actions:?}"
+        );
+    };
+    assert_eq!(
+        parameter, moved,
+        "Name transports the entry owner without redefining it"
+    );
+    assert_ne!(
+        parameter, root,
+        "the existing Alias binds a distinct mutable slot"
+    );
+    assert_eq!(returns.len(), 2);
+    for receipt in returns {
+        assert_eq!(receipt.2, Some(*root));
+        assert_eq!(receipt.1, receipt.2);
+    }
+}
