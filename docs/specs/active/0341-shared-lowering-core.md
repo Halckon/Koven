@@ -14191,3 +14191,51 @@ all-targets check、fmt/diff及文档897项均通过。CI-only真实快照的身
 两处计划与terminate接线后1008仍在原1025额度内，emit986未越1000。
 日志为本机single-receipt-*系列；未执行native全套或远端CI，仅本地提交，不推送。
 旧见证保留；多继续出口、显式空分支、多根、循环与无界CFG仍不在此合同内。
+
+### 有界多继续出口：事务与控制路径分离研究（2026-11-11）
+
+基线dcca3994，仅研究与测试，不开放生产准入，不扩单继续出口证书，不退休旧见证。
+多hole有实际价值，但不是把single协议的一个survivor改为多个：
+
+```kotlin
+if (outer) {
+    if (left) { return a(source) }
+} else {
+    if (right) { return b(source) }
+}
+return tail(source)
+```
+
+这里是TT、TF、FT、FF四条控制路径，却只有a、b、tail三组真实借用调用交易。
+TF与FF共用同一个tail acquisition/handoff；不能复制tail记录来满足“一路径一交易”，
+不能把单hole的线性remaining_chain用于多前驱汇合。
+
+独立生成器枚举深度≤3的26种完整二叉树（含纯叶），对每棵树的k个false叶选取至少
+两个改成省略else的hole。false叶数量分布为k=0/1/2/3/4时各1/3/8/10/4棵，
+总计Σ(2^k−1−k)=92个真实程序。逐一原typed/raw成功、observer开关旧事实一致，
+实际交易数=结构叶数−hole数+1，tail始终恰好一次Begin和一次Handoff；现fixed nested、
+bounded terminal、single continuation均不产生对应资格，CG在原borrow marker拒绝，
+final verifier和single receipt均为0。普通研究测试已通过，不是多出口实现完成。
+
+下一实现建议分两片，仍保持同根String、独立DFS Boolean flags、深度≤3/结构叶≤8、
+唯一公共tail与无额外语句，不引入固定形状枚举：
+
+1. FE独立多来源汇合证书：继续token携带实际hole身份集合；每个真实join分别消费
+   两侧closed/live证据，live集合必须互斥、父集合是精确并集，绑定当次entry/cursor/
+   source与merge后状态。根必须覆盖全部实际hole，一次公共tail交易与多条到达路径
+   在产品中分离表达。先保留CG Unsupported，不放宽single独有survivor规则。
+2. CG多前驱receipt：保留各条真实Goto与join的精确前驱集合，仅折单前驱链。
+   多前驱join不得fold消失；同根source需要在两条真实入边各自核block parameter
+   位置/类型/LoanId及源链，tail的单个真实call/result/return可由多条控制路径引用。
+   保持独立准入、observer-off等价及原verifier后原子发布。
+
+必要故障边界包括丢/重/交叠hole集合、跨候选token、漏survivor/前驱、伪造并集、
+错source入边、跨多前驱join折叠、复制tail交易和失败发布。现有旧见证仍覆盖observer-off、
+一般生命周期、carrier/alias与fixed专有合同，无同合同完整替代，故本片不退休。
+前序尺寸1684>1674仍未解除，策略不改；研究结论不代表可合并或一般CFG完成。
+
+研究复核：独立审阅确认92项枚举无漏项或重复；额外用typed callee声明身份核实
+raw末项确为生成的公共tail，而不是仅按顺序自证。最终研究普通测试与既有6类
+single邻界普通测试通过，Clippy -D warnings、fmt/diff及文档897项通过。
+本片仅新增测试与研究记录，未改生产、原verifier、任何尺寸策略或旧见证；日志为
+multi-hole-*。未跑native全套/远端CI，仅本地提交。
