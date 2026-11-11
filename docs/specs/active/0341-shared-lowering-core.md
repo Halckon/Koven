@@ -13936,3 +13936,31 @@ SharedInner只用于三参数BalancedBoth；前端仍从每个原条件typed引�
 strict feature all-target Clippy、默认lib no-run（含CI-only）、workspace全目标、
 fmt/diff、docs897及尺寸门禁全部通过：2492手写Rust文件、36历史超限，无新增
 尺寸例外或额度。日志shared-inner-*；本地提交、不推送，native全套和远端CI未执行。
+
+### 限定三叶真实尾续接证明（2026-11-11）
+
+以`e31ad336`为基线，旧见证仍按前次逐消费者审计保留。本片只增加三参数Distinct
+NestedThenTail：outer真臂为完整inner两返回，outer无else，紧邻第三个尾返回。
+真实红中typed/raw三条运输成立但独立region为0；不将有活出口当作terminal join。
+
+前端19阶段协议先核inner两叶关闭及真实implicit false entry，再要求唯一存活的
+false状态、完整空资源边界和then已终止/else未终止。独立token绑定catalog Arc、
+candidate、实际entry、cursor和完整原状态；消费inner关闭凭据后，普通merge仍
+默认清除nested metadata，只有merge后真实空状态与精确深度通过才单次恢复。
+尾叶pre/post必须发生于resume之后；六条原始动作、全部lineage及seal/close再核，
+Complete region提供真实continuation入口与tail control，catalog/lineage仍Partial。
+旧terminal join不放宽，非唯一状态、错token/entry/游标、重复恢复、污染资源均失败封闭。
+
+后端明确拒绝新topology，实际rooted/memory×观察on/off均保留原borrow marker的
+UnsupportedNode、最终verifier与receipt各0。将来需要真实false Goto/唯一join及
+fold证据，不按最终同为五块就冒用终止三叶receipt。一般嵌套、多源、非邻接tail
+与旧见证退休均不在本片范围。
+
+首轮实现普通测试4绿1红，定位为topology_matches_tree遗漏新枚举；精确补入Three
+对应后复测新tail、原三叶及四叶8项全绿，未放松continuation检查。额外邻形固定
+extra statement、inner缺else和outer显式空else拒绝。独立生产因果审查通过。
+最终定向验收前端14项、后端18项通过（包含新tail拒绝与旧branch/aux/binding、
+三叶、四叶及共享inner实际receipt）。新增18类CI-only continuation故障仅编译，
+没有本机执行；strict feature all-target Clippy、默认双crate lib no-run、workspace
+全目标检查、fmt/diff、docs897与尺寸门禁通过：2493手写Rust文件、36历史超限，
+无新增额度。日志nested-tail-*；本地提交、不推送，native全套与远端CI未运行。

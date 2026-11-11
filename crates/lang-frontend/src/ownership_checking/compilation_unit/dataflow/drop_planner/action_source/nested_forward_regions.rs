@@ -1,5 +1,5 @@
 //! Positive finite closure protocol, independent of the old Partial ancestry product.
-use super::super::nested_forward_scope::NestedForwardPlan;
+use super::super::nested_forward_scope::{NestedForwardPlan, NestedForwardState};
 use super::{ActionSource, Record};
 use crate::{
     ownership_checking::{
@@ -22,9 +22,23 @@ pub(super) struct Candidate {
     inner_consumed: bool,
     right_closed: bool,
     right_consumed: bool,
+    continuation: Option<NestedForwardState>,
+    resumed: bool,
     closed: Option<usize>,
 }
+#[derive(Clone, Debug)]
+pub(in super::super) struct ContinuationToken {
+    identity: Arc<()>,
+    candidate: usize,
+    entry: usize,
+    cursor: usize,
+    state: NestedForwardState,
+}
 impl Candidate {
+    fn tail(&self) -> bool {
+        self.plan.topology == UnitBorrowNestedForwardTopology::NestedThenTail
+    }
+
     fn balanced(&self) -> bool {
         self.plan.topology == UnitBorrowNestedForwardTopology::BalancedBoth
     }
@@ -32,7 +46,13 @@ impl Candidate {
         self.plan.leaves().len() * 2
     }
     fn close_stage(&self) -> usize {
-        if self.balanced() { 24 } else { 17 }
+        if self.balanced() {
+            24
+        } else if self.tail() {
+            18
+        } else {
+            17
+        }
     }
     fn tokens_consumed(&self) -> bool {
         self.inner_closed
@@ -97,6 +117,8 @@ impl ActionSource {
             inner_consumed: false,
             right_closed: false,
             right_consumed: false,
+            continuation: None,
+            resumed: false,
             closed: None,
         });
         id
@@ -209,7 +231,7 @@ impl ActionSource {
                 || (c.inner_closed && !c.inner_consumed));
         if c.advance(stage, offset, self.records.len(), clear && good) {
             c.entries[role] = Some(entry);
-            if role == 3 && (c.balanced() || c.plan.topology.nested_then()) {
+            if role == 3 && !c.tail() && (c.balanced() || c.plan.topology.nested_then()) {
                 c.inner_consumed = true;
             }
         }
@@ -224,7 +246,17 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        let stage = if c.balanced() {
+        let stage = if c.tail() {
+            match leaf {
+                0 => 6,
+                1 => 9,
+                2 => 15,
+                _ => {
+                    c.valid = false;
+                    return;
+                }
+            }
+        } else if c.balanced() {
             match leaf {
                 0 => 6,
                 1 => 9,
@@ -258,8 +290,8 @@ impl ActionSource {
             Some(Record::Begin(source)) => Some(source),
             _ => None,
         };
-        let good = source
-            .is_some_and(|s| s.call() == wanted.value && s.argument() == wanted.argument)
+        let good = (!c.tail() || leaf != 2 || (c.resumed && c.continuation.is_some()))
+            && source.is_some_and(|s| s.call() == wanted.value && s.argument() == wanted.argument)
             && (!post
                 || self
                     .nested_handoffs
@@ -287,6 +319,10 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
+        if c.tail() && split != 1 {
+            c.valid = false;
+            return;
+        }
         let (stage, offset) = if c.balanced() {
             match split {
                 1 => (11, 4),
@@ -336,6 +372,75 @@ impl ActionSource {
             }
         }
     }
+    pub(in super::super) fn nested_region_continuation(
+        &mut self,
+        id: usize,
+        successor: Option<NestedForwardState>,
+        then_terminated: bool,
+        else_terminated: bool,
+        clear: bool,
+    ) -> Option<ContinuationToken> {
+        let c = self.nested_regions.get_mut(id)?;
+        let matching = successor.is_some_and(|state| {
+            state.plan == c.plan
+                && state.coverage == Some(id)
+                && state.leaf == Some(2)
+                && state.ready_split.is_none()
+                && state.path == [c.entries[3], None]
+                && c.entries[3].is_some()
+        });
+        let good = c.tail()
+            && then_terminated
+            && !else_terminated
+            && matching
+            && c.inner_closed
+            && !c.inner_consumed
+            && c.continuation.is_none()
+            && !c.resumed;
+        if !c.advance(13, 4, self.records.len(), clear && good) {
+            return None;
+        }
+        let state = successor?;
+        c.inner_consumed = true;
+        c.continuation = Some(state);
+        Some(ContinuationToken {
+            identity: self.identity.clone(),
+            candidate: id,
+            entry: c.entries[3]?,
+            cursor: self.records.len(),
+            state,
+        })
+    }
+    pub(in super::super) fn nested_continuation_base(
+        &self,
+        token: &ContinuationToken,
+    ) -> Option<(usize, usize)> {
+        Arc::ptr_eq(&token.identity, &self.identity).then_some(())?;
+        self.nested_regions.get(token.candidate).map(|c| c.base)
+    }
+    pub(in super::super) fn resume_nested_continuation(
+        &mut self,
+        token: ContinuationToken,
+        clear: bool,
+    ) -> Option<NestedForwardState> {
+        let c = self.nested_regions.get_mut(token.candidate)?;
+        let good = c.tail()
+            && Arc::ptr_eq(&token.identity, &self.identity)
+            && token.cursor == self.records.len()
+            && c.continuation == Some(token.state)
+            && token.state.coverage == Some(token.candidate)
+            && token.state.plan == c.plan
+            && c.entries[3] == Some(token.entry)
+            && token.state.path == [Some(token.entry), None]
+            && c.inner_closed
+            && c.inner_consumed
+            && !c.resumed;
+        if !c.advance(14, 4, self.records.len(), clear && good) {
+            return None;
+        }
+        c.resumed = true;
+        Some(token.state)
+    }
     pub(in super::super) fn seal_nested_region(
         &mut self,
         id: usize,
@@ -349,7 +454,7 @@ impl ActionSource {
             c.close_stage() - 1,
             c.action_count(),
             self.records.len(),
-            clear && terminated && c.tokens_consumed(),
+            clear && terminated && c.tokens_consumed() && (!c.tail() || c.resumed),
         );
     }
     pub(in super::super) fn close_nested_callable(&mut self, callable: UnitItemId) {
@@ -383,6 +488,16 @@ impl ActionSource {
                     && c.stage == c.close_stage()+1
                     && c.closed == c.start.checked_add(c.action_count())
                     && c.tokens_consumed()
+                    && if c.tail() {
+                        c.resumed && c.continuation.is_some_and(|state| state.plan == c.plan
+                            && state.coverage == Some(id) && state.leaf == Some(2)
+                            && state.ready_split.is_none() && state.path == [c.entries[3], None])
+                            && c.entries[3].and_then(|entry| self.nested_entries.get(entry)).is_some_and(|entry|
+                                entry.callable == c.plan.callable && entry.topology == c.plan.topology
+                                && entry.flag_layout == c.plan.flag_layout && entry.split == c.plan.splits()[0].split
+                                && entry.condition == c.plan.splits()[0].condition && !entry.then_arm
+                                && entry.parent.is_none() && entry.cursor == c.start + 4)
+                    } else { !c.resumed && c.continuation.is_none() }
                     && self
                         .nested_regions
                         .iter()
@@ -424,7 +539,19 @@ impl ActionSource {
                                 .count()
                                 == 1
                     });
+                let continuation = if good && c.tail() {
+                    c.entries[3].and_then(|entry| self.nested_entries.get(entry)).map(|entry| {
+                        crate::ownership_checking::UnitBorrowNestedForwardContinuation {
+                            split: entry.split, condition: entry.condition,
+                            tail_control: c.plan.leaves()[2].control,
+                            entry: crate::ownership_checking::UnitLoanNestedForwardEdge {
+                                split: entry.split, condition: entry.condition, then_arm: entry.then_arm,
+                            },
+                        }
+                    })
+                } else { None };
                 UnitBorrowNestedForwardRegion {
+                    continuation,
                     flag_layout: c.plan.flag_layout,
                     topology: c.plan.topology,
                     identity: self.identity.clone(),

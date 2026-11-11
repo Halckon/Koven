@@ -236,3 +236,106 @@ fn ci_only_shared_inner_closure_requires_layout_and_each_independent_path() {
         assert!(bad[0].paths().is_empty());
     }
 }
+
+fn capture_tail() -> Snapshot {
+    capture_text(
+        "fun id(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return id(s) } else { return id(s) } }\nreturn id(s) }",
+    )
+}
+#[test]
+fn ci_only_tail_requires_real_false_continuation_and_resume() {
+    for fault in 0..8 {
+        let (mut source, lineages) = capture_tail();
+        let good = source.finish_nested_regions(&lineages);
+        assert_eq!(good[0].coverage(), UnitLoanActionCoverage::Complete);
+        assert!(good[0].continuation().is_some());
+        match fault {
+            0 => source.nested_regions[0].resumed = false,
+            1 => source.nested_regions[0].continuation = None,
+            2 => source.nested_regions[0].inner_consumed = false,
+            3 => source.nested_regions[0].stage = 18,
+            4 => source.nested_region_join(0, 0, true, true, true),
+            5 => {
+                let entry = source.nested_regions[0].entries[3].unwrap();
+                source.nested_entries[entry].then_arm = true;
+            }
+            6 => {
+                source.nested_regions[0]
+                    .continuation
+                    .as_mut()
+                    .unwrap()
+                    .coverage = Some(1)
+            }
+            _ => {
+                source.nested_regions[0].continuation.as_mut().unwrap().path[0] =
+                    source.nested_regions[0].entries[0]
+            }
+        }
+        let bad = source.finish_nested_regions(&lineages);
+        assert_eq!(
+            bad[0].coverage(),
+            UnitLoanActionCoverage::Partial,
+            "fault {fault}"
+        );
+        assert!(bad[0].continuation().is_none());
+    }
+}
+#[test]
+fn ci_only_tail_token_rejects_foreign_replay_pollution_and_cursor_change() {
+    for fault in 0..5 {
+        let (mut source, _) = capture_tail();
+        let state = source.nested_regions[0].continuation.unwrap();
+        source.records.truncate(source.nested_regions[0].start + 4);
+        let cursor = source.records.len();
+        let c = &mut source.nested_regions[0];
+        c.stage = 14;
+        c.closed = None;
+        c.resumed = false;
+        let mut token = ContinuationToken {
+            identity: source.identity.clone(),
+            candidate: 0,
+            entry: c.entries[3].unwrap(),
+            cursor,
+            state,
+        };
+        match fault {
+            0 => token.identity = Arc::new(()),
+            1 => token.entry = c.entries[0].unwrap(),
+            2 => token.cursor += 1,
+            3 => {}
+            _ => {}
+        }
+        let first = source.resume_nested_continuation(token.clone(), fault != 3);
+        assert_eq!(first.is_some(), fault == 4, "fault {fault}");
+        assert!(
+            source.resume_nested_continuation(token, true).is_none(),
+            "duplicate or sticky invalid"
+        );
+    }
+}
+#[test]
+fn ci_only_tail_continuation_requires_unique_matching_clear_survivor() {
+    for fault in 0..5 {
+        let (mut source, _) = capture_tail();
+        let state = source.nested_regions[0].continuation.unwrap();
+        source.records.truncate(source.nested_regions[0].start + 4);
+        let c = &mut source.nested_regions[0];
+        c.stage = 13;
+        c.closed = None;
+        c.inner_consumed = false;
+        c.continuation = None;
+        c.resumed = false;
+        let mut successor = Some(state);
+        if fault == 0 {
+            successor = None;
+        }
+        if fault == 1 {
+            successor.as_mut().unwrap().path[0] = c.entries[0];
+        }
+        assert!(
+            source
+                .nested_region_continuation(0, successor, fault != 2, fault == 3, fault != 4)
+                .is_none()
+        );
+    }
+}

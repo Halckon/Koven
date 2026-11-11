@@ -41,6 +41,20 @@ fn ordinary_else_nested_terminal_region_requires_mirrored_path_closure() {
     );
 }
 
+#[test]
+fn ordinary_nested_then_tail_requires_real_continuation() {
+    let text = SOURCE.replace(
+        "} else { return right(source) } }",
+        "}\nreturn right(source) }",
+    );
+    check_lineage(
+        &text,
+        3,
+        true,
+        UnitBorrowNestedForwardTopology::NestedThenTail,
+    );
+}
+
 fn check_lineage(
     source_text: &str,
     expected: usize,
@@ -162,7 +176,8 @@ fn check_lineage(
                     .map(|e| e.then_arm())
                     .collect::<Vec<_>>(),
                 match topology {
-                    UnitBorrowNestedForwardTopology::NestedThen =>
+                    UnitBorrowNestedForwardTopology::NestedThen
+                    | UnitBorrowNestedForwardTopology::NestedThenTail =>
                         [vec![true, true], vec![true, false], vec![false]],
                     UnitBorrowNestedForwardTopology::NestedElse =>
                         [vec![true], vec![false, true], vec![false, false]],
@@ -177,7 +192,8 @@ fn check_lineage(
         }
         if lineages.len() == 3 {
             let (a, b, other) = match topology {
-                UnitBorrowNestedForwardTopology::NestedThen => (0, 1, 2),
+                UnitBorrowNestedForwardTopology::NestedThen
+                | UnitBorrowNestedForwardTopology::NestedThenTail => (0, 1, 2),
                 UnitBorrowNestedForwardTopology::NestedElse => (1, 2, 0),
                 UnitBorrowNestedForwardTopology::BalancedBoth => panic!("separate four-leaf test"),
             };
@@ -200,6 +216,16 @@ fn check_lineage(
             for region in regions {
                 assert!(catalog.owns_nested_forward_region(region));
                 assert_eq!(region.topology(), topology);
+                if topology == UnitBorrowNestedForwardTopology::NestedThenTail {
+                    let continuation = region.continuation().expect("real continuation");
+                    assert_eq!(continuation.entry(), &lineages[2].edges()[0]);
+                    assert!(!continuation.entry().then_arm());
+                    assert_eq!(continuation.split(), lineages[2].edges()[0].split());
+                    assert_eq!(continuation.condition(), lineages[2].edges()[0].condition());
+                    assert_eq!(continuation.tail_control(), lineages[2].control());
+                } else {
+                    assert!(region.continuation().is_none());
+                }
                 assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
                 assert_eq!(region.paths(), lineages);
                 assert_eq!(region.paths().len(), 3);
@@ -227,7 +253,10 @@ fn check_lineage(
 fn ordinary_nested_lineage_rejects_neighbor_shapes() {
     let prefix = SOURCE.split("fun wrap").next().unwrap();
     for body in [
-        "if (outer) { if (inner) { return left(source) } else { return middle(source) } }\nreturn right(source)",
+        "if (outer) { if (outer) { return left(source) } else { return middle(source) } }\nreturn right(source)",
+        "if (outer) { if (inner) { return left(source) } else { return middle(source) } }\ninner\nreturn right(source)",
+        "if (outer) { if (inner) { return left(source) }\nreturn middle(source) }\nreturn right(source)",
+        "if (outer) { if (inner) { return left(source) } else { return middle(source) } } else {}\nreturn right(source)",
         "outer\nif (outer) { if (inner) { return left(source) } else { return middle(source) } } else { return right(source) }",
         "if (outer) { if (inner) { if (inner) { return left(source) } else { return left(source) } } else { return middle(source) } } else { return right(source) }",
         "if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { if (outer) { return right(source) } else { return right(source) } }",

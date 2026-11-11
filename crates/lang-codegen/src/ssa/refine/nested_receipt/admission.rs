@@ -24,6 +24,9 @@ impl Plans {
             for region in catalog.nested_forward_regions().iter().filter(|r| {
                 r.callable() == callable && r.coverage() == UnitLoanActionCoverage::Complete
             }) {
+                if region.topology() == UnitBorrowNestedForwardTopology::NestedThenTail {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, inputs.span));
+                }
                 let (split_count, leaf_count) = match region.topology() {
                     UnitBorrowNestedForwardTopology::BalancedBoth => (3, 4),
                     _ => (2, 3),
@@ -87,6 +90,7 @@ impl Plans {
                     .map(|index| entry_flags[*index])
                     .collect::<Vec<_>>();
                 let nested_leaf = match region.topology() {
+                    UnitBorrowNestedForwardTopology::NestedThenTail => return Err(fail()),
                     UnitBorrowNestedForwardTopology::BalancedBoth => 0,
                     UnitBorrowNestedForwardTopology::NestedThen => 0,
                     UnitBorrowNestedForwardTopology::NestedElse => 1,
@@ -172,6 +176,7 @@ impl Plans {
                     let call = path.value();
                     let ids = vec![path.source_begin(), path.handoff()];
                     let expected: &[bool] = match (region.topology(), leaf) {
+                        (UnitBorrowNestedForwardTopology::NestedThenTail, _) => return Err(fail()),
                         (UnitBorrowNestedForwardTopology::BalancedBoth, 0) => &[true, true],
                         (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => &[true, false],
                         (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => &[false, true],
@@ -467,6 +472,7 @@ fn validate_topology(
         ])
     };
     let returns = match topology {
+        UnitBorrowNestedForwardTopology::NestedThenTail => return Err(fail()),
         UnitBorrowNestedForwardTopology::BalancedBoth => {
             let [a, b] = inner_returns(*then_branch, 1)?;
             let [c, d] = inner_returns(*other, 2)?;

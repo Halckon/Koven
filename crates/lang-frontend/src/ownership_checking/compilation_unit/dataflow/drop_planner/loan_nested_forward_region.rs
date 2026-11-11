@@ -174,7 +174,14 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let nesting = nested.plan.leaves()[leaf].path.iter().flatten().count();
+        let nesting = if nested.plan.topology
+            == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail
+            && leaf == 2
+        {
+            0
+        } else {
+            nested.plan.leaves()[leaf].path.iter().flatten().count()
+        };
         let clear = nested.plan.leaves()[leaf].control == self.checker.unit_expression(id)
             && nested.ready_split.is_none()
             && self.nested_boundary_clear(
@@ -196,19 +203,11 @@ impl DropPlanner<'_, '_> {
         else_terminated: bool,
         states: &[ValueState],
         state: &ValueState,
-    ) {
-        let Some(nested) = nested else {
-            return;
-        };
-        let Some(candidate) = nested.coverage else {
-            return;
-        };
-        let Some(index) = nested.ready_split else {
-            return;
-        };
-        let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
-            return;
-        };
+    ) -> Option<action_source::ContinuationToken> {
+        let nested = nested?;
+        let candidate = nested.coverage?;
+        let index = nested.ready_split?;
+        let (depth, owner) = self.iteration_actions.nested_region_base(candidate)?;
         let clear = nested.plan.splits()[index].split == self.checker.unit_expression(id)
             && self.nested_boundary_clear(
                 state,
@@ -217,6 +216,24 @@ impl DropPlanner<'_, '_> {
                 depth + 1 + nested.plan.split_depth(index),
                 owner + 1 + nested.plan.split_depth(index),
             );
+        if nested.plan.topology
+            == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail
+            && index == 0
+        {
+            let successor = match states {
+                [survivor] => survivor.nested_forward.filter(|next| {
+                    self.nested_boundary_clear(survivor, Some(*next), false, depth + 1, owner + 1)
+                }),
+                _ => None,
+            };
+            return self.iteration_actions.nested_region_continuation(
+                candidate,
+                successor,
+                then_terminated,
+                else_terminated,
+                clear && states.len() == 1,
+            );
+        }
         self.iteration_actions.nested_region_join(
             candidate,
             index,
@@ -224,6 +241,28 @@ impl DropPlanner<'_, '_> {
             states.is_empty(),
             clear,
         );
+        None
+    }
+
+    pub(super) fn resume_nested_join(
+        &mut self,
+        token: Option<action_source::ContinuationToken>,
+        state: &mut ValueState,
+    ) {
+        let Some(token) = token else {
+            return;
+        };
+        let clear = self
+            .iteration_actions
+            .nested_continuation_base(&token)
+            .is_some_and(|(depth, owner)| {
+                self.nested_boundary_clear(state, None, false, depth + 1, owner + 1)
+            });
+        // The ordinary merge cleared nested metadata. Only the actual consumed edge token
+        // restores the exact pre-merge survivor; no AST-derived state is reconstructed.
+        state.nested_forward = self
+            .iteration_actions
+            .resume_nested_continuation(token, clear);
     }
 
     pub(super) fn finish_nested_coverage(

@@ -17,8 +17,8 @@ mod loan_nested_forward_lineage;
 mod loan_nested_forward_regions;
 pub use loan_nested_forward_lineage::{UnitLoanNestedForwardEdge, UnitLoanNestedForwardLineage};
 pub use loan_nested_forward_regions::{
-    UnitBorrowNestedForwardFlagLayout, UnitBorrowNestedForwardRegion,
-    UnitBorrowNestedForwardTopology,
+    UnitBorrowNestedForwardContinuation, UnitBorrowNestedForwardFlagLayout,
+    UnitBorrowNestedForwardRegion, UnitBorrowNestedForwardTopology,
 };
 mod loan_child_region_validation;
 mod loan_child_regions;

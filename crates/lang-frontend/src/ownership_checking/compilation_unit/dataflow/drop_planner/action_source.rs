@@ -20,6 +20,7 @@ use crate::ownership_checking::{
     UnitLoanFact,
 };
 pub(super) use nested_forward_lineage::NestedForwardCause;
+pub(super) use nested_forward_regions::ContinuationToken;
 use std::sync::Arc;
 type BindingEnd = BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>;
 

@@ -56,6 +56,7 @@ impl NestedForwardPlan {
                 (self.topology, self.tree),
                 (
                     UnitBorrowNestedForwardTopology::NestedThen
+                        | UnitBorrowNestedForwardTopology::NestedThenTail
                         | UnitBorrowNestedForwardTopology::NestedElse,
                     FixedNestedTree::Three { .. }
                 ) | (
@@ -95,7 +96,11 @@ impl NestedForwardPlan {
     }
     pub(super) fn parent_side(&self, index: usize) -> Option<bool> {
         match (self.topology, index) {
-            (UnitBorrowNestedForwardTopology::NestedThen, 1) => Some(true),
+            (
+                UnitBorrowNestedForwardTopology::NestedThen
+                | UnitBorrowNestedForwardTopology::NestedThenTail,
+                1,
+            ) => Some(true),
             (UnitBorrowNestedForwardTopology::NestedElse, 1) => Some(false),
             (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => Some(true),
             (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => Some(false),
@@ -181,32 +186,68 @@ impl DropPlanner<'_, '_> {
         let Statement::Block { elements } = ast.statements().get(block).ok()?.payload() else {
             return None;
         };
-        let [outer_statement] = elements.as_slice() else {
-            return None;
-        };
-        let (outer_split, outer_condition, then_statement, else_statement) =
-            self.nested_split_shape(*outer_statement)?;
-        let (topology, split_shapes, returned) = match (
-            self.nested_split_shape(then_statement),
-            self.nested_split_shape(else_statement),
-            flags.len(),
-        ) {
-            (Some((split, condition, left, middle)), None, 2) => (
-                UnitBorrowNestedForwardTopology::NestedThen,
-                vec![(outer_split, outer_condition), (split, condition)],
-                vec![left, middle, else_statement],
-            ),
-            (None, Some((split, condition, middle, right)), 2) => (
-                UnitBorrowNestedForwardTopology::NestedElse,
-                vec![(outer_split, outer_condition), (split, condition)],
-                vec![then_statement, middle, right],
-            ),
-            (Some((left, lc, a, b)), Some((right, rc, c, d)), 2 | 3) => (
-                UnitBorrowNestedForwardTopology::BalancedBoth,
-                vec![(outer_split, outer_condition), (left, lc), (right, rc)],
-                vec![a, b, c, d],
-            ),
+        let (outer_statement, tail) = match elements.as_slice() {
+            [outer] => (*outer, None),
+            [outer, tail] => (*outer, Some(*tail)),
             _ => return None,
+        };
+        let (topology, split_shapes, returned) = if let Some(tail) = tail {
+            if flags.len() != 2 {
+                return None;
+            }
+            let Statement::Expression { expression: outer } =
+                ast.statements().get(outer_statement).ok()?.payload()
+            else {
+                return None;
+            };
+            let Expression::If {
+                condition,
+                then_branch,
+                else_branch: None,
+                ..
+            } = ast.expressions().get(*outer).ok()?.payload()
+            else {
+                return None;
+            };
+            let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+                ast.statements().get(*then_branch).ok()?.payload()
+            else {
+                return None;
+            };
+            let [inner] = elements.as_slice() else {
+                return None;
+            };
+            let (inner, inner_condition, left, right) = self.nested_split_shape(*inner)?;
+            (
+                UnitBorrowNestedForwardTopology::NestedThenTail,
+                vec![(*outer, *condition), (inner, inner_condition)],
+                vec![left, right, tail],
+            )
+        } else {
+            let (outer_split, outer_condition, then_statement, else_statement) =
+                self.nested_split_shape(outer_statement)?;
+            match (
+                self.nested_split_shape(then_statement),
+                self.nested_split_shape(else_statement),
+                flags.len(),
+            ) {
+                (Some((split, condition, left, middle)), None, 2) => (
+                    UnitBorrowNestedForwardTopology::NestedThen,
+                    vec![(outer_split, outer_condition), (split, condition)],
+                    vec![left, middle, else_statement],
+                ),
+                (None, Some((split, condition, middle, right)), 2) => (
+                    UnitBorrowNestedForwardTopology::NestedElse,
+                    vec![(outer_split, outer_condition), (split, condition)],
+                    vec![then_statement, middle, right],
+                ),
+                (Some((left, lc, a, b)), Some((right, rc, c, d)), 2 | 3) => (
+                    UnitBorrowNestedForwardTopology::BalancedBoth,
+                    vec![(outer_split, outer_condition), (left, lc), (right, rc)],
+                    vec![a, b, c, d],
+                ),
+                _ => return None,
+            }
         };
         let flag_layout =
             if topology == UnitBorrowNestedForwardTopology::BalancedBoth && flags.len() == 2 {

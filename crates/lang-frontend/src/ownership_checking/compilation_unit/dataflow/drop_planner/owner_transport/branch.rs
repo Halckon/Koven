@@ -131,8 +131,8 @@ impl DropPlanner<'_, '_> {
                     );
                 }
             } else {
-                // Legacy cleanup still executes on this real edge, even though this slice
-                // does not admit implicit-else observations.
+                // Observe only the strictly admitted nested tail on this actual implicit edge.
+                // All legacy cleanup remains in the same order.
                 let mut implicit = base;
                 if then_terminated {
                     self.enter_forward_arm(id, false, &mut implicit);
@@ -145,6 +145,10 @@ impl DropPlanner<'_, '_> {
                         implicit.forward_scope = None;
                     }
                 }
+                if then_terminated && implicit.nested_forward.is_some_and(|nested|
+                    nested.plan.topology == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail) {
+                    self.enter_nested_forward_arm(id, false, &mut implicit);
+                } else { implicit.nested_forward = None; }
                 self.conditional_break_implicit(id, false, &implicit);
                 self.conditional_return_implicit(id, false, &implicit);
                 self.drop_branch_entry(id, 1, &[], &mut implicit);
@@ -212,7 +216,7 @@ impl DropPlanner<'_, '_> {
             else_terminated,
             &branch_states,
         );
-        self.observe_nested_join(
+        let nested_continuation = self.observe_nested_join(
             nested_plan,
             id,
             then_terminated,
@@ -221,6 +225,7 @@ impl DropPlanner<'_, '_> {
             state,
         );
         *state = self.merge_resource_states(id, branch_states);
+        self.resume_nested_join(nested_continuation, state);
         self.finish_owner_loop_join(id, state);
         self.conditional_break_if_completed(id, continues, state);
         self.conditional_return_if_completed(id, continues, state);

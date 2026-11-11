@@ -838,3 +838,7 @@ mod balanced_four_leaf_neighbor_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "shared_inner_four_leaf_probe_tests.rs"]
 mod shared_inner_four_leaf_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_then_tail_boundary_tests.rs"]
+mod nested_then_tail_boundary_tests;

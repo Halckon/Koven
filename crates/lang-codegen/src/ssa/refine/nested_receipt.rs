@@ -164,6 +164,7 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 impl Plan {
     fn flag_indices(&self) -> Option<Vec<usize>> {
         match (self.topology, self.flag_layout) {
+            (UnitBorrowNestedForwardTopology::NestedThenTail, _) => None,
             (
                 UnitBorrowNestedForwardTopology::BalancedBoth,
                 UnitBorrowNestedForwardFlagLayout::SharedInner,
@@ -203,7 +204,8 @@ impl Plan {
         match self.topology {
             UnitBorrowNestedForwardTopology::BalancedBoth => (3, 4),
             UnitBorrowNestedForwardTopology::NestedThen
-            | UnitBorrowNestedForwardTopology::NestedElse => (2, 3),
+            | UnitBorrowNestedForwardTopology::NestedElse
+            | UnitBorrowNestedForwardTopology::NestedThenTail => (2, 3),
         }
     }
     fn parent_arm(&self, split: usize) -> Option<usize> {
@@ -218,7 +220,8 @@ impl Plan {
         match self.topology {
             UnitBorrowNestedForwardTopology::NestedThen => Some(0),
             UnitBorrowNestedForwardTopology::NestedElse => Some(1),
-            UnitBorrowNestedForwardTopology::BalancedBoth => None,
+            UnitBorrowNestedForwardTopology::BalancedBoth
+            | UnitBorrowNestedForwardTopology::NestedThenTail => None,
         }
     }
     fn leaf_route(&self, index: usize) -> Vec<(usize, usize)> {
