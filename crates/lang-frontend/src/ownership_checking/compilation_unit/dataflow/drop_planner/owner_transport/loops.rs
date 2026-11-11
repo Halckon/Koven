@@ -11,6 +11,7 @@ mod normal_backedge;
 mod replace_break;
 mod root_frame;
 mod root_incoming;
+mod root_writes;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
@@ -18,6 +19,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::{
 };
 use crate::ownership_checking::{UnitOwnerLoopObservationV1, UnitOwnerOpenLoopObservationV1};
 use crate::parser::VariableKind;
+pub(in super::super) use root_writes::RootWriteReceipt;
 use std::collections::BTreeSet;
 
 pub(in super::super) struct LoopTransaction {
@@ -705,6 +707,7 @@ impl DropPlanner<'_, '_> {
                 closed_product: None,
                 incoming_roots: self.owner_loop.root_entry(control).map(<[_]>::to_vec),
                 root_stages: (false, false),
+                root_writes: Vec::new(),
             });
         }
         let result = self.owner_while_statement_scoped(id, condition, body, state);
@@ -723,6 +726,7 @@ impl DropPlanner<'_, '_> {
                 closed_product,
                 incoming_roots: None,
                 root_stages: self.owner_loop.root_stages(control),
+                root_writes: self.owner_loop.root_writes(control).to_vec(),
             });
         }
         result

@@ -573,3 +573,5 @@ mod general_control_frontier;
 mod sequential_closed_transactions;
 
 mod multi_root_stages;
+
+mod root_write_receipts;
