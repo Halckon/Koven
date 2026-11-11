@@ -157,6 +157,7 @@ pub(super) fn build(
         short_ranges: BTreeMap::new(),
         expected_nullable: None,
     };
+    builder.check_multi_root_plan_exclusivity()?;
     let entry = builder.body.block();
     builder.block = Some(entry);
     let unit_return = builder.is_unit(inputs.return_type);

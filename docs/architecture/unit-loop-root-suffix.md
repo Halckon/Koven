@@ -80,3 +80,9 @@ body不改guard的形状不能在true轮后自然终止，因此不声称该nati
 分别交给前端合同，核normal退休、false出口live/retired分区和完整suffix消费一致。
 比较通过各自catalog来源解析到同一boundary slot再替换，绝不跨catalog裸比较definition编号；
 保留实际消费顺序。这补齐零轮来源的消费合同必要条件，不构成运行时跨轮归纳或旧权限退休。
+
+新多根plan选择后、任何body构建前，显式拒绝与replace-break、open-return或header-return
+旧单根plan共存。真实矩阵确认这些旧plan不参与本产品；CI-only冲突负控仅远端执行。
+因此本次没有可据此删除的同合同旧witness：不能将原本未激活的旧plan宣称为已退休，
+也不能跳过通用入口或drop/SSA验证。该互斥只封闭混用不同合同的权限路径；实际CFG不符合
+可选审计范围时，仍保留原有合法lowering行为。

@@ -75,6 +75,34 @@ impl<'a> Plan<'a> {
     }
 }
 impl Builder<'_, '_> {
+    /// Before emitting effects, reject mixing distinct sealed owner contracts.
+    /// This does not replace generic admission, drop facts or the SSA verifier.
+    pub(super) fn check_multi_root_plan_exclusivity(&self) -> Result<(), LoweringError> {
+        let Some(plan) = &self.multi_root_plan else {
+            return Ok(());
+        };
+        let conflict = self.owner_plan.is_some()
+            || self.open_return_plan.is_some()
+            || self.header_return_plan.is_some();
+        #[cfg(test)]
+        let conflict = conflict
+            || owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ConflictingMultiRootAuthority,
+            );
+        if conflict {
+            return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+        }
+        // The plan is selected independently of the older single-root plans.
+        // Optional actual-CFG eligibility is still checked later at the while.
+        let _ = plan;
+        #[cfg(test)]
+        owner_consumer_test_support::record_action(
+            "multi-root-exclusive-plan",
+            plan.boundary.slots().len(),
+        );
+        Ok(())
+    }
+
     pub(super) fn multi_root_while(
         &mut self,
         statement: UnitStatementId,

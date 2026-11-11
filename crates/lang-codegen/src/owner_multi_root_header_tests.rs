@@ -80,6 +80,14 @@ fn multi_root_header_original_source_phi_and_cleanup_matrix() {
 
                     let (lowered, actions) =
                         crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+                    assert_eq!(
+                        actions
+                            .iter()
+                            .filter(|(kind, _)| *kind == "multi-root-exclusive-plan")
+                            .copied()
+                            .collect::<Vec<_>>(),
+                        [("multi-root-exclusive-plan", roots)]
+                    );
                     let (program, entry) = lowered.unwrap();
                     assert_eq!(
                         actions
@@ -365,6 +373,7 @@ fn ci_only_multi_root_actual_receipt_cannot_be_skipped_or_rebound() {
     let source = UnitSource::analyze("multi-root-receipt-fault.ko", &source(2, false, 2)).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::ConflictingMultiRootAuthority,
         OwnerFault::MissingMultiRootGeometry,
         OwnerFault::MissingMultiRootGuard,
         OwnerFault::WrongMultiRootRoot,
