@@ -48,7 +48,10 @@ pub(super) fn verify_return(
     let mut visited = BTreeSet::new();
     while visited.insert(current) {
         state.loans.remove(&current);
-        if current == parameter {
+        if dependencies
+            .flows
+            .uniquely_originates_from(current, parameter)
+        {
             return;
         }
         let Some(parent) = dependencies.parent_by_child.get(&current).copied() else {

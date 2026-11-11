@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod aliases;
 mod borrow_result;
+#[cfg(test)]
+mod borrow_return_transport_tests;
 mod closure;
 mod direct_fields;
 mod field_exchange;
@@ -1784,6 +1786,16 @@ impl LoanFlowAliases {
             }
         }
         Self { origins }
+    }
+
+    /// A transported block parameter must have exactly the declared entry origin.
+    /// An intersecting origin set is insufficient for a borrowed return contract.
+    fn uniquely_originates_from(&self, loan: LoanId, origin: LoanId) -> bool {
+        loan == origin
+            || self
+                .origins
+                .get(&loan)
+                .is_some_and(|origins| origins.len() == 1 && origins.contains(&origin))
     }
 
     fn equivalent(&self, loan: LoanId, origin: LoanId) -> bool {
