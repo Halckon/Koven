@@ -48,19 +48,27 @@ fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
             .find(|d| d.name() == "run")
             .unwrap();
         for (setting, owned) in [("on", &on), ("off", &off)] {
-            let ((result, routes), receipts) = crate::ssa::refine::forward_receipt::observe(|| {
-                crate::ssa::refine::observe_routing(|| {
-                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                        &sources,
-                        &inputs,
-                        &names,
-                        &types,
-                        &typed,
-                        owned,
-                        run.id(),
-                    )
-                })
-            });
+            let (((result, routes), receipts), verification) =
+                crate::ssa::unit_lower::observe_final_verifier(|| {
+                    crate::ssa::refine::forward_receipt::observe(|| {
+                        crate::ssa::refine::observe_routing(|| {
+                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                &sources,
+                                &inputs,
+                                &names,
+                                &types,
+                                &typed,
+                                owned,
+                                run.id(),
+                            )
+                        })
+                    })
+                });
+            assert_eq!(verification.len(), 1, "one original final verifier call");
+            println!(
+                "layout={layout}; observer={setting}; original_final_verifier={}",
+                verification[0]
+            );
             assert!(
                 receipts.is_empty(),
                 "branch remains outside expression receipt scope"
