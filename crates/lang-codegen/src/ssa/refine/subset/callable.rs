@@ -14,7 +14,10 @@ use lang_frontend::{
 };
 
 use super::{Checker, receiver::Owner};
-use crate::ssa::refine::{RefineBody, RefineCapture, RefineThunk};
+use crate::ssa::{
+    refine::{RefineBody, RefineCapture, RefineThunk},
+    unit_lower::strictly_contains,
+};
 
 impl Checker<'_, '_> {
     /// A lambda thunk body and its captured environment bindings.
@@ -90,32 +93,6 @@ impl Checker<'_, '_> {
             argument.payload(),
             Expression::Break { .. } | Expression::Continue { .. }
         )
-    }
-
-    /// A `break` or `continue` out of a function-value call argument (not inside a lambda in
-    /// it); a `return` or abort out of one lowers here.
-    fn argument_has_loop_jump(&self, argument: ExpressionId) -> bool {
-        let Ok(argument) = self.inputs.parsed.ast().expressions().get(argument) else {
-            return true;
-        };
-        let span = argument.span();
-        let expressions = self.inputs.parsed.ast().expressions();
-        expressions
-            .iter()
-            .filter(|(_, candidate)| {
-                span_contains(span, candidate.span())
-                    && matches!(
-                        candidate.payload(),
-                        Expression::Break { .. } | Expression::Continue { .. }
-                    )
-            })
-            .any(|(_, candidate)| {
-                !expressions.iter().any(|(_, boundary)| {
-                    matches!(boundary.payload(), Expression::Lambda { .. })
-                        && span_contains(span, boundary.span())
-                        && strictly_contains(boundary.span(), candidate.span())
-                })
-            })
     }
 
     /// The operand of a Borrow function parameter: a view parameter passed on, a local
@@ -973,14 +950,4 @@ impl Checker<'_, '_> {
             self.expression(value)
         })
     }
-}
-
-fn span_contains(outer: Span, inner: Span) -> bool {
-    outer.source_id() == inner.source_id()
-        && outer.start() <= inner.start()
-        && inner.end() <= outer.end()
-}
-
-fn strictly_contains(outer: Span, inner: Span) -> bool {
-    outer != inner && span_contains(outer, inner)
 }

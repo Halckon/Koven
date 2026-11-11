@@ -40,31 +40,6 @@ impl Checker<'_, '_> {
         self.span_requires_refine(scope)
     }
 
-    /// Returns true if any declaration or expression in the compilation unit uses a construct
-    /// that requires `ssa::refine`, enabling helper `borrow_return` and `carrier_return`
-    /// functions in refined units to lower through `ssa::refine`.
-    pub(super) fn unit_requires_refine(&self) -> bool {
-        if self.scope_requires_refine()
-            || !self.inputs.owned.field_replacements().is_empty()
-            || !self.inputs.typed.ownership_primitives().is_empty()
-        {
-            return true;
-        }
-        self.inputs
-            .parsed
-            .ast()
-            .expressions()
-            .iter()
-            .any(|(expr_id, node)| self.expr_requires_refine(expr_id, node.payload()))
-            || self
-                .inputs
-                .parsed
-                .ast()
-                .statements()
-                .iter()
-                .any(|(stmt_id, node)| self.stmt_requires_refine(stmt_id, node.payload()))
-    }
-
     fn span_requires_refine(&self, scope: Span) -> bool {
         self.inputs
             .parsed

@@ -1,11 +1,11 @@
-//! 普通 owned-unit 的受控兼容入口与已封闭交接；共享 raw-facts driver 保持私有。
-
 use lang_frontend::{
-    name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
-    ownership_checking::{
-        OwnedCompilationUnitView, OwnedCompilationUnitViewError, ValidatedCompilationUnitOwnership,
-        owned_compilation_unit_view,
-    },
+    name_resolution::DeclarationId,
+    ownership_checking::{OwnedCompilationUnitView, OwnedCompilationUnitViewError},
+};
+#[cfg(test)]
+use lang_frontend::{
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    ownership_checking::{ValidatedCompilationUnitOwnership, owned_compilation_unit_view},
     source::SourceMap,
     type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
 };
@@ -29,6 +29,7 @@ impl From<OwnedCompilationUnitViewError> for LoweringError {
 }
 
 /// 保留既有 scalar unit adapter；一次 factory 校验后进入封闭交接。
+#[cfg(test)]
 pub(crate) fn lower_scalar_unit_with_entry(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
