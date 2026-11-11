@@ -12227,3 +12227,24 @@ Abort/counter/pressure 均不本机执行。红实证与生产方案独审成立
 导入遮蔽 SSA model::LoanKind；这是测试编译错误，没有执行 ordinary exact，不是能力红。
 该阶段原 build JSON/stderr、输入表保留在上述证据根目录的 `causal-red/`；后继仅给
 frontend 枚举显式别名并重冻输入，新的构建/执行证据另存，不覆盖首次失败。
+
+#### 独立 live-source 因果红实证
+
+修正后的冻结输入 `015585de` 经 fresh 源码/helper 审、成功 no-run、原 artifact 与
+4262 输入/实际 binary/runner 绑定，仅执行上述唯一 ordinary exact：0 passed、1 failed、
+2952 filtered、exit101，精确停在测试130行新 handoff record 数量0≠1。Rooted/Memory
+两布局各 on/off 四次正常 lower、原 wrapper/caller SSA 核对、verifier、LLVM1389bytes，
+以及完整旧产品、SSA/LLVM一致性均已完成；实际routes均为view、wrap、run。新
+callable/source_begin后置尚未到达，不把缺记录之外的身份验证称已过。
+
+成功 no-run 外层66.23s、Cargo1m06s，默认opt0/debug2/test、LLVM21及仅support feature。
+输入SHA `f81bb988d2621d789aa33000804b9cbebc576204851eee094083ceaab720ca07`；
+红binary SHA `149aaae62237ea10cf506d3236d5853d327327d1a07a9ea9122998bac264710b`。
+执行后及覆盖前已经独立逐输入/实际binary终核；完整原件保留于证据根 `causal-red-fixed/`，
+旧编译错误与两原样probe原件仍独立保留，不重跑红或用后继green覆盖。
+
+后继scope只在真实表达式体入口一次建立：raw Name callee、唯一无命名/模式标记的
+raw Name Shared参数实参，无显式类型实参、receiver、Group、控制或额外调用。
+所有后继helper只能降级，不能重新从AST建立Some；scope与source_begin作为原子cause，
+完成scope丢失时一并失证。ValueState的owner私有穷尽解构只显式忽略此纯metadata，
+不添加owner资格条件；这不改原数据流或扩大控制认证。
