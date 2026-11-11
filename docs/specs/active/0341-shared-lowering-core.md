@@ -13104,3 +13104,26 @@ loan-observation-test-support。绑定4299 tracked输入，摘要
 本片不覆盖一般分支/循环/Abort、非该声明形状或分支后端receipt，不改变整source/callable
 Partial。24类CI-only只编译未运行；真实error/deferred全局原子撤销、逐字段状态污染与
 native尚未本片实测，不宣称完整故障覆盖或正式CI绿。未推送，后续合流须独立联合验收。
+
+### 参数化 Mixed owner 与分支局部覆盖合流验收（2026-11-11）
+
+隔离合流代码 `af3ae95d` 保留 owner `f4a3376e` 与借用 `318b8631` 双父，
+基线/#412 `d0f09db0` 及最新 main `95cecb86` 均在祖先链中；验收末再次核main未推进。
+唯一Spec双追加冲突两段保留，其余生产自动合并；原树及主树用户修改未动，未删除数据。
+
+32项普通exact均逐项名单唯一、实际1 passed：owner FE9/CG15，借用FE集成3/CG5。
+参数化Mixed的Basic/Const native按已审有限输入执行，含不同limit/threshold以及零与负
+threshold正常样例；不把有限运行当作一般循环或资源计数证明。Abort仅作SSA结构核验，
+CI-only仅编译，无故障/压力/全量执行。分支仅在窄形状内双路径局部Complete，整source/
+callable仍Partial，无新分支后端receipt，其他一般分支/循环或联合合同不宣称完成。
+
+完整新证据唯一保存于主仓忽略目录
+`.local-artifacts/parameter-coverage-integration-evidence-20261111`。4300个tracked输入
+与三份实际Cargo artifact、保存binary、runner、名单和原始日志绑定，执行前后输入及
+binary不变；opt0/debug2，FE lib默认，FE集成与CG显式loan support。旧借用binary副本
+先保全并核SHA，复用已释放target；不以父片结果或旧CI替代此次真实组合验证。
+
+默认及loan support两套FE/CG all-targets strict Clippy、默认workspace all-targets、
+默认CLI build与真实--help、fmt、docs893、相对95cecb86尺寸均通过；CLI features=[]。
+尺寸2437手写Rust、35历史超限，未提高额度。此末提交仅追加Spec，不改冻结Rust；
+未推送、未合main，无本组合正式CI结论，D10/E2继续保持进行中。
