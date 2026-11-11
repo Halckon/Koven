@@ -13556,3 +13556,23 @@ strict Clippy、fmt、docs897及diff通过。触及Rust文件均未达1000行，
 无新公开API或codegen变化，本片未追加workspace/native，未运行CI-only或远端CI。
 
 本片只读独立复审未发现当前三处single_for接线的语义回归；按审查收窄source归属措辞。
+
+### 真实 While 控制栈与活动事务路由（2026-11-11，本地）
+
+以ef2f161a为基础，While真实遍历入口/出口维护source-qualified ControlStack；内层
+退出先恢复父控制，再传播Result。活动Return、Break/Continue与开始采集均核当前control
+匹配原事务；栈无效或不平衡不得发布loop产品。重复进入同控制、跨source嵌套或错序退出
+将栈置为粘滞无效，不能靠后续pop恢复资格。下一callable重新初始化。
+
+f4a78fbf的空栈实现已真实编译并运行，nested父control应为外层却得到None，1 failed；
+实现后重新编译并实跑：嵌套正常/内层Continue/Break/Return与顺序循环的探针读取实际
+planner hook，不向生产状态回灌。退出后恢复外层、顺序循环不虚构parent，旧observer
+on/off完整产物等价。CI-only重复进入及错序退出粘滞负控已编译、未执行。
+
+普通60项通过：frontier4、normal17、closed18、open-return4、parameter5、replace-break8、
+qualified3、root模型1。FE all-target strict Clippy、LLVM21 workspace all-target check、
+fmt/docs897/diff通过。独立审查无阻断；Err恢复仅源码核实，未做本机故障注入。
+drop_planner.rs增长1657→1663仅字段和初始化接线，经独立尺寸复核仍属原职责，保留
+既有max_lines1669，不提高额度；控制栈算法留专用子模块。
+这是实际控制身份路由基础，仍只有原有单槽LoopTransaction，不发布一般多根incoming、
+嵌套owner运输或退休旧oracle；控制遍历轨迹也不等于运行时循环激活轨迹。

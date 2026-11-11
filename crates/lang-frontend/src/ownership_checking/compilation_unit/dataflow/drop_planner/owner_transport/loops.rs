@@ -433,7 +433,10 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         match &transaction.active {
-            Some((identity, boundary)) => (self.loop_boundaries.as_slice() == [*boundary]
+            Some((identity, boundary)) => (self.owner_controls.is_current(UnitStatementId::new(
+                self.checker.source_unit,
+                transaction.statement,
+            )) && self.loop_boundaries.as_slice() == [*boundary]
                 && self.scope_depth == boundary + 1
                 && transaction.completed.is_none()
                 && self.owner_observation.as_ref().is_some_and(|observation| {
@@ -441,7 +444,10 @@ impl DropPlanner<'_, '_> {
                         && std::sync::Arc::ptr_eq(identity, &observation.identity)
                 }))
             .then_some(true),
-            None => (self.loop_boundaries.is_empty() && self.scope_depth == 1).then_some(false),
+            None => (self.owner_controls.balanced()
+                && self.loop_boundaries.is_empty()
+                && self.scope_depth == 1)
+                .then_some(false),
         }
     }
     pub(in super::super) fn take_open_loop_return(
@@ -599,6 +605,10 @@ impl DropPlanner<'_, '_> {
             _ => return false,
         };
         expected == self.checker.unit_expression(id)
+            && self.owner_controls.is_current(UnitStatementId::new(
+                self.checker.source_unit,
+                transaction.statement,
+            ))
             && transaction.completed.is_none()
             && transaction.pending_jump.is_none()
             && self.loop_boundaries.as_slice() == [*boundary]
@@ -683,6 +693,9 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         let collecting = self.owner_observation_enabled
+            && self
+                .owner_controls
+                .is_current(UnitStatementId::new(self.checker.source_unit, id))
             && self.loop_boundaries.is_empty()
             && self.owner_branch_depth == 0
             && self.owner_loop.as_mut().is_some_and(|transaction| {

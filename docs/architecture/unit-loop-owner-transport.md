@@ -113,3 +113,8 @@ NormalInput的prefix、jump及body-completion采集使用私有`ControlRootFrame
 callable彼此不一致时不返回部分
 结果。查询核同一control ID，现有consumer继续只取唯一根。它不发布能力或证明owner callable属于该control/root及跨catalog
 归属，仍由现有HeaderEquation验证实际catalog与运输；未改成一般嵌套事务管理器。
+
+While遍历使用私有ControlStack保存当前control与父控制；进入/退出均来自实际planner
+调用，返回前恢复外层，再传播Result。现有活动Return、jump及采集路由要求当前control
+与事务一致；不平衡/非法栈不会发布loop产品。该栈只约束现有事务，不替代一般多根
+incoming表或嵌套owner合同；现阶段仍保留单槽LoopTransaction和旧准入边界。

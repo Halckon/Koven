@@ -36,6 +36,7 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let identity = std::sync::Arc::new(());
+        self.owner_controls = loops::ControlStack::default();
         self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
         self.owner_loop = loops::LoopTransaction::begin(self.checker, item, identity.clone());
         self.owner_branch_depth = 0;
@@ -60,6 +61,7 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
+        self.owner_controls = loops::ControlStack::default();
         self.owner_choice = None;
         self.owner_loop = None;
         self.owner_branch_depth = 0;
@@ -80,6 +82,10 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn finish_owner_observation(&mut self) {
+        // Unbalanced/invalid control entry cannot publish a sealed loop product.
+        if !self.owner_controls.balanced() {
+            self.owner_loop = None;
+        }
         let choice = self
             .owner_choice
             .take()
