@@ -116,6 +116,8 @@ impl DropPlanner<'_, '_> {
                     loan,
                     acquisition.as_ref(),
                     &state.values,
+                    &state.borrow_bindings,
+                    &state.borrow_binding_transports,
                 );
             }
             self.iteration_actions

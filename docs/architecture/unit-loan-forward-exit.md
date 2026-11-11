@@ -72,3 +72,10 @@ Drop固定先于序列，aux Drop仅最后一轮End之后。完整9+2n前端动�
 End/owner绑定，role0双owner冻结，后续append/alias维持全部身份；原verifier后
 原子发布，失败回滚，旧见证保留。见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#动态ba序列的真实后端收据实施中)。
+
+前置A的单B链另发布独立`interleaved_auxiliary_regions()`，总A1..8、B唯一。
+真实A返回前B时保存活source owner与原Unused binding transport的Begin/Handoff锚；
+后B时保存source实际retirement/Drop且确认binding义务已移除。按原声明事件顺序核
+全部9+2n记录，覆盖AB及aux先Drop的反转次序，不归一化为旧sourceDrop前缀。
+公开产品与Single/Sequence分流；本片只补FE证书，尚无Interleaved专属CG receipt。
+细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#单b前后辅助消费链的独立前端证书实施中)。

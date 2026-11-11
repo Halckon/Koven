@@ -88,6 +88,7 @@ fn recorded_with(
             consumer_statement: *statement,
         },
         expected: Some(Expected {
+            auxiliary_prefix_count: 0,
             later_uses: vec![(later_consumer.clone(), region.later_statement().unwrap())],
             later_consumer: later_consumer.clone(),
             later_statement: region.later_statement().unwrap(),
@@ -106,6 +107,7 @@ fn recorded_with(
         removed_source_owner: Some(owner),
         owner_events,
         later_return: Some(LaterReturn {
+            source_obligation: None,
             loan: later_consumer.clone(),
             begin: region.later_begin().unwrap(),
             cursor: region.later_return_cursor().unwrap(),
@@ -501,4 +503,106 @@ fn ci_only_single_cannot_be_republished_as_sequence() {
             .coverage(),
         UnitLoanActionCoverage::Complete
     );
+}
+
+fn recorded_interleaved(count: usize, prefix: usize) -> SequenceCapture {
+    let before = "consume(other);".repeat(prefix);
+    let after = "consume(other);".repeat(count - prefix);
+    let text = SOURCE.replace(
+        "consume(item); consume(other)",
+        &format!("{before} consume(item); {after}"),
+    );
+    SEQUENCE_CAPTURE.with(|slot| *slot.borrow_mut() = Some(None));
+    let fixture = Fixture::new(&[("interleaved-coverage.ko", &text)]);
+    let shared = fixture.shared();
+    assert_eq!(
+        shared.loan_action_observations()[0].interleaved_auxiliary_regions()[0].coverage(),
+        UnitLoanActionCoverage::Complete
+    );
+    SEQUENCE_CAPTURE
+        .with(|slot| slot.borrow_mut().take().flatten())
+        .expect("actual interleaved finish")
+}
+#[test]
+fn ci_only_interleaved_requires_actual_source_phase_and_original_transport() {
+    for (count, prefix) in [(1, 1), (2, 1), (2, 2), (8, 4), (8, 8)] {
+        let (original, identity, actions, relations) = recorded_interleaved(count, prefix);
+        assert_eq!(
+            original.coverage_for(Protocol::Interleaved, &identity, &actions, &relations),
+            UnitLoanActionCoverage::Complete
+        );
+        assert_ne!(
+            original.coverage_for(Protocol::Sequence, &identity, &actions, &relations),
+            UnitLoanActionCoverage::Complete
+        );
+        for fault in 0..18 {
+            let mut c = original.clone();
+            match fault {
+                0 => c.protocol = Protocol::Single,
+                1 => c.protocol = Protocol::Sequence,
+                2 => c.expected.as_mut().unwrap().auxiliary_prefix_count = 0,
+                3 => c.expected.as_mut().unwrap().auxiliary_prefix_count = count + 1,
+                4 => c.actual_returns[0].source_obligation = None,
+                5 => {
+                    if let Some(SourceObligation::Before { owner, .. }) =
+                        &mut c.actual_returns[0].source_obligation
+                    {
+                        owner.owner = None;
+                    }
+                }
+                6 => {
+                    if let Some(SourceObligation::Before { source_begin, .. }) =
+                        &mut c.actual_returns[0].source_obligation
+                    {
+                        source_begin.identity = Arc::new(());
+                    }
+                }
+                7 => {
+                    if let Some(SourceObligation::Before { handoff, .. }) =
+                        &mut c.actual_returns[0].source_obligation
+                    {
+                        handoff.index += 1;
+                    }
+                }
+                8 => {
+                    let (retirement, drop) = c.drop_link.clone().unwrap();
+                    c.actual_returns[0].source_obligation =
+                        Some(SourceObligation::After { retirement, drop });
+                }
+                9 => c.owner_events.swap(0, 1),
+                10 => c.removed_source_owner = None,
+                11 => c.removed_auxiliary_owner = None,
+                12 => c.auxiliary_drop_link.as_mut().unwrap().1.index += 1,
+                13 => c.drop_link.as_mut().unwrap().0.index += 1,
+                14 => c.return_drop_claimed = false,
+                15 => c.actual_returns[0].cursor += 1,
+                16 => c.actual_returns[0].owner = c.expected.as_ref().unwrap().source_owner.clone(),
+                _ => {
+                    c.actual_returns.remove(0);
+                }
+            }
+            assert_ne!(
+                c.coverage_for(Protocol::Interleaved, &identity, &actions, &relations),
+                UnitLoanActionCoverage::Complete,
+                "n={count} p={prefix} fault={fault}"
+            );
+        }
+        for index in original.start..original.end.unwrap() {
+            let mut corrupted = actions.clone();
+            corrupted.remove(index);
+            assert_ne!(
+                original.coverage_for(Protocol::Interleaved, &identity, &corrupted, &relations),
+                UnitLoanActionCoverage::Complete
+            );
+        }
+        if prefix < count {
+            let mut c = original.clone();
+            c.actual_returns[prefix].source_obligation =
+                c.actual_returns[0].source_obligation.clone();
+            assert_ne!(
+                c.coverage_for(Protocol::Interleaved, &identity, &actions, &relations),
+                UnitLoanActionCoverage::Complete
+            );
+        }
+    }
 }

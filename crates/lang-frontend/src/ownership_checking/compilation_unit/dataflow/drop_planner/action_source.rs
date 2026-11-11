@@ -583,9 +583,17 @@ impl ActionSource {
             .collect();
         let mut later_auxiliary_binding_regions = Vec::new();
         let mut auxiliary_sequence_regions = Vec::new();
+        let mut interleaved_auxiliary_regions = Vec::new();
         for region in self.later_auxiliary_binding_regions {
             use crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::Protocol;
             match region.protocol {
+                Protocol::Interleaved => {
+                    interleaved_auxiliary_regions.push(region.finish_interleaved(
+                        identity.clone(),
+                        &actions,
+                        &distinct_auxiliary_retirements,
+                    ))
+                }
                 Protocol::Sequence => auxiliary_sequence_regions.push(region.finish_sequence(
                     identity.clone(),
                     &actions,
@@ -632,6 +640,7 @@ impl ActionSource {
             distinct_auxiliary_binding_regions,
             later_auxiliary_binding_regions,
             auxiliary_sequence_regions,
+            interleaved_auxiliary_regions,
             auxiliary_binding_regions,
         }]
     }

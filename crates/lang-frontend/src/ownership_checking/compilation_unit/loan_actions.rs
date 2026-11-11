@@ -107,6 +107,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) interleaved_auxiliary_regions: Vec<super::UnitBorrowInterleavedAuxiliaryRegion>,
     pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
     pub(super) later_auxiliary_binding_regions: Vec<super::UnitBorrowLaterAuxiliaryBindingRegion>,
     pub(super) distinct_auxiliary_binding_regions:
@@ -229,6 +230,17 @@ impl UnitLoanActionObservation {
     }
 
     /// Independent bounded dynamic auxiliary-use sequence certificates.
+    pub fn interleaved_auxiliary_regions(&self) -> &[super::UnitBorrowInterleavedAuxiliaryRegion] {
+        &self.interleaved_auxiliary_regions
+    }
+    /// Whether the independent interval belongs to this exact catalog.
+    pub fn owns_interleaved_auxiliary_region(
+        &self,
+        region: &super::UnitBorrowInterleavedAuxiliaryRegion,
+    ) -> bool {
+        std::sync::Arc::ptr_eq(&self.identity, &region.interval.identity)
+    }
+    /// Bounded suffix-only auxiliary-use intervals.
     pub fn auxiliary_sequence_regions(&self) -> &[super::UnitBorrowAuxiliarySequenceRegion] {
         &self.auxiliary_sequence_regions
     }

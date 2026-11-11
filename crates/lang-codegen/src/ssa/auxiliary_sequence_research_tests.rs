@@ -18,13 +18,24 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
         }
     }
     assert_eq!(words.len(), 22);
-    for count in 2..=9 {
-        let word = format!("B{}", "A".repeat(count));
-        if !words.contains(&word) {
-            words.push(word);
+    // All 44 unique-binding positions within the A1..8 budget, plus all
+    // ten A9 positions. Keep the original multi-B words as negative evidence.
+    for count in 1..=9 {
+        for before in 0..=count {
+            let word = format!("{}B{}", "A".repeat(before), "A".repeat(count - before));
+            if !words.contains(&word) {
+                words.push(word);
+            }
         }
     }
-    assert_eq!(words.len(), 28);
+    assert_eq!(words.len(), 67);
+    assert_eq!(
+        words
+            .iter()
+            .filter(|word| word.bytes().filter(|c| *c == b'B').count() == 1 && word.len() <= 9)
+            .count(),
+        44
+    );
     for word in words {
         for source_index in 0..2 {
             let (parameters, arguments) = if source_index == 0 {
@@ -123,6 +134,75 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                     assert!(
                         matches!(actions.last().unwrap(),UnitLoanAction::Cleanup{action:lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(fact),..} if Some(fact.target())==region.auxiliary_root().map(lang_frontend::ownership_checking::UnitDropTarget::Named))
                     );
+                    assert!(catalog.later_auxiliary_binding_regions().is_empty());
+                    assert!(catalog.distinct_auxiliary_binding_regions().is_empty());
+                }
+
+                let a_count = word.bytes().filter(|c| *c == b'A').count();
+                let b_count = word.len() - a_count;
+                let prefix = word.find('B').unwrap();
+                let interleaved = catalog.interleaved_auxiliary_regions();
+                assert_eq!(
+                    interleaved.len(),
+                    usize::from(b_count == 1 && prefix > 0 && a_count <= 8)
+                );
+                if let [region] = interleaved {
+                    use lang_frontend::ownership_checking::UnitAuxiliarySourceState;
+                    assert!(catalog.owns_interleaved_auxiliary_region(region));
+                    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                    assert_eq!(region.binding_use_position(), prefix);
+                    assert_eq!(region.source_parameter(), Some(source_index));
+                    assert_eq!(region.uses().len(), a_count);
+                    let ids = region.action_ids().collect::<Vec<_>>();
+                    assert_eq!(ids.len(), 9 + 2 * a_count);
+                    let actions = ids
+                        .iter()
+                        .map(|id| catalog.action(id).unwrap())
+                        .collect::<Vec<_>>();
+                    let source_drop = actions.iter().position(|action| matches!(action,
+                        UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(fact), .. }
+                        if fact.target() == lang_frontend::ownership_checking::UnitDropTarget::Named(region.root()))).unwrap();
+                    let aux_drop = actions.iter().position(|action| matches!(action,
+                        UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(fact), .. }
+                        if Some(fact.target()) == region.auxiliary_root().map(lang_frontend::ownership_checking::UnitDropTarget::Named))).unwrap();
+                    assert_eq!(aux_drop < source_drop, prefix == a_count);
+                    for (j, used) in region.uses().iter().enumerate() {
+                        assert_eq!(Some(used.owner()), region.auxiliary_owner());
+                        let begin = ids.iter().position(|id| *id == used.begin()).unwrap();
+                        let end = ids.iter().position(|id| *id == used.end()).unwrap();
+                        assert_eq!(end, begin + 1);
+                        assert_eq!(actions[begin], &UnitLoanAction::Begin(used.loan().clone()));
+                        assert!(
+                            matches!(actions[end], UnitLoanAction::Cleanup { point, action: lang_frontend::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) }
+                            if loan == used.loan() && *point == lang_frontend::ownership_checking::UnitDropPoint::CallReturn(used.loan().call()))
+                        );
+                        if j > 0 {
+                            assert!(
+                                ids.iter()
+                                    .position(|id| *id == region.uses()[j - 1].end())
+                                    .unwrap()
+                                    < begin
+                            );
+                        }
+                        match used.source_state() {
+                            UnitAuxiliarySourceState::BeforeBinding {
+                                owner,
+                                source_begin,
+                                handoff,
+                            } => {
+                                assert!(j < prefix && end < source_drop);
+                                assert_eq!(Some(owner), region.source_owner());
+                                assert_eq!(*source_begin, ids[source_index]);
+                                assert_eq!(*handoff, ids[2]);
+                            }
+                            UnitAuxiliarySourceState::AfterBinding { retirement, drop } => {
+                                assert!(j >= prefix && source_drop < begin);
+                                assert_eq!(*drop, ids[source_drop]);
+                                assert_eq!(*retirement, ids[source_drop - 1]);
+                            }
+                        }
+                    }
+                    assert!(catalog.auxiliary_sequence_regions().is_empty());
                     assert!(catalog.later_auxiliary_binding_regions().is_empty());
                     assert!(catalog.distinct_auxiliary_binding_regions().is_empty());
                 }
@@ -411,6 +491,9 @@ fn check(program: &Program, entry: FunctionId, word: &str, source_index: usize) 
             assert!(places.insert(place), "each A has its own real RootPlace");
             let ended = end(*loan);
             assert!(last_a_end < place_index && begin_index < *index && *index < ended);
+            assert_eq!(begin_index, place_index + 1);
+            assert_eq!(*index, begin_index + 1);
+            assert_eq!(ended, *index + 1);
             last_a_end = ended;
         }
     }
@@ -419,7 +502,10 @@ fn check(program: &Program, entry: FunctionId, word: &str, source_index: usize) 
     let source_drop = drop(source_owner);
     let aux_drop = drop(aux_owner);
     assert!(last_b < result_end && result_end < source_end && source_end < source_drop);
-    assert!(last_a_end < aux_drop);
+    assert_eq!(result_end, last_b + 1);
+    assert_eq!(source_end, result_end + 1);
+    assert_eq!(source_drop, source_end + 1);
+    assert_eq!(aux_drop, last_a_end + 1);
     let a_last = word.rfind('A').unwrap();
     let b_last = word.rfind('B').unwrap();
     assert_eq!(aux_drop < source_drop, a_last < b_last);

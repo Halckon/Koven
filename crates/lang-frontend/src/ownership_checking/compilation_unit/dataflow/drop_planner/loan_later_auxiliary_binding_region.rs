@@ -1,4 +1,4 @@
-//! Exact two-owner prefix and bounded auxiliary-use suffix admission.
+//! Two-owner declaration plan with one binding use and bounded ordered auxiliary uses.
 use super::*;
 use crate::{
     name_resolution::SymbolKind,
@@ -22,6 +22,7 @@ struct Shape {
     auxiliary_argument: ExpressionId,
     consumer_argument: ExpressionId,
     later_uses: Vec<(ExpressionId, ExpressionId, UnitStatementId)>,
+    auxiliary_prefix_count: usize,
 }
 
 impl DropPlanner<'_, '_> {
@@ -41,6 +42,7 @@ impl DropPlanner<'_, '_> {
             shape.scope,
             expected,
             shape.later_uses.len(),
+            shape.auxiliary_prefix_count,
         );
     }
 
@@ -124,18 +126,12 @@ impl DropPlanner<'_, '_> {
             let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
                 return None;
             };
-            let [
-                first_owner,
-                second_owner,
-                binding_statement,
-                consumer_statement,
-                later_statements @ ..,
-            ] = elements.as_slice()
+            let [first_owner, second_owner, binding_statement, uses @ ..] = elements.as_slice()
             else {
                 return None;
             };
-            // Single and bounded sequences share admission, not completion evidence.
-            if !(1..=MAX_AUXILIARY_SEQUENCE_USES).contains(&later_statements.len())
+            // Exactly one binding consumer plus one to eight auxiliary consumers.
+            if !(2..=MAX_AUXILIARY_SEQUENCE_USES + 1).contains(&uses.len())
                 || *binding_statement != entry
             {
                 return None;
@@ -165,16 +161,7 @@ impl DropPlanner<'_, '_> {
             if owners[0].0 == owners[1].0 {
                 return None;
             }
-            let Statement::Expression {
-                expression: consumer_call,
-            } = ast.statements().get(*consumer_statement).ok()?.payload()
-            else {
-                return None;
-            };
-            let consumer_argument =
-                self.later_auxiliary_binding_region_operand(*consumer_call, 0, 1)?;
             let source_place = self.checker.place(source_argument).ok()??;
-            let consumer_place = self.checker.place(consumer_argument).ok()??;
             let auxiliary_place = self.checker.place(auxiliary_argument).ok()??;
             let root = source_place.root();
             if auxiliary_place == source_place
@@ -183,38 +170,47 @@ impl DropPlanner<'_, '_> {
                 || !owners.iter().any(|owner| owner.0 == auxiliary_place.root())
                 || auxiliary_argument == source_argument
                 || !source_place.is_root()
-                || !consumer_place.is_root()
-                || consumer_place.root() != binding
                 || owners.iter().any(|owner| owner.0 == binding)
             {
                 return None;
             }
             let statement = |id| UnitStatementId::new(self.checker.source_unit, id);
-            let later_uses = later_statements
-                .iter()
-                .map(|&later_statement| {
-                    let Statement::Expression { expression: call } =
-                        ast.statements().get(later_statement).ok()?.payload()
-                    else {
-                        return None;
-                    };
-                    let argument = self.later_auxiliary_binding_region_operand(*call, 0, 1)?;
-                    if self.checker.place(argument).ok()?? != auxiliary_place {
+            let mut later_uses = Vec::new();
+            let mut consumer = None;
+            for &use_statement in uses {
+                let Statement::Expression { expression: call } =
+                    ast.statements().get(use_statement).ok()?.payload()
+                else {
+                    return None;
+                };
+                let argument = self.later_auxiliary_binding_region_operand(*call, 0, 1)?;
+                let place = self.checker.place(argument).ok()??;
+                if place == auxiliary_place {
+                    later_uses.push((*call, argument, statement(use_statement)));
+                } else if place.is_root() && place.root() == binding {
+                    if consumer.is_some() {
                         return None;
                     }
-                    Some((*call, argument, statement(later_statement)))
-                })
-                .collect::<Option<Vec<_>>>()?;
+                    consumer = Some((*call, argument, use_statement, later_uses.len()));
+                } else {
+                    return None;
+                }
+            }
+            let (consumer_call, consumer_argument, consumer_statement, auxiliary_prefix_count) =
+                consumer?;
+            if !(1..=MAX_AUXILIARY_SEQUENCE_USES).contains(&later_uses.len()) {
+                return None;
+            }
             Some(Shape {
                 scope: Scope {
                     callable: UnitItemId::new(self.checker.source_unit, item),
                     binding,
                     root,
                     source_call: self.checker.unit_expression(*source_call),
-                    consumer_call: self.checker.unit_expression(*consumer_call),
+                    consumer_call: self.checker.unit_expression(consumer_call),
                     entry: statement(entry),
                     completion: statement(body),
-                    consumer_statement: statement(*consumer_statement),
+                    consumer_statement: statement(consumer_statement),
                 },
                 owners,
                 source_argument,
@@ -222,6 +218,7 @@ impl DropPlanner<'_, '_> {
                 auxiliary_argument,
                 consumer_argument,
                 later_uses,
+                auxiliary_prefix_count,
             })
         })
     }
@@ -371,6 +368,7 @@ impl DropPlanner<'_, '_> {
             later_consumer,
             later_statement,
             later_uses,
+            auxiliary_prefix_count: shape.auxiliary_prefix_count,
         })
     }
 

@@ -48,6 +48,10 @@ pub use loan_binding_actions::{UnitLoanBindingSourceRetirement, UnitLoanBindingU
 mod loan_actions;
 mod loan_auxiliary_retirement;
 mod loan_auxiliary_sequence_regions;
+mod loan_interleaved_auxiliary_regions;
+pub use loan_interleaved_auxiliary_regions::{
+    UnitAuxiliarySourceState, UnitBorrowInterleavedAuxiliaryRegion, UnitLoanInterleavedAuxiliaryUse,
+};
 mod loan_distinct_auxiliary_binding_region_validation;
 mod loan_distinct_auxiliary_binding_regions;
 mod loan_later_auxiliary_binding_region_validation;

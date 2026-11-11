@@ -25,6 +25,7 @@ impl ActionSource {
         scope: Scope,
         expected: Option<Expected>,
         declared_use_count: usize,
+        declared_prefix_count: usize,
     ) {
         if !self.enabled {
             return;
@@ -46,7 +47,7 @@ impl ActionSource {
         self.active_later_auxiliary_binding_region =
             Some(self.later_auxiliary_binding_regions.len());
         self.later_auxiliary_binding_regions.push(Candidate {
-            protocol: Protocol::from_count(declared_use_count),
+            protocol: Protocol::from_declaration(declared_use_count, declared_prefix_count),
             actual_returns: Vec::new(),
             scope,
             expected,
@@ -197,8 +198,10 @@ impl ActionSource {
         loan: &crate::ownership_checking::UnitLoanFact,
         acquisition: Option<&ActionHandle>,
         values: &[super::super::OwnedValue],
+        bindings: &[UnitSymbolId],
+        transports: &[super::super::borrow_binding_transport::PendingBindingTransport],
     ) {
-        use crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::LaterReturn;
+        use crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::{LaterReturn, SourceObligation};
         let Some(index) = self.active_later_auxiliary_binding_region else {
             return;
         };
@@ -243,25 +246,107 @@ impl ActionSource {
             || candidate.actual_returns.last() != candidate.later_return.as_ref()
             || candidate.return_drop_claimed
             || loan != planned
-            || candidate.start.checked_add(8 + 2 * next) != Some(begin.index)
+            || candidate.start.checked_add(expected.use_offset(next)) != Some(begin.index)
             || !std::sync::Arc::ptr_eq(&begin.identity, &self.identity)
             || begin.index.checked_add(1) != Some(self.records.len())
             || !matches!(self.records.get(begin.index), Some(super::Record::Begin(actual)) if actual == loan)
             || actual != expected.auxiliary_owner
-            || values.iter().any(|value| {
-                value.symbol == expected.source_owner.symbol
-                    || value.owner == expected.source_owner.owner
-            })
-            || candidate.removed_source_owner.as_ref() != Some(&expected.source_owner)
-            || candidate
-                .drop_link
-                .as_ref()
-                .is_none_or(|(_, drop)| drop.index >= begin.index)
         {
             candidate.ambiguous = true;
             return;
         }
+        let source_obligation = if candidate.protocol == Protocol::Interleaved
+            && next < expected.auxiliary_prefix_count
+        {
+            let live = values
+                .iter()
+                .filter(|v| v.symbol == expected.source_owner.symbol)
+                .collect::<Vec<_>>();
+            let [source] = live.as_slice() else {
+                candidate.ambiguous = true;
+                return;
+            };
+            let owner = OwnerSnapshot {
+                owner: source.owner.clone(),
+                symbol: source.symbol,
+                origin: source.origin,
+                declaration: source.declaration,
+                scope_depth: source.scope_depth,
+            };
+            let matching = transports
+                .iter()
+                .filter(|t| t.has_binding(candidate.scope.binding))
+                .collect::<Vec<_>>();
+            let [transport] = matching.as_slice() else {
+                candidate.ambiguous = true;
+                return;
+            };
+            let Some((source_begin, handoff)) =
+                transport.unused_obligation(candidate.scope.binding, &expected.source)
+            else {
+                candidate.ambiguous = true;
+                return;
+            };
+            if owner != expected.source_owner
+                || bindings
+                    .iter()
+                    .filter(|b| **b == candidate.scope.binding)
+                    .count()
+                    != 1
+                || candidate.removed_source_owner.is_some()
+                || candidate.drop_link.is_some()
+                || !std::sync::Arc::ptr_eq(&source_begin.identity, &self.identity)
+                || !std::sync::Arc::ptr_eq(&handoff.identity, &self.identity)
+                || Some(source_begin.index) != candidate.start.checked_add(expected.source_index)
+                || Some(handoff.index) != candidate.start.checked_add(2)
+            {
+                candidate.ambiguous = true;
+                return;
+            }
+            Some(SourceObligation::Before {
+                owner,
+                source_begin: UnitLoanActionId {
+                    identity: source_begin.identity,
+                    index: source_begin.index,
+                },
+                handoff: UnitLoanActionId {
+                    identity: handoff.identity,
+                    index: handoff.index,
+                },
+            })
+        } else {
+            if values.iter().any(|value| {
+                value.symbol == expected.source_owner.symbol
+                    || value.owner == expected.source_owner.owner
+            }) || candidate.removed_source_owner.as_ref() != Some(&expected.source_owner)
+                || candidate
+                    .drop_link
+                    .as_ref()
+                    .is_none_or(|(_, drop)| drop.index >= begin.index)
+                || (candidate.protocol == Protocol::Interleaved
+                    && (bindings.contains(&candidate.scope.binding)
+                        || transports
+                            .iter()
+                            .any(|t| t.has_binding(candidate.scope.binding))))
+            {
+                candidate.ambiguous = true;
+                return;
+            }
+            if candidate.protocol == Protocol::Interleaved {
+                let Some((retirement, drop)) = candidate.drop_link.as_ref() else {
+                    candidate.ambiguous = true;
+                    return;
+                };
+                Some(SourceObligation::After {
+                    retirement: retirement.clone(),
+                    drop: drop.clone(),
+                })
+            } else {
+                None
+            }
+        };
         let returned = LaterReturn {
+            source_obligation,
             loan: loan.clone(),
             begin: UnitLoanActionId {
                 identity: begin.identity.clone(),

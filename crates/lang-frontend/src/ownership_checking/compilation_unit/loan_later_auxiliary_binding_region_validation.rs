@@ -13,11 +13,24 @@ pub(super) const MAX_AUXILIARY_SEQUENCE_USES: usize = 8;
 pub(super) enum Protocol {
     Single,
     Sequence,
+    Interleaved,
     Unsupported,
 }
 impl Protocol {
     pub(super) fn from_expected(expected: Option<&Expected>) -> Self {
-        Self::from_count(expected.map_or(0, |e| e.later_uses.len()))
+        expected.map_or(Self::Unsupported, |e| {
+            Self::from_declaration(e.later_uses.len(), e.auxiliary_prefix_count)
+        })
+    }
+    pub(super) fn from_declaration(count: usize, prefix: usize) -> Self {
+        if prefix == 0 {
+            return Self::from_count(count);
+        }
+        if (1..=MAX_AUXILIARY_SEQUENCE_USES).contains(&count) && prefix <= count {
+            Self::Interleaved
+        } else {
+            Self::Unsupported
+        }
     }
     pub(super) fn from_count(count: usize) -> Self {
         match count {
@@ -30,6 +43,7 @@ impl Protocol {
 
 #[derive(Clone)]
 pub(super) struct Expected {
+    pub(super) auxiliary_prefix_count: usize,
     /// Verified positional parameter and chronological Begin offset, strictly 0 or 1.
     pub(super) later_uses: Vec<(UnitLoanFact, crate::type_checking::UnitStatementId)>,
     pub(super) later_consumer: UnitLoanFact,
@@ -42,8 +56,38 @@ pub(super) struct Expected {
     pub(super) auxiliary_owner: OwnerSnapshot,
 }
 
+/// Declaration-only offsets into the unfiltered record interval; never proof of execution.
+impl Expected {
+    pub(super) fn use_offset(&self, index: usize) -> usize {
+        if index < self.auxiliary_prefix_count {
+            3 + 2 * index
+        } else {
+            8 + 2 * index
+        }
+    }
+    fn binding_offset(&self) -> usize {
+        3 + 2 * self.auxiliary_prefix_count
+            + usize::from(self.auxiliary_prefix_count == self.later_uses.len())
+    }
+    fn auxiliary_drop_offset(&self) -> usize {
+        self.use_offset(self.later_uses.len() - 1) + 2
+    }
+}
+#[derive(Clone, PartialEq, Eq)]
+pub(super) enum SourceObligation {
+    Before {
+        owner: OwnerSnapshot,
+        source_begin: UnitLoanActionId,
+        handoff: UnitLoanActionId,
+    },
+    After {
+        retirement: UnitLoanActionId,
+        drop: UnitLoanActionId,
+    },
+}
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct LaterReturn {
+    pub(super) source_obligation: Option<SourceObligation>,
     pub(super) loan: UnitLoanFact,
     pub(super) begin: UnitLoanActionId,
     pub(super) cursor: usize,
@@ -113,7 +157,65 @@ impl Candidate {
         }
     }
 
-    fn interval(
+    pub(super) fn finish_interleaved(
+        self,
+        identity: Arc<()>,
+        actions: &[UnitLoanAction],
+        auxiliaries: &[UnitLoanDistinctAuxiliaryRetirement],
+    ) -> super::UnitBorrowInterleavedAuxiliaryRegion {
+        #[cfg(test)]
+        tests::record_sequence(&self, &identity, actions, auxiliaries);
+        let coverage = self.coverage_for(Protocol::Interleaved, &identity, actions, auxiliaries);
+        let prefix = self
+            .expected
+            .as_ref()
+            .map_or(0, |e| e.auxiliary_prefix_count);
+        let uses = if coverage == UnitLoanActionCoverage::Complete {
+            self.actual_returns
+                .iter()
+                .filter_map(|r| {
+                    let source_state = match r.source_obligation.as_ref()? {
+                        SourceObligation::Before {
+                            owner,
+                            source_begin,
+                            handoff,
+                        } => super::UnitAuxiliarySourceState::BeforeBinding {
+                            owner: owner.owner.clone()?,
+                            source_begin: source_begin.clone(),
+                            handoff: handoff.clone(),
+                        },
+                        SourceObligation::After { retirement, drop } => {
+                            super::UnitAuxiliarySourceState::AfterBinding {
+                                retirement: retirement.clone(),
+                                drop: drop.clone(),
+                            }
+                        }
+                    };
+                    Some(super::UnitLoanInterleavedAuxiliaryUse {
+                        actual: super::UnitLoanAuxiliarySequenceUse {
+                            loan: r.loan.clone(),
+                            begin: r.begin.clone(),
+                            end: UnitLoanActionId {
+                                identity: identity.clone(),
+                                index: r.cursor,
+                            },
+                            owner: r.owner.owner.clone()?,
+                        },
+                        source_state,
+                    })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        super::UnitBorrowInterleavedAuxiliaryRegion {
+            interval: self.interval(identity, coverage),
+            binding_use_position: prefix,
+            uses,
+        }
+    }
+
+    pub(super) fn interval(
         self,
         identity: Arc<()>,
         coverage: UnitLoanActionCoverage,
@@ -179,6 +281,7 @@ impl Candidate {
             return UnitLoanActionCoverage::Partial;
         }
         let count = expected.later_uses.len();
+        let binding_offset = expected.binding_offset();
         let Some(actions) = self.end.and_then(|end| all.get(self.start..end)) else {
             return UnitLoanActionCoverage::Partial;
         };
@@ -186,6 +289,11 @@ impl Candidate {
             UnitLoanAction::Begin(first),
             UnitLoanAction::Begin(second),
             UnitLoanAction::BorrowHandoffCommitted(handoff),
+        ] = actions.get(..3).unwrap_or_default()
+        else {
+            return UnitLoanActionCoverage::Partial;
+        };
+        let [
             UnitLoanAction::Begin(consumer),
             UnitLoanAction::BorrowBindingUseReturned(returned),
             UnitLoanAction::BorrowBindingEnd(binding_end),
@@ -194,7 +302,9 @@ impl Candidate {
                 point,
                 action: UnitIterationCleanupAction::Drop(drop),
             },
-        ] = actions.get(..8).unwrap_or_default()
+        ] = actions
+            .get(binding_offset..binding_offset + 5)
+            .unwrap_or_default()
         else {
             return UnitLoanActionCoverage::Partial;
         };
@@ -204,7 +314,7 @@ impl Candidate {
         let Some(UnitLoanAction::Cleanup {
             point: auxiliary_point,
             action: UnitIterationCleanupAction::Drop(auxiliary_drop),
-        }) = actions.last()
+        }) = actions.get(expected.auxiliary_drop_offset())
         else {
             return UnitLoanActionCoverage::Partial;
         };
@@ -229,7 +339,7 @@ impl Candidate {
             return UnitLoanActionCoverage::Partial;
         };
         let call_return = UnitDropPoint::CallReturn(expected.later_consumer.call());
-        let exact_owner_events = [
+        let mut exact_owner_events = [
             super::UnitOwnerTransportEvent::Drop {
                 point: end_point,
                 symbol: scope.root,
@@ -241,6 +351,9 @@ impl Candidate {
                 owner: auxiliary_owner.clone(),
             },
         ];
+        if expected.auxiliary_prefix_count == count {
+            exact_owner_events.swap(0, 1);
+        }
         let Some(later_return) = self.later_return.as_ref() else {
             return UnitLoanActionCoverage::Partial;
         };
@@ -250,7 +363,7 @@ impl Candidate {
             .zip(&self.actual_returns)
             .enumerate()
             .all(|(index, ((planned, statement), actual))| {
-                let offset = 8 + 2 * index;
+                let offset = expected.use_offset(index);
                 let [
                     UnitLoanAction::Begin(begin),
                     UnitLoanAction::Cleanup {
@@ -285,8 +398,31 @@ impl Candidate {
                     && id_at(Some(actual.begin.clone()), offset)
                     && self.start.checked_add(offset + 1) == Some(actual.cursor)
                     && actual.owner == expected.auxiliary_owner
+                    && match (&actual.source_obligation, protocol) {
+                        (
+                            Some(SourceObligation::Before {
+                                owner,
+                                source_begin,
+                                handoff,
+                            }),
+                            Protocol::Interleaved,
+                        ) if index < expected.auxiliary_prefix_count => {
+                            owner == &expected.source_owner
+                                && id_at(Some(source_begin.clone()), source_offset)
+                                && id_at(Some(handoff.clone()), 2)
+                        }
+                        (
+                            Some(SourceObligation::After { retirement, drop }),
+                            Protocol::Interleaved,
+                        ) if index >= expected.auxiliary_prefix_count => {
+                            id_at(Some(retirement.clone()), binding_offset + 3)
+                                && id_at(Some(drop.clone()), binding_offset + 4)
+                        }
+                        (None, Protocol::Single | Protocol::Sequence) => true,
+                        _ => false,
+                    }
             });
-        let last_begin = 8 + 2 * (count - 1);
+        let last_begin = expected.use_offset(count - 1);
         let valid = self.exit_empty
             && suffix_valid
             && id_at(Some(later_return.begin.clone()), last_begin)
@@ -298,7 +434,7 @@ impl Candidate {
                 .as_ref()
                 .is_some_and(|(begin, drop)| {
                     id_at(Some(begin.clone()), last_begin)
-                        && id_at(Some(drop.clone()), 8 + 2 * count)
+                        && id_at(Some(drop.clone()), expected.auxiliary_drop_offset())
                 })
             && self.owner_events == exact_owner_events
             && source_owner != auxiliary_owner
@@ -387,7 +523,7 @@ impl Candidate {
             && returned.loan() == consumer
             && id_at(returned.source_begin(), source_offset)
             && id_at(returned.handoff(), 2)
-            && id_at(returned.begin(), 3)
+            && id_at(returned.begin(), binding_offset)
             && binding_end.binding() == scope.binding
             && binding_end.point() == end_point
             && retired.transaction().binding() == scope.binding
@@ -395,10 +531,11 @@ impl Candidate {
             && retired.transaction().point() == end_point
             && id_at(retired.source_begin(), source_offset)
             && id_at(retired.handoff(), 2)
-            && id_at(retired.use_return(), 4)
-            && id_at(retired.binding_end(), 5)
+            && id_at(retired.use_return(), binding_offset + 1)
+            && id_at(retired.binding_end(), binding_offset + 2)
             && self.drop_link.as_ref().is_some_and(|(retirement, drop)| {
-                id_at(Some(retirement.clone()), 6) && id_at(Some(drop.clone()), 7)
+                id_at(Some(retirement.clone()), binding_offset + 3)
+                    && id_at(Some(drop.clone()), binding_offset + 4)
             })
             && *point == end_point
             && drop.point() == end_point

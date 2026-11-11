@@ -14563,3 +14563,36 @@ Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff�
 尺寸复测2582手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
 policy不改。build1012→1013仅独立Plans创建，经非作者职责review低于原1025，
 emit987不增长。FE及旧见证不变，无native全套/远端CI，仅本地提交未推送。
+
+#### 单B前后辅助消费链的独立前端证书（实施中）
+
+基于0c5cbf0f，新增独立AroundBinding资格：唯一B、总A1..8、至少一个A在B前。
+无前置A继续旧Single/Sequence，不双发；总A9或多B仅保持合法旧执行，不借用新证书。
+包括AB及全部A都在B前的aux先Drop情况，不套用原source Drop固定前缀。
+
+实际A返回分前B/后B相位：前B必须保存真实source owner和仍未使用的binding
+transport义务，其source_begin/handoff锚来自当前活跃pending；后B则要求binding
+及transport实际移除、source实际removed-owner/Drop因果完整。仅存两owner或最终
+空表不足以证明前B仍借出的source义务，因此只读扩capture到实际binding状态。
+
+按声明顺序的事件Vec核完整原记录，每次A独立Begin/正常End；末A才领取aux实际
+Drop，唯一B的返回/退休/source Drop独立闭合。aux Drop可在B之前或之后，必须以
+实际事件窗口和两removed-owner因果证明，不过滤/重编号动作套旧prefix8。CG本片
+不新增receipt；先真红绿，全44个预算内唯一B位置词、n9全10位置及多B边界实证。
+
+验收：AB的typed/raw/onoff成功后新region0!=1真红已转绿。FE普通9项通过，含36个
+新增前置A形状的literal事件顺序及source相位、21个预算/旧资格边界；CG普通84项
+通过，67词×source0/1×两入口×on/off共536组合，覆盖44个预算内唯一B位置、n9
+全10位置与13个多B词。新FE资格只在36个前置A形状产生，旧receipt仍仅对应原
+ASAP/Single/Sequence；合法旧执行及SSA/LLVM开关一致。
+
+新增只读Unused transport快照接口不参与原Eq/reconcile或语言状态。独立review确认
+前B唯一活owner/原pending锚、后B已移除binding/transport、全部原9+2n动作、两
+removed-owner与实际Drop及owner事件先后对证；预算先验后计算offset，不归一化
+剪裁旧前缀。现有10组加新1组CI-only（18故障×5边界形状及删除每原action）仅编译，
+未执行。Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff
+及文档897项通过；日志interleaved-*。无native全套或远端CI。
+
+尺寸复测2585手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
+超额文件/policy零改。compilation_unit1130→1134只独立产品/枚举导出，经职责审阅
+仍低于原1156。新Interleaved专属CG receipt未实施，旧见证保留；仅本地提交不推送。

@@ -46,6 +46,26 @@ impl PartialEq for PendingBindingTransport {
 }
 impl Eq for PendingBindingTransport {}
 impl PendingBindingTransport {
+    /// Read the real still-unused transport, never reconstruct it from a declaration.
+    pub(super) fn unused_obligation(
+        &self,
+        binding: UnitSymbolId,
+        source: &UnitLoanFact,
+    ) -> Option<(ActionHandle, ActionHandle)> {
+        if self.binding != binding
+            || &self.source != source
+            || !matches!(self.use_return, UseReturn::Unused)
+        {
+            return None;
+        }
+        let begin = self.source_begin.as_ref()?;
+        let handoff = self.handoff.as_ref()?;
+        Some((begin.clone(), handoff.clone()))
+    }
+    pub(super) fn has_binding(&self, binding: UnitSymbolId) -> bool {
+        self.binding == binding
+    }
+
     fn record_use(&mut self, handle: Option<ActionHandle>) {
         self.use_return = match (&self.use_return, handle) {
             (UseReturn::Unused, Some(handle)) => UseReturn::Unique(handle),
