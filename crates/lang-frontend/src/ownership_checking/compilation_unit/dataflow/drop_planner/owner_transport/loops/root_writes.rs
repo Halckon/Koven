@@ -184,7 +184,7 @@ impl DropPlanner<'_, '_> {
                             self.checker,
                             control,
                             &evidence.roots,
-                            &evidence.entry_definitions,
+                            evidence.entry_catalog.as_ref(),
                             evidence.entered_body,
                         );
                 }

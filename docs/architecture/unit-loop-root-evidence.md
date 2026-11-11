@@ -139,3 +139,9 @@ links及header候选。此事件指首次planner遍历，不代表运行时条�
 写根分别检查0/1/2/8次正常前缀：读完旧组后再整体替换、每个旧实例仅退休一次、当前实例
 未退休、新一轮实例与同producer旧轮次不同。该模型不执行Koven，不代表条件真值、实际
 运行次数或退出，只验证模型的有限自洽性；跨轮生产实现与归纳仍待完成。
+
+生产私有boundary现复用正式UnitOwnerProducerCatalogV1：入口保留原observation完整定义
+序列、catalog身份和callable，body catalog仅取实际完成的producer定义；双侧验证索引、
+来源、唯一性和逐token查找。不把live roots子集重编号，前缀已退休定义仍留在catalog，
+但不表示它们仍存活。真实回归在两根前增加已退休String，核live roots保留非零原索引。
+不合格catalog使token事务不建立（Closure前缀仍保守拒绝），普通回执和公开产品资格不变。

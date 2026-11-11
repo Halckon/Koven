@@ -29,6 +29,8 @@ pub(in super::super::super::super) struct RootBoundaryEquation {
     condition: UnitExpressionId,
     body: UnitStatementId,
     condition_binding: UnitSymbolId,
+    inputs: UnitOwnerProducerCatalogV1,
+    producers: UnitOwnerProducerCatalogV1,
     entry: RootIncoming,
     normal: RootIncoming,
     transfers: Vec<RootTransferSlot>,
@@ -74,6 +76,12 @@ impl RootBoundaryEquation {
         (control == self.control()).then_some(self.transfers.as_slice())
     }
 
+    pub(in super::super::super::super) fn catalogs(
+        &self,
+    ) -> (&UnitOwnerProducerCatalogV1, &UnitOwnerProducerCatalogV1) {
+        (&self.inputs, &self.producers)
+    }
+
     /// Real AST/reference identities; no condition outcome or activation count.
     pub(in super::super::super::super) fn sites(
         &self,
@@ -89,7 +97,17 @@ impl RootBoundaryEquation {
             return false;
         };
         let (condition, body, binding) = self.sites();
-        condition.source_unit() == self.control.source_unit()
+        let (inputs, producers) = self.catalogs();
+        inputs.is_consistent()
+            && producers.is_consistent()
+            && inputs.callable() == producers.callable()
+            && entry
+                .iter()
+                .all(|(_, owner)| inputs.definition(owner.clone()).is_some())
+            && normal
+                .iter()
+                .all(|(_, owner)| producers.definition(owner.clone()).is_some())
+            && condition.source_unit() == self.control.source_unit()
             && body.source_unit() == self.control.source_unit()
             && binding.source_unit() == self.control.source_unit()
             && entry.iter().all(|(root, _)| *root != binding)
@@ -123,7 +141,7 @@ pub(in super::super) struct RootTokenTransaction {
     callable: UnitOwnerCallable,
     roots: RootIncoming,
     initial_roots: RootIncoming,
-    entry_definitions: Vec<UnitOwnerDefinition>,
+    input_catalog: UnitOwnerProducerCatalogV1,
     planned: Vec<(UnitExpressionId, UnitSymbolId, UnitExpressionId)>,
     definitions: Vec<UnitOwnerDefinition>,
     bindings: Vec<(UnitSymbolId, UnitStatementId)>,
@@ -153,13 +171,9 @@ impl RootTokenTransaction {
         if !self.is_complete()
             || entry.len() != self.roots.len()
             || self.definitions.len() != self.roots.len()
-            || entry.iter().any(|(_, old)| {
-                self.entry_definitions
-                    .iter()
-                    .filter(|definition| definition.id == *old)
-                    .count()
-                    != 1
-            })
+            || entry
+                .iter()
+                .any(|(_, old)| self.input_catalog.definition(old.clone()).is_none())
             || self.definitions.iter().any(|definition| {
                 self.roots
                     .iter()
@@ -202,6 +216,12 @@ impl RootTokenTransaction {
             condition: self.condition,
             body: self.body,
             condition_binding: self.condition_binding,
+            inputs: self.input_catalog.clone(),
+            producers: UnitOwnerProducerCatalogV1 {
+                identity: self.identity.clone(),
+                callable: self.callable,
+                definitions: self.definitions.clone(),
+            },
             entry: entry.clone(),
             normal: self.roots.clone(),
             transfers,
@@ -218,18 +238,15 @@ impl RootTokenTransaction {
         checker: &Checker<'_>,
         control: UnitStatementId,
         roots: &RootIncoming,
-        entry_definitions: &[UnitOwnerDefinition],
+        entry_catalog: Option<&UnitOwnerProducerCatalogV1>,
         entered_body: Option<(UnitExpressionId, UnitStatementId)>,
     ) -> Option<Self> {
-        if roots.len() < 2
-            || entry_definitions.len() != roots.len()
-            || roots.iter().any(|(_, owner)| {
-                entry_definitions
-                    .iter()
-                    .filter(|definition| definition.id == *owner)
-                    .count()
-                    != 1
-            })
+        let input_catalog = entry_catalog?;
+        if !input_catalog.is_consistent()
+            || roots.len() < 2
+            || roots
+                .iter()
+                .any(|(_, owner)| input_catalog.definition(owner.clone()).is_none())
         {
             return None;
         }
@@ -316,7 +333,7 @@ impl RootTokenTransaction {
             callable,
             roots: roots.clone(),
             initial_roots: roots.clone(),
-            entry_definitions: entry_definitions.to_vec(),
+            input_catalog: input_catalog.clone(),
             planned,
             definitions: Vec::new(),
             bindings,
@@ -388,13 +405,7 @@ impl RootTokenTransaction {
             }
             let index = self.roots.iter().position(|(known, _)| *known == root)?;
             let old = self.roots[index].1.clone();
-            if !self
-                .entry_definitions
-                .iter()
-                .any(|definition| definition.id == old)
-            {
-                return None;
-            }
+            self.input_catalog.definition(old.clone())?;
             let new = definition.id.clone();
             if old == new {
                 return None;

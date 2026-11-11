@@ -13774,3 +13774,14 @@ all-target check及fmt/diff通过。只读复审未发现catalog错配或退化�
 最终FE lib657通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
 all-target check及fmt/diff通过。复审建议的非空/等长及退休definition断言已补齐，模型
 作用域采用独立身份且clone稳定。普通有限模型已本地执行；CI-only故障注入仍未本机执行。
+
+### 正式 producer catalog 的私有产品接线（2026-11-11，本地）
+
+基于8e196095，将入口完整原catalog及真实body定义catalog接入sealed boundary，复用
+既有UnitOwnerProducerCatalogV1一致性与精确token查找；不将根子集改号，不推断历史定义
+仍活。真实矩阵补前缀已退休String，验证live roots仍保留原非零index及完整三定义catalog。
+该生产接线未新增公开header消费能力，也不将catalog验证等同于跨轮运输证明。
+
+最终FE lib657通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check、fmt/diff、docs898及Rust尺寸2467文件/35项旧债通过。复审无阻断，
+提示的历史定义非存活集合与Closure保守边界已明确；CI-only未执行，不推送。

@@ -1,5 +1,6 @@
 //! Actual root entry capture, distinct from a backedge/header equation.
 use super::*;
+use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 #[cfg(test)]
 pub(in super::super) use root_tokens::StaticRootPredecessor;
 pub(super) mod root_tokens;
@@ -11,7 +12,7 @@ pub(super) type RootRetirements = Vec<(
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
     normal_equation: Option<root_tokens::RootBoundaryEquation>,
-    pub(super) entry_definitions: Vec<UnitOwnerDefinition>,
+    pub(super) entry_catalog: Option<UnitOwnerProducerCatalogV1>,
     pub(super) token_transaction: Option<root_tokens::RootTokenTransaction>,
     pub(super) roots: RootIncoming,
     pub(super) completed_strings: Vec<(UnitExpressionId, Vec<(UnitExpressionId, usize)>)>,
@@ -29,7 +30,7 @@ impl RootEvidence {
     pub(super) fn fault_fixture(roots: RootIncoming, writes: Vec<RootWriteReceipt>) -> Self {
         Self {
             normal_equation: None,
-            entry_definitions: Vec::new(),
+            entry_catalog: None,
             token_transaction: None,
             roots,
             writes,
@@ -205,18 +206,23 @@ impl ControlTransactions {
         let Some(roots) = capture(control, state, observation) else {
             return;
         };
-        let Some(entry_definitions) = roots
-            .iter()
-            .map(|(_, owner)| observation?.definition(owner.clone()).cloned())
-            .collect::<Option<Vec<_>>>()
-        else {
-            return;
-        };
+        let entry_catalog = observation.and_then(|observation| {
+            let catalog = UnitOwnerProducerCatalogV1 {
+                identity: observation.identity.clone(),
+                callable: observation.callable,
+                definitions: observation.definitions.clone(),
+            };
+            (catalog.is_consistent()
+                && roots
+                    .iter()
+                    .all(|(_, owner)| catalog.definition(owner.clone()).is_some()))
+            .then_some(catalog)
+        });
         self.root_entries.push((
             control,
             RootEvidence {
                 normal_equation: None,
-                entry_definitions,
+                entry_catalog,
                 token_transaction: None,
                 roots,
                 completed_strings: Vec::new(),
