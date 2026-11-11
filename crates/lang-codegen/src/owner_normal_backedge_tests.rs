@@ -131,3 +131,71 @@ fn normal_backedge_requires_actual_header_return_authority() {
     );
     assert_eq!(receipt.1, receipt.2);
 }
+
+#[test]
+fn normal_backedge_both_units_authorize_current_header() {
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                SOURCE.replace("run(true)", "run(ON)")
+            )
+        } else {
+            SOURCE.to_owned()
+        };
+        let source = UnitSource::analyze("normal-backedge-dual.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        let (lowered, receipts) =
+            crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let [receipt] = receipts.as_slice() else {
+            panic!("one real header Return");
+        };
+        assert!(receipt.2.is_some());
+        assert_eq!(receipt.1, receipt.2);
+    }
+}
+
+#[test]
+fn normal_backedge_native_preserves_zero_and_one_iteration() {
+    let text = SOURCE.replace(
+        "val first = run(false); val second = run(true)",
+        "val first = run(false); println(first); val second = run(true); println(second)",
+    );
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                text.replace("run(true)", "run(ON)")
+            )
+        } else {
+            text.clone()
+        };
+        let source = UnitSource::analyze("normal-backedge-native.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        super::assert_native_output(&source, b"outer\nnext\n");
+    }
+}
+
+#[test]
+fn ci_only_normal_backedge_rejects_extra_header_definition() {
+    let source = UnitSource::analyze("normal-backedge-extra-definition.ko", SOURCE).unwrap();
+    source.assert_frontend_clean();
+    let result = crate::ssa::with_owner_fault(crate::ssa::OwnerFault::ExtraHeaderAlias, || {
+        source.lower_entry(source.entry())
+    });
+    assert!(
+        result.is_err(),
+        "a hidden H redefinition must not receive header Return authority"
+    );
+}

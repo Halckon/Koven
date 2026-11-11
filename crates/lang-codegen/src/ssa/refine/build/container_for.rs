@@ -63,6 +63,13 @@ impl Builder<'_, '_> {
         let body_block = self.body.block();
         let finished = self.body.block();
         let exit = self.body.block();
+        self.header_while(
+            statement,
+            self.unit(condition),
+            UnitStatementId::new(self.inputs.source_unit, loop_body),
+            [header, body_block, finished, exit],
+            span,
+        )?;
         self.open_loop_while(
             statement,
             self.unit(condition),

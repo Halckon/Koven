@@ -331,6 +331,7 @@ impl Builder<'_, '_> {
         slot: Slot,
     ) -> Result<(), LoweringError> {
         self.open_loop_result(expression, slot)?;
+        self.header_result(expression, slot)?;
         if let Some(plan) = &mut self.owner_plan {
             if let Some(replacement) = &mut plan.return_replacement
                 && expression == replacement.argument
@@ -355,6 +356,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Slot, LoweringError> {
         let unit = self.unit(expression);
+        if let Some(slot) = self.header_name(unit, span)? {
+            return Ok(slot);
+        }
         if let Some(slot) = self.open_loop_name(unit, span)? {
             return Ok(slot);
         }
@@ -456,6 +460,7 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.open_loop_binding(initializer, symbol, value, span)?;
+        self.header_binding(initializer, symbol, value, span)?;
         let Some(plan) = &self.owner_plan else {
             return Ok(());
         };
@@ -488,6 +493,7 @@ impl Builder<'_, '_> {
 
     pub(super) fn owner_binding_emitted(&mut self, symbol: UnitSymbolId, binding: Slot) {
         self.open_loop_binding_emitted(symbol, binding);
+        self.header_binding_emitted(symbol, binding);
         if let Some(plan) = &mut self.owner_plan {
             if symbol == plan.root {
                 plan.root_slot = Some(binding);
@@ -549,6 +555,7 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.open_loop_replace(call, root, replacement, span)?;
+        self.header_replace(call, root, replacement, span)?;
         if self.authorize_return_replace(call, root, replacement, span)? {
             return Ok(());
         }
@@ -715,6 +722,7 @@ impl Builder<'_, '_> {
 
     pub(super) fn finish_owner_plan(&self) -> Result<(), LoweringError> {
         self.finish_open_loop_return()?;
+        self.finish_header_return()?;
         if let Some(plan) = &self.owner_plan
             && (plan.stage != 3
                 || plan
