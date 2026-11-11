@@ -232,3 +232,44 @@ fn control_transaction_registry_isolates_real_callable_controls_and_restores_pre
         assert!(first.selected().is_none());
     });
 }
+
+#[test]
+fn actual_multi_root_entry_preserves_correlated_catalog_owners() {
+    let fixture = Fixture::new(&[("multi-root-entry.ko", TWO_ROOTS)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let entry = planner
+            .owner_control_probe
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|v| v.entering)
+            .unwrap();
+        let roots = entry
+            .incoming_roots
+            .as_ref()
+            .expect("actual two-root incoming capture");
+        assert_eq!(roots.len(), 2);
+        assert_ne!(roots[0].0, roots[1].0);
+        assert_ne!(roots[0].1, roots[1].1);
+        assert_eq!(roots[0].1.callable, roots[1].1.callable);
+        assert!(std::sync::Arc::ptr_eq(
+            &roots[0].1.identity,
+            &roots[1].1.identity
+        ));
+        assert!(
+            roots
+                .iter()
+                .all(|(root, _)| root.source_unit() == entry.control.source_unit())
+        );
+    });
+    assert_frontier(TWO_ROOTS);
+}

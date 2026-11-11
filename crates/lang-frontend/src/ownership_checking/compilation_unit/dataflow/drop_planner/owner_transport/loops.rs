@@ -10,6 +10,7 @@ mod invariant;
 mod normal_backedge;
 mod replace_break;
 mod root_frame;
+mod root_incoming;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
@@ -692,6 +693,8 @@ impl DropPlanner<'_, '_> {
         let entered = self.owner_controls.enter(control);
         if entered {
             self.owner_loop.select(Some(control));
+            self.owner_loop
+                .record_root_entry(control, state, self.owner_observation.as_ref());
         } else {
             self.owner_loop.clear();
         }
@@ -702,6 +705,7 @@ impl DropPlanner<'_, '_> {
                 control,
                 parent,
                 closed_product: None,
+                incoming_roots: self.owner_loop.root_entry(control).map(<[_]>::to_vec),
             });
         }
         let result = self.owner_while_statement_scoped(id, condition, body, state);
@@ -718,6 +722,7 @@ impl DropPlanner<'_, '_> {
                 control,
                 parent: self.owner_controls.current(),
                 closed_product,
+                incoming_roots: None,
             });
         }
         result
