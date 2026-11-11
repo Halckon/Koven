@@ -345,6 +345,24 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
             planner.owner_control_probe = Some(Vec::new());
             let planner = planner.run().unwrap();
             let visits = planner.owner_control_probe.as_ref().unwrap();
+            let published_rule = owned
+                .owner_observations()
+                .iter()
+                .find_map(|observation| observation.multi_root_normal_transport_v1());
+            assert_eq!(published_rule.is_some(), admitted, "{text}");
+            if let Some(rule) = published_rule {
+                assert!(rule.is_consistent());
+                assert_eq!(rule.steps().len(), visits[1].root_writes.len());
+                for (step, write) in rule.steps().iter().zip(&visits[1].root_writes) {
+                    assert_eq!(step.call(), write.call);
+                    assert_eq!(step.header_root(), write.root);
+                    assert_eq!(
+                        step.returned_value_drop(),
+                        write.token_retirement.as_ref().unwrap().1
+                    );
+                }
+                assert_eq!(rule.normal_outputs().len(), 2);
+            }
             let vector = &visits[1].normal_write_vector;
             assert_eq!(vector.is_some(), admitted, "{text}");
             assert_eq!(visits[1].normal_equation.is_some(), admitted, "{text}");

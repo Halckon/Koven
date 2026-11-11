@@ -161,3 +161,19 @@ deferred清除边界。旧产品getters也反向拒绝混入此产品，不能�
 及完整catalog定义，拒绝同source错换、交叉配对和外来analysis。CI-only负控仅远端执行。
 manifest只检查封存后的关联不变，原CFG事实仍来自唯一已验证RootBoundaryEquation转换；
 seal不能视作自由拼装事实的证明器，后续新增构造调用须另审来源完整性。
+
+### 受限正常 body 的参数化运输规则
+
+独立`multi_root_normal_transport_v1()`现返回线性、每根一次直接String Replace的正常body
+规则。生产校验器以`Header(root)`形式义务初始化根，按真实声明/primitive调用顺序验证
+producer→替换当前header→返回binding/drop；每个Header恰消费一次，输出全为已完成的
+独立producer定义。不是用固定入口P假充每轮旧值，也不是有限执行次数测试替代证明。
+
+其来源仍是精确无额外语句/分支的typed body、纯Boolean Name条件、真实完成和消费hook，
+以及入口/正常末资源形状。formal checker验证该正常转移的参数化守恒；String实际每次
+成功构造产生新实例由语言语义及后端负责。本片不实现整体循环入口/回边phi、退出合流、
+Abort/Return消费、下游lowering或一般跨轮闭合，不得作为这些能力使用。
+
+boundary保留真实事务的有序call/root/producer/drop清单，附接规则须精确一致；同source
+改call或重排重seal的规则不能附接，且不可覆盖既有清单。manifest锁定原构造，不是独立
+CFG证明，唯一typed事务来源必须保留。真实逆序root矩阵验证规则保留声明顺序而非入口顺序。

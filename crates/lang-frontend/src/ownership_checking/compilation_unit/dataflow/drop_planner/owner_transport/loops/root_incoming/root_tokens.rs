@@ -34,6 +34,8 @@ pub(in super::super::super::super) struct RootBoundaryEquation {
     entry: RootIncoming,
     normal: RootIncoming,
     transfers: Vec<RootTransferSlot>,
+    normal_transport: crate::ownership_checking::UnitOwnerMultiRootNormalTransportV1,
+    actual_steps: Vec<crate::ownership_checking::UnitOwnerRootReplaceStepV1>,
 }
 impl RootBoundaryEquation {
     pub(in super::super) fn into_boundary(
@@ -65,7 +67,8 @@ impl RootBoundaryEquation {
             self.inputs,
             self.producers,
             slots,
-        )
+        )?
+        .with_normal_transport(self.normal_transport, self.actual_steps)
     }
 
     pub(in super::super::super::super) fn control(&self) -> UnitStatementId {
@@ -243,17 +246,41 @@ impl RootTokenTransaction {
                 retired_through: *fact,
             });
         }
+        let producers = UnitOwnerProducerCatalogV1 {
+            identity: self.identity.clone(),
+            callable: self.callable,
+            definitions: self.definitions.clone(),
+        };
+        let steps = self
+            .planned
+            .iter()
+            .enumerate()
+            .map(|(index, (call, root, _))| {
+                Some(crate::ownership_checking::UnitOwnerRootReplaceStepV1 {
+                    call: *call,
+                    root: *root,
+                    producer: self.definitions.get(index)?.id.clone(),
+                    retired_result: self.consumed.get(index)?.1,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let actual_steps = steps.clone();
+        let normal_transport =
+            crate::ownership_checking::UnitOwnerMultiRootNormalTransportV1::seal(
+                self.control,
+                entry.iter().map(|(root, _)| *root).collect(),
+                producers.clone(),
+                steps,
+            )?;
         let equation = RootBoundaryEquation {
             control: self.control,
             condition: self.condition,
             body: self.body,
             condition_binding: self.condition_binding,
             inputs: self.input_catalog.clone(),
-            producers: UnitOwnerProducerCatalogV1 {
-                identity: self.identity.clone(),
-                callable: self.callable,
-                definitions: self.definitions.clone(),
-            },
+            producers,
+            normal_transport,
+            actual_steps,
             entry: entry.clone(),
             normal: self.roots.clone(),
             transfers,

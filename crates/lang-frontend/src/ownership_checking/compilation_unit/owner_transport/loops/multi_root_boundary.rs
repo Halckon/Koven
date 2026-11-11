@@ -49,6 +49,7 @@ pub struct UnitOwnerMultiRootBoundaryV1 {
     producers: UnitOwnerProducerCatalogV1,
     slots: Vec<UnitOwnerRootBoundarySlotV1>,
     manifest: BoundaryManifest,
+    normal_transport: Option<UnitOwnerMultiRootNormalTransportV1>,
 }
 // Original evidence map is private to this module, independent from exposed slot clones.
 #[derive(Clone, Debug)]
@@ -62,6 +63,7 @@ struct BoundaryManifest {
     slots: Vec<UnitOwnerRootBoundarySlotV1>,
     inputs: Vec<crate::ownership_checking::UnitOwnerDefinition>,
     producers: Vec<crate::ownership_checking::UnitOwnerDefinition>,
+    normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
 }
 impl UnitOwnerMultiRootBoundaryV1 {
     // Trusted factory: only the validated planner RootBoundaryEquation calls this.
@@ -80,6 +82,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             slots: slots.clone(),
             inputs: inputs.definitions().to_vec(),
             producers: producers.definitions().to_vec(),
+            normal_steps: None,
         };
         let value = Self {
             control,
@@ -90,9 +93,54 @@ impl UnitOwnerMultiRootBoundaryV1 {
             producers,
             slots,
             manifest,
+            normal_transport: None,
         };
         value.is_consistent().then_some(value)
     }
+    pub(in crate::ownership_checking::compilation_unit) fn with_normal_transport(
+        mut self,
+        rule: UnitOwnerMultiRootNormalTransportV1,
+        actual_steps: Vec<UnitOwnerRootReplaceStepV1>,
+    ) -> Option<Self> {
+        if self.normal_transport.is_some() || self.manifest.normal_steps.is_some() {
+            return None;
+        }
+        self.manifest.normal_steps = Some(actual_steps);
+        self.normal_transport = Some(rule);
+        self.is_consistent().then_some(self)
+    }
+    pub(super) fn normal_transport(&self) -> Option<&UnitOwnerMultiRootNormalTransportV1> {
+        self.normal_transport.as_ref()
+    }
+    fn matches_normal_transport(&self) -> bool {
+        if self.normal_transport.is_none() {
+            return self.manifest.normal_steps.is_none();
+        }
+        self.normal_transport.as_ref().is_some_and(|rule| {
+            self.manifest.normal_steps.as_deref() == Some(rule.steps())
+                && rule.is_consistent()
+                && rule.statement() == self.control
+                && rule.header_roots().len() == self.slots.len()
+                && rule
+                    .header_roots()
+                    .iter()
+                    .zip(&self.slots)
+                    .all(|(root, slot)| *root == slot.root)
+                && rule
+                    .normal_outputs()
+                    .iter()
+                    .zip(&self.slots)
+                    .all(|((root, owner), slot)| *root == slot.root && *owner == slot.normal)
+                && rule.steps().iter().all(|step| {
+                    self.slots.iter().any(|slot| {
+                        slot.root == step.header_root()
+                            && slot.normal == step.producer()
+                            && slot.retirement == step.returned_value_drop()
+                    })
+                })
+        })
+    }
+
     /// Actual While control statement.
     pub fn statement(&self) -> UnitStatementId {
         self.control
@@ -124,7 +172,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
     /// Structural/catalog verification, not an induction or runtime trace validator.
     pub fn is_consistent(&self) -> bool {
         let source = self.control.source_unit();
-        self.manifest.sites == (self.control, self.condition, self.body, self.guard)
+        self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
             && self.manifest.slots == self.slots
             && self.manifest.inputs == self.inputs.definitions()
             && self.manifest.producers == self.producers.definitions()
@@ -183,6 +231,12 @@ mod tests {
         let observation = &owned.owner_observations()[0];
         let boundary = observation.multi_root_boundary_v1().expect("boundary only");
         assert!(boundary.is_consistent());
+        assert!(
+            observation
+                .multi_root_normal_transport_v1()
+                .unwrap()
+                .is_consistent()
+        );
         assert_eq!(boundary.slots().len(), 2);
         assert_eq!(boundary.input_catalog().definitions().len(), 3);
         assert_eq!(boundary.body_catalog().definitions().len(), 2);
@@ -242,6 +296,31 @@ mod tests {
             _ => panic!("binding"),
         };
         assert!(!wrong_guard.is_consistent());
+        let actual_rule = boundary.normal_transport().unwrap();
+        let mut reordered_steps = actual_rule.steps().to_vec();
+        reordered_steps.reverse();
+        let reordered_rule = UnitOwnerMultiRootNormalTransportV1::seal(
+            boundary.control,
+            actual_rule.header_roots().to_vec(),
+            boundary.producers.clone(),
+            reordered_steps,
+        )
+        .unwrap();
+        let mut reordered_attachment = boundary.clone();
+        reordered_attachment.normal_transport = Some(reordered_rule);
+        assert!(!reordered_attachment.is_consistent());
+        let mut wrong_calls = actual_rule.steps().to_vec();
+        wrong_calls[0].call = boundary.condition;
+        let wrong_rule = UnitOwnerMultiRootNormalTransportV1::seal(
+            boundary.control,
+            actual_rule.header_roots().to_vec(),
+            boundary.producers.clone(),
+            wrong_calls,
+        )
+        .unwrap();
+        let mut wrong_attachment = boundary.clone();
+        wrong_attachment.normal_transport = Some(wrong_rule);
+        assert!(!wrong_attachment.is_consistent());
         let reanalyzed = fixture.shared();
         let other = &reanalyzed.owner_observations()[0];
         let mut foreign = observation.clone();
@@ -263,6 +342,7 @@ mod tests {
         let deferred =
             super::super::super::publish_observations(vec![observation.clone()], true, false);
         assert!(deferred[0].multi_root_boundary_v1().is_none());
+        assert!(deferred[0].multi_root_normal_transport_v1().is_none());
         assert!(
             super::super::super::publish_observations(vec![observation.clone()], false, true)
                 .is_empty()

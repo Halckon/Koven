@@ -13801,3 +13801,18 @@ all-target check、fmt/diff、docs898及Rust尺寸2467文件/35项旧债通过�
 最终FE lib658通过、52项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
 all-target check、fmt/diff、docs898及Rust尺寸2468文件/35项旧债通过，无新增例外。
 CI-only破坏/撤销负控只编译未本机执行；本地提交，未推送，未宣称远端CI通过。
+
+### 参数化多根正常 body 运输（2026-11-11，本地）
+
+基于282bec0b，生产形式校验器以Header(root)/Produced(definition)义务运行真实ordered
+Replace步骤，拒绝重复根/producer/结果binding及不完整输出；旧Header恰消费一次且新
+producer全保留在根。公开独立normal-body规则不引用固定P充当任意轮次输入，不是快照堆叠。
+精确typed线性body与真实hooks提供参数化前提；完整header/exit/lowering仍未实现。
+
+复审发现附接遗漏call/order，已用真实事务actual_steps独立清单锁定并精确附接，禁止覆盖；
+CI-only补错call/重排附接及重复义务/缺步骤等负控。真实正反、逆序root及稀疏catalog矩阵
+验证新规则准入和实际调用顺序；旧完整loop/value getter不新增资格。
+
+最终FE lib658通过、53项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff/docs898通过。复审确认call/order附接修复；CI-only负控仅编译
+未本机执行，未推送、未声明远端CI或完整循环能力。
