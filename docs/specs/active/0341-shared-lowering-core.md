@@ -13596,3 +13596,26 @@ admitted事务另核选择其它control时无引用、恢复原control时同一�
 FE all-target strict Clippy、LLVM21 workspace all-target check通过。当前变更不含推送。
 fmt/docs897/diff及Rust尺寸守卫通过（2458个手写Rust文件、35个历史超千行文件，无新额度）；
 独立源码复审无阻断，确认恢复顺序和错误传播保留。loops.rs为939行，DropPlanner仍1663行。
+
+### 顺序 closed While 的实际多事务采集（2026-11-11，本地）
+
+以939892c1为基础，函数原AST仅包含至少两个While且每项均满足现有closed合同才整组
+准入；每项使用同一checker与真实StatementId走原准入，normal/invariant/replacing任一
+命中即不属于本片，任一失败整组拒绝。没有按文本重建AST或伪造body owner。
+While真实遍历分别保存独立body catalog与控制产品，共享callable分析身份；退出后恢复
+原选择，未放宽复杂控制流、跨循环owner、一般多根或嵌套准入。
+
+719fc5c0的真实已编译红测因first real closed completion缺失失败。实现后真实两循环的
+正常、Continue、Break组合均可采到各自产品；test-only探针从真实退出读取已生成产品，
+并核一致性、同callable、不同control和body catalog。它不是运行时两循环同时发生的证明，
+尤其固定flag可能导致首循环不终止；组合可达性和终止不在本片内。
+
+第二成员Return、嵌套While或函数额外语句等合法源码邻接合同覆盖整组拒绝，不能留下首项
+部分准入。初版负向fixture缺少语句分隔符而解析失败，修正后才计入最终验证。
+公共batch尚无合同，finish主动标Unsupported且单槽take拒绝多条；不能把抛弃多结果后的
+空observation发布为Complete。栈不平衡同样在clear之前拒绝observation，CI-only失衡
+finalization守卫只编译、不本地执行。旧witness和legacy on/off完整产物对照保留。
+
+最终FE lib普通测试640项通过，44项ci_only过滤；FE all-target strict Clippy与LLVM21
+workspace all-target check通过，fmt/docs897/diff通过。两次独立源码复核无阻断，确认
+失衡先拒绝再clear不影响合法平衡序列；本片没有运行CI-only守卫或推送远端。

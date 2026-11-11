@@ -84,7 +84,24 @@ impl DropPlanner<'_, '_> {
     pub(super) fn finish_owner_observation(&mut self) {
         // Unbalanced/invalid control entry cannot publish a sealed loop product.
         if !self.owner_controls.balanced() {
+            if let Some(observation) = &self.owner_observation {
+                let point = match observation.callable {
+                    UnitOwnerCallable::Function(item) | UnitOwnerCallable::Deinit(item) => {
+                        crate::ownership_checking::UnitDropPoint::FunctionEntry(item)
+                    }
+                    UnitOwnerCallable::Lambda(expression) => {
+                        crate::ownership_checking::UnitDropPoint::LambdaEntry(expression)
+                    }
+                };
+                self.reject_owner(point, UnitOwnerUnsupportedReason::InconsistentTransport);
+            }
             self.owner_loop.clear();
+        }
+        if let Some(control) = self.owner_loop.publication_blocker() {
+            self.reject_owner(
+                crate::ownership_checking::UnitDropPoint::LoopExit(control),
+                UnitOwnerUnsupportedReason::Syntax,
+            );
         }
         let choice = self
             .owner_choice

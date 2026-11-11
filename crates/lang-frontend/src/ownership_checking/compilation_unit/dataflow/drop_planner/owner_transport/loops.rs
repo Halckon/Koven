@@ -108,6 +108,15 @@ impl LoopTransaction {
         item: ItemId,
         identity: std::sync::Arc<()>,
     ) -> Option<Self> {
+        Self::begin_for_control(checker, item, identity, None)
+    }
+
+    fn begin_for_control(
+        checker: &Checker<'_>,
+        item: ItemId,
+        identity: std::sync::Arc<()>,
+        selected_control: Option<StatementId>,
+    ) -> Option<Self> {
         let ast = checker.parsed.ast();
         let Item::Function {
             name,
@@ -175,6 +184,25 @@ impl LoopTransaction {
         let Statement::Block { elements } = ast.statements().get(function_body).ok()?.payload()
         else {
             return None;
+        };
+        // Only a verified member of an all-While function can be collected separately.
+        let selected_elements;
+        let elements = if let Some(control) = selected_control {
+            if elements.len() < 2
+                || !elements.contains(&control)
+                || elements.iter().any(|id| {
+                    !matches!(
+                        ast.statements().get(*id).ok().map(|node| node.payload()),
+                        Some(Statement::While { .. })
+                    )
+                })
+            {
+                return None;
+            }
+            selected_elements = vec![control];
+            &selected_elements
+        } else {
+            elements
         };
         if (owner_parameter.is_none() || (integer_control && parameter_symbols.len() == 1))
             && (parameters.len() == 1

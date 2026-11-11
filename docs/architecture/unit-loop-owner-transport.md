@@ -121,5 +121,11 @@ incoming表或嵌套owner合同；事务存储现按control索引，旧准入边
 
 ControlTransactions以source-qualified control保存私有事务，真实While入口选择对应entry，
 不匹配时不可访问其它entry，退出先恢复旧选择再传播Result。prefix/suffix继续关联原准入
-控制；borrow兼容性检查仍基于全部entry而非当前选择。现有begin只准入一项，finish只接收
-恰好一项；多产品发布、一般多根incoming与嵌套owner语义仍待实现，不能把容器改造算作完成。
+控制；borrow兼容性检查仍基于全部entry而非当前选择。除下述私有顺序closed采集外，既有准入仍限一项；公共finish只接收恰好一项。
+多产品发布、一般多根incoming与嵌套owner语义仍待实现，不能把容器改造算作完成。
+
+当函数仅含多个顺序While且每个均满足原无外来owner的closed合同，私有容器可原子准入
+全部真实控制：每个body独立采集并保存原catalog，共享同一callable分析身份。任一成员
+不合合同则整组不准入。当前只采集、不发布batch；finish明确标Unsupported并丢弃多条，
+不能伪装成空Complete或任取其中一条。该结构采集不证明各循环组合可达或终止。
+栈不平衡时先拒绝observation再清空事务；一般多根incoming、嵌套root及公共batch仍待完成。
