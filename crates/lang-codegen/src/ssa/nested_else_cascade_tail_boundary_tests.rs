@@ -9,10 +9,10 @@ use lang_frontend::{
 };
 
 #[test]
-fn ordinary_nested_else_cascade_tail_keeps_backend_unsupported() {
+fn ordinary_nested_else_cascade_tail_wrong_outer_keeps_backend_unsupported() {
     for (shape, body, count) in [(
         "nested-else-cascade-tail",
-        "if (outer) { return left(source) } else { if (inner) { return middle(source) } }\nreturn right(source)",
+        "if (outer) { return left(source) } else { if (outer) { return middle(source) } }\nreturn right(source)",
         3,
     )] {
         let text = format!(

@@ -108,30 +108,55 @@ fn admitted(
         let Expression::If {
             condition,
             then_branch,
-            else_branch: None,
+            else_branch,
             ..
         } = file.ast().expressions().get(outer).ok()?.payload()
         else {
             return None;
         };
-        let (Statement::Block { elements } | Statement::ControlBody { elements }) =
-            file.ast().statements().get(*then_branch).ok()?.payload()
-        else {
-            return None;
+        let sole = |body| {
+            let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+                file.ast().statements().get(body).ok()?.payload()
+            else {
+                return None;
+            };
+            let [one] = elements.as_slice() else {
+                return None;
+            };
+            Some(*one)
         };
-        let [inner] = elements.as_slice() else {
-            return None;
-        };
-        let (inner, inner_condition, left, right) = split(file, *inner)?;
-        (
-            vec![outer, inner],
-            vec![*condition, inner_condition],
-            vec![
-                expression(file, left)?,
-                expression(file, right)?,
-                expression(file, *tail)?,
-            ],
-        )
+        if let Some(other) = else_branch {
+            let inner = expression(file, sole(*other)?)?;
+            let Expression::If {
+                condition: inner_condition,
+                then_branch: inner_then,
+                else_branch: None,
+                ..
+            } = file.ast().expressions().get(inner).ok()?.payload()
+            else {
+                return None;
+            };
+            (
+                vec![outer, inner],
+                vec![*condition, *inner_condition],
+                vec![
+                    expression(file, sole(*then_branch)?)?,
+                    expression(file, sole(*inner_then)?)?,
+                    expression(file, *tail)?,
+                ],
+            )
+        } else {
+            let (inner, inner_condition, left, right) = split(file, sole(*then_branch)?)?;
+            (
+                vec![outer, inner],
+                vec![*condition, inner_condition],
+                vec![
+                    expression(file, left)?,
+                    expression(file, right)?,
+                    expression(file, *tail)?,
+                ],
+            )
+        }
     } else {
         let [outer_statement] = elements.as_slice() else {
             return None;

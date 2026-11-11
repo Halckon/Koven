@@ -854,3 +854,11 @@ mod nested_then_tail_neighbor_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "nested_else_cascade_tail_boundary_tests.rs"]
 mod nested_else_cascade_tail_boundary_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_cascade_tail_receipt_tests.rs"]
+mod nested_cascade_tail_receipt_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_else_cascade_tail_neighbor_tests.rs"]
+mod nested_else_cascade_tail_neighbor_tests;

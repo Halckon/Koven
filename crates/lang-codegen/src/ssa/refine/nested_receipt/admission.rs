@@ -24,9 +24,6 @@ impl Plans {
             for region in catalog.nested_forward_regions().iter().filter(|r| {
                 r.callable() == callable && r.coverage() == UnitLoanActionCoverage::Complete
             }) {
-                if region.topology() == UnitBorrowNestedForwardTopology::NestedElseCascadeTail {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, inputs.span));
-                }
                 let (split_count, leaf_count) = match region.topology() {
                     UnitBorrowNestedForwardTopology::BalancedBoth => (3, 4),
                     _ => (2, 3),
@@ -90,7 +87,7 @@ impl Plans {
                     .map(|index| entry_flags[*index])
                     .collect::<Vec<_>>();
                 let nested_leaf = match region.topology() {
-                    UnitBorrowNestedForwardTopology::NestedElseCascadeTail => return Err(fail()),
+                    UnitBorrowNestedForwardTopology::NestedElseCascadeTail => 1,
                     UnitBorrowNestedForwardTopology::NestedThenTail => 0,
                     UnitBorrowNestedForwardTopology::BalancedBoth => 0,
                     UnitBorrowNestedForwardTopology::NestedThen => 0,
@@ -162,6 +159,21 @@ impl Plans {
                 } else if region.continuation().is_some() {
                     return Err(fail());
                 }
+                if region.topology() == UnitBorrowNestedForwardTopology::NestedElseCascadeTail {
+                    let c = region.cascade_continuation().ok_or_else(fail)?;
+                    let tail = &region.paths()[2];
+                    for (step, index) in [(c.outer(), 0), (c.inner(), 1)] {
+                        if step.split() != splits[index].split
+                            || step.condition() != splits[index].condition
+                            || step.tail_control() != tail.control()
+                            || Some(step.entry()) != tail.edges().get(index)
+                        {
+                            return Err(fail());
+                        }
+                    }
+                } else if region.cascade_continuation().is_some() {
+                    return Err(fail());
+                }
                 let caller_key = inputs
                     .source_plan
                     .source(inputs.source_token)
@@ -189,8 +201,12 @@ impl Plans {
                     let call = path.value();
                     let ids = vec![path.source_begin(), path.handoff()];
                     let expected: &[bool] = match (region.topology(), leaf) {
+                        (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 0) => &[true],
+                        (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 1) => {
+                            &[false, true]
+                        }
                         (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, _) => {
-                            return Err(fail());
+                            &[false, false]
                         }
                         (UnitBorrowNestedForwardTopology::NestedThenTail, 0) => &[true, true],
                         (UnitBorrowNestedForwardTopology::NestedThenTail, 1) => &[true, false],
@@ -421,6 +437,7 @@ impl Plans {
                     paths,
                     source: None,
                     goto_done: false,
+                    cascade_gotos: [false; 2],
                 });
             }
         }
@@ -453,7 +470,11 @@ fn validate_topology(
         }
         _ => None,
     };
-    let (outer, tail) = if topology == UnitBorrowNestedForwardTopology::NestedThenTail {
+    let (outer, tail) = if matches!(
+        topology,
+        UnitBorrowNestedForwardTopology::NestedThenTail
+            | UnitBorrowNestedForwardTopology::NestedElseCascadeTail
+    ) {
         let Statement::Block { elements } =
             ast.statements().get(body).map_err(|_| fail())?.payload()
         else {
@@ -482,10 +503,15 @@ fn validate_topology(
         return Err(fail());
     };
     if UnitExpressionId::new(inputs.source_unit, *condition) != splits[0].condition
-        || (tail.is_some() != else_branch.is_none())
+        || (if topology == UnitBorrowNestedForwardTopology::NestedThenTail {
+            else_branch.is_some()
+        } else {
+            else_branch.is_none()
+        })
     {
         return Err(fail());
     }
+    let outer_then = then_branch;
     let inner_returns = |body, index: usize| {
         let inner = single(body).ok_or_else(fail)?;
         let Expression::If {
@@ -508,7 +534,28 @@ fn validate_topology(
         ])
     };
     let returns = match topology {
-        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => return Err(fail()),
+        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => {
+            let inner = single(else_branch.ok_or_else(fail)?).ok_or_else(fail)?;
+            let Expression::If {
+                condition,
+                then_branch,
+                else_branch: None,
+                ..
+            } = ast.expressions().get(inner).map_err(|_| fail())?.payload()
+            else {
+                return Err(fail());
+            };
+            if splits[1].split != UnitExpressionId::new(inputs.source_unit, inner)
+                || splits[1].condition != UnitExpressionId::new(inputs.source_unit, *condition)
+            {
+                return Err(fail());
+            }
+            vec![
+                single(*outer_then).ok_or_else(fail)?,
+                single(*then_branch).ok_or_else(fail)?,
+                tail.ok_or_else(fail)?,
+            ]
+        }
         UnitBorrowNestedForwardTopology::NestedThenTail => {
             let [a, b] = inner_returns(*then_branch, 1)?;
             vec![a, b, tail.ok_or_else(fail)?]

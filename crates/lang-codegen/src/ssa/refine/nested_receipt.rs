@@ -33,6 +33,7 @@ pub(crate) struct Receipt {
     pub(crate) topology: UnitBorrowNestedForwardTopology,
     pub(crate) flag_layout: UnitBorrowNestedForwardFlagLayout,
     pub(super) fold: Option<(BlockRef, BlockRef)>,
+    pub(super) cascade_folds: Vec<(BlockRef, BlockRef)>,
     pub(crate) callable: UnitItemId,
     pub(crate) caller: FunctionId,
     pub(crate) entry: BlockId,
@@ -74,6 +75,7 @@ pub(super) struct Plan {
     pub(super) paths: Vec<PathPlan>,
     pub(super) source: Option<Slot>,
     pub(super) goto_done: bool,
+    pub(super) cascade_gotos: [bool; 2],
 }
 #[derive(Clone, Debug)]
 pub(super) struct SplitPlan {
@@ -167,7 +169,10 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 impl Plan {
     fn flag_indices(&self) -> Option<Vec<usize>> {
         match (self.topology, self.flag_layout) {
-            (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, _) => None,
+            (
+                UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+                UnitBorrowNestedForwardFlagLayout::SharedInner,
+            ) => None,
             (
                 UnitBorrowNestedForwardTopology::NestedThenTail,
                 UnitBorrowNestedForwardFlagLayout::SharedInner,
@@ -181,6 +186,15 @@ impl Plan {
             }
             _ => None,
         }
+    }
+    fn cascade(&self) -> bool {
+        self.topology == UnitBorrowNestedForwardTopology::NestedElseCascadeTail
+    }
+    fn cascade_fold_pairs(&self) -> Option<[(BlockRef, BlockRef); 2]> {
+        Some([
+            (self.splits.get(1)?.arms?[1], self.splits[1].join?),
+            (self.splits[1].arms?[1], self.splits.first()?.join?),
+        ])
     }
     fn tail(&self) -> bool {
         self.topology == UnitBorrowNestedForwardTopology::NestedThenTail
@@ -231,9 +245,9 @@ impl Plan {
         match self.topology {
             UnitBorrowNestedForwardTopology::NestedThen
             | UnitBorrowNestedForwardTopology::NestedThenTail => Some(0),
-            UnitBorrowNestedForwardTopology::NestedElse => Some(1),
-            UnitBorrowNestedForwardTopology::BalancedBoth
-            | UnitBorrowNestedForwardTopology::NestedElseCascadeTail => None,
+            UnitBorrowNestedForwardTopology::NestedElse
+            | UnitBorrowNestedForwardTopology::NestedElseCascadeTail => Some(1),
+            UnitBorrowNestedForwardTopology::BalancedBoth => None,
         }
     }
     fn leaf_route(&self, index: usize) -> Vec<(usize, usize)> {
@@ -253,9 +267,21 @@ impl Plan {
                 | UnitBorrowNestedForwardTopology::NestedThenTail,
                 2,
             ) => vec![(0, 1)],
-            (UnitBorrowNestedForwardTopology::NestedElse, 0) => vec![(0, 0)],
-            (UnitBorrowNestedForwardTopology::NestedElse, 1) => vec![(0, 1), (1, 0)],
-            (UnitBorrowNestedForwardTopology::NestedElse, 2) => vec![(0, 1), (1, 1)],
+            (
+                UnitBorrowNestedForwardTopology::NestedElse
+                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+                0,
+            ) => vec![(0, 0)],
+            (
+                UnitBorrowNestedForwardTopology::NestedElse
+                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+                1,
+            ) => vec![(0, 1), (1, 0)],
+            (
+                UnitBorrowNestedForwardTopology::NestedElse
+                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+                2,
+            ) => vec![(0, 1), (1, 1)],
             (UnitBorrowNestedForwardTopology::BalancedBoth, 0) => vec![(0, 0), (1, 0)],
             (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => vec![(0, 0), (1, 1)],
             (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => vec![(0, 1), (2, 0)],
@@ -268,5 +294,11 @@ impl Plan {
 impl Receipt {
     pub(crate) fn folded_distinct_blocks(&self) -> bool {
         self.fold.is_some_and(|(from, to)| from != to)
+    }
+}
+
+impl Receipt {
+    pub(crate) fn cascade_folded_distinct_blocks(&self) -> bool {
+        matches!(self.cascade_folds.as_slice(), [(from,inner),(same,outer)] if from==same && from!=inner && from!=outer && inner!=outer)
     }
 }

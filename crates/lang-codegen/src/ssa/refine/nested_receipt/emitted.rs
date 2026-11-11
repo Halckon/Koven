@@ -74,6 +74,15 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
+        let cascade_folds = if p.cascade() {
+            let expected = p.cascade_fold_pairs().ok_or_else(|| invalid(span))?;
+            if plans.folds != expected || p.paths[2].block != p.splits[0].join {
+                return Err(invalid(span));
+            }
+            expected.to_vec()
+        } else {
+            Vec::new()
+        };
         let fold = if p.tail() {
             let false_arm = p.splits[0].arms.ok_or_else(|| invalid(span))?[1];
             let join = p.splits[0].join.ok_or_else(|| invalid(span))?;
@@ -82,12 +91,15 @@ impl Emitted {
             }
             Some((false_arm, join))
         } else {
-            if !plans.folds.is_empty() {
+            if !p.cascade() && !plans.folds.is_empty() {
                 return Err(invalid(span));
             }
             None
         };
         let canonical = |b| {
+            if let Some((from, _)) = cascade_folds.iter().find(|(_, to)| *to == b) {
+                return *from;
+            }
             if let Some((from, to)) = fold {
                 if b == to { from } else { b }
             } else {
@@ -403,7 +415,16 @@ impl Emitted {
         let receipt = Receipt {
             topology: p.topology,
             flag_layout: p.flag_layout,
-            fold: plans.folds.first().copied(),
+            fold: if p.tail() {
+                plans.folds.first().copied()
+            } else {
+                None
+            },
+            cascade_folds: if p.cascade() {
+                plans.folds.clone()
+            } else {
+                Vec::new()
+            },
             callable: p.callable,
             caller: p.caller,
             entry: l.split_blocks[0],
@@ -432,6 +453,15 @@ impl Receipt {
     ) -> Result<(), LoweringError> {
         plans.finish(span)?;
         let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
+        let cascade_valid = if p.cascade() {
+            let pairs = p.cascade_fold_pairs().ok_or_else(|| invalid(span))?;
+            self.cascade_folds == pairs
+                && plans.folds == pairs
+                && p.paths[2].block == p.splits[0].join
+                && self.cascade_folded_distinct_blocks()
+        } else {
+            self.cascade_folds.is_empty()
+        };
         let fold_valid = if p.tail() {
             let arms = p.splits[0].arms.ok_or_else(|| invalid(span))?;
             let join = p.splits[0].join.ok_or_else(|| invalid(span))?;
@@ -440,9 +470,10 @@ impl Receipt {
                 && plans.folds == [(arms[1], join)]
                 && p.paths[2].block == Some(join)
         } else {
-            self.fold.is_none() && plans.folds.is_empty()
+            self.fold.is_none() && (p.cascade() || plans.folds.is_empty())
         };
-        if !fold_valid
+        if !cascade_valid
+            || !fold_valid
             || self.flag_layout != p.flag_layout
             || self.topology != p.topology
             || self.callable != p.callable
@@ -573,3 +604,6 @@ mod ci_tests;
 
 #[cfg(test)]
 mod tail_ci_tests;
+
+#[cfg(test)]
+mod cascade_ci_tests;

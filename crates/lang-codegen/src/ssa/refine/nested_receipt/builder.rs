@@ -35,7 +35,9 @@ impl Plans {
                         != Some(entry)
                     || p.source != Some(source)
                     || match p.topology {
-                        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => true,
+                        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => {
+                            p.paths[0].stage != 3 || p.paths[1..].iter().any(|path| path.stage != 0)
+                        }
                         UnitBorrowNestedForwardTopology::BalancedBoth => match i {
                             1 => p.paths.iter().any(|path| path.stage != 0),
                             2 => {
@@ -81,7 +83,21 @@ impl Plans {
             .iter()
             .position(|s| s.split == control)
             .ok_or_else(|| invalid(span))?;
-        let predecessor_valid = if p.tail() && i == 0 {
+        let predecessor_valid = if p.cascade() {
+            p.paths[..2].iter().all(|path| path.stage == 3)
+                && p.paths[2].stage == 0
+                && match i {
+                    1 => {
+                        p.splits[1].arms.is_some_and(|a| predecessors == [a[1]])
+                            && p.cascade_gotos == [false, false]
+                    }
+                    0 => {
+                        p.splits[1].join.is_some_and(|j| predecessors == [j])
+                            && p.cascade_gotos == [true, false]
+                    }
+                    _ => false,
+                }
+        } else if p.tail() && i == 0 {
             p.splits[0]
                 .arms
                 .is_some_and(|arms| predecessors == [arms[1]])
@@ -101,7 +117,9 @@ impl Plans {
             })
             || (i > 0
                 && match p.topology {
-                    UnitBorrowNestedForwardTopology::NestedElseCascadeTail => true,
+                    UnitBorrowNestedForwardTopology::NestedElseCascadeTail => {
+                        p.paths[..2].iter().any(|path| path.stage != 3) || p.paths[2].stage != 0
+                    }
                     UnitBorrowNestedForwardTopology::BalancedBoth => match i {
                         1 => {
                             p.paths[..2].iter().any(|path| path.stage != 3)
@@ -123,7 +141,7 @@ impl Plans {
                 })
             || (i == 0
                 && (p.splits[1..].iter().any(|s| s.join.is_none())
-                    || if p.tail() {
+                    || if p.tail() || p.cascade() {
                         p.paths[..2].iter().any(|p| p.stage != 3) || p.paths[2].stage != 0
                     } else {
                         p.paths.iter().any(|p| p.stage != 3)
@@ -155,12 +173,24 @@ impl Plans {
             .ok_or_else(|| invalid(span))?;
         let route = p.leaf_route(i);
         let (split, arm) = route.last().copied().ok_or_else(|| invalid(span))?;
-        let expected = if p.tail() && i == 2 {
+        let expected = if (p.tail() || p.cascade()) && i == 2 {
             p.splits[0].join
         } else {
             p.splits[split].arms.map(|a| a[arm])
         };
         let phase_valid = match (p.topology, i) {
+            (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 0) => {
+                p.splits[0].done && p.splits[1].entry.is_none() && p.cascade_gotos == [false, false]
+            }
+            (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 1) => {
+                p.splits.iter().all(|s| s.done)
+                    && p.splits.iter().all(|s| s.join.is_none())
+                    && p.cascade_gotos == [false, false]
+            }
+            (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 2) => {
+                p.splits.iter().all(|s| s.done && s.join.is_some())
+                    && p.cascade_gotos == [true, true]
+            }
             (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, _) => false,
             (UnitBorrowNestedForwardTopology::NestedThenTail, _) => {
                 p.splits.iter().all(|s| s.done)
@@ -290,6 +320,27 @@ impl Plans {
             s.done = true;
             return Ok(());
         }
+        if p.cascade() {
+            let phase = if p.splits[1].arms.map(|a| a[1]) == Some(block) {
+                Some(0)
+            } else if p.splits[1].join == Some(block) {
+                Some(1)
+            } else {
+                None
+            };
+            if let Some(phase) = phase {
+                let target = p.splits[if phase == 0 { 1 } else { 0 }].join;
+                if p.cascade_gotos != [phase == 1, false]
+                    || p.paths[..2].iter().any(|p| p.stage != 3)
+                    || p.paths[2].stage != 0
+                    || !matches!(term,RTerm::Goto(join) if target==Some(*join))
+                {
+                    return Err(invalid(span));
+                }
+                p.cascade_gotos[phase] = true;
+                return Ok(());
+            }
+        }
         if p.tail() && p.splits[0].arms.map(|a| a[1]) == Some(block) {
             if p.goto_done
                 || p.paths[..2].iter().any(|p| p.stage != 3)
@@ -316,7 +367,8 @@ impl Plans {
         if self.plan.as_ref().is_some_and(|p| {
             !p.valid_shape()
                 || (p.tail() != p.goto_done)
-                || (!p.tail() && !self.folds.is_empty())
+                || (p.cascade_gotos != [p.cascade(); 2])
+                || (!p.tail() && !p.cascade() && !self.folds.is_empty())
                 || p.splits.iter().any(|s| !s.done || s.join.is_none())
                 || p.paths.iter().any(|p| p.stage != 3)
         }) {
@@ -333,6 +385,21 @@ impl Plans {
         let Some(p) = &self.plan else {
             return Ok(());
         };
+        if p.cascade() {
+            if !p.valid_shape() || p.cascade_gotos != [true, true] {
+                return Err(invalid(span));
+            }
+            let expected = p.cascade_fold_pairs().ok_or_else(|| invalid(span))?;
+            if expected.get(self.folds.len()) != Some(&(block, successor))
+                || expected[0].0 == expected[0].1
+                || expected[0].0 == expected[1].1
+                || expected[0].1 == expected[1].1
+            {
+                return Err(invalid(span));
+            }
+            self.folds.push((block, successor));
+            return Ok(());
+        }
         if !p.valid_shape()
             || !p.tail()
             || !p.goto_done

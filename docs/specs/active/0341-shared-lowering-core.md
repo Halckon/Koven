@@ -14014,3 +14014,30 @@ false entry及seal/close独立核验，公开证据以inner/outer两步明确顺
 独立因果复审、strict feature all-target Clippy、默认双crate lib no-run、workspace
 全目标、fmt/diff、docs897及尺寸门禁通过：2499手写Rust文件、36历史超限，
 无新增额度。日志nested-cascade-*；本地提交不推送，native全套与远端CI未运行。
+
+### 限定三叶级联双fold实际receipt（2026-11-11）
+
+基于`e67a32dd`的有限NestedElseCascadeTail前端双恢复证书，后端实际receipt
+严格限定T/FT/FF及3参数Distinct。真实红四组合在244..250原borrow标记
+Unsupported且verifier/receipt各0；真实绿rooted/memory×on/off全部成功，
+原verifier各1次，观察on各1 receipt、off为0，SSA/LLVM观察开关一致。
+
+独立核inner/outer公开continuation与实际FF路径。producer先记录唯一innerFalse
+前驱的innerJoin及Goto(innerFalse→innerJoin)，再记录唯一innerJoin前驱的
+outerJoin及Goto(innerJoin→outerJoin)，两条原Goto严格各一次且顺序不可颠倒。
+真实fold hook则记录(innerFalse,innerJoin)之后(innerFalse,outerJoin)，第二次
+前驱已经替换，不与第二条原Goto身份混淆。tail原block为outerJoin；最终两join
+均须从block映射消失，按两条真实fold映射回保留innerFalse，逐实际父edge核
+source/flag、callee/Read和返回身份，仍为5块2Read3Call/Return。Receipt独立
+保存双fold，旧单fold与全终止拒fold合同保持；原verifier后原子发布接线未改。
+
+合法cascade原拒绝测试迁为错outer flag负界；另固定五种真实邻形拒绝。独立
+生产因果审查通过，CI-only新增故障覆盖漏/重/乱序Goto、第二fold错误前驱、
+原join/最终映射替换与失败发布回滚。旧见证保留，不表示任意递归、多源或一般
+控制流已经完成。
+最终普通后端23项定向回归全部通过，覆盖新级联正控/邻界、旧三叶/四叶/共享inner、
+单续接及branch/aux/binding。4组CI-only故障仅编译未执行，手动guard回滚不当作
+源程序导致的最终verifier失败。strict feature all-target Clippy、默认双crate lib
+no-run、workspace全目标、fmt/diff、docs897及尺寸门禁通过：2502手写Rust文件、
+36历史超限，无新增额度。日志nested-cascade-receipt-*；本地提交不推送，native
+全套与远端CI未运行。
