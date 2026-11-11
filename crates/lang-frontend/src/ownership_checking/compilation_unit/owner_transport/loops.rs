@@ -1,4 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod counter_tail;
+pub use counter_tail::UnitOwnerCounterTailEvidenceV1;
 mod multi_root_header;
 pub use multi_root_header::UnitOwnerRootExitPartitionV1;
 mod multi_root_normal;
@@ -350,6 +352,7 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
     if !complete {
         for observation in &mut observations {
             observation.closed_loop_batch = None;
+            observation.counter_tail = None;
             observation.multi_root_boundary = None;
             observation.open_loop_value = None;
             observation.loop_value = None;

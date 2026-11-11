@@ -85,6 +85,19 @@ impl ControlTransactions {
             root_branches_invalid: false,
         })
     }
+    pub(in super::super::super) fn counter_tail_evidence(
+        &self,
+    ) -> Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1> {
+        let (control, initializer) = self.private_counter_prefix?;
+        if self.root_branches_invalid || self.root_entries.len() != 1 {
+            return None;
+        }
+        let (site, evidence) = &self.root_entries[0];
+        if *site != control {
+            return None;
+        }
+        evidence.counter_tail_evidence(initializer)
+    }
     // A separate batch must not masquerade as a Complete straight-line observation.
     pub(in super::super::super) fn publication_blocker(&self) -> Option<UnitStatementId> {
         self.private_counter_prefix

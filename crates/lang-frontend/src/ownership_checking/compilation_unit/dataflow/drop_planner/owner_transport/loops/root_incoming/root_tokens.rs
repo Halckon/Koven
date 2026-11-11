@@ -40,6 +40,30 @@ pub(in super::super::super::super) struct RootBoundaryEquation {
     actual_steps: Vec<crate::ownership_checking::UnitOwnerRootReplaceStepV1>,
 }
 impl RootBoundaryEquation {
+    pub(in super::super) fn counter_evidence(
+        &self,
+        initializer: UnitExpressionId,
+    ) -> Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1> {
+        let counter = self.counter.as_ref()?;
+        if !counter.is_complete() || !self.same_roots() {
+            return None;
+        }
+        let (counter, assignments) = counter.sites();
+        let evidence = crate::ownership_checking::UnitOwnerCounterTailEvidenceV1 {
+            analysis: self.inputs.identity.clone(),
+            callable: self.inputs.callable(),
+            control: self.control,
+            condition: self.condition,
+            body: self.body,
+            guard: self.condition_binding,
+            counter,
+            initializer,
+            assignments,
+            steps: self.actual_steps.clone(),
+            producers: self.producers.clone(),
+        };
+        evidence.is_consistent().then_some(evidence)
+    }
     pub(in super::super) fn into_boundary(
         self,
     ) -> Option<crate::ownership_checking::UnitOwnerMultiRootBoundaryV1> {

@@ -5,6 +5,8 @@ use crate::parser::{BinaryOperator, LiteralKind};
 #[derive(Clone, Debug)]
 pub(in super::super) struct CounterTail {
     counter: UnitSymbolId,
+    decrement_rhs: UnitExpressionId,
+    comparison: UnitExpressionId,
     decrement: UnitExpressionId,
     reset: UnitExpressionId,
     next: u8,
@@ -60,10 +62,23 @@ impl CounterTail {
         }
         Some(Self {
             counter,
+            decrement_rhs: checker.unit_expression(value),
+            comparison: checker.unit_expression(comparison),
             decrement: checker.unit_expression(decrement),
             reset: checker.unit_expression(reset),
             next: 0,
         })
+    }
+    pub(in super::super) fn sites(&self) -> (UnitSymbolId, [UnitExpressionId; 4]) {
+        (
+            self.counter,
+            [
+                self.decrement,
+                self.decrement_rhs,
+                self.reset,
+                self.comparison,
+            ],
+        )
     }
     pub(super) fn reset(&self) -> UnitExpressionId {
         self.reset
@@ -178,6 +193,12 @@ pub(in super::super) fn prefix(
                     return None;
                 }
                 let tail = CounterTail::admit(checker, &elements[elements.len() - 2..], guard)?;
+                if !initializers
+                    .iter()
+                    .any(|(symbol, _)| *symbol == tail.counter)
+                {
+                    return None;
+                }
                 let (_, initial) = initializers.iter().find(|(symbol, _)| *symbol == guard)?;
                 // No intervening call/assignment/computation may change the counter
                 // after the initial predicate. Existing owner tracking still validates

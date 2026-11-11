@@ -459,6 +459,15 @@ pub(super) fn counter_prefix(
     guard_reset::counter::prefix(checker, item)
 }
 
+impl RootEvidence {
+    pub(super) fn counter_tail_evidence(
+        &self,
+        initializer: UnitExpressionId,
+    ) -> Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1> {
+        self.normal_equation.as_ref()?.counter_evidence(initializer)
+    }
+}
+
 #[cfg(test)]
 mod cleanup_fault_tests {
     use super::super::super::tests::compare_and_inspect;
