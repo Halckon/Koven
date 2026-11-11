@@ -119,5 +119,11 @@ catalog或重复进入转Rejected。单候选还需真实完成方程才可Compl
 token不来自清理、AST枚举、旧observation恢复或上一循环first-body猜测。
 第二while之前逐语句核对完整实际根集合与pending为空后冻结入口快照；前段活根跨入、
 未知token、事件缺失或顺序不符均拒绝。Drop事件尚非绑定最终fact的退休receipt。
-此快照不代表第二条件/body完成，不作为当前counter产品发布输入；多候选仍整体拒绝。
-多事务完整发布、嵌套loop及后端多Plan选择均不在当前能力内。
+独立入口现在可按control一次性接入既有RootEvidence，且必须核对全部实际legacy owner为None；
+不把独立token写回ValueState。条件完成只认可发现时的同一纯Name guard及完整未变根形状。
+随后复用真实body-entry、literal、Replace、返回binding、最终Drop fact与counter尾部完成hooks；
+第二段可形成私有entry/first-body方程及实际false-exit活根/清理分区。重复根、滞后清理及
+不在精确线性合同内的条件路径不产生该方程。前缀Drop日志与body最终Drop fact的证据等级不同。
+这些是编译遍历中的实际阶段事件，不是多次运行迭代trace；独立catalog identity也不是
+原observation的analysis identity。多候选仍整体拒绝发布，未来批次必须显式绑定各成员身份，
+不能放宽旧getter的Arc检查。多事务完整发布、嵌套loop及后端多Plan选择仍未实现。

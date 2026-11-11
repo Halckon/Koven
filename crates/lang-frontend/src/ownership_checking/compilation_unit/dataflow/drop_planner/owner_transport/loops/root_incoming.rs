@@ -18,6 +18,7 @@ type RootExitPartition = (
 );
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
+    independent_entry: bool,
     normal_equation: Option<root_tokens::RootBoundaryEquation>,
     exit_drops: Option<Vec<crate::ownership_checking::UnitDropFact>>,
     exit_partition: Option<RootExitPartition>,
@@ -39,6 +40,7 @@ pub(super) struct RootEvidence {
 impl RootEvidence {
     pub(super) fn fault_fixture(roots: RootIncoming, writes: Vec<RootWriteReceipt>) -> Self {
         Self {
+            independent_entry: false,
             normal_equation: None,
             exit_drops: None,
             exit_partition: None,
@@ -136,6 +138,7 @@ impl ControlTransactions {
         condition: UnitExpressionId,
         state: &ValueState,
     ) {
+        let independent_preserved = self.segment_condition(control, condition, state);
         if let Some((_, evidence)) = self
             .root_entries
             .iter_mut()
@@ -143,8 +146,12 @@ impl ControlTransactions {
         {
             evidence.completed_condition = Some(condition);
             evidence.entered_body = None;
-            evidence.after_condition =
-                !evidence.tainted && preserves(control, state, &evidence.roots);
+            evidence.after_condition = !evidence.tainted
+                && if evidence.independent_entry {
+                    independent_preserved && clean_root_shape(state, &evidence.roots)
+                } else {
+                    preserves(control, state, &evidence.roots)
+                };
             evidence.normal_backedge = false;
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
@@ -249,25 +256,31 @@ impl ControlTransactions {
             return;
         }
         let roots = capture(control, state, observation);
-        self.counter_entered(control, roots.is_some());
-        let Some(roots) = roots else {
+        let (roots, entry_catalog, independent_entry) = if let Some(roots) = roots {
+            let entry_catalog = observation.and_then(|observation| {
+                let catalog = UnitOwnerProducerCatalogV1 {
+                    identity: observation.identity.clone(),
+                    callable: observation.callable,
+                    definitions: observation.definitions.clone(),
+                };
+                (catalog.is_consistent()
+                    && roots
+                        .iter()
+                        .all(|(_, owner)| catalog.definition(owner.clone()).is_some()))
+                .then_some(catalog)
+            });
+            (roots, entry_catalog, false)
+        } else if let Some((catalog, roots)) = self.take_segment_entry(control, state) {
+            (roots, Some(catalog), true)
+        } else {
+            self.counter_entered(control, false);
             return;
         };
-        let entry_catalog = observation.and_then(|observation| {
-            let catalog = UnitOwnerProducerCatalogV1 {
-                identity: observation.identity.clone(),
-                callable: observation.callable,
-                definitions: observation.definitions.clone(),
-            };
-            (catalog.is_consistent()
-                && roots
-                    .iter()
-                    .all(|(_, owner)| catalog.definition(owner.clone()).is_some()))
-            .then_some(catalog)
-        });
+        self.counter_entered(control, true);
         self.root_entries.push((
             control,
             RootEvidence {
+                independent_entry,
                 normal_equation: None,
                 exit_drops: None,
                 exit_partition: None,
@@ -286,6 +299,18 @@ impl ControlTransactions {
                 tainted: false,
             },
         ));
+    }
+    #[cfg(test)]
+    pub(super) fn private_counter_evidence(
+        &self,
+        control: UnitStatementId,
+    ) -> Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1> {
+        let initializer = self.counter_initializer(control)?;
+        self.root_entries
+            .iter()
+            .find(|(key, _)| *key == control)?
+            .1
+            .counter_tail_evidence(initializer)
     }
     #[cfg(test)]
     pub(super) fn root_entry(

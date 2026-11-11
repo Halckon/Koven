@@ -201,7 +201,7 @@ fn two_counter_candidates_do_not_publish_a_partial_first_product() {
         assert_eq!(entries.len(), 2);
         assert_ne!(entries[0].control, entries[1].control);
         assert!(entries[0].incoming_roots.is_some());
-        assert!(entries[1].incoming_roots.is_none());
+        assert!(entries[1].incoming_roots.is_some());
         let snapshot = entries[1]
             .segment_catalog
             .as_ref()
@@ -220,13 +220,32 @@ fn two_counter_candidates_do_not_publish_a_partial_first_product() {
         let first_token = &entries[0].incoming_roots.as_ref().unwrap()[0].1;
         assert!(catalog.definition(first_token.clone()).is_none());
         assert!(entries[0].segment_catalog.is_none());
+        let second_exit = visits
+            .iter()
+            .find(|v| !v.entering && v.control == entries[1].control)
+            .unwrap();
+        assert!(second_exit.normal_equation.is_some());
+        let evidence = second_exit
+            .private_counter
+            .as_ref()
+            .expect("independent body and exit evidence");
+        assert!(evidence.is_consistent());
+        let (live, drops) = evidence.false_exit_partition().unwrap();
+        assert!(live.is_empty());
+        assert_eq!(drops.len(), 2);
+        assert!(
+            second_exit
+                .root_writes
+                .iter()
+                .all(|write| write.token_link.is_some() && write.token_retirement.is_some())
+        );
         assert_eq!(
             entries[0].counter_phase.unwrap(),
             super::super::super::control_transactions::CounterPhase::Entered
         );
         assert_eq!(
             entries[1].counter_phase.unwrap(),
-            super::super::super::control_transactions::CounterPhase::Rejected
+            super::super::super::control_transactions::CounterPhase::Entered
         );
         assert!(
             visits

@@ -11,6 +11,13 @@ pub(in super::super::super) struct ControlTransactions {
     pub(super) root_entries: Vec<(UnitStatementId, root_incoming::RootEvidence)>,
 }
 impl ControlTransactions {
+    #[cfg(test)]
+    pub(super) fn counter_initializer(&self, control: UnitStatementId) -> Option<UnitExpressionId> {
+        self.counter_candidates
+            .iter()
+            .find(|(key, _, _)| *key == control)
+            .map(|(_, initializer, _)| *initializer)
+    }
     pub(in super::super::super) fn begin(
         checker: &Checker<'_>,
         item: ItemId,

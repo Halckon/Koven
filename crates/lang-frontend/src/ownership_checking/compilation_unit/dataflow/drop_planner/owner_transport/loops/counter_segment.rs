@@ -4,6 +4,8 @@ use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 
 pub(super) struct Segment {
     statements: Vec<UnitStatementId>,
+    condition: UnitExpressionId,
+    admitted: bool,
     next: usize,
     active: bool,
     invalid: bool,
@@ -63,7 +65,15 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
     {
         return Vec::new();
     }
+    let Ok(node) = ast.statements().get(elements[second]) else {
+        return Vec::new();
+    };
+    let Statement::While { condition, .. } = node.payload() else {
+        return Vec::new();
+    };
     vec![Segment {
+        condition: checker.unit_expression(*condition),
+        admitted: false,
         statements: elements[first + 1..=second]
             .iter()
             .map(|id| UnitStatementId::new(checker.source_unit, *id))
@@ -232,6 +242,45 @@ impl ControlTransactions {
             owner,
         });
     }
+    // Consume the fresh entry once. Never inject its tokens into legacy ValueState.
+    pub(super) fn take_segment_entry(
+        &mut self,
+        control: UnitStatementId,
+        state: &ValueState,
+    ) -> Option<(UnitOwnerProducerCatalogV1, root_incoming::RootIncoming)> {
+        let segment = self
+            .counter_segments
+            .iter_mut()
+            .find(|s| s.statements.last() == Some(&control))?;
+        if !segment.captured
+            || segment.invalid
+            || segment.admitted
+            || !segment.matches_state(state)
+            || state.values.iter().any(|value| value.owner.is_some())
+        {
+            segment.invalid = true;
+            return None;
+        }
+        segment.admitted = true;
+        Some((segment.catalog.clone(), segment.bindings.clone()))
+    }
+    // Only the discovered pure Name condition can preserve this separate entry namespace.
+    pub(super) fn segment_condition(
+        &self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        state: &ValueState,
+    ) -> bool {
+        self.counter_segments.iter().any(|s| {
+            s.statements.last() == Some(&control)
+                && s.captured
+                && s.admitted
+                && !s.invalid
+                && s.condition == condition
+                && s.matches_state(state)
+                && state.values.iter().all(|value| value.owner.is_none())
+        })
+    }
     #[cfg(test)]
     pub(super) fn segment_catalog(&self, control: UnitStatementId) -> Option<Snapshot> {
         let segment = self
@@ -344,5 +393,174 @@ mod tests {
                 }
             });
         }
+    }
+    #[test]
+    fn second_body_requires_each_actual_transfer_and_cleanup() {
+        for (body, live, expected) in [
+            (
+                r#"val x = replace(&a1, "x"); val y = replace(&b1, "y")"#,
+                false,
+                true,
+            ),
+            (
+                r#"val x = replace(&a1, "x"); val y = replace(&b1, "y")"#,
+                true,
+                true,
+            ),
+            (
+                r#"val x = replace(&a1, "x"); val y = replace(&a1, "y")"#,
+                true,
+                false,
+            ),
+            (
+                r#"val x = replace(&a1, "x"); val y = replace(&b1, "y"); val late = x"#,
+                false,
+                false,
+            ),
+            (
+                r#"if(g1) { val x = replace(&a1, "x") }; val y = replace(&b1, "y")"#,
+                true,
+                false,
+            ),
+        ] {
+            let suffix = if live { "val aa = a1; val bb = b1" } else { "" };
+            let source = format!(
+                r#"fun run(n: Int) {{
+                var n0 = n; var g0 = n0 > 0; var a0 = "a"; var b0 = "b";
+                while(g0) {{ val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 }};
+                var n1 = n; var g1 = n1 > 0; var a1 = "a"; var b1 = "b";
+                while(g1) {{ {body}; n1 = n1 - 1; g1 = n1 > 0 }};
+                {suffix}
+            }}"#
+            );
+            let fixture = Fixture::new(&[("second-body-events.ko", &source)]);
+            let owned = fixture.shared();
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{body}: {:?}",
+                owned.diagnostics()
+            );
+            assert!(
+                owned
+                    .owner_observations()
+                    .iter()
+                    .all(|o| o.counter_tail_evidence_v1().is_none())
+            );
+            compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+                let mut planner = DropPlanner::new(
+                    checker,
+                    crate::ownership_checking::compilation_unit::dataflow::liveness::build(
+                        checker, true,
+                    )
+                    .unwrap(),
+                );
+                planner.owner_control_probe = Some(Vec::new());
+                let planner = planner.run().unwrap();
+                let visits = planner.owner_control_probe.as_ref().unwrap();
+                let entry = visits
+                    .iter()
+                    .find(|v| v.entering && v.segment_catalog.is_some())
+                    .unwrap();
+                let exit = visits
+                    .iter()
+                    .find(|v| !v.entering && v.control == entry.control)
+                    .unwrap();
+                assert_eq!(exit.private_counter.is_some(), expected, "{body}");
+                if let Some(evidence) = &exit.private_counter {
+                    assert_eq!(evidence.steps().len(), 2);
+                    let (roots, drops) = evidence.false_exit_partition().unwrap();
+                    assert_eq!(roots.len(), if live { 2 } else { 0 });
+                    assert_eq!(drops.len(), if live { 0 } else { 2 });
+                    for write in &exit.root_writes {
+                        let (old, new) = write.token_link.as_ref().unwrap();
+                        assert!(evidence.input_catalog().definition(old.clone()).is_some());
+                        assert!(evidence.body_catalog().definition(new.clone()).is_some());
+                        assert!(write.token_retirement.is_some());
+                    }
+                }
+            });
+        }
+    }
+    // Injected post-capture corruption: compile locally, execute only in remote CI.
+    #[test]
+    fn ci_only_independent_entry_is_single_use_and_condition_state_is_exact() {
+        let segment = |i| {
+            format!(
+                r#"var n{i} = n; var g{i} = n{i} > 0; var a{i} = "a"; var b{i} = "b";
+            while(g{i}) {{ val x = replace(&a{i}, "x"); val y = replace(&b{i}, "y"); n{i} = n{i} - 1; g{i} = n{i} > 0 }};"#
+            )
+        };
+        let source = format!("fun run(n: Int) {{ {} {} }}", segment(0), segment(1));
+        let fixture = Fixture::new(&[("segment-entry-fault.ko", &source)]);
+        let owned = fixture.shared();
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = DropPlanner::new(
+                checker,
+                crate::ownership_checking::compilation_unit::dataflow::liveness::build(
+                    checker, true,
+                )
+                .unwrap(),
+            )
+            .run()
+            .unwrap();
+            let segment = &planner.owner_loop.counter_segments[0];
+            assert!(segment.admitted);
+            let control = *segment.statements.last().unwrap();
+            let condition = segment.condition;
+            let snapshot = planner.owner_loop.segment_catalog(control).unwrap();
+            let span = checker
+                .parsed
+                .ast()
+                .expressions()
+                .get(condition.expression())
+                .unwrap()
+                .span();
+            // Structural fault model based on the actual captured symbols, not a fresh runtime trace.
+            let mut state = ValueState {
+                values: snapshot
+                    .bindings
+                    .iter()
+                    .map(|(symbol, _)| OwnedValue {
+                        symbol: *symbol,
+                        owner: None,
+                        origin: span,
+                        declaration: span,
+                        scope_depth: 1,
+                    })
+                    .collect(),
+                ..ValueState::default()
+            };
+            assert!(
+                planner
+                    .owner_loop
+                    .segment_condition(control, condition, &state)
+            );
+            state.values[0].owner = Some(snapshot.bindings[0].1.clone());
+            assert!(
+                !planner
+                    .owner_loop
+                    .segment_condition(control, condition, &state)
+            );
+            state.values[0].owner = None;
+            let removed = state.values.pop().unwrap();
+            assert!(
+                !planner
+                    .owner_loop
+                    .segment_condition(control, condition, &state)
+            );
+            state.values.push(removed);
+            assert!(
+                planner
+                    .owner_loop
+                    .take_segment_entry(control, &state)
+                    .is_none()
+            );
+            assert!(
+                !planner
+                    .owner_loop
+                    .segment_condition(control, condition, &state)
+            );
+            assert!(planner.owner_loop.segment_catalog(control).is_none());
+        });
     }
 }
