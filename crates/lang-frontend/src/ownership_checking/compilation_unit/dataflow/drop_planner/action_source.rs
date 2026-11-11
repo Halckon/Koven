@@ -6,6 +6,7 @@ mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
 mod child_regions;
+mod distinct_auxiliary_retirements;
 pub(super) use binding_dependency_drops::BindingDropCause;
 mod bounded_forward;
 mod multi_continuation;
@@ -60,6 +61,7 @@ pub(super) struct ActionSource {
     active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
     auxiliary_retirements: Vec<auxiliary_retirements::Candidate>,
+    distinct_auxiliary_retirements: Vec<distinct_auxiliary_retirements::Candidate>,
     forward_regions: Vec<forward_regions::Candidate>,
     branch_forward_regions: Vec<branch_forward_regions::Candidate>,
     nested_regions: Vec<nested_forward_regions::Candidate>,
@@ -117,6 +119,7 @@ impl Default for ActionSource {
             active_child_region: None,
             dependency_drops: Vec::new(),
             auxiliary_retirements: Vec::new(),
+            distinct_auxiliary_retirements: Vec::new(),
             forward_regions: Vec::new(),
             branch_forward_regions: Vec::new(),
             branch_entries: Vec::new(),
@@ -425,6 +428,8 @@ impl ActionSource {
         let child_links =
             binding_child_links::validate(&self.records, &self.identity, source, file);
         let auxiliary_retirements = self.validate_auxiliary_retirements(source, file);
+        let distinct_auxiliary_retirements =
+            self.validate_distinct_auxiliary_retirements(source, file);
         let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
         let binding_dependency_drops = binding_dependency_drops::validate(
             &self.records,
@@ -590,6 +595,7 @@ impl ActionSource {
             bounded_multi_continuation_regions,
             nested_forward_regions,
             binding_dependency_drops,
+            distinct_auxiliary_retirements,
             auxiliary_retirements,
             auxiliary_binding_regions,
         }]

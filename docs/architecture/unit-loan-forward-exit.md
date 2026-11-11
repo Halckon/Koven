@@ -31,3 +31,11 @@ multi receipt保留真实Goto与多前驱join，只按实际单前驱fold重放c
 每个来源逐入边核source block parameter，均到唯一tail call/result/return。原final
 verifier成功后原子发布，失败撤销本批pending；observer-off产物保持一致。实际边界见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#多继续出口的真实后端收据实施中)。
+
+## 独立双根辅助退休关系
+唯一source与独立aux owner的真实pending acquisition/committed handoff另有独立关系；
+支持typed source参数0/1，不扩大旧同根资格。实际OwnedValue身份锚与独立owner事件窗口
+证明source原实例存活；aux可仍live，或由同次CallReturn的唯一真实owner Drop和raw
+cleanup共同确认ASAP退休。旧owner Unsupported/目录清空不变，新窗口不授予旧资格。
+关系可定位已发生的aux Drop，但不是整生命周期Complete或新receipt；source/result及
+两owner后续结束仍靠旧见证，证据见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#独立双根辅助退休关系实施中)。

@@ -14335,3 +14335,39 @@ CI-only或native全套/远端CI；日志为distinct-root-research与loop-borrow-
 
 本片Clippy -D warnings、fmt/diff及文档897项通过；仅新增测试与研究记录，原尺寸
 阻塞不变且policy无修改。未扩大Complete，不退休见证，仅本地提交、不推送。
+
+#### 独立双根辅助退休关系（实施中）
+
+基于8b4ec677，补唯一source与独立auxiliary root的实际call-return关系，不放宽
+旧同根协议，不改变既有lowering。真实两次acquisition与同次handoff携带身份，typed
+source参数0/1映射和实际owner存活状态共同认证aux退休而source延续；仅有不同symbol
+或两个AST实参不够。不能从最终facts重建已经丢失的pending token或owner身份。
+
+关系与完整区域分离：本片不将call-return aux退休声称为owner Drop，也不宣称整个
+双根生命周期Complete。实际consumer、result End、source End和两个owner Drop顺序
+由原样SSA普通回归继续核对；新的区域/receipt须另有完整边界证明。旧同根资格、旧
+见证与observer-off产物不变，尺寸策略不改，先真实红再绿，仅本地提交。
+
+本片实际时序要求纳入ASAP：aux loan退休后、binding commit之前，aux owner可已被
+真实CallReturn Drop；不能强求aux继续存活，也不能只放宽动作相邻性。独立pending
+窗口在旧owner观察已Unsupported时仍旁听真实owner_event，保留从实际OwnedValue取得
+的OwnerId/callable/catalog锚，不重开旧目录。commit必须source原实例仍live；aux要么
+原实例仍live且窗口无事件，要么只有精确匹配的aux owner Drop及raw cleanup记录。
+独立final再次核事件完整窗口与选定Drop一致，pending仅一次消费；Drop可由新关系
+定位，但此局部关系仍不证明后续source或整区域生命周期。
+
+实际红绿：source-index0/rooted先在typed/raw已成功时得到独立关系0!=1；定位到旧
+borrow入口故意清空owner观察目录，修正为实际OwnedValue锚与独立窄事件窗口，不改变
+旧Unsupported或目录清空。最终source0/1×aux ASAP/后续使用×双入口×on/off共16组合
+通过；关系绑定两Begin/handoff、两OwnerId及可选实际aux Drop，原SSA结束/Drop顺序和
+开关文本一致。旧同根关系/region/receipt仍按原合同，无新双根完整region或receipt。
+
+FE普通8项、CG普通32项通过；Clippy -D warnings、workspace all-targets、默认FE/CG
+lib no-run、fmt/diff及文档897项通过。新CI-only身份、窗口事件增删换、提前结束、
+source变更与Drop错配故障仅编译，未执行。独立复审要求final再核完整owner事件窗口，
+已落实精确空窗口或唯一aux Drop匹配；未用选择性事件过滤掩盖source Drop/Move。
+
+尺寸复测2552手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674。
+drop_planner.rs及尺寸策略均未改；compilation_unit.rs仅公开关系导出+2至1120，经
+独立职责审查仍低于原1156额度。日志distinct-aux-*，未跑native全套/远端CI；
+旧见证全部保留，仅本地提交、不推送。

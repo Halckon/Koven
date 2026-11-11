@@ -105,6 +105,7 @@ pub struct UnitLoanActionObservation {
     pub(super) nested_forward_lineages: Vec<super::UnitLoanNestedForwardLineage>,
     pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
+    pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
     pub(super) auxiliary_binding_regions: Vec<super::UnitBorrowAuxiliaryBindingRegion>,
 }
@@ -193,6 +194,18 @@ impl UnitLoanActionObservation {
     #[must_use]
     pub fn auxiliary_retirements(&self) -> &[super::UnitLoanAuxiliaryRetirement] {
         &self.auxiliary_retirements
+    }
+
+    /// Independent partial two-owner retirement relations, never complete lifecycle authority.
+    pub fn distinct_auxiliary_retirements(&self) -> &[super::UnitLoanDistinctAuxiliaryRetirement] {
+        &self.distinct_auxiliary_retirements
+    }
+    /// Check the actual catalog identity of a two-owner relation.
+    pub fn owns_distinct_auxiliary_retirement(
+        &self,
+        relation: &super::UnitLoanDistinctAuxiliaryRetirement,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &relation.identity)
     }
 
     /// Independent coverage of the narrowly declared branch region.

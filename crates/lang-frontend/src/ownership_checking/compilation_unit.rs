@@ -51,7 +51,9 @@ pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
     UnitLoanConsumerRetirement, UnitLoanForwardBranch, UnitLoanForwardHandoff,
 };
-pub use loan_auxiliary_retirement::UnitLoanAuxiliaryRetirement;
+pub use loan_auxiliary_retirement::{
+    UnitLoanAuxiliaryRetirement, UnitLoanDistinctAuxiliaryRetirement,
+};
 
 mod loan;
 pub use loan::{
