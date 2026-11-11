@@ -63,17 +63,18 @@ pub(in crate::ssa::lower_frontend::map_iteration::source_owner) mod future {
             parsed,
             span,
             point,
-            names
-                .references()
-                .iter()
-                .filter_map(|r| (r.target() == &ReferenceTarget::Symbol(symbol)).then_some(r.span())),
+            names.references().iter().filter_map(|r| {
+                (r.target() == &ReferenceTarget::Symbol(symbol)).then_some(r.span())
+            }),
         ) {
             return Err(unsupported());
         }
         let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
         let conditions = owned.cleanup_conditions();
         let live = |owner| match birth {
-            Some(birth) => super::super::formed_condition(parsed, owned, (symbol, birth.birth), owner, span),
+            Some(birth) => {
+                super::super::formed_condition(parsed, owned, (symbol, birth.birth), owner, span)
+            }
             None => super::super::provenance::parameter(owned, symbol, origin, owner, span),
         };
         for boundary in [IterationPhiBoundary::Header, IterationPhiBoundary::Exit] {

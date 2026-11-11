@@ -58,13 +58,11 @@ pub(super) mod guard {
         else {
             return Err(unsupported());
         };
-        let symbol = unique(
-            names
-                .symbols()
-                .iter()
-                .filter(|symbol| symbol.span() == *origin && symbol.kind() == SymbolKind::Variable),
-        )
-        .ok_or_else(missing)?;
+        let symbol =
+            unique(names.symbols().iter().filter(|symbol| {
+                symbol.span() == *origin && symbol.kind() == SymbolKind::Variable
+            }))
+            .ok_or_else(missing)?;
         let ty = typed.symbol_type(symbol.id()).ok_or_else(missing)?;
         let TypeKind::Nominal { nominal, arguments } = typed.types().get(ty).ok_or_else(missing)?
         else {
@@ -159,17 +157,22 @@ pub(super) mod guard {
             .symbols()
             .get(nominal.id().symbol().index())
             .ok_or_else(missing)?;
-        let declaration = unique(parsed.ast().items().iter().filter_map(
-            |(_, item)| match item.payload() {
-                Item::Classifier(declaration)
-                    if declaration.name == NameMarker::Present(nominal_symbol.span()) =>
-                {
-                    Some(declaration)
-                }
-                _ => None,
-            },
-        ))
-        .ok_or_else(missing)?;
+        let declaration =
+            unique(
+                parsed
+                    .ast()
+                    .items()
+                    .iter()
+                    .filter_map(|(_, item)| match item.payload() {
+                        Item::Classifier(declaration)
+                            if declaration.name == NameMarker::Present(nominal_symbol.span()) =>
+                        {
+                            Some(declaration)
+                        }
+                        _ => None,
+                    }),
+            )
+            .ok_or_else(missing)?;
         if !declaration
             .body
             .as_ref()

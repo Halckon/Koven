@@ -2,7 +2,7 @@
 mod emitted {
     use super::*;
     #[cfg(test)]
-    #[path = "loan_receipt/ci_tests.rs"]
+    #[path = "ci_tests.rs"]
     mod ci_tests;
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     use std::collections::BTreeMap;

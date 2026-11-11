@@ -1,7 +1,8 @@
 use std::fmt::{self, Write};
 
 use super::model::{
-    CallableSignature, ClosureCaptureOperand, Edge, EntityId, EntityType, Function, LoanKind,
+    BinaryOperator, CallableSignature, CheckedArithmeticOperator, ClosureCaptureOperand,
+    ComparisonOperator, Edge, EntityId, EntityType, Function, IntegerBitwiseOperator, LoanKind,
     Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, TerminatorKind,
 };
 

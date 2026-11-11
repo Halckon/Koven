@@ -213,7 +213,7 @@ impl UnitExpressionLowerer<'_> {
         // operands outside CFG carriers. Only ordinary control ancestors qualify.
         Ok(!self.parsed.ast().expressions().iter().any(|(id, node)| {
             id != control.expression()
-                && super::super::super::span_contains(node.span(), span)
+                && crate::ssa::unit_lower::span_contains(node.span(), span)
                 && !matches!(
                     node.payload(),
                     Expression::Group { .. } | Expression::If { .. } | Expression::When { .. }

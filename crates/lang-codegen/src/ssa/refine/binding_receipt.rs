@@ -3,7 +3,7 @@ mod admission;
 mod emitted {
     use super::*;
     #[cfg(test)]
-    #[path = "binding_receipt/ci_tests.rs"]
+    #[path = "ci_tests.rs"]
     mod ci_tests;
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
 
@@ -184,7 +184,7 @@ mod emitted {
                     if EntityId::Loan(*loan) == entity(p.source)? && data.results.is_empty() => {}
                 (6, Operation::Drop { owner })
                     if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
-                _ => return Err(invalid(span));
+                _ => return Err(invalid(span)),
             }
             self.blocks[tag.plan] = Some(data.block);
             r.instructions.push(instruction);

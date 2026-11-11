@@ -5,10 +5,7 @@ use super::{
     orchestrate::{self, unwrap_modified},
     present_name, value,
 };
-use crate::ssa::{
-    constant_materialization,
-    statement_core::StatementLowering,
-};
+use crate::ssa::{constant_materialization, statement_core::StatementLowering};
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, SymbolId, SymbolKind},

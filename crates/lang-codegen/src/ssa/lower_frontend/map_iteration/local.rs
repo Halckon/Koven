@@ -10,8 +10,7 @@ use super::*;
 use lang_frontend::{
     name_resolution::{Namespace, ReferenceTarget},
     ownership_checking::{
-        CleanupConditionId, CleanupOwnerValueId, CleanupSelectorId, DropFact, DropTarget,
-        LoanEndPoint, LoanKind,
+        CleanupOwnerValueId, CleanupSelectorId, DropFact, DropTarget, LoanEndPoint, LoanKind,
     },
     parser::NameMarker,
     type_checking::{

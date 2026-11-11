@@ -13,7 +13,8 @@ mod admission {
             inputs: &super::super::RefineInputs<'_>,
         ) -> Result<Self, LoweringError> {
             let mut result = Self::default();
-            let Some(call) = super::super::subset::named_route::bounded_temporary_call(inputs) else {
+            let Some(call) = super::super::subset::named_route::bounded_temporary_call(inputs)
+            else {
                 return Ok(result);
             };
             let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
@@ -259,7 +260,7 @@ mod admission {
 mod emitted {
     use super::*;
     #[cfg(test)]
-    #[path = "temporary_receipt/ci_tests.rs"]
+    #[path = "ci_tests.rs"]
     mod ci_tests;
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     use std::collections::BTreeMap;
@@ -285,7 +286,8 @@ mod emitted {
         ) -> Result<Self, LoweringError> {
             let mut receipts = Vec::new();
             for p in &plans.entries {
-                if instruction_count(p.operands.len()) != Some(p.stage) || p.caller != function.id() {
+                if instruction_count(p.operands.len()) != Some(p.stage) || p.caller != function.id()
+                {
                     return Err(invalid(span));
                 }
                 receipts.push(Receipt {
@@ -417,7 +419,9 @@ mod emitted {
             function: &Function,
             span: Span,
         ) -> Result<(), LoweringError> {
-            if self.receipts.len() != plans.entries.len() || self.blocks.len() != plans.entries.len() {
+            if self.receipts.len() != plans.entries.len()
+                || self.blocks.len() != plans.entries.len()
+            {
                 return Err(invalid(span));
             }
             for ((r, b), p) in self.receipts.iter().zip(&self.blocks).zip(&plans.entries) {

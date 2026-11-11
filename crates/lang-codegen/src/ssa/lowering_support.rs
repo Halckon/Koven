@@ -228,15 +228,14 @@ pub(in crate::ssa) mod string_literal {
         source_text: &str,
         expression: ExpressionId,
     ) -> Result<Option<Vec<u8>>, LoweringError> {
-        let node =
-            parsed
-                .ast()
-                .expressions()
-                .get(expression)
-                .map_err(|_| LoweringError {
-                    kind: LoweringErrorKind::MissingFact,
-                    span: None,
-                })?;
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
         match node.payload() {
             Expression::Group { expression } => decode_plain(parsed, source_text, *expression),
             Expression::String { parts } => {

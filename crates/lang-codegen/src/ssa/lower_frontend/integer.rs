@@ -1,8 +1,8 @@
 //! Local facts and submission adapt into the shared integer, checked, and range algorithms.
 use super::{
     BlockId, BuiltinType, CheckedArithmeticOperator, EntityId, EntityType, ExpressionLowerer,
-    Function, LoweredValue, LoweringError, LoweringErrorKind, Operation, Span, SsaTypeId,
-    SymbolId, ValueId, builtin_type, error, value,
+    Function, LoweredValue, LoweringError, LoweringErrorKind, Operation, Span, SsaTypeId, SymbolId,
+    ValueId, builtin_type, error, value,
 };
 use crate::ssa::expression_core::checked::{self, CarryColumn, CheckedCarry, CheckedLowering};
 use lang_frontend::{

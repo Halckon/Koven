@@ -1,7 +1,6 @@
 mod provider;
 mod runtime;
 mod source;
-use source::carrier;
 use super::*;
 use lang_frontend::{
     ownership_checking::{
@@ -12,6 +11,7 @@ use lang_frontend::{
     },
     type_checking::{IterationProvider, SequentialContainerKind, SequentialIterationBinding},
 };
+use source::carrier;
 
 /// Only complete published facts and the bounded source relation construct this token.
 #[derive(Clone, PartialEq, Eq)]

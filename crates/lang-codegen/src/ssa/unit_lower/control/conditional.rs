@@ -302,9 +302,7 @@ impl UnitExpressionLowerer<'_> {
 pub(in crate::ssa::unit_lower) mod nullable_if {
     //! Bounded nullable entries: root Borrow and heap Ifs.
     #[cfg(test)]
-    #[path = "nullable_if/field_tests.rs"]
     mod field_tests;
-    #[path = "nullable_if/heap.rs"]
     mod heap;
 
     use super::super::super::unwrap_modified;
@@ -364,7 +362,8 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             if self.migrated_family_compatibility
-                && let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)?
+                && let Some(entry) =
+                    self.prepare_heap_nullable_if_entry(control, condition, span)?
             {
                 return Ok(Some(entry));
             }

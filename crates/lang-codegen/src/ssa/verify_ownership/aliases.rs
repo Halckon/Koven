@@ -18,11 +18,9 @@ pub(in crate::ssa::verify_ownership) mod direct_fields {
             function: &Function,
             roots: &BTreeMap<EntityId, BTreeSet<EntityId>>,
         ) -> Self {
-            if !function
-                .instructions
-                .iter()
-                .any(|instruction| matches!(instruction.operation, Operation::HeapPayloadPlace { .. }))
-            {
+            if !function.instructions.iter().any(|instruction| {
+                matches!(instruction.operation, Operation::HeapPayloadPlace { .. })
+            }) {
                 return Self(BTreeMap::new());
             }
             let incoming_blocks: BTreeSet<_> = function
@@ -91,7 +89,8 @@ pub(in crate::ssa::verify_ownership) mod direct_fields {
                     }
                 }
                 for block in &function.blocks {
-                    for edge in edges(&block.terminator.as_ref().expect("verified terminator").kind) {
+                    for edge in edges(&block.terminator.as_ref().expect("verified terminator").kind)
+                    {
                         let target = function.block(edge.target).unwrap();
                         for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
                             let incoming = paths[argument].clone();

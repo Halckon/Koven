@@ -10,10 +10,10 @@ use lang_frontend::{
     type_checking::MapIterationDescriptor,
 };
 
+pub(super) use self::{local_validate as local, transport_roles as transport};
 pub(super) use actions::validate_drop_ledger;
 pub(super) use facts::{qualify, source_drop};
 pub(super) use verify::validate;
-pub(super) use self::{local_validate as local, transport_roles as transport};
 
 #[derive(Clone, Copy)]
 pub(super) struct Shape {

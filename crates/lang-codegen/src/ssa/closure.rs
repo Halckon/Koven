@@ -1,9 +1,11 @@
 //! Concrete callable, closure, Map-result / nullable-Map type construction, and integer operator mappings.
 
 pub(in crate::ssa) mod integer {
+    use crate::ssa::model::{
+        CheckedArithmeticOperator, ComparisonOperator, IntegerBitwiseOperator,
+    };
     #[cfg(test)]
     use crate::ssa::model::{Operation, ValueId};
-    use crate::ssa::model::{CheckedArithmeticOperator, ComparisonOperator, IntegerBitwiseOperator};
     use lang_frontend::{
         ast::ExpressionId,
         parser::{AssignmentOperator, BinaryOperator, Expression, ParsedFile},

@@ -57,9 +57,9 @@ pub(in crate::ssa::lower_frontend) fn declare(
             .filter_map(|(expression, node)| {
                 (contains(owner_span, node.span())
                     && matches!(node.payload(), Expression::Lambda { .. })
-                    && owned.callable_origin(expression).is_some_and(|fact| {
-                        fact.origin() == CallableOrigin::Lambda(expression)
-                    }))
+                    && owned
+                        .callable_origin(expression)
+                        .is_some_and(|fact| fact.origin() == CallableOrigin::Lambda(expression)))
                 .then_some((expression, node.span()))
             })
             .collect::<Vec<_>>();

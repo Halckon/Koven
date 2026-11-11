@@ -162,7 +162,8 @@ pub(in crate::ssa::refine::build) mod receiver {
                         if matches!(payload, Expression::Name) {
                             let symbol = self.reference(expr_span)?;
                             if let Some(&owner_slot) = self.bindings.get(&symbol) {
-                                let EntityType::Value(target) = self.body.slots[owner_slot.0] else {
+                                let EntityType::Value(target) = self.body.slots[owner_slot.0]
+                                else {
                                     return Err(error(LoweringErrorKind::InvalidModel, span));
                                 };
                                 let place = self.value(
@@ -192,7 +193,8 @@ pub(in crate::ssa::refine::build) mod receiver {
             &mut self,
             receiver: Receiver,
             span: Span,
-        ) -> Result<(Slot, Vec<Slot>, Option<super::super::inout::Writeback>), LoweringError> {
+        ) -> Result<(Slot, Vec<Slot>, Option<super::super::inout::Writeback>), LoweringError>
+        {
             match receiver {
                 Receiver::Ready { operand, loans } => Ok((operand, loans, None)),
                 Receiver::Reserved(owner) => {

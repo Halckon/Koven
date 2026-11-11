@@ -27,7 +27,8 @@ pub(in crate::ssa::lower_frontend::outer_borrowed_while) mod carrier {
         function: &Function,
         entity: EntityId,
     ) -> Option<(BlockId, usize)> {
-        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition else {
+        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition
+        else {
             return None;
         };
         (function.block(block)?.parameters.get(index) == Some(&entity)).then_some((block, index))
@@ -336,7 +337,7 @@ pub(super) fn qualify(
                 body: FunctionBody::Block(body),
                 ..
             } => *body,
-            _ => return None;
+            _ => return None,
         };
         let statements = elements(parsed, body)?;
         let index = statements.iter().position(|id| *id == outer)?;

@@ -2,7 +2,7 @@
 mod emitted {
     use super::*;
     #[cfg(test)]
-    #[path = "named_receipt/ci_tests.rs"]
+    #[path = "ci_tests.rs"]
     mod ci_tests;
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     use std::collections::BTreeMap;
@@ -78,7 +78,9 @@ mod emitted {
                 }
             }
             match (tag.role, &data.operation) {
-                (0, Operation::RootPlace { owner }) if EntityId::Value(*owner) == entity(p.owner)? => {
+                (0, Operation::RootPlace { owner })
+                    if EntityId::Value(*owner) == entity(p.owner)? =>
+                {
                     let [place @ EntityId::Place(_)] = data.results.as_slice() else {
                         return Err(invalid(span));
                     };
@@ -125,7 +127,7 @@ mod emitted {
                     if EntityId::Loan(*loan) == entity(p.loan)? && data.results.is_empty() => {}
                 (4, Operation::Drop { owner })
                     if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
-                _ => return Err(invalid(span));
+                _ => return Err(invalid(span)),
             }
             self.blocks[tag.plan] = Some(data.block);
             r.instructions.push(instruction);
@@ -137,7 +139,9 @@ mod emitted {
             function: &Function,
             span: Span,
         ) -> Result<(), LoweringError> {
-            if self.receipts.len() != plans.entries.len() || self.blocks.len() != plans.entries.len() {
+            if self.receipts.len() != plans.entries.len()
+                || self.blocks.len() != plans.entries.len()
+            {
                 return Err(invalid(span));
             }
             for ((r, b), p) in self.receipts.iter().zip(&self.blocks).zip(&plans.entries) {

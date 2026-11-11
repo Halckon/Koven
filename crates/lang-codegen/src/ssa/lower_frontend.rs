@@ -1,7 +1,7 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod aggregate;
-pub(super) use aggregate::resource_deinit;
+pub(in crate::ssa::lower_frontend) use aggregate::resource_deinit;
 mod borrow_argument;
 mod borrow_result;
 #[cfg(test)]
@@ -24,7 +24,7 @@ mod non_null_proof;
 mod nullable_borrowed_cleanup;
 mod nullable_comparison;
 mod nullable_if_cleanup;
-pub(super) use nullable_if_cleanup::constant_presence;
+pub(in crate::ssa::lower_frontend) use nullable_if_cleanup::constant_presence;
 mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;

@@ -152,7 +152,8 @@ pub(super) fn prove(
                 else {
                     return None;
                 };
-                (super::super::present_name(*name) == Some(named.span())).then_some(*initializer)
+                (crate::ssa::lowering_support::present_name(*name) == Some(named.span()))
+                    .then_some(*initializer)
             }))?;
             // Only the existing transparent Group normalization is used. An assignment
             // or alias seed cannot pretend to be this declaration's initializer.

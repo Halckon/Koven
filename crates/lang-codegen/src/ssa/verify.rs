@@ -6,7 +6,7 @@ use super::model::{
 };
 
 pub(in crate::ssa) mod closure_content;
-mod closure_escape;
+pub(in crate::ssa) mod closure_escape;
 use super::verify_types::module;
 pub(in crate::ssa::verify) use module as content_flow;
 
@@ -158,7 +158,11 @@ pub(crate) fn verify_program(program: &Program) -> Result<(), VerifyErrors> {
     }
 }
 
-fn verify_function_structure(module: &Module, function: &Function, errors: &mut Vec<VerifyError>) {
+pub(in crate::ssa) fn verify_function_structure(
+    module: &Module,
+    function: &Function,
+    errors: &mut Vec<VerifyError>,
+) {
     if function.blocks.is_empty() {
         errors.push(function_error(function, VerifyErrorKind::MissingEntryBlock));
         return;
@@ -487,7 +491,11 @@ fn verify_entity_reference(
     }
 }
 
-fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<VerifyError>) {
+pub(in crate::ssa) fn verify_cfg_types(
+    module: &Module,
+    function: &Function,
+    errors: &mut Vec<VerifyError>,
+) {
     for block in &function.blocks {
         let terminator = block
             .terminator
@@ -796,7 +804,7 @@ fn non_null_target_is_proof_closed(
     })
 }
 
-fn verify_dominance(function: &Function, errors: &mut Vec<VerifyError>) {
+pub(in crate::ssa) fn verify_dominance(function: &Function, errors: &mut Vec<VerifyError>) {
     let dominators = compute_dominators(function);
     let instruction_positions = instruction_positions(function);
     for block in &function.blocks {
@@ -980,7 +988,7 @@ fn reachable_blocks(function: &Function) -> Vec<bool> {
     reachable
 }
 
-fn function_error(function: &Function, kind: VerifyErrorKind) -> VerifyError {
+pub(in crate::ssa) fn function_error(function: &Function, kind: VerifyErrorKind) -> VerifyError {
     VerifyError {
         kind,
         location: VerifyLocation::Function(function.id),
@@ -988,7 +996,11 @@ fn function_error(function: &Function, kind: VerifyErrorKind) -> VerifyError {
     }
 }
 
-fn entity_error(entity: EntityId, origin: Origin, kind: VerifyErrorKind) -> VerifyError {
+pub(in crate::ssa) fn entity_error(
+    entity: EntityId,
+    origin: Origin,
+    kind: VerifyErrorKind,
+) -> VerifyError {
     VerifyError {
         kind,
         location: VerifyLocation::Entity(entity),

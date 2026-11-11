@@ -583,7 +583,7 @@ pub(in crate::ssa) mod module {
         verify_ownership::edges,
     };
 
-    pub(in crate::ssa::verify) fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
+    pub(in crate::ssa) fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
         let module_before = errors.len();
         crate::ssa::verify_types::verify_types(module, errors);
         verify_deinits(module, errors);
@@ -650,7 +650,7 @@ pub(in crate::ssa) mod module {
         }
     }
 
-    pub(in crate::ssa::verify) fn verify_callable_view_entity(
+    pub(in crate::ssa) fn verify_callable_view_entity(
         module: &Module,
         entity: EntityId,
         data: &EntityData,
@@ -676,7 +676,7 @@ pub(in crate::ssa) mod module {
         }
     }
 
-    pub(in crate::ssa::verify) fn verify_callable_view_returns(
+    pub(in crate::ssa) fn verify_callable_view_returns(
         module: &Module,
         function: &Function,
         errors: &mut Vec<VerifyError>,
@@ -697,7 +697,7 @@ pub(in crate::ssa) mod module {
 
     /// The caller supplies domain transfer, simultaneous edge transport, and its monotone join.
     /// Structural verification must have succeeded before walking the CFG.
-    pub(in crate::ssa::verify) fn block_entries<State: Clone>(
+    pub(in crate::ssa) fn block_entries<State: Clone>(
         function: &Function,
         defaults: &State,
         transfer: impl Fn(&Block, &mut State),

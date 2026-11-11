@@ -488,7 +488,7 @@ mod entry {
             Ok(None)
         }
 
-        pub(in super::super::super) fn qualify_nullable_while_entry(
+        pub(in super::super) fn qualify_nullable_while_entry(
             &mut self,
             statement: StatementId,
             descriptor: NullComparisonDescriptor,

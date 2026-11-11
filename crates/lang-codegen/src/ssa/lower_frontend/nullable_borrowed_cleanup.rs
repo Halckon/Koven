@@ -730,6 +730,5 @@ mod runtime {
     }
 
     #[cfg(test)]
-    #[path = "nullable_borrowed_cleanup/tests.rs"]
     mod tests;
 }

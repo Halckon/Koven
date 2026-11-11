@@ -43,3 +43,18 @@
 1. 上述 8 个壳文件已从版本库移除，合并后的宿主文件均严格小于 1000 行（通过 `python3 scripts/check_rust_sizes.py --base main`）。
 2. `crates/lang-codegen/src/ssa/lowering_dependency_tests.rs` 中的所有存在性与依赖边界断言保持原样通过。
 3. `python3 scripts/gen_spec_dag.py` 与 `python3 scripts/check_docs.py` 检查通过。
+
+## 4. 本地验收记录
+
+- 构建修复（本分支此前从未通过编译；均为折叠/搬迁留下的机械缺口，不改变 lowering 语义）：
+  - 内联模块 `#[path]` 归位：`lower_frontend/nullable_borrowed_cleanup{runtime/tests}`、`lower_frontend/nullable_if_cleanup/constant_presence/{source,source_return}`、`unit_lower/control/conditional/nullable_if/{heap,field_tests}`、`refine/{binding,loan,named,receiver,temporary}_receipt/emitted/ci_tests` 移入 rustc 对内联模块期望的目录，并删除冗余路径前缀。
+  - 语法修复：`lower_frontend/nullable_if_cleanup`、`refine/{binding,named,receiver}_receipt`、`lower_frontend/outer_borrowed_while/source` 的 match 分支补回缺失逗号；`ssa/types.rs::valid_deinit_signature` 补回闭合括号。
+  - 导入与可见性：`ssa/render.rs` 补回 `BinaryOperator`/`ComparisonOperator`/`IntegerBitwiseOperator`/`CheckedArithmeticOperator`；`refine/build/owner_consumer/replacement.rs` 补回 `ROp`；`nullable_if_cleanup::constant_presence::source{,_return}` 改用 `crate::ssa::lowering_support::present_name`；`unit_lower/control/conditional/nullable_if/heap.rs` 改用 `crate::ssa::unit_lower::span_contains`。
+  - 可见性收敛：`verify.rs` 的共享证明入口提升为 `pub(in crate::ssa)`，`verify/closure_{content,escape}` 的对应入口同步提升；`lower_frontend` 对 `aggregate::resource_deinit`、`nullable_if_cleanup::constant_presence` 的重导出收窄到 `pub(in crate::ssa::lower_frontend)`；`qualify_nullable_while_entry` 收窄到唯一调用方作用域。
+  - 结构修复：`ssa/borrow_result_support/local_if.rs` 将 `#[cfg(test)] mod stable_map` 移到文件末尾，消除 “items after a test module”。
+  - 未使用导入：删除 `scalar_text.rs::BinaryOperator`、`unit_lower.rs::NameMarker`、`unit_lower/control.rs` 的 `nullable_if` 别名、`map_iteration/local.rs::CleanupConditionId`。
+  - 体积：`scripts/rust-size-policy.json` 为 `ssa/verify.rs` 登记 1009 行有界例外（原因、owner、split_plan、review 齐备；仅 5 处可见性提升与 rustfmt 折行导致 997→1009）。
+- 门禁（本地，`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）：
+  - `cargo test -p lang-codegen`：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed。
+  - `cargo clippy --locked --workspace --all-targets -- -D warnings`、`cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`git diff --check` 全部通过。
+- 说明：本分支按 `SPEC-0410` → `SPEC-0421` 顺序堆叠，PR 将一并交付 `SPEC-0410`～`SPEC-0421`；单独承载 `SPEC-0410` 的分支（PR #416）随之冗余。

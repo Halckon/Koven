@@ -422,7 +422,10 @@ pub(super) mod nullable_proof {
         }
 
         /// If retests currently support only local reads and normal branch completion.
-        pub(in super::super) fn reject_live_if_proof(&self, span: Span) -> Result<(), LoweringError> {
+        pub(in super::super) fn reject_live_if_proof(
+            &self,
+            span: Span,
+        ) -> Result<(), LoweringError> {
             if self
                 .nullable_proofs
                 .values()

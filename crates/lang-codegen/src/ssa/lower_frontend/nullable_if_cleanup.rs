@@ -3,9 +3,7 @@ mod carrier;
 mod source;
 
 pub(in crate::ssa::lower_frontend) mod constant_presence {
-    #[path = "constant_presence/source.rs"]
     mod source;
-    #[path = "constant_presence/source_return.rs"]
     mod source_return;
 
     use lang_frontend::ownership_checking::{
@@ -340,7 +338,7 @@ fn coverage(
     let arm = match (conditions.get(arms[0])?, conditions.get(arms[1])?) {
         (CleanupCondition::Always, CleanupCondition::Never) => 0,
         (CleanupCondition::Never, CleanupCondition::Always) => 1,
-        _ => return None;
+        _ => return None,
     };
     Some((
         control(parsed, conditions, first)?,

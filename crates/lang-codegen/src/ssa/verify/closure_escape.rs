@@ -176,7 +176,9 @@ pub(in crate::ssa::verify) mod proof {
                         ClosureCaptureOperand::Owned(value) => may(*value),
                     }))
                 }
-                Operation::AggregateConstruct { fields, .. } => Some(fields.iter().copied().any(may)),
+                Operation::AggregateConstruct { fields, .. } => {
+                    Some(fields.iter().copied().any(may))
+                }
                 Operation::ContainerConstruct { elements, .. } => {
                     Some(elements.iter().copied().any(may))
                 }
@@ -195,7 +197,8 @@ pub(in crate::ssa::verify) mod proof {
                 Operation::RootPlace { owner }
                 | Operation::HeapPayloadPlace { owner }
                 | Operation::TaggedPayloadPlace { owner, .. } => Some(may(*owner)),
-                Operation::BorrowBegin { place, .. } | Operation::FieldPlace { base: place, .. } => {
+                Operation::BorrowBegin { place, .. }
+                | Operation::FieldPlace { base: place, .. } => {
                     Some(state[content_index(self.function, EntityId::Place(*place))])
                 }
                 Operation::SharedReborrow { source }
@@ -407,7 +410,7 @@ struct ClassificationStats {
 
 impl TypeCaptures {
     /// The module's type and deinit checks must have succeeded before indexing storage edges.
-    pub(in crate::ssa::verify) fn compute(module: &Module) -> Self {
+    pub(in crate::ssa) fn compute(module: &Module) -> Self {
         let mut parents = vec![Vec::new(); module.types.len()];
         let mut may_contain = vec![false; module.types.len()];
         let mut pending = VecDeque::new();
@@ -474,7 +477,11 @@ impl TypeCaptures {
     }
 }
 
-pub(super) fn verify(function: &Function, types: &TypeCaptures, errors: &mut Vec<VerifyError>) {
+pub(in crate::ssa) fn verify(
+    function: &Function,
+    types: &TypeCaptures,
+    errors: &mut Vec<VerifyError>,
+) {
     if !function
         .values
         .iter()
