@@ -420,7 +420,7 @@ fn observe(
                 assert_eq!(descriptor.item().source_unit(), p);
                 assert_eq!(instance.item(), descriptor.item().item());
                 assert_eq!(instance.source_unit(), p);
-                let declared = deinit::declare(
+                let declared = callable_abi::declare_deinit(
                     module,
                     &parsed_by_source,
                     &names,

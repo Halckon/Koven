@@ -1,12 +1,11 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
-mod alias_slots;
 mod nullable;
 mod rebind;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use alias_slots::{MergeProjection, MergeRole};
+use rebind::{MergeProjection, MergeRole};
 
 use lang_frontend::{
     name_resolution::UnitSymbolId,

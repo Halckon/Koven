@@ -52,6 +52,7 @@ subgraph Gactive["现行 active"]
   S0404["S0404<br/>unit_lower 剩余单入口壳模块、重复辅助函数与测试专用 unit_plan 接口退役"]
   S0405["S0405<br/>ssa 死辅助入口、测试专用入口门控与跨模块 Span 辅助去重"]
   S0406["S0406<br/>unit_lower 入口交接与可空 when 清理壳模块收敛及整数算子映射去重"]
+  S0407["S0407<br/>unit_lower 析构/CFG 壳模块收敛、expression_core 测试遗留迁移与 lowering_support 辅助去重"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -123,6 +124,7 @@ ARCH --> S0341
 | SPEC-0404 | active | [0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md](active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
 | SPEC-0405 | active | [0405-refine-dead-helpers-and-test-entry-gates-retirement.md](active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
 | SPEC-0406 | active | [0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md](active/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md) |
+| SPEC-0407 | active | [0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md](active/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

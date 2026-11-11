@@ -82,7 +82,7 @@ pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 use super::{
     expression_core::LoweredValue,
     integer::{assignment_operator, bitwise_operator, checked_operator, comparison_operator},
-    lowering_support::{error, string_literal},
+    lowering_support::{error, parse_integer_literal_text, present_name, span_key, string_literal},
 };
 
 fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
@@ -1267,10 +1267,7 @@ impl ExpressionLowerer<'_> {
         kind: IntegerLiteralKind,
         span: Span,
     ) -> Result<i128, LoweringError> {
-        let text = self.source_slice(span)?;
-        lang_frontend::type_checking::integer_literal_magnitude(text, kind)
-            .and_then(|value| i128::try_from(value).ok())
-            .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))
+        parse_integer_literal_text(self.source_slice(span)?, kind, span)
     }
 
     fn expression_ssa_type(
@@ -1308,13 +1305,6 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn present_name(marker: NameMarker) -> Option<Span> {
-    match marker {
-        NameMarker::Present(span) => Some(span),
-        NameMarker::Missing(_) | NameMarker::Error(_) => None,
-    }
-}
-
 fn value(entity: EntityId) -> ValueId {
     let EntityId::Value(value) = entity else {
         unreachable!("scalar lowering only requests value results");
@@ -1327,8 +1317,4 @@ fn place(entity: EntityId) -> super::model::PlaceId {
         unreachable!("frontend lowering requested a place result");
     };
     place
-}
-
-fn span_key(span: Span) -> (usize, usize) {
-    (span.start(), span.end())
 }

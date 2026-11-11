@@ -15,7 +15,6 @@ pub(crate) mod constant;
 mod construction;
 mod container;
 mod control;
-mod deinit;
 mod field_borrow;
 mod loop_control;
 mod map;
@@ -60,7 +59,7 @@ use lang_frontend::{
 
 use super::{
     LoweringError, LoweringErrorKind,
-    lowering_support::{error as lowering_error, string_literal},
+    lowering_support::{error as lowering_error, parse_integer_literal_text, present_name, span_key, string_literal},
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
         Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
@@ -872,9 +871,7 @@ fn parse_integer_literal(
     let text = sources
         .slice(span)
         .map_err(|_| lowering_error(LoweringErrorKind::MismatchedSource, span))?;
-    lang_frontend::type_checking::integer_literal_magnitude(text, kind)
-        .and_then(|value| i128::try_from(value).ok())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidLiteral, span))
+    parse_integer_literal_text(text, kind, span)
 }
 
 fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError> {
@@ -884,17 +881,6 @@ fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError>
             Err(lowering_error(LoweringErrorKind::InvalidModel, span))
         }
     }
-}
-
-const fn present_name(marker: NameMarker) -> Option<Span> {
-    match marker {
-        NameMarker::Present(span) => Some(span),
-        NameMarker::Missing(_) | NameMarker::Error(_) => None,
-    }
-}
-
-const fn span_key(span: Span) -> (usize, usize) {
-    (span.start(), span.end())
 }
 
 #[cfg(test)]

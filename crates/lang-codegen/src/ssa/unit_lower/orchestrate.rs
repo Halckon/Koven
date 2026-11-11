@@ -119,7 +119,7 @@ fn lower_unit_impl(
     }
     for (source_ordinal, instance) in instances.into_iter().enumerate() {
         if instance.key().deinit_owner().is_some() {
-            let plan = deinit::declare(
+            let plan = callable_abi::declare_deinit(
                 module,
                 &parsed_by_source,
                 names,
