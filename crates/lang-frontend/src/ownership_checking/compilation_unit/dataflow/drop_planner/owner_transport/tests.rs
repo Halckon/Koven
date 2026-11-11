@@ -31,6 +31,7 @@ mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
 mod open_loop_return;
+mod parameter_open_loop;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;
