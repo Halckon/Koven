@@ -7,6 +7,7 @@ pub use drop_point::{
 mod loan_region_validation;
 mod loan_regions;
 pub use loan_regions::{UnitDirectCallLoanRegion, UnitLoanRegionFamily};
+mod loan_auxiliary_binding_region_validation;
 mod loan_auxiliary_binding_regions;
 mod loan_binding_region_validation;
 mod loan_binding_regions;

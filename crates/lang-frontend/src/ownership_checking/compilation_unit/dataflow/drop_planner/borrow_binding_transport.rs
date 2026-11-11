@@ -198,19 +198,21 @@ impl PendingBindingTransport {
         actions: &mut super::action_source::ActionSource,
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
-    ) -> Option<ActionHandle> {
+    ) -> (Option<ActionHandle>, Option<ActionHandle>) {
         if self.observable {
             let use_return = match &self.use_return {
                 UseReturn::Unique(handle) => Some(handle.clone()),
                 UseReturn::Unused | UseReturn::Ambiguous => None,
             };
-            let retirement = actions.retire_binding_source(
+            let Some(retirement) = actions.retire_binding_source(
                 transaction,
                 self.source_begin,
                 self.handoff,
                 use_return,
                 binding_end,
-            )?;
+            ) else {
+                return (None, None);
+            };
             if matches!(self.use_return, UseReturn::Unused)
                 && let child::ChildState::Retired {
                     retirement: child, ..
@@ -219,10 +221,12 @@ impl PendingBindingTransport {
             {
                 actions.attach_binding_dependency(&retirement, child, owner);
             }
-            Some(retirement)
+            (Some(retirement), None)
         } else {
-            self.publish_auxiliary_retirement(actions, transaction, binding_end);
-            None
+            (
+                None,
+                self.publish_auxiliary_retirement(actions, transaction, binding_end),
+            )
         }
     }
 }

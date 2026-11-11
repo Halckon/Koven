@@ -13536,7 +13536,7 @@ owner 形成前生命周期，不意味着整个 source/callable 完整，不新
 
 普通探针先完成两布局旧产品和 owner on/off 等价、完整八条原记录、唯一 auxiliary
 关系及原 AST entry/completion/consumer 身份，再统一要求一个新局部 Complete 区域。
-当前 API 保持空；2026-11-11 实跑先通过 rooted、memory 两布局的原产品等价、
+该能力红阶段 API 保持空；2026-11-11 实跑先通过 rooted、memory 两布局的原产品等价、
 八条记录、辅助关系及 AST 身份断言，随后在新区域数量 0 != 1 处失败。
 此结果定位为尚未实现独立区域能力，不是已有 Partial 因果回归，也不计完成。
 
@@ -13552,3 +13552,40 @@ owner 形成前生命周期，不意味着整个 source/callable 完整，不新
 默认 unoptimized + debuginfo，未改 profile；未执行 CI-only。证据保存在本机
 `.local-artifacts/aux-region-checkpoint-20261111T1505Z/` 的输入提交、退出码和测试日志，
 不代替正式 CI 或完整工作区验收。本次仅更新此验收账本，不推送失败 checkpoint。
+
+
+### 辅助绑定独立局部区域实现（2026-11-11）
+
+在上述 426b811c 真实能力红之后，独立候选由实际 borrow val 进入，实际原 Block
+正常完成后封闭；观察入口独立核唯一已形成 String owner 的定义身份、声明、来源和深度。
+严格限制来源参数 0、同根两个不同 Shared acquisition、单辅助、单 consumer 的原三语句
+普通函数，不扩展多根、嵌套、复杂 CFG 或整 callable/source 的完整性。
+
+真实退休显式分为 legacy 与 auxiliary 两个返回通道，旧 Region/Dependency/Batch
+仅消费 legacy；辅助 handle 只进入新区域。真实 owner 移除后验证完整快照，原 Drop
+append 时封存退休到 Drop 的对应关系，不从最终 action 内容反推因果。旧 cause 优先，
+同根多 binding、候选冲突、重复完成或 owner 不匹配均使新候选失效且不可恢复。
+八记录 validator 独立要求唯一已验证 auxiliary 关系、逐记录 catalog/身份/顺序、真实
+owner ID、空正常出口与真实 Drop 因果；旧七记录 validator 保持原样。
+
+普通测试已实际证明 rooted/memory 两布局各一个局部 Complete，原 catalog 仍 Partial；
+旧单实参七记录区域仍 Complete。六类相邻形状及额外 owner use、嵌套 if、分支 use
+均不取得新 Complete，关闭 loan 观察的旧产品等价仍通过。首次扩充 fixture 使用错误
+if 语法导致解析断言失败，已修为现行括号语法后重跑；不把该 fixture 错误记为产品缺口。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 独立区域及普通边界 | unit_auxiliary_binding_region | 3 passed，原红转绿，保留旧七记录正控 |
+| 相邻辅助运输与取得关系 | unit_auxiliary_binding_causes / unit_auxiliary_binding_neighbors / unit_auxiliary_retirement | 4 passed，未放宽邻域 Complete |
+| 伪证据与生命周期 | 新 validator 5 项及 action_source 3 项 ci_only 测试 | 本机只编译，不执行；正式 CI 待验证 |
+
+此批未迁移后端消费者、不新增 production receipt、不退休旧 oracle；需要后续独立消费者
+和正式 CI 后才能进一步使用局部证书。全路径借用证明与 D10/E2 整体仍未完成。
+
+最终普通测试共 7 passed；loan support frontend all-target strict Clippy、默认 workspace
+all-target check、默认 frontend lib（含上述 8 项 CI-only）no-run 编译通过。首次 Clippy
+发现新增 Option 返回后的两处 question_mark lint，已修正后重跑通过。fmt/diff/docs897
+通过；尺寸 2459 手写 Rust 文件、35 历史超限，无新增豁免；旧 drop_planner 仅新增一行
+模块注册（1657→1658），实现留新文件。独立审阅发现重复闭合失效遗漏，已修复并补
+CI-only 测试；该 8 项未在本机执行。最终证据仍保存在上述本机目录。本批未执行完整
+workspace 测试、CLI/native、正式双宿主 CI，也未提交后端消费者迁移或退休旧见证。

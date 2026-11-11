@@ -214,3 +214,85 @@ fn ordinary_auxiliary_binding_requires_complete_interval() {
         assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
     }
 }
+
+#[test]
+fn ordinary_auxiliary_region_does_not_cover_extra_owner_use_or_nested_control() {
+    for body in [
+        "val owner = \"kept\"; borrow val item = view(owner, owner); consume(item); consume(owner)",
+        "val owner = \"kept\"; if (true) { borrow val item = view(owner, owner); consume(item) }",
+        "val owner = \"kept\"; borrow val item = view(owner, owner); if (true) { consume(item) } else { consume(item) }",
+    ] {
+        let text = format!(
+            "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run(): Unit {{ {body} }}"
+        );
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("aux-boundary.ko", &text).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let (environment, types) = standard_environments();
+        let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let on = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let off = with_loan_observation(false, || {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap()
+        });
+        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+        assert!(
+            on.ownership()
+                .loan_action_observations()
+                .iter()
+                .flat_map(|catalog| catalog.auxiliary_binding_regions())
+                .all(|region| region.coverage() != UnitLoanActionCoverage::Complete),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_non_auxiliary_binding_keeps_its_original_region() {
+    let text = SOURCE
+        .replace(", aux: String", "")
+        .replace("view(owner, owner)", "view(owner)");
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("old-binding.ko", &text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(parsed.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let result = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let [catalog] = result.ownership().loan_action_observations() else {
+        panic!("one catalog")
+    };
+    assert!(catalog.auxiliary_binding_regions().is_empty());
+    let [region] = catalog.binding_regions() else {
+        panic!("original seven-record region")
+    };
+    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+    assert_eq!(region.action_ids().len(), 7);
+}

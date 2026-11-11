@@ -11,6 +11,7 @@ mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
+mod loan_auxiliary_binding_region;
 mod loan_binding_region;
 mod loan_branch_forward_region;
 mod loan_child_region;
