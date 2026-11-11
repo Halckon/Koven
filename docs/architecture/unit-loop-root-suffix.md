@@ -42,3 +42,13 @@ observer 开关等价保持。CI-only 缺 move/bind/drop/完成事件负控仅�
 三根逆序的native运行只调用 `run(false)`，验证零轮出口与后缀可执行。当前纯Name且
 body不改guard的形状不能在true轮后自然终止，因此不声称该native测试执行过回边。
 这些测试复用原lowering和旧权限；新的边界产品尚未成为独立替代旧witness的下游授权。
+
+## 真实回边 native 与新产品的范围隔离
+
+现有通用 lowering 另验证二/三根、0/1/3轮、basic/constant 两种产品的12次native运行。
+计数器每轮递减；每根先把当前String拼接一个x，逆序Replace后打印返回旧值，再打印
+最终根。期望输出包含entry、entryx、entryxx及最终entryxxx，区分真实内容代际和根关联，
+实际执行过正常回边，不再仅观察静态phi。输出成功仍不代替释放计数或无泄漏证明。
+此组会借用打印旧结果，且条件比较/计数器写入超出新受限多根产品，所以同时断言新
+`multi_root_boundary_v1` 不发布。成功不能充当新产品扩大接纳或退休旧witness的依据。
+受限产品到SSA的精确关联矩阵则单独扩展为basic/constant两种来源，共24个组合。
