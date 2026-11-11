@@ -12690,3 +12690,15 @@ fmt、FE/CG all-targets strict Clippy、默认workspace all-targets、默认CLI 
 --help均通过，默认CLI artifact features=[]；docs及相对e659b66a尺寸门禁通过。
 末次仅追加本Spec，不改已冻结Rust。复用既有target，无删除数据或缓存；本轮未推送、
 未获得新组合正式CI结果，后续发布等待用户批准。D10/E2不标记完成。
+
+### 同来源条件借用出口前置诊断（2026-11-11）
+
+从已验9164af82独立树开始，main/origin为e659b66a。下一有价值缺口选择真实条件分支
+两个合法同source borrowed returns，而非再添加同构单表达式wrapper。ADR0040允许合法
+同来源不同控制路径交付，但仍要求逐路径完整证明；当前FE只保留两条原handoff，不能
+将两个互斥路径拼成单线性Complete。第一步只验证既有合法源码的实际lowering前置，
+不新增区域/receipt，不放宽单wrapper准入，不改变旧投影或任何End/Drop责任。
+ordinary_same_source_branch_requires_real_lowering_with_true_off先核两个真实return和
+同source不同call身份、Partial/off旧产品，完成两布局四次真实lower尝试后才验成功结果。
+若lower失败须作为独立后端前置缺口记录，不冒充生命周期coverage红或强制route。
+本片暂未编译/执行。禁止本机CI-only/native/压力测试；磁盘仅约6GiB，复用专用target。

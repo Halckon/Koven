@@ -791,3 +791,7 @@ mod forward_exit_coverage;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "forward_receipt_tests.rs"]
 mod forward_receipts;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "branch_forward_probe_tests.rs"]
+mod branch_forward_probe;
