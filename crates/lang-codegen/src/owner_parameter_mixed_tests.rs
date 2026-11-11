@@ -37,80 +37,8 @@ fn parameter_mixed_requires_actual_exit_return_authority() {
 #[test]
 fn distinct_parameters_feed_header_and_mixed_split_comparisons() {
     use crate::ssa::model::{
-        ComparisonOperator, EntityId, EntityType, Function, LoanKind, Operation, PlaceAccess,
-        SsaTypeKind, TerminatorKind,
+        ComparisonOperator, EntityId, EntityType, LoanKind, Operation, SsaTypeKind, TerminatorKind,
     };
-    // Follow block parameters and exact single-result reads of parameter loans.
-    // No arithmetic, copies, place reads, or calls can manufacture RHS identity.
-    fn roots(function: &Function, value: EntityId) -> Vec<EntityId> {
-        let entry = function.blocks.first().unwrap();
-        let mut pending = vec![value];
-        let mut visited = Vec::new();
-        let mut result = Vec::new();
-        while let Some(value) = pending.pop() {
-            if visited.contains(&value) {
-                continue;
-            }
-            visited.push(value);
-            if entry.parameters.contains(&value) {
-                result.push(value);
-                continue;
-            }
-            if matches!(value, EntityId::Value(_)) {
-                let definitions = function
-                    .instructions
-                    .iter()
-                    .filter(|instruction| instruction.results.contains(&value))
-                    .collect::<Vec<_>>();
-                if !definitions.is_empty() {
-                    let [definition] = definitions.as_slice() else {
-                        panic!("parameter read must have exactly one definition");
-                    };
-                    assert_eq!(definition.results, [value]);
-                    let Operation::Read {
-                        source: PlaceAccess::Loan(loan),
-                    } = definition.operation
-                    else {
-                        panic!("only a direct loan read may forward parameter identity");
-                    };
-                    pending.push(EntityId::Loan(loan));
-                    continue;
-                }
-            }
-            let (block, position) = function
-                .blocks
-                .iter()
-                .find_map(|block| {
-                    block
-                        .parameters
-                        .iter()
-                        .position(|p| *p == value)
-                        .map(|i| (block, i))
-                })
-                .expect("parameter RHS must be forwarded from entry, not synthesized");
-            let mut incoming = 0;
-            for predecessor in &function.blocks {
-                let Some(term) = &predecessor.terminator else {
-                    continue;
-                };
-                let edges = match &term.kind {
-                    TerminatorKind::Branch(edge) => vec![edge],
-                    TerminatorKind::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => vec![when_true, when_false],
-                    _ => Vec::new(),
-                };
-                for edge in edges.into_iter().filter(|edge| edge.target == block.id) {
-                    incoming += 1;
-                    pending.push(edge.arguments[position]);
-                }
-            }
-            assert!(incoming > 0);
-        }
-        result
-    }
     let source = UnitSource::analyze("parameter-mixed-ssa.ko", SOURCE).unwrap();
     source.assert_frontend_clean();
     let (program, entry) = source.lower_entry(source.entry()).unwrap();
@@ -169,7 +97,7 @@ fn distinct_parameters_feed_header_and_mixed_split_comparisons() {
             unreachable!()
         };
         assert_eq!(operator, ComparisonOperator::LessThan);
-        assert_eq!(roots(run, EntityId::Value(right)), [parameter]);
+        assert_eq!(parameter_roots(run, EntityId::Value(right)), [parameter]);
     }
     let header = run.block(header_comparison.block).unwrap();
     let split = run.block(split_comparison.block).unwrap();
@@ -265,4 +193,80 @@ fn parameter_mixed_basic_and_const_finite_native() {
         assert_eq!(receipt.1, receipt.2);
         super::assert_native_output(&source, b"outer\nnext\nnext\nnext\nnext\nnext\n");
     }
+}
+
+// Follow block parameters and exact single-result reads of parameter loans.
+// No arithmetic, copies, place reads, or calls can manufacture RHS identity.
+pub(super) fn parameter_roots(
+    function: &crate::ssa::model::Function,
+    value: crate::ssa::model::EntityId,
+) -> Vec<crate::ssa::model::EntityId> {
+    use crate::ssa::model::{EntityId, Operation, PlaceAccess, TerminatorKind};
+    let entry = function.blocks.first().unwrap();
+    let mut pending = vec![value];
+    let mut visited = Vec::new();
+    let mut result = Vec::new();
+    while let Some(value) = pending.pop() {
+        if visited.contains(&value) {
+            continue;
+        }
+        visited.push(value);
+        if entry.parameters.contains(&value) {
+            result.push(value);
+            continue;
+        }
+        if matches!(value, EntityId::Value(_)) {
+            let definitions = function
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.results.contains(&value))
+                .collect::<Vec<_>>();
+            if !definitions.is_empty() {
+                let [definition] = definitions.as_slice() else {
+                    panic!("parameter read must have exactly one definition");
+                };
+                assert_eq!(definition.results, [value]);
+                let Operation::Read {
+                    source: PlaceAccess::Loan(loan),
+                } = definition.operation
+                else {
+                    panic!("only a direct loan read may forward parameter identity");
+                };
+                pending.push(EntityId::Loan(loan));
+                continue;
+            }
+        }
+        let (block, position) = function
+            .blocks
+            .iter()
+            .find_map(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .position(|p| *p == value)
+                    .map(|i| (block, i))
+            })
+            .expect("parameter RHS must be forwarded from entry, not synthesized");
+        let mut incoming = 0;
+        for predecessor in &function.blocks {
+            let Some(term) = &predecessor.terminator else {
+                continue;
+            };
+            let edges = match &term.kind {
+                TerminatorKind::Branch(edge) => vec![edge],
+                TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true, when_false],
+                _ => Vec::new(),
+            };
+            for edge in edges.into_iter().filter(|edge| edge.target == block.id) {
+                incoming += 1;
+                pending.push(edge.arguments[position]);
+            }
+        }
+        assert!(incoming > 0);
+    }
+    result
 }

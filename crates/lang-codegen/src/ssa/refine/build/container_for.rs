@@ -104,7 +104,9 @@ impl Builder<'_, '_> {
             self.loops.pop();
             self.leave(mark, span)?;
             if reached {
+                let cb = self.cb_backedge(statement, header, span)?;
                 self.goto(header, span)?;
+                self.cb_backedge_emitted(cb, span)?;
             }
         } else {
             let span = self.statement_span(loop_body)?;
@@ -284,7 +286,18 @@ impl Builder<'_, '_> {
             ),
             jump_span,
         )?;
+        let cb = self.cb_break(
+            self.unit(expression),
+            is_break,
+            (
+                frame.statement,
+                target,
+                frame.seq_for.is_none() && frame.map_for.is_none(),
+            ),
+            jump_span,
+        )?;
         self.terminate(RTerm::Goto(target), jump_span)?;
+        self.cb_break_emitted(cb, jump_span)?;
         self.header_continue_emitted(continued, jump_span)?;
         self.mixed_header_jump_emitted(mixed, jump_span)?;
         Ok(Lowered::Diverged)

@@ -29,6 +29,7 @@ impl DropPlanner<'_, '_> {
         self.observe_branch_condition(id, condition, state, true);
         self.prepare_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
+        self.conditional_break_split_enter(id, condition, outcomes, state);
         self.owner_branch_depth += 1;
         let result = self.owner_if_edges(
             id,
@@ -71,6 +72,7 @@ impl DropPlanner<'_, '_> {
             self.enter_forward_arm(id, true, &mut then_state);
             self.drop_branch_entry(id, 0, &[], &mut then_state);
             self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
+            self.conditional_break_arm_enter(id, then_branch, &then_state);
             let (then_tail, then_result) =
                 self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
             then_terminated = !then_result.continues;
@@ -78,6 +80,7 @@ impl DropPlanner<'_, '_> {
                 self.drop_branch_exit(id, 0, &mut then_state);
             }
             self.finish_owner_loop_arm(id, 0, then_tail, &then_result, &then_state);
+            self.conditional_break_arm_finish(id, then_tail, &then_result, &then_state);
             if then_result.continues {
                 branch_states.push(then_state);
             }
@@ -128,8 +131,10 @@ impl DropPlanner<'_, '_> {
                         implicit.forward_scope = None;
                     }
                 }
+                self.conditional_break_implicit(id, false, &implicit);
                 self.drop_branch_entry(id, 1, &[], &mut implicit);
                 self.drop_branch_exit(id, 1, &mut implicit);
+                self.conditional_break_implicit(id, true, &implicit);
                 branch_states.push(implicit);
             }
         }
@@ -154,7 +159,12 @@ impl DropPlanner<'_, '_> {
                     _ => false,
                 };
                 if same_owners {
-                    if !self.finish_owner_loop_split(
+                    if !self.conditional_break_split_finish(
+                        id,
+                        &then_events,
+                        &else_events,
+                        branch_states.len(),
+                    ) && !self.finish_owner_loop_split(
                         id,
                         &then_events,
                         &else_events,
@@ -178,6 +188,7 @@ impl DropPlanner<'_, '_> {
         self.observe_branch_join(branch_plan, then_terminated, &branch_states);
         *state = self.merge_resource_states(id, branch_states);
         self.finish_owner_loop_join(id, state);
+        self.conditional_break_if_completed(id, continues, state);
         Ok(continues)
     }
 

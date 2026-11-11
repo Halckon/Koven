@@ -47,6 +47,7 @@ pub(in crate::ownership_checking::compilation_unit) enum HeaderCompletion {
     Fallthrough,
     Continue(UnitExpressionId),
     Mixed(UnitExpressionId),
+    ConditionalBreak(UnitExpressionId),
 }
 /// Sealed ordinary fallthrough backedge. Never a Continue product.
 #[derive(Clone, Debug)]
@@ -72,6 +73,92 @@ pub(in crate::ownership_checking::compilation_unit) struct MixedParameterThresho
     pub(in crate::ownership_checking::compilation_unit) symbols: [UnitSymbolId; 2],
     pub(in crate::ownership_checking::compilation_unit) operands: [UnitExpressionId; 2],
     pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
+}
+/// A true Break and a genuine implicit-false normal backedge, not two terminal arms.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerConditionalBreakBackedgeV1 {
+    pub(in crate::ownership_checking::compilation_unit) core: HeaderCore,
+    pub(in crate::ownership_checking::compilation_unit) threshold: MixedParameterThreshold,
+    pub(in crate::ownership_checking::compilation_unit) split: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) split_condition: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) break_body: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) break_jump: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
+    // Real split, then entry, jump cleanup, then completion, implicit entry/exit,
+    // If continuation and final body completion, in traversal order.
+    pub(in crate::ownership_checking::compilation_unit) snapshots:
+        Vec<UnitOwnerReplaceBreakStateV1>,
+    pub(in crate::ownership_checking::compilation_unit) split_sealed: bool,
+    pub(in crate::ownership_checking::compilation_unit) jump_role: LoopBodyCompletion,
+}
+impl UnitOwnerConditionalBreakBackedgeV1 {
+    /// Actual conditional expression; no synthetic else node exists.
+    pub fn split(&self) -> UnitExpressionId {
+        self.split
+    }
+    /// Actual strict threshold comparison.
+    pub fn split_condition(&self) -> UnitExpressionId {
+        self.split_condition
+    }
+    /// The sole explicit arm.
+    pub fn break_body(&self) -> UnitStatementId {
+        self.break_body
+    }
+    /// Actual cleaned Break transfer to the loop exit.
+    pub fn break_jump(&self) -> UnitExpressionId {
+        self.break_jump
+    }
+    /// Validate the independent false-continuation and true-Break evidence.
+    pub fn is_consistent(&self) -> bool {
+        let source = self.core.statement.source_unit();
+        let ids = [self.split, self.split_condition, self.break_jump];
+        let t = &self.threshold;
+        self.core.is_consistent()
+            && self.core.completion == HeaderCompletion::ConditionalBreak(self.split)
+            && self.jump_role == LoopBodyCompletion::Break(self.break_jump)
+            && self.core.increment.is_some()
+            && self.split_sealed
+            && Arc::ptr_eq(&self.identity, &self.core.producers.identity)
+            && self.snapshots.len() == 8
+            && self.snapshots.iter().all(|s| s == &self.core.backedge)
+            && self.break_body.source_unit() == source
+            && ![
+                self.core.body,
+                self.core.statement,
+                self.core.previous_statement,
+            ]
+            .contains(&self.break_body)
+            && ids.iter().enumerate().all(|(i, id)| {
+                id.source_unit() == source
+                    && !ids[..i].contains(id)
+                    && ![
+                        self.core.condition,
+                        self.core.initial,
+                        self.core.argument,
+                        self.core.call,
+                        self.core.assignment,
+                        self.core.target.expression,
+                        self.core.target.payload,
+                    ]
+                    .contains(id)
+                    && Some(*id) != self.core.increment
+            })
+            && t.callable == self.core.callable
+            && t.condition == self.core.condition
+            && t.parameters[0] != t.parameters[1]
+            && t.symbols[0] != t.symbols[1]
+            && t.symbols
+                .iter()
+                .all(|id| t.parameters.contains(id) && id.source_unit() == source)
+            && t.operands[0] != t.operands[1]
+            && t.operands.iter().all(|id| {
+                id.source_unit() == source
+                    && !ids.contains(id)
+                    && *id != self.core.condition
+                    && *id != self.core.assignment
+                    && Some(*id) != self.core.increment
+            })
+    }
 }
 /// A separately sealed Continue/header and Break/exit split of the current owner.
 #[derive(Clone, Debug)]
@@ -434,3 +521,5 @@ impl HeaderCore {
                 ]
     }
 }
+
+header_accessors!(UnitOwnerConditionalBreakBackedgeV1);
