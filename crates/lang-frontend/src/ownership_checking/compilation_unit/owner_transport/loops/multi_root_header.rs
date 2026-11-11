@@ -21,6 +21,24 @@ impl UnitOwnerRootExitPartitionV1 {
 }
 
 impl UnitOwnerMultiRootBoundaryV1 {
+    /// Consume all live exit roots through a completed straight-line Name/val/drop prefix.
+    /// Requires actual move, binding, fresh cleanup and post-declaration resource checks.
+    /// Returns declaration execution order. Not a whole-function or lowering capability.
+    pub fn condition_false_suffix_retirements(
+        &self,
+        control: UnitStatementId,
+        incoming: &[(UnitSymbolId, UnitOwnerHeaderSourceV1)],
+    ) -> Option<Vec<(UnitOwnerHeaderSourceV1, UnitDropFact)>> {
+        self.normal_header_retirements(control, incoming)?;
+        self.condition_false_suffix()?
+            .iter()
+            .map(|(root, fact)| {
+                let (_, source) = incoming.iter().find(|(known, _)| known == root)?;
+                Some((source.clone(), *fact))
+            })
+            .collect()
+    }
+
     /// Partition one complete header predecessor at the actual implicit-false exit.
     /// Every source is retained or retired exactly once. Does not rewrite ValueState,
     /// resolve a runtime phi, or certify later live-root consumption.
@@ -234,6 +252,21 @@ mod actual_exit_tests {
                         };
                         assert!(incoming.contains(&(root, source.clone())));
                     }
+                    let suffix_result = boundary
+                        .condition_false_suffix_retirements(boundary.statement(), &incoming);
+                    assert_eq!(suffix_result.is_some(), expected_live > 0, "{source}");
+                    if let Some(consumed) = suffix_result {
+                        assert_eq!(consumed.len(), expected_live);
+                        for (source, drop) in consumed {
+                            assert!(
+                                partition
+                                    .live_roots()
+                                    .iter()
+                                    .any(|(_, expected)| *expected == source)
+                            );
+                            assert!(matches!(drop.point(), UnitDropPoint::AfterStatement(_)));
+                        }
+                    }
                     let result = boundary
                         .condition_false_header_retirements(boundary.statement(), &incoming);
                     assert_eq!(result.is_some(), admitted, "{source}");
@@ -249,6 +282,51 @@ mod actual_exit_tests {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod suffix_shape_tests {
+    use super::*;
+    use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+    #[test]
+    fn actual_suffix_requires_immediate_complete_move_bind_drop_prefix() {
+        for (suffix, accepted) in [
+            ("val y = b; val x = a", true),
+            ("val x = a; val y = b; val n = 1", true),
+            ("val x = a; if(flag) { val y = b }; return", false),
+            ("val n = 1; val x = a; val y = b", false),
+            ("val x = a; val alias = x; val y = b", false),
+            ("if(flag) { val x = a; val y = b }", false),
+        ] {
+            let source = format!(
+                "fun run(flag: Boolean) {{ var a = \"a\"; var b = \"b\"; while(flag) {{ val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }}; {suffix} }}"
+            );
+            let fixture = Fixture::new(&[("suffix-shape.ko", &source)]);
+            let owned = fixture.shared();
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.clone().validate().is_ok());
+            let boundary = owned.owner_observations()[0]
+                .multi_root_boundary_v1()
+                .unwrap();
+            let incoming: Vec<_> = boundary
+                .slots()
+                .iter()
+                .map(|slot| {
+                    (
+                        slot.root(),
+                        UnitOwnerHeaderSourceV1::Backedge(slot.first_body_output()),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                boundary
+                    .condition_false_suffix_retirements(boundary.statement(), &incoming)
+                    .is_some(),
+                accepted,
+                "{source}"
+            );
         }
     }
 }

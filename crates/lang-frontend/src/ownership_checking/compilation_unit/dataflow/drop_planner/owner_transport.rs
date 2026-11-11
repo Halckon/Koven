@@ -241,6 +241,7 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        self.move_root_suffix(expression, value.as_ref());
         self.take_conditional_return(expression, value.as_ref());
         self.take_open_loop_return(expression, value.as_ref());
         if let Some(choice) = &mut self.owner_choice {
@@ -269,6 +270,7 @@ impl DropPlanner<'_, '_> {
         initializer: ExpressionId,
         owner: Option<UnitOwnerId>,
     ) -> Option<UnitOwnerId> {
+        self.bind_root_suffix(symbol, initializer);
         self.bind_root_old_token(symbol, initializer);
         if let Some(owner) = owner.as_ref() {
             self.owner_event(UnitOwnerTransportEvent::Binding {
@@ -293,6 +295,7 @@ impl DropPlanner<'_, '_> {
         id: StatementId,
         state: &ValueState,
     ) -> Result<(), OwnershipCheckingError> {
+        self.begin_root_suffix_statement(id, state);
         self.prepare_owner_loop_input(id, state);
         if matches!(
             self.checker.parsed.ast().statements().get(id)?.payload(),

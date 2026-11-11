@@ -4,6 +4,7 @@ use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 #[cfg(test)]
 pub(in super::super) use root_tokens::StaticRootPredecessor;
 mod root_exit;
+mod root_suffix;
 pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(
     UnitSymbolId,
@@ -19,6 +20,7 @@ pub(super) struct RootEvidence {
     normal_equation: Option<root_tokens::RootBoundaryEquation>,
     exit_drops: Option<Vec<crate::ownership_checking::UnitDropFact>>,
     exit_partition: Option<RootExitPartition>,
+    suffix: Option<root_suffix::RootSuffix>,
     pub(super) entry_catalog: Option<UnitOwnerProducerCatalogV1>,
     pub(super) token_transaction: Option<root_tokens::RootTokenTransaction>,
     pub(super) roots: RootIncoming,
@@ -39,6 +41,7 @@ impl RootEvidence {
             normal_equation: None,
             exit_drops: None,
             exit_partition: None,
+            suffix: None,
             entry_catalog: None,
             token_transaction: None,
             roots,
@@ -67,6 +70,10 @@ impl ControlTransactions {
             Some((live, drops)) => boundary.with_condition_false_partition(live, drops)?,
             None => boundary,
         };
+        let boundary = match evidence.suffix.take().and_then(|suffix| suffix.completed()) {
+            Some(receipts) => boundary.with_condition_false_suffix(receipts)?,
+            None => boundary,
+        };
         match evidence.exit_drops.take() {
             Some(drops) => boundary.with_condition_false_drops(drops),
             None => Some(boundary),
@@ -82,6 +89,7 @@ impl ControlTransactions {
             evidence.normal_equation = None;
             evidence.exit_drops = None;
             evidence.exit_partition = None;
+            evidence.suffix = None;
         }
     }
 
@@ -142,6 +150,7 @@ impl ControlTransactions {
             evidence.normal_equation = None;
             evidence.exit_drops = None;
             evidence.exit_partition = None;
+            evidence.suffix = None;
         }
     }
     // Called at the actual planner body-entry edge, not reconstructed from the AST.
@@ -181,6 +190,7 @@ impl ControlTransactions {
             evidence.normal_equation = None;
             evidence.exit_drops = None;
             evidence.exit_partition = None;
+            evidence.suffix = None;
             evidence.normal_backedge = normal
                 && evidence.after_condition
                 && !evidence.tainted
@@ -257,6 +267,7 @@ impl ControlTransactions {
                 normal_equation: None,
                 exit_drops: None,
                 exit_partition: None,
+                suffix: None,
                 entry_catalog,
                 token_transaction: None,
                 roots,

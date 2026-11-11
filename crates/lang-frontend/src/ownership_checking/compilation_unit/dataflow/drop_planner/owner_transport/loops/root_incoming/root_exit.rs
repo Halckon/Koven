@@ -20,6 +20,7 @@ impl DropPlanner<'_, '_> {
         };
         evidence.exit_drops = None;
         evidence.exit_partition = None;
+        evidence.suffix = None;
         // Body Replace intentionally taints legacy preservation. Keep that sticky bit;
         // the exact normal transaction proves these writes, while after_condition
         // records the uncontaminated pure Name condition boundary.
@@ -59,6 +60,12 @@ impl DropPlanner<'_, '_> {
                 .map(|fact| fact.into_unit(control.source_unit()))
                 .collect(),
         ));
+        if !live.is_empty() {
+            evidence.suffix = Some(super::root_suffix::RootSuffix::new(
+                live.clone(),
+                self.scope_depth,
+            ));
+        }
         // Keep the older all-dead capability strictly unchanged.
         if !live.is_empty() {
             return;

@@ -117,6 +117,7 @@ impl DropPlanner<'_, '_> {
         }
     }
     pub(in super::super::super) fn drop_root_old_token(&mut self, fact: PlannerDropFact) {
+        self.drop_root_suffix(fact);
         let Some(control) = self.owner_controls.current() else {
             return;
         };

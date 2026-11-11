@@ -52,6 +52,7 @@ pub struct UnitOwnerMultiRootBoundaryV1 {
     normal_transport: Option<UnitOwnerMultiRootNormalTransportV1>,
     exit_drops: Option<Vec<UnitDropFact>>,
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
+    suffix: Option<Vec<(UnitSymbolId, UnitDropFact)>>,
 }
 // Original evidence map is private to this module, independent from exposed slot clones.
 #[derive(Clone, Debug)]
@@ -68,6 +69,7 @@ struct BoundaryManifest {
     normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
     exit_drops: Option<Vec<UnitDropFact>>,
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
+    suffix: Option<Vec<(UnitSymbolId, UnitDropFact)>>,
 }
 impl UnitOwnerMultiRootBoundaryV1 {
     // Trusted factory: only the validated planner RootBoundaryEquation calls this.
@@ -89,6 +91,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             normal_steps: None,
             exit_drops: None,
             exit_partition: None,
+            suffix: None,
         };
         let value = Self {
             control,
@@ -102,6 +105,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             normal_transport: None,
             exit_drops: None,
             exit_partition: None,
+            suffix: None,
         };
         value.is_consistent().then_some(value)
     }
@@ -116,6 +120,48 @@ impl UnitOwnerMultiRootBoundaryV1 {
         self.manifest.normal_steps = Some(actual_steps);
         self.normal_transport = Some(rule);
         self.is_consistent().then_some(self)
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn with_condition_false_suffix(
+        mut self,
+        receipts: Vec<(UnitSymbolId, UnitDropFact)>,
+    ) -> Option<Self> {
+        if self.suffix.is_some() {
+            return None;
+        }
+        self.manifest.suffix = Some(receipts.clone());
+        self.suffix = Some(receipts);
+        self.is_consistent().then_some(self)
+    }
+    pub(super) fn condition_false_suffix(&self) -> Option<&[(UnitSymbolId, UnitDropFact)]> {
+        self.suffix.as_deref()
+    }
+    fn valid_suffix(&self) -> bool {
+        self.suffix == self.manifest.suffix
+            && self.suffix.as_ref().is_none_or(|receipts| {
+                self.exit_partition.as_ref().is_some_and(|(live, _)| {
+                    !live.is_empty()
+                        && receipts.len() == live.len()
+                        && live.iter().all(|root| {
+                            receipts.iter().filter(|(known, _)| known == root).count() == 1
+                        })
+                        && receipts.iter().enumerate().all(|(i, (_, fact))| {
+                            let UnitDropTarget::Named(binding) = fact.target() else {
+                                return false;
+                            };
+                            let UnitDropPoint::AfterStatement(statement) = fact.point() else {
+                                return false;
+                            };
+                            binding.source_unit() == self.control.source_unit()
+                                && statement.source_unit() == self.control.source_unit()
+                                && statement != self.control
+                                && statement != self.body
+                                && !self.slots.iter().any(|slot| slot.root == binding)
+                                && receipts[..i].iter().all(|(_, prior)| {
+                                    prior.target() != fact.target() && prior.point() != fact.point()
+                                })
+                        })
+                })
+            })
     }
     pub(in crate::ownership_checking::compilation_unit) fn with_condition_false_partition(
         mut self,
@@ -258,7 +304,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
     /// Structural/catalog verification, not an induction or runtime trace validator.
     pub fn is_consistent(&self) -> bool {
         let source = self.control.source_unit();
-        self.valid_exit_partition() && self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
+        self.valid_suffix() && self.valid_exit_partition() && self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
             && self.manifest.slots == self.slots
             && self.manifest.inputs == self.inputs.definitions()
             && self.manifest.producers == self.producers.definitions()
