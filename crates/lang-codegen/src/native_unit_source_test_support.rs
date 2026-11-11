@@ -29,6 +29,8 @@ mod owner_negated_condition_tests;
 mod owner_own_call_tests;
 #[path = "owner_pair_call_tests.rs"]
 mod owner_pair_call_tests;
+#[path = "owner_parameter_loop_tests.rs"]
+mod owner_parameter_loop_tests;
 #[path = "owner_replace_break_ci_tests.rs"]
 mod owner_replace_break_ci_tests;
 #[path = "owner_replace_break_downstream_tests.rs"]
