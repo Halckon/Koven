@@ -1,12 +1,14 @@
 //! Two terminal owner paths consume the unified open-loop contract, never a Break join.
 use super::*;
 use lang_frontend::ownership_checking::{
-    UnitOwnerCallable, UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopReturnV1,
+    UnitOwnerCallable, UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopReturnV1, UnitOwnerOrigin,
 };
 
 pub(super) struct Plan<'a> {
     boundary: &'a UnitOwnerOpenLoopReturnV1,
     produced: [Option<Slot>; 2],
+    parameter: Option<(UnitSymbolId, usize)>,
+    entry_read: bool,
     root: Option<Slot>,
     previous: Option<Slot>,
     old: Option<Slot>,
@@ -56,6 +58,45 @@ impl<'a> Plan<'a> {
         {
             return Err(fail());
         }
+        let parameter = match boundary
+            .input_producers()
+            .definition(boundary.entry().owner())
+            .ok_or_else(fail)?
+            .origin()
+        {
+            UnitOwnerOrigin::String(expression) if expression == boundary.initial() => None,
+            UnitOwnerOrigin::Parameter(symbol) => {
+                if inputs.parameters.len() != 2 || inputs.modes.len() != 2 {
+                    return Err(fail());
+                }
+                let index = inputs
+                    .parameters
+                    .iter()
+                    .position(|p| *p == symbol)
+                    .ok_or_else(fail)?;
+                for (i, parameter) in inputs.parameters.iter().enumerate() {
+                    let (mode, builtin) = if i == index {
+                        (
+                            ParameterMode::Value,
+                            lang_frontend::type_checking::BuiltinType::String,
+                        )
+                    } else {
+                        (
+                            ParameterMode::Borrow,
+                            lang_frontend::type_checking::BuiltinType::Boolean,
+                        )
+                    };
+                    let ty = inputs.typed.symbol_type(*parameter).ok_or_else(fail)?;
+                    if inputs.modes[i] != mode
+                        || inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(builtin))
+                    {
+                        return Err(fail());
+                    }
+                }
+                Some((symbol, index))
+            }
+            _ => return Err(fail()),
+        };
         let typed = inputs
             .typed
             .ownership_primitive(boundary.call())
@@ -100,6 +141,8 @@ impl<'a> Plan<'a> {
         Ok(Some(Self {
             boundary,
             produced: [None; 2],
+            parameter,
+            entry_read: false,
             root: None,
             previous: None,
             old: None,
@@ -125,11 +168,69 @@ impl<'a> Plan<'a> {
     }
 }
 impl Builder<'_, '_> {
+    // Called only after the original Value parameter slot and binding were installed.
+    pub(super) fn open_loop_parameter_bound(
+        &mut self,
+        symbol: UnitSymbolId,
+        mode: ParameterMode,
+        slot: Slot,
+    ) -> Result<(), LoweringError> {
+        let Some(plan) = &mut self.open_return_plan else {
+            return Ok(());
+        };
+        let Some((parameter, index)) = plan.parameter else {
+            return Ok(());
+        };
+        if symbol != parameter {
+            return Ok(());
+        }
+        if mode != ParameterMode::Value
+            || self.block != Some(BlockRef(0))
+            || self.body.parameters.get(index) != Some(&slot)
+            || self.bindings.get(&parameter) != Some(&slot)
+            || !matches!(self.body.slots[slot.0], EntityType::Value(_))
+            || plan.root.is_some()
+            || plan.produced[0].replace(slot).is_some()
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+        }
+        #[cfg(test)]
+        super::owner_consumer_test_support::record_action("parameter_entry", slot.0);
+        Ok(())
+    }
+
     pub(super) fn open_loop_result(
         &mut self,
         expression: UnitExpressionId,
         slot: Slot,
     ) -> Result<(), LoweringError> {
+        let parameter = self.open_return_plan.as_ref().and_then(|plan| {
+            (expression == plan.boundary.initial())
+                .then_some(plan.parameter)
+                .flatten()
+        });
+        if let Some((parameter, _)) = parameter {
+            self.sync_dead();
+            let named = self.pending_symbol(expression);
+            let plan = self
+                .open_return_plan
+                .as_mut()
+                .expect("active parameter plan");
+            if named != Some(parameter)
+                || self.block != Some(BlockRef(0))
+                || self.bindings.get(&parameter) != Some(&slot)
+                || self.dead.contains(&parameter)
+                || plan.produced[0] != Some(slot)
+                || plan.root.is_some()
+                || std::mem::replace(&mut plan.entry_read, true)
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            // A Name result transports P. It never defines a replacement producer.
+            #[cfg(test)]
+            super::owner_consumer_test_support::record_action("parameter_move", slot.0);
+            return Ok(());
+        }
         if let Some(plan) = &mut self.open_return_plan {
             for (role, producer) in [plan.boundary.initial(), plan.boundary.argument()]
                 .iter()
@@ -156,6 +257,9 @@ impl Builder<'_, '_> {
             initializer != plan.boundary.initial()
                 || plan.produced[0] != Some(value)
                 || plan.root.is_some()
+                || plan.parameter.is_some_and(|(parameter, _)| {
+                    !plan.entry_read || !self.dead.contains(&parameter)
+                })
         } else if symbol == plan.boundary.previous() {
             initializer != plan.boundary.call()
                 || plan.old != Some(value)
@@ -172,6 +276,10 @@ impl Builder<'_, '_> {
         if let Some(plan) = &mut self.open_return_plan {
             if symbol == plan.boundary.root() {
                 plan.root = Some(binding);
+                #[cfg(test)]
+                if plan.parameter.is_some() {
+                    super::owner_consumer_test_support::record_action("parameter_root", binding.0);
+                }
             }
             if symbol == plan.boundary.previous() {
                 plan.previous = Some(binding);

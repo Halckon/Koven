@@ -12311,3 +12311,76 @@ FE binary未执行，两个CI-only仅成功编译，不宣称负控拒绝行为�
 native或独立CLI artifact。本片仍为单表达式体source live handoff的Partial，不新增
 Complete、receipt、End或显式Block lowering。执行输入固定为0e23edac；后继仅本账本
 文档提交，不把文档新头冒充已执行输入，合流仍须按真实合流输入单独验收。
+
+
+### #410 后主干、开放 Return 与 child receipt 本地合成验收（2026-11-11）
+
+- 现场核 main、origin/main 与远端均为 `03d70377fcbb099e0c10ede8977c55124c773d6f`，
+  其 tree 与已发布 `6f8eb32a` 相同；只创建隔离树，未由本任务改动原树、推送或发布。
+- `f927c836` 保留 main 与借用 `11681a0a` 双父，`72822865` 再保留 owner `39835135`
+  父链；最终代码验收头为 `c85ac4b908a2a402229d28dafa20ebf498aaa9f4`。
+  两能力相对共同基线的非交集文件为借用18、owner34，逐字保留各父；交集只有
+  `refine/build.rs` 的独立模块/计划字段初始化与本 Spec。build 文件985行，未调整尺寸额度。
+- 本 Spec 不是双纯尾段：owner另有中段原样probe账本。合成保留该段、owner尾段及borrow尾段。
+  初次拼接前缀断言失败后，外层shell未停止，临时merge提交含冲突标记；随后纯文档提交
+  `c85ac4b9` 删除三条标记并保全两侧，所有构建/测试均在修复后的clean头执行。
+  中间头不算验收，不改写历史掩盖该过程偏差。输入清单首轮因git quoted中文路径读取失败，
+  改用 `git ls-files -z` 后保存4260项；该失败发生在Cargo启动前，非Rust失败或能力红。
+- fresh逐源/helper审定实际24唯一 ordinary：owner16与borrow9有一个共同dual-slot exact，
+  因而FE11、CG13，不按25补测试。每项均先exact-list核唯一，再独立exact进程执行。
+  全部通过；仅一个native exact发出/链接/运行两个有限程序，每个都验证false和true路径结果。
+  另有44次显式SSA/LLVM lower与一个借用FE-only merge，native不混入显式lower计数。
+- 普通observer不启故障capture；所有CI-only、foreign、fault、counter、压力及未审集合均未执行。
+  P4项是同源双Unit正常lower，非off；后端off对照使用原产品直接lower，比较副本不回灌。
+  FE owner比较重新规划的两个本地结果，仅清观察字段作比较，不称其为后端clone对照。
+- 默认CLI check实际12.48s，原JSON中frontend/codegen/kovenc三artifact均features=[]。
+  显式loan-support双crate no-run实际1m29s；两test artifact均opt0/debug2/test=true，
+  未降档、未设置RUSTFLAGS、未复制target。严格Clippy47.22s、默认workspace all-targets
+  33.08s、fmt、docs886、尺寸与diff全部成功；尺寸比较基线为上述main，旧额度不变。
+- 原件保存在 `/private/tmp/koven-main-open-return-child-evidence`：两selection、run-exacts.py、
+  4260项source-input-hashes、default-cli原JSON/三artifact、feature-build原JSON、manifest、
+  两exact日志与runner/static日志。实际CG SHA为
+  `4846ae42b72418bbd48ffc9bdae4be9f00a3bfa012e5bfeb244412791405360b`，FE SHA为
+  `794041c8e424cb74874666d2f0ac771daf5b76a8f9cd9a97693dcb6c8f4099d2`；执行前后均核一致。
+- Child仍仅同轮独立Complete区间的九角色/五实体核验，source/callable仍Partial；旧七角色
+  receipt隔离，原清理发出次序保持，oracle未退休。Owner开放Return保持两个独立终止endpoint，
+  不伪装共同join或Break。合成本轮证明同构建独立回归，没有新增同一程序混合两shape证据。
+  各父历史红与偏差保留，未重跑红、未补造历史缺失哈希；正式CI/release未运行。
+- 独立只读终审已核三头父链、合成字节、24项实际结果及全部产物/输入哈希与文档分账，
+  无新增阻断；本次收尾只改本Spec，不重跑已冻结Rust。
+
+### Parameter owner 进入 ReturnDelivered（2026-11-11）
+
+仅一个 Boolean Name 条件参数和一个显式 own String 参数，后者经真实 Name Move/Result
+与 var Binding 成为 P；body 一次 Replace 的 Q、detached P Drop 和两 Return 路径仍用
+既有统一产品。P 只由实际函数入口的既有 Parameter origin 定义，Name 不再定义 producer。
+后端从实际 bind_parameters 的 Value 槽取证，不将 Boolean 改为 Value；不扩大旧 Break、
+closed/invariant gate，不新增 producer 种类、公共 getter 或并行存储，不更改语言/ABI。
+
+从已审合流 caf1b1db 新隔离树开始。原样 probe `6b550155` 单普通 exact 实际通过：
+Basic 合法、SSA/LLVM正常；入口为 Boolean SharedLoan 与 String Value，callee 只构造 Q。
+P 的入口值分别进入 body/false，body 原 RootReplace 后 Drop detached P 再 Return Q，
+false 独立 Return P，caller 仅清理两个接收结果。没有 body→exit/backedge/common join。
+metadata 尚 Unsupported，probe通过不是能力绿。首次 `8b88aa88` 错把Boolean也断言为Value，
+原始源码、artifact、binary SHA和日志已保留；只修oracle，未改ABI，不算缺能力红。
+
+本轮局部能力已实证：`0ddc0b1c` 的 FE 原样缺产品红（0≠1）由 `bcd85b99` 转绿。
+输入 catalog 保留函数入口的真实 Parameter 定义；Move/Result/Binding 仅运输该 P。
+通用 catalog 的 Parameter origin 不授予旧 family 准入：legacy factory、Break 和五类
+invariant validator 显式保留 String 条件，Parameter 候选不回落 closed/invariant。
+旧公共 getter/storage 与原循环出口/cleanup 合同保持不变。
+
+后端 `4cc1ad59` 先取得原样缺终止回执红；FE 接线后再于 `19a1f520` 的独立测试取得
+真实参数入口链为空的红，不把已有 Name result 当 producer。`4da04ddb` 从实际
+bind_parameters 的 Value 槽绑定 P；同轮 typed 复核两个参数及 Boolean SharedLoan，
+Name result 核对原槽，实际 deliver 后核参数已 dead，再承接旧 Alias root。Q、旧
+RootReplace、detached P Drop、两个独立 Return emitter 与终止回执均复用原路径。
+
+测试代码头 `69fe482e`：本轮 fresh-helper 审计的 14 个 ordinary exact 全部通过
+（FE 5、codegen 9；测试内部的 10 个旧 String shape 不另计 exact）。包括真实
+Basic/Const 两路、参数入口与两 Return 回执、原 SSA cleanup 顺序及有限 native
+`outer`/`next` 输出。FE damage/foreign 测试仅编译，未本地运行；正式 CI 尚未验证。
+两 crate all-targets strict Clippy、workspace all-targets check、fmt、docs 和相对
+`caf1b1db` 的 Rust size guard 均通过，无新增尺寸豁免。保存每阶段原 SOURCE、原始
+artifact、覆盖前 binary 副本/SHA、精确名单和逐项日志；首次 probe oracle 错误保留。
+本轮是局部 Parameter 输入能力，不代表一般动态 owner/循环归纳能力完成，未自行发布。

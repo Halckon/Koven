@@ -18,6 +18,7 @@ pub(super) struct OpenLoopInput {
     pub(super) body: StatementId,
     pub(super) jump: UnitExpressionId,
     initial: UnitExpressionId,
+    initial_origin: UnitOwnerOrigin,
     call: UnitExpressionId,
     call_origin: Span,
     argument: UnitExpressionId,
@@ -159,6 +160,7 @@ impl OpenLoopInput {
         checker: &Checker<'_>,
         elements: &[StatementId],
         parameters: &BTreeSet<UnitSymbolId>,
+        owner_parameter: Option<UnitSymbolId>,
     ) -> Option<Self> {
         let (prefix, statement, suffix, binding) = match elements {
             [prefix, statement, suffix] => (prefix, statement, suffix, None),
@@ -216,9 +218,21 @@ impl OpenLoopInput {
                 super::super::replace_call_consumer::admit(checker, *suffix, root)?,
             )
         };
-        if !literal(checker, initial) {
-            return None;
-        }
+        let initial_origin = match owner_parameter {
+            Some(parameter) => {
+                let node = ast.expressions().get(initial).ok()?;
+                if !matches!(node.payload(), Expression::Name)
+                    || checker.reference_symbol(node.span()) != Some(parameter)
+                {
+                    return None;
+                }
+                UnitOwnerOrigin::Parameter(parameter)
+            }
+            None if literal(checker, initial) => {
+                UnitOwnerOrigin::String(checker.unit_expression(initial))
+            }
+            _ => return None,
+        };
         let Statement::While {
             condition, body, ..
         } = ast.statements().get(*statement).ok()?.payload()
@@ -253,6 +267,9 @@ impl OpenLoopInput {
             )?),
             _ => return None,
         };
+        if owner_parameter.is_some() && returning.is_none() {
+            return None;
+        }
         let call_node = ast.expressions().get(call).ok()?;
         let Expression::Call {
             callee,
@@ -315,6 +332,7 @@ impl OpenLoopInput {
             body: *body,
             jump: checker.unit_expression(*jump),
             initial: checker.unit_expression(initial),
+            initial_origin,
             call: checker.unit_expression(call),
             call_origin: call_node.span(),
             argument: checker.unit_expression(incoming.value),
@@ -341,29 +359,57 @@ impl OpenLoopInput {
         let Some(owner) = value.owner.clone() else {
             return;
         };
-        let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
-            return;
+        let catalog = match self.initial_origin {
+            UnitOwnerOrigin::Parameter(_) => {
+                // Retain the actual function-entry definition and identity. The old
+                // String-only legacy factory must not acquire Parameter admission.
+                if observation.status != UnitOwnerObservationStatus::Complete
+                    || !observation.is_consistent()
+                {
+                    return;
+                }
+                UnitOwnerProducerCatalogV1 {
+                    identity: observation.identity.clone(),
+                    callable: observation.callable,
+                    definitions: observation.definitions.clone(),
+                }
+            }
+            _ => {
+                let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
+                    return;
+                };
+                catalog
+            }
         };
+        let mut expected_events = Vec::new();
+        if let UnitOwnerOrigin::Parameter(parameter) = self.initial_origin {
+            expected_events.push(UnitOwnerTransportEvent::Move {
+                expression: self.initial,
+                symbol: parameter,
+                owner: owner.clone(),
+            });
+        }
+        expected_events.extend([
+            UnitOwnerTransportEvent::Result {
+                expression: self.initial,
+                owner: owner.clone(),
+            },
+            UnitOwnerTransportEvent::Binding {
+                symbol: self.root,
+                initializer: self.initial,
+                owner: owner.clone(),
+            },
+        ]);
         if scope != 1
             || value.scope_depth != scope
             || value.symbol != self.root
             || value.origin != value.declaration
             || catalog.definitions().len() != 1
+            || !catalog.is_consistent()
             || catalog
                 .definition(owner.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.initial))
-            || observation.events
-                != [
-                    UnitOwnerTransportEvent::Result {
-                        expression: self.initial,
-                        owner: owner.clone(),
-                    },
-                    UnitOwnerTransportEvent::Binding {
-                        symbol: self.root,
-                        initializer: self.initial,
-                        owner,
-                    },
-                ]
+                .is_none_or(|d| d.origin() != self.initial_origin)
+            || observation.events != expected_events
         {
             return;
         }

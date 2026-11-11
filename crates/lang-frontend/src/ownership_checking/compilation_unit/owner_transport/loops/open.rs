@@ -48,7 +48,7 @@ impl UnitOwnerOpenLoopPrefixV1 {
     pub fn root(&self) -> UnitSymbolId {
         self.entry.symbol
     }
-    /// Initial String construction for P.
+    /// Actual initializer: a String construction or the consuming Parameter Name for P.
     pub fn initial(&self) -> UnitExpressionId {
         self.initial
     }
@@ -84,7 +84,7 @@ impl UnitOwnerOpenLoopPrefixV1 {
     pub fn condition_false_exit(&self) -> &UnitOwnerReplaceBreakStateV1 {
         &self.condition_false
     }
-    /// Actual initial Result and Binding transitions.
+    /// Actual initial Result and Binding, preceded by Move for a Parameter input.
     pub fn prefix_events(&self) -> &[UnitOwnerTransportEvent] {
         &self.prefix
     }
@@ -110,10 +110,6 @@ impl UnitOwnerOpenLoopPrefixV1 {
             || self.producers.definitions().len() != 1
             || !Arc::ptr_eq(&self.identity, &self.inputs.identity)
             || Arc::ptr_eq(&self.identity, &self.producers.identity)
-            || self
-                .inputs
-                .definition(p.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.initial))
             || self
                 .producers
                 .definition(q.clone())
@@ -160,18 +156,36 @@ impl UnitOwnerOpenLoopPrefixV1 {
             return false;
         }
         use UnitOwnerTransportEvent as E;
-        self.prefix
-            == [
-                E::Result {
+        let mut prefix = Vec::new();
+        match self
+            .inputs
+            .definition(p.clone())
+            .map(|definition| definition.origin())
+        {
+            Some(UnitOwnerOrigin::String(expression)) if expression == self.initial => {}
+            Some(UnitOwnerOrigin::Parameter(symbol))
+                if symbol != root && symbol != self.previous =>
+            {
+                prefix.push(E::Move {
                     expression: self.initial,
+                    symbol,
                     owner: p.clone(),
-                },
-                E::Binding {
-                    symbol: root,
-                    initializer: self.initial,
-                    owner: p.clone(),
-                },
-            ]
+                });
+            }
+            _ => return false,
+        }
+        prefix.extend([
+            E::Result {
+                expression: self.initial,
+                owner: p.clone(),
+            },
+            E::Binding {
+                symbol: root,
+                initializer: self.initial,
+                owner: p.clone(),
+            },
+        ]);
+        self.prefix == prefix
             && self.events.get(..6)
                 == Some(
                     &[

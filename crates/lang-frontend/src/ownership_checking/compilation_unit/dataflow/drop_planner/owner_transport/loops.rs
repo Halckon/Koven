@@ -111,9 +111,6 @@ impl LoopTransaction {
         };
         if !checker.parsed.roots().contains(&item)
             || !(1..=2).contains(&parameters.len())
-            || parameters
-                .iter()
-                .any(|parameter| parameter.mode_marker.is_some())
             || checker.receiver_context(*name).is_some()
         {
             return None;
@@ -130,17 +127,28 @@ impl LoopTransaction {
             return None;
         }
         let mut parameter_symbols = BTreeSet::new();
+        let mut owner_parameter = None;
         for parameter in parameters {
             let symbol = *checker.marker_symbol(parameter.name)?;
-            if checker
+            let ty = checker
                 .typed
                 .symbol_type(symbol)
-                .and_then(|ty| checker.typed.types().get(ty))
-                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-            {
-                return None;
+                .and_then(|ty| checker.typed.types().get(ty));
+            match (ty, parameter.mode_marker) {
+                (Some(UnitTypeKind::Builtin(BuiltinType::Boolean)), None) => {
+                    parameter_symbols.insert(symbol);
+                }
+                (
+                    Some(UnitTypeKind::Builtin(BuiltinType::String)),
+                    Some(crate::parser::ParameterModeMarker::Own(_)),
+                ) if parameters.len() == 2
+                    && owner_parameter.is_none()
+                    && checker.is_move_only_variable(symbol) =>
+                {
+                    owner_parameter = Some(symbol);
+                }
+                _ => return None,
             }
-            parameter_symbols.insert(symbol);
         }
         let function_body = match form {
             FunctionForm::ImplicitUnitBlock(body)
@@ -154,7 +162,19 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let replacing = replace_break::OpenLoopInput::admit(checker, elements, &parameter_symbols);
+        let replacing = replace_break::OpenLoopInput::admit(
+            checker,
+            elements,
+            &parameter_symbols,
+            owner_parameter,
+        );
+        // Parameter inputs belong only to the delivered Return variant. They must not
+        // fall back into the pre-existing all-Boolean closed or invariant loop gates.
+        if owner_parameter.is_some()
+            && !replacing.as_ref().is_some_and(|input| input.is_returning())
+        {
+            return None;
+        }
         let returns_owner = replacing.as_ref().is_some_and(|input| matches!(input.consumer_target, crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Return(_)));
         let result = if returns_owner {
             BuiltinType::String
