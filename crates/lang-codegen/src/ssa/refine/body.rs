@@ -811,6 +811,7 @@ pub(super) enum LoanTag {
     Temporary(super::temporary_receipt::Tag),
     Binding(super::binding_receipt::Tag),
     Child(super::child_receipt::Tag),
+    Forward(super::forward_receipt::Tag),
 }
 
 #[derive(Clone, Debug)]
@@ -932,6 +933,7 @@ pub(super) struct RefinedBody {
     pub(super) named_plans: super::named_receipt::Plans,
     pub(super) temporary_plans: super::temporary_receipt::Plans,
     pub(super) binding_plans: super::binding_receipt::Plans,
+    pub(super) forward_plans: super::forward_receipt::Plans,
     pub(super) child_plans: super::child_receipt::Plans,
     pub(super) slots: Vec<EntityType>,
     pub(super) blocks: Vec<RBlock>,

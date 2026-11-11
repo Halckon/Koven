@@ -105,6 +105,24 @@ fn original_live_forward_requires_production_receipt_with_true_off() {
         assert_eq!(r.ids, ids);
         assert_eq!(r.callable, callable);
         assert_eq!(r.call, call);
+        let caller = program.modules[0]
+            .functions
+            .iter()
+            .find(|f| f.instructions.len() == 8)
+            .unwrap();
+        let Operation::BorrowCall {
+            callee: wrapper_id, ..
+        } = caller.instructions[3].operation
+        else {
+            panic!("original caller wrapper call")
+        };
+        assert_eq!(r.caller, wrapper_id);
+        let expected_wrapper = program.modules[0]
+            .functions
+            .iter()
+            .find(|f| f.name.contains(".wrap."))
+            .unwrap();
+        assert_eq!(r.caller, expected_wrapper.id());
         let function = program.modules[0].function(r.caller).unwrap();
         assert_eq!(function.instructions.len(), 1);
         assert_eq!(function.blocks.len(), 1);
@@ -112,11 +130,40 @@ fn original_live_forward_requires_production_receipt_with_true_off() {
         assert_eq!(data.block, r.block);
         assert_eq!(data.results, [EntityId::Loan(r.result)]);
         let Operation::BorrowCall {
-            arguments, source, ..
+            callee,
+            arguments,
+            source,
         } = &data.operation
         else {
             panic!("actual BorrowCall")
         };
+        assert!(
+            program.modules[0]
+                .function(*callee)
+                .unwrap()
+                .instructions
+                .is_empty()
+        );
+        assert_eq!(
+            program.modules[0].function(*callee).unwrap().blocks[0]
+                .terminator
+                .as_ref()
+                .unwrap()
+                .kind,
+            TerminatorKind::BorrowReturn {
+                loan: match program.modules[0].function(*callee).unwrap().blocks[0].parameters[0] {
+                    EntityId::Loan(l) => l,
+                    _ => panic!("view parameter"),
+                }
+            }
+        );
+        let expected_view = program.modules[0]
+            .functions
+            .iter()
+            .find(|f| f.name.contains(".view."))
+            .unwrap();
+        assert_eq!(*callee, expected_view.id());
+        assert_ne!(*callee, r.caller);
         assert_eq!(*source, r.source);
         assert_eq!(arguments, &[EntityId::Loan(r.source)]);
         assert_eq!(r.source.function(), r.caller);
