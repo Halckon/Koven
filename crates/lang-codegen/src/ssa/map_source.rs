@@ -4,10 +4,6 @@ pub(super) mod handoff;
 pub(super) mod handoff_runtime;
 pub(super) mod transport;
 use super::{LoweringError, LoweringErrorKind};
-#[cfg_attr(
-    not(test),
-    expect(unused_imports, reason = "test-only provenance helpers")
-)]
 pub(super) use formation::{
     BindingDeclaration, Birth, Formation, OwnerUpdate, continuation, named_formation,
 };
@@ -150,32 +146,6 @@ pub(super) fn drop_event(
         P::AfterStatement(s) | P::LoopExit(s) => {
             (parsed.ast().statements().get(s).ok()?.span(), None)
         }
-        _ => return None,
-    };
-    Some(DropEvent {
-        span,
-        after_expression,
-    })
-}
-
-pub(super) fn unit_drop_event(
-    parsed: &ParsedFile,
-    point: lang_frontend::ownership_checking::UnitDropPoint,
-) -> Option<DropEvent> {
-    use lang_frontend::ownership_checking::UnitDropPoint as P;
-    let (span, after_expression) = match point {
-        P::AfterExpression(e) => (
-            parsed.ast().expressions().get(e.expression()).ok()?.span(),
-            Some(e.expression()),
-        ),
-        P::CallReturn(e) | P::ControlTransfer(e) => (
-            parsed.ast().expressions().get(e.expression()).ok()?.span(),
-            None,
-        ),
-        P::AfterStatement(s) | P::LoopExit(s) => (
-            parsed.ast().statements().get(s.statement()).ok()?.span(),
-            None,
-        ),
         _ => return None,
     };
     Some(DropEvent {

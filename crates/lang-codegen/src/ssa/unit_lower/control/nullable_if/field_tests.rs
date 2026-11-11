@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 
 use crate::ssa::{
     model::{
-        Block, Definition, EntityId, EntityType, FunctionId, LoanKind, Operation, Program,
-        SsaTypeKind, TerminatorKind,
+        Definition, EntityId, EntityType, FunctionId, LoanKind, Operation, Program, SsaTypeKind,
+        TerminatorKind,
     },
     unit_lower::lower_owned_unit_with_entry,
     verify::verify_program,
@@ -15,15 +15,14 @@ use lang_frontend::{
         UnitNameSnapshot, UnitSourceDescriptor, analyze_basic_unit_ownership,
         analyze_parsed_unit_names,
     },
-    ast::StatementId,
     diagnostic::Severity,
     lexer::lex,
-    name_resolution::{SourceUnitInput, SymbolKind},
+    name_resolution::SymbolKind,
     ownership_checking::{
         OwnedCompilationUnitView, UnitDropPoint, UnitDropTarget, owned_compilation_unit_view,
     },
     parser::{Expression, parse_file},
-    source::{SourceMap, Span},
+    source::SourceMap,
     type_checking::{
         BuiltinType, FinalTypeAdmissionError, TypeEnvironment, UnitAggregateProjectionReceiver,
         UnitExpressionId, UnitTypeKind, check_compilation_unit_types,
@@ -402,38 +401,15 @@ fn assert_field_proofs(
         )
         .id();
         let nodes = input.parsed().ast().expressions();
-        let (control_id, control) =
-            only(nodes.iter().filter(|(_, node)| node.span() == control_span));
+        let (control_id, _) = only(nodes.iter().filter(|(_, node)| node.span() == control_span));
         let body = function.block(non_null_edge.target).unwrap();
         let null = function.block(null_edge.target).unwrap();
-        let comparison = if let Expression::If {
-            mut condition,
-            then_branch,
-            else_branch,
-            ..
-        } = *control.payload()
-        {
-            while let Expression::Group { expression } = nodes.get(condition).unwrap().payload() {
-                condition = *expression;
-            }
-            let comparison = view
-                .types()
-                .null_comparison(UnitExpressionId::new(source, condition))
-                .unwrap();
-            let (present, absent) = if comparison.non_null_when_true() {
-                (then_branch, else_branch)
-            } else {
-                (else_branch.unwrap(), Some(then_branch))
-            };
-            assert_if_block_origins(input, (body, null), (present, absent), control_span);
-            comparison
-        } else {
-            // SPEC-0350: a function inside the refinement subset attributes the proof
-            // branch to the null comparison itself; its blocks carry the function origin.
-            view.types()
-                .null_comparison(UnitExpressionId::new(source, control_id))
-                .expect("proof originates at a source If or its null comparison")
-        };
+        // SPEC-0350: a function inside the refinement subset attributes the proof
+        // branch to the null comparison itself; its blocks carry the function origin.
+        let comparison = view
+            .types()
+            .null_comparison(UnitExpressionId::new(source, control_id))
+            .expect("proof originates at a null comparison");
         let column = only(
             non_null_edge
                 .arguments
@@ -650,21 +626,6 @@ fn assert_field_proofs(
                 | Operation::NullableTake { .. }
         )),
         "no nullable storage masquerades as payload or a second inner owner"
-    );
-}
-
-/// The per-family `If` lowering gives the proof's blocks their branch statement origins.
-fn assert_if_block_origins(
-    input: SourceUnitInput<'_>,
-    (body, null): (&Block, &Block),
-    (present, absent): (StatementId, Option<StatementId>),
-    control_span: Span,
-) {
-    let statement = |id: StatementId| input.parsed().ast().statements().get(id).unwrap().span();
-    assert_eq!(body.origin.span(), statement(present));
-    assert_eq!(
-        null.origin.span(),
-        absent.map(statement).unwrap_or(control_span)
     );
 }
 

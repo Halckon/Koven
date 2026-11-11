@@ -475,8 +475,6 @@ fn lower_unit_impl(
     for plan in plans {
         let parsed = parsed_by_source[plan.instance.source_unit().index()];
         let references = symbol_references(names, plan.instance.source_unit(), Namespace::Value);
-        let type_references =
-            symbol_references(names, plan.instance.source_unit(), Namespace::Type);
         // ADR-0032: a function wholly inside the migrated subset uses the refinement layer.
         let refine_entry = {
             let function = &module.functions[plan.id.index()];
@@ -698,12 +696,10 @@ fn lower_unit_impl(
             map_results: &module.map_results,
             nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
-            enum_payloads: types.enum_payloads(),
             field_indices: types.field_indices(),
             substitutions: plan.instance.substitutions(),
             static_self: plan.instance.key().static_self(),
             references: &references,
-            type_references: &type_references,
             function,
             block,
             bindings,
