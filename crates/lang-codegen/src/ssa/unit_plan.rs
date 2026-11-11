@@ -8,33 +8,35 @@ mod recipe_preflight;
 mod recipe_validation;
 mod runtime_layout;
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    ops::Deref,
-};
+use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+use std::ops::Deref;
 
 use lang_frontend::{
     ast::ItemId,
-    name_resolution::{
-        DeclarationId, SourceUnitId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,
-    },
-    ownership_checking::{
-        CompilationUnitOwnership, ValidatedCompilationUnitOwnership, owned_compilation_unit_view,
-    },
+    name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
+    ownership_checking::CompilationUnitOwnership,
     parser::{Item, NameMarker, ParsedFile},
-    source::{SourceMap, Span},
+    source::Span,
     type_checking::{
-        CompilationUnitTypes, NominalKind, TypeEnvironment, UnitCallTarget, UnitCallableSignature,
+        CompilationUnitTypes, NominalKind, UnitCallTarget, UnitCallableSignature,
         UnitCallableTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
-        ValidatedCompilationUnitTypes,
     },
 };
+#[cfg(test)]
+use lang_frontend::{
+    name_resolution::SourceUnitInput,
+    ownership_checking::{ValidatedCompilationUnitOwnership, owned_compilation_unit_view},
+    source::SourceMap,
+    type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
+};
 
+#[cfg(test)]
+use super::unit_source_query::parsed_by_source_unit;
 use super::{
     LoweringError, LoweringErrorKind,
     lowering_support::callable_instances::{CallableToken, SourceIdentity, SourceToken},
     lowering_support::error as lowering_error,
-    unit_source_query::parsed_by_source_unit,
 };
 pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_instance};
 #[cfg(test)]
@@ -129,6 +131,7 @@ struct UnitRecipeFailure {
 type UnitRecipeRootFacts = BTreeMap<UnitSymbolId, BTreeSet<DeclarationId>>;
 
 impl UnitInstancePlan {
+    #[cfg(test)]
     pub(crate) fn runtime_type_demand(&self, ty: UnitTypeId) -> Option<UnitRuntimeTypeDemand> {
         self.runtime_type_demands.get(&ty).copied()
     }
@@ -149,6 +152,7 @@ impl UnitInstancePlan {
     }
 }
 
+#[cfg(test)]
 impl Deref for UnitInstancePlan {
     type Target = [UnitPlannedInstance];
 
@@ -157,6 +161,7 @@ impl Deref for UnitInstancePlan {
     }
 }
 
+#[cfg(test)]
 impl IntoIterator for UnitInstancePlan {
     type Item = UnitPlannedInstance;
     type IntoIter = std::vec::IntoIter<UnitPlannedInstance>;
@@ -293,6 +298,7 @@ struct UnitFunctionTemplate {
 }
 
 /// 从显式 entry 建立仅含可达函数的 unit-wide 具体实例计划。
+#[cfg(test)]
 pub(crate) fn plan_unit_instances(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -314,6 +320,7 @@ pub(crate) fn plan_unit_instances(
     )
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn plan_unit_instances_with_limit(
     sources: &SourceMap,
@@ -767,7 +774,7 @@ fn index_calls(
     Ok(calls)
 }
 
-pub(super) fn unit_callable_signature(
+pub(crate) fn unit_callable_signature(
     typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Option<&UnitCallableSignature> {

@@ -10,7 +10,6 @@ mod call;
 mod call_lifetimes;
 mod callable_abi;
 mod cfg;
-mod checked;
 mod closure;
 pub(crate) mod constant;
 mod construction;
@@ -25,10 +24,8 @@ mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
 mod ownership;
-mod rc;
 mod receiver;
 mod scalar;
-mod statement;
 mod type_lower;
 #[cfg(test)]
 mod type_origin_cache_tests;
@@ -63,8 +60,8 @@ use lang_frontend::{
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitTypes, Copyability, ExpressionCategory, ParameterMode,
-        UnitCallableSignature, UnitCallableTarget, UnitExpressionId, UnitItemId, UnitStatementId,
-        UnitTypeId, UnitTypeKind,
+        UnitCallableTarget, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId,
+        UnitTypeKind,
     },
 };
 
@@ -78,6 +75,7 @@ use super::{
     unit_plan::{
         MAX_UNIT_GENERIC_INSTANCES, UnitFunctionInstanceKey, UnitPlannedInstance,
         UnitRuntimeTypeDemand, plan_unit_instances_from_facts, resolve_concrete_type,
+        unit_callable_signature,
     },
     verify::verify_program,
 };
@@ -89,6 +87,10 @@ pub(super) fn span_contains(outer: Span, inner: Span) -> bool {
     outer.source_id() == inner.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
+}
+
+pub(super) fn strictly_contains(outer: Span, inner: Span) -> bool {
+    span_contains(outer, inner) && (outer.start() < inner.start() || inner.end() < outer.end())
 }
 
 /// Nearest enclosing lambda; identity filtering, not capability.
@@ -867,25 +869,6 @@ fn instance_function_name(
         name.push_str(&static_self.index().to_string());
     }
     Ok(name)
-}
-
-fn unit_callable_signature(
-    typed: &CompilationUnitTypes,
-    target: UnitCallableTarget,
-) -> Option<&UnitCallableSignature> {
-    match target {
-        UnitCallableTarget::Declaration(declaration) => typed
-            .signatures()
-            .declaration(declaration)
-            .and_then(|signature| signature.callable()),
-        UnitCallableTarget::Symbol(symbol) => typed
-            .signatures()
-            .declarations()
-            .iter()
-            .filter_map(|signature| signature.nominal())
-            .flat_map(|nominal| nominal.members().iter().chain(nominal.companion_members()))
-            .find(|callable| callable.target() == UnitCallableTarget::Symbol(symbol)),
-    }
 }
 
 fn parse_integer_literal(

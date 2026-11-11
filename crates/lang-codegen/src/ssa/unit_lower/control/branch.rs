@@ -11,6 +11,18 @@ struct NullTail<'a, 'b> {
     string_result: (UnitTypeId, SsaTypeId),
 }
 
+impl StatementLowering for UnitExpressionLowerer<'_> {
+    fn lower_inner(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+        self.lower_statement_inner(statement)
+    }
+
+    fn emit_after_statement(&mut self, statement: StatementId) -> Result<(), LoweringError> {
+        self.emit_drops(UnitDropPoint::AfterStatement(
+            lang_frontend::type_checking::UnitStatementId::new(self.source_unit, statement),
+        ))
+    }
+}
+
 impl StatementLowering for NullTail<'_, '_> {
     fn lower_inner(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
         if matches!(self.lowerer.parsed.ast().statements().get(statement)
