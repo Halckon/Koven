@@ -1,4 +1,4 @@
-//! Positive boundaries for the fixed two-split, three-leaf terminal certificate.
+//! Positive boundaries for the fixed three- or four-leaf terminal certificate.
 use super::nested_forward_scope::NestedForwardState;
 use super::*;
 
@@ -97,8 +97,15 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let index = if nested.path[0].is_some() { 1 } else { 0 };
-        let split = nested.plan.splits[index];
+        let Some(index) = nested
+            .plan
+            .splits()
+            .iter()
+            .position(|split| split.split == self.checker.unit_expression(id))
+        else {
+            return;
+        };
+        let split = nested.plan.splits()[index];
         let clear = split.split == self.checker.unit_expression(id)
             && split.condition == self.checker.unit_expression(condition)
             && nested.ready_split.is_none()
@@ -113,8 +120,8 @@ impl DropPlanner<'_, '_> {
                 state,
                 Some(nested),
                 false,
-                depth + 1 + index,
-                owner + index,
+                depth + 1 + nested.plan.split_depth(index),
+                owner + nested.plan.split_depth(index),
             );
         self.iteration_actions
             .nested_region_condition(candidate, index, after, clear);
@@ -136,14 +143,14 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let clear = nested.path[index] == Some(entry)
+        let clear = nested.path[nested.plan.split_depth(index)] == Some(entry)
             && nested.ready_split.is_none()
             && self.nested_boundary_clear(
                 state,
                 Some(nested),
                 false,
-                depth + 1 + index,
-                owner + 1 + index,
+                depth + 1 + nested.plan.split_depth(index),
+                owner + 1 + nested.plan.split_depth(index),
             );
         self.iteration_actions
             .nested_region_arm(candidate, index, then_arm, entry, clear);
@@ -167,8 +174,8 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let nesting = nested.plan.leaves[leaf].path.iter().flatten().count();
-        let clear = nested.plan.leaves[leaf].control == self.checker.unit_expression(id)
+        let nesting = nested.plan.leaves()[leaf].path.iter().flatten().count();
+        let clear = nested.plan.leaves()[leaf].control == self.checker.unit_expression(id)
             && nested.ready_split.is_none()
             && self.nested_boundary_clear(
                 state,
@@ -202,13 +209,13 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let clear = nested.plan.splits[index].split == self.checker.unit_expression(id)
+        let clear = nested.plan.splits()[index].split == self.checker.unit_expression(id)
             && self.nested_boundary_clear(
                 state,
                 Some(nested),
                 false,
-                depth + 1 + index,
-                owner + 1 + index,
+                depth + 1 + nested.plan.split_depth(index),
+                owner + 1 + nested.plan.split_depth(index),
             );
         self.iteration_actions.nested_region_join(
             candidate,

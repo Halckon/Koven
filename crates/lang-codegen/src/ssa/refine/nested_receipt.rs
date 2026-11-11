@@ -157,10 +157,11 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 }
 
 impl Plan {
-    fn nested_arm(&self) -> usize {
+    fn nested_arm(&self) -> Option<usize> {
         match self.topology {
-            UnitBorrowNestedForwardTopology::NestedThen => 0,
-            UnitBorrowNestedForwardTopology::NestedElse => 1,
+            UnitBorrowNestedForwardTopology::NestedThen => Some(0),
+            UnitBorrowNestedForwardTopology::NestedElse => Some(1),
+            UnitBorrowNestedForwardTopology::BalancedBoth => None,
         }
     }
     fn leaf_route(&self, index: usize) -> Vec<(usize, usize)> {

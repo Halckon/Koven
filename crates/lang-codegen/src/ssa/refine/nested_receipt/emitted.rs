@@ -379,6 +379,7 @@ impl Receipt {
     ) -> Result<(), LoweringError> {
         plans.finish(span)?;
         let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
+        let nested_arm = p.nested_arm().ok_or_else(|| invalid(span))?;
         if self.topology != p.topology
             || self.callable != p.callable
             || self.caller != p.caller
@@ -422,8 +423,8 @@ impl Receipt {
         };
         if self.source != *source
             || self.splits[0].flag != *outer
-            || self.splits[0].edges[p.nested_arm()].target != self.splits[1].block
-            || mapped(&self.splits[0].edges[p.nested_arm()], *inner)? != self.splits[1].flag
+            || self.splits[0].edges[nested_arm].target != self.splits[1].block
+            || mapped(&self.splits[0].edges[nested_arm], *inner)? != self.splits[1].flag
         {
             return Err(invalid(span));
         }

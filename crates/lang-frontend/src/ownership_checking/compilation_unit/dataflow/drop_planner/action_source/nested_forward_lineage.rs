@@ -29,6 +29,23 @@ pub(super) struct Entry {
 }
 
 impl ActionSource {
+    pub(in super::super) fn nested_entry_matches(
+        &self,
+        id: usize,
+        callable: UnitItemId,
+        topology: crate::ownership_checking::UnitBorrowNestedForwardTopology,
+        split: UnitExpressionId,
+        side: bool,
+        parent: Option<usize>,
+    ) -> bool {
+        self.nested_entries.get(id).is_some_and(|entry| {
+            entry.callable == callable
+                && entry.topology == topology
+                && entry.split == split
+                && entry.then_arm == side
+                && entry.parent == parent
+        })
+    }
     pub(in super::super) fn enter_nested_forward_edge(
         &mut self,
         callable: UnitItemId,
@@ -42,10 +59,12 @@ impl ActionSource {
             || parent.is_some_and(|i| {
                 !self.nested_entries.get(i).is_some_and(|e| {
                     e.callable == callable
-                        && e.topology == topology
-                        && e.parent.is_none()
-                        && e.then_arm == topology.nested_then()
-                        && e.split != split
+                    && e.topology == topology
+                    && e.parent.is_none()
+                    && (topology
+                        == crate::ownership_checking::UnitBorrowNestedForwardTopology::BalancedBoth
+                        || e.then_arm == topology.nested_then())
+                    && e.split != split
                 })
             })
         {
@@ -93,12 +112,12 @@ impl ActionSource {
         tests::record(self);
         self.nested_handoffs.iter().filter_map(|(index, cause)| {
             let state = cause.state;
-            let leaf = state.plan.leaves.get(state.leaf?)?;
+            let leaf = state.plan.leaves().get(state.leaf?)?;
             let handle = &cause.acquisition;
             let Record::BorrowForwardHandoff { transaction, .. } = self.records.get(*index)? else { return None; };
             let source = transaction.source_loan();
-            if state.ready_split.is_some()
-                    || state.plan.splits[0].split == state.plan.splits[1].split
+            if !state.plan.topology_matches_tree() || state.ready_split.is_some()
+                    || state.plan.splits().iter().enumerate().any(|(i, left)| state.plan.splits()[i + 1..].iter().any(|right| left.split == right.split))
                     || leaf.control == leaf.value
                     || !Arc::ptr_eq(&handle.identity, &self.identity)
                 || handle.index.checked_add(1) != Some(*index)
@@ -132,7 +151,7 @@ impl ActionSource {
                 };
                 let id = entry_id?;
                 let entry = self.nested_entries.get(id)?;
-                let split = state.plan.splits.get(split_index)?;
+                let split = state.plan.splits().get(split_index)?;
                 if entry.callable != state.plan.callable || entry.topology != state.plan.topology || entry.split != split.split
                     || entry.condition != split.condition || entry.then_arm != then_arm
                     || entry.parent != parent || entry.cursor < prior_cursor || entry.cursor > handle.index

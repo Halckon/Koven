@@ -92,7 +92,7 @@ impl PendingForwardTransport {
             .is_some_and(|cause| cause.state == state)
             && state
                 .leaf
-                .and_then(|i| state.plan.leaves.get(i))
+                .and_then(|i| state.plan.leaves().get(i))
                 .is_some_and(|leaf| leaf.value == self.returned)
     }
     pub(super) fn matches_region(&self, scope: ForwardScope) -> bool {
@@ -295,7 +295,7 @@ impl DropPlanner<'_, '_> {
                     .zip(state.nested_forward.filter(|nested| {
                         nested
                             .leaf
-                            .and_then(|i| nested.plan.leaves.get(i))
+                            .and_then(|i| nested.plan.leaves().get(i))
                             .is_some_and(|leaf| {
                                 leaf.value == source_call
                                     && leaf.argument == forwarded.argument()

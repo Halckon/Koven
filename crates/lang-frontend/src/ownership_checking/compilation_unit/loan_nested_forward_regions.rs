@@ -1,4 +1,4 @@
-//! Independent bounded three-leaf closure certificate; never whole-callable or backend authority.
+//! Independent fixed three- or four-leaf closure certificate; never whole-callable or backend authority.
 use super::{UnitLoanActionCoverage, UnitLoanNestedForwardLineage};
 use crate::{name_resolution::UnitSymbolId, type_checking::UnitItemId};
 use std::sync::Arc;
@@ -10,9 +10,11 @@ pub enum UnitBorrowNestedForwardTopology {
     NestedThen,
     /// The outer false arm contains the inner split.
     NestedElse,
+    /// Both outer arms contain one complete inner split, exactly four leaves.
+    BalancedBoth,
 }
 
-/// Separately certifies actual terminal closure of the admitted nested three-leaf region.
+/// Separately certifies actual terminal closure of the admitted fixed nested region.
 /// Its constituent acquisition lineages retain their original Partial meaning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowNestedForwardRegion {
@@ -24,7 +26,7 @@ pub struct UnitBorrowNestedForwardRegion {
     pub(super) paths: Vec<UnitLoanNestedForwardLineage>,
 }
 impl UnitBorrowNestedForwardRegion {
-    /// The positively admitted parent side of the inner split.
+    /// The positively admitted finite nested tree topology.
     pub const fn topology(&self) -> UnitBorrowNestedForwardTopology {
         self.topology
     }
@@ -40,7 +42,7 @@ impl UnitBorrowNestedForwardRegion {
     pub const fn coverage(&self) -> UnitLoanActionCoverage {
         self.coverage
     }
-    /// Three actual root-to-leaf lineages for Complete, otherwise empty.
+    /// Three or four actual root-to-leaf lineages for Complete, otherwise empty.
     /// Enumeration is not runtime sequencing between mutually exclusive paths.
     pub fn paths(&self) -> &[UnitLoanNestedForwardLineage] {
         &self.paths
@@ -59,6 +61,10 @@ impl UnitBorrowNestedForwardTopology {
             (Self::NestedElse, 0) => [Some((0, true)), None],
             (Self::NestedElse, 1) => [Some((0, false)), Some((1, true))],
             (Self::NestedElse, 2) => [Some((0, false)), Some((1, false))],
+            (Self::BalancedBoth, 0) => [Some((0, true)), Some((1, true))],
+            (Self::BalancedBoth, 1) => [Some((0, true)), Some((1, false))],
+            (Self::BalancedBoth, 2) => [Some((0, false)), Some((2, true))],
+            (Self::BalancedBoth, 3) => [Some((0, false)), Some((2, false))],
             _ => [None, None],
         }
     }

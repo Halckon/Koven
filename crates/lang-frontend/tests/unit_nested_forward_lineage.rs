@@ -166,6 +166,8 @@ fn check_lineage(
                         [vec![true, true], vec![true, false], vec![false]],
                     UnitBorrowNestedForwardTopology::NestedElse =>
                         [vec![true], vec![false, true], vec![false, false]],
+                    UnitBorrowNestedForwardTopology::BalancedBoth =>
+                        panic!("separate four-leaf test"),
                 }[index]
             );
             for id in [lineage.source_begin(), lineage.handoff()] {
@@ -177,6 +179,7 @@ fn check_lineage(
             let (a, b, other) = match topology {
                 UnitBorrowNestedForwardTopology::NestedThen => (0, 1, 2),
                 UnitBorrowNestedForwardTopology::NestedElse => (1, 2, 0),
+                UnitBorrowNestedForwardTopology::BalancedBoth => panic!("separate four-leaf test"),
             };
             assert_eq!(lineages[a].edges()[0], lineages[b].edges()[0]);
             assert_eq!(

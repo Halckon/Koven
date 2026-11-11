@@ -24,6 +24,9 @@ impl Plans {
             for region in catalog.nested_forward_regions().iter().filter(|r| {
                 r.callable() == callable && r.coverage() == UnitLoanActionCoverage::Complete
             }) {
+                if region.topology() == UnitBorrowNestedForwardTopology::BalancedBoth {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, inputs.span));
+                }
                 let [root, outer, inner] = inputs.parameters.as_slice() else {
                     return Err(fail());
                 };
@@ -61,6 +64,7 @@ impl Plans {
                     return Err(fail());
                 }
                 let nested_leaf = match region.topology() {
+                    UnitBorrowNestedForwardTopology::BalancedBoth => return Err(fail()),
                     UnitBorrowNestedForwardTopology::NestedThen => 0,
                     UnitBorrowNestedForwardTopology::NestedElse => 1,
                 };
@@ -129,6 +133,7 @@ impl Plans {
                     let call = path.value();
                     let ids = vec![path.source_begin(), path.handoff()];
                     let expected: &[bool] = match (region.topology(), leaf) {
+                        (UnitBorrowNestedForwardTopology::BalancedBoth, _) => return Err(fail()),
                         (UnitBorrowNestedForwardTopology::NestedThen, 0) => &[true, true],
                         (UnitBorrowNestedForwardTopology::NestedThen, 1) => &[true, false],
                         (UnitBorrowNestedForwardTopology::NestedThen, _) => &[false],
@@ -387,6 +392,7 @@ fn validate_topology(
         return Err(fail());
     }
     let (nested, plain) = match topology {
+        UnitBorrowNestedForwardTopology::BalancedBoth => return Err(fail()),
         UnitBorrowNestedForwardTopology::NestedThen => (*then_branch, *other),
         UnitBorrowNestedForwardTopology::NestedElse => (*other, *then_branch),
     };
@@ -410,6 +416,7 @@ fn validate_topology(
     let left = single(*then_branch).ok_or_else(fail)?;
     let right = single(*other).ok_or_else(fail)?;
     let returns = match topology {
+        UnitBorrowNestedForwardTopology::BalancedBoth => return Err(fail()),
         UnitBorrowNestedForwardTopology::NestedThen => [left, right, plain],
         UnitBorrowNestedForwardTopology::NestedElse => [plain, left, right],
     };

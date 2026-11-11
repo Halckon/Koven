@@ -27,9 +27,12 @@ impl Plans {
             || (i == 0 && (entry != BlockRef(0) || p.source.is_some()))
             || (i == 1
                 && (!p.splits[0].done
-                    || p.splits[0].arms.map(|a| a[p.nested_arm()]) != Some(entry)
+                    || p.nested_arm()
+                        .and_then(|arm| p.splits[0].arms.map(|a| a[arm]))
+                        != Some(entry)
                     || p.source != Some(source)
                     || match p.topology {
+                        UnitBorrowNestedForwardTopology::BalancedBoth => true,
                         UnitBorrowNestedForwardTopology::NestedThen => {
                             p.paths.iter().any(|path| path.stage != 0)
                         }
@@ -72,6 +75,7 @@ impl Plans {
             })
             || (i == 1
                 && match p.topology {
+                    UnitBorrowNestedForwardTopology::BalancedBoth => true,
                     UnitBorrowNestedForwardTopology::NestedThen => {
                         p.paths[0].stage != 3 || p.paths[1].stage != 3 || p.paths[2].stage != 0
                     }
@@ -106,6 +110,7 @@ impl Plans {
         let (split, arm) = route.last().copied().ok_or_else(|| invalid(span))?;
         let expected = p.splits[split].arms.map(|a| a[arm]);
         let phase_valid = match (p.topology, i) {
+            (UnitBorrowNestedForwardTopology::BalancedBoth, _) => false,
             (UnitBorrowNestedForwardTopology::NestedThen, _) => {
                 p.splits.iter().all(|s| s.done) && (i != 2 || p.splits[1].join.is_some())
             }
@@ -222,7 +227,8 @@ impl Plans {
     }
     pub(in crate::ssa::refine) fn finish(&self, span: Span) -> Result<(), LoweringError> {
         if self.plan.as_ref().is_some_and(|p| {
-            p.splits.len() != 2
+            p.topology == UnitBorrowNestedForwardTopology::BalancedBoth
+                || p.splits.len() != 2
                 || p.paths.len() != 3
                 || p.splits.iter().any(|s| !s.done || s.join.is_none())
                 || p.paths.iter().any(|p| p.stage != 3)

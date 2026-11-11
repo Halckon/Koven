@@ -13848,3 +13848,35 @@ strict 双crate feature all-target Clippy、默认lib no-run（包含CI-only编�
 workspace all-target check、fmt/diff、docs897与尺寸门禁全部通过。尺寸2488手写文件、
 36历史超限；本片不新增例外、不提高额度。日志mirror-*，只本地提交不推送，
 native全套与远端CI未运行。
+
+### 固定平衡四叶的前端关闭证明（2026-11-11）
+
+基于 `c9247d3b`，本片先建立四参数 source/outer/left/right 的固定深度树：
+外层两臂各含一个完整内层if/else，四叶直接返回同根borrowed call。
+真实前端红在原始四次运输成立后独立region为0；codegen红在rooted/memory×on/off
+四组合均保持333..339原borrow marker的Unsupported，verifier与receipt为0。
+本片采用先前端证书、后实际receipt的分步边界，不能把前端Complete视作后端支持。
+原三参数共享inner flag四叶、不平衡深层树及一般递归嵌套不在本片范围。
+
+FixedNestedTree 显式保存 Three 的2 split/3 leaf或 BalancedFour 的3 split/4 leaf，
+不填假叶、不以任意Vec长度授予资格。严格plan要求四参数及outer/left/right各自
+原条件身份；split index与真实深度分离，两个inner都在深度1，叶资格比对完整父链。
+entry、Partial lineage与Complete region均绑定BalancedBoth及同catalog身份。
+
+独立25阶段协议在左innerjoin11生成左关闭凭据，outer false入场12消费一次；
+右innerjoin21须左已闭合并消费，再生成右凭据；outerjoin22消费右，之后seal23、
+close24。完成再次核全部8条真实Begin/Handoff、四路径、六个实际entry角色，
+任一错序、重复、遗漏或空状态不满足完整性，失败仍Partial且空paths。
+后端旧三叶admission/builder/emitted显式拒绝BalancedBoth，真实边界测试要求
+前端已Complete同时仍在原借用标记Unsupported，原verifier/receipt均为零。
+未注册的后端实际receipt正控保留检查点，供下一片实现，不能算本片已通过。
+
+前端四叶正/负控2项、原三叶4项、codegen四叶精确拒绝/邻界2项、原三叶4项、
+双臂6项及前端双臂6项均通过。双向独立复审确认实际关闭消费，另发现并修复
+错拓扑/树存储组合后追加事件可能越界的问题，改用受检访问保持sticky invalid，
+追加CI-only防御负控。CI-only基于真实producer快照检查两token缺失、错entry、
+错路径/数量/游标、重复join等，只编译，不在本机执行。旧见证全部保留。
+最后strict feature all-target Clippy、默认lib no-run（含CI-only）、workspace全目标、
+fmt/diff/docs897及尺寸门禁均通过，2491手写Rust文件、36历史超限，无新额度。
+默认编译首次暴露新观察测试漏feature注册，已按同类模块补齐并重跑通过；
+不改生产合同。日志balanced-*，本片只本地提交，native全套与远端CI未执行。

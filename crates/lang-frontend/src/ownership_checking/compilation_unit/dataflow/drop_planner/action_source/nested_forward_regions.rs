@@ -3,7 +3,8 @@ use super::super::nested_forward_scope::NestedForwardPlan;
 use super::{ActionSource, Record};
 use crate::{
     ownership_checking::{
-        UnitBorrowNestedForwardRegion, UnitLoanActionCoverage, UnitLoanNestedForwardLineage,
+        UnitBorrowNestedForwardRegion, UnitBorrowNestedForwardTopology, UnitLoanActionCoverage,
+        UnitLoanNestedForwardLineage,
     },
     type_checking::UnitItemId,
 };
@@ -16,12 +17,52 @@ pub(super) struct Candidate {
     start: usize,
     stage: usize,
     valid: bool,
-    entries: [Option<usize>; 4],
+    entries: [Option<usize>; 6],
     inner_closed: bool,
     inner_consumed: bool,
+    right_closed: bool,
+    right_consumed: bool,
     closed: Option<usize>,
 }
 impl Candidate {
+    fn balanced(&self) -> bool {
+        self.plan.topology == UnitBorrowNestedForwardTopology::BalancedBoth
+    }
+    fn action_count(&self) -> usize {
+        self.plan.leaves().len() * 2
+    }
+    fn close_stage(&self) -> usize {
+        if self.balanced() { 24 } else { 17 }
+    }
+    fn tokens_consumed(&self) -> bool {
+        self.inner_closed
+            && self.inner_consumed
+            && (!self.balanced() || (self.right_closed && self.right_consumed))
+    }
+    fn entry_role(&self, split: usize, then: bool) -> Option<usize> {
+        if self.balanced() {
+            match (split, then) {
+                (0, true) => Some(0),
+                (0, false) => Some(3),
+                (1, true) => Some(1),
+                (1, false) => Some(2),
+                (2, true) => Some(4),
+                (2, false) => Some(5),
+                _ => None,
+            }
+        } else {
+            match split {
+                0 => Some(if then == self.plan.topology.nested_then() {
+                    0
+                } else {
+                    3
+                }),
+                1 => Some(if then { 1 } else { 2 }),
+                _ => None,
+            }
+        }
+    }
+
     fn advance(&mut self, stage: usize, offset: usize, cursor: usize, clear: bool) -> bool {
         self.valid &= clear
             && self.stage == stage
@@ -50,10 +91,12 @@ impl ActionSource {
             base,
             start: self.records.len(),
             stage: 0,
-            valid: self.enabled && clear && unique,
-            entries: [None; 4],
+            valid: self.enabled && clear && unique && plan.topology_matches_tree(),
+            entries: [None; 6],
             inner_closed: false,
             inner_consumed: false,
+            right_closed: false,
+            right_consumed: false,
             closed: None,
         });
         id
@@ -71,16 +114,31 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        let (stage, offset) = match (c.plan.topology.nested_then(), split, after) {
-            (_, 0, false) => (0, 0),
-            (_, 0, true) => (1, 0),
-            (true, 1, false) => (3, 0),
-            (true, 1, true) => (4, 0),
-            (false, 1, false) => (6, 2),
-            (false, 1, true) => (7, 2),
-            _ => {
-                c.valid = false;
-                return;
+        let (stage, offset) = if c.balanced() {
+            match (split, after) {
+                (0, false) => (0, 0),
+                (0, true) => (1, 0),
+                (1, false) => (3, 0),
+                (1, true) => (4, 0),
+                (2, false) => (13, 4),
+                (2, true) => (14, 4),
+                _ => {
+                    c.valid = false;
+                    return;
+                }
+            }
+        } else {
+            match (c.plan.topology.nested_then(), split, after) {
+                (_, 0, false) => (0, 0),
+                (_, 0, true) => (1, 0),
+                (true, 1, false) => (3, 0),
+                (true, 1, true) => (4, 0),
+                (false, 1, false) => (6, 2),
+                (false, 1, true) => (7, 2),
+                _ => {
+                    c.valid = false;
+                    return;
+                }
             }
         };
         c.advance(stage, offset, self.records.len(), clear);
@@ -96,38 +154,61 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        let (role, stage, offset) = match (c.plan.topology.nested_then(), split, then_arm) {
-            (true, 0, true) => (0, 2, 0),
-            (true, 1, true) => (1, 5, 0),
-            (true, 1, false) => (2, 8, 2),
-            (true, 0, false) => (3, 12, 4),
-            (false, 0, true) => (3, 2, 0),
-            (false, 0, false) => (0, 5, 2),
-            (false, 1, true) => (1, 8, 2),
-            (false, 1, false) => (2, 11, 4),
-            _ => {
-                c.valid = false;
-                return;
+        let (role, stage, offset) = if c.balanced() {
+            match (split, then_arm) {
+                (0, true) => (0, 2, 0),
+                (1, true) => (1, 5, 0),
+                (1, false) => (2, 8, 2),
+                (0, false) => (3, 12, 4),
+                (2, true) => (4, 15, 4),
+                (2, false) => (5, 18, 6),
+                _ => {
+                    c.valid = false;
+                    return;
+                }
+            }
+        } else {
+            match (c.plan.topology.nested_then(), split, then_arm) {
+                (true, 0, true) => (0, 2, 0),
+                (true, 1, true) => (1, 5, 0),
+                (true, 1, false) => (2, 8, 2),
+                (true, 0, false) => (3, 12, 4),
+                (false, 0, true) => (3, 2, 0),
+                (false, 0, false) => (0, 5, 2),
+                (false, 1, true) => (1, 8, 2),
+                (false, 1, false) => (2, 11, 4),
+                _ => {
+                    c.valid = false;
+                    return;
+                }
             }
         };
-        let expected_parent = if split == 1 { c.entries[0] } else { None };
+        let expected_parent = match split {
+            1 => c.entries[0],
+            2 => c.entries[3],
+            _ => None,
+        };
+        let Some(wanted) = c.plan.splits().get(split).copied() else {
+            c.valid = false;
+            return;
+        };
         let actual = self.nested_entries.get(entry);
         let good = actual.is_some_and(|e| {
             e.callable == c.plan.callable
                 && e.topology == c.plan.topology
-                && e.split == c.plan.splits[split].split
-                && e.condition == c.plan.splits[split].condition
+                && e.split == wanted.split
+                && e.condition == wanted.condition
                 && e.then_arm == then_arm
                 && e.parent == expected_parent
                 && e.cursor == self.records.len()
         }) && (split == 0 || expected_parent.is_some())
             && !c.entries.contains(&Some(entry))
-            && (!c.plan.topology.nested_then()
+            && (!(c.balanced() || c.plan.topology.nested_then())
                 || role != 3
                 || (c.inner_closed && !c.inner_consumed));
         if c.advance(stage, offset, self.records.len(), clear && good) {
             c.entries[role] = Some(entry);
-            if role == 3 && c.plan.topology.nested_then() {
+            if role == 3 && (c.balanced() || c.plan.topology.nested_then()) {
                 c.inner_consumed = true;
             }
         }
@@ -142,19 +223,35 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        let stage = match (c.plan.topology.nested_then(), leaf) {
-            (true, 0) => 6,
-            (_, 1) => 9,
-            (true, 2) => 13,
-            (false, 0) => 3,
-            (false, 2) => 12,
-            _ => {
-                c.valid = false;
-                return;
+        let stage = if c.balanced() {
+            match leaf {
+                0 => 6,
+                1 => 9,
+                2 => 16,
+                3 => 19,
+                _ => {
+                    c.valid = false;
+                    return;
+                }
+            }
+        } else {
+            match (c.plan.topology.nested_then(), leaf) {
+                (true, 0) => 6,
+                (_, 1) => 9,
+                (true, 2) => 13,
+                (false, 0) => 3,
+                (false, 2) => 12,
+                _ => {
+                    c.valid = false;
+                    return;
+                }
             }
         } + usize::from(post);
         let offset = leaf * 2 + 1 + usize::from(post);
-        let wanted = c.plan.leaves[leaf];
+        let Some(wanted) = c.plan.leaves().get(leaf).copied() else {
+            c.valid = false;
+            return;
+        };
         let begin = c.start + leaf * 2;
         let source = match self.records.get(begin) {
             Some(Record::Begin(source)) => Some(source),
@@ -189,13 +286,25 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        let (stage, offset) = match (c.plan.topology.nested_then(), split) {
-            (true, 1) => (11, 4),
-            (false, 1) => (14, 6),
-            (_, 0) => (15, 6),
-            _ => {
-                c.valid = false;
-                return;
+        let (stage, offset) = if c.balanced() {
+            match split {
+                1 => (11, 4),
+                2 => (21, 8),
+                0 => (22, 8),
+                _ => {
+                    c.valid = false;
+                    return;
+                }
+            }
+        } else {
+            match (c.plan.topology.nested_then(), split) {
+                (true, 1) => (11, 4),
+                (false, 1) => (14, 6),
+                (_, 0) => (15, 6),
+                _ => {
+                    c.valid = false;
+                    return;
+                }
             }
         };
         let consumed_correctly = if c.plan.topology.nested_then() {
@@ -203,11 +312,24 @@ impl ActionSource {
         } else {
             !c.inner_consumed
         };
-        let good =
-            both_terminated && no_live && (split == 1 || (c.inner_closed && consumed_correctly));
+        let closure = if c.balanced() {
+            match split {
+                1 => !c.inner_closed && !c.inner_consumed,
+                2 => c.inner_closed && c.inner_consumed && !c.right_closed && !c.right_consumed,
+                0 => c.inner_closed && c.inner_consumed && c.right_closed && !c.right_consumed,
+                _ => false,
+            }
+        } else {
+            split == 1 || (c.inner_closed && consumed_correctly)
+        };
+        let good = both_terminated && no_live && closure;
         if c.advance(stage, offset, self.records.len(), clear && good) {
             if split == 1 {
                 c.inner_closed = true;
+            } else if c.balanced() && split == 2 {
+                c.right_closed = true;
+            } else if c.balanced() {
+                c.right_consumed = true;
             } else if !c.plan.topology.nested_then() {
                 c.inner_consumed = true;
             }
@@ -223,10 +345,10 @@ impl ActionSource {
             return;
         };
         c.advance(
-            16,
-            6,
+            c.close_stage() - 1,
+            c.action_count(),
             self.records.len(),
-            clear && terminated && c.inner_closed && c.inner_consumed,
+            clear && terminated && c.tokens_consumed(),
         );
     }
     pub(in super::super) fn close_nested_callable(&mut self, callable: UnitItemId) {
@@ -235,7 +357,7 @@ impl ActionSource {
             .iter_mut()
             .filter(|c| c.plan.callable == callable)
         {
-            if c.advance(17, 6, self.records.len(), true) {
+            if c.advance(c.close_stage(), c.action_count(), self.records.len(), true) {
                 c.closed = Some(self.records.len());
             }
         }
@@ -256,30 +378,30 @@ impl ActionSource {
                     .cloned()
                     .collect::<Vec<_>>();
                 let good = c.valid
-                    && c.stage == 18
-                    && c.closed == c.start.checked_add(6)
-                    && c.inner_closed
-                    && c.inner_consumed
+                    && c.plan.topology_matches_tree()
+                    && c.stage == c.close_stage()+1
+                    && c.closed == c.start.checked_add(c.action_count())
+                    && c.tokens_consumed()
                     && self
                         .nested_regions
                         .iter()
                         .filter(|other| other.plan.callable == c.plan.callable)
                         .count()
                         == 1
-                    && self.records.get(c.start..c.start.saturating_add(6)).is_some_and(|records| {
+                    && self.records.get(c.start..c.start.saturating_add(c.action_count())).is_some_and(|records| {
                     records.chunks_exact(2).enumerate().all(|(leaf, pair)| {
                         matches!(pair, [Record::Begin(begin), Record::BorrowForwardHandoff { transaction, .. }]
                             if transaction.source_loan() == begin
-                                && transaction.returned_expression() == c.plan.leaves[leaf].value
-                                && transaction.point() == crate::ownership_checking::UnitDropPoint::ControlTransfer(c.plan.leaves[leaf].control))
+                                && transaction.returned_expression() == c.plan.leaves()[leaf].value
+                                && transaction.point() == crate::ownership_checking::UnitDropPoint::ControlTransfer(c.plan.leaves()[leaf].control))
                     })
                 })
-                && paths.len() == 3
+                && paths.len() == c.plan.leaves().len()
                     && paths.iter().enumerate().all(|(leaf, l)| {
-                        let expected = c.plan.leaves[leaf];
+                        let expected = c.plan.leaves()[leaf];
                         let expected_entries = expected.path.map(|edge| edge.map(|(split,then)| {
-                            let role = if split == 0 { if then == c.plan.topology.nested_then() { 0 } else { 3 } } else if then { 1 } else { 2 };
-                            c.entries[role]
+                            let role = c.entry_role(split, then);
+                            role.and_then(|role| c.entries[role])
                         })).map(Option::flatten);
                         Arc::ptr_eq(&l.identity, &self.identity)
                             && l.topology() == c.plan.topology
