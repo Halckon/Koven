@@ -1,121 +1,122 @@
-//! Follow actual, single-definition, ordered entry moves to a catalog producer.
+//! Resolve actual moves across all incoming acyclic paths, never infer a phi.
 use super::*;
-use crate::ssa::refine::body::RStmt;
 
-pub(super) fn producer(statements: &[RStmt], root: Slot, origin: Span) -> Option<Slot> {
-    let mut current = root;
-    let mut before = statements.len();
+pub(super) struct Entry {
+    pub(super) root_block: BlockRef,
+    pub(super) producer_block: BlockRef,
+    pub(super) producer: Slot,
+}
+
+pub(super) fn prefix(
+    body: &RefinedBody,
+    entry: BlockRef,
+    root: Slot,
+    origin: Span,
+) -> Option<Entry> {
+    let mut block = entry;
+    let mut before = body.blocks[block.0].statements.len();
+    let mut slot = root;
+    let mut root_block = None;
+    let mut visited = Vec::new();
     loop {
-        let mut definitions = statements
-            .iter()
-            .enumerate()
-            .filter(|(_, statement)| statement.results.contains(&current));
-        let (index, statement) = definitions.next()?;
-        if definitions.next().is_some() || index >= before || statement.results != [current] {
+        let (defined, index) = definition(
+            body,
+            block,
+            before,
+            slot,
+            &mut vec![false; body.blocks.len()],
+            &mut BTreeMap::new(),
+        )?;
+        if visited.contains(&(defined, index, slot)) {
+            return None;
+        }
+        visited.push((defined, index, slot));
+        root_block.get_or_insert(defined);
+        let statement = &body.blocks[defined.0].statements[index];
+        if statement.results != [slot] {
             return None;
         }
         match statement.op {
-            ROp::StringLiteral { .. } if statement.span == origin => return Some(current),
+            ROp::StringLiteral { .. } if statement.span == origin => {
+                return Some(Entry {
+                    root_block: root_block?,
+                    producer_block: defined,
+                    producer: slot,
+                });
+            }
             ROp::Alias { source } => {
-                // Each intermediate is consumed by this one move, not another
-                // alias/drop/read. The final root may be used later by the loop.
-                if statements
-                    .iter()
-                    .flat_map(|s| s.op.operands())
-                    .filter(|operand| *operand == source)
-                    .count()
-                    != 1
-                {
-                    return None;
-                }
+                block = defined;
                 before = index;
-                current = source;
+                slot = source;
             }
             _ => return None,
         }
     }
 }
 
-/// Every incoming prefix path must reach the same untouched initializer.
-pub(super) fn prefix(
+/// Find the exact same reaching definition on every predecessor. Uses before the
+/// consuming move and cycles are rejected; distinct path definitions are not merged.
+fn definition(
     body: &RefinedBody,
-    entry: BlockRef,
-    root: Slot,
-    origin: Span,
-) -> Option<(BlockRef, Slot)> {
-    let mut candidates = body
+    block: BlockRef,
+    before: usize,
+    slot: Slot,
+    active: &mut [bool],
+    cached: &mut BTreeMap<(usize, usize), (BlockRef, usize)>,
+) -> Option<(BlockRef, usize)> {
+    if let Some(found) = cached.get(&(block.0, before)) {
+        return Some(*found);
+    }
+    if active[block.0] {
+        return None;
+    }
+    active[block.0] = true;
+    for (index, statement) in body.blocks[block.0].statements[..before]
+        .iter()
+        .enumerate()
+        .rev()
+    {
+        if statement.op.operands().contains(&slot) {
+            return None;
+        }
+        if statement.results.contains(&slot) {
+            active[block.0] = false;
+            cached.insert((block.0, before), (block, index));
+            return Some((block, index));
+        }
+    }
+    let predecessors: Vec<_> = body
         .blocks
         .iter()
         .enumerate()
-        .filter_map(|(i, b)| producer(&b.statements, root, origin).map(|s| (BlockRef(i), s)));
-    let (initialized, slot) = candidates.next()?;
-    if candidates.next().is_some() {
-        return None;
+        .filter_map(|(i, b)| {
+            b.terminator
+                .as_ref()
+                .filter(|(term, _)| term.successors().contains(&block))
+                .map(|_| BlockRef(i))
+        })
+        .collect();
+    let mut agreed = None;
+    for predecessor in predecessors {
+        let parent = &body.blocks[predecessor.0];
+        if parent.terminator.as_ref()?.0.operands().contains(&slot) {
+            return None;
+        }
+        let found = definition(
+            body,
+            predecessor,
+            parent.statements.len(),
+            slot,
+            active,
+            cached,
+        )?;
+        if agreed.is_some_and(|previous| previous != found) {
+            return None;
+        }
+        agreed = Some(found);
     }
-    fn visit(
-        body: &RefinedBody,
-        current: BlockRef,
-        initialized: BlockRef,
-        root: Slot,
-        states: &mut [u8],
-    ) -> Option<()> {
-        let block = &body.blocks[current.0];
-        if block
-            .terminator
-            .as_ref()
-            .is_some_and(|(term, _)| term.operands().contains(&root))
-        {
-            return None;
-        }
-        if current == initialized {
-            let index = block
-                .statements
-                .iter()
-                .position(|s| s.results.contains(&root))?;
-            return (!block.statements[index + 1..]
-                .iter()
-                .any(|s| s.results.contains(&root) || s.op.operands().contains(&root)))
-            .then_some(());
-        }
-        match states[current.0] {
-            1 => return None,
-            2 => return Some(()),
-            _ => {}
-        }
-        if block
-            .statements
-            .iter()
-            .any(|s| s.results.contains(&root) || s.op.operands().contains(&root))
-        {
-            return None;
-        }
-        states[current.0] = 1;
-        let predecessors: Vec<_> = body
-            .blocks
-            .iter()
-            .enumerate()
-            .filter_map(|(i, b)| {
-                b.terminator
-                    .as_ref()
-                    .filter(|(t, _)| t.successors().contains(&current))
-                    .map(|_| BlockRef(i))
-            })
-            .collect();
-        if predecessors.is_empty() {
-            return None;
-        }
-        for predecessor in predecessors {
-            visit(body, predecessor, initialized, root, states)?;
-        }
-        states[current.0] = 2;
-        Some(())
-    }
-    visit(
-        body,
-        entry,
-        initialized,
-        root,
-        &mut vec![0; body.blocks.len()],
-    )?;
-    Some((initialized, slot))
+    active[block.0] = false;
+    let found = agreed?;
+    cached.insert((block.0, before), found);
+    Some(found)
 }

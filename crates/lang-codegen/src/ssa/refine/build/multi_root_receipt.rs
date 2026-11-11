@@ -315,14 +315,13 @@ impl Builder<'_, '_> {
             let UnitOwnerOrigin::String(id) = origin else {
                 return Err(fail());
             };
-            let (initial_block, initial) =
-                entry::prefix(&self.body, entry, root, self.span(id.expression()))
-                    .ok_or_else(fail)?;
-            if self.multi_root_literal(origin, initial_block)? != initial {
+            let initial = entry::prefix(&self.body, entry, root, self.span(id.expression()))
+                .ok_or_else(fail)?;
+            if self.multi_root_literal(origin, initial.producer_block)? != initial.producer {
                 return Err(fail());
             }
             #[cfg(test)]
-            if initial_block != entry {
+            if initial.root_block != entry || initial.producer_block != initial.root_block {
                 owner_consumer_test_support::record_action(
                     "multi-root-cross-block-entry",
                     root_index,
@@ -370,7 +369,7 @@ impl Builder<'_, '_> {
                 || *alias_index >= drop_index
                 || old == root
                 || detached == root
-                || self.body.blocks[initial_block.0]
+                || self.body.blocks[initial.root_block.0]
                     .statements
                     .iter()
                     .filter(|s| s.results.contains(&root))

@@ -575,3 +575,44 @@ fn multi_root_prefix_root_read_does_not_gain_cross_block_receipt() {
     );
     super::assert_native_output(&source, b"");
 }
+
+#[test]
+fn multi_root_consumes_alias_move_across_scalar_diamond() {
+    for depth in [1, 12] {
+        for choose in [false, true] {
+            let text = source(2, true, 1)
+            .replace("flag: Boolean", "flag: Boolean, choose: Boolean")
+            .replace("run(false)", &format!("run(false, {choose})"))
+            .replace("var r0 = \"entry0\";", "val seed = \"entry0\"; if(choose) { val n = 1 } else { val n = 2 }; val moved = seed; var r0 = moved;");
+            let diamond = "if(choose) { val n = 1 } else { val n = 2 };";
+            let text = text.replace(diamond, &diamond.repeat(depth));
+            let source = UnitSource::analyze("multi-root-cross-block-move.ko", &text).unwrap();
+            source.assert_frontend_clean();
+            assert!(
+                source
+                    .ownership()
+                    .owner_observations()
+                    .iter()
+                    .any(|o| o.multi_root_boundary_v1().is_some())
+            );
+            let (lowered, actions) =
+                crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+            let (program, entry) = lowered.unwrap();
+            crate::ssa::verify::verify_program(&program).unwrap();
+            crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            assert!(
+                actions
+                    .iter()
+                    .any(|(kind, _)| *kind == "multi-root-header-audit")
+            );
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, _)| *kind == "multi-root-cross-block-entry")
+                    .count(),
+                1
+            );
+            super::assert_native_output(&source, b"");
+        }
+    }
+}
