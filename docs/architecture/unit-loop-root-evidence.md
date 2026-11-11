@@ -88,3 +88,11 @@ String完成hook产生。实际Replace提交逐项校验计划顺序、root、pr
 消费数等于根数。回执记录binding及实际fact，并核旧token与对应Replace link相等；任一缺口
 撤销token links和token消费记录。既有非token事实与所有公开资格仍不变。
 CI-only负控覆盖首笔成功后第二笔完成/提交失效，以及跳过首笔binding/drop事件；本地仅编译。
+
+完整受限事务另形成私有静态边界等式：保留真实入口root/token向量与正常body末root/token
+向量，核对相同root顺序、旧定义成员身份及每个新定义恰出现在一个输出root；全部旧结果
+已由binding/drop链消费且无悬挂交付。仅normal vector和cleanup均完整时保留，失效时清除。
+它证明单次静态遍历的catalog守恒，是后续header义务的输入材料，不把entry token等同于
+normal token，不表示下一轮复用这些token，也不是运行时固定点或多轮执行证明。
+零轮/回边合并、每次激活的新实例身份及下一轮不变量仍须独立构建与核验。
+边界等式只读取事务开始时保存且不可变的root→入口token映射，不接受调用者重组的入口向量；catalog成员相同不能代替逐根身份对应。

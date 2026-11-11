@@ -8,6 +8,7 @@ pub(super) type RootRetirements = Vec<(
 )>;
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
+    normal_equation: Option<root_tokens::RootBoundaryEquation>,
     pub(super) entry_definitions: Vec<UnitOwnerDefinition>,
     pub(super) token_transaction: Option<root_tokens::RootTokenTransaction>,
     pub(super) roots: RootIncoming,
@@ -23,6 +24,7 @@ pub(super) struct RootEvidence {
 impl RootEvidence {
     pub(super) fn fault_fixture(roots: RootIncoming, writes: Vec<RootWriteReceipt>) -> Self {
         Self {
+            normal_equation: None,
             entry_definitions: Vec::new(),
             token_transaction: None,
             roots,
@@ -43,9 +45,20 @@ impl ControlTransactions {
             evidence.normal_backedge = false;
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
+            evidence.normal_equation = None;
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn root_equation(
+        &self,
+        control: UnitStatementId,
+    ) -> Option<root_tokens::RootBoundaryEquation> {
+        self.root_entries
+            .iter()
+            .find(|(id, _)| *id == control)
+            .and_then(|(_, evidence)| evidence.normal_equation.clone())
+    }
     #[cfg(test)]
     pub(super) fn root_retirements(&self, control: UnitStatementId) -> Option<RootRetirements> {
         self.root_entries
@@ -83,6 +96,7 @@ impl ControlTransactions {
             evidence.normal_backedge = false;
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
+            evidence.normal_equation = None;
         }
     }
     pub(super) fn record_root_fallthrough(
@@ -98,6 +112,7 @@ impl ControlTransactions {
         {
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
+            evidence.normal_equation = None;
             evidence.normal_backedge = normal
                 && evidence.after_condition
                 && !evidence.tainted
@@ -134,6 +149,10 @@ impl ControlTransactions {
                 .normal_write_vector
                 .as_ref()
                 .and_then(|_| completed_result_cleanup(checker, control, state, evidence, facts));
+            evidence.normal_equation = evidence
+                .normal_retirements
+                .as_ref()
+                .and_then(|_| evidence.token_transaction.as_ref()?.boundary_equation());
         }
     }
 
@@ -161,6 +180,7 @@ impl ControlTransactions {
         self.root_entries.push((
             control,
             RootEvidence {
+                normal_equation: None,
                 entry_definitions,
                 token_transaction: None,
                 roots,

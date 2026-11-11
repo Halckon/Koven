@@ -3,10 +3,35 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
+/// Finite static catalog conservation, not a runtime activation or fixed-point proof.
+#[derive(Clone, Debug)]
+pub(in super::super::super::super) struct RootBoundaryEquation {
+    pub(in super::super::super::super) control: UnitStatementId,
+    pub(in super::super::super::super) entry: RootIncoming,
+    pub(in super::super::super::super) normal: RootIncoming,
+}
+impl RootBoundaryEquation {
+    fn same_roots(&self) -> bool {
+        self.entry.len() == self.normal.len()
+            && self
+                .entry
+                .iter()
+                .zip(&self.normal)
+                .all(|((root, old), (next_root, new))| {
+                    root == next_root
+                        && root.source_unit() == self.control.source_unit()
+                        && old.callable == new.callable
+                        && old != new
+                })
+    }
+}
+
 pub(in super::super) struct RootTokenTransaction {
+    control: UnitStatementId,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
     roots: RootIncoming,
+    initial_roots: RootIncoming,
     entry_definitions: Vec<UnitOwnerDefinition>,
     planned: Vec<(UnitExpressionId, UnitSymbolId, UnitExpressionId)>,
     definitions: Vec<UnitOwnerDefinition>,
@@ -28,6 +53,36 @@ impl RootTokenTransaction {
             && self.pending.is_none()
             && self.bound.is_none()
             && self.retired == self.planned.len()
+    }
+
+    pub(in super::super) fn boundary_equation(&self) -> Option<RootBoundaryEquation> {
+        let entry = &self.initial_roots;
+        if !self.is_complete()
+            || entry.len() != self.roots.len()
+            || self.definitions.len() != self.roots.len()
+            || entry.iter().any(|(_, old)| {
+                self.entry_definitions
+                    .iter()
+                    .filter(|definition| definition.id == *old)
+                    .count()
+                    != 1
+            })
+            || self.definitions.iter().any(|definition| {
+                self.roots
+                    .iter()
+                    .filter(|(_, owner)| *owner == definition.id)
+                    .count()
+                    != 1
+            })
+        {
+            return None;
+        }
+        let equation = RootBoundaryEquation {
+            control: self.control,
+            entry: entry.clone(),
+            normal: self.roots.clone(),
+        };
+        equation.same_roots().then_some(equation)
     }
 
     pub(in super::super) fn begin(
@@ -103,9 +158,11 @@ impl RootTokenTransaction {
             return None;
         }
         Some(Self {
+            control,
             identity: std::sync::Arc::new(()),
             callable,
             roots: roots.clone(),
+            initial_roots: roots.clone(),
             entry_definitions: entry_definitions.to_vec(),
             planned,
             definitions: Vec::new(),

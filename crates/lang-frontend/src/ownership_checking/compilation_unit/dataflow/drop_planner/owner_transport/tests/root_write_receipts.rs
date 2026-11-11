@@ -324,6 +324,7 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
             let visits = planner.owner_control_probe.as_ref().unwrap();
             let vector = &visits[1].normal_write_vector;
             assert_eq!(vector.is_some(), admitted, "{text}");
+            assert_eq!(visits[1].normal_equation.is_some(), admitted, "{text}");
             assert_eq!(visits[1].normal_retirements.is_some(), admitted, "{text}");
             if !admitted {
                 assert!(
@@ -348,6 +349,21 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                     ));
                 }
                 let roots = visits[0].incoming_roots.as_ref().unwrap();
+                let equation = visits[1].normal_equation.as_ref().unwrap();
+                assert_eq!(equation.control, visits[0].control);
+                assert_eq!(&equation.entry, roots);
+                assert_eq!(equation.normal.len(), roots.len());
+                for ((root, new), (entry_root, old)) in equation.normal.iter().zip(roots) {
+                    assert_eq!(root, entry_root);
+                    assert_ne!(new, old);
+                    assert!(visits[1].root_writes.iter().any(|write| {
+                        write.root == *root
+                            && write
+                                .token_link
+                                .as_ref()
+                                .is_some_and(|(_, token)| token == new)
+                    }));
+                }
                 assert_eq!(vector.len(), 2);
                 for ((root, producer), (entry_root, _)) in vector.iter().zip(roots) {
                     assert_eq!(root, entry_root);

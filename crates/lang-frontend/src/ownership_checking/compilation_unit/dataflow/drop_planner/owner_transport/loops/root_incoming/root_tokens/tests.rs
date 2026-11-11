@@ -35,6 +35,7 @@ fn ci_only_mid_transaction_failure_revokes_prior_successful_links() {
             assert_eq!(writes.len(), 2);
             assert!(visits[1].normal_write_vector.is_some());
             assert!(visits[1].normal_retirements.is_some());
+            assert_eq!(visits[1].normal_equation.is_some(), phase == 0);
             if phase == 0 {
                 assert!(writes.iter().all(|write| write.token_link.is_some() && write.token_retirement.is_some()));
             } else {

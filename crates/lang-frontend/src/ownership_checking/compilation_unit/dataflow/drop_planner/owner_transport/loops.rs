@@ -699,19 +699,7 @@ impl DropPlanner<'_, '_> {
             self.owner_loop.clear();
         }
         #[cfg(test)]
-        if let Some(probe) = &mut self.owner_control_probe {
-            probe.push(ControlVisit {
-                entering: true,
-                control,
-                parent,
-                closed_product: None,
-                incoming_roots: self.owner_loop.root_entry(control).map(<[_]>::to_vec),
-                root_stages: (false, false),
-                normal_write_vector: None,
-                normal_retirements: None,
-                root_writes: Vec::new(),
-            });
-        }
+        self.record_control_visit(control, parent, true, None);
         let result = self.owner_while_statement_scoped(id, condition, body, state);
         #[cfg(test)]
         let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
@@ -720,19 +708,12 @@ impl DropPlanner<'_, '_> {
         }
         self.owner_loop.select(previous_transaction);
         #[cfg(test)]
-        if let Some(probe) = &mut self.owner_control_probe {
-            probe.push(ControlVisit {
-                entering: false,
-                control,
-                parent: self.owner_controls.current(),
-                closed_product,
-                incoming_roots: None,
-                root_stages: self.owner_loop.root_stages(control),
-                normal_write_vector: self.owner_loop.root_normal_writes(control),
-                normal_retirements: self.owner_loop.root_retirements(control),
-                root_writes: self.owner_loop.root_writes(control).to_vec(),
-            });
-        }
+        self.record_control_visit(
+            control,
+            self.owner_controls.current(),
+            false,
+            closed_product,
+        );
         result
     }
 

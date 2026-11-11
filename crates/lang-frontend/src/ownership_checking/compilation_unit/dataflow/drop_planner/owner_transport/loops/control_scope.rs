@@ -48,9 +48,61 @@ pub(in super::super::super) struct ControlVisit {
     pub(in super::super::super) control: UnitStatementId,
     pub(in super::super::super) parent: Option<UnitStatementId>,
     pub(in super::super::super) root_writes: Vec<RootWriteReceipt>,
+    pub(in super::super::super) normal_equation:
+        Option<super::root_incoming::root_tokens::RootBoundaryEquation>,
     pub(in super::super::super) normal_retirements: Option<super::root_incoming::RootRetirements>,
     pub(in super::super::super) normal_write_vector: Option<Vec<(UnitSymbolId, UnitExpressionId)>>,
     pub(in super::super::super) root_stages: (bool, bool),
     pub(in super::super::super) incoming_roots: Option<Vec<(UnitSymbolId, UnitOwnerId)>>,
     pub(in super::super::super) closed_product: Option<UnitOwnerLoopObservationV1>,
+}
+
+#[cfg(test)]
+impl DropPlanner<'_, '_> {
+    pub(super) fn record_control_visit(
+        &mut self,
+        control: UnitStatementId,
+        parent: Option<UnitStatementId>,
+        entering: bool,
+        closed_product: Option<UnitOwnerLoopObservationV1>,
+    ) {
+        if let Some(probe) = &mut self.owner_control_probe {
+            probe.push(ControlVisit {
+                entering,
+                control,
+                parent,
+                closed_product,
+                incoming_roots: if entering {
+                    self.owner_loop.root_entry(control).map(<[_]>::to_vec)
+                } else {
+                    None
+                },
+                root_stages: if entering {
+                    (false, false)
+                } else {
+                    self.owner_loop.root_stages(control)
+                },
+                normal_equation: if entering {
+                    None
+                } else {
+                    self.owner_loop.root_equation(control)
+                },
+                normal_write_vector: if entering {
+                    None
+                } else {
+                    self.owner_loop.root_normal_writes(control)
+                },
+                normal_retirements: if entering {
+                    None
+                } else {
+                    self.owner_loop.root_retirements(control)
+                },
+                root_writes: if entering {
+                    Vec::new()
+                } else {
+                    self.owner_loop.root_writes(control).to_vec()
+                },
+            });
+        }
+    }
 }
