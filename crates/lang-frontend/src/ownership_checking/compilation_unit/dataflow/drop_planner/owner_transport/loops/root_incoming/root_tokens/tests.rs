@@ -14,13 +14,13 @@ impl Drop for Restore {
 }
 
 #[test]
-fn ci_only_mid_transaction_failure_revokes_prior_successful_links() {
+fn ci_only_token_evidence_requires_entry_and_complete_events() {
     let fixture = Fixture::new(&[(
         "token-revoke.ko",
         "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val keptA = a; val keptB = b }",
     )]);
     let owned = fixture.shared();
-    for phase in [0, 1, 2, 3, 4] {
+    for phase in [0, 1, 2, 3, 4, 5] {
         compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
             let mut planner = DropPlanner::new(
                 checker,

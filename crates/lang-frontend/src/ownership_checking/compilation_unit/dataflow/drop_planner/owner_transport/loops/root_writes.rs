@@ -185,6 +185,7 @@ impl DropPlanner<'_, '_> {
                             control,
                             &evidence.roots,
                             &evidence.entry_definitions,
+                            evidence.entered_body,
                         );
                 }
                 if let Some(transaction) = &mut evidence.token_transaction {

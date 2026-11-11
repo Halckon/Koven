@@ -13743,3 +13743,14 @@ boundary_values既有豁免，不把资源辅助状态闭合写成所有字段�
 最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
 all-target check及fmt/diff通过，新增guard矩阵断言随普通lib执行。只读复审无阻断；
 CI-only只编译未执行，本地保留、不推送。
+
+### 实际 planner body 入口回执（2026-11-11，本地）
+
+基于83cea6f2，将condition成功完成及body入口的真实hook接入独立token事务前置；记录
+精确control/condition/body身份且匹配实际While，不能仅凭静态body形状开始事务。
+CI-only增加遗漏入口hook故障场景，普通写回执仍在而token/header证据不得建立。这里的
+入口仅指首次planner遍历，不等价于runtime激活或跨迭代证明；原公开能力不变。
+
+最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过。复审发现的旧CI-only模型签名遗漏已修复并编译通过；模型
+marker明确不是While条件，不替代真实源码入口验证。遗漏hook负控未本机运行，不推送。

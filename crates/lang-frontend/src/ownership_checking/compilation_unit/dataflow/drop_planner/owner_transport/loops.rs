@@ -729,8 +729,11 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
-        self.owner_loop
-            .record_root_condition(UnitStatementId::new(self.checker.source_unit, id), state);
+        self.owner_loop.record_root_condition(
+            UnitStatementId::new(self.checker.source_unit, id),
+            self.checker.unit_expression(condition),
+            state,
+        );
         let collecting = self.owner_observation_enabled
             && self
                 .owner_controls
@@ -749,6 +752,12 @@ impl DropPlanner<'_, '_> {
         let mut body_transport = None;
         let mut replacement_body = None;
         if self.checker.ordinary_condition_outcomes(condition).0 {
+            self.owner_loop.record_root_body_entry(
+                UnitStatementId::new(self.checker.source_unit, id),
+                self.checker.unit_expression(condition),
+                UnitStatementId::new(self.checker.source_unit, body),
+                state,
+            );
             let mut body_state = state.clone();
             // The private body sink has a fresh catalog, never aliases the callable catalog,
             // and is not pushed as an extra callable observation.

@@ -178,24 +178,29 @@ mod tests {
     #[test]
     fn ci_only_root_stage_failure_and_recapture_clear_stale_evidence() {
         let (control, _, state, observation) = model();
+        // Model marker from a real expression, not a claimed While condition.
+        // This test covers stage invalidation only, never body-entry/token admission.
+        let UnitOwnerOrigin::String(condition) = observation.definitions[0].origin else {
+            panic!("String model definition");
+        };
         let mut registry = ControlTransactions::default();
         registry.record_root_entry(control, &state, Some(&observation));
-        registry.record_root_condition(control, &state);
+        registry.record_root_condition(control, condition, &state);
         registry.record_root_fallthrough(control, &state, true);
         assert_eq!(registry.root_stages(control), (true, true));
         registry.record_root_fallthrough(control, &state, false);
         assert_eq!(registry.root_stages(control), (true, false));
         let mut missing = state.clone();
         missing.values[1].owner = None;
-        registry.record_root_condition(control, &missing);
+        registry.record_root_condition(control, condition, &missing);
         registry.record_root_fallthrough(control, &state, true);
         assert_eq!(registry.root_stages(control), (false, false));
-        registry.record_root_condition(control, &state);
+        registry.record_root_condition(control, condition, &state);
         registry.record_root_fallthrough(control, &state, true);
         registry.record_root_entry(control, &state, Some(&observation));
         assert_eq!(registry.root_stages(control), (false, false));
         registry.invalidate_root_preservation();
-        registry.record_root_condition(control, &state);
+        registry.record_root_condition(control, condition, &state);
         registry.record_root_fallthrough(control, &state, true);
         assert_eq!(registry.root_stages(control), (false, false));
     }

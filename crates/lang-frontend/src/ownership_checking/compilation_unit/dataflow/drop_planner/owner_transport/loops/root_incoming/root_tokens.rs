@@ -2,6 +2,10 @@
 use super::*;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(in super::super) fn skip_body_entry() -> bool {
+    tests::injected_failure(5)
+}
 
 /// A predecessor alternative, not a runtime iteration number or activation identity.
 #[derive(Clone, Copy, Debug)]
@@ -196,6 +200,7 @@ impl RootTokenTransaction {
         control: UnitStatementId,
         roots: &RootIncoming,
         entry_definitions: &[UnitOwnerDefinition],
+        entered_body: Option<(UnitExpressionId, UnitStatementId)>,
     ) -> Option<Self> {
         if roots.len() < 2
             || entry_definitions.len() != roots.len()
@@ -216,6 +221,14 @@ impl RootTokenTransaction {
         else {
             return None;
         };
+        if entered_body
+            != Some((
+                checker.unit_expression(*condition),
+                UnitStatementId::new(control.source_unit(), *body),
+            ))
+        {
+            return None;
+        }
         if !matches!(
             ast.expressions().get(*condition).ok()?.payload(),
             Expression::Name

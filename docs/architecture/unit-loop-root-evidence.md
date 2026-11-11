@@ -122,3 +122,9 @@ header候选还须通过真实body末的状态形状门禁：复用既有boundar
 直接由AST/reference/type读取并只读保留，非由文本名称或Span相等推断。真实参数guard与
 局部val/var guard均覆盖，验证保留的是实际引用而非默认参数。该接线只标明以后重复header
 求值的真实位置，不预测条件结果、不声明guard在任意代码下不变，也不生成运行时激活。
+
+独立token事务另要求真实planner事件回执：condition表达式成功求值后保存其身份，仅在
+普通条件分析允许进入body的实际分支入口记录(control,condition,body)。开始token事务时
+须与实际While的condition/body精确匹配，并通过已核条件保持、无污染与资源形状检查；
+静态AST结构本身不能替代进入事件。CI-only遗漏入口hook负控保留普通写回执，但无token
+links及header候选。此事件指首次planner遍历，不代表运行时条件为真或发生了第几次激活。

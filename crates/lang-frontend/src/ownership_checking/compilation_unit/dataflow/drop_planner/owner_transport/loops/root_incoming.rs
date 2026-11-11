@@ -19,6 +19,8 @@ pub(super) struct RootEvidence {
     normal_retirements: Option<RootRetirements>,
     normal_write_vector: Option<Vec<(UnitSymbolId, UnitExpressionId)>>,
     after_condition: bool,
+    completed_condition: Option<UnitExpressionId>,
+    pub(super) entered_body: Option<(UnitExpressionId, UnitStatementId)>,
     normal_backedge: bool,
     tainted: bool,
 }
@@ -35,6 +37,8 @@ impl RootEvidence {
             normal_retirements: None,
             normal_write_vector: None,
             after_condition: true,
+            completed_condition: None,
+            entered_body: None,
             normal_backedge: false,
             tainted: false,
         }
@@ -87,12 +91,19 @@ impl ControlTransactions {
                 (evidence.after_condition, evidence.normal_backedge)
             })
     }
-    pub(super) fn record_root_condition(&mut self, control: UnitStatementId, state: &ValueState) {
+    pub(super) fn record_root_condition(
+        &mut self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        state: &ValueState,
+    ) {
         if let Some((_, evidence)) = self
             .root_entries
             .iter_mut()
             .find(|(key, _)| *key == control)
         {
+            evidence.completed_condition = Some(condition);
+            evidence.entered_body = None;
             evidence.after_condition =
                 !evidence.tainted && preserves(control, state, &evidence.roots);
             evidence.normal_backedge = false;
@@ -101,6 +112,27 @@ impl ControlTransactions {
             evidence.normal_equation = None;
         }
     }
+    // Called at the actual planner body-entry edge, not reconstructed from the AST.
+    pub(super) fn record_root_body_entry(
+        &mut self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+        state: &ValueState,
+    ) {
+        #[cfg(test)]
+        if root_tokens::skip_body_entry() {
+            return;
+        }
+        if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
+            evidence.entered_body = (evidence.after_condition
+                && !evidence.tainted
+                && evidence.completed_condition == Some(condition)
+                && clean_root_shape(state, &evidence.roots))
+            .then_some((condition, body));
+        }
+    }
+
     pub(super) fn record_root_fallthrough(
         &mut self,
         control: UnitStatementId,
@@ -192,6 +224,8 @@ impl ControlTransactions {
                 normal_retirements: None,
                 normal_write_vector: None,
                 after_condition: false,
+                completed_condition: None,
+                entered_body: None,
                 normal_backedge: false,
                 tainted: false,
             },
