@@ -264,6 +264,7 @@ impl DropPlanner<'_, '_> {
         initializer: ExpressionId,
         owner: Option<UnitOwnerId>,
     ) -> Option<UnitOwnerId> {
+        self.bind_root_old_token(symbol, initializer);
         if let Some(owner) = owner.as_ref() {
             self.owner_event(UnitOwnerTransportEvent::Binding {
                 symbol,

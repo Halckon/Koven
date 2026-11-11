@@ -1602,6 +1602,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
+            self.drop_root_old_token(fact);
             self.iteration_actions.push_with_binding_drop(
                 (
                     fact.point(),

@@ -20,7 +20,7 @@ fn ci_only_mid_transaction_failure_revokes_prior_successful_links() {
         "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val keptA = a; val keptB = b }",
     )]);
     let owned = fixture.shared();
-    for phase in [0, 1, 2] {
+    for phase in [0, 1, 2, 3, 4] {
         compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
             let mut planner = DropPlanner::new(
                 checker,
@@ -36,9 +36,9 @@ fn ci_only_mid_transaction_failure_revokes_prior_successful_links() {
             assert!(visits[1].normal_write_vector.is_some());
             assert!(visits[1].normal_retirements.is_some());
             if phase == 0 {
-                assert!(writes.iter().all(|write| write.token_link.is_some()));
+                assert!(writes.iter().all(|write| write.token_link.is_some() && write.token_retirement.is_some()));
             } else {
-                assert!(writes.iter().all(|write| write.token_link.is_none()));
+                assert!(writes.iter().all(|write| write.token_link.is_none() && write.token_retirement.is_none()));
             }
         });
     }

@@ -10,6 +10,10 @@ pub(in super::super) struct RootTokenTransaction {
     entry_definitions: Vec<UnitOwnerDefinition>,
     planned: Vec<(UnitExpressionId, UnitSymbolId, UnitExpressionId)>,
     definitions: Vec<UnitOwnerDefinition>,
+    bindings: Vec<(UnitSymbolId, UnitStatementId)>,
+    pending: Option<(UnitExpressionId, UnitOwnerId)>,
+    bound: Option<(UnitSymbolId, UnitOwnerId)>,
+    retired: usize,
     next: usize,
     valid: bool,
 }
@@ -21,6 +25,9 @@ impl RootTokenTransaction {
         self.valid
             && self.next == self.planned.len()
             && self.definitions.len() == self.planned.len()
+            && self.pending.is_none()
+            && self.bound.is_none()
+            && self.retired == self.planned.len()
     }
 
     pub(in super::super) fn begin(
@@ -62,8 +69,13 @@ impl RootTokenTransaction {
             return None;
         }
         let mut planned = Vec::new();
+        let mut bindings = Vec::new();
         for statement in elements {
-            let (_, call) = replace_break::variable(checker, *statement, VariableKind::Val)?;
+            let (binding, call) = replace_break::variable(checker, *statement, VariableKind::Val)?;
+            bindings.push((
+                binding,
+                UnitStatementId::new(control.source_unit(), *statement),
+            ));
             let call = checker.unit_expression(call);
             let plan = checker
                 .ownership_primitives
@@ -97,6 +109,10 @@ impl RootTokenTransaction {
             entry_definitions: entry_definitions.to_vec(),
             planned,
             definitions: Vec::new(),
+            bindings,
+            pending: None,
+            bound: None,
+            retired: 0,
             next: 0,
             valid: true,
         })
@@ -113,6 +129,9 @@ impl RootTokenTransaction {
         }
         if self.planned.get(self.next).map(|entry| entry.2) != Some(producer)
             || self.definitions.len() != self.next
+            || self.pending.is_some()
+            || self.bound.is_some()
+            || self.retired != self.next
         {
             self.valid = false;
             return;
@@ -176,7 +195,75 @@ impl RootTokenTransaction {
             return None;
         };
         self.roots[index].1 = new.clone();
+        self.pending = Some((call, old.clone()));
         self.next += 1;
         Some((old, new))
+    }
+    pub(in super::super) fn invalidate(&mut self) {
+        self.valid = false;
+    }
+    pub(in super::super) fn bind(&mut self, call: UnitExpressionId, binding: UnitSymbolId) {
+        #[cfg(test)]
+        if self.next == 1 && tests::injected_failure(3) {
+            return;
+        }
+        if !self.valid {
+            return;
+        }
+        let Some(index) = self.next.checked_sub(1) else {
+            self.valid = false;
+            return;
+        };
+        if self.bindings.get(index).map(|entry| entry.0) != Some(binding)
+            || self.pending.as_ref().map(|entry| entry.0) != Some(call)
+            || self.bound.is_some()
+        {
+            self.valid = false;
+            return;
+        }
+        let Some((_, old)) = self.pending.take() else {
+            self.valid = false;
+            return;
+        };
+        self.bound = Some((binding, old));
+    }
+    pub(in super::super) fn drop_result(
+        &mut self,
+        fact: crate::ownership_checking::UnitDropFact,
+    ) -> Option<(UnitExpressionId, UnitSymbolId, UnitOwnerId)> {
+        #[cfg(test)]
+        if self.next == 1 && tests::injected_failure(4) {
+            return None;
+        }
+        if !self.valid {
+            return None;
+        }
+        let crate::ownership_checking::UnitDropTarget::Named(binding) = fact.target() else {
+            return None;
+        };
+        if !self.bindings.iter().any(|entry| entry.0 == binding) {
+            return None;
+        }
+        let Some(index) = self.next.checked_sub(1) else {
+            self.valid = false;
+            return None;
+        };
+        if self.bound.as_ref().map(|entry| entry.0) != Some(binding)
+            || self
+                .bindings
+                .get(index)
+                .map(|entry| crate::ownership_checking::UnitDropPoint::AfterStatement(entry.1))
+                != Some(fact.point())
+            || self.retired != index
+        {
+            self.valid = false;
+            return None;
+        }
+        let Some((_, old)) = self.bound.take() else {
+            self.valid = false;
+            return None;
+        };
+        self.retired += 1;
+        Some((self.planned[index].0, binding, old))
     }
 }

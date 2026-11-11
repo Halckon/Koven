@@ -122,6 +122,7 @@ impl ControlTransactions {
             {
                 for write in &mut evidence.writes {
                     write.token_link = None;
+                    write.token_retirement = None;
                 }
             }
             evidence.normal_write_vector = if normal && evidence.after_condition {

@@ -360,6 +360,12 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                 }
                 for write in &visits[1].root_writes {
                     let (old, new) = write.token_link.as_ref().unwrap();
+                    let (binding, drop) = write.token_retirement.as_ref().unwrap();
+                    assert!(retirements.iter().any(
+                        |(root, expected_binding, expected_drop)| *root == write.root
+                            && binding == expected_binding
+                            && drop == expected_drop
+                    ));
                     assert_eq!(
                         old,
                         &roots

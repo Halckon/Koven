@@ -69,7 +69,7 @@ binding的清理，不是旧root代际owner的退休证明，也不证明跨迭�
 按ADR-0038继续的必要接线是：在独立事务内保留原catalog引用及真实producer完成身份，
 于实际Replace提交点原子关联旧root代际→返回binding与新producer→root，再让真实drop消费
 该binding携带的旧代际。缺任一关联必须整组拒绝；完成这一步后仍需另证零轮入口、回边
-激活/header不变量以及错误/deferred撤销。下面的首个私有切片只覆盖最窄catalog/提交关联，不代表该整体方案已完成。
+激活/header不变量以及错误/deferred撤销。下面的私有切片只覆盖最窄catalog、提交及binding/drop关联，不代表该整体方案已完成。
 
 
 最小独立token事务现仅覆盖同一受限线性body：入口保存真实旧catalog definitions及原token
@@ -77,7 +77,14 @@ binding的清理，不是旧root代际owner的退休证明，也不证明跨迭�
 String完成hook产生。实际Replace提交逐项校验计划顺序、root、producer与定义身份，全部
 通过才在私有root表内原子替换并附上(old,new) token关联。无分支上下文、每根一次；重复根、
 额外语句、非直接RHS等均不建立事务。重分析的新catalog不可互换，公开产品门槛不变。
-该关联只描述首次body遍历的静态定义运输，尚未把旧token绑定到返回binding并由真实drop
-消费，也未覆盖新激活/后续迭代；返回binding清理证据不能自行升级为代际退休证明。
+该关联只描述首次body遍历的静态定义运输；下面的实际binding/drop接线仍不覆盖新激活或后续迭代，不能升级为一般运行时代际退休证明。
 
 独立token事务失效会撤销已记录的token links；body终态非正常或计划/定义未全部完成时也撤销整组links，普通非token回执不冒充成功事务。
+
+
+受限旧token现在在实际bound_owner事件按计划initializer及binding消费pending交付，
+再仅于真实Named drop fact首次写入时匹配原声明AfterStatement并消费该binding的旧token。
+下一producer不得越过尚未交付/清理的前一结果；完整事务要求全部提交、无pending/bound、
+消费数等于根数。回执记录binding及实际fact，并核旧token与对应Replace link相等；任一缺口
+撤销token links和token消费记录。既有非token事实与所有公开资格仍不变。
+CI-only负控覆盖首笔成功后第二笔完成/提交失效，以及跳过首笔binding/drop事件；本地仅编译。

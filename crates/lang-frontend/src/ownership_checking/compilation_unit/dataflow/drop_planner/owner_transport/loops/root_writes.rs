@@ -6,6 +6,8 @@ pub(in super::super::super) struct RootWriteReceipt {
     pub(in super::super::super) root: UnitSymbolId,
     pub(in super::super::super) call: UnitExpressionId,
     pub(in super::super::super) producer: UnitExpressionId,
+    pub(in super::super::super) token_retirement:
+        Option<(UnitSymbolId, crate::ownership_checking::UnitDropFact)>,
     pub(in super::super::super) token_link: Option<(UnitOwnerId, UnitOwnerId)>,
     // Lexical If/When body and short-circuit RHS ancestry only, not a complete path or runtime trace.
     pub(in super::super::super) branch_arms: Vec<(UnitExpressionId, usize)>,
@@ -88,6 +90,69 @@ impl DropPlanner<'_, '_> {
         self.owner_loop.root_entries.clear();
     }
 
+    pub(in super::super::super) fn bind_root_old_token(
+        &mut self,
+        symbol: UnitSymbolId,
+        initializer: ExpressionId,
+    ) {
+        let Some(control) = self.owner_controls.current() else {
+            return;
+        };
+        let Some((_, evidence)) = self
+            .owner_loop
+            .root_entries
+            .iter_mut()
+            .find(|(id, _)| *id == control)
+        else {
+            return;
+        };
+        if let Some(transaction) = &mut evidence.token_transaction {
+            transaction.bind(self.checker.unit_expression(initializer), symbol);
+            if !transaction.is_valid() {
+                for write in &mut evidence.writes {
+                    write.token_link = None;
+                    write.token_retirement = None;
+                }
+            }
+        }
+    }
+    pub(in super::super::super) fn drop_root_old_token(&mut self, fact: PlannerDropFact) {
+        let Some(control) = self.owner_controls.current() else {
+            return;
+        };
+        let Some((_, evidence)) = self
+            .owner_loop
+            .root_entries
+            .iter_mut()
+            .find(|(id, _)| *id == control)
+        else {
+            return;
+        };
+        if let Some(transaction) = &mut evidence.token_transaction {
+            let fact = fact.into_unit(self.checker.source_unit);
+            if let Some((call, binding, old)) = transaction.drop_result(fact) {
+                if let Some(write) = evidence.writes.iter_mut().find(|write| {
+                    write.call == call
+                        && write
+                            .token_link
+                            .as_ref()
+                            .is_some_and(|(previous, _)| *previous == old)
+                        && write.token_retirement.is_none()
+                }) {
+                    write.token_retirement = Some((binding, fact));
+                } else {
+                    transaction.invalidate();
+                }
+            }
+            if !transaction.is_valid() {
+                for write in &mut evidence.writes {
+                    write.token_link = None;
+                    write.token_retirement = None;
+                }
+            }
+        }
+    }
+
     // Called only after the actual String evaluation has reached its completion hook.
     pub(in super::super::super) fn record_root_literal(&mut self, expression: ExpressionId) {
         if self.owner_loop.root_branches_invalid {
@@ -127,6 +192,7 @@ impl DropPlanner<'_, '_> {
                     if !transaction.is_valid() {
                         for write in &mut evidence.writes {
                             write.token_link = None;
+                            write.token_retirement = None;
                         }
                     }
                 }
@@ -207,6 +273,7 @@ impl DropPlanner<'_, '_> {
             producer,
             branch_arms: self.owner_loop.root_branch_arms.clone(),
             token_link: None,
+            token_retirement: None,
         };
         if receipt.valid_branch_ancestry(self.checker) {
             if receipt.branch_arms.is_empty() {
@@ -222,6 +289,7 @@ impl DropPlanner<'_, '_> {
             {
                 for write in &mut evidence.writes {
                     write.token_link = None;
+                    write.token_retirement = None;
                 }
                 receipt.token_link = None;
             }
