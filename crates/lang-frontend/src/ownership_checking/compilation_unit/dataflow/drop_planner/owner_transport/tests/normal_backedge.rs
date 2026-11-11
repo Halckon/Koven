@@ -525,3 +525,106 @@ fn ci_only_conditional_break_rejects_false_completion_and_role_damage() {
         assert!(!p.is_consistent());
     }
 }
+
+fn conditional_return_source() -> String {
+    conditional_break_source().replace("{ break }", "{ return held }")
+}
+#[test]
+fn conditional_return_header_seals_distinct_delivery_and_normal_edge() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = conditional_return_source();
+    for text in [
+        source.clone(),
+        source.replace("limit: Int, stop: Int", "stop: Int, limit: Int"),
+        source.replace("held", "owned"),
+    ] {
+        let fixture = Fixture::new(&[("conditional-return.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.open_loop_observation_v1())
+            .collect::<Vec<_>>();
+        let [O::ConditionalReturnBackedge(p)] = products.as_slice() else {
+            panic!("independent conditional Return product");
+        };
+        assert!(p.is_consistent());
+        assert!(p.body_return().is_consistent());
+        assert_eq!(p.snapshots.len(), 6);
+        assert_eq!(p.body_return().root(), p.root());
+        assert_eq!(p.body_return().actions().len(), 2);
+        assert_ne!(p.body_return_expression(), p.return_expression());
+        assert_ne!(p.body_return_payload(), p.return_payload());
+        assert_eq!(p.body_events().len(), 6);
+        assert_eq!(p.true_events.len(), 2);
+        assert_eq!(p.body_producers().definitions().len(), 1);
+    }
+}
+#[test]
+fn conditional_return_header_declines_unproved_legal_neighbors() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = conditional_return_source();
+    for text in [
+        source.replace("index < stop", "index < limit"),
+        source.replace("index < stop", "index <= stop"),
+        source.replace("index < stop", "index < (stop)"),
+        source.replace("index < stop", "index < 2"),
+        source.replace("{ return held }", "{ return (held) }"),
+        source.replace("{ return held }", "{ return held } else {}"),
+        source.replace("{ return held }", "{ break }"),
+        source.replace("index + 1", "index + 2"),
+        source.replace("stop: Int", "stop: Int, extra: Int"),
+    ] {
+        let fixture = Fixture::new(&[("conditional-return-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        assert!(!owned.owner_observations().iter().any(|o| matches!(
+            o.open_loop_observation_v1(),
+            Some(O::ConditionalReturnBackedge(_))
+        )));
+    }
+}
+#[test]
+fn ci_only_conditional_return_rejects_delivery_and_false_edge_damage() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    use crate::ownership_checking::compilation_unit::owner_transport::HeaderCompletion;
+    let source = conditional_return_source();
+    let fixture = Fixture::new(&[("conditional-return-damage.ko", &source)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::ConditionalReturnBackedge(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..13 {
+        let mut p = (**original).clone();
+        match damage {
+            0 => p.arm_stopped = false,
+            1 => p.body_return.cleaned = false,
+            2 => {
+                p.body_return.actions.pop();
+            }
+            3 => p.body_return.taken = p.core.entry.clone(),
+            4 => p.body_return.target = p.core.target.clone(),
+            5 => p.true_events.clear(),
+            6 => p.snapshots[4] = p.core.entry.clone(),
+            7 => {
+                p.snapshots.pop();
+            }
+            8 => p.core.completion = HeaderCompletion::ConditionalBreak(p.split),
+            9 => p.identity = std::sync::Arc::new(()),
+            10 => p.threshold.symbols[1] = p.threshold.symbols[0],
+            11 => p.true_events.swap(0, 1),
+            _ => p.core.cleaned = false,
+        }
+        assert!(!p.is_consistent());
+    }
+}

@@ -48,6 +48,7 @@ pub(in crate::ownership_checking::compilation_unit) enum HeaderCompletion {
     Continue(UnitExpressionId),
     Mixed(UnitExpressionId),
     ConditionalBreak(UnitExpressionId),
+    ConditionalReturn(UnitExpressionId),
 }
 /// Sealed ordinary fallthrough backedge. Never a Continue product.
 #[derive(Clone, Debug)]
@@ -128,6 +129,122 @@ impl UnitOwnerConditionalBreakBackedgeV1 {
                 self.core.previous_statement,
             ]
             .contains(&self.break_body)
+            && ids.iter().enumerate().all(|(i, id)| {
+                id.source_unit() == source
+                    && !ids[..i].contains(id)
+                    && ![
+                        self.core.condition,
+                        self.core.initial,
+                        self.core.argument,
+                        self.core.call,
+                        self.core.assignment,
+                        self.core.target.expression,
+                        self.core.target.payload,
+                    ]
+                    .contains(id)
+                    && Some(*id) != self.core.increment
+            })
+            && t.callable == self.core.callable
+            && t.condition == self.core.condition
+            && t.parameters[0] != t.parameters[1]
+            && t.symbols[0] != t.symbols[1]
+            && t.symbols
+                .iter()
+                .all(|id| t.parameters.contains(id) && id.source_unit() == source)
+            && t.operands[0] != t.operands[1]
+            && t.operands.iter().all(|id| {
+                id.source_unit() == source
+                    && !ids.contains(id)
+                    && *id != self.core.condition
+                    && *id != self.core.assignment
+                    && Some(*id) != self.core.increment
+            })
+    }
+}
+/// A delivered true-arm Return and a genuine implicit-false normal backedge.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerConditionalReturnBackedgeV1 {
+    pub(in crate::ownership_checking::compilation_unit) core: HeaderCore,
+    pub(in crate::ownership_checking::compilation_unit) threshold: MixedParameterThreshold,
+    pub(in crate::ownership_checking::compilation_unit) split: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) split_condition: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) return_body: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) body_return: UnitOwnerReturnEndpointV1,
+    pub(in crate::ownership_checking::compilation_unit) true_events: Vec<UnitOwnerTransportEvent>,
+    pub(in crate::ownership_checking::compilation_unit) arm_stopped: bool,
+    pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
+    // Live states only: split, then entry, implicit entry/exit, If and body completion.
+    // The terminated true arm is represented by its separately cleaned Return endpoint.
+    pub(in crate::ownership_checking::compilation_unit) snapshots:
+        Vec<UnitOwnerReplaceBreakStateV1>,
+    pub(in crate::ownership_checking::compilation_unit) split_sealed: bool,
+}
+impl UnitOwnerConditionalReturnBackedgeV1 {
+    /// Actual conditional expression; no synthetic else node exists.
+    pub fn split(&self) -> UnitExpressionId {
+        self.split
+    }
+    /// Actual strict threshold comparison.
+    pub fn split_condition(&self) -> UnitExpressionId {
+        self.split_condition
+    }
+    /// The sole explicit arm.
+    pub fn return_body(&self) -> UnitStatementId {
+        self.return_body
+    }
+    /// Actual body Q delivery; distinct from the suffix Return of H.
+    pub fn body_return(&self) -> &UnitOwnerReturnEndpointV1 {
+        &self.body_return
+    }
+    /// The true-arm Return expression.
+    pub fn body_return_expression(&self) -> UnitExpressionId {
+        self.body_return.return_expression()
+    }
+    /// The true-arm Name payload.
+    pub fn body_return_payload(&self) -> UnitExpressionId {
+        self.body_return.payload()
+    }
+    /// Validate the independent false-continuation and true-Break evidence.
+    pub fn is_consistent(&self) -> bool {
+        let source = self.core.statement.source_unit();
+        let ids = [
+            self.split,
+            self.split_condition,
+            self.body_return_expression(),
+            self.body_return_payload(),
+        ];
+        let t = &self.threshold;
+        self.core.is_consistent()
+            && self.core.completion == HeaderCompletion::ConditionalReturn(self.split)
+            && self.body_return.is_consistent()
+            && self.arm_stopped
+            && self.body_return.taken == self.core.backedge
+            && self.body_return.target.expression != self.core.target.expression
+            && self.body_return.target.payload != self.core.target.payload
+            && self.true_events
+                == [
+                    UnitOwnerTransportEvent::Move {
+                        expression: self.body_return_payload(),
+                        symbol: self.core.root(),
+                        owner: self.body_return.owner(),
+                    },
+                    UnitOwnerTransportEvent::Result {
+                        expression: self.body_return_payload(),
+                        owner: self.body_return.owner(),
+                    },
+                ]
+            && self.core.increment.is_some()
+            && self.split_sealed
+            && Arc::ptr_eq(&self.identity, &self.core.producers.identity)
+            && self.snapshots.len() == 6
+            && self.snapshots.iter().all(|s| s == &self.core.backedge)
+            && self.return_body.source_unit() == source
+            && ![
+                self.core.body,
+                self.core.statement,
+                self.core.previous_statement,
+            ]
+            .contains(&self.return_body)
             && ids.iter().enumerate().all(|(i, id)| {
                 id.source_unit() == source
                     && !ids[..i].contains(id)
@@ -523,3 +640,5 @@ impl HeaderCore {
 }
 
 header_accessors!(UnitOwnerConditionalBreakBackedgeV1);
+
+header_accessors!(UnitOwnerConditionalReturnBackedgeV1);

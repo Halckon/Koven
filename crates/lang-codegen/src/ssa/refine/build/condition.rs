@@ -532,8 +532,20 @@ impl Builder<'_, '_> {
             &self.borrowed,
             span,
         )?;
+        let cr = self.cr_split(
+            control,
+            self.unit(condition),
+            lang_frontend::type_checking::UnitStatementId::new(
+                self.inputs.source_unit,
+                then_branch,
+            ),
+            else_branch.is_none(),
+            [when_true, when_false],
+            span,
+        )?;
         self.condition_for_control(condition, when_true, when_false, span)?;
         self.cb_split_emitted(cb, span)?;
+        self.cr_split_emitted(cr, span)?;
         self.mixed_header_split_emitted(mixed_split, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
@@ -575,6 +587,7 @@ impl Builder<'_, '_> {
             }
             self.mixed_header_arm(control, index, block, span)?;
             self.cb_arm(control, index, block, span)?;
+            self.cr_arm(control, index, block, span)?;
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
                 None => Some(None),
@@ -642,6 +655,7 @@ impl Builder<'_, '_> {
             .join(control, join, &branch_predecessors, span)?;
         let reached = self.join_views(predecessors, join, span)?;
         self.cb_join(control, join, reached, span)?;
+        self.cr_join(control, join, reached, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }

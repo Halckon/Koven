@@ -1,11 +1,12 @@
 //! A changing header is a slot equation, never a fixed P/Q producer identity.
 use super::*;
 mod conditional_break;
+mod conditional_return;
 mod mixed;
 use lang_frontend::ownership_checking::{
-    UnitOwnerCallable, UnitOwnerConditionalBreakBackedgeV1, UnitOwnerContinueBackedgeV1,
-    UnitOwnerMixedBackedgeV1, UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1,
-    UnitOwnerTransportEvent,
+    UnitOwnerCallable, UnitOwnerConditionalBreakBackedgeV1, UnitOwnerConditionalReturnBackedgeV1,
+    UnitOwnerContinueBackedgeV1, UnitOwnerMixedBackedgeV1, UnitOwnerNormalBackedgeV1,
+    UnitOwnerOpenLoopObservationV1, UnitOwnerTransportEvent,
 };
 
 // Private adapter keeps the two public edge roles distinct. It never exposes a
@@ -16,11 +17,12 @@ enum Boundary<'a> {
     Continue(&'a UnitOwnerContinueBackedgeV1),
     Mixed(&'a UnitOwnerMixedBackedgeV1),
     ConditionalBreak(&'a UnitOwnerConditionalBreakBackedgeV1),
+    ConditionalReturn(&'a UnitOwnerConditionalReturnBackedgeV1),
 }
 macro_rules! boundary_getters {
     ($($name:ident -> $ty:ty),* $(,)?) => {$ (
         fn $name(self) -> $ty {
-            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name(), Self::Mixed(v) => v.$name(), Self::ConditionalBreak(v) => v.$name() }
+            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name(), Self::Mixed(v) => v.$name(), Self::ConditionalBreak(v) => v.$name(), Self::ConditionalReturn(v) => v.$name() }
         }
     )*};
 }
@@ -42,7 +44,10 @@ impl<'a> Boundary<'a> {
     }
     fn jump(self) -> Option<UnitExpressionId> {
         match self {
-            Self::Normal(_) | Self::Mixed(_) | Self::ConditionalBreak(_) => None,
+            Self::Normal(_)
+            | Self::Mixed(_)
+            | Self::ConditionalBreak(_)
+            | Self::ConditionalReturn(_) => None,
             Self::Continue(v) => Some(v.jump()),
         }
     }
@@ -70,6 +75,7 @@ pub(super) struct Plan<'a> {
     continued: Option<ContinueReceipt>,
     mixed: mixed::State,
     conditional_break: conditional_break::State,
+    conditional_return: conditional_return::State,
     taken: bool,
     completed: bool,
 }
@@ -77,6 +83,7 @@ pub(super) struct Plan<'a> {
 pub(super) struct Receipt {
     block: BlockRef,
     slot: Slot,
+    body_return: bool,
 }
 impl Receipt {
     #[cfg(test)]
@@ -105,6 +112,9 @@ impl<'a> Plan<'a> {
             UnitOwnerOpenLoopObservationV1::MixedBackedge(v) => Boundary::Mixed(v),
             UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(v) => {
                 Boundary::ConditionalBreak(v)
+            }
+            UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(v) => {
+                Boundary::ConditionalReturn(v)
             }
             _ => return Ok(None),
         };
@@ -176,6 +186,7 @@ impl<'a> Plan<'a> {
             continued: None,
             mixed: mixed::State::default(),
             conditional_break: conditional_break::State::default(),
+            conditional_return: conditional_return::State::default(),
             taken: false,
             completed: false,
         }))
@@ -488,6 +499,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Option<Slot>, LoweringError> {
         self.sync_dead();
+        if let Some(slot) = self.cr_name(expression, span)? {
+            return Ok(Some(slot));
+        }
         let Some(p) = &self.header_return_plan else {
             return Ok(None);
         };
@@ -530,6 +544,9 @@ impl Builder<'_, '_> {
         unit: bool,
         span: Span,
     ) -> Result<Option<Receipt>, LoweringError> {
+        if let Some(receipt) = self.cr_return(expression, result, unit, span)? {
+            return Ok(Some(receipt));
+        }
         let Some(p) = &self.header_return_plan else {
             return Ok(None);
         };
@@ -608,6 +625,8 @@ impl Builder<'_, '_> {
             self.mixed_header_validate(backedge, span)?;
         } else if matches!(p.boundary, Boundary::ConditionalBreak(_)) {
             self.cb_validate(backedge, span)?;
+        } else if matches!(p.boundary, Boundary::ConditionalReturn(_)) {
+            self.cr_validate(backedge, span)?;
         } else {
             match (p.boundary.jump(), p.continued) {
                 (None, None) => {}
@@ -726,7 +745,11 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        Ok(Some(Receipt { block: exit, slot }))
+        Ok(Some(Receipt {
+            block: exit,
+            slot,
+            body_return: false,
+        }))
     }
     pub(super) fn header_return_emitted(
         &mut self,
@@ -736,6 +759,9 @@ impl Builder<'_, '_> {
         let Some(r) = receipt else {
             return Ok(());
         };
+        if r.body_return {
+            return self.cr_return_emitted(r, span);
+        }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         if !matches!(self.body.blocks[r.block.0].terminator, Some((RTerm::Return(Some(slot)),_)) if slot == r.slot)
         {

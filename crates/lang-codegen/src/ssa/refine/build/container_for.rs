@@ -105,8 +105,10 @@ impl Builder<'_, '_> {
             self.leave(mark, span)?;
             if reached {
                 let cb = self.cb_backedge(statement, header, span)?;
+                let cr = self.cr_backedge(statement, header, span)?;
                 self.goto(header, span)?;
                 self.cb_backedge_emitted(cb, span)?;
+                self.cr_backedge_emitted(cr, span)?;
             }
         } else {
             let span = self.statement_span(loop_body)?;

@@ -386,6 +386,8 @@ pub enum UnitOwnerOpenLoopObservationV1 {
     MixedBackedge(Box<super::UnitOwnerMixedBackedgeV1>),
     /// True Break exits; implicit false completes a normal backedge.
     ConditionalBreakBackedge(Box<super::UnitOwnerConditionalBreakBackedgeV1>),
+    /// True Return delivers Q; false completes the normal header edge.
+    ConditionalReturnBackedge(Box<super::UnitOwnerConditionalReturnBackedgeV1>),
 }
 impl UnitOwnerOpenLoopObservationV1 {
     fn identity(&self) -> &Arc<()> {
@@ -396,6 +398,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ContinueBackedge(v) => &v.core.identity,
             Self::MixedBackedge(v) => &v.core.identity,
             Self::ConditionalBreakBackedge(v) => &v.core.identity,
+            Self::ConditionalReturnBackedge(v) => &v.core.identity,
         }
     }
     fn callable(&self) -> UnitOwnerCallable {
@@ -406,6 +409,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ContinueBackedge(v) => v.core.callable,
             Self::MixedBackedge(v) => v.core.callable,
             Self::ConditionalBreakBackedge(v) => v.core.callable,
+            Self::ConditionalReturnBackedge(v) => v.core.callable,
         }
     }
     fn statement(&self) -> UnitStatementId {
@@ -416,6 +420,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ContinueBackedge(v) => v.core.statement,
             Self::MixedBackedge(v) => v.core.statement,
             Self::ConditionalBreakBackedge(v) => v.core.statement,
+            Self::ConditionalReturnBackedge(v) => v.core.statement,
         }
     }
     /// Verify the selected terminal variant without treating Return as a loop exit.
@@ -427,6 +432,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ContinueBackedge(value) => value.is_consistent(),
             Self::MixedBackedge(value) => value.is_consistent(),
             Self::ConditionalBreakBackedge(value) => value.is_consistent(),
+            Self::ConditionalReturnBackedge(value) => value.is_consistent(),
         }
     }
 }

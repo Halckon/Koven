@@ -13258,3 +13258,49 @@ fmt抓到迁移child_entry后的缺换行；仅格式修正成3e8ca18b，保留�
 默认CLI build/真实--help、fmt/docs897、相对4150bbd8尺寸均通过，CLI features=[]。
 尺寸2433手写Rust、35历史超限，无额度豁免。最后仅追加本Spec；未推送、未合main，
 没有本组合正式CI结论，D10/E2继续保持进行中。
+
+### 条件直接 Return 与隐式正常回边：待验证切片（2026-11-11）
+
+从已验收条件Break切片 `3fcd5a4f` 隔离推进ADR-0038的Return独立边角色，保留
+双不可变Int参数、单String根、零初始化计数、严格小于、Replace及加一，仅考察
+尾部 `if(index < stop) { return held }` 无else，循环后仍直接Return当前根。
+true边交付当轮Q并退出函数，不进入loop exit/header；false边正常继续到header。
+既有无条件循环Return的消费证据与私有H守恒可以复用，但不能把Return伪装成Break
+或将已移动状态与live Q补齐。未涉及RHS提前退出、多根、嵌套或capture。
+
+先以独立普通原样probe经过FE Basic、真实lower、SSA verifier、LLVM，核两个实际
+Return各自payload授权；前置失败与最终授权缺失分开记录。当前尚未执行，不称确认
+红或完成生产。旧ConditionalBreak/Normal/Continue/Mixed的门禁不放宽，本片只在
+隔离树本地提交，不推送，后续须结合最新main与其他工作独立合流验证。
+
+独立普通红已真实确认：唯一exact `conditional_return_requires_both_actual_return_authorities`
+在第37行owner authority断言失败（exit101，0 passed/1 failed/0 ignored）；前置
+Basic、实际lower、SSA verifier、LLVM及两个不同Return收据均已通过。这里只确认
+至少一个实际Return缺授权，失败后未检查完其余收据，不声称两个均已分别定位。
+4305输入与真实Cargo artifact、保存binary SHA及原日志绑定，测试前后不变；证据
+保留于主仓忽略目录 `.local-artifacts/owner-conditional-return-20261111T113054Z`。
+此红非前置拒绝；尚无生产接线、native或CI-only执行结论。
+
+独立ConditionalReturnBackedge现已生产接线：H核心的尾部Return与body Return端点
+分开，true臂真实Take→交付→空状态cleanup、臂终止及有序Move/Result均封印；
+false臂独立六个live快照包含If/body正常完成。精确上下文门只准本片当前事务的
+body Return，不全局放宽分支payload Return，旧Break/Continue/Mixed保持独立。
+CG独立body-return receipt及taken/emitted状态，两个payload各自验证；true不入
+header/loop exit，false携Q正常回header，完整incoming及严格参数来源另行校验。
+
+首次green的FE12/13，新产品正例失败；CG虽编译但未运行且binary保全。定点诊断
+证明Take/交付/cleanup及implicit清理已到达，seal误只接受Move；真实Name消费还
+生成同payload/owner的Result。修复为严格长度2、顺序Move→Result，拒绝任何额外
+或错序事件；public一致性与CI-only换序负控同步，原authority探针未改，临时日志
+全部移除。失败及诊断原记录保留，不将其称为通过。
+
+重新冻结green2的4308输入并构建，34 ordinary exact（FE13/CG21）各1 passed、
+0 failed、0 ignored，包含两个实际Return各自授权、SSA完整incoming/各payload/
+参数来源及Basic/Const五组有限正常native。新13类FE及3类CG损坏负控仅编译，
+所有CI-only未执行；有限运行不证明任意循环或资源计数。实测输入、实际Cargo
+artifact、保存binary SHA与日志均绑定于本片持久证据目录green2。当前基3fcd5a4f，
+正式CI及最新main/其他分支合流仍须独立验收，不宣称D10/E2整体完成。
+默认及loan support两套FE/CG all-target strict Clippy、默认workspace all-target check
+均通过；fmt、docs893、相对3fcd5a4f的尺寸2445手写Rust/35历史超限、diff通过。
+无新增尺寸例外。独审已核34真实日志、默认FE/仅loan的CG artifact及保存binary；
+最终账本仅改文档，无Rust漂移。本片只作本地提交，最新组合及正式CI仍待验证。
