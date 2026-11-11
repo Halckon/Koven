@@ -12106,3 +12106,39 @@ all-targets check、fmt、docs（886页）、尺寸（2398 Rust、35历史超限
 import，补真实类型导入；均仅编译失败无测试执行。首轮strict Clippy的large-enum失败已
 保留并以单层Box修复。两阶段预期红、各阶段原始artifact/日志和执行前binary/source SHA
 分别保留，最终产物不覆盖红证据。独立终审与后续合流仍由协调任务完成。
+
+### #410 后主干、开放 Return 与 child receipt 本地合成验收（2026-11-11）
+
+- 现场核 main、origin/main 与远端均为 `03d70377fcbb099e0c10ede8977c55124c773d6f`，
+  其 tree 与已发布 `6f8eb32a` 相同；只创建隔离树，未由本任务改动原树、推送或发布。
+- `f927c836` 保留 main 与借用 `11681a0a` 双父，`72822865` 再保留 owner `39835135`
+  父链；最终代码验收头为 `c85ac4b908a2a402229d28dafa20ebf498aaa9f4`。
+  两能力相对共同基线的非交集文件为借用18、owner34，逐字保留各父；交集只有
+  `refine/build.rs` 的独立模块/计划字段初始化与本 Spec。build 文件985行，未调整尺寸额度。
+- 本 Spec 不是双纯尾段：owner另有中段原样probe账本。合成保留该段、owner尾段及borrow尾段。
+  初次拼接前缀断言失败后，外层shell未停止，临时merge提交含冲突标记；随后纯文档提交
+  `c85ac4b9` 删除三条标记并保全两侧，所有构建/测试均在修复后的clean头执行。
+  中间头不算验收，不改写历史掩盖该过程偏差。输入清单首轮因git quoted中文路径读取失败，
+  改用 `git ls-files -z` 后保存4260项；该失败发生在Cargo启动前，非Rust失败或能力红。
+- fresh逐源/helper审定实际24唯一 ordinary：owner16与borrow9有一个共同dual-slot exact，
+  因而FE11、CG13，不按25补测试。每项均先exact-list核唯一，再独立exact进程执行。
+  全部通过；仅一个native exact发出/链接/运行两个有限程序，每个都验证false和true路径结果。
+  另有44次显式SSA/LLVM lower与一个借用FE-only merge，native不混入显式lower计数。
+- 普通observer不启故障capture；所有CI-only、foreign、fault、counter、压力及未审集合均未执行。
+  P4项是同源双Unit正常lower，非off；后端off对照使用原产品直接lower，比较副本不回灌。
+  FE owner比较重新规划的两个本地结果，仅清观察字段作比较，不称其为后端clone对照。
+- 默认CLI check实际12.48s，原JSON中frontend/codegen/kovenc三artifact均features=[]。
+  显式loan-support双crate no-run实际1m29s；两test artifact均opt0/debug2/test=true，
+  未降档、未设置RUSTFLAGS、未复制target。严格Clippy47.22s、默认workspace all-targets
+  33.08s、fmt、docs886、尺寸与diff全部成功；尺寸比较基线为上述main，旧额度不变。
+- 原件保存在 `/private/tmp/koven-main-open-return-child-evidence`：两selection、run-exacts.py、
+  4260项source-input-hashes、default-cli原JSON/三artifact、feature-build原JSON、manifest、
+  两exact日志与runner/static日志。实际CG SHA为
+  `4846ae42b72418bbd48ffc9bdae4be9f00a3bfa012e5bfeb244412791405360b`，FE SHA为
+  `794041c8e424cb74874666d2f0ac771daf5b76a8f9cd9a97693dcb6c8f4099d2`；执行前后均核一致。
+- Child仍仅同轮独立Complete区间的九角色/五实体核验，source/callable仍Partial；旧七角色
+  receipt隔离，原清理发出次序保持，oracle未退休。Owner开放Return保持两个独立终止endpoint，
+  不伪装共同join或Break。合成本轮证明同构建独立回归，没有新增同一程序混合两shape证据。
+  各父历史红与偏差保留，未重跑红、未补造历史缺失哈希；正式CI/release未运行。
+- 独立只读终审已核三头父链、合成字节、24项实际结果及全部产物/输入哈希与文档分账，
+  无新增阻断；本次收尾只改本Spec，不重跑已冻结Rust。
