@@ -232,6 +232,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        self.owner_loop
+            .segment_literal(self.checker.unit_expression(expression));
         self.record_root_literal(expression);
         if let Some(choice) = &mut self.owner_choice {
             choice.string_completed(self.checker.unit_expression(expression));
@@ -246,6 +248,10 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        if self.is_string_expression(expression) {
+            self.owner_loop
+                .segment_move(self.checker.unit_expression(expression), value.as_ref());
+        }
         self.move_root_suffix(expression, value.as_ref());
         self.take_conditional_return(expression, value.as_ref());
         self.take_open_loop_return(expression, value.as_ref());
@@ -275,6 +281,8 @@ impl DropPlanner<'_, '_> {
         initializer: ExpressionId,
         owner: Option<UnitOwnerId>,
     ) -> Option<UnitOwnerId> {
+        self.owner_loop
+            .segment_bind(symbol, self.checker.unit_expression(initializer));
         self.bind_root_suffix(symbol, initializer);
         self.bind_root_old_token(symbol, initializer);
         if let Some(owner) = owner.as_ref() {
@@ -300,6 +308,8 @@ impl DropPlanner<'_, '_> {
         id: StatementId,
         state: &ValueState,
     ) -> Result<(), OwnershipCheckingError> {
+        self.owner_loop
+            .segment_statement(UnitStatementId::new(self.checker.source_unit, id), state);
         self.begin_root_suffix_statement(id, state);
         self.prepare_owner_loop_input(id, state);
         if matches!(

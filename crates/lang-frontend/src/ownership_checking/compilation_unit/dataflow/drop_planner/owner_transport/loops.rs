@@ -2,6 +2,7 @@
 mod conditional;
 mod control_scope;
 mod control_transactions;
+mod counter_segment;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
 pub(in super::super) use control_scope::ControlVisit;

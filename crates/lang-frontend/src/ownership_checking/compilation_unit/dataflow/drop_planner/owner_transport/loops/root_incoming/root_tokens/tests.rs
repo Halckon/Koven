@@ -202,6 +202,24 @@ fn two_counter_candidates_do_not_publish_a_partial_first_product() {
         assert_ne!(entries[0].control, entries[1].control);
         assert!(entries[0].incoming_roots.is_some());
         assert!(entries[1].incoming_roots.is_none());
+        let snapshot = entries[1]
+            .segment_catalog
+            .as_ref()
+            .expect("fresh actual segment");
+        let catalog = &snapshot.catalog;
+        let bindings = &snapshot.bindings;
+        assert_eq!(snapshot.events.len(), 2);
+        assert!(catalog.is_consistent());
+        assert_eq!(catalog.definitions().len(), 2);
+        assert_eq!(bindings.len(), 2);
+        assert!(
+            bindings
+                .iter()
+                .all(|(_, token)| catalog.definition(token.clone()).is_some())
+        );
+        let first_token = &entries[0].incoming_roots.as_ref().unwrap()[0].1;
+        assert!(catalog.definition(first_token.clone()).is_none());
+        assert!(entries[0].segment_catalog.is_none());
         assert_eq!(
             entries[0].counter_phase.unwrap(),
             super::super::super::control_transactions::CounterPhase::Entered

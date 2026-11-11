@@ -44,6 +44,7 @@ impl ControlStack {
 #[cfg(test)]
 #[derive(Debug)]
 pub(in super::super::super) struct ControlVisit {
+    pub(in super::super::super) segment_catalog: Option<super::counter_segment::Snapshot>,
     pub(in super::super::super) counter_phase: Option<super::control_transactions::CounterPhase>,
     pub(in super::super::super) entering: bool,
     pub(in super::super::super) control: UnitStatementId,
@@ -69,6 +70,7 @@ impl DropPlanner<'_, '_> {
     ) {
         if let Some(probe) = &mut self.owner_control_probe {
             probe.push(ControlVisit {
+                segment_catalog: self.owner_loop.segment_catalog(control),
                 counter_phase: self.owner_loop.counter_phase(control),
                 entering,
                 control,

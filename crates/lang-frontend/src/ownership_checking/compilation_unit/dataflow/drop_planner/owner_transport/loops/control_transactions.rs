@@ -2,6 +2,7 @@
 use super::*;
 #[derive(Default)]
 pub(in super::super::super) struct ControlTransactions {
+    pub(super) counter_segments: Vec<super::counter_segment::Segment>,
     pub(super) root_branches_invalid: bool,
     pub(super) root_branch_arms: Vec<(UnitExpressionId, usize)>,
     entries: Vec<(UnitStatementId, LoopTransaction)>,
@@ -17,6 +18,7 @@ impl ControlTransactions {
     ) -> Self {
         let Some(transaction) = LoopTransaction::begin(checker, item, identity.clone()) else {
             return Self::closed_sequence(checker, item, identity).unwrap_or_else(|| Self {
+                counter_segments: super::counter_segment::discover(checker, item),
                 counter_candidates: root_incoming::counter_prefixes(checker, item)
                     .into_iter()
                     .map(|(c, i)| (c, i, CounterPhase::Discovered))
@@ -29,6 +31,7 @@ impl ControlTransactions {
             entries: vec![(control, transaction)],
             selected: Some(control),
             counter_candidates: Vec::new(),
+            counter_segments: Vec::new(),
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
             root_branches_invalid: false,
@@ -83,6 +86,7 @@ impl ControlTransactions {
             entries,
             selected: None,
             counter_candidates: Vec::new(),
+            counter_segments: Vec::new(),
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
             root_branches_invalid: false,

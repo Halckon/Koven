@@ -1368,6 +1368,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         state: &mut ValueState,
         cause: Option<action_source::BindingDropCause>,
     ) {
+        self.owner_loop
+            .segment_drop(point.into_unit(self.checker.source_unit), value.symbol);
         let mut shared_sources = Vec::new();
         if let Some(closure) = closure {
             let captures = self.checker.captures_of(closure).collect::<Vec<_>>();

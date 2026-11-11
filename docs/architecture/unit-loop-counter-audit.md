@@ -109,7 +109,15 @@ control/initializer身份。候选清单不含owner ID，不代表入口或循�
 catalog或重复进入转Rejected。单候选还需真实完成方程才可Completed；多个候选当前整体
 拒绝发布，不能从失败批次选首个成功项作为单产品。
 
-真实双counter回归可观察首项入口及normal方程，第二项却没有入口catalog：旧observation
-首次Unsupported会清空definitions/events。现阶段没有恢复它的Complete状态，也没有从
-残留ValueState或首循环first-body token重建第二段owner。后续独立采集上下文仍未实现；
+真实双counter回归可观察首项入口及normal方程；旧observation首次Unsupported仍清空
+其definitions/events，第二项仍不走旧入口capture，不恢复Complete或注入ValueState owner。
+
+现在另有私有第二段catalog：仅两个精确顶层候选、两者之间全为声明时建立采集范围；
+在真实首声明入口核实owned、borrow、pending、closure等完整边界为空才启动。
+实际String完成分配独立namespace的dense token；实际Name move和binding转移该token，
+实际named drop入口移除它并记录生命周期事件。死前缀producer保留在catalog但不在活根向量；
+token不来自清理、AST枚举、旧observation恢复或上一循环first-body猜测。
+第二while之前逐语句核对完整实际根集合与pending为空后冻结入口快照；前段活根跨入、
+未知token、事件缺失或顺序不符均拒绝。Drop事件尚非绑定最终fact的退休receipt。
+此快照不代表第二条件/body完成，不作为当前counter产品发布输入；多候选仍整体拒绝。
 多事务完整发布、嵌套loop及后端多Plan选择均不在当前能力内。
