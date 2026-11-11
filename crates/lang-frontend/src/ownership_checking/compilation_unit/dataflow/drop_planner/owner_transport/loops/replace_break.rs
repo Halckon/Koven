@@ -36,7 +36,7 @@ pub(super) struct OpenLoopInput {
     )>,
     body_completion: Option<UnitOwnerReplaceBreakStateV1>,
 }
-fn variable(
+pub(super) fn variable(
     checker: &Checker<'_>,
     statement: StatementId,
     kind: VariableKind,
@@ -66,7 +66,7 @@ fn variable(
         && exact_type(checker, *initializer, BuiltinType::String))
     .then_some((symbol, *initializer))
 }
-fn literal(checker: &Checker<'_>, id: ExpressionId) -> bool {
+pub(super) fn literal(checker: &Checker<'_>, id: ExpressionId) -> bool {
     exact_type(checker, id, BuiltinType::String) && checker.parsed.ast().expressions().get(id).is_ok_and(|node| matches!(node.payload(), Expression::String { parts } if parts.iter().all(|part| !matches!(part, StringPart::Interpolation { .. }))))
 }
 // Logical leaves permit Group/Not wrappers, never another predicate.

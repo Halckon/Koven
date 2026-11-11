@@ -378,14 +378,29 @@ pub enum UnitOwnerOpenLoopObservationV1 {
     BreakLive(Box<UnitOwnerReplaceBreakObservationV1>),
     /// A real body Return delivers Q; the condition-false path separately delivers P.
     ReturnDelivered(Box<UnitOwnerOpenLoopReturnV1>),
+    /// Normal backedge carries a fresh Q instance into the header; false exit returns H.
+    NormalBackedge(Box<super::UnitOwnerNormalBackedgeV1>),
 }
 impl UnitOwnerOpenLoopObservationV1 {
-    pub(in crate::ownership_checking::compilation_unit) fn prefix(
-        &self,
-    ) -> &UnitOwnerOpenLoopPrefixV1 {
+    fn identity(&self) -> &Arc<()> {
         match self {
-            Self::BreakLive(value) => &value.prefix,
-            Self::ReturnDelivered(value) => &value.prefix,
+            Self::BreakLive(v) => &v.identity,
+            Self::ReturnDelivered(v) => &v.identity,
+            Self::NormalBackedge(v) => &v.identity,
+        }
+    }
+    fn callable(&self) -> UnitOwnerCallable {
+        match self {
+            Self::BreakLive(v) => v.callable,
+            Self::ReturnDelivered(v) => v.callable,
+            Self::NormalBackedge(v) => v.callable,
+        }
+    }
+    fn statement(&self) -> UnitStatementId {
+        match self {
+            Self::BreakLive(v) => v.statement,
+            Self::ReturnDelivered(v) => v.statement,
+            Self::NormalBackedge(v) => v.statement,
         }
     }
     /// Verify the selected terminal variant without treating Return as a loop exit.
@@ -393,6 +408,7 @@ impl UnitOwnerOpenLoopObservationV1 {
         match self {
             Self::BreakLive(value) => value.is_consistent(),
             Self::ReturnDelivered(value) => value.is_consistent(),
+            Self::NormalBackedge(value) => value.is_consistent(),
         }
     }
 }
@@ -400,11 +416,10 @@ impl UnitOwnerObservation {
     /// The single sealed open-loop product. Legacy getters only project their original variant.
     pub fn open_loop_observation_v1(&self) -> Option<&UnitOwnerOpenLoopObservationV1> {
         let value = self.open_loop_value.as_ref()?;
-        let prefix = value.prefix();
         (self.loop_value.is_none() && self.invariant_loop_value.is_none() && self.choice_value.is_none()
             && self.definitions.is_empty() && self.events.is_empty()
-            && matches!(self.status, UnitOwnerObservationStatus::Unsupported { point: UnitDropPoint::AfterStatement(statement), reason: UnitOwnerUnsupportedReason::Syntax } if statement == prefix.statement)
-            && self.callable == prefix.callable && Arc::ptr_eq(&self.identity, &prefix.identity)
+            && matches!(self.status, UnitOwnerObservationStatus::Unsupported { point: UnitDropPoint::AfterStatement(statement), reason: UnitOwnerUnsupportedReason::Syntax } if statement == value.statement())
+            && self.callable == value.callable() && Arc::ptr_eq(&self.identity, value.identity())
             && value.is_consistent()).then_some(value)
     }
 }

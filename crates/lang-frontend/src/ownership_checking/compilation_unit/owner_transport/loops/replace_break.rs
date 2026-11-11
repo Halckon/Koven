@@ -203,7 +203,8 @@ impl UnitOwnerObservation {
     pub fn replace_break_observation_v1(&self) -> Option<&UnitOwnerReplaceBreakObservationV1> {
         match self.open_loop_observation_v1()? {
             super::UnitOwnerOpenLoopObservationV1::BreakLive(value) => Some(value),
-            super::UnitOwnerOpenLoopObservationV1::ReturnDelivered(_) => None,
+            super::UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
+            | super::UnitOwnerOpenLoopObservationV1::NormalBackedge(_) => None,
         }
     }
 }

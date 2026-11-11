@@ -1,6 +1,8 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
 mod invariant;
+mod normal_backedge;
 mod open;
+pub use normal_backedge::{UnitOwnerHeaderSourceV1, UnitOwnerNormalBackedgeV1};
 pub use open::{
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
     UnitOwnerReturnActionV1, UnitOwnerReturnEndpointV1,

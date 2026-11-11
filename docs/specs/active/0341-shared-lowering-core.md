@@ -12456,3 +12456,16 @@ H 是统一开放循环内的来源参数，不是新增 producer 或 P 的同�
 entry/body completion/condition-false/tail delivery，精确收敛任意合法 H 的 Replace、
 旧 H Drop 与新激活 Q 回边。旧 closed/invariant/Break/ReturnDelivered 不放宽。
 先补 FE 缺产品红；原来 consumer 缺权限红保持原字节，未有生产绿前不声明已覆盖。
+
+正常回边 FE 本地实现：在唯一 open-loop enum/storage 发布 `NormalBackedge`，
+保留两个真实 catalog，不生成 H producer；`incoming()` 给出 Entry(P)/Backedge(Q)。
+真实 prefix、body 正常完成、Boolean 赋值完成、false 原状态、tail take/delivery/cleanup
+共同封闭。完整六事件体规则中旧输入只经 Replace→detached binding→Drop 消费一次，
+新 Q 独立形成后仅回到根；规则不按旧输入身份分支，可用任意已初始化 H 替换首遍 P。
+当前准入仍限该 String/Boolean 原样，不代表多根、Continue、任意条件或一般循环已支持。
+原 FE 缺产品红已转绿；四项普通 exact（原红、来源方程、四合法邻控、十旧族邻控）
+各1 passed/642 filtered，严格 frontend all-targets Clippy通过。新增构造损坏项仅编译。
+记录在既有 normal-backedge evidence 的 fe-final-manifest 与逐项日志；首次恢复修复的是
+旧测试未适配 enum variant 而导致的三处编译错误，未改旧族实际断言。
+backend header Return 授权仍未完成，原 consumer 红不宣称已绿；联合门禁、独审、新main
+组合及正式 CI 仍待后继验证，不标记此片或 D10/E2 完成。
