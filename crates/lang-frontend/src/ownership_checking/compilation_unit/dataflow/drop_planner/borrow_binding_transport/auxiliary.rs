@@ -36,6 +36,8 @@ impl PendingBindingTransport {
             return;
         };
         if source.same_record(auxiliary)
+            || !source.precedes(handoff)
+            || !auxiliary.precedes(handoff)
             || !self
                 .source_begin
                 .as_ref()

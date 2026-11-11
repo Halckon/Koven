@@ -25,6 +25,10 @@ pub(super) struct ActionHandle {
     index: usize,
 }
 impl ActionHandle {
+    pub(super) fn precedes(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity) && self.index < other.index
+    }
+
     pub(super) fn same_record(&self, other: &Self) -> bool {
         self.index == other.index && Arc::ptr_eq(&self.identity, &other.identity)
     }

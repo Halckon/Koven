@@ -59,6 +59,7 @@ impl PendingBindingTransport {
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
         // This narrowly linear observation capability never crosses a merge.
         self.auxiliary = None;
+        self.auxiliary_seen = true;
         let mut matching = alternatives.iter().filter(|other| *other == self);
         let other = matching.next();
         let unique = matching.next().is_none();
