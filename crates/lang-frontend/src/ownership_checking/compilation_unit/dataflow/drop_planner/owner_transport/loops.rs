@@ -11,6 +11,8 @@ mod normal_backedge;
 mod replace_break;
 mod root_frame;
 mod root_incoming;
+#[cfg(test)]
+pub(super) use root_incoming::StaticRootPredecessor;
 mod root_writes;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{

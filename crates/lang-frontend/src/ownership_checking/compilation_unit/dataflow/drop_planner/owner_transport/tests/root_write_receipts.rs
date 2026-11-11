@@ -1,4 +1,5 @@
 //! Producer completion and actual primitive commit must both be observed.
+use super::super::loops::StaticRootPredecessor;
 use super::*;
 const SOURCE: &str = r#"fun run(flag: Boolean) {
     var left = "left"
@@ -350,10 +351,25 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                 }
                 let roots = visits[0].incoming_roots.as_ref().unwrap();
                 let equation = visits[1].normal_equation.as_ref().unwrap();
-                assert_eq!(equation.control, visits[0].control);
-                assert_eq!(&equation.entry, roots);
-                assert_eq!(equation.normal.len(), roots.len());
-                for ((root, new), (entry_root, old)) in equation.normal.iter().zip(roots) {
+                assert_eq!(equation.control(), visits[0].control);
+                let entry = equation
+                    .incoming(equation.control(), StaticRootPredecessor::ZeroBody)
+                    .unwrap();
+                let normal = equation
+                    .incoming(equation.control(), StaticRootPredecessor::FirstBody)
+                    .unwrap();
+                assert_eq!(entry, roots);
+                assert_eq!(normal.len(), roots.len());
+                let cloned = equation.clone();
+                assert_eq!(
+                    cloned.incoming(equation.control(), StaticRootPredecessor::ZeroBody),
+                    Some(entry)
+                );
+                assert_eq!(
+                    cloned.incoming(equation.control(), StaticRootPredecessor::FirstBody),
+                    Some(normal)
+                );
+                for ((root, new), (entry_root, old)) in normal.iter().zip(roots) {
                     assert_eq!(root, entry_root);
                     assert_ne!(new, old);
                     assert!(visits[1].root_writes.iter().any(|write| {
@@ -455,4 +471,35 @@ fn actual_multi_root_cleanup_does_not_publish_generation_retirement() {
             .zip(&analyses[1])
             .all(|(left, right)| left != right)
     );
+}
+
+#[test]
+fn static_header_alternatives_reject_another_real_control() {
+    let text = SOURCE.replace("        break\n", "").replace(
+        "    val finalLeft = left",
+        "    while(flag) { break }\n    val finalLeft = left",
+    );
+    let fixture = Fixture::new(&[("root-header-alternatives.ko", &text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let visits = planner.owner_control_probe.as_ref().unwrap();
+        assert_eq!(visits.len(), 4);
+        let equation = visits[1].normal_equation.as_ref().unwrap();
+        assert_ne!(equation.control(), visits[2].control);
+        for predecessor in [
+            StaticRootPredecessor::ZeroBody,
+            StaticRootPredecessor::FirstBody,
+        ] {
+            assert!(equation.incoming(visits[2].control, predecessor).is_none());
+            assert!(equation.incoming(visits[0].control, predecessor).is_some());
+        }
+    });
 }

@@ -3,25 +3,57 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
-/// Finite static catalog conservation, not a runtime activation or fixed-point proof.
+/// A predecessor alternative, not a runtime iteration number or activation identity.
+#[derive(Clone, Copy, Debug)]
+pub(in super::super::super::super) enum StaticRootPredecessor {
+    ZeroBody,
+    FirstBody,
+}
+
+/// Sealed whole-vector alternatives. Selecting roots independently would invent paths.
 #[derive(Clone, Debug)]
 pub(in super::super::super::super) struct RootBoundaryEquation {
-    pub(in super::super::super::super) control: UnitStatementId,
-    pub(in super::super::super::super) entry: RootIncoming,
-    pub(in super::super::super::super) normal: RootIncoming,
+    control: UnitStatementId,
+    entry: RootIncoming,
+    normal: RootIncoming,
 }
 impl RootBoundaryEquation {
+    pub(in super::super::super::super) fn control(&self) -> UnitStatementId {
+        self.control
+    }
+
+    /// These are candidate header inputs only; no reachability or induction is proved.
+    pub(in super::super::super::super) fn incoming(
+        &self,
+        control: UnitStatementId,
+        predecessor: StaticRootPredecessor,
+    ) -> Option<&RootIncoming> {
+        if control != self.control() {
+            return None;
+        }
+        Some(match predecessor {
+            StaticRootPredecessor::ZeroBody => &self.entry,
+            StaticRootPredecessor::FirstBody => &self.normal,
+        })
+    }
+
     fn same_roots(&self) -> bool {
-        self.entry.len() == self.normal.len()
-            && self
-                .entry
+        let Some(entry) = self.incoming(self.control, StaticRootPredecessor::ZeroBody) else {
+            return false;
+        };
+        let Some(normal) = self.incoming(self.control, StaticRootPredecessor::FirstBody) else {
+            return false;
+        };
+        entry.len() == normal.len()
+            && entry
                 .iter()
-                .zip(&self.normal)
+                .zip(normal)
                 .all(|((root, old), (next_root, new))| {
                     root == next_root
                         && root.source_unit() == self.control.source_unit()
                         && old.callable == new.callable
                         && old != new
+                        && !std::sync::Arc::ptr_eq(&old.identity, &new.identity)
                 })
     }
 }

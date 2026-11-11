@@ -1,5 +1,7 @@
 //! Actual root entry capture, distinct from a backedge/header equation.
 use super::*;
+#[cfg(test)]
+pub(in super::super) use root_tokens::StaticRootPredecessor;
 pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(
     UnitSymbolId,

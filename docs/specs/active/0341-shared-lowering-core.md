@@ -13699,3 +13699,15 @@ transfers-at-call temporary、String primitive单root、当前root存在且属�
 
 最终649项普通FE lib测试通过，47项ci_only过滤；FE all-target strict Clippy、LLVM21
 workspace all-target check、fmt/docs897/diff通过。无新的故障注入本机执行或远端CI声明。
+
+### 静态 header 前驱候选封装（2026-11-11，本地）
+
+在20ffa330私有守恒关系上，将入口与首次body末向量收为只读整组选择；ZeroBody与
+FirstBody是静态前驱标签，不是运行时激活编号。同control才可查询，旧新定义须不同
+catalog；真实两控制源码覆盖错control拒绝，原多根及逆序矩阵覆盖整组身份与clone稳定。
+保持现有产品前置、Unsupported公开结果和旧observer输出；不声称跨迭代归纳或旧见证退休。
+
+本片最终FE lib为656通过、50项ci_only过滤，FE all-target strict Clippy、LLVM21
+workspace all-target check及fmt/diff通过。docs898与Rust尺寸2466文件/35项旧债通过，
+无新增例外。只读复审发现的control可改写缺口已以私有字段及只读getter封闭并复核。
+CI-only故障测试仅编译，未本机执行；本地提交、不推送，未处理Preview。
