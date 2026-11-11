@@ -13453,3 +13453,39 @@ green5重新冻结4315输入，通过默认/loan双strict Clippy及workspace all
 修正后的实测；原编译失败、21/22及Clippy失败和诊断证据均保留。
 最终fmt、docs897、相对c57c4b48尺寸2448手写Rust/35历史超限及diff门禁通过。
 独审核52日志、实际binary/artifact及完整生产；最终仅本地切片完成，合流/正式CI另验。
+
+### 辅助绑定 Partial 观察前置独立交付
+
+本交付分支基于 ba025f6f，仅迁移原实际 use-return/source-retirement 的独立观察能力。
+不携带辅助 binding region 空 API 或故意失败的区域探针，不实现任何新 Complete 区域或
+CG receipt。原区域实验树及其全部失败、诊断证据独立保留，不改写或删除。
+
+前置红 8fd9b376 已真实编译并执行：Rooted/Memory 两布局旧产品等价，原 aux 恰一、
+原辅助关系恰一，但实际 use-return/source-retirement 均为零，原记录六条；两布局
+先验完成后在 use-return 0 != 1 失败。这是 Partial 观察能力红，不是区域覆盖红。
+
+生产候选采用独立 auxiliary token：原成功 handoff 的真实 source/aux acquisition、
+source-live/narrow 见证激活，同 catalog 且两个 Begin 早于 handoff、互不相同。
+原 consumer 返回时登记一次实际 use，原 binding 退休时关联该实际 use/source/handoff；
+重复激活、重复使用、合流或身份失配使新资格失效，已发生事实不删除。旧 observable、
+consumer_region_loan、dependency_owner、child/Dependency 权限均不放宽；新退休观察
+不返回 Drop-cause authority 给旧 dispatcher。source/callable 保持 Partial，无新 End/Drop。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 前置 Partial 观察能力 | unit_auxiliary_binding_causes / ordinary_auxiliary_binding_requires_actual_use_and_retirement_causes | 8fd9b376 真实红；c4862b7c 重新编译后 1 passed |
+| 原样合法邻界 | unit_auxiliary_binding_neighbors / ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products | c4862b7c 真实 1 passed（六例、两布局） |
+| 同 catalog、先后身份、重复激活及合流粘滞 | auxiliary::tests::ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_revival | 独立编写并交叉源码审查；c4862b7c 已编译，本机未执行 |
+
+普通邻界包括异 root、来源参数 1、多 aux、Group 实参、重复 consume，以及 child 后
+consume(child) 的身份失配。重复 consume 可保留首条 use 事实，不认领后继退休资格；
+不把单独 child 初始化或任意额外 owner read 一概判为撤销。默认/feature strict Clippy 分别 47.59/59.40 秒通过，workspace all-targets check
+40.23 秒通过；FE 2 + CG 11 ordinary 全部各 1 passed。4313 项冻结输入、原编译 artifact、
+独立 binary 与执行前后摘要均经独核，FE no-run 54.16/1.01 秒，CG no-run 62.36 秒。
+CG 复用前节九项精准回归，追加 parent_child_drop_dependency 的
+parent_child_requires_actual_partial_drop_dependency_with_true_off 与
+later_parent_or_owner_use_preserves_old_products_without_drop_dependency。
+fmt/docs/diff 通过；尺寸2446手写Rust文件、35历史超限，无新豁免。
+原实验 a4199734 另有真实区域能力红：两布局完成8记录后才在区域0!=1失败；它未进入
+本交付分支。FE证据manifest的scope沿用旧red模板，实际结果以本头绑定、命令及运行日志
+为准，不能解读为Complete或红结果。当前仍不声称native或正式CI验收。

@@ -1,4 +1,5 @@
 //! Carry actual pending source tokens through explicit local borrow bindings.
+mod auxiliary;
 mod child;
 pub(super) mod dependency_drop;
 mod observation;
@@ -23,6 +24,8 @@ pub(super) struct PendingBindingTransport {
     observable: bool,
     child: child::ChildState,
     dependency_owner: Option<super::OwnedValue>,
+    auxiliary: Option<auxiliary::AuxiliaryObservation>,
+    auxiliary_seen: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -54,6 +57,9 @@ impl PendingBindingTransport {
     }
 
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        // This narrowly linear observation capability never crosses a merge.
+        self.auxiliary = None;
+        self.auxiliary_seen = true;
         let mut matching = alternatives.iter().filter(|other| *other == self);
         let other = matching.next();
         let unique = matching.next().is_none();
@@ -157,6 +163,8 @@ impl DropPlanner<'_, '_> {
                 observable,
                 child: child::ChildState::Never,
                 dependency_owner,
+                auxiliary: None,
+                auxiliary_seen: false,
             });
     }
 
@@ -213,6 +221,7 @@ impl PendingBindingTransport {
             }
             Some(retirement)
         } else {
+            self.publish_auxiliary_retirement(actions, transaction, binding_end);
             None
         }
     }
