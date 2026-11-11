@@ -77,10 +77,69 @@ fn counter_tail_records_actual_order_but_withholds_public_boundary() {
             false,
         ),
     ] {
+        for (initial, supported) in [
+            ("flag", true),
+            ("remaining > 0", true),
+            ("other > 0", false),
+            ("remaining >= 0", false),
+            ("remaining + 1 > 0", false),
+        ] {
+            let text = format!(
+                "fun run(n: Int, flag: Boolean) {{ var remaining = n; val other = n; var again = {initial}; var a = \"a\"; var b = \"b\"; while(again) {{ val x = replace(&a, \"x\"); val y = replace(&b, \"y\"); {tail} }} }}"
+            );
+            let fixture = Fixture::new(&[("counter-tail-contract.ko", &text)]);
+            let owned = fixture.shared();
+            assert!(owned.diagnostics().is_empty());
+            assert!(
+                owned
+                    .owner_observations()
+                    .iter()
+                    .all(|o| o.multi_root_boundary_v1().is_none())
+            );
+            assert!(
+                owned.owner_observations().iter().all(|o| o.status()
+                    != crate::ownership_checking::UnitOwnerObservationStatus::Complete)
+            );
+            compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+                let mut planner = DropPlanner::new(
+                    checker,
+                    super::super::super::super::super::super::liveness::build(checker, true)
+                        .unwrap(),
+                );
+                planner.owner_control_probe = Some(Vec::new());
+                let planner = planner.run().unwrap();
+                let equation = planner
+                    .owner_control_probe
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find_map(|visit| visit.normal_equation.as_ref());
+                assert_eq!(
+                    equation.is_some(),
+                    accepted && supported,
+                    "{tail}: {:?}",
+                    planner.owner_control_probe
+                );
+                if let Some(equation) = equation {
+                    assert!(equation.counter.as_ref().unwrap().is_complete());
+                    assert!(equation.clone().into_boundary().is_none());
+                }
+            });
+        }
+    }
+}
+
+#[test]
+fn counter_prefix_rejects_intervening_computation_or_call() {
+    for (extra, accepted) in [
+        ("val harmless = n;", true),
+        ("val changed = n + 1;", false),
+        ("val called = identity(n);", false),
+    ] {
         let text = format!(
-            "fun run(n: Int, flag: Boolean) {{ var remaining = n; val other = n; var again = flag; var a = \"a\"; var b = \"b\"; while(again) {{ val x = replace(&a, \"x\"); val y = replace(&b, \"y\"); {tail} }} }}"
+            "fun identity(n: Int): Int {{ return n }}\nfun run(n: Int) {{ var remaining = n; var again = remaining > 0; {extra} var a = \"a\"; var b = \"b\"; while(again) {{ val x = replace(&a, \"x\"); val y = replace(&b, \"y\"); remaining = remaining - 1; again = remaining > 0 }} }}"
         );
-        let fixture = Fixture::new(&[("counter-tail-contract.ko", &text)]);
+        let fixture = Fixture::new(&[("counter-prefix-effects.ko", &text)]);
         let owned = fixture.shared();
         assert!(owned.diagnostics().is_empty());
         assert!(
@@ -96,22 +155,16 @@ fn counter_tail_records_actual_order_but_withholds_public_boundary() {
             );
             planner.owner_control_probe = Some(Vec::new());
             let planner = planner.run().unwrap();
-            let equation = planner
-                .owner_control_probe
-                .as_ref()
-                .unwrap()
-                .iter()
-                .find_map(|visit| visit.normal_equation.as_ref());
             assert_eq!(
-                equation.is_some(),
+                planner
+                    .owner_control_probe
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .any(|visit| visit.normal_equation.is_some()),
                 accepted,
-                "{tail}: {:?}",
-                planner.owner_control_probe
+                "{extra}"
             );
-            if let Some(equation) = equation {
-                assert!(equation.counter.as_ref().unwrap().is_complete());
-                assert!(equation.clone().into_boundary().is_none());
-            }
         });
     }
 }

@@ -452,6 +452,13 @@ fn completed_result_cleanup(
         .collect()
 }
 
+pub(super) fn counter_prefix(
+    checker: &Checker<'_>,
+    item: ItemId,
+) -> Option<(UnitStatementId, UnitExpressionId)> {
+    guard_reset::counter::prefix(checker, item)
+}
+
 #[cfg(test)]
 mod cleanup_fault_tests {
     use super::super::super::tests::compare_and_inspect;

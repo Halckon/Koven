@@ -6,6 +6,7 @@ pub(in super::super::super) struct ControlTransactions {
     pub(super) root_branch_arms: Vec<(UnitExpressionId, usize)>,
     entries: Vec<(UnitStatementId, LoopTransaction)>,
     selected: Option<UnitStatementId>,
+    private_counter_prefix: Option<(UnitStatementId, UnitExpressionId)>,
     pub(super) root_entries: Vec<(UnitStatementId, root_incoming::RootEvidence)>,
 }
 impl ControlTransactions {
@@ -15,12 +16,16 @@ impl ControlTransactions {
         identity: std::sync::Arc<()>,
     ) -> Self {
         let Some(transaction) = LoopTransaction::begin(checker, item, identity.clone()) else {
-            return Self::closed_sequence(checker, item, identity).unwrap_or_default();
+            return Self::closed_sequence(checker, item, identity).unwrap_or_else(|| Self {
+                private_counter_prefix: root_incoming::counter_prefix(checker, item),
+                ..Self::default()
+            });
         };
         let control = UnitStatementId::new(checker.source_unit, transaction.statement);
         Self {
             entries: vec![(control, transaction)],
             selected: Some(control),
+            private_counter_prefix: None,
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
             root_branches_invalid: false,
@@ -74,6 +79,7 @@ impl ControlTransactions {
         Some(Self {
             entries,
             selected: None,
+            private_counter_prefix: None,
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
             root_branches_invalid: false,
@@ -81,7 +87,20 @@ impl ControlTransactions {
     }
     // A separate batch must not masquerade as a Complete straight-line observation.
     pub(in super::super::super) fn publication_blocker(&self) -> Option<UnitStatementId> {
-        (self.entries.len() > 1).then(|| self.entries[0].0)
+        self.private_counter_prefix
+            .map(|(control, _)| control)
+            .or_else(|| (self.entries.len() > 1).then(|| self.entries[0].0))
+    }
+    // Admission of this one pure expression only preserves a private input catalog.
+    // It cannot activate a legacy selected transaction or Complete publication.
+    pub(in super::super::super) fn private_counter_initializer(
+        &self,
+        id: UnitExpressionId,
+    ) -> bool {
+        self.entries.is_empty()
+            && self
+                .private_counter_prefix
+                .is_some_and(|(_, expression)| expression == id)
     }
     pub(in super::super::super) fn selected(&self) -> Option<UnitStatementId> {
         self.selected

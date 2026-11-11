@@ -183,8 +183,11 @@ root。覆盖2/3根、0/1/2/5轮，以及直接 `while(remaining > 0)` 和Boolea
 推进。错误counter、步长、比较、逆序及尾后多语句拒绝。重复、缺失、提前完成负控
 仅编译留CI执行。私有equation即使完整也禁止转成公开boundary。
 
-真实planner正例采用既有Name/参数guard入口；比较初始化 `var again = remaining > 0`
-尚不能获得入口catalog。减法lowering还产生CheckedArithmetic success/abort分叉，
+真实planner正例覆盖Name/参数及 `var again = remaining > 0` 的精确比较入口。仅在
+无legacy transaction时，单独记录该比较ID供私有catalog保留；其他前缀初始化只允许
+Name、Literal或无插值String，拒绝调用、赋值和其他计算。普通Complete发布仍受
+独立blocker禁止，私有counter equation仍不可转公开boundary。错误counter、比较符
+或计算初始化均不得借用此marker。减法lowering还产生CheckedArithmetic success/abort分叉，
 并非当前新审计要求的body直接回header。已有单根normal-header实现提供相关receipt
 参考，但本片没有移植或旁路该几何检查。私有完成事件不证明初始guard与counter
 一致、必然终止或减法无溢出，也不建立跨轮归纳。
