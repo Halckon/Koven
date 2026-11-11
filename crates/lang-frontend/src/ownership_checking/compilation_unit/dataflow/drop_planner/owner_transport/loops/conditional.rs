@@ -207,7 +207,12 @@ impl DropPlanner<'_, '_> {
         }
         if self.owner_observation.as_ref().is_some_and(|observation| {
             std::sync::Arc::ptr_eq(&observation.identity, identity)
-                && observation.value_observation_v1().is_some()
+                && (observation.value_observation_v1().is_some()
+                    || (transaction
+                        .normal
+                        .as_ref()
+                        .is_some_and(|n| n.mixed_active())
+                        && observation.status == UnitOwnerObservationStatus::Complete))
         }) && transaction.split_input_boundary(state)
         {
             transaction.split_entered = true;

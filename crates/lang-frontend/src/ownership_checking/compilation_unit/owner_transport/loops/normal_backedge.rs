@@ -46,6 +46,7 @@ pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
 pub(in crate::ownership_checking::compilation_unit) enum HeaderCompletion {
     Fallthrough,
     Continue(UnitExpressionId),
+    Mixed(UnitExpressionId),
 }
 /// Sealed ordinary fallthrough backedge. Never a Continue product.
 #[derive(Clone, Debug)]
@@ -61,6 +62,102 @@ pub struct UnitOwnerContinueBackedgeV1 {
     pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) snapshot: UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) stopped: bool,
+}
+/// A separately sealed Continue/header and Break/exit split of the current owner.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerMixedBackedgeV1 {
+    pub(in crate::ownership_checking::compilation_unit) core: HeaderCore,
+    pub(in crate::ownership_checking::compilation_unit) split: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) split_condition: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) bodies: [UnitStatementId; 2],
+    pub(in crate::ownership_checking::compilation_unit) jumps: [UnitExpressionId; 2],
+    pub(in crate::ownership_checking::compilation_unit) roles: [LoopBodyCompletion; 2],
+    pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
+    pub(in crate::ownership_checking::compilation_unit) split_state: UnitOwnerReplaceBreakStateV1,
+    pub(in crate::ownership_checking::compilation_unit) entries: [UnitOwnerReplaceBreakStateV1; 2],
+    pub(in crate::ownership_checking::compilation_unit) transferred:
+        [UnitOwnerReplaceBreakStateV1; 2],
+    pub(in crate::ownership_checking::compilation_unit) completed:
+        [UnitOwnerReplaceBreakStateV1; 2],
+    pub(in crate::ownership_checking::compilation_unit) stopped: bool,
+}
+impl UnitOwnerMixedBackedgeV1 {
+    /// The actual If whose true arm continues and false arm breaks.
+    pub fn split(&self) -> UnitExpressionId {
+        self.split
+    }
+    /// Actual pure branch comparison, distinct from the loop condition.
+    pub fn split_condition(&self) -> UnitExpressionId {
+        self.split_condition
+    }
+    /// Actual Continue source; only this arm supplies the header.
+    pub fn continue_jump(&self) -> UnitExpressionId {
+        self.jumps[0]
+    }
+    /// Actual Break source; only this arm supplies the loop exit.
+    pub fn break_jump(&self) -> UnitExpressionId {
+        self.jumps[1]
+    }
+    /// Source-qualified Continue arm body.
+    pub fn continue_body(&self) -> UnitStatementId {
+        self.bodies[0]
+    }
+    /// Source-qualified Break arm body.
+    pub fn break_body(&self) -> UnitStatementId {
+        self.bodies[1]
+    }
+    /// Check actual split/arm completion evidence without merging edge roles.
+    pub fn is_consistent(&self) -> bool {
+        let ids = [
+            self.split,
+            self.split_condition,
+            self.jumps[0],
+            self.jumps[1],
+        ];
+        self.core.is_consistent()
+            && self.core.completion == HeaderCompletion::Mixed(self.split)
+            && self.core.increment.is_some()
+            && self.roles
+                == [
+                    LoopBodyCompletion::Continue(self.jumps[0]),
+                    LoopBodyCompletion::Break(self.jumps[1]),
+                ]
+            && self.stopped
+            && Arc::ptr_eq(&self.identity, &self.core.producers.identity)
+            && self.split_state == self.core.backedge
+            && self
+                .entries
+                .iter()
+                .chain(self.transferred.iter())
+                .chain(self.completed.iter())
+                .all(|s| s == &self.split_state)
+            && ids.iter().enumerate().all(|(i, id)| {
+                id.source_unit() == self.core.statement.source_unit()
+                    && !ids[..i].contains(id)
+                    && ![
+                        self.core.condition,
+                        self.core.initial,
+                        self.core.argument,
+                        self.core.call,
+                        self.core.assignment,
+                        self.core.target.payload,
+                        self.core.target.expression,
+                    ]
+                    .contains(id)
+                    && self.core.increment != Some(*id)
+            })
+            && self.bodies[0] != self.bodies[1]
+            && self.bodies.iter().all(|b| {
+                b.source_unit() == self.core.statement.source_unit()
+                    && ![
+                        self.core.statement,
+                        self.core.body,
+                        self.core.previous_statement,
+                        self.core.target.statement,
+                    ]
+                    .contains(b)
+            })
+    }
 }
 // Both wrappers expose the H equation without exposing or converting their edge role.
 macro_rules! header_accessors {
@@ -138,6 +235,7 @@ macro_rules! header_accessors {
 }
 header_accessors!(UnitOwnerNormalBackedgeV1);
 header_accessors!(UnitOwnerContinueBackedgeV1);
+header_accessors!(UnitOwnerMixedBackedgeV1);
 impl UnitOwnerNormalBackedgeV1 {
     /// True only for a complete ordinary backedge with no explicit jump role.
     pub fn is_consistent(&self) -> bool {

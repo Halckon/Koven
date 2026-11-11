@@ -194,6 +194,12 @@ impl InvariantInput {
 }
 impl LoopTransaction {
     pub(in super::super) fn split_input_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(normal) = &mut self.normal {
+            return self
+                .active
+                .as_ref()
+                .is_some_and(|(identity, _)| normal.split_enter(identity, state));
+        }
         let Some(input) = &mut self.invariant else {
             return empty_boundary(state);
         };
@@ -220,6 +226,11 @@ impl LoopTransaction {
         body: UnitStatementId,
         state: &ValueState,
     ) -> bool {
+        if let Some(normal) = &mut self.normal {
+            return self.active.as_ref().is_some_and(|(identity, _)| {
+                normal.split_arm_enter(branch, control, body, identity, state)
+            });
+        }
         let Some(input) = &mut self.invariant else {
             return empty_boundary(state);
         };
@@ -252,6 +263,9 @@ impl LoopTransaction {
         continues: bool,
         state: &ValueState,
     ) -> bool {
+        if let Some(normal) = &mut self.normal {
+            return normal.split_arm_complete(branch, continues, state);
+        }
         let Some(input) = &mut self.invariant else {
             return empty_boundary(state);
         };
@@ -279,6 +293,9 @@ impl LoopTransaction {
         }
     }
     pub(in super::super) fn split_inputs_complete(&self) -> bool {
+        if let Some(normal) = &self.normal {
+            return normal.split_complete();
+        }
         self.invariant.as_ref().is_none_or(|input| {
             if let Some(joining) = &input.joining {
                 return input.split.is_none() && joining.arms_complete();

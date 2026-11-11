@@ -498,7 +498,21 @@ impl Builder<'_, '_> {
             Some(branch) => self.statement_span(branch)?,
             None => span,
         });
+        let mixed_split = self.mixed_header_split(
+            control,
+            self.unit(condition),
+            lang_frontend::type_checking::UnitStatementId::new(
+                self.inputs.source_unit,
+                then_branch,
+            ),
+            else_branch.map(|b| {
+                lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, b)
+            }),
+            [when_true, when_false],
+            span,
+        )?;
         self.condition_for_control(condition, when_true, when_false, span)?;
+        self.mixed_header_split_emitted(mixed_split, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
         let outer_short_ranges = self.short_ranges.clone();
@@ -537,6 +551,7 @@ impl Builder<'_, '_> {
             {
                 self.expected_nullable = Some(ssa_ty);
             }
+            self.mixed_header_arm(control, index, block, span)?;
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
                 None => Some(None),

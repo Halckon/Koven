@@ -276,7 +276,7 @@ impl LoopTransaction {
         state: &ValueState,
     ) -> bool {
         if let Some(input) = &mut self.normal {
-            return input.jump_boundary(completion, identity, state);
+            return input.jump_boundary(completion, identity, state, self.active_branch);
         }
         if let Some(input) = &mut self.replacing {
             return input.jump_boundary(completion, identity, state);

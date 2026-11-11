@@ -759,6 +759,7 @@ impl DropPlanner<'_, '_> {
                         UnitOwnerOpenLoopObservationV1::BreakLive(boundary) => Some(boundary),
                         UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
                         | UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
                         | UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => None,
                     }),
                 state.values.first(),

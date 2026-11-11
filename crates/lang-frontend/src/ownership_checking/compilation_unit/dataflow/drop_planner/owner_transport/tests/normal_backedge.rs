@@ -228,3 +228,101 @@ fn ci_only_continue_header_rejects_role_target_and_cleanup_damage() {
         assert!(!p.is_consistent());
     }
 }
+
+const MIXED_SOURCE: &str = r#"fun run(limit: Int): String {
+    var held = "outer"
+    var index = 0
+    while(index < limit) {
+        val previous = replace(&held, "next")
+        index = index + 1
+        if(index < 2) { continue } else { break }
+    }
+    return held
+}"#;
+
+#[test]
+fn mixed_header_seals_distinct_continue_and_break_arms() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let fixture = Fixture::new(&[("mixed.ko", MIXED_SOURCE)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    let products = owned
+        .owner_observations()
+        .iter()
+        .filter_map(|o| o.open_loop_observation_v1())
+        .collect::<Vec<_>>();
+    let [O::MixedBackedge(product)] = products.as_slice() else {
+        panic!("independent mixed product");
+    };
+    assert!(product.is_consistent());
+    assert_ne!(product.continue_jump(), product.break_jump());
+    assert_ne!(product.continue_body(), product.break_body());
+    assert_ne!(product.split_condition(), product.condition());
+    assert_eq!(product.body_events().len(), 6);
+    assert_eq!(product.prefix_events().len(), 2);
+    assert_eq!(product.body_producers().definitions().len(), 1);
+    assert_eq!(product.input_producers().definitions().len(), 1);
+}
+
+#[test]
+fn mixed_header_declines_unproved_legal_neighbors() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    for text in [
+        MIXED_SOURCE.replace("index < 2", "index < 3"),
+        MIXED_SOURCE.replace("index < 2", "index <= 2"),
+        MIXED_SOURCE.replace("index < 2", "(index < 2)"),
+        MIXED_SOURCE.replace("{ continue } else { break }", "{ break } else { continue }"),
+        MIXED_SOURCE.replace(
+            "{ continue } else { break }",
+            "{ continue } else { continue }",
+        ),
+        MIXED_SOURCE.replace("index + 1", "index + 2"),
+    ] {
+        let fixture = Fixture::new(&[("mixed-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        assert!(
+            !owned
+                .owner_observations()
+                .iter()
+                .any(|o| matches!(o.open_loop_observation_v1(), Some(O::MixedBackedge(_))))
+        );
+    }
+}
+
+#[test]
+fn ci_only_mixed_header_rejects_role_identity_and_arm_damage() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    use crate::ownership_checking::compilation_unit::owner_transport::HeaderCompletion;
+    let fixture = Fixture::new(&[("mixed-damage.ko", MIXED_SOURCE)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::MixedBackedge(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..11 {
+        let mut p = (**original).clone();
+        match damage {
+            0 => p.stopped = false,
+            1 => p.core.completion = HeaderCompletion::Continue(p.jumps[0]),
+            2 => p.jumps[1] = p.jumps[0],
+            3 => p.bodies[1] = p.bodies[0],
+            4 => p.identity = std::sync::Arc::new(()),
+            5 => p.transferred[1] = p.core.entry.clone(),
+            6 => p.completed[0] = p.core.entry.clone(),
+            7 => p.split_condition = p.core.condition,
+            8 => p.jumps.swap(0, 1),
+            9 => p.roles.swap(0, 1),
+            _ => p.core.cleaned = false,
+        }
+        assert!(!p.is_consistent());
+    }
+}

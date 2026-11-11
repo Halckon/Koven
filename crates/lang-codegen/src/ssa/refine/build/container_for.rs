@@ -274,8 +274,19 @@ impl Builder<'_, '_> {
             ),
             jump_span,
         )?;
+        let mixed = self.mixed_header_jump(
+            self.unit(expression),
+            is_break,
+            (
+                frame.statement,
+                target,
+                frame.seq_for.is_none() && frame.map_for.is_none(),
+            ),
+            jump_span,
+        )?;
         self.terminate(RTerm::Goto(target), jump_span)?;
         self.header_continue_emitted(continued, jump_span)?;
+        self.mixed_header_jump_emitted(mixed, jump_span)?;
         Ok(Lowered::Diverged)
     }
 
