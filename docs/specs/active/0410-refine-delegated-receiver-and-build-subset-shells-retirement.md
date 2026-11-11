@@ -50,4 +50,4 @@
 
 - [x] 退役 `unit_lower/field_borrow.rs::lower_delegated_call_receiver` 与 `refine` 下的 7 个壳子模块（`build/place.rs`、`build/statements.rs`、`subset/loop_route.rs`、`subset/drops.rs`、`receiver_receipt/admission.rs`、`loan_receipt/admission.rs`、`named_receipt/admission.rs`）。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
-- [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+- [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；本片无需额外科目修正（`cargo fmt --check` 与 `cargo clippy --workspace --all-targets -D warnings` 同步通过）；CI 以 PR 为准。
