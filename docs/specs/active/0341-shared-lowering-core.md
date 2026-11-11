@@ -13366,3 +13366,32 @@ binding/child邻域2项。使用opt0/debug2；不执行CI-only、故障注入、
 默认CLI构建及实际help（features为空）、fmt、docs897、diff均通过。
 相对4150bbd8尺寸2442手写Rust文件、35历史超限，无新增豁免。最后仅追加此Spec；
 本地组合验证不替代正式CI或独立审查，不推送、不合main，D10/E2仍有后续范围。
+
+
+### 辅助绑定 Partial 观察前置独立交付
+
+本交付分支基于 ba025f6f，仅迁移原实际 use-return/source-retirement 的独立观察能力。
+不携带辅助 binding region 空 API 或故意失败的区域探针，不实现任何新 Complete 区域或
+CG receipt。原区域实验树及其全部失败、诊断证据独立保留，不改写或删除。
+
+前置红 8fd9b376 已真实编译并执行：Rooted/Memory 两布局旧产品等价，原 aux 恰一、
+原辅助关系恰一，但实际 use-return/source-retirement 均为零，原记录六条；两布局
+先验完成后在 use-return 0 != 1 失败。这是 Partial 观察能力红，不是区域覆盖红。
+
+生产候选采用独立 auxiliary token：原成功 handoff 的真实 source/aux acquisition、
+source-live/narrow 见证激活，同 catalog 且两个 Begin 早于 handoff、互不相同。
+原 consumer 返回时登记一次实际 use，原 binding 退休时关联该实际 use/source/handoff；
+重复激活、重复使用、合流或身份失配使新资格失效，已发生事实不删除。旧 observable、
+consumer_region_loan、dependency_owner、child/Dependency 权限均不放宽；新退休观察
+不返回 Drop-cause authority 给旧 dispatcher。source/callable 保持 Partial，无新 End/Drop。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 前置 Partial 观察能力 | unit_auxiliary_binding_causes / ordinary_auxiliary_binding_requires_actual_use_and_retirement_causes | 8fd9b376 真实红；本交付头尚未重新编译运行 |
+| 原样合法邻界 | unit_auxiliary_binding_neighbors / ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products | 已迁移，当前交付头未运行 |
+| 同 catalog、先后身份、重复激活及合流粘滞 | auxiliary::tests::ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_revival | 独立编写并交叉源码审查；仅允许编译，本机不执行 |
+
+普通邻界包括异 root、来源参数 1、多 aux、Group 实参、重复 consume，以及 child 后
+consume(child) 的身份失配。重复 consume 可保留首条 use 事实，不认领后继退休资格；
+不把单独 child 初始化或任意额外 owner read 一概判为撤销。默认/feature strict Clippy、
+workspace 检查、CG 回归及普通实际绿均等待本交付头重新验收，不复用别的树的绿作完成。
