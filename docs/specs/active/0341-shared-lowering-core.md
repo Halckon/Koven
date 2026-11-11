@@ -13387,11 +13387,19 @@ consumer_region_loan、dependency_owner、child/Dependency 权限均不放宽；
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 | --- | --- | --- |
-| 前置 Partial 观察能力 | unit_auxiliary_binding_causes / ordinary_auxiliary_binding_requires_actual_use_and_retirement_causes | 8fd9b376 真实红；本交付头尚未重新编译运行 |
-| 原样合法邻界 | unit_auxiliary_binding_neighbors / ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products | 已迁移，当前交付头未运行 |
-| 同 catalog、先后身份、重复激活及合流粘滞 | auxiliary::tests::ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_revival | 独立编写并交叉源码审查；仅允许编译，本机不执行 |
+| 前置 Partial 观察能力 | unit_auxiliary_binding_causes / ordinary_auxiliary_binding_requires_actual_use_and_retirement_causes | 8fd9b376 真实红；c4862b7c 重新编译后 1 passed |
+| 原样合法邻界 | unit_auxiliary_binding_neighbors / ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products | c4862b7c 真实 1 passed（六例、两布局） |
+| 同 catalog、先后身份、重复激活及合流粘滞 | auxiliary::tests::ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_revival | 独立编写并交叉源码审查；c4862b7c 已编译，本机未执行 |
 
 普通邻界包括异 root、来源参数 1、多 aux、Group 实参、重复 consume，以及 child 后
 consume(child) 的身份失配。重复 consume 可保留首条 use 事实，不认领后继退休资格；
-不把单独 child 初始化或任意额外 owner read 一概判为撤销。默认/feature strict Clippy、
-workspace 检查、CG 回归及普通实际绿均等待本交付头重新验收，不复用别的树的绿作完成。
+不把单独 child 初始化或任意额外 owner read 一概判为撤销。默认/feature strict Clippy 分别 47.59/59.40 秒通过，workspace all-targets check
+40.23 秒通过；FE 2 + CG 11 ordinary 全部各 1 passed。4313 项冻结输入、原编译 artifact、
+独立 binary 与执行前后摘要均经独核，FE no-run 54.16/1.01 秒，CG no-run 62.36 秒。
+CG 复用前节九项精准回归，追加 parent_child_drop_dependency 的
+parent_child_requires_actual_partial_drop_dependency_with_true_off 与
+later_parent_or_owner_use_preserves_old_products_without_drop_dependency。
+fmt/docs/diff 通过；尺寸2446手写Rust文件、35历史超限，无新豁免。
+原实验 a4199734 另有真实区域能力红：两布局完成8记录后才在区域0!=1失败；它未进入
+本交付分支。FE证据manifest的scope沿用旧red模板，实际结果以本头绑定、命令及运行日志
+为准，不能解读为Complete或红结果。当前仍不声称native或正式CI验收。

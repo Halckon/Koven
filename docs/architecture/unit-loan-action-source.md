@@ -197,4 +197,4 @@ payload owner或Drop。这是已有能力的身份证据补齐，refine准入仍
 同批child→parent退休、实际owner移除及新Cleanup append发布Drop关联；metadata不入旧Eq，失证永久降级。
 独立四语句child区域从已形成owner后的parent声明起，到root cleanup后scope0/全部active空，核未过滤十记录；
 两binding/端点、实际Drop依赖和owner token共同认证Complete；独立生产receipt核九角色/五实体，不混旧七记录。
-真实child reborrow、consumer复用、三End及原Drop在append冻结；source/callable仍Partial，旧发出顺序不变、oracle未退休。
+真实child reborrow、consumer复用、三End及原Drop在append冻结；source/callable仍Partial，旧发出顺序不变、oracle未退休。 同根双参数辅助绑定另有[独立Partial原因观察](../specs/active/0341-shared-lowering-core.md#辅助绑定-partial-观察前置独立交付)，不授予上述区域或receipt。
