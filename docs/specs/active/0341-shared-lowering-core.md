@@ -12012,7 +12012,7 @@ P Drop、两个实际 Name delivery 和 Return terminator。仅 false 路径能�
 后端独立缺 endpoint 红 `38c1258c`：旧 SSA/LLVM 成功后 body Q 无授权，单普通 exact
 实际 1 failed；前端 `90281c46`：旧诊断/cleanup/观察 on-off 保真后开放产品 0≠1，
 单普通 exact 实际 1 failed。两轮均执行前保存 SOURCE、test source、artifact 和 binary SHA
-及独立 binary 副本。能力绿及最终兼容回归尚未完成；未通过正式 CI，不进入已发布 PR。
+及独立 binary 副本。以上是生产前红阶段记录；后续本地验收见下文，正式 CI 未运行。
 
 本地收敛：FE生产 `b9ecf1e3`、字段文档 `45f47326`，后端 `af5de689` 首轮五普通
 exact通过；统一enum尺寸lint后改单层Box payload `bb7167b6`（外层不再Box，无lint豁免），
