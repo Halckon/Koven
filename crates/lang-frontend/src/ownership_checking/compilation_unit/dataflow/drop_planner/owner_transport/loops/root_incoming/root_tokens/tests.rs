@@ -168,3 +168,93 @@ fn counter_prefix_rejects_intervening_computation_or_call() {
         });
     }
 }
+
+#[test]
+fn two_counter_candidates_do_not_publish_a_partial_first_product() {
+    let segment = |i| {
+        format!(
+            "var n{i} = n; var g{i} = n{i} > 0; var a{i} = \"a\"; var b{i} = \"b\"; while(g{i}) {{ val x{i} = replace(&a{i}, \"x\"); val y{i} = replace(&b{i}, \"y\"); n{i} = n{i} - 1; g{i} = n{i} > 0; }};"
+        )
+    };
+    let text = format!("fun run(n: Int) {{ {} {} }}", segment(0), segment(1));
+    let fixture = Fixture::new(&[("two-counter-controls.ko", &text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(
+        owned
+            .owner_observations()
+            .iter()
+            .all(|o| o.counter_tail_evidence_v1().is_none())
+    );
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = DropPlanner::new(
+            checker,
+            super::super::super::super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let visits = planner.owner_control_probe.as_ref().unwrap();
+        let entries: Vec<_> = visits
+            .iter()
+            .filter(|v| v.entering && v.counter_phase.is_some())
+            .collect();
+        assert_eq!(entries.len(), 2);
+        assert_ne!(entries[0].control, entries[1].control);
+        assert!(entries[0].incoming_roots.is_some());
+        assert!(entries[1].incoming_roots.is_none());
+        assert_eq!(
+            entries[0].counter_phase.unwrap(),
+            super::super::super::control_transactions::CounterPhase::Entered
+        );
+        assert_eq!(
+            entries[1].counter_phase.unwrap(),
+            super::super::super::control_transactions::CounterPhase::Rejected
+        );
+        assert!(
+            visits
+                .iter()
+                .any(|v| v.control == entries[0].control && v.normal_equation.is_some())
+        );
+    });
+}
+
+#[test]
+fn single_counter_candidate_does_not_claim_a_nonmatching_second_loop() {
+    let segment = |i, step| {
+        format!(
+            "var n{i} = n; var g{i} = n{i} > 0; var a{i} = \"a\"; var b{i} = \"b\"; while(g{i}) {{ val x{i} = replace(&a{i}, \"x\"); val y{i} = replace(&b{i}, \"y\"); n{i} = n{i} - {step}; g{i} = n{i} > 0; }};"
+        )
+    };
+    for (suffix, products) in [(String::new(), 1), (segment(1, 2), 0)] {
+        let text = format!("fun run(n: Int) {{ {} {suffix} }}", segment(0, 1));
+        let fixture = Fixture::new(&[("single-counter-candidate.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty());
+        assert_eq!(
+            owned
+                .owner_observations()
+                .iter()
+                .filter_map(|o| o.counter_tail_evidence_v1())
+                .count(),
+            products
+        );
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = DropPlanner::new(
+                checker,
+                super::super::super::super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            assert_eq!(
+                planner
+                    .owner_control_probe
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .filter(|v| v.entering && v.counter_phase.is_some())
+                    .count(),
+                1
+            );
+        });
+    }
+}

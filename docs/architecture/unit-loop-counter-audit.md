@@ -97,3 +97,19 @@ deferred、foreign analysis、伪Complete撤销负控。本地只编译，执行
 不是编译器已经持有的范围证明。最小Int初值验证零轮退出，不能称为实际走过overflow边。
 abort是进程终止，不得合成为正常header incoming；根的正常最终清理也不能挪到abort上
 以冒充正常退出证明。当前保留checked指令、独立失败边和所有旧权限要求。
+
+## 多control采集边界
+
+静态候选发现按函数顶层的顺序while分段，只记录紧邻declaration-only分段且符合精确counter尾部的
+control/initializer身份。候选清单不含owner ID，不代表入口或循环运行已经发生。
+中间有普通语句、沿用前段guard/counter或尾部不匹配者不在候选集合；整组拒绝只指已发现
+的精确候选，不声称发现函数内所有counter或嵌套循环。候选外后续控制仍可能使真实
+方程失效；单候选不是无条件发布承诺。
+真实while入口调用后，只有原catalog实际capture成功才从Discovered进入Entered；缺失
+catalog或重复进入转Rejected。单候选还需真实完成方程才可Completed；多个候选当前整体
+拒绝发布，不能从失败批次选首个成功项作为单产品。
+
+真实双counter回归可观察首项入口及normal方程，第二项却没有入口catalog：旧observation
+首次Unsupported会清空definitions/events。现阶段没有恢复它的Complete状态，也没有从
+残留ValueState或首循环first-body token重建第二段owner。后续独立采集上下文仍未实现；
+多事务完整发布、嵌套loop及后端多Plan选择均不在当前能力内。

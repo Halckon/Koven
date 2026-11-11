@@ -6,7 +6,7 @@ pub(in super::super::super) struct ControlTransactions {
     pub(super) root_branch_arms: Vec<(UnitExpressionId, usize)>,
     entries: Vec<(UnitStatementId, LoopTransaction)>,
     selected: Option<UnitStatementId>,
-    private_counter_prefix: Option<(UnitStatementId, UnitExpressionId)>,
+    counter_candidates: Vec<(UnitStatementId, UnitExpressionId, CounterPhase)>,
     pub(super) root_entries: Vec<(UnitStatementId, root_incoming::RootEvidence)>,
 }
 impl ControlTransactions {
@@ -17,7 +17,10 @@ impl ControlTransactions {
     ) -> Self {
         let Some(transaction) = LoopTransaction::begin(checker, item, identity.clone()) else {
             return Self::closed_sequence(checker, item, identity).unwrap_or_else(|| Self {
-                private_counter_prefix: root_incoming::counter_prefix(checker, item),
+                counter_candidates: root_incoming::counter_prefixes(checker, item)
+                    .into_iter()
+                    .map(|(c, i)| (c, i, CounterPhase::Discovered))
+                    .collect(),
                 ..Self::default()
             });
         };
@@ -25,7 +28,7 @@ impl ControlTransactions {
         Self {
             entries: vec![(control, transaction)],
             selected: Some(control),
-            private_counter_prefix: None,
+            counter_candidates: Vec::new(),
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
             root_branches_invalid: false,
@@ -79,29 +82,68 @@ impl ControlTransactions {
         Some(Self {
             entries,
             selected: None,
-            private_counter_prefix: None,
+            counter_candidates: Vec::new(),
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
             root_branches_invalid: false,
         })
     }
     pub(in super::super::super) fn counter_tail_evidence(
-        &self,
+        &mut self,
     ) -> Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1> {
-        let (control, initializer) = self.private_counter_prefix?;
-        if self.root_branches_invalid || self.root_entries.len() != 1 {
+        // A discovered batch never silently degrades to whichever one happened to capture.
+        if self.counter_candidates.len() != 1 {
+            for (_, _, phase) in &mut self.counter_candidates {
+                *phase = CounterPhase::Rejected;
+            }
             return None;
         }
-        let (site, evidence) = &self.root_entries[0];
-        if *site != control {
-            return None;
+        let (control, initializer, phase) = self.counter_candidates[0];
+        let result = (|| {
+            if phase != CounterPhase::Entered
+                || self.root_branches_invalid
+                || self.root_entries.len() != 1
+            {
+                return None;
+            }
+            let (site, evidence) = &self.root_entries[0];
+            if *site != control {
+                return None;
+            }
+            evidence.counter_tail_evidence(initializer)
+        })();
+        self.counter_candidates[0].2 = if result.is_some() {
+            CounterPhase::Completed
+        } else {
+            CounterPhase::Rejected
+        };
+        result
+    }
+    pub(super) fn counter_entered(&mut self, control: UnitStatementId, captured: bool) {
+        if let Some((_, _, phase)) = self
+            .counter_candidates
+            .iter_mut()
+            .find(|(c, _, _)| *c == control)
+        {
+            *phase = if *phase == CounterPhase::Discovered && captured {
+                CounterPhase::Entered
+            } else {
+                CounterPhase::Rejected
+            };
         }
-        evidence.counter_tail_evidence(initializer)
+    }
+    #[cfg(test)]
+    pub(super) fn counter_phase(&self, control: UnitStatementId) -> Option<CounterPhase> {
+        self.counter_candidates
+            .iter()
+            .find(|(c, _, _)| *c == control)
+            .map(|(_, _, p)| *p)
     }
     // A separate batch must not masquerade as a Complete straight-line observation.
     pub(in super::super::super) fn publication_blocker(&self) -> Option<UnitStatementId> {
-        self.private_counter_prefix
-            .map(|(control, _)| control)
+        self.counter_candidates
+            .first()
+            .map(|(control, _, _)| *control)
             .or_else(|| (self.entries.len() > 1).then(|| self.entries[0].0))
     }
     // Admission of this one pure expression only preserves a private input catalog.
@@ -112,8 +154,9 @@ impl ControlTransactions {
     ) -> bool {
         self.entries.is_empty()
             && self
-                .private_counter_prefix
-                .is_some_and(|(_, expression)| expression == id)
+                .counter_candidates
+                .iter()
+                .any(|(_, expression, _)| *expression == id)
     }
     pub(in super::super::super) fn selected(&self) -> Option<UnitStatementId> {
         self.selected
@@ -183,4 +226,13 @@ impl ControlTransactions {
             .next()
             .map(|(_, transaction)| transaction)
     }
+}
+
+/// Candidate discovery is not owner evidence; Entered requires actual capture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super::super) enum CounterPhase {
+    Discovered,
+    Entered,
+    Completed,
+    Rejected,
 }

@@ -150,10 +150,10 @@ fn integer(checker: &Checker<'_>, id: ExpressionId, expected: u128) -> bool {
 
 /// Only a top-level counted loop with a declaration-only prefix. The marker is
 /// private; its enclosing collector must block ordinary Complete publication.
-pub(in super::super) fn prefix(
+pub(in super::super) fn prefixes(
     checker: &Checker<'_>,
     item: ItemId,
-) -> Option<(UnitStatementId, UnitExpressionId)> {
+) -> Option<Vec<(UnitStatementId, UnitExpressionId)>> {
     let ast = checker.parsed.ast();
     let Item::Function { form, .. } = ast.items().get(item).ok()?.payload() else {
         return None;
@@ -169,6 +169,26 @@ pub(in super::super) fn prefix(
     let Statement::Block { elements } = ast.statements().get(block).ok()?.payload() else {
         return None;
     };
+    let mut result = Vec::new();
+    let mut start = 0;
+    for (index, statement) in elements.iter().enumerate() {
+        if matches!(
+            ast.statements().get(*statement).ok()?.payload(),
+            Statement::While { .. }
+        ) {
+            if let Some(candidate) = prefix_segment(checker, &elements[start..=index]) {
+                result.push(candidate);
+            }
+            start = index + 1;
+        }
+    }
+    Some(result)
+}
+fn prefix_segment(
+    checker: &Checker<'_>,
+    elements: &[StatementId],
+) -> Option<(UnitStatementId, UnitExpressionId)> {
+    let ast = checker.parsed.ast();
     let mut initializers = Vec::new();
     for statement in elements {
         match ast.statements().get(*statement).ok()?.payload() {

@@ -244,3 +244,36 @@ fn counter_aliased_parameter_entries_consume_original_catalog() {
     );
     super::super::assert_native_output(&source, b"");
 }
+
+#[test]
+fn two_counter_controls_keep_generic_lowering_without_partial_product() {
+    let segment = |i| {
+        format!(
+            "var n{i} = n; var g{i} = n{i} > 0; var a{i} = \"a\"; var b{i} = \"b\"; while(g{i}) {{ val x{i} = replace(&a{i}, \"x\"); val y{i} = replace(&b{i}, \"y\"); n{i} = n{i} - 1; g{i} = n{i} > 0; }};"
+        )
+    };
+    let text = format!(
+        "fun run(n: Int) {{ {} {} println(\"ok\") }}\nfun entry() {{ run(0); run(2) }}",
+        segment(0),
+        segment(1)
+    );
+    let source = UnitSource::analyze("counter-multiple-controls.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    assert!(
+        source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .all(|o| o.counter_tail_evidence_v1().is_none())
+    );
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| !kind.starts_with("counter-"))
+    );
+    super::super::assert_native_output(&source, b"ok\nok\n");
+}

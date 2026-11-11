@@ -245,9 +245,12 @@ impl ControlTransactions {
         // Never retain a stale partial capture if this control cannot be recaptured.
         self.root_entries.retain(|(key, _)| *key != control);
         if self.root_branches_invalid {
+            self.counter_entered(control, false);
             return;
         }
-        let Some(roots) = capture(control, state, observation) else {
+        let roots = capture(control, state, observation);
+        self.counter_entered(control, roots.is_some());
+        let Some(roots) = roots else {
             return;
         };
         let entry_catalog = observation.and_then(|observation| {
@@ -452,11 +455,11 @@ fn completed_result_cleanup(
         .collect()
 }
 
-pub(super) fn counter_prefix(
+pub(super) fn counter_prefixes(
     checker: &Checker<'_>,
     item: ItemId,
-) -> Option<(UnitStatementId, UnitExpressionId)> {
-    guard_reset::counter::prefix(checker, item)
+) -> Vec<(UnitStatementId, UnitExpressionId)> {
+    guard_reset::counter::prefixes(checker, item).unwrap_or_default()
 }
 
 impl RootEvidence {
