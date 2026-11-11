@@ -13176,3 +13176,25 @@ implicit前驱，其余Break/exit/参数身份不变，未增加宽泛fallback�
 未提高尺寸额度。独审复核29日志、保存binary及真实Cargo artifact（opt0/debug2，
 FE默认、CG仅loan support）；实测输入后仅Architecture/Spec文档变化，无Rust漂移。
 本片仍只作本地完成切片，正式CI与最新main合流未验，不宣称D10/E2全部完成。
+
+### 条件直接 Return 与隐式正常回边：待验证切片（2026-11-11）
+
+从已验收条件Break切片 `3fcd5a4f` 隔离推进ADR-0038的Return独立边角色，保留
+双不可变Int参数、单String根、零初始化计数、严格小于、Replace及加一，仅考察
+尾部 `if(index < stop) { return held }` 无else，循环后仍直接Return当前根。
+true边交付当轮Q并退出函数，不进入loop exit/header；false边正常继续到header。
+既有无条件循环Return的消费证据与私有H守恒可以复用，但不能把Return伪装成Break
+或将已移动状态与live Q补齐。未涉及RHS提前退出、多根、嵌套或capture。
+
+先以独立普通原样probe经过FE Basic、真实lower、SSA verifier、LLVM，核两个实际
+Return各自payload授权；前置失败与最终授权缺失分开记录。当前尚未执行，不称确认
+红或完成生产。旧ConditionalBreak/Normal/Continue/Mixed的门禁不放宽，本片只在
+隔离树本地提交，不推送，后续须结合最新main与其他工作独立合流验证。
+
+独立普通红已真实确认：唯一exact `conditional_return_requires_both_actual_return_authorities`
+在第37行owner authority断言失败（exit101，0 passed/1 failed/0 ignored）；前置
+Basic、实际lower、SSA verifier、LLVM及两个不同Return收据均已通过。这里只确认
+至少一个实际Return缺授权，失败后未检查完其余收据，不声称两个均已分别定位。
+4305输入与真实Cargo artifact、保存binary SHA及原日志绑定，测试前后不变；证据
+保留于主仓忽略目录 `.local-artifacts/owner-conditional-return-20261111T113054Z`。
+此红非前置拒绝；尚无生产接线、native或CI-only执行结论。
