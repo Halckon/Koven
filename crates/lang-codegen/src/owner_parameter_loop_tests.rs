@@ -181,3 +181,29 @@ fn parameter_open_loop_original_source_probe() {
         );
     }
 }
+
+#[test]
+fn parameter_open_loop_requires_actual_entry_owner_and_return_receipts() {
+    let source = UnitSource::analyze("parameter-open-loop-receipts.ko", SOURCE).unwrap();
+    source.assert_frontend_clean();
+    assert!(matches!(source.products, OwnedProducts::Basic(..)));
+    let (lowered, receipts) =
+        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let [body, condition_false] = receipts.as_slice() else {
+        panic!("two actual Return endpoints")
+    };
+    assert_ne!(body.0, condition_false.0);
+    assert!(
+        body.2.is_some(),
+        "Parameter P must enter the body Q return authority chain"
+    );
+    assert!(
+        condition_false.2.is_some(),
+        "Parameter P must independently authorize false Return"
+    );
+    assert_eq!(body.1, body.2);
+    assert_eq!(condition_false.1, condition_false.2);
+}

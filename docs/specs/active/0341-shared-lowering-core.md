@@ -12142,3 +12142,18 @@ import，补真实类型导入；均仅编译失败无测试执行。首轮stric
   各父历史红与偏差保留，未重跑红、未补造历史缺失哈希；正式CI/release未运行。
 - 独立只读终审已核三头父链、合成字节、24项实际结果及全部产物/输入哈希与文档分账，
   无新增阻断；本次收尾只改本Spec，不重跑已冻结Rust。
+
+### Parameter owner 进入 ReturnDelivered（2026-11-11）
+
+仅一个 Boolean Name 条件参数和一个显式 own String 参数，后者经真实 Name Move/Result
+与 var Binding 成为 P；body 一次 Replace 的 Q、detached P Drop 和两 Return 路径仍用
+既有统一产品。P 只由实际函数入口的既有 Parameter origin 定义，Name 不再定义 producer。
+后端从实际 bind_parameters 的 Value 槽取证，不将 Boolean 改为 Value；不扩大旧 Break、
+closed/invariant gate，不新增 producer 种类、公共 getter 或并行存储，不更改语言/ABI。
+
+从已审合流 caf1b1db 新隔离树开始。原样 probe `6b550155` 单普通 exact 实际通过：
+Basic 合法、SSA/LLVM正常；入口为 Boolean SharedLoan 与 String Value，callee 只构造 Q。
+P 的入口值分别进入 body/false，body 原 RootReplace 后 Drop detached P 再 Return Q，
+false 独立 Return P，caller 仅清理两个接收结果。没有 body→exit/backedge/common join。
+metadata 尚 Unsupported，probe通过不是能力绿。首次 `8b88aa88` 错把Boolean也断言为Value，
+原始源码、artifact、binary SHA和日志已保留；只修oracle，未改ABI，不算缺能力红。
