@@ -95,7 +95,6 @@ impl Checker<'_, '_> {
         )
     }
 
-
     /// The operand of a Borrow function parameter: a view parameter passed on, a local
     /// callable binding lent as a view, or a lambda literal formed and lent at the call.
     pub(super) fn callable_argument(&mut self, value: ExpressionId) -> bool {

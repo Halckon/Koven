@@ -815,4 +815,3 @@ fn unit_callable_owner(
             .map(|nominal| (nominal.declaration(), nominal.type_parameters().len())),
     }
 }
-

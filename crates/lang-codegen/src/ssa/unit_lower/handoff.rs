@@ -1,13 +1,13 @@
+use lang_frontend::{
+    name_resolution::DeclarationId,
+    ownership_checking::{OwnedCompilationUnitView, OwnedCompilationUnitViewError},
+};
 #[cfg(test)]
 use lang_frontend::{
-    name_resolution::SourceUnitInput,
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{ValidatedCompilationUnitOwnership, owned_compilation_unit_view},
     source::SourceMap,
     type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
-};
-use lang_frontend::{
-    name_resolution::{DeclarationId, ValidatedCompilationUnitNames},
-    ownership_checking::{OwnedCompilationUnitView, OwnedCompilationUnitViewError},
 };
 
 use super::{FunctionId, LoweringError, LoweringErrorKind, Program, lower_unit_from_facts};

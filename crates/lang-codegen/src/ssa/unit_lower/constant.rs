@@ -1,18 +1,18 @@
 //! 专用常量入口只消费同一轮物化事实；不重访声明 initializer。
 use super::*;
 use crate::ssa::constant_materialization;
+use lang_frontend::{
+    name_resolution::DeclarationId,
+    ownership_checking::{ConstOwnedCompilationUnitView, UnitValueDeliverySource},
+    source::Span,
+    type_checking::UnitExpressionId,
+};
 #[cfg(test)]
 use lang_frontend::{
     name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{ConstEnabledOwnedUnit, const_owned_compilation_unit_view},
     source::SourceMap,
     type_checking::{ConstEnabledTypedUnit, TypeEnvironment},
-};
-use lang_frontend::{
-    name_resolution::DeclarationId,
-    ownership_checking::{ConstOwnedCompilationUnitView, UnitValueDeliverySource},
-    source::Span,
-    type_checking::UnitExpressionId,
 };
 
 /// 私有交付切片：先验证完整来源，再进入共享 driver；不提供基础 capability 转换。
