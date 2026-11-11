@@ -3,6 +3,7 @@
 mod assignment;
 mod borrow_binding;
 mod callable;
+mod checked_edge_receipt;
 mod child_receipt;
 mod condition;
 mod container;
@@ -67,6 +68,8 @@ pub(super) struct Builder<'i, 'a> {
     open_return_plan: Option<open_loop_return::Plan<'a>>,
     header_return_plan: Option<normal_header_return::Plan<'a>>,
     multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
+    checked_expression_edges: usize,
+    checked_edge_receipts: Vec<checked_edge_receipt::Receipt>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -121,6 +124,8 @@ pub(super) fn build(
         open_return_plan: open_loop_return::Plan::new(inputs)?,
         header_return_plan: normal_header_return::Plan::new(inputs)?,
         multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
+        checked_expression_edges: 0,
+        checked_edge_receipts: Vec::new(),
         types,
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
@@ -166,6 +171,7 @@ pub(super) fn build(
         builder.lower_thunk_body(thunk, unit_return)?;
         builder.check_all_drops_consumed()?;
         builder.finish_owner_plan()?;
+        builder.finish_checked_edge_receipts()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -228,6 +234,7 @@ pub(super) fn build(
     builder.check_all_drops_consumed()?;
     builder.finish_owner_plan()?;
     builder.finish_loan_receipts()?;
+    builder.finish_checked_edge_receipts()?;
     Ok(builder.body)
 }
 

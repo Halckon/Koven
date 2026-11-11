@@ -555,7 +555,7 @@ impl Builder<'_, '_> {
                 span,
             )?;
             self.block = Some(success);
-            self.header_increment_emitted(
+            self.checked_expression_emitted(
                 self.unit(expression),
                 [operation_block, success, abort],
                 [result, failed, left, right],

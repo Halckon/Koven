@@ -710,6 +710,14 @@ fn multi_root_counter_tail_preserves_existing_lowering_without_new_authority() {
                 let (lowered, actions) =
                     crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
                 let (program, entry) = lowered.unwrap();
+                assert_eq!(
+                    actions
+                        .iter()
+                        .filter(|(kind, _)| *kind == "checked-expression-edge-receipt")
+                        .count(),
+                    1,
+                    "{text}"
+                );
                 crate::ssa::verify::verify_program(&program).unwrap();
                 let llvm =
                     crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
@@ -731,4 +739,56 @@ fn multi_root_counter_tail_preserves_existing_lowering_without_new_authority() {
             }
         }
     }
+}
+
+#[test]
+fn ci_only_checked_expression_receipt_requires_actual_edges_and_operands() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let text = source(2, true, 0)
+        .replace("while(flag)", "var remaining = 2; while(remaining > 0)")
+        .replace(" };", " remaining = remaining - 1; };");
+    let source = UnitSource::analyze("checked-edge-fault.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::MissingCheckedExpressionEdge,
+        OwnerFault::WrongCheckedExpressionEdgeOperand,
+        OwnerFault::ReversedCheckedExpressionEdges,
+    ] {
+        assert!(with_owner_fault(fault, || source.lower_entry(source.entry())).is_err());
+    }
+}
+
+#[test]
+fn checked_expression_receipts_do_not_need_header_authority() {
+    let text = source(2, true, 0)
+        .replace("flag: Boolean", "rounds: Int")
+        .replace(
+            "while(flag)",
+            "var value = rounds + 1; while(value > rounds)",
+        )
+        .replace(
+            " };",
+            " value = value - 1; }; val output = value * 2; if(output == 6) { println(\"ok\") };",
+        )
+        .replace("run(false)", "run(3)");
+    let source = UnitSource::analyze("checked-edge-independent.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "checked-expression-edge-receipt")
+            .count(),
+        3
+    );
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| *kind != "multi-root-header-audit")
+    );
+    super::assert_native_output(&source, b"ok\n");
 }

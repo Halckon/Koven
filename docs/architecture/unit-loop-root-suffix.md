@@ -191,3 +191,10 @@ Name、Literal或无插值String，拒绝调用、赋值和其他计算。普通
 并非当前新审计要求的body直接回header。已有单根normal-header实现提供相关receipt
 参考，但本片没有移植或旁路该几何检查。私有完成事件不证明初始guard与counter
 一致、必然终止或减法无溢出，也不建立跨轮归纳。
+
+独立checked-expression receipt已接到实际算术发射点，结束时复核指令、操作数、结果
+唯一定义、success/abort单前驱及failed分支极性；abort必须仍是匹配的终结Abort。
+它不创建旧单根plan，不授owner权限，也不把abort计作正常回边。计数native矩阵要求
+真实receipt完成；counter写回→比较→guard及success回header的owner专用合同仍未接入。
+缺receipt、错操作数、反转边的CI-only负控只编译；该receipt不是终止或跨轮证明。
+范围仅为expression.rs的checked binary，不覆盖compound assignment及scalar_text的其他算术发射。
