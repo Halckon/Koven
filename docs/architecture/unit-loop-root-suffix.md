@@ -175,4 +175,16 @@ root。覆盖2/3根、0/1/2/5轮，以及直接 `while(remaining > 0)` 和Boolea
 当前产品缺口明确在guard合同：Name条件要求、terminal false的精确RHS及一次完成
 状态，不能表达两次有序标量赋值。后端当前只验证false Constant到guard的Alias，
 不验证counter旧值到减法、新counter到比较、比较到guard的实际数据依赖。
-这些条件尚未扩展；现有新产品的0/1轮范围及失败封闭不变。
+公开条件尚未扩展；现有新产品的0/1轮范围及失败封闭不变。
+
+
+私有counter tail现已识别两个精确Int/Boolean赋值，要求同counter减1后再比较大于0，
+记录两个source-qualified赋值ID，并在完整root退休后按实际assignment完成hook顺序
+推进。错误counter、步长、比较、逆序及尾后多语句拒绝。重复、缺失、提前完成负控
+仅编译留CI执行。私有equation即使完整也禁止转成公开boundary。
+
+真实planner正例采用既有Name/参数guard入口；比较初始化 `var again = remaining > 0`
+尚不能获得入口catalog。减法lowering还产生CheckedArithmetic success/abort分叉，
+并非当前新审计要求的body直接回header。已有单根normal-header实现提供相关receipt
+参考，但本片没有移植或旁路该几何检查。私有完成事件不证明初始guard与counter
+一致、必然终止或减法无溢出，也不建立跨轮归纳。

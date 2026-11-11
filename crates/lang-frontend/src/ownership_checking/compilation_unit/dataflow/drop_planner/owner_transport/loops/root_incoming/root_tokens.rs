@@ -30,6 +30,7 @@ pub(in super::super::super::super) struct RootBoundaryEquation {
     body: UnitStatementId,
     condition_binding: UnitSymbolId,
     guard_reset: Option<UnitExpressionId>,
+    counter: Option<super::guard_reset::counter::CounterTail>,
     inputs: UnitOwnerProducerCatalogV1,
     producers: UnitOwnerProducerCatalogV1,
     entry: RootIncoming,
@@ -42,7 +43,9 @@ impl RootBoundaryEquation {
     pub(in super::super) fn into_boundary(
         self,
     ) -> Option<crate::ownership_checking::UnitOwnerMultiRootBoundaryV1> {
-        if !self.same_roots() {
+        // Counter completion is private until checked-arithmetic success/abort
+        // geometry is consumed by codegen. Never grant the old straight-body product.
+        if self.counter.is_some() || !self.same_roots() {
             return None;
         }
         let slots = self
@@ -175,6 +178,7 @@ pub(in super::super) struct RootTokenTransaction {
     body: UnitStatementId,
     condition_binding: UnitSymbolId,
     guard_reset: Option<UnitExpressionId>,
+    counter: Option<super::guard_reset::counter::CounterTail>,
     guard_reset_completed: bool,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
@@ -207,8 +211,20 @@ impl RootTokenTransaction {
     }
 
     pub(in super::super) fn complete_guard_reset(&mut self, id: UnitExpressionId) {
+        let roots_complete = self.is_complete();
+        if let Some(counter) = &mut self.counter
+            && !counter.complete(id, roots_complete)
+        {
+            self.valid = false;
+        }
         if self.guard_reset == Some(id) {
-            if !self.is_complete() || self.guard_reset_completed {
+            if !self.is_complete()
+                || self.guard_reset_completed
+                || self
+                    .counter
+                    .as_ref()
+                    .is_some_and(|counter| !counter.is_complete())
+            {
                 self.valid = false;
                 return;
             }
@@ -292,6 +308,7 @@ impl RootTokenTransaction {
             condition: self.condition,
             body: self.body,
             condition_binding: self.condition_binding,
+            counter: self.counter.clone(),
             guard_reset: self.guard_reset,
             inputs: self.input_catalog.clone(),
             producers,
@@ -362,7 +379,7 @@ impl RootTokenTransaction {
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
-        let (elements, guard_reset) =
+        let (elements, tail) =
             super::guard_reset::body_parts(checker, elements, roots.len(), condition_binding)?;
         let mut planned = Vec::new();
         let mut bindings = Vec::new();
@@ -403,8 +420,9 @@ impl RootTokenTransaction {
             condition: checker.unit_expression(*condition),
             body: UnitStatementId::new(control.source_unit(), *body),
             condition_binding,
-            guard_reset,
-            guard_reset_completed: guard_reset.is_none(),
+            guard_reset: tail.reset,
+            guard_reset_completed: tail.reset.is_none(),
+            counter: tail.counter,
             identity: std::sync::Arc::new(()),
             callable,
             roots: roots.clone(),

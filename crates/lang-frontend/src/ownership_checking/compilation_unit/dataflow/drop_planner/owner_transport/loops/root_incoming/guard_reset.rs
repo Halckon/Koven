@@ -1,5 +1,14 @@
 //! Optional terminal false assignment, not general loop induction.
 use super::*;
+pub(super) mod counter;
+use counter::CounterTail;
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct Tail {
+    pub(super) reset: Option<UnitExpressionId>,
+    pub(super) counter: Option<CounterTail>,
+}
+
 #[cfg(test)]
 pub(super) fn premature_completion() -> bool {
     tests::fault() == 3
@@ -10,9 +19,19 @@ pub(super) fn body_parts<'a>(
     elements: &'a [StatementId],
     count: usize,
     guard: UnitSymbolId,
-) -> Option<(&'a [StatementId], Option<UnitExpressionId>)> {
+) -> Option<(&'a [StatementId], Tail)> {
     if elements.len() == count {
-        return Some((elements, None));
+        return Some((elements, Tail::default()));
+    }
+    if elements.len() == count + 2 {
+        let counter = CounterTail::admit(checker, &elements[count..], guard)?;
+        return Some((
+            &elements[..count],
+            Tail {
+                reset: Some(counter.reset()),
+                counter: Some(counter),
+            },
+        ));
     }
     if elements.len() != count + 1 {
         return None;
@@ -45,7 +64,10 @@ pub(super) fn body_parts<'a>(
     }
     Some((
         &elements[..count],
-        Some(checker.unit_expression(*expression)),
+        Tail {
+            reset: Some(checker.unit_expression(*expression)),
+            counter: None,
+        },
     ))
 }
 
@@ -134,6 +156,39 @@ mod tests {
                     .any(|o| o.multi_root_boundary_v1().is_some()),
                 fault == 0
             );
+        }
+    }
+    #[test]
+    fn ci_only_counter_tail_requires_ordered_actual_completions() {
+        use super::super::super::super::tests::compare_and_inspect;
+        use super::*;
+        let fixture = Fixture::new(&[(
+            "counter-completion.ko",
+            "fun run(n: Int, flag: Boolean) { var remaining = n; var again = flag; var a = \"a\"; var b = \"b\"; while(again) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\"); remaining = remaining - 1; again = remaining > 0 } }",
+        )]);
+        let owned = fixture.shared();
+        for fault in [0, 1, 2, 3] {
+            compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+                let mut planner = DropPlanner::new(
+                    checker,
+                    super::super::super::super::super::super::liveness::build(checker, true)
+                        .unwrap(),
+                );
+                planner.owner_control_probe = Some(Vec::new());
+                let restore = Restore(FAULT.replace(fault));
+                let planner = planner.run().unwrap();
+                drop(restore);
+                let equation = planner
+                    .owner_control_probe
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find_map(|visit| visit.normal_equation.as_ref());
+                assert_eq!(equation.is_some(), fault == 0);
+                if let Some(equation) = equation {
+                    assert!(equation.clone().into_boundary().is_none());
+                }
+            });
         }
     }
 }

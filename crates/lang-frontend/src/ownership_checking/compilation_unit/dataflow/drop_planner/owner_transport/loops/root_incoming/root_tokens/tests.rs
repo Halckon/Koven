@@ -62,3 +62,56 @@ fn ci_only_token_evidence_requires_entry_and_complete_events() {
         });
     }
 }
+
+#[test]
+fn counter_tail_records_actual_order_but_withholds_public_boundary() {
+    for (tail, accepted) in [
+        ("remaining = remaining - 1; again = remaining > 0", true),
+        ("remaining = remaining - 2; again = remaining > 0", false),
+        ("remaining = other - 1; again = remaining > 0", false),
+        ("remaining = remaining - 1; again = other > 0", false),
+        ("remaining = remaining - 1; again = remaining >= 0", false),
+        ("again = remaining > 0; remaining = remaining - 1", false),
+        (
+            "remaining = remaining - 1; again = remaining > 0; val extra = 1",
+            false,
+        ),
+    ] {
+        let text = format!(
+            "fun run(n: Int, flag: Boolean) {{ var remaining = n; val other = n; var again = flag; var a = \"a\"; var b = \"b\"; while(again) {{ val x = replace(&a, \"x\"); val y = replace(&b, \"y\"); {tail} }} }}"
+        );
+        let fixture = Fixture::new(&[("counter-tail-contract.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty());
+        assert!(
+            owned
+                .owner_observations()
+                .iter()
+                .all(|o| o.multi_root_boundary_v1().is_none())
+        );
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = DropPlanner::new(
+                checker,
+                super::super::super::super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            let equation = planner
+                .owner_control_probe
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find_map(|visit| visit.normal_equation.as_ref());
+            assert_eq!(
+                equation.is_some(),
+                accepted,
+                "{tail}: {:?}",
+                planner.owner_control_probe
+            );
+            if let Some(equation) = equation {
+                assert!(equation.counter.as_ref().unwrap().is_complete());
+                assert!(equation.clone().into_boundary().is_none());
+            }
+        });
+    }
+}
