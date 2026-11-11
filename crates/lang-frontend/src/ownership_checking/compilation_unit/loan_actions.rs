@@ -56,6 +56,9 @@ pub enum UnitLoanAction {
     },
     /// Actual consumer/source retirement with a separately verified transfer reference.
     BorrowConsumerRetired(UnitLoanConsumerRetirement),
+    /// Actual wrapper delivery of a live source, with an optional validated acquisition link.
+    /// This is not a source End or a complete wrapper lifecycle certificate.
+    BorrowForwardHandoff(UnitLoanForwardHandoff),
     /// An action from the single existing cleanup source, without sorting old tables.
     Cleanup {
         /// Source-qualified cleanup point; separate records are never coalesced by span.
@@ -230,6 +233,38 @@ impl UnitLoanConsumerRetirement {
     /// The existing real consumer-then-source retirement transaction.
     #[must_use]
     pub const fn transaction(&self) -> &super::UnitBorrowCallTransportFact {
+        &self.transaction
+    }
+}
+
+/// Partial evidence of live-source delivery at an actual wrapper return.
+/// Equality compares structural snapshots; the acquisition ID remains catalog-bound.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoanForwardHandoff {
+    pub(super) identity: Arc<()>,
+    pub(super) source_begin: Option<usize>,
+    pub(super) callable: Option<crate::type_checking::UnitItemId>,
+    pub(super) transaction: super::UnitBorrowForwardTransportFact,
+}
+impl UnitLoanForwardHandoff {
+    /// Validated actual acquisition carried through the pending source move.
+    /// None means this edge is unproved, never that the live obligation is absent.
+    #[must_use]
+    pub fn source_begin(&self) -> Option<UnitLoanActionId> {
+        self.source_begin.map(|index| UnitLoanActionId {
+            identity: self.identity.clone(),
+            index,
+        })
+    }
+    /// The enclosing expression-bodied wrapper, not the inner callee or its caller.
+    /// None means this bounded callable identity was not proved.
+    #[must_use]
+    pub const fn callable(&self) -> Option<crate::type_checking::UnitItemId> {
+        self.callable
+    }
+    /// The unchanged real forwarding transaction; its source is still live.
+    #[must_use]
+    pub const fn transaction(&self) -> &super::UnitBorrowForwardTransportFact {
         &self.transaction
     }
 }

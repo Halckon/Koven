@@ -775,3 +775,7 @@ mod parent_child_receipts;
 
 #[path = "forward_lifecycle_probe_tests.rs"]
 mod forward_lifecycle_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_causal_links_tests.rs"]
+mod forward_causal_links;

@@ -24,7 +24,7 @@ pub use loan_binding_actions::{UnitLoanBindingSourceRetirement, UnitLoanBindingU
 mod loan_actions;
 pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
-    UnitLoanConsumerRetirement,
+    UnitLoanConsumerRetirement, UnitLoanForwardHandoff,
 };
 
 mod loan;

@@ -12187,3 +12187,38 @@ CG binary SHA `8cc6de35d8f4846a9711eda219b5baaba53f6257a6f2d220a34dcf10f35ebd6f`
 `/private/tmp/koven-forward-loan-probe-evidence/expression`，前一失败原件未覆盖。
 所有CI-only仅编译，未执行；未运行额外Rust测试、Clippy/workspace行为、正式CI或native。
 终核后仅本结果账本可不同于冻结输入，不重跑或修改Rust；后继生产须另定精确合同。
+
+
+### 单表达式体 wrapper 的 live-source Partial 因果合同（2026-11-11）
+
+沿用已冻结成功的唯一 `wrap(source) = view(source)` 与原 caller；本片不改变语言、
+声明 gate、SSA 或 ABI，不扩显式 Return、Group、多层 wrapper、控制或 unwind 的因果认证。
+旧 forward 全家族的合法事实必须完整保留，窄 scope 只决定附加证据，不能筛掉旧事实。
+source/callable 仍 Partial；source Begin 不是额外 SSA acquisition，live handoff 不是 End。
+本片不新增 cleanup、Drop、Complete region、跨函数 LoanId 映射、receipt 或旧 oracle 退休。
+
+生产接点固定为真实 PendingLoan remove 的第三 acquisition handle，随同一
+PendingForwardTransport 移动到真实 finish remove；不得查找等值 Begin、Span 或旧 fact 补边。
+wrapper 身份来自真实 FunctionBody::Expression 进入/交付 scope，与 source call、returned
+及 ControlTransfer 的精确 body identity 一致；不是 inner callee 或外层 caller。
+独立 validator 核同 catalog、引用早于 handoff、Begin record role、完整 source token、
+SourceUnitId/SourceId 与同 wrapper scope。失证只降级，不推断 obligation 已终止。
+
+公开 `BorrowForwardHandoff(UnitLoanForwardHandoff)` 只携原 transaction 及经验证的
+source_begin/callable 查询；私有 Arc 与 index 保持 catalog-bound ID，结构 snapshot Eq 不比较
+Arc 指针。PendingForwardTransport 的 Eq 仍只比较原 returned/source；合流保留原 retain，
+再独立核唯一匹配与同 handle/scope，缺失、歧义或冲突使 metadata sticky None，永不回填。
+实际 handoff record 是旧 forward 表唯一来源，无筛选保序投影；observer-off 仍保存全部
+原 raw transaction，只关闭新公开观察及因果认证。不改变错误/deferred 的全单元撤销门。
+
+先只提交 API stub 与独立普通 exact
+`expression_wrapper_requires_live_source_causal_link_with_true_off`，不接 producer。
+两个 Unit 布局各先正常 analyze，再真实 observer-off ownership/validate；核完整旧产物相等、
+原 forward/source live/no End/no owner Drop，原 on/off products 各正常 lower、SSA verifier、
+LLVM render。明确核 wrapper 一条 BorrowCall 加 BorrowReturn、caller 原八条与实际 route，
+双布局四次 lower 的全部前置完成后，才末端断言缺失的新 handoff record 及其 causal link。
+这使独立能力红不会掩盖 Memory/off 前置，也不借旧原样 probe 的绿冒充能力实现。
+
+新源码/完整 helper 经 fresh 独审后方可 no-run，fresh artifact/input/binary/runner 绑定后
+仅执行此 ordinary exact；原 probe 不改，红 binary 覆盖前先独核。CI-only、foreign/fault、
+Abort/counter/pressure 均不本机执行。红实证与生产方案独审成立后才接最小生产逻辑。
