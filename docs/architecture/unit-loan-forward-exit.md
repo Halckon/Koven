@@ -50,5 +50,11 @@ ASAP四语句双根形状另发布独立Complete区域：binding入口承接两�
 source退休/Drop及新aux Begin、原EndCallLoan、aux Drop。真实pending移除时保存
 acquisition、活owner及返回cursor，再经独立cause核实际removed owner和Drop，
 不靠Begin+Drop倒推结束；真实入口义务、出口清空和两owner事件共同决定Complete。
-旧ASAP区域不扩展，后续使用仍走既有CG且尚无专属receipt；见
+旧ASAP区域不扩展；独立前端边界及验证见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#双根辅助owner后续使用的独立区域实施中)。
+
+LaterUse独立receipt再核同轮11个action IDs与实际15连续SSA角色/9实体。aux两次
+RootPlace/Loan各有身份，首次aux End与后续End不互代；source Drop完成后方准入
+后续operand，aux Drop必须在新loan End后。两owner在role0冻结，后续append/alias
+均复核；仍经原final verifier后发布，失败撤销pending，不退休旧见证。见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#后续辅助借用的独立真实收据实施中)。

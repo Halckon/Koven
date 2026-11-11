@@ -183,16 +183,23 @@ fn ordinary_distinct_root_auxiliary_research_preserves_actual_source_and_retirem
                 .id();
             let mut previous = None;
             for (setting, owned) in [("on", &on), ("off", &off)] {
-                let (((lowered, verification), receipts), distinct_receipts) =
-                    crate::ssa::refine::distinct_aux_receipt::observe(|| {
-                        crate::ssa::refine::aux_binding_receipt::observe(|| {
-                            crate::ssa::unit_lower::observe_final_verifier(|| {
-                                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                    &sources, &inputs, &names, &types, &typed, owned, entry,
-                                )
+                let ((((lowered, verification), receipts), distinct_receipts), later_receipts) =
+                    crate::ssa::refine::later_aux_receipt::observe(|| {
+                        crate::ssa::refine::distinct_aux_receipt::observe(|| {
+                            crate::ssa::refine::aux_binding_receipt::observe(|| {
+                                crate::ssa::unit_lower::observe_final_verifier(|| {
+                                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                        &sources, &inputs, &names, &types, &typed, owned, entry,
+                                    )
+                                })
                             })
                         })
                     });
+                assert_eq!(
+                    later_receipts.len(),
+                    usize::from(setting == "on" && keep_aux),
+                    "new LaterUse receipt"
+                );
                 assert_eq!(
                     distinct_receipts.len(),
                     usize::from(setting == "on" && !keep_aux),
@@ -295,6 +302,93 @@ fn ordinary_distinct_root_auxiliary_research_preserves_actual_source_and_retirem
                     assert_eq!(actual[10].operation, Operation::Drop { owner: *owner });
                 }
 
+                if let [receipt] = later_receipts.as_slice() {
+                    let [region] = catalog.later_auxiliary_binding_regions() else {
+                        panic!("one LaterUse region")
+                    };
+                    assert!(catalog.owns_later_auxiliary_binding_region(region));
+                    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                    assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+                    assert_eq!(receipt.ids.len(), 11);
+                    assert_eq!(receipt.callable, region.callable());
+                    assert_eq!(receipt.caller, entry);
+                    assert_eq!(receipt.binding, region.binding());
+                    assert_eq!(receipt.root, region.root());
+                    assert_eq!(Some(receipt.auxiliary_root), region.auxiliary_root());
+                    assert_eq!(receipt.source_call, region.source_call());
+                    assert_eq!(receipt.consumer_call, region.consumer_call());
+                    assert_eq!(Some(receipt.later_call), region.later_consumer_call());
+                    assert_eq!(Some(receipt.ids[8].clone()), region.later_begin());
+                    let caller = program.modules[0].function(entry).unwrap();
+                    let [
+                        EntityId::Value(owner),
+                        EntityId::Value(aux_owner),
+                        EntityId::Place(place),
+                        EntityId::Loan(source),
+                        EntityId::Place(aux_place),
+                        EntityId::Loan(aux_loan),
+                        EntityId::Loan(result),
+                        EntityId::Place(later_place),
+                        EntityId::Loan(later_loan),
+                    ] = receipt.entities.as_slice()
+                    else {
+                        panic!("nine identities")
+                    };
+                    assert_ne!(owner, aux_owner);
+                    assert_ne!(place, aux_place);
+                    assert!(![place, aux_place].contains(&later_place));
+                    assert!(![source, aux_loan, result].contains(&later_loan));
+                    assert_eq!(receipt.instructions.len(), 15);
+                    assert!(
+                        caller.blocks[0]
+                            .instructions
+                            .windows(15)
+                            .any(|w| w == receipt.instructions)
+                    );
+                    let actual = receipt
+                        .instructions
+                        .iter()
+                        .map(|id| caller.instruction(*id).unwrap())
+                        .collect::<Vec<_>>();
+                    assert!(actual.iter().all(|i| i.block == caller.blocks[0].id));
+                    for (offset, root, place, loan) in [
+                        (source_index * 2, owner, place, source),
+                        ((1 - source_index) * 2, aux_owner, aux_place, aux_loan),
+                        (10, aux_owner, later_place, later_loan),
+                    ] {
+                        assert_eq!(
+                            actual[offset].operation,
+                            Operation::RootPlace { owner: *root }
+                        );
+                        assert_eq!(actual[offset].results, [EntityId::Place(*place)]);
+                        assert_eq!(
+                            actual[offset + 1].operation,
+                            Operation::BorrowBegin {
+                                place: *place,
+                                kind: LoanKind::Shared
+                            }
+                        );
+                        assert_eq!(actual[offset + 1].results, [EntityId::Loan(*loan)]);
+                    }
+                    assert!(
+                        matches!(&actual[4].operation,Operation::BorrowCall{source:s,arguments,..} if s==source && arguments[source_index]==EntityId::Loan(*source)&&arguments[1-source_index]==EntityId::Loan(*aux_loan))
+                    );
+                    assert_eq!(actual[4].results, [EntityId::Loan(*result)]);
+                    for (index, loan) in [(5, aux_loan), (7, result), (8, source), (13, later_loan)]
+                    {
+                        assert_eq!(
+                            actual[index].operation,
+                            Operation::BorrowEnd { loan: *loan }
+                        );
+                    }
+                    for (index, loan) in [(6, result), (12, later_loan)] {
+                        assert!(
+                            matches!(&actual[index].operation,Operation::DirectCall{arguments,..} if arguments==&[EntityId::Loan(*loan)])
+                        );
+                    }
+                    assert_eq!(actual[9].operation, Operation::Drop { owner: *owner });
+                    assert_eq!(actual[14].operation, Operation::Drop { owner: *aux_owner });
+                }
                 let output = (
                     crate::ssa::render_program(&program),
                     crate::llvm::render_verified_program(&program).unwrap(),

@@ -15,6 +15,7 @@ pub(super) struct LoanReceipts {
     binding: crate::ssa::refine::binding_receipt::Emitted,
     aux_binding: crate::ssa::refine::aux_binding_receipt::Emitted,
     distinct_aux: crate::ssa::refine::distinct_aux_receipt::Emitted,
+    later_aux: crate::ssa::refine::later_aux_receipt::Emitted,
     child: crate::ssa::refine::child_receipt::Emitted,
 }
 impl LoanReceipts {
@@ -86,6 +87,11 @@ impl LoanReceipts {
             )?,
             distinct_aux: crate::ssa::refine::distinct_aux_receipt::Emitted::new(
                 &body.distinct_aux_plans,
+                function,
+                span,
+            )?,
+            later_aux: crate::ssa::refine::later_aux_receipt::Emitted::new(
+                &body.later_aux_plans,
                 function,
                 span,
             )?,
@@ -186,6 +192,8 @@ impl LoanReceipts {
             .finish(&body.aux_binding_plans, function, span)?;
         self.distinct_aux
             .finish(&body.distinct_aux_plans, function, span)?;
+        self.later_aux
+            .finish(&body.later_aux_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
         self.nested.finish(&body.nested_plans, function, span)?;
         self.bounded.finish(&body.bounded_plans, function, span)?;
@@ -225,6 +233,9 @@ impl Emitter<'_> {
                     &self.current,
                     statement.span,
                 )?;
+                receipts
+                    .later_aux
+                    .alias(&body.later_aux_plans, &self.current, statement.span)?;
                 receipts
                     .child
                     .alias(&body.child_plans, &self.current, statement.span)?;
@@ -306,6 +317,16 @@ impl Emitter<'_> {
                 Some(crate::ssa::refine::body::LoanTag::DistinctAux(tag)) => {
                     receipts.distinct_aux.statement(
                         &body.distinct_aux_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::LaterAux(tag)) => {
+                    receipts.later_aux.statement(
+                        &body.later_aux_plans,
                         tag,
                         self.function,
                         instruction,

@@ -14453,3 +14453,27 @@ later-region-*与distinct-aux-later-research.log；没有native全套或远端CI
 尺寸复测2569手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
 超额文件和policy未改。compilation_unit1123→1126仅模块/导出，经非作者职责审阅
 低于原1156额度。仅本地提交；旧见证不退休，新后端receipt待后续。
+
+#### 后续辅助借用的独立真实收据（实施中）
+
+基于dc0239db，独立后端协议只消费LaterUse五语句Complete区域，不放宽ASAP或任意
+控制流。计划核15个连续真实producer角色与9个实体：两个owner、三个Place与四个Loan。
+同一aux owner第一次作为initializer参数、第二次作为后续consumer参数，其Place和Loan
+身份分别追踪；旧aux End不等于后续aux End，source Drop后不得再使用source或result。
+
+独立准入需对应同catalog11动作、真实return acquisition/cursor、typed参数来源和原
+Drop索引；实际SSA append、alias与Drop授权均保留身份，原verifier成功后才原子发布。
+先真实receipt缺失红再绿，旧见证不退休、旧行为与observer-off保持，不改尺寸policy。
+
+真实receipt缺失0!=1已转绿，普通loan_region_ssa_tests共83项通过；source0/1×
+ASAP/后续使用×两入口×on/off共16组合保持原SSA/LLVM。LaterUse精确核11个FE
+动作ID、15个同块连续SSA指令、9个独立实体，source Drop角色9、aux Drop角色14；
+后续Place/Loan不等于原aux或source/result身份。非作者审阅确认真实operand授权、
+role0冻结两owner、各append/alias复核、双Drop索引/slot/阶段及最终verifier后发布。
+
+Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff及文档
+897项通过。新4组CI-only覆盖权限/身份、重借用混淆、角色缺失错序和发布回滚，
+仅编译未执行。FE及旧见证未改，无native全套和远端CI。日志later-aux-receipt-*。
+尺寸复测2573手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
+policy不改。build1011→1012仅独立Plans创建，经非作者职责review低于原1025，
+emit987不增长。本片仅本地提交、未推送，不声称任意多根/循环证明或旧见证退役。
