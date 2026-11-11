@@ -149,5 +149,10 @@ Call/Assignment在早退前独立置sticky失效，后续向量相同也不能�
 私有RootWriteReceipt关联活动control、已捕获root、实际checked Replace call与新producer
 表达式：必须先经过非插值直接String的真实完成hook，并在同call中有唯一待转交temporary，
 提交边界再消费该完成记录。不制造UnitOwnerId，不改ValueState，也不解除sticky失效。
-目前不支持group/name/call RHS的producer转运；回执仅为planner遍历事实，不含路径身份，
+目前不支持group/name/call RHS的producer转运；回执仅为planner遍历事实，不含完整路径身份，
 不能把来自互斥分支的回执拼成运行时提交序列或完整运输/清理证明。
+
+实际If-arm body求值现在为producer完成与写入回执记录同一词法祖先栈，包含source-qualified
+If表达式和then/else索引；嵌套逐层保留，body返回或报错后在传播结果前恢复。回执拒绝
+跨source、非法arm索引或重复If身份。它仅区分If-arm祖先，不覆盖When、短路条件、循环迭代
+或join后的历史；空栈不是无条件执行证明，也不能据此合成逐路径运输或动态trace。

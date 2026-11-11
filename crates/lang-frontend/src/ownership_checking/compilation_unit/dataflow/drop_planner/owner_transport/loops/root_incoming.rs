@@ -3,7 +3,7 @@ use super::*;
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
     pub(super) roots: RootIncoming,
-    pub(super) completed_strings: Vec<UnitExpressionId>,
+    pub(super) completed_strings: Vec<(UnitExpressionId, Vec<(UnitExpressionId, usize)>)>,
     pub(super) writes: Vec<RootWriteReceipt>,
     after_condition: bool,
     normal_backedge: bool,

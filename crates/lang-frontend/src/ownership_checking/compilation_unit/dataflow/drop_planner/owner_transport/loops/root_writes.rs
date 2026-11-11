@@ -6,6 +6,17 @@ pub(in super::super::super) struct RootWriteReceipt {
     pub(in super::super::super) root: UnitSymbolId,
     pub(in super::super::super) call: UnitExpressionId,
     pub(in super::super::super) producer: UnitExpressionId,
+    // Lexical If-arm ancestry only, not a complete path or runtime trace.
+    pub(in super::super::super) if_arms: Vec<(UnitExpressionId, usize)>,
+}
+impl RootWriteReceipt {
+    fn valid_if_ancestry(&self) -> bool {
+        self.if_arms.iter().enumerate().all(|(index, (id, arm))| {
+            id.source_unit() == self.control.source_unit()
+                && *arm < 2
+                && !self.if_arms[..index].iter().any(|(prior, _)| prior == id)
+        })
+    }
 }
 impl ControlTransactions {
     #[cfg(test)]
@@ -22,6 +33,15 @@ fn direct_string(checker: &Checker<'_>, expression: ExpressionId) -> bool {
         && exact_type(checker, expression, BuiltinType::String)
 }
 impl DropPlanner<'_, '_> {
+    pub(in super::super::super) fn enter_root_if_arm(&mut self, id: ExpressionId, arm: usize) {
+        self.owner_loop
+            .root_if_arms
+            .push((self.checker.unit_expression(id), arm));
+    }
+    pub(in super::super::super) fn leave_root_if_arm(&mut self) {
+        self.owner_loop.root_if_arms.pop();
+    }
+
     // Called only after the actual String evaluation has reached its completion hook.
     pub(in super::super::super) fn record_root_literal(&mut self, expression: ExpressionId) {
         let Some(control) = self.owner_controls.current() else {
@@ -36,9 +56,14 @@ impl DropPlanner<'_, '_> {
             .root_entries
             .iter_mut()
             .find(|(key, _)| *key == control)
-            && !evidence.completed_strings.contains(&expression)
+            && !evidence
+                .completed_strings
+                .iter()
+                .any(|(known, arms)| *known == expression && *arms == self.owner_loop.root_if_arms)
         {
-            evidence.completed_strings.push(expression);
+            evidence
+                .completed_strings
+                .push((expression, self.owner_loop.root_if_arms.clone()));
         }
     }
     // Called at the real checked primitive commit boundary even when legacy observation declined.
@@ -95,16 +120,22 @@ impl DropPlanner<'_, '_> {
         let Some(index) = evidence
             .completed_strings
             .iter()
-            .position(|completed| *completed == producer)
+            .position(|(completed, arms)| {
+                *completed == producer && *arms == self.owner_loop.root_if_arms
+            })
         else {
             return;
         };
         evidence.completed_strings.remove(index);
-        evidence.writes.push(RootWriteReceipt {
+        let receipt = RootWriteReceipt {
             control,
             root,
             call: call_id,
             producer,
-        });
+            if_arms: self.owner_loop.root_if_arms.clone(),
+        };
+        if receipt.valid_if_ancestry() {
+            evidence.writes.push(receipt);
+        }
     }
 }
