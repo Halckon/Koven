@@ -49,9 +49,10 @@ fn parameter_open_loop_original_source_probe() {
     assert_eq!(
         parameters.len(),
         2,
-        "Boolean and owned String are real entry values"
+        "Boolean loan and owned String retain their actual entry ABI"
     );
-    assert!(parameters.iter().all(|e| matches!(e, EntityId::Value(_))));
+    assert!(matches!(parameters[0], EntityId::Loan(_)));
+    assert!(matches!(parameters[1], EntityId::Value(_)));
     let branches = run
         .blocks
         .iter()
