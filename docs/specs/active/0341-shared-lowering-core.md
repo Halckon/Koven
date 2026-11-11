@@ -12427,3 +12427,28 @@ artifact、覆盖前 binary 副本/SHA、精确名单和逐项日志；首次 pr
   不影响项目输入或门禁。正式CI/release及发布仍由后继流程处理，本任务不宣称完成。
 - 独立只读终审已核双父并集、17项实际结果、全部artifact/binary/输入/名单哈希及文档分账，
   无新增阻断。此后仅本Spec收尾提交，不重跑冻结Rust，也不自行发布。
+
+
+### 单wrapper正常LiveForward出口覆盖合同（2026-11-11）
+
+以发布冻结b331d044为基线独立分片，只复用已验单表达式体String wrapper原样源码，
+不扩同构wrapper、Block lowering、控制、receiver、泛型或ABI。已批准ADR0040允许通过
+明确合法live出口闭合已声明范围；本片独立region可Complete，source/callable仍Partial，
+没有End、权限恢复、production receipt、旧oracle退休或新的cleanup执行责任。
+
+独立窄准入核wrapper与callee各唯一Borrow String参数、唯一结果来源参数0、raw Call/Name，
+以及唯一实际BorrowReturnOrigin的body/root/声明marker；不能缩旧Partial scope或旧raw家族。
+真实item表达式入口保存catalog内区域句柄及records.len游标，建立时所有资源边界清洁。
+expression正常完成后、drop_all之前保存完整义务快照；唯一允许残留是携本候选及原Begin
+句柄的真实PendingForwardTransport。真实remove/append返回确切handoff句柄；原drop_all
+仅执行一次，之后核清态和completion游标。不能把drop_all的clear掩盖成覆盖证据。
+独立validator核全部未过滤区间恰为原Begin与live Handoff、同catalog/先后/完整token、
+入口与前后边界及唯一返回来源；缺边、重复或未完成永久不认证，不从相等事实搜索补链。
+旧表保序投影/off/原Eq和全部错误/deferred撤销门不变，P1至P4及binding/child区域独立。
+
+先API stub及独立ordinary exact original_wrapper_requires_complete_live_exit_with_true_off：
+Rooted/Memory四次真实on/off analyze/lower先全部完成，核旧产品、原Partial因果链、真实
+route、entry loan→BorrowCall→BorrowReturn、caller原SSA及verifier/LLVM一致，再断新区域。
+未接producer前只期待缺新region的真实能力红，不重跑旧probe冒充红。fresh源码/helper及
+artifact/input/binary/runner独审后只执行该exact；红binary覆盖前独核。所有foreign/fault/
+Abort/counter/pressure/CI-only仅编译，不本机执行；后继生产须真实红及方案独审成立。

@@ -11,7 +11,7 @@ use lang_frontend::{
     type_checking::UnitItemId,
 };
 
-const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = wrap(owner); consume(item) }";
+pub(super) const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = wrap(owner); consume(item) }";
 
 #[test]
 fn expression_wrapper_requires_live_source_causal_link_with_true_off() {
@@ -150,7 +150,7 @@ fn expression_wrapper_requires_live_source_causal_link_with_true_off() {
     }
 }
 
-fn assert_original_forward(
+pub(super) fn assert_original_forward(
     sources: &SourceMap,
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -211,7 +211,7 @@ fn assert_original_forward(
     assert_ne!(caller.source_loan().target(), source.target());
 }
 
-fn assert_original_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
+pub(super) fn assert_original_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
     let module = &program.modules[0];
     let caller = module.function(entry).unwrap();
     let [

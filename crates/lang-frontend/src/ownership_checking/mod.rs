@@ -58,7 +58,7 @@ pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
     UnitBorrowBindingRegion, UnitBorrowBindingTransportFact, UnitBorrowCallHandoffFact,
     UnitBorrowCallPrefixEndFact, UnitBorrowCallTransportFact, UnitBorrowChildRegion,
-    UnitBorrowForwardTransportFact, UnitCallArgumentOwnershipContract,
+    UnitBorrowForwardRegion, UnitBorrowForwardTransportFact, UnitCallArgumentOwnershipContract,
     UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor, UnitClosureCaptureSource,
     UnitClosureDescriptor, UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
     UnitConstantMaterializationPlan, UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,

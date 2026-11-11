@@ -96,10 +96,23 @@ pub struct UnitLoanActionObservation {
     pub(super) regions: Vec<super::UnitDirectCallLoanRegion>,
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
+    pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
 }
 
 impl UnitLoanActionObservation {
+    /// Independently entered wrapper normal-exit regions. Missing entries prove no absence.
+    #[must_use]
+    pub fn forward_regions(&self) -> &[super::UnitBorrowForwardRegion] {
+        &self.forward_regions
+    }
+
+    /// Check the exact observation catalog, not an equal callable or source descriptor.
+    #[must_use]
+    pub fn owns_forward_region(&self, region: &super::UnitBorrowForwardRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Independently entered direct parent/child regions. Missing entries prove no absence.
     #[must_use]
     pub fn child_regions(&self) -> &[super::UnitBorrowChildRegion] {

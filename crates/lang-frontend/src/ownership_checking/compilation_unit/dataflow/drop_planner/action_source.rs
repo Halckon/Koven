@@ -504,6 +504,7 @@ impl ActionSource {
             regions,
             binding_regions,
             child_regions,
+            forward_regions: Vec::new(),
             binding_dependency_drops,
         }]
     }
