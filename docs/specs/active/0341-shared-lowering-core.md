@@ -12953,3 +12953,28 @@ Cargo JSON、runner和输入清单。七项exact均核list恰一项，执行前�
 reexport真实失败，保留原日志；d3eb16aa复用已审d5a5722f的三个Rust文件cfg修正，
 不以allow掩盖，重新验证以上最终结果。本账本追加仅文档，不改已冻结Rust。
 未执行native、全量或CI-only，未推送；合流后必须重新联合验证。
+
+### Mixed owner 与双出口 Partial 因果的最新 main 合流验收（2026-11-11）
+
+隔离代码 `4e79d688` 保留默认observer cfg修复 `d5a5722f`、owner `fc1fb9de`、
+借用 `5e7439fa` 与最新main `95cecb86` 的真实父链；#412旧头9164af82仍为祖先。
+只双保Spec追加冲突，生产文件自动合并；三个默认observer cfg与d5修复一致，未重复改写。
+原工作树及主树用户修改未动，不修改或删除缓存与数据。
+
+26项普通精确回归均各1 passed：owner FE7/CG12，借用FE集成2/CG5。包含已审
+Basic/Const有限0/1/2/7正常native，Abort仅核SSA结构；CI-only仅编译，不执行故障、
+资源计数、压力或全量。双出口各有真实Partial原因不等于branch Complete/region/receipt；
+Mixed有限形状不代表任意条件、多根、嵌套/顺序循环或loan/capture联合合同完成。
+
+唯一持久证据主目录为主仓忽略目录 `.local-artifacts/mixed-causes-integration-evidence-20261111`。
+attempt-1保留runner遗漏FE集成support导致exact列表为空的原始记录，未运行该测试，
+不是能力红；attempt-2修正feature后26项与全部门禁通过于旧main组合292d6400。
+其后main推进#414，故纳入95cecb86并在attempt-3重新运行全部26项与全部门禁，
+不能用attempt-2或旧CI代表新组合。4295个tracked输入与实际Cargo artifact、三份保存
+binary、runner及精确名单/日志绑定；opt0/debug2，FE lib默认，FE集成及CG显式loan support。
+复用匹配产物与重新编译情况以原Cargo JSON为准，执行前后输入及binary保持一致。
+
+默认及loan support两套FE/CG all-targets strict Clippy、默认workspace all-targets、
+默认CLI build/真实--help、fmt/docs/相对95cecb86尺寸门禁均通过，CLI features=[]。
+尺寸2432手写Rust、35历史超限，未改额度。最终只追加本Spec；仍未推送、未合main，
+无本组合正式CI结论，也不将D10/E2标记完成。
