@@ -137,9 +137,7 @@ fn borrow_return_transport_ci_only_mixed_entry_and_derived_is_rejected_at_return
         2,
         "same storage root is not one capability"
     );
-    let errors = verify_program(&program)
-        .err()
-        .expect("mixed capability is not entry identity");
+    let errors = verify_program(&program).expect_err("mixed capability is not entry identity");
     assert!(errors.errors.iter().any(|error| error.kind
         == VerifyErrorKind::ReturnType { index: 0 }
         && error.location == VerifyLocation::Terminator(join)));
