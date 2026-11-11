@@ -11785,6 +11785,30 @@ consumer 回归；不是7个源码样例。CI-only四故障仅编译，未执行
 - 独立只读终审已核双父、合成字节、十二项真实结果、原 artifact/profile、binary 与输入/日志 SHA；
   最终仅本 Spec 偏离冻结输入，其冻结 git 对象及其余 4235 输入仍匹配，无新增阻断。
 
+### 循环体 owned Return 终止边：原样实证与候选合同（2026-11-10）
+
+从本地组合 `bda59963` 新隔离树，仅调查原样
+`var held = "outer"; while(flag) { val previous = replace(&held, "next"); return held }; return held`。
+本阶段只批准 probe/合同，不实施 endpoint、不放宽 loop validator 或语言准入。
+既有 Guide 10 owned Return 与 Replace、ADR-0038 的终止边规则、语言/ABI 不变。
+
+普通原样 probe 经实际 Basic 四阶段零诊断、SSA verifier 与 LLVM render 通过。run 的
+SSA 只有条件与两个终止块：两条件边各带 P；true 进入 body 后原 RootReplace 的 installed
+Q 直接作为该块 Return payload，detached P 在旧 AfterStatement(previous) Drop 后才
+Return；false 块直接 Return 自身 P 参数。没有 body→loop-exit、正常回边或公共 owner join；
+两个 Return 的 source span 独立。caller 原两次接收与各一次 Drop 未改变。
+当前 owner observation 仍 Unsupported，没有 loop/replace-break 产品；编译绿不是新能力绿。
+
+受限候选仅一个 Boolean 参数、一个 String 根、一次 Replace 后立即 owned Return；不含
+Break/Continue、额外分支/后继、alias、borrow/capture 或一般循环归纳。
+最小工程方案须先复用真实 P→Q producer/Replace 前缀，再由实际 Return payload evaluation
+保存 Q delivery，旧 cleanup 完成、body 实际返回 false 后核终止回执；condition-false P
+另在其真实尾句 Return 闭合。Return 不能冒充 Break，也不能把不存在的 Q 加入 exit incoming。
+公共 endpoint 表示及封印仍待该实证检查点审议；不新开按组合命名的平行 getter，不修改旧
+closed-body“全部 Dropped”validator 来接受已返回的 Q，不从清理事实倒造 producer。
+
+原始 SOURCE、测试字节、运行前 binary SHA、默认debug2/opt0 artifact与完整facts/SSA日志保留在
+`/private/tmp/koven-loop-owned-return-evidence`。本阶段未跑 native、未做能力红绿，CI-only仅编译。
 ### 已批准后继：parent-child 实际 Drop 依赖闭合与独立区域覆盖
 
 - 从 clean `bda599637a45fd6c3136c661bcbade8cb4a0e6f8` 新隔离树实施，不重复原样 probe。
@@ -11968,6 +11992,7 @@ status 偏差与 question_mark 风格失败、阶段2的 E0308 oracle 编译偏�
 独立只读终审已逐项复核双父、冻结输入、实际 artifact/binary/九项日志与最终文档分账，无新增阻断；
 审阅者未执行项目测试。文档收尾不重跑未变 Rust，保留原代码头与最终文档头的区别。
 
+<<<<<<< HEAD
 
 ### 已批准：独立 parent-child Complete 区域的生产 receipt
 
@@ -12034,3 +12059,52 @@ all-targets 33.11s、fmt/diff exit0、docs885、尺寸2399/旧超限35通过。b
 独立区间 Complete 与生产 receipt 不提升 source/callable Partial，不退休 oracle、不证明 native资源释放计数。
 独立只读终审已逐项核验生产实际接点、冻结输入、原 artifact/binary、九项结果与两文档分账，无新增阻断；
 审阅者未运行项目代码。文档收尾仅提交文档，不重跑未变 Rust。
+=======
+### 开放 loop 的已交付 Return endpoint（2026-11-11）
+
+用户明确批准统一内部公共产品，不改变 Guide 或 ABI。唯一开放 loop 存储采用
+`UnitOwnerOpenLoopObservationV1::{BreakLive, ReturnDelivered}`；旧 replace-break getter
+只投影 BreakLive，既有 closed-loop getter/validator 仍只证明原封闭 body。ReturnDelivered
+不伪装 Break、不发布 live-Q body completion 或共同 incoming，不新增组合专用平行存储。
+
+首片沿已保留原样 probe：唯一 Boolean Name 条件、一个 String 根 P、body 一次 Replace
+产生 Q、detached P 仍按原 AfterStatement 清理，然后 body Return(Q)；条件 false 独立
+尾 Return(P)。共享原 P→Q admission/capture 与六事件前缀校验，不扩一般循环或表达式。
+Phase 3 从真实 Name Consume/交付、旧 Return cleanup 和 body 实际 Ok(false)记录封印；
+false 尾 Return 从原条件状态独立交付。两 endpoint 绑定各自 catalog 与源身份，不合并编号。
+Phase 4 复核同轮 typed/owned primitive、真实 producer/binding/RootReplace 后槽、detached
+P Drop、两个实际 Name delivery 和 Return terminator。仅 false 路径能到 tail exit；body
+必须以 Return 终止，不能有 body→exit/backedge。旧 finish_return 仍是唯一发射器。
+
+基线 `71df5df8` 保留 probe `ff85760f` 与已审集成 `6f8eb32a` 双父；原冻结树不修改。
+后端独立缺 endpoint 红 `38c1258c`：旧 SSA/LLVM 成功后 body Q 无授权，单普通 exact
+实际 1 failed；前端 `90281c46`：旧诊断/cleanup/观察 on-off 保真后开放产品 0≠1，
+单普通 exact 实际 1 failed。两轮均执行前保存 SOURCE、test source、artifact 和 binary SHA
+及独立 binary 副本。以上是生产前红阶段记录；后续本地验收见下文，正式 CI 未运行。
+
+本地收敛：FE生产 `b9ecf1e3`、字段文档 `45f47326`，后端 `af5de689` 首轮五普通
+exact通过；统一enum尺寸lint后改单层Box payload `bb7167b6`（外层不再Box，无lint豁免），
+最终代码头 `5dc30937` 保留规范import顺序。最终16唯一普通exact全部实跑通过：
+
+- FE 11：`open_loop_return` 三项（两sealed端、同Unit多source/重分析自有catalog、五个
+  合法邻形），`loop_replace_break_baseline` 一项，`replace_break_grouped_condition` 的
+  B/Call/Return三项，`replace_break_alias_return` 与 `replace_break_replace_return` 各一项，
+  `closed_while::real_while_body_publishes_closed_transport_and_actual_backedge` 和
+  `closed_while_conditional::real_while_tail_if_records_both_completed_jump_edges`。
+- codegen 5：`owner_loop_return_tests` 的 `loop_owned_return_requires_two_actual_endpoint_receipts`、
+  `loop_owned_return_both_units_deliver_two_separate_endpoints`、
+  `loop_owned_return_native_preserves_each_path_value`；`owner_replace_return_tests` 的
+  `suffix_replace_return_both_units_authorize_distinct_old_and_installed_slots`、
+  `suffix_replace_hooks_preserve_existing_ordinary_consumers`。每exact各1 passed；内部
+  Basic/Const、两native程序及旧四consumer不另算exact。旧原样probe没有重复选跑。
+
+全部按fresh完整helper审计精确名单运行；fault/foreign/撤销等CI-only只编译，不宣称其拒绝
+行为实跑通过。最终两crate lib no-run、两crate all-targets Clippy `-D warnings`、workspace
+all-targets check、fmt、docs（886页）、尺寸（2398 Rust、35历史超限、无新增超限）、diff通过。
+保留debug2/opt0，不降profile或RUSTFLAGS。未跑正式CI、未推送，也未并入已发布PR。
+
+准备失败单列：首次FE编译6处旧CI-only字段借用冲突，改显式prefix；第二次3处新测试缺
+import，补真实类型导入；均仅编译失败无测试执行。首轮strict Clippy的large-enum失败已
+保留并以单层Box修复。两阶段预期红、各阶段原始artifact/日志和执行前binary/source SHA
+分别保留，最终产物不覆盖红证据。独立终审与后续合流仍由协调任务完成。
+>>>>>>> 39835135019e3924563b3b44ce7110eacc1a82a1

@@ -61,7 +61,12 @@ impl Builder<'_, '_> {
         } else {
             None
         };
+        let endpoint = self.open_loop_return(identity, result, unit_return, span)?;
+        if endpoint.is_some() && receipt.is_some() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
         self.finish_return(result, unit_return, span)?;
+        self.open_loop_return_emitted(endpoint, span)?;
         if receipt.is_some() {
             self.owner_plan
                 .as_mut()
@@ -75,7 +80,11 @@ impl Builder<'_, '_> {
             }
         }
         #[cfg(test)]
-        super::super::record_owner_return(identity, result.map(|s| s.0), receipt.map(|s| s.0));
+        super::super::record_owner_return(
+            identity,
+            result.map(|s| s.0),
+            receipt.or(endpoint.map(|e| e.slot())).map(|s| s.0),
+        );
         Ok(())
     }
 }

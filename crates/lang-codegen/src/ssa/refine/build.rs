@@ -14,6 +14,7 @@ mod heap;
 mod inout;
 mod map;
 mod named_argument;
+mod open_loop_return;
 mod owner_call;
 mod owner_consumer;
 #[cfg(test)]
@@ -63,6 +64,7 @@ pub(super) enum Lowered {
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
+    open_return_plan: Option<open_loop_return::Plan<'a>>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -158,6 +160,7 @@ pub(super) fn build(
     let mut builder = Builder {
         inputs,
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
+        open_return_plan: open_loop_return::Plan::new(inputs)?,
         types,
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,

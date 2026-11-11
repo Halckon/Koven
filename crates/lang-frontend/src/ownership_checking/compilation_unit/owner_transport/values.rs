@@ -463,7 +463,7 @@ impl UnitOwnerObservation {
     /// Unsupported controls, parameters and captures return no partial projection.
     /// Legacy definitions/events remain Unsupported for Choice-producing AST paths.
     pub fn value_observation_v1(&self) -> Option<UnitOwnerValueObservationV1> {
-        if self.replace_break_value.is_some() {
+        if self.open_loop_value.is_some() {
             return None;
         }
         if let Some(choice) = &self.choice_value {
