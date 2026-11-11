@@ -3,7 +3,7 @@ use super::*;
 use lang_frontend::ownership_checking::{
     check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
 };
-const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source { if (flag) { return view(source) }; return view(source) }\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = wrap(owner, true); consume(item) }";
+const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source { if (flag) { return view(source) }; return view(source) }\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner, flag); consume(item) }";
 #[test]
 fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
     let mut sources = SourceMap::new();
