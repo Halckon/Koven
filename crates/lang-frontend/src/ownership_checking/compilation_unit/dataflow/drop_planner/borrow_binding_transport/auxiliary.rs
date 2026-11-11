@@ -1,4 +1,6 @@
 //! Independent linear auxiliary-binding observations, not legacy observable authority.
+#[cfg(test)]
+mod tests;
 use super::{ActionHandle, DropPlanner, PendingBindingTransport};
 use crate::{
     name_resolution::UnitSymbolId,
