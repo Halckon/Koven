@@ -13489,3 +13489,21 @@ fmt/docs/diff 通过；尺寸2446手写Rust文件、35历史超限，无新豁�
 原实验 a4199734 另有真实区域能力红：两布局完成8记录后才在区域0!=1失败；它未进入
 本交付分支。FE证据manifest的scope沿用旧red模板，实际结果以本头绑定、命令及运行日志
 为准，不能解读为Complete或红结果。当前仍不声称native或正式CI验收。
+
+### 参数 Header、最终绑定与 Partial auxiliary 因果联合验收（2026-11-11）
+
+本次以已发布ba025f6f及其主线4150bbd8为基线，保留owner f48eb392与借用42a80a2e
+真实父链，实测组合f9504e81。仅Spec附录冲突双保，源码自动合流；未带入独立试验树
+中的区域红或空API。参数入口、当前H最终binding/drop权限与原auxiliary UseReturned/
+SourceRetired因果共存，仍不扩Complete/region/receipt或legacy Dependency权限。
+
+主仓 `.local-artifacts/header-aux-causes-integration-evidence-20261111/attempt-2`
+保存69项普通测试完整重跑（FE26/CG43），保留已发布child/binding及Dependency邻域。
+前次attempt-1将两个不同集成测试错映射同binary，严格exact-list断言拒绝空列表；
+该失败完整保留，不算产品红或通过。修正后causes与neighbors各自真实artifact，合计
+5份保存binary绑定本组合输入及runner SHA，每项精确list唯一并实际1 passed。
+
+默认及loan support两套FE/CG all-target strict Clippy、默认workspace all-target、
+默认CLI构建及实际help（features为空）、fmt/docs897/diff均通过；尺寸2452手写Rust
+文件、35历史超限，无新增豁免。仍用opt0/debug2，不执行CI-only、Abort或资源计数。
+最后只追加本Spec；未推送、未合main，正式CI和独立审查不能由此替代，D10/E2未整体完成。
