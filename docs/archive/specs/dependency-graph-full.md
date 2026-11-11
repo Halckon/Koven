@@ -393,6 +393,7 @@ subgraph Gactive["现行 active"]
   S0402["S0402<br/>unit_lower 遗留壳模块、单变体 IterationState 与死辅助入口退役"]
   S0403["S0403<br/>unit_lower 死字段、provider 死辅助入口与测试专用 ssa 支持项退役"]
   S0404["S0404<br/>unit_lower 剩余单入口壳模块、重复辅助函数与测试专用 unit_plan 接口退役"]
+  S0405["S0405<br/>ssa 死辅助入口、测试专用入口门控与跨模块 Span 辅助去重"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1857,6 +1858,7 @@ S0366 --> S0367
 | SPEC-0402 | active | [0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md](../../specs/active/0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
 | SPEC-0403 | active | [0403-refine-unit-lower-dead-fields-and-provider-retirement.md](../../specs/active/0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
 | SPEC-0404 | active | [0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
+| SPEC-0405 | active | [0405-refine-dead-helpers-and-test-entry-gates-retirement.md](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

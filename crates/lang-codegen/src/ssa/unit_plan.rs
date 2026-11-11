@@ -37,6 +37,7 @@ use super::{
     LoweringError, LoweringErrorKind,
     lowering_support::callable_instances::{CallableToken, SourceIdentity, SourceToken},
     lowering_support::error as lowering_error,
+    unit_lower::span_contains,
 };
 pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_instance};
 #[cfg(test)]
@@ -815,8 +816,3 @@ fn unit_callable_owner(
     }
 }
 
-fn span_contains(owner: Span, child: Span) -> bool {
-    owner.source_id() == child.source_id()
-        && owner.start() <= child.start()
-        && child.end() <= owner.end()
-}

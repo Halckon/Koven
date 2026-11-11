@@ -34,13 +34,7 @@ mod type_plan;
 #[cfg(test)]
 pub(crate) use borrow_result::validate_bindings;
 pub(crate) use handoff::lower_owned_unit_with_entry;
-#[cfg_attr(
-    not(test),
-    expect(
-        unused_imports,
-        reason = "保留旧 crate-private lowering 入口路径供直接消费者使用"
-    )
-)]
+#[cfg(test)]
 pub(crate) use handoff::lower_scalar_unit_with_entry;
 
 use nullable_proof::NullableProofs;
@@ -83,13 +77,13 @@ use super::{
 use super::expression_core::LoweredValue;
 
 /// Same-source span containment formerly hosted by the retired map-iteration module.
-pub(super) fn span_contains(outer: Span, inner: Span) -> bool {
+pub(in crate::ssa) fn span_contains(outer: Span, inner: Span) -> bool {
     outer.source_id() == inner.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
 }
 
-pub(super) fn strictly_contains(outer: Span, inner: Span) -> bool {
+pub(in crate::ssa) fn strictly_contains(outer: Span, inner: Span) -> bool {
     span_contains(outer, inner) && (outer.start() < inner.start() || inner.end() < outer.end())
 }
 
