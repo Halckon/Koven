@@ -12,8 +12,7 @@ impl Plans {
         inputs: &super::super::RefineInputs<'_>,
     ) -> Result<Self, LoweringError> {
         let mut result = Self::default();
-        let Some(call) = super::super::subset::temporary_route::bounded_temporary_call(inputs)
-        else {
+        let Some(call) = super::super::subset::named_route::bounded_temporary_call(inputs) else {
             return Ok(result);
         };
         let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;

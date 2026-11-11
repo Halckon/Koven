@@ -5,7 +5,6 @@ mod closure;
 mod constant_materialization;
 mod expression_core;
 mod integer;
-mod integer_range;
 #[cfg(test)]
 mod lower_frontend;
 mod map_result;

@@ -14,10 +14,8 @@ pub(super) mod named_route;
 mod range_borrow;
 mod rc;
 mod receiver;
-mod receiver_route;
 mod scalar_text;
 mod tagged;
-pub(super) mod temporary_route;
 mod value;
 mod when;
 

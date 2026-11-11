@@ -18,7 +18,6 @@ mod control;
 mod field_borrow;
 mod loop_control;
 mod map;
-mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
 mod ownership;

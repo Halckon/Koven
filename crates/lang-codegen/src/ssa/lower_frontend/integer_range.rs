@@ -35,7 +35,7 @@ impl ExpressionLowerer<'_> {
         });
         let left_id = descriptor.left();
         let right_id = descriptor.right();
-        if !crate::ssa::integer_range::matches_fact(
+        if !crate::ssa::integer::matches_range_fact(
             self.parsed,
             expression,
             left_id,
@@ -57,7 +57,7 @@ impl ExpressionLowerer<'_> {
         };
         let ty = self.expression_ssa_type(expression, span)?;
         let (operation, negate) =
-            crate::ssa::integer_range::operation(descriptor.kind(), left, right);
+            crate::ssa::integer::range_operation(descriptor.kind(), left, right);
         let (_, results) = self.append(operation, vec![EntityType::Value(ty)], span)?;
         let EntityId::Value(operand) = results[0] else {
             return Err(error(LoweringErrorKind::InvalidModel, span));
