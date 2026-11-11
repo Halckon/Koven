@@ -11,6 +11,7 @@ pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
 mod emit;
+pub(crate) mod forward_receipt;
 pub(crate) mod loan_receipt;
 pub(crate) mod receiver_receipt;
 mod subset;

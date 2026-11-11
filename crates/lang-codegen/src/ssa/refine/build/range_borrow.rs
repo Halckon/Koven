@@ -138,6 +138,7 @@ impl Builder<'_, '_> {
     ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         let id = self.unit(actual);
+        self.body.forward_plans.source_call(id, source, span)?;
         if source.call() != id {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -767,6 +768,9 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let return_id = self.unit(control_expr);
         let value_id = self.unit(value_expr);
+        self.body
+            .forward_plans
+            .enter(return_id, value_id, &self.borrowed, span)?;
         let fact = self
             .inputs
             .owned

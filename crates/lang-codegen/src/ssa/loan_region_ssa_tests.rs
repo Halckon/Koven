@@ -787,3 +787,7 @@ mod forward_projection;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "forward_exit_coverage_tests.rs"]
 mod forward_exit_coverage;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_receipt_tests.rs"]
+mod forward_receipts;

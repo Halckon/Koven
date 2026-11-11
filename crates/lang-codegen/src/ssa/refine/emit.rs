@@ -974,6 +974,13 @@ pub(super) fn emit(
             .function
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
+        receipts.forward.terminator(
+            &body.forward_plans,
+            emitter.function,
+            target,
+            &emitter.current,
+            *term_span,
+        )?;
     }
     receipts.finish(body, emitter.function, span)?;
     Ok(())

@@ -12623,3 +12623,50 @@ opt0/debug2未调整；4281输入、实际binary、runner与名单运行前后�
 这是单根、单计数器、唯一参数、固定比较/增量的有限合同，不等于一般循环、
 Continue、多根、capture、完整D10/E2、资源计数或旧oracle退休。未推送，无此头官方CI；
 与其他后继分片合流仍须针对真实组合头重验，不以本分支结果替代。
+### LiveForward 真实生产 receipt 后继切片（2026-11-11）
+
+从已验集成0f9c395d独立分支开始，main/origin均e659b66a；保留集成树及主树。
+缺口是后端尚未消费Complete forward_regions，现有BorrowCall/BorrowReturn仅证明旧路有效。
+新片仅覆盖原单表达式Shared String wrapper，不扩源码形状、End、权限恢复、清理责任、
+source/callable覆盖或旧oracle退休。准入须同catalog原Begin/Handoff身份与完整region，
+绑定实际source参数、callable及call；禁止Span搜索或完成SSA扫描回填receipt。
+生产目标由原BorrowCall producer印记随指令进入真实append结果，BorrowReturn须在真实
+set_terminator后绑定block及返回LoanId；不把terminator伪装instruction，不跨函数借LoanId。
+当前仅test-feature空观察接缝和ordinary exact original_live_forward_requires_production_receipt_with_true_off，
+尚未接生产：先Rooted/Memory四次真实on/off检查原产品、SSA/verifier/LLVM及旧route，再期待
+on每份一张receipt、off为零；新测试红不得宣称交付绿，不合入已验集成头。后续生产另做独审。
+
+红输入563a1f58已独审源码、4281个tracked输入及唯一Cargo artifact；opt0/debug2、
+loan-observation-test-support、LLVM21.1.8，no-run84.4秒成功，binary SHA
+64c9e3876c323d5245e05051855991188fa095a379495e9a191148950a6ffeb0。
+唯一ordinary exact实际完成两布局on/off四次原SSA/verifier/LLVM1389bytes及相等性，再于
+rooted/on receipt数量0≠1失败（exit101；0pass/1fail/2966filtered）；输入及binary前后不变。
+原始日志与绑定清单在仓库外koven-live-forward-receipt-evidence/red；此次没有生产绿，
+没有运行native、CI-only或全量。fmt/docs890/diff与尺寸2421files、35历史超限通过；
+未跑clippy/workspace，生产接线前还需显式绑定wrap/view身份、实际append与set_terminator，
+再独审并跑同一正常输入绿及CI-only负控编译。该红checkpoint不能合流绿色交付头。
+
+
+#### LiveForward production receipt 正常输入验收
+
+本地候选4c32c821从同一红源码继续：同catalog Complete/唯一原source与typed dispatch准入，
+实际borrowed参数槽→原BorrowCall producer tag→真实append instruction/result→真实
+set_terminator后出口block/LoanId验证；finish核唯一call/return。无新Begin/End/Drop，
+无区域或off无计划；准入后的缺失/重复/身份破损报错。source/callable仍Partial，不认领
+旧oracle退休、跨函数义务闭合或更广wrapper形状。独立代码及绑定artifact审查通过。
+
+4284个tracked输入SHA e6242b465c44850b1d97eb86bb2e54ba08afa6dd7794d8caa10903b0935d3985；
+默认opt0/debug2、LLVM21.1.8、loan-observation-test-support，no-run49.2秒成功，
+binary SHA767bdecc21c3b43f2b2b53f2fba7ef09768adf70558434a180bddba17ed72b43。
+新ordinary exact真实通过：两布局四次on/off原SSA/verifier/LLVM1389bytes保持一致，
+on恰一张实际receipt、off零张，进一步绑定原caller→wrap及view、entry/call/return身份。
+原forward_exit_coverage、两项forward_projection、P4 consumer与receiver普通exact回归
+各1通过，共6项普通测试通过；合计12次SSA/LLVM lower，两个形状邻控仅frontend。
+测试前后输入及binary SHA不变，逐项列表恰1；原始日志与清单在仓库外
+koven-live-forward-receipt-evidence/green。native、全量及CI-only均未本机执行。
+新CI-only实产品负控已编译，覆盖跨程序身份、漏/重复call/return、错source/result/callee/
+block及额外指令；尚未直接覆盖admission的foreign-catalog/Partial注入，不能称完整故障覆盖。
+
+最终门禁：codegen全targets带feature Clippy -D warnings通过34.52秒；fmt、docs890、
+Rust尺寸2424文件/35历史超限、workspace all-targets check及diff检查通过。没有降低
+profile、豁免或删除测试；独审核六项日志/计数/边界一致。仅本地提交，尚未推送/合流或跑CI。
