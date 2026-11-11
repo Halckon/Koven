@@ -252,7 +252,10 @@ impl DropPlanner<'_, '_> {
             );
             let mut branch = self.merge_resource_states(id, matched);
             self.drop_branch_entry(id, entry_index, &settled, &mut branch);
-            if self.control_body(entry.body, usage, &mut branch)? {
+            self.enter_root_branch_arm(id, entry_index);
+            let evaluated = self.control_body(entry.body, usage, &mut branch);
+            self.leave_root_branch_arm();
+            if evaluated? {
                 self.drop_branch_exit(id, entry_index, &mut branch);
                 self.finish_pending_temporaries(
                     id,

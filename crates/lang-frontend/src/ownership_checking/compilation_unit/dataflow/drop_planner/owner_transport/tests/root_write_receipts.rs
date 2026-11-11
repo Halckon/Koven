@@ -145,17 +145,52 @@ fn actual_root_writes_keep_nested_if_arm_ancestry_and_restore_at_join() {
         let visits = planner.owner_control_probe.as_ref().unwrap();
         let writes = &visits[1].root_writes;
         assert_eq!(writes.len(), 4);
-        assert_eq!(writes[0].if_arms.len(), 2);
-        assert_eq!(writes[1].if_arms.len(), 2);
-        assert_eq!(writes[2].if_arms.len(), 1);
-        assert!(writes[3].if_arms.is_empty());
-        assert_eq!(writes[0].if_arms[0], writes[1].if_arms[0]);
-        assert_eq!(writes[0].if_arms[0].0, writes[2].if_arms[0].0);
-        assert_eq!(writes[0].if_arms[0].1, 0);
-        assert_eq!(writes[2].if_arms[0].1, 1);
-        assert_eq!(writes[0].if_arms[1].0, writes[1].if_arms[1].0);
-        assert_eq!(writes[0].if_arms[1].1, 0);
-        assert_eq!(writes[1].if_arms[1].1, 1);
+        assert_eq!(writes[0].branch_arms.len(), 2);
+        assert_eq!(writes[1].branch_arms.len(), 2);
+        assert_eq!(writes[2].branch_arms.len(), 1);
+        assert!(writes[3].branch_arms.is_empty());
+        assert_eq!(writes[0].branch_arms[0], writes[1].branch_arms[0]);
+        assert_eq!(writes[0].branch_arms[0].0, writes[2].branch_arms[0].0);
+        assert_eq!(writes[0].branch_arms[0].1, 0);
+        assert_eq!(writes[2].branch_arms[0].1, 1);
+        assert_eq!(writes[0].branch_arms[1].0, writes[1].branch_arms[1].0);
+        assert_eq!(writes[0].branch_arms[1].1, 0);
+        assert_eq!(writes[1].branch_arms[1].1, 1);
+        assert_eq!(visits[1].root_stages, (true, false));
+    });
+}
+
+#[test]
+fn actual_root_writes_keep_mixed_when_if_body_ancestry_and_restore_at_join() {
+    let text = SOURCE.replace(
+        "val first = replace(&left, \"next-left\")",
+        "when { flag -> { if(flag) { val a = replace(&left, \"a\") } else { val b = replace(&left, \"b\") } }; else -> { val c = replace(&left, \"c\") } }",
+    );
+    let fixture = Fixture::new(&[("root-write-when-arms.ko", &text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let visits = planner.owner_control_probe.as_ref().unwrap();
+        let writes = &visits[1].root_writes;
+        assert_eq!(writes.len(), 4);
+        assert_eq!(writes[0].branch_arms.len(), 2);
+        assert_eq!(writes[1].branch_arms.len(), 2);
+        assert_eq!(writes[2].branch_arms.len(), 1);
+        assert!(writes[3].branch_arms.is_empty());
+        assert_eq!(writes[0].branch_arms[0], writes[1].branch_arms[0]);
+        assert_eq!(writes[0].branch_arms[0].0, writes[2].branch_arms[0].0);
+        assert_eq!(writes[0].branch_arms[0].1, 0);
+        assert_eq!(writes[2].branch_arms[0].1, 1);
+        assert_eq!(writes[0].branch_arms[1].0, writes[1].branch_arms[1].0);
+        assert_eq!(writes[0].branch_arms[1].1, 0);
+        assert_eq!(writes[1].branch_arms[1].1, 1);
         assert_eq!(visits[1].root_stages, (true, false));
     });
 }
