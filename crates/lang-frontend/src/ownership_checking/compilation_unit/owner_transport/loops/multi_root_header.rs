@@ -22,6 +22,7 @@ impl UnitOwnerRootExitPartitionV1 {
 
 impl UnitOwnerMultiRootBoundaryV1 {
     /// Consume all live exit roots through a completed straight-line Name/val/drop prefix.
+    /// Allows completed Copyable literal declarations between consuming statements.
     /// Requires actual move, binding, fresh cleanup and post-declaration resource checks.
     /// Returns declaration execution order. Not a whole-function or lowering capability.
     pub fn condition_false_suffix_retirements(
@@ -296,7 +297,11 @@ mod suffix_shape_tests {
             ("val y = b; val x = a", true),
             ("val x = a; val y = b; val n = 1", true),
             ("val x = a; if(flag) { val y = b }; return", false),
-            ("val n = 1; val x = a; val y = b", false),
+            ("val n = 1; val x = a; val y = b", true),
+            ("val x = a; val n = true; val y = b", true),
+            ("val n = 1 + 2; val x = a; val y = b", false),
+            ("var n = 1; val x = a; val y = b", false),
+            ("val n = \"extra\"; val x = a; val y = b", false),
             ("val x = a; val alias = x; val y = b", false),
             ("if(flag) { val x = a; val y = b }", false),
         ] {

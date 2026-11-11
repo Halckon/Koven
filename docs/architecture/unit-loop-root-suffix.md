@@ -8,9 +8,10 @@
 ## 当前范围
 
 仅当受限正常循环已有真实 false 出口分区且至少一根 live 时启动私有 tracker。
-下一段同 scope depth 的连续语句必须全为 `val target = root`，RHS 是解析到剩余根的
-直接 Name，target 由真实声明 liveness 判定声明后不再使用。控制节点、嵌套 block、
-分支、额外声明、延迟清理及目的 binding 继续存活均保守拒绝。
+下一段同 scope depth 的消费语句为 `val target = root`，RHS 是解析到剩余根的
+直接 Name，target 由真实声明 liveness 判定声明后不再使用。可穿插经下述实际完成检查的
+Copyable字面量val声明；控制节点、嵌套block、分支、其他额外声明、延迟清理及目的binding
+继续存活均保守拒绝。
 
 每次声明须依次经过实际 moved_owner、bound_owner、去重后新增 drop hook 和声明完成。
 移动核 source root/expression，绑定核 target，drop 核 target/AfterStatement；声明后资源
@@ -121,3 +122,18 @@ root定义检查不再错误假定二者同块。每次slot查询独立缓存已
 真实seed在分支前、moved/root在分支后的源码要求产品存在和跨块完成回执；
 1/12个连续标量diamond、两个选择值均验证SSA/LLVM/native零轮。此为既有前端产品
 的实际代码消费扩展，不构造新语言许可，也不证明循环body的跨轮归纳。
+
+## 出口消费间的透明字面量声明
+
+允许直接Literal初始化的非move-only `val`，不允许调用、二元计算、String分配、var或
+控制结构。实际开始前与完成后均核剩余root集合及附属资源为空；这一步不新增退休
+事实。独立pending记录必须被真实声明完成hook清除，缺完成、下一语句覆盖或意外
+move/bind/drop均使整组失效。不会把旧owner ID作为代际证明。
+
+前端正例包括首个消费前及两根消费之间的整数/Boolean字面量，算术、String、分支、
+延迟alias仍拒绝；codegen以Int/Boolean两组真实源码检查完成回执、SSA、LLVM及
+零轮native。CI-only缺透明步骤完成负控只编译，执行留远端。该变化只扩展已验证的
+直线后缀消费，不涵盖任意无副作用表达式或一般出口合流。
+
+Char字面量的探索在codegen原始Replace准入处仍报UnsupportedNode，尚未宣称端到端支持；
+本片未绕过该检查。

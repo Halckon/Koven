@@ -616,3 +616,26 @@ fn multi_root_consumes_alias_move_across_scalar_diamond() {
         }
     }
 }
+
+#[test]
+fn multi_root_exit_suffix_consumes_across_copyable_literal_declarations() {
+    for literal in ["1", "true"] {
+        let text = source(2, true, 2)
+            .replace("val end1", &format!("val firstGap = {literal}; val end1"))
+            .replace("val end0", &format!("val secondGap = {literal}; val end0"));
+        let source = UnitSource::analyze("multi-root-suffix-literal.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, entry) =
+            lowered.unwrap_or_else(|error| panic!("literal {literal}: {error:?}"));
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        assert!(
+            actions
+                .iter()
+                .any(|(kind, _)| *kind == "multi-root-header-audit")
+        );
+        super::assert_native_output(&source, b"");
+    }
+}

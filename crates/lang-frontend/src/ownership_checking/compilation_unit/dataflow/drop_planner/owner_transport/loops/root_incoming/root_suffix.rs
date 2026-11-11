@@ -5,6 +5,7 @@ pub(super) struct RootSuffix {
     scope_depth: usize,
     remaining: Vec<UnitSymbolId>,
     pending: Option<Pending>,
+    transparent: Option<StatementId>,
     receipts: Vec<Receipt>,
     valid: bool,
 }
@@ -23,16 +24,58 @@ impl RootSuffix {
             scope_depth,
             remaining,
             pending: None,
+            transparent: None,
             receipts: Vec::new(),
             valid: true,
         }
     }
     pub(super) fn completed(self) -> Option<Vec<Receipt>> {
-        (self.valid && self.remaining.is_empty() && self.pending.is_none()).then_some(self.receipts)
+        (self.valid
+            && self.remaining.is_empty()
+            && self.pending.is_none()
+            && self.transparent.is_none())
+        .then_some(self.receipts)
+    }
+    fn matches_resources(&self, state: &ValueState) -> bool {
+        boundary_values(state).is_some_and(|values| {
+            values.len() == self.remaining.len()
+                && self
+                    .remaining
+                    .iter()
+                    .all(|root| values.iter().filter(|v| v.symbol == *root).count() == 1)
+        })
     }
     fn active(&self) -> bool {
         self.valid && !self.remaining.is_empty()
     }
+}
+fn transparent_literal(checker: &Checker<'_>, id: StatementId) -> bool {
+    let ast = checker.parsed.ast();
+    let Ok(statement) = ast.statements().get(id) else {
+        return false;
+    };
+    let Statement::LocalVariable { declaration } = statement.payload() else {
+        return false;
+    };
+    let Ok(item) = ast.items().get(*declaration) else {
+        return false;
+    };
+    let Item::Variable {
+        name,
+        kind: VariableKind::Val,
+        initializer,
+        ..
+    } = item.payload()
+    else {
+        return false;
+    };
+    checker
+        .marker_symbol(*name)
+        .is_some_and(|symbol| !checker.is_move_only_variable(*symbol))
+        && ast
+            .expressions()
+            .get(*initializer)
+            .is_ok_and(|node| matches!(node.payload(), Expression::Literal(_)))
 }
 impl DropPlanner<'_, '_> {
     pub(in super::super::super::super) fn begin_root_suffix_statement(
@@ -44,12 +87,20 @@ impl DropPlanner<'_, '_> {
             let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
                 continue;
             };
+            if suffix.transparent.is_some() {
+                suffix.valid = false;
+                continue;
+            }
             let next = (|| {
                 if self.scope_depth != suffix.scope_depth
                     || suffix.pending.is_some()
                     || self.owner_controls.current().is_some()
                     || !self.owner_loop.root_branch_arms.is_empty()
                 {
+                    return None;
+                }
+                if transparent_literal(self.checker, id) && suffix.matches_resources(state) {
+                    suffix.transparent = Some(id);
                     return None;
                 }
                 let (binding, expression) =
@@ -88,7 +139,7 @@ impl DropPlanner<'_, '_> {
                     dropped: None,
                 })
             })();
-            suffix.valid = next.is_some();
+            suffix.valid = next.is_some() || suffix.transparent.is_some();
             suffix.pending = next;
         }
     }
@@ -175,6 +226,14 @@ impl DropPlanner<'_, '_> {
             let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
                 continue;
             };
+            #[cfg(test)]
+            if suffix.transparent.is_some() && tests::skip(5) {
+                continue;
+            }
+            if let Some(statement) = suffix.transparent.take() {
+                suffix.valid = statement == id && suffix.matches_resources(state);
+                continue;
+            }
             let complete = (|| {
                 let p = suffix.pending.take()?;
                 if p.statement != id || !p.moved || !p.bound {
@@ -222,6 +281,37 @@ mod tests {
             "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val x = a; val y = b }",
         )]);
         for phase in [0, 1, 2, 3, 4] {
+            let restore = Restore(SKIP.replace(phase));
+            let owned = fixture.shared();
+            drop(restore);
+            let boundary = owned.owner_observations()[0]
+                .multi_root_boundary_v1()
+                .unwrap();
+            let incoming: Vec<_> = boundary
+                .slots()
+                .iter()
+                .map(|slot| {
+                    (
+                        slot.root(),
+                        UnitOwnerHeaderSourceV1::Backedge(slot.first_body_output()),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                boundary
+                    .condition_false_suffix_retirements(boundary.statement(), &incoming)
+                    .is_some(),
+                phase == 0
+            );
+        }
+    }
+    #[test]
+    fn ci_only_suffix_literal_requires_actual_completion() {
+        let fixture = Fixture::new(&[(
+            "suffix-literal-hook.ko",
+            "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val n = 1; val x = a; val y = b }",
+        )]);
+        for phase in [0, 5] {
             let restore = Restore(SKIP.replace(phase));
             let owned = fixture.shared();
             drop(restore);
