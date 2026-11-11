@@ -1,8 +1,9 @@
 //! A changing header is a slot equation, never a fixed P/Q producer identity.
 use super::*;
+mod mixed;
 use lang_frontend::ownership_checking::{
-    UnitOwnerCallable, UnitOwnerContinueBackedgeV1, UnitOwnerNormalBackedgeV1,
-    UnitOwnerOpenLoopObservationV1, UnitOwnerTransportEvent,
+    UnitOwnerCallable, UnitOwnerContinueBackedgeV1, UnitOwnerMixedBackedgeV1,
+    UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1, UnitOwnerTransportEvent,
 };
 
 // Private adapter keeps the two public edge roles distinct. It never exposes a
@@ -11,11 +12,12 @@ use lang_frontend::ownership_checking::{
 enum Boundary<'a> {
     Normal(&'a UnitOwnerNormalBackedgeV1),
     Continue(&'a UnitOwnerContinueBackedgeV1),
+    Mixed(&'a UnitOwnerMixedBackedgeV1),
 }
 macro_rules! boundary_getters {
     ($($name:ident -> $ty:ty),* $(,)?) => {$ (
         fn $name(self) -> $ty {
-            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name() }
+            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name(), Self::Mixed(v) => v.$name() }
         }
     )*};
 }
@@ -37,7 +39,7 @@ impl<'a> Boundary<'a> {
     }
     fn jump(self) -> Option<UnitExpressionId> {
         match self {
-            Self::Normal(_) => None,
+            Self::Normal(_) | Self::Mixed(_) => None,
             Self::Continue(v) => Some(v.jump()),
         }
     }
@@ -63,6 +65,7 @@ pub(super) struct Plan<'a> {
     geometry: Option<[BlockRef; 5]>, // actual entry, header, body, false, exit
     increment: Option<([BlockRef; 3], [Slot; 4], usize)>,
     continued: Option<ContinueReceipt>,
+    mixed: mixed::State,
     taken: bool,
     completed: bool,
 }
@@ -95,6 +98,7 @@ impl<'a> Plan<'a> {
         let boundary = match product {
             UnitOwnerOpenLoopObservationV1::NormalBackedge(v) => Boundary::Normal(v),
             UnitOwnerOpenLoopObservationV1::ContinueBackedge(v) => Boundary::Continue(v),
+            UnitOwnerOpenLoopObservationV1::MixedBackedge(v) => Boundary::Mixed(v),
             _ => return Ok(None),
         };
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
@@ -163,6 +167,7 @@ impl<'a> Plan<'a> {
             geometry: None,
             increment: None,
             continued: None,
+            mixed: mixed::State::default(),
             taken: false,
             completed: false,
         }))
@@ -191,6 +196,9 @@ impl Builder<'_, '_> {
         let Some(p) = &self.header_return_plan else {
             return Ok(None);
         };
+        if matches!(p.boundary, Boundary::Mixed(_)) {
+            return Ok(None);
+        }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let Some(jump) = p.boundary.jump() else {
             return Err(fail());
@@ -585,28 +593,32 @@ impl Builder<'_, '_> {
             }
             _ => return Err(fail()),
         };
-        match (p.boundary.jump(), p.continued) {
-            (None, None) => {}
-            (Some(jump), Some(receipt))
-                if receipt.expression == jump
-                    && receipt.source == backedge
-                    && receipt.target == header
-                    && self.body.blocks[backedge.0].statements.len() == receipt.statements => {}
-            _ => return Err(fail()),
-        }
-        // This finite CFG equation closes under any number of traversals: each body
-        // replaces the current slot with fresh Q, drops its old value once, and goes
-        // back to the same header. SSA subsequently versions that slot into phi inputs.
-        if incoming(header) != [entry, backedge]
-            || incoming(body) != [header]
-            || incoming(finished) != [header]
-            || incoming(exit) != [finished]
-            || !matches!(self.body.blocks[entry.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
-            || !matches!(self.body.blocks[backedge.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
-            || !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(b),_)) if b == exit)
-            || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch {when_true,when_false,..},_)) if when_true == body && when_false == finished)
-        {
-            return Err(fail());
+        if matches!(p.boundary, Boundary::Mixed(_)) {
+            self.mixed_header_validate(backedge, span)?;
+        } else {
+            match (p.boundary.jump(), p.continued) {
+                (None, None) => {}
+                (Some(jump), Some(receipt))
+                    if receipt.expression == jump
+                        && receipt.source == backedge
+                        && receipt.target == header
+                        && self.body.blocks[backedge.0].statements.len() == receipt.statements => {}
+                _ => return Err(fail()),
+            }
+            // This finite CFG equation closes under any number of traversals: each body
+            // replaces the current slot with fresh Q, drops its old value once, and goes
+            // back to the same header. SSA subsequently versions that slot into phi inputs.
+            if incoming(header) != [entry, backedge]
+                || incoming(body) != [header]
+                || incoming(finished) != [header]
+                || incoming(exit) != [finished]
+                || !matches!(self.body.blocks[entry.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
+                || !matches!(self.body.blocks[backedge.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
+                || !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(b),_)) if b == exit)
+                || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch {when_true,when_false,..},_)) if when_true == body && when_false == finished)
+            {
+                return Err(fail());
+            }
         }
         let entry_statements = &self.body.blocks[entry.0].statements;
         let statements = &self.body.blocks[body.0].statements;

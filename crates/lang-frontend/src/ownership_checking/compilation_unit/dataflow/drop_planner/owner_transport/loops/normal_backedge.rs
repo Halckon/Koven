@@ -6,6 +6,7 @@ use crate::ownership_checking::{
 };
 use crate::parser::AssignmentOperator;
 mod control;
+mod mixed;
 
 pub(super) struct NormalInput {
     pub(super) statement: StatementId,
@@ -28,6 +29,7 @@ pub(super) struct NormalInput {
     completed: Option<crate::ownership_checking::UnitOwnerReplaceBreakStateV1>,
     product: Option<HeaderCore>,
     jump: Option<UnitExpressionId>,
+    mixed: Option<mixed::MixedInput>,
     transfer: Option<(
         std::sync::Arc<()>,
         UnitExpressionId,
@@ -77,25 +79,33 @@ impl NormalInput {
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
-        let (declaration, assignment_statement, jump) = match elements.as_slice() {
-            [declaration, assignment] => (*declaration, *assignment, None),
+        let (declaration, assignment_statement, jump, mixed) = match elements.as_slice() {
+            [declaration, assignment] => (*declaration, *assignment, None, None),
             [declaration, assignment, tail] => {
                 let Statement::Expression { expression } =
                     ast.statements().get(*tail).ok()?.payload()
                 else {
                     return None;
                 };
-                if !matches!(
-                    ast.expressions().get(*expression).ok()?.payload(),
-                    Expression::Continue { .. }
-                ) {
-                    return None;
+                match ast.expressions().get(*expression).ok()?.payload() {
+                    Expression::Continue { .. } => (
+                        *declaration,
+                        *assignment,
+                        Some(checker.unit_expression(*expression)),
+                        None,
+                    ),
+                    Expression::If { .. } => (
+                        *declaration,
+                        *assignment,
+                        None,
+                        Some(mixed::MixedInput::admit(
+                            checker,
+                            *expression,
+                            control_symbol,
+                        )?),
+                    ),
+                    _ => return None,
                 }
-                (
-                    *declaration,
-                    *assignment,
-                    Some(checker.unit_expression(*expression)),
-                )
             }
             _ => return None,
         };
@@ -175,6 +185,9 @@ impl NormalInput {
             *target,
             *value,
         )?;
+        if mixed.is_some() && increment.is_none() {
+            return None;
+        }
         let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;
         if target.binding.is_some() || target.replacement.is_some() {
             return None;
@@ -200,12 +213,16 @@ impl NormalInput {
             completed: None,
             product: None,
             jump,
+            mixed,
             transfer: None,
             finished_role: None,
             valid: true,
         })
     }
     pub(super) fn expected_completion(&self) -> LoopBodyCompletion {
+        if let Some(mixed) = &self.mixed {
+            return mixed.role;
+        }
         self.jump.map_or(
             LoopBodyCompletion::Fallthrough,
             LoopBodyCompletion::Continue,
@@ -216,7 +233,14 @@ impl NormalInput {
         completion: LoopBodyCompletion,
         identity: &std::sync::Arc<()>,
         state: &ValueState,
+        branch: Option<usize>,
     ) -> bool {
+        if let Some(mixed) = &mut self.mixed {
+            return self.valid
+                && self.entered
+                && self.assigned
+                && branch.is_some_and(|b| mixed.jump(b, completion, identity, state));
+        }
         let LoopBodyCompletion::Continue(jump) = completion else {
             return false;
         };
@@ -244,6 +268,47 @@ impl NormalInput {
         }
         self.finished_role = Some(completion);
         true
+    }
+    pub(super) fn mixed_active(&self) -> bool {
+        self.mixed.is_some()
+    }
+    pub(super) fn split_enter(
+        &mut self,
+        identity: &std::sync::Arc<()>,
+        state: &ValueState,
+    ) -> bool {
+        self.valid
+            && self.entered
+            && self.assigned
+            && self
+                .mixed
+                .as_mut()
+                .is_some_and(|m| m.enter(identity, state))
+    }
+    pub(super) fn split_arm_enter(
+        &mut self,
+        branch: usize,
+        control: UnitExpressionId,
+        body: UnitStatementId,
+        identity: &std::sync::Arc<()>,
+        state: &ValueState,
+    ) -> bool {
+        self.mixed
+            .as_mut()
+            .is_some_and(|m| m.arm_entry(branch, control, body, identity, state))
+    }
+    pub(super) fn split_arm_complete(
+        &mut self,
+        branch: usize,
+        continues: bool,
+        state: &ValueState,
+    ) -> bool {
+        self.mixed
+            .as_mut()
+            .is_some_and(|m| m.arm_complete(branch, continues, state))
+    }
+    pub(super) fn split_complete(&self) -> bool {
+        self.mixed.as_ref().is_some_and(|m| m.complete())
     }
     pub(super) fn capture(
         &mut self,
@@ -300,6 +365,30 @@ impl NormalInput {
         self.entered
     }
     pub(super) fn complete(&mut self, state: &ValueState) -> bool {
+        if let Some(mixed) = &self.mixed {
+            // Both terminal arms have discarded their local state. Use only their actual
+            // independently recorded completions, never reconstruct a post-If Q state.
+            let Some(snapshot) = mixed.completed_snapshot() else {
+                return false;
+            };
+            let Some(expected) = &self.expected else {
+                return false;
+            };
+            if !self.valid
+                || !self.entered
+                || !self.assigned
+                || self.completed.is_some()
+                || snapshot.symbol != expected.symbol
+                || snapshot.declaration != expected.declaration
+                || snapshot.scope_depth != expected.scope_depth
+                || snapshot.origin != self.call_origin
+                || Some(snapshot.owner.clone()) == expected.owner
+            {
+                return false;
+            }
+            self.completed = Some(snapshot.clone());
+            return true;
+        }
         let Some([value]) = boundary_values(state) else {
             return false;
         };
@@ -347,6 +436,10 @@ impl NormalInput {
                 .transfer
                 .as_ref()
                 .is_some_and(|(identity, _, _)| !std::sync::Arc::ptr_eq(identity, &body.identity))
+            || self
+                .mixed
+                .as_ref()
+                .is_some_and(|m| !m.identity_matches(&body.identity))
             || boundary_values(state) != Some(std::slice::from_ref(expected))
         {
             self.valid = false;
@@ -358,9 +451,12 @@ impl NormalInput {
         };
         let source = self.initial.source_unit();
         self.product = Some(HeaderCore {
-            completion: self
-                .jump
-                .map_or(HeaderCompletion::Fallthrough, HeaderCompletion::Continue),
+            completion: match self.expected_completion() {
+                LoopBodyCompletion::Conditional { control, .. } => HeaderCompletion::Mixed(control),
+                _ => self
+                    .jump
+                    .map_or(HeaderCompletion::Fallthrough, HeaderCompletion::Continue),
+            },
             identity: prefix.identity.clone(),
             callable: prefix.callable,
             statement: UnitStatementId::new(source, self.statement),
@@ -445,7 +541,14 @@ impl NormalInput {
         if !product.is_consistent() {
             return None;
         }
-        if let Some(jump) = self.jump {
+        if let Some(mixed) = self.mixed.take() {
+            let value = mixed.finish(product)?;
+            value
+                .is_consistent()
+                .then_some(UnitOwnerOpenLoopObservationV1::MixedBackedge(Box::new(
+                    value,
+                )))
+        } else if let Some(jump) = self.jump {
             let (identity, actual, snapshot) = self.transfer.take()?;
             let value = UnitOwnerContinueBackedgeV1 {
                 target: product.statement,
@@ -479,6 +582,27 @@ impl DropPlanner<'_, '_> {
         let Some(normal) = &transaction.normal else {
             return false;
         };
+        if normal
+            .mixed
+            .as_ref()
+            .is_some_and(|m| m.condition() == self.checker.unit_expression(id))
+        {
+            return normal.valid
+                && normal.entered
+                && normal.assigned
+                && transaction
+                    .active
+                    .as_ref()
+                    .is_some_and(|(identity, boundary)| {
+                        self.loop_boundaries.as_slice() == [*boundary]
+                            && self.scope_depth == boundary + 1
+                            && self.owner_branch_depth == 0
+                            && self
+                                .owner_observation
+                                .as_ref()
+                                .is_some_and(|o| std::sync::Arc::ptr_eq(identity, &o.identity))
+                    });
+        }
         if normal.increment == Some(id) {
             return self.normal_assignment_supported(normal.assignment);
         }

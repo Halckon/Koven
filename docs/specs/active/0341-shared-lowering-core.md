@@ -12794,3 +12794,38 @@ diff通过。独审确认非同构扩样、无生产改动；此提交是已定�
 后续应复用真实split/arm/jump hooks，却不全局放宽旧闭合value observation门禁。
 混合产品须独立核live Q的split快照，两arm实际cleanup及Ok(false)/pending witness/
 catalog分别封印；backend在真实If与jump生产点接线，禁止用最后SSA形状替代来源。
+
+#### 混合边生产实施合同（尚待本片验收）
+
+本片以独立Mixed产品和消费plan承接上述原样红，不把Mixed转换成已验Normal或
+Continue wrapper。共同header H守恒可私有复用，两个真实arm身份、条件与jump
+角色必须另行封闭：同一已消费previous的Q快照进入两arm；Continue cleanup后
+回对应header，Break cleanup后到对应exit；两个arm均实际终止，不能假设其中
+一臂永不可达。condition-false的H与Break的当前Q共同授权最终Return。
+
+只接真实If/split/arm/jump生产点；旧闭合观察门禁保持原义，Mixed必须走专属
+live-state校验。先构造实际RHS再Replace的顺序、detached old的真实Drop、checked
+Add正常/Abort边、Return交付先于cleanup均保持。故障注入仅CI-only编译；本机
+普通验收将原红、FE封印/邻接形状、SSA角色与输入关联、Basic/Const有限native及
+共享hook旧回归分开核验。配置或接线不等同通过，实际结果在完成后补记。
+
+#### 混合边本地生产验收（2026-11-11）
+
+输入基于红探针 `c4349a62`；原SOURCE与原测试函数保持不变。新green证据保留在
+前述持久目录的 `green/`：4290输入SHA、真实Cargo artifacts、FE/CG实际与保存
+binary SHA、19项逐次exact原日志及结果清单。测试后仅追加此Spec账本。
+
+| 验收 | 实际结果 |
+|---|---|
+| FE/CG lib no-run，opt0/debug2 | 均成功；FE默认、CG仅loan support；CI-only仅编译 |
+| FE normal_backedge七项ordinary exact | 7/7，各1 passed；Mixed实际双角色封印/合法邻形边界及旧Normal/Continue/Int回归 |
+| CG mixed三项ordinary exact | 3/3；原缺授权红转绿、SSA真实Continue/header及Break/exit输入关联、Basic/Const有限0/1/2/7 native |
+| CG Continue四项与旧Normal/Return五项ordinary exact | 9/9，各1 passed；共享生产hook回归，不是全量测试 |
+| FE/CG严格Clippy all-targets，默认与loan support分别检查 | 两次均通过，`-D warnings` |
+| 默认workspace all-targets check | 通过，无warning，不代表全量测试执行 |
+| fmt / docs / Rust尺寸 / diff | 通过；文档891，旧尺寸欠账保留报告 |
+
+独立审查确认两个新mixed模块均在输入绑定内、真实split/arm/jump与终止证据完整，
+旧closed validator不放宽，旧Normal/Continue CFG路径保留。普通native输出仍仅
+`outer/next/next/next`，有限运行不证明泄漏/计数或所有激活；任意条件形状、多个
+根、嵌套/顺序循环及loan/capture联合合同尚未覆盖，正式CI与后续合流待验证。

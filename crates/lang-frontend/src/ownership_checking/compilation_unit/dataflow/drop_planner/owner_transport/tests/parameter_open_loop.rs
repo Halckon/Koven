@@ -363,6 +363,7 @@ fn parameter_catalog_extension_preserves_string_loop_families() {
                     UnitOwnerOpenLoopObservationV1::BreakLive(v) => v,
                     UnitOwnerOpenLoopObservationV1::ReturnDelivered(v) => v,
                     UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+                    | UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
                     | UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => {
                         panic!("old terminal shape changed")
                     }

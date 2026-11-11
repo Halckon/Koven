@@ -382,6 +382,8 @@ pub enum UnitOwnerOpenLoopObservationV1 {
     NormalBackedge(Box<super::UnitOwnerNormalBackedgeV1>),
     /// A distinct actual Continue edge carrying the current header source.
     ContinueBackedge(Box<super::UnitOwnerContinueBackedgeV1>),
+    /// Continue supplies the header; Break and condition-false supply the common exit.
+    MixedBackedge(Box<super::UnitOwnerMixedBackedgeV1>),
 }
 impl UnitOwnerOpenLoopObservationV1 {
     fn identity(&self) -> &Arc<()> {
@@ -390,6 +392,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ReturnDelivered(v) => &v.identity,
             Self::NormalBackedge(v) => &v.core.identity,
             Self::ContinueBackedge(v) => &v.core.identity,
+            Self::MixedBackedge(v) => &v.core.identity,
         }
     }
     fn callable(&self) -> UnitOwnerCallable {
@@ -398,6 +401,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ReturnDelivered(v) => v.callable,
             Self::NormalBackedge(v) => v.core.callable,
             Self::ContinueBackedge(v) => v.core.callable,
+            Self::MixedBackedge(v) => v.core.callable,
         }
     }
     fn statement(&self) -> UnitStatementId {
@@ -406,6 +410,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ReturnDelivered(v) => v.statement,
             Self::NormalBackedge(v) => v.core.statement,
             Self::ContinueBackedge(v) => v.core.statement,
+            Self::MixedBackedge(v) => v.core.statement,
         }
     }
     /// Verify the selected terminal variant without treating Return as a loop exit.
@@ -415,6 +420,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::ReturnDelivered(value) => value.is_consistent(),
             Self::NormalBackedge(value) => value.is_consistent(),
             Self::ContinueBackedge(value) => value.is_consistent(),
+            Self::MixedBackedge(value) => value.is_consistent(),
         }
     }
 }

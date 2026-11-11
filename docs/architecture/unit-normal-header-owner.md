@@ -43,3 +43,17 @@ NormalBackedge只接受Fallthrough，ContinueBackedge只接受真实Continue(jum
 成功之后封印一次Continue receipt。Return再核jump身份、block、Goto、source语句数
 和detached Drop已消费，保留所有H定义census；缺失/重复receipt或角色错配不回退。
 Int的checked-add success与Abort仍独立，Boolean直接body回边单独覆盖。
+
+## 单根混合 Continue / Break
+
+固定Int控制可在Replace与加一之后，以唯一 `if(index < 2)` 分出Continue与Break。
+MixedBackedge独立封印split/condition/arm/jump身份；共享H核心不改变旧Normal或
+Continue角色。共前缀真实Drop退休detached old，live Q进入两arm，分别保留实际
+entry、jump cleanup后及arm completion快照。两臂均终止时body状态不回填，只有
+真实Conditional witness与Ok(false)完成才发布；旧闭合value validator不放宽。
+
+后端在真实If生产处封印split来源和两臂block，在实际arm入口及清理后的jump
+前后封印独立角色receipts。Mixed终态另核Continue只到header、Break只到exit，
+false边当前H与Break边当轮Q共同进入Return；实际SSA参数运输保留来源关联。
+正常/Continue旧CFG校验路径保留，checked Add Abort不进入正常join。此能力不
+代表任意If条件、多根或嵌套循环；验收和未覆盖范围仍以SPEC-0341本片账本为准。

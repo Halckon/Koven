@@ -6,7 +6,8 @@ pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
     HeaderCompletion, HeaderCore,
 };
 pub use normal_backedge::{
-    UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerNormalBackedgeV1,
+    UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerMixedBackedgeV1,
+    UnitOwnerNormalBackedgeV1,
 };
 pub use open::{
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
