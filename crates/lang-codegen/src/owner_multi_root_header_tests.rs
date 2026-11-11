@@ -384,30 +384,39 @@ fn ci_only_multi_root_actual_receipt_cannot_be_skipped_or_rebound() {
 }
 
 #[test]
-fn multi_root_receipt_does_not_reject_legacy_aliased_entry() {
-    let text = source(2, false, 2).replace(
-        "var r0 = \"entry0\";",
-        "val seed = \"entry0\"; var r0 = seed;",
-    );
-    let source = UnitSource::analyze("multi-root-alias-entry.ko", &text).unwrap();
-    source.assert_frontend_clean();
-    assert!(
-        source
-            .ownership()
-            .owner_observations()
-            .iter()
-            .any(|o| o.multi_root_boundary_v1().is_some())
-    );
-    let (lowered, actions) =
-        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
-    let (program, entry) = lowered.unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    assert!(
-        actions
-            .iter()
-            .all(|(kind, _)| *kind != "multi-root-header-audit")
-    );
+fn multi_root_receipt_consumes_actual_aliased_entry() {
+    for depth in [1, 2, 4] {
+        for live in [0, 1, 2] {
+            let mut prefix = String::from("val seed0 = \"entry0\";");
+            for index in 1..depth {
+                prefix.push_str(&format!("val seed{index} = seed{};", index - 1));
+            }
+            prefix.push_str(&format!("var r0 = seed{};", depth - 1));
+            let text = source(2, true, live).replace("var r0 = \"entry0\";", &prefix);
+            let source = UnitSource::analyze("multi-root-alias-entry.ko", &text).unwrap();
+            source.assert_frontend_clean();
+            assert!(
+                source
+                    .ownership()
+                    .owner_observations()
+                    .iter()
+                    .any(|o| o.multi_root_boundary_v1().is_some())
+            );
+            let (lowered, actions) =
+                crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+            let (program, entry) = lowered.unwrap();
+            crate::ssa::verify::verify_program(&program).unwrap();
+            crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, _)| *kind == "multi-root-header-audit")
+                    .count(),
+                1
+            );
+            super::assert_native_output(&source, b"");
+        }
+    }
 }
 
 #[test]
@@ -490,4 +499,25 @@ fn multi_root_receipt_substitutes_sparse_entry_catalog_by_root() {
             1
         );
     }
+}
+
+#[test]
+fn multi_root_aliased_entry_with_prior_read_stays_on_legacy_path() {
+    let text = source(2, false, 2).replace(
+        "var r0 = \"entry0\";",
+        "val seed = \"entry0\"; println(seed); var r0 = seed;",
+    );
+    let source = UnitSource::analyze("multi-root-read-entry.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| *kind != "multi-root-header-audit")
+    );
+    super::assert_native_output(&source, b"entry0\n");
 }

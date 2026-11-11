@@ -60,8 +60,8 @@ body不改guard的形状不能在true轮后自然终止，因此不声称该nati
 后缀消费；drop必须对应已消费的原frontend fact。审计通过才记录完成，CI-only覆盖缺
 几何/guard、错root绑定及缺drop回执，普通矩阵检查真实完成事件。
 
-这是附加核对，不替代既有lowering权限或witness。首次只选择同entry block直接String
-到root alias且出口消费已封闭的产品；别名入口或标量前缀切块不激活本审计，仍可走原路径。
+这是附加核对，不替代既有lowering权限或witness。选择同entry block的String经单次消费alias链
+到root且出口消费已封闭的产品；跨block或附加读取的入口仍可走原路径。
 根定义检查限于被证明的消费前缀，允许完成后合法重初始化；最终SSA verifier继续负责
 全函数每代所有权消费。新回执不证明所有动态轮次或释放计数，不放宽产品接纳范围。
 
@@ -86,3 +86,14 @@ body不改guard的形状不能在true轮后自然终止，因此不声称该nati
 因此本次没有可据此删除的同合同旧witness：不能将原本未激活的旧plan宣称为已退休，
 也不能跳过通用入口或drop/SSA验证。该互斥只封闭混用不同合同的权限路径；实际CFG不符合
 可选审计范围时，仍保留原有合法lowering行为。
+
+## 实际 alias 链入口消费
+
+新多根产品现在能对接同一entry block内真实的String→多级val移动→root初始化，
+不再只覆盖直接字面量初始化。逐槽追踪唯一实际定义，要求每一级alias严格晚于来源，
+每个中间槽只有这一次消费，终点必须为catalog指定String。While选择和完成阶段都核此链。
+有额外读取、跨块或重定义时不扩大资格，保留通用lowering。
+
+真实源码覆盖1/2/4级移动与全死/部分live/全live退出，共9组SSA、LLVM及零轮native验证；
+额外读取负例仍可原路径native执行。它扩展的是新产品对应的实际消费形状，未新增运行时
+轮次证明，也不改变前端产品或退休旧权限。

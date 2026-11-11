@@ -1,6 +1,7 @@
 //! Additional production audit from new FE products to actual slot CFG.
 //! This receipt does NOT replace legacy lowering permissions or certify runtime instances.
 use super::*;
+mod entry;
 mod incoming;
 use lang_frontend::ownership_checking::{
     UnitDropFact, UnitOwnerCallable, UnitOwnerHeaderSourceV1, UnitOwnerMultiRootBoundaryV1,
@@ -140,8 +141,8 @@ impl Builder<'_, '_> {
         }
         let entry = self.block.ok_or_else(fail)?;
         // Optional audit eligibility, not language admission: this first receipt only
-        // covers direct String -> root entry aliases. Keep other legacy paths intact.
-        let direct_entries = plan
+        // covers same-block single-use String -> alias chain -> root moves.
+        let entry_chains = plan
             .boundary
             .slots()
             .iter()
@@ -158,14 +159,9 @@ impl Builder<'_, '_> {
                     return false;
                 };
                 let statements = &self.body.blocks[entry.0].statements;
-                statements.iter().any(|literal| {
-                    literal.span == node.span() && literal.results.len() == 1
-                && matches!(literal.op, ROp::StringLiteral { .. })
-                && statements.iter().any(|alias| alias.results == [*root]
-                    && matches!(alias.op, ROp::Alias { source } if source == literal.results[0]))
-                })
+                entry::producer(statements, *root, node.span()).is_some()
             });
-        if !direct_entries {
+        if !entry_chains {
             self.multi_root_plan = None;
             return Ok(());
         }
@@ -328,13 +324,16 @@ impl Builder<'_, '_> {
                     .origin(),
                 body,
             )?;
-            let entry_aliases: Vec<_> = self.body.blocks[entry.0]
-                .statements
-                .iter()
-                .filter(|s| {
-                    s.results == [root] && matches!(s.op, ROp::Alias {source} if source == initial)
-                })
-                .collect();
+            let entry_source = entry::producer(
+                &self.body.blocks[entry.0].statements,
+                root,
+                self.body.blocks[entry.0]
+                    .statements
+                    .iter()
+                    .find(|s| s.results == [initial])
+                    .ok_or_else(fail)?
+                    .span,
+            );
             let step = plan
                 .steps
                 .iter()
@@ -345,7 +344,9 @@ impl Builder<'_, '_> {
             let [(replace_index, replace)] = matching.as_slice() else {
                 return Err(fail());
             };
-            if entry_aliases.len() != 1 || replace.results.len() != 2 || replace.results[0] != root
+            if entry_source != Some(initial)
+                || replace.results.len() != 2
+                || replace.results[0] != root
             {
                 return Err(fail());
             }
