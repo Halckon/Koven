@@ -52,3 +52,15 @@ body不改guard的形状不能在true轮后自然终止，因此不声称该nati
 此组会借用打印旧结果，且条件比较/计数器写入超出新受限多根产品，所以同时断言新
 `multi_root_boundary_v1` 不发布。成功不能充当新产品扩大接纳或退休旧witness的依据。
 受限产品到SSA的精确关联矩阵则单独扩展为basic/constant两种来源，共24个组合。
+
+## 新产品关联实际 lowering 的生产审计回执
+
+`multi_root_receipt` 现于实际 While hook 记录 CFG 几何和 root slots，在 lowering 完成时
+核新产品的实际guard loan-read/value槽、call/root/producer联合身份、正常回边、原始输入、旧值alias/drop以及false和
+后缀消费；drop必须对应已消费的原frontend fact。审计通过才记录完成，CI-only覆盖缺
+几何/guard、错root绑定及缺drop回执，普通矩阵检查真实完成事件。
+
+这是附加核对，不替代既有lowering权限或witness。首次只选择同entry block直接String
+到root alias且出口消费已封闭的产品；别名入口或标量前缀切块不激活本审计，仍可走原路径。
+根定义检查限于被证明的消费前缀，允许完成后合法重初始化；最终SSA verifier继续负责
+全函数每代所有权消费。新回执不证明所有动态轮次或释放计数，不放宽产品接纳范围。

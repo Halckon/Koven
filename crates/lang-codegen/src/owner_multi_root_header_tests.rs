@@ -78,7 +78,17 @@ fn multi_root_header_original_source_phi_and_cleanup_matrix() {
                         live > 0
                     );
 
-                    let (program, entry) = source.lower_entry(source.entry()).unwrap();
+                    let (lowered, actions) =
+                        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+                    let (program, entry) = lowered.unwrap();
+                    assert_eq!(
+                        actions
+                            .iter()
+                            .filter(|(kind, _)| *kind == "multi-root-header-audit")
+                            .copied()
+                            .collect::<Vec<_>>(),
+                        [("multi-root-header-audit", roots)]
+                    );
                     crate::ssa::verify::verify_program(&program).unwrap();
                     let llvm =
                         crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
@@ -316,7 +326,14 @@ fn multi_root_finite_native_backedges_do_not_expand_new_product_scope() {
                         .iter()
                         .all(|o| o.multi_root_boundary_v1().is_none())
                 );
-                let (program, entry) = source.lower_entry(source.entry()).unwrap();
+                let (lowered, actions) =
+                    crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+                let (program, entry) = lowered.unwrap();
+                assert!(
+                    actions
+                        .iter()
+                        .all(|(kind, _)| *kind != "multi-root-header-audit")
+                );
                 crate::ssa::verify::verify_program(&program).unwrap();
                 let llvm =
                     crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
@@ -340,4 +357,99 @@ fn multi_root_finite_native_backedges_do_not_expand_new_product_scope() {
             }
         }
     }
+}
+
+#[test]
+fn ci_only_multi_root_actual_receipt_cannot_be_skipped_or_rebound() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source = UnitSource::analyze("multi-root-receipt-fault.ko", &source(2, false, 2)).unwrap();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::MissingMultiRootGeometry,
+        OwnerFault::MissingMultiRootGuard,
+        OwnerFault::WrongMultiRootRoot,
+        OwnerFault::MissingMultiRootDropReceipt,
+    ] {
+        assert!(with_owner_fault(fault, || source.lower_entry(source.entry())).is_err());
+    }
+}
+
+#[test]
+fn multi_root_receipt_does_not_reject_legacy_aliased_entry() {
+    let text = source(2, false, 2).replace(
+        "var r0 = \"entry0\";",
+        "val seed = \"entry0\"; var r0 = seed;",
+    );
+    let source = UnitSource::analyze("multi-root-alias-entry.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    assert!(
+        source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .any(|o| o.multi_root_boundary_v1().is_some())
+    );
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| *kind != "multi-root-header-audit")
+    );
+}
+
+#[test]
+fn multi_root_receipt_preserves_completed_prefix_before_root_reinitialization() {
+    for live in [0, 2] {
+        let text = source(2, false, live).replace(
+            "}\nfun entry",
+            "r0 = \"later\"; val again = r0; }\nfun entry",
+        );
+        let source = UnitSource::analyze("multi-root-later-root.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "multi-root-header-audit")
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn multi_root_optional_receipt_keeps_scalar_prefix_cfg_supported() {
+    let text = source(2, false, 2).replace("while(flag)", "if(flag) { val n = 1 }; while(flag)");
+    let source = UnitSource::analyze("multi-root-prefix-cfg.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (program, entry) = source.lower_entry(source.entry()).unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+}
+
+#[test]
+fn multi_root_receipt_binds_actual_local_guard_slot() {
+    let text = source(2, false, 2).replace("while(flag)", "var again = flag; while(again)");
+    let source = UnitSource::analyze("multi-root-local-guard.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "multi-root-header-audit")
+            .count(),
+        1
+    );
 }

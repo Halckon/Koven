@@ -3,6 +3,10 @@ use std::cell::{Cell, RefCell};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerFault {
+    MissingMultiRootGeometry,
+    MissingMultiRootGuard,
+    WrongMultiRootRoot,
+    MissingMultiRootDropReceipt,
     MissingReturnReplaceReceipt,
     DuplicateReturnReplaceReceipt,
     ReturnReplaceOldIsRoot,

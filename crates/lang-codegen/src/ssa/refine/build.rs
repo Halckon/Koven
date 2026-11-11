@@ -9,9 +9,12 @@ mod container;
 mod container_for;
 mod expression;
 mod field;
+mod frames;
+use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
 mod heap;
 mod inout;
 mod map;
+mod multi_root_receipt;
 mod normal_header_return;
 mod open_loop_return;
 mod owner_consumer;
@@ -63,6 +66,7 @@ pub(super) struct Builder<'i, 'a> {
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     open_return_plan: Option<open_loop_return::Plan<'a>>,
     header_return_plan: Option<normal_header_return::Plan<'a>>,
+    multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -106,50 +110,6 @@ pub(super) struct Builder<'i, 'a> {
     expected_nullable: Option<SsaTypeId>,
 }
 
-/// Jump targets of one loop; views above `views` belong to its iteration.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct LoopFrame {
-    pub(super) statement: UnitStatementId,
-    pub(super) continue_target: BlockRef,
-    pub(super) exit: BlockRef,
-    pub(super) views: usize,
-    pub(super) loans: usize,
-    pub(super) broken: bool,
-    pub(super) seq_for: Option<SeqForFrame>,
-    pub(super) map_for: Option<MapForFrame>,
-}
-
-/// Active sequential-container or `RangeView` `for` provider loans and cursor slots.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct SeqForFrame {
-    pub(super) source_loan: Slot,
-    pub(super) elem_loan: Slot,
-    pub(super) cursor: Slot,
-    pub(super) step: Slot,
-    pub(super) int_ty: SsaTypeId,
-    pub(super) range_source: Option<ExpressionId>,
-}
-
-/// Active `Map` / `MutableMap` `for` provider loans and cursor slots.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct MapForFrame {
-    pub(super) source_loan: Slot,
-    pub(super) key_binding: UnitSymbolId,
-    pub(super) value_binding: UnitSymbolId,
-    pub(super) key_loan: Slot,
-    pub(super) value_loan: Slot,
-    pub(super) cursor: Slot,
-    pub(super) cursor_ty: SsaTypeId,
-}
-
-/// A shared proof view of a MoveOnly nullable binding's inner value.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct View {
-    pub(super) symbol: UnitSymbolId,
-    pub(super) slot: Slot,
-    pub(super) target: BlockRef,
-}
-
 pub(super) fn build(
     inputs: &RefineInputs<'_>,
     entities: &[crate::ssa::model::EntityId],
@@ -160,6 +120,7 @@ pub(super) fn build(
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         open_return_plan: open_loop_return::Plan::new(inputs)?,
         header_return_plan: normal_header_return::Plan::new(inputs)?,
+        multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
         types,
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
