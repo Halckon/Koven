@@ -1,6 +1,7 @@
 //! Additional production audit from new FE products to actual slot CFG.
 //! This receipt does NOT replace legacy lowering permissions or certify runtime instances.
 use super::*;
+mod incoming;
 use lang_frontend::ownership_checking::{
     UnitDropFact, UnitOwnerCallable, UnitOwnerHeaderSourceV1, UnitOwnerMultiRootBoundaryV1,
     UnitOwnerOrigin,
@@ -202,7 +203,8 @@ impl Builder<'_, '_> {
                 })
                 .collect::<Vec<_>>()
         };
-        if incoming(header) != [entry, body]
+        if !matches!(self.body.blocks[entry.0].terminator, Some((RTerm::Goto(target), _)) if target == header)
+            || incoming(header) != [entry, body]
             || incoming(body) != [header]
             || incoming(finished) != [header]
             || incoming(exit) != [finished]
@@ -243,6 +245,7 @@ impl Builder<'_, '_> {
             }
         }
         let boundary = plan.boundary;
+        incoming::audit(boundary).ok_or_else(fail)?;
         let sources: Vec<_> = boundary
             .slots()
             .iter()

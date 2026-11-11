@@ -453,3 +453,32 @@ fn multi_root_receipt_binds_actual_local_guard_slot() {
         1
     );
 }
+
+#[test]
+fn multi_root_receipt_substitutes_sparse_entry_catalog_by_root() {
+    for live in [0, 1, 3] {
+        let text =
+            source(3, true, live).replace("var r0", "val discarded = \"not-a-root\"; var r0");
+        let source = UnitSource::analyze("multi-root-sparse-entry.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        let boundary = source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.multi_root_boundary_v1())
+            .unwrap();
+        assert!(boundary.input_catalog().definitions().len() > boundary.slots().len());
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "multi-root-header-audit")
+                .count(),
+            1
+        );
+    }
+}

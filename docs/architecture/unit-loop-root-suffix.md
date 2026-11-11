@@ -64,3 +64,19 @@ body不改guard的形状不能在true轮后自然终止，因此不声称该nati
 到root alias且出口消费已封闭的产品；别名入口或标量前缀切块不激活本审计，仍可走原路径。
 根定义检查限于被证明的消费前缀，允许完成后合法重初始化；最终SSA verifier继续负责
 全函数每代所有权消费。新回执不证明所有动态轮次或释放计数，不放宽产品接纳范围。
+
+## 旧依赖替代前的逐项合同审计
+
+| 依赖 | 当前职责 | 本切片是否替代 |
+|---|---|---|
+| 新boundary及normal产品 | 原始catalog、控制/root/call身份与整组转移 | 已用于附加审计，不是独立入口许可 |
+| Entry/Backedge来源替换 | 零轮与回边两种header来源的同一消费合同 | 两种来源均在生产核对，不能只检查Backedge |
+| 原frontend drop facts及consumed集合 | 清理位置与实际消费凭据 | 保留；不能把必要drop事实统称旧witness后删除 |
+| 通用slot CFG→SSA构建 | 实际参数和边操作数 | 复用，不重复制造phi |
+| SSA verifier及LLVM | 每代消费、类型、真实后端产物 | 保留，附加回执不能取代 |
+| 旧lowering入口权限 | 当前接纳和失败边界 | 未退休；尚无新回执独立授权切换 |
+
+生产审计现要求实际entry为直达header的Goto，同时将完整Entry向量和完整Backedge向量
+分别交给前端合同，核normal退休、false出口live/retired分区和完整suffix消费一致。
+比较通过各自catalog来源解析到同一boundary slot再替换，绝不跨catalog裸比较definition编号；
+保留实际消费顺序。这补齐零轮来源的消费合同必要条件，不构成运行时跨轮归纳或旧权限退休。
