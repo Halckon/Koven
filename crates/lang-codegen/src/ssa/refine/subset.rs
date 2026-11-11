@@ -4,7 +4,6 @@
 mod callable;
 mod container;
 mod control;
-mod drops;
 mod field;
 mod heap;
 mod inout;

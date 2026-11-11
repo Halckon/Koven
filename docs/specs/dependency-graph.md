@@ -55,7 +55,7 @@ subgraph Gactive["现行 active"]
   S0407["S0407<br/>unit_lower 析构/CFG 壳模块收敛、expression_core 测试遗留迁移与 lowering_support 辅助去重"]
   S0408["S0408<br/>ssa 类型与源查询壳模块收敛及 null 字面量判定辅助去重"]
   S0409["S0409<br/>ssa/deinit、refine/build 凭证壳模块收敛及冗余路由/作用域状态退役"]
-  S0410["S0410<br/>unit_lower 接口委托兼容死分支退役、refine 构建/准入壳子模块收敛与 nullable_when 保留边界核定"]
+  S0410["S0410<br/>unit_lower 接口委托兼容死分支退役、refine 构建/准入/凭证壳模块收敛与 nullable_when 保留边界核定"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
