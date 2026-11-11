@@ -779,6 +779,7 @@ impl Builder<'_, '_> {
                     self.borrowed_move_only_loan(value_expression, self.c(parameter_type))?
             {
                 self.binding_consumer_argument(call, value_expression, loan, call_arg_span)?;
+                self.child_consumer_argument(call, value_expression, loan, call_arg_span)?;
                 lowered_slots[param_slot] = Some(loan);
                 view_reads.push(value_expression);
                 continue;

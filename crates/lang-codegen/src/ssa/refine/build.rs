@@ -4,6 +4,7 @@ mod assignment;
 mod binding_receipt;
 mod borrow_binding;
 mod callable;
+mod child_receipt;
 mod condition;
 mod container;
 mod container_for;
@@ -164,6 +165,7 @@ pub(super) fn build(
             named_plans: super::named_receipt::Plans::new(inputs)?,
             temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
             binding_plans: super::binding_receipt::Plans::new(inputs)?,
+            child_plans: super::child_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
         block: None,

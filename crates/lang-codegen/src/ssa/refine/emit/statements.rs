@@ -7,6 +7,7 @@ pub(super) struct LoanReceipts {
     named: crate::ssa::refine::named_receipt::Emitted,
     temporary: crate::ssa::refine::temporary_receipt::Emitted,
     binding: crate::ssa::refine::binding_receipt::Emitted,
+    child: crate::ssa::refine::child_receipt::Emitted,
 }
 impl LoanReceipts {
     pub(super) fn new(
@@ -15,6 +16,11 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            child: crate::ssa::refine::child_receipt::Emitted::new(
+                &body.child_plans,
+                function,
+                span,
+            )?,
             consumer: crate::ssa::refine::loan_receipt::Emitted::new(
                 &body.loan_plans,
                 function,
@@ -53,7 +59,8 @@ impl LoanReceipts {
         self.named.finish(&body.named_plans, function, span)?;
         self.temporary
             .finish(&body.temporary_plans, function, span)?;
-        self.binding.finish(&body.binding_plans, function, span)
+        self.binding.finish(&body.binding_plans, function, span)?;
+        self.child.finish(&body.child_plans, function, span)
     }
 }
 
@@ -77,6 +84,9 @@ impl Emitter<'_> {
                 receipts
                     .binding
                     .alias(&body.binding_plans, &self.current, statement.span)?;
+                receipts
+                    .child
+                    .alias(&body.child_plans, &self.current, statement.span)?;
                 continue;
             }
             let operation = self.operation(&statement.op, statement.span)?;
@@ -141,6 +151,16 @@ impl Emitter<'_> {
                         &self.current,
                         statement.span,
                     )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::Child(tag)) => {
+                    receipts.child.statement(
+                        &body.child_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?;
                 }
                 None => {}
             }

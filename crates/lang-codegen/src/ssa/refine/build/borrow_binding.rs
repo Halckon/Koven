@@ -72,14 +72,22 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Unit);
         }
         let Some(source) = fact.source_loan() else {
+            self.child_initializer(symbol, initializer, fact.parent(), span)?;
             let Some((loan, created)) = self.lower_result_place(initializer, span)? else {
                 return Ok(Lowered::Diverged);
             };
             self.borrowed.insert(symbol, loan);
             self.result_source_loans.insert(symbol, created);
+            self.body.child_plans.child_commit(
+                symbol,
+                &self.borrowed,
+                &self.result_source_loans,
+                span,
+            )?;
             return Ok(Lowered::Unit);
         };
         self.body.binding_plans.activate(symbol, id, source, span)?;
+        self.body.child_plans.activate(symbol, id, source, span)?;
         let local_policy = ordinary_local::policy(
             self.inputs.parsed,
             self.inputs.typed,
@@ -95,6 +103,9 @@ impl Builder<'_, '_> {
         self.result_source_loans.insert(symbol, created);
         self.body
             .binding_plans
+            .commit(symbol, &self.borrowed, &self.result_source_loans, span)?;
+        self.body
+            .child_plans
             .commit(symbol, &self.borrowed, &self.result_source_loans, span)?;
         Ok(Lowered::Unit)
     }
@@ -122,6 +133,15 @@ impl Builder<'_, '_> {
                 self.borrowed.remove(&fact.binding())
             };
             self.body.binding_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.child_plans.retire(
                 fact.binding(),
                 point,
                 loan,

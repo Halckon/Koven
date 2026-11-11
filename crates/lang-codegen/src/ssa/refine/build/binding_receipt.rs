@@ -3,6 +3,7 @@ use super::*;
 impl Builder<'_, '_> {
     pub(super) fn statement(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
         let id = UnitStatementId::new(self.inputs.source_unit, statement);
+        self.child_entry(id)?;
         if self.body.binding_plans.has_entry(id) {
             self.binding_quiescent(self.inputs.span)?;
             if !self.dead.is_empty()
@@ -44,9 +45,10 @@ impl Builder<'_, '_> {
                 self.inputs.span,
             )?;
         }
+        self.child_completion(id, result)?;
         Ok(result)
     }
-    fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
         if !self.borrowed.is_empty()
             || !self.result_source_loans.is_empty()
             || !self.pending_call_loans.is_empty()
