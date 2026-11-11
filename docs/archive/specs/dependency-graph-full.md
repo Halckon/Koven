@@ -408,6 +408,7 @@ subgraph Gactive["现行 active"]
   S0417["S0417<br/>verify、render、verify_operation、verify_ownership 及 refine/build 壳子模块退役"]
   S0418["S0418<br/>refine 借用凭证/准入壳模块及 lower_frontend 守卫/容器/闭包壳子模块退役"]
   S0419["S0419<br/>lower_frontend 绑定、非空断言、Map 结果/资源析构与 map_iteration 壳子模块退役"]
+  S0420["S0420<br/>lowering_support、integer、verify_ownership/reborrow、refine 接收者/借用凭证及 lower_frontend/drops 壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1887,6 +1888,7 @@ S0366 --> S0367
 | SPEC-0417 | active | [0417-refine-verify-render-and-build-shells-retirement.md](../../specs/active/0417-refine-verify-render-and-build-shells-retirement.md) |
 | SPEC-0418 | active | [0418-refine-receipt-subset-and-frontend-shells-retirement.md](../../specs/active/0418-refine-receipt-subset-and-frontend-shells-retirement.md) |
 | SPEC-0419 | active | [0419-refine-lower-frontend-and-map-iteration-shells-retirement.md](../../specs/active/0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
+| SPEC-0420 | active | [0420-refine-support-verify-receipt-and-drops-shells-retirement.md](../../specs/active/0420-refine-support-verify-receipt-and-drops-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

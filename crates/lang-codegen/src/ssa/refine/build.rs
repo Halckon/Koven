@@ -16,7 +16,7 @@ mod owner_consumer;
 pub(crate) mod owner_consumer_test_support;
 mod range_borrow;
 mod rc;
-mod receiver;
+use rc::receiver;
 mod scalar_text;
 mod tagged;
 mod value;

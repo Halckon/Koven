@@ -9,7 +9,6 @@ mod cleanup_guard_harness;
 mod container;
 mod control;
 mod declarations;
-mod drops;
 mod enum_type_test;
 mod field_replace;
 mod instances;

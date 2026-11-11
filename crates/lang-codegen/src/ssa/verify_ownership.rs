@@ -8,9 +8,9 @@ mod field_exchange;
 #[cfg(test)]
 mod field_exchange_tests;
 mod map;
+use map::reborrow;
 mod provider_lifetime;
 mod range;
-mod reborrow;
 pub(super) mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;

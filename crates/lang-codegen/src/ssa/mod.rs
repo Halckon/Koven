@@ -2,9 +2,9 @@
 
 mod carry;
 mod closure;
+use closure::integer;
 mod constant_materialization;
 mod expression_core;
-mod integer;
 #[cfg(test)]
 mod lower_frontend;
 #[cfg(test)]
