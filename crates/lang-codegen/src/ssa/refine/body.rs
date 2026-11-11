@@ -803,8 +803,18 @@ impl ROp {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) enum LoanTag {
+    Consumer(super::loan_receipt::Tag),
+    Receiver(super::receiver_receipt::Tag),
+    Named(super::named_receipt::Tag),
+    Temporary(super::temporary_receipt::Tag),
+    Binding(super::binding_receipt::Tag),
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct RStmt {
+    pub(super) loan_tag: Option<LoanTag>,
     pub(super) op: ROp,
     pub(super) results: Vec<Slot>,
     pub(super) span: Span,
@@ -916,6 +926,11 @@ pub(super) struct RBlock {
 /// Block 0 is the function entry; `parameters` are defined there.
 #[derive(Clone, Debug, Default)]
 pub(super) struct RefinedBody {
+    pub(super) loan_plans: super::loan_receipt::Plans,
+    pub(super) receiver_plans: super::receiver_receipt::Plans,
+    pub(super) named_plans: super::named_receipt::Plans,
+    pub(super) temporary_plans: super::temporary_receipt::Plans,
+    pub(super) binding_plans: super::binding_receipt::Plans,
     pub(super) slots: Vec<EntityType>,
     pub(super) blocks: Vec<RBlock>,
     pub(super) parameters: Vec<Slot>,

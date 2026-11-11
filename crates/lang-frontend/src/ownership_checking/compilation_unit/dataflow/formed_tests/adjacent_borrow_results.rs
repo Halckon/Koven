@@ -15,6 +15,7 @@ fn fixture(texts: &[(&str, &str)], range: bool) -> Fixture {
 }
 
 fn assert_cleared(raw: &Analysis) {
+    assert!(raw.loan_action_observations.is_empty());
     assert!(raw.string_clone_loan_ends.is_empty());
     assert!(raw.formed_owned_locals.is_empty());
     assert!(raw.nullable_whens.is_empty());
@@ -119,6 +120,7 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
             assert_eq!(raw.diagnostics, [expected]);
             assert_eq!(rejected.sources.slice(span).unwrap(), "target");
         }
+        assert!(shared.loan_action_observations().is_empty());
         assert!(shared.string_clone_loan_ends().is_empty());
         assert!(shared.receiver_call_return_ends().is_empty());
         assert!(shared.receiver_call_prefix_ends().is_empty());
@@ -127,6 +129,8 @@ fn assert_rejections_clear(text: &str, range: bool, positive: impl FnOnce(&Fixtu
         assert_cleared(&raw);
         assert!(shared.direct_call_loan_ends().is_empty());
         assert!(shared.borrow_call_handoffs().is_empty());
+        assert!(shared.borrow_call_transports().is_empty());
+        assert!(shared.borrow_results().ends().is_empty());
         assert!(shared.borrow_call_prefix_ends().is_empty());
         assert!(shared.exclusive_call_prefix_ends().is_empty());
     }
@@ -909,3 +913,68 @@ fn real_errors_revoke_borrow_prefix_end_table() {
         );
     });
 }
+
+#[test]
+fn actual_loan_action_source_is_revoked_after_independent_source_failure() {
+    assert_rejections_clear(
+        "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }",
+        false,
+        |_, raw| {
+            assert_eq!(raw.loan_action_observations.len(), 1);
+            assert!(
+                raw.loan_action_observations[0]
+                    .regions()
+                    .iter()
+                    .any(|region| region.coverage()
+                        == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+            );
+            assert!(
+                raw.loan_action_observations[0]
+                    .actions()
+                    .iter()
+                    .any(|action| matches!(
+                        action,
+                        crate::ownership_checking::UnitLoanAction::Begin(_)
+                    ))
+            );
+        },
+    );
+}
+
+#[test]
+fn loan_receiver_complete_prefix_is_revoked_from_raw_and_public_products() {
+    assert_rejections_clear(
+        "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch() }",
+        false,
+        |accepted, raw| {
+            assert_eq!(raw.receiver_call_return_ends.len(), 1);
+            assert_eq!(
+                raw.receiver_call_return_ends,
+                accepted.shared().receiver_call_return_ends()
+            );
+            assert!(
+                raw.loan_action_observations[0]
+                    .regions()
+                    .iter()
+                    .any(|region| region.protocol_version() == 2
+                        && region.coverage()
+                            == crate::ownership_checking::UnitLoanActionCoverage::Complete)
+            );
+            assert!(
+                raw.loan_action_observations[0]
+                    .actions()
+                    .iter()
+                    .any(|action| matches!(
+                        action,
+                        crate::ownership_checking::UnitLoanAction::ReceiverEnd(_)
+                    ))
+            );
+        },
+    );
+}
+
+mod named_loan_region;
+
+mod result_action_source;
+
+mod owner_loan_combination;

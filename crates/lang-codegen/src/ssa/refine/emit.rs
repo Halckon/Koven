@@ -1,4 +1,5 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
+mod statements;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -870,6 +871,7 @@ pub(super) fn emit(
         parameters.insert(*block, slots);
         blocks.insert(*block, id);
     }
+    let mut receipts = statements::LoanReceipts::new(body, function, span)?;
     let mut emitter = Emitter {
         function,
         current: BTreeMap::new(),
@@ -885,29 +887,7 @@ pub(super) fn emit(
         emitter
             .defined
             .extend(emitter.current.iter().map(|(k, v)| (*k, *v)));
-        for statement in &body.blocks[block.0].statements {
-            if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
-            {
-                let entity = emitter.get(*source, statement.span)?;
-                emitter.current.insert(*result, entity);
-                emitter.defined.insert(*result, entity);
-                continue;
-            }
-            let operation = emitter.operation(&statement.op, statement.span)?;
-            let types = statement
-                .results
-                .iter()
-                .map(|slot| body.slots[slot.0])
-                .collect();
-            let (_, results) = emitter
-                .function
-                .append_instruction(target, operation, types, Origin::Source(statement.span))
-                .map_err(|_| error(LoweringErrorKind::InvalidModel, statement.span))?;
-            for (slot, entity) in statement.results.iter().zip(results) {
-                emitter.current.insert(*slot, entity);
-                emitter.defined.insert(*slot, entity);
-            }
-        }
+        emitter.statements(body, *block, target, &mut receipts)?;
         let (terminator, term_span) = body.blocks[block.0].terminator.as_ref().expect("reachable");
         let origin = Origin::Source(*term_span);
         let edge = |emitter: &Emitter<'_>, successor: BlockRef| -> Result<Edge, LoweringError> {
@@ -995,5 +975,6 @@ pub(super) fn emit(
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
     }
+    receipts.finish(body, emitter.function, span)?;
     Ok(())
 }

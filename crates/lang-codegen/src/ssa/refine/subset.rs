@@ -12,11 +12,14 @@ mod loop_route;
 use loop_route::LoopRoute;
 pub(super) use loop_route::accepts;
 mod map;
+pub(super) mod named_route;
 mod range_borrow;
 mod rc;
 mod receiver;
+mod receiver_route;
 mod scalar_text;
 mod tagged;
+pub(super) mod temporary_route;
 mod value;
 mod when;
 
@@ -230,13 +233,44 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.has_local_destructuring
             || checker.scope_requires_refine())
         && checker.drops_supported()
-        && (checker.nullable || checker.migrated);
+        && (checker.nullable
+            || checker.migrated
+            || checker.bounded_receiver_route()
+            || checker.bounded_named_call().is_some()
+            || checker.bounded_temporary_call().is_some());
     (accepted, signature && checker.loop_route_retry)
 }
 
-/// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
-pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
-    let checker = Checker {
+/// Reuse the exact existing bounded shape without consulting observation products.
+pub(super) fn bounded_receiver_call(inputs: &RefineInputs<'_>) -> Option<UnitExpressionId> {
+    if !query_checker(inputs).bounded_receiver_route() {
+        return None;
+    }
+    let RefineBody::Block(body) = inputs.body else {
+        return None;
+    };
+    let Statement::Block { elements } = inputs.parsed.ast().statements().get(body).ok()?.payload()
+    else {
+        return None;
+    };
+    let [statement] = elements.as_slice() else {
+        return None;
+    };
+    let Statement::Expression { expression } = inputs
+        .parsed
+        .ast()
+        .statements()
+        .get(*statement)
+        .ok()?
+        .payload()
+    else {
+        return None;
+    };
+    Some(UnitExpressionId::new(inputs.source_unit, *expression))
+}
+
+fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
+    Checker {
         inputs,
         known: BTreeSet::new(),
         callables: BTreeSet::new(),
@@ -254,7 +288,12 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         for_borrowed: BTreeSet::new(),
         range_view_bindings: BTreeSet::new(),
         view_symbols: BTreeSet::new(),
-    };
+    }
+}
+
+/// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
+pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
+    let checker = query_checker(inputs);
     let Some(item) = inputs.scope_span() else {
         return Vec::new();
     };

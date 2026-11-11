@@ -321,7 +321,7 @@ impl Builder<'_, '_> {
         self.end_all_views(span)?;
         self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         let unit_return = self.is_unit(self.inputs.return_type);
-        self.finish_return(result, unit_return, span)?;
+        self.owner_return(expression, result, unit_return, span)?;
         Ok(Lowered::Diverged)
     }
 }

@@ -3,6 +3,9 @@ mod branch;
 mod capture;
 pub(super) mod choice;
 pub(super) mod loops;
+pub(super) mod replace_call_consumer;
+pub(super) mod replace_consumer;
+pub(super) mod replace_return_consumer;
 #[cfg(test)]
 mod tests;
 
@@ -17,6 +20,7 @@ use crate::type_checking::{OwnershipPrimitiveKind, UnitItemId};
 /// One evaluation frame owns its result. Nested calls cannot overwrite their parent's slot.
 pub(super) struct EvaluatedOwner {
     pub(super) continues: bool,
+    pub(super) replace_consumer: Option<replace_consumer::ReplaceConsumerCarrier>,
     pub(super) owner: Option<UnitOwnerId>,
 }
 
@@ -44,6 +48,7 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            replace_break_value: None,
         });
     }
 
@@ -70,6 +75,7 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            replace_break_value: None,
         });
     }
 
@@ -78,12 +84,13 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
-        let (loop_value, invariant_loop_value) = self
+        let (loop_value, invariant_loop_value, replace_break_value) = self
             .owner_loop
             .take()
             .map(loops::LoopTransaction::finish)
             .unwrap_or_default();
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.replace_break_value = replace_break_value.map(Box::new);
             observation.loop_value = loop_value.map(Box::new);
             observation.invariant_loop_value = invariant_loop_value.map(Box::new);
             observation.choice_value = choice.map(Box::new);
@@ -140,6 +147,10 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn owner_event(&mut self, event: UnitOwnerTransportEvent) {
+        #[cfg(test)]
+        if let Some(probe) = &mut self.owner_hook_probe {
+            probe.push(event.clone());
+        }
         if let Some(observation) = &mut self.owner_observation
             && observation.status == UnitOwnerObservationStatus::Complete
         {
@@ -360,7 +371,9 @@ impl DropPlanner<'_, '_> {
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
         let mut owner = None;
-        let continues = self.expression_inner(id, usage, state, &mut owner)?;
+        let mut replace_consumer = None;
+        let continues =
+            self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer)?;
         if let Some(choice) = &mut self.owner_choice {
             choice.expression_completed(
                 self.checker.unit_expression(id),
@@ -377,7 +390,11 @@ impl DropPlanner<'_, '_> {
                 owner: owner.clone(),
             });
         }
-        Ok(EvaluatedOwner { continues, owner })
+        Ok(EvaluatedOwner {
+            continues,
+            owner,
+            replace_consumer,
+        })
     }
 
     // Independent of the legacy observation, which rejects the preceding String If.
