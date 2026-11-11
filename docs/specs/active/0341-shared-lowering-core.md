@@ -12690,3 +12690,38 @@ fmt、FE/CG all-targets strict Clippy、默认workspace all-targets、默认CLI 
 --help均通过，默认CLI artifact features=[]；docs及相对e659b66a尺寸门禁通过。
 末次仅追加本Spec，不改已冻结Rust。复用既有target，无删除数据或缓存；本轮未推送、
 未获得新组合正式CI结果，后续发布等待用户批准。D10/E2不标记完成。
+
+### 显式 Continue header 的后继合同（2026-11-11）
+
+基于已验收 `9164af82` 独立分支，复用单String根和受限Int控制；只增加body末
+真实Continue。ADR-0038 §1/5要求Continue身份、目标、清理及回边独立闭合，
+不能将其伪装成Fallthrough，也不能仅增加一个语法放行。无条件外形扩样、
+新ABI、多根、capture或任意Continue路径；共同Return仍消费当前H。
+先原样源码经Basic ownership、SSA/verifier/LLVM，最后检查真实header Return
+授权；未改旧测试、不注入facts。探针阶段不执行native、Abort、fault、计数或压力；
+若前置拒绝，记录实际阶段不改源码掩盖。生产需真实jump发生点及同轮源/目标
+绑定，不能按最终相似Goto搜索补造边角色。
+
+后继生产边界经只读独审：共享私有有限H证明核心，Normal与Continue分别封印公开产品。
+Continue不得公开Deref或getter退化为Normal，旧Normal仍强制Fallthrough且无jump。
+在原finish_owner_loop_jump的真实loan/owner/iteration清理后，记录同body catalog
+jump身份与快照；保留原Ok(false)、expected Continue及witness身份，body完成再次
+核同快照与恰一次完成。当前jump_boundary对normal会落empty_boundary，需独立分派。
+后端须在原loop_jump清理后绑定实际source/header target，terminate成功后封印，
+终态核完整边角色；不能通过扫描相似Goto补造。Break、nested/seq/map不进入此片。
+原“无NormalBackedge”邻例不改为正常正例；另加Continue产品正例和角色/目标/清理/
+重复完成的CI-only负控。此段为实施合同，不声称上述生产已实现。
+
+#### Continue 原样缺授权红实证
+
+基线9164af82上唯一定向探针经独立源码及artifact核验后，实际0 passed、1 failed、
+2971 filtered、exit101；原样Basic ownership、SSA lowering、verifier、LLVM先通过，
+最后在缺真实Continue header Return授权断言失败。未改旧测试、未改生产门禁。
+no-run为opt0/debug2、仅loan support，6m12s；4287输入与保存binary运行前后一致，
+原件在 `/private/tmp/koven-owner-continue-header-evidence`，含manifest、输入清单、
+冻结binary及原日志。本机临时证据不保证长期保存。fmt、docs和diff检查通过。
+没有运行native、fault、Abort、计数、压力、Clippy或正式CI；未推送。
+
+本次编译后Mac可用磁盘约3GiB，停止追加大构建，不清理缓存或删除文件。先封存
+真实红及上述独审实施合同；生产尚未接线，红分支不可并入待发布集成头。
+后续需恢复足够构建余量后，实现独立Continue封印和真实jump消费，再做红绿回归。
