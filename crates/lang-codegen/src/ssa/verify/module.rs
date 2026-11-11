@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
     let module_before = errors.len();
     crate::ssa::verify_types::verify_types(module, errors);
-    crate::ssa::deinit::verify_deinits(module, errors);
+    verify_deinits(module, errors);
     let capture_types =
         (errors.len() == module_before).then(|| closure_escape::TypeCaptures::compute(module));
 
@@ -40,6 +40,29 @@ pub(super) fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
                     closure_escape::verify(function, types, errors);
                 }
             }
+        }
+    }
+}
+
+fn verify_deinits(module: &Module, errors: &mut Vec<VerifyError>) {
+    for (&owner, &function) in &module.deinits {
+        let valid = crate::ssa::types::valid_deinit_signature(module, owner, function)
+            && module.function(function).is_some_and(|function| {
+                function.blocks.first().is_some_and(|entry| {
+                    entry.parameters.len() == 1
+                        && function
+                            .entity(entry.parameters[0])
+                            .is_some_and(|parameter| Some(parameter.ty) == function.receiver)
+                })
+            });
+        if !valid {
+            errors.push(VerifyError {
+                kind: VerifyErrorKind::InvalidTypeDefinition {
+                    reason: "deinit requires one exact shared heap-owner receiver and a Unit result",
+                },
+                location: VerifyLocation::Type(owner),
+                origin: module.function(function).map(|function| function.origin.clone()),
+            });
         }
     }
 }

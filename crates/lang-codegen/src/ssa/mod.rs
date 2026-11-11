@@ -3,7 +3,6 @@
 mod carry;
 mod closure;
 mod constant_materialization;
-mod deinit;
 mod expression_core;
 mod integer;
 mod integer_range;

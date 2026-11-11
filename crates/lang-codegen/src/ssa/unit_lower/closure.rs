@@ -212,7 +212,7 @@ impl UnitExpressionLowerer<'_> {
         let plan = self
             .callable_plans
             .get(&(
-                self.closure_scope,
+                self.function.id,
                 UnitExpressionId::new(self.source_unit, expression),
             ))
             .cloned()

@@ -188,7 +188,6 @@ struct UnitExpressionLowerer<'a> {
     consumed_receiver: Option<ConsumedReceiver>,
     closure_binding_context: bool,
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
-    closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
     // Evaluated operands remain live until their call or construction consumes them.
     pending_operands: Vec<EntityId>,

@@ -1,8 +1,8 @@
 //! Target-independent named aggregate and heap-owner type construction.
 
 use super::model::{
-    MapContainerKind, ModelError, Module, Ownership, SequentialContainerKind, SsaTypeId,
-    SsaTypeKind,
+    EntityType, FunctionId, LoanKind, MapContainerKind, ModelError, Module, Ownership,
+    SequentialContainerKind, SsaTypeId, SsaTypeKind,
 };
 
 impl Module {
@@ -399,7 +399,40 @@ impl Module {
             && matches!(self.type_kind(*empty), Some(SsaTypeKind::Boolean))
             && self.type_ownership(range) == Some(Ownership::Copyable)
     }
+
+    /// Associate a compiler-only body; callers cannot turn this into an ordinary owned call.
+    pub(crate) fn set_deinit(
+        &mut self,
+        owner: SsaTypeId,
+        function: FunctionId,
+    ) -> Result<(), ModelError> {
+        if !valid_deinit_signature(self, owner, function) {
+            return Err(ModelError::InvalidDeinit { owner, function });
+        }
+        if self.deinits.contains_key(&owner) {
+            return Err(ModelError::DeinitAlreadyDefined { owner });
+        }
+        self.deinits.insert(owner, function);
+        Ok(())
+    }
+
+    pub(crate) fn deinit(&self, owner: SsaTypeId) -> Option<FunctionId> {
+        self.deinits.get(&owner).copied()
+    }
 }
+
+pub(super) fn valid_deinit_signature(module: &Module, owner: SsaTypeId, function: FunctionId) -> bool {
+    matches!(module.type_kind(owner), Some(SsaTypeKind::HeapOwner { .. }))
+        && module.function(function).is_some_and(|function| {
+            function.receiver
+                == Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: owner,
+                })
+                && function.return_types.is_empty()
+                && !function.never_returns
+        })
+
 
 /// `Some(niche)` when `inner` may carry an inline nullable wrapper, `None` otherwise.
 pub(super) fn inline_nullable_niche(module: &Module, inner: SsaTypeId) -> Option<bool> {

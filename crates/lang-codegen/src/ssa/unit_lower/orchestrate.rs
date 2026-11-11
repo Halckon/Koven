@@ -710,7 +710,6 @@ fn lower_unit_impl(
             consumed_receiver: None,
             closure_binding_context: false,
             callable_plans: &callable_plans,
-            closure_scope: plan.id,
             temporaries: BTreeMap::new(),
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),
