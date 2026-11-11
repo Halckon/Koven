@@ -12013,3 +12013,29 @@ P Drop、两个实际 Name delivery 和 Return terminator。仅 false 路径能�
 实际 1 failed；前端 `90281c46`：旧诊断/cleanup/观察 on-off 保真后开放产品 0≠1，
 单普通 exact 实际 1 failed。两轮均执行前保存 SOURCE、test source、artifact 和 binary SHA
 及独立 binary 副本。能力绿及最终兼容回归尚未完成；未通过正式 CI，不进入已发布 PR。
+
+本地收敛：FE生产 `b9ecf1e3`、字段文档 `45f47326`，后端 `af5de689` 首轮五普通
+exact通过；统一enum尺寸lint后改单层Box payload `bb7167b6`（外层不再Box，无lint豁免），
+最终代码头 `5dc30937` 保留规范import顺序。最终16唯一普通exact全部实跑通过：
+
+- FE 11：`open_loop_return` 三项（两sealed端、同Unit多source/重分析自有catalog、五个
+  合法邻形），`loop_replace_break_baseline` 一项，`replace_break_grouped_condition` 的
+  B/Call/Return三项，`replace_break_alias_return` 与 `replace_break_replace_return` 各一项，
+  `closed_while::real_while_body_publishes_closed_transport_and_actual_backedge` 和
+  `closed_while_conditional::real_while_tail_if_records_both_completed_jump_edges`。
+- codegen 5：`owner_loop_return_tests` 的 `loop_owned_return_requires_two_actual_endpoint_receipts`、
+  `loop_owned_return_both_units_deliver_two_separate_endpoints`、
+  `loop_owned_return_native_preserves_each_path_value`；`owner_replace_return_tests` 的
+  `suffix_replace_return_both_units_authorize_distinct_old_and_installed_slots`、
+  `suffix_replace_hooks_preserve_existing_ordinary_consumers`。每exact各1 passed；内部
+  Basic/Const、两native程序及旧四consumer不另算exact。旧原样probe没有重复选跑。
+
+全部按fresh完整helper审计精确名单运行；fault/foreign/撤销等CI-only只编译，不宣称其拒绝
+行为实跑通过。最终两crate lib no-run、两crate all-targets Clippy `-D warnings`、workspace
+all-targets check、fmt、docs（886页）、尺寸（2398 Rust、35历史超限、无新增超限）、diff通过。
+保留debug2/opt0，不降profile或RUSTFLAGS。未跑正式CI、未推送，也未并入已发布PR。
+
+准备失败单列：首次FE编译6处旧CI-only字段借用冲突，改显式prefix；第二次3处新测试缺
+import，补真实类型导入；均仅编译失败无测试执行。首轮strict Clippy的large-enum失败已
+保留并以单层Box修复。两阶段预期红、各阶段原始artifact/日志和执行前binary/source SHA
+分别保留，最终产物不覆盖红证据。独立终审与后续合流仍由协调任务完成。
