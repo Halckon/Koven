@@ -317,6 +317,7 @@ impl DropPlanner<'_, '_> {
                                 == Some(crate::ownership_checking::LoanKind::Shared)
                         }))
             }
+            Expression::Assignment { .. } => self.normal_assignment_supported(id),
             Expression::Literal(_) => self
                 .checker
                 .typed
@@ -375,6 +376,7 @@ impl DropPlanner<'_, '_> {
         let mut replace_consumer = None;
         let continues =
             self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer)?;
+        self.normal_assignment_completed(id, continues);
         if let Some(choice) = &mut self.owner_choice {
             choice.expression_completed(
                 self.checker.unit_expression(id),

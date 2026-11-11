@@ -359,9 +359,16 @@ fn parameter_catalog_extension_preserves_string_loop_families() {
             2 | 3 => {
                 let value = observation.open_loop_observation_v1().unwrap();
                 assert!(value.is_consistent());
-                assert_eq!(value.prefix().prefix_events().len(), 2);
-                check_strings(value.prefix().input_producers());
-                check_strings(value.prefix().body_producers());
+                let prefix: &crate::ownership_checking::UnitOwnerOpenLoopPrefixV1 = match value {
+                    UnitOwnerOpenLoopObservationV1::BreakLive(v) => v,
+                    UnitOwnerOpenLoopObservationV1::ReturnDelivered(v) => v,
+                    UnitOwnerOpenLoopObservationV1::NormalBackedge(_) => {
+                        panic!("old terminal shape changed")
+                    }
+                };
+                assert_eq!(prefix.prefix_events().len(), 2);
+                check_strings(prefix.input_producers());
+                check_strings(prefix.body_producers());
                 assert_eq!(
                     matches!(value, UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)),
                     index == 2

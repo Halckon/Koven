@@ -12427,3 +12427,45 @@ artifact、覆盖前 binary 副本/SHA、精确名单和逐项日志；首次 pr
   不影响项目输入或门禁。正式CI/release及发布仍由后继流程处理，本任务不宣称完成。
 - 独立只读终审已核双父并集、17项实际结果、全部artifact/binary/输入/名单哈希及文档分账，
   无新增阻断。此后仅本Spec收尾提交，不重跑冻结Rust，也不自行发布。
+
+### 正常回边的当前 owner：原样实证与待确认合同（2026-11-11）
+
+从已验 `b331d044` 新隔离树开始。`3174d43f` 的普通原样 probe 通过 Basic 严格准入、
+SSA verifier 与 LLVM render；源码使用 `held="outer"`、`again=flag`，body 一次
+`replace(&held,"next")` 后 `again=false`，最后 Return held。false/true 分别有限零/一轮。
+`6ec42380` 的精确 SSA 正控再通过：entry 向 header 传 P，body 向同一 header 的真实
+normal backedge 传 RootReplace installed Q；header true/false 都运输当前 header 参数。
+body 在回边前 Drop detached old，false 出口 Return 自己的 owner 参数，未增加公共 join。
+同头另一普通 exact 使用既有真实 Return 观察器失败于缺当前 header owner 的授权回执。
+原 SOURCE、artifact、覆盖前 binary 副本/SHA、原始日志与精确选择均已保存；这是真缺
+consumer 授权红，不是源码不合法，也不是任何有限轨迹的归纳证明。尚无生产实现。
+
+拟议最小方案尚待产品边界确认：在现有统一 open-loop enum/storage 增加 normal-backedge
+有限变体，不新增 producer 或组合专用顶层 getter。H 代表本次 header 当前来源，零轮
+入口传 P，正常回边传本次激活新 Q，false 出口传 H。body 对任意合法 H 证明先形成 Q、
+Replace(H,Q)、旧 H 一次 Drop，真实 body Ok(true) 和 scope cleanup 后仅 Q 存活并回边。
+header 不变量为完整 String owner 且无未完成 pending/loan；不能靠 `again=false` 代替
+闭包证明。旧共享 prefix 的 false=P 与固定 UnitOwnerId Return endpoint 不适用，不能
+伪装成 invariant 或两个独立 Return；需要该变体自己的 header-source 交付端点。
+Boolean assignment 也仅能按真实 typed RHS 正常完成接点窄准入，不放开一般 Assignment。
+旧 closed/invariant/Break/ReturnDelivered、原 emitters、语言与 ABI 保持原义。
+
+正常回边边界已按 accepted ADR-0038 §2/5/6 确认属于现有架构内的实现选择。
+本片仅既有 String root、局部 Boolean 控制、一次 Replace 后 Boolean 赋值及正常回边；
+H 是统一开放循环内的来源参数，不是新增 producer 或 P 的同义词。独立产品须核真实
+entry/body completion/condition-false/tail delivery，精确收敛任意合法 H 的 Replace、
+旧 H Drop 与新激活 Q 回边。旧 closed/invariant/Break/ReturnDelivered 不放宽。
+先补 FE 缺产品红；原来 consumer 缺权限红保持原字节，未有生产绿前不声明已覆盖。
+
+正常回边 FE 本地实现：在唯一 open-loop enum/storage 发布 `NormalBackedge`，
+保留两个真实 catalog，不生成 H producer；`incoming()` 给出 Entry(P)/Backedge(Q)。
+真实 prefix、body 正常完成、Boolean 赋值完成、false 原状态、tail take/delivery/cleanup
+共同封闭。完整六事件体规则中旧输入只经 Replace→detached binding→Drop 消费一次，
+新 Q 独立形成后仅回到根；规则不按旧输入身份分支，可用任意已初始化 H 替换首遍 P。
+当前准入仍限该 String/Boolean 原样，不代表多根、Continue、任意条件或一般循环已支持。
+原 FE 缺产品红已转绿；四项普通 exact（原红、来源方程、四合法邻控、十旧族邻控）
+各1 passed/642 filtered，严格 frontend all-targets Clippy通过。新增构造损坏项仅编译。
+记录在既有 normal-backedge evidence 的 fe-final-manifest 与逐项日志；首次恢复修复的是
+旧测试未适配 enum variant 而导致的三处编译错误，未改旧族实际断言。
+backend header Return 授权仍未完成，原 consumer 红不宣称已绿；联合门禁、独审、新main
+组合及正式 CI 仍待后继验证，不标记此片或 D10/E2 完成。

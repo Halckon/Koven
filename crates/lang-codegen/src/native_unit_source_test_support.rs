@@ -25,6 +25,8 @@ mod owner_group_condition_tests;
 mod owner_loop_return_tests;
 #[path = "owner_negated_condition_tests.rs"]
 mod owner_negated_condition_tests;
+#[path = "owner_normal_backedge_tests.rs"]
+mod owner_normal_backedge_tests;
 #[path = "owner_own_call_tests.rs"]
 mod owner_own_call_tests;
 #[path = "owner_pair_call_tests.rs"]

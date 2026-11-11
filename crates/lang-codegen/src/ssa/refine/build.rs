@@ -14,6 +14,7 @@ mod heap;
 mod inout;
 mod map;
 mod named_argument;
+mod normal_header_return;
 mod open_loop_return;
 mod owner_call;
 mod owner_consumer;
@@ -65,6 +66,7 @@ pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     open_return_plan: Option<open_loop_return::Plan<'a>>,
+    header_return_plan: Option<normal_header_return::Plan<'a>>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -161,6 +163,7 @@ pub(super) fn build(
         inputs,
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         open_return_plan: open_loop_return::Plan::new(inputs)?,
+        header_return_plan: normal_header_return::Plan::new(inputs)?,
         types,
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,

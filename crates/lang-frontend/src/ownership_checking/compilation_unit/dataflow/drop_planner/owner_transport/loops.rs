@@ -1,6 +1,7 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 mod conditional;
 mod invariant;
+mod normal_backedge;
 mod replace_break;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
@@ -29,6 +30,7 @@ pub(in super::super) struct LoopTransaction {
     result: Option<UnitOwnerLoopObservationV1>,
     invariant: Option<invariant::InvariantInput>,
     invariant_result: Option<InvariantLoopValueV1>,
+    normal: Option<normal_backedge::NormalInput>,
     replacing: Option<replace_break::OpenLoopInput>,
     replace_result: Option<UnitOwnerOpenLoopObservationV1>,
 }
@@ -162,6 +164,35 @@ impl LoopTransaction {
         else {
             return None;
         };
+        if owner_parameter.is_none()
+            && parameters.len() == 1
+            && checker.typed.types().get(signature.return_type())
+                == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            && signature.result_source() == crate::type_checking::CallableResultSource::Owned
+            && let Some(normal) =
+                normal_backedge::NormalInput::admit(checker, elements, &parameter_symbols)
+        {
+            return Some(Self {
+                statement: normal.statement,
+                condition: normal.condition,
+                body: normal.body,
+                identity,
+                callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
+                expected: LoopBodyCompletion::Fallthrough,
+                active: None,
+                completed: None,
+                split_entered: false,
+                active_branch: None,
+                pending_jump: None,
+                branch_completed: [false; 2],
+                result: None,
+                invariant: None,
+                invariant_result: None,
+                replacing: None,
+                replace_result: None,
+                normal: Some(normal),
+            });
+        }
         let replacing = replace_break::OpenLoopInput::admit(
             checker,
             elements,
@@ -344,6 +375,7 @@ impl LoopTransaction {
             result: None,
             invariant,
             invariant_result: None,
+            normal: None,
             replacing,
             replace_result: None,
         })
@@ -384,6 +416,7 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<&OwnedValue>,
     ) {
+        self.take_normal_return(expression, value);
         if self.open_return_context().is_none() {
             return;
         }
@@ -402,6 +435,7 @@ impl DropPlanner<'_, '_> {
         owner: Option<&UnitOwnerId>,
         state: &ValueState,
     ) {
+        self.deliver_normal_return(expression, payload, state);
         let Some(body) = self.open_return_context() else {
             return;
         };
@@ -424,6 +458,7 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         state: &ValueState,
     ) {
+        self.finish_normal_return(expression, state);
         let Some(body) = self.open_return_context() else {
             return;
         };
@@ -672,7 +707,7 @@ impl DropPlanner<'_, '_> {
                         _ => None,
                     };
                     if let Some(completion) = completion {
-                        if transaction.replacing.is_some() {
+                        if transaction.replacing.is_some() || transaction.normal.is_some() {
                             replacement_body = Some((collected, body_state));
                         } else {
                             body_transport = collected
@@ -689,6 +724,13 @@ impl DropPlanner<'_, '_> {
         }
         self.drop_loop_exit(id, state);
         if collecting
+            && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())
+            && let Some((collected, _)) = replacement_body.take()
+            && let Some(normal) = self.owner_loop.as_mut().and_then(|t| t.normal.as_mut())
+        {
+            normal.finish_body(collected, state);
+        }
+        if collecting
             && let (Some(transaction), Some((collected, mut body_state))) =
                 (&mut self.owner_loop, replacement_body)
             && let Some(input) = &mut transaction.replacing
@@ -700,7 +742,8 @@ impl DropPlanner<'_, '_> {
                     .as_ref()
                     .and_then(|value| match value {
                         UnitOwnerOpenLoopObservationV1::BreakLive(boundary) => Some(boundary),
-                        UnitOwnerOpenLoopObservationV1::ReturnDelivered(_) => None,
+                        UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
+                        | UnitOwnerOpenLoopObservationV1::NormalBackedge(_) => None,
                     }),
                 state.values.first(),
                 body_state.values.pop(),

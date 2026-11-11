@@ -275,6 +275,7 @@ impl Builder<'_, '_> {
                     span,
                 )?;
                 self.open_loop_replace_emitted(id, *binding, replacement, old_slot, span)?;
+                self.header_replace_emitted(id, *binding, replacement, old_slot, span)?;
                 self.return_replace_emitted(id, *binding, replacement, old_slot, span)?;
                 if is_unit {
                     super::Lowered::Unit
