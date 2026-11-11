@@ -145,10 +145,23 @@ impl DropPlanner<'_, '_> {
                         implicit.forward_scope = None;
                     }
                 }
-                if then_terminated && implicit.nested_forward.is_some_and(|nested|
-                    nested.plan.topology == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail) {
+                let nested_implicit = implicit.nested_forward.is_some_and(|nested| {
+                    use crate::ownership_checking::UnitBorrowNestedForwardTopology;
+                    match nested.plan.topology {
+                        UnitBorrowNestedForwardTopology::NestedThenTail => {
+                            nested.ready_split == Some(0)
+                        }
+                        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => {
+                            nested.ready_split == Some(1)
+                        }
+                        _ => false,
+                    }
+                });
+                if then_terminated && nested_implicit {
                     self.enter_nested_forward_arm(id, false, &mut implicit);
-                } else { implicit.nested_forward = None; }
+                } else {
+                    implicit.nested_forward = None;
+                }
                 self.conditional_break_implicit(id, false, &implicit);
                 self.conditional_return_implicit(id, false, &implicit);
                 self.drop_branch_entry(id, 1, &[], &mut implicit);

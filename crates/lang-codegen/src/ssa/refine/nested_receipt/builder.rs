@@ -35,6 +35,7 @@ impl Plans {
                         != Some(entry)
                     || p.source != Some(source)
                     || match p.topology {
+                        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => true,
                         UnitBorrowNestedForwardTopology::BalancedBoth => match i {
                             1 => p.paths.iter().any(|path| path.stage != 0),
                             2 => {
@@ -100,6 +101,7 @@ impl Plans {
             })
             || (i > 0
                 && match p.topology {
+                    UnitBorrowNestedForwardTopology::NestedElseCascadeTail => true,
                     UnitBorrowNestedForwardTopology::BalancedBoth => match i {
                         1 => {
                             p.paths[..2].iter().any(|path| path.stage != 3)
@@ -159,6 +161,7 @@ impl Plans {
             p.splits[split].arms.map(|a| a[arm])
         };
         let phase_valid = match (p.topology, i) {
+            (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, _) => false,
             (UnitBorrowNestedForwardTopology::NestedThenTail, _) => {
                 p.splits.iter().all(|s| s.done)
                     && if i == 2 {

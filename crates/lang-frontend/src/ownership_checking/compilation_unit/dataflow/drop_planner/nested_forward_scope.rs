@@ -57,7 +57,8 @@ impl NestedForwardPlan {
                 (
                     UnitBorrowNestedForwardTopology::NestedThen
                         | UnitBorrowNestedForwardTopology::NestedThenTail
-                        | UnitBorrowNestedForwardTopology::NestedElse,
+                        | UnitBorrowNestedForwardTopology::NestedElse
+                        | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
                     FixedNestedTree::Three { .. }
                 ) | (
                     UnitBorrowNestedForwardTopology::BalancedBoth,
@@ -101,7 +102,11 @@ impl NestedForwardPlan {
                 | UnitBorrowNestedForwardTopology::NestedThenTail,
                 1,
             ) => Some(true),
-            (UnitBorrowNestedForwardTopology::NestedElse, 1) => Some(false),
+            (
+                UnitBorrowNestedForwardTopology::NestedElse
+                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+                1,
+            ) => Some(false),
             (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => Some(true),
             (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => Some(false),
             _ => None,
@@ -203,26 +208,54 @@ impl DropPlanner<'_, '_> {
             let Expression::If {
                 condition,
                 then_branch,
-                else_branch: None,
+                else_branch,
                 ..
             } = ast.expressions().get(*outer).ok()?.payload()
             else {
                 return None;
             };
-            let (Statement::Block { elements } | Statement::ControlBody { elements }) =
-                ast.statements().get(*then_branch).ok()?.payload()
-            else {
-                return None;
+            let sole = |body| {
+                let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+                    ast.statements().get(body).ok()?.payload()
+                else {
+                    return None;
+                };
+                let [statement] = elements.as_slice() else {
+                    return None;
+                };
+                Some(*statement)
             };
-            let [inner] = elements.as_slice() else {
-                return None;
-            };
-            let (inner, inner_condition, left, right) = self.nested_split_shape(*inner)?;
-            (
-                UnitBorrowNestedForwardTopology::NestedThenTail,
-                vec![(*outer, *condition), (inner, inner_condition)],
-                vec![left, right, tail],
-            )
+            if let Some(other) = else_branch {
+                let first = sole(*then_branch)?;
+                let inner_statement = sole(*other)?;
+                let Statement::Expression { expression: inner } =
+                    ast.statements().get(inner_statement).ok()?.payload()
+                else {
+                    return None;
+                };
+                let Expression::If {
+                    condition: inner_condition,
+                    then_branch: inner_then,
+                    else_branch: None,
+                    ..
+                } = ast.expressions().get(*inner).ok()?.payload()
+                else {
+                    return None;
+                };
+                (
+                    UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+                    vec![(*outer, *condition), (*inner, *inner_condition)],
+                    vec![first, sole(*inner_then)?, tail],
+                )
+            } else {
+                let (inner, inner_condition, left, right) =
+                    self.nested_split_shape(sole(*then_branch)?)?;
+                (
+                    UnitBorrowNestedForwardTopology::NestedThenTail,
+                    vec![(*outer, *condition), (inner, inner_condition)],
+                    vec![left, right, tail],
+                )
+            }
         } else {
             let (outer_split, outer_condition, then_statement, else_statement) =
                 self.nested_split_shape(outer_statement)?;

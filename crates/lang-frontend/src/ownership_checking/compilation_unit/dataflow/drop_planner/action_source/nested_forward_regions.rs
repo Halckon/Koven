@@ -9,6 +9,8 @@ use crate::{
     type_checking::UnitItemId,
 };
 use std::sync::Arc;
+mod cascade;
+use cascade::CascadeProgress;
 
 #[derive(Clone, Debug)]
 pub(super) struct Candidate {
@@ -23,6 +25,7 @@ pub(super) struct Candidate {
     right_closed: bool,
     right_consumed: bool,
     continuation: Option<NestedForwardState>,
+    cascade: CascadeProgress,
     resumed: bool,
     closed: Option<usize>,
 }
@@ -33,8 +36,13 @@ pub(in super::super) struct ContinuationToken {
     entry: usize,
     cursor: usize,
     state: NestedForwardState,
+    cascade_split: Option<usize>,
 }
 impl Candidate {
+    fn cascade(&self) -> bool {
+        self.plan.topology == UnitBorrowNestedForwardTopology::NestedElseCascadeTail
+    }
+
     fn tail(&self) -> bool {
         self.plan.topology == UnitBorrowNestedForwardTopology::NestedThenTail
     }
@@ -48,6 +56,8 @@ impl Candidate {
     fn close_stage(&self) -> usize {
         if self.balanced() {
             24
+        } else if self.cascade() {
+            19
         } else if self.tail() {
             18
         } else {
@@ -55,6 +65,13 @@ impl Candidate {
         }
     }
     fn tokens_consumed(&self) -> bool {
+        if self.cascade() {
+            return matches!(self.cascade, CascadeProgress::OuterResumed(_))
+                && !self.inner_closed
+                && !self.inner_consumed
+                && !self.right_closed
+                && !self.right_consumed;
+        }
         self.inner_closed
             && self.inner_consumed
             && (!self.balanced() || (self.right_closed && self.right_consumed))
@@ -118,6 +135,7 @@ impl ActionSource {
             right_closed: false,
             right_consumed: false,
             continuation: None,
+            cascade: CascadeProgress::Empty,
             resumed: false,
             closed: None,
         });
@@ -246,7 +264,17 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        let stage = if c.tail() {
+        let stage = if c.cascade() {
+            match leaf {
+                0 => 3,
+                1 => 9,
+                2 => 16,
+                _ => {
+                    c.valid = false;
+                    return;
+                }
+            }
+        } else if c.tail() {
             match leaf {
                 0 => 6,
                 1 => 9,
@@ -290,7 +318,10 @@ impl ActionSource {
             Some(Record::Begin(source)) => Some(source),
             _ => None,
         };
-        let good = (!c.tail() || leaf != 2 || (c.resumed && c.continuation.is_some()))
+        let good = (!c.cascade()
+            || leaf != 2
+            || matches!(c.cascade, CascadeProgress::OuterResumed(_)))
+            && (!c.tail() || leaf != 2 || (c.resumed && c.continuation.is_some()))
             && source.is_some_and(|s| s.call() == wanted.value && s.argument() == wanted.argument)
             && (!post
                 || self
@@ -319,7 +350,7 @@ impl ActionSource {
         let Some(c) = self.nested_regions.get_mut(id) else {
             return;
         };
-        if c.tail() && split != 1 {
+        if c.cascade() || (c.tail() && split != 1) {
             c.valid = false;
             return;
         }
@@ -409,6 +440,7 @@ impl ActionSource {
             entry: c.entries[3]?,
             cursor: self.records.len(),
             state,
+            cascade_split: None,
         })
     }
     pub(in super::super) fn nested_continuation_base(
@@ -416,13 +448,19 @@ impl ActionSource {
         token: &ContinuationToken,
     ) -> Option<(usize, usize)> {
         Arc::ptr_eq(&token.identity, &self.identity).then_some(())?;
-        self.nested_regions.get(token.candidate).map(|c| c.base)
+        self.nested_regions.get(token.candidate).map(|c| {
+            let extra = usize::from(token.cascade_split == Some(1));
+            (c.base.0 + extra, c.base.1 + extra)
+        })
     }
     pub(in super::super) fn resume_nested_continuation(
         &mut self,
         token: ContinuationToken,
         clear: bool,
     ) -> Option<NestedForwardState> {
+        if token.cascade_split.is_some() {
+            return self.resume_nested_cascade(token, clear);
+        }
         let c = self.nested_regions.get_mut(token.candidate)?;
         let good = c.tail()
             && Arc::ptr_eq(&token.identity, &self.identity)
@@ -488,6 +526,7 @@ impl ActionSource {
                     && c.stage == c.close_stage()+1
                     && c.closed == c.start.checked_add(c.action_count())
                     && c.tokens_consumed()
+                    && self.valid_cascade_completion(id, c)
                     && if c.tail() {
                         c.resumed && c.continuation.is_some_and(|state| state.plan == c.plan
                             && state.coverage == Some(id) && state.leaf == Some(2)
@@ -550,8 +589,10 @@ impl ActionSource {
                         }
                     })
                 } else { None };
+                let cascade_continuation = if good && c.cascade() { self.cascade_certificate(c) } else { None };
                 UnitBorrowNestedForwardRegion {
                     continuation,
+                    cascade_continuation,
                     flag_layout: c.plan.flag_layout,
                     topology: c.plan.topology,
                     identity: self.identity.clone(),

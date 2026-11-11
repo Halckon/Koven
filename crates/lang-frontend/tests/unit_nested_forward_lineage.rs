@@ -55,6 +55,18 @@ fn ordinary_nested_then_tail_requires_real_continuation() {
     );
 }
 
+#[test]
+fn ordinary_nested_else_cascade_tail_requires_two_real_resumptions() {
+    let text = SOURCE.replace("if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { return right(source) }", "if (outer) { return left(source) } else { if (inner) { return middle(source) } }\nreturn right(source)");
+    // The two actual merges must be certified independently before the tail return.
+    check_lineage(
+        &text,
+        3,
+        true,
+        UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
+    );
+}
+
 fn check_lineage(
     source_text: &str,
     expected: usize,
@@ -179,7 +191,8 @@ fn check_lineage(
                     UnitBorrowNestedForwardTopology::NestedThen
                     | UnitBorrowNestedForwardTopology::NestedThenTail =>
                         [vec![true, true], vec![true, false], vec![false]],
-                    UnitBorrowNestedForwardTopology::NestedElse =>
+                    UnitBorrowNestedForwardTopology::NestedElse
+                    | UnitBorrowNestedForwardTopology::NestedElseCascadeTail =>
                         [vec![true], vec![false, true], vec![false, false]],
                     UnitBorrowNestedForwardTopology::BalancedBoth =>
                         panic!("separate four-leaf test"),
@@ -194,7 +207,8 @@ fn check_lineage(
             let (a, b, other) = match topology {
                 UnitBorrowNestedForwardTopology::NestedThen
                 | UnitBorrowNestedForwardTopology::NestedThenTail => (0, 1, 2),
-                UnitBorrowNestedForwardTopology::NestedElse => (1, 2, 0),
+                UnitBorrowNestedForwardTopology::NestedElse
+                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail => (1, 2, 0),
                 UnitBorrowNestedForwardTopology::BalancedBoth => panic!("separate four-leaf test"),
             };
             assert_eq!(lineages[a].edges()[0], lineages[b].edges()[0]);
@@ -226,6 +240,22 @@ fn check_lineage(
                 } else {
                     assert!(region.continuation().is_none());
                 }
+                if topology == UnitBorrowNestedForwardTopology::NestedElseCascadeTail {
+                    let chain = region
+                        .cascade_continuation()
+                        .expect("two actual ordered resumptions");
+                    assert_eq!(chain.inner().entry(), &lineages[2].edges()[1]);
+                    assert_eq!(chain.outer().entry(), &lineages[2].edges()[0]);
+                    assert_ne!(chain.inner().split(), chain.outer().split());
+                    for step in [chain.inner(), chain.outer()] {
+                        assert!(!step.entry().then_arm());
+                        assert_eq!(step.split(), step.entry().split());
+                        assert_eq!(step.condition(), step.entry().condition());
+                        assert_eq!(step.tail_control(), lineages[2].control());
+                    }
+                } else {
+                    assert!(region.cascade_continuation().is_none());
+                }
                 assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
                 assert_eq!(region.paths(), lineages);
                 assert_eq!(region.paths().len(), 3);
@@ -253,6 +283,11 @@ fn check_lineage(
 fn ordinary_nested_lineage_rejects_neighbor_shapes() {
     let prefix = SOURCE.split("fun wrap").next().unwrap();
     for body in [
+        "if (outer) { return left(source) } else { if (outer) { return middle(source) } }\nreturn right(source)",
+        "if (outer) { return left(source) } else { inner\nif (inner) { return middle(source) } }\nreturn right(source)",
+        "if (outer) { return left(source) } else { if (inner) { return middle(source) }\ninner }\nreturn right(source)",
+        "if (outer) { return left(source) } else { if (inner) { if (outer) { return middle(source) } } }\nreturn right(source)",
+        "if (outer) { return left(source) } else { if (inner) { return middle(source) } else {} }\nreturn right(source)",
         "if (outer) { if (outer) { return left(source) } else { return middle(source) } }\nreturn right(source)",
         "if (outer) { if (inner) { return left(source) } else { return middle(source) } }\ninner\nreturn right(source)",
         "if (outer) { if (inner) { return left(source) }\nreturn middle(source) }\nreturn right(source)",

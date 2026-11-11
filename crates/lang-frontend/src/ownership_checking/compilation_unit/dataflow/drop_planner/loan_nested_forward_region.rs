@@ -174,14 +174,16 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let nesting = if nested.plan.topology
-            == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail
-            && leaf == 2
-        {
-            0
-        } else {
-            nested.plan.leaves()[leaf].path.iter().flatten().count()
-        };
+        let nesting =
+            if matches!(nested.plan.topology,
+            crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail
+            | crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedElseCascadeTail)
+                && leaf == 2
+            {
+                0
+            } else {
+                nested.plan.leaves()[leaf].path.iter().flatten().count()
+            };
         let clear = nested.plan.leaves()[leaf].control == self.checker.unit_expression(id)
             && nested.ready_split.is_none()
             && self.nested_boundary_clear(
@@ -216,6 +218,31 @@ impl DropPlanner<'_, '_> {
                 depth + 1 + nested.plan.split_depth(index),
                 owner + 1 + nested.plan.split_depth(index),
             );
+        if nested.plan.topology
+            == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedElseCascadeTail
+        {
+            let nesting = nested.plan.split_depth(index);
+            let successor = match states {
+                [survivor] => survivor.nested_forward.filter(|next| {
+                    self.nested_boundary_clear(
+                        survivor,
+                        Some(*next),
+                        false,
+                        depth + 1 + nesting,
+                        owner + 1 + nesting,
+                    )
+                }),
+                _ => None,
+            };
+            return self.iteration_actions.nested_cascade_continuation(
+                candidate,
+                index,
+                successor,
+                then_terminated,
+                else_terminated,
+                clear && states.len() == 1,
+            );
+        }
         if nested.plan.topology
             == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedThenTail
             && index == 0

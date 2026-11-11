@@ -13989,3 +13989,28 @@ branch/aux/binding。新增3项CI-only故障测试覆盖身份替换、fold唯�
 strict feature all-target Clippy、默认双crate lib no-run、workspace全目标、fmt/diff、
 docs897及尺寸门禁通过：2496手写Rust文件、36历史超限，无新增尺寸额度。
 日志nested-tail-receipt-*；本地提交不推送，native全套与远端CI未运行。
+
+### 限定三叶级联尾续接证明（2026-11-11）
+
+基于`f2e308ad`，新增有限NestedElseCascadeTail：outer真臂直接返回，false臂内层
+只有真臂返回，函数紧邻尾返回承接FF。固定源第一、3参数Distinct、T/FT/FF，
+不是把既有terminal NestedElse或单续接NestedThenTail重新命名。真实红核三条
+原typed/raw handoff成立但region为0。
+
+独立20阶段协议核outer第一叶及inner第二叶，inner实际false entry后产生首token，
+真实inner merge后恢复；outer只能消费与InnerResumed完整相等的FF存活状态，
+再由第二token跨真实outer merge恢复。显式Empty→InnerPending→InnerResumed→
+OuterPending→OuterResumed，不用inner_closed伪造继续路径；两个token均绑定
+catalog Arc、candidate、split、entry链及cursor，跳级/重放/换层失败封闭。
+尾叶执行深度回到函数body，provenance仍保留FF；最终6条原动作、父边、两个实际
+false entry及seal/close独立核验，公开证据以inner/outer两步明确顺序。
+旧单续接及终止协议未放宽，非cascade必须保持Empty；旧见证继续保留。
+
+后端本片明确Unsupported，实际两入口×on/off保持原borrow marker拒绝、verifier
+与receipt为0。后续需独立记录两Goto与两次真实fold；第二次fold前驱已由第一次
+折叠替换，不能复用单fold证据或仅凭最终同为5块声称完成。
+最终前端15项、后端21项普通定向回归通过，涵盖新级联正控/邻界、旧终止树与
+单续接实际receipt及branch/aux/binding。新增3组CI-only故障仅编译未执行。
+独立因果复审、strict feature all-target Clippy、默认双crate lib no-run、workspace
+全目标、fmt/diff、docs897及尺寸门禁通过：2499手写Rust文件、36历史超限，
+无新增额度。日志nested-cascade-*；本地提交不推送，native全套与远端CI未运行。

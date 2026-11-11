@@ -292,6 +292,7 @@ fn ci_only_tail_token_rejects_foreign_replay_pollution_and_cursor_change() {
         c.closed = None;
         c.resumed = false;
         let mut token = ContinuationToken {
+            cascade_split: None,
             identity: source.identity.clone(),
             candidate: 0,
             entry: c.entries[3].unwrap(),
@@ -339,3 +340,5 @@ fn ci_only_tail_continuation_requires_unique_matching_clear_survivor() {
         );
     }
 }
+
+mod cascade_tests;

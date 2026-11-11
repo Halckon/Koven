@@ -10,6 +10,8 @@ pub enum UnitBorrowNestedForwardTopology {
     NestedThen,
     /// A complete inner true subtree followed by one real outer-false tail continuation.
     NestedThenTail,
+    /// Inner-false continuation resumes through the outer false arm and then the function tail.
+    NestedElseCascadeTail,
     /// The outer false arm contains the inner split.
     NestedElse,
     /// Both outer arms contain one complete inner split, exactly four leaves.
@@ -25,7 +27,7 @@ pub enum UnitBorrowNestedForwardFlagLayout {
     SharedInner,
 }
 
-/// Actual unique outer-false continuation, validated before and after the real state merge.
+/// Actual unique false-edge continuation, validated before and after the real state merge.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowNestedForwardContinuation {
     pub(super) entry: super::UnitLoanNestedForwardEdge,
@@ -34,12 +36,12 @@ pub struct UnitBorrowNestedForwardContinuation {
     pub(super) tail_control: crate::type_checking::UnitExpressionId,
 }
 impl UnitBorrowNestedForwardContinuation {
-    /// Actual observed outer-false entry which supplied the unique surviving state.
+    /// Actual observed false-edge entry which supplied the unique surviving state.
     pub const fn entry(&self) -> &super::UnitLoanNestedForwardEdge {
         &self.entry
     }
 
-    /// Original outer split whose true subtree terminated.
+    /// Original split whose true arm terminated.
     pub const fn split(&self) -> crate::type_checking::UnitExpressionId {
         self.split
     }
@@ -53,11 +55,30 @@ impl UnitBorrowNestedForwardContinuation {
     }
 }
 
+/// Ordered two-merge certificate: the outer continuation consumes the restored inner survivor.
+/// Both steps refer to the same actual FF lineage, not merely two independently counted events.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowNestedForwardCascadeContinuation {
+    pub(super) inner: UnitBorrowNestedForwardContinuation,
+    pub(super) outer: UnitBorrowNestedForwardContinuation,
+}
+impl UnitBorrowNestedForwardCascadeContinuation {
+    /// First step: the unique inner-false survivor, validated across its actual merge.
+    pub const fn inner(&self) -> &UnitBorrowNestedForwardContinuation {
+        &self.inner
+    }
+    /// Second step: the outer merge consuming the first step's restored survivor exactly once.
+    pub const fn outer(&self) -> &UnitBorrowNestedForwardContinuation {
+        &self.outer
+    }
+}
+
 /// Separately certifies actual terminal closure of the admitted fixed nested region.
 /// Its constituent acquisition lineages retain their original Partial meaning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowNestedForwardRegion {
     pub(super) continuation: Option<UnitBorrowNestedForwardContinuation>,
+    pub(super) cascade_continuation: Option<UnitBorrowNestedForwardCascadeContinuation>,
     pub(super) flag_layout: UnitBorrowNestedForwardFlagLayout,
     pub(super) topology: UnitBorrowNestedForwardTopology,
     pub(super) identity: Arc<()>,
@@ -67,6 +88,13 @@ pub struct UnitBorrowNestedForwardRegion {
     pub(super) paths: Vec<UnitLoanNestedForwardLineage>,
 }
 impl UnitBorrowNestedForwardRegion {
+    /// Ordered inner-then-outer resumption proof, only for a Complete NestedElseCascadeTail.
+    pub const fn cascade_continuation(
+        &self,
+    ) -> Option<&UnitBorrowNestedForwardCascadeContinuation> {
+        self.cascade_continuation.as_ref()
+    }
+
     /// Actual continuation only for a Complete NestedThenTail region; absent on other trees.
     pub const fn continuation(&self) -> Option<&UnitBorrowNestedForwardContinuation> {
         self.continuation.as_ref()
@@ -109,9 +137,13 @@ impl UnitBorrowNestedForwardTopology {
             (Self::NestedThen | Self::NestedThenTail, 0) => [Some((0, true)), Some((1, true))],
             (Self::NestedThen | Self::NestedThenTail, 1) => [Some((0, true)), Some((1, false))],
             (Self::NestedThen | Self::NestedThenTail, 2) => [Some((0, false)), None],
-            (Self::NestedElse, 0) => [Some((0, true)), None],
-            (Self::NestedElse, 1) => [Some((0, false)), Some((1, true))],
-            (Self::NestedElse, 2) => [Some((0, false)), Some((1, false))],
+            (Self::NestedElse | Self::NestedElseCascadeTail, 0) => [Some((0, true)), None],
+            (Self::NestedElse | Self::NestedElseCascadeTail, 1) => {
+                [Some((0, false)), Some((1, true))]
+            }
+            (Self::NestedElse | Self::NestedElseCascadeTail, 2) => {
+                [Some((0, false)), Some((1, false))]
+            }
             (Self::BalancedBoth, 0) => [Some((0, true)), Some((1, true))],
             (Self::BalancedBoth, 1) => [Some((0, true)), Some((1, false))],
             (Self::BalancedBoth, 2) => [Some((0, false)), Some((2, true))],
