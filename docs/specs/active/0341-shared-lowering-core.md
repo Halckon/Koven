@@ -12978,3 +12978,37 @@ binary、runner及精确名单/日志绑定；opt0/debug2，FE lib默认，FE集
 默认CLI build/真实--help、fmt/docs/相对95cecb86尺寸门禁均通过，CLI features=[]。
 尺寸2432手写Rust、35历史超限，未改额度。最终只追加本Spec；仍未推送、未合main，
 无本组合正式CI结论，也不将D10/E2标记完成。
+
+### 同来源动态双出口独立路径覆盖合同（2026-11-11）
+
+本片从d0f09db0起步，仅覆盖已准入Shared String来源的动态Boolean参数Name条件、
+无else的if真臂直接return同一callee及唯一false尾return。source/callable仍Partial；
+两个Partial原因不能拼成线性Complete，不能扩大旧表达式region或其receipt准入，
+不新增End、Drop、权限恢复、跨函数LoanId或后端执行责任。
+
+独立branch产品按callable/source parameter/split/condition声明有限区域；只有整个
+声明范围通过独立认证才发布两个认证path，每path绑定原branch身份及本路径全部动作、
+实际Begin和live handoff。Partial不得发布有效认证句柄；不公开跨两臂的单一Range，
+路径枚举顺序不代表执行时序。旧Partial handoff产品及其getter保持原合同。
+
+认证必须独立对账声明预期两出口、实际split/臂/唯一false续接登记及真实Return生命周期。
+实际true终止后才能登记false唯一继续状态；缺失、重复或额外继续状态不能获Complete。
+每条路径从实际臂入口至Return完成保留全部record，不按角色筛选；区域入口和条件求值
+前后也须证明没有遗漏动作，不能仅凭Boolean Name语法或已有两个handoff推断覆盖。
+Return必须在value求值成功后、finish_return_iterations/drop_all之前核未清空义务，
+实际handoff及原清理完成后再核post；不能只在outer已清空状态看空表。旧表达式boundary
+不放宽；分支单独核真实scope层级与非owning参数，不能剥掉字段调用旧检查来假装闭合。
+遗漏pre/post、额外Begin/End/Drop、跨臂区间重叠、删选记录、完成后追加、错身份/跨catalog
+或复用acquisition均不认证。错误/deferred沿用原全局撤销边界。
+
+当前只落只读API壳：catalog.branch_forward_regions()初始化为空，生产者和认证器均未
+实现，无硬编码证书。ordinary探针复用原源码和原AST/真实cause正控，再完成Rooted/Memory
+四次on/off ownership、旧产品等价、两条不同Begin的真实原因、source Partial及旧表达式
+regions为空，最后统一期待每布局一个新局部Complete区域。空壳预期是运行时0!=1，
+不是缺API编译失败；未实际运行前不得登记为已取得红证据。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 普通源码独立路径覆盖能力红 | unit_branch_forward_causes / ordinary_dynamic_branch_requires_independent_path_coverage | 已落探针，未编译、未运行 |
+| 漏出口/重复臂/额外continuation、动作区间和状态破损 | 后续CI-only定向负控 | 未实现、未执行；禁止本机注入运行 |
+| 旧表达式region/receipt与双出口lowering不回退 | 既有借用定向回归 | 本切片未运行 |

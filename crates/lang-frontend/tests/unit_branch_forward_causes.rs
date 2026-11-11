@@ -14,6 +14,112 @@ use lang_frontend::{
 const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source { if (flag) { return view(source) }; return view(source) }";
 
 #[test]
+fn ordinary_dynamic_branch_requires_independent_path_coverage() {
+    // Reuse the complete original AST/actual-cause oracle before asking for new coverage.
+    ordinary_dynamic_branch_has_two_distinct_actual_acquisition_causes();
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("branch-coverage.ko", SOURCE).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(parsed.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let mut results = Vec::new();
+    for (layout, input) in [
+        (
+            "rooted",
+            SourceUnitInput::new("root", "branch-coverage.ko", source, &parsed),
+        ),
+        ("memory", SourceUnitInput::memory_document(source, &parsed)),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let on = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let off = with_loan_observation(false, || {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap()
+        });
+        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+        assert_eq!(
+            on.ownership().owner_observations(),
+            off.ownership().owner_observations()
+        );
+        assert!(off.ownership().loan_action_observations().is_empty());
+        let [catalog] = on.ownership().loan_action_observations() else {
+            panic!("catalog")
+        };
+        assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
+        assert!(
+            catalog.forward_regions().is_empty(),
+            "old expression receipt input stays empty"
+        );
+        let handoffs = catalog
+            .actions()
+            .iter()
+            .filter_map(|action| match action {
+                UnitLoanAction::BorrowForwardHandoff(handoff) => Some(handoff),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(handoffs.len(), 2);
+        assert_eq!(on.ownership().borrow_forward_transports().len(), 2);
+        for (handoff, raw) in handoffs
+            .iter()
+            .zip(on.ownership().borrow_forward_transports())
+        {
+            assert_eq!(handoff.transaction(), raw);
+            assert_eq!(
+                handoff.callable(),
+                Some(UnitItemId::new(
+                    raw.returned_expression().source_unit(),
+                    parsed.roots()[1]
+                ))
+            );
+            assert_eq!(
+                catalog.action(&handoff.source_begin().unwrap()),
+                Some(&UnitLoanAction::Begin(raw.source_loan().clone()))
+            );
+            assert!(handoff.branch().is_some());
+        }
+        assert_ne!(handoffs[0].source_begin(), handoffs[1].source_begin());
+        assert_ne!(
+            handoffs[0].branch().unwrap().then_arm(),
+            handoffs[1].branch().unwrap().then_arm()
+        );
+        let coverage = catalog
+            .branch_forward_regions()
+            .iter()
+            .map(|region| region.coverage())
+            .collect::<Vec<_>>();
+        println!(
+            "layout={layout}; both_modes_ownership_succeeded=true; actual_causes=2; source=Partial; branch_regions={}",
+            coverage.len()
+        );
+        results.push((layout, coverage));
+    }
+    // Both layouts and all true-off preconditions must finish before the capability red.
+    for (layout, coverage) in results {
+        assert_eq!(
+            coverage.len(),
+            1,
+            "{layout}: missing independent two-path region"
+        );
+        assert_eq!(coverage[0], UnitLoanActionCoverage::Complete);
+    }
+}
+
+#[test]
 fn ordinary_dynamic_branch_has_two_distinct_actual_acquisition_causes() {
     let mut sources = SourceMap::new();
     let source = sources.add_source("branch-causes.ko", SOURCE).unwrap();

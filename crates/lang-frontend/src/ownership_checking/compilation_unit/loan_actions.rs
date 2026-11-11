@@ -97,10 +97,18 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
 }
 
 impl UnitLoanActionObservation {
+    /// Independent branch coverage. Currently empty: the producer is not implemented.
+    /// Absence grants no absence proof and never enables expression-wrapper receipts.
+    #[must_use]
+    pub fn branch_forward_regions(&self) -> &[super::UnitBorrowBranchForwardRegion] {
+        &self.branch_forward_regions
+    }
+
     /// Independently entered wrapper normal-exit regions. Missing entries prove no absence.
     #[must_use]
     pub fn forward_regions(&self) -> &[super::UnitBorrowForwardRegion] {

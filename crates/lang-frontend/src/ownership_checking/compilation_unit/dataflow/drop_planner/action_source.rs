@@ -534,6 +534,8 @@ impl ActionSource {
             binding_regions,
             child_regions,
             forward_regions,
+            // API-only red checkpoint; no branch coverage producer exists yet.
+            branch_forward_regions: Vec::new(),
             binding_dependency_drops,
         }]
     }
