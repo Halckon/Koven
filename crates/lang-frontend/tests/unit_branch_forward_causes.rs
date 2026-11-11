@@ -160,12 +160,11 @@ fn ordinary_dynamic_branch_has_two_distinct_actual_acquisition_causes() {
                 "control is not call identity"
             );
             assert_eq!(raw.source_loan().call(), raw.returned_expression());
-            let linked = handoff.source_begin().map(|id| {
+            let linked = handoff.source_begin().inspect(|id| {
                 assert_eq!(
-                    catalog.action(&id),
+                    catalog.action(id),
                     Some(&UnitLoanAction::Begin(raw.source_loan().clone()))
                 );
-                id
             });
             if let Some(branch) = handoff.branch() {
                 assert_eq!(branch.callable(), handoff.callable().unwrap());
