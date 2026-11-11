@@ -165,3 +165,8 @@ String When在既有literal-candidate内核实际进入body后才记录，同ent
 同一hook，不改变既有分支清理。普通模式保守遍历，即使文本为false && RHS也可能
 记录RHS事实；constant-control的Never不进入hook。它是planner求值边，不是运行时
 可达证明，不保留左操作数判断历史，也不证明每条路径的root运输完整性。
+
+祖先作用域退出必须匹配进入时的source-qualified控制和arm；重复进入、跨source或
+失配退出会sticky拒绝并清除当前私有root证据，后续配对退出不能恢复资格。被拒绝期间
+不再采集入口、producer或写入回执；仅新的事务生命周期重置。此保护只撤销私有证据，
+不改变旧求值、清理、对外产品或语义接受范围。

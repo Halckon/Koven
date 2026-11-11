@@ -41,7 +41,7 @@ fn compare(fixture: &Fixture, parts: &Parts) {
     compare_and_inspect(fixture, parts, |_| {});
 }
 
-fn compare_and_inspect(
+pub(super) fn compare_and_inspect(
     fixture: &Fixture,
     parts: &Parts,
     inspect: impl FnOnce(&Checker<'_>),

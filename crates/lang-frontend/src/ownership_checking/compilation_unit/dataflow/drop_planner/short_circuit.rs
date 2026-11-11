@@ -14,7 +14,7 @@ impl DropPlanner<'_, '_> {
     ) -> Result<bool, OwnershipCheckingError> {
         self.enter_root_branch_arm(plan.expression.expression(), plan.rhs_branch);
         let result = self.expression(plan.right.expression(), DropExpressionUse::Read, state);
-        self.leave_root_branch_arm();
+        self.leave_root_branch_arm(plan.expression.expression(), plan.rhs_branch);
         result
     }
 

@@ -9,6 +9,19 @@ pub(super) struct RootEvidence {
     normal_backedge: bool,
     tainted: bool,
 }
+#[cfg(test)]
+impl RootEvidence {
+    pub(super) fn fault_fixture(roots: RootIncoming, writes: Vec<RootWriteReceipt>) -> Self {
+        Self {
+            roots,
+            writes,
+            completed_strings: Vec::new(),
+            after_condition: true,
+            normal_backedge: false,
+            tainted: false,
+        }
+    }
+}
 impl ControlTransactions {
     pub(in super::super::super) fn invalidate_root_preservation(&mut self) {
         for (_, evidence) in &mut self.root_entries {
@@ -63,6 +76,9 @@ impl ControlTransactions {
     ) {
         // Never retain a stale partial capture if this control cannot be recaptured.
         self.root_entries.retain(|(key, _)| *key != control);
+        if self.root_branches_invalid {
+            return;
+        }
         let Some(roots) = capture(control, state, observation) else {
             return;
         };

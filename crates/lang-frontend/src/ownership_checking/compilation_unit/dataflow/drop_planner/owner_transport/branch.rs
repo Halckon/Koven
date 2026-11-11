@@ -77,7 +77,7 @@ impl DropPlanner<'_, '_> {
             self.conditional_return_arm_enter(id, then_branch, &then_state);
             self.enter_root_branch_arm(id, 0);
             let evaluated = self.evaluate_control_body(then_branch, branch_usage, &mut then_state);
-            self.leave_root_branch_arm();
+            self.leave_root_branch_arm(id, 0);
             let (then_tail, then_result) = evaluated?;
             then_terminated = !then_result.continues;
             if then_result.continues {
@@ -107,7 +107,7 @@ impl DropPlanner<'_, '_> {
                 self.enter_root_branch_arm(id, 1);
                 let evaluated =
                     self.evaluate_control_body(else_branch, branch_usage, &mut else_state);
-                self.leave_root_branch_arm();
+                self.leave_root_branch_arm(id, 1);
                 let (else_tail, else_result) = evaluated?;
                 if else_result.continues {
                     self.drop_branch_exit(id, 1, &mut else_state);

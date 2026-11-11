@@ -55,16 +55,43 @@ fn direct_string(checker: &Checker<'_>, expression: ExpressionId) -> bool {
 }
 impl DropPlanner<'_, '_> {
     pub(in super::super::super) fn enter_root_branch_arm(&mut self, id: ExpressionId, arm: usize) {
-        self.owner_loop
+        let id = self.checker.unit_expression(id);
+        if self.owner_loop.root_branches_invalid {
+            return;
+        }
+        if self
+            .owner_loop
             .root_branch_arms
-            .push((self.checker.unit_expression(id), arm));
+            .iter()
+            .any(|(parent, _)| *parent == id || parent.source_unit() != id.source_unit())
+        {
+            self.invalidate_root_branch_stack();
+            return;
+        }
+        self.owner_loop.root_branch_arms.push((id, arm));
     }
-    pub(in super::super::super) fn leave_root_branch_arm(&mut self) {
+    pub(in super::super::super) fn leave_root_branch_arm(&mut self, id: ExpressionId, arm: usize) {
+        let expected = (self.checker.unit_expression(id), arm);
+        if self.owner_loop.root_branches_invalid {
+            return;
+        }
+        if self.owner_loop.root_branch_arms.last() != Some(&expected) {
+            self.invalidate_root_branch_stack();
+            return;
+        }
         self.owner_loop.root_branch_arms.pop();
+    }
+    fn invalidate_root_branch_stack(&mut self) {
+        self.owner_loop.root_branches_invalid = true;
+        self.owner_loop.root_branch_arms.clear();
+        self.owner_loop.root_entries.clear();
     }
 
     // Called only after the actual String evaluation has reached its completion hook.
     pub(in super::super::super) fn record_root_literal(&mut self, expression: ExpressionId) {
+        if self.owner_loop.root_branches_invalid {
+            return;
+        }
         let Some(control) = self.owner_controls.current() else {
             return;
         };
@@ -92,6 +119,9 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         state: &ValueState,
     ) {
+        if self.owner_loop.root_branches_invalid {
+            return;
+        }
         let Some(control) = self.owner_controls.current() else {
             return;
         };
@@ -157,5 +187,57 @@ impl DropPlanner<'_, '_> {
         if receipt.valid_branch_ancestry(self.checker) {
             evidence.writes.push(receipt);
         }
+    }
+}
+
+#[cfg(test)]
+mod scope_fault_tests {
+    use super::super::super::tests::compare_and_inspect;
+    use super::*;
+    use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+
+    // Fault injection is compiled locally but executed only by remote CI.
+    #[test]
+    fn ci_only_root_branch_scope_mismatch_is_sticky() {
+        let fixture = Fixture::new(&[(
+            "scope-fault.ko",
+            "fun run(flag: Boolean) { var root = \"old\"; while(flag) { val old = replace(&root, \"new\"); break }; val kept = root }",
+        )]);
+        let owned = fixture.shared();
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            for duplicate in [false, true] {
+                let mut planner = DropPlanner::new(
+                    checker,
+                    super::super::super::super::liveness::build(checker, true).unwrap(),
+                );
+                planner.owner_control_probe = Some(Vec::new());
+                let mut planner = planner.run().unwrap();
+                let id = planner.owner_control_probe.as_ref().unwrap()[1].root_writes[0]
+                    .call
+                    .expression();
+                let visits = planner.owner_control_probe.as_ref().unwrap();
+                let control = visits[0].control;
+                let evidence = super::super::root_incoming::RootEvidence::fault_fixture(
+                    visits[0].incoming_roots.clone().unwrap(),
+                    visits[1].root_writes.clone(),
+                );
+                assert!(!evidence.roots.is_empty());
+                assert!(!evidence.writes.is_empty());
+                planner.owner_loop.root_entries.push((control, evidence));
+                assert_eq!(planner.owner_loop.root_entries.len(), 1);
+                planner.enter_root_branch_arm(id, 0);
+                if duplicate {
+                    planner.enter_root_branch_arm(id, 0);
+                } else {
+                    planner.leave_root_branch_arm(id, 1);
+                }
+                assert!(planner.owner_loop.root_branches_invalid);
+                assert!(planner.owner_loop.root_entries.is_empty());
+                planner.enter_root_branch_arm(id, 0);
+                planner.leave_root_branch_arm(id, 0);
+                assert!(planner.owner_loop.root_branches_invalid);
+                assert!(planner.owner_loop.root_branch_arms.is_empty());
+            }
+        });
     }
 }

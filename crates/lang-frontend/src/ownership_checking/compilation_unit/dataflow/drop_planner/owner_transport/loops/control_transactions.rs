@@ -2,6 +2,7 @@
 use super::*;
 #[derive(Default)]
 pub(in super::super::super) struct ControlTransactions {
+    pub(super) root_branches_invalid: bool,
     pub(super) root_branch_arms: Vec<(UnitExpressionId, usize)>,
     entries: Vec<(UnitStatementId, LoopTransaction)>,
     selected: Option<UnitStatementId>,
@@ -22,6 +23,7 @@ impl ControlTransactions {
             selected: Some(control),
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
+            root_branches_invalid: false,
         }
     }
     fn closed_sequence(
@@ -74,6 +76,7 @@ impl ControlTransactions {
             selected: None,
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
+            root_branches_invalid: false,
         })
     }
     // A separate batch must not masquerade as a Complete straight-line observation.
