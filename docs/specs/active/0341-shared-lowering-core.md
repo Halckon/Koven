@@ -12670,3 +12670,23 @@ block及额外指令；尚未直接覆盖admission的foreign-catalog/Partial注�
 最终门禁：codegen全targets带feature Clippy -D warnings通过34.52秒；fmt、docs890、
 Rust尺寸2424文件/35历史超限、workspace all-targets check及diff检查通过。没有降低
 profile、豁免或删除测试；独审核六项日志/计数/边界一致。仅本地提交，尚未推送/合流或跑CI。
+
+### Int 正常回边与 LiveForward receipt 合流验收（2026-11-11）
+
+独立合流代码 `9892ccc4` 保留 owner `d68ac8fa`、借用 `a8dc7995` 双父，
+共同基线 `0f9c395d` 与当前 main `e659b66a` 均在父链中。仅本 Spec 双追加冲突，
+两段完整保留；其余逐文件与父头字节一致，经独审确认。原工作树和用户修改未动。
+
+合流后重新编译并执行 FE4 / CG11 共15项普通 exact，各1 passed；owner含 Basic/Const
+真实有限0/1/2/7轮 native 正常输出，Int 是源码循环控制，不是资源计数实验；Abort仅核
+SSA结构，没有执行Abort、故障、计数或压力路径。借用六项覆盖新真实 production receipt、
+原覆盖与投影及旧consumer/receiver；不将局部region Complete扩大为source/callable完成。
+CI-only只编译。不能据此声称一般循环、跨函数义务、完整故障覆盖或旧oracle退休已完成。
+
+4286个tracked输入与两fresh binary、runner SHA均独核，执行前后未变；artifact为
+opt0/debug2，FE features=[]，CG仅loan support。完整证据在仓库外
+/private/tmp/koven-counter-receipt-integration-evidence，保留Cargo JSON、清单及15项原日志。
+fmt、FE/CG all-targets strict Clippy、默认workspace all-targets、默认CLI build与真实
+--help均通过，默认CLI artifact features=[]；docs及相对e659b66a尺寸门禁通过。
+末次仅追加本Spec，不改已冻结Rust。复用既有target，无删除数据或缓存；本轮未推送、
+未获得新组合正式CI结果，后续发布等待用户批准。D10/E2不标记完成。
