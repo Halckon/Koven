@@ -32,7 +32,7 @@ mod outer_borrowed_while;
 mod ownership_primitive;
 mod pending_call;
 mod range;
-mod readonly_receiver;
+use field_replace::readonly_receiver;
 mod source_closure;
 mod string_clone;
 mod while_proof;

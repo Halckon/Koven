@@ -5,16 +5,14 @@ pub(in crate::ssa) use integer::verify_borrow_result;
 mod range;
 use range::nullable;
 pub(super) use range::{
-    parameter as range_parameter, return_contract as range_return_contract,
+    callable, parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
 };
-pub(super) mod callable;
 use callable::{
     callable_invoke_contract, closure_construct_contract, direct_call_contract,
     function_address_contract,
 };
-mod map;
-use integer::constant_contract;
+use integer::{constant_contract, map};
 
 use super::{
     model::{

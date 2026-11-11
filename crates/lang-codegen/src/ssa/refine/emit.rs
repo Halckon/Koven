@@ -1,6 +1,8 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
-mod statements;
-use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
+use super::{
+    body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot},
+    statements,
+};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{
@@ -306,14 +308,14 @@ fn place(entity: EntityId, span: Span) -> Result<PlaceId, LoweringError> {
     }
 }
 
-struct Emitter<'f> {
-    function: &'f mut Function,
-    current: BTreeMap<Slot, EntityId>,
-    defined: BTreeMap<Slot, EntityId>,
+pub(super) struct Emitter<'f> {
+    pub(super) function: &'f mut Function,
+    pub(super) current: BTreeMap<Slot, EntityId>,
+    pub(super) defined: BTreeMap<Slot, EntityId>,
 }
 
 impl Emitter<'_> {
-    fn get(&self, slot: Slot, span: Span) -> Result<EntityId, LoweringError> {
+    pub(super) fn get(&self, slot: Slot, span: Span) -> Result<EntityId, LoweringError> {
         self.current
             .get(&slot)
             .copied()
@@ -342,7 +344,7 @@ impl Emitter<'_> {
         value(entity, span)
     }
 
-    fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
+    pub(super) fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
         Ok(match op {
             ROp::Alias { .. } => return Err(error(LoweringErrorKind::InvalidModel, span)),
             ROp::Constant(constant) => Operation::Constant(constant.clone()),
