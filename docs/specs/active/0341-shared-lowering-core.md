@@ -13198,3 +13198,27 @@ Basic、实际lower、SSA verifier、LLVM及两个不同Return收据均已通过
 4305输入与真实Cargo artifact、保存binary SHA及原日志绑定，测试前后不变；证据
 保留于主仓忽略目录 `.local-artifacts/owner-conditional-return-20261111T113054Z`。
 此红非前置拒绝；尚无生产接线、native或CI-only执行结论。
+
+独立ConditionalReturnBackedge现已生产接线：H核心的尾部Return与body Return端点
+分开，true臂真实Take→交付→空状态cleanup、臂终止及有序Move/Result均封印；
+false臂独立六个live快照包含If/body正常完成。精确上下文门只准本片当前事务的
+body Return，不全局放宽分支payload Return，旧Break/Continue/Mixed保持独立。
+CG独立body-return receipt及taken/emitted状态，两个payload各自验证；true不入
+header/loop exit，false携Q正常回header，完整incoming及严格参数来源另行校验。
+
+首次green的FE12/13，新产品正例失败；CG虽编译但未运行且binary保全。定点诊断
+证明Take/交付/cleanup及implicit清理已到达，seal误只接受Move；真实Name消费还
+生成同payload/owner的Result。修复为严格长度2、顺序Move→Result，拒绝任何额外
+或错序事件；public一致性与CI-only换序负控同步，原authority探针未改，临时日志
+全部移除。失败及诊断原记录保留，不将其称为通过。
+
+重新冻结green2的4308输入并构建，34 ordinary exact（FE13/CG21）各1 passed、
+0 failed、0 ignored，包含两个实际Return各自授权、SSA完整incoming/各payload/
+参数来源及Basic/Const五组有限正常native。新13类FE及3类CG损坏负控仅编译，
+所有CI-only未执行；有限运行不证明任意循环或资源计数。实测输入、实际Cargo
+artifact、保存binary SHA与日志均绑定于本片持久证据目录green2。当前基3fcd5a4f，
+正式CI及最新main/其他分支合流仍须独立验收，不宣称D10/E2整体完成。
+默认及loan support两套FE/CG all-target strict Clippy、默认workspace all-target check
+均通过；fmt、docs893、相对3fcd5a4f的尺寸2445手写Rust/35历史超限、diff通过。
+无新增尺寸例外。独审已核34真实日志、默认FE/仅loan的CG artifact及保存binary；
+最终账本仅改文档，无Rust漂移。本片只作本地提交，最新组合及正式CI仍待验证。

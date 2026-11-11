@@ -207,6 +207,7 @@ impl UnitOwnerObservation {
             | super::UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
             | super::UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
             | super::UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(_)
             | super::UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => None,
         }
     }

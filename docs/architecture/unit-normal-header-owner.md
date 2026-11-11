@@ -80,3 +80,15 @@ receipts；定向SSA测试追溯两个参数各自经block参数运输到真实�
 完整 incoming 分别证明 entry/正常回边到 header、condition-false/Break 到 exit。
 发射阶段可合法折叠单前驱 if join；最终 SSA 的隐式 false 直接到 header，而
 refine 的细粒度完成收据仍独立保留。当前只覆盖此单根有限形状，不代表一般 If。
+
+## 条件直接 Return 与正常回边
+
+双Int单根合同另支持尾部 `if(index < stop) { return held }`，循环后仍Return根。
+独立ConditionalReturn产品保存true臂实际Take、交付、空状态清理与有序Move/Result
+事件；false臂保留独立live Q快照及If/body正常完成。true已消费状态不与false live
+状态等同，也不作为Break接入loop exit。只有当前产品精确身份的分支Return可通过
+对应观察门，其他有payload分支Return的既有边界不改变。
+
+后端将body Return与循环后Return的take及完成收据分开，两个实际payload分别授权。
+真实false join和正常回边沿原H守恒；true直接Return不进入header或loop exit，最终
+SSA完整incoming和参数来源另验。此片不涉及RHS提前退出、多根、嵌套或capture。

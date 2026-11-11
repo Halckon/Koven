@@ -208,6 +208,7 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        self.take_conditional_return(expression, value.as_ref());
         self.take_open_loop_return(expression, value.as_ref());
         if let Some(choice) = &mut self.owner_choice {
             choice.moved(
@@ -295,7 +296,10 @@ impl DropPlanner<'_, '_> {
             }
             Expression::If {
                 else_branch: None, ..
-            } => self.conditional_break_expression_supported(id),
+            } => {
+                self.conditional_break_expression_supported(id)
+                    || self.conditional_return_expression_supported(id)
+            }
             Expression::If {
                 else_branch: Some(_),
                 ..

@@ -7,6 +7,8 @@ use crate::ownership_checking::{
 use crate::parser::AssignmentOperator;
 mod conditional_break;
 mod conditional_break_hooks;
+mod conditional_return;
+mod conditional_return_hooks;
 mod control;
 mod mixed;
 
@@ -33,6 +35,7 @@ pub(super) struct NormalInput {
     jump: Option<UnitExpressionId>,
     mixed: Option<mixed::MixedInput>,
     conditional_break: Option<conditional_break::ConditionalBreakInput>,
+    conditional_return: Option<conditional_return::ConditionalReturnInput>,
     transfer: Option<(
         std::sync::Arc<()>,
         UnitExpressionId,
@@ -84,6 +87,7 @@ impl NormalInput {
             return None;
         };
         let mut conditional_break = None;
+        let mut conditional_return = None;
         let (declaration, assignment_statement, jump, mixed) = match elements.as_slice() {
             [declaration, assignment] => (*declaration, *assignment, None, None),
             [declaration, assignment, tail] => {
@@ -102,14 +106,26 @@ impl NormalInput {
                     Expression::If {
                         else_branch: None, ..
                     } => {
-                        conditional_break = Some(conditional_break::ConditionalBreakInput::admit(
+                        conditional_break = conditional_break::ConditionalBreakInput::admit(
                             checker,
                             *expression,
                             control_symbol,
                             *condition,
                             parameters,
                             callable,
-                        )?);
+                        );
+                        if conditional_break.is_none() {
+                            conditional_return =
+                                Some(conditional_return::ConditionalReturnInput::admit(
+                                    checker,
+                                    *expression,
+                                    control_symbol,
+                                    *condition,
+                                    parameters,
+                                    callable,
+                                    root,
+                                )?);
+                        }
                         (*declaration, *assignment, None, None)
                     }
                     Expression::If { .. } => (
@@ -206,8 +222,12 @@ impl NormalInput {
             *target,
             *value,
         )?;
-        if ((mixed.is_some() || conditional_break.is_some()) && increment.is_none())
-            || (parameters.len() != 1 && mixed.is_none() && conditional_break.is_none())
+        if ((mixed.is_some() || conditional_break.is_some() || conditional_return.is_some())
+            && increment.is_none())
+            || (parameters.len() != 1
+                && mixed.is_none()
+                && conditional_break.is_none()
+                && conditional_return.is_none())
         {
             return None;
         }
@@ -238,12 +258,16 @@ impl NormalInput {
             jump,
             mixed,
             conditional_break,
+            conditional_return,
             transfer: None,
             finished_role: None,
             valid: true,
         })
     }
     pub(super) fn expected_completion(&self) -> LoopBodyCompletion {
+        if let Some(input) = &self.conditional_return {
+            return input.role;
+        }
         if let Some(input) = &self.conditional_break {
             return input.role;
         }
@@ -448,6 +472,13 @@ impl NormalInput {
         {
             return false;
         }
+        if self
+            .conditional_return
+            .as_mut()
+            .is_some_and(|input| !input.complete(state))
+        {
+            return false;
+        }
         self.completed = super::super::replace_consumer::snapshot(value);
         match (&self.completed, self.jump, &self.transfer) {
             (Some(snapshot), Some(jump), Some((_, actual, transferred))) => {
@@ -485,6 +516,10 @@ impl NormalInput {
                 .conditional_break
                 .as_ref()
                 .is_some_and(|input| !input.identity_matches(&body.identity))
+            || self
+                .conditional_return
+                .as_ref()
+                .is_some_and(|input| !input.identity_matches(&body.identity))
             || boundary_values(state) != Some(std::slice::from_ref(expected))
         {
             self.valid = false;
@@ -497,6 +532,9 @@ impl NormalInput {
         let source = self.initial.source_unit();
         self.product = Some(HeaderCore {
             completion: match self.expected_completion() {
+                LoopBodyCompletion::ConditionalReturn { control, .. } => {
+                    HeaderCompletion::ConditionalReturn(control)
+                }
                 LoopBodyCompletion::ConditionalBreak { control, .. } => {
                     HeaderCompletion::ConditionalBreak(control)
                 }
@@ -589,7 +627,12 @@ impl NormalInput {
         if !product.is_consistent() {
             return None;
         }
-        if let Some(input) = self.conditional_break.take() {
+        if let Some(input) = self.conditional_return.take() {
+            let value = input.finish(product)?;
+            value.is_consistent().then_some(
+                UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(Box::new(value)),
+            )
+        } else if let Some(input) = self.conditional_break.take() {
             let value = input.finish(product)?;
             value.is_consistent().then_some(
                 UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(Box::new(value)),
@@ -641,6 +684,10 @@ impl DropPlanner<'_, '_> {
             .is_some_and(|m| m.condition() == self.checker.unit_expression(id))
             || normal
                 .conditional_break
+                .as_ref()
+                .is_some_and(|m| m.condition() == self.checker.unit_expression(id))
+            || normal
+                .conditional_return
                 .as_ref()
                 .is_some_and(|m| m.condition() == self.checker.unit_expression(id))
         {
