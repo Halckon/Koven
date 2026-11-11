@@ -14477,3 +14477,30 @@ Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff�
 尺寸复测2573手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
 policy不改。build1011→1012仅独立Plans创建，经非作者职责review低于原1025，
 emit987不增长。本片仅本地提交、未推送，不声称任意多根/循环证明或旧见证退役。
+
+#### 双根动态消费序列的真实边界研究（实施中）
+
+基于831cbac4，先审计重复合同再扩展独立证明，不继续堆固定线性shape。令A表示
+consume(aux)，B表示consume(item)，普通fixture枚举长度2..4全部22个同时含A/B的词，
+再加BA⁸长链；长度仅是测试取样，不是新增语言或生产上限。每词覆盖source0/1、
+rooted/memory及观察开关，共184组合，前端与后端分别实测通过。
+
+实际结果：全部typed/raw合法且唯一handoff、binding、end、transport仍存在；原loans
+为2+词长。当前新观测始终只记录一次use-return，独立source-retirement链接当且仅当
+B出现一次成立；A出现在B前后均不破坏此链接。多个B不能靠“只保留最后一次使用”
+扩资格。新Complete及receipt仍仅BA，其他词不冒领原ASAP/LaterUse资格。
+
+真实SSA中每个A重新获得独立Place/Loan并End，所有B复用真实result；最后B之后
+result/source依次End再source Drop，最后A之后aux Drop。两个Drop先后跟实际末次
+使用次序一致；每组on/off SSA/LLVM相同。因此这些输入的执行支持已经存在，剩余
+是独立证明覆盖，不应汇报为新开通的执行能力。新ordinary FE/CG测试固化上述规律。
+
+下片优先以Vec逐次记录单B的动态aux消费序列，可先BAⁿ再覆盖A*BA*；每步须绑定
+真实acquisition/return，同一活owner、中间不提前Drop、最终removed-owner因果及
+完整区间。多B需另证完整使用集合，不改旧single-use witness。bounded参数返回树
+不证明两个本地owner的生命周期交错，不能拼接资格；旧见证仍无同合同安全退役项。
+
+本研究仅新增普通FE/CG fixture与注册，没有生产或门禁修改。FE矩阵1项与CG普通
+84项回归、Clippy -D warnings（all-targets）、fmt/diff、文档897项通过；未执行
+CI-only、native全套或远端CI，未把前序尺寸1684>1674阻塞算作通过。日志
+aux-sequence-*；仅本地提交，不推送。

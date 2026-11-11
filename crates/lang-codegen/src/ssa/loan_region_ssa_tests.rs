@@ -882,3 +882,7 @@ mod single_continuation_neighbor_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "distinct_root_auxiliary_research_tests.rs"]
 mod distinct_root_auxiliary_research_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "auxiliary_sequence_research_tests.rs"]
+mod auxiliary_sequence_research_tests;
