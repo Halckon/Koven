@@ -5,7 +5,6 @@ use super::model::{
     ModuleId, Origin, Program, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 
-mod callable_view;
 pub(in crate::ssa) mod closure_content;
 mod closure_escape;
 mod content_flow;
@@ -194,7 +193,7 @@ fn verify_function_structure(module: &Module, function: &Function, errors: &mut 
             },
         ));
     }
-    callable_view::verify_returns(module, function, errors);
+    module::verify_callable_view_returns(module, function, errors);
     for ty in &function.return_types {
         verify_type(
             module,
@@ -424,7 +423,7 @@ fn verify_entity_data(
         &data.origin,
         errors,
     );
-    callable_view::verify_entity(module, entity, data, errors);
+    module::verify_callable_view_entity(module, entity, data, errors);
     let valid = match data.definition {
         Definition::BlockParameter { block, index } => function
             .block(block)

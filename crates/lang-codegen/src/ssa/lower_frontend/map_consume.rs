@@ -3,8 +3,11 @@ mod entry_borrows;
 mod nullable;
 
 use super::{nominal::NominalTypeMapper, *};
-use crate::ssa::model::{MapContainerKind, Module, SsaTypeKind};
-use lang_frontend::type_checking::IntrinsicTypeConstructor;
+use crate::ssa::model::{LoanKind, MapContainerKind, Module, SsaTypeKind};
+use lang_frontend::{
+    ownership_checking::BorrowSourceLoan,
+    type_checking::IntrinsicTypeConstructor,
+};
 
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_map_consume(
@@ -138,6 +141,95 @@ impl ExpressionLowerer<'_> {
                 _ => return Err(error(LoweringErrorKind::MissingFact, span)),
             }
         }
+    }
+
+    pub(super) fn lower_map_with_value(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let span = self.expression_span(expression)?;
+        let d = *self
+            .typed
+            .map_with_value(expression)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let mut loans = Vec::new();
+        for operand in [d.receiver(), d.key(), d.action()] {
+            let operand_span = self.expression_span(operand)?;
+            if self.runtime_operand_exits(operand, operand_span)? {
+                return Ok(LoweredValue::Diverged);
+            }
+            let (loan, new) = self.lower_borrow_argument(expression, operand, operand_span)?;
+            loans.push(loan);
+            self.pending_call_loans
+                .insert((expression.index(), operand.index()), new.then_some(loan));
+        }
+        let ty = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self.append(
+            Operation::MapWithValue {
+                source: loans[0],
+                key: EntityId::Loan(loans[1]),
+                action: loans[2],
+            },
+            vec![EntityType::Value(ty)],
+            span,
+        )?;
+        self.finish_borrowed_call(expression, span)?;
+        Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    pub(super) fn lower_map_require_result(
+        &mut self,
+        expression: ExpressionId,
+        source: BorrowSourceLoan<ExpressionId>,
+        span: Span,
+    ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
+        let span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+            .span();
+        let descriptor = *self
+            .typed
+            .map_require_value(expression)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if source.call() != expression || source.argument() != descriptor.receiver() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let receiver_span = self.expression_span(descriptor.receiver())?;
+        let (source_loan, created) =
+            self.lower_borrow_argument(expression, descriptor.receiver(), receiver_span)?;
+        let key_span = self.expression_span(descriptor.key())?;
+        let (key_loan, key_created) =
+            self.lower_borrow_argument(expression, descriptor.key(), key_span)?;
+        let target = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self.append(
+            Operation::MapRequireValue {
+                source: source_loan,
+                key: EntityId::Loan(key_loan),
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
+            }],
+            span,
+        )?;
+        let [EntityId::Loan(result)] = results.as_slice() else {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        };
+        if key_created {
+            self.append(Operation::BorrowEnd { loan: key_loan }, Vec::new(), span)?;
+        }
+        self.emit_drops(DropPoint::CallReturn(expression))?;
+        Ok((
+            *result,
+            if created {
+                vec![source_loan]
+            } else {
+                Vec::new()
+            },
+        ))
     }
 }
 

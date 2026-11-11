@@ -1,6 +1,9 @@
 //! Module validation and shared proofs for function verification.
 
-use super::*;
+use super::{
+    super::model::{EntityData, EntityId, EntityType, Function, LoanKind, Module},
+    *,
+};
 
 pub(super) fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
     let module_before = errors.len();
@@ -64,5 +67,50 @@ fn verify_deinits(module: &Module, errors: &mut Vec<VerifyError>) {
                 origin: module.function(function).map(|function| function.origin.clone()),
             });
         }
+    }
+}
+
+pub(super) fn verify_callable_view_entity(
+    module: &Module,
+    entity: EntityId,
+    data: &EntityData,
+    errors: &mut Vec<VerifyError>,
+) {
+    let misplaced = match data.ty {
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            ..
+        } => false,
+        other => module
+            .callable_view_signature(other.semantic_type())
+            .is_some(),
+    };
+    if misplaced {
+        errors.push(entity_error(
+            entity,
+            data.origin.clone(),
+            VerifyErrorKind::InvalidTypeDefinition {
+                reason: "a callable view is only a shared loan target",
+            },
+        ));
+    }
+}
+
+pub(super) fn verify_callable_view_returns(
+    module: &Module,
+    function: &Function,
+    errors: &mut Vec<VerifyError>,
+) {
+    if function
+        .return_types
+        .iter()
+        .any(|ty| module.callable_view_signature(*ty).is_some())
+    {
+        errors.push(function_error(
+            function,
+            VerifyErrorKind::InvalidTypeDefinition {
+                reason: "a callable view cannot be returned",
+            },
+        ));
     }
 }
