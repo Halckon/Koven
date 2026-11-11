@@ -1,7 +1,10 @@
 //! 首片 CFG 能力边界：不让尚未运输的结果/source loan 隐式跨块。
 use std::collections::BTreeSet;
 
-use super::{LoweringError, LoweringErrorKind, lowering_support::error};
+use super::{
+    LoweringError, LoweringErrorKind, lowering_support::error,
+    unit_lower::span_contains as contains,
+};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     parser::{BinaryOperator, Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
@@ -178,12 +181,6 @@ pub(super) fn binding(
         }
     }
     Ok(())
-}
-
-fn contains(outer: Span, inner: Span) -> bool {
-    outer.source_id() == inner.source_id()
-        && outer.start() <= inner.start()
-        && inner.end() <= outer.end()
 }
 
 /// Declared parameter identity; receivers remain outside the ordinary result slice.

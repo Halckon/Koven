@@ -1128,10 +1128,6 @@ fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
     }
 }
 
-fn is_first_class_value(module: &Module, ty: EntityType) -> bool {
-    matches!(ty, EntityType::Value(ty) if is_first_class(module, ty))
-}
-
 pub(super) fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
     matches!(
         module.type_kind(ty),

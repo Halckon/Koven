@@ -3,20 +3,6 @@ use super::*;
 use crate::ssa::{borrow_result_support::ordinary_local, model::LoanKind};
 use lang_frontend::ownership_checking::BorrowBindingStorage;
 impl Builder<'_, '_> {
-    pub(super) fn is_borrow_result_binding(
-        &self,
-        symbol: UnitSymbolId,
-        initializer: ExpressionId,
-    ) -> bool {
-        let id = self.unit(initializer);
-        self.inputs
-            .owned
-            .borrow_results()
-            .bindings()
-            .iter()
-            .any(|fact| fact.binding() == symbol && fact.initializer() == id)
-    }
-
     pub(super) fn local_borrow_binding(
         &mut self,
         symbol: UnitSymbolId,

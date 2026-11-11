@@ -25,6 +25,8 @@ use lang_frontend::{
 use super::{
     super::{LoweringError, LoweringErrorKind, unit_plan::resolve_concrete_type},
     builtin_type, lowering_error,
+    scalar::is_integer_builtin,
+    span_contains,
     type_lower::{UnitTypeLowering, is_supported_storage_type},
 };
 use crate::ssa::{model::Module, unit_plan::UnitPlannedInstance};
@@ -657,20 +659,6 @@ fn requires_enum_discriminant(
     ))
 }
 
-const fn is_integer_builtin(builtin: BuiltinType) -> bool {
-    matches!(
-        builtin,
-        BuiltinType::Byte
-            | BuiltinType::Short
-            | BuiltinType::Int
-            | BuiltinType::Long
-            | BuiltinType::UByte
-            | BuiltinType::UShort
-            | BuiltinType::UInt
-            | BuiltinType::ULong
-    )
-}
-
 fn checked_operand_type(
     parsed: &ParsedFile,
     instance: &UnitPlannedInstance,
@@ -732,12 +720,6 @@ fn checked_operand_type(
         _ => None,
     };
     Ok(checked)
-}
-
-fn span_contains(owner: Span, child: Span) -> bool {
-    owner.source_id() == child.source_id()
-        && owner.start() <= child.start()
-        && child.end() <= owner.end()
 }
 
 #[cfg(test)]

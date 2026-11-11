@@ -87,6 +87,7 @@ impl UnitCallablePlan {
         self.runtime_callbacks.get(&(source, constructor)).copied()
     }
 
+    #[cfg(test)]
     pub(in crate::ssa) fn borrowed_argument(
         &self,
         source: SourceToken,

@@ -17,7 +17,8 @@ use lang_frontend::{
 
 use super::{
     FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
-    resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
+    resolve_concrete_type, span_contains, span_key, strictly_contains,
+    type_lower::UnitTypeLowering,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
@@ -258,16 +259,6 @@ impl UnitExpressionLowerer<'_> {
             _ => Ok(None),
         }
     }
-}
-
-fn span_contains(owner: Span, child: Span) -> bool {
-    owner.source_id() == child.source_id()
-        && owner.start() <= child.start()
-        && child.end() <= owner.end()
-}
-
-fn strictly_contains(owner: Span, child: Span) -> bool {
-    span_contains(owner, child) && (owner.start() < child.start() || child.end() < owner.end())
 }
 
 fn lambda_tail_expression(

@@ -2,7 +2,7 @@
 
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
-    resolve_concrete_type, span_key,
+    resolve_concrete_type, span_contains, span_key, strictly_contains,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
@@ -826,14 +826,4 @@ impl UnitExpressionLowerer<'_> {
                 }
             })
     }
-}
-
-fn span_contains(owner: Span, child: Span) -> bool {
-    owner.source_id() == child.source_id()
-        && owner.start() <= child.start()
-        && child.end() <= owner.end()
-}
-
-fn strictly_contains(owner: Span, child: Span) -> bool {
-    span_contains(owner, child) && (owner.start() < child.start() || child.end() < owner.end())
 }

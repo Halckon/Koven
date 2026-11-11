@@ -1,4 +1,5 @@
 //! Cross-entry validation of concrete numeric Range facts and their AST roles.
+#[cfg(test)]
 use super::model::{Operation, ValueId};
 use lang_frontend::{
     ast::ExpressionId,
@@ -60,6 +61,7 @@ pub(super) fn matches_fact(
     }
 }
 
+#[cfg(test)]
 pub(super) fn operation(
     kind: IntegerRangeOperationKind,
     left: ValueId,
