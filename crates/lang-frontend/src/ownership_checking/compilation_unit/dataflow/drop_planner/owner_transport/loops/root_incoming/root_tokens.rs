@@ -1,5 +1,7 @@
 //! Private first-body token transaction; no public loop/header or retirement capability.
 use super::*;
+#[cfg(test)]
+mod tests;
 
 pub(in super::super) struct RootTokenTransaction {
     identity: std::sync::Arc<()>,
@@ -101,6 +103,11 @@ impl RootTokenTransaction {
     }
     // This hook is called after the actual direct String expression completes.
     pub(in super::super) fn complete(&mut self, producer: UnitExpressionId) {
+        #[cfg(test)]
+        if self.next == 1 && tests::injected_failure(1) {
+            self.valid = false;
+            return;
+        }
         if !self.valid {
             return;
         }
@@ -127,6 +134,11 @@ impl RootTokenTransaction {
         root: UnitSymbolId,
         producer: UnitExpressionId,
     ) -> Option<(UnitOwnerId, UnitOwnerId)> {
+        #[cfg(test)]
+        if self.next == 1 && tests::injected_failure(2) {
+            self.valid = false;
+            return None;
+        }
         if !self.valid {
             return None;
         }
