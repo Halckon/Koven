@@ -12766,3 +12766,62 @@ FE 编译退出101但日志已不可读，不归因为代码失败，也不算�
 源码复审核独立封印、真实jump消费与重复receipt拒绝，无剩余阻断。有限native
 只观察输出 `outer/next/next/next`，不当任意轮次或泄漏证明。正式CI、一般多分支
 Continue/Break合流、多根、嵌套循环及owner与loan/capture联合合同仍未覆盖。
+### 同来源条件借用出口前置诊断（2026-11-11）
+
+从已验9164af82独立树开始，main/origin为e659b66a。下一有价值缺口选择真实条件分支
+两个合法同source borrowed returns，而非再添加同构单表达式wrapper。ADR0040允许合法
+同来源不同控制路径交付，但仍要求逐路径完整证明；当前FE只保留两条原handoff，不能
+将两个互斥路径拼成单线性Complete。第一步只验证既有合法源码的实际lowering前置，
+不新增区域/receipt，不放宽单wrapper准入，不改变旧投影或任何End/Drop责任。
+ordinary_same_source_branch_requires_real_lowering_with_true_off先核两个真实return和
+同source不同call身份、Partial/off旧产品，完成两布局四次真实lower尝试后才验成功结果。
+若lower失败须作为独立后端前置缺口记录，不冒充生命周期coverage红或强制route。
+本片暂未编译/执行。禁止本机CI-only/native/压力测试；磁盘仅约6GiB，复用专用target。
+
+前置红输入2a409753：no-run723.47秒成功，4287输入绑定独审通过；恢复空间后唯一
+ordinary exact实跑，两布局on/off四次ownership均成功、lower均UnsupportedNode且routes空，
+首borrow marker102..108（exit101、0pass/1fail/2971filtered）。未到SSA verifier/LLVM，
+不能算coverage/receipt缺能力红。日志中的ownership_complete仅指ownership phase成功，
+源码scope仍明确Partial；后续将日志改名ownership_phase_succeeded以免混淆。
+
+后继只在Unit验证中为精确Block[If(flag){Return Call(source)},Return Call(source)]
+准入；flag与source均为原Borrow参数（Boolean/String），同callee、独立原返回facts和
+同root source-qualified IDs逐项校验。其余Block继续旧门，不修改Single declaration gate；
+复用已有refine CFG/call/return生产，不新增Complete/receipt/End/Drop或旧oracle退休。
+
+### 同来源动态双出口 lowering 验收（2026-11-11）
+
+后继 `2c7613d2` 已突破原声明门禁，但真实普通入口四组合均在 final verifier 报
+InvalidModel。`c1bb61c9` 只读捕获原 verifier（每次恰一次、不替换结果、不重跑），
+确认仅 wrap 的两个返回 block 各报 ReturnType0；来源 Span 为142..161、165..184。
+根因是返回 parent 链遇到显式 CFG 运输后的 source block 参数，旧检查只认原入口 LoanId。
+`80bfacc0` 保留原 alias-root、活跃性、后代与 parent 链检查，仅允许运输身份集合严格
+为唯一原入口能力；不使用通用 equivalent 的交集判定、不修改 RangeReturn，不新增 End。
+同 root 的 entry/derived 混合身份不能冒充入口。最终代码 `a8ccd392` 只再修正负控断言风格。
+
+| 验收项 | 普通 exact（均为 lang-codegen lib） | 实际结果 |
+|---|---|---|
+| 动态双出口 | branch_forward_probe::ordinary_same_source_branch_requires_real_lowering_with_true_off | 1 passed；Rooted/Memory × on/off 四次生产lower、verifier、LLVM一致 |
+| 三个邻界仍旧门 | branch_forward_probe::ordinary_branch_neighbors_keep_the_unit_declaration_gate | 1 passed；两布局共六次精确拒绝 |
+| Single旧约束 | borrow_result_contract_tests::borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported | 1 passed |
+| 原单表达式receipt | forward_receipts::original_live_forward_requires_production_receipt_with_true_off | 1 passed；四次SSA/LLVM |
+| 分支原投影 | forward_projection::original_branch_returns_keep_both_raw_handoffs_without_a_cause | 1 passed；不把FE投影算SSA绿 |
+
+除Single测试前缀为 `ssa::` 外，表中其余前缀为 `ssa::loan_region_ssa_tests::`。
+新测试核原flag Read、显式edge参数运输、两条不同BorrowCall/Return，wrapper内无额外Begin/End/Drop；
+Partial/off旧产品及分支receipt为空均保留。新增两个手写SSA CI-only运输正负控已编译、
+未本机执行，负控要求目标返回位置ReturnType；不能宣称CI负控实跑或完整故障覆盖。
+
+最终17.02秒no-run绑定4289输入，默认opt0/debug2，仅loan-observation-test-support。
+五项exact均核list恰一项，执行前后输入及binary身份不变。当前证据保存在主仓忽略目录
+`.local-artifacts/borrow-branch-recovery-20261111-1415/attempt-6`，含完整Cargo JSON、
+输入/binary/runner清单及原日志；attempt-4保留真实verifier红。此前临时目录日志在用户
+手动清理后已缺失，原2a409753红仅会话与本Spec留存，不能称已复核原日志；本轮为新建证据。
+本片仍不新增分支region Complete/production receipt，不实现一般循环/多出口覆盖或旧oracle
+退休；下一片须逐互斥出口证明原因与完整性，不能把两条handoff拼成单线性协议。未推送。
+
+最终归属调整 `59e1888d` 将本片新增singleton helper放回borrow_result私有领域，入口
+1858行，不提高原1860例外；语义守恒经独审。`attempt-7` 为最终代码新证据：66.41秒
+no-run、同五项ordinary各1 passed、all-targets feature strict Clippy21.63秒通过；
+fmt、docs891、尺寸2428文件/35历史超限及diff均通过。未运行native、全量或CI-only；
+最终账本提交仅改本文，不改上述已冻结Rust。后续与owner合流需重新核组合，不以此替代CI。

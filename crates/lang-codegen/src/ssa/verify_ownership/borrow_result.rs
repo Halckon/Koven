@@ -48,7 +48,7 @@ pub(super) fn verify_return(
     let mut visited = BTreeSet::new();
     while visited.insert(current) {
         state.loans.remove(&current);
-        if current == parameter {
+        if uniquely_originates_from(&dependencies.flows, current, parameter) {
             return;
         }
         let Some(parent) = dependencies.parent_by_child.get(&current).copied() else {
@@ -61,6 +61,16 @@ pub(super) fn verify_return(
         location,
         origin,
     ));
+}
+
+/// A transported block parameter must have exactly the declared entry origin.
+/// An intersecting origin set is insufficient for a borrowed return contract.
+fn uniquely_originates_from(flows: &LoanFlowAliases, loan: LoanId, origin: LoanId) -> bool {
+    loan == origin
+        || flows
+            .origins
+            .get(&loan)
+            .is_some_and(|origins| origins.len() == 1 && origins.contains(&origin))
 }
 
 /// 参数交付复用普通调用合同；唯一来源另有结果延续身份。

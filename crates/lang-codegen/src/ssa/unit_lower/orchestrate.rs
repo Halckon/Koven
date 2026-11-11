@@ -5,6 +5,8 @@ mod pr120_range_source_contract_tests;
 #[cfg(test)]
 mod pr120_verifier_diagnostics;
 #[cfg(test)]
+pub(in crate::ssa) use pr120_verifier_diagnostics::observe_final_verifier;
+#[cfg(test)]
 mod registration_tests;
 use super::*;
 use crate::ssa::refine::CallableRoute;
@@ -47,7 +49,7 @@ fn lower_unit_impl(
         .collect();
     // Both sealed views have already checked the complete frontend identity chain.
     // Declarations are validated unconditionally for every unit.
-    super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
+    super::borrow_result::validate_declarations(&parsed_by_source, names, typed, owned)?;
     // Map providers are validated at their reached lowering route. Keep the older
     // borrow-binding CFG frontier for bindings without dedicated lowering checks.
     let unit_has_refine_constructs =
@@ -843,6 +845,8 @@ fn lower_unit_impl(
     }
 
     let verification = verify_program(&program);
+    #[cfg(test)]
+    pr120_verifier_diagnostics::record_final_probe(&program, &verification);
     #[cfg(test)]
     if let Some(capture) = capture {
         capture.observe(

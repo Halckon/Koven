@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod aliases;
 mod borrow_result;
+#[cfg(test)]
+mod borrow_return_transport_tests;
 mod closure;
 mod direct_fields;
 mod field_exchange;
