@@ -79,9 +79,11 @@ use non_null_proof::NonNullProof;
 use pending_call::PendingCallLoans;
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
-use super::lowering_support::{error, string_literal};
-
-use super::expression_core::LoweredValue;
+use super::{
+    expression_core::LoweredValue,
+    integer::{assignment_operator, bitwise_operator, checked_operator, comparison_operator},
+    lowering_support::{error, string_literal},
+};
 
 fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
     match typed.types().get(ty) {
@@ -823,7 +825,7 @@ impl ExpressionLowerer<'_> {
             let ty = self.expression_ssa_type(expression, span)?;
             return self.checked(operator, left, right, ty, span);
         }
-        if let Some(operator) = super::integer::bitwise_operator(operator) {
+        if let Some(operator) = bitwise_operator(operator) {
             let ty = self.expression_ssa_type(expression, span)?;
             let (_, results) = self.append(
                 Operation::IntegerBitwise {
@@ -974,7 +976,14 @@ impl ExpressionLowerer<'_> {
                 };
                 let right = self.require_value(expression)?;
                 let ty = self.expression_ssa_type(target, target_node.span())?;
-                self.checked(assignment_operator(operator), left, right, ty, span)?
+                self.checked(
+                    assignment_operator(operator)
+                        .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?,
+                    left,
+                    right,
+                    ty,
+                    span,
+                )?
             }
         };
         if matches!(assigned, LoweredValue::Diverged) {
@@ -1296,40 +1305,6 @@ impl ExpressionLowerer<'_> {
         self.function
             .append_instruction(self.block, operation, results, Origin::Source(span))
             .map_err(|_: ModelError| error(LoweringErrorKind::InvalidModel, span))
-    }
-}
-
-fn checked_operator(operator: AstBinaryOperator) -> Option<CheckedArithmeticOperator> {
-    match operator {
-        AstBinaryOperator::Add => Some(CheckedArithmeticOperator::Add),
-        AstBinaryOperator::Subtract => Some(CheckedArithmeticOperator::Subtract),
-        AstBinaryOperator::Multiply => Some(CheckedArithmeticOperator::Multiply),
-        AstBinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
-        AstBinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
-        _ => None,
-    }
-}
-
-fn assignment_operator(operator: AssignmentOperator) -> CheckedArithmeticOperator {
-    match operator {
-        AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
-        AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
-        AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
-        AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
-        AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
-        AssignmentOperator::Assign => unreachable!("plain assignment has no arithmetic operator"),
-    }
-}
-
-fn comparison_operator(operator: AstBinaryOperator) -> Option<ComparisonOperator> {
-    match operator {
-        AstBinaryOperator::Equal => Some(ComparisonOperator::Equal),
-        AstBinaryOperator::NotEqual => Some(ComparisonOperator::NotEqual),
-        AstBinaryOperator::Less => Some(ComparisonOperator::LessThan),
-        AstBinaryOperator::LessEqual => Some(ComparisonOperator::LessThanOrEqual),
-        AstBinaryOperator::Greater => Some(ComparisonOperator::GreaterThan),
-        AstBinaryOperator::GreaterEqual => Some(ComparisonOperator::GreaterThanOrEqual),
-        _ => None,
     }
 }
 

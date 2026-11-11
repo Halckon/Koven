@@ -7,9 +7,9 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
 };
 
-pub(super) use super::scalar_text::{checked_operator, comparison_operator};
 use super::{Builder, Lowered};
 use crate::ssa::{
+    integer::{bitwise_operator, checked_operator, comparison_operator},
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
     model::{EntityType, ScalarConstant},
     refine::body::{RAbort, ROp, RTerm, Slot},
@@ -554,7 +554,7 @@ impl Builder<'_, '_> {
             self.block = Some(success);
             return Ok(Lowered::Value(result));
         }
-        if let Some(operator) = crate::ssa::integer::bitwise_operator(operator) {
+        if let Some(operator) = bitwise_operator(operator) {
             let result = self.typed_value(
                 ROp::IntegerBitwise {
                     operator,

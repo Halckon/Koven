@@ -18,9 +18,10 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     expression_core::checked::{self, CheckedCarry, CheckedLowering},
+    integer::{bitwise_operator, checked_operator, comparison_operator},
     model::{
-        BlockId, CheckedArithmeticOperator, ComparisonOperator, EntityId, EntityType, Function,
-        LoanId, Operation, Origin, ScalarConstant, SsaTypeId, ValueId,
+        BlockId, CheckedArithmeticOperator, EntityId, EntityType, Function, LoanId, Operation,
+        Origin, ScalarConstant, SsaTypeId, ValueId,
     },
 };
 
@@ -226,7 +227,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(operator) = checked_operator(operator) {
             return self.checked(operator, left, right, ty, span);
         }
-        if let Some(operator) = crate::ssa::integer::bitwise_operator(operator) {
+        if let Some(operator) = bitwise_operator(operator) {
             return self.append_scalar(
                 Operation::IntegerBitwise {
                     operator,
@@ -423,27 +424,4 @@ pub(super) const fn is_integer_builtin(builtin: BuiltinType) -> bool {
             | BuiltinType::UInt
             | BuiltinType::ULong
     )
-}
-
-fn checked_operator(operator: BinaryOperator) -> Option<CheckedArithmeticOperator> {
-    match operator {
-        BinaryOperator::Add => Some(CheckedArithmeticOperator::Add),
-        BinaryOperator::Subtract => Some(CheckedArithmeticOperator::Subtract),
-        BinaryOperator::Multiply => Some(CheckedArithmeticOperator::Multiply),
-        BinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
-        BinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
-        _ => None,
-    }
-}
-
-fn comparison_operator(operator: BinaryOperator) -> Option<ComparisonOperator> {
-    match operator {
-        BinaryOperator::Equal => Some(ComparisonOperator::Equal),
-        BinaryOperator::NotEqual => Some(ComparisonOperator::NotEqual),
-        BinaryOperator::Less => Some(ComparisonOperator::LessThan),
-        BinaryOperator::LessEqual => Some(ComparisonOperator::LessThanOrEqual),
-        BinaryOperator::Greater => Some(ComparisonOperator::GreaterThan),
-        BinaryOperator::GreaterEqual => Some(ComparisonOperator::GreaterThanOrEqual),
-        _ => None,
-    }
 }

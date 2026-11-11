@@ -17,7 +17,6 @@ mod container;
 mod control;
 mod deinit;
 mod field_borrow;
-mod handoff;
 mod loop_control;
 mod map;
 mod nullable_comparison;
@@ -33,9 +32,9 @@ mod type_plan;
 
 #[cfg(test)]
 pub(crate) use borrow_result::validate_bindings;
-pub(crate) use handoff::lower_owned_unit_with_entry;
+pub(crate) use constant::lower_owned_unit_with_entry;
 #[cfg(test)]
-pub(crate) use handoff::lower_scalar_unit_with_entry;
+pub(crate) use constant::lower_scalar_unit_with_entry;
 
 use nullable_proof::NullableProofs;
 use std::collections::BTreeMap;
