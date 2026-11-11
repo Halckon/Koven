@@ -362,6 +362,43 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                     );
                 }
                 assert_eq!(rule.normal_outputs().len(), 2);
+                let boundary = owned
+                    .owner_observations()
+                    .iter()
+                    .find_map(|observation| observation.multi_root_boundary_v1())
+                    .unwrap();
+                use crate::ownership_checking::UnitOwnerHeaderSourceV1;
+                for backedge in [false, true] {
+                    let incoming: Vec<_> = boundary
+                        .slots()
+                        .iter()
+                        .map(|slot| {
+                            (
+                                slot.root(),
+                                if backedge {
+                                    UnitOwnerHeaderSourceV1::Backedge(slot.first_body_output())
+                                } else {
+                                    UnitOwnerHeaderSourceV1::Entry(slot.entry())
+                                },
+                            )
+                        })
+                        .collect();
+                    let consumed = boundary
+                        .normal_header_retirements(boundary.statement(), &incoming)
+                        .unwrap();
+                    assert_eq!(consumed.len(), incoming.len());
+                    for ((source, drop), step) in consumed.iter().zip(rule.steps()) {
+                        assert_eq!(
+                            source,
+                            &incoming
+                                .iter()
+                                .find(|(root, _)| *root == step.header_root())
+                                .unwrap()
+                                .1
+                        );
+                        assert_eq!(*drop, step.returned_value_drop());
+                    }
+                }
             }
             let vector = &visits[1].normal_write_vector;
             assert_eq!(vector.is_some(), admitted, "{text}");

@@ -177,3 +177,11 @@ Abort/Return消费、下游lowering或一般跨轮闭合，不得作为这些能
 boundary保留真实事务的有序call/root/producer/drop清单，附接规则须精确一致；同source
 改call或重排重seal的规则不能附接，且不可覆盖既有清单。manifest锁定原构造，不是独立
 CFG证明，唯一typed事务来源必须保留。真实逆序root矩阵验证规则保留声明顺序而非入口顺序。
+
+### 整边 header 来源代入
+
+`normal_header_retirements(control, incoming)` 将同一完整入口或正常回边的来源向量代入
+已校验的 `Header(root)` 正常转移，按真实 primitive 顺序返回来源与实际旧值 drop 的配对。
+入口使用原输入定义，回边使用 body 输出定义；拒绝逐根混合两条边、缺根、重排、别名及
+跨 analysis/control 输入。这是生产形式消费规则的代入，不生成运行时实例，也不把回边
+定义当作永不变化的对象。尚不证明 header 边可达性、false 退出消费或生成实际 LLVM phi。
