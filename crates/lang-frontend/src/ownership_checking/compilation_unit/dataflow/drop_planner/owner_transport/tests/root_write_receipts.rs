@@ -1,5 +1,6 @@
 //! Producer completion and actual primitive commit must both be observed.
 use super::super::loops::StaticRootPredecessor;
+mod activation_model;
 use super::*;
 const SOURCE: &str = r#"fun run(flag: Boolean) {
     var left = "left"

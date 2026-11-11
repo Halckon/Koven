@@ -13764,3 +13764,13 @@ marker明确不是While条件，不替代真实源码入口验证。遗漏hook�
 最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
 all-target check及fmt/diff通过。只读复审未发现catalog错配或退化前驱混同；CI-only负控
 仅编译未本机执行，未推送。
+
+### 真实证据驱动的有限激活审计模型（2026-11-11，本地）
+
+基于c3b46689，仅测试层建立独立作用域/出生轮次的模型实例，以真实sealed两组incoming
+和消费槽审计0/1/2/8个正常前缀、正反root写入顺序、唯一退休和当前实例存活。
+模型不生成UnitOwnerId，不接入运行时/公开产品，不以有限回放替代归纳证明。
+
+最终FE lib657通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过。复审建议的非空/等长及退休definition断言已补齐，模型
+作用域采用独立身份且clone稳定。普通有限模型已本地执行；CI-only故障注入仍未本机执行。
