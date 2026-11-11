@@ -1,6 +1,6 @@
 //! General ordinary local formation uses original Expression ownership, not a lexical carrier.
-pub(super) mod epoch;
 pub(super) mod retained;
+pub(super) use retained as epoch;
 use super::*;
 use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
 use lang_frontend::{
