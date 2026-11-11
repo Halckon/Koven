@@ -1788,16 +1788,6 @@ impl LoanFlowAliases {
         Self { origins }
     }
 
-    /// A transported block parameter must have exactly the declared entry origin.
-    /// An intersecting origin set is insufficient for a borrowed return contract.
-    fn uniquely_originates_from(&self, loan: LoanId, origin: LoanId) -> bool {
-        loan == origin
-            || self
-                .origins
-                .get(&loan)
-                .is_some_and(|origins| origins.len() == 1 && origins.contains(&origin))
-    }
-
     fn equivalent(&self, loan: LoanId, origin: LoanId) -> bool {
         if loan == origin {
             return true;

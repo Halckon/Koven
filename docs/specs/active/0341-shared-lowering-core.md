@@ -12713,3 +12713,34 @@ ordinary exact实跑，两布局on/off四次ownership均成功、lower均Unsuppo
 准入；flag与source均为原Borrow参数（Boolean/String），同callee、独立原返回facts和
 同root source-qualified IDs逐项校验。其余Block继续旧门，不修改Single declaration gate；
 复用已有refine CFG/call/return生产，不新增Complete/receipt/End/Drop或旧oracle退休。
+
+### 同来源动态双出口 lowering 验收（2026-11-11）
+
+后继 `2c7613d2` 已突破原声明门禁，但真实普通入口四组合均在 final verifier 报
+InvalidModel。`c1bb61c9` 只读捕获原 verifier（每次恰一次、不替换结果、不重跑），
+确认仅 wrap 的两个返回 block 各报 ReturnType0；来源 Span 为142..161、165..184。
+根因是返回 parent 链遇到显式 CFG 运输后的 source block 参数，旧检查只认原入口 LoanId。
+`80bfacc0` 保留原 alias-root、活跃性、后代与 parent 链检查，仅允许运输身份集合严格
+为唯一原入口能力；不使用通用 equivalent 的交集判定、不修改 RangeReturn，不新增 End。
+同 root 的 entry/derived 混合身份不能冒充入口。最终代码 `a8ccd392` 只再修正负控断言风格。
+
+| 验收项 | 普通 exact（均为 lang-codegen lib） | 实际结果 |
+|---|---|---|
+| 动态双出口 | branch_forward_probe::ordinary_same_source_branch_requires_real_lowering_with_true_off | 1 passed；Rooted/Memory × on/off 四次生产lower、verifier、LLVM一致 |
+| 三个邻界仍旧门 | branch_forward_probe::ordinary_branch_neighbors_keep_the_unit_declaration_gate | 1 passed；两布局共六次精确拒绝 |
+| Single旧约束 | borrow_result_contract_tests::borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported | 1 passed |
+| 原单表达式receipt | forward_receipts::original_live_forward_requires_production_receipt_with_true_off | 1 passed；四次SSA/LLVM |
+| 分支原投影 | forward_projection::original_branch_returns_keep_both_raw_handoffs_without_a_cause | 1 passed；不把FE投影算SSA绿 |
+
+除Single测试前缀为 `ssa::` 外，表中其余前缀为 `ssa::loan_region_ssa_tests::`。
+新测试核原flag Read、显式edge参数运输、两条不同BorrowCall/Return，wrapper内无额外Begin/End/Drop；
+Partial/off旧产品及分支receipt为空均保留。新增两个手写SSA CI-only运输正负控已编译、
+未本机执行，负控要求目标返回位置ReturnType；不能宣称CI负控实跑或完整故障覆盖。
+
+最终17.02秒no-run绑定4289输入，默认opt0/debug2，仅loan-observation-test-support。
+五项exact均核list恰一项，执行前后输入及binary身份不变。当前证据保存在主仓忽略目录
+`.local-artifacts/borrow-branch-recovery-20261111-1415/attempt-6`，含完整Cargo JSON、
+输入/binary/runner清单及原日志；attempt-4保留真实verifier红。此前临时目录日志在用户
+手动清理后已缺失，原2a409753红仅会话与本Spec留存，不能称已复核原日志；本轮为新建证据。
+本片仍不新增分支region Complete/production receipt，不实现一般循环/多出口覆盖或旧oracle
+退休；下一片须逐互斥出口证明原因与完整性，不能把两条handoff拼成单线性协议。未推送。
