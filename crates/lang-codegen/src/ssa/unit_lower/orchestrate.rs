@@ -47,7 +47,7 @@ fn lower_unit_impl(
         .collect();
     // Both sealed views have already checked the complete frontend identity chain.
     // Declarations are validated unconditionally for every unit.
-    super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
+    super::borrow_result::validate_declarations(&parsed_by_source, names, typed, owned)?;
     // Map providers are validated at their reached lowering route. Keep the older
     // borrow-binding CFG frontier for bindings without dedicated lowering checks.
     let unit_has_refine_constructs =

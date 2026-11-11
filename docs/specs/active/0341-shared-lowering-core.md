@@ -12702,3 +12702,14 @@ ordinary_same_source_branch_requires_real_lowering_with_true_off先核两个真�
 同source不同call身份、Partial/off旧产品，完成两布局四次真实lower尝试后才验成功结果。
 若lower失败须作为独立后端前置缺口记录，不冒充生命周期coverage红或强制route。
 本片暂未编译/执行。禁止本机CI-only/native/压力测试；磁盘仅约6GiB，复用专用target。
+
+前置红输入2a409753：no-run723.47秒成功，4287输入绑定独审通过；恢复空间后唯一
+ordinary exact实跑，两布局on/off四次ownership均成功、lower均UnsupportedNode且routes空，
+首borrow marker102..108（exit101、0pass/1fail/2971filtered）。未到SSA verifier/LLVM，
+不能算coverage/receipt缺能力红。日志中的ownership_complete仅指ownership phase成功，
+源码scope仍明确Partial；后续将日志改名ownership_phase_succeeded以免混淆。
+
+后继只在Unit验证中为精确Block[If(flag){Return Call(source)},Return Call(source)]
+准入；flag与source均为原Borrow参数（Boolean/String），同callee、独立原返回facts和
+同root source-qualified IDs逐项校验。其余Block继续旧门，不修改Single declaration gate；
+复用已有refine CFG/call/return生产，不新增Complete/receipt/End/Drop或旧oracle退休。
