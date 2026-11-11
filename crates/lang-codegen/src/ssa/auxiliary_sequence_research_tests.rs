@@ -36,6 +36,19 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
             .count(),
         44
     );
+    // Long repeated-binding evidence is an execution check, not new receipt authority.
+    for word in [
+        format!("A{}", "B".repeat(8)),
+        format!("{}A", "B".repeat(8)),
+        format!("{}A{}", "B".repeat(4), "B".repeat(4)),
+        format!("A{}A{}A", "B".repeat(4), "B".repeat(4)),
+        "AB".repeat(8),
+        format!("{}A", "B".repeat(9)),
+    ] {
+        assert!(!words.contains(&word));
+        words.push(word);
+    }
+    assert_eq!(words.len(), 73);
     for word in words {
         for source_index in 0..2 {
             let (parameters, arguments) = if source_index == 0 {
@@ -592,8 +605,8 @@ fn check(program: &Program, entry: FunctionId, word: &str, source_index: usize) 
         assert_eq!(values.len(), 1);
         values[0]
     };
-    let (source_owner, source_place, _, _) = root(*source);
-    let (aux_owner, aux_place, _, _) = root(aux);
+    let (source_owner, source_place, source_place_index, _) = root(*source);
+    let (aux_owner, aux_place, aux_place_index, _) = root(aux);
     assert_ne!(source_owner, aux_owner);
     let aux_end = end(aux);
     assert!(*borrow_index < aux_end);
@@ -647,6 +660,13 @@ fn check(program: &Program, entry: FunctionId, word: &str, source_index: usize) 
     assert_eq!(source_end, result_end + 1);
     assert_eq!(source_drop, source_end + 1);
     assert_eq!(aux_drop, last_a_end + 1);
+    let a_count = word.bytes().filter(|c| *c == b'A').count();
+    let b_count = word.len() - a_count;
+    assert_eq!(
+        source_drop.max(aux_drop) + 1 - source_place_index.min(aux_place_index),
+        10 + 4 * a_count + b_count,
+        "complete real A/B instruction interval"
+    );
     let a_last = word.rfind('A').unwrap();
     let b_last = word.rfind('B').unwrap();
     assert_eq!(aux_drop < source_drop, a_last < b_last);

@@ -5,6 +5,8 @@ pub(super) mod binding_child_links;
 mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
+mod binding_use_sets;
+pub(super) use binding_use_sets::{Expected as BindingUseSetExpected, Token as BindingUseSetToken};
 mod child_regions;
 mod distinct_auxiliary_binding_regions;
 mod distinct_auxiliary_retirements;
@@ -50,6 +52,7 @@ impl ActionHandle {
 
 pub(super) struct ActionSource {
     identity: Arc<()>,
+    binding_use_sets: Vec<binding_use_sets::Candidate>,
     records: Vec<Record>,
     cleanups: usize,
     regions: Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Candidate>,
@@ -115,6 +118,7 @@ impl Default for ActionSource {
         Self {
             identity: Arc::new(()),
             records: Vec::new(),
+            binding_use_sets: Vec::new(),
             cleanups: 0,
             regions: Vec::new(),
             binding_regions: Vec::new(),
@@ -581,6 +585,11 @@ impl ActionSource {
                 region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
             })
             .collect();
+        let binding_use_sets = self
+            .binding_use_sets
+            .into_iter()
+            .filter_map(|c| c.finish(&identity, &actions))
+            .collect();
         let mut later_auxiliary_binding_regions = Vec::new();
         let mut auxiliary_sequence_regions = Vec::new();
         let mut interleaved_auxiliary_regions = Vec::new();
@@ -641,6 +650,7 @@ impl ActionSource {
             later_auxiliary_binding_regions,
             auxiliary_sequence_regions,
             interleaved_auxiliary_regions,
+            binding_use_sets,
             auxiliary_binding_regions,
         }]
     }

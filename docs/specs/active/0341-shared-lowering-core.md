@@ -14626,3 +14626,35 @@ interleaved-receipt-*，无native全套或远端CI。
 与文档897项通过。尺寸2589手写Rust文件、36个历史超1000文件，唯一失败仍为
 前序drop_planner1684>1674，原文件及policy零改。build1013→1014只独立Plans
 创建，经非作者职责审阅仍≤1025，emit987不增长。仅本地提交，不推送。
+
+#### 多次binding使用集合的独立证书（实施中）
+
+基于cb8ad725，先证明真实多B使用集合到BindingEnd，而非重复单B receipt。现行
+直线多B源码合法，无需改变语言；循环借用的L0164与跨merge义务仍不放宽。旧
+UseReturn的Unused/Unique/Ambiguous及distinct单次token保持原义，不用最后一次
+B冒充完整集合或重新发布旧退休资格。
+
+首片限定两个literal String owner、一个view binding及纯A/B直线调用，A1..8、
+B2..8为独立证书预算而非语言限制。声明预期B列表与每次真实pending移除的原
+acquisition/返回token逐项对应，同catalog/transport lineage、顺序和唯一性核验；
+真实BindingEnd闭合集合，merge、缺漏、重复、跨binding及超预算均失败封闭。
+仅独立Partial证书，不证明source Drop/全region，也不新增CG receipt或退休旧见证。
+
+普通FE实际AAAABB的集合0!=1真红转绿；103词中99个预算内集合及4个相邻边界，
+逐source0/1、rooted/memory核原B loan/acquisition、返回cursor单调、唯一BindingEnd
+与Partial，on/off旧义务一致。初始测试HashSet不支持action ID的编译错误修正为
+成对唯一性检查，不计作行为红。长多B CG研究增至73词/584组合，含六个长链及B9；
+实测10+4A+B连续实际角色，每B共用同一result loan，仅末B退休，A各自fresh loan，
+最后A/最后B决定两Drop先后，未新增receipt或改后端生产。
+
+非作者review确认声明与实际逐次匹配、真实transport携带token及merge清除、原
+BindingEnd处独立闭合，旧UseReturn/semantic equality不变。修复连续B边界相等
+不是重放、精确A贷款不得误推进B集合、全records拒绝重复Begin/Handoff/BindingEnd
+及安全offset运算。没有新语言决定或退休旧见证，完整source生命周期留待下一片。
+
+最终新FE1项、旧8目标9项、CG84项、Clippy -D warnings、workspace all-targets、
+默认FE/CG lib no-run、fmt/diff及文档897项通过。新增CI-only一组15候选故障及
+额外原记录重复/缺失只编译未执行；日志multi-binding-*。尺寸2594手写Rust文件、
+36个历史超1000文件，唯一旧1684>1674失败保留，原文件/policy零改。
+compilation_unit1134→1136只模块/产品导出，经独立职责review仍≤1156。无native
+全套或远端CI；仅本地提交，不推送。

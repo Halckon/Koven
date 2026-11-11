@@ -423,6 +423,7 @@ impl DropPlanner<'_, '_> {
                     );
                     for pending in &mut state.borrow_binding_transports {
                         pending.commit_handoff(binding, handle.clone());
+                        pending.activate_use_set(&mut self.iteration_actions);
                         pending.activate_auxiliary_observation(
                             binding,
                             &auxiliary_source,

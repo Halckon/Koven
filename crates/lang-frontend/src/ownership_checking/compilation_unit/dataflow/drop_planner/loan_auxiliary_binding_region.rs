@@ -3,6 +3,8 @@
 mod distinct;
 #[path = "loan_later_auxiliary_binding_region.rs"]
 mod later;
+#[path = "loan_binding_use_set.rs"]
+mod use_set;
 use super::*;
 use crate::{
     name_resolution::SymbolKind,
@@ -33,6 +35,7 @@ impl DropPlanner<'_, '_> {
         statement: StatementId,
         state: &ValueState,
     ) {
+        self.enter_binding_use_set(statement, state);
         self.enter_distinct_auxiliary_binding_region(statement, state);
         self.enter_later_auxiliary_binding_region(statement, state);
         if !self.iteration_actions.enabled {

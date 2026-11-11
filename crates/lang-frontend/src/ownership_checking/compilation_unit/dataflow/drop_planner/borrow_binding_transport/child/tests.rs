@@ -28,6 +28,7 @@ fn ci_only_child_metadata_never_changes_semantic_eq_or_recovers_lost_commit() {
         source_begin: source_begin.clone(),
         handoff: Some(handoff),
         use_return: UseReturn::Unused,
+        use_set: None,
         observable: true,
         dependency_owner: None,
         auxiliary: None,

@@ -107,6 +107,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) binding_use_sets: Vec<super::UnitLoanBindingUseSet>,
     pub(super) interleaved_auxiliary_regions: Vec<super::UnitBorrowInterleavedAuxiliaryRegion>,
     pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
     pub(super) later_auxiliary_binding_regions: Vec<super::UnitBorrowLaterAuxiliaryBindingRegion>,
@@ -227,6 +228,15 @@ impl UnitLoanActionObservation {
         region: &super::UnitBorrowLaterAuxiliaryBindingRegion,
     ) -> bool {
         Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independent actual binding-use collections, with Partial coverage only.
+    pub fn binding_use_sets(&self) -> &[super::UnitLoanBindingUseSet] {
+        &self.binding_use_sets
+    }
+    /// Identity membership, not structural equivalence.
+    pub fn owns_binding_use_set(&self, set: &super::UnitLoanBindingUseSet) -> bool {
+        Arc::ptr_eq(&self.identity, &set.identity)
     }
 
     /// Independent bounded dynamic auxiliary-use sequence certificates.

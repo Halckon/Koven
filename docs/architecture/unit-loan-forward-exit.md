@@ -84,3 +84,9 @@ End/owner绑定，role0双owner冻结，后续append/alias维持全部身份；�
 细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#单b前后辅助消费链的独立前端证书实施中)。
 
 后端实际身份与边界证据见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#单b前后辅助消费链的真实后端收据实施中)。
+
+多B另有独立`binding_use_sets()` Partial证书：严格直线A1..8/B2..8，声明的所有B
+与实际pending loan正常移除一一对应，原acquisition及return cursor随独立transport
+lineage保存，真实BindingEnd关闭；merge即失效。cursor仅原记录边界，不伪造End。
+旧Unique使用/退休资格不变，不证明source Drop或完整region，暂无对应新CG receipt。
+详见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多次binding使用集合的独立证书实施中)。

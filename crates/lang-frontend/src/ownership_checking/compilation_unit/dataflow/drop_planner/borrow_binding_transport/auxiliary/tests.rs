@@ -39,6 +39,7 @@ fn ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_reviv
         source_begin: Some(source.clone()),
         handoff: Some(handoff.clone()),
         use_return: UseReturn::Unused,
+        use_set: None,
         observable: false,
         child: child::ChildState::Never,
         dependency_owner: None,

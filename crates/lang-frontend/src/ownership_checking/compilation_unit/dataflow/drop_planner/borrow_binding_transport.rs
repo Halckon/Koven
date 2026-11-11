@@ -22,6 +22,7 @@ pub(super) struct PendingBindingTransport {
     source_begin: Option<ActionHandle>,
     handoff: Option<ActionHandle>,
     use_return: UseReturn,
+    use_set: Option<super::action_source::BindingUseSetToken>,
     observable: bool,
     child: child::ChildState,
     dependency_owner: Option<super::OwnedValue>,
@@ -46,6 +47,24 @@ impl PartialEq for PendingBindingTransport {
 }
 impl Eq for PendingBindingTransport {}
 impl PendingBindingTransport {
+    pub(super) fn activate_use_set(&mut self, actions: &mut super::action_source::ActionSource) {
+        self.use_set = actions.activate_binding_use_set(
+            self.binding,
+            &self.source,
+            self.source_begin.as_ref(),
+            self.handoff.as_ref(),
+        );
+    }
+    pub(super) fn capture_use_set_return(
+        &mut self,
+        actions: &mut super::action_source::ActionSource,
+        loan: &UnitLoanFact,
+        begin: Option<&ActionHandle>,
+    ) {
+        if let Some(token) = &mut self.use_set {
+            actions.return_binding_use_set(token, loan, begin);
+        }
+    }
     /// Read the real still-unused transport, never reconstruct it from a declaration.
     pub(super) fn unused_obligation(
         &self,
@@ -80,6 +99,7 @@ impl PendingBindingTransport {
     }
 
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        self.use_set = None;
         // This narrowly linear observation capability never crosses a merge.
         self.auxiliary = None;
         self.distinct = None;
@@ -185,6 +205,7 @@ impl DropPlanner<'_, '_> {
                 source_begin,
                 handoff: None,
                 use_return: UseReturn::Unused,
+                use_set: None,
                 observable,
                 child: child::ChildState::Never,
                 dependency_owner,
@@ -221,11 +242,14 @@ impl DropPlanner<'_, '_> {
 
 impl PendingBindingTransport {
     pub(super) fn publish_retirement(
-        self,
+        mut self,
         actions: &mut super::action_source::ActionSource,
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
     ) -> (Option<ActionHandle>, Option<ActionHandle>) {
+        if let Some(token) = self.use_set.take() {
+            actions.close_binding_use_set(token, &transaction, &binding_end);
+        }
         if self.observable {
             let use_return = match &self.use_return {
                 UseReturn::Unique(handle) => Some(handle.clone()),

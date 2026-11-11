@@ -166,6 +166,13 @@ impl DropPlanner<'_, '_> {
                         .end_receiver(UnitReceiverCallReturnEndFact { receiver });
                 }
                 Action::EndCallLoan(loan) => {
+                    for pending in &mut state.borrow_binding_transports {
+                        pending.capture_use_set_return(
+                            &mut self.iteration_actions,
+                            &loan,
+                            acquisition.as_ref(),
+                        );
+                    }
                     if let Some((loan, acquisition)) = self.finish_binding_child_use(
                         loan,
                         acquisition,
