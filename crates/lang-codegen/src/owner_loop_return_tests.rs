@@ -14,6 +14,10 @@ fn loop_owned_return_original_source_probe() {
     let source = UnitSource::analyze("loop-owned-return.ko", SOURCE).unwrap();
     source.assert_frontend_clean();
     assert!(matches!(source.products, OwnedProducts::Basic(..)));
+    assert_terminal_shape(&source);
+}
+
+fn assert_terminal_shape(source: &UnitSource) {
     use crate::ssa::model::{EntityId, Operation, TerminatorKind};
     use lang_frontend::ownership_checking::UnitDropPoint;
     let (program, entry) = source.lower_entry(source.entry()).unwrap();
@@ -212,4 +216,63 @@ fn loop_owned_return_requires_two_actual_endpoint_receipts() {
     );
     assert_eq!(body.1, body.2);
     assert_eq!(condition_false.1, condition_false.2);
+}
+
+#[test]
+fn loop_owned_return_both_units_deliver_two_separate_endpoints() {
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                SOURCE.replace("run(true)", "run(ON)")
+            )
+        } else {
+            SOURCE.to_owned()
+        };
+        let source = UnitSource::analyze("loop-owned-return-dual.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        assert_terminal_shape(&source);
+        let (lowered, receipts) =
+            crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let [body, condition_false] = receipts.as_slice() else {
+            panic!("two actual endpoints")
+        };
+        assert_ne!(body.0, condition_false.0);
+        for receipt in [body, condition_false] {
+            assert!(receipt.2.is_some());
+            assert_eq!(receipt.1, receipt.2);
+        }
+    }
+}
+
+#[test]
+fn loop_owned_return_native_preserves_each_path_value() {
+    let text = SOURCE.replace(
+        "val first = run(false); val second = run(true)",
+        "val first = run(false); println(first); val second = run(true); println(second)",
+    );
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                text.replace("run(true)", "run(ON)")
+            )
+        } else {
+            text.clone()
+        };
+        let source = UnitSource::analyze("loop-owned-return-native.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        super::assert_native_output(&source, b"outer\nnext\n");
+    }
 }

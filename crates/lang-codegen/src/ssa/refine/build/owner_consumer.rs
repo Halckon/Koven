@@ -330,6 +330,7 @@ impl Builder<'_, '_> {
         expression: UnitExpressionId,
         slot: Slot,
     ) -> Result<(), LoweringError> {
+        self.open_loop_result(expression, slot)?;
         if let Some(plan) = &mut self.owner_plan {
             if let Some(replacement) = &mut plan.return_replacement
                 && expression == replacement.argument
@@ -354,6 +355,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Slot, LoweringError> {
         let unit = self.unit(expression);
+        if let Some(slot) = self.open_loop_name(unit, span)? {
+            return Ok(slot);
+        }
         if let Some(plan) = &self.owner_plan
             && let Some(binding) = plan
                 .return_binding
@@ -451,6 +455,7 @@ impl Builder<'_, '_> {
         value: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.open_loop_binding(initializer, symbol, value, span)?;
         let Some(plan) = &self.owner_plan else {
             return Ok(());
         };
@@ -482,6 +487,7 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn owner_binding_emitted(&mut self, symbol: UnitSymbolId, binding: Slot) {
+        self.open_loop_binding_emitted(symbol, binding);
         if let Some(plan) = &mut self.owner_plan {
             if symbol == plan.root {
                 plan.root_slot = Some(binding);
@@ -542,6 +548,7 @@ impl Builder<'_, '_> {
         replacement: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.open_loop_replace(call, root, replacement, span)?;
         if self.authorize_return_replace(call, root, replacement, span)? {
             return Ok(());
         }
@@ -707,6 +714,7 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn finish_owner_plan(&self) -> Result<(), LoweringError> {
+        self.finish_open_loop_return()?;
         if let Some(plan) = &self.owner_plan
             && (plan.stage != 3
                 || plan
