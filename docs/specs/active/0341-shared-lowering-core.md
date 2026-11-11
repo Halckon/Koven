@@ -11991,3 +11991,25 @@ status 偏差与 question_mark 风格失败、阶段2的 E0308 oracle 编译偏�
 均保留原父账本和日志，没有重跑红、补造哈希或用本轮最终产物覆盖历史证据限制。
 独立只读终审已逐项复核双父、冻结输入、实际 artifact/binary/九项日志与最终文档分账，无新增阻断；
 审阅者未执行项目测试。文档收尾不重跑未变 Rust，保留原代码头与最终文档头的区别。
+
+### 开放 loop 的已交付 Return endpoint（2026-11-11）
+
+用户明确批准统一内部公共产品，不改变 Guide 或 ABI。唯一开放 loop 存储采用
+`UnitOwnerOpenLoopObservationV1::{BreakLive, ReturnDelivered}`；旧 replace-break getter
+只投影 BreakLive，既有 closed-loop getter/validator 仍只证明原封闭 body。ReturnDelivered
+不伪装 Break、不发布 live-Q body completion 或共同 incoming，不新增组合专用平行存储。
+
+首片沿已保留原样 probe：唯一 Boolean Name 条件、一个 String 根 P、body 一次 Replace
+产生 Q、detached P 仍按原 AfterStatement 清理，然后 body Return(Q)；条件 false 独立
+尾 Return(P)。共享原 P→Q admission/capture 与六事件前缀校验，不扩一般循环或表达式。
+Phase 3 从真实 Name Consume/交付、旧 Return cleanup 和 body 实际 Ok(false)记录封印；
+false 尾 Return 从原条件状态独立交付。两 endpoint 绑定各自 catalog 与源身份，不合并编号。
+Phase 4 复核同轮 typed/owned primitive、真实 producer/binding/RootReplace 后槽、detached
+P Drop、两个实际 Name delivery 和 Return terminator。仅 false 路径能到 tail exit；body
+必须以 Return 终止，不能有 body→exit/backedge。旧 finish_return 仍是唯一发射器。
+
+基线 `71df5df8` 保留 probe `ff85760f` 与已审集成 `6f8eb32a` 双父；原冻结树不修改。
+后端独立缺 endpoint 红 `38c1258c`：旧 SSA/LLVM 成功后 body Q 无授权，单普通 exact
+实际 1 failed；前端 `90281c46`：旧诊断/cleanup/观察 on-off 保真后开放产品 0≠1，
+单普通 exact 实际 1 failed。两轮均执行前保存 SOURCE、test source、artifact 和 binary SHA
+及独立 binary 副本。能力绿及最终兼容回归尚未完成；未通过正式 CI，不进入已发布 PR。
