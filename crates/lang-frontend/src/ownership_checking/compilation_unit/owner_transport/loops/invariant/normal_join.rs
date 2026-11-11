@@ -146,7 +146,15 @@ impl UnitOwnerInvariantNormalJoinObservationV1 {
             && self.entry == self.split
             && self.entry == self.exit
             && self.entry.symbol.source_unit() == self.statement().source_unit()
-            && self.inputs.definition(self.entry.owner()).is_some()
+            && self
+                .inputs
+                .definition(self.entry.owner())
+                .is_some_and(|definition| {
+                    matches!(
+                        definition.origin(),
+                        crate::ownership_checking::UnitOwnerOrigin::String(_)
+                    )
+                })
             && self
                 .arms
                 .iter()

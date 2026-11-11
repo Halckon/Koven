@@ -159,6 +159,12 @@ impl UnitOwnerReplaceBreakObservationV1 {
     /// Verify the fixed cross-catalog transfer, independent boundaries and completion seal.
     pub fn is_consistent(&self) -> bool {
         self.prefix.prefix_is_consistent()
+            && self
+                .inputs
+                .definition(self.entry.owner())
+                .is_some_and(|definition| {
+                    definition.origin() == UnitOwnerOrigin::String(self.initial)
+                })
             && self.events.len() == 6
             && Arc::ptr_eq(&self.completed_identity, &self.producers.identity)
             && self.completed_jump == self.jump
