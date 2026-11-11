@@ -14596,3 +14596,33 @@ removed-owner与实际Drop及owner事件先后对证；预算先验后计算offs
 尺寸复测2585手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
 超额文件/policy零改。compilation_unit1130→1134只独立产品/枚举导出，经职责审阅
 仍低于原1156。新Interleaved专属CG receipt未实施，旧见证保留；仅本地提交不推送。
+
+#### 单B前后辅助消费链的真实后端收据（实施中）
+
+基于c3e3cf04，为Interleaved独立前端证书补实际CG receipt：总A1..8、唯一B且
+前置A非空，动态use Vec及B位置决定事件顺序，不新增逐长度固定shape。初始六
+角色之后逐A四角色，B消费及结果/source退休四角色，最终A后插入实际aux Drop；
+总11+4n角色及7+2n实体不变，但aux先Drop时B整体后移，不能复用旧role9前缀。
+
+独立准入核同catalog所有9+2n原动作、source相位、逐loan身份与两个raw Drop；
+actual producer冻结双owner，逐operand/append/alias对证，原verifier后才原子发布。
+旧Sequence/Single资格、语言执行及见证不放宽，尺寸policy不变。先真红，再全
+预算内B位置与预算外/多B邻界验证；CI-only只编译，不执行。本片仅本地提交。
+
+实际missing receipt 0!=1真红已转绿；最终普通CG84项通过，67词×source0/1×双
+入口×on/off共536组合，全部36个前置A形状逐原FE action/call ID、连续11+4n条
+实际指令及7+2n实体核对。逐A不同Place/Loan、初始aux/result/source不混用，B与
+两Drop按实际位置对应；n9、多B及旧Single/Sequence不获取新资格，开关SSA/LLVM
+一致。实现中曾发现statement hook重复推进，修为真实push仅一次并复验全绿；
+临时诊断代码已移除，不把该阶段失败算作通过。
+
+非作者审阅确认entry双owner冻结、前B实际binding/source义务、后B真实退休、
+末A先Drop及原verifier后原子发布/失败回滚；补齐producer动态算术前预算守卫。
+新增5组CI-only含故障/遗漏错序、身份、发布回滚与最大prefix/source_index防伪，
+仅编译未执行。旧FE/Sequence及其他receipt生产零改，旧见证保留；日志
+interleaved-receipt-*，无native全套或远端CI。
+
+最终Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff
+与文档897项通过。尺寸2589手写Rust文件、36个历史超1000文件，唯一失败仍为
+前序drop_planner1684>1674，原文件及policy零改。build1013→1014只独立Plans
+创建，经非作者职责审阅仍≤1025，emit987不增长。仅本地提交，不推送。

@@ -62,6 +62,9 @@ fn lower_unit_impl(
     #[cfg(test)]
     let auxiliary_sequence_publication =
         crate::ssa::refine::auxiliary_sequence_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let interleaved_aux_publication =
+        crate::ssa::refine::interleaved_aux_receipt::UnitPublication::begin();
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
     let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
@@ -899,5 +902,7 @@ fn lower_unit_impl(
     later_aux_publication.commit();
     #[cfg(test)]
     auxiliary_sequence_publication.commit();
+    #[cfg(test)]
+    interleaved_aux_publication.commit();
     Ok((program, entry_id))
 }

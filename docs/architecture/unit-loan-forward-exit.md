@@ -77,5 +77,10 @@ End/owner绑定，role0双owner冻结，后续append/alias维持全部身份；�
 真实A返回前B时保存活source owner与原Unused binding transport的Begin/Handoff锚；
 后B时保存source实际retirement/Drop且确认binding义务已移除。按原声明事件顺序核
 全部9+2n记录，覆盖AB及aux先Drop的反转次序，不归一化为旧sourceDrop前缀。
-公开产品与Single/Sequence分流；本片只补FE证书，尚无Interleaved专属CG receipt。
+公开产品与Single/Sequence分流；对应独立CG receipt按B位置核11+4n连续真实角色
+和7+2n实体，逐A新Place/Loan，双owner入口冻结且前B保留source/binding义务。
+最后A后的aux Drop可先于B，动态角色严格对应两种次序；原verifier后原子发布，
+旧见证保留。
 细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#单b前后辅助消费链的独立前端证书实施中)。
+
+后端实际身份与边界证据见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#单b前后辅助消费链的真实后端收据实施中)。

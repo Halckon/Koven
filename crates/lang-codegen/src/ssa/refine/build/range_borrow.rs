@@ -542,6 +542,9 @@ impl Builder<'_, '_> {
                         call_arg_span,
                     )?;
                     self.body
+                        .interleaved_aux_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
                         .child_plans
                         .source_operand(call, arg_id, call_arg_span)?;
                     self.borrow_call_operand_loan(value_expr, copy_to, call_arg_span)?
