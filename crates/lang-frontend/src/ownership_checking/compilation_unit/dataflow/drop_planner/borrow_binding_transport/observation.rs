@@ -76,6 +76,7 @@ impl DropPlanner<'_, '_> {
         acquisition: Option<ActionHandle>,
         pending: &mut [PendingBindingTransport],
     ) {
+        self.observe_auxiliary_binding_use(&loan, acquisition.as_ref(), pending);
         // Use the original argument place, never the canonical source root in loan.target().
         let Ok(Some(place)) = self.checker.place(loan.argument().expression()) else {
             return;

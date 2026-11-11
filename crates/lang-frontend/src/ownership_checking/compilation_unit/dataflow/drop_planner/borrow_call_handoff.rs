@@ -348,6 +348,14 @@ impl DropPlanner<'_, '_> {
         for pending in self.pending_borrow_handoffs.drain(..) {
             if pending.fact.binding() == binding {
                 if continues {
+                    let auxiliary_source = pending.fact.source_loan().clone();
+                    let auxiliary_begin = match pending.auxiliary_begins.as_slice() {
+                        [Some(begin)] if pending.source_live && pending.narrow_shape => {
+                            Some(begin.clone())
+                        }
+                        _ => None,
+                    };
+                    let source_begin = pending.source_begin.clone();
                     let handle = self.iteration_actions.commit_borrow_handoff(pending.fact);
                     self.iteration_actions.register_auxiliary_retirement(
                         handle.clone(),
@@ -357,6 +365,13 @@ impl DropPlanner<'_, '_> {
                     );
                     for pending in &mut state.borrow_binding_transports {
                         pending.commit_handoff(binding, handle.clone());
+                        pending.activate_auxiliary_observation(
+                            binding,
+                            &auxiliary_source,
+                            source_begin.as_ref(),
+                            auxiliary_begin.as_ref(),
+                            &handle,
+                        );
                     }
                 }
             } else {
