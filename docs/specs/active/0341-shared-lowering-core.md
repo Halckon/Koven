@@ -13810,3 +13810,14 @@ join 和 layout 路径记录事件；两层 join 均需零前驱并从最终 lay
 workspace all-target check、fmt/diff、docs 897 与 Rust尺寸门禁全部通过；
 尺寸统计2487手写文件、36个超1000行，历史债务仍显式报告。
 日志保留既有检查点 nested-receipt-*；本片只本地提交，不推送。
+
+### 三叶之后的旧见证退休审计（2026-11-11）
+
+基于 `7008e82b` 逐消费者审计后，本轮不退休任何旧见证：Unit 的 borrow_result、
+branch_declaration 与 nested_declaration 在 observer-off 仍依赖原 origin/transport/loan；
+refine subset/range_borrow 和 build/range_borrow 的真实返回 lowering 覆盖范围更广，
+仍读取旧 source/origin。forward、branch、nested receipt admission 也还要逐路交叉
+核验 typed/raw 合同。新的三叶局部 Complete 不等于 callable/catalog 完整，更不能
+证明全流 absence；projection、观察关闭等价及未支持邻形测试仍保留。
+退休需要对应消费者完整输入范围的独立替代合同、缺失与不支持的明确区分，以及
+关闭旧读取后的等价验证；不能仅凭新增 receipt 正控删除旧表或旧测试。
