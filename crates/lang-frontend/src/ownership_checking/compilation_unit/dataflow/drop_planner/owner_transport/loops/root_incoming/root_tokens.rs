@@ -61,6 +61,7 @@ impl RootBoundaryEquation {
             assignments,
             steps: self.actual_steps.clone(),
             producers: self.producers.clone(),
+            roots: self.static_boundary()?,
         };
         evidence.is_consistent().then_some(evidence)
     }
@@ -72,6 +73,11 @@ impl RootBoundaryEquation {
         if self.counter.is_some() || !self.same_roots() {
             return None;
         }
+        self.static_boundary()?.with_guard_reset(self.guard_reset)
+    }
+
+    // Shared static manifest only; the counter path never publishes this as authority.
+    fn static_boundary(&self) -> Option<crate::ownership_checking::UnitOwnerMultiRootBoundaryV1> {
         let slots = self
             .entry
             .iter()
@@ -92,12 +98,11 @@ impl RootBoundaryEquation {
             self.condition,
             self.body,
             self.condition_binding,
-            self.inputs,
-            self.producers,
+            self.inputs.clone(),
+            self.producers.clone(),
             slots,
         )?
-        .with_normal_transport(self.normal_transport, self.actual_steps)?
-        .with_guard_reset(self.guard_reset)
+        .with_normal_transport(self.normal_transport.clone(), self.actual_steps.clone())
     }
 
     pub(in super::super::super::super) fn control(&self) -> UnitStatementId {

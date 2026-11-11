@@ -12,6 +12,10 @@ Name guard初始化为同counter大于0，body中每根直接String Replace并�
 末尾为counter减1写回、同counter大于0写回guard。记录真实source-qualified初始化、
 赋值和两个RHS身份、原producer catalog及实际root Replace/drop事实。
 
+该记录还封存原入口catalog、每根entry→first-body输出token全向量、normal steps及实际
+false-exit活根/退休分区和完成的suffix事实。内部复用既有私有manifest校验，不把boundary
+对象暴露给counter消费者；缺少完整suffix时仍保留None，不能据分区虚构消费完成。
+
 该记录不暴露header/exit能力；旧multi-root boundary仍拒绝counter。getter要求原analysis
 身份、同control的Unsupported Syntax及空legacy事件，不允许与其他产品混用。
 失败或deferred分析撤销证据。不能借该getter把Unsupported改为Complete。
@@ -50,10 +54,10 @@ deferred、foreign analysis、伪Complete撤销负控。本地只编译，执行
 
 | 合同 | 当前证据 | 尚未覆盖 |
 |---|---|---|
-| 初值 | 本地counter先定义、同值比较、guard写入、entry到header | 未将入口owner向量与scalar初值共同封存为权限 |
+| 初值 | 本地counter先定义、同值比较、guard写入、entry到header | 已封存原入口向量与scalar身份，但尚未授予入口权限 |
 | 正常迭代 | Replace旧值退休后减1，写回再比较，success返回header | 未签发新代际向量或对每轮消费做归纳 |
 | 溢出 | checked receipt验证真实失败分支和终结abort | 不把“预计不可溢出”作为删除abort或授权回边的依据 |
-| 零轮与退出 | 非正初值真实native跳过body；现有通用drop继续工作 | 未将最终live root与零轮/多轮退出统一为新产品 |
+| 零轮与退出 | 非正初值真实native跳过body；现有通用drop继续工作 | 已封存静态false分区/完成suffix，尚非零轮/多轮退出权限 |
 
 按既有[Int checked语义](../guide/04-expressions-operators.md#整数溢出与除零)，
 正counter减1在数学上可表示，非正初值不进入此精确循环；这只是受限合同的推理，

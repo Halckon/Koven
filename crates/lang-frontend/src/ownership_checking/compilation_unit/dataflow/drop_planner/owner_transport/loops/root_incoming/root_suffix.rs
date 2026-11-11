@@ -36,6 +36,13 @@ impl RootSuffix {
             && self.transparent.is_none())
         .then_some(self.receipts)
     }
+    pub(super) fn completed_snapshot(&self) -> Option<Vec<Receipt>> {
+        (self.valid
+            && self.remaining.is_empty()
+            && self.pending.is_none()
+            && self.transparent.is_none())
+        .then(|| self.receipts.clone())
+    }
     fn matches_resources(&self, state: &ValueState) -> bool {
         boundary_values(state).is_some_and(|values| {
             values.len() == self.remaining.len()

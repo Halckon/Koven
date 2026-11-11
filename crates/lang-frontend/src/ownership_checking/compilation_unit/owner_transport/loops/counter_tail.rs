@@ -17,6 +17,7 @@ pub struct UnitOwnerCounterTailEvidenceV1 {
     pub(in crate::ownership_checking::compilation_unit) assignments: [UnitExpressionId; 4],
     pub(in crate::ownership_checking::compilation_unit) steps: Vec<UnitOwnerRootReplaceStepV1>,
     pub(in crate::ownership_checking::compilation_unit) producers: UnitOwnerProducerCatalogV1,
+    pub(in crate::ownership_checking::compilation_unit) roots: UnitOwnerMultiRootBoundaryV1,
 }
 impl UnitOwnerCounterTailEvidenceV1 {
     /// Source-qualified callable owning this evidence.
@@ -59,10 +60,42 @@ impl UnitOwnerCounterTailEvidenceV1 {
     pub fn body_catalog(&self) -> &UnitOwnerProducerCatalogV1 {
         &self.producers
     }
+    /// Original entry tokens, not loop activation permissions.
+    pub fn input_catalog(&self) -> &UnitOwnerProducerCatalogV1 {
+        self.roots.input_catalog()
+    }
+    /// Whole ordered static entry/first-body vector; not subsequent runtime generations.
+    pub fn root_slots(&self) -> &[UnitOwnerRootBoundarySlotV1] {
+        self.roots.slots()
+    }
+    /// Actual condition-false live/retired partition, if completely observed.
+    pub fn false_exit_partition(
+        &self,
+    ) -> Option<(&[UnitSymbolId], &[crate::ownership_checking::UnitDropFact])> {
+        self.roots.condition_false_partition_parts()
+    }
+    /// Actual completed live-root suffix retirement facts, not exit permission.
+    pub fn false_exit_suffix(
+        &self,
+    ) -> Option<&[(UnitSymbolId, crate::ownership_checking::UnitDropFact)]> {
+        self.roots.condition_false_suffix()
+    }
     /// Structural source/catalog checks, not dynamic reachability or induction.
     pub fn is_consistent(&self) -> bool {
         let source = self.control.source_unit();
-        self.guard != self.counter
+        self.roots.is_consistent()
+            && self.roots.statement() == self.control
+            && self.roots.condition() == self.condition
+            && self.roots.body() == self.body
+            && self.roots.guard() == self.guard
+            && self.roots.guard_reset().is_none()
+            && std::sync::Arc::ptr_eq(&self.analysis, &self.input_catalog().identity)
+            && self.roots.body_catalog().definitions() == self.producers.definitions()
+            && self
+                .roots
+                .normal_transport()
+                .is_some_and(|rule| rule.steps() == self.steps)
+            && self.guard != self.counter
             && self.guard.source_unit() == source
             && self.counter.source_unit() == source
             && self.condition.source_unit() == source
@@ -111,6 +144,64 @@ impl UnitOwnerObservation {
 mod tests {
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
     #[test]
+    fn counter_audit_preserves_whole_entry_output_and_exit_partition() {
+        for roots in [2, 3] {
+            for live in [0, 1, roots] {
+                let prefix = (0..roots)
+                    .map(|i| format!("var r{i} = \"entry{i}\";"))
+                    .collect::<String>();
+                let body = (0..roots)
+                    .rev()
+                    .map(|i| format!("val old{i} = replace(&r{i}, \"body{i}\");"))
+                    .collect::<String>();
+                let suffix = (0..live)
+                    .rev()
+                    .map(|i| format!("val end{i} = r{i};"))
+                    .collect::<String>();
+                let text = format!(
+                    "fun run(n: Int) {{ var left = n; var again = left > 0; {prefix} while(again) {{ {body} left = left - 1; again = left > 0; }}; {suffix} }}"
+                );
+                let fixture = Fixture::new(&[("counter-vector.ko", &text)]);
+                let owned = fixture.shared();
+                let observation = owned
+                    .owner_observations()
+                    .iter()
+                    .find(|o| o.counter_tail_evidence_v1().is_some())
+                    .unwrap();
+                assert!(observation.multi_root_boundary_v1().is_none());
+                let audit = observation.counter_tail_evidence_v1().unwrap();
+                assert_eq!(audit.root_slots().len(), roots);
+                for slot in audit.root_slots() {
+                    assert_ne!(slot.entry(), slot.first_body_output());
+                    assert!(audit.input_catalog().definition(slot.entry()).is_some());
+                    assert!(
+                        audit
+                            .body_catalog()
+                            .definition(slot.first_body_output())
+                            .is_some()
+                    );
+                    let step = audit
+                        .steps()
+                        .iter()
+                        .find(|s| s.header_root() == slot.root())
+                        .unwrap();
+                    assert_eq!(step.returned_value_drop(), slot.returned_value_drop());
+                }
+                let (actual_live, drops) = audit.false_exit_partition().unwrap();
+                assert_eq!(actual_live.len(), live);
+                assert_eq!(drops.len(), roots - live);
+                if live == 0 {
+                    assert!(audit.false_exit_suffix().is_none());
+                } else {
+                    let suffix = audit.false_exit_suffix().unwrap();
+                    assert_eq!(suffix.len(), live);
+                    assert!(suffix.iter().all(|(root, _)| actual_live.contains(root)));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn ci_only_counter_audit_rejects_deferred_foreign_and_complete_observations() {
         let fixture = Fixture::new(&[(
             "counter-evidence.ko",
@@ -122,6 +213,19 @@ mod tests {
             .iter()
             .find(|o| o.counter_tail_evidence_v1().is_some())
             .unwrap();
+        let mut altered = original.clone();
+        altered.counter_tail.as_mut().unwrap().steps.reverse();
+        assert!(altered.counter_tail_evidence_v1().is_none());
+        let mut mismatched = original.clone();
+        mismatched.counter_tail.as_mut().unwrap().roots = fixture
+            .shared()
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.counter_tail_evidence_v1())
+            .unwrap()
+            .roots
+            .clone();
+        assert!(mismatched.counter_tail_evidence_v1().is_none());
         let deferred = super::super::publish_observations(vec![original.clone()], true, false);
         assert!(deferred[0].counter_tail_evidence_v1().is_none());
         let other = fixture.shared();

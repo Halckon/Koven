@@ -464,7 +464,19 @@ impl RootEvidence {
         &self,
         initializer: UnitExpressionId,
     ) -> Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1> {
-        self.normal_equation.as_ref()?.counter_evidence(initializer)
+        let mut result = self
+            .normal_equation
+            .as_ref()?
+            .counter_evidence(initializer)?;
+        if let Some((live, drops)) = &self.exit_partition {
+            result.roots = result
+                .roots
+                .with_condition_false_partition(live.clone(), drops.clone())?;
+        }
+        if let Some(receipts) = self.suffix.as_ref().and_then(|s| s.completed_snapshot()) {
+            result.roots = result.roots.with_condition_false_suffix(receipts)?;
+        }
+        result.is_consistent().then_some(result)
     }
 }
 
