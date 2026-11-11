@@ -707,6 +707,7 @@ impl DropPlanner<'_, '_> {
                 closed_product: None,
                 incoming_roots: self.owner_loop.root_entry(control).map(<[_]>::to_vec),
                 root_stages: (false, false),
+                normal_write_vector: None,
                 root_writes: Vec::new(),
             });
         }
@@ -726,6 +727,7 @@ impl DropPlanner<'_, '_> {
                 closed_product,
                 incoming_roots: None,
                 root_stages: self.owner_loop.root_stages(control),
+                normal_write_vector: self.owner_loop.root_normal_writes(control),
                 root_writes: self.owner_loop.root_writes(control).to_vec(),
             });
         }
@@ -798,6 +800,12 @@ impl DropPlanner<'_, '_> {
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
             self.owner_loop.record_root_fallthrough(
+                UnitStatementId::new(self.checker.source_unit, id),
+                &body_state,
+                matches!(continued, Ok(true)),
+            );
+            self.owner_loop.record_root_normal_writes(
+                self.checker,
                 UnitStatementId::new(self.checker.source_unit, id),
                 &body_state,
                 matches!(continued, Ok(true)),

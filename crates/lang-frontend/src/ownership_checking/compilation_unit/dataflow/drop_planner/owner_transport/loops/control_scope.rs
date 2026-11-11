@@ -48,6 +48,7 @@ pub(in super::super::super) struct ControlVisit {
     pub(in super::super::super) control: UnitStatementId,
     pub(in super::super::super) parent: Option<UnitStatementId>,
     pub(in super::super::super) root_writes: Vec<RootWriteReceipt>,
+    pub(in super::super::super) normal_write_vector: Option<Vec<(UnitSymbolId, UnitExpressionId)>>,
     pub(in super::super::super) root_stages: (bool, bool),
     pub(in super::super::super) incoming_roots: Option<Vec<(UnitSymbolId, UnitOwnerId)>>,
     pub(in super::super::super) closed_product: Option<UnitOwnerLoopObservationV1>,

@@ -281,3 +281,64 @@ fn actual_root_writes_qualify_evaluated_short_circuit_rhs_and_restore() {
         }
     }
 }
+
+#[test]
+fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
+    let normal = SOURCE.replace("        break\n", "");
+    for (text, admitted) in [
+        (normal.clone(), true),
+        (
+            normal
+                .replace("&left", "&temporary")
+                .replace("&right", "&left")
+                .replace("&temporary", "&right"),
+            true,
+        ),
+        (normal.replace("replace(&right,", "replace(&left,"), false),
+        (
+            normal.replace(
+                "val first = replace(&left, \"next-left\")",
+                "if(flag) { val first = replace(&left, \"next-left\") }",
+            ),
+            false,
+        ),
+        (
+            normal.replace("val second =", "val extra = \"extra\"; val second ="),
+            false,
+        ),
+        (SOURCE.to_owned(), false),
+        (SOURCE.replace("break", "continue"), false),
+        (SOURCE.replace("break", "return"), false),
+    ] {
+        let fixture = Fixture::new(&[("root-normal-vector.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.clone().validate().is_ok());
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            let visits = planner.owner_control_probe.as_ref().unwrap();
+            let vector = &visits[1].normal_write_vector;
+            assert_eq!(vector.is_some(), admitted, "{text}");
+            if let Some(vector) = vector {
+                let roots = visits[0].incoming_roots.as_ref().unwrap();
+                assert_eq!(vector.len(), 2);
+                for ((root, producer), (entry_root, _)) in vector.iter().zip(roots) {
+                    assert_eq!(root, entry_root);
+                    assert!(
+                        visits[1]
+                            .root_writes
+                            .iter()
+                            .any(|receipt| receipt.root == *root && receipt.producer == *producer)
+                    );
+                }
+                // Changed roots remain ineligible for the old unchanged-root backedge proof.
+                assert_eq!(visits[1].root_stages, (true, false));
+            }
+        });
+    }
+}

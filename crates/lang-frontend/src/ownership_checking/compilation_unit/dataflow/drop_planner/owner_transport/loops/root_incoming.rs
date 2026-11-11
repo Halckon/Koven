@@ -5,6 +5,7 @@ pub(super) struct RootEvidence {
     pub(super) roots: RootIncoming,
     pub(super) completed_strings: Vec<(UnitExpressionId, Vec<(UnitExpressionId, usize)>)>,
     pub(super) writes: Vec<RootWriteReceipt>,
+    normal_write_vector: Option<Vec<(UnitSymbolId, UnitExpressionId)>>,
     after_condition: bool,
     normal_backedge: bool,
     tainted: bool,
@@ -16,6 +17,7 @@ impl RootEvidence {
             roots,
             writes,
             completed_strings: Vec::new(),
+            normal_write_vector: None,
             after_condition: true,
             normal_backedge: false,
             tainted: false,
@@ -27,9 +29,20 @@ impl ControlTransactions {
         for (_, evidence) in &mut self.root_entries {
             evidence.tainted = true;
             evidence.normal_backedge = false;
+            evidence.normal_write_vector = None;
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn root_normal_writes(
+        &self,
+        control: UnitStatementId,
+    ) -> Option<Vec<(UnitSymbolId, UnitExpressionId)>> {
+        self.root_entries
+            .iter()
+            .find(|(id, _)| *id == control)
+            .and_then(|(_, evidence)| evidence.normal_write_vector.clone())
+    }
     #[cfg(test)]
     pub(super) fn root_stages(&self, control: UnitStatementId) -> (bool, bool) {
         self.root_entries
@@ -48,6 +61,7 @@ impl ControlTransactions {
             evidence.after_condition =
                 !evidence.tainted && preserves(control, state, &evidence.roots);
             evidence.normal_backedge = false;
+            evidence.normal_write_vector = None;
         }
     }
     pub(super) fn record_root_fallthrough(
@@ -61,10 +75,27 @@ impl ControlTransactions {
             .iter_mut()
             .find(|(key, _)| *key == control)
         {
+            evidence.normal_write_vector = None;
             evidence.normal_backedge = normal
                 && evidence.after_condition
                 && !evidence.tainted
                 && preserves(control, state, &evidence.roots);
+        }
+    }
+
+    pub(super) fn record_root_normal_writes(
+        &mut self,
+        checker: &Checker<'_>,
+        control: UnitStatementId,
+        state: &ValueState,
+        normal: bool,
+    ) {
+        if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
+            evidence.normal_write_vector = if normal && evidence.after_condition {
+                completed_root_writes(checker, control, state, evidence)
+            } else {
+                None
+            };
         }
     }
 
@@ -88,6 +119,7 @@ impl ControlTransactions {
                 roots,
                 completed_strings: Vec::new(),
                 writes: Vec::new(),
+                normal_write_vector: None,
                 after_condition: false,
                 normal_backedge: false,
                 tainted: false,
@@ -151,4 +183,56 @@ fn preserves(control: UnitStatementId, state: &ValueState, roots: &RootIncoming)
         && values.iter().zip(roots).all(|(value, (root, owner))| {
             value.symbol == *root && value.owner.as_ref() == Some(owner)
         })
+}
+
+// A bounded normal-body producer vector, never a sealed header or owner equation.
+fn completed_root_writes(
+    checker: &Checker<'_>,
+    control: UnitStatementId,
+    state: &ValueState,
+    evidence: &RootEvidence,
+) -> Option<Vec<(UnitSymbolId, UnitExpressionId)>> {
+    let ast = checker.parsed.ast();
+    let Statement::While {
+        condition, body, ..
+    } = ast.statements().get(control.statement()).ok()?.payload()
+    else {
+        return None;
+    };
+    if !matches!(
+        ast.expressions().get(*condition).ok()?.payload(),
+        Expression::Name
+    ) || !exact_type(checker, *condition, BuiltinType::Boolean)
+        || evidence.roots.len() < 2
+    {
+        return None;
+    }
+    let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
+        return None;
+    };
+    if elements.len() != evidence.roots.len() || evidence.writes.len() != elements.len() {
+        return None;
+    }
+    for (statement, receipt) in elements.iter().zip(&evidence.writes) {
+        let (_, initializer) = replace_break::variable(checker, *statement, VariableKind::Val)?;
+        if receipt.control != control || receipt.call != checker.unit_expression(initializer) {
+            return None;
+        }
+    }
+    evidence
+        .roots
+        .iter()
+        .map(|(root, _)| {
+            state.position(*root)?;
+            let mut writes = evidence
+                .writes
+                .iter()
+                .filter(|receipt| receipt.root == *root);
+            let receipt = writes.next()?;
+            if writes.next().is_some() {
+                return None;
+            }
+            Some((*root, receipt.producer))
+        })
+        .collect()
 }

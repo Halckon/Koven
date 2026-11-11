@@ -170,3 +170,10 @@ String When在既有literal-candidate内核实际进入body后才记录，同ent
 失配退出会sticky拒绝并清除当前私有root证据，后续配对退出不能恢复资格。被拒绝期间
 不再采集入口、producer或写入回执；仅新的事务生命周期重置。此保护只撤销私有证据，
 不改变旧求值、清理、对外产品或语义接受范围。
+
+变更根正常落通的第一片私有证据仅限：Boolean Name条件、至少两根、body恰为每根一次
+直接String Replace的val声明，且实际body返回Ok(true)。逐语句对齐完成回执并核对每根
+仍在body状态中，按入口根顺序保留root→producer表达式向量。重复/遗漏根、分支、额外
+语句及Break/Continue/Return均不产生该向量。此向量不使用残留旧owner ID充当新owner，
+不恢复unchanged-root证明，不是header/phi、跨迭代等式或运行时回边到达证明；尚未证明
+旧值退休、结果清理与逐路径运输闭合，不能用于替代旧witness。
