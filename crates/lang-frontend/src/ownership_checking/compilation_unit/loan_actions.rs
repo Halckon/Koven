@@ -99,9 +99,17 @@ pub struct UnitLoanActionObservation {
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
     pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
+    pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
 }
 
 impl UnitLoanActionObservation {
+    /// Partial relations to original normal-return auxiliary retirements.
+    /// Empty grants no absence proof and does not enable any region or receipt.
+    #[must_use]
+    pub fn auxiliary_retirements(&self) -> &[super::UnitLoanAuxiliaryRetirement] {
+        &self.auxiliary_retirements
+    }
+
     /// Independent coverage of the narrowly declared branch region.
     /// Absence grants no absence proof and never enables expression-wrapper receipts.
     #[must_use]

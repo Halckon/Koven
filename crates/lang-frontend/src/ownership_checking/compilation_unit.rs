@@ -26,10 +26,12 @@ pub use loan_binding_child_actions::{
 mod loan_binding_actions;
 pub use loan_binding_actions::{UnitLoanBindingSourceRetirement, UnitLoanBindingUseReturn};
 mod loan_actions;
+mod loan_auxiliary_retirement;
 pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
     UnitLoanConsumerRetirement, UnitLoanForwardBranch, UnitLoanForwardHandoff,
 };
+pub use loan_auxiliary_retirement::UnitLoanAuxiliaryRetirement;
 
 mod loan;
 pub use loan::{

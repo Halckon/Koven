@@ -1,4 +1,5 @@
 //! The cleanup projections and acquisition observation share one append-only source.
+mod auxiliary_retirements;
 pub(super) mod binding_child_links;
 mod binding_dependency_drops;
 mod binding_links;
@@ -41,6 +42,7 @@ pub(super) struct ActionSource {
         Vec<crate::ownership_checking::compilation_unit::loan_child_region_validation::Candidate>,
     active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
+    auxiliary_retirements: Vec<auxiliary_retirements::Candidate>,
     forward_regions: Vec<forward_regions::Candidate>,
     branch_forward_regions: Vec<branch_forward_regions::Candidate>,
     branch_entries: Vec<(crate::ownership_checking::UnitLoanForwardBranch, usize)>,
@@ -89,6 +91,7 @@ impl Default for ActionSource {
             child_regions: Vec::new(),
             active_child_region: None,
             dependency_drops: Vec::new(),
+            auxiliary_retirements: Vec::new(),
             forward_regions: Vec::new(),
             branch_forward_regions: Vec::new(),
             branch_entries: Vec::new(),
@@ -390,6 +393,7 @@ impl ActionSource {
         }
         let child_links =
             binding_child_links::validate(&self.records, &self.identity, source, file);
+        let auxiliary_retirements = self.validate_auxiliary_retirements(source, file);
         let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
         let binding_dependency_drops = binding_dependency_drops::validate(
             &self.records,
@@ -540,6 +544,7 @@ impl ActionSource {
             forward_regions,
             branch_forward_regions,
             binding_dependency_drops,
+            auxiliary_retirements,
         }]
     }
 }
