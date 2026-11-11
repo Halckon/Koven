@@ -27,9 +27,17 @@ pub(super) fn record(plans: &Plans, function: &Function, receipt: &Receipt, span
     });
 }
 fn capture() -> Snapshot {
+    capture_topology(false)
+}
+fn capture_topology(both: bool) -> Snapshot {
     let text = "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source { if (flag) { return view(source) }; return view(source) }\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner, flag); consume(item) }";
+    let text = if both {
+        text.replace("}; return view(source)", "} else { return view(source) }")
+    } else {
+        text.to_owned()
+    };
     let mut sources = SourceMap::new();
-    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "ci-branch.ko", text);
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "ci-branch.ko", &text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (environment, types) = standard_environments();
     let (names, typed, owned) =
@@ -88,7 +96,7 @@ fn ci_only_branch_receipt_rejects_corrupt_identity_and_incomplete_paths() {
             7 => r.paths[0].ids = foreign.receipt.paths[0].ids.clone(),
             8 => r.read = r.paths[0].instruction,
             9 => r.condition_value = foreign.receipt.condition_value,
-            10 => r.fold = (r.fold.1, r.fold.0),
+            10 => r.fold = r.fold.map(|(from, to)| (to, from)),
             _ => r.caller = foreign.receipt.caller,
         }
         assert!(
@@ -113,7 +121,7 @@ fn ci_only_branch_receipt_rejects_corrupt_identity_and_incomplete_paths() {
     }
     let mut plans = s.plans.clone();
     plans.folds.clear();
-    let (block, successor) = s.receipt.fold;
+    let (block, successor) = s.receipt.fold.unwrap();
     assert!(plans.fold(successor, block, s.span).is_err());
     plans.fold(block, successor, s.span).unwrap();
     assert!(plans.fold(block, successor, s.span).is_err());
@@ -146,4 +154,49 @@ fn ci_only_branch_receipt_publication_is_atomic_on_unit_failure() {
     });
     assert_eq!(receipts.len(), 1);
     assert_eq!(receipts[0].paths.len(), 2);
+}
+
+#[test]
+fn ci_only_both_return_receipt_rejects_tail_topology_and_missing_exit() {
+    let s = capture_topology(true);
+    assert_eq!(
+        s.receipt.topology,
+        UnitBorrowBranchForwardTopology::BothArmsReturn
+    );
+    assert!(s.receipt.fold.is_none());
+    assert!(s.plans.folds.is_empty());
+    s.receipt.validate(&s.plans, &s.function, s.span).unwrap();
+    for fault in 0..5 {
+        let mut plans = s.plans.clone();
+        let p = plans.plan.as_mut().unwrap();
+        match fault {
+            0 => p.topology = UnitBorrowBranchForwardTopology::TailContinuation,
+            1 => p.goto_done = true,
+            2 => p.paths[1].stage = 2,
+            3 => p.join = None,
+            _ => plans.folds.push((p.arms.unwrap()[1], p.join.unwrap())),
+        }
+        assert!(Emitted::new(&plans, &s.function, s.span).is_err());
+    }
+    for fault in 0..3 {
+        let mut r = s.receipt.clone();
+        match fault {
+            0 => r.topology = UnitBorrowBranchForwardTopology::TailContinuation,
+            1 => r.fold = Some((BlockRef(1), BlockRef(2))),
+            _ => {
+                r.paths.pop();
+            }
+        }
+        assert!(r.validate(&s.plans, &s.function, s.span).is_err());
+    }
+    let mut plans = s.plans.clone();
+    let p = plans.plan.as_ref().unwrap();
+    let arm = p.arms.unwrap()[1];
+    let join = p.join.unwrap();
+    assert!(plans.fold(arm, join, s.span).is_err());
+    for fault in 0..2 {
+        let mut e = completed(&s);
+        e.returned[fault] = false;
+        assert!(e.finish(&s.plans, &s.function, s.span).is_err());
+    }
 }

@@ -806,3 +806,7 @@ mod aux_binding_receipt_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "aux_source_second_receipt_tests.rs"]
 mod aux_source_second_receipts;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "branch_else_probe_tests.rs"]
+mod branch_else_probe;

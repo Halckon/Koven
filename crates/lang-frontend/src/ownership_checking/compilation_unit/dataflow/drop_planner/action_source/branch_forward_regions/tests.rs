@@ -33,19 +33,31 @@ fn recorded_with_join(
     pairs: &[(UnitBorrowForwardTransportFact, UnitLoanForwardBranch)],
     extra_continuation: bool,
 ) -> ActionSource {
+    recorded_topology(
+        pairs,
+        extra_continuation,
+        UnitBorrowBranchForwardTopology::TailContinuation,
+    )
+}
+
+fn recorded_topology(
+    pairs: &[(UnitBorrowForwardTransportFact, UnitLoanForwardBranch)],
+    extra_continuation: bool,
+    topology: UnitBorrowBranchForwardTopology,
+) -> ActionSource {
     let expected = [
         scope(&pairs[0].0, pairs[0].1),
         scope(&pairs[1].0, pairs[1].1),
     ];
     let mut actions = ActionSource::default();
-    let id = actions.begin_branch_region(expected, (0, 0), true);
+    let id = actions.begin_branch_region(expected, topology, (0, 0), true);
     actions.branch_condition(id, false, true);
     actions.branch_condition(id, true, true);
     for (i, (fact, _)) in pairs.iter().enumerate() {
         let mut actual = expected[i];
         actual.branch_entry = actions.enter_forward_branch(actual.branch.unwrap());
         actions.branch_arm(id, actual, true);
-        if i == 1 {
+        if i == 1 && topology == UnitBorrowBranchForwardTopology::TailContinuation {
             if extra_continuation {
                 actions.branch_continuation(id, true, &[Some(actual), Some(actual)], true);
             } else {
@@ -63,6 +75,9 @@ fn recorded_with_join(
             Some(actual),
         );
         actions.branch_return(id, actual, true, true);
+    }
+    if topology == UnitBorrowBranchForwardTopology::BothArmsReturn {
+        actions.branch_terminal_join(id, true, true);
     }
     actions.seal_branch_region(id, true, true);
     actions.close_branch_callable(expected[0].callable);
@@ -161,7 +176,12 @@ fn ci_only_branch_certificate_requires_all_control_and_interval_witnesses() {
             11 => actions.branch_forward_regions[0].start = 1,
             12 => {
                 let expected = actions.branch_forward_regions[0].expected;
-                actions.begin_branch_region(expected, (0, 0), true);
+                actions.begin_branch_region(
+                    expected,
+                    UnitBorrowBranchForwardTopology::TailContinuation,
+                    (0, 0),
+                    true,
+                );
             }
             13 => {
                 let left = actions.branch_forward_regions[0].expected[0];
@@ -219,5 +239,81 @@ fn ci_only_branch_certificate_requires_all_control_and_interval_witnesses() {
             }
         }
         partial(actions, source, file, fault < 20 || fault == 21);
+    }
+}
+
+#[test]
+fn ci_only_both_returns_requires_its_terminal_join_and_both_completed_arms() {
+    let text = SOURCE.replace(
+        "}; return view(source) }",
+        "} else { return view(source) } }",
+    );
+    let fixture = Fixture::new(&[("both-coverage.ko", &text)]);
+    let owned = fixture.shared();
+    let mut pairs = owned.loan_action_observations()[0]
+        .actions()
+        .iter()
+        .filter_map(|action| match action {
+            UnitLoanAction::BorrowForwardHandoff(handoff) => {
+                Some((handoff.transaction().clone(), handoff.branch().unwrap()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    pairs.sort_by_key(|(_, branch)| !branch.then_arm());
+    assert_eq!(pairs.len(), 2);
+    let source = pairs[0].0.returned_expression().source_unit();
+    let file = fixture.parsed[0].source_id();
+    let build = || {
+        recorded_topology(
+            &pairs,
+            false,
+            UnitBorrowBranchForwardTopology::BothArmsReturn,
+        )
+    };
+    let valid = build().finish(source, file);
+    let region = &valid[0].branch_forward_regions()[0];
+    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+    assert_eq!(
+        region.topology(),
+        UnitBorrowBranchForwardTopology::BothArmsReturn
+    );
+    for fault in 0..8 {
+        let mut actions = build();
+        match fault {
+            0 => {
+                actions.branch_forward_regions[0].topology =
+                    UnitBorrowBranchForwardTopology::TailContinuation
+            }
+            1 => actions.branch_forward_regions[0].terminal_join = false,
+            2 => actions.branch_forward_regions[0].continuation = true,
+            3 => actions.branch_forward_regions[0].arms[1] = None,
+            4 => {
+                actions.branch_forward_regions[0].arms[0]
+                    .as_mut()
+                    .unwrap()
+                    .end = None
+            }
+            5 => actions.branch_terminal_join(0, true, true),
+            6 => actions.branch_continuation(0, true, &[], true),
+            _ => {
+                actions.branch_forward_regions[0].arms[1]
+                    .as_mut()
+                    .unwrap()
+                    .pre = None
+            }
+        }
+        partial(actions, source, file, true);
+    }
+    for (terminated, empty) in [(false, true), (true, false)] {
+        let mut actions = build();
+        let candidate = &mut actions.branch_forward_regions[0];
+        candidate.terminal_join = false;
+        candidate.end = None;
+        candidate.closed = None;
+        actions.branch_terminal_join(0, terminated, empty);
+        actions.seal_branch_region(0, true, true);
+        actions.close_branch_callable(pairs[0].1.callable());
+        partial(actions, source, file, true);
     }
 }

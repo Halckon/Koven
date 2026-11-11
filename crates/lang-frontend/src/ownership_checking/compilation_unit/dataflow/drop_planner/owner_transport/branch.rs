@@ -68,6 +68,7 @@ impl DropPlanner<'_, '_> {
         let branch_plan = base.branch_forward_plan;
         let mut branch_states = Vec::new();
         let mut then_terminated = false;
+        let mut else_terminated = false;
         if reaches_then {
             let mut then_state = base.clone();
             self.enter_forward_arm(id, true, &mut then_state);
@@ -100,10 +101,12 @@ impl DropPlanner<'_, '_> {
         if reaches_else {
             if let Some(else_branch) = else_branch {
                 let mut else_state = base;
+                self.enter_forward_arm(id, false, &mut else_state);
                 self.drop_branch_entry(id, 1, &[], &mut else_state);
                 self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
                 let (else_tail, else_result) =
                     self.evaluate_control_body(else_branch, branch_usage, &mut else_state)?;
+                else_terminated = !else_result.continues;
                 if else_result.continues {
                     self.drop_branch_exit(id, 1, &mut else_state);
                 }
@@ -195,7 +198,12 @@ impl DropPlanner<'_, '_> {
             }
         }
         let continues = !branch_states.is_empty();
-        self.observe_branch_join(branch_plan, then_terminated, &branch_states);
+        self.observe_branch_join(
+            branch_plan,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+        );
         *state = self.merge_resource_states(id, branch_states);
         self.finish_owner_loop_join(id, state);
         self.conditional_break_if_completed(id, continues, state);

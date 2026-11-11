@@ -43,8 +43,16 @@ impl Plans {
         let arms = p.arms.ok_or_else(|| invalid(span))?;
         if control != p.split
             || p.join.is_some()
-            || predecessors != [arms[1]]
-            || p.paths[0].stage != 3
+            || match p.topology {
+                UnitBorrowBranchForwardTopology::TailContinuation => {
+                    predecessors != [arms[1]] || p.paths[0].stage != 3 || p.paths[1].stage != 0
+                }
+                UnitBorrowBranchForwardTopology::BothArmsReturn => {
+                    !predecessors.is_empty()
+                        || p.paths.iter().any(|path| path.stage != 3)
+                        || p.goto_done
+                }
+            }
             || arms.contains(&join)
             || p.entry == Some(join)
         {
@@ -72,13 +80,22 @@ impl Plans {
         let expected = if index == 0 {
             p.arms.map(|a| a[0])
         } else {
-            p.join
+            match p.topology {
+                UnitBorrowBranchForwardTopology::TailContinuation => p.join,
+                UnitBorrowBranchForwardTopology::BothArmsReturn => p.arms.map(|a| a[1]),
+            }
         };
         let path = &mut p.paths[index];
         if path.stage != 0
             || Some(block) != expected
             || !p.split_done
-            || (index == 1 && !p.goto_done)
+            || (index == 1
+                && match p.topology {
+                    UnitBorrowBranchForwardTopology::TailContinuation => !p.goto_done,
+                    UnitBorrowBranchForwardTopology::BothArmsReturn => {
+                        p.goto_done || p.join.is_some()
+                    }
+                })
         {
             return Err(invalid(span));
         }
@@ -159,7 +176,9 @@ impl Plans {
             p.split_done = true;
             return Ok(());
         }
-        if p.arms.is_some_and(|a| a[1] == block) {
+        if p.topology == UnitBorrowBranchForwardTopology::TailContinuation
+            && p.arms.is_some_and(|a| a[1] == block)
+        {
             if p.goto_done || !matches!(term,RTerm::Goto(target) if p.join==Some(*target)) {
                 return Err(invalid(span));
             }
@@ -181,7 +200,13 @@ impl Plans {
     pub(in crate::ssa::refine) fn finish(&self, span: Span) -> Result<(), LoweringError> {
         if self.plan.as_ref().is_some_and(|p| {
             !p.split_done
-                || !p.goto_done
+                || p.join.is_none()
+                || match p.topology {
+                    UnitBorrowBranchForwardTopology::TailContinuation => !p.goto_done,
+                    UnitBorrowBranchForwardTopology::BothArmsReturn => {
+                        p.goto_done || !self.folds.is_empty()
+                    }
+                }
                 || p.paths.len() != 2
                 || p.paths.iter().any(|path| path.stage != 3)
         }) {
@@ -196,7 +221,8 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         let Some(p) = &self.plan else { return Ok(()) };
-        if !self.folds.is_empty()
+        if p.topology != UnitBorrowBranchForwardTopology::TailContinuation
+            || !self.folds.is_empty()
             || p.arms.map(|a| a[1]) != Some(block)
             || p.join != Some(successor)
         {

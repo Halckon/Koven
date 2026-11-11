@@ -87,14 +87,16 @@ fn admitted(
     let Statement::Block { elements } = file.ast().statements().get(*block).ok()?.payload() else {
         return None;
     };
-    let [conditional, tail] = elements.as_slice() else {
-        return None;
+    let (conditional, tail) = match elements.as_slice() {
+        [conditional, tail] => (*conditional, Some(*tail)),
+        [conditional] => (*conditional, None),
+        _ => return None,
     };
-    let conditional = expression(file, *conditional)?;
+    let conditional = expression(file, conditional)?;
     let Expression::If {
         condition,
         then_branch,
-        else_branch: None,
+        else_branch,
         ..
     } = file.ast().expressions().get(conditional).ok()?.payload()
     else {
@@ -114,7 +116,22 @@ fn admitted(
     let [first] = elements.as_slice() else {
         return None;
     };
-    let returns = [expression(file, *first)?, expression(file, *tail)?];
+    let second = match (tail, else_branch) {
+        (Some(tail), None) => expression(file, tail)?,
+        (None, Some(branch)) => {
+            let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+                file.ast().statements().get(*branch).ok()?.payload()
+            else {
+                return None;
+            };
+            let [returned] = elements.as_slice() else {
+                return None;
+            };
+            expression(file, *returned)?
+        }
+        _ => return None,
+    };
+    let returns = [expression(file, *first)?, second];
     if returns[0] == returns[1] {
         return None;
     }

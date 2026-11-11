@@ -13643,3 +13643,37 @@ Clippy 通过，双向独立代码复审无阻塞问题。默认双 crate lib no
 35 历史超限，无新增豁免。
 证据在本机同目录 source-second-* 日志。
 本轮不推送，不退休旧见证，不宣称完成全部 D10/E2 或完整逐路径借用证明。
+
+
+### 显式双臂返回的独立路径证明（2026-11-11）
+
+本片复用既有 if-return + tail-return 结果，新增严格单个 `if (flag) { return view(source) }
+else { return view(source) }`，两 borrowed 参数、同源同 callee、每臂一个原始 Return、
+无局部 owner/额外语句/嵌套/循环。真实普通源码先在 rooted/memory × on/off 四组合
+均复现 UnsupportedNode（borrow marker），原最终 verifier 未运行且 receipt 为零；
+不把此输入的旧合法 frontend raw handoff 当成后端已支持证据。
+
+前端公开 TailContinuation 与 BothArmsReturn 两种明确 topology。旧 tail continuation
+状态证明保留，新片分别证明两臂真实 acquisition、live handoff、return 前后状态清空，
+真实 then/else 都终止且无存活 continuation 后才接受 terminal join。每路径保存独立
+action 区间，不将互斥路径拼成线性记录；catalog 仍 Partial。
+
+后端原 `branch_declaration` 同样有隐含两语句/无 else 门，现只按上述两种精确形状
+准入，维持原签名与 owned 来源要求。branch receipt 独立核原 AST 拓扑/return/value
+身份；旧 TailContinuation 仍强制 false→join 的真实 Goto 和唯一 fold。BothArmsReturn
+必须两个真实 BorrowReturn、空 join predecessors、无 goto/fold，最终无 join block。
+普通新测试核真实三个 block、两个 condition edges、两条 BorrowCall/result/return
+身份以及对应前端 action IDs；无新增 Begin/End/Drop，on/off SSA 与 LLVM 仍一致。
+
+旧 explicit-else 负控移入独立正控，Grouped return、嵌套/其他未覆盖分支继续拒绝；
+没有退休旧 tail/线性/借用生命周期见证。新增 frontend/codegen 各一项 CI-only
+漏臂/错拓扑/虚假 continuation 或 fold 故障测试，只编译不在本机执行。
+前端新双臂/旧tail/邻域 4 项普通测试通过；后端精确 branch 模块 4 项、auxiliary
+旧新 3 项、旧七记录 receipt 1 项通过，真源码红转绿。双向独立代码复审未发现阻塞。
+首次回归命令的 `ordinary_` 过滤过宽，误包含无关 native 测试，已主动停止该进程
+子树并改为上述精确目标；那次中断运行不计验收，不声称完成 native 全套。
+双 crate feature all-target strict Clippy、默认双 crate lib no-run（含新增 CI-only）通过；
+workspace all-target check 与 fmt/diff/docs897 通过；尺寸 2468 手写 Rust 文件、
+35 历史超限，无新增豁免。
+证据在本机同目录 branch-else-* 日志。
+此为有限两路径首片，不证明一般嵌套、多源、循环、异常或完整全路径借用体系。

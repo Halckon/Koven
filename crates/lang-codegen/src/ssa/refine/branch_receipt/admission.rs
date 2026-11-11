@@ -6,7 +6,7 @@ use lang_frontend::{
         LoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitLoanAction,
         UnitLoanActionCoverage, UnitLoanTarget,
     },
-    parser::Expression,
+    parser::{Expression, Statement},
     type_checking::{
         BorrowReturnOrigin, BuiltinType, ExpressionCategory, ParameterMode, UnitCallTarget,
         UnitCallableTarget, UnitTypeKind,
@@ -271,7 +271,9 @@ impl Plans {
                 {
                     return Err(fail());
                 }
+                validate_topology(inputs, region.topology(), region.split(), &paths)?;
                 plans.plan = Some(Plan {
+                    topology: region.topology(),
                     callable,
                     caller,
                     root,
@@ -292,4 +294,87 @@ impl Plans {
         }
         Ok(plans)
     }
+}
+
+/// Bind the certified topology to the exact original control/return nodes, not a nearby span.
+fn validate_topology(
+    inputs: &RefineInputs<'_>,
+    topology: UnitBorrowBranchForwardTopology,
+    split: UnitExpressionId,
+    paths: &[PathPlan],
+) -> Result<(), LoweringError> {
+    let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
+    let RefineBody::Block(body) = inputs.body else {
+        return Err(fail());
+    };
+    let ast = inputs.parsed.ast();
+    let expression = |statement| match ast.statements().get(statement).ok()?.payload() {
+        Statement::Expression { expression } => Some(*expression),
+        _ => None,
+    };
+    let single = |statement| match ast.statements().get(statement).ok()?.payload() {
+        Statement::Block { elements } | Statement::ControlBody { elements } => {
+            match elements.as_slice() {
+                [statement] => expression(*statement),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    let Statement::Block { elements } = ast.statements().get(body).map_err(|_| fail())?.payload()
+    else {
+        return Err(fail());
+    };
+    let (conditional, tail) = match (topology, elements.as_slice()) {
+        (UnitBorrowBranchForwardTopology::TailContinuation, [conditional, tail]) => {
+            (*conditional, Some(*tail))
+        }
+        (UnitBorrowBranchForwardTopology::BothArmsReturn, [conditional]) => (*conditional, None),
+        _ => return Err(fail()),
+    };
+    if expression(conditional).map(|id| UnitExpressionId::new(inputs.source_unit, id))
+        != Some(split)
+    {
+        return Err(fail());
+    }
+    let Expression::If {
+        then_branch,
+        else_branch,
+        ..
+    } = ast
+        .expressions()
+        .get(split.expression())
+        .map_err(|_| fail())?
+        .payload()
+    else {
+        return Err(fail());
+    };
+    let then_return = single(*then_branch).ok_or_else(fail)?;
+    let else_return = match (topology, tail, else_branch) {
+        (UnitBorrowBranchForwardTopology::TailContinuation, Some(tail), None) => {
+            expression(tail).ok_or_else(fail)?
+        }
+        (UnitBorrowBranchForwardTopology::BothArmsReturn, None, Some(branch)) => {
+            single(*branch).ok_or_else(fail)?
+        }
+        _ => return Err(fail()),
+    };
+    for (returned, path) in [then_return, else_return].into_iter().zip(paths) {
+        let Expression::Return {
+            value: Some(value), ..
+        } = ast
+            .expressions()
+            .get(returned)
+            .map_err(|_| fail())?
+            .payload()
+        else {
+            return Err(fail());
+        };
+        if path.branch.control() != UnitExpressionId::new(inputs.source_unit, returned)
+            || path.branch.value() != UnitExpressionId::new(inputs.source_unit, *value)
+        {
+            return Err(fail());
+        }
+    }
+    Ok(())
 }

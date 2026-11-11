@@ -17,7 +17,9 @@ mod loan_child_region_validation;
 mod loan_child_regions;
 mod loan_forward_regions;
 pub use loan_binding_regions::UnitBorrowBindingRegion;
-pub use loan_branch_forward_regions::{UnitBorrowBranchForwardPath, UnitBorrowBranchForwardRegion};
+pub use loan_branch_forward_regions::{
+    UnitBorrowBranchForwardPath, UnitBorrowBranchForwardRegion, UnitBorrowBranchForwardTopology,
+};
 pub use loan_child_regions::UnitBorrowChildRegion;
 pub use loan_forward_regions::UnitBorrowForwardRegion;
 mod loan_binding_dependency_drop;

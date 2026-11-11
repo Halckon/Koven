@@ -20,6 +20,7 @@ pub(crate) struct PathReceipt {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Receipt {
+    pub(crate) topology: UnitBorrowBranchForwardTopology,
     pub(crate) callable: UnitItemId,
     pub(crate) caller: FunctionId,
     pub(crate) split: UnitExpressionId,
@@ -29,7 +30,7 @@ pub(crate) struct Receipt {
     pub(crate) flag: LoanId,
     pub(crate) read: InstructionId,
     pub(crate) condition_value: ValueId,
-    fold: (BlockRef, BlockRef),
+    fold: Option<(BlockRef, BlockRef)>,
     pub(crate) paths: Vec<PathReceipt>,
 }
 struct Layout {
@@ -83,12 +84,21 @@ impl Emitted {
         let arms = p.arms.ok_or_else(|| invalid(span))?;
         let join = p.join.ok_or_else(|| invalid(span))?;
         if self.layout.is_some()
-            || plans.folds != [(arms[1], join)]
+            || match p.topology {
+                UnitBorrowBranchForwardTopology::TailContinuation => {
+                    plans.folds != [(arms[1], join)]
+                }
+                UnitBorrowBranchForwardTopology::BothArmsReturn => !plans.folds.is_empty(),
+            }
             || blocks.len() != 3
             || blocks.contains_key(&join)
             || p.paths.len() != 2
             || p.paths[0].block != Some(arms[0])
-            || p.paths[1].block != Some(join)
+            || p.paths[1].block
+                != Some(match p.topology {
+                    UnitBorrowBranchForwardTopology::TailContinuation => join,
+                    UnitBorrowBranchForwardTopology::BothArmsReturn => arms[1],
+                })
         {
             return Err(invalid(span));
         }
@@ -289,7 +299,10 @@ impl Emitted {
             || function.id() != p.caller
             || function.blocks.len() != 3
             || function.instructions.len() != 3
-            || plans.folds.len() != 1
+            || match p.topology {
+                UnitBorrowBranchForwardTopology::TailContinuation => plans.folds.len() != 1,
+                UnitBorrowBranchForwardTopology::BothArmsReturn => !plans.folds.is_empty(),
+            }
         {
             return Err(invalid(span));
         }
@@ -308,6 +321,7 @@ impl Emitted {
             });
         }
         let receipt = Receipt {
+            topology: p.topology,
             callable: p.callable,
             caller: p.caller,
             split: p.split,
@@ -317,7 +331,7 @@ impl Emitted {
             flag: l.flag,
             read,
             condition_value,
-            fold: plans.folds[0],
+            fold: plans.folds.first().copied(),
             paths,
         };
         receipt.validate(plans, function, span)?;
@@ -335,7 +349,7 @@ impl Emitted {
 impl Receipt {
     #[cfg(test)]
     pub(crate) fn folded_distinct_blocks(&self) -> bool {
-        self.fold.0 != self.fold.1
+        self.fold.is_some_and(|(from, to)| from != to)
     }
     fn validate(
         &self,
@@ -348,11 +362,18 @@ impl Receipt {
             .instruction(self.read)
             .ok_or_else(|| invalid(span))?;
         let entry = function.block(self.entry).ok_or_else(|| invalid(span))?;
-        if self.callable != p.callable
+        if self.topology != p.topology
+            || self.callable != p.callable
             || self.caller != function.id()
             || self.split != p.split
             || self.condition != p.condition
-            || plans.folds != [self.fold]
+            || match (self.topology, self.fold) {
+                (UnitBorrowBranchForwardTopology::TailContinuation, Some(fold)) => {
+                    plans.folds != [fold]
+                }
+                (UnitBorrowBranchForwardTopology::BothArmsReturn, None) => !plans.folds.is_empty(),
+                _ => true,
+            }
             || self.paths.len() != 2
             || data.block != self.entry
             || data.operation
