@@ -8,11 +8,12 @@ pub(super) enum Stage {
     Dropped,
 }
 pub(in super::super) struct Permit {
-    index: usize,
-    block: BlockRef,
-    instruction: usize,
-    source: Slot,
-    span: Span,
+    pub(super) index: usize,
+    pub(super) block: BlockRef,
+    pub(super) instruction: usize,
+    pub(super) source: Slot,
+    pub(super) span: Span,
+    pub(super) exit: bool,
 }
 impl Builder<'_, '_> {
     pub(in super::super) fn counter_binding_authorization(
@@ -29,7 +30,7 @@ impl Builder<'_, '_> {
             s.call() == initializer
                 || s.returned_value_drop().target() == UnitDropTarget::Named(symbol)
         }) else {
-            return Ok(None);
+            return self.counter_exit_binding(initializer, symbol, value, span);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let step = &plan.evidence.steps()[index];
@@ -60,6 +61,7 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         Ok(Permit {
+            exit: false,
             index,
             source,
             block,
@@ -76,6 +78,9 @@ impl Builder<'_, '_> {
         let Some(permit) = permit else {
             return Ok(());
         };
+        if permit.exit {
+            return self.counter_exit_binding_emitted(permit, binding, span);
+        }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         #[cfg(test)]
         let permit = {
@@ -119,7 +124,7 @@ impl Builder<'_, '_> {
             .iter()
             .position(|s| s.returned_value_drop().target() == target)
         else {
-            return Ok(None);
+            return self.counter_exit_drop(fact_index, target, slot, span);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         if self.inputs.owned.drops().get(fact_index)
@@ -144,6 +149,9 @@ impl Builder<'_, '_> {
         let Some(permit) = permit else {
             return Ok(());
         };
+        if permit.exit {
+            return self.counter_exit_drop_emitted(permit, span);
+        }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let statement = self.counter_retirement_statement(&permit, span)?;
         if !statement.results.is_empty()
@@ -166,7 +174,7 @@ impl Builder<'_, '_> {
         owner_consumer_test_support::record_action("counter-drop-permit-consumed", permit.index);
         Ok(())
     }
-    fn counter_retirement_statement(
+    pub(super) fn counter_retirement_statement(
         &self,
         permit: &Permit,
         span: Span,

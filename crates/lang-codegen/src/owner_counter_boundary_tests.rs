@@ -33,6 +33,20 @@ fn counter_tail_complete_boundary_consumes_live_suffix() {
                     .count(),
                 1
             );
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, _)| *kind == "counter-exit-binding-permit-consumed")
+                    .count(),
+                live
+            );
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, _)| *kind == "counter-exit-drop-permit-consumed")
+                    .count(),
+                2
+            );
             for kind in [
                 "counter-binding-permit-consumed",
                 "counter-drop-permit-consumed",
@@ -64,6 +78,10 @@ fn ci_only_counter_boundary_rejects_missing_suffix_and_wrong_entry() {
     let source = UnitSource::analyze("counter-boundary-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::MissingCounterExitBindingPermit,
+        OwnerFault::MissingCounterExitDropPermit,
+        OwnerFault::CounterExitWrongSource,
+        OwnerFault::CounterExitDuplicateDrop,
         OwnerFault::MissingCounterBindingPermit,
         OwnerFault::MissingCounterDropPermit,
         OwnerFault::CounterBindingWrongSource,
@@ -158,6 +176,27 @@ fn counter_parameter_entries_keep_existing_scalar_audit() {
         actions
             .iter()
             .all(|(kind, _)| *kind != "counter-tail-complete-boundary-audit")
+    );
+    super::super::assert_native_output(&source, b"");
+}
+
+#[test]
+fn counter_exit_permits_do_not_claim_reinitialized_root_drops() {
+    let text = source(2, true, 0)
+        .replace("while(flag)", "var remaining = 2; var again = remaining > 0; while(again)")
+        .replace(" };", " remaining = remaining - 1; again = remaining > 0; }; r0 = \"later0\"; r1 = \"later1\";");
+    let source = UnitSource::analyze("counter-exit-reinitialize.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "counter-exit-drop-permit-consumed")
+            .count(),
+        2
     );
     super::super::assert_native_output(&source, b"");
 }

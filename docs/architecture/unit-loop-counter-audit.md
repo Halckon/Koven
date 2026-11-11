@@ -31,8 +31,10 @@ lowering；这不是借用旧单根plan，也不从“没有receipt”推断所�
 返回旧值binding及其实际drop已加入同一强制链：Ready→Replaced(old)→Bound(binding)→Dropped。
 绑定匹配精确call与返回binding，drop匹配原始完整fact与绑定槽；每步均先授权、后核实际
 指令再提交，后根替换要求前根完成退休，最终不得留半完成项。只消费既有通用drop指令，
-不重复发射清理，并拒绝与旧owner/header drop receipt重叠。false-exit与suffix仍是前述
-完整审计，不在本次body退休permit链内。CI-only覆盖缺失permit、错来源、重复提交；
+不重复发射清理，并拒绝与旧owner/header drop receipt重叠。完整false分区与必要suffix还建立独立的同控制退出链：死根drop以及活根Name→binding→drop
+均核原始fact、当前finished/exit块和实际指令，再按证据顺序单次提交；最终全组必须完成。
+缺分区或suffix不全时整个退出链不选中，不能把一部分消费冒充完整退出。后续同root的新
+生命周期按不同fact保留通用清理，不被已完成的退出链认领。CI-only覆盖缺失permit、错来源、重复提交；
 本地只编译，普通native矩阵核真实每根消费记录。
 
 ## 实际后端消费
