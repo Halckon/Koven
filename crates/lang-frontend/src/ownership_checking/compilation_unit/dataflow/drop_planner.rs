@@ -1408,6 +1408,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             PlannerDropFact::new(point, PlannerDropTarget::Named(value.symbol), value.origin),
             cause,
         );
+        self.drop_normal_header(point, &value, state);
         self.drop_replace_consumer(point, &value, state);
         for source in shared_sources {
             // Match-edge liveness excludes reads in the selected entry body.

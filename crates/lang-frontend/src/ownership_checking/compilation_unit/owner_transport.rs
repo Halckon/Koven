@@ -1,8 +1,8 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
 mod loops;
 pub(in crate::ownership_checking::compilation_unit) use loops::{
-    CallConsumerTarget, HeaderCompletion, HeaderCore, MixedParameterThreshold, ReplaceBreakSuffix,
-    ReturnConsumerTarget,
+    CallConsumerTarget, HeaderCompletion, HeaderCore, HeaderEquation, MixedParameterThreshold,
+    ReplaceBreakSuffix, ReturnConsumerTarget,
 };
 pub(super) use loops::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
@@ -16,12 +16,13 @@ pub use loops::{
     UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
     UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
     UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerMixedBackedgeV1,
-    UnitOwnerNormalArmBoundaryV1, UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1,
-    UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1, UnitOwnerReplaceBreakCallActionV1,
-    UnitOwnerReplaceBreakCallConsumerV1, UnitOwnerReplaceBreakConsumerActionV1,
-    UnitOwnerReplaceBreakConsumerV1, UnitOwnerReplaceBreakObservationV1,
-    UnitOwnerReplaceBreakReturnActionV1, UnitOwnerReplaceBreakReturnConsumerV1,
-    UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1, UnitOwnerReturnEndpointV1,
+    UnitOwnerNormalArmBoundaryV1, UnitOwnerNormalBackedgeV1, UnitOwnerNormalBindDropV1,
+    UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
+    UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1,
+    UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1,
+    UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1,
+    UnitOwnerReturnEndpointV1,
 };
 pub(super) mod values;
 pub use values::{

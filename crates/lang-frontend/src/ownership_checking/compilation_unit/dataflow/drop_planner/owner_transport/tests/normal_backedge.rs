@@ -408,7 +408,7 @@ fn ci_only_parameter_mixed_rejects_threshold_identity_damage() {
             _ => None,
         })
         .unwrap();
-    for damage in 0..8 {
+    for damage in 0..9 {
         let mut p = (**original).clone();
         if damage == 0 {
             p.threshold = None;
@@ -763,6 +763,109 @@ fn ci_only_parameter_normal_header_rejects_origin_and_transport_damage() {
             4 => p.core.increment = None,
             5 => p.core.completion = HeaderCompletion::Continue(p.core.assignment),
             _ => p.core.cleaned = false,
+        }
+        assert!(!p.is_consistent());
+    }
+}
+
+const HEADER_BIND_SOURCE: &str = r#"fun run(limit: Int): Unit {
+    var held = "outer"
+    var index = 0
+    while(index < limit) {
+        val previous = replace(&held, "next")
+        index = index + 1
+    }
+    val retired = held
+}"#;
+#[test]
+fn normal_header_bind_drop_seals_actual_terminal_consumption() {
+    use crate::ownership_checking::{UnitDropPoint, UnitOwnerOpenLoopObservationV1 as O};
+    for text in [
+        HEADER_BIND_SOURCE.to_string(),
+        HEADER_BIND_SOURCE.replace("retired", "finished"),
+        HEADER_BIND_SOURCE.replace("limit", "maximum"),
+    ] {
+        let fixture = Fixture::new(&[("header-bind.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.open_loop_observation_v1())
+            .collect::<Vec<_>>();
+        let [O::NormalBindDrop(p)] = products.as_slice() else {
+            panic!("normal header bind/drop product");
+        };
+        assert!(p.is_consistent());
+        assert_ne!(p.retired(), p.root());
+        assert_eq!(
+            p.drop_point(),
+            UnitDropPoint::AfterStatement(p.binding_statement())
+        );
+        assert_eq!(p.input_producers().definitions().len(), 1);
+        assert_eq!(p.body_producers().definitions().len(), 1);
+        assert_eq!(p.body_events().len(), 6);
+        assert_eq!(p.prefix_events().len(), 2);
+    }
+}
+#[test]
+fn normal_header_bind_drop_declines_legal_neighbor_protocols() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    for text in [
+        HEADER_BIND_SOURCE.replace("val retired = held", "val retired = (held)"),
+        HEADER_BIND_SOURCE.replace("val retired = held", "var retired = held"),
+        HEADER_BIND_SOURCE.replace(
+            "val retired = held",
+            "val alias = held\n    val retired = alias",
+        ),
+        HEADER_BIND_SOURCE.replace("index + 1", "index + 2"),
+        HEADER_BIND_SOURCE.replace("index = index + 1", "index = index + 1\n        continue"),
+        HEADER_BIND_SOURCE.replace("index < limit", "index <= limit"),
+        HEADER_BIND_SOURCE
+            .replace("limit: Int", "limit: Int, own incoming: String")
+            .replace("var held = \"outer\"", "var held = incoming"),
+    ] {
+        let fixture = Fixture::new(&[("header-bind-neighbor.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        assert!(
+            !owned
+                .owner_observations()
+                .iter()
+                .any(|o| matches!(o.open_loop_observation_v1(), Some(O::NormalBindDrop(_))))
+        );
+    }
+}
+#[test]
+fn ci_only_normal_header_bind_drop_rejects_incomplete_consumption() {
+    use crate::ownership_checking::compilation_unit::owner_transport::HeaderCompletion;
+    use crate::ownership_checking::{UnitDropPoint, UnitOwnerOpenLoopObservationV1 as O};
+    let fixture = Fixture::new(&[("header-bind-damage.ko", HEADER_BIND_SOURCE)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::NormalBindDrop(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..8 {
+        let mut p = (**original).clone();
+        match damage {
+            0 => p.empty = false,
+            1 => p.bound.owner = p.core.backedge.owner(),
+            2 => p.taken = p.core.backedge.clone(),
+            3 => p.point = UnitDropPoint::AfterStatement(p.core.body),
+            4 => p.retired = p.root(),
+            5 => p.initializer = p.core.initial,
+            6 => p.core.completion = HeaderCompletion::Continue(p.core.assignment),
+            7 => p.core.body_completed = false,
+            _ => p.result_completed = false,
         }
         assert!(!p.is_consistent());
     }

@@ -25,6 +25,8 @@ pub(crate) enum OwnerFault {
     WrongReturnPayload,
     MissingOwnerReturn,
     ExtraHeaderAlias,
+    MissingHeaderBindDrop,
+    DuplicateHeaderBindDrop,
     ForgedHeaderParameterLiteral,
     MissingConditionalReturn,
     DuplicateConditionalReturn,

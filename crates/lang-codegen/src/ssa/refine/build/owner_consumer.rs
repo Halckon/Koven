@@ -461,6 +461,7 @@ impl Builder<'_, '_> {
     ) -> Result<(), LoweringError> {
         self.open_loop_binding(initializer, symbol, value, span)?;
         self.header_binding(initializer, symbol, value, span)?;
+        self.header_bind_binding(initializer, symbol, value, span)?;
         let Some(plan) = &self.owner_plan else {
             return Ok(());
         };
@@ -494,6 +495,7 @@ impl Builder<'_, '_> {
     pub(super) fn owner_binding_emitted(&mut self, symbol: UnitSymbolId, binding: Slot) {
         self.open_loop_binding_emitted(symbol, binding);
         self.header_binding_emitted(symbol, binding);
+        self.header_bind_binding_emitted(symbol, binding);
         if let Some(plan) = &mut self.owner_plan {
             if symbol == plan.root {
                 plan.root_slot = Some(binding);

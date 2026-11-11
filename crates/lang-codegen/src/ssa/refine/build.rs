@@ -599,14 +599,21 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
             self.authorize_loan_drops(*index, *target, slot, *span)?;
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
+            let header = self.header_bind_drop(*index, *target, slot, *span)?;
+            if receipt.is_some() && header.is_some() {
+                return Err(error(LoweringErrorKind::InvalidModel, *span));
+            }
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
             self.owner_drop_emitted(receipt, *span)?;
+            self.header_bind_drop_emitted(header, *span)?;
             #[cfg(test)]
             super::record_owner_drop(
                 *target,
                 *index,
                 slot.0,
-                receipt.map(owner_consumer::DropReceipt::witness),
+                receipt
+                    .map(owner_consumer::DropReceipt::witness)
+                    .or(header.map(|r| r.witness())),
             );
         }
         Ok(())

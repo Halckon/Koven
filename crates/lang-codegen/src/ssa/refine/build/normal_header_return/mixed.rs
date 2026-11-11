@@ -184,7 +184,7 @@ impl Builder<'_, '_> {
             }
             if take_fault(OwnerFault::WrongMixedJumpIdentity) {
                 p.mixed.jumps[r.role] = Some(Jump {
-                    expression: p.boundary.return_payload(),
+                    expression: p.boundary.return_payload().ok_or_else(fail)?,
                     ..r
                 });
                 return Ok(());

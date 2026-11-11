@@ -104,3 +104,15 @@ parameter open-loop族。
 后端在实际Value ABI参数绑定处取得唯一entry slot/index/symbol，Name结果仅确认
 同slot运输；参数初值必须无指令定义、唯一ABI引用，原参数已消费。literal初值仍
 要求真实entry StringLiteral，其他Q/root/detached census及Return校验保持原合同。
+
+## 正常 header 的本地最终消费
+
+单Int、literal初值及正常回边另可由唯一尾部`val retired = held`最终消费，函数
+返回Unit。共享私有HeaderEquation保留唯一P/Q→H守恒；Return与BindDrop端点
+分别封印，新产品不提供Return身份。真实Take后，只在该精确Consume表达式成功、
+同一owner及空后边界核验后保留原结果，随后实际Binding和AfterStatement Drop
+各自记录完成。不从候选快照补造owner，也不扩大旧失活观察或其他循环族。
+
+后端共享H校验，独立记录实际Name、Binding和物理Drop的消费收据；与旧两出口
+消费授权互斥，检查完整entry/回边/exit incoming及H至绑定槽的实际运输。正常
+有限native不等同资源计数或所有激活证明；其范围与实测记录见SPEC-0341。

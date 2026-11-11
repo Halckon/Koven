@@ -13431,3 +13431,25 @@ exit101、0 passed/1 failed/0 ignored；此前Basic、原retired Drop fact、真
 SSA verifier、LLVM及精确实际Drop观察均通过。4312输入、实际Cargo artifact与保存
 binary SHA绑定；本地证据owner-header-bind-20261111T133204Z保留首编译失败和red2。
 此红仅证明最终Drop缺授权，尚未证明H来源或生产完成，不扩大为语言拒绝。
+
+生产候选抽唯一HeaderEquation与CG transport校验，分别保留旧Return及新BindDrop
+端点，不复制H守恒、不制造Return身份或producer。首次green编译有FE字段迁移与
+旧匹配遗漏错误，green2另遇CG抽模块后RAbort路径错误；各自保留原日志，未执行。
+green3真实FE22中21通过，新产品未发布；临时诊断证明准入、H安装及Take均成功，
+但原evaluate_owner_expression因旧观察失活清空实际owner，Binding得到None。
+修复仅对该BindDrop精确Consume成功完成且原Some owner匹配已Take身份、H方程、
+空后状态和未完成旗标的情况保留原结果，不从snapshot回填；Bind须真实完成旗标，
+新增损坏负控仅CI编译。临时诊断全移除，原失败输入/日志/二进制均保全。
+
+green4重新冻结4315输入并真实重编，52 ordinary（FE22+CG30）全部逐项通过：
+原Drop授权红、真实P/Q到H及H到最终Drop的完整incoming/slot来源、新Basic/Const
+0/1/2/7正常native和旧47项回归。saved binary SHA与实际Cargo产物及输入绑定，
+没有复用前轮失败或旧构建结果。CI-only不执行，普通native不证明资源计数、一般
+控制、参数入口BindDrop、多根或capture；最新main/组合与正式CI仍待验，本地不推送。
+
+随后strict Clippy提示NormalSuffix大枚举；仅为BindInput加Box，未豁免或改合同。
+green5重新冻结4315输入，通过默认/loan双strict Clippy及workspace all-target check，
+重新编译并真实重跑原52项全部通过。最终以green5为准，不用green4结果替代布局
+修正后的实测；原编译失败、21/22及Clippy失败和诊断证据均保留。
+最终fmt、docs897、相对c57c4b48尺寸2448手写Rust/35历史超限及diff门禁通过。
+独审核52日志、实际binary/artifact及完整生产；最终仅本地切片完成，合流/正式CI另验。

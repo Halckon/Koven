@@ -392,7 +392,9 @@ impl DropPlanner<'_, '_> {
                 continues,
             );
         }
-        if !continues || !self.owner_observation_active() {
+        let normal_binding_result =
+            self.complete_normal_binding_result(id, usage, continues, owner.as_ref(), state);
+        if !continues || (!self.owner_observation_active() && !normal_binding_result) {
             owner = None;
         }
         if let Some(owner) = owner.as_ref() {
