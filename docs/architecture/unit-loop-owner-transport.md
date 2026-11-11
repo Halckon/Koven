@@ -152,9 +152,10 @@ Call/Assignment在早退前独立置sticky失效，后续向量相同也不能�
 目前不支持group/name/call RHS的producer转运；回执仅为planner遍历事实，不含完整路径身份，
 不能把来自互斥分支的回执拼成运行时提交序列或完整运输/清理证明。
 
-实际If-arm和普通When entry body求值为producer完成与写入回执记录同一词法祖先栈，
+实际If-arm和When entry body求值（含String When特化）为producer完成与写入回执记录同一词法祖先栈，
 包含source-qualified控制表达式和body索引；混合嵌套逐层保留，body返回或报错后在
 传播结果前恢复。回执按真实AST核对If/When类型与arm范围，拒绝跨source、非法索引
 或重复控制身份。When同entry的多个selector共享body，记录不区分匹配alternative。
-它不覆盖String When特化body、selector判断历史、短路条件、循环迭代或join后的历史；
+String When在既有literal-candidate内核实际进入body后才记录，同entry多selector不会制造多个body身份。
+它不覆盖selector判断历史、短路条件、循环迭代或join后的历史；
 空栈不是无条件执行证明，也不能据此合成逐路径运输或动态trace。

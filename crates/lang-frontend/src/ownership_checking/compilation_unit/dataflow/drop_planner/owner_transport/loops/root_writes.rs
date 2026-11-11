@@ -6,7 +6,7 @@ pub(in super::super::super) struct RootWriteReceipt {
     pub(in super::super::super) root: UnitSymbolId,
     pub(in super::super::super) call: UnitExpressionId,
     pub(in super::super::super) producer: UnitExpressionId,
-    // Lexical If/ordinary-When body ancestry only, not a complete path or runtime trace.
+    // Lexical If/When body ancestry only, not a complete path or runtime trace.
     pub(in super::super::super) branch_arms: Vec<(UnitExpressionId, usize)>,
 }
 impl RootWriteReceipt {
