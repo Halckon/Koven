@@ -83,6 +83,10 @@ impl DropPlanner<'_, '_> {
         id: StatementId,
         state: &ValueState,
     ) {
+        #[cfg(test)]
+        let altered = tests::resource_mismatch(state, 9, transparent_literal(self.checker, id));
+        #[cfg(test)]
+        let state = altered.as_ref().unwrap_or(state);
         for (_, evidence) in &mut self.owner_loop.root_entries {
             let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
                 continue;
@@ -142,6 +146,8 @@ impl DropPlanner<'_, '_> {
             suffix.valid = next.is_some() || suffix.transparent.is_some();
             suffix.pending = next;
         }
+        #[cfg(test)]
+        self.inject_transparent_event(id, state);
     }
     pub(in super::super::super::super) fn move_root_suffix(
         &mut self,
@@ -222,6 +228,17 @@ impl DropPlanner<'_, '_> {
         if tests::skip(4) {
             return;
         }
+        #[cfg(test)]
+        let altered = tests::resource_mismatch(
+            state,
+            10,
+            self.owner_loop
+                .root_entries
+                .iter()
+                .any(|(_, e)| e.suffix.as_ref().is_some_and(|s| s.transparent.is_some())),
+        );
+        #[cfg(test)]
+        let state = altered.as_ref().unwrap_or(state);
         for (_, evidence) in &mut self.owner_loop.root_entries {
             let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
                 continue;
@@ -261,10 +278,89 @@ impl DropPlanner<'_, '_> {
 }
 
 #[cfg(test)]
+impl DropPlanner<'_, '_> {
+    fn inject_transparent_event(&mut self, id: StatementId, state: &ValueState) {
+        if !self
+            .owner_loop
+            .root_entries
+            .iter()
+            .any(|(_, e)| e.suffix.as_ref().is_some_and(|s| s.transparent.is_some()))
+        {
+            return;
+        }
+        let Some(value) = boundary_values(state)
+            .and_then(|values| values.first())
+            .cloned()
+        else {
+            return;
+        };
+        let Statement::LocalVariable { declaration } = self
+            .checker
+            .parsed
+            .ast()
+            .statements()
+            .get(id)
+            .unwrap()
+            .payload()
+        else {
+            return;
+        };
+        let Item::Variable { initializer, .. } = self
+            .checker
+            .parsed
+            .ast()
+            .items()
+            .get(*declaration)
+            .unwrap()
+            .payload()
+        else {
+            return;
+        };
+        let expression = *initializer;
+        // Deliberately impossible owner events at a completed scalar-literal step.
+        if tests::skip(6) {
+            tests::hit();
+            self.move_root_suffix(expression, Some(&value));
+        }
+        if tests::skip(7) {
+            tests::hit();
+            self.bind_root_suffix(value.symbol, expression);
+        }
+        if tests::skip(8) {
+            tests::hit();
+            self.drop_root_suffix(PlannerDropFact::new(
+                PlannerDropPoint::AfterStatement(id),
+                PlannerDropTarget::Named(value.symbol),
+                value.origin,
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::*;
     use crate::ownership_checking::UnitOwnerHeaderSourceV1;
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
     thread_local! { static SKIP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) }; }
+    thread_local! { static HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+    pub(super) fn hit() {
+        HITS.set(HITS.get() + 1);
+    }
+    pub(super) fn resource_mismatch(
+        state: &ValueState,
+        phase: u8,
+        enabled: bool,
+    ) -> Option<ValueState> {
+        if !enabled || !skip(phase) {
+            return None;
+        }
+        let symbol = boundary_values(state)?.first()?.symbol;
+        let mut altered = state.clone();
+        altered.remove_value(symbol)?;
+        hit();
+        Some(altered)
+    }
     pub(super) fn skip(phase: u8) -> bool {
         SKIP.get() == phase
     }
@@ -315,6 +411,43 @@ mod tests {
             let restore = Restore(SKIP.replace(phase));
             let owned = fixture.shared();
             drop(restore);
+            let boundary = owned.owner_observations()[0]
+                .multi_root_boundary_v1()
+                .unwrap();
+            let incoming: Vec<_> = boundary
+                .slots()
+                .iter()
+                .map(|slot| {
+                    (
+                        slot.root(),
+                        UnitOwnerHeaderSourceV1::Backedge(slot.first_body_output()),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                boundary
+                    .condition_false_suffix_retirements(boundary.statement(), &incoming)
+                    .is_some(),
+                phase == 0
+            );
+        }
+    }
+    #[test]
+    fn ci_only_transparent_suffix_rejects_owner_events_and_resource_changes() {
+        let fixture = Fixture::new(&[(
+            "suffix-transparent-faults.ko",
+            "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val n = 1; val x = a; val y = b }",
+        )]);
+        for phase in [0, 6, 7, 8, 9, 10] {
+            HITS.set(0);
+            let restore = Restore(SKIP.replace(phase));
+            let owned = fixture.shared();
+            drop(restore);
+            assert_eq!(
+                HITS.get(),
+                usize::from(phase != 0),
+                "fault was not reached exactly once: {phase}"
+            );
             let boundary = owned.owner_observations()[0]
                 .multi_root_boundary_v1()
                 .unwrap();

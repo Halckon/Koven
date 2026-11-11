@@ -137,3 +137,7 @@ move/bind/drop均使整组失效。不会把旧owner ID作为代际证明。
 
 Char字面量的探索在codegen原始Replace准入处仍报UnsupportedNode，尚未宣称端到端支持；
 本片未绕过该检查。
+
+透明阶段另有CI-only负控：直接注入意外move、bind、drop，以及只对证明视图移除一个
+真实root的开始前/完成后资源不匹配。每例要求注入恰命中一次并拒绝发布suffix；不改
+真实planner资源状态或drop事实。本地仅编译这些负控，不执行，远端结果尚待验证。
