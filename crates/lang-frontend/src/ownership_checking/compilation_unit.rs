@@ -13,6 +13,8 @@ mod loan_binding_region_validation;
 mod loan_binding_regions;
 pub use loan_auxiliary_binding_regions::UnitBorrowAuxiliaryBindingRegion;
 mod loan_branch_forward_regions;
+mod loan_nested_forward_lineage;
+pub use loan_nested_forward_lineage::{UnitLoanNestedForwardEdge, UnitLoanNestedForwardLineage};
 mod loan_child_region_validation;
 mod loan_child_regions;
 mod loan_forward_regions;

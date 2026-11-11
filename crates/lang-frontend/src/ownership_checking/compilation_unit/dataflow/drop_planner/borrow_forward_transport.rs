@@ -35,6 +35,7 @@ pub(super) struct PendingForwardTransport {
     returned: UnitExpressionId,
     source: UnitLoanFact,
     cause: Option<ForwardCause>,
+    nested_cause: Option<super::action_source::NestedForwardCause>,
 }
 
 // Metadata cannot change the old semantic retain qualification.
@@ -46,6 +47,16 @@ impl PartialEq for PendingForwardTransport {
 impl Eq for PendingForwardTransport {}
 impl PendingForwardTransport {
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        let mut nested = alternatives.iter().filter(|other| *other == self);
+        let same_nested = nested
+            .next()
+            .and_then(|other| self.nested_cause.as_ref().zip(other.nested_cause.as_ref()))
+            .is_some_and(|(a, b)| a.state == b.state && a.acquisition.same_record(&b.acquisition))
+            && nested.next().is_none();
+        if !same_nested {
+            self.nested_cause = None;
+        }
+
         let mut matching = alternatives.iter().filter(|other| *other == self);
         let same = matching
             .next()
@@ -56,6 +67,19 @@ impl PendingForwardTransport {
             && matching.next().is_none();
         if !same {
             self.cause = None;
+        }
+    }
+
+    pub(super) fn reconcile_nested_scope(
+        &mut self,
+        scope: Option<super::nested_forward_scope::NestedForwardState>,
+    ) {
+        if !self
+            .nested_cause
+            .as_ref()
+            .is_some_and(|c| Some(c.state) == scope)
+        {
+            self.nested_cause = None;
         }
     }
 
@@ -254,6 +278,24 @@ impl DropPlanner<'_, '_> {
             .push(PendingForwardTransport {
                 returned: origin.expression(),
                 source,
+                nested_cause: acquisition
+                    .clone()
+                    .zip(state.nested_forward.filter(|nested| {
+                        nested
+                            .leaf
+                            .and_then(|i| nested.plan.leaves.get(i))
+                            .is_some_and(|leaf| {
+                                leaf.value == source_call
+                                    && leaf.argument == forwarded.argument()
+                                    && nested.plan.root == place.root()
+                            })
+                    }))
+                    .map(
+                        |(acquisition, state)| super::action_source::NestedForwardCause {
+                            acquisition,
+                            state,
+                        },
+                    ),
                 cause: acquisition
                     .zip(state.forward_scope.filter(|scope| {
                         scope.body == source_call
@@ -294,6 +336,7 @@ impl DropPlanner<'_, '_> {
             returned,
             source,
             cause,
+            nested_cause,
         } = state.borrow_forward_transports.remove(index);
         // Consume the transport state, not the live source loan. Ownership of the
         // token passes to the wrapper result; no loan-end or cleanup action is added.
@@ -307,6 +350,8 @@ impl DropPlanner<'_, '_> {
             cause,
             state.forward_scope,
         );
+        self.iteration_actions
+            .record_nested_forward_handoff(nested_cause, state.nested_forward);
     }
 }
 

@@ -16,6 +16,7 @@ impl DropPlanner<'_, '_> {
         let ValueState {
             forward_scope,
             branch_forward_plan,
+            nested_forward,
             replace_consumer,
             lambda,
             borrow_bindings,
@@ -40,7 +41,8 @@ impl DropPlanner<'_, '_> {
         } else {
             borrow_forward_transports.is_empty()
         };
-        self.scope_depth == depth
+        nested_forward.is_none()
+            && self.scope_depth == depth
             && self.owner_branch_depth == owner_depth
             && *forward_scope == scope
             && *branch_forward_plan == plan

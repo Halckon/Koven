@@ -15,6 +15,7 @@ impl DropPlanner<'_, '_> {
         let condition_result = self.expression(condition, DropExpressionUse::Read, state);
         if !matches!(condition_result, Ok(true)) {
             state.branch_forward_plan = None;
+            state.nested_forward = None;
             if state
                 .forward_scope
                 .is_some_and(|scope| scope.branch.is_some())
@@ -28,6 +29,7 @@ impl DropPlanner<'_, '_> {
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
         self.observe_branch_condition(id, condition, state, true);
         self.prepare_forward_split(id, condition, outcomes, state);
+        self.prepare_nested_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
         self.conditional_break_split_enter(id, condition, outcomes, state);
         self.conditional_return_split_enter(id, condition, outcomes, state);
@@ -42,6 +44,7 @@ impl DropPlanner<'_, '_> {
         self.owner_branch_depth -= 1;
         if result.is_err() {
             state.branch_forward_plan = None;
+            state.nested_forward = None;
             if state
                 .forward_scope
                 .is_some_and(|scope| scope.branch.is_some())
@@ -72,6 +75,7 @@ impl DropPlanner<'_, '_> {
         if reaches_then {
             let mut then_state = base.clone();
             self.enter_forward_arm(id, true, &mut then_state);
+            self.enter_nested_forward_arm(id, true, &mut then_state);
             self.drop_branch_entry(id, 0, &[], &mut then_state);
             self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
             self.conditional_break_arm_enter(id, then_branch, &then_state);
@@ -102,6 +106,7 @@ impl DropPlanner<'_, '_> {
             if let Some(else_branch) = else_branch {
                 let mut else_state = base;
                 self.enter_forward_arm(id, false, &mut else_state);
+                self.enter_nested_forward_arm(id, false, &mut else_state);
                 self.drop_branch_entry(id, 1, &[], &mut else_state);
                 self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
                 let (else_tail, else_result) =
@@ -228,6 +233,7 @@ impl DropPlanner<'_, '_> {
             state.forward_scope = None;
         }
         state.branch_forward_plan = None;
+        state.nested_forward = None;
         result
     }
 

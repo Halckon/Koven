@@ -97,6 +97,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) nested_forward_lineages: Vec<super::UnitLoanNestedForwardLineage>,
     pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
@@ -104,6 +105,18 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
+    /// Partial actual nested ancestry; absence grants no proof and enables no receipt.
+    pub fn nested_forward_lineages(&self) -> &[super::UnitLoanNestedForwardLineage] {
+        &self.nested_forward_lineages
+    }
+    /// Require the original observation catalog, not an equal snapshot.
+    pub fn owns_nested_forward_lineage(
+        &self,
+        lineage: &super::UnitLoanNestedForwardLineage,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &lineage.identity)
+    }
+
     /// Independent auxiliary-bearing binding intervals, not legacy binding certificates.
     /// Missing entries grant no absence proof or backend receipt authority.
     #[must_use]

@@ -23,6 +23,7 @@ mod loan_receiver_region;
 mod loan_region;
 mod map;
 mod model;
+mod nested_forward_scope;
 mod nullable_comparison;
 mod owner_transport;
 mod pending_call;
@@ -452,6 +453,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         FunctionBody::Block(body) => {
                             state.branch_forward_plan = self.branch_forward_plan(id, body);
+                            state.nested_forward = self.nested_forward_plan(id, body).map(|plan| {
+                                nested_forward_scope::NestedForwardState {
+                                    plan,
+                                    path: [None; 2],
+                                    leaf: None,
+                                    ready_split: None,
+                                }
+                            });
                             let coverage = self.begin_branch_coverage(&mut state);
                             let continues = self.statement(body, &mut state)?;
                             if continues {

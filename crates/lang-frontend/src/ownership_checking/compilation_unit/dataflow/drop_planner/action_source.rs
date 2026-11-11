@@ -11,12 +11,14 @@ mod branch_forward_regions;
 mod consumer_links;
 mod forward_links;
 mod forward_regions;
+mod nested_forward_lineage;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::{
     BorrowBindingEndFact, UnitBorrowCallHandoffFact, UnitDropPoint, UnitIterationCleanupAction,
     UnitLoanFact,
 };
+pub(super) use nested_forward_lineage::NestedForwardCause;
 use std::sync::Arc;
 type BindingEnd = BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>;
 
@@ -52,6 +54,8 @@ pub(super) struct ActionSource {
     auxiliary_retirements: Vec<auxiliary_retirements::Candidate>,
     forward_regions: Vec<forward_regions::Candidate>,
     branch_forward_regions: Vec<branch_forward_regions::Candidate>,
+    nested_entries: Vec<nested_forward_lineage::Entry>,
+    nested_handoffs: Vec<(usize, NestedForwardCause)>,
     branch_entries: Vec<(crate::ownership_checking::UnitLoanForwardBranch, usize)>,
     pub(super) enabled: bool,
 }
@@ -104,6 +108,8 @@ impl Default for ActionSource {
             forward_regions: Vec::new(),
             branch_forward_regions: Vec::new(),
             branch_entries: Vec::new(),
+            nested_entries: Vec::new(),
+            nested_handoffs: Vec::new(),
             enabled: true,
         }
     }
@@ -425,6 +431,7 @@ impl ActionSource {
         );
         let forward_regions = self.validate_forward_regions(&forward_links);
         let branch_forward_regions = self.validate_branch_regions(&forward_links);
+        let nested_forward_lineages = self.nested_lineages(source, file);
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -557,6 +564,7 @@ impl ActionSource {
             child_regions,
             forward_regions,
             branch_forward_regions,
+            nested_forward_lineages,
             binding_dependency_drops,
             auxiliary_retirements,
             auxiliary_binding_regions,

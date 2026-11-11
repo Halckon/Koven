@@ -13716,3 +13716,34 @@ codegen feature all-target strict Clippy 通过；不把 raw 三叶运输当作�
 
 后续需独立父边链与内外终止凭据，现有固定双臂 region/receipt 不放宽。
 本基线不改变生产准入、不推送；原始日志保留于既有检查点 nested-three-leaf-*。
+
+
+### 有限三叶的实际父边 lineage（2026-11-11）
+
+在三叶拒绝基线 `ba5232ad` 上增加独立 Partial 产品，不放宽已有两臂 region。
+严格声明计划只接受外层 then 内嵌完整 if/else、外层 else 直接返回，三参数
+String/Boolean/Boolean、三个直接 borrowed callee 与同根 Parameter(0) 来源。
+计划仅提供预期；实际 condition 完成后，reached-arm hook 才产生带父句柄和
+当时 action cursor 的 entry。三叶实际边链分别为 T/T、T/F、F。
+
+独立 nested cause 携带真实 acquisition；实际旧 handoff 追加后才绑定 sidecar。
+发布核同 catalog、真实相邻 Begin/handoff、source/argument/control 身份、父边
+顺序与 cursor、末级 entry 与 acquisition 同点，且同时检查 sidecar 和底层真实
+交易唯一性。旧 handoff.branch、旧 cause/transport PartialEq/cleanup 保持不变；
+合流、return 和错误清除新 metadata，旧完整 region 不接受混入的 nested 状态。
+公开 lineage 的 coverage 恒为 Partial，不证明内外完整 terminal join、所有路径
+关闭或 cleanup，也不构成 codegen receipt 准入权限。
+
+真实红为合法三叶 raw handoff 已存在而 lineage 0 != 3；新普通正控核
+rooted/memory × on/off 的旧所有权与 owner observation 一致、三 callee、
+catalog/action/control 身份与 2/2/1 条真实边。邻形负控保留缺 else、额外语句、
+第三层及 else 侧嵌套；首次负控漏语句分隔符导致解析失败，已改合法换行再测，
+未降低解析断言。新增 CI-only 13 类身份/父边/重复交付故障，仅编译不本机执行。
+验收：前端新正负两项加旧双臂六项共 8 ordinary、后端旧 branch 六项及三叶
+拒绝基线一项共 7 ordinary 通过。独立双向复审补强底层无 sidecar 重复交易
+拒绝；新公共 API 缺文档的首轮 strict Clippy 失败已补齐文档并重新全绿。
+最终双 crate feature all-target strict Clippy、默认双 crate lib no-run（包括
+CI-only）、workspace all-target check、fmt/diff/docs897 全通过；尺寸2476
+手写 Rust 文件、35历史超限，无新增豁免。CI-only、native 全套及远端 CI 未运行。
+验证结果与证据保留在既有检查点 nested-lineage-*。
+本片只本地提交，不推送；下一步仍需独立内外终止证书和后端真实 receipt。
