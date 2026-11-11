@@ -100,6 +100,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         self.enter_binding_region(id, state);
+        self.enter_auxiliary_binding_region(id, state);
         self.enter_child_region(id, state);
         let result = self.statement_inner(id, state);
         if matches!(result, Ok(true)) {
@@ -115,6 +116,7 @@ impl DropPlanner<'_, '_> {
             self.end_selected_borrow_bindings(point, state, &selected);
         }
         self.finish_binding_region_statement(id, matches!(result, Ok(true)), state);
+        self.finish_auxiliary_binding_region_statement(id, matches!(result, Ok(true)), state);
         self.finish_child_region_statement(id, matches!(result, Ok(true)), state);
         result
     }
@@ -150,6 +152,7 @@ impl DropPlanner<'_, '_> {
             UnitSymbolId,
             Option<super::action_source::BindingDropCause>,
             Batch,
+            Option<super::action_source::BindingDropCause>,
         )> = Vec::new();
         for index in (0..state.borrow_bindings.len()).rev() {
             let binding = state.borrow_bindings[index];
@@ -165,12 +168,22 @@ impl DropPlanner<'_, '_> {
             let binding_end = self.iteration_actions.end_borrow_binding(fact);
             let child_retirement =
                 self.retire_borrow_binding_child(binding, point, binding_end.clone(), state);
-            let parent_retirement = transport.and_then(|(transaction, pending)| {
-                pending.publish_retirement(&mut self.iteration_actions, transaction, binding_end)
-            });
+            let (parent_retirement, auxiliary_retirement) = transport
+                .map(|(transaction, pending)| {
+                    pending.publish_retirement(
+                        &mut self.iteration_actions,
+                        transaction,
+                        binding_end,
+                    )
+                })
+                .unwrap_or((None, None));
             let cause = parent_retirement.clone().and_then(|retirement| {
                 self.iteration_actions
                     .binding_drop_cause(binding, retirement)
+            });
+            let aux_cause = auxiliary_retirement.and_then(|retirement| {
+                self.iteration_actions
+                    .auxiliary_binding_drop_cause(binding, retirement)
             });
             if let Some(fact) = self
                 .checker
@@ -180,35 +193,39 @@ impl DropPlanner<'_, '_> {
                 .find(|fact| fact.binding == binding)
                 && let crate::ownership_checking::UnitLoanTarget::Place(place) = &fact.origin
             {
-                if let Some((_, existing, batch)) =
-                    roots.iter_mut().find(|(root, _, _)| *root == place.root())
+                if let Some((_, existing, batch, auxiliary)) = roots
+                    .iter_mut()
+                    .find(|(root, _, _, _)| *root == place.root())
                 {
                     // Preserve the old single cleanup attempt, but no binding wins ambiguity.
                     *existing = None;
+                    *auxiliary = None;
+                    self.iteration_actions
+                        .invalidate_auxiliary_root(place.root());
                     batch.observe(child_retirement, parent_retirement, &self.iteration_actions);
                 } else {
                     roots.push((
                         place.root(),
                         cause,
                         Batch::first(child_retirement, parent_retirement),
+                        aux_cause,
                     ));
                 }
             }
         }
-        for (root, cause, batch) in roots {
+        for (root, cause, batch, auxiliary) in roots {
             let live = match point {
                 PlannerDropPoint::AfterStatement(id) => {
                     self.liveness.statement_after[id.index()].contains(&root)
                 }
                 _ => true,
             };
+            let cause = cause.or_else(|| batch.cause());
+            let cause = self
+                .iteration_actions
+                .preserve_existing_drop_cause(root, cause, auxiliary);
             if !live {
-                self.drop_named_asap_with_binding_drop(
-                    point,
-                    root,
-                    state,
-                    cause.or_else(|| batch.cause()),
-                );
+                self.drop_named_asap_with_binding_drop(point, root, state, cause);
             }
         }
     }

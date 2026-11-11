@@ -16,13 +16,18 @@ use lang_frontend::{
 fn ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products() {
     let cases = [
         (
-            "distinct-roots",
-            "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(owner, aux); consume(item) }",
+            "source-second-distinct-roots",
+            "fun view(aux: String, source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(aux, owner); consume(item) }",
             1,
         ),
         (
-            "source-second",
-            "fun view(aux: String, source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }",
+            "source-second-grouped-source",
+            "fun view(aux: String, source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, (owner)); consume(item) }",
+            1,
+        ),
+        (
+            "distinct-roots",
+            "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(owner, aux); consume(item) }",
             1,
         ),
         (
@@ -98,6 +103,13 @@ fn ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products() {
             let actual_use_returns = catalog.actions().iter().filter(|action| {
                 matches!(action, UnitLoanAction::BorrowBindingUseReturned(used) if used.binding() == raw.binding())
             }).count();
+            assert!(
+                catalog
+                    .auxiliary_binding_regions()
+                    .iter()
+                    .all(|region| region.coverage() != UnitLoanActionCoverage::Complete),
+                "{name}/{layout}: no auxiliary Complete outside the declared interval"
+            );
             let actual_source_retirements = catalog.actions().iter().filter(|action| {
                 matches!(action, UnitLoanAction::BorrowBindingSourceRetired(retired) if retired.transaction().binding() == raw.binding())
             }).count();

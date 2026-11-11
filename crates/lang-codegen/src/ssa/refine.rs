@@ -484,6 +484,7 @@ pub(crate) mod named_receipt;
 
 pub(crate) mod temporary_receipt;
 
+pub(crate) mod aux_binding_receipt;
 pub(crate) mod binding_receipt;
 
 pub(crate) mod child_receipt;

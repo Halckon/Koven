@@ -60,6 +60,15 @@ impl Builder<'_, '_> {
             (tag, None) => tag,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
+        let auxiliary = self
+            .body
+            .aux_binding_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, auxiliary) {
+            (None, Some(tag)) => Some(LoanTag::AuxBinding(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
         self.body.blocks[block.0].statements.push(RStmt {
             op,
             results,
@@ -84,6 +93,9 @@ impl Builder<'_, '_> {
 
 impl Builder<'_, '_> {
     pub(super) fn finish_loan_receipts(&self) -> Result<(), LoweringError> {
+        self.body
+            .aux_binding_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
         self.body.forward_plans.finish(self.inputs.span)?;
         self.body.branch_plans.finish(self.inputs.span)?;
         self.body
@@ -112,6 +124,9 @@ impl Builder<'_, '_> {
         slot: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.body
+            .aux_binding_plans
+            .drop_fact(index, target, slot, span)?;
         self.body.loan_plans.drop_fact(index, target, slot, span)?;
         self.body
             .receiver_plans

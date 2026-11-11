@@ -64,13 +64,9 @@ impl PendingBindingTransport {
         actions: &mut super::super::action_source::ActionSource,
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
-    ) {
-        let Some(token) = self.auxiliary else {
-            return;
-        };
-        let Some(used) = token.use_return else {
-            return;
-        };
+    ) -> Option<ActionHandle> {
+        let token = self.auxiliary?;
+        let used = token.use_return?;
         if self.observable
             || transaction.binding() != self.binding
             || transaction.source_loan() != &self.source
@@ -84,17 +80,17 @@ impl PendingBindingTransport {
                 .as_ref()
                 .is_some_and(|h| h.same_record(&token.handoff))
         {
-            return;
+            return None;
         }
-        // Publish only the real retirement observation. Do not return authority to
-        // the legacy Region/child/Dependency Drop-cause dispatcher.
-        let _ = actions.retire_binding_source(
+        // Return a separate auxiliary-only handle. Never feed the legacy
+        // Region/child/Dependency Drop-cause dispatcher.
+        actions.retire_binding_source(
             transaction,
             Some(token.source),
             Some(token.handoff),
             Some(used),
             binding_end,
-        );
+        )
     }
 }
 

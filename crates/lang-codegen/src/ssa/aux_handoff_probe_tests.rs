@@ -119,7 +119,7 @@ fn ordinary_auxiliary_retirement_preserves_live_source_with_true_off() {
     }
 }
 
-fn check_actual_auxiliary(program: &Program, entry: FunctionId) {
+pub(super) fn check_actual_auxiliary(program: &Program, entry: FunctionId) {
     let module = &program.modules[0];
     let caller = module.function(entry).unwrap();
     assert_eq!(caller.blocks.len(), 1);

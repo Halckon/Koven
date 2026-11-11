@@ -13619,3 +13619,138 @@ finalization守卫只编译、不本地执行。旧witness和legacy on/off完整
 最终FE lib普通测试640项通过，44项ci_only过滤；FE all-target strict Clippy与LLVM21
 workspace all-target check通过，fmt/docs897/diff通过。两次独立源码复核无阻断，确认
 失衡先拒绝再clear不影响合法平衡序列；本片没有运行CI-only守卫或推送远端。
+
+### 辅助绑定独立局部区域：已发布 Partial 基线后的能力红
+
+新隔离分支基于已发布 93404d2a，保留其中实际 Partial use-return/source-retirement
+能力。仅复用早期实验的独立只读 `UnitBorrowAuxiliaryBindingRegion` 空 API 与普通探针，
+不覆盖已发布观察实现、不修改旧实验树。此前六记录前置失败不是区域能力红；本次必须在
+新基线重新编译执行，不能用旧日志代替。已在 426b811c 上重新编译并取得本次真实能力红。
+
+声明区间从原 borrow val 语句进入、此前唯一 String 文本 owner 已实际形成，直到原
+三语句函数 Block 正常完成且原清理后无 pending/owner 义务。准入限无参 Unit 普通
+函数、直接 Name callee、两个 Name Shared String 实参同 root、不同 acquisition，
+来源参数 0、恰一个辅助；随后仅 consume(item)。排除 receiver、泛型、跨线程、abort、
+branch/loop/lambda、多 use、owner 后续读取等超出本声明范围的情形。
+
+完整连续原区间必须恰八条：source Begin、aux Begin、handoff、consumer Begin、
+UseReturned、BindingEnd、SourceRetired、Cleanup Drop。唯一已验证 auxiliary 关系
+绑定偏移 0/1/2；use/retirement 逐实际 ID 关联，Drop 必须由真实退休、owner 移除及
+append 传递证据，不能最终扫描凑齐。入口 owner 完整身份快照与实际移除快照一致；
+Err/早退/缺出口/重复闭合/候选冲突/额外记录不能 Complete。局部 Complete 不包括
+owner 形成前生命周期，不意味着整个 source/callable 完整，不新增 End/Drop/CG receipt。
+
+新 candidate、活动索引与 AuxRegion Drop cause 独立。原 Region/Dependency 的
+`cause.or_else(|| batch.cause())` 结果先保留；已有旧 cause 时仅新 aux candidate 失效，
+不抢占、覆盖或改变旧七记录 Region/Dependency 及其消费者。多 binding 同 root 的原
+歧义处理保留，新证据也不能由最后一个绑定恢复。旧 binding API/validator 不放宽。
+
+普通探针先完成两布局旧产品和 owner on/off 等价、完整八条原记录、唯一 auxiliary
+关系及原 AST entry/completion/consumer 身份，再统一要求一个新局部 Complete 区域。
+该能力红阶段 API 保持空；2026-11-11 实跑先通过 rooted、memory 两布局的原产品等价、
+八条记录、辅助关系及 AST 身份断言，随后在新区域数量 0 != 1 处失败。
+此结果定位为尚未实现独立区域能力，不是已有 Partial 因果回归，也不计完成。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 新基线独立区域能力红 | unit_auxiliary_binding_region / ordinary_auxiliary_binding_requires_complete_interval | 426b811c：编译成功；精确运行 1 项，0 passed / 1 failed，0 ignored / 0 filtered；两布局均 raw_records=8、auxiliary_relations=1、new_regions=0 |
+
+后继独立验证须覆盖缺/多/乱序记录、异 catalog 辅助关系、替换 owner、缺真实 Drop
+因果、候选冲突、异常/早退闭合；故障构造仅 CI-only 编译，不执行于本机。生产与后端
+消费者均在取得相应真实红及独审后另行推进，不将此合同当作已有实现。
+
+本次命令为 `cargo test --locked --offline -p lang-frontend --features loan-observation-test-support --test unit_auxiliary_binding_region ordinary_auxiliary_binding_requires_complete_interval -- --exact --nocapture`。
+默认 unoptimized + debuginfo，未改 profile；未执行 CI-only。证据保存在本机
+`.local-artifacts/aux-region-checkpoint-20261111T1505Z/` 的输入提交、退出码和测试日志，
+不代替正式 CI 或完整工作区验收。本次仅更新此验收账本，不推送失败 checkpoint。
+
+
+### 辅助绑定独立局部区域实现（2026-11-11）
+
+在上述 426b811c 真实能力红之后，独立候选由实际 borrow val 进入，实际原 Block
+正常完成后封闭；观察入口独立核唯一已形成 String owner 的定义身份、声明、来源和深度。
+严格限制来源参数 0、同根两个不同 Shared acquisition、单辅助、单 consumer 的原三语句
+普通函数，不扩展多根、嵌套、复杂 CFG 或整 callable/source 的完整性。
+
+真实退休显式分为 legacy 与 auxiliary 两个返回通道，旧 Region/Dependency/Batch
+仅消费 legacy；辅助 handle 只进入新区域。真实 owner 移除后验证完整快照，原 Drop
+append 时封存退休到 Drop 的对应关系，不从最终 action 内容反推因果。旧 cause 优先，
+同根多 binding、候选冲突、重复完成或 owner 不匹配均使新候选失效且不可恢复。
+八记录 validator 独立要求唯一已验证 auxiliary 关系、逐记录 catalog/身份/顺序、真实
+owner ID、空正常出口与真实 Drop 因果；旧七记录 validator 保持原样。
+
+普通测试已实际证明 rooted/memory 两布局各一个局部 Complete，原 catalog 仍 Partial；
+旧单实参七记录区域仍 Complete。六类相邻形状及额外 owner use、嵌套 if、分支 use
+均不取得新 Complete，关闭 loan 观察的旧产品等价仍通过。首次扩充 fixture 使用错误
+if 语法导致解析断言失败，已修为现行括号语法后重跑；不把该 fixture 错误记为产品缺口。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 独立区域及普通边界 | unit_auxiliary_binding_region | 3 passed，原红转绿，保留旧七记录正控 |
+| 相邻辅助运输与取得关系 | unit_auxiliary_binding_causes / unit_auxiliary_binding_neighbors / unit_auxiliary_retirement | 4 passed，未放宽邻域 Complete |
+| 伪证据与生命周期 | 新 validator 5 项及 action_source 3 项 ci_only 测试 | 本机只编译，不执行；正式 CI 待验证 |
+
+此批未迁移后端消费者、不新增 production receipt、不退休旧 oracle；需要后续独立消费者
+和正式 CI 后才能进一步使用局部证书。全路径借用证明与 D10/E2 整体仍未完成。
+
+最终普通测试共 7 passed；loan support frontend all-target strict Clippy、默认 workspace
+all-target check、默认 frontend lib（含上述 8 项 CI-only）no-run 编译通过。首次 Clippy
+发现新增 Option 返回后的两处 question_mark lint，已修正后重跑通过。fmt/diff/docs897
+通过；尺寸 2459 手写 Rust 文件、35 历史超限，无新增豁免；旧 drop_planner 仅新增一行
+模块注册（1657→1658），实现留新文件。独立审阅发现重复闭合失效遗漏，已修复并补
+CI-only 测试；该 8 项未在本机执行。最终证据仍保存在上述本机目录。本批未执行完整
+workspace 测试、CLI/native、正式双宿主 CI，也未提交后端消费者迁移或退休旧见证。
+
+
+### 辅助绑定独立生产 receipt（2026-11-11）
+
+后续在前端局部区域提交 64bd1ab3 上新增独立 aux-binding 消费者，不改旧七记录
+binding admission、validator 或 receipt。只消费同 catalog 唯一局部 Complete；逐项
+核对原 typed calls、两项 Shared acquisitions、handoff/transport 和实际 Drop 索引。
+入场/提交/消费/退休/Drop/完成均由原 producer 授权；十条真实 SSA 操作分别为
+source RootPlace/Begin、auxiliary RootPlace/Begin、BorrowCall、auxiliary End、consumer
+DirectCall、result End、source End、Drop。每次 append 冻结实际 instruction/entity 身份，
+不从最终程序扫描反推 receipt；单 block、六个实体、八个前端 action IDs 独立绑定。
+测试观察仅在原 unit 最终 verifier 成功后原子发布，失败撤销本 unit pending receipts。
+
+旧辅助 SSA 见证继续保留；新增普通同源码 rooted/memory 与 observation on/off 对照，
+检查真实十条指令和六个实体、完整 frontend 身份及关闭观察时 SSA/LLVM 产品相等。
+新增五项 ci_only 覆盖错误 catalog/角色/授权/重绑/退休/重复闭合与失败不发布，
+本地只编译，正式 CI 才执行。不扩大 Complete 到多根、嵌套或复杂 CFG，
+不退休旧 oracle，不声称完成全路径借用证明或 D10/E2。
+
+新普通 receipt、原辅助见证及原七记录 receipt 正控共 3 tests passed；feature all-target
+strict Clippy、默认 lang-codegen lib no-run（含上述五项 CI-only）通过。首次编译发现
+新增 `from_ref` 参数多余解引用，已修复后重跑通过；不把编译失败计为能力测试红。
+fmt/diff/docs897 通过；尺寸检查 2464 手写 Rust 文件、35 历史超限，无新增豁免。
+默认 workspace all-target check 通过。未执行 CI-only、完整 workspace test
+或 native；未推送、未获得正式远端 CI 结果。证据沿用上述本机目录 receipt-* 日志。
+
+
+### 辅助绑定来源参数第二位（2026-11-11）
+
+后续切片仍只允许同根、两个 Shared、两 positional 参数、原三语句和唯一 String
+owner。来源由 typed borrow-return Parameter(0/1) 确定，不扩大多根、嵌套或路径证明。
+真实 source-second 普通源码首先复现局部 Complete 0 != 1；接通 shape/validator 后
+再次暴露区域仅六条记录，而非八条，定位到原 auxiliary_retirement_shape 隐含
+Parameter(0) 门导致 auxiliary token 无法激活。修复以明确两种参数位置核真实 typed
+参数/合同，并保留所有既有局部边界，不通过降低 validator 要求掩盖缺失记录。
+
+前端 Expected 保留 verified source_index，八记录按真实发生顺序保存 aux Begin →
+source Begin → handoff，关系、use-return、source-retired 必须引用正确 offset。
+后端相应核 actual handoff source 身份与 typed 索引；十条指令仍保持 aux RootPlace/Begin
+先于 source RootPlace/Begin，BorrowCall 的 source 仍为后者。receipt 的六实体维持
+语义顺序 owner/source-place/source/aux-place/aux/result，append 期间显式核 chronology
+与语义映射，不改写任何真实指令。旧来源首位、旧七记录及未覆盖邻域见证保留。
+
+新增 rooted/memory × on/off 普通真源码对照和 frontend/codegen 各一项 CI-only
+chronology 故障测试；CI-only 仅编译，不在本地执行。source-second 从旧负控移入
+独立正控，其余多根、多辅助、重复消费、Group、子 binding 等边界继续保留。
+前端 8 项 ordinary 测试通过，source-second 真红转绿；后端新来源第二位、来源首位、
+旧辅助见证 3 项通过，旧七记录 receipt 正控另 1 项通过。新增来源第二位的
+distinct-root 与 Group 反例也保持不取得 Complete。双 crate feature all-target strict
+Clippy 通过，双向独立代码复审无阻塞问题。默认双 crate lib no-run（含新增 CI-only）
+与 workspace all-target check 通过；fmt/diff/docs897 通过，尺寸 2466 手写 Rust 文件、
+35 历史超限，无新增豁免。
+证据在本机同目录 source-second-* 日志。
+本轮不推送，不退休旧见证，不宣称完成全部 D10/E2 或完整逐路径借用证明。
