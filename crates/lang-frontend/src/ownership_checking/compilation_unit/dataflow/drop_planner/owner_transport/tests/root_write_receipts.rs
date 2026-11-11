@@ -356,3 +356,39 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
         });
     }
 }
+
+#[test]
+fn actual_multi_root_cleanup_does_not_publish_generation_retirement() {
+    let text = SOURCE.replace("        break\n", "");
+    let fixture = Fixture::new(&[("root-generation-frontier.ko", &text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    assert!(!owned.owner_observations().is_empty());
+    for observation in owned.owner_observations() {
+        assert!(matches!(
+            observation.status(),
+            crate::ownership_checking::UnitOwnerObservationStatus::Unsupported { .. }
+        ));
+        assert!(observation.definitions().is_empty());
+        assert!(observation.events().is_empty());
+        assert!(observation.value_observation_v1().is_none());
+        assert!(observation.loop_observation_v1().is_none());
+        assert!(observation.closed_loop_batch_v1().is_none());
+        assert!(observation.open_loop_observation_v1().is_none());
+        assert!(observation.invariant_loop_observation_v1().is_none());
+        assert!(observation.replace_break_observation_v1().is_none());
+    }
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let visits = planner.owner_control_probe.as_ref().unwrap();
+        assert_eq!(visits[1].normal_write_vector.as_ref().unwrap().len(), 2);
+        assert_eq!(visits[1].normal_retirements.as_ref().unwrap().len(), 2);
+        assert_eq!(visits[1].root_stages, (true, false));
+    });
+}

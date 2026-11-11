@@ -184,3 +184,17 @@ AfterStatement。缺失或重复清理事实拒绝整组清理证据。这证明
 binding的清理，不是旧root代际owner的退休证明，也不证明跨迭代运输或替代旧witness。
 
 清理证据保持声明遍历顺序，producer向量保持入口根顺序；二者必须按root关联，不能按下标配对。
+
+### 代际退休的当前缺口（真实多根 normal fixture）
+
+实际两根均Replace且返回值均清理的输入，私有producer/cleanup向量都可完整记录，但
+公开observation仍Unsupported、definitions/events为空，各value/loop能力getter均无产物。
+原因不是缺少drop：`define_owner`只在Complete观察中创建身份；`commit_owner_primitive`
+在记录私有回执后检查active，Unsupported时不会更新root owner，也不会交付previous token。
+因此entry owner或ValueState残留ID不能证明某轮Replace取出的旧代际，更不能从Named drop
+倒造原catalog定义。真实回归明确锁定“私有两组证据齐全仍不发布”的边界。
+
+按ADR-0038继续的必要接线是：在独立事务内保留原catalog引用及真实producer完成身份，
+于实际Replace提交点原子关联旧root代际→返回binding与新producer→root，再让真实drop消费
+该binding携带的旧代际。缺任一关联必须整组拒绝；完成这一步后仍需另证零轮入口、回边
+激活/header不变量以及错误/deferred撤销。本文没有把此待实现方案计为已具备能力。
