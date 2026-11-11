@@ -9,6 +9,7 @@ pub(super) struct LoanReceipts {
     named: crate::ssa::refine::named_receipt::Emitted,
     temporary: crate::ssa::refine::temporary_receipt::Emitted,
     binding: crate::ssa::refine::binding_receipt::Emitted,
+    aux_binding: crate::ssa::refine::aux_binding_receipt::Emitted,
     child: crate::ssa::refine::child_receipt::Emitted,
 }
 impl LoanReceipts {
@@ -53,6 +54,11 @@ impl LoanReceipts {
                 function,
                 span,
             )?,
+            aux_binding: crate::ssa::refine::aux_binding_receipt::Emitted::new(
+                &body.aux_binding_plans,
+                function,
+                span,
+            )?,
             temporary: crate::ssa::refine::temporary_receipt::Emitted::new(
                 &body.temporary_plans,
                 function,
@@ -86,6 +92,8 @@ impl LoanReceipts {
         self.temporary
             .finish(&body.temporary_plans, function, span)?;
         self.binding.finish(&body.binding_plans, function, span)?;
+        self.aux_binding
+            .finish(&body.aux_binding_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
         self.branch.finish(&body.branch_plans, function, span)
     }
@@ -111,6 +119,11 @@ impl Emitter<'_> {
                 receipts
                     .binding
                     .alias(&body.binding_plans, &self.current, statement.span)?;
+                receipts.aux_binding.alias(
+                    &body.aux_binding_plans,
+                    &self.current,
+                    statement.span,
+                )?;
                 receipts
                     .child
                     .alias(&body.child_plans, &self.current, statement.span)?;
@@ -172,6 +185,16 @@ impl Emitter<'_> {
                 Some(crate::ssa::refine::body::LoanTag::Binding(tag)) => {
                     receipts.binding.statement(
                         &body.binding_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::AuxBinding(tag)) => {
+                    receipts.aux_binding.statement(
+                        &body.aux_binding_plans,
                         tag,
                         self.function,
                         instruction,

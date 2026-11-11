@@ -798,3 +798,7 @@ mod forward_receipts;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "branch_forward_probe_tests.rs"]
 mod branch_forward_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "aux_binding_receipt_tests.rs"]
+mod aux_binding_receipt_tests;

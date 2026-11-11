@@ -13589,3 +13589,28 @@ all-target check、默认 frontend lib（含上述 8 项 CI-only）no-run 编译
 模块注册（1657→1658），实现留新文件。独立审阅发现重复闭合失效遗漏，已修复并补
 CI-only 测试；该 8 项未在本机执行。最终证据仍保存在上述本机目录。本批未执行完整
 workspace 测试、CLI/native、正式双宿主 CI，也未提交后端消费者迁移或退休旧见证。
+
+
+### 辅助绑定独立生产 receipt（2026-11-11）
+
+后续在前端局部区域提交 64bd1ab3 上新增独立 aux-binding 消费者，不改旧七记录
+binding admission、validator 或 receipt。只消费同 catalog 唯一局部 Complete；逐项
+核对原 typed calls、两项 Shared acquisitions、handoff/transport 和实际 Drop 索引。
+入场/提交/消费/退休/Drop/完成均由原 producer 授权；十条真实 SSA 操作分别为
+source RootPlace/Begin、auxiliary RootPlace/Begin、BorrowCall、auxiliary End、consumer
+DirectCall、result End、source End、Drop。每次 append 冻结实际 instruction/entity 身份，
+不从最终程序扫描反推 receipt；单 block、六个实体、八个前端 action IDs 独立绑定。
+测试观察仅在原 unit 最终 verifier 成功后原子发布，失败撤销本 unit pending receipts。
+
+旧辅助 SSA 见证继续保留；新增普通同源码 rooted/memory 与 observation on/off 对照，
+检查真实十条指令和六个实体、完整 frontend 身份及关闭观察时 SSA/LLVM 产品相等。
+新增五项 ci_only 覆盖错误 catalog/角色/授权/重绑/退休/重复闭合与失败不发布，
+本地只编译，正式 CI 才执行。不扩大 Complete 到多根、嵌套或复杂 CFG，
+不退休旧 oracle，不声称完成全路径借用证明或 D10/E2。
+
+新普通 receipt、原辅助见证及原七记录 receipt 正控共 3 tests passed；feature all-target
+strict Clippy、默认 lang-codegen lib no-run（含上述五项 CI-only）通过。首次编译发现
+新增 `from_ref` 参数多余解引用，已修复后重跑通过；不把编译失败计为能力测试红。
+fmt/diff/docs897 通过；尺寸检查 2464 手写 Rust 文件、35 历史超限，无新增豁免。
+默认 workspace all-target check 通过。未执行 CI-only、完整 workspace test
+或 native；未推送、未获得正式远端 CI 结果。证据沿用上述本机目录 receipt-* 日志。
