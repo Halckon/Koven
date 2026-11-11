@@ -105,9 +105,9 @@ control/initializer身份。候选清单不含owner ID，不代表入口或循�
 中间有普通语句、沿用前段guard/counter或尾部不匹配者不在候选集合；整组拒绝只指已发现
 的精确候选，不声称发现函数内所有counter或嵌套循环。候选外后续控制仍可能使真实
 方程失效；单候选不是无条件发布承诺。
-真实while入口调用后，只有原catalog实际capture成功才从Discovered进入Entered；缺失
-catalog或重复进入转Rejected。单候选还需真实完成方程才可Completed；多个候选当前整体
-拒绝发布，不能从失败批次选首个成功项作为单产品。
+真实while入口调用后，只有原catalog实际capture或独立第二段入口核验成功才从Discovered进入Entered；缺失
+catalog或重复进入转Rejected。单候选还需真实完成方程才可Completed；多个候选不能
+从失败批次选首个成功项作为单产品，只允许下述完整组发布。
 
 真实双counter回归可观察首项入口及normal方程；旧observation首次Unsupported仍清空
 其definitions/events，第二项仍不走旧入口capture，不恢复Complete或注入ValueState owner。
@@ -125,5 +125,12 @@ token不来自清理、AST枚举、旧observation恢复或上一循环first-body
 第二段可形成私有entry/first-body方程及实际false-exit活根/清理分区。重复根、滞后清理及
 不在精确线性合同内的条件路径不产生该方程。前缀Drop日志与body最终Drop fact的证据等级不同。
 这些是编译遍历中的实际阶段事件，不是多次运行迭代trace；独立catalog identity也不是
-原observation的analysis identity。多候选仍整体拒绝发布，未来批次必须显式绑定各成员身份，
-不能放宽旧getter的Arc检查。多事务完整发布、嵌套loop及后端多Plan选择仍未实现。
+原observation的analysis identity，不放宽旧getter的Arc检查。
+
+`counter_batch_evidence_v1`现在只读发布精确两成员闭合组：第二while必须是函数最后语句，
+每个真实退出均须完整空边界和全根dead分区。构建时固定原analysis与第二catalog各自identity；
+实际退出按control顺序封存，各成员保留自己的命名空间，不拼成假单catalog。缺失、重复、
+乱序或任一成员失败立即清空全组；最终seal核对控制、成员身份、callable、根及body catalog
+独立性。deferred清除整组，旧单counter及其他loop getter不投影该组。
+这是原子审计证据发布，不是后端权限迁移：现有codegen仍只选择单counter Plan，双counter
+继续走通用lowering，尚无批次receipt或多Plan强制消费。嵌套loop、跨段活根运输也未启用。

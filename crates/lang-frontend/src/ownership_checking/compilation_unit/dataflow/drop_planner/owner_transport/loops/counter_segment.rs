@@ -6,6 +6,7 @@ pub(super) struct Segment {
     statements: Vec<UnitStatementId>,
     condition: UnitExpressionId,
     admitted: bool,
+    ends_function: bool,
     next: usize,
     active: bool,
     invalid: bool,
@@ -74,6 +75,7 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
     vec![Segment {
         condition: checker.unit_expression(*condition),
         admitted: false,
+        ends_function: second + 1 == elements.len(),
         statements: elements[first + 1..=second]
             .iter()
             .map(|id| UnitStatementId::new(checker.source_unit, *id))
@@ -157,6 +159,15 @@ impl Segment {
     }
 }
 impl ControlTransactions {
+    pub(super) fn counter_batch_identity(&self) -> Option<std::sync::Arc<()>> {
+        let [segment] = self.counter_segments.as_slice() else {
+            return None;
+        };
+        segment
+            .ends_function
+            .then(|| segment.catalog.identity.clone())
+    }
+
     pub(in super::super::super) fn segment_statement(
         &mut self,
         id: UnitStatementId,
@@ -446,6 +457,12 @@ mod tests {
                     .iter()
                     .all(|o| o.counter_tail_evidence_v1().is_none())
             );
+            let batches: Vec<_> = owned
+                .owner_observations()
+                .iter()
+                .filter_map(|o| o.counter_batch_evidence_v1())
+                .collect();
+            assert_eq!(batches.len(), usize::from(expected && !live), "{body}");
             compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
                 let mut planner = DropPlanner::new(
                     checker,

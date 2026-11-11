@@ -300,7 +300,6 @@ impl ControlTransactions {
             },
         ));
     }
-    #[cfg(test)]
     pub(super) fn private_counter_evidence(
         &self,
         control: UnitStatementId,

@@ -252,28 +252,41 @@ fn two_counter_controls_keep_generic_lowering_without_partial_product() {
             "var n{i} = n; var g{i} = n{i} > 0; var a{i} = \"a\"; var b{i} = \"b\"; while(g{i}) {{ val x{i} = replace(&a{i}, \"x\"); val y{i} = replace(&b{i}, \"y\"); n{i} = n{i} - 1; g{i} = n{i} > 0; }};"
         )
     };
-    let text = format!(
-        "fun run(n: Int) {{ {} {} println(\"ok\") }}\nfun entry() {{ run(0); run(2) }}",
-        segment(0),
-        segment(1)
-    );
-    let source = UnitSource::analyze("counter-multiple-controls.ko", &text).unwrap();
-    source.assert_frontend_clean();
-    assert!(
-        source
+    for suffix in ["", "val copy = 1"] {
+        let text = format!(
+            "fun run(n: Int) {{ {} {} {suffix} }}\nfun entry() {{ run(0); println(\"ok\"); run(2); println(\"ok\") }}",
+            segment(0),
+            segment(1)
+        );
+        let source = UnitSource::analyze("counter-multiple-controls.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert!(
+            source
+                .ownership()
+                .owner_observations()
+                .iter()
+                .all(|o| o.counter_tail_evidence_v1().is_none())
+        );
+        let batches: Vec<_> = source
             .ownership()
             .owner_observations()
             .iter()
-            .all(|o| o.counter_tail_evidence_v1().is_none())
-    );
-    let (lowered, actions) =
-        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
-    let (program, _) = lowered.unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    assert!(
-        actions
-            .iter()
-            .all(|(kind, _)| !kind.starts_with("counter-"))
-    );
-    super::super::assert_native_output(&source, b"ok\nok\n");
+            .filter_map(|o| o.counter_batch_evidence_v1())
+            .collect();
+        assert_eq!(batches.len(), usize::from(suffix.is_empty()));
+        if let Some(batch) = batches.first() {
+            assert_eq!(batch.members().len(), 2);
+        }
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        // Audit publication does not silently select either member as a single Plan.
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| !kind.starts_with("counter-"))
+        );
+        super::super::assert_native_output(&source, b"ok\nok\n");
+    }
 }

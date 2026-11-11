@@ -2,6 +2,7 @@
 mod conditional;
 mod control_scope;
 mod control_transactions;
+mod counter_batch;
 mod counter_segment;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
@@ -704,6 +705,11 @@ impl DropPlanner<'_, '_> {
         #[cfg(test)]
         self.record_control_visit(control, parent, true, None);
         let result = self.owner_while_statement_scoped(id, condition, body, state);
+        self.owner_loop.complete_counter_member(
+            control,
+            state,
+            entered && matches!(result, Ok(true)),
+        );
         #[cfg(test)]
         let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
         if entered {
@@ -785,6 +791,7 @@ impl DropPlanner<'_, '_> {
                         invariant_loop_value: None,
                         closed_loop_batch: None,
                         counter_tail: None,
+                        counter_batch: None,
                         multi_root_boundary: None,
                         open_loop_value: None,
                     }),

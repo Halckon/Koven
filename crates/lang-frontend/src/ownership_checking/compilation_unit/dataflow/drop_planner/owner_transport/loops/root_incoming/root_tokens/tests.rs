@@ -186,6 +186,13 @@ fn two_counter_candidates_do_not_publish_a_partial_first_product() {
             .iter()
             .all(|o| o.counter_tail_evidence_v1().is_none())
     );
+    let batch = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.counter_batch_evidence_v1())
+        .expect("whole closed batch");
+    assert!(batch.is_consistent());
+    assert_eq!(batch.members().len(), 2);
     compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
         let mut planner = DropPlanner::new(
             checker,
