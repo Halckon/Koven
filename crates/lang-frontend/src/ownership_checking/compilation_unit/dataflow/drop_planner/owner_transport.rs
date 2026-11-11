@@ -222,6 +222,7 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        self.record_root_literal(expression);
         if let Some(choice) = &mut self.owner_choice {
             choice.string_completed(self.checker.unit_expression(expression));
         }
@@ -498,6 +499,7 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         state: &mut ValueState,
     ) -> Option<UnitOwnerId> {
+        self.record_root_primitive_write(call, state);
         if !self.owner_observation_active() {
             return None;
         }

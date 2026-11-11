@@ -145,3 +145,9 @@ open/invariant或straight-line/Choice能力，deferred发布路径会清除整�
 Call/Assignment在早退前独立置sticky失效，后续向量相同也不能恢复资格。
 这些标记不发布header/phi，不证明复杂控制流逐路径完整性；条件后保持不代表条件值为真，
 正常落通候选也不是运行时可达/终止证明。Break/Continue/Return不冒充正常回边。
+
+私有RootWriteReceipt关联活动control、已捕获root、实际checked Replace call与新producer
+表达式：必须先经过非插值直接String的真实完成hook，并在同call中有唯一待转交temporary，
+提交边界再消费该完成记录。不制造UnitOwnerId，不改ValueState，也不解除sticky失效。
+目前不支持group/name/call RHS的producer转运；回执仅为planner遍历事实，不含路径身份，
+不能把来自互斥分支的回执拼成运行时提交序列或完整运输/清理证明。

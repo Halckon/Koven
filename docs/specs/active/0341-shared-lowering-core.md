@@ -13680,3 +13680,22 @@ header equation、一般多根运输或复杂控制流逐路径证明，亦不�
 最终646项普通FE lib测试通过，47项ci_only过滤；FE all-target strict Clippy、LLVM21
 workspace all-target check、fmt/docs897/diff通过。独立复审确认sticky修正封住此次
 真实Replace负测，不能把静态复审替代实测或扩大为逐路径完整证明。
+
+### 实际 root 写入与直接 producer 回执（2026-11-11，本地）
+
+基于caa74a97，7ec4cd4c真实红checkpoint期望两次提交回执却得到0。独立记录直接、
+非插值String到达真实完成hook；在checked Replace提交边界核同call唯一pending
+transfers-at-call temporary、String primitive单root、当前root存在且属于已验证入口，
+再消费对应producer完成记录，生成control/root/call/producer表达式关联。
+该hook位于实参成功求值及returns检查后，但在旧owner observer早退前，因此不依赖
+残留owner ID。每个call/producer仅一次，不造新的UnitOwnerId、不更新旧owner状态，
+上一片sticky污染不因此解除。
+
+真实两根分别写入与同根连续两次不同直接producer均覆盖；group/name RHS拒绝对应
+回执（另一个符合合同的实际提交仍可记录），RHS提前return未到提交点所以无回执。
+此处只能说遍历观察顺序；互斥分支可能分别被planner访问，回执尚无路径身份，不能拼成
+运行时trace、逐路径完整证明或后续cleanup能力。所有数据私有，旧公开能力和见证不变。
+独立源码复审未发现提前提交或producer错配阻断；未处理Preview、不推送。
+
+最终649项普通FE lib测试通过，47项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。无新的故障注入本机执行或远端CI声明。
