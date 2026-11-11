@@ -29,7 +29,7 @@ pub(crate) struct Receipt {
     pub(crate) flag: LoanId,
     pub(crate) read: InstructionId,
     pub(crate) condition_value: ValueId,
-    pub(crate) fold: (BlockRef, BlockRef),
+    fold: (BlockRef, BlockRef),
     pub(crate) paths: Vec<PathReceipt>,
 }
 struct Layout {
@@ -333,6 +333,10 @@ impl Emitted {
     }
 }
 impl Receipt {
+    #[cfg(test)]
+    pub(crate) fn folded_distinct_blocks(&self) -> bool {
+        self.fold.0 != self.fold.1
+    }
     fn validate(
         &self,
         plans: &Plans,

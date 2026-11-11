@@ -983,20 +983,7 @@ pub(super) fn emit(
             .function
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
-        receipts.branch.terminator(
-            &body.branch_plans,
-            emitter.function,
-            target,
-            &emitter.current,
-            *term_span,
-        )?;
-        receipts.forward.terminator(
-            &body.forward_plans,
-            emitter.function,
-            target,
-            &emitter.current,
-            *term_span,
-        )?;
+        receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
     receipts.finish(body, emitter.function, span)?;
     Ok(())

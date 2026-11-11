@@ -60,6 +60,19 @@ impl LoanReceipts {
             )?,
         })
     }
+    pub(super) fn terminator(
+        &mut self,
+        body: &RefinedBody,
+        function: &Function,
+        target: BlockId,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.branch
+            .terminator(&body.branch_plans, function, target, current, span)?;
+        self.forward
+            .terminator(&body.forward_plans, function, target, current, span)
+    }
     pub(super) fn finish(
         self,
         body: &RefinedBody,

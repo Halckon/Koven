@@ -198,7 +198,7 @@ fn original_branch_lowering() -> Vec<(&'static str, &'static str, Vec<usize>)> {
             assert_eq!(receipt.callable, expected_paths[0].0.callable());
             assert_eq!(receipt.split, expected_paths[0].0.split());
             assert_eq!(receipt.condition, expected_paths[0].0.condition());
-            assert_ne!(receipt.fold.0, receipt.fold.1);
+            assert!(receipt.folded_distinct_blocks());
             assert_eq!(receipt.paths.len(), 2);
             for path in &receipt.paths {
                 let expected = expected_paths
