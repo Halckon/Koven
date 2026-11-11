@@ -12427,3 +12427,25 @@ artifact、覆盖前 binary 副本/SHA、精确名单和逐项日志；首次 pr
   不影响项目输入或门禁。正式CI/release及发布仍由后继流程处理，本任务不宣称完成。
 - 独立只读终审已核双父并集、17项实际结果、全部artifact/binary/输入/名单哈希及文档分账，
   无新增阻断。此后仅本Spec收尾提交，不重跑冻结Rust，也不自行发布。
+
+### 正常回边的当前 owner：原样实证与待确认合同（2026-11-11）
+
+从已验 `b331d044` 新隔离树开始。`3174d43f` 的普通原样 probe 通过 Basic 严格准入、
+SSA verifier 与 LLVM render；源码使用 `held="outer"`、`again=flag`，body 一次
+`replace(&held,"next")` 后 `again=false`，最后 Return held。false/true 分别有限零/一轮。
+`6ec42380` 的精确 SSA 正控再通过：entry 向 header 传 P，body 向同一 header 的真实
+normal backedge 传 RootReplace installed Q；header true/false 都运输当前 header 参数。
+body 在回边前 Drop detached old，false 出口 Return 自己的 owner 参数，未增加公共 join。
+同头另一普通 exact 使用既有真实 Return 观察器失败于缺当前 header owner 的授权回执。
+原 SOURCE、artifact、覆盖前 binary 副本/SHA、原始日志与精确选择均已保存；这是真缺
+consumer 授权红，不是源码不合法，也不是任何有限轨迹的归纳证明。尚无生产实现。
+
+拟议最小方案尚待产品边界确认：在现有统一 open-loop enum/storage 增加 normal-backedge
+有限变体，不新增 producer 或组合专用顶层 getter。H 代表本次 header 当前来源，零轮
+入口传 P，正常回边传本次激活新 Q，false 出口传 H。body 对任意合法 H 证明先形成 Q、
+Replace(H,Q)、旧 H 一次 Drop，真实 body Ok(true) 和 scope cleanup 后仅 Q 存活并回边。
+header 不变量为完整 String owner 且无未完成 pending/loan；不能靠 `again=false` 代替
+闭包证明。旧共享 prefix 的 false=P 与固定 UnitOwnerId Return endpoint 不适用，不能
+伪装成 invariant 或两个独立 Return；需要该变体自己的 header-source 交付端点。
+Boolean assignment 也仅能按真实 typed RHS 正常完成接点窄准入，不放开一般 Assignment。
+旧 closed/invariant/Break/ReturnDelivered、原 emitters、语言与 ABI 保持原义。
