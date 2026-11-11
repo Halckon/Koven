@@ -56,6 +56,7 @@ thread_local! {
 }
 
 /// Observe only the original final verifier call, through the ordinary lowering entry.
+#[cfg(feature = "loan-observation-test-support")]
 pub(in crate::ssa) fn observe_final_verifier<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
     struct Reset;
     impl Drop for Reset {

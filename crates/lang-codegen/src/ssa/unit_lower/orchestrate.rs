@@ -4,7 +4,7 @@
 mod pr120_range_source_contract_tests;
 #[cfg(test)]
 mod pr120_verifier_diagnostics;
-#[cfg(test)]
+#[cfg(all(test, feature = "loan-observation-test-support"))]
 pub(in crate::ssa) use pr120_verifier_diagnostics::observe_final_verifier;
 #[cfg(test)]
 mod registration_tests;
