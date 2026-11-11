@@ -18,7 +18,13 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
         }
     }
     assert_eq!(words.len(), 22);
-    words.push("BAAAAAAAA".to_owned());
+    for count in 2..=9 {
+        let word = format!("B{}", "A".repeat(count));
+        if !words.contains(&word) {
+            words.push(word);
+        }
+    }
+    assert_eq!(words.len(), 28);
     for word in words {
         for source_index in 0..2 {
             let (parameters, arguments) = if source_index == 0 {
@@ -61,6 +67,66 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                         .unwrap()
                 });
                 assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+                let [catalog] = on.ownership().loan_action_observations() else {
+                    panic!("one catalog")
+                };
+                let count = word.len() - 1;
+                let qualified = word.starts_with('B')
+                    && word[1..].bytes().all(|c| c == b'A')
+                    && (2..=8).contains(&count);
+                let regions = catalog.auxiliary_sequence_regions();
+                assert_eq!(
+                    regions.len(),
+                    usize::from(qualified),
+                    "{word}/source{source_index}/{layout}"
+                );
+                if let [region] = regions {
+                    assert!(catalog.owns_auxiliary_sequence_region(region));
+                    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                    assert_eq!(region.source_parameter(), Some(source_index));
+                    assert_ne!(region.source_owner(), region.auxiliary_owner());
+                    assert_eq!(region.uses().len(), count);
+                    let ids = region.action_ids().collect::<Vec<_>>();
+                    assert_eq!(ids.len(), 9 + 2 * count);
+                    let actions = ids
+                        .iter()
+                        .map(|id| catalog.action(id).unwrap())
+                        .collect::<Vec<_>>();
+                    assert!(
+                        matches!(actions[source_index],UnitLoanAction::Begin(loan) if loan.call()==region.source_call())
+                    );
+                    assert!(
+                        matches!(actions[2],UnitLoanAction::BorrowHandoffCommitted(fact) if fact.binding()==region.binding())
+                    );
+                    assert!(
+                        matches!(actions[7],UnitLoanAction::Cleanup{action:lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(fact),..} if fact.target()==lang_frontend::ownership_checking::UnitDropTarget::Named(region.root()))
+                    );
+                    for (i, used) in region.uses().iter().enumerate() {
+                        assert_eq!(used.begin(), ids[8 + 2 * i]);
+                        assert_eq!(used.end(), ids[9 + 2 * i]);
+                        assert_eq!(Some(used.owner()), region.auxiliary_owner());
+                        assert_eq!(
+                            catalog.action(&used.begin()),
+                            Some(&UnitLoanAction::Begin(used.loan().clone()))
+                        );
+                        assert!(
+                            matches!(catalog.action(&used.end()),Some(UnitLoanAction::Cleanup{point,action:lang_frontend::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan)}) if loan==used.loan() && *point==lang_frontend::ownership_checking::UnitDropPoint::CallReturn(used.loan().call()))
+                        );
+                        assert!(
+                            region.uses()[..i]
+                                .iter()
+                                .all(|previous| previous.loan().call() != used.loan().call()
+                                    && previous.begin() != used.begin()
+                                    && previous.end() != used.end())
+                        );
+                    }
+                    assert!(
+                        matches!(actions.last().unwrap(),UnitLoanAction::Cleanup{action:lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(fact),..} if Some(fact.target())==region.auxiliary_root().map(lang_frontend::ownership_checking::UnitDropTarget::Named))
+                    );
+                    assert!(catalog.later_auxiliary_binding_regions().is_empty());
+                    assert!(catalog.distinct_auxiliary_binding_regions().is_empty());
+                }
+
                 let entry = names
                     .names()
                     .index()

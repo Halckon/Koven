@@ -74,7 +74,9 @@ fn recorded_with(
     let UnitLoanAction::Begin(later_consumer) = observation.action(&ids[8]).unwrap() else {
         unreachable!()
     };
-    let candidate = Candidate {
+    let mut candidate = Candidate {
+        protocol: Protocol::Single,
+        actual_returns: Vec::new(),
         scope: Scope {
             callable: region.callable(),
             binding: region.binding(),
@@ -86,6 +88,7 @@ fn recorded_with(
             consumer_statement: *statement,
         },
         expected: Some(Expected {
+            later_uses: vec![(later_consumer.clone(), region.later_statement().unwrap())],
             later_consumer: later_consumer.clone(),
             later_statement: region.later_statement().unwrap(),
             source_index,
@@ -112,6 +115,7 @@ fn recorded_with(
         auxiliary_drop_link: Some((ids[8].clone(), ids[10].clone())),
         return_drop_claimed: true,
     };
+    candidate.actual_returns = candidate.later_return.clone().into_iter().collect();
     (
         candidate,
         observation.identity.clone(),
@@ -359,4 +363,142 @@ fn ci_only_later_return_and_auxiliary_destruction_require_actual_links() {
             "later fault {fault}"
         );
     }
+}
+
+type SequenceCapture = (
+    Candidate,
+    Arc<()>,
+    Vec<UnitLoanAction>,
+    Vec<UnitLoanDistinctAuxiliaryRetirement>,
+);
+thread_local! {
+    static SEQUENCE_CAPTURE: std::cell::RefCell<Option<Option<SequenceCapture>>> = const { std::cell::RefCell::new(None) };
+}
+pub(super) fn record_sequence(
+    candidate: &Candidate,
+    identity: &Arc<()>,
+    actions: &[UnitLoanAction],
+    relations: &[UnitLoanDistinctAuxiliaryRetirement],
+) {
+    SEQUENCE_CAPTURE.with(|slot| {
+        if let Some(captured) = slot.borrow_mut().as_mut() {
+            assert!(captured.is_none(), "one actual sequence region");
+            *captured = Some((
+                candidate.clone(),
+                identity.clone(),
+                actions.to_vec(),
+                relations.to_vec(),
+            ));
+        }
+    });
+}
+fn recorded_sequence(count: usize, second: bool) -> SequenceCapture {
+    let uses = "consume(other); ".repeat(count);
+    let mut text = SOURCE.replace("consume(other) }", &format!("{uses}}}"));
+    if second {
+        text = text
+            .replace(
+                "view(source: String, aux: String)",
+                "view(aux: String, source: String)",
+            )
+            .replace("view(owner, other)", "view(other, owner)");
+    }
+    SEQUENCE_CAPTURE.with(|slot| *slot.borrow_mut() = Some(None));
+    let fixture = Fixture::new(&[("sequence-coverage.ko", &text)]);
+    let shared = fixture.shared();
+    assert_eq!(
+        shared.loan_action_observations()[0].auxiliary_sequence_regions()[0].coverage(),
+        UnitLoanActionCoverage::Complete
+    );
+    let captured = SEQUENCE_CAPTURE
+        .with(|slot| slot.borrow_mut().take().flatten())
+        .expect("actual candidate finish");
+    assert_eq!(captured.0.actual_returns.len(), count);
+    captured
+}
+#[test]
+fn ci_only_sequence_requires_all_ordered_returns_and_last_destruction() {
+    for count in [2, MAX_AUXILIARY_SEQUENCE_USES] {
+        for second in [false, true] {
+            let (original, identity, actions, relations) = recorded_sequence(count, second);
+            assert_eq!(
+                original.coverage_for(Protocol::Sequence, &identity, &actions, &relations),
+                UnitLoanActionCoverage::Complete
+            );
+            assert_eq!(
+                original.coverage(&identity, &actions, &relations),
+                UnitLoanActionCoverage::Unsupported
+            );
+            for fault in 0..16 {
+                let mut candidate = original.clone();
+                match fault {
+                    0 => candidate.protocol = Protocol::Single,
+                    1 => candidate.expected.as_mut().unwrap().later_uses.truncate(1),
+                    2 => {
+                        let e = candidate.expected.as_mut().unwrap();
+                        e.later_uses
+                            .resize(MAX_AUXILIARY_SEQUENCE_USES + 1, e.later_uses[0].clone());
+                    }
+                    3 => {
+                        candidate.actual_returns.remove(0);
+                    }
+                    4 => candidate.actual_returns.swap(0, 1),
+                    5 => candidate.actual_returns[1] = candidate.actual_returns[0].clone(),
+                    6 => candidate.actual_returns[0].begin.identity = Arc::new(()),
+                    7 => candidate.actual_returns[0].cursor += 1,
+                    8 => {
+                        candidate.actual_returns[0].owner =
+                            candidate.expected.as_ref().unwrap().source_owner.clone()
+                    }
+                    9 => candidate.return_drop_claimed = false,
+                    10 => {
+                        candidate.auxiliary_drop_link.as_mut().unwrap().1.index =
+                            candidate.start + 10
+                    }
+                    11 => candidate.later_return = Some(candidate.actual_returns[0].clone()),
+                    12 => candidate
+                        .owner_events
+                        .push(candidate.owner_events[1].clone()),
+                    13 => candidate.expected.as_mut().unwrap().later_uses.swap(0, 1),
+                    14 => candidate.removed_auxiliary_owner = None,
+                    _ => {
+                        candidate.actual_returns[0].loan =
+                            candidate.expected.as_ref().unwrap().consumer.clone()
+                    }
+                }
+                assert_ne!(
+                    candidate.coverage_for(Protocol::Sequence, &identity, &actions, &relations),
+                    UnitLoanActionCoverage::Complete,
+                    "count={count} second={second} fault={fault}"
+                );
+            }
+            for offset in 8..8 + 2 * count {
+                let mut altered = actions.clone();
+                altered.remove(original.start + offset);
+                assert_eq!(
+                    original.coverage_for(Protocol::Sequence, &identity, &altered, &relations),
+                    UnitLoanActionCoverage::Partial
+                );
+            }
+        }
+    }
+}
+#[test]
+fn ci_only_single_cannot_be_republished_as_sequence() {
+    let (candidate, identity, actions, relations) = recorded();
+    assert_eq!(
+        candidate
+            .clone()
+            .finish_sequence(identity.clone(), &actions, &relations)
+            .coverage(),
+        UnitLoanActionCoverage::Unsupported
+    );
+    let mut forged = candidate;
+    forged.protocol = Protocol::Sequence;
+    assert_ne!(
+        forged
+            .finish_sequence(identity, &actions, &relations)
+            .coverage(),
+        UnitLoanActionCoverage::Complete
+    );
 }

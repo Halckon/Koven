@@ -581,13 +581,21 @@ impl ActionSource {
                 region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
             })
             .collect();
-        let later_auxiliary_binding_regions = self
-            .later_auxiliary_binding_regions
-            .into_iter()
-            .map(|region| {
-                region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
-            })
-            .collect();
+        let mut later_auxiliary_binding_regions = Vec::new();
+        let mut auxiliary_sequence_regions = Vec::new();
+        for region in self.later_auxiliary_binding_regions {
+            use crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::Protocol;
+            match region.protocol {
+                Protocol::Sequence => auxiliary_sequence_regions.push(region.finish_sequence(
+                    identity.clone(),
+                    &actions,
+                    &distinct_auxiliary_retirements,
+                )),
+                Protocol::Single | Protocol::Unsupported => later_auxiliary_binding_regions.push(
+                    region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements),
+                ),
+            }
+        }
         let child_regions = self
             .child_regions
             .into_iter()
@@ -623,6 +631,7 @@ impl ActionSource {
             auxiliary_retirements,
             distinct_auxiliary_binding_regions,
             later_auxiliary_binding_regions,
+            auxiliary_sequence_regions,
             auxiliary_binding_regions,
         }]
     }

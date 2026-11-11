@@ -5,7 +5,9 @@ use crate::{
     ownership_checking::{
         UnitLoanActionId,
         compilation_unit::loan_binding_region_validation::{OwnerSnapshot, Scope},
-        compilation_unit::loan_later_auxiliary_binding_region_validation::{Candidate, Expected},
+        compilation_unit::loan_later_auxiliary_binding_region_validation::{
+            Candidate, Expected, Protocol,
+        },
     },
     type_checking::UnitStatementId,
 };
@@ -22,6 +24,7 @@ impl ActionSource {
         &mut self,
         scope: Scope,
         expected: Option<Expected>,
+        declared_use_count: usize,
     ) {
         if !self.enabled {
             return;
@@ -43,6 +46,8 @@ impl ActionSource {
         self.active_later_auxiliary_binding_region =
             Some(self.later_auxiliary_binding_regions.len());
         self.later_auxiliary_binding_regions.push(Candidate {
+            protocol: Protocol::from_count(declared_use_count),
+            actual_returns: Vec::new(),
             scope,
             expected,
             start: self.records.len(),
@@ -202,9 +207,18 @@ impl ActionSource {
             return;
         };
         // Other real call returns belong to the initializer/binding protocols.
-        if loan.call() != expected.later_consumer.call() {
+        if !expected
+            .later_uses
+            .iter()
+            .any(|(planned, _)| planned.call() == loan.call())
+        {
             return;
         }
+        let next = candidate.actual_returns.len();
+        let Some((planned, _)) = expected.later_uses.get(next) else {
+            candidate.ambiguous = true;
+            return;
+        };
         let Some(begin) = acquisition else {
             candidate.ambiguous = true;
             return;
@@ -224,8 +238,12 @@ impl ActionSource {
             declaration: value.declaration,
             scope_depth: value.scope_depth,
         };
-        if candidate.later_return.is_some()
-            || loan != &expected.later_consumer
+        if Protocol::from_expected(Some(expected)) != candidate.protocol
+            || candidate.protocol == Protocol::Unsupported
+            || candidate.actual_returns.last() != candidate.later_return.as_ref()
+            || candidate.return_drop_claimed
+            || loan != planned
+            || candidate.start.checked_add(8 + 2 * next) != Some(begin.index)
             || !std::sync::Arc::ptr_eq(&begin.identity, &self.identity)
             || begin.index.checked_add(1) != Some(self.records.len())
             || !matches!(self.records.get(begin.index), Some(super::Record::Begin(actual)) if actual == loan)
@@ -243,7 +261,7 @@ impl ActionSource {
             candidate.ambiguous = true;
             return;
         }
-        candidate.later_return = Some(LaterReturn {
+        let returned = LaterReturn {
             loan: loan.clone(),
             begin: UnitLoanActionId {
                 identity: begin.identity.clone(),
@@ -251,7 +269,9 @@ impl ActionSource {
             },
             cursor: self.records.len(),
             owner: actual,
-        });
+        };
+        candidate.actual_returns.push(returned.clone());
+        candidate.later_return = Some(returned);
     }
 }
 
@@ -275,9 +295,17 @@ impl ActionSource {
         if symbol != expected.auxiliary_owner.symbol {
             return None;
         }
+        // A non-final use must preserve the owner and cannot claim its Drop.
+        if candidate.actual_returns.len() < expected.later_uses.len() {
+            return None;
+        }
         let returned = candidate.later_return.as_ref()?;
-        if point
-            != crate::ownership_checking::UnitDropPoint::CallReturn(expected.later_consumer.call())
+        if candidate.actual_returns.len() != expected.later_uses.len()
+            || candidate.actual_returns.last() != Some(returned)
+            || point
+                != crate::ownership_checking::UnitDropPoint::CallReturn(
+                    expected.later_consumer.call(),
+                )
             || candidate.return_drop_claimed
             || returned.cursor.checked_add(1) != Some(self.records.len())
         {

@@ -107,6 +107,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
     pub(super) later_auxiliary_binding_regions: Vec<super::UnitBorrowLaterAuxiliaryBindingRegion>,
     pub(super) distinct_auxiliary_binding_regions:
         Vec<super::UnitBorrowDistinctAuxiliaryBindingRegion>,
@@ -227,6 +228,17 @@ impl UnitLoanActionObservation {
         Arc::ptr_eq(&self.identity, &region.identity)
     }
 
+    /// Independent bounded dynamic auxiliary-use sequence certificates.
+    pub fn auxiliary_sequence_regions(&self) -> &[super::UnitBorrowAuxiliarySequenceRegion] {
+        &self.auxiliary_sequence_regions
+    }
+    /// Check the actual sequence catalog identity, not structural equality.
+    pub fn owns_auxiliary_sequence_region(
+        &self,
+        region: &super::UnitBorrowAuxiliarySequenceRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.interval.identity)
+    }
     /// Independent partial two-owner retirement relations, never complete lifecycle authority.
     pub fn distinct_auxiliary_retirements(&self) -> &[super::UnitLoanDistinctAuxiliaryRetirement] {
         &self.distinct_auxiliary_retirements

@@ -7,9 +7,31 @@ use std::sync::Arc;
 
 use super::loan_binding_region_validation::{OwnerSnapshot, Scope};
 
+pub(super) const MAX_AUXILIARY_SEQUENCE_USES: usize = 8;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Protocol {
+    Single,
+    Sequence,
+    Unsupported,
+}
+impl Protocol {
+    pub(super) fn from_expected(expected: Option<&Expected>) -> Self {
+        Self::from_count(expected.map_or(0, |e| e.later_uses.len()))
+    }
+    pub(super) fn from_count(count: usize) -> Self {
+        match count {
+            1 => Self::Single,
+            2..=MAX_AUXILIARY_SEQUENCE_USES => Self::Sequence,
+            _ => Self::Unsupported,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct Expected {
     /// Verified positional parameter and chronological Begin offset, strictly 0 or 1.
+    pub(super) later_uses: Vec<(UnitLoanFact, crate::type_checking::UnitStatementId)>,
     pub(super) later_consumer: UnitLoanFact,
     pub(super) later_statement: crate::type_checking::UnitStatementId,
     pub(super) source_index: usize,
@@ -20,7 +42,7 @@ pub(super) struct Expected {
     pub(super) auxiliary_owner: OwnerSnapshot,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct LaterReturn {
     pub(super) loan: UnitLoanFact,
     pub(super) begin: UnitLoanActionId,
@@ -30,6 +52,8 @@ pub(super) struct LaterReturn {
 
 #[derive(Clone)]
 pub(super) struct Candidate {
+    pub(super) protocol: Protocol,
+    pub(super) actual_returns: Vec<LaterReturn>,
     pub(super) later_return: Option<LaterReturn>,
     pub(super) removed_auxiliary_owner: Option<OwnerSnapshot>,
     pub(super) auxiliary_drop_link: Option<(UnitLoanActionId, UnitLoanActionId)>,
@@ -53,6 +77,47 @@ impl Candidate {
         auxiliaries: &[UnitLoanDistinctAuxiliaryRetirement],
     ) -> UnitBorrowLaterAuxiliaryBindingRegion {
         let coverage = self.coverage(&identity, actions, auxiliaries);
+        self.interval(identity, coverage)
+    }
+
+    pub(super) fn finish_sequence(
+        self,
+        identity: Arc<()>,
+        actions: &[UnitLoanAction],
+        auxiliaries: &[UnitLoanDistinctAuxiliaryRetirement],
+    ) -> super::UnitBorrowAuxiliarySequenceRegion {
+        #[cfg(test)]
+        tests::record_sequence(&self, &identity, actions, auxiliaries);
+        let coverage = self.coverage_for(Protocol::Sequence, &identity, actions, auxiliaries);
+        let uses = if coverage == UnitLoanActionCoverage::Complete {
+            self.actual_returns
+                .iter()
+                .filter_map(|returned| {
+                    Some(super::UnitLoanAuxiliarySequenceUse {
+                        loan: returned.loan.clone(),
+                        begin: returned.begin.clone(),
+                        end: UnitLoanActionId {
+                            identity: identity.clone(),
+                            index: returned.cursor,
+                        },
+                        owner: returned.owner.owner.clone()?,
+                    })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        super::UnitBorrowAuxiliarySequenceRegion {
+            interval: self.interval(identity, coverage),
+            uses,
+        }
+    }
+
+    fn interval(
+        self,
+        identity: Arc<()>,
+        coverage: UnitLoanActionCoverage,
+    ) -> UnitBorrowLaterAuxiliaryBindingRegion {
         UnitBorrowLaterAuxiliaryBindingRegion {
             identity,
             callable: self.scope.callable,
@@ -87,11 +152,33 @@ impl Candidate {
         all: &[UnitLoanAction],
         auxiliaries: &[UnitLoanDistinctAuxiliaryRetirement],
     ) -> UnitLoanActionCoverage {
+        self.coverage_for(Protocol::Single, identity, all, auxiliaries)
+    }
+
+    fn coverage_for(
+        &self,
+        protocol: Protocol,
+        identity: &Arc<()>,
+        all: &[UnitLoanAction],
+        auxiliaries: &[UnitLoanDistinctAuxiliaryRetirement],
+    ) -> UnitLoanActionCoverage {
         use super::{UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget};
         use crate::ownership_checking::LoanKind;
+        if self.protocol != protocol || protocol == Protocol::Unsupported {
+            return UnitLoanActionCoverage::Unsupported;
+        }
         let Some(expected) = &self.expected else {
             return UnitLoanActionCoverage::Unsupported;
         };
+        if Protocol::from_expected(Some(expected)) != self.protocol
+            || expected.later_uses.last()
+                != Some(&(expected.later_consumer.clone(), expected.later_statement))
+            || self.actual_returns.len() != expected.later_uses.len()
+            || self.actual_returns.last() != self.later_return.as_ref()
+        {
+            return UnitLoanActionCoverage::Partial;
+        }
+        let count = expected.later_uses.len();
         let Some(actions) = self.end.and_then(|end| all.get(self.start..end)) else {
             return UnitLoanActionCoverage::Partial;
         };
@@ -107,16 +194,17 @@ impl Candidate {
                 point,
                 action: UnitIterationCleanupAction::Drop(drop),
             },
-            UnitLoanAction::Begin(later_consumer),
-            UnitLoanAction::Cleanup {
-                point: later_end_point,
-                action: UnitIterationCleanupAction::EndCallLoan(later_end),
-            },
-            UnitLoanAction::Cleanup {
-                point: auxiliary_point,
-                action: UnitIterationCleanupAction::Drop(auxiliary_drop),
-            },
-        ] = actions
+        ] = actions.get(..8).unwrap_or_default()
+        else {
+            return UnitLoanActionCoverage::Partial;
+        };
+        if actions.len() != 9 + 2 * count {
+            return UnitLoanActionCoverage::Partial;
+        }
+        let Some(UnitLoanAction::Cleanup {
+            point: auxiliary_point,
+            action: UnitIterationCleanupAction::Drop(auxiliary_drop),
+        }) = actions.last()
         else {
             return UnitLoanActionCoverage::Partial;
         };
@@ -156,31 +244,61 @@ impl Candidate {
         let Some(later_return) = self.later_return.as_ref() else {
             return UnitLoanActionCoverage::Partial;
         };
+        let suffix_valid = expected
+            .later_uses
+            .iter()
+            .zip(&self.actual_returns)
+            .enumerate()
+            .all(|(index, ((planned, statement), actual))| {
+                let offset = 8 + 2 * index;
+                let [
+                    UnitLoanAction::Begin(begin),
+                    UnitLoanAction::Cleanup {
+                        point,
+                        action: UnitIterationCleanupAction::EndCallLoan(end),
+                    },
+                ] = &actions[offset..offset + 2]
+                else {
+                    return false;
+                };
+                begin == planned
+                    && end == planned
+                    && actual.loan == *planned
+                    && planned.kind() == LoanKind::Shared
+                    && planned.target() == auxiliary.target()
+                    && planned.call().source_unit() == local
+                    && planned.argument().source_unit() == local
+                    && planned.call() != scope.source_call
+                    && planned.call() != scope.consumer_call
+                    && statement.source_unit() == local
+                    && *statement != scope.entry
+                    && *statement != scope.completion
+                    && *statement != scope.consumer_statement
+                    && expected.later_uses[..index]
+                        .iter()
+                        .all(|(previous, previous_statement)| {
+                            previous.call() != planned.call()
+                                && previous.argument() != planned.argument()
+                                && previous_statement != statement
+                        })
+                    && *point == UnitDropPoint::CallReturn(planned.call())
+                    && id_at(Some(actual.begin.clone()), offset)
+                    && self.start.checked_add(offset + 1) == Some(actual.cursor)
+                    && actual.owner == expected.auxiliary_owner
+            });
+        let last_begin = 8 + 2 * (count - 1);
         let valid = self.exit_empty
-            && later_consumer == &expected.later_consumer
-            && later_consumer.kind() == LoanKind::Shared
-            && later_consumer.target() == auxiliary.target()
-            && later_consumer.call().source_unit() == local
-            && later_consumer.argument().source_unit() == local
-            && later_consumer.call() != scope.source_call
-            && later_consumer.call() != scope.consumer_call
-            && expected.later_statement.source_unit() == local
-            && expected.later_statement != scope.entry
-            && expected.later_statement != scope.completion
-            && expected.later_statement != scope.consumer_statement
-            && later_end == later_consumer
-            && *later_end_point == call_return
-            && later_return.loan == *later_consumer
-            && id_at(Some(later_return.begin.clone()), 8)
-            && self.start.checked_add(9) == Some(later_return.cursor)
-            && later_return.owner == expected.auxiliary_owner
+            && suffix_valid
+            && id_at(Some(later_return.begin.clone()), last_begin)
+            && self.start.checked_add(last_begin + 1) == Some(later_return.cursor)
             && self.return_drop_claimed
             && self.removed_auxiliary_owner.as_ref() == Some(&expected.auxiliary_owner)
             && self
                 .auxiliary_drop_link
                 .as_ref()
                 .is_some_and(|(begin, drop)| {
-                    id_at(Some(begin.clone()), 8) && id_at(Some(drop.clone()), 10)
+                    id_at(Some(begin.clone()), last_begin)
+                        && id_at(Some(drop.clone()), 8 + 2 * count)
                 })
             && self.owner_events == exact_owner_events
             && source_owner != auxiliary_owner

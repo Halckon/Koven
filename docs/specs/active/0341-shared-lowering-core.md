@@ -14504,3 +14504,35 @@ result/source依次End再source Drop，最后A之后aux Drop。两个Drop先后�
 84项回归、Clippy -D warnings（all-targets）、fmt/diff、文档897项通过；未执行
 CI-only、native全套或远端CI，未把前序尺寸1684>1674阻塞算作通过。日志
 aux-sequence-*；仅本地提交，不推送。
+
+#### 动态BA序列的独立前端证书（实施中）
+
+基于4bc88a34，首生产片限定单B后接n次A，2≤n≤8；n由唯一局部预算常量约束。
+这是新observer证书预算，不是语言或旧执行上限。n0/1继续由ASAP/LaterUse独立
+合同优先处理，n9、前置A或多B均不借用本片资格，合法源码及旧事实不受影响。
+
+以Vec声明后缀、单调游标消费每次真实pending返回。每步必须保有原acquisition
+Begin、实际End位置、同一个活aux owner；不能按声明次数补造返回链。完整区间
+应为8条source/结果闭合前缀、n对Begin/End及唯一最终aux Drop，全部未过滤。
+只允许最后真实返回后领取一次Drop因果，再核实际removed-owner身份与原Drop。
+共享私有准入/前缀核仅复用相同合同，不放宽旧n1证明；多B集合证据另行实施。
+
+先行为保持回归，再以真实缺失证书红测试推进；全n2..8及n9预算邻界、source0/1、
+双入口、on/off独立核对。后端暂不新增receipt，旧执行成功不等于新证书已消费。
+
+验收：私有共享重构先保持旧5项普通回归；n2新证书0!=1真红后，全2..8长度转绿。
+最终FE普通7项与CG普通84项通过；CG矩阵扩为28词、224组合，核动态每use的原
+Begin/End ID、活owner与完整9+2n记录，n9旧执行合法且无证书，旧receipt仍仅BA。
+Single/Sequence按入口声明数量固定分派，Expected缺失仍不借用其他产品资格；
+独立审阅确认无过滤或重编号中间动作，非末返回不领取Drop因果，旧n1保持11动作。
+
+逐项游标与Vec处理不枚举固定shape；身份唯一性和planned call匹配包含有界二次
+检查，n≤8限定比较预算，不声称无限线性复杂度。Clippy曾指出邻界fixture的固定
+vec无必要，改为数组并复测该测试后，全Clippy -D warnings、workspace all-targets、
+默认FE/CG lib no-run、fmt/diff与文档897项通过。旧8组及新2组CI-only仅编译，未执行。
+日志aux-sequence-fe-*与aux-sequence-single-refactor.log；无native全套或远端CI。
+
+尺寸复测2578手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674。
+原超额文件/policy零改；compilation_unit1126→1130仅模块和两类型导出，经非作者
+职责review低于原1156额度。新动态序列专属CG receipt尚未实施，旧见证保留；仅
+本地提交，不推送。

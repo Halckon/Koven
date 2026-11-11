@@ -58,3 +58,10 @@ RootPlace/Loan各有身份，首次aux End与后续End不互代；source Drop完
 后续operand，aux Drop必须在新loan End后。两owner在role0冻结，后续append/alias
 均复核；仍经原final verifier后发布，失败撤销pending，不退休旧见证。见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#后续辅助借用的独立真实收据实施中)。
+
+BA^n动态后缀另有独立`auxiliary_sequence_regions()`证书，局部预算2≤n≤8，不限制
+旧源码执行。每个use含实际pending返回对应的Begin/End ID与活aux OwnerId；完整
+8条前缀加n对Begin/End及最终Drop逐项核验，最后真实返回后才连接removed owner。
+私有Single/Sequence共用准入和因果，不将Sequence放入旧LaterUse getter；旧n1仍
+严格11动作。预算外或多B/前置A不借用资格，尚无动态序列专属CG receipt。见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#动态ba序列的独立前端证书实施中)。

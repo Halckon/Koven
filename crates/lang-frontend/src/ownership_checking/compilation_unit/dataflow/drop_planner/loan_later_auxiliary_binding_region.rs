@@ -1,9 +1,11 @@
-//! Exact five-statement syntax and independent typed/current-state admission.
+//! Exact two-owner prefix and bounded auxiliary-use suffix admission.
 use super::*;
 use crate::{
     name_resolution::SymbolKind,
     ownership_checking::compilation_unit::loan_binding_region_validation::{OwnerSnapshot, Scope},
-    ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::Expected,
+    ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::{
+        Expected, MAX_AUXILIARY_SEQUENCE_USES,
+    },
     ownership_checking::{
         BorrowBindingStorage, OwnershipBindingKind, UnitDropPoint, UnitLoanTarget,
     },
@@ -19,9 +21,7 @@ struct Shape {
     source_index: usize,
     auxiliary_argument: ExpressionId,
     consumer_argument: ExpressionId,
-    later_argument: ExpressionId,
-    later_call: ExpressionId,
-    later_statement: UnitStatementId,
+    later_uses: Vec<(ExpressionId, ExpressionId, UnitStatementId)>,
 }
 
 impl DropPlanner<'_, '_> {
@@ -37,8 +37,11 @@ impl DropPlanner<'_, '_> {
             return;
         };
         let expected = self.later_auxiliary_binding_region_expected(&shape, state);
-        self.iteration_actions
-            .enter_later_auxiliary_binding_region(shape.scope, expected);
+        self.iteration_actions.enter_later_auxiliary_binding_region(
+            shape.scope,
+            expected,
+            shape.later_uses.len(),
+        );
     }
 
     pub(super) fn finish_later_auxiliary_binding_region_statement(
@@ -126,12 +129,15 @@ impl DropPlanner<'_, '_> {
                 second_owner,
                 binding_statement,
                 consumer_statement,
-                later_statement,
+                later_statements @ ..,
             ] = elements.as_slice()
             else {
                 return None;
             };
-            if *binding_statement != entry {
+            // Single and bounded sequences share admission, not completion evidence.
+            if !(1..=MAX_AUXILIARY_SEQUENCE_USES).contains(&later_statements.len())
+                || *binding_statement != entry
+            {
                 return None;
             }
             let function = *self.checker.marker_symbol(*name)?;
@@ -167,20 +173,11 @@ impl DropPlanner<'_, '_> {
             };
             let consumer_argument =
                 self.later_auxiliary_binding_region_operand(*consumer_call, 0, 1)?;
-            let Statement::Expression {
-                expression: later_call,
-            } = ast.statements().get(*later_statement).ok()?.payload()
-            else {
-                return None;
-            };
-            let later_argument = self.later_auxiliary_binding_region_operand(*later_call, 0, 1)?;
-            let later_place = self.checker.place(later_argument).ok()??;
             let source_place = self.checker.place(source_argument).ok()??;
             let consumer_place = self.checker.place(consumer_argument).ok()??;
             let auxiliary_place = self.checker.place(auxiliary_argument).ok()??;
             let root = source_place.root();
-            if later_place != auxiliary_place
-                || auxiliary_place == source_place
+            if auxiliary_place == source_place
                 || !auxiliary_place.is_root()
                 || !owners.iter().any(|owner| owner.0 == root)
                 || !owners.iter().any(|owner| owner.0 == auxiliary_place.root())
@@ -193,6 +190,21 @@ impl DropPlanner<'_, '_> {
                 return None;
             }
             let statement = |id| UnitStatementId::new(self.checker.source_unit, id);
+            let later_uses = later_statements
+                .iter()
+                .map(|&later_statement| {
+                    let Statement::Expression { expression: call } =
+                        ast.statements().get(later_statement).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let argument = self.later_auxiliary_binding_region_operand(*call, 0, 1)?;
+                    if self.checker.place(argument).ok()?? != auxiliary_place {
+                        return None;
+                    }
+                    Some((*call, argument, statement(later_statement)))
+                })
+                .collect::<Option<Vec<_>>>()?;
             Some(Shape {
                 scope: Scope {
                     callable: UnitItemId::new(self.checker.source_unit, item),
@@ -209,9 +221,7 @@ impl DropPlanner<'_, '_> {
                 source_index,
                 auxiliary_argument,
                 consumer_argument,
-                later_argument,
-                later_call: *later_call,
-                later_statement: statement(*later_statement),
+                later_uses,
             })
         })
     }
@@ -290,23 +300,31 @@ impl DropPlanner<'_, '_> {
             shape.consumer_argument,
             ExpressionCategory::Place,
         )?;
-        let (later_consumer, _) = self.consumer_region_loan(
-            shape.later_call,
-            shape.later_argument,
-            ExpressionCategory::Place,
-        )?;
-        let later_call = self
-            .checker
-            .typed
-            .call(self.checker.unit_expression(shape.later_call))?;
+        let later_uses = shape
+            .later_uses
+            .iter()
+            .map(|&(call, argument, statement)| {
+                let (loan, _) =
+                    self.consumer_region_loan(call, argument, ExpressionCategory::Place)?;
+                let typed = self
+                    .checker
+                    .typed
+                    .call(self.checker.unit_expression(call))?;
+                if loan.target() != auxiliary.target()
+                    || loan.kind() != crate::ownership_checking::LoanKind::Shared
+                    || typed.result_source() != CallableResultSource::Owned
+                    || self.checker.typed.types().get(typed.return_type())
+                        != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                {
+                    return None;
+                }
+                Some((loan, statement))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let (later_consumer, later_statement) = later_uses.last()?.clone();
         let source_call = self.checker.typed.call(scope.source_call)?;
         let consumer_call = self.checker.typed.call(scope.consumer_call)?;
-        if later_consumer.target() != auxiliary.target()
-            || later_consumer.kind() != crate::ownership_checking::LoanKind::Shared
-            || later_call.result_source() != CallableResultSource::Owned
-            || self.checker.typed.types().get(later_call.return_type())
-                != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
-            || source_call.borrow_return()?.origin() != BorrowReturnOrigin::Parameter(parameter)
+        if source_call.borrow_return()?.origin() != BorrowReturnOrigin::Parameter(parameter)
             || source_call.return_type() != ty
             || consumer_call.result_source() != CallableResultSource::Owned
             || self.checker.typed.types().get(consumer_call.return_type())
@@ -351,7 +369,8 @@ impl DropPlanner<'_, '_> {
             source_owner,
             auxiliary_owner,
             later_consumer,
-            later_statement: shape.later_statement,
+            later_statement,
+            later_uses,
         })
     }
 
