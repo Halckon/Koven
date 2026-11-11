@@ -176,4 +176,11 @@ String When在既有literal-candidate内核实际进入body后才记录，同ent
 仍在body状态中，按入口根顺序保留root→producer表达式向量。重复/遗漏根、分支、额外
 语句及Break/Continue/Return均不产生该向量。此向量不使用残留旧owner ID充当新owner，
 不恢复unchanged-root证明，不是header/phi、跨迭代等式或运行时回边到达证明；尚未证明
-旧值退休、结果清理与逐路径运输闭合，不能用于替代旧witness。
+代际旧值退休与逐路径运输闭合，不能用于替代旧witness；受限结果清理另见下文。
+
+该受限normal向量另可关联Replace返回旧值的局部binding及真实drop fact：binding必须
+已离开body状态，所有已产生facts中恰有一个Named(binding)，且位于该val声明的
+AfterStatement。缺失或重复清理事实拒绝整组清理证据。这证明现有planner对返回值
+binding的清理，不是旧root代际owner的退休证明，也不证明跨迭代运输或替代旧witness。
+
+清理证据保持声明遍历顺序，producer向量保持入口根顺序；二者必须按root关联，不能按下标配对。

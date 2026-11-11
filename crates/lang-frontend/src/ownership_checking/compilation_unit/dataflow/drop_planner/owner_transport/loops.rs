@@ -708,6 +708,7 @@ impl DropPlanner<'_, '_> {
                 incoming_roots: self.owner_loop.root_entry(control).map(<[_]>::to_vec),
                 root_stages: (false, false),
                 normal_write_vector: None,
+                normal_retirements: None,
                 root_writes: Vec::new(),
             });
         }
@@ -728,6 +729,7 @@ impl DropPlanner<'_, '_> {
                 incoming_roots: None,
                 root_stages: self.owner_loop.root_stages(control),
                 normal_write_vector: self.owner_loop.root_normal_writes(control),
+                normal_retirements: self.owner_loop.root_retirements(control),
                 root_writes: self.owner_loop.root_writes(control).to_vec(),
             });
         }
@@ -809,6 +811,7 @@ impl DropPlanner<'_, '_> {
                 UnitStatementId::new(self.checker.source_unit, id),
                 &body_state,
                 matches!(continued, Ok(true)),
+                &self.facts,
             );
             self.loop_boundaries.pop();
             if let Some((observation, choice, depth)) = saved {

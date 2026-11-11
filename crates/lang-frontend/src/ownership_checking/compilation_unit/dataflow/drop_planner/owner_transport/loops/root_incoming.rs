@@ -1,10 +1,16 @@
 //! Actual root entry capture, distinct from a backedge/header equation.
 use super::*;
+pub(super) type RootRetirements = Vec<(
+    UnitSymbolId,
+    UnitSymbolId,
+    crate::ownership_checking::UnitDropFact,
+)>;
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
     pub(super) roots: RootIncoming,
     pub(super) completed_strings: Vec<(UnitExpressionId, Vec<(UnitExpressionId, usize)>)>,
     pub(super) writes: Vec<RootWriteReceipt>,
+    normal_retirements: Option<RootRetirements>,
     normal_write_vector: Option<Vec<(UnitSymbolId, UnitExpressionId)>>,
     after_condition: bool,
     normal_backedge: bool,
@@ -17,6 +23,7 @@ impl RootEvidence {
             roots,
             writes,
             completed_strings: Vec::new(),
+            normal_retirements: None,
             normal_write_vector: None,
             after_condition: true,
             normal_backedge: false,
@@ -30,9 +37,17 @@ impl ControlTransactions {
             evidence.tainted = true;
             evidence.normal_backedge = false;
             evidence.normal_write_vector = None;
+            evidence.normal_retirements = None;
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn root_retirements(&self, control: UnitStatementId) -> Option<RootRetirements> {
+        self.root_entries
+            .iter()
+            .find(|(id, _)| *id == control)
+            .and_then(|(_, evidence)| evidence.normal_retirements.clone())
+    }
     #[cfg(test)]
     pub(super) fn root_normal_writes(
         &self,
@@ -62,6 +77,7 @@ impl ControlTransactions {
                 !evidence.tainted && preserves(control, state, &evidence.roots);
             evidence.normal_backedge = false;
             evidence.normal_write_vector = None;
+            evidence.normal_retirements = None;
         }
     }
     pub(super) fn record_root_fallthrough(
@@ -76,6 +92,7 @@ impl ControlTransactions {
             .find(|(key, _)| *key == control)
         {
             evidence.normal_write_vector = None;
+            evidence.normal_retirements = None;
             evidence.normal_backedge = normal
                 && evidence.after_condition
                 && !evidence.tainted
@@ -89,6 +106,7 @@ impl ControlTransactions {
         control: UnitStatementId,
         state: &ValueState,
         normal: bool,
+        facts: &[PlannerDropFact],
     ) {
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
             evidence.normal_write_vector = if normal && evidence.after_condition {
@@ -96,6 +114,10 @@ impl ControlTransactions {
             } else {
                 None
             };
+            evidence.normal_retirements = evidence
+                .normal_write_vector
+                .as_ref()
+                .and_then(|_| completed_result_cleanup(checker, control, state, evidence, facts));
         }
     }
 
@@ -119,6 +141,7 @@ impl ControlTransactions {
                 roots,
                 completed_strings: Vec::new(),
                 writes: Vec::new(),
+                normal_retirements: None,
                 normal_write_vector: None,
                 after_condition: false,
                 normal_backedge: false,
@@ -235,4 +258,97 @@ fn completed_root_writes(
             Some((*root, receipt.producer))
         })
         .collect()
+}
+
+// Evidence about actual returned-value bindings, not prior-generation owner identities.
+fn completed_result_cleanup(
+    checker: &Checker<'_>,
+    control: UnitStatementId,
+    state: &ValueState,
+    evidence: &RootEvidence,
+    facts: &[PlannerDropFact],
+) -> Option<RootRetirements> {
+    let ast = checker.parsed.ast();
+    let Statement::While { body, .. } = ast.statements().get(control.statement()).ok()?.payload()
+    else {
+        return None;
+    };
+    let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
+        return None;
+    };
+    if elements.len() != evidence.writes.len() || elements.len() != evidence.roots.len() {
+        return None;
+    }
+    elements
+        .iter()
+        .zip(&evidence.writes)
+        .map(|(statement, receipt)| {
+            let (binding, _) = replace_break::variable(checker, *statement, VariableKind::Val)?;
+            if state.position(binding).is_some() {
+                return None;
+            }
+            let mut drops = facts
+                .iter()
+                .filter(|fact| fact.target() == PlannerDropTarget::Named(binding));
+            let fact = *drops.next()?;
+            if drops.next().is_some()
+                || fact.point() != PlannerDropPoint::AfterStatement(*statement)
+            {
+                return None;
+            }
+            Some((receipt.root, binding, fact.into_unit(control.source_unit())))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod cleanup_fault_tests {
+    use super::super::super::tests::compare_and_inspect;
+    use super::*;
+    use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+
+    // Compile locally, execute injected-fact scenarios only in remote CI.
+    #[test]
+    fn ci_only_root_result_cleanup_requires_unique_real_drop() {
+        let fixture = Fixture::new(&[(
+            "cleanup-fault.ko",
+            "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val keptA = a; val keptB = b }",
+        )]);
+        let owned = fixture.shared();
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = DropPlanner::new(
+                checker,
+                super::super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            let visits = planner.owner_control_probe.as_ref().unwrap();
+            let control = visits[0].control;
+            let evidence = RootEvidence::fault_fixture(
+                visits[0].incoming_roots.clone().unwrap(),
+                visits[1].root_writes.clone(),
+            );
+            let state = ValueState::default();
+            let actual =
+                completed_result_cleanup(checker, control, &state, &evidence, &planner.facts)
+                    .unwrap();
+            assert_eq!(actual.len(), 2);
+            let binding = actual[0].1;
+            let index = planner
+                .facts
+                .iter()
+                .position(|fact| fact.target() == PlannerDropTarget::Named(binding))
+                .unwrap();
+            let mut missing = planner.facts.clone();
+            missing.remove(index);
+            assert!(
+                completed_result_cleanup(checker, control, &state, &evidence, &missing).is_none()
+            );
+            let mut duplicate = planner.facts.clone();
+            duplicate.push(duplicate[index]);
+            assert!(
+                completed_result_cleanup(checker, control, &state, &evidence, &duplicate).is_none()
+            );
+        });
+    }
 }

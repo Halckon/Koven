@@ -324,7 +324,21 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
             let visits = planner.owner_control_probe.as_ref().unwrap();
             let vector = &visits[1].normal_write_vector;
             assert_eq!(vector.is_some(), admitted, "{text}");
+            assert_eq!(visits[1].normal_retirements.is_some(), admitted, "{text}");
             if let Some(vector) = vector {
+                let retirements = visits[1].normal_retirements.as_ref().unwrap();
+                assert_eq!(retirements.len(), vector.len());
+                for (root, binding, fact) in retirements {
+                    assert!(vector.iter().any(|(known, _)| known == root));
+                    assert_eq!(
+                        fact.target(),
+                        crate::ownership_checking::UnitDropTarget::Named(*binding)
+                    );
+                    assert!(matches!(
+                        fact.point(),
+                        crate::ownership_checking::UnitDropPoint::AfterStatement(_)
+                    ));
+                }
                 let roots = visits[0].incoming_roots.as_ref().unwrap();
                 assert_eq!(vector.len(), 2);
                 for ((root, producer), (entry_root, _)) in vector.iter().zip(roots) {
