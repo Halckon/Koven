@@ -13127,3 +13127,28 @@ binary不变；opt0/debug2，FE lib默认，FE集成与CG显式loan support。�
 默认CLI build与真实--help、fmt、docs893、相对95cecb86尺寸均通过；CLI features=[]。
 尺寸2437手写Rust、35历史超限，未提高额度。此末提交仅追加Spec，不改冻结Rust；
 未推送、未合main，无本组合正式CI结论，D10/E2继续保持进行中。
+
+### 单根条件 Break 与隐式正常回边：待验证切片（2026-11-11）
+
+本片从已验收组合 `fa82cfc2` 隔离推进 ADR-0038 的边角色与有限 header 合同。
+保持双不可变 Int 参数、单 String root、零初始化计数、严格小于条件、Replace 与
+加一；仅考察尾部 `if(index < stop) { break }` 无 else 的合法形状及循环后 Return。
+实际 Break 指向 exit；未进入 Break 的分支须经过真实 if/body 正常完成回到 header，
+不能伪造 Continue 身份或复用旧 Mixed 两臂终止的 Ok(false) 作为证明。
+
+先保留独立普通探针：FE Basic、lowering、SSA verifier、LLVM 及唯一 Return 收据
+逐步通过后，才以实际 payload authority 断言定位缺口；任何前置失败单独记录。
+当前尚未执行，不宣称确认红或新增完成能力。生产拟复用私有 H 守恒与参数身份，
+新增真实 Break 和正常完成的独立封印；旧 Normal/Continue/Mixed 门禁不放宽。
+不覆盖任意条件、多个根、嵌套、capture 或一般后缀；故障及篡改负控仅编译。
+本批不推送，后续普通执行、输入绑定和独审结果追加到本节。
+
+本片普通红已真实确认：唯一exact `conditional_break_requires_actual_exit_return_authority`
+在最后authority断言失败（exit101，0 passed/1 failed/0 ignored）；前置Basic/真实
+lower/SSA verifier/LLVM/唯一Return均已通过，不是编译或前置拒绝。4301输入与
+Cargo实际artifact、保存binary SHA及原日志保留于主仓忽略目录
+`.local-artifacts/owner-conditional-break-20261111T100154Z`；测试前后输入/binary不变。
+本红只确认缺少当前consumer授权，尚未实施生产，也未运行native或CI-only。
+格式门禁首次发现新模块注册排序错误，旧失败日志保留；仅修正注册顺序，原探针源码
+及断言不改。重新冻结4301输入并编译、重跑同exact，仍在相同authority断言红；
+第二次fmt、docs893、diff均通过。最终红证据在同目录red2，非复用旧binary结果。
