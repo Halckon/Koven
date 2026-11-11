@@ -12556,3 +12556,16 @@ false 出口按当前 H 授权真实 Return。此前 consumer 缺授权红已转
 fmt、FE/CG all-targets strict Clippy、默认 workspace all-targets、默认 CLI build/--help、
 docs 与相对 e659b66a 的尺寸门禁均通过；默认 CLI artifact features=[]。
 最终 Spec 仅追加阶段结果，不改冻结 Rust；D10/E2 仍在推进，尚未推送、无此组合正式 CI。
+
+### LiveForward 真实生产 receipt 后继切片（2026-11-11）
+
+从已验集成0f9c395d独立分支开始，main/origin均e659b66a；保留集成树及主树。
+缺口是后端尚未消费Complete forward_regions，现有BorrowCall/BorrowReturn仅证明旧路有效。
+新片仅覆盖原单表达式Shared String wrapper，不扩源码形状、End、权限恢复、清理责任、
+source/callable覆盖或旧oracle退休。准入须同catalog原Begin/Handoff身份与完整region，
+绑定实际source参数、callable及call；禁止Span搜索或完成SSA扫描回填receipt。
+生产目标由原BorrowCall producer印记随指令进入真实append结果，BorrowReturn须在真实
+set_terminator后绑定block及返回LoanId；不把terminator伪装instruction，不跨函数借LoanId。
+当前仅test-feature空观察接缝和ordinary exact original_live_forward_requires_production_receipt_with_true_off，
+尚未接生产：先Rooted/Memory四次真实on/off检查原产品、SSA/verifier/LLVM及旧route，再期待
+on每份一张receipt、off为零；新测试红不得宣称交付绿，不合入已验集成头。后续生产另做独审。
