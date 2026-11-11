@@ -19,8 +19,6 @@ fn parameter_open_loop_original_source_probe() {
     let (program, entry) = source.lower_entry(source.entry()).unwrap();
     crate::ssa::verify::verify_program(&program).unwrap();
     crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    eprintln!("OWNERSHIP {:#?}", source.ownership());
-    eprintln!("SSA {}", crate::ssa::render_program(&program));
     let functions = program
         .modules
         .iter()
@@ -211,6 +209,10 @@ fn parameter_open_loop_requires_actual_entry_owner_and_return_receipts() {
 #[test]
 fn parameter_open_loop_requires_real_entry_then_name_transfer() {
     let source = UnitSource::analyze("parameter-entry-authority.ko", SOURCE).unwrap();
+    assert_entry_authority(&source);
+}
+
+fn assert_entry_authority(source: &UnitSource) {
     source.assert_frontend_clean();
     let ((lowered, returns), actions) = crate::ssa::observe_owner_actions(|| {
         crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()))
@@ -240,5 +242,50 @@ fn parameter_open_loop_requires_real_entry_then_name_transfer() {
     for receipt in returns {
         assert_eq!(receipt.2, Some(*root));
         assert_eq!(receipt.1, receipt.2);
+    }
+}
+
+#[test]
+fn parameter_open_loop_both_units_use_actual_entry_authority() {
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                SOURCE.replace("run(true,", "run(ON,")
+            )
+        } else {
+            SOURCE.to_owned()
+        };
+        let source = UnitSource::analyze("parameter-open-loop-dual.ko", &text).unwrap();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        assert_entry_authority(&source);
+    }
+}
+
+#[test]
+fn parameter_open_loop_native_preserves_parameter_and_replacement() {
+    let text = SOURCE.replace(
+        "val first = run(false, \"outer\"); val second = run(true, \"outer\")",
+        "val first = run(false, \"outer\"); println(first); val second = run(true, \"outer\"); println(second)",
+    );
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val ON: Boolean = true\n{}",
+                text.replace("run(true,", "run(ON,")
+            )
+        } else {
+            text.clone()
+        };
+        let source = UnitSource::analyze("parameter-open-loop-native.ko", &text).unwrap();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        assert_entry_authority(&source);
+        super::assert_native_output(&source, b"outer\nnext\n");
     }
 }
