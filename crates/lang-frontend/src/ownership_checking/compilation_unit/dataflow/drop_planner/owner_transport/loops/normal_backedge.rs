@@ -772,7 +772,7 @@ impl NormalInput {
 }
 impl DropPlanner<'_, '_> {
     pub(in super::super) fn normal_control_expression_supported(&self, id: ExpressionId) -> bool {
-        let Some(transaction) = &self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_ref() else {
             return false;
         };
         let Some(normal) = &transaction.normal else {

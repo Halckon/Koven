@@ -248,7 +248,7 @@ impl DropPlanner<'_, '_> {
         self.finish_conditional_return(id, state);
         self.finish_open_loop_return(id, state);
         if let Some(consumer) = return_consumer
-            && let Some(transaction) = &mut self.owner_loop
+            && let Some(transaction) = self.owner_loop.as_mut()
         {
             transaction.complete_replace_return_consumer(consumer);
         }

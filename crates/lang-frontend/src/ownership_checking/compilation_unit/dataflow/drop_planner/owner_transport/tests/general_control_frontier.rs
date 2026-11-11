@@ -171,3 +171,64 @@ fn ci_only_control_stack_invalid_entry_and_wrong_exit_stay_invalid() {
         assert!(!mismatch.balanced());
     });
 }
+
+#[test]
+fn control_transaction_registry_isolates_real_callable_controls_and_restores_prefix_slot() {
+    let text = r#"fun first(flag: Boolean): String {
+        var held = "outer"
+        var again = flag
+        while(again) { val previous = replace(&held, "next"); again = false }
+        return held
+    }
+    fun second(flag: Boolean): String {
+        var held = "other"
+        var again = flag
+        while(again) { val previous = replace(&held, "second"); again = false }
+        return held
+    }"#;
+    let fixture = Fixture::new(&[("transaction-controls.ko", text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1;
+    let products: Vec<_> = owned
+        .owner_observations()
+        .iter()
+        .filter_map(|o| match o.open_loop_observation_v1() {
+            Some(UnitOwnerOpenLoopObservationV1::NormalBackedge(product)) => Some(product),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        products.len(),
+        2,
+        "both real admitted functions publish their old product"
+    );
+    assert_ne!(products[0].callable(), products[1].callable());
+    assert_ne!(products[0].statement(), products[1].statement());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        use super::super::loops::ControlTransactions;
+        let roots = checker.parsed.roots();
+        let identity = std::sync::Arc::new(());
+        let mut first = ControlTransactions::begin(checker, roots[0], identity.clone());
+        let second = ControlTransactions::begin(checker, roots[1], identity);
+        let original = first.selected().expect("first actual admitted control");
+        let other = second.selected().expect("second actual admitted control");
+        assert_ne!(original, other);
+        let transaction = first.as_ref().unwrap() as *const _;
+        first.select(Some(other));
+        assert!(first.as_ref().is_none());
+        assert!(first.as_mut().is_none());
+        assert!(
+            first.is_some(),
+            "inactive entries still block incompatible borrow admission"
+        );
+        first.select(None);
+        assert!(first.as_ref().is_none());
+        first.select(Some(original));
+        assert_eq!(first.as_ref().unwrap() as *const _, transaction);
+        assert!(first.take().is_some());
+        assert!(first.is_none());
+        assert!(first.selected().is_none());
+    });
+}

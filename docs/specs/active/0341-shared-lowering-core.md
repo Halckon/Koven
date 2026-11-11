@@ -13576,3 +13576,23 @@ drop_planner.rs增长1657→1663仅字段和初始化接线，经独立尺寸复
 既有max_lines1669，不提高额度；控制栈算法留专用子模块。
 这是实际控制身份路由基础，仍只有原有单槽LoopTransaction，不发布一般多根incoming、
 嵌套owner运输或退休旧oracle；控制遍历轨迹也不等于运行时循环激活轨迹。
+
+### Control-keyed 私有事务存储（2026-11-11，本地）
+
+基于cbf1720b，以ControlTransactions替换DropPlanner的Option事务槽。容器按
+source-qualified control索引实际LoopTransaction；While进入选择当前control，退出
+在传播Result前恢复旧选择。prefix/suffix仍选择原准入控制；无匹配control时as_ref/as_mut
+均不给出其它事务，borrow准入的is_none仍检查全部存储，不能把暂时未选择误算成无事务。
+若control进入失败清空事务；父级恢复不再假定事务存在，仍恢复原observation/choice/depth
+及legacy错误传播，不因新容器缺项panic。后者为源码审查，本机未注入非法嵌套负控。
+
+真实两函数各发布NormalBackedge且callable/control不同；基于同一checker创建的真实
+admitted事务另核选择其它control时无引用、恢复原control时同一事务仍在，take清空状态。
+该选择测试是实际准入事务的容器隔离测试，不是两个循环在同一callable同时运输的证明。
+现有begin仍只准入一项，take仅接受恰好一项，不从多项中任选；一般多事务采集/发布、
+真实多根incoming、嵌套路径归属仍未完成，旧oracle不退休。
+
+最终普通owner suite 219项通过；全部FE lib普通测试638项通过，43项过滤（ci_only），
+FE all-target strict Clippy、LLVM21 workspace all-target check通过。当前变更不含推送。
+fmt/docs897/diff及Rust尺寸守卫通过（2458个手写Rust文件、35个历史超千行文件，无新额度）；
+独立源码复审无阻断，确认恢复顺序和错误传播保留。loops.rs为939行，DropPlanner仍1663行。

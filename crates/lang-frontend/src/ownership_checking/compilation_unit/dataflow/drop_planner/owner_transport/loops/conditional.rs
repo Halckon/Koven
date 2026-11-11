@@ -129,7 +129,7 @@ impl DropPlanner<'_, '_> {
     // Permit only Not nodes of the already admitted If condition in its live body sink.
     // This is a syntax gate, not fabricated condition evaluation or owner evidence.
     pub(in super::super) fn owner_loop_condition_supported(&self, id: ExpressionId) -> bool {
-        let Some(transaction) = &self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_ref() else {
             return false;
         };
         let LoopBodyCompletion::Conditional { condition, .. } = transaction.expected else {
@@ -189,7 +189,7 @@ impl DropPlanner<'_, '_> {
         if outcomes != (true, true) || self.owner_branch_depth != 0 {
             return;
         }
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {
@@ -236,7 +236,7 @@ impl DropPlanner<'_, '_> {
         if self.owner_branch_depth != 1 {
             return;
         }
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {
@@ -275,7 +275,7 @@ impl DropPlanner<'_, '_> {
         result: &EvaluatedOwner,
         state: &ValueState,
     ) {
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {
@@ -334,7 +334,7 @@ impl DropPlanner<'_, '_> {
         if !then_events.is_empty() || !else_events.is_empty() {
             return false;
         }
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return false;
         };
         let LoopBodyCompletion::Conditional {

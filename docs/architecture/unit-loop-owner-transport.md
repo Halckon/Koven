@@ -117,4 +117,9 @@ callable彼此不一致时不返回部分
 While遍历使用私有ControlStack保存当前control与父控制；进入/退出均来自实际planner
 调用，返回前恢复外层，再传播Result。现有活动Return、jump及采集路由要求当前control
 与事务一致；不平衡/非法栈不会发布loop产品。该栈只约束现有事务，不替代一般多根
-incoming表或嵌套owner合同；现阶段仍保留单槽LoopTransaction和旧准入边界。
+incoming表或嵌套owner合同；事务存储现按control索引，旧准入边界仍保留。
+
+ControlTransactions以source-qualified control保存私有事务，真实While入口选择对应entry，
+不匹配时不可访问其它entry，退出先恢复旧选择再传播Result。prefix/suffix继续关联原准入
+控制；borrow兼容性检查仍基于全部entry而非当前选择。现有begin只准入一项，finish只接收
+恰好一项；多产品发布、一般多根incoming与嵌套owner语义仍待实现，不能把容器改造算作完成。
