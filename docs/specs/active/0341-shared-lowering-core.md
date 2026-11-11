@@ -14271,3 +14271,32 @@ merge前完整输入保存、原pending精确匹配和tail单交易；未从计�
 未修改drop_planner.rs或尺寸策略。新candidate774、独立final334、plan552、hooks274
 均低于1000。compilation_unit.rs仅公开新产品导出+2至1118，仍在既有1156额度内。
 日志为本机multi-proof-*；没有native全套或远端CI，本片仅本地提交、未推送。
+
+#### 多继续出口的真实后端收据（实施中）
+
+基于3644f9f5的独立前端集合证书，后端以独立准入、实际producer及emitted复核消费，
+不放宽single线性链协议。保留有多个真实前驱的join与唯一公共tail；逐入边核同根
+source的真实block parameter位置、类型和LoanId。多条控制路径只引用同一个实际tail
+call/result/return，不能复制交易或把最终CFG反推为未观察到的Goto事件。
+
+每次真实Goto保留原from/to身份与来源集合；仅允许原优化器实际执行的单前驱fold，
+并核fold前后的组件邻接与精确前驱数。多前驱join不折叠；终止叶、每个来源及公共tail
+必须全部覆盖。保持原final verifier成功后原子发布、observer-off等价、旧见证及原
+深度/叶数/单根/独立flags限额。先真实Unsupported红后验证receipt；尺寸门禁不调整。
+
+实际红绿：FE完整证书先通过，首个rooted/on输入在原borrow marker精确Unsupported，
+随后独立multi准入与真实receipt使全部92种形状通过。rooted/memory与observer on/off
+均核独立字面路线的Read/flag/source逐边运输、所有hole到同一tail的实际call/result、
+保留Goto目标至少两个前驱、原Goto/fold数和receipt身份；SSA与LLVM文本开关一致。
+另明确命中多前驱join作为from吸收单前驱后继的实际fold，验证保留原多入边汇合身份。
+旧合法two-hole负例已迁入正控，邻界改为额外语句并保留其余5类拒绝。
+
+本片CG普通31项通过，含上述92形状；Clippy -D warnings、workspace all-targets、
+默认FE/CG lib no-run、fmt/diff及文档897项通过。新增5项CI-only真实receipt/producer
+损坏与发布回滚测试仅编译，未执行。独立非作者复审准入、producer、emitted映射与
+publication顺序通过；原final verifier仍是发布前提，未退休旧见证。
+
+尺寸复测2547手写Rust文件、36个历史超1000文件，唯一失败仍为前序FE1684>1674；
+本片FE与尺寸策略均未改变。独立逐diff评审build.rs仅Plans创建与terminate两行接线，
+1008→1010仍在原1025额度内；emit987未越1000，新emitted843。日志为本机
+multi-receipt-*；未跑native全套或远端CI，仅本地提交、未推送。

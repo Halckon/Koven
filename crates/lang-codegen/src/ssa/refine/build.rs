@@ -173,6 +173,7 @@ pub(super) fn build(
             nested_plans: super::nested_receipt::Plans::new(inputs)?,
             bounded_plans: super::bounded_receipt::Plans::new(inputs)?,
             single_plans: super::single_receipt::Plans::new(inputs)?,
+            multi_plans: super::multi_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
@@ -420,6 +421,7 @@ impl Builder<'_, '_> {
             .bounded_plans
             .terminate(&terminator, block, span)?;
         self.body.single_plans.terminate(&terminator, block, span)?;
+        self.body.multi_plans.terminate(&terminator, block, span)?;
         self.body
             .forward_plans
             .terminate(&terminator, block, span)?;

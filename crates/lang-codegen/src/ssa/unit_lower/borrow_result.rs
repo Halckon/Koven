@@ -3,6 +3,8 @@
 mod bounded_declaration;
 #[path = "branch_declaration.rs"]
 mod branch_declaration;
+#[path = "multi_continuation_declaration.rs"]
+mod multi_continuation_declaration;
 #[path = "nested_declaration.rs"]
 mod nested_declaration;
 #[path = "single_continuation_declaration.rs"]
@@ -48,6 +50,7 @@ pub(super) fn validate_declarations(
                 && !nested_declaration::allows(file, names, typed, owned, callable)
                 && !bounded_declaration::allows(file, names, typed, owned, callable)
                 && !single_continuation_declaration::allows(file, names, typed, owned, callable)
+                && !multi_continuation_declaration::allows(file, names, typed, owned, callable)
             {
                 crate::ssa::borrow_result_support::declaration(file, contract.marker_span())?;
             }

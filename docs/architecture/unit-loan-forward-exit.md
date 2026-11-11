@@ -26,6 +26,8 @@ entry/source/result 保持当前函数本地身份，不生成额外 Begin/End/D
 结构叶≤8、同根String及独立Boolean参数内，每次真实join消费两侧closed/live token，
 核来源互斥与精确并集；原merge输入句柄在合流后再次匹配，根须覆盖全部hole。
 公共tail只引用一对真实Begin/Handoff，不按到达路径复制交易；旧single/terminal协议
-独立保留。该产品仅表示局部前端Complete，catalog/source仍Partial；后端多前驱
-准入尚未实现，仍返回原Unsupported且不发布receipt。实际边界与验证见
-[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多来源集合的独立前端证书实施中)。
+独立保留。该产品仅表示局部前端Complete，catalog/source仍Partial。独立后端
+multi receipt保留真实Goto与多前驱join，只按实际单前驱fold重放canonical映射；
+每个来源逐入边核source block parameter，均到唯一tail call/result/return。原final
+verifier成功后原子发布，失败撤销本批pending；observer-off产物保持一致。实际边界见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多继续出口的真实后端收据实施中)。

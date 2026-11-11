@@ -15,6 +15,7 @@ pub(crate) mod branch_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod loan_receipt;
+pub(crate) mod multi_receipt;
 pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;
 pub(crate) mod single_receipt;
