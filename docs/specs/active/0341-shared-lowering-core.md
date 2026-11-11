@@ -12270,3 +12270,17 @@ size guard以df334ae6为基通过；原大planner仍1638行净零增长，policy
 两个新CI-only守卫分别覆盖无效catalog/index/record/token/kind/target/point/SourceId/scope
 及构造合流的same-clone/不同或缺失句柄/歧义/丢scope/sticky降级，只计划编译，禁止本机执行。
 本小集合尚待fresh源码/helper/名单审及新artifact绑定，不以核心绿代替邻控验收。
+
+有限补强冻结 `ca97505d` 经fresh源码/helper/名单审及FE/CG实际artifact绑定，固定三项
+ordinary exact各1 passed、0 failed、2954 filtered，全部exit0/stderr空；两FE邻控不做
+Block lowering，原显式Return/Group/分支raw事实保序且因果getter None，核心真off与新引用
+仍绿。两个CI-only由FE lib no-run成功编译，未运行；此项不证明负控拒绝行为已实跑。
+FE no-run60.30s、CG178.22s（Cargo1m00s/2m58s），默认debug2/LLVM21。4267输入SHA
+`b926391863b6fececbb95b60f251e161cc58e1d073c36de661856b82c35ffa45`与实际FE/CG
+binary前后均已独审终核，原件在证据根 `causal-validation/`。
+
+本片追加全部静态：ca975的两crate/all-targets显式support strict Clippy通过136.53s，
+default workspace all-targets通过62.97s，docs/size/diff通过；workspace fmt唯一失败
+是本片新公开导出带来的mod.rs import换行，不涉及其他文件或生产逻辑。原日志保留在
+`static-gates/`；后继仅修该排版，须新冻输入并重新验证静态及绑定三项，不能沿用旧头
+的行为结果冒充新输入通过。未跑全量行为、正式CI、native或独立CLI artifact。
