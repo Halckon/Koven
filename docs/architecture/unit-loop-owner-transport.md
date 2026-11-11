@@ -138,3 +138,10 @@ open/invariant或straight-line/Choice能力，deferred发布路径会清除整�
 成员；任一不符整组不记录，同control失败重采集会清除旧项，函数完成清空。它不是条件后
 状态、body/backedge equation或公开多根能力；已经Unsupported且清掉catalog的前缀不能
 凭残留owner ID恢复资格，也不改变借用排斥或旧witness。
+
+私有多根阶段证据另核真实condition求值结束与body正常落通：整组root/owner顺序必须
+逐项等于已验证入口；body必须实际返回Ok(true)，且条件后保持标记有效，才记录正常
+落通候选。Unsupported观察下旧ValueState可能残留旧ID，因此活动控制内真实求值的
+Call/Assignment在早退前独立置sticky失效，后续向量相同也不能恢复资格。
+这些标记不发布header/phi，不证明复杂控制流逐路径完整性；条件后保持不代表条件值为真，
+正常落通候选也不是运行时可达/终止证明。Break/Continue/Return不冒充正常回边。

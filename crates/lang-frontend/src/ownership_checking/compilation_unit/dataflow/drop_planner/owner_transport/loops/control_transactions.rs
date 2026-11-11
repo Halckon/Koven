@@ -4,7 +4,7 @@ use super::*;
 pub(in super::super::super) struct ControlTransactions {
     entries: Vec<(UnitStatementId, LoopTransaction)>,
     selected: Option<UnitStatementId>,
-    pub(super) root_entries: Vec<(UnitStatementId, root_incoming::RootIncoming)>,
+    pub(super) root_entries: Vec<(UnitStatementId, root_incoming::RootEvidence)>,
 }
 impl ControlTransactions {
     pub(in super::super::super) fn begin(

@@ -738,6 +738,8 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
+        self.owner_loop
+            .record_root_condition(UnitStatementId::new(self.checker.source_unit, id), state);
         let collecting = self.owner_observation_enabled
             && self
                 .owner_controls
@@ -791,6 +793,11 @@ impl DropPlanner<'_, '_> {
             };
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
+            self.owner_loop.record_root_fallthrough(
+                UnitStatementId::new(self.checker.source_unit, id),
+                &body_state,
+                matches!(continued, Ok(true)),
+            );
             self.loop_boundaries.pop();
             if let Some((observation, choice, depth)) = saved {
                 let collected = self.owner_observation.take();

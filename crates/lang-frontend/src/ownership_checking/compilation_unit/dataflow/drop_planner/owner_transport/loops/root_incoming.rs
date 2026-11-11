@@ -1,10 +1,56 @@
 //! Actual root entry capture, distinct from a backedge/header equation.
 use super::*;
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
+pub(super) struct RootEvidence {
+    roots: RootIncoming,
+    after_condition: bool,
+    normal_backedge: bool,
+    tainted: bool,
+}
 impl ControlTransactions {
+    pub(in super::super::super) fn invalidate_root_preservation(&mut self) {
+        for (_, evidence) in &mut self.root_entries {
+            evidence.tainted = true;
+            evidence.normal_backedge = false;
+        }
+    }
+
     #[cfg(test)]
-    pub(super) fn root_stages(&self, _control: UnitStatementId) -> (bool, bool) {
-        (false, false)
+    pub(super) fn root_stages(&self, control: UnitStatementId) -> (bool, bool) {
+        self.root_entries
+            .iter()
+            .find(|(key, _)| *key == control)
+            .map_or((false, false), |(_, evidence)| {
+                (evidence.after_condition, evidence.normal_backedge)
+            })
+    }
+    pub(super) fn record_root_condition(&mut self, control: UnitStatementId, state: &ValueState) {
+        if let Some((_, evidence)) = self
+            .root_entries
+            .iter_mut()
+            .find(|(key, _)| *key == control)
+        {
+            evidence.after_condition =
+                !evidence.tainted && preserves(control, state, &evidence.roots);
+            evidence.normal_backedge = false;
+        }
+    }
+    pub(super) fn record_root_fallthrough(
+        &mut self,
+        control: UnitStatementId,
+        state: &ValueState,
+        normal: bool,
+    ) {
+        if let Some((_, evidence)) = self
+            .root_entries
+            .iter_mut()
+            .find(|(key, _)| *key == control)
+        {
+            evidence.normal_backedge = normal
+                && evidence.after_condition
+                && !evidence.tainted
+                && preserves(control, state, &evidence.roots);
+        }
     }
 
     pub(in super::super::super) fn record_root_entry(
@@ -18,7 +64,15 @@ impl ControlTransactions {
         let Some(roots) = capture(control, state, observation) else {
             return;
         };
-        self.root_entries.push((control, roots));
+        self.root_entries.push((
+            control,
+            RootEvidence {
+                roots,
+                after_condition: false,
+                normal_backedge: false,
+                tainted: false,
+            },
+        ));
     }
     #[cfg(test)]
     pub(super) fn root_entry(
@@ -28,7 +82,7 @@ impl ControlTransactions {
         self.root_entries
             .iter()
             .find(|(key, _)| *key == control)
-            .map(|(_, roots)| roots.as_slice())
+            .map(|(_, evidence)| evidence.roots.as_slice())
     }
 }
 fn capture(
@@ -64,4 +118,17 @@ fn capture(
             Some((value.symbol, owner.clone()))
         })
         .collect()
+}
+
+fn preserves(control: UnitStatementId, state: &ValueState, roots: &RootIncoming) -> bool {
+    let Some(frame) = root_frame::ControlRootFrame::capture(control, state) else {
+        return false;
+    };
+    let Some(values) = frame.roots_for(control) else {
+        return false;
+    };
+    values.len() == roots.len()
+        && values.iter().zip(roots).all(|(value, (root, owner))| {
+            value.symbol == *root && value.owner.as_ref() == Some(owner)
+        })
 }

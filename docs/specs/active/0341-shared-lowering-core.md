@@ -13659,3 +13659,24 @@ CI-only跨catalog、缺owner、未知definition、失败重采集清旧值和fin
 最终普通FE lib测试644项通过、46项ci_only过滤；FE all-target strict Clippy、LLVM21
 workspace all-target check、fmt/docs897/diff通过。入口采集顺序修正另经独立复核，原拒绝
 仍执行，不提升已有Unsupported前缀。未推送，未处理Preview。
+
+### 多根条件后与正常落通候选证据（2026-11-11，本地）
+
+基于df5f1da0，fc84d241真实红checkpoint因缺少条件后/落通标记而失败。RootEvidence
+保留入口向量，真实condition求值成功完成后核整组root/owner精确相同；body实际Ok(true)
+且条件后证据有效、整组仍相同才记normal候选。非正常返回不记正常回边，重采集和失败
+清除相应旧标记，不更改ValueState、原admission或公开产品。
+
+真实body Replace负测曾捕获误报：Unsupported后ValueState可残留旧owner ID，单凭向量
+相同不足以证明保持。修正为活动控制中实际Call/Assignment求值前、owner active早退之前
+独立置sticky tainted；条件后或body后不能靠同样残留ID恢复资格。body污染只撤正常候选，
+保留此前已核条件后标记；所有候选一并污染是保守收窄，不是路径敏感别名分析。
+
+真实两根不变循环、Break/Continue/Return、body Replace与condition内赋值覆盖实际hook；
+CI-only重采集、缺owner、非正常退出及sticky后不可恢复仅编译。该私有候选不等于完整
+header equation、一般多根运输或复杂控制流逐路径证明，亦不表示条件值为真或运行时
+正常回边可达。旧见证继续保留，不处理Preview、不推送。
+
+最终646项普通FE lib测试通过，47项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。独立复审确认sticky修正封住此次
+真实Replace负测，不能把静态复审替代实测或扩大为逐路径完整证明。

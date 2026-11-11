@@ -315,6 +315,16 @@ impl DropPlanner<'_, '_> {
     }
 
     fn check_owner_expression(&mut self, id: ExpressionId) -> Result<(), OwnershipCheckingError> {
+        // Unsupported owner observation may retain stale IDs in legacy ValueState.
+        // Never infer preservation across a potentially mutating evaluated expression.
+        if self.owner_controls.current().is_some()
+            && matches!(
+                self.checker.parsed.ast().expressions().get(id)?.payload(),
+                Expression::Call { .. } | Expression::Assignment { .. }
+            )
+        {
+            self.owner_loop.invalidate_root_preservation();
+        }
         if !self.owner_observation_active() {
             return Ok(());
         }
