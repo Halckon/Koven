@@ -446,7 +446,7 @@ impl UnitOwnerObservation {
     /// The single sealed open-loop product. Legacy getters only project their original variant.
     pub fn open_loop_observation_v1(&self) -> Option<&UnitOwnerOpenLoopObservationV1> {
         let value = self.open_loop_value.as_ref()?;
-        (self.loop_value.is_none() && self.invariant_loop_value.is_none() && self.choice_value.is_none()
+        (self.closed_loop_batch.is_none() && self.loop_value.is_none() && self.invariant_loop_value.is_none() && self.choice_value.is_none()
             && self.definitions.is_empty() && self.events.is_empty()
             && matches!(self.status, UnitOwnerObservationStatus::Unsupported { point: UnitDropPoint::AfterStatement(statement), reason: UnitOwnerUnsupportedReason::Syntax } if statement == value.statement())
             && self.callable == value.callable() && Arc::ptr_eq(&self.identity, value.identity())

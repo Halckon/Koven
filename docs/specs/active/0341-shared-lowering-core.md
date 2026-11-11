@@ -13619,3 +13619,22 @@ finalization守卫只编译、不本地执行。旧witness和legacy on/off完整
 最终FE lib普通测试640项通过，44项ci_only过滤；FE all-target strict Clippy与LLVM21
 workspace all-target check通过，fmt/docs897/diff通过。两次独立源码复核无阻断，确认
 失衡先拒绝再clear不影响合法平衡序列；本片没有运行CI-only守卫或推送远端。
+
+### 独立 closed-loop batch 原子发布（2026-11-11，本地）
+
+在eaa4be48的实际顺序closed采集上，d5aa8066公开空getter红checkpoint已编译实跑，
+因atomic real sequence publication缺失失败。现以独立UnitOwnerClosedLoopBatchV1
+承接原registry中的完整有序控制manifest与全部已封存产品：至少两项，数量、顺序、
+共同callable/analysis身份、各产品完整性、control/body唯一及body catalog独立均核验。
+任一result缺失或交易混有normal/invariant/replacing族则整体失败，不选第一个或拼部分。
+
+closed_loop_batch_v1核observation身份与第一control的Unsupported Syntax边界、空旧事件
+及与Single/open/invariant/Choice互斥。legacy状态不改Complete，旧投影不能获得batch。
+不完整/deferred的总发布会清空batch。真实两循环正常/Continue/Break与三循环Break检验
+产品及on/off旧完整产物等价；这是结构目录，不证明多个循环共同可达或终止。
+CI-only缺项、乱序、重复、跨analysis拼接/替换、旧产品冲突及deferred清除守卫仅编译，
+不在本机执行。一般多根incoming、嵌套root、跨循环owner与旧见证退休均不在本片。
+
+最终641项普通FE lib测试通过，45项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。独立源码复核未发现阻断；公开目录仍
+限定closed结构模板，不扩大组合可达性声明。未运行Preview、CI-only故障守卫或远端CI。

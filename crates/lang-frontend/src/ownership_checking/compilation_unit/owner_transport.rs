@@ -273,6 +273,7 @@ pub struct UnitOwnerObservation {
     pub(super) definitions: Vec<UnitOwnerDefinition>,
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
+    pub(super) closed_loop_batch: Option<Box<UnitOwnerClosedLoopBatchV1>>,
     pub(super) loop_value: Option<Box<UnitOwnerLoopObservationV1>>,
     pub(super) open_loop_value: Option<UnitOwnerOpenLoopObservationV1>,
     pub(super) invariant_loop_value: Option<Box<InvariantLoopValueV1>>,

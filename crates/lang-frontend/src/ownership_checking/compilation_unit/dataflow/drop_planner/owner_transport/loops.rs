@@ -775,6 +775,7 @@ impl DropPlanner<'_, '_> {
                         choice_value: None,
                         loop_value: None,
                         invariant_loop_value: None,
+                        closed_loop_batch: None,
                         open_loop_value: None,
                     }),
                     self.owner_choice.take(),

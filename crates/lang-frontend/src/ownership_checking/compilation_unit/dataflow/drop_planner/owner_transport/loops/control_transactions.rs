@@ -1,4 +1,4 @@
-//! Control-keyed storage. Sequential closed collection is private until batch publication exists.
+//! Control-keyed collection; closed batches and legacy single products publish separately.
 use super::*;
 #[derive(Default)]
 pub(in super::super::super) struct ControlTransactions {
@@ -70,7 +70,7 @@ impl ControlTransactions {
             selected: None,
         })
     }
-    // No public batch contract yet: an empty single-slot observation must not masquerade as complete.
+    // A separate batch must not masquerade as a Complete straight-line observation.
     pub(in super::super::super) fn publication_blocker(&self) -> Option<UnitStatementId> {
         (self.entries.len() > 1).then(|| self.entries[0].0)
     }
@@ -104,7 +104,32 @@ impl ControlTransactions {
     pub(in super::super::super) fn clear(&mut self) {
         *self = Self::default();
     }
-    // The observation API still has one product slot: never silently choose among many.
+    pub(in super::super::super) fn take_closed_batch(
+        &mut self,
+    ) -> Option<crate::ownership_checking::UnitOwnerClosedLoopBatchV1> {
+        if self.entries.len() < 2 {
+            return None;
+        }
+        let entries = std::mem::take(&mut self.entries);
+        self.selected = None;
+        let controls = entries.iter().map(|(control, _)| *control).collect();
+        let products = entries
+            .into_iter()
+            .map(|(_, transaction)| {
+                if transaction.normal.is_some()
+                    || transaction.invariant.is_some()
+                    || transaction.replacing.is_some()
+                    || transaction.invariant_result.is_some()
+                    || transaction.replace_result.is_some()
+                {
+                    return None;
+                }
+                transaction.result
+            })
+            .collect::<Option<Vec<_>>>()?;
+        crate::ownership_checking::UnitOwnerClosedLoopBatchV1::seal(controls, products)
+    }
+    // The legacy projection has one product slot: never silently choose among many.
     pub(in super::super::super) fn take(&mut self) -> Option<LoopTransaction> {
         let entries = std::mem::take(&mut self.entries);
         self.selected = None;

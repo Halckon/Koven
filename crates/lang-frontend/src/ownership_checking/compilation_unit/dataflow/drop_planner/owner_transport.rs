@@ -49,6 +49,7 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            closed_loop_batch: None,
             open_loop_value: None,
         });
     }
@@ -77,6 +78,7 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            closed_loop_batch: None,
             open_loop_value: None,
         });
     }
@@ -107,12 +109,14 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
+        let closed_loop_batch = self.owner_loop.take_closed_batch();
         let (loop_value, invariant_loop_value, open_loop_value) = self
             .owner_loop
             .take()
             .map(loops::LoopTransaction::finish)
             .unwrap_or_default();
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.closed_loop_batch = closed_loop_batch.map(Box::new);
             observation.open_loop_value = open_loop_value;
             observation.loop_value = loop_value.map(Box::new);
             observation.invariant_loop_value = invariant_loop_value.map(Box::new);
