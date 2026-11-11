@@ -31,7 +31,7 @@
 
 ### 2.2 退役 `provider` 死辅助入口并移除 `#[allow(dead_code)]`
 
-- 从 `crates/lang-codegen/src/ssa/provider.rs` 移除无调用方的 `ProviderNext`、`ProviderHeader::backedge`、`finish_element_and_advance_in_block` 与 `finish_element_and_advance`。
+- 从 `crates/lang-codegen/src/ssa/provider.rs` 移除生产路径无调用方的 `finish_element_and_advance_in_block`；`ProviderNext`、`ProviderHeader::backedge` 与 `finish_element_and_advance` 仍由 `llvm/container_tests/provider_cfg.rs` 的 provider CFG fixture 消费，因此改为 `#[cfg(test)]` 门控保留，而非删除。
 - 简化 `provider::advance_in_block` 签名，使其仅接收 `(function, block, cursor, step, int_type, origin)` 并直接返回 `Result<ValueId, ModelError>`，同步更新 `unit_lower/loop_control/iteration.rs::advance_iteration`。
 - 为 `ProviderHeader` 与 `GuardedElement` 中仅由 `lower_frontend` 回归测试读取的槽位与访问器加上 `#[cfg(test)]`，并从 `crates/lang-codegen/src/ssa/mod.rs` 移除 `pub(crate) mod provider;` 上的 `#[allow(dead_code)]`。
 
@@ -46,6 +46,6 @@
 
 ## 3. 验收标准
 
-- [x] 移除 `UnitExpressionLowerer` 死字段、`provider` 死辅助函数与 `#[allow(dead_code)]`、`map_source::unit_drop_event`，并完成测试专用支持项的 `#[cfg(test)]` 门控。
+- [x] 移除 `UnitExpressionLowerer` 死字段、`provider` 死辅助函数与 `#[allow(dead_code)]`、`map_source::unit_drop_event`，并完成测试专用支持项的 `#[cfg(test)]` 门控；provider CFG fixture 仍使用的 `ProviderNext` / `ProviderHeader::backedge` / `finish_element_and_advance` 改为 `#[cfg(test)]` 保留。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
-- [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+- [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR 为准。

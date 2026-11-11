@@ -1,12 +1,12 @@
 //! Shared expression algorithms; entry adapters retain identity and stateful submission.
 pub(super) mod checked;
 
+use super::model::ValueId;
 #[cfg(test)]
 use super::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{Operation, SsaTypeId},
 };
-use super::model::ValueId;
 #[cfg(test)]
 use lang_frontend::{
     source::Span,

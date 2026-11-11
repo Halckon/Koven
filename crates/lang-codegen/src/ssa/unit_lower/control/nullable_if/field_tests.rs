@@ -401,8 +401,7 @@ fn assert_field_proofs(
         )
         .id();
         let nodes = input.parsed().ast().expressions();
-        let (control_id, _) =
-            only(nodes.iter().filter(|(_, node)| node.span() == control_span));
+        let (control_id, _) = only(nodes.iter().filter(|(_, node)| node.span() == control_span));
         let body = function.block(non_null_edge.target).unwrap();
         let null = function.block(null_edge.target).unwrap();
         // SPEC-0350: a function inside the refinement subset attributes the proof
