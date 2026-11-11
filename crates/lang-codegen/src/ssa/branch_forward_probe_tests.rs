@@ -254,7 +254,8 @@ fn ordinary_branch_neighbors_keep_the_unit_declaration_gate() {
                 &owned,
                 run.id(),
             )
-            .unwrap_err();
+            .err()
+            .expect("unadmitted block must stay rejected");
             assert_eq!(
                 error.kind,
                 crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
