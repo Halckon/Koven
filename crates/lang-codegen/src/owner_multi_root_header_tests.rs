@@ -444,13 +444,41 @@ fn multi_root_receipt_preserves_completed_prefix_before_root_reinitialization() 
 }
 
 #[test]
-fn multi_root_optional_receipt_keeps_scalar_prefix_cfg_supported() {
-    let text = source(2, false, 2).replace("while(flag)", "if(flag) { val n = 1 }; while(flag)");
-    let source = UnitSource::analyze("multi-root-prefix-cfg.ko", &text).unwrap();
-    source.assert_frontend_clean();
-    let (program, entry) = source.lower_entry(source.entry()).unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+fn multi_root_consumes_actual_scalar_prefix_diamonds() {
+    let prefix = "if(choose) { val n = 1 } else { val n = 2 };";
+    for choose in [false, true] {
+        let text = source(2, true, 1)
+            .replace("flag: Boolean", "flag: Boolean, choose: Boolean")
+            .replace("run(false)", &format!("run(false, {choose})"))
+            .replace("while(flag)", &format!("{prefix} while(flag)"));
+        let source = UnitSource::analyze("multi-root-prefix-cfg.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert!(
+            source
+                .ownership()
+                .owner_observations()
+                .iter()
+                .any(|o| o.multi_root_boundary_v1().is_some())
+        );
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        assert!(
+            actions
+                .iter()
+                .any(|(kind, _)| *kind == "multi-root-header-audit")
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "multi-root-cross-block-entry")
+                .count(),
+            2
+        );
+        super::assert_native_output(&source, b"");
+    }
 }
 
 #[test]
@@ -520,4 +548,30 @@ fn multi_root_aliased_entry_with_prior_read_stays_on_legacy_path() {
             .all(|(kind, _)| *kind != "multi-root-header-audit")
     );
     super::assert_native_output(&source, b"entry0\n");
+}
+
+#[test]
+fn multi_root_prefix_root_read_does_not_gain_cross_block_receipt() {
+    let text = source(2, false, 2).replace("while(flag)", "if(flag) { println(r0) }; while(flag)");
+    let source = UnitSource::analyze("multi-root-prefix-read.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // The frontend already withholds this product for the root-touching branch.
+    assert!(
+        source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .all(|o| o.multi_root_boundary_v1().is_none())
+    );
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| *kind != "multi-root-header-audit")
+    );
+    super::assert_native_output(&source, b"");
 }

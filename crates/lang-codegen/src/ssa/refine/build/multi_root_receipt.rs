@@ -141,7 +141,7 @@ impl Builder<'_, '_> {
         }
         let entry = self.block.ok_or_else(fail)?;
         // Optional audit eligibility, not language admission: this first receipt only
-        // covers same-block single-use String -> alias chain -> root moves.
+        // covers single-use entry moves followed by acyclic root-transparent paths.
         let entry_chains = plan
             .boundary
             .slots()
@@ -158,8 +158,7 @@ impl Builder<'_, '_> {
                 let Ok(node) = self.inputs.parsed.ast().expressions().get(id.expression()) else {
                     return false;
                 };
-                let statements = &self.body.blocks[entry.0].statements;
-                entry::producer(statements, *root, node.span()).is_some()
+                entry::prefix(&self.body, entry, *root, node.span()).is_some()
             });
         if !entry_chains {
             self.multi_root_plan = None;
@@ -308,14 +307,27 @@ impl Builder<'_, '_> {
         }
         for (root_index, slot) in boundary.slots().iter().enumerate() {
             let root = plan.roots[root_index];
-            let initial = self.multi_root_literal(
-                boundary
-                    .input_catalog()
-                    .definition(slot.entry())
-                    .ok_or_else(fail)?
-                    .origin(),
-                entry,
-            )?;
+            let origin = boundary
+                .input_catalog()
+                .definition(slot.entry())
+                .ok_or_else(fail)?
+                .origin();
+            let UnitOwnerOrigin::String(id) = origin else {
+                return Err(fail());
+            };
+            let (initial_block, initial) =
+                entry::prefix(&self.body, entry, root, self.span(id.expression()))
+                    .ok_or_else(fail)?;
+            if self.multi_root_literal(origin, initial_block)? != initial {
+                return Err(fail());
+            }
+            #[cfg(test)]
+            if initial_block != entry {
+                owner_consumer_test_support::record_action(
+                    "multi-root-cross-block-entry",
+                    root_index,
+                );
+            }
             let produced = self.multi_root_literal(
                 boundary
                     .body_catalog()
@@ -324,16 +336,6 @@ impl Builder<'_, '_> {
                     .origin(),
                 body,
             )?;
-            let entry_source = entry::producer(
-                &self.body.blocks[entry.0].statements,
-                root,
-                self.body.blocks[entry.0]
-                    .statements
-                    .iter()
-                    .find(|s| s.results == [initial])
-                    .ok_or_else(fail)?
-                    .span,
-            );
             let step = plan
                 .steps
                 .iter()
@@ -344,10 +346,7 @@ impl Builder<'_, '_> {
             let [(replace_index, replace)] = matching.as_slice() else {
                 return Err(fail());
             };
-            if entry_source != Some(initial)
-                || replace.results.len() != 2
-                || replace.results[0] != root
-            {
+            if replace.results.len() != 2 || replace.results[0] != root {
                 return Err(fail());
             }
             let old = replace.results[1];
@@ -371,7 +370,7 @@ impl Builder<'_, '_> {
                 || *alias_index >= drop_index
                 || old == root
                 || detached == root
-                || self.body.blocks[entry.0]
+                || self.body.blocks[initial_block.0]
                     .statements
                     .iter()
                     .filter(|s| s.results.contains(&root))
