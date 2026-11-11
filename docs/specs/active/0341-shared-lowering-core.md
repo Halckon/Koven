@@ -12449,3 +12449,10 @@ header 不变量为完整 String owner 且无未完成 pending/loan；不能靠 
 伪装成 invariant 或两个独立 Return；需要该变体自己的 header-source 交付端点。
 Boolean assignment 也仅能按真实 typed RHS 正常完成接点窄准入，不放开一般 Assignment。
 旧 closed/invariant/Break/ReturnDelivered、原 emitters、语言与 ABI 保持原义。
+
+正常回边边界已按 accepted ADR-0038 §2/5/6 确认属于现有架构内的实现选择。
+本片仅既有 String root、局部 Boolean 控制、一次 Replace 后 Boolean 赋值及正常回边；
+H 是统一开放循环内的来源参数，不是新增 producer 或 P 的同义词。独立产品须核真实
+entry/body completion/condition-false/tail delivery，精确收敛任意合法 H 的 Replace、
+旧 H Drop 与新激活 Q 回边。旧 closed/invariant/Break/ReturnDelivered 不放宽。
+先补 FE 缺产品红；原来 consumer 缺权限红保持原字节，未有生产绿前不声明已覆盖。

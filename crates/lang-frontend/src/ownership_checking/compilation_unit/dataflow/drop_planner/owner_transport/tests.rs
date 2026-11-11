@@ -563,3 +563,5 @@ mod replace_break_pair_call;
 mod replace_break_alias_return;
 
 mod replace_break_replace_return;
+
+mod normal_backedge;
