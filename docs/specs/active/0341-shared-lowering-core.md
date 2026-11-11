@@ -15127,3 +15127,20 @@ check、FE/CG默认lib --no-run、fmt/diff、文档897项全部通过；CI-only�
 尺寸检查以2beb5592为基准通过：2603个手写Rust文件、36个历史超1000行债务仍报告，
 本次1684>1674阻塞已由自然职责拆分解除，policy无修改；不宣称其他历史债务已消除。
 未运行native全套或远端CI。日志owner-cleanup-*；独立等价性与复审均通过。
+
+
+### 辅助区域 CI fixture 修复（2026-11-12，本地）
+
+输入 `f1e16d56` 的双平台 [CI 43055725074](https://github.com/Halckon/Koven/actions/runs/43055725074)
+各有 6 项 auxiliary validator CI-only 负控在正控准备时失败：fixture 假定最终 owner
+目录恰有一个 definition，但旧 owner observation 在借用调用形状下为 Unsupported，
+已清空目录。局部辅助区域入口此前形成的 owner 并不因此不存在，不能从最终目录反推。
+
+测试专用、显式启用的 thread-local 只读捕获实际 `Candidate::finish` 输入，准备正控
+后立即关闭；不向生产产品增加字段、不重建 owner、不改 coverage 或原六项负控变异。
+新增普通正控覆盖来源第一/第二位的真实 candidate，实际先复现 1 failed，再 1 passed。
+`cargo test --locked --offline -p lang-frontend --lib -- --skip ci_only` 实跑
+641 passed、53 filtered；五个辅助 integration 目标共 8 passed。feature all-target
+strict Clippy、fmt/diff 通过；6 项 CI-only 编译并列出，依故障注入仅 CI 约束未本地执行。
+普通正控通过不代替负控验收，须明日推送后核对其远端实际结果；未推送、未处理 Preview。
+原始日志留隔离工作树 `.local-artifacts/ci-fixture/`，D10/E2 状态与能力边界不变。

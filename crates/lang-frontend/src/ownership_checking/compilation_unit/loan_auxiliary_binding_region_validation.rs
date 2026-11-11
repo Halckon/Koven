@@ -36,6 +36,8 @@ impl Candidate {
         actions: &[UnitLoanAction],
         auxiliaries: &[UnitLoanAuxiliaryRetirement],
     ) -> UnitBorrowAuxiliaryBindingRegion {
+        #[cfg(test)]
+        tests::record_candidate(&self);
         let coverage = self.coverage(&identity, actions, auxiliaries);
         UnitBorrowAuxiliaryBindingRegion {
             identity,

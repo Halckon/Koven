@@ -1,10 +1,24 @@
-//! Constructed invalid coverage evidence is CI-only; do not execute locally.
+//! Invalid evidence tests are CI-only; the ordinary fixture test injects no faults.
 use super::*;
-use crate::ownership_checking::{
-    UnitDropPoint, UnitIterationCleanupAction, compilation_unit::formed_tests::Fixture,
-};
+use crate::ownership_checking::{UnitDropPoint, compilation_unit::formed_tests::Fixture};
 
 const SOURCE: &str = "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }";
+
+thread_local! {
+    // Opt-in read-only capture of the real validator input, before publication.
+    // Final owner observations can be Unsupported and intentionally clear definitions.
+    static RECORDED: std::cell::RefCell<Option<Vec<Candidate>>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+pub(super) fn record_candidate(candidate: &Candidate) {
+    RECORDED.with_borrow_mut(|recorded| {
+        if let Some(recorded) = recorded {
+            recorded.push(candidate.clone());
+        }
+    });
+}
 
 fn recorded_with(
     text: &str,
@@ -16,75 +30,23 @@ fn recorded_with(
     Vec<UnitLoanAuxiliaryRetirement>,
 ) {
     let fixture = Fixture::new(&[("binding-coverage.ko", text)]);
+    RECORDED.with_borrow_mut(|recorded| *recorded = Some(Vec::new()));
     let shared = fixture.shared();
+    let mut recorded = RECORDED.with_borrow_mut(|recorded| recorded.take().unwrap());
+    assert_eq!(recorded.len(), 1, "one actual auxiliary validator input");
+    let candidate = recorded.pop().unwrap();
     let observation = &shared.loan_action_observations()[0];
     let region = &observation.auxiliary_binding_regions()[0];
     assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
-    let ids = region.action_ids().collect::<Vec<_>>();
-    let UnitLoanAction::Begin(source) = observation.action(&ids[source_index]).unwrap() else {
-        unreachable!()
-    };
-    let UnitLoanAction::Begin(auxiliary) = observation.action(&ids[1 - source_index]).unwrap()
-    else {
-        unreachable!()
-    };
-    let UnitLoanAction::Begin(consumer) = observation.action(&ids[3]).unwrap() else {
-        unreachable!()
-    };
-    let UnitLoanAction::Cleanup {
-        point: UnitDropPoint::AfterStatement(statement),
-        action: UnitIterationCleanupAction::Drop(drop),
-    } = observation.action(&ids[7]).unwrap()
-    else {
-        unreachable!()
-    };
-    let owner_observation = shared
-        .owner_observations()
-        .iter()
-        .find(|owner| {
-            owner.callable()
-                == crate::ownership_checking::UnitOwnerCallable::Function(region.callable())
-        })
-        .unwrap();
-    let [definition] = owner_observation.definitions() else {
-        panic!("the original caller forms exactly one owner")
-    };
-    assert!(matches!(
-        definition.origin(),
-        crate::ownership_checking::UnitOwnerOrigin::String(_)
-    ));
-    let owner = OwnerSnapshot {
-        owner: Some(definition.id()),
-        symbol: region.root(),
-        origin: drop.value_origin(),
-        declaration: drop.value_origin(),
-        scope_depth: 1,
-    };
-    let candidate = Candidate {
-        scope: Scope {
-            callable: region.callable(),
-            binding: region.binding(),
-            root: region.root(),
-            source_call: region.source_call(),
-            consumer_call: region.consumer_call(),
-            entry: region.entry_statement(),
-            completion: region.completion_statement(),
-            consumer_statement: *statement,
-        },
-        expected: Some(Expected {
-            source_index,
-            source: source.clone(),
-            auxiliary: auxiliary.clone(),
-            consumer: consumer.clone(),
-            owner: owner.clone(),
-        }),
-        start: ids[0].index,
-        end: Some(ids[7].index + 1),
-        exit_empty: true,
-        drop_link: Some((ids[6].clone(), ids[7].clone())),
-        ambiguous: false,
-        removed_owner: Some(owner),
-    };
+    assert_eq!(candidate.scope.callable, region.callable());
+    assert_eq!(candidate.scope.root, region.root());
+    let expected = candidate.expected.as_ref().unwrap();
+    assert_eq!(expected.source_index, source_index);
+    assert!(
+        expected.owner.owner.is_some(),
+        "actual entry owner was formed"
+    );
+    assert!(candidate.removed_owner.as_ref() == Some(&expected.owner));
     (
         candidate,
         observation.identity.clone(),
@@ -100,6 +62,26 @@ fn recorded() -> (
     Vec<UnitLoanAuxiliaryRetirement>,
 ) {
     recorded_with(SOURCE, 0)
+}
+
+#[test]
+fn ordinary_auxiliary_binding_fixture_preserves_actual_entry_owner() {
+    for (text, source_index) in [
+        (SOURCE.to_owned(), 0),
+        (
+            SOURCE.replace(
+                "view(source: String, aux: String)",
+                "view(aux: String, source: String)",
+            ),
+            1,
+        ),
+    ] {
+        let (candidate, identity, actions, relations) = recorded_with(&text, source_index);
+        assert_eq!(
+            candidate.coverage(&identity, &actions, &relations),
+            UnitLoanActionCoverage::Complete
+        );
+    }
 }
 
 #[test]
