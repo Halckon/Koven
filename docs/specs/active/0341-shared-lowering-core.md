@@ -12584,3 +12584,42 @@ manifest、冻结binary和原日志。本机临时证据不保证长期保留。
 未运行native、CI-only、资源计数、Clippy或全套CI。红测试尚未修复，不可发布合main。
 后续先独立描述Int控制的类型/身份与单步赋值完成事实，复用既有H入边/回边合同；
 核真实运算的正常完成和提前终止边，不靠0/1/2/7展开替代归纳，再接同一真实Return消费。
+
+#### 受限 Int header 后继生产验收范围
+
+本后继生产片复用原样红，不改变其断言。独立准入严格 Int 0 起点、raw
+`index < limit`（唯一不可变 Int 参数）及 raw `index = index + 1`；其他步长、
+比较、起点、Group、额外 Continue 保持不认证，不使 Int 落入旧 Boolean 协议。
+FE 保存真实 increment 身份及 assignment/body 完成事实，仍使用原有限 H 守恒。
+代码生成保留 checked-add 的真实 success/Abort 两边；实际生产 hook 保存指令位置、
+操作数及 block/slot 身份，Return 终态重新核唯一定义、success 回边与无 H 改写。
+Abort 不是回边且不插入 unwind；不因数学范围证明移除实际溢出守卫。
+
+此后继验收明确增加 Basic/Const 下 0/1/2/7 的有限普通 native 输出对照，以及
+实际 SSA H 入边/回边/false 出口与唯一 Replace/Drop、Abort 独立终结的结构检查。
+这些正常有限运行不构成任意次数或泄漏证明；所有 fault、Abort 执行、计数与压力
+仍只在 CI。原探针阶段“不执行 native”的历史记录不变。
+
+#### 受限 Int header 生产结果
+
+原样红提交 `204fd86c` 未改源码或断言。FE 准入后曾暴露后端仍假定 body 直接
+回 header 的 InvalidModel；保留失败日志并通过真实 checked-add hook 绑定成功与
+Abort 两边修复，没有删溢出守卫。新 SSA 测试首跑曾错误要求 Q 跨 success block
+保持同一 ValueId；修为完整 Q→success 参数→header 入参链后通过，未删除其他断言。
+严格 Clippy 曾报测试中 unit variant 的冗余结构写法，修正后通过，原日志保留。
+
+最终冻结 Rust 的 FE 4 / CG 5 共9项 ordinary exact 全部通过（各1 passed）；含
+原缺receipt红、真实CFG、Basic/Const两次native输出 outer/next/next/next、旧Boolean
+及8个合法邻例的拒认证。实际 checked-add 的 Abort 分支保留但未运行。
+新增 increment 与 assignment 身份混淆负控、旧破损/fault 等 CI-only 仅编译。
+
+最终 FE/CG lib no-run、fmt、FE/CG all-targets strict Clippy（CG仅显式loan support）、
+默认workspace all-targets、docs、相对 `0f9c395d` 尺寸及diff检查通过。
+opt0/debug2未调整；4281输入、实际binary、runner与名单运行前后哈希一致，
+独立源码/生产/测试审查及执行前身份核验通过。原件与失败日志保留在
+`/private/tmp/koven-owner-counter-backedge-evidence`，最终 `sealed-*` 清单对应本轮。
+仅后续追加验收文案，不改已测Rust；本机临时证据不保证长期保存。
+
+这是单根、单计数器、唯一参数、固定比较/增量的有限合同，不等于一般循环、
+Continue、多根、capture、完整D10/E2、资源计数或旧oracle退休。未推送，无此头官方CI；
+与其他后继分片合流仍须针对真实组合头重验，不以本分支结果替代。

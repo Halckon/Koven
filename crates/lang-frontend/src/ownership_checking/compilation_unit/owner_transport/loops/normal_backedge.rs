@@ -34,6 +34,7 @@ pub struct UnitOwnerNormalBackedgeV1 {
     pub(in crate::ownership_checking::compilation_unit) false_sample: UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) target: ReturnConsumerTarget,
     pub(in crate::ownership_checking::compilation_unit) assignment: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) increment: Option<UnitExpressionId>,
     pub(in crate::ownership_checking::compilation_unit) assignment_completed: bool,
     pub(in crate::ownership_checking::compilation_unit) body_completed: bool,
     pub(in crate::ownership_checking::compilation_unit) taken: bool,
@@ -88,6 +89,10 @@ impl UnitOwnerNormalBackedgeV1 {
             UnitOwnerHeaderSourceV1::Backedge(self.backedge.owner()),
         ]
     }
+    /// Exact checked Int increment whose normal and Abort edges remain distinct.
+    pub fn increment(&self) -> Option<UnitExpressionId> {
+        self.increment
+    }
     /// The terminal Name consumes H, never a fixed P or Q token.
     pub fn return_payload(&self) -> UnitExpressionId {
         self.target.payload
@@ -113,7 +118,19 @@ impl UnitOwnerNormalBackedgeV1 {
         let p = self.entry.owner();
         let q = self.backedge.owner();
         let source = self.statement.source_unit();
-        self.assignment_completed
+        self.increment.is_none_or(|id| {
+            id.source_unit() == source
+                && ![
+                    self.initial,
+                    self.argument,
+                    self.call,
+                    self.assignment,
+                    self.condition,
+                    self.target.payload,
+                    self.target.expression,
+                ]
+                .contains(&id)
+        }) && self.assignment_completed
             && self.body_completed
             && self.taken
             && self.delivered

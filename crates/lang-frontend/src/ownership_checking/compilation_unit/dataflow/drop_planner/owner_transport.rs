@@ -318,6 +318,7 @@ impl DropPlanner<'_, '_> {
                         }))
             }
             Expression::Assignment { .. } => self.normal_assignment_supported(id),
+            Expression::Binary { .. } => self.normal_control_expression_supported(id),
             Expression::Literal(_) => self
                 .checker
                 .typed

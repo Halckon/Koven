@@ -1,13 +1,15 @@
 //! Normal-backedge collection at real planner entry, body completion and Return hooks.
 use super::*;
 use crate::ownership_checking::{UnitOwnerNormalBackedgeV1, UnitOwnerProducerCatalogV1};
-use crate::parser::{AssignmentOperator, LiteralKind};
+use crate::parser::AssignmentOperator;
+mod control;
 
 pub(super) struct NormalInput {
     pub(super) statement: StatementId,
     pub(super) condition: ExpressionId,
     pub(super) body: StatementId,
     assignment: ExpressionId,
+    increment: Option<ExpressionId>,
     root: UnitSymbolId,
     initial: UnitExpressionId,
     argument: UnitExpressionId,
@@ -55,35 +57,13 @@ impl NormalInput {
         else {
             return None;
         };
-        let boolean = *checker.marker_symbol(*name)?;
-        let init_node = ast.expressions().get(*initializer).ok()?;
-        if !exact_type(checker, *initializer, BuiltinType::Boolean)
-            || !matches!(init_node.payload(), Expression::Name)
-            || !checker
-                .reference_symbol(init_node.span())
-                .is_some_and(|id| parameters.contains(&id))
-            || checker
-                .typed
-                .symbol_type(boolean)
-                .and_then(|ty| checker.typed.types().get(ty))
-                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-        {
-            return None;
-        }
+        let control_symbol = *checker.marker_symbol(*name)?;
         let Statement::While {
             condition, body, ..
         } = ast.statements().get(*statement).ok()?.payload()
         else {
             return None;
         };
-        let condition_node = ast.expressions().get(*condition).ok()?;
-        if !matches!(condition_node.payload(), Expression::Name)
-            || checker.reference_symbol(condition_node.span()) != Some(boolean)
-            || !exact_type(checker, *condition, BuiltinType::Boolean)
-            || checker.ordinary_condition_outcomes(*condition) != (true, true)
-        {
-            return None;
-        }
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
@@ -157,18 +137,15 @@ impl NormalInput {
         else {
             return None;
         };
-        let target_node = ast.expressions().get(*target).ok()?;
-        if !matches!(target_node.payload(), Expression::Name)
-            || checker.reference_symbol(target_node.span()) != Some(boolean)
-            || !exact_type(checker, *target, BuiltinType::Boolean)
-            || !exact_type(checker, *value, BuiltinType::Boolean)
-            || !matches!(
-                ast.expressions().get(*value).ok()?.payload(),
-                Expression::Literal(LiteralKind::Boolean(false))
-            )
-        {
-            return None;
-        }
+        let increment = control::admit(
+            checker,
+            parameters,
+            control_symbol,
+            *initializer,
+            *condition,
+            *target,
+            *value,
+        )?;
         let target = super::super::replace_return_consumer::admit(checker, *suffix, root)?;
         if target.binding.is_some() || target.replacement.is_some() {
             return None;
@@ -178,6 +155,7 @@ impl NormalInput {
             condition: *condition,
             body: *body,
             assignment: *assignment,
+            increment,
             root,
             initial: checker.unit_expression(initial),
             argument: checker.unit_expression(incoming.value),
@@ -323,6 +301,7 @@ impl NormalInput {
             false_sample: entry,
             target: self.target.clone(),
             assignment: UnitExpressionId::new(source, self.assignment),
+            increment: self.increment.map(|id| UnitExpressionId::new(source, id)),
             assignment_completed: self.assigned,
             body_completed: true,
             taken: false,
@@ -384,6 +363,26 @@ impl NormalInput {
     }
 }
 impl DropPlanner<'_, '_> {
+    pub(in super::super) fn normal_control_expression_supported(&self, id: ExpressionId) -> bool {
+        let Some(transaction) = &self.owner_loop else {
+            return false;
+        };
+        let Some(normal) = &transaction.normal else {
+            return false;
+        };
+        if normal.increment == Some(id) {
+            return self.normal_assignment_supported(normal.assignment);
+        }
+        normal.increment.is_some()
+            && normal.condition == id
+            && normal.valid
+            && !normal.entered
+            && normal.prefix.is_some()
+            && transaction.active.is_none()
+            && self.loop_boundaries.is_empty()
+            && self.owner_branch_depth == 0
+            && self.scope_depth == 1
+    }
     pub(in super::super) fn normal_assignment_supported(&self, id: ExpressionId) -> bool {
         self.owner_loop.as_ref().is_some_and(|t| {
             t.normal

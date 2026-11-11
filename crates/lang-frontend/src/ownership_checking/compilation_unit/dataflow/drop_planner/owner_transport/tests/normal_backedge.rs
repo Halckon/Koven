@@ -111,16 +111,57 @@ fn ci_only_normal_backedge_rejects_damaged_completion() {
             _ => None,
         })
         .unwrap();
-    for damage in 0..4 {
+    for damage in 0..5 {
         let mut product = (**original).clone();
         match damage {
             0 => product.assignment_completed = false,
             1 => product.body_completed = false,
             2 => product.cleaned = false,
+            3 => product.increment = Some(product.assignment),
             _ => {
                 product.events.pop();
             }
         }
         assert!(!product.is_consistent());
+    }
+}
+
+#[test]
+fn counter_control_seals_only_exact_normal_steps() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    let source = r#"fun run(limit: Int): String {
+        var held = "outer"
+        var index = 0
+        while(index < limit) { val previous = replace(&held, "next"); index = index + 1 }
+        return held
+    }"#;
+    let texts = [
+        source.to_owned(),
+        source.replace("index = 0", "index = 1"),
+        source.replace("index + 1", "index + 2"),
+        source.replace("index < limit", "index <= limit"),
+        source.replace("index + 1", "index - 1"),
+        source.replace("index + 1", "(index + 1)"),
+        source.replace("index < limit", "(index < limit)"),
+        source.replace("index = index + 1", "index = index + 1; continue"),
+    ];
+    for (index, text) in texts.iter().enumerate() {
+        let fixture = Fixture::new(&[("counter.ko", text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| match o.open_loop_observation_v1() {
+                Some(O::NormalBackedge(v)) => Some(v),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(products.len(), usize::from(index == 0), "neighbor {index}");
+        if let Some(product) = products.first() {
+            assert!(product.is_consistent());
+        }
     }
 }

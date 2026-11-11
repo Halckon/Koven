@@ -237,3 +237,169 @@ fun entry(): Unit {
     );
     assert_eq!(receipt.1, receipt.2);
 }
+
+const COUNTER_SOURCE: &str = r#"fun run(limit: Int): String {
+    var held = "outer"
+    var index = 0
+    while(index < limit) { val previous = replace(&held, "next"); index = index + 1 }
+    return held
+}
+fun entry(): Unit { val a = run(0); val b = run(1); val c = run(2); val d = run(7) }
+"#;
+
+#[test]
+fn counter_backedge_real_ssa_preserves_header_and_abort() {
+    use crate::ssa::model::{EntityId, Operation, TerminatorKind};
+    let source = UnitSource::analyze("counter-cfg.ko", COUNTER_SOURCE).unwrap();
+    source.assert_frontend_clean();
+    let (program, entry) = source.lower_entry(source.entry()).unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = program
+        .modules
+        .iter()
+        .flat_map(|m| &m.functions)
+        .find(|f| {
+            source
+                .sources
+                .slice(f.origin.span())
+                .unwrap()
+                .starts_with("fun run(")
+        })
+        .unwrap();
+    let replacements = run
+        .instructions
+        .iter()
+        .filter(|i| matches!(i.operation, Operation::RootReplace { .. }))
+        .collect::<Vec<_>>();
+    let [replace] = replacements.as_slice() else {
+        panic!("one Replace");
+    };
+    let Operation::RootReplace { owner, .. } = replace.operation else {
+        unreachable!()
+    };
+    let body = run.block(replace.block).unwrap();
+    let owner_index = body
+        .parameters
+        .iter()
+        .position(|p| *p == EntityId::Value(owner))
+        .unwrap();
+    let (header, on_true, on_false) = run
+        .blocks
+        .iter()
+        .find_map(|b| match &b.terminator.as_ref()?.kind {
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } if when_true.target == body.id => Some((b, when_true, when_false)),
+            _ => None,
+        })
+        .unwrap();
+    let h = on_true.arguments[owner_index];
+    let header_index = header.parameters.iter().position(|p| *p == h).unwrap();
+    let incoming = run
+        .blocks
+        .iter()
+        .filter_map(|b| match &b.terminator.as_ref()?.kind {
+            TerminatorKind::Branch(edge) if edge.target == header.id => Some((b, edge)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(incoming.len(), 2);
+    let initial = run
+        .instructions
+        .iter()
+        .find(|i| matches!(&i.operation, Operation::StringLiteral {bytes,..} if bytes == b"outer"))
+        .unwrap();
+    assert!(
+        incoming
+            .iter()
+            .any(|(_, edge)| edge.arguments[header_index] == initial.results[0])
+    );
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &body.terminator.as_ref().unwrap().kind
+    else {
+        panic!("checked Add split");
+    };
+    assert!(matches!(
+        run.block(when_true.target)
+            .unwrap()
+            .terminator
+            .as_ref()
+            .unwrap()
+            .kind,
+        TerminatorKind::Abort
+    ));
+    let (success, backedge) = incoming
+        .iter()
+        .find(|(block, _)| block.id == when_false.target)
+        .unwrap();
+    let forwarded = when_false
+        .arguments
+        .iter()
+        .position(|argument| *argument == replace.results[0])
+        .unwrap();
+    assert_eq!(
+        backedge.arguments[header_index],
+        success.parameters[forwarded]
+    );
+    let drops = run
+        .instructions
+        .iter()
+        .filter(|i| matches!(i.operation, Operation::Drop { .. }))
+        .collect::<Vec<_>>();
+    let [drop] = drops.as_slice() else {
+        panic!("one detached Drop");
+    };
+    assert_eq!(drop.block, body.id);
+    assert!(
+        matches!(drop.operation, Operation::Drop {owner} if EntityId::Value(owner) == replace.results[1])
+    );
+    let exit = run.block(on_false.target).unwrap();
+    let TerminatorKind::Return { values } = &exit.terminator.as_ref().unwrap().kind else {
+        panic!("false exit Return");
+    };
+    let position = exit
+        .parameters
+        .iter()
+        .position(|p| *p == EntityId::Value(values[0]))
+        .unwrap();
+    assert_eq!(on_false.arguments[position], h);
+}
+
+#[test]
+fn counter_backedge_both_units_run_finite_normal_examples() {
+    let source = COUNTER_SOURCE.replace("val a = run(0); val b = run(1); val c = run(2); val d = run(7)",
+        "val a = run(0); println(a); val b = run(1); println(b); val c = run(2); println(c); val d = run(7); println(d)");
+    for constant in [false, true] {
+        let text = if constant {
+            format!(
+                "const val SEVEN: Int = 7\n{}",
+                source.replace("run(7)", "run(SEVEN)")
+            )
+        } else {
+            source.clone()
+        };
+        let source = UnitSource::analyze("counter-native.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            matches!(source.products, OwnedProducts::Constant(..)),
+            constant
+        );
+        let (lowered, receipts) =
+            crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let [receipt] = receipts.as_slice() else {
+            panic!("one Return");
+        };
+        assert!(receipt.2.is_some());
+        assert_eq!(receipt.1, receipt.2);
+        super::assert_native_output(&source, b"outer\nnext\nnext\nnext\n");
+    }
+}

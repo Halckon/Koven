@@ -100,3 +100,5 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 
 本地 [Kovenlings 首片](../tutorials/kovenlings/README.md)提供可变 place 与默认 Borrow 两题，
 复用教程执行器校验失败起点、答案和学习者副本；已接入 bounded composition 门禁。
+
+- [受限正常回边当前 owner](unit-normal-header-owner.md)：有限 H 方程、Boolean/Int 控制与真实 Return 消费。

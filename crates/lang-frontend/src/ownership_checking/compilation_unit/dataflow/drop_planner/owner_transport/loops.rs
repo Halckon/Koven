@@ -130,6 +130,7 @@ impl LoopTransaction {
         }
         let mut parameter_symbols = BTreeSet::new();
         let mut owner_parameter = None;
+        let mut integer_control = false;
         for parameter in parameters {
             let symbol = *checker.marker_symbol(parameter.name)?;
             let ty = checker
@@ -137,6 +138,10 @@ impl LoopTransaction {
                 .symbol_type(symbol)
                 .and_then(|ty| checker.typed.types().get(ty));
             match (ty, parameter.mode_marker) {
+                (Some(UnitTypeKind::Builtin(BuiltinType::Int)), None) if parameters.len() == 1 => {
+                    integer_control = true;
+                    parameter_symbols.insert(symbol);
+                }
                 (Some(UnitTypeKind::Builtin(BuiltinType::Boolean)), None) => {
                     parameter_symbols.insert(symbol);
                 }
@@ -192,6 +197,11 @@ impl LoopTransaction {
                 replace_result: None,
                 normal: Some(normal),
             });
+        }
+        // Int parameters are exclusive to the separately sealed normal-header contract.
+        // A failed admission must never widen any legacy Boolean family.
+        if integer_control {
+            return None;
         }
         let replacing = replace_break::OpenLoopInput::admit(
             checker,

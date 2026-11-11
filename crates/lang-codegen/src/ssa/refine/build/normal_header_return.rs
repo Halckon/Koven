@@ -14,6 +14,7 @@ pub(super) struct Plan<'a> {
     detached: Option<Slot>,
     old: Option<Slot>,
     geometry: Option<[BlockRef; 5]>, // actual entry, header, body, false, exit
+    increment: Option<([BlockRef; 3], [Slot; 4], usize)>,
     taken: bool,
     completed: bool,
 }
@@ -110,12 +111,55 @@ impl<'a> Plan<'a> {
             detached: None,
             old: None,
             geometry: None,
+            increment: None,
             taken: false,
             completed: false,
         }))
     }
 }
 impl Builder<'_, '_> {
+    // Called at the actual checked-arithmetic emission, not by searching a finished CFG.
+    pub(super) fn header_increment_emitted(
+        &mut self,
+        expression: UnitExpressionId,
+        blocks: [BlockRef; 3],
+        values: [Slot; 4],
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(p) = &mut self.header_return_plan else {
+            return Ok(());
+        };
+        if p.boundary.increment() != Some(expression) {
+            return Ok(());
+        }
+        let fail = || error(LoweringErrorKind::InvalidModel, span);
+        let [body, success, abort] = blocks;
+        let [result, failed, left, right] = values;
+        let Some([_, _, expected_body, _, _]) = p.geometry else {
+            return Err(fail());
+        };
+        let statement = self.body.blocks[body.0]
+            .statements
+            .last()
+            .ok_or_else(fail)?;
+        if body != expected_body
+            || self.block != Some(success)
+            || p.increment.is_some()
+            || statement.results != [result, failed]
+            || !matches!(statement.op, ROp::CheckedArithmetic {operator: crate::ssa::model::CheckedArithmeticOperator::Add, left: l, right: r} if l == left && r == right)
+            || !matches!(self.body.blocks[body.0].terminator, Some((RTerm::Branch {condition,when_true,when_false},_)) if condition == failed && when_true == abort && when_false == success)
+            || !matches!(self.body.blocks[abort.0].terminator, Some((RTerm::Abort(super::super::body::RAbort::CheckedArithmetic {operator: crate::ssa::model::CheckedArithmeticOperator::Add, divisor}),_)) if divisor == right)
+            || !self.body.blocks[abort.0].statements.is_empty()
+        {
+            return Err(fail());
+        }
+        p.increment = Some((
+            blocks,
+            values,
+            self.body.blocks[body.0].statements.len() - 1,
+        ));
+        Ok(())
+    }
     pub(super) fn header_result(
         &mut self,
         expression: UnitExpressionId,
@@ -335,15 +379,53 @@ impl Builder<'_, '_> {
                 })
                 .collect::<Vec<_>>()
         };
+        let backedge = match (p.boundary.increment(), p.increment) {
+            (None, None) => body,
+            (Some(_), Some(([origin, success, abort], [result, failed, left, right], index))) => {
+                let instruction = self.body.blocks[body.0]
+                    .statements
+                    .get(index)
+                    .ok_or_else(fail)?;
+                let definition_count = |slot| {
+                    self.body
+                        .blocks
+                        .iter()
+                        .flat_map(|b| &b.statements)
+                        .filter(|s| s.results.contains(&slot))
+                        .count()
+                };
+                if instruction.results != [result, failed]
+                    || !matches!(instruction.op, ROp::CheckedArithmetic {operator: crate::ssa::model::CheckedArithmeticOperator::Add, left: l, right: r} if l == left && r == right)
+                    || definition_count(result) != 1
+                    || definition_count(failed) != 1
+                    || self.body.blocks[success.0].statements.iter().any(|s| {
+                        s.op.operands()
+                            .iter()
+                            .chain(s.results.iter())
+                            .any(|v| [slot, old, detached, initial, replacement].contains(v))
+                    })
+                    || origin != body
+                    || incoming(success) != [body]
+                    || incoming(abort) != [body]
+                    || !self.body.blocks[abort.0].statements.is_empty()
+                    || !matches!(self.body.blocks[abort.0].terminator, Some((RTerm::Abort(super::super::body::RAbort::CheckedArithmetic {operator: crate::ssa::model::CheckedArithmeticOperator::Add, divisor}),_)) if divisor == right)
+                    || !matches!(self.body.blocks[body.0].terminator, Some((RTerm::Branch {condition,when_true,when_false},_)) if condition == failed && when_true == abort && when_false == success)
+                {
+                    return Err(fail());
+                }
+                success
+            }
+            _ => return Err(fail()),
+        };
         // This finite CFG equation closes under any number of traversals: each body
         // replaces the current slot with fresh Q, drops its old value once, and goes
         // back to the same header. SSA subsequently versions that slot into phi inputs.
-        if incoming(header) != [entry, body]
+        if incoming(header) != [entry, backedge]
             || incoming(body) != [header]
             || incoming(finished) != [header]
             || incoming(exit) != [finished]
             || !matches!(self.body.blocks[entry.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
-            || !matches!(self.body.blocks[body.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
+            || !matches!(self.body.blocks[backedge.0].terminator, Some((RTerm::Goto(b),_)) if b == header)
             || !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(b),_)) if b == exit)
             || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch {when_true,when_false,..},_)) if when_true == body && when_false == finished)
         {
