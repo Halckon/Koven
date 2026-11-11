@@ -14162,3 +14162,32 @@ workspace all-targets check通过。新CI-only真实快照19类final故障及7�
 1684>1674；drop_planner.rs本片完全未改。compilation_unit.rs新公开类型导出+1行，
 独立逐diff评审确认职责必要，当前1116仍低于既有1156额度；策略未改。新候选958行。
 日志为本机single-continuation-*系列；仅本地保存，未推送、未跑native全套/远端CI。
+
+#### 有界单继续出口树的实际后端收据（实施中）
+
+基于d96306aa，本片消费独立continuation证书而不改变旧terminal region含义；保持
+唯一省略else hole、不同Boolean参数、同根、3层/8叶和根后唯一tail return。
+准入独立核原typed/raw，producer须记录每层真实entry、唯一存活前驱join、Goto及
+实际fold顺序；原join到最终块的身份必须仍可追溯。emitted逐edge核source/后代flags、
+每叶callee与tail原块，原final verifier成功后原子发布。不能从最终CFG反推缺失的
+Goto/fold事件。先真实Unsupported红，再证明实际receipt；旧见证和尺寸政策保持。
+
+实际Unsupported红已转绿，5个字面路由正控涵盖根hole、深度2及三类深度3hole；
+逐层source/后代flag、callee/return/ID、真实Goto/fold次数1/2/3和tail映射均核验，
+rooted/memory、observer on/off的SSA与LLVM文本一致。旧合法根hole邻界迁至正控，
+新邻界保留显式空else以及双hole、额外语句、重复/错序flag和深4拒绝。
+
+另用独立递归枚举深度≤3完整树的所有false叶位置，共65种单hole程序，全部实际
+lowering与原verifier通过、开关产物一致；原25种完整终止树也继续通过。producer保留
+原内→外Goto链，fold按实际hook顺序重放“当前相邻组件”，允许先折外join，不将声明
+顺序冒充实际fold顺序；完整折叠后root原tail仍映射到原hole保留块。独立审查补强
+hole最后一边必须为false，旧terminal和fixed协议均不改。
+
+本片CG普通30项回归通过；Clippy -D warnings、默认FE/CG lib no-run、workspace
+all-targets check、fmt/diff及文档897项均通过。CI-only真实快照的身份、原Goto/join、
+漏/重/跨链fold、tail原块与canonical映射及发布回滚测试仅编译，未执行。
+尺寸复测2534手写Rust文件、36个历史超1000行文件，唯一失败仍为前序FE
+1684>1674；本片不改FE、尺寸策略未动，CG无新增尺寸超额。独立审阅确认build新增
+两处计划与terminate接线后1008仍在原1025额度内，emit986未越1000。
+日志为本机single-receipt-*系列；未执行native全套或远端CI，仅本地提交，不推送。
+旧见证保留；多继续出口、显式空分支、多根、循环与无界CFG仍不在此合同内。

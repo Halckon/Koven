@@ -49,6 +49,8 @@ fn lower_unit_impl(
     #[cfg(test)]
     let bounded_publication = crate::ssa::refine::bounded_receipt::UnitPublication::begin();
     #[cfg(test)]
+    let single_publication = crate::ssa::refine::single_receipt::UnitPublication::begin();
+    #[cfg(test)]
     let aux_publication = crate::ssa::refine::aux_binding_receipt::UnitPublication::begin();
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
@@ -875,6 +877,8 @@ fn lower_unit_impl(
     nested_publication.commit();
     #[cfg(test)]
     bounded_publication.commit();
+    #[cfg(test)]
+    single_publication.commit();
     #[cfg(test)]
     aux_publication.commit();
     Ok((program, entry_id))

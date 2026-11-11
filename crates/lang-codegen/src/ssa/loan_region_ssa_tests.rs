@@ -874,3 +874,7 @@ mod bounded_terminal_tree_neighbor_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "bounded_continuation_tree_boundary_tests.rs"]
 mod bounded_continuation_tree_boundary_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "single_continuation_neighbor_tests.rs"]
+mod single_continuation_neighbor_tests;

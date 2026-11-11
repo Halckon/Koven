@@ -174,6 +174,7 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
         body.branch_plans.fold(block, successor, span)?;
         body.nested_plans.fold(block, successor, span)?;
         body.bounded_plans.fold(block, successor, span)?;
+        body.single_plans.fold(block, successor, span)?;
     }
 }
 

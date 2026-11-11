@@ -36,8 +36,8 @@ fn ordinary_bounded_terminal_tree_neighbors_stay_unsupported() {
             3,
         ),
         (
-            "missing-else-continuation",
-            "if (f0) { if (f1) { if (f2) { return c0(source) } else { return c1(source) } } else { return c2(source) } }; return c3(source)",
+            "explicit-empty-else-continuation",
+            "if (f0) { if (f1) { if (f2) { return c0(source) } else { return c1(source) } } else { return c2(source) } } else {}; return c3(source)",
             4,
             3,
         ),

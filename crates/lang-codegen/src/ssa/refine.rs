@@ -17,6 +17,7 @@ pub(crate) mod forward_receipt;
 pub(crate) mod loan_receipt;
 pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;
+pub(crate) mod single_receipt;
 mod subset;
 
 use std::collections::BTreeMap;

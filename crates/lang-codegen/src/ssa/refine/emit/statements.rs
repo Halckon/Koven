@@ -4,6 +4,7 @@ use super::*;
 pub(super) struct LoanReceipts {
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
+    pub(super) single: crate::ssa::refine::single_receipt::Emitted,
     pub(super) branch: crate::ssa::refine::branch_receipt::Emitted,
     pub(super) forward: crate::ssa::refine::forward_receipt::Emitted,
     consumer: crate::ssa::refine::loan_receipt::Emitted,
@@ -28,6 +29,11 @@ impl LoanReceipts {
             )?,
             bounded: crate::ssa::refine::bounded_receipt::Emitted::new(
                 &body.bounded_plans,
+                function,
+                span,
+            )?,
+            single: crate::ssa::refine::single_receipt::Emitted::new(
+                &body.single_plans,
                 function,
                 span,
             )?,
@@ -112,6 +118,14 @@ impl LoanReceipts {
             entities,
             span,
         )?;
+        self.single.layout(
+            &body.single_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
         Ok(())
     }
     pub(super) fn terminator(
@@ -126,6 +140,8 @@ impl LoanReceipts {
             .terminator(&body.nested_plans, function, target, current, span)?;
         self.bounded
             .terminator(&body.bounded_plans, function, target, current, span)?;
+        self.single
+            .terminator(&body.single_plans, function, target, current, span)?;
         self.branch
             .terminator(&body.branch_plans, function, target, current, span)?;
         self.forward
@@ -149,6 +165,7 @@ impl LoanReceipts {
         self.child.finish(&body.child_plans, function, span)?;
         self.nested.finish(&body.nested_plans, function, span)?;
         self.bounded.finish(&body.bounded_plans, function, span)?;
+        self.single.finish(&body.single_plans, function, span)?;
         self.branch.finish(&body.branch_plans, function, span)
     }
 }
@@ -302,6 +319,14 @@ impl Emitter<'_> {
                         statement.span,
                     )?
                 }
+                Some(crate::ssa::refine::body::LoanTag::Single(tag)) => receipts.single.statement(
+                    &body.single_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
                 None => {}
             }
         }

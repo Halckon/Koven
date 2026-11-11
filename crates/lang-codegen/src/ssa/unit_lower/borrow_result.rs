@@ -5,6 +5,8 @@ mod bounded_declaration;
 mod branch_declaration;
 #[path = "nested_declaration.rs"]
 mod nested_declaration;
+#[path = "single_continuation_declaration.rs"]
+mod single_continuation_declaration;
 use super::*;
 use crate::ssa::borrow_result_support::{CallAccess, local_if, ordinary_local};
 use lang_frontend::{
@@ -45,6 +47,7 @@ pub(super) fn validate_declarations(
             if !branch_declaration::allows(file, names, typed, owned, callable)
                 && !nested_declaration::allows(file, names, typed, owned, callable)
                 && !bounded_declaration::allows(file, names, typed, owned, callable)
+                && !single_continuation_declaration::allows(file, names, typed, owned, callable)
             {
                 crate::ssa::borrow_result_support::declaration(file, contract.marker_span())?;
             }
