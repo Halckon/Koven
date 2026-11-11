@@ -192,3 +192,7 @@ CFG证明，唯一typed事务来源必须保留。真实逆序root矩阵验证�
 实际出口 drop 顺序，不再只处理 body 内返回旧值。保留任一根给后缀时不发布本规则。
 这是纯 Name 条件、无额外 body 语句的参数化 false 出口；不改旧 owner 状态/门禁，
 不包括 Break/Return/Abort、live-root 合流或 LLVM phi，不宣称已生成动态执行记录。
+
+`condition_false_partition` 进一步按真实出口资源状态和新增drop事实，将全组来源分成
+保留根与已退休根，要求不重叠且恰覆盖所有根。部分/全部live根只携带形式来源到出口，
+不改旧ValueState中的owner，不声称后缀已消费或LLVM phi已生成；原全根死亡getter不放宽。

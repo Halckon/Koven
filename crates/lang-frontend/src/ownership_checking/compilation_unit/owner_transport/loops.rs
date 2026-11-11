@@ -1,5 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
 mod multi_root_header;
+pub use multi_root_header::UnitOwnerRootExitPartitionV1;
 mod multi_root_normal;
 pub use multi_root_normal::{UnitOwnerMultiRootNormalTransportV1, UnitOwnerRootReplaceStepV1};
 mod multi_root_boundary;

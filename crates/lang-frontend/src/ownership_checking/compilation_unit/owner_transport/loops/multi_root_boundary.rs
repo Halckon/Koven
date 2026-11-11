@@ -51,6 +51,7 @@ pub struct UnitOwnerMultiRootBoundaryV1 {
     manifest: BoundaryManifest,
     normal_transport: Option<UnitOwnerMultiRootNormalTransportV1>,
     exit_drops: Option<Vec<UnitDropFact>>,
+    exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
 }
 // Original evidence map is private to this module, independent from exposed slot clones.
 #[derive(Clone, Debug)]
@@ -66,6 +67,7 @@ struct BoundaryManifest {
     producers: Vec<crate::ownership_checking::UnitOwnerDefinition>,
     normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
     exit_drops: Option<Vec<UnitDropFact>>,
+    exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
 }
 impl UnitOwnerMultiRootBoundaryV1 {
     // Trusted factory: only the validated planner RootBoundaryEquation calls this.
@@ -86,6 +88,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             producers: producers.definitions().to_vec(),
             normal_steps: None,
             exit_drops: None,
+            exit_partition: None,
         };
         let value = Self {
             control,
@@ -98,6 +101,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             manifest,
             normal_transport: None,
             exit_drops: None,
+            exit_partition: None,
         };
         value.is_consistent().then_some(value)
     }
@@ -112,6 +116,47 @@ impl UnitOwnerMultiRootBoundaryV1 {
         self.manifest.normal_steps = Some(actual_steps);
         self.normal_transport = Some(rule);
         self.is_consistent().then_some(self)
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn with_condition_false_partition(
+        mut self,
+        live: Vec<UnitSymbolId>,
+        drops: Vec<UnitDropFact>,
+    ) -> Option<Self> {
+        if self.exit_partition.is_some() {
+            return None;
+        }
+        self.exit_partition = Some((live, drops));
+        self.manifest.exit_partition = self.exit_partition.clone();
+        self.is_consistent().then_some(self)
+    }
+    pub(super) fn condition_false_partition_parts(
+        &self,
+    ) -> Option<(&[UnitSymbolId], &[UnitDropFact])> {
+        self.exit_partition
+            .as_ref()
+            .map(|(live, drops)| (live.as_slice(), drops.as_slice()))
+    }
+    fn valid_exit_partition(&self) -> bool {
+        self.exit_partition == self.manifest.exit_partition
+            && self.exit_partition.as_ref().is_none_or(|(live, drops)| {
+                self.normal_transport.is_some()
+                    && live.len() + drops.len() == self.slots.len()
+                    && live.iter().enumerate().all(|(i, root)| {
+                        !live[..i].contains(root)
+                            && self.slots.iter().any(|slot| slot.root == *root)
+                    })
+                    && self.slots.iter().all(|slot| {
+                        usize::from(live.contains(&slot.root))
+                            + drops
+                                .iter()
+                                .filter(|fact| {
+                                    fact.target() == UnitDropTarget::Named(slot.root)
+                                        && fact.point() == UnitDropPoint::LoopExit(self.control)
+                                })
+                                .count()
+                            == 1
+                    })
+            })
     }
     pub(in crate::ownership_checking::compilation_unit) fn with_condition_false_drops(
         mut self,
@@ -131,6 +176,12 @@ impl UnitOwnerMultiRootBoundaryV1 {
         self.exit_drops == self.manifest.exit_drops
             && self.exit_drops.as_ref().is_none_or(|drops| {
                 self.normal_transport.is_some()
+                    && self
+                        .exit_partition
+                        .as_ref()
+                        .is_none_or(|(live, partition_drops)| {
+                            live.is_empty() && partition_drops == drops
+                        })
                     && drops.len() == self.slots.len()
                     && self.slots.iter().all(|slot| {
                         drops
@@ -207,7 +258,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
     /// Structural/catalog verification, not an induction or runtime trace validator.
     pub fn is_consistent(&self) -> bool {
         let source = self.control.source_unit();
-        self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
+        self.valid_exit_partition() && self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
             && self.manifest.slots == self.slots
             && self.manifest.inputs == self.inputs.definitions()
             && self.manifest.producers == self.producers.definitions()
@@ -399,6 +450,23 @@ mod exit_fault_tests {
             .multi_root_boundary_v1()
             .unwrap();
         assert!(boundary.exit_drops.is_some());
+        let mut contradictory = boundary.clone();
+        let root = contradictory.slots[0].root;
+        let (live, drops) = contradictory.exit_partition.as_mut().unwrap();
+        live.push(root);
+        drops
+            .retain(|fact| fact.target() != crate::ownership_checking::UnitDropTarget::Named(root));
+        contradictory.manifest.exit_partition = contradictory.exit_partition.clone();
+        assert!(!contradictory.is_consistent());
+
+        let mut overlap = boundary.clone();
+        let root = overlap.slots[0].root;
+        overlap.exit_partition.as_mut().unwrap().0.push(root);
+        assert!(!overlap.is_consistent());
+        let mut missing_partition = boundary.clone();
+        missing_partition.exit_partition.as_mut().unwrap().1.pop();
+        assert!(!missing_partition.is_consistent());
+
         let mut missing = boundary.clone();
         missing.exit_drops.as_mut().unwrap().pop();
         assert!(!missing.is_consistent());

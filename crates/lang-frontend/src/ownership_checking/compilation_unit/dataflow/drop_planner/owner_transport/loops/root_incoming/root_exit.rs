@@ -19,6 +19,7 @@ impl DropPlanner<'_, '_> {
             return;
         };
         evidence.exit_drops = None;
+        evidence.exit_partition = None;
         // Body Replace intentionally taints legacy preservation. Keep that sticky bit;
         // the exact normal transaction proves these writes, while after_condition
         // records the uncontaminated pure Name condition boundary.
@@ -26,11 +27,43 @@ impl DropPlanner<'_, '_> {
             || !evidence.after_condition
             || evidence.normal_equation.is_none()
             || evidence.completed_condition != Some(self.checker.unit_expression(condition))
-            || !boundary_values(state).is_some_and(|values| values.is_empty())
         {
             return;
         }
         let drops = &self.facts[start..];
+        let Some(values) = boundary_values(state) else {
+            return;
+        };
+        let live: Vec<_> = values.iter().map(|value| value.symbol).collect();
+        if live.iter().enumerate().any(|(i, root)| {
+            live[..i].contains(root) || !evidence.roots.iter().any(|(known, _)| known == root)
+        }) || live.len() + drops.len() != evidence.roots.len()
+            || evidence.roots.iter().any(|(root, _)| {
+                usize::from(live.contains(root))
+                    + drops
+                        .iter()
+                        .filter(|fact| {
+                            fact.target() == PlannerDropTarget::Named(*root)
+                                && fact.point() == PlannerDropPoint::LoopExit(id)
+                        })
+                        .count()
+                    != 1
+            })
+        {
+            return;
+        }
+        evidence.exit_partition = Some((
+            live.clone(),
+            drops
+                .iter()
+                .map(|fact| fact.into_unit(control.source_unit()))
+                .collect(),
+        ));
+        // Keep the older all-dead capability strictly unchanged.
+        if !live.is_empty() {
+            return;
+        }
+
         if drops.len() != evidence.roots.len()
             || evidence.roots.iter().any(|(root, _)| {
                 drops

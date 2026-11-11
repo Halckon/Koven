@@ -10,10 +10,15 @@ pub(super) type RootRetirements = Vec<(
     UnitSymbolId,
     crate::ownership_checking::UnitDropFact,
 )>;
+type RootExitPartition = (
+    Vec<UnitSymbolId>,
+    Vec<crate::ownership_checking::UnitDropFact>,
+);
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
     normal_equation: Option<root_tokens::RootBoundaryEquation>,
     exit_drops: Option<Vec<crate::ownership_checking::UnitDropFact>>,
+    exit_partition: Option<RootExitPartition>,
     pub(super) entry_catalog: Option<UnitOwnerProducerCatalogV1>,
     pub(super) token_transaction: Option<root_tokens::RootTokenTransaction>,
     pub(super) roots: RootIncoming,
@@ -33,6 +38,7 @@ impl RootEvidence {
         Self {
             normal_equation: None,
             exit_drops: None,
+            exit_partition: None,
             entry_catalog: None,
             token_transaction: None,
             roots,
@@ -57,6 +63,10 @@ impl ControlTransactions {
         }
         let evidence = &mut self.root_entries[0].1;
         let boundary = evidence.normal_equation.take()?.into_boundary()?;
+        let boundary = match evidence.exit_partition.take() {
+            Some((live, drops)) => boundary.with_condition_false_partition(live, drops)?,
+            None => boundary,
+        };
         match evidence.exit_drops.take() {
             Some(drops) => boundary.with_condition_false_drops(drops),
             None => Some(boundary),
@@ -71,6 +81,7 @@ impl ControlTransactions {
             evidence.normal_retirements = None;
             evidence.normal_equation = None;
             evidence.exit_drops = None;
+            evidence.exit_partition = None;
         }
     }
 
@@ -130,6 +141,7 @@ impl ControlTransactions {
             evidence.normal_retirements = None;
             evidence.normal_equation = None;
             evidence.exit_drops = None;
+            evidence.exit_partition = None;
         }
     }
     // Called at the actual planner body-entry edge, not reconstructed from the AST.
@@ -168,6 +180,7 @@ impl ControlTransactions {
             evidence.normal_retirements = None;
             evidence.normal_equation = None;
             evidence.exit_drops = None;
+            evidence.exit_partition = None;
             evidence.normal_backedge = normal
                 && evidence.after_condition
                 && !evidence.tainted
@@ -243,6 +256,7 @@ impl ControlTransactions {
             RootEvidence {
                 normal_equation: None,
                 exit_drops: None,
+                exit_partition: None,
                 entry_catalog,
                 token_transaction: None,
                 roots,

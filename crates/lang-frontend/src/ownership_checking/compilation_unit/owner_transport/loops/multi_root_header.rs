@@ -3,7 +3,51 @@ use super::*;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::UnitDropFact;
 
+/// Parametric implicit-false exit split, not a suffix-consumption or lowering permit.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerRootExitPartitionV1 {
+    live: Vec<(UnitSymbolId, UnitOwnerHeaderSourceV1)>,
+    retired: Vec<(UnitOwnerHeaderSourceV1, UnitDropFact)>,
+}
+impl UnitOwnerRootExitPartitionV1 {
+    /// Retained root locations paired with formal incoming sources, not legacy owner IDs.
+    pub fn live_roots(&self) -> &[(UnitSymbolId, UnitOwnerHeaderSourceV1)] {
+        &self.live
+    }
+    /// Actual exit cleanup order for the other roots.
+    pub fn retirements(&self) -> &[(UnitOwnerHeaderSourceV1, UnitDropFact)] {
+        &self.retired
+    }
+}
+
 impl UnitOwnerMultiRootBoundaryV1 {
+    /// Partition one complete header predecessor at the actual implicit-false exit.
+    /// Every source is retained or retired exactly once. Does not rewrite ValueState,
+    /// resolve a runtime phi, or certify later live-root consumption.
+    pub fn condition_false_partition(
+        &self,
+        control: UnitStatementId,
+        incoming: &[(UnitSymbolId, UnitOwnerHeaderSourceV1)],
+    ) -> Option<UnitOwnerRootExitPartitionV1> {
+        self.normal_header_retirements(control, incoming)?;
+        let (live, drops) = self.condition_false_partition_parts()?;
+        let live = live
+            .iter()
+            .map(|root| incoming.iter().find(|(known, _)| known == root).cloned())
+            .collect::<Option<Vec<_>>>()?;
+        let retired = drops
+            .iter()
+            .map(|fact| {
+                let crate::ownership_checking::UnitDropTarget::Named(root) = fact.target() else {
+                    return None;
+                };
+                let (_, source) = incoming.iter().find(|(known, _)| *known == root)?;
+                Some((source.clone(), *fact))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(UnitOwnerRootExitPartitionV1 { live, retired })
+    }
+
     /// Consume either complete header predecessor at the actual implicit-false exit.
     /// Only available when every root was dropped at this loop exit by the planner.
     /// Pairing preserves real exit-drop order; no suffix/live-root, Break or Return claim.
@@ -163,6 +207,33 @@ mod actual_exit_tests {
                             )
                         })
                         .collect();
+                    let partition = boundary
+                        .condition_false_partition(boundary.statement(), &incoming)
+                        .unwrap();
+                    let expected_live = if suffix.is_empty() {
+                        0
+                    } else if suffix.contains("keepB") {
+                        2
+                    } else {
+                        1
+                    };
+                    assert_eq!(partition.live_roots().len(), expected_live);
+                    assert_eq!(partition.retirements().len(), 2 - expected_live);
+                    for (root, source) in partition.live_roots() {
+                        assert!(incoming.contains(&(*root, source.clone())));
+                        assert!(
+                            partition
+                                .retirements()
+                                .iter()
+                                .all(|(_, fact)| fact.target() != UnitDropTarget::Named(*root))
+                        );
+                    }
+                    for (source, fact) in partition.retirements() {
+                        let UnitDropTarget::Named(root) = fact.target() else {
+                            panic!("expected root");
+                        };
+                        assert!(incoming.contains(&(root, source.clone())));
+                    }
                     let result = boundary
                         .condition_false_header_retirements(boundary.statement(), &incoming);
                     assert_eq!(result.is_some(), admitted, "{source}");
