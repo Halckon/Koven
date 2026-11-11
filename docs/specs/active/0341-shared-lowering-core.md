@@ -13349,3 +13349,20 @@ binding_causal_links::binding_lifecycle_requires_actual_causal_links_with_true_o
 CI-only 重复 case 是整体重复拒绝，未单独隔离 handoff 复用条件；真实 Err/deferred
 撤销、动态循环、跨函数身份、更广类型、native 及完整辅助生命周期不由本片认领。
 生产作者与故障测试作者交叉独审；本片仍基于 a9c9318a，更新 main 的组合另行验收。
+
+### 条件 Return 与 auxiliary 因果链联合验收（2026-11-11）
+
+本次隔离组合保留已发布 `d26171d2`、最新主线 `4150bbd8`、owner `6433a1c2`
+与借用 `cbdbe053` 的真实父链；实测代码头 `f7660ae1`。条件构建同时注册 owner
+条件Return与借用branch计划，真实条件仍仅发射一次；保留主线退役壳迁移，不恢复
+已退休文件。新增类型导出取两线并集，没有扩大语言准入或借用Complete范围。
+
+主仓 `.local-artifacts/conditional-aux-integration-evidence-20261111/attempt-1`
+保存跟踪输入、runner SHA、3份真实Cargo artifact及独立binary SHA、精确list/run日志。
+本组合47普通测试全部通过：owner FE13/CG21、借用辅助因果FE2/CG9，再加去重后
+binding/child邻域2项。使用opt0/debug2；不执行CI-only、故障注入、Abort或资源计数。
+
+默认及loan support两套FE/CG all-target严格Clippy、默认workspace all-target检查、
+默认CLI构建及实际help（features为空）、fmt、docs897、diff均通过。
+相对4150bbd8尺寸2442手写Rust文件、35历史超限，无新增豁免。最后仅追加此Spec；
+本地组合验证不替代正式CI或独立审查，不推送、不合main，D10/E2仍有后续范围。
