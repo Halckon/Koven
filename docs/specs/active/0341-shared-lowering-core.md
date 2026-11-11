@@ -11992,7 +11992,6 @@ status 偏差与 question_mark 风格失败、阶段2的 E0308 oracle 编译偏�
 独立只读终审已逐项复核双父、冻结输入、实际 artifact/binary/九项日志与最终文档分账，无新增阻断；
 审阅者未执行项目测试。文档收尾不重跑未变 Rust，保留原代码头与最终文档头的区别。
 
-<<<<<<< HEAD
 
 ### 已批准：独立 parent-child Complete 区域的生产 receipt
 
@@ -12059,7 +12058,7 @@ all-targets 33.11s、fmt/diff exit0、docs885、尺寸2399/旧超限35通过。b
 独立区间 Complete 与生产 receipt 不提升 source/callable Partial，不退休 oracle、不证明 native资源释放计数。
 独立只读终审已逐项核验生产实际接点、冻结输入、原 artifact/binary、九项结果与两文档分账，无新增阻断；
 审阅者未运行项目代码。文档收尾仅提交文档，不重跑未变 Rust。
-=======
+
 ### 开放 loop 的已交付 Return endpoint（2026-11-11）
 
 用户明确批准统一内部公共产品，不改变 Guide 或 ABI。唯一开放 loop 存储采用
@@ -12107,4 +12106,3 @@ all-targets check、fmt、docs（886页）、尺寸（2398 Rust、35历史超限
 import，补真实类型导入；均仅编译失败无测试执行。首轮strict Clippy的large-enum失败已
 保留并以单层Box修复。两阶段预期红、各阶段原始artifact/日志和执行前binary/source SHA
 分别保留，最终产物不覆盖红证据。独立终审与后续合流仍由协调任务完成。
->>>>>>> 39835135019e3924563b3b44ce7110eacc1a82a1
