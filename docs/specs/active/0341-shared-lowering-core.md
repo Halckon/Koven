@@ -13702,3 +13702,17 @@ workspace all-target check、fmt/diff/docs897 全通过；尺寸 2470 手写 Rus
 35 历史超限，无新增豁免。未运行 CI-only、native 全套或远端 CI。
 验收日志保存在本机既有检查点目录 distinct-callee-*。
 不推送，不证明一般嵌套、多源、循环或完整全路径借用体系。
+
+
+### 有限三叶嵌套的真实拒绝基线（2026-11-11）
+
+基于 `87b1052a`，先锁定外层 then 内嵌完整 if/else、外层 else 直接 return
+的三叶源码：两个独立 Boolean 参数、三个不同 borrowed callee、同一 String 源。
+`nested_three_leaf_probe_tests::ordinary_nested_three_leaf_remains_explicitly_unsupported`
+实际核三条 raw transport 与 typed callee、Parameter(0)、result_source 及原 wrapper
+来源；rooted/memory × on/off 四组合均在精确 wrapper borrow marker 返回
+UnsupportedNode，原最终 verifier 未调用，receipt 为零。此普通边界测试通过，
+codegen feature all-target strict Clippy 通过；不把 raw 三叶运输当作完整路径证明。
+
+后续需独立父边链与内外终止凭据，现有固定双臂 region/receipt 不放宽。
+本基线不改变生产准入、不推送；原始日志保留于既有检查点 nested-three-leaf-*。

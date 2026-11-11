@@ -814,3 +814,7 @@ mod branch_else_probe;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "branch_distinct_callee_probe_tests.rs"]
 mod branch_distinct_callee_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_three_leaf_probe_tests.rs"]
+mod nested_three_leaf_probe_tests;
