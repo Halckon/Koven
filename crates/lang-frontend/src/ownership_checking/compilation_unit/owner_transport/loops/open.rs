@@ -361,9 +361,9 @@ impl UnitOwnerOpenLoopReturnV1 {
 #[derive(Clone, Debug)]
 pub enum UnitOwnerOpenLoopObservationV1 {
     /// A real Break leaves Q live, preserving all existing suffix consumer contracts.
-    BreakLive(UnitOwnerReplaceBreakObservationV1),
+    BreakLive(Box<UnitOwnerReplaceBreakObservationV1>),
     /// A real body Return delivers Q; the condition-false path separately delivers P.
-    ReturnDelivered(UnitOwnerOpenLoopReturnV1),
+    ReturnDelivered(Box<UnitOwnerOpenLoopReturnV1>),
 }
 impl UnitOwnerOpenLoopObservationV1 {
     pub(in crate::ownership_checking::compilation_unit) fn prefix(
@@ -385,7 +385,7 @@ impl UnitOwnerOpenLoopObservationV1 {
 impl UnitOwnerObservation {
     /// The single sealed open-loop product. Legacy getters only project their original variant.
     pub fn open_loop_observation_v1(&self) -> Option<&UnitOwnerOpenLoopObservationV1> {
-        let value = self.open_loop_value.as_deref()?;
+        let value = self.open_loop_value.as_ref()?;
         let prefix = value.prefix();
         (self.loop_value.is_none() && self.invariant_loop_value.is_none() && self.choice_value.is_none()
             && self.definitions.is_empty() && self.events.is_empty()

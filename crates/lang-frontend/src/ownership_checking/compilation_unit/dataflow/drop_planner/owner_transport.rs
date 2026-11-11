@@ -90,7 +90,7 @@ impl DropPlanner<'_, '_> {
             .map(loops::LoopTransaction::finish)
             .unwrap_or_default();
         if let Some(mut observation) = self.owner_observation.take() {
-            observation.open_loop_value = open_loop_value.map(Box::new);
+            observation.open_loop_value = open_loop_value;
             observation.loop_value = loop_value.map(Box::new);
             observation.invariant_loop_value = invariant_loop_value.map(Box::new);
             observation.choice_value = choice.map(Box::new);

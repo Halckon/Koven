@@ -518,6 +518,6 @@ impl OpenLoopInput {
         };
         value
             .is_consistent()
-            .then_some(UnitOwnerOpenLoopObservationV1::BreakLive(value))
+            .then_some(UnitOwnerOpenLoopObservationV1::BreakLive(Box::new(value)))
     }
 }

@@ -204,7 +204,9 @@ impl ReturnInput {
         };
         value
             .is_consistent()
-            .then_some(UnitOwnerOpenLoopObservationV1::ReturnDelivered(value))
+            .then_some(UnitOwnerOpenLoopObservationV1::ReturnDelivered(Box::new(
+                value,
+            )))
     }
 }
 impl OpenLoopInput {
