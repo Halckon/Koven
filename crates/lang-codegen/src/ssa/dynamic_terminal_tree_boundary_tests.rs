@@ -332,3 +332,110 @@ fn ordinary_dynamic_terminal_trees_require_actual_receipt() {
         }
     }
 }
+
+/// Exhaust the finite declaration-shape domain independently of either receipt's route table.
+#[test]
+fn ordinary_all_depth_three_terminal_tree_shapes_preserve_observer_off() {
+    #[derive(Clone)]
+    enum Tree {
+        Leaf,
+        Split(Box<Tree>, Box<Tree>),
+    }
+    fn trees(depth: usize) -> Vec<Tree> {
+        let mut out = vec![Tree::Leaf];
+        if depth > 0 {
+            let children = trees(depth - 1);
+            for left in &children {
+                for right in &children {
+                    out.push(Tree::Split(Box::new(left.clone()), Box::new(right.clone())));
+                }
+            }
+        }
+        out
+    }
+    fn source(tree: &Tree, flags: &mut usize, leaves: &mut usize) -> String {
+        match tree {
+            Tree::Leaf => {
+                let index = *leaves;
+                *leaves += 1;
+                format!("return c{index}(source)")
+            }
+            Tree::Split(left, right) => {
+                let flag = *flags;
+                *flags += 1;
+                let left = source(left, flags, leaves);
+                let right = source(right, flags, leaves);
+                format!("if (f{flag}) {{ {left} }} else {{ {right} }}")
+            }
+        }
+    }
+    let shapes = trees(3);
+    assert_eq!(shapes.len(), 26);
+    for (index, tree) in shapes.iter().enumerate().skip(1) {
+        let (mut flags, mut leaves) = (0, 0);
+        let body = source(tree, &mut flags, &mut leaves);
+        assert_eq!(leaves, flags + 1);
+        let callees = (0..leaves)
+            .map(|i| format!("fun c{i}(source: String): borrow String from source = source\n"))
+            .collect::<String>();
+        let params = (0..flags)
+            .map(|i| format!("f{i}: Boolean"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let args = (0..flags)
+            .map(|i| format!("f{i}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let text = format!(
+            "{callees}fun wrap(source: String, {params}): borrow String from source {{ {body} }}\nfun consume(item: String): Unit {{}}\nfun run({params}): Unit {{ val owner = \"kept\"; borrow val item = wrap(owner, {args}); consume(item) }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "all-terminal-trees.ko", &text);
+        let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+        let (environment, types) = standard_environments();
+        let (names, typed, on) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let off = with_loan_observation(false, || {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap()
+        });
+        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run")
+            .unwrap()
+            .id();
+        let mut previous = None;
+        for (setting, owned) in [("on", &on), ("off", &off)] {
+            let (lowered, verification) = crate::ssa::unit_lower::observe_final_verifier(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, owned, entry,
+                )
+            });
+            let (program, _) = lowered
+                .unwrap_or_else(|error| panic!("shape {index}/{setting}: {error:?}\n{body}"));
+            assert_eq!(verification.len(), 1);
+            let wrapper = program.modules[0]
+                .functions
+                .iter()
+                .find(|f| f.name.contains(".wrap."))
+                .unwrap();
+            assert_eq!(wrapper.blocks.len(), leaves + flags);
+            assert_eq!(wrapper.instructions.len(), leaves + flags);
+            let output = (
+                crate::ssa::render_program(&program),
+                crate::llvm::render_verified_program(&program).unwrap(),
+            );
+            if setting == "off" {
+                assert_eq!(previous.as_ref(), Some(&output));
+            }
+            previous = Some(output);
+        }
+    }
+}
