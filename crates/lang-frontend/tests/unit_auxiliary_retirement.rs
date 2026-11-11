@@ -117,3 +117,82 @@ fn ordinary_auxiliary_retirement_requires_actual_acquisition_links() {
         assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
     }
 }
+
+#[test]
+fn ordinary_auxiliary_retirement_neighbors_keep_partial_raw_handoffs() {
+    let cases = [
+        (
+            "distinct-roots",
+            "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(owner, aux); consume(item) }",
+            1,
+        ),
+        (
+            "source-second",
+            "fun view(aux: String, source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }",
+            1,
+        ),
+        (
+            "two-auxiliaries",
+            "fun view(source: String, first: String, second: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner, owner); consume(item) }",
+            2,
+        ),
+    ];
+    for (name, text, expected_auxiliary) in cases {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source(name, text).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let (environment, types) = standard_environments();
+        for (layout, input) in [
+            (
+                "rooted",
+                SourceUnitInput::new("root", name, source, &parsed),
+            ),
+            ("memory", SourceUnitInput::memory_document(source, &parsed)),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let on = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+            assert_eq!(
+                on.ownership().owner_observations(),
+                off.ownership().owner_observations()
+            );
+            assert!(off.ownership().loan_action_observations().is_empty());
+            let [raw] = on.ownership().borrow_call_handoffs() else {
+                panic!("{name}/{layout}: actual handoff")
+            };
+            assert_eq!(raw.auxiliary_loan_ends().len(), expected_auxiliary);
+            assert!(!raw.auxiliary_loan_ends().contains(raw.source_loan()));
+            let [catalog] = on.ownership().loan_action_observations() else {
+                panic!("one catalog")
+            };
+            assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
+            assert!(catalog.binding_regions().is_empty());
+            assert!(
+                catalog.auxiliary_retirements().is_empty(),
+                "{name}/{layout}: narrow relation remains absent"
+            );
+            println!(
+                "case={name}; layout={layout}; old_products_equal=true; raw_aux={expected_auxiliary}; relations=0"
+            );
+        }
+    }
+}
