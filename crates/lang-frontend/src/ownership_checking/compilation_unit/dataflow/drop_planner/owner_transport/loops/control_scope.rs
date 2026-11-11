@@ -113,3 +113,47 @@ impl DropPlanner<'_, '_> {
         }
     }
 }
+
+// The traversal wrapper owns control-stack entry/exit and closed member completion.
+impl DropPlanner<'_, '_> {
+    pub(in super::super::super) fn owner_while_statement(
+        &mut self,
+        id: StatementId,
+        condition: ExpressionId,
+        body: StatementId,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let control = UnitStatementId::new(self.checker.source_unit, id);
+        #[cfg(test)]
+        let parent = self.owner_controls.current();
+        let previous_transaction = self.owner_loop.selected();
+        let entered = self.owner_controls.enter(control);
+        if entered {
+            self.owner_loop.select(Some(control));
+        } else {
+            self.owner_loop.clear();
+        }
+        #[cfg(test)]
+        self.record_control_visit(control, parent, true, None);
+        let result = self.owner_while_statement_scoped(id, condition, body, state);
+        self.owner_loop.complete_counter_member(
+            control,
+            state,
+            entered && matches!(result, Ok(true)),
+        );
+        #[cfg(test)]
+        let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
+        if entered {
+            self.owner_controls.leave(control);
+        }
+        self.owner_loop.select(previous_transaction);
+        #[cfg(test)]
+        self.record_control_visit(
+            control,
+            self.owner_controls.current(),
+            false,
+            closed_product,
+        );
+        result
+    }
+}
