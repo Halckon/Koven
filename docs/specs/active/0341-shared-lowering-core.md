@@ -12569,3 +12569,13 @@ set_terminator后绑定block及返回LoanId；不把terminator伪装instruction�
 当前仅test-feature空观察接缝和ordinary exact original_live_forward_requires_production_receipt_with_true_off，
 尚未接生产：先Rooted/Memory四次真实on/off检查原产品、SSA/verifier/LLVM及旧route，再期待
 on每份一张receipt、off为零；新测试红不得宣称交付绿，不合入已验集成头。后续生产另做独审。
+
+红输入563a1f58已独审源码、4281个tracked输入及唯一Cargo artifact；opt0/debug2、
+loan-observation-test-support、LLVM21.1.8，no-run84.4秒成功，binary SHA
+64c9e3876c323d5245e05051855991188fa095a379495e9a191148950a6ffeb0。
+唯一ordinary exact实际完成两布局on/off四次原SSA/verifier/LLVM1389bytes及相等性，再于
+rooted/on receipt数量0≠1失败（exit101；0pass/1fail/2966filtered）；输入及binary前后不变。
+原始日志与绑定清单在仓库外koven-live-forward-receipt-evidence/red；此次没有生产绿，
+没有运行native、CI-only或全量。fmt/docs890/diff与尺寸2421files、35历史超限通过；
+未跑clippy/workspace，生产接线前还需显式绑定wrap/view身份、实际append与set_terminator，
+再独审并跑同一正常输入绿及CI-only负控编译。该红checkpoint不能合流绿色交付头。
