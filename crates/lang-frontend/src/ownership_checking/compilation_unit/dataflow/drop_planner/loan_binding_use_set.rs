@@ -1,5 +1,5 @@
 //! Strict multi-binding-consumer declaration plan; not a complete region certificate.
-use super::super::action_source::BindingUseSetExpected as Expected;
+use super::super::action_source::{BindingUseRole as UseRole, BindingUseSetExpected as Expected};
 use super::*;
 use crate::{
     name_resolution::SymbolKind,
@@ -21,6 +21,8 @@ struct Shape {
     auxiliary_argument: ExpressionId,
     consumers: Vec<(ExpressionId, ExpressionId, UnitStatementId)>,
     later_uses: Vec<(ExpressionId, ExpressionId, UnitStatementId)>,
+    ordered_uses: Vec<UseRole>,
+    completion: UnitStatementId,
 }
 
 impl DropPlanner<'_, '_> {
@@ -146,6 +148,7 @@ impl DropPlanner<'_, '_> {
             let statement = |id| UnitStatementId::new(self.checker.source_unit, id);
             let mut later_uses = Vec::new();
             let mut consumers = Vec::new();
+            let mut ordered_uses = Vec::new();
             for &use_statement in uses {
                 let Statement::Expression { expression: call } =
                     ast.statements().get(use_statement).ok()?.payload()
@@ -155,8 +158,10 @@ impl DropPlanner<'_, '_> {
                 let argument = self.binding_use_set_operand(*call, 0, 1)?;
                 let place = self.checker.place(argument).ok()??;
                 if place == auxiliary_place {
+                    ordered_uses.push(UseRole::Auxiliary(later_uses.len()));
                     later_uses.push((*call, argument, statement(use_statement)));
                 } else if place.is_root() && place.root() == binding {
+                    ordered_uses.push(UseRole::Binding(consumers.len()));
                     consumers.push((*call, argument, statement(use_statement)));
                 } else {
                     return None;
@@ -185,6 +190,8 @@ impl DropPlanner<'_, '_> {
                 auxiliary_argument,
                 consumers,
                 later_uses,
+                ordered_uses,
+                completion: statement(*uses.last()?),
             })
         })
     }
@@ -308,6 +315,10 @@ impl DropPlanner<'_, '_> {
             consumers,
             consumer_statements,
             auxiliary_uses,
+            auxiliary_statements: shape.later_uses.iter().map(|u| u.2).collect(),
+            ordered_uses: shape.ordered_uses.clone(),
+            auxiliary_owner,
+            completion: shape.completion,
         })
     }
 

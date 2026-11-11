@@ -95,3 +95,9 @@ lineage保存，真实BindingEnd关闭；merge即失效。cursor仅原记录边�
 BindingEnd关闭的集合token经独立cause匹配完整removed source快照及原named Drop。
 新Drop证据失败不撤销既有use-set，旧cause优先；尚不证明aux全生命周期或完整region。
 见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多b集合退休与实际source-drop的独立证据实施中)。
+
+多B直线另发布独立`multi_binding_regions()` Complete：沿真实全事件序列核每A
+发生时已返回B数，同一transport进度及活source快照，或末B后的已证source Drop。
+末A的原End经独立cause关联实际removed aux与原Drop；全7+B+2A记录、两owner
+事件及真实空义务出口共同闭合，旧Partial不受新失败污染。多B新CG receipt尚未实现。
+见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#多b动态辅助进度与完整区域实施中)。

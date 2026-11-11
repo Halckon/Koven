@@ -65,6 +65,25 @@ impl PendingBindingTransport {
             actions.return_binding_use_set(token, loan, begin);
         }
     }
+    /// Read the actual independent multi-use transport without changing old use-return state.
+    pub(super) fn use_set_obligation(
+        &self,
+        binding: UnitSymbolId,
+        source: &UnitLoanFact,
+    ) -> Option<(
+        &super::action_source::BindingUseSetToken,
+        &ActionHandle,
+        &ActionHandle,
+    )> {
+        if self.binding != binding || &self.source != source {
+            return None;
+        }
+        Some((
+            self.use_set.as_ref()?,
+            self.source_begin.as_ref()?,
+            self.handoff.as_ref()?,
+        ))
+    }
     /// Read the real still-unused transport, never reconstruct it from a declaration.
     pub(super) fn unused_obligation(
         &self,

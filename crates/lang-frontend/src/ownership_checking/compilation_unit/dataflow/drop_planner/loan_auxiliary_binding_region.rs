@@ -62,6 +62,11 @@ impl DropPlanner<'_, '_> {
         let empty = self.scope_depth == 0
             && self.binding_region_boundary_clear(state)
             && state.values.is_empty();
+        self.iteration_actions.finish_multi_region_statement(
+            UnitStatementId::new(self.checker.source_unit, statement),
+            continues,
+            empty,
+        );
         self.iteration_actions
             .finish_auxiliary_binding_region_statement(
                 UnitStatementId::new(self.checker.source_unit, statement),

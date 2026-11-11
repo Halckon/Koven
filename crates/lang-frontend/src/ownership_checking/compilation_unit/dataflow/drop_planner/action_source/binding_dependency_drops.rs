@@ -15,6 +15,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) enum BindingDropCause {
     UseSet(super::binding_use_sets::UseSetDropCause),
+    MultiAuxiliary(super::binding_use_sets::MultiAuxDropCause),
     Region(RegionDropCause),
     LaterAuxiliaryRegion(super::later_auxiliary_binding_regions::LaterAuxiliaryRegionDropCause),
     LaterAuxiliaryReturn(super::later_auxiliary_binding_regions::LaterAuxiliaryReturnDropCause),
@@ -103,6 +104,9 @@ impl ActionSource {
         value: &OwnedValue,
     ) -> Option<BindingDropCause> {
         match cause {
+            BindingDropCause::MultiAuxiliary(cause) => self
+                .verify_removed_multi_auxiliary(cause, value)
+                .map(BindingDropCause::MultiAuxiliary),
             BindingDropCause::UseSet(cause) => self
                 .verify_removed_use_set_owner(cause, value)
                 .map(BindingDropCause::UseSet),
@@ -137,6 +141,9 @@ impl ActionSource {
 
     pub(super) fn record_binding_drop(&mut self, cause: BindingDropCause, cleanup: ActionHandle) {
         match cause {
+            BindingDropCause::MultiAuxiliary(cause) => {
+                self.record_multi_auxiliary_drop(cause, cleanup)
+            }
             BindingDropCause::UseSet(cause) => self.record_use_set_source_drop(cause, cleanup),
             BindingDropCause::LaterAuxiliaryRegion(cause) => {
                 self.record_later_auxiliary_region_drop(cause, cleanup)

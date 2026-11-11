@@ -6,7 +6,9 @@ mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
 mod binding_use_sets;
-pub(super) use binding_use_sets::{Expected as BindingUseSetExpected, Token as BindingUseSetToken};
+pub(super) use binding_use_sets::{
+    Expected as BindingUseSetExpected, Token as BindingUseSetToken, UseRole as BindingUseRole,
+};
 mod child_regions;
 mod distinct_auxiliary_binding_regions;
 mod distinct_auxiliary_retirements;
@@ -585,19 +587,24 @@ impl ActionSource {
                 region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
             })
             .collect();
+        let mut multi_binding_regions = Vec::new();
         let mut binding_use_sets = Vec::new();
         let mut binding_use_set_retirements = Vec::new();
         for candidate in self.binding_use_sets {
             let retirement = candidate.source_retirement(&identity, &actions);
-            if let Some(use_set) = candidate.finish(&identity, &actions) {
+            if let Some(use_set) = candidate.clone().finish(&identity, &actions) {
                 if let Some((source_owner, source_drop)) = retirement {
-                    binding_use_set_retirements.push(
-                        crate::ownership_checking::UnitLoanBindingUseSetRetirement {
-                            use_set: use_set.clone(),
-                            source_owner,
-                            source_drop,
-                        },
-                    );
+                    let retirement = crate::ownership_checking::UnitLoanBindingUseSetRetirement {
+                        use_set: use_set.clone(),
+                        source_owner,
+                        source_drop,
+                    };
+                    if let Some(region) =
+                        candidate.complete_region(&identity, &actions, &retirement)
+                    {
+                        multi_binding_regions.push(region);
+                    }
+                    binding_use_set_retirements.push(retirement);
                 }
                 binding_use_sets.push(use_set);
             }
@@ -664,6 +671,7 @@ impl ActionSource {
             interleaved_auxiliary_regions,
             binding_use_sets,
             binding_use_set_retirements,
+            multi_binding_regions,
             auxiliary_binding_regions,
         }]
     }

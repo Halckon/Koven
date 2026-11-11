@@ -112,6 +112,13 @@ impl DropPlanner<'_, '_> {
             let super::model::PendingLoan(action, _, acquisition) =
                 state.pending_loans.remove(index);
             if let Action::EndCallLoan(loan) = &action {
+                self.iteration_actions.observe_multi_auxiliary_return(
+                    loan,
+                    acquisition.as_ref(),
+                    &state.values,
+                    &state.borrow_bindings,
+                    &state.borrow_binding_transports,
+                );
                 self.iteration_actions.observe_later_auxiliary_return(
                     loan,
                     acquisition.as_ref(),

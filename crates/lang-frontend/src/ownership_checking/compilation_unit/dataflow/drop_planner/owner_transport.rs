@@ -147,6 +147,7 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn owner_event(&mut self, event: UnitOwnerTransportEvent) {
+        self.iteration_actions.multi_region_owner_event(&event);
         self.observe_distinct_auxiliary_owner_event(&event);
         self.iteration_actions
             .observe_distinct_region_owner_event(&event);

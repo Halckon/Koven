@@ -1,4 +1,7 @@
-//! Independent pending-return collection. Does not publish old single-use retirement authority.
+mod multi_region;
+mod multi_validation;
+pub(super) use multi_region::MultiAuxDropCause;
+// Independent pending-return collection. Does not publish old single-use retirement authority.
 use super::{ActionHandle, ActionSource, Record};
 use crate::{
     name_resolution::UnitSymbolId,
@@ -11,8 +14,21 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) enum UseRole {
+    Binding(usize),
+    Auxiliary(usize),
+}
 #[derive(Clone)]
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct Expected {
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) auxiliary_owner:
+        crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot,
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) auxiliary_statements:
+        Vec<UnitStatementId>,
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) ordered_uses:
+        Vec<UseRole>,
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) completion:
+        UnitStatementId,
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) source_owner:
         crate::ownership_checking::compilation_unit::loan_binding_region_validation::OwnerSnapshot,
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) scope: Scope,
@@ -58,6 +74,7 @@ pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) stru
 }
 #[derive(Clone)]
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct Candidate {
+    multi: multi_region::MultiState,
     expected: Expected,
     source_invalid: bool,
     source_cleanup: Option<(
@@ -99,6 +116,7 @@ impl ActionSource {
             returns: Vec::new(),
             end: None,
             valid: true,
+            multi: multi_region::MultiState::default(),
         });
     }
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn activate_binding_use_set(
@@ -174,6 +192,13 @@ impl ActionSource {
         {
             c.valid = false;
             return;
+        }
+        if c.expected
+            .ordered_uses
+            .get(c.returns.len() + c.multi.uses.len())
+            != Some(&UseRole::Binding(c.returns.len()))
+        {
+            c.multi.invalid = true;
         }
         c.returns.push(UnitBindingUseReturn {
             loan: loan.clone(),

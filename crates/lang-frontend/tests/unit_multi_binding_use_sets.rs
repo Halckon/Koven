@@ -163,6 +163,87 @@ fn ordinary_multi_binding_use_sets_close_exact_actual_returns() {
                         matches!(catalog.action(&retirement.source_drop()), Some(UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop), .. }) if matches!(handoff.source_loan().target(), lang_frontend::ownership_checking::UnitLoanTarget::Place(place) if drop.target() == lang_frontend::ownership_checking::UnitDropTarget::Named(place.root())))
                     );
                 }
+                let regions = catalog.multi_binding_regions();
+                assert_eq!(
+                    regions.len(),
+                    usize::from(qualified),
+                    "{word}/{layout}: full multi-binding region"
+                );
+                if let [region] = regions {
+                    use lang_frontend::ownership_checking::{
+                        UnitDropTarget, UnitIterationCleanupAction, UnitMultiBindingSourceState,
+                    };
+                    assert!(catalog.owns_multi_binding_region(region));
+                    assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                    assert_eq!(region.retirement(), &retirements[0]);
+                    let ids = region.action_ids().collect::<Vec<_>>();
+                    assert_eq!(ids.len(), 7 + b_count + 2 * a_count);
+                    assert_eq!(ids[usize::from(second)], relation.source_begin());
+                    assert_eq!(ids[1 - usize::from(second)], relation.auxiliary_begin());
+                    assert_eq!(ids[2], relation.handoff());
+                    assert_eq!(region.auxiliary_uses().len(), a_count);
+                    let mut cursor = 3;
+                    let mut a = 0;
+                    let mut b = 0;
+                    for letter in word.bytes() {
+                        if letter == b'A' {
+                            let used = &region.auxiliary_uses()[a];
+                            assert_eq!(used.begin(), ids[cursor]);
+                            assert_eq!(used.end(), ids[cursor + 1]);
+                            assert_eq!(used.owner(), relation.auxiliary_owner());
+                            assert_eq!(used.returned_binding_uses(), b);
+                            assert_eq!(
+                                catalog.action(&used.begin()),
+                                Some(&UnitLoanAction::Begin(used.loan().clone()))
+                            );
+                            assert!(
+                                matches!(catalog.action(&used.end()), Some(UnitLoanAction::Cleanup{action: UnitIterationCleanupAction::EndCallLoan(l),..}) if l==used.loan())
+                            );
+                            match used.source_state() {
+                                UnitMultiBindingSourceState::Active {
+                                    owner,
+                                    source_begin,
+                                    handoff,
+                                } => {
+                                    assert!(b < b_count);
+                                    assert_eq!(owner, relation.source_owner());
+                                    assert_eq!(*source_begin, relation.source_begin());
+                                    assert_eq!(*handoff, relation.handoff());
+                                }
+                                UnitMultiBindingSourceState::Retired { binding_end, drop } => {
+                                    assert_eq!(b, b_count);
+                                    assert_eq!(*binding_end, sets[0].binding_end());
+                                    assert_eq!(*drop, retirements[0].source_drop());
+                                }
+                            }
+                            cursor += 2;
+                            a += 1;
+                            if a == a_count {
+                                assert_eq!(ids[cursor], region.auxiliary_drop());
+                                assert!(
+                                    matches!(catalog.action(&ids[cursor]),Some(UnitLoanAction::Cleanup{action:UnitIterationCleanupAction::Drop(drop),..}) if matches!(handoff.auxiliary_loan_ends()[0].target(),lang_frontend::ownership_checking::UnitLoanTarget::Place(place) if drop.target()==UnitDropTarget::Named(place.root())))
+                                );
+                                cursor += 1;
+                            }
+                        } else {
+                            assert_eq!(ids[cursor], sets[0].uses()[b].begin());
+                            cursor += 1;
+                            b += 1;
+                            if b == 1 {
+                                assert!(
+                                    matches!(catalog.action(&ids[cursor]),Some(UnitLoanAction::BorrowBindingUseReturned(returned)) if returned.begin()==Some(sets[0].uses()[0].begin()))
+                                );
+                                cursor += 1;
+                            }
+                            if b == b_count {
+                                assert_eq!(ids[cursor], sets[0].binding_end());
+                                assert_eq!(ids[cursor + 1], retirements[0].source_drop());
+                                cursor += 2;
+                            }
+                        }
+                    }
+                    assert_eq!(cursor, ids.len());
+                }
                 if let [set] = sets {
                     assert!(catalog.owns_binding_use_set(set));
                     assert_eq!(set.coverage(), UnitLoanActionCoverage::Partial);

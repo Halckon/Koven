@@ -108,6 +108,7 @@ pub struct UnitLoanActionObservation {
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
     pub(super) binding_use_set_retirements: Vec<super::UnitLoanBindingUseSetRetirement>,
+    pub(super) multi_binding_regions: Vec<super::UnitBorrowMultiBindingRegion>,
     pub(super) binding_use_sets: Vec<super::UnitLoanBindingUseSet>,
     pub(super) interleaved_auxiliary_regions: Vec<super::UnitBorrowInterleavedAuxiliaryRegion>,
     pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
@@ -229,6 +230,15 @@ impl UnitLoanActionObservation {
         region: &super::UnitBorrowLaterAuxiliaryBindingRegion,
     ) -> bool {
         Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Complete bounded multi-binding-use intervals.
+    pub fn multi_binding_regions(&self) -> &[super::UnitBorrowMultiBindingRegion] {
+        &self.multi_binding_regions
+    }
+    /// Exact catalog identity membership.
+    pub fn owns_multi_binding_region(&self, r: &super::UnitBorrowMultiBindingRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &r.retirement.use_set.identity)
     }
 
     /// Partial use-set consumption followed by actual source-owner Drop.
