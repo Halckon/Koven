@@ -102,11 +102,19 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
-    /// Independent branch coverage. Currently empty: the producer is not implemented.
+    /// Independent coverage of the narrowly declared branch region.
     /// Absence grants no absence proof and never enables expression-wrapper receipts.
     #[must_use]
     pub fn branch_forward_regions(&self) -> &[super::UnitBorrowBranchForwardRegion] {
         &self.branch_forward_regions
+    }
+
+    /// Check catalog identity, never an equal structural snapshot.
+    pub fn owns_branch_forward_region(
+        &self,
+        region: &super::UnitBorrowBranchForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
     }
 
     /// Independently entered wrapper normal-exit regions. Missing entries prove no absence.

@@ -102,6 +102,57 @@ fn ordinary_dynamic_branch_requires_independent_path_coverage() {
             .iter()
             .map(|region| region.coverage())
             .collect::<Vec<_>>();
+        for region in catalog.branch_forward_regions() {
+            assert!(catalog.owns_branch_forward_region(region));
+            assert_eq!(region.callable(), handoffs[0].callable().unwrap());
+            let first = handoffs[0].branch().unwrap();
+            assert_eq!(region.split(), first.split());
+            assert_eq!(region.condition(), first.condition());
+            let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) =
+                handoffs[0].transaction().source_loan().target()
+            else {
+                panic!("root source")
+            };
+            assert_eq!(region.source_parameter(), place.root());
+            assert_eq!(
+                region.paths().len(),
+                2,
+                "both declared exits must be certified"
+            );
+            let mut all = Vec::new();
+            for path in region.paths() {
+                let matching = handoffs
+                    .iter()
+                    .filter(|h| h.branch() == Some(path.branch()))
+                    .collect::<Vec<_>>();
+                assert_eq!(matching.len(), 1);
+                let handoff = matching[0];
+                assert_eq!(path.source_begin(), handoff.source_begin().unwrap());
+                assert_eq!(
+                    catalog.action(&path.live_handoff()),
+                    Some(&UnitLoanAction::BorrowForwardHandoff((**handoff).clone()))
+                );
+                let ids = path.action_ids().collect::<Vec<_>>();
+                assert_eq!(ids, vec![path.source_begin(), path.live_handoff()]);
+                for id in ids {
+                    assert!(
+                        !all.contains(&id),
+                        "mutually exclusive paths must not share record identities"
+                    );
+                    assert!(catalog.action(&id).is_some());
+                    all.push(id);
+                }
+            }
+            assert_ne!(
+                region.paths()[0].branch().then_arm(),
+                region.paths()[1].branch().then_arm()
+            );
+            assert_eq!(
+                all.len(),
+                catalog.actions().len(),
+                "this original fixture has no hidden condition or path records"
+            );
+        }
         println!(
             "layout={layout}; both_modes_ownership_succeeded=true; actual_causes=2; source=Partial; branch_regions={}",
             coverage.len()

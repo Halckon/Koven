@@ -13001,14 +13001,22 @@ Return必须在value求值成功后、finish_return_iterations/drop_all之前核
 遗漏pre/post、额外Begin/End/Drop、跨臂区间重叠、删选记录、完成后追加、错身份/跨catalog
 或复用acquisition均不认证。错误/deferred沿用原全局撤销边界。
 
-当前只落只读API壳：catalog.branch_forward_regions()初始化为空，生产者和认证器均未
+前置红版本只落只读API壳：catalog.branch_forward_regions()初始化为空，生产者和认证器均未
 实现，无硬编码证书。ordinary探针复用原源码和原AST/真实cause正控，再完成Rooted/Memory
 四次on/off ownership、旧产品等价、两条不同Begin的真实原因、source Partial及旧表达式
 regions为空，最后统一期待每布局一个新局部Complete区域。空壳预期是运行时0!=1，
-不是缺API编译失败；未实际运行前不得登记为已取得红证据。
+不是缺API编译失败。
+
+真实红78a616d7：FE no-run 270.20秒成功，4296个tracked输入与保存binary绑定；唯一
+ordinary exact实际0 passed/1 failed。Rooted/Memory均两模式ownership成功、实际causes=2、
+source Partial且branch_regions=0，最后精准0!=1；输入和binary执行前后一致。
+持久证据保存于主仓忽略目录的本片red目录，不使用编译失败或旧结果替代能力红。
+随后生产接入独立入口、condition、实际臂、Return清理前后、唯一续接、Block seal及
+callable close见证；以进入基准加相对scope/branch深度检查状态，不放宽旧边界。
+当前生产与加强的两path完整身份/区间断言已落，尚未编译运行，不认领绿或正式CI。
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 | --- | --- | --- |
-| 普通源码独立路径覆盖能力红 | unit_branch_forward_causes / ordinary_dynamic_branch_requires_independent_path_coverage | 已落探针，未编译、未运行 |
+| 普通源码独立路径覆盖能力红及后继实现 | unit_branch_forward_causes / ordinary_dynamic_branch_requires_independent_path_coverage | 78a616d7真实0 passed/1 failed；生产后未编译、未运行 |
 | 漏出口/重复臂/额外continuation、动作区间和状态破损 | 后续CI-only定向负控 | 未实现、未执行；禁止本机注入运行 |
 | 旧表达式region/receipt与双出口lowering不回退 | 既有借用定向回归 | 本切片未运行 |

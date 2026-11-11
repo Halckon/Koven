@@ -12,6 +12,7 @@ mod control;
 mod iteration;
 mod lambda;
 mod loan_binding_region;
+mod loan_branch_forward_region;
 mod loan_child_region;
 mod loan_consumer_region;
 mod loan_forward_region;
@@ -450,13 +451,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         FunctionBody::Block(body) => {
                             state.branch_forward_plan = self.branch_forward_plan(id, body);
-                            if self.statement(body, &mut state)? {
+                            let coverage = self.begin_branch_coverage(&mut state);
+                            let continues = self.statement(body, &mut state)?;
+                            if continues {
                                 self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
                             }
+                            self.finish_branch_coverage(coverage, continues, &state);
                         }
                     },
                 }
                 self.finish_owner_observation();
+                self.iteration_actions.close_branch_callable(
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
+                );
             }
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
