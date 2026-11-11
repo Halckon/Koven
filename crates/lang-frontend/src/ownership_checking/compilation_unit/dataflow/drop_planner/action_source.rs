@@ -540,6 +540,8 @@ impl ActionSource {
             forward_regions,
             branch_forward_regions,
             binding_dependency_drops,
+            // Capability checkpoint only: actual pending-token linkage is not implemented.
+            auxiliary_retirements: Vec::new(),
         }]
     }
 }

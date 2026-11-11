@@ -13185,3 +13185,28 @@ CI-only覆盖12类身份变体、6类缺角色、反向/重复fold及3类builder
 遇Err撤销/commit正控；不等同真实最终verifier故障注入或独立mixed-join构造的执行证据。
 两位交叉审区分生产作者与注入测试作者，冻结输入、原artifact、独立binary和全部普通
 运行证据另经逐项独核。source/callable仍Partial，非此有界拓扑和新End/Drop未由本片扩大。
+
+### 辅助 token 退休的最窄 Partial 原因链
+
+本片复用原样 `view(source, aux)` 返回 source、`view(owner, owner)` 初始化 borrow val
+并消费的合法路径；同一 owner 的两个实参必须保持不同 loan/argument 身份。前置
+ee91f2e9 已由普通 CG probe 真实验证：no-run 145 秒，唯一 ordinary 1 passed，
+Rooted/Memory 各 on/off 原 SSA/LLVM、源保留与辅助先退休顺序通过。
+
+新增只读 `UnitLoanAuxiliaryRetirement` 引用同 catalog 的 source_begin、
+auxiliary_begin、原 handoff。当前仅公开空 API 壳，尚未连接生产；不得以缺 API 编译错误
+替代行为红。普通 FE 探针先完成两布局的旧 ownership/owner on/off 等价、原 raw aux
+恰一及两个真实 Begin，再统一要求 on 恰一关系；off catalog 仍空。测试不拼造关系。
+
+后继生产只能在原 observe 时从仍 live 的唯一 source PendingLoan 捕获 Begin handle，
+从原 auxiliary remove 取出其 Begin handle，并在 initializer 成功的原 commit 处绑定
+handoff。缺失、异 catalog、重复或错 token 身份必须拒绝新关联，不改变旧 fact 投影、
+原退休或 cleanup；不得从最终 descriptor 扫描重建“最近 Begin”。source 可合法关联多个
+独立 auxiliary，但同一辅助 acquisition 不得重复退休。异常或不继续不得发布新关联。
+本片无新 End/Drop、region、coverage Complete 或 receipt；source/callable 保持 Partial，
+旧 binding 无辅助门禁不放宽。动态循环、跨函数身份、故障注入及 native 不由此普通探针覆盖。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 原样辅助退休合法性 | aux_handoff_probe::ordinary_auxiliary_retirement_preserves_live_source_with_true_off | ee91f2e9 真实 1 passed；四组合先验通过 |
+| FE 原因链能力红 | unit_auxiliary_retirement / ordinary_auxiliary_retirement_requires_actual_acquisition_links | 已编写空 API 与探针，尚未编译执行；预期 0 != 1 不计实际证据 |
