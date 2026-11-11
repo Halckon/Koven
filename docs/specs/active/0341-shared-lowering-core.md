@@ -12159,3 +12159,31 @@ original_expression_wrapper_records_live_handoff_and_actual_lowering，另存exp
 artifact/log及输入绑定；新源码差异/helper审与fresh artifact绑定完成后才执行。
 表达式体仍从实际PendingForwardTransport移除处发布live handoff，不能成为source End。
 若该新原样成功，只为表达式体后继Partial因果链提供前置，不宣称显式Return准入已修复。
+
+#### 单表达式体 wrapper 原样 probe 结果（2026-11-11）
+
+冻结输入 `a1d35fb6` 无生产改动；经fresh源码/helper审、新artifact与runner/input/binary
+绑定后，仅执行original_expression_wrapper_records_live_handoff_and_actual_lowering：
+1 passed、0 failed、0 ignored、2951 filtered、exit0。Rooted与Memory两布局均实际完成
+普通FE、正常Unit lower、SSA verifier与LLVM render，各LLVM文本1389bytes。
+实际refine成功观察为view、wrap、run，不以未观察的其他函数推定Compatibility。
+
+wrap的真实SSA只有一条BorrowCall，从入口loan l0得到result l1，再BorrowReturn l1；
+没有额外BorrowBegin、BorrowEnd或Drop。caller run仍八条SSA，consume复用result，
+随后result End、source End、原owner Drop。前端旧forward恰一，source Begin存在、
+Shared参数不取得payload owner/Drop，caller来源独立，source整体Partial。
+此结果证明表达式体原样现路径，不把FE source Begin硬映射成新增SSA acquisition。
+
+已证实后继缺口仍是source acquisition handle在真实pending move时被丢弃，以及实际
+wrapper交付只写旧forward表而无同catalog动作引用。本阶段没有实现该因果链，也没有
+新增coverage、Complete、production receipt、observer-off、native或资源计数证据。
+显式Block的既有拒绝保持；本次成功不倒填修复前一输入或将其失败认作能力红。
+
+fresh no-run的Cargo时间16.89s、外层wall16.94s，实际opt0/debug2/test、仅
+loan-observation-test-support，沿用原borrow target及LLVM21，未复制或降档。
+4261冻结输入SHA `b7696f89f5440743657c085c219e41f7ee69e3345b191f9810f66606464aad53`；
+CG binary SHA `8cc6de35d8f4846a9711eda219b5baaba53f6257a6f2d220a34dcf10f35ebd6f`。
+执行后input/binary SHA保持，并已独立实读终核；原日志、JSON、runner、manifest保留在
+`/private/tmp/koven-forward-loan-probe-evidence/expression`，前一失败原件未覆盖。
+所有CI-only仅编译，未执行；未运行额外Rust测试、Clippy/workspace行为、正式CI或native。
+终核后仅本结果账本可不同于冻结输入，不重跑或修改Rust；后继生产须另定精确合同。
