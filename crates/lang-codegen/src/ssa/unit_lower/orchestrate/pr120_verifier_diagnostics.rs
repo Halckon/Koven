@@ -82,7 +82,7 @@ pub(super) fn record_final_probe(program: &Program, verification: &Result<(), Ve
     let mut capture = Capture::default();
     capture.debug("final.verify_result", verification);
     // Debug is the complete original SSA model, even if rendering invalid SSA is unsafe.
-    capture.debug("final.ssa_model", program);
+    capture.debug("final.ssa_modules", &program.modules);
     FINAL_PROBE.with(|slot| {
         if let Some(snapshots) = slot.borrow_mut().as_mut() {
             snapshots.push(capture.text);
