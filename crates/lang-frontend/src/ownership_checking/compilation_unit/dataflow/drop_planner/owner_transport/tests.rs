@@ -569,3 +569,5 @@ mod normal_backedge;
 mod qualified_owner_edges;
 
 mod general_control_frontier;
+
+mod sequential_closed_transactions;

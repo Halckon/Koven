@@ -42,9 +42,10 @@ impl ControlStack {
     }
 }
 #[cfg(test)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub(in super::super::super) struct ControlVisit {
     pub(in super::super::super) entering: bool,
     pub(in super::super::super) control: UnitStatementId,
     pub(in super::super::super) parent: Option<UnitStatementId>,
+    pub(in super::super::super) closed_product: Option<UnitOwnerLoopObservationV1>,
 }

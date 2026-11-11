@@ -673,9 +673,12 @@ impl DropPlanner<'_, '_> {
                 entering: true,
                 control,
                 parent,
+                closed_product: None,
             });
         }
         let result = self.owner_while_statement_scoped(id, condition, body, state);
+        #[cfg(test)]
+        let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
         if entered {
             self.owner_controls.leave(control);
         }
@@ -686,6 +689,7 @@ impl DropPlanner<'_, '_> {
                 entering: false,
                 control,
                 parent: self.owner_controls.current(),
+                closed_product,
             });
         }
         result
