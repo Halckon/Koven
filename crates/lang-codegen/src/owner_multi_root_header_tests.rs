@@ -639,3 +639,37 @@ fn multi_root_exit_suffix_consumes_across_copyable_literal_declarations() {
         super::assert_native_output(&source, b"");
     }
 }
+
+#[test]
+fn multi_root_new_product_executes_terminal_false_backedge() {
+    for roots in [2, 3] {
+        for live in [0, 1, roots] {
+            for initial in [false, true] {
+                let text = source(roots, true, live)
+                    .replace("while(flag)", "var again = flag; while(again)")
+                    .replace(" };", " again = false; };")
+                    .replace("run(false)", &format!("run({initial})"));
+                let source = UnitSource::analyze("multi-root-terminal-false.ko", &text).unwrap();
+                source.assert_frontend_clean();
+                let boundary = source
+                    .ownership()
+                    .owner_observations()
+                    .iter()
+                    .find_map(|o| o.multi_root_boundary_v1())
+                    .expect("real new product");
+                assert!(boundary.guard_reset().is_some(), "{text}");
+                let (lowered, actions) =
+                    crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+                let (program, entry) = lowered.unwrap();
+                crate::ssa::verify::verify_program(&program).unwrap();
+                crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                assert!(
+                    actions
+                        .iter()
+                        .any(|(kind, _)| *kind == "multi-root-header-audit")
+                );
+                super::assert_native_output(&source, b"");
+            }
+        }
+    }
+}

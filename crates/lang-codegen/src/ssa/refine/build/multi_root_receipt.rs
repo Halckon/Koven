@@ -2,6 +2,7 @@
 //! This receipt does NOT replace legacy lowering permissions or certify runtime instances.
 use super::*;
 mod entry;
+mod guard;
 mod incoming;
 use lang_frontend::ownership_checking::{
     UnitDropFact, UnitOwnerCallable, UnitOwnerHeaderSourceV1, UnitOwnerMultiRootBoundaryV1,
@@ -175,7 +176,10 @@ impl Builder<'_, '_> {
                     .copied()
                     .map(Guard::Value)
             });
-        if plan.guard.is_none() {
+        if plan.guard.is_none()
+            || (plan.boundary.guard_reset().is_some()
+                && matches!(plan.guard, Some(Guard::Borrowed(_))))
+        {
             self.multi_root_plan = None;
             return Ok(());
         }
@@ -260,13 +264,22 @@ impl Builder<'_, '_> {
                     || self.body.blocks[header.0]
                         .statements
                         .iter()
-                        .chain(&self.body.blocks[body.0].statements)
                         .any(|s| s.results.contains(&value))
+                {
+                    return Err(fail());
+                }
+                if let Some(reset) = plan.boundary.guard_reset() {
+                    self.multi_root_guard_reset(body, value, reset)?;
+                } else if self.body.blocks[body.0]
+                    .statements
+                    .iter()
+                    .any(|s| s.results.contains(&value))
                 {
                     return Err(fail());
                 }
             }
         }
+
         let boundary = plan.boundary;
         incoming::audit(boundary).ok_or_else(fail)?;
         let sources: Vec<_> = boundary

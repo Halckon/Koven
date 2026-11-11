@@ -141,3 +141,21 @@ Char字面量的探索在codegen原始Replace准入处仍报UnsupportedNode，�
 透明阶段另有CI-only负控：直接注入意外move、bind、drop，以及只对证明视图移除一个
 真实root的开始前/完成后资源不匹配。每例要求注入恰命中一次并拒绝发布suffix；不改
 真实planner资源状态或drop事实。本地仅编译这些负控，不执行，远端结果尚待验证。
+
+## 受限终止guard的零/一轮实际消费
+
+在原有每根一次Replace并立即退休旧值的body末尾，可有且仅有一个对原Boolean Name
+ guard的直接 `guard = false`。规划器封存该赋值的source-qualified身份；必须在当前
+control、根资源形状完整且所有旧值已退休后，经过真实赋值检查完成hook才发布边界。
+缺完成、提前或重复完成不授予该新产品。这里的hook是编译阶段事实，不是运行时trace。
+
+codegen局部Value guard路径核对应guard槽的唯一body写入、同赋值span、末尾Alias与
+同typed RHS span的唯一false Constant；header依旧直接读取该guard槽。借用guard写入
+暂不激活本附加审计。原无reset产品仍禁止body改guard，必要drop事实和SSA验证不删除。
+
+真实新产品覆盖2/3根、全死/部分live/全live、初始false/true共12组SSA、LLVM/native。
+初始true现在可经正常回边再退出，而不再借用“不发布新产品”的计数循环作替代证据。
+这只建立此终止尾部的0/1轮能力，不是任意计数、任意guard更新或一般循环归纳。
+
+普通前端负例拒绝true RHS、其他guard、取反及reset后额外语句。CI-only缺/提前/重复
+completion和manifest reset缺失/改写负控仅编译，执行结果留待远端。

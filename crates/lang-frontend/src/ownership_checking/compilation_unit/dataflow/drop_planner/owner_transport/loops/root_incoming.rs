@@ -3,6 +3,7 @@ use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 #[cfg(test)]
 pub(in super::super) use root_tokens::StaticRootPredecessor;
+mod guard_reset;
 mod root_exit;
 mod root_suffix;
 pub(super) mod root_tokens;
@@ -377,7 +378,9 @@ fn completed_root_writes(
     let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
         return None;
     };
-    if elements.len() != evidence.roots.len() || evidence.writes.len() != elements.len() {
+    let guard = checker.reference_symbol(ast.expressions().get(*condition).ok()?.span())?;
+    let (elements, _) = guard_reset::body_parts(checker, elements, evidence.roots.len(), guard)?;
+    if evidence.writes.len() != elements.len() {
         return None;
     }
     for (statement, receipt) in elements.iter().zip(&evidence.writes) {
@@ -413,14 +416,18 @@ fn completed_result_cleanup(
     facts: &[PlannerDropFact],
 ) -> Option<RootRetirements> {
     let ast = checker.parsed.ast();
-    let Statement::While { body, .. } = ast.statements().get(control.statement()).ok()?.payload()
+    let Statement::While {
+        condition, body, ..
+    } = ast.statements().get(control.statement()).ok()?.payload()
     else {
         return None;
     };
     let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
         return None;
     };
-    if elements.len() != evidence.writes.len() || elements.len() != evidence.roots.len() {
+    let guard = checker.reference_symbol(ast.expressions().get(*condition).ok()?.span())?;
+    let (elements, _) = guard_reset::body_parts(checker, elements, evidence.roots.len(), guard)?;
+    if elements.len() != evidence.writes.len() {
         return None;
     }
     elements

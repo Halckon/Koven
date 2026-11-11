@@ -29,6 +29,7 @@ pub(in super::super::super::super) struct RootBoundaryEquation {
     condition: UnitExpressionId,
     body: UnitStatementId,
     condition_binding: UnitSymbolId,
+    guard_reset: Option<UnitExpressionId>,
     inputs: UnitOwnerProducerCatalogV1,
     producers: UnitOwnerProducerCatalogV1,
     entry: RootIncoming,
@@ -68,7 +69,8 @@ impl RootBoundaryEquation {
             self.producers,
             slots,
         )?
-        .with_normal_transport(self.normal_transport, self.actual_steps)
+        .with_normal_transport(self.normal_transport, self.actual_steps)?
+        .with_guard_reset(self.guard_reset)
     }
 
     pub(in super::super::super::super) fn control(&self) -> UnitStatementId {
@@ -172,6 +174,8 @@ pub(in super::super) struct RootTokenTransaction {
     condition: UnitExpressionId,
     body: UnitStatementId,
     condition_binding: UnitSymbolId,
+    guard_reset: Option<UnitExpressionId>,
+    guard_reset_completed: bool,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
     roots: RootIncoming,
@@ -191,6 +195,7 @@ impl RootTokenTransaction {
     pub(in super::super) fn is_valid(&self) -> bool {
         self.valid
     }
+    // Root retirement completion only; publication also requires the optional guard reset.
     pub(in super::super) fn is_complete(&self) -> bool {
         self.valid
             && self.next == self.planned.len()
@@ -201,9 +206,19 @@ impl RootTokenTransaction {
             && self.consumed.len() == self.retired
     }
 
+    pub(in super::super) fn complete_guard_reset(&mut self, id: UnitExpressionId) {
+        if self.guard_reset == Some(id) {
+            if !self.is_complete() || self.guard_reset_completed {
+                self.valid = false;
+                return;
+            }
+            self.guard_reset_completed = true;
+        }
+    }
     pub(in super::super) fn boundary_equation(&self) -> Option<RootBoundaryEquation> {
         let entry = &self.initial_roots;
         if !self.is_complete()
+            || !self.guard_reset_completed
             || entry.len() != self.roots.len()
             || self.definitions.len() != self.roots.len()
             || entry
@@ -277,6 +292,7 @@ impl RootTokenTransaction {
             condition: self.condition,
             body: self.body,
             condition_binding: self.condition_binding,
+            guard_reset: self.guard_reset,
             inputs: self.input_catalog.clone(),
             producers,
             normal_transport,
@@ -346,9 +362,8 @@ impl RootTokenTransaction {
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
-        if elements.len() != roots.len() {
-            return None;
-        }
+        let (elements, guard_reset) =
+            super::guard_reset::body_parts(checker, elements, roots.len(), condition_binding)?;
         let mut planned = Vec::new();
         let mut bindings = Vec::new();
         for statement in elements {
@@ -383,11 +398,13 @@ impl RootTokenTransaction {
         if roots.iter().any(|(_, owner)| owner.callable != callable) {
             return None;
         }
-        Some(Self {
+        let transaction = Self {
             control,
             condition: checker.unit_expression(*condition),
             body: UnitStatementId::new(control.source_unit(), *body),
             condition_binding,
+            guard_reset,
+            guard_reset_completed: guard_reset.is_none(),
             identity: std::sync::Arc::new(()),
             callable,
             roots: roots.clone(),
@@ -402,7 +419,18 @@ impl RootTokenTransaction {
             consumed: Vec::new(),
             next: 0,
             valid: true,
-        })
+        };
+        #[cfg(test)]
+        let transaction = {
+            let mut transaction = transaction;
+            if super::guard_reset::premature_completion()
+                && let Some(reset) = transaction.guard_reset
+            {
+                transaction.complete_guard_reset(reset);
+            }
+            transaction
+        };
+        Some(transaction)
     }
     // This hook is called after the actual direct String expression completes.
     pub(in super::super) fn complete(&mut self, producer: UnitExpressionId) {

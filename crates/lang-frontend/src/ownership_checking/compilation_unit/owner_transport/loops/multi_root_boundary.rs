@@ -45,6 +45,7 @@ pub struct UnitOwnerMultiRootBoundaryV1 {
     condition: UnitExpressionId,
     body: UnitStatementId,
     guard: UnitSymbolId,
+    guard_reset: Option<UnitExpressionId>,
     inputs: UnitOwnerProducerCatalogV1,
     producers: UnitOwnerProducerCatalogV1,
     slots: Vec<UnitOwnerRootBoundarySlotV1>,
@@ -67,6 +68,7 @@ struct BoundaryManifest {
     inputs: Vec<crate::ownership_checking::UnitOwnerDefinition>,
     producers: Vec<crate::ownership_checking::UnitOwnerDefinition>,
     normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
+    guard_reset: Option<UnitExpressionId>,
     exit_drops: Option<Vec<UnitDropFact>>,
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
     suffix: Option<Vec<(UnitSymbolId, UnitDropFact)>>,
@@ -89,6 +91,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             inputs: inputs.definitions().to_vec(),
             producers: producers.definitions().to_vec(),
             normal_steps: None,
+            guard_reset: None,
             exit_drops: None,
             exit_partition: None,
             suffix: None,
@@ -98,6 +101,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             condition,
             body,
             guard,
+            guard_reset: None,
             inputs,
             producers,
             slots,
@@ -108,6 +112,21 @@ impl UnitOwnerMultiRootBoundaryV1 {
             suffix: None,
         };
         value.is_consistent().then_some(value)
+    }
+    /// Actual completed terminal assignment of false to the Boolean guard, if present.
+    pub fn guard_reset(&self) -> Option<UnitExpressionId> {
+        self.guard_reset
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn with_guard_reset(
+        mut self,
+        reset: Option<UnitExpressionId>,
+    ) -> Option<Self> {
+        if self.guard_reset.is_some() || self.manifest.guard_reset.is_some() {
+            return None;
+        }
+        self.guard_reset = reset;
+        self.manifest.guard_reset = reset;
+        self.is_consistent().then_some(self)
     }
     pub(in crate::ownership_checking::compilation_unit) fn with_normal_transport(
         mut self,
@@ -304,7 +323,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
     /// Structural/catalog verification, not an induction or runtime trace validator.
     pub fn is_consistent(&self) -> bool {
         let source = self.control.source_unit();
-        self.valid_suffix() && self.valid_exit_partition() && self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
+        self.guard_reset == self.manifest.guard_reset && self.guard_reset.is_none_or(|id| id.source_unit() == self.control.source_unit()) && self.valid_suffix() && self.valid_exit_partition() && self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
             && self.manifest.slots == self.slots
             && self.manifest.inputs == self.inputs.definitions()
             && self.manifest.producers == self.producers.definitions()
@@ -523,5 +542,27 @@ mod exit_fault_tests {
         let mut reordered = boundary.clone();
         reordered.exit_drops.as_mut().unwrap().reverse();
         assert!(!reordered.is_consistent());
+    }
+    #[test]
+    fn ci_only_guard_reset_manifest_cannot_be_removed_or_relabelled() {
+        let fixture = Fixture::new(&[(
+            "guard-reset-manifest.ko",
+            "fun run(flag: Boolean) { var again = flag; var a = \"a\"; var b = \"b\"; while(again) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\"); again = false } }",
+        )]);
+        let owned = fixture.shared();
+        let boundary = owned.owner_observations()[0]
+            .multi_root_boundary_v1()
+            .unwrap();
+        assert!(boundary.guard_reset.is_some());
+        assert!(boundary.clone().with_guard_reset(None).is_none());
+        let mut missing = boundary.clone();
+        missing.guard_reset = None;
+        assert!(!missing.is_consistent());
+        let mut relabelled = boundary.clone();
+        relabelled.guard_reset = Some(boundary.condition);
+        assert!(!relabelled.is_consistent());
+        let mut manifest = boundary.clone();
+        manifest.manifest.guard_reset = None;
+        assert!(!manifest.is_consistent());
     }
 }
