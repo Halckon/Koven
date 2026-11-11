@@ -13514,7 +13514,7 @@ SourceRetired因果共存，仍不扩Complete/region/receipt或legacy Dependency
 新隔离分支基于已发布 93404d2a，保留其中实际 Partial use-return/source-retirement
 能力。仅复用早期实验的独立只读 `UnitBorrowAuxiliaryBindingRegion` 空 API 与普通探针，
 不覆盖已发布观察实现、不修改旧实验树。此前六记录前置失败不是区域能力红；本次必须在
-新基线重新编译执行，不能用旧日志代替。当前尚未编译运行或取得本次真实红。
+新基线重新编译执行，不能用旧日志代替。已在 426b811c 上重新编译并取得本次真实能力红。
 
 声明区间从原 borrow val 语句进入、此前唯一 String 文本 owner 已实际形成，直到原
 三语句函数 Block 正常完成且原清理后无 pending/owner 义务。准入限无参 Unit 普通
@@ -13536,12 +13536,19 @@ owner 形成前生命周期，不意味着整个 source/callable 完整，不新
 
 普通探针先完成两布局旧产品和 owner on/off 等价、完整八条原记录、唯一 auxiliary
 关系及原 AST entry/completion/consumer 身份，再统一要求一个新局部 Complete 区域。
-当前 API 保持空，真实执行预期在数量 0 != 1 失败，但未运行不计验收结果。
+当前 API 保持空；2026-11-11 实跑先通过 rooted、memory 两布局的原产品等价、
+八条记录、辅助关系及 AST 身份断言，随后在新区域数量 0 != 1 处失败。
+此结果定位为尚未实现独立区域能力，不是已有 Partial 因果回归，也不计完成。
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 | --- | --- | --- |
-| 新基线独立区域能力红 | unit_auxiliary_binding_region / ordinary_auxiliary_binding_requires_complete_interval | 空 API、原八记录和 AST 身份探针已准备；尚未编译执行 |
+| 新基线独立区域能力红 | unit_auxiliary_binding_region / ordinary_auxiliary_binding_requires_complete_interval | 426b811c：编译成功；精确运行 1 项，0 passed / 1 failed，0 ignored / 0 filtered；两布局均 raw_records=8、auxiliary_relations=1、new_regions=0 |
 
 后继独立验证须覆盖缺/多/乱序记录、异 catalog 辅助关系、替换 owner、缺真实 Drop
 因果、候选冲突、异常/早退闭合；故障构造仅 CI-only 编译，不执行于本机。生产与后端
 消费者均在取得相应真实红及独审后另行推进，不将此合同当作已有实现。
+
+本次命令为 `cargo test --locked --offline -p lang-frontend --features loan-observation-test-support --test unit_auxiliary_binding_region ordinary_auxiliary_binding_requires_complete_interval -- --exact --nocapture`。
+默认 unoptimized + debuginfo，未改 profile；未执行 CI-only。证据保存在本机
+`.local-artifacts/aux-region-checkpoint-20261111T1505Z/` 的输入提交、退出码和测试日志，
+不代替正式 CI 或完整工作区验收。本次仅更新此验收账本，不推送失败 checkpoint。
