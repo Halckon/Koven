@@ -38,9 +38,48 @@ pub(crate) struct ProviderHeader {
 }
 
 impl ProviderHeader {
+    /// Fixed header backedge for provider CFG fixtures; the slots it validates are
+    /// test-only, so production lowering keeps its own explicit transports.
+    #[cfg(test)]
+    pub(crate) fn backedge(
+        &self,
+        mut arguments: Vec<EntityId>,
+        next: ProviderNext,
+    ) -> Result<Edge, ProviderBuildError> {
+        if next.header != self.block
+            || arguments.len() <= self.source_slot
+            || arguments.len() <= self.length_slot
+            || arguments.len() <= self.cursor_slot
+        {
+            return Err(ProviderBuildError::InvalidHeaderTransport { block: self.block });
+        }
+        arguments[self.source_slot] = EntityId::Loan(next.source);
+        arguments[self.length_slot] = EntityId::Value(self.length);
+        arguments[self.cursor_slot] = EntityId::Value(next.value);
+        Ok(Edge {
+            target: self.block,
+            arguments,
+        })
+    }
+
     #[cfg(test)]
     pub(crate) const fn step(&self) -> ValueId {
         self.step
+    }
+}
+
+/// Test-only cursor advance result carrying the header/source it belongs to.
+#[cfg(test)]
+pub(crate) struct ProviderNext {
+    header: BlockId,
+    source: LoanId,
+    value: ValueId,
+}
+
+#[cfg(test)]
+impl ProviderNext {
+    pub(crate) const fn value(&self) -> ValueId {
+        self.value
     }
 }
 
@@ -341,6 +380,35 @@ pub(crate) fn advance_in_block(
         int_type,
         origin,
     )
+}
+
+/// Provider CFG fixture step: end the element loan, then advance its cursor.
+#[cfg(test)]
+pub(crate) fn finish_element_and_advance(
+    function: &mut Function,
+    element: GuardedElement,
+    int_type: SsaTypeId,
+    origin: &Origin,
+) -> Result<ProviderNext, ModelError> {
+    function.append_instruction(
+        element.body,
+        Operation::BorrowEnd { loan: element.loan },
+        Vec::new(),
+        origin.clone(),
+    )?;
+    let value = advance_in_block(
+        function,
+        element.body,
+        element.cursor,
+        element.step,
+        int_type,
+        origin,
+    )?;
+    Ok(ProviderNext {
+        header: element.header,
+        source: element.source,
+        value,
+    })
 }
 
 fn append_value(
