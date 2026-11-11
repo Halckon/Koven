@@ -511,6 +511,16 @@ impl Builder<'_, '_> {
             [when_true, when_false],
             span,
         )?;
+        let entry = self.current(span)?;
+        let branch_condition = self.unit(condition);
+        self.body.branch_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
         self.condition_for_control(condition, when_true, when_false, span)?;
         self.mixed_header_split_emitted(mixed_split, span)?;
         let outer_views = self.active_views.clone();
@@ -613,6 +623,10 @@ impl Builder<'_, '_> {
         self.pending_call_loans = outer_pending_loans;
         self.short_ranges = outer_short_ranges;
         self.temporaries = continuing_temporaries.unwrap_or_default();
+        let branch_predecessors = predecessors.iter().map(|p| p.block).collect::<Vec<_>>();
+        self.body
+            .branch_plans
+            .join(control, join, &branch_predecessors, span)?;
         let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));

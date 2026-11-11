@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    pub(super) branch: crate::ssa::refine::branch_receipt::Emitted,
     pub(super) forward: crate::ssa::refine::forward_receipt::Emitted,
     consumer: crate::ssa::refine::loan_receipt::Emitted,
     receiver: crate::ssa::refine::receiver_receipt::Emitted,
@@ -17,6 +18,11 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            branch: crate::ssa::refine::branch_receipt::Emitted::new(
+                &body.branch_plans,
+                function,
+                span,
+            )?,
             forward: crate::ssa::refine::forward_receipt::Emitted::new(
                 &body.forward_plans,
                 function,
@@ -67,7 +73,8 @@ impl LoanReceipts {
         self.temporary
             .finish(&body.temporary_plans, function, span)?;
         self.binding.finish(&body.binding_plans, function, span)?;
-        self.child.finish(&body.child_plans, function, span)
+        self.child.finish(&body.child_plans, function, span)?;
+        self.branch.finish(&body.branch_plans, function, span)
     }
 }
 
@@ -179,6 +186,14 @@ impl Emitter<'_> {
                         statement.span,
                     )?
                 }
+                Some(crate::ssa::refine::body::LoanTag::Branch(tag)) => receipts.branch.statement(
+                    &body.branch_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
                 None => {}
             }
         }

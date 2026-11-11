@@ -65,6 +65,11 @@ fn original_branch_lowering() -> Vec<(&'static str, &'static str, Vec<usize>)> {
             region.paths()[0].branch().then_arm(),
             region.paths()[1].branch().then_arm()
         );
+        let expected_paths = region
+            .paths()
+            .iter()
+            .map(|path| (path.branch(), path.action_ids().collect::<Vec<_>>()))
+            .collect::<Vec<_>>();
         for path in region.paths() {
             let ids = path.action_ids().collect::<Vec<_>>();
             assert_eq!(ids, vec![path.source_begin(), path.live_handoff()]);
@@ -124,12 +129,19 @@ fn original_branch_lowering() -> Vec<(&'static str, &'static str, Vec<usize>)> {
                 "layout={layout}; observer={setting}; ownership_phase_succeeded=true; lowering_ok={}; routes={routes:?}",
                 result.is_ok()
             );
-            completed.push((layout, setting, result, routes, branch_receipts));
+            completed.push((
+                layout,
+                setting,
+                result,
+                routes,
+                branch_receipts,
+                expected_paths.clone(),
+            ));
         }
     }
     let mut previous = None;
     let mut receipt_counts = Vec::new();
-    for (layout, setting, lowered, routes, branch_receipts) in completed {
+    for (layout, setting, lowered, routes, branch_receipts, expected_paths) in completed {
         let (program, _) = lowered.unwrap_or_else(|error| {
             panic!("{layout}/{setting}: normal same-source branch lowering required: {error:?}")
         });
@@ -175,6 +187,68 @@ fn original_branch_lowering() -> Vec<(&'static str, &'static str, Vec<usize>)> {
             first, second,
             "distinct calls and return exits, not one linear protocol"
         );
+        for receipt in &branch_receipts {
+            assert_eq!(setting, "on");
+            assert_eq!(receipt.caller, wrapper.id());
+            assert_eq!(receipt.entry, wrapper.blocks[0].id);
+            assert_eq!(receipt.source, *source);
+            assert_eq!(receipt.flag, *flag);
+            assert_eq!(receipt.read, read.id);
+            assert_eq!(receipt.condition_value, *condition);
+            assert_eq!(receipt.callable, expected_paths[0].0.callable());
+            assert_eq!(receipt.split, expected_paths[0].0.split());
+            assert_eq!(receipt.condition, expected_paths[0].0.condition());
+            assert_ne!(receipt.fold.0, receipt.fold.1);
+            assert_eq!(receipt.paths.len(), 2);
+            for path in &receipt.paths {
+                let expected = expected_paths
+                    .iter()
+                    .filter(|(branch, _)| *branch == path.branch)
+                    .collect::<Vec<_>>();
+                assert_eq!(expected.len(), 1);
+                assert_eq!(path.ids, expected[0].1);
+                assert_eq!(path.callee, view.id());
+                let (block, instruction) = if path.branch.then_arm() {
+                    first
+                } else {
+                    second
+                };
+                assert_eq!((path.block, path.instruction), (block, instruction));
+                assert_eq!(
+                    &path.edge,
+                    if path.branch.then_arm() {
+                        when_true
+                    } else {
+                        when_false
+                    }
+                );
+                let actual = wrapper.instruction(instruction).unwrap();
+                assert_eq!(
+                    actual.operation,
+                    Operation::BorrowCall {
+                        callee: view.id(),
+                        arguments: vec![EntityId::Loan(path.source)],
+                        source: path.source
+                    }
+                );
+                assert_eq!(actual.results, [EntityId::Loan(path.result)]);
+                assert_eq!(
+                    wrapper
+                        .block(block)
+                        .unwrap()
+                        .terminator
+                        .as_ref()
+                        .unwrap()
+                        .kind,
+                    TerminatorKind::BorrowReturn { loan: path.result }
+                );
+                assert_ne!(path.source, path.result);
+            }
+            assert_ne!(
+                receipt.paths[0].branch.then_arm(),
+                receipt.paths[1].branch.then_arm()
+            );
+        }
         assert_eq!(
             wrapper
                 .instructions
