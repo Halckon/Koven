@@ -11,9 +11,11 @@ pub(in crate::ssa) use source_columns::{SourceSlot, TypeAtMiss, associate_source
 
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+use super::model::LoanId;
 use super::{
     lowering_support::LoweringError,
-    model::{EntityId, Function, LoanId, ValueId},
+    model::{EntityId, Function, ValueId},
 };
 
 /// Fixed storage roles only; callers retain validation and role scheduling.
@@ -24,7 +26,9 @@ pub(in crate::ssa) trait AliasRole {
 }
 
 pub(in crate::ssa) struct Temporary;
+#[cfg(test)]
 pub(in crate::ssa) struct CaptureLoan;
+#[cfg(test)]
 pub(in crate::ssa) struct ResultSourceLoan;
 
 impl AliasRole for Temporary {
@@ -35,6 +39,7 @@ impl AliasRole for Temporary {
     }
 }
 
+#[cfg(test)]
 impl AliasRole for CaptureLoan {
     type Id = LoanId;
 
@@ -43,6 +48,7 @@ impl AliasRole for CaptureLoan {
     }
 }
 
+#[cfg(test)]
 impl AliasRole for ResultSourceLoan {
     type Id = LoanId;
 
@@ -88,6 +94,7 @@ pub(in crate::ssa) fn apply_alias_column<K: Copy + Ord, Id: Copy>(
 }
 
 /// Preserve symbol order and each saved vector position without inspecting entities.
+#[cfg(test)]
 pub(in crate::ssa) fn indexed_aliases<K: Copy, Id: Copy>(
     aliases: &BTreeMap<K, Vec<Id>>,
 ) -> impl Iterator<Item = ((K, usize), Id)> + '_ {
@@ -101,6 +108,7 @@ pub(in crate::ssa) fn indexed_aliases<K: Copy, Id: Copy>(
 }
 
 /// Restore this physical column into the original symbol-qualified vector positions.
+#[cfg(test)]
 pub(in crate::ssa) fn apply_indexed_alias_column<K: Copy + Ord, Id: Copy>(
     keys: &[(K, usize)],
     current: Id,

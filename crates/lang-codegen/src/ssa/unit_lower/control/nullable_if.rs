@@ -10,7 +10,9 @@ use crate::ssa::model::{LoanId, SsaTypeKind};
 use lang_frontend::{
     ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
     parser::{BinaryOperator, Item},
-    type_checking::{UnitCallableTarget, UnitExpressionId, UnitTypeKind},
+    type_checking::{
+        UnitCallableTarget, UnitExpressionId, UnitNullComparisonDescriptor, UnitTypeKind,
+    },
 };
 
 #[derive(Clone, Copy)]
@@ -61,6 +63,17 @@ impl UnitExpressionLowerer<'_> {
             return Ok(Some(entry));
         }
         Ok(None)
+    }
+
+    pub(in crate::ssa::unit_lower) fn map_borrow_condition(
+        &self,
+        mut condition: ExpressionId,
+        span: Span,
+    ) -> Result<Option<UnitNullComparisonDescriptor>, LoweringError> {
+        condition = self.ungroup_map_if_expression(condition, span)?;
+        Ok(self
+            .typed
+            .null_comparison(UnitExpressionId::new(self.source_unit, condition)))
     }
 
     pub(in crate::ssa::unit_lower) fn ungroup_map_if_expression(

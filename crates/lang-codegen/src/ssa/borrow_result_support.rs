@@ -12,6 +12,7 @@ use lang_frontend::{
 pub(super) mod local_if;
 pub(super) mod ordinary_local;
 mod short_circuit;
+#[cfg(test)]
 pub(super) mod stable_map;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

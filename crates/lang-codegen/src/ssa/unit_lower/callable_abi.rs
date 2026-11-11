@@ -134,11 +134,6 @@ impl CallableAbi {
         &self.views
     }
 
-    /// The callable view target recorded for a Borrow function parameter's concrete type.
-    pub(super) fn view(&self, function: UnitTypeId) -> Option<SsaTypeId> {
-        self.views.get(&function).copied()
-    }
-
     pub(super) fn known_functions(
         &self,
         function_ids: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,

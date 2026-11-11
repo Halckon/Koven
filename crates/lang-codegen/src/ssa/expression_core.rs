@@ -1,14 +1,16 @@
 //! Shared expression algorithms; entry adapters retain identity and stateful submission.
 pub(super) mod checked;
 
+use super::model::ValueId;
+#[cfg(test)]
+use super::{
+    lowering_support::{LoweringError, LoweringErrorKind, error},
+    model::{Operation, SsaTypeId},
+};
+#[cfg(test)]
 use lang_frontend::{
     source::Span,
     type_checking::{BuiltinType, IntegerOperationKind},
-};
-
-use super::{
-    lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{Operation, SsaTypeId, ValueId},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,6 +20,7 @@ pub(super) enum LoweredValue {
     Diverged,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy)]
 pub(super) struct IntegerFact<E, T> {
     pub(super) expression: E,
@@ -28,6 +31,7 @@ pub(super) struct IntegerFact<E, T> {
 }
 
 /// Only the fact queries and submission boundaries required by integer intrinsics.
+#[cfg(test)]
 pub(super) trait IntegerLowering {
     type Expr: Copy + Eq;
     type Type: Copy + Eq;
@@ -57,6 +61,7 @@ pub(super) trait IntegerLowering {
     ) -> Result<LoweredValue, LoweringError>;
 }
 
+#[cfg(test)]
 pub(super) fn lower_integer<H: IntegerLowering>(
     host: &mut H,
     expression: H::Expr,

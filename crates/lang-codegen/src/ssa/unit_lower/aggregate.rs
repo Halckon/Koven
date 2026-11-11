@@ -304,10 +304,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         if nominal.kind() == NominalKind::ValueClass {
-            if explicit_receiver.is_none() {
-                return self.lower_this_value_field(field, result_type, span);
-            }
-            let receiver = explicit_receiver.expect("explicit receiver was checked");
+            let receiver = explicit_receiver
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let Some(receiver_value) =
                 self.lower_optional_expression_value(receiver.expression())?
             else {

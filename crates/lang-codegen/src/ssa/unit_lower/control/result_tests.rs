@@ -190,10 +190,8 @@ impl Fixture {
                 }
             }
         }
-        let enum_payloads = BTreeMap::new();
         let callable_plans = BTreeMap::new();
         let references = symbol_references(&self.names, self.source, Namespace::Value);
-        let type_references = symbol_references(&self.names, self.source, Namespace::Type);
         let signature = unit_callable_signature(typed, instance.key().target()).unwrap();
         let block = function.entry_block().unwrap();
         let mut bindings = BTreeMap::new();
@@ -238,12 +236,10 @@ impl Fixture {
             map_results: &module.map_results,
             nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
-            enum_payloads: &enum_payloads,
             field_indices: &field_indices,
             substitutions: instance.substitutions(),
             static_self: instance.key().static_self(),
             references: &references,
-            type_references: &type_references,
             function,
             block,
             bindings,
