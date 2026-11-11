@@ -265,6 +265,7 @@ impl PendingLoan {
 pub(super) struct ValueState {
     /// Pure observation scope; never part of value availability or owner eligibility.
     pub(super) forward_scope: Option<super::borrow_forward_transport::ForwardScope>,
+    pub(super) branch_forward_plan: Option<super::branch_forward_scope::BranchForwardPlan>,
     pub(super) replace_consumer:
         Option<super::owner_transport::replace_consumer::ReplaceConsumerCarrier>,
     pub(super) lambda: Option<ExpressionId>,
@@ -347,6 +348,16 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     let Some(mut merged) = states.pop() else {
         return ValueState::default();
     };
+    // This bounded branch observation authorizes only the single surviving false edge.
+    if !states.is_empty() {
+        merged.branch_forward_plan = None;
+        if merged
+            .forward_scope
+            .is_some_and(|scope| scope.branch.is_some())
+        {
+            merged.forward_scope = None;
+        }
+    }
     // No general branch merge is authorized for the bounded suffix carrier.
     merged.replace_consumer = None;
     // Existing merge keeps the last state's pending actions. Only evidence degrades.

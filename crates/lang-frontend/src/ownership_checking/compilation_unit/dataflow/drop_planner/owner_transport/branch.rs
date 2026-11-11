@@ -11,12 +11,21 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         let branch_usage = self.control_result_usage(id);
-        if !self.expression(condition, DropExpressionUse::Read, state)? {
-            return Ok(false);
+        let condition_result = self.expression(condition, DropExpressionUse::Read, state);
+        if !matches!(condition_result, Ok(true)) {
+            state.branch_forward_plan = None;
+            if state
+                .forward_scope
+                .is_some_and(|scope| scope.branch.is_some())
+            {
+                state.forward_scope = None;
+            }
+            return condition_result;
         }
         // Restore depth even when legacy traversal returns an error. Only the real
         // branch bodies and their cleanup run inside this admission boundary.
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
+        self.prepare_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
         self.owner_branch_depth += 1;
         let result = self.owner_if_edges(
@@ -27,6 +36,15 @@ impl DropPlanner<'_, '_> {
             state,
         );
         self.owner_branch_depth -= 1;
+        if result.is_err() {
+            state.branch_forward_plan = None;
+            if state
+                .forward_scope
+                .is_some_and(|scope| scope.branch.is_some())
+            {
+                state.forward_scope = None;
+            }
+        }
         result
     }
 
@@ -44,12 +62,15 @@ impl DropPlanner<'_, '_> {
         });
         let base = state.clone();
         let mut branch_states = Vec::new();
+        let mut then_terminated = false;
         if reaches_then {
             let mut then_state = base.clone();
+            self.enter_forward_arm(id, true, &mut then_state);
             self.drop_branch_entry(id, 0, &[], &mut then_state);
             self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
             let (then_tail, then_result) =
                 self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
+            then_terminated = !then_result.continues;
             if then_result.continues {
                 self.drop_branch_exit(id, 0, &mut then_state);
             }
@@ -93,6 +114,17 @@ impl DropPlanner<'_, '_> {
                 // Legacy cleanup still executes on this real edge, even though this slice
                 // does not admit implicit-else observations.
                 let mut implicit = base;
+                if then_terminated {
+                    self.enter_forward_arm(id, false, &mut implicit);
+                } else {
+                    implicit.branch_forward_plan = None;
+                    if implicit
+                        .forward_scope
+                        .is_some_and(|scope| scope.branch.is_some())
+                    {
+                        implicit.forward_scope = None;
+                    }
+                }
                 self.drop_branch_entry(id, 1, &[], &mut implicit);
                 self.drop_branch_exit(id, 1, &mut implicit);
                 branch_states.push(implicit);
@@ -148,6 +180,24 @@ impl DropPlanner<'_, '_> {
     // Keep legacy Return traversal and cleanup in the same order, independent
     // of whether this observation is enabled or supported.
     pub(in super::super) fn owner_return_expression(
+        &mut self,
+        id: ExpressionId,
+        value: Option<ExpressionId>,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        self.prepare_forward_return(id, value, state);
+        let result = self.owner_return_expression_inner(id, value, state);
+        if state
+            .forward_scope
+            .is_some_and(|scope| scope.branch.is_some())
+        {
+            state.forward_scope = None;
+        }
+        state.branch_forward_plan = None;
+        result
+    }
+
+    fn owner_return_expression_inner(
         &mut self,
         id: ExpressionId,
         value: Option<ExpressionId>,

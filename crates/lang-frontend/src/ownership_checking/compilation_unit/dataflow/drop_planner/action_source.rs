@@ -41,6 +41,7 @@ pub(super) struct ActionSource {
     active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
     forward_regions: Vec<forward_regions::Candidate>,
+    branch_entries: Vec<(crate::ownership_checking::UnitLoanForwardBranch, usize)>,
     pub(super) enabled: bool,
 }
 
@@ -87,12 +88,24 @@ impl Default for ActionSource {
             active_child_region: None,
             dependency_drops: Vec::new(),
             forward_regions: Vec::new(),
+            branch_entries: Vec::new(),
             enabled: true,
         }
     }
 }
 
 impl ActionSource {
+    pub(super) fn enter_forward_branch(
+        &mut self,
+        branch: crate::ownership_checking::UnitLoanForwardBranch,
+    ) -> Option<usize> {
+        if !self.enabled {
+            return None;
+        }
+        let index = self.branch_entries.len();
+        self.branch_entries.push((branch, self.records.len()));
+        Some(index)
+    }
     pub(super) fn enter_region(
         &mut self,
         mut candidate: crate::ownership_checking::compilation_unit::loan_region_validation::Candidate,
@@ -387,7 +400,13 @@ impl ActionSource {
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
-        let forward_links = forward_links::validate(&self.records, &self.identity, source, file);
+        let forward_links = forward_links::validate(
+            &self.records,
+            &self.identity,
+            source,
+            file,
+            &self.branch_entries,
+        );
         let forward_regions = self.validate_forward_regions(&forward_links);
         let identity = self.identity;
         let actions: Vec<_> = self
@@ -461,13 +480,16 @@ impl ActionSource {
                         },
                     )
                 }
-                Record::BorrowForwardHandoff { transaction, .. } => {
+                Record::BorrowForwardHandoff {
+                    transaction, cause, ..
+                } => {
                     let link = forward_links.get(&index);
                     UnitLoanAction::BorrowForwardHandoff(
                         crate::ownership_checking::UnitLoanForwardHandoff {
                             identity: identity.clone(),
                             source_begin: link.map(|&(begin, _)| begin),
                             callable: link.map(|&(_, callable)| callable),
+                            branch: link.and_then(|_| cause.and_then(|cause| cause.scope.branch)),
                             transaction,
                         },
                     )

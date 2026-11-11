@@ -12921,3 +12921,35 @@ binary SHA、19项逐次exact原日志及结果清单。测试后仅追加此Spe
 旧closed validator不放宽，旧Normal/Continue CFG路径保留。普通native输出仍仅
 `outer/next/next/next`，有限运行不证明泄漏/计数或所有激活；任意条件形状、多个
 根、嵌套/顺序循环及loan/capture联合合同尚未覆盖，正式CI与后续合流待验证。
+### 同来源动态双出口 Partial 因果证据（2026-11-11）
+
+本片基于871cd939，仅给已准入的动态if真出口与唯一false尾return建立独立实际原因链；
+不发布branch Complete/region/receipt，也不增加End/Drop。声明计划不等于实际到达；
+真实臂入口须独立登记路径，false续接须确认true实际终止且只有唯一继续状态。Return
+求值前绑定call/value、control、condition和臂身份；仅沿原pending token传递acquisition。
+公开branch身份必须经过独立validator，不能只凭candidate/cause自称已验证。多继续、嵌套、
+未准入形状、错call/control/catalog等降为无原因raw handoff，旧语义和原子撤销不变。
+
+真实前置红df9fcf50：22.37秒no-run成功；4290输入与唯一FE binary冻结，普通exact
+`ordinary_dynamic_branch_has_two_distinct_actual_acquisition_causes`实际0 passed/1 failed。
+Rooted/Memory均ownership成功、两个raw handoff、source_begin/callable链接均零，Partial；
+legacy/on-off等价先通过，失败精确为缺少实际acquisition原因。不是lowering、Complete或
+receipt失败。证据及独立保存binary在主仓忽略目录
+`.local-artifacts/borrow-branch-causes-20261111/red`，独核输入/产物/runner前后身份一致。
+
+最终代码d3eb16aa的普通验收为FE两项与上述codegen五项，各1 passed。FE新增
+`ordinary_unadmitted_exit_shapes_keep_raw_partial_projection`覆盖三个邻界；动态正例
+逐项核真实AST的callable/split/condition/arm/control/value及两个不同原acquisition。
+旧语义on/off等价、两布局Partial、branch region/receipt为空仍成立。独立入口登记与
+全记录唯一性校验拒绝重复臂、重复入口或共享acquisition，不以首条候选获胜。
+新增CI-only身份负控仅编译未本机执行，不宣称完整故障覆盖或CI已绿。
+
+最终证据在同根green-3与codegen-3：绑定4292输入，输入摘要
+`7ed55c6743d7cbea8ece68803b91cedfd0734df4111e88085476f24dd6ba7f76`；
+FE no-run 0.079秒复用匹配产物，codegen no-run 10.56秒重新编译，各自保存独立binary、
+Cargo JSON、runner和输入清单。七项exact均核list恰一项，执行前后身份不变。
+默认strict Clippy 26.90秒、feature strict Clippy 12.41秒、workspace all-targets check
+4.48秒均通过；fmt、docs891、尺寸与diff通过。99ed34db默认strict曾因observer未使用
+reexport真实失败，保留原日志；d3eb16aa复用已审d5a5722f的三个Rust文件cfg修正，
+不以allow掩盖，重新验证以上最终结果。本账本追加仅文档，不改已冻结Rust。
+未执行native、全量或CI-only，未推送；合流后必须重新联合验证。

@@ -17,6 +17,9 @@ pub(super) struct ForwardScope {
     pub(super) region: Option<usize>,
     pub(super) callable: UnitItemId,
     pub(super) body: UnitExpressionId,
+    pub(super) control: UnitExpressionId,
+    pub(super) branch: Option<crate::ownership_checking::UnitLoanForwardBranch>,
+    pub(super) branch_entry: Option<usize>,
     pub(super) argument: UnitExpressionId,
     pub(super) root: UnitSymbolId,
 }
@@ -174,6 +177,9 @@ impl DropPlanner<'_, '_> {
             region: None,
             callable: UnitItemId::new(self.checker.source_unit, item),
             body,
+            control: body,
+            branch: None,
+            branch_entry: None,
             argument,
             root,
         })
@@ -249,7 +255,11 @@ impl DropPlanner<'_, '_> {
                 returned: origin.expression(),
                 source,
                 cause: acquisition
-                    .zip(state.forward_scope)
+                    .zip(state.forward_scope.filter(|scope| {
+                        scope.body == source_call
+                            && scope.argument == forwarded.argument()
+                            && scope.root == place.root()
+                    }))
                     .map(|(acquisition, scope)| ForwardCause { acquisition, scope }),
             });
     }

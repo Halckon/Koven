@@ -41,6 +41,9 @@ fn ci_only_forward_region_requires_all_boundaries_and_same_catalog() {
         region: None,
         callable: UnitItemId::new(wrap.source_unit(), wrap.root()),
         body: loan.call(),
+        control: loan.call(),
+        branch: None,
+        branch_entry: None,
         argument: loan.argument(),
         root: place.root(),
     };
@@ -50,6 +53,7 @@ fn ci_only_forward_region_requires_all_boundaries_and_same_catalog() {
             &actions.identity,
             loan.call().source_unit(),
             fixture.parsed[0].source_id(),
+            &actions.branch_entries,
         );
         actions.validate_forward_regions(&links)
     };

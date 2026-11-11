@@ -490,6 +490,7 @@ fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
     let ValueState {
         // Pure observation metadata does not change the existing owner boundary.
         forward_scope: _,
+        branch_forward_plan: _,
         replace_consumer,
         lambda,
         borrow_bindings,
