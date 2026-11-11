@@ -358,6 +358,23 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                 let normal = equation
                     .incoming(equation.control(), StaticRootPredecessor::FirstBody)
                     .unwrap();
+                let transfers = equation.transfers(equation.control()).unwrap();
+                assert_eq!(transfers.len(), roots.len());
+                for (slot, (root, _)) in transfers.iter().zip(roots) {
+                    assert_eq!(slot.root, *root);
+                    assert!(visits[1].root_writes.iter().any(|write| {
+                        write.root == slot.root
+                            && write.producer == slot.producer
+                            && write
+                                .token_retirement
+                                .as_ref()
+                                .is_some_and(|(_, fact)| *fact == slot.retired_through)
+                    }));
+                }
+                assert_eq!(
+                    equation.clone().transfers(equation.control()).unwrap(),
+                    transfers
+                );
                 assert_eq!(entry, roots);
                 assert_eq!(normal.len(), roots.len());
                 let cloned = equation.clone();
@@ -494,6 +511,7 @@ fn static_header_alternatives_reject_another_real_control() {
         assert_eq!(visits.len(), 4);
         let equation = visits[1].normal_equation.as_ref().unwrap();
         assert_ne!(equation.control(), visits[2].control);
+        assert!(equation.transfers(visits[2].control).is_none());
         for predecessor in [
             StaticRootPredecessor::ZeroBody,
             StaticRootPredecessor::FirstBody,

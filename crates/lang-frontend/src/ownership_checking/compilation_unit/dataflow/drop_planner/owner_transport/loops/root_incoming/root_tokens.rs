@@ -10,12 +10,21 @@ pub(in super::super::super::super) enum StaticRootPredecessor {
     FirstBody,
 }
 
+/// Static transfer signature; root denotes an input slot, not a fresh runtime owner.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in super::super::super::super) struct RootTransferSlot {
+    pub(in super::super::super::super) root: UnitSymbolId,
+    pub(in super::super::super::super) producer: UnitExpressionId,
+    pub(in super::super::super::super) retired_through: crate::ownership_checking::UnitDropFact,
+}
+
 /// Sealed whole-vector alternatives. Selecting roots independently would invent paths.
 #[derive(Clone, Debug)]
 pub(in super::super::super::super) struct RootBoundaryEquation {
     control: UnitStatementId,
     entry: RootIncoming,
     normal: RootIncoming,
+    transfers: Vec<RootTransferSlot>,
 }
 impl RootBoundaryEquation {
     pub(in super::super::super::super) fn control(&self) -> UnitStatementId {
@@ -37,6 +46,13 @@ impl RootBoundaryEquation {
         })
     }
 
+    pub(in super::super::super::super) fn transfers(
+        &self,
+        control: UnitStatementId,
+    ) -> Option<&[RootTransferSlot]> {
+        (control == self.control()).then_some(self.transfers.as_slice())
+    }
+
     fn same_roots(&self) -> bool {
         let Some(entry) = self.incoming(self.control, StaticRootPredecessor::ZeroBody) else {
             return false;
@@ -44,7 +60,13 @@ impl RootBoundaryEquation {
         let Some(normal) = self.incoming(self.control, StaticRootPredecessor::FirstBody) else {
             return false;
         };
-        entry.len() == normal.len()
+        self.transfers(self.control).is_some_and(|slots| {
+            slots.len() == entry.len()
+                && slots
+                    .iter()
+                    .zip(entry)
+                    .all(|(slot, (root, _))| slot.root == *root)
+        }) && entry.len() == normal.len()
             && entry
                 .iter()
                 .zip(normal)
@@ -71,6 +93,7 @@ pub(in super::super) struct RootTokenTransaction {
     pending: Option<(UnitExpressionId, UnitOwnerId)>,
     bound: Option<(UnitSymbolId, UnitOwnerId)>,
     retired: usize,
+    consumed: Vec<(UnitOwnerId, crate::ownership_checking::UnitDropFact)>,
     next: usize,
     valid: bool,
 }
@@ -85,6 +108,7 @@ impl RootTokenTransaction {
             && self.pending.is_none()
             && self.bound.is_none()
             && self.retired == self.planned.len()
+            && self.consumed.len() == self.retired
     }
 
     pub(in super::super) fn boundary_equation(&self) -> Option<RootBoundaryEquation> {
@@ -109,10 +133,38 @@ impl RootTokenTransaction {
         {
             return None;
         }
+        // Join by root identity, not by declaration order. Preserve actual drop facts.
+        let mut transfers = Vec::new();
+        for (root, old) in entry {
+            let index = self
+                .planned
+                .iter()
+                .position(|(_, known, _)| known == root)?;
+            let (_, _, producer) = self.planned[index];
+            let (binding, statement) = self.bindings.get(index)?;
+            let (consumed_old, fact) = self.consumed.get(index)?;
+            let definition = self.definitions.get(index)?;
+            let current = self.roots.iter().find(|(known, _)| known == root)?;
+            if consumed_old != old
+                || fact.target() != crate::ownership_checking::UnitDropTarget::Named(*binding)
+                || fact.point()
+                    != crate::ownership_checking::UnitDropPoint::AfterStatement(*statement)
+                || definition.origin != UnitOwnerOrigin::String(producer)
+                || definition.id != current.1
+            {
+                return None;
+            }
+            transfers.push(RootTransferSlot {
+                root: *root,
+                producer,
+                retired_through: *fact,
+            });
+        }
         let equation = RootBoundaryEquation {
             control: self.control,
             entry: entry.clone(),
             normal: self.roots.clone(),
+            transfers,
         };
         equation.same_roots().then_some(equation)
     }
@@ -202,6 +254,7 @@ impl RootTokenTransaction {
             pending: None,
             bound: None,
             retired: 0,
+            consumed: Vec::new(),
             next: 0,
             valid: true,
         })
@@ -352,6 +405,7 @@ impl RootTokenTransaction {
             self.valid = false;
             return None;
         };
+        self.consumed.push((old.clone(), fact));
         self.retired += 1;
         Some((self.planned[index].0, binding, old))
     }

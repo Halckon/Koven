@@ -103,3 +103,10 @@ normal token，不表示下一轮复用这些token，也不是运行时固定点
 不能把第一控制的候选用于第二控制。这只是零轮与首次body边界的备选定义域，选择API
 不代表该边实际可达，也不支持把FirstBody解释为任意后续轮次；未生成激活序号、动态实例
 或公开phi产品。跨轮归纳与路径完整性仍未实现。
+
+每个header候选还保留按入口root排列的静态转移槽：input root、实际完成的String producer、
+消费该root原token的真实drop fact。事务保存drop hook实际消费的(old,fact)，建槽时按root
+查声明索引，再核原token、返回binding、AfterStatement与对应新定义；不得用声明下标直接
+配入口根。槽仅通过同control的整组只读查询取得，clone不产生新身份。
+该有限签名为下一步归纳提供“输入槽退休/producer输出”材料，不实例化第二次激活、不重放
+drop，也不把静态producer定义当各运行轮次共享的owner。公开能力及旧见证保持不变。

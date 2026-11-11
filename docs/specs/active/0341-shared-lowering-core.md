@@ -13711,3 +13711,14 @@ catalog；真实两控制源码覆盖错control拒绝，原多根及逆序矩阵
 workspace all-target check及fmt/diff通过。docs898与Rust尺寸2466文件/35项旧债通过，
 无新增例外。只读复审发现的control可改写缺口已以私有字段及只读getter封闭并复核。
 CI-only故障测试仅编译，未本机执行；本地提交、不推送，未处理Preview。
+
+### 静态逐根转移签名（2026-11-11，本地）
+
+基于8ac8658e，独立事务保存真实drop消费的旧token与fact，构建header候选时按root
+关联计划声明、producer定义、返回binding及消费事实，形成封闭的整组只读转移槽。
+真实多根正反矩阵与逆序写入覆盖槽/root/producer/drop精确配对、clone稳定和错control拒绝。
+这是首次静态body的有限签名，不是第二次激活、运行时trace或跨轮归纳完成；不发布公开能力。
+
+本片定向10项通过；最终FE lib656通过、50项ci_only过滤；FE all-target strict Clippy、
+LLVM21 workspace all-target check及fmt/diff通过。只读复审未发现错根、错binding或封装
+阻断。CI-only故障用例只编译未本机执行，无远端CI或跨轮运行证明声明。
