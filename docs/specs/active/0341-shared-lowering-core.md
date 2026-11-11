@@ -13156,10 +13156,32 @@ Rooted/Memory四次真实lower、原最终verifier捕获、独立SSA核验及LLV
 后继consumer独立于旧表达式Plans：builder登记原四block与false唯一Goto，emitter
 在原merge_straight_lines真实折叠处保存false→join映射，不保留额外block改变旧SSA。
 普通probe追加真实FE action IDs及两个call/return、condition Read与Conditional
-原edge的完整身份断言。生产后仍须独审及实际验证，当前不认领验绿、CI或native。
+原edge的完整身份断言。生产candidate a481a8fe 已完成源码独审及下列真实验收，
+不认领远端CI或native。函数emitter仅暂存完整aggregate；观察批次在原unit最终verifier
+成功后提交，提前lowering/verifier错误由guard撤销pending，不新增验证次数。
+
+首次生产候选2f7d6de4的no-run在43.41秒编译失败：ordinary probe引用私有BlockRef；
+这是编译接线错误，不替代前置behavioral红。a481a8fe保持内部身份私有，只暴露测试布尔
+查询；真实终结事件dispatch归属LoanReceipts，emit.rs回到990行，不提高尺寸额度。
+失败与修复证据分别保留。修复后no-run59.60秒成功，4305个输入及唯一实际编译artifact
+绑定并独立保存binary；六项ordinary执行前后输入/binary摘要一致，各exact唯一list且
+各1 passed。Rooted/Memory各on一个双path aggregate、off零，原SSA/LLVM仍相同。
+默认/观察feature FE+CG all-targets strict Clippy分别56.62/57.48秒成功，workspace
+all-targets check52.51秒成功；fmt/docs893/diff及尺寸2442文件、35项历史欠账门禁通过。
+本片基线仍fa82cfc2；合入更新main的组合须另做联合验证，不外推本片结果。
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 | --- | --- | --- |
-| aggregate receipt能力红及后继consumer | branch_forward_probe::ordinary_branch_requires_actual_aggregate_receipt_with_true_off | 0e60721d真实0 passed/1 failed；后继尚未编译执行 |
-| 旧双出口lowering/original expression receipt边界 | branch_forward_probe::ordinary_same_source_branch_requires_real_lowering_with_true_off | 本片未执行 |
-| 缺路径/重复/错edge operand/异catalog等破损 | 后续CI-only定向负控 | 尚未实现；本机不执行注入 |
+| aggregate receipt能力红及后继consumer | branch_forward_probe::ordinary_branch_requires_actual_aggregate_receipt_with_true_off | 0e60721d真实0 passed/1 failed；a481a8fe后继1 passed |
+| 旧双出口lowering/original expression receipt边界 | branch_forward_probe::ordinary_same_source_branch_requires_real_lowering_with_true_off | a481a8fe各1 passed，另核邻界、旧Single门禁、旧expression receipt及raw handoff |
+| 缺路径/重复/错edge operand/异catalog等破损 | branch_receipt::emitted::ci_tests 两项 ci_only | 已实现并编译；本机未执行 |
+
+六项ordinary exact为branch_forward_probe的ordinary_branch_requires_actual_aggregate_receipt_with_true_off、
+ordinary_same_source_branch_requires_real_lowering_with_true_off、ordinary_branch_neighbors_keep_the_unit_declaration_gate，
+borrow_result_contract_tests::borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported，
+forward_receipts::original_live_forward_requires_production_receipt_with_true_off，
+forward_projection::original_branch_returns_keep_both_raw_handoffs_without_a_cause。
+CI-only覆盖12类身份变体、6类缺角色、反向/重复fold及3类builder阶段，另模拟pending
+遇Err撤销/commit正控；不等同真实最终verifier故障注入或独立mixed-join构造的执行证据。
+两位交叉审区分生产作者与注入测试作者，冻结输入、原artifact、独立binary和全部普通
+运行证据另经逐项独核。source/callable仍Partial，非此有界拓扑和新End/Drop未由本片扩大。
