@@ -13194,19 +13194,40 @@ ee91f2e9 已由普通 CG probe 真实验证：no-run 145 秒，唯一 ordinary 1
 Rooted/Memory 各 on/off 原 SSA/LLVM、源保留与辅助先退休顺序通过。
 
 新增只读 `UnitLoanAuxiliaryRetirement` 引用同 catalog 的 source_begin、
-auxiliary_begin、原 handoff。当前仅公开空 API 壳，尚未连接生产；不得以缺 API 编译错误
-替代行为红。普通 FE 探针先完成两布局的旧 ownership/owner on/off 等价、原 raw aux
-恰一及两个真实 Begin，再统一要求 on 恰一关系；off catalog 仍空。测试不拼造关系。
+auxiliary_begin、原 handoff。9e75a1d9 空 API 的普通 FE 探针完成两布局旧产品等价、
+raw aux 恰一及两个真实 Begin 后，实际运行 0 passed/1 failed，关系数 0 != 1；
+no-run 15.00 秒成功，非编译错误。原红输入和独立保存 binary 保留。
 
-后继生产只能在原 observe 时从仍 live 的唯一 source PendingLoan 捕获 Begin handle，
-从原 auxiliary remove 取出其 Begin handle，并在 initializer 成功的原 commit 处绑定
-handoff。缺失、异 catalog、重复或错 token 身份必须拒绝新关联，不改变旧 fact 投影、
-原退休或 cleanup；不得从最终 descriptor 扫描重建“最近 Begin”。source 可合法关联多个
-独立 auxiliary，但同一辅助 acquisition 不得重复退休。异常或不继续不得发布新关联。
-本片无新 End/Drop、region、coverage Complete 或 receipt；source/callable 保持 Partial，
-旧 binding 无辅助门禁不放宽。动态循环、跨函数身份、故障注入及 native 不由此普通探针覆盖。
+生产在原 observe 时从仍 live 的唯一 source PendingLoan 捕获 Begin handle，
+从原 auxiliary remove 取出其 Begin handle，在 initializer 成功的原 commit 处绑定
+handoff。只准入直线、根层、两个 Name 实参的 Shared String 调用：同一 owned root、
+不同 argument、source 为第零参数、恰一辅助。独立 finalizer 检查 catalog、顺序、
+原 fact、不同身份以及 source/aux/handoff 复用；source 亦不得跨 candidate 重复或与
+aux 交叉复用。该最窄片不支持一个 source 关联多个辅助。拒绝只影响新关联，不改变
+旧 fact 投影、原退休或 cleanup；不扫描 descriptor 重建“最近 Begin”。source 后续
+正常退休仍合法。无新 End/Drop、region、coverage Complete 或 receipt；source/callable
+保持 Partial，旧 binding 无辅助门禁不放宽。
+
+6aff5010 的 FE 2 + CG 9 ordinary 均真实通过，但默认 strict Clippy 指出
+unnecessary_filter_map。08902db5 仅等价改为 filter，不提高门禁额度；随后新冻结
+4310 项输入重新编译 FE/CG（8.96/17.30 秒），两份独立 binary 和实际 artifact 绑定。
+FE 2 + CG 9 exact 各唯一、各 1 passed，执行前后输入及 binary 摘要不变，已独核。
+FE 正控核两布局各一个原身份关系；三邻界（不同 root、第二参数为 source、两个辅助）
+各两布局保持零新关系及原 raw handoff。CG 再核四组合的真实 SSA/LLVM、辅助先退休、
+source 保留及原最终 verifier，兼顾旧 branch/expression/binding receipt。
+默认/观察 feature 的 FE+CG all-targets strict Clippy 分别 41.36/42.03 秒通过，
+workspace all-targets check 39.53 秒通过。失败证据与修复后证据分别保留。
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 | --- | --- | --- |
-| 原样辅助退休合法性 | aux_handoff_probe::ordinary_auxiliary_retirement_preserves_live_source_with_true_off | ee91f2e9 真实 1 passed；四组合先验通过 |
-| FE 原因链能力红 | unit_auxiliary_retirement / ordinary_auxiliary_retirement_requires_actual_acquisition_links | 已编写空 API 与探针，尚未编译执行；预期 0 != 1 不计实际证据 |
+| 原样辅助退休合法性 | aux_handoff_probe::ordinary_auxiliary_retirement_preserves_live_source_with_true_off | ee91f2e9 真实 1 passed；08902db5 再验 1 passed |
+| FE 原因链能力红绿 | unit_auxiliary_retirement / ordinary_auxiliary_retirement_requires_actual_acquisition_links | 9e75a1d9 真实红；08902db5 真实绿 |
+| FE 三邻界 | unit_auxiliary_retirement / ordinary_auxiliary_retirement_neighbors_keep_partial_raw_handoffs | 08902db5 真实 1 passed |
+| 缺失/外来/复用/交叉角色候选 | auxiliary_retirements::tests::ci_only_auxiliary_links_reject_missing_foreign_reused_and_cross_role_tokens | 16 类变体已编译，本机未执行 |
+
+CG 九项 ordinary 为上节六项，加 aux_handoff_probe 的合法性探针，
+binding_receipts::complete_binding_requires_real_production_receipt 与
+binding_causal_links::binding_lifecycle_requires_actual_causal_links_with_true_off。
+CI-only 重复 case 是整体重复拒绝，未单独隔离 handoff 复用条件；真实 Err/deferred
+撤销、动态循环、跨函数身份、更广类型、native 及完整辅助生命周期不由本片认领。
+生产作者与故障测试作者交叉独审；本片仍基于 a9c9318a，更新 main 的组合另行验收。
