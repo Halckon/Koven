@@ -22,6 +22,13 @@ fn counter_tail_complete_boundary_consumes_live_suffix() {
             assert_eq!(
                 actions
                     .iter()
+                    .filter(|(kind, _)| *kind == "counter-replace-permit-consumed")
+                    .count(),
+                2
+            );
+            assert_eq!(
+                actions
+                    .iter()
                     .filter(|(kind, _)| *kind == "counter-tail-complete-boundary-audit")
                     .count(),
                 1
@@ -48,6 +55,9 @@ fn ci_only_counter_boundary_rejects_missing_suffix_and_wrong_entry() {
     let source = UnitSource::analyze("counter-boundary-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::MissingCounterReplacePermit,
+        OwnerFault::CounterReplaceWrongRoot,
+        OwnerFault::CounterReplaceDuplicateCommit,
         OwnerFault::CounterLateAbortToHeader,
         OwnerFault::CounterBoundaryMissingSuffix,
         OwnerFault::CounterBoundaryWrongEntry,

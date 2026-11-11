@@ -20,6 +20,17 @@ false-exit活根/退休分区和完成的suffix事实。内部复用既有私有
 身份、同control的Unsupported Syntax及空legacy事件，不允许与其他产品混用。
 失败或deferred分析撤销证据。不能借该getter把Unsupported改为Complete。
 
+## 受限发射消费合同
+
+已选counter范围的每个精确RootReplace call在实际发射前必须获得私有一次性permit：
+核当前body块、root槽及原catalog对应的真实producer槽；发射后核同一指令位置、call span、
+root/replacement和返回旧值，再提交该项。所有项最终必须恰好提交一次。范围外维持通用
+lowering；这不是借用旧单根plan，也不从“没有receipt”推断所选范围允许跳过消费。
+
+这是局部发射消费合同，不是新的公开跨轮owner产品。typed/inout及通用drop权限仍保留，
+binding/drop尚未迁移为该permit链的一部分。CI-only覆盖缺失permit、错root、重复提交；
+本地只编译，普通native矩阵核真实每根消费记录。
+
 ## 实际后端消费
 
 独立plan仅选择同callable的唯一审计记录，不创建旧单根header plan。

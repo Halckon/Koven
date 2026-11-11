@@ -1,6 +1,7 @@
 //! Audit completed FE countdown identities against real checked edges; no new permission.
 use super::*;
 mod boundary;
+mod emission;
 use crate::ssa::model::{CheckedArithmeticOperator, ComparisonOperator, ScalarConstant};
 use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitOwnerCallable, UnitOwnerCounterTailEvidenceV1,
@@ -12,6 +13,7 @@ pub(super) struct Plan<'a> {
     counter: Option<Slot>,
     guard: Option<Slot>,
     roots: Vec<Slot>,
+    replaced: Vec<bool>,
 }
 impl<'a> Plan<'a> {
     pub(super) fn new(inputs: &RefineInputs<'a>) -> Result<Option<Self>, LoweringError> {
@@ -37,6 +39,7 @@ impl<'a> Plan<'a> {
             counter: None,
             guard: None,
             roots: Vec::new(),
+            replaced: vec![false; evidence.steps().len()],
         }))
     }
 }
@@ -88,6 +91,9 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if plan.replaced.iter().any(|done| !done) {
+            return Err(fail());
+        }
         let [entry, header, body, finished, _exit] = plan.geometry.ok_or_else(fail)?;
         let counter = plan.counter.ok_or_else(fail)?;
         let guard = plan.guard.ok_or_else(fail)?;
