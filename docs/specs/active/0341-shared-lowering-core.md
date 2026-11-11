@@ -13507,3 +13507,41 @@ SourceRetired因果共存，仍不扩Complete/region/receipt或legacy Dependency
 默认CLI构建及实际help（features为空）、fmt/docs897/diff均通过；尺寸2452手写Rust
 文件、35历史超限，无新增豁免。仍用opt0/debug2，不执行CI-only、Abort或资源计数。
 最后只追加本Spec；未推送、未合main，正式CI和独立审查不能由此替代，D10/E2未整体完成。
+
+
+### 辅助绑定独立局部区域：已发布 Partial 基线后的能力红
+
+新隔离分支基于已发布 93404d2a，保留其中实际 Partial use-return/source-retirement
+能力。仅复用早期实验的独立只读 `UnitBorrowAuxiliaryBindingRegion` 空 API 与普通探针，
+不覆盖已发布观察实现、不修改旧实验树。此前六记录前置失败不是区域能力红；本次必须在
+新基线重新编译执行，不能用旧日志代替。当前尚未编译运行或取得本次真实红。
+
+声明区间从原 borrow val 语句进入、此前唯一 String 文本 owner 已实际形成，直到原
+三语句函数 Block 正常完成且原清理后无 pending/owner 义务。准入限无参 Unit 普通
+函数、直接 Name callee、两个 Name Shared String 实参同 root、不同 acquisition，
+来源参数 0、恰一个辅助；随后仅 consume(item)。排除 receiver、泛型、跨线程、abort、
+branch/loop/lambda、多 use、owner 后续读取等超出本声明范围的情形。
+
+完整连续原区间必须恰八条：source Begin、aux Begin、handoff、consumer Begin、
+UseReturned、BindingEnd、SourceRetired、Cleanup Drop。唯一已验证 auxiliary 关系
+绑定偏移 0/1/2；use/retirement 逐实际 ID 关联，Drop 必须由真实退休、owner 移除及
+append 传递证据，不能最终扫描凑齐。入口 owner 完整身份快照与实际移除快照一致；
+Err/早退/缺出口/重复闭合/候选冲突/额外记录不能 Complete。局部 Complete 不包括
+owner 形成前生命周期，不意味着整个 source/callable 完整，不新增 End/Drop/CG receipt。
+
+新 candidate、活动索引与 AuxRegion Drop cause 独立。原 Region/Dependency 的
+`cause.or_else(|| batch.cause())` 结果先保留；已有旧 cause 时仅新 aux candidate 失效，
+不抢占、覆盖或改变旧七记录 Region/Dependency 及其消费者。多 binding 同 root 的原
+歧义处理保留，新证据也不能由最后一个绑定恢复。旧 binding API/validator 不放宽。
+
+普通探针先完成两布局旧产品和 owner on/off 等价、完整八条原记录、唯一 auxiliary
+关系及原 AST entry/completion/consumer 身份，再统一要求一个新局部 Complete 区域。
+当前 API 保持空，真实执行预期在数量 0 != 1 失败，但未运行不计验收结果。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| 新基线独立区域能力红 | unit_auxiliary_binding_region / ordinary_auxiliary_binding_requires_complete_interval | 空 API、原八记录和 AST 身份探针已准备；尚未编译执行 |
+
+后继独立验证须覆盖缺/多/乱序记录、异 catalog 辅助关系、替换 owner、缺真实 Drop
+因果、候选冲突、异常/早退闭合；故障构造仅 CI-only 编译，不执行于本机。生产与后端
+消费者均在取得相应真实红及独审后另行推进，不将此合同当作已有实现。

@@ -549,6 +549,8 @@ impl ActionSource {
             branch_forward_regions,
             binding_dependency_drops,
             auxiliary_retirements,
+            // Empty capability checkpoint: no interval producer has been installed.
+            auxiliary_binding_regions: Vec::new(),
         }]
     }
 }

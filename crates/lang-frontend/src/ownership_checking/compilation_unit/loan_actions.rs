@@ -100,9 +100,26 @@ pub struct UnitLoanActionObservation {
     pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) auxiliary_binding_regions: Vec<super::UnitBorrowAuxiliaryBindingRegion>,
 }
 
 impl UnitLoanActionObservation {
+    /// Independent auxiliary-bearing binding intervals, not legacy binding certificates.
+    /// Missing entries grant no absence proof or backend receipt authority.
+    #[must_use]
+    pub fn auxiliary_binding_regions(&self) -> &[super::UnitBorrowAuxiliaryBindingRegion] {
+        &self.auxiliary_binding_regions
+    }
+
+    /// Check the original catalog, never an equal snapshot from another analysis.
+    #[must_use]
+    pub fn owns_auxiliary_binding_region(
+        &self,
+        region: &super::UnitBorrowAuxiliaryBindingRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Partial relations to original normal-return auxiliary retirements.
     /// Empty grants no absence proof and does not enable any region or receipt.
     #[must_use]
