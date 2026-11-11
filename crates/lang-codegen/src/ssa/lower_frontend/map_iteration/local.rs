@@ -1,8 +1,8 @@
 //! The bounded, ordinary named-local Map proof consumes only published FE facts.
 //! Formation history is an anchor; entry Expression owners and every incoming
 //! establish current liveness. Runtime still checks birth, transport and absence.
-mod conditions;
-mod identity;
+use super::local_runtime::conditions;
+pub(super) mod identity;
 pub(super) use identity::{lambda_body, producer};
 mod topology;
 

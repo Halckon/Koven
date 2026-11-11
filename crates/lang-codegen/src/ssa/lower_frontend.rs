@@ -1,12 +1,11 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod aggregate;
-mod binding;
+pub(super) use aggregate::resource_deinit;
 mod borrow_argument;
 mod borrow_result;
 #[cfg(test)]
 mod cleanup_guard_harness;
-mod constant_presence;
 mod container;
 mod control;
 mod declarations;
@@ -21,13 +20,12 @@ mod map;
 mod map_consume;
 mod map_iteration;
 mod map_loop_owner;
-mod map_result;
 mod nominal;
-mod non_null_assertion;
 mod non_null_proof;
 mod nullable_borrowed_cleanup;
 mod nullable_comparison;
 mod nullable_if_cleanup;
+pub(super) use nullable_if_cleanup::constant_presence;
 mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;
@@ -36,7 +34,6 @@ mod ownership_primitive;
 mod pending_call;
 mod range;
 mod readonly_receiver;
-mod resource_deinit;
 mod source_closure;
 mod string_clone;
 mod while_proof;

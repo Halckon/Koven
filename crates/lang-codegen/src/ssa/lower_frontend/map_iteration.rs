@@ -1,6 +1,7 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
 mod carrier;
 mod checked;
+use checked::nested;
 mod cleanup;
 use cleanup::exit_shape;
 mod conditional;
@@ -9,7 +10,6 @@ mod formed;
 mod formed_runtime;
 mod local;
 mod local_runtime;
-mod nested;
 mod qualify;
 mod resource;
 mod source;

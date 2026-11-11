@@ -64,6 +64,7 @@ subgraph Gactive["现行 active"]
   S0416["S0416<br/>lowering_support、map_source、borrow_result_support 及 lower_frontend 控制/清理壳子模块退役"]
   S0417["S0417<br/>verify、render、verify_operation、verify_ownership 及 refine/build 壳子模块退役"]
   S0418["S0418<br/>refine 借用凭证/准入壳模块及 lower_frontend 守卫/容器/闭包壳子模块退役"]
+  S0419["S0419<br/>lower_frontend 绑定、非空断言、Map 结果/资源析构与 map_iteration 壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -147,6 +148,7 @@ ARCH --> S0341
 | SPEC-0416 | active | [0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md](active/0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md) |
 | SPEC-0417 | active | [0417-refine-verify-render-and-build-shells-retirement.md](active/0417-refine-verify-render-and-build-shells-retirement.md) |
 | SPEC-0418 | active | [0418-refine-receipt-subset-and-frontend-shells-retirement.md](active/0418-refine-receipt-subset-and-frontend-shells-retirement.md) |
+| SPEC-0419 | active | [0419-refine-lower-frontend-and-map-iteration-shells-retirement.md](active/0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
