@@ -38,7 +38,11 @@ false-exit活根/退休分区和完成的suffix事实。内部复用既有私有
 连接entry向量与body顺序，追溯真实入口alias链；false分支核finished→exit及唯一前驱，
 逐根匹配已消费drop，活根核真实suffix alias→drop，并按整个回执向量验证消费先后。
 参数来源入口、缺分区或未完成suffix不给完整receipt，但保留旧scalar/body审计及lowering。
-该receipt仍不授予跨轮权限，checked abort不加入正常出口。
+完整校验先产生私有单次消费结果，绑定同一evidence实例、实际几何及root槽向量；最终
+发布前再次核真实checked指令、失败分支与终结abort，全部成功才发布完整receipt。
+中途失败不留下counter完整或scalar完成记录。该receipt仍不授予跨轮权限，checked
+abort不加入正常出口；该局部原子性不意味着整个编译流水线日志的事务回滚。
+私有结果仅在当前无生产CFG变更的finalization范围消费，不是任意后续CFG修改后仍有效的证明。
 
 counter/guard定义检查只覆盖本次入口与循环区域，不把合法退出后的重新赋值算作冲突。
 现有SSA verifier和通用ownership/drop权限仍必需。本审计不取代它们，不认证退出后的

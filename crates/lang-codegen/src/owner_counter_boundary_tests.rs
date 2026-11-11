@@ -48,10 +48,19 @@ fn ci_only_counter_boundary_rejects_missing_suffix_and_wrong_entry() {
     let source = UnitSource::analyze("counter-boundary-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::CounterLateAbortToHeader,
         OwnerFault::CounterBoundaryMissingSuffix,
         OwnerFault::CounterBoundaryWrongEntry,
     ] {
-        assert!(with_owner_fault(fault, || source.lower_entry(source.entry())).is_err());
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| !kind.starts_with("counter-tail-"))
+        );
     }
 }
 

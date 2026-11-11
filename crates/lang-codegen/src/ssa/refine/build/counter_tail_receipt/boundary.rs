@@ -1,18 +1,44 @@
 //! Complete static entry/false-exit consumption; never turns an audit into permission.
 use super::*;
 use lang_frontend::ownership_checking::UnitOwnerOrigin;
+/// Private single-use proof that all entry/exit checks in this module completed.
+/// It cannot authorize lowering or be constructed by the scalar/body audit.
+pub(super) struct Complete<'a> {
+    evidence: &'a UnitOwnerCounterTailEvidenceV1,
+    geometry: [BlockRef; 5],
+    roots: Vec<Slot>,
+}
+impl Complete<'_> {
+    pub(super) fn commit(self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
+        if !std::ptr::eq(self.evidence, plan.evidence)
+            || Some(self.geometry) != plan.geometry
+            || self.roots != plan.roots
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        #[cfg(test)]
+        owner_consumer_test_support::record_action(
+            "counter-tail-complete-boundary-audit",
+            self.roots.len(),
+        );
+        Ok(())
+    }
+}
 impl Builder<'_, '_> {
-    pub(super) fn counter_tail_boundary(&self, plan: &Plan<'_>) -> Result<(), LoweringError> {
+    pub(super) fn counter_tail_boundary<'a>(
+        &self,
+        plan: &Plan<'a>,
+    ) -> Result<Option<Complete<'a>>, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let evidence = plan.evidence;
         // Partial evidence remains usable by the scalar/body audit, but cannot
         // produce the complete-boundary receipt or borrow old exit permissions.
         let Some((live, drops)) = evidence.false_exit_partition() else {
-            return Ok(());
+            return Ok(None);
         };
         let suffix = evidence.false_exit_suffix().unwrap_or(&[]);
         if !live.is_empty() && suffix.len() != live.len() {
-            return Ok(());
+            return Ok(None);
         }
         #[cfg(test)]
         let suffix = if owner_consumer_test_support::take_fault(
@@ -33,7 +59,7 @@ impl Builder<'_, '_> {
                 Some(UnitOwnerOrigin::String(_))
             )
         }) {
-            return Ok(());
+            return Ok(None);
         }
         let [entry, _, _, finished, exit] = plan.geometry.ok_or_else(fail)?;
         if !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(t), _)) if t == exit)
@@ -154,11 +180,10 @@ impl Builder<'_, '_> {
             }
             prior = Some(*end);
         }
-        #[cfg(test)]
-        owner_consumer_test_support::record_action(
-            "counter-tail-complete-boundary-audit",
-            plan.roots.len(),
-        );
-        Ok(())
+        Ok(Some(Complete {
+            evidence,
+            geometry: plan.geometry.ok_or_else(fail)?,
+            roots: plan.roots.clone(),
+        }))
     }
 }

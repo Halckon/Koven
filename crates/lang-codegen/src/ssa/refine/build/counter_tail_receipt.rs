@@ -296,7 +296,21 @@ impl Builder<'_, '_> {
             }
             previous = Some(drop_index);
         }
-        self.counter_tail_boundary(plan)?;
+        let complete = self.counter_tail_boundary(plan)?;
+        // Do not publish the complete receipt until checked success/abort remains
+        // valid at the same finalization point as entry, body and false-exit checks.
+        #[cfg(test)]
+        if owner_consumer_test_support::take_fault(
+            owner_consumer_test_support::OwnerFault::CounterLateAbortToHeader,
+        ) {
+            self.body.blocks[_abort.0].terminator = Some((RTerm::Goto(header), self.inputs.span));
+        }
+        if !edge.matches(&self.body, self.span(arithmetic.expression())) {
+            return Err(fail());
+        }
+        if let Some(complete) = complete {
+            complete.commit(plan, self.inputs.span)?;
+        }
         #[cfg(test)]
         owner_consumer_test_support::record_action("counter-tail-owner-audit", plan.roots.len());
         Ok(())

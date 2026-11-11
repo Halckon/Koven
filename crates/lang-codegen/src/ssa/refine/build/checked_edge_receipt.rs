@@ -140,7 +140,7 @@ impl Builder<'_, '_> {
     }
 }
 impl Receipt {
-    fn matches(&self, cfg: &RefinedBody, span: Span) -> bool {
+    pub(super) fn matches(&self, cfg: &RefinedBody, span: Span) -> bool {
         let [body, success, abort] = self.blocks;
         let [result, failed, left, right] = self.values;
         let Some(block) = cfg.blocks.get(body.0) else {
