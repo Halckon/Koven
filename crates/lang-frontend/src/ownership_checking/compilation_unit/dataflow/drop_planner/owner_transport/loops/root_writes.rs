@@ -6,6 +6,7 @@ pub(in super::super::super) struct RootWriteReceipt {
     pub(in super::super::super) root: UnitSymbolId,
     pub(in super::super::super) call: UnitExpressionId,
     pub(in super::super::super) producer: UnitExpressionId,
+    pub(in super::super::super) token_link: Option<(UnitOwnerId, UnitOwnerId)>,
     // Lexical If/When body and short-circuit RHS ancestry only, not a complete path or runtime trace.
     pub(in super::super::super) branch_arms: Vec<(UnitExpressionId, usize)>,
 }
@@ -108,6 +109,28 @@ impl DropPlanner<'_, '_> {
                 *known == expression && *arms == self.owner_loop.root_branch_arms
             })
         {
+            if self.owner_loop.root_branch_arms.is_empty() {
+                if evidence.token_transaction.is_none()
+                    && evidence.writes.is_empty()
+                    && evidence.completed_strings.is_empty()
+                {
+                    evidence.token_transaction =
+                        root_incoming::root_tokens::RootTokenTransaction::begin(
+                            self.checker,
+                            control,
+                            &evidence.roots,
+                            &evidence.entry_definitions,
+                        );
+                }
+                if let Some(transaction) = &mut evidence.token_transaction {
+                    transaction.complete(expression);
+                    if !transaction.is_valid() {
+                        for write in &mut evidence.writes {
+                            write.token_link = None;
+                        }
+                    }
+                }
+            }
             evidence
                 .completed_strings
                 .push((expression, self.owner_loop.root_branch_arms.clone()));
@@ -177,14 +200,31 @@ impl DropPlanner<'_, '_> {
             return;
         };
         evidence.completed_strings.remove(index);
-        let receipt = RootWriteReceipt {
+        let mut receipt = RootWriteReceipt {
             control,
             root,
             call: call_id,
             producer,
             branch_arms: self.owner_loop.root_branch_arms.clone(),
+            token_link: None,
         };
         if receipt.valid_branch_ancestry(self.checker) {
+            if receipt.branch_arms.is_empty() {
+                receipt.token_link = evidence
+                    .token_transaction
+                    .as_mut()
+                    .and_then(|transaction| transaction.commit(call_id, root, producer));
+            }
+            if evidence
+                .token_transaction
+                .as_ref()
+                .is_some_and(|transaction| !transaction.is_valid())
+            {
+                for write in &mut evidence.writes {
+                    write.token_link = None;
+                }
+                receipt.token_link = None;
+            }
             evidence.writes.push(receipt);
         }
     }

@@ -1,5 +1,6 @@
 //! Actual root entry capture, distinct from a backedge/header equation.
 use super::*;
+pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(
     UnitSymbolId,
     UnitSymbolId,
@@ -7,6 +8,8 @@ pub(super) type RootRetirements = Vec<(
 )>;
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
+    pub(super) entry_definitions: Vec<UnitOwnerDefinition>,
+    pub(super) token_transaction: Option<root_tokens::RootTokenTransaction>,
     pub(super) roots: RootIncoming,
     pub(super) completed_strings: Vec<(UnitExpressionId, Vec<(UnitExpressionId, usize)>)>,
     pub(super) writes: Vec<RootWriteReceipt>,
@@ -20,6 +23,8 @@ pub(super) struct RootEvidence {
 impl RootEvidence {
     pub(super) fn fault_fixture(roots: RootIncoming, writes: Vec<RootWriteReceipt>) -> Self {
         Self {
+            entry_definitions: Vec::new(),
+            token_transaction: None,
             roots,
             writes,
             completed_strings: Vec::new(),
@@ -109,6 +114,16 @@ impl ControlTransactions {
         facts: &[PlannerDropFact],
     ) {
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
+            if !normal
+                || !evidence
+                    .token_transaction
+                    .as_ref()
+                    .is_some_and(|transaction| transaction.is_complete())
+            {
+                for write in &mut evidence.writes {
+                    write.token_link = None;
+                }
+            }
             evidence.normal_write_vector = if normal && evidence.after_condition {
                 completed_root_writes(checker, control, state, evidence)
             } else {
@@ -135,9 +150,18 @@ impl ControlTransactions {
         let Some(roots) = capture(control, state, observation) else {
             return;
         };
+        let Some(entry_definitions) = roots
+            .iter()
+            .map(|(_, owner)| observation?.definition(owner.clone()).cloned())
+            .collect::<Option<Vec<_>>>()
+        else {
+            return;
+        };
         self.root_entries.push((
             control,
             RootEvidence {
+                entry_definitions,
+                token_transaction: None,
                 roots,
                 completed_strings: Vec::new(),
                 writes: Vec::new(),

@@ -325,6 +325,14 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
             let vector = &visits[1].normal_write_vector;
             assert_eq!(vector.is_some(), admitted, "{text}");
             assert_eq!(visits[1].normal_retirements.is_some(), admitted, "{text}");
+            if !admitted {
+                assert!(
+                    visits[1]
+                        .root_writes
+                        .iter()
+                        .all(|write| write.token_link.is_none())
+                );
+            }
             if let Some(vector) = vector {
                 let retirements = visits[1].normal_retirements.as_ref().unwrap();
                 assert_eq!(retirements.len(), vector.len());
@@ -350,6 +358,23 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
                             .any(|receipt| receipt.root == *root && receipt.producer == *producer)
                     );
                 }
+                for write in &visits[1].root_writes {
+                    let (old, new) = write.token_link.as_ref().unwrap();
+                    assert_eq!(
+                        old,
+                        &roots
+                            .iter()
+                            .find(|(root, _)| *root == write.root)
+                            .unwrap()
+                            .1
+                    );
+                    assert_ne!(old, new);
+                    assert!(!std::sync::Arc::ptr_eq(&old.identity, &new.identity));
+                }
+                let new0 = &visits[1].root_writes[0].token_link.as_ref().unwrap().1;
+                let new1 = &visits[1].root_writes[1].token_link.as_ref().unwrap().1;
+                assert_ne!(new0, new1);
+                assert!(std::sync::Arc::ptr_eq(&new0.identity, &new1.identity));
                 // Changed roots remain ineligible for the old unchanged-root backedge proof.
                 assert_eq!(visits[1].root_stages, (true, false));
             }
@@ -379,16 +404,33 @@ fn actual_multi_root_cleanup_does_not_publish_generation_retirement() {
         assert!(observation.invariant_loop_observation_v1().is_none());
         assert!(observation.replace_break_observation_v1().is_none());
     }
-    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
-        let mut planner = super::super::super::DropPlanner::new(
-            checker,
-            super::super::super::liveness::build(checker, true).unwrap(),
-        );
-        planner.owner_control_probe = Some(Vec::new());
-        let planner = planner.run().unwrap();
-        let visits = planner.owner_control_probe.as_ref().unwrap();
-        assert_eq!(visits[1].normal_write_vector.as_ref().unwrap().len(), 2);
-        assert_eq!(visits[1].normal_retirements.as_ref().unwrap().len(), 2);
-        assert_eq!(visits[1].root_stages, (true, false));
-    });
+    let mut analyses = Vec::new();
+    for _ in 0..2 {
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            let visits = planner.owner_control_probe.as_ref().unwrap();
+            assert_eq!(visits[1].normal_write_vector.as_ref().unwrap().len(), 2);
+            assert_eq!(visits[1].normal_retirements.as_ref().unwrap().len(), 2);
+            assert_eq!(visits[1].root_stages, (true, false));
+            analyses.push(
+                visits[1]
+                    .root_writes
+                    .iter()
+                    .map(|write| write.token_link.as_ref().unwrap().1.clone())
+                    .collect::<Vec<_>>(),
+            );
+        });
+    }
+    assert_eq!(analyses[0], analyses[0].clone());
+    assert!(
+        analyses[0]
+            .iter()
+            .zip(&analyses[1])
+            .all(|(left, right)| left != right)
+    );
 }
