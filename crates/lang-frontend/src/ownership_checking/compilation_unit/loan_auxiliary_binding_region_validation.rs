@@ -9,6 +9,8 @@ use super::loan_binding_region_validation::{OwnerSnapshot, Scope};
 
 #[derive(Clone)]
 pub(super) struct Expected {
+    /// Verified positional parameter and chronological Begin offset, strictly 0 or 1.
+    pub(super) source_index: usize,
     pub(super) source: UnitLoanFact,
     pub(super) auxiliary: UnitLoanFact,
     pub(super) consumer: UnitLoanFact,
@@ -64,8 +66,8 @@ impl Candidate {
             return UnitLoanActionCoverage::Partial;
         };
         let [
-            UnitLoanAction::Begin(source),
-            UnitLoanAction::Begin(auxiliary),
+            UnitLoanAction::Begin(first),
+            UnitLoanAction::Begin(second),
             UnitLoanAction::BorrowHandoffCommitted(handoff),
             UnitLoanAction::Begin(consumer),
             UnitLoanAction::BorrowBindingUseReturned(returned),
@@ -78,6 +80,11 @@ impl Candidate {
         ] = actions
         else {
             return UnitLoanActionCoverage::Partial;
+        };
+        let (source, auxiliary, source_offset, auxiliary_offset) = match expected.source_index {
+            0 => (first, second, 0, 1),
+            1 => (second, first, 1, 0),
+            _ => return UnitLoanActionCoverage::Partial,
         };
         let id_at = |id: Option<UnitLoanActionId>, offset| {
             id.is_some_and(|id| {
@@ -128,8 +135,8 @@ impl Candidate {
             && auxiliaries
                 .iter()
                 .filter(|relation| {
-                    id_at(Some(relation.source_begin()), 0)
-                        && id_at(Some(relation.auxiliary_begin()), 1)
+                    id_at(Some(relation.source_begin()), source_offset)
+                        && id_at(Some(relation.auxiliary_begin()), auxiliary_offset)
                         && id_at(Some(relation.handoff()), 2)
                 })
                 .count()
@@ -149,7 +156,7 @@ impl Candidate {
                 == 1
             && returned.binding() == scope.binding
             && returned.loan() == consumer
-            && id_at(returned.source_begin(), 0)
+            && id_at(returned.source_begin(), source_offset)
             && id_at(returned.handoff(), 2)
             && id_at(returned.begin(), 3)
             && binding_end.binding() == scope.binding
@@ -157,7 +164,7 @@ impl Candidate {
             && retired.transaction().binding() == scope.binding
             && retired.transaction().source_loan() == source
             && retired.transaction().point() == end_point
-            && id_at(retired.source_begin(), 0)
+            && id_at(retired.source_begin(), source_offset)
             && id_at(retired.handoff(), 2)
             && id_at(retired.use_return(), 4)
             && id_at(retired.binding_end(), 5)

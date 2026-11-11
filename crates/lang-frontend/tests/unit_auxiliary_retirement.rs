@@ -127,11 +127,6 @@ fn ordinary_auxiliary_retirement_neighbors_keep_partial_raw_handoffs() {
             1,
         ),
         (
-            "source-second",
-            "fun view(aux: String, source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }",
-            1,
-        ),
-        (
             "two-auxiliaries",
             "fun view(source: String, first: String, second: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner, owner); consume(item) }",
             2,

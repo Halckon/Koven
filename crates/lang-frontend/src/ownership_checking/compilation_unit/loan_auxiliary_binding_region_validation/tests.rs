@@ -6,22 +6,26 @@ use crate::ownership_checking::{
 
 const SOURCE: &str = "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }";
 
-fn recorded() -> (
+fn recorded_with(
+    text: &str,
+    source_index: usize,
+) -> (
     Candidate,
     Arc<()>,
     Vec<UnitLoanAction>,
     Vec<UnitLoanAuxiliaryRetirement>,
 ) {
-    let fixture = Fixture::new(&[("binding-coverage.ko", SOURCE)]);
+    let fixture = Fixture::new(&[("binding-coverage.ko", text)]);
     let shared = fixture.shared();
     let observation = &shared.loan_action_observations()[0];
     let region = &observation.auxiliary_binding_regions()[0];
     assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
     let ids = region.action_ids().collect::<Vec<_>>();
-    let UnitLoanAction::Begin(source) = observation.action(&ids[0]).unwrap() else {
+    let UnitLoanAction::Begin(source) = observation.action(&ids[source_index]).unwrap() else {
         unreachable!()
     };
-    let UnitLoanAction::Begin(auxiliary) = observation.action(&ids[1]).unwrap() else {
+    let UnitLoanAction::Begin(auxiliary) = observation.action(&ids[1 - source_index]).unwrap()
+    else {
         unreachable!()
     };
     let UnitLoanAction::Begin(consumer) = observation.action(&ids[3]).unwrap() else {
@@ -68,6 +72,7 @@ fn recorded() -> (
             consumer_statement: *statement,
         },
         expected: Some(Expected {
+            source_index,
             source: source.clone(),
             auxiliary: auxiliary.clone(),
             consumer: consumer.clone(),
@@ -86,6 +91,15 @@ fn recorded() -> (
         observation.actions().to_vec(),
         observation.auxiliary_retirements().to_vec(),
     )
+}
+
+fn recorded() -> (
+    Candidate,
+    Arc<()>,
+    Vec<UnitLoanAction>,
+    Vec<UnitLoanAuxiliaryRetirement>,
+) {
+    recorded_with(SOURCE, 0)
 }
 
 #[test]
@@ -205,4 +219,38 @@ fn ci_only_auxiliary_binding_coverage_rejects_absent_expected_owner_identity() {
         candidate.coverage(&identity, &actions, &auxiliaries),
         UnitLoanActionCoverage::Partial
     );
+}
+
+#[test]
+fn ci_only_source_second_rejects_wrong_chronology_and_source_edges() {
+    let text = SOURCE.replace(
+        "view(source: String, aux: String)",
+        "view(aux: String, source: String)",
+    );
+    let (candidate, identity, actions, relations) = recorded_with(&text, 1);
+    assert_eq!(
+        candidate.coverage(&identity, &actions, &relations),
+        UnitLoanActionCoverage::Complete
+    );
+    for fault in 0..6 {
+        let mut candidate = candidate.clone();
+        let mut actions = actions.clone();
+        let mut relations = relations.clone();
+        match fault {
+            0 => candidate.expected.as_mut().unwrap().source_index = 0,
+            1 => candidate.expected.as_mut().unwrap().source_index = 2,
+            2 => actions.swap(candidate.start, candidate.start + 1),
+            3 => relations[0].source_begin = candidate.start,
+            4 => relations[0].auxiliary_begin = candidate.start + 1,
+            _ => {
+                let expected = candidate.expected.as_mut().unwrap();
+                std::mem::swap(&mut expected.source, &mut expected.auxiliary);
+            }
+        }
+        assert_eq!(
+            candidate.coverage(&identity, &actions, &relations),
+            UnitLoanActionCoverage::Partial,
+            "chronology fault {fault}"
+        );
+    }
 }

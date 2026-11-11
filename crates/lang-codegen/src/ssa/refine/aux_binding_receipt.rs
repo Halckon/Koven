@@ -33,6 +33,7 @@ struct Plan {
     root: UnitSymbolId,
     source_call: UnitExpressionId,
     source_argument: UnitExpressionId,
+    source_index: usize,
     auxiliary_argument: UnitExpressionId,
     consumer_call: UnitExpressionId,
     consumer_argument: UnitExpressionId,
@@ -59,6 +60,22 @@ struct Plan {
     completed: bool,
     block: Option<BlockRef>,
 }
+impl Plan {
+    fn ordered_loans(&self) -> [Option<Slot>; 2] {
+        if self.source_index == 0 {
+            [self.source, self.auxiliary]
+        } else {
+            [self.auxiliary, self.source]
+        }
+    }
+    fn ordered_places(&self) -> [Option<Slot>; 2] {
+        if self.source_index == 0 {
+            [self.place, self.auxiliary_place]
+        } else {
+            [self.auxiliary_place, self.place]
+        }
+    }
+}
 impl Plans {
     pub(super) fn has_entry(&self, statement: UnitStatementId) -> bool {
         self.entries.iter().any(|p| p.entry_statement == statement)
@@ -82,7 +99,7 @@ impl Plans {
             if p.entry_statement != statement {
                 continue;
             }
-            if p.owner.is_some() || p.stage != 0 || bindings.len() != 1 {
+            if p.source_index > 1 || p.owner.is_some() || p.stage != 0 || bindings.len() != 1 {
                 return Err(invalid(span));
             }
             p.owner = Some(*bindings.get(&p.root).ok_or_else(|| invalid(span))?);
@@ -127,18 +144,23 @@ impl Plans {
             if !p.activated {
                 return Err(invalid(span));
             }
-            match (p.stage, argument) {
-                (0, arg) if arg == p.source_argument && !p.source_authorized => {
-                    p.source_authorized = true
+            let source_stage = if p.source_index == 0 { 0 } else { 2 };
+            let auxiliary_stage = 2 - source_stage;
+            if p.stage == source_stage && argument == p.source_argument && !p.source_authorized {
+                if p.stage == 2 && !p.auxiliary_authorized {
+                    return Err(invalid(span));
                 }
-                (2, arg)
-                    if arg == p.auxiliary_argument
-                        && p.source_authorized
-                        && !p.auxiliary_authorized =>
-                {
-                    p.auxiliary_authorized = true
+                p.source_authorized = true;
+            } else if p.stage == auxiliary_stage
+                && argument == p.auxiliary_argument
+                && !p.auxiliary_authorized
+            {
+                if p.stage == 2 && !p.source_authorized {
+                    return Err(invalid(span));
                 }
-                _ => return Err(invalid(span)),
+                p.auxiliary_authorized = true;
+            } else {
+                return Err(invalid(span));
             }
         }
         Ok(())
@@ -276,7 +298,18 @@ impl Plans {
             if p.owner.is_none() || p.completed {
                 continue;
             }
-            if tag.is_some() || p.block != Some(block) || !p.activated || !p.source_authorized {
+            let first_authorized = if p.source_index == 0 {
+                p.source_authorized
+            } else {
+                p.auxiliary_authorized
+            };
+            let both_authorized = p.source_authorized && p.auxiliary_authorized;
+            if tag.is_some()
+                || p.block != Some(block)
+                || !p.activated
+                || !first_authorized
+                || (p.stage >= 2 && !both_authorized)
+            {
                 return Err(invalid(span));
             }
             let single = || match results {
@@ -284,37 +317,42 @@ impl Plans {
                 _ => Err(invalid(span)),
             };
             match (p.stage, op) {
-                (0, ROp::RootPlace { owner }) if Some(*owner) == p.owner => {
-                    p.place = Some(single()?)
+                (stage @ (0 | 2), ROp::RootPlace { owner }) if Some(*owner) == p.owner => {
+                    let slot = single()?;
+                    if Some(slot) == p.place || Some(slot) == p.auxiliary_place {
+                        return Err(invalid(span));
+                    }
+                    if usize::from(stage / 2) == p.source_index {
+                        p.place = Some(slot);
+                    } else {
+                        p.auxiliary_place = Some(slot);
+                    }
                 }
                 (
-                    1,
+                    stage @ (1 | 3),
                     ROp::BorrowBegin {
                         place,
                         kind: LoanKind::Shared,
                     },
-                ) if Some(*place) == p.place => p.source = Some(single()?),
-                (2, ROp::RootPlace { owner })
-                    if p.auxiliary_authorized && Some(*owner) == p.owner =>
-                {
-                    let slot = single()?;
-                    if Some(slot) == p.place {
+                ) => {
+                    let is_source = usize::from(stage / 2) == p.source_index;
+                    let expected = if is_source {
+                        p.place
+                    } else {
+                        p.auxiliary_place
+                    };
+                    if Some(*place) != expected {
                         return Err(invalid(span));
                     }
-                    p.auxiliary_place = Some(slot);
-                }
-                (
-                    3,
-                    ROp::BorrowBegin {
-                        place,
-                        kind: LoanKind::Shared,
-                    },
-                ) if Some(*place) == p.auxiliary_place => {
                     let slot = single()?;
-                    if Some(slot) == p.source {
+                    if Some(slot) == p.source || Some(slot) == p.auxiliary {
                         return Err(invalid(span));
                     }
-                    p.auxiliary = Some(slot);
+                    if is_source {
+                        p.source = Some(slot);
+                    } else {
+                        p.auxiliary = Some(slot);
+                    }
                 }
                 (
                     4,
@@ -327,8 +365,8 @@ impl Plans {
                     && Some(*source) == p.source
                     && arguments.as_slice()
                         == [
-                            p.source.ok_or_else(|| invalid(span))?,
-                            p.auxiliary.ok_or_else(|| invalid(span))?,
+                            p.ordered_loans()[0].ok_or_else(|| invalid(span))?,
+                            p.ordered_loans()[1].ok_or_else(|| invalid(span))?,
                         ] =>
                 {
                     p.result = Some(single()?);

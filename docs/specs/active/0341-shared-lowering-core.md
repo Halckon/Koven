@@ -13614,3 +13614,32 @@ strict Clippy、默认 lang-codegen lib no-run（含上述五项 CI-only）通�
 fmt/diff/docs897 通过；尺寸检查 2464 手写 Rust 文件、35 历史超限，无新增豁免。
 默认 workspace all-target check 通过。未执行 CI-only、完整 workspace test
 或 native；未推送、未获得正式远端 CI 结果。证据沿用上述本机目录 receipt-* 日志。
+
+
+### 辅助绑定来源参数第二位（2026-11-11）
+
+后续切片仍只允许同根、两个 Shared、两 positional 参数、原三语句和唯一 String
+owner。来源由 typed borrow-return Parameter(0/1) 确定，不扩大多根、嵌套或路径证明。
+真实 source-second 普通源码首先复现局部 Complete 0 != 1；接通 shape/validator 后
+再次暴露区域仅六条记录，而非八条，定位到原 auxiliary_retirement_shape 隐含
+Parameter(0) 门导致 auxiliary token 无法激活。修复以明确两种参数位置核真实 typed
+参数/合同，并保留所有既有局部边界，不通过降低 validator 要求掩盖缺失记录。
+
+前端 Expected 保留 verified source_index，八记录按真实发生顺序保存 aux Begin →
+source Begin → handoff，关系、use-return、source-retired 必须引用正确 offset。
+后端相应核 actual handoff source 身份与 typed 索引；十条指令仍保持 aux RootPlace/Begin
+先于 source RootPlace/Begin，BorrowCall 的 source 仍为后者。receipt 的六实体维持
+语义顺序 owner/source-place/source/aux-place/aux/result，append 期间显式核 chronology
+与语义映射，不改写任何真实指令。旧来源首位、旧七记录及未覆盖邻域见证保留。
+
+新增 rooted/memory × on/off 普通真源码对照和 frontend/codegen 各一项 CI-only
+chronology 故障测试；CI-only 仅编译，不在本地执行。source-second 从旧负控移入
+独立正控，其余多根、多辅助、重复消费、Group、子 binding 等边界继续保留。
+前端 8 项 ordinary 测试通过，source-second 真红转绿；后端新来源第二位、来源首位、
+旧辅助见证 3 项通过，旧七记录 receipt 正控另 1 项通过。新增来源第二位的
+distinct-root 与 Group 反例也保持不取得 Complete。双 crate feature all-target strict
+Clippy 通过，双向独立代码复审无阻塞问题。默认双 crate lib no-run（含新增 CI-only）
+与 workspace all-target check 通过；fmt/diff/docs897 通过，尺寸 2466 手写 Rust 文件、
+35 历史超限，无新增豁免。
+证据在本机同目录 source-second-* 日志。
+本轮不推送，不退休旧见证，不宣称完成全部 D10/E2 或完整逐路径借用证明。

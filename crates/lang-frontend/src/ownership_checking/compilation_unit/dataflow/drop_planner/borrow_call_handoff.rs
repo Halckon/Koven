@@ -165,8 +165,20 @@ impl DropPlanner<'_, '_> {
         else {
             return false;
         };
-        let [source_argument, auxiliary_argument] = arguments.as_slice() else {
+        let [first_argument, second_argument] = arguments.as_slice() else {
             return false;
+        };
+        let Some(call) = self.checker.typed.call(source.call()) else {
+            return false;
+        };
+        let source_index = match call.borrow_return().map(|r| r.origin()) {
+            Some(BorrowReturnOrigin::Parameter(index @ (0 | 1))) => index,
+            _ => return false,
+        };
+        let (source_argument, auxiliary_argument) = if source_index == 0 {
+            (first_argument, second_argument)
+        } else {
+            (second_argument, first_argument)
         };
         if !ast
             .get(*callee)
@@ -187,9 +199,6 @@ impl DropPlanner<'_, '_> {
         if self.checker.unit_expression(auxiliary_argument.value) != auxiliary.argument() {
             return false;
         }
-        let Some(call) = self.checker.typed.call(source.call()) else {
-            return false;
-        };
         let UnitCallTarget::Declaration(declaration) = call.target() else {
             return false;
         };
@@ -218,7 +227,7 @@ impl DropPlanner<'_, '_> {
             || !signature.type_parameters().is_empty()
             || call
                 .borrow_return()
-                .is_none_or(|r| r.origin() != BorrowReturnOrigin::Parameter(0))
+                .is_none_or(|r| r.origin() != BorrowReturnOrigin::Parameter(source_index))
             || signature.result_source() != call.result_source()
             || signature.return_type() != call.return_type()
             || self.checker.typed.types().get(call.return_type())
@@ -236,7 +245,12 @@ impl DropPlanner<'_, '_> {
         if contracts.len() != 2 {
             return false;
         }
-        [(source, first, p0), (auxiliary, second, p1)]
+        let ordered = if source_index == 0 {
+            [(source, first, p0), (auxiliary, second, p1)]
+        } else {
+            [(auxiliary, first, p0), (source, second, p1)]
+        };
+        ordered
             .into_iter()
             .enumerate()
             .all(|(index, (loan, typed, parameter))| {

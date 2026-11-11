@@ -54,6 +54,7 @@ fn setup() -> (ActionSource, Scope, Expected, OwnedValue, ActionHandle) {
         scope_depth: 1,
     };
     let expected = Expected {
+        source_index: 0,
         source: source.clone(),
         auxiliary: auxiliary.clone(),
         consumer: consumer.clone(),

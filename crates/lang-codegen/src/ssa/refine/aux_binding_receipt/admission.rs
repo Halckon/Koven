@@ -35,8 +35,8 @@ impl Plans {
                 let ids = region.action_ids().collect::<Vec<_>>();
                 let actions = catalog_actions(observation, region, &ids, inputs.span)?;
                 let [
-                    UnitLoanAction::Begin(source),
-                    UnitLoanAction::Begin(auxiliary),
+                    UnitLoanAction::Begin(first),
+                    UnitLoanAction::Begin(second),
                     UnitLoanAction::BorrowHandoffCommitted(handoff),
                     UnitLoanAction::Begin(consumer),
                     UnitLoanAction::BorrowBindingUseReturned(returned),
@@ -49,6 +49,19 @@ impl Plans {
                 ] = actions.as_slice()
                 else {
                     return Err(fail());
+                };
+                let source_index = if handoff.source_loan() == first {
+                    0
+                } else if handoff.source_loan() == second {
+                    1
+                } else {
+                    return Err(fail());
+                };
+                let auxiliary_index = 1 - source_index;
+                let (source, auxiliary) = if source_index == 0 {
+                    (first, second)
+                } else {
+                    (second, first)
                 };
                 let UnitLoanTarget::Place(root) = source.target() else {
                     return Err(fail());
@@ -72,15 +85,15 @@ impl Plans {
                         .auxiliary_retirements()
                         .iter()
                         .filter(|r| {
-                            r.source_begin() == ids[0]
-                                && r.auxiliary_begin() == ids[1]
+                            r.source_begin() == ids[source_index]
+                                && r.auxiliary_begin() == ids[auxiliary_index]
                                 && r.handoff() == ids[2]
                         })
                         .count()
                         != 1
                     || returned.binding() != region.binding()
                     || returned.loan() != consumer
-                    || returned.source_begin().as_ref() != ids.first()
+                    || returned.source_begin().as_ref() != ids.get(source_index)
                     || returned.handoff().as_ref() != ids.get(2)
                     || returned.begin().as_ref() != ids.get(3)
                     || end.binding() != region.binding()
@@ -88,7 +101,7 @@ impl Plans {
                     || transaction.binding() != region.binding()
                     || transaction.source_loan() != source
                     || transaction.point() != *point
-                    || retired.source_begin().as_ref() != ids.first()
+                    || retired.source_begin().as_ref() != ids.get(source_index)
                     || retired.handoff().as_ref() != ids.get(2)
                     || retired.use_return().as_ref() != ids.get(4)
                     || retired.binding_end().as_ref() != ids.get(5)
@@ -142,7 +155,7 @@ impl Plans {
                         .iter()
                         .filter(|l| l.call() == source.call())
                         .collect::<Vec<_>>()
-                        != [source, auxiliary]
+                        != [first, second]
                     || inputs
                         .owned
                         .loans()
@@ -164,11 +177,24 @@ impl Plans {
                 let [drop_index] = indices.as_slice() else {
                     return Err(fail());
                 };
-                let source_callee = validate_call(inputs, source, region.root(), true, 0)?;
-                if validate_call(inputs, auxiliary, region.root(), true, 1)? != source_callee {
+                let source_callee = validate_call(
+                    inputs,
+                    source,
+                    region.root(),
+                    Some(source_index),
+                    source_index,
+                )?;
+                if validate_call(
+                    inputs,
+                    auxiliary,
+                    region.root(),
+                    Some(source_index),
+                    auxiliary_index,
+                )? != source_callee
+                {
                     return Err(fail());
                 }
-                let consumer_callee = validate_call(inputs, consumer, region.binding(), false, 0)?;
+                let consumer_callee = validate_call(inputs, consumer, region.binding(), None, 0)?;
                 let caller_key = inputs
                     .source_plan
                     .source(inputs.source_token)
@@ -202,6 +228,7 @@ impl Plans {
                     root: region.root(),
                     source_call: source.call(),
                     source_argument: source.argument(),
+                    source_index,
                     auxiliary_argument: auxiliary.argument(),
                     consumer_call: consumer.call(),
                     consumer_argument: consumer.argument(),
@@ -325,7 +352,7 @@ fn validate_call(
     inputs: &RefineInputs<'_>,
     loan: &UnitLoanFact,
     binding: UnitSymbolId,
-    source: bool,
+    source_index: Option<usize>,
     index: usize,
 ) -> Result<FunctionId, LoweringError> {
     let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
@@ -338,7 +365,7 @@ fn validate_call(
     let UnitCallTarget::Declaration(declaration) = descriptor.target() else {
         return Err(fail());
     };
-    let count = if source { 2 } else { 1 };
+    let count = if source_index.is_some() { 2 } else { 1 };
     if descriptor.arguments().len() != count {
         return Err(fail());
     }
@@ -407,8 +434,10 @@ fn validate_call(
     {
         return Err(fail());
     }
-    if source {
-        if descriptor.borrow_return().map(|b| b.origin()) != Some(BorrowReturnOrigin::Parameter(0))
+    if let Some(source_index) = source_index {
+        if source_index > 1
+            || descriptor.borrow_return().map(|b| b.origin())
+                != Some(BorrowReturnOrigin::Parameter(source_index))
             || descriptor.return_type() != argument.parameter_type()
         {
             return Err(fail());

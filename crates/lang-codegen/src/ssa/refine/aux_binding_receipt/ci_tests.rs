@@ -29,12 +29,21 @@ pub(super) fn record(plans: &Plans, function: &Function, receipts: &[Receipt], s
     });
 }
 fn capture() -> (Snapshot, UnitLoanActionObservation) {
+    capture_source(false)
+}
+fn capture_source(source_second: bool) -> (Snapshot, UnitLoanActionObservation) {
     let mut sources = SourceMap::new();
-    let (source, parsed) = unit_lower_test_support::parsed(
-        &mut sources,
-        "ci-aux-binding.ko",
-        "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }",
-    );
+    let text = "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, owner); consume(item) }";
+    let text = if source_second {
+        text.replace(
+            "view(source: String, aux: String)",
+            "view(aux: String, source: String)",
+        )
+    } else {
+        text.to_owned()
+    };
+    let (source, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "ci-aux-binding.ko", &text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (environment, types) = standard_environments();
     let (names, typed, owned) =
@@ -313,6 +322,55 @@ fn ci_only_aux_binding_rejects_missing_authority_wrong_aux_and_duplicate_roles()
                 p.block.unwrap(),
                 s.span
             )
+            .is_err()
+    );
+}
+
+#[test]
+fn ci_only_aux_binding_rejects_forged_source_second_chronology() {
+    let (snapshot, catalog) = capture_source(true);
+    let plan = &snapshot.plans.entries[0];
+    assert_eq!(plan.source_index, 1);
+    let region = &catalog.auxiliary_binding_regions()[0];
+    assert_eq!(
+        snapshot.receipt.ids,
+        region.action_ids().collect::<Vec<_>>()
+    );
+    let first = snapshot
+        .function
+        .instruction(snapshot.receipt.instructions[0])
+        .unwrap();
+    let third = snapshot
+        .function
+        .instruction(snapshot.receipt.instructions[2])
+        .unwrap();
+    assert_eq!(first.results, [snapshot.receipt.entities[3]]);
+    assert_eq!(third.results, [snapshot.receipt.entities[1]]);
+    replay(&snapshot, 10, false)
+        .unwrap()
+        .finish(&snapshot.plans, &snapshot.function, snapshot.span)
+        .unwrap();
+    let mut wrong = snapshot.clone();
+    wrong.plans.entries[0].source_index = 0;
+    assert!(replay(&wrong, 1, false).is_err());
+    wrong.plans.entries[0].source_index = 2;
+    assert!(Emitted::new(&wrong.plans, &wrong.function, wrong.span).is_err());
+    let mut plans = snapshot.plans.clone();
+    let p = &mut plans.entries[0];
+    p.stage = 0;
+    p.source_authorized = false;
+    p.auxiliary_authorized = false;
+    assert!(
+        plans
+            .source_operand(plan.source_call, plan.source_argument, snapshot.span)
+            .is_err()
+    );
+    plans
+        .source_operand(plan.source_call, plan.auxiliary_argument, snapshot.span)
+        .unwrap();
+    assert!(
+        plans
+            .source_operand(plan.source_call, plan.auxiliary_argument, snapshot.span)
             .is_err()
     );
 }

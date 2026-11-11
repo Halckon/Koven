@@ -33,7 +33,8 @@ impl Emitted {
     ) -> Result<Self, LoweringError> {
         let mut receipts = Vec::new();
         for p in &plans.entries {
-            if p.stage != 10
+            if p.source_index > 1
+                || p.stage != 10
                 || !p.completed
                 || !p.retired
                 || !p.committed
@@ -72,17 +73,28 @@ impl Emitted {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        for (slot, frozen) in [
-            p.owner,
-            p.place,
-            p.source,
-            p.auxiliary_place,
-            p.auxiliary,
-            p.result,
-        ]
-        .into_iter()
-        .zip(&r.entities)
-        {
+        // Before the fourth producer finishes, partial entities follow actual chronology.
+        // Thereafter expose the stable semantic owner/source/aux/result identity order.
+        let slots = if p.source_index == 1 && r.instructions.len() < 4 {
+            [
+                p.owner,
+                p.auxiliary_place,
+                p.auxiliary,
+                p.place,
+                p.source,
+                p.result,
+            ]
+        } else {
+            [
+                p.owner,
+                p.place,
+                p.source,
+                p.auxiliary_place,
+                p.auxiliary,
+                p.result,
+            ]
+        };
+        for (slot, frozen) in slots.into_iter().zip(&r.entities) {
             if slot.and_then(|s| current.get(&s)) != Some(frozen) {
                 return Err(invalid(span));
             }
@@ -130,57 +142,49 @@ impl Emitted {
                 .ok_or_else(|| invalid(span))
         };
         match (tag.role, &data.operation) {
-            (0, Operation::RootPlace { owner }) if EntityId::Value(*owner) == entity(p.owner)? => {
+            (role @ (0 | 2), Operation::RootPlace { owner })
+                if EntityId::Value(*owner) == entity(p.owner)? =>
+            {
                 let [place @ EntityId::Place(_)] = data.results.as_slice() else {
                     return Err(invalid(span));
                 };
-                if *place != entity(p.place)? || owner.function() != function.id() {
+                if *place != entity(p.ordered_places()[usize::from(role / 2)])?
+                    || owner.function() != function.id()
+                {
                     return Err(invalid(span));
                 }
-                // The local owner was established before region entry, not a function parameter.
-                r.entities.extend([EntityId::Value(*owner), *place]);
-            }
-            (
-                1,
-                Operation::BorrowBegin {
-                    place,
-                    kind: LoanKind::Shared,
-                },
-            ) if Some(&EntityId::Place(*place)) == r.entities.get(1) => {
-                let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
-                    return Err(invalid(span));
-                };
-                if *loan != entity(p.source)? || id.function() != function.id() {
-                    return Err(invalid(span));
-                }
-                r.entities.push(*loan);
-            }
-            (2, Operation::RootPlace { owner }) if EntityId::Value(*owner) == entity(p.owner)? => {
-                let [place @ EntityId::Place(_)] = data.results.as_slice() else {
-                    return Err(invalid(span));
-                };
-                if *place != entity(p.auxiliary_place)? || *place == entity(p.place)? {
+                if role == 0 {
+                    r.entities.push(EntityId::Value(*owner));
+                } else if r.entities.get(1) == Some(place) {
                     return Err(invalid(span));
                 }
                 r.entities.push(*place);
             }
             (
-                3,
+                role @ (1 | 3),
                 Operation::BorrowBegin {
                     place,
                     kind: LoanKind::Shared,
                 },
-            ) if EntityId::Place(*place) == entity(p.auxiliary_place)? => {
+            ) => {
+                let index = usize::from(role / 2);
+                if EntityId::Place(*place) != entity(p.ordered_places()[index])? {
+                    return Err(invalid(span));
+                }
                 let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
                     return Err(invalid(span));
                 };
-                if *loan != entity(p.auxiliary)?
-                    || *loan == entity(p.source)?
+                if *loan != entity(p.ordered_loans()[index])?
                     || id.function() != function.id()
+                    || (role == 3 && r.entities.get(2) == Some(loan))
                 {
                     return Err(invalid(span));
                 }
                 r.entities.push(*loan);
+                if role == 3 && p.source_index == 1 {
+                    r.entities.swap(1, 3);
+                    r.entities.swap(2, 4);
+                }
             }
             (
                 4,
@@ -191,7 +195,8 @@ impl Emitted {
                 },
             ) if *callee == p.source_callee
                 && EntityId::Loan(*source) == entity(p.source)?
-                && arguments.as_slice() == [entity(p.source)?, entity(p.auxiliary)?] =>
+                && arguments.as_slice()
+                    == [entity(p.ordered_loans()[0])?, entity(p.ordered_loans()[1])?] =>
             {
                 let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
                     return Err(invalid(span));

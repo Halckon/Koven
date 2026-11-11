@@ -18,6 +18,7 @@ struct Shape {
     owner_initializer: ExpressionId,
     owner_origin: Span,
     source_argument: ExpressionId,
+    source_index: usize,
     auxiliary_argument: ExpressionId,
     consumer_argument: ExpressionId,
 }
@@ -76,8 +77,20 @@ impl DropPlanner<'_, '_> {
         let binding = *self
             .checker
             .marker_symbol(NameMarker::Present(*binding_origin))?;
-        let source_argument = self.auxiliary_binding_region_operand(*source_call, 0, 2)?;
-        let auxiliary_argument = self.auxiliary_binding_region_operand(*source_call, 1, 2)?;
+        let source_index = match self
+            .checker
+            .typed
+            .call(self.checker.unit_expression(*source_call))?
+            .borrow_return()?
+            .origin()
+        {
+            BorrowReturnOrigin::Parameter(index @ (0 | 1)) => index,
+            _ => return None,
+        };
+        let source_argument =
+            self.auxiliary_binding_region_operand(*source_call, source_index, 2)?;
+        let auxiliary_argument =
+            self.auxiliary_binding_region_operand(*source_call, 1 - source_index, 2)?;
         self.checker.parsed.roots().iter().find_map(|&item| {
             let Item::Function {
                 name,
@@ -192,6 +205,7 @@ impl DropPlanner<'_, '_> {
                 owner_initializer: *owner_initializer,
                 owner_origin: *owner_origin,
                 source_argument,
+                source_index,
                 auxiliary_argument,
                 consumer_argument,
             })
@@ -262,12 +276,15 @@ impl DropPlanner<'_, '_> {
         {
             return None;
         }
-        let (source, parameter) =
-            self.auxiliary_region_loan(scope.source_call.expression(), shape.source_argument, 0)?;
+        let (source, parameter) = self.auxiliary_region_loan(
+            scope.source_call.expression(),
+            shape.source_argument,
+            shape.source_index,
+        )?;
         let (auxiliary, _) = self.auxiliary_region_loan(
             scope.source_call.expression(),
             shape.auxiliary_argument,
-            1,
+            1 - shape.source_index,
         )?;
         let (consumer, _) = self.consumer_region_loan(
             scope.consumer_call.expression(),
@@ -313,6 +330,7 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(Expected {
+            source_index: shape.source_index,
             source,
             auxiliary,
             consumer,
