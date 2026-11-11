@@ -3,7 +3,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
-    parser::{BinaryOperator, Expression, LiteralKind, PrefixOperator},
+    parser::{Expression, LiteralKind, PrefixOperator},
     source::Span,
     type_checking::{
         BuiltinType, IntegerOperationKind, IntegerRangeOperationKind, ParameterMode,

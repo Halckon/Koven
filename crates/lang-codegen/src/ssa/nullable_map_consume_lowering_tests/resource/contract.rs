@@ -8,12 +8,12 @@ use lang_frontend::{
 
 use super::*;
 use crate::ssa::{
+    lowering_support::parsed_by_source_unit,
     model::{
         EntityId, EntityType, Function, LoanKind, MapContainerKind, Operation, Origin, Ownership,
         SsaTypeId, SsaTypeKind, ValueId,
     },
     unit_plan::{MAX_UNIT_GENERIC_INSTANCES, plan_unit_instances_from_facts},
-    lowering_support::parsed_by_source_unit,
 };
 
 mod transfer;

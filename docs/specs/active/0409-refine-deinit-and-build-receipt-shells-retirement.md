@@ -39,4 +39,5 @@
 
 - [x] 退役 `ssa/deinit.rs`、`refine/build/{named_argument.rs, binding_receipt.rs, owner_call.rs, owner_return.rs}`，完成 `closure_scope` 与 `with_per_family_lowering_except` 清理。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
-- [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+- [x] 修复合并后的编译缺口：`ssa/types.rs::valid_deinit_signature` 补回缺失闭合括号，`refine/build/owner_consumer/replacement.rs` 补 `ROp` 导入，删除 `scalar_text.rs` 与 `unit_lower.rs` 的未使用导入，并应用 pinned rustfmt。
+- [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR 为准。

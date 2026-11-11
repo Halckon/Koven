@@ -1,4 +1,5 @@
 //! The existing RootReplace and Drop emitters establish distinct installed/old slots.
+use super::super::ROp;
 #[cfg(test)]
 use super::super::owner_consumer_test_support::{OwnerFault, take_fault};
 use super::*;
@@ -444,7 +445,11 @@ impl Builder<'_, '_> {
             }
         }
         #[cfg(test)]
-        super::super::super::record_owner_return(identity, result.map(|s| s.0), receipt.map(|s| s.0));
+        super::super::super::record_owner_return(
+            identity,
+            result.map(|s| s.0),
+            receipt.map(|s| s.0),
+        );
         Ok(())
     }
 }
