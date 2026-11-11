@@ -1,5 +1,6 @@
 //! Audit completed FE countdown identities against real checked edges; no new permission.
 use super::*;
+mod boundary;
 use crate::ssa::model::{CheckedArithmeticOperator, ComparisonOperator, ScalarConstant};
 use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitOwnerCallable, UnitOwnerCounterTailEvidenceV1,
@@ -295,6 +296,7 @@ impl Builder<'_, '_> {
             }
             previous = Some(drop_index);
         }
+        self.counter_tail_boundary(plan)?;
         #[cfg(test)]
         owner_consumer_test_support::record_action("counter-tail-owner-audit", plan.roots.len());
         Ok(())

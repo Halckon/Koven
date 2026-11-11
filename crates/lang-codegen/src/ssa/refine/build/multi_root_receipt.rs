@@ -1,7 +1,7 @@
 //! Additional production audit from new FE products to actual slot CFG.
 //! This receipt does NOT replace legacy lowering permissions or certify runtime instances.
 use super::*;
-mod entry;
+pub(super) mod entry;
 mod guard;
 mod incoming;
 use lang_frontend::ownership_checking::{

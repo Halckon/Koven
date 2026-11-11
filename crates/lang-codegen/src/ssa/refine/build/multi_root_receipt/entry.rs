@@ -1,13 +1,13 @@
 //! Resolve actual moves across all incoming acyclic paths, never infer a phi.
 use super::*;
 
-pub(super) struct Entry {
-    pub(super) root_block: BlockRef,
-    pub(super) producer_block: BlockRef,
-    pub(super) producer: Slot,
+pub(in super::super) struct Entry {
+    pub(in super::super) root_block: BlockRef,
+    pub(in super::super) producer_block: BlockRef,
+    pub(in super::super) producer: Slot,
 }
 
-pub(super) fn prefix(
+pub(in super::super) fn prefix(
     body: &RefinedBody,
     entry: BlockRef,
     root: Slot,

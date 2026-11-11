@@ -34,11 +34,19 @@ false-exit活根/退休分区和完成的suffix事实。内部复用既有私有
 5. 每根真实Replace的root/producer/call必须在同一指令对应；旧值alias与实际已消费drop
    均在减法之前。success不能读取或修改root及detached旧值，header不得改写它们。
 
+额外完整boundary审计只接纳可解析的literal入口与完整false分区/必要suffix：按root身份
+连接entry向量与body顺序，追溯真实入口alias链；false分支核finished→exit及唯一前驱，
+逐根匹配已消费drop，活根核真实suffix alias→drop，并按整个回执向量验证消费先后。
+参数来源入口、缺分区或未完成suffix不给完整receipt，但保留旧scalar/body审计及lowering。
+该receipt仍不授予跨轮权限，checked abort不加入正常出口。
+
 counter/guard定义检查只覆盖本次入口与循环区域，不把合法退出后的重新赋值算作冲突。
 现有SSA verifier和通用ownership/drop权限仍必需。本审计不取代它们，不认证退出后的
 一般控制流，也不独立证明AST算符翻译、终止性或运行时owner代际归纳。
 
 ## 验证范围
+
+完整出口另有0/1/全部活根×0/2轮native矩阵、参数根回退和不完整suffix回归。
 
 真实2/3根、Int最小值/-1/0/1/2/5初值矩阵中，Boolean Name guard形式要求新审计完成；直接比较
 while条件仍没有该证据。所有样例继续要求旧multi-root boundary缺席，并验证SSA、

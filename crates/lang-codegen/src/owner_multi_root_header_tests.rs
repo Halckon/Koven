@@ -893,3 +893,6 @@ fn counter_tail_inout_parameter_keeps_existing_lowering_without_new_audit() {
     );
     super::assert_native_output(&source, b"");
 }
+
+#[path = "owner_counter_boundary_tests.rs"]
+mod counter_boundary;
