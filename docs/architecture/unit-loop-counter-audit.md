@@ -26,7 +26,7 @@ Name guard初始化为同counter大于0，body中每根直接String Replace并�
 3. success内必须是该减法结果写counter，再以更新后的counter与唯一常量0做Greater，
    最后将结果写guard。核两个实际assignment span、比较RHS身份及严格先后顺序。
 4. header只读实际guard并分支body/finished；正常回边来自success，不能来自abort。
-   初始guard也必须消费同counter大于0的实际比较结果。
+   初始counter定义必须先于比较，初始guard也必须消费同counter大于0的实际比较结果。
 5. 每根真实Replace的root/producer/call必须在同一指令对应；旧值alias与实际已消费drop
    均在减法之前。success不能读取或修改root及detached旧值，header不得改写它们。
 
@@ -36,10 +36,27 @@ counter/guard定义检查只覆盖本次入口与循环区域，不把合法退�
 
 ## 验证范围
 
-真实2/3根、0/1/2/5轮矩阵中，Boolean Name guard形式要求新审计完成；直接比较
+真实2/3根、Int最小值/-1/0/1/2/5初值矩阵中，Boolean Name guard形式要求新审计完成；直接比较
 while条件仍没有该证据。所有样例继续要求旧multi-root boundary缺席，并验证SSA、
 LLVM和native输出。另有循环后counter/guard重赋值、inout counter不启用新审计但
 保持旧lowering可用的native回归。
 
-CI-only负控破坏counter写回、比较来源、guard写回或将success回边改到abort；前端另有
+CI-only负控颠倒初始定义与比较顺序，或破坏counter写回、比较来源、guard写回或将success回边改到abort；前端另有
 deferred、foreign analysis、伪Complete撤销负控。本地只编译，执行结果留远端。
+
+## 当前权限缺口
+
+当前记录只证明本次slot CFG与FE事实对应，并未产生跨轮owner权限：
+
+| 合同 | 当前证据 | 尚未覆盖 |
+|---|---|---|
+| 初值 | 本地counter先定义、同值比较、guard写入、entry到header | 未将入口owner向量与scalar初值共同封存为权限 |
+| 正常迭代 | Replace旧值退休后减1，写回再比较，success返回header | 未签发新代际向量或对每轮消费做归纳 |
+| 溢出 | checked receipt验证真实失败分支和终结abort | 不把“预计不可溢出”作为删除abort或授权回边的依据 |
+| 零轮与退出 | 非正初值真实native跳过body；现有通用drop继续工作 | 未将最终live root与零轮/多轮退出统一为新产品 |
+
+按既有[Int checked语义](../guide/04-expressions-operators.md#整数溢出与除零)，
+正counter减1在数学上可表示，非正初值不进入此精确循环；这只是受限合同的推理，
+不是编译器已经持有的范围证明。最小Int初值验证零轮退出，不能称为实际走过overflow边。
+abort是进程终止，不得合成为正常header incoming；根的正常最终清理也不能挪到abort上
+以冒充正常退出证明。当前保留checked指令、独立失败边和所有旧权限要求。

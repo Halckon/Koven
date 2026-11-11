@@ -141,6 +141,18 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         {
             use owner_consumer_test_support::{OwnerFault, take_fault};
+            if take_fault(OwnerFault::CounterTailLateInitialization) {
+                let statements = &mut self.body.blocks[entry.0].statements;
+                let initial = statements
+                    .iter()
+                    .position(|s| s.results.contains(&counter))
+                    .unwrap();
+                let compare = statements
+                    .iter()
+                    .position(|s| matches!(s.op, ROp::Compare { left, .. } if left == counter))
+                    .unwrap();
+                statements.swap(initial, compare);
+            }
             if take_fault(OwnerFault::CounterTailWrongBackedge) {
                 self.body.blocks[success.0].terminator =
                     Some((RTerm::Goto(_abort), self.inputs.span));
@@ -200,6 +212,24 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         self.counter_guard_comparison(entry, counter, guard, plan.evidence.initializer(), None)?;
+        // Initial value must exist before the comparison. Counting definitions alone
+        // cannot establish the first header's scalar dependency.
+        let initial = self.body.blocks[entry.0]
+            .statements
+            .iter()
+            .position(|s| s.results.contains(&counter))
+            .ok_or_else(fail)?;
+        let comparison = self.body.blocks[entry.0]
+            .statements
+            .iter()
+            .position(|s| {
+                s.span == self.span(plan.evidence.initializer().expression())
+                    && matches!(s.op, ROp::Compare { .. })
+            })
+            .ok_or_else(fail)?;
+        if initial >= comparison {
+            return Err(fail());
+        }
         let statements = &self.body.blocks[body.0].statements;
         if statements
             .iter()

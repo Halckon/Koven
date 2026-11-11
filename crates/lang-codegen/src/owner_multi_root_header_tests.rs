@@ -679,7 +679,7 @@ fn multi_root_counter_tail_preserves_existing_lowering_without_new_authority() {
     // Isolate the scalar tail: root producers and old-value retirement are exactly
     // the already-supported shape, unlike the concatenating/printing loop fixture.
     for roots in [2, 3] {
-        for rounds in [0, 1, 2, 5] {
+        for rounds in [i32::MIN, -1, 0, 1, 2, 5] {
             for named_guard in [false, true] {
                 let (header, tail) = if named_guard {
                     (
@@ -751,7 +751,7 @@ fn multi_root_counter_tail_preserves_existing_lowering_without_new_authority() {
                 );
                 // Positive initial counts must traverse backedges to reach zero.
                 // This is finite native evidence, not allocation counting or induction.
-                super::assert_native_output(&source, b"zero\n");
+                super::assert_native_output(&source, if rounds < 0 { b"" } else { b"zero\n" });
             }
         }
     }
@@ -852,6 +852,7 @@ fn ci_only_counter_tail_requires_writeback_comparison_and_success_backedge() {
     let source = UnitSource::analyze("counter-tail-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::CounterTailLateInitialization,
         OwnerFault::CounterTailWrongBackedge,
         OwnerFault::CounterTailWrongCounterWrite,
         OwnerFault::CounterTailWrongGuardWrite,
