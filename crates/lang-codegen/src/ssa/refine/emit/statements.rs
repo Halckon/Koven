@@ -3,6 +3,7 @@ use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
+    pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
     pub(super) branch: crate::ssa::refine::branch_receipt::Emitted,
     pub(super) forward: crate::ssa::refine::forward_receipt::Emitted,
     consumer: crate::ssa::refine::loan_receipt::Emitted,
@@ -22,6 +23,11 @@ impl LoanReceipts {
         Ok(Self {
             nested: crate::ssa::refine::nested_receipt::Emitted::new(
                 &body.nested_plans,
+                function,
+                span,
+            )?,
+            bounded: crate::ssa::refine::bounded_receipt::Emitted::new(
+                &body.bounded_plans,
                 function,
                 span,
             )?,
@@ -72,6 +78,42 @@ impl LoanReceipts {
             )?,
         })
     }
+    /// Forward the shared SSA layout through each independent protocol, fail-fast in order.
+    pub(super) fn layout(
+        &mut self,
+        body: &RefinedBody,
+        function: &Function,
+        blocks: &BTreeMap<BlockRef, BlockId>,
+        parameters: &BTreeMap<BlockRef, Vec<Slot>>,
+        entities: &BTreeMap<BlockRef, Vec<EntityId>>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.branch.layout(
+            &body.branch_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.nested.layout(
+            &body.nested_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.bounded.layout(
+            &body.bounded_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        Ok(())
+    }
     pub(super) fn terminator(
         &mut self,
         body: &RefinedBody,
@@ -82,6 +124,8 @@ impl LoanReceipts {
     ) -> Result<(), LoweringError> {
         self.nested
             .terminator(&body.nested_plans, function, target, current, span)?;
+        self.bounded
+            .terminator(&body.bounded_plans, function, target, current, span)?;
         self.branch
             .terminator(&body.branch_plans, function, target, current, span)?;
         self.forward
@@ -104,6 +148,7 @@ impl LoanReceipts {
             .finish(&body.aux_binding_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
         self.nested.finish(&body.nested_plans, function, span)?;
+        self.bounded.finish(&body.bounded_plans, function, span)?;
         self.branch.finish(&body.branch_plans, function, span)
     }
 }
@@ -247,6 +292,16 @@ impl Emitter<'_> {
                     &self.current,
                     statement.span,
                 )?,
+                Some(crate::ssa::refine::body::LoanTag::Bounded(tag)) => {
+                    receipts.bounded.statement(
+                        &body.bounded_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
                 None => {}
             }
         }

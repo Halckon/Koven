@@ -141,6 +141,7 @@ impl Builder<'_, '_> {
         self.body.forward_plans.source_call(id, source, span)?;
         self.body.branch_plans.source_call(id, source, span)?;
         self.body.nested_plans.source_call(id, source, span)?;
+        self.body.bounded_plans.source_call(id, source, span)?;
         if source.call() != id {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -779,6 +780,9 @@ impl Builder<'_, '_> {
             .enter(return_id, value_id, block, &self.borrowed, span)?;
         self.body
             .nested_plans
+            .enter(return_id, value_id, block, &self.borrowed, span)?;
+        self.body
+            .bounded_plans
             .enter(return_id, value_id, block, &self.borrowed, span)?;
         self.body
             .forward_plans

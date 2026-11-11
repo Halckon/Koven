@@ -540,6 +540,14 @@ impl Builder<'_, '_> {
             &self.borrowed,
             span,
         )?;
+        self.body.bounded_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
         let cr = self.cr_split(
             control,
             self.unit(condition),
@@ -663,6 +671,9 @@ impl Builder<'_, '_> {
             .join(control, join, &branch_predecessors, span)?;
         self.body
             .nested_plans
+            .join(control, join, &branch_predecessors, span)?;
+        self.body
+            .bounded_plans
             .join(control, join, &branch_predecessors, span)?;
         let reached = self.join_views(predecessors, join, span)?;
         self.cb_join(control, join, reached, span)?;

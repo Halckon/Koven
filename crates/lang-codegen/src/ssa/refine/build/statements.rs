@@ -69,6 +69,15 @@ impl Builder<'_, '_> {
             (tag, None) => tag,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
+        let bounded = self
+            .body
+            .bounded_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, bounded) {
+            (None, Some(tag)) => Some(LoanTag::Bounded(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
         let auxiliary = self
             .body
             .aux_binding_plans
@@ -108,6 +117,7 @@ impl Builder<'_, '_> {
         self.body.forward_plans.finish(self.inputs.span)?;
         self.body.branch_plans.finish(self.inputs.span)?;
         self.body.nested_plans.finish(self.inputs.span)?;
+        self.body.bounded_plans.finish(self.inputs.span)?;
         self.body
             .loan_plans
             .finish(&self.consumed_drops, self.inputs.span)?;

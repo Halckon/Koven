@@ -14102,3 +14102,28 @@ rooted/memory及observer开关。Clippy（含loan-observation-test-support、所
 未在本地执行。fmt、diff及文档897项检查通过。尺寸检查仍失败（2512个手写Rust文件，
 36个历史超1000行文件），唯一新增阻塞为上述1684>1674，不改变原额度。
 日志为本机bounded-tree-*系列；未执行native全套或远端CI，未推送。
+
+#### 动态有界树实际 SSA receipt（开发中）
+
+基于79d9b36d，下一片保持同根、不同Boolean参数、全叶直接返回及3层/8叶边界。
+CG独立重核已验证声明与路径合同，实际producer记录split/arm/join、每叶call/return，
+emitted阶段逐边核source与活跃后代flag参数运输、实际指令和callee身份；不使用固定
+Topology冒充动态树。只有原final verifier成功后统一发布receipt，失败原子撤回。
+observer off仍走原typed/raw合同，旧见证保留。现有尺寸失败不变，不调整尺寸策略。
+
+新正控已真红转绿：原Unsupported marker失败后，4/5/8叶实际SSA成功且原verifier
+每次仅运行一次；字面DFS路由独立核每层flag与source逐边运输、callee/return/ID，
+rooted/memory及observer开关的SSA和LLVM文本一致。新receipt独立于旧固定topology。
+将三种布局观察的生命周期分发统一到既有LoanReceipts::layout，branch→nested→bounded
+顺序与错误传播不变；不移动布局算法、不修改尺寸政策。这是同new/terminator/finish
+一致的协议生命周期封装，而非压行或机械拆文件。
+
+本片验证：普通CG26项回归通过（新动态正控、新5类邻界、旧nested/branch/
+balanced/shared-inner/auxiliary及binding），最终正控复验通过。Clippy -D warnings
+通过；默认FE/CG lib no-run、workspace all-targets check、fmt/diff及文档897项均通过。
+新增CI-only以真实生产快照覆盖16类receipt与7类plan故障及发布回滚，仅编译未执行；
+两轮独立审查修复并复核参数唯一性与向量长度防越界，未改变原verifier。
+尺寸复测2520个手写Rust文件、36个历史超1000行文件，唯一失败仍为前序
+FE drop_planner.rs 1684>1674；CG本片无新增尺寸错误，策略未改。
+原始证据为本机bounded-receipt-*日志。未跑native全套/远端CI，仅本地提交，不推送。
+该实现不涵盖多根、循环、continuation或无界树；尺寸阻塞未解除，不宣称可合并。
