@@ -12284,3 +12284,30 @@ default workspace all-targets通过62.97s，docs/size/diff通过；workspace fmt
 是本片新公开导出带来的mod.rs import换行，不涉及其他文件或生产逻辑。原日志保留在
 `static-gates/`；后继仅修该排版，须新冻输入并重新验证静态及绑定三项，不能沿用旧头
 的行为结果冒充新输入通过。未跑全量行为、正式CI、native或独立CLI artifact。
+
+
+#### live-source Partial 最终同头验收
+
+最终代码输入 `0e23edac` 仅修上述导出排版；相对前头的Rust去空白内容及全部测试字节
+不变，经fresh独审后重新执行全部静态、串行FE/CG lib no-run并绑定固定三项ordinary。
+workspace fmt、两crate/all-targets显式support strict Clippy、默认无feature的workspace
+all-targets check、docs、size（基线c85ac4b9）和diff六项均exit0；docs核887页，size核
+2410个手写Rust文件及35个历史超限文件，无新增超限。Clippy外层42.33s/Cargo42.09s，
+workspace check外层25.70s/Cargo25.48s，原件保留在证据根 `final-static/`。
+
+FE/CG no-run外层分别4.96s/15.87s，Cargo分别4.91s/15.82s；各自唯一实际artifact均为
+本树fresh=false、opt0/debug2/test、仅support feature，原target/LLVM21/jobs2串行，
+无debug或Rustflags覆盖。4267个冻结输入逐hash及聚合SHA
+`9ad96915bb3ab1ec3fad58541a5446f9447086c3719f5a52f8296904cf175558` 已独立核实；
+FE binary SHA `95d31970e66f8b8f36f4136311c9e6ba57f4ca01ba7c0a69f6cbbfe6c98ca693`，
+CG binary SHA `32b2ae34caa3910c8d686eb2d69905c611592f836d627ad4be3a8a685e3dff42`。
+
+新artifact绑定后仅执行上述固定三项CG ordinary exact，各1 passed、0 failed、
+2954 filtered、exit0，三份stderr均空。核心双布局四次真实on/off正常lower、原SSA、
+verifier、LLVM1389bytes及全部新因果后置通过；两邻控仅FE，旧Group/Block/分支raw事实
+保序，scope外因果getter均None。前后输入与实际binary保持，结果及静态已独立终核；
+完整原JSON、输入表、runner、list/run日志及manifest保留在 `final-validation/`。
+FE binary未执行，两个CI-only仅成功编译，不宣称负控拒绝行为实跑；无全量行为、正式CI、
+native或独立CLI artifact。本片仍为单表达式体source live handoff的Partial，不新增
+Complete、receipt、End或显式Block lowering。执行输入固定为0e23edac；后继仅本账本
+文档提交，不把文档新头冒充已执行输入，合流仍须按真实合流输入单独验收。
