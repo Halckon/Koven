@@ -119,10 +119,14 @@ impl Emitted {
             return Err(invalid(span));
         }
         let source = mapped(p.splits[0].entry, p.source)?;
-        let entry_flags = p
-            .splits
-            .iter()
-            .map(|s| mapped(p.splits[0].entry, s.flag))
+        let entry_flags = (0..p.entry_flags.len())
+            .map(|index| {
+                let split = p
+                    .flag_indices()
+                    .and_then(|indices| indices.iter().position(|i| *i == index))
+                    .ok_or_else(|| invalid(span))?;
+                mapped(p.splits[0].entry, p.splits[split].flag)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let flags = p
             .splits
@@ -142,7 +146,7 @@ impl Emitted {
             .iter()
             .collect::<std::collections::BTreeSet<_>>()
             .len()
-            != p.counts().0 + 1
+            != p.entry_flags.len() + 1
             || function.block(split_blocks[0]).map(|b| &b.parameters) != Some(&expected_entry)
         {
             return Err(invalid(span));
@@ -378,6 +382,7 @@ impl Emitted {
         }
         let receipt = Receipt {
             topology: p.topology,
+            flag_layout: p.flag_layout,
             callable: p.callable,
             caller: p.caller,
             entry: l.split_blocks[0],
@@ -406,7 +411,8 @@ impl Receipt {
     ) -> Result<(), LoweringError> {
         plans.finish(span)?;
         let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
-        if self.topology != p.topology
+        if self.flag_layout != p.flag_layout
+            || self.topology != p.topology
             || self.callable != p.callable
             || self.caller != p.caller
             || self.caller != function.id()
@@ -439,7 +445,7 @@ impl Receipt {
             )
         };
         let entry = function.block(self.entry).ok_or_else(|| invalid(span))?;
-        if entry.parameters.len() != p.counts().0 + 1 {
+        if entry.parameters.len() != p.entry_flags.len() + 1 {
             return Err(invalid(span));
         }
         let source = loan(entry.parameters.first().copied(), span)?;
@@ -449,7 +455,9 @@ impl Receipt {
         }
         for i in 1..self.splits.len() {
             let parent_arm = p.parent_arm(i).ok_or_else(|| invalid(span))?;
-            let flag = loan(entry.parameters.get(i + 1).copied(), span)?;
+            let indices = p.flag_indices().ok_or_else(|| invalid(span))?;
+            let index = indices.get(i).ok_or_else(|| invalid(span))?;
+            let flag = loan(entry.parameters.get(index + 1).copied(), span)?;
             let edge = &self.splits[0].edges[parent_arm];
             if edge.target != self.splits[i].block || mapped(edge, flag)? != self.splits[i].flag {
                 return Err(invalid(span));

@@ -267,10 +267,10 @@ fn ordinary_nested_three_leaf_requires_actual_receipt() {
 }
 
 #[test]
-fn ordinary_nested_four_leaf_stays_unsupported() {
+fn ordinary_nested_four_leaf_wrong_flag_stays_unsupported() {
     let text = nested_three_leaf_source().replace(
         "} else { return right(source) } }",
-        "} else { if (inner) { return right(source) } else { return left(source) } } }",
+        "} else { if (outer) { return right(source) } else { return left(source) } } }",
     );
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "four-leaf.ko", &text);

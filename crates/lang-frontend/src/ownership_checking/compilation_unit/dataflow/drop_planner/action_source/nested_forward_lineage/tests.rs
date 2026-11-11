@@ -210,3 +210,47 @@ fn ci_only_balanced_lineage_rejects_cross_parent_and_wrong_fixed_tree() {
         );
     }
 }
+
+#[test]
+fn ci_only_shared_inner_lineage_binds_layout_without_merging_control_points() {
+    use crate::ownership_checking::UnitBorrowNestedForwardFlagLayout;
+    let text = "fun id(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return id(s) } else { return id(s) } } else { if (b) { return id(s) } else { return id(s) } } }";
+    for fault in 0..4 {
+        let mut source = capture_text(text);
+        let cause = source.nested_handoffs[2].1.clone();
+        let unit = cause.state.plan.callable.source_unit();
+        let Record::BorrowForwardHandoff { transaction, .. } =
+            &source.records[source.nested_handoffs[2].0]
+        else {
+            panic!("handoff")
+        };
+        let file = transaction.source_loan().begin_span().source_id();
+        assert_eq!(source.nested_lineages(unit, file).len(), 4);
+        let target = cause.state.plan.leaves()[2].value;
+        match fault {
+            0 => {
+                source.nested_handoffs[2].1.state.plan.flag_layout =
+                    UnitBorrowNestedForwardFlagLayout::Distinct
+            }
+            1 => {
+                source.nested_entries[cause.state.path[1].unwrap()].flag_layout =
+                    UnitBorrowNestedForwardFlagLayout::Distinct
+            }
+            2 => {
+                source.nested_handoffs[2].1.state.plan.splits_mut()[2].flag =
+                    cause.state.plan.splits()[0].flag
+            }
+            _ => {
+                source.nested_entries[cause.state.path[1].unwrap()].split =
+                    cause.state.plan.splits()[1].split
+            }
+        }
+        assert!(
+            source
+                .nested_lineages(unit, file)
+                .iter()
+                .all(|lineage| lineage.value() != target),
+            "fault {fault}"
+        );
+    }
+}

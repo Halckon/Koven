@@ -14,10 +14,20 @@ pub enum UnitBorrowNestedForwardTopology {
     BalancedBoth,
 }
 
+/// Exact parameter-to-condition identity layout, independent of control-point identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitBorrowNestedForwardFlagLayout {
+    /// Every condition reads its own distinct Boolean parameter.
+    Distinct,
+    /// Only the two balanced inner conditions share one Boolean parameter.
+    SharedInner,
+}
+
 /// Separately certifies actual terminal closure of the admitted fixed nested region.
 /// Its constituent acquisition lineages retain their original Partial meaning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowNestedForwardRegion {
+    pub(super) flag_layout: UnitBorrowNestedForwardFlagLayout,
     pub(super) topology: UnitBorrowNestedForwardTopology,
     pub(super) identity: Arc<()>,
     pub(super) callable: UnitItemId,
@@ -26,6 +36,11 @@ pub struct UnitBorrowNestedForwardRegion {
     pub(super) paths: Vec<UnitLoanNestedForwardLineage>,
 }
 impl UnitBorrowNestedForwardRegion {
+    /// Exact admitted parameter identity layout; never merges independent control points.
+    pub const fn flag_layout(&self) -> UnitBorrowNestedForwardFlagLayout {
+        self.flag_layout
+    }
+
     /// The positively admitted finite nested tree topology.
     pub const fn topology(&self) -> UnitBorrowNestedForwardTopology {
         self.topology

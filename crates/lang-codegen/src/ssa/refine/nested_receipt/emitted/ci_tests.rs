@@ -267,3 +267,40 @@ fn ci_only_balanced_producer_requires_left_returns_and_join_before_right_split()
         assert_eq!(result.is_ok(), fault == 3);
     }
 }
+
+#[test]
+fn ci_only_shared_inner_keeps_binding_and_both_parent_edges() {
+    let text = "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun last(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { if (b) { return right(s) } else { return last(s) } } }\nfun consume(s: String): Unit {}\nfun run(a: Boolean, b: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner,a,b); consume(item) }";
+    let s = capture_text(text);
+    assert_eq!(
+        s.receipt.flag_layout,
+        UnitBorrowNestedForwardFlagLayout::SharedInner
+    );
+    assert_ne!(s.receipt.splits[1].flag, s.receipt.splits[2].flag);
+    s.receipt.validate(&s.plans, &s.function, s.span).unwrap();
+    for fault in 0..6 {
+        let mut r = s.receipt.clone();
+        match fault {
+            0 => r.flag_layout = UnitBorrowNestedForwardFlagLayout::Distinct,
+            1 => r.splits[2].flag = r.splits[1].flag,
+            2 => r.splits[2].flag = r.splits[0].flag,
+            3 => r.splits[2].condition = r.splits[1].condition,
+            4 => r.splits[2].read = r.splits[1].read,
+            _ => r.paths[2].edges[0] = r.paths[0].edges[0].clone(),
+        }
+        assert!(
+            r.validate(&s.plans, &s.function, s.span).is_err(),
+            "fault {fault}"
+        );
+    }
+    for fault in 0..3 {
+        let mut plans = s.plans.clone();
+        let p = plans.plan.as_mut().unwrap();
+        match fault {
+            0 => p.flag_layout = UnitBorrowNestedForwardFlagLayout::Distinct,
+            1 => p.entry_flags[1] = p.entry_flags[0],
+            _ => p.flags[2] = p.flags[0],
+        }
+        assert!(s.receipt.validate(&plans, &s.function, s.span).is_err());
+    }
+}

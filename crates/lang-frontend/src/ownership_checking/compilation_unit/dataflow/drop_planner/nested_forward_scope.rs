@@ -1,6 +1,8 @@
 //! Strict declaration admission for one explicit nested side, never a completion certificate.
 use super::*;
-use crate::ownership_checking::{UnitBorrowNestedForwardTopology, UnitLoanTarget};
+use crate::ownership_checking::{
+    UnitBorrowNestedForwardFlagLayout, UnitBorrowNestedForwardTopology, UnitLoanTarget,
+};
 use crate::type_checking::{BorrowReturnOrigin, UnitCallTarget, UnitItemId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,6 +20,7 @@ pub(super) struct NestedLeaf {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NestedForwardPlan {
+    pub(super) flag_layout: UnitBorrowNestedForwardFlagLayout,
     pub(super) topology: UnitBorrowNestedForwardTopology,
     pub(super) callable: UnitItemId,
     pub(super) root: UnitSymbolId,
@@ -36,17 +39,30 @@ pub(super) enum FixedNestedTree {
 }
 impl NestedForwardPlan {
     pub(super) fn topology_matches_tree(&self) -> bool {
-        matches!(
-            (self.topology, self.tree),
-            (
-                UnitBorrowNestedForwardTopology::NestedThen
-                    | UnitBorrowNestedForwardTopology::NestedElse,
-                FixedNestedTree::Three { .. }
-            ) | (
-                UnitBorrowNestedForwardTopology::BalancedBoth,
-                FixedNestedTree::BalancedFour { .. }
+        let flags = self.splits().iter().map(|s| s.flag).collect::<Vec<_>>();
+        let flags_valid = !flags.contains(&self.root)
+            && match self.flag_layout {
+                UnitBorrowNestedForwardFlagLayout::Distinct => flags
+                    .iter()
+                    .enumerate()
+                    .all(|(i, f)| !flags[i + 1..].contains(f)),
+                UnitBorrowNestedForwardFlagLayout::SharedInner => {
+                    self.topology == UnitBorrowNestedForwardTopology::BalancedBoth
+                        && matches!(flags.as_slice(), [outer, left, right] if outer != left && left == right)
+                }
+            };
+        flags_valid
+            && matches!(
+                (self.topology, self.tree),
+                (
+                    UnitBorrowNestedForwardTopology::NestedThen
+                        | UnitBorrowNestedForwardTopology::NestedElse,
+                    FixedNestedTree::Three { .. }
+                ) | (
+                    UnitBorrowNestedForwardTopology::BalancedBoth,
+                    FixedNestedTree::BalancedFour { .. }
+                )
             )
-        )
     }
     pub(super) fn splits(&self) -> &[NestedSplit] {
         match &self.tree {
@@ -185,15 +201,25 @@ impl DropPlanner<'_, '_> {
                 vec![(outer_split, outer_condition), (split, condition)],
                 vec![then_statement, middle, right],
             ),
-            (Some((left, lc, a, b)), Some((right, rc, c, d)), 3) => (
+            (Some((left, lc, a, b)), Some((right, rc, c, d)), 2 | 3) => (
                 UnitBorrowNestedForwardTopology::BalancedBoth,
                 vec![(outer_split, outer_condition), (left, lc), (right, rc)],
                 vec![a, b, c, d],
             ),
             _ => return None,
         };
+        let flag_layout =
+            if topology == UnitBorrowNestedForwardTopology::BalancedBoth && flags.len() == 2 {
+                UnitBorrowNestedForwardFlagLayout::SharedInner
+            } else {
+                UnitBorrowNestedForwardFlagLayout::Distinct
+            };
+        let split_flags = match flag_layout {
+            UnitBorrowNestedForwardFlagLayout::Distinct => flags,
+            UnitBorrowNestedForwardFlagLayout::SharedInner => vec![flags[0], flags[1], flags[1]],
+        };
         let mut splits = Vec::new();
-        for ((split, condition), flag) in split_shapes.into_iter().zip(flags) {
+        for ((split, condition), flag) in split_shapes.into_iter().zip(split_flags) {
             if !matches!(
                 ast.expressions().get(condition).ok()?.payload(),
                 Expression::Name
@@ -335,6 +361,7 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(NestedForwardPlan {
+            flag_layout,
             topology,
             callable,
             root,
@@ -411,7 +438,7 @@ impl DropPlanner<'_, '_> {
                             && self.iteration_actions.nested_entry_matches(
                                 parent,
                                 nested.plan.callable,
-                                nested.plan.topology,
+                                (nested.plan.topology, nested.plan.flag_layout),
                                 nested.plan.splits()[0].split,
                                 nested.plan.parent_side(i)?,
                                 None,
@@ -454,7 +481,7 @@ impl DropPlanner<'_, '_> {
         let parent = if index == 0 { None } else { nested.path[0] };
         let Some(entry) = self.iteration_actions.enter_nested_forward_edge(
             nested.plan.callable,
-            nested.plan.topology,
+            (nested.plan.topology, nested.plan.flag_layout),
             split.split,
             split.condition,
             then_arm,
@@ -475,7 +502,7 @@ impl DropPlanner<'_, '_> {
                             self.iteration_actions.nested_entry_matches(
                                 handle,
                                 nested.plan.callable,
-                                nested.plan.topology,
+                                (nested.plan.topology, nested.plan.flag_layout),
                                 nested.plan.splits()[*split].split,
                                 *side,
                                 if *split == 0 { None } else { nested.path[0] },

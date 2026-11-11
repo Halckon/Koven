@@ -1,7 +1,9 @@
 //! Independent fixed three-leaf receipt observation, never inferred from final CFG alone.
 use crate::ssa::model::{BlockId, Edge, FunctionId, InstructionId, LoanId, ValueId};
 use lang_frontend::{
-    ownership_checking::{UnitBorrowNestedForwardTopology, UnitLoanActionId},
+    ownership_checking::{
+        UnitBorrowNestedForwardFlagLayout, UnitBorrowNestedForwardTopology, UnitLoanActionId,
+    },
     type_checking::{UnitExpressionId, UnitItemId},
 };
 #[derive(Clone, Debug)]
@@ -29,6 +31,7 @@ pub(crate) struct PathReceipt {
 #[derive(Clone, Debug)]
 pub(crate) struct Receipt {
     pub(crate) topology: UnitBorrowNestedForwardTopology,
+    pub(crate) flag_layout: UnitBorrowNestedForwardFlagLayout,
     pub(crate) callable: UnitItemId,
     pub(crate) caller: FunctionId,
     pub(crate) entry: BlockId,
@@ -59,6 +62,8 @@ pub(super) struct Plans {
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
     pub(super) topology: UnitBorrowNestedForwardTopology,
+    pub(super) flag_layout: UnitBorrowNestedForwardFlagLayout,
+    pub(super) entry_flags: Vec<UnitSymbolId>,
     pub(super) callable: UnitItemId,
     pub(super) caller: FunctionId,
     pub(super) root: UnitSymbolId,
@@ -157,9 +162,42 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 }
 
 impl Plan {
+    fn flag_indices(&self) -> Option<Vec<usize>> {
+        match (self.topology, self.flag_layout) {
+            (
+                UnitBorrowNestedForwardTopology::BalancedBoth,
+                UnitBorrowNestedForwardFlagLayout::SharedInner,
+            ) => Some(vec![0, 1, 1]),
+            (_, UnitBorrowNestedForwardFlagLayout::Distinct) => {
+                Some((0..self.counts().0).collect())
+            }
+            _ => None,
+        }
+    }
     fn valid_shape(&self) -> bool {
         let (splits, leaves) = self.counts();
-        self.splits.len() == splits && self.paths.len() == leaves && self.flags.len() == splits
+        let Some(indices) = self.flag_indices() else {
+            return false;
+        };
+        let count = match self.flag_layout {
+            UnitBorrowNestedForwardFlagLayout::Distinct => splits,
+            UnitBorrowNestedForwardFlagLayout::SharedInner => 2,
+        };
+        self.splits.len() == splits
+            && self.paths.len() == leaves
+            && self.flags.len() == splits
+            && self.entry_flags.len() == count
+            && !self.entry_flags.contains(&self.root)
+            && self
+                .entry_flags
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == count
+            && indices
+                .iter()
+                .enumerate()
+                .all(|(i, index)| self.entry_flags.get(*index) == self.flags.get(i))
     }
     fn counts(&self) -> (usize, usize) {
         match self.topology {

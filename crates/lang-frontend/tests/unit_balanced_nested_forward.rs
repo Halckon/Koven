@@ -4,8 +4,9 @@ use lang_frontend::{
     lexer::lex,
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        UnitBorrowNestedForwardTopology, UnitDropPoint, UnitLoanAction, UnitLoanActionCoverage,
-        check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+        UnitBorrowNestedForwardFlagLayout, UnitBorrowNestedForwardTopology, UnitDropPoint,
+        UnitLoanAction, UnitLoanActionCoverage, check_compilation_unit_ownership,
+        legacy_ownership_eq, with_loan_observation,
     },
     parser::parse_file,
     source::SourceMap,
@@ -21,9 +22,24 @@ fn ordinary_balanced_four_leaf_requires_both_inner_closures() {
 }
 
 #[test]
+fn ordinary_balanced_shared_inner_keeps_two_actual_inner_splits() {
+    let shared = SOURCE
+        .replace(", right: Boolean", "")
+        .replace("if (right)", "if (left)");
+    check(&shared, true);
+}
+
+#[test]
 fn ordinary_balanced_neighbors_remain_unproved() {
     for text in [
         SOURCE.replace("if (right)", "if (left)"),
+        SOURCE
+            .replace(", right: Boolean", "")
+            .replace("if (right)", "if (outer)"),
+        SOURCE
+            .replace(", right: Boolean", "")
+            .replace("if (left)", "if (outer)")
+            .replace("if (right)", "if (left)"),
         SOURCE.replace("if (outer)", "outer\nif (outer)"),
         SOURCE.replace(
             "return fourth(s)",
@@ -121,6 +137,14 @@ fn check(text: &str, complete: bool) {
             region.topology(),
             UnitBorrowNestedForwardTopology::BalancedBoth
         );
+        assert_eq!(
+            region.flag_layout(),
+            if text.contains(", right: Boolean") {
+                UnitBorrowNestedForwardFlagLayout::Distinct
+            } else {
+                UnitBorrowNestedForwardFlagLayout::SharedInner
+            }
+        );
         assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
         let paths = region.paths();
         assert_eq!(paths.len(), 4);
@@ -131,6 +155,7 @@ fn check(text: &str, complete: bool) {
             assert!(catalog.owns_nested_forward_lineage(path));
             assert_eq!(path.coverage(), UnitLoanActionCoverage::Partial);
             assert_eq!(path.topology(), region.topology());
+            assert_eq!(path.flag_layout(), region.flag_layout());
             assert_eq!(path.callable(), region.callable());
             assert_eq!(path.source_parameter(), region.source_parameter());
             assert_eq!(

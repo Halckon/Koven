@@ -12,8 +12,8 @@ use lang_frontend::{
 fn ordinary_balanced_neighbors_keep_exact_unsupported_boundary() {
     for (shape, body, count) in [
         (
-            "three-parameter-shared-flag",
-            "if (outer) { if (left_flag) { return left(source) } else { return middle(source) } } else { if (left_flag) { return middle(source) } else { return right(source) } }",
+            "three-parameter-wrong-outer",
+            "if (outer) { if (left_flag) { return left(source) } else { return middle(source) } } else { if (outer) { return middle(source) } else { return right(source) } }",
             4,
         ),
         (
@@ -40,7 +40,7 @@ fn ordinary_balanced_neighbors_keep_exact_unsupported_boundary() {
         let text = format!(
             "fun left(source: String): borrow String from source = source\nfun middle(source: String): borrow String from source = source\nfun right(source: String): borrow String from source = source\nfun wrap(source: String, outer: Boolean, left_flag: Boolean, right_flag: Boolean): borrow String from source {{ {body} }}\nfun consume(item: String): Unit {{}}\nfun run(outer: Boolean, left_flag: Boolean, right_flag: Boolean): Unit {{ val owner = \"kept\"; borrow val item = wrap(owner, outer, left_flag, right_flag); consume(item) }}"
         );
-        let text = if shape == "three-parameter-shared-flag" {
+        let text = if shape == "three-parameter-wrong-outer" {
             text.replace(
                 "fun wrap(source: String, outer: Boolean, left_flag: Boolean, right_flag: Boolean)",
                 "fun wrap(source: String, outer: Boolean, left_flag: Boolean)",

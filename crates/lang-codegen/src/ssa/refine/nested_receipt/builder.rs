@@ -273,9 +273,7 @@ impl Plans {
     }
     pub(in crate::ssa::refine) fn finish(&self, span: Span) -> Result<(), LoweringError> {
         if self.plan.as_ref().is_some_and(|p| {
-            p.splits.len() != p.counts().0
-                || p.paths.len() != p.counts().1
-                || p.flags.len() != p.counts().0
+            !p.valid_shape()
                 || p.splits.iter().any(|s| !s.done || s.join.is_none())
                 || p.paths.iter().any(|p| p.stage != 3)
         }) {

@@ -196,6 +196,7 @@ impl ActionSource {
         let good = actual.is_some_and(|e| {
             e.callable == c.plan.callable
                 && e.topology == c.plan.topology
+                && e.flag_layout == c.plan.flag_layout
                 && e.split == wanted.split
                 && e.condition == wanted.condition
                 && e.then_arm == then_arm
@@ -405,6 +406,7 @@ impl ActionSource {
                         })).map(Option::flatten);
                         Arc::ptr_eq(&l.identity, &self.identity)
                             && l.topology() == c.plan.topology
+                            && l.flag_layout() == c.plan.flag_layout
                             && l.source_parameter() == c.plan.root
                             && l.control() == expected.control
                             && l.value() == expected.value
@@ -423,6 +425,7 @@ impl ActionSource {
                                 == 1
                     });
                 UnitBorrowNestedForwardRegion {
+                    flag_layout: c.plan.flag_layout,
                     topology: c.plan.topology,
                     identity: self.identity.clone(),
                     callable: c.plan.callable,

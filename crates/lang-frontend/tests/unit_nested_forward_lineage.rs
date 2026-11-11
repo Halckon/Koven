@@ -230,7 +230,7 @@ fn ordinary_nested_lineage_rejects_neighbor_shapes() {
         "if (outer) { if (inner) { return left(source) } else { return middle(source) } }\nreturn right(source)",
         "outer\nif (outer) { if (inner) { return left(source) } else { return middle(source) } } else { return right(source) }",
         "if (outer) { if (inner) { if (inner) { return left(source) } else { return left(source) } } else { return middle(source) } } else { return right(source) }",
-        "if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { if (inner) { return right(source) } else { return right(source) } }",
+        "if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { if (outer) { return right(source) } else { return right(source) } }",
     ] {
         check_lineage(
             &format!(

@@ -32,7 +32,19 @@ impl Plans {
                     return Err(fail());
                 };
                 let (root, flags) = (*root, flags.to_vec());
-                if flags.len() != split_count {
+                let flag_indices = match (region.topology(), region.flag_layout()) {
+                    (
+                        UnitBorrowNestedForwardTopology::BalancedBoth,
+                        UnitBorrowNestedForwardFlagLayout::SharedInner,
+                    ) => vec![0, 1, 1],
+                    (_, UnitBorrowNestedForwardFlagLayout::Distinct) => (0..split_count).collect(),
+                    _ => return Err(fail()),
+                };
+                let entry_flag_count = match region.flag_layout() {
+                    UnitBorrowNestedForwardFlagLayout::Distinct => split_count,
+                    UnitBorrowNestedForwardFlagLayout::SharedInner => 2,
+                };
+                if flags.len() != entry_flag_count {
                     return Err(fail());
                 }
                 if plans.plan.is_some()
@@ -45,8 +57,8 @@ impl Plans {
                         .iter()
                         .collect::<std::collections::BTreeSet<_>>()
                         .len()
-                        != split_count
-                    || inputs.modes.len() != split_count + 1
+                        != entry_flag_count
+                    || inputs.modes.len() != entry_flag_count + 1
                     || inputs
                         .modes
                         .iter()
@@ -69,6 +81,11 @@ impl Plans {
                 {
                     return Err(fail());
                 }
+                let entry_flags = flags;
+                let flags = flag_indices
+                    .iter()
+                    .map(|index| entry_flags[*index])
+                    .collect::<Vec<_>>();
                 let nested_leaf = match region.topology() {
                     UnitBorrowNestedForwardTopology::BalancedBoth => 0,
                     UnitBorrowNestedForwardTopology::NestedThen => 0,
@@ -166,7 +183,8 @@ impl Plans {
                         (UnitBorrowNestedForwardTopology::NestedElse, 1) => &[false, true],
                         (UnitBorrowNestedForwardTopology::NestedElse, _) => &[false, false],
                     };
-                    if path.topology() != region.topology()
+                    if path.flag_layout() != region.flag_layout()
+                        || path.topology() != region.topology()
                         || !catalog.owns_nested_forward_lineage(path)
                         || path.callable() != callable
                         || path.source_parameter() != root
@@ -370,6 +388,8 @@ impl Plans {
                 validate_topology(inputs, region.topology(), &splits, &paths)?;
                 plans.plan = Some(Plan {
                     topology: region.topology(),
+                    flag_layout: region.flag_layout(),
+                    entry_flags,
                     callable,
                     caller,
                     root,

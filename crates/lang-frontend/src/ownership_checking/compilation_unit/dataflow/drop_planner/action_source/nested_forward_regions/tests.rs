@@ -201,3 +201,38 @@ fn ci_only_balanced_topology_with_three_leaf_storage_stays_invalid_without_index
     source.nested_region_return(id, 3, false, true);
     assert!(!source.nested_regions[id].valid);
 }
+
+#[test]
+fn ci_only_shared_inner_closure_requires_layout_and_each_independent_path() {
+    use crate::ownership_checking::UnitBorrowNestedForwardFlagLayout;
+    let text = "fun id(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return id(s) } else { return id(s) } } else { if (b) { return id(s) } else { return id(s) } } }";
+    for fault in 0..5 {
+        let (mut source, mut lineages) = capture_text(text);
+        let good = source.finish_nested_regions(&lineages);
+        assert_eq!(good[0].coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(
+            good[0].flag_layout(),
+            UnitBorrowNestedForwardFlagLayout::SharedInner
+        );
+        assert_eq!(good[0].paths().len(), 4);
+        match fault {
+            0 => {
+                source.nested_regions[0].plan.flag_layout =
+                    UnitBorrowNestedForwardFlagLayout::Distinct
+            }
+            1 => lineages[2].flag_layout = UnitBorrowNestedForwardFlagLayout::Distinct,
+            2 => source.nested_regions[0].right_consumed = false,
+            3 => {
+                lineages.remove(2);
+            }
+            _ => source.nested_regions[0].entries[4] = source.nested_regions[0].entries[1],
+        }
+        let bad = source.finish_nested_regions(&lineages);
+        assert_eq!(
+            bad[0].coverage(),
+            UnitLoanActionCoverage::Partial,
+            "fault {fault}"
+        );
+        assert!(bad[0].paths().is_empty());
+    }
+}

@@ -13906,3 +13906,33 @@ Clippy、默认lib no-run（含CI-only）、workspace全目标、fmt/diff、docs
 门禁全部通过。尺寸2491手写文件、36历史超限，无新增例外或额度；测试helper
 多余借用在构建前修正，不放宽lint。日志balanced-receipt-*，本地提交不推送，
 native全套、CI-only执行与远端CI未运行，未退休旧见证或声称一般全路径完整。
+
+### 共享条件参数的独立路径绑定（2026-11-11）
+
+`8f0b900f`后重新审计，旧见证仍不能退休：Unit观察关闭准入、receipt的原始
+source/origin/transport交叉核验，以及更宽Name/Member/Call lowering域尚依赖旧事实。
+本片选择平衡四叶共享inner参数，验证输入身份与控制身份可分离，而不是继续增加
+叶数。仍保留三个独立split、四条路径和25阶段关闭协议，不因条件值相关剪枝。
+固定共享模式入口[source,outer,inner]，split参数绑定明确为[1,2,2]；原独立模式
+[source,outer,left,right]仍为[1,2,3]，不允许任意重复或错用outer参数。
+
+真实红已确认：前端原四次运输成立但region为0；后端rooted/memory×on/off均在
+308..314原borrow标记Unsupported，原verifier与receipt均0。原三参数共享四叶负例
+随支持边界迁入真实正控，同时用错用outer、缺else等实际邻形继续固定拒绝边界。
+
+显式Distinct/SharedInner布局绑定真实entry、plan、Partial lineage与Complete region。
+SharedInner只用于三参数BalancedBoth；前端仍从每个原条件typed引用正面核
+[outer,inner,inner]，左右split/condition/entry不去重，25阶段双关闭消费不变。
+后端Plan将唯一entry_flags与逐split flags分开，完整valid_shape在producer与finish
+重验明确映射，Distinct仍核全部输入唯一。实际SSA入口为3参数，左右各自经真实
+父edge映射同一入口inner到不同局部LoanId，仍保留3个Read及全部四条路径。
+原verifier后原子发布接线未变，旧见证未退休；三叶tail continuation留待独立后续。
+
+共享新前端正控及distinct/三叶回归7项、后端共享实际receipt正控1项与原四叶2项、
+三叶4项通过。两入口×on/off核真实7块、3Read、4Call/Return及左右独立局部LoanId；
+旧后端branch6/aux3/binding1和前端branch6项也通过。双向独立复审通过，CI-only
+新增错layout、重复入口、错误split映射、跨左右局部Loan/Read/condition与父边等
+故障仅编译，不在本机执行；没有合并控制点或删除路径。
+strict feature all-target Clippy、默认lib no-run（含CI-only）、workspace全目标、
+fmt/diff、docs897及尺寸门禁全部通过：2492手写Rust文件、36历史超限，无新增
+尺寸例外或额度。日志shared-inner-*；本地提交、不推送，native全套和远端CI未执行。

@@ -20,6 +20,7 @@ pub(in super::super) struct NestedForwardCause {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
     pub(super) callable: UnitItemId,
+    pub(super) flag_layout: crate::ownership_checking::UnitBorrowNestedForwardFlagLayout,
     pub(super) topology: crate::ownership_checking::UnitBorrowNestedForwardTopology,
     pub(super) split: UnitExpressionId,
     pub(super) condition: UnitExpressionId,
@@ -33,14 +34,19 @@ impl ActionSource {
         &self,
         id: usize,
         callable: UnitItemId,
-        topology: crate::ownership_checking::UnitBorrowNestedForwardTopology,
+        shape: (
+            crate::ownership_checking::UnitBorrowNestedForwardTopology,
+            crate::ownership_checking::UnitBorrowNestedForwardFlagLayout,
+        ),
         split: UnitExpressionId,
         side: bool,
         parent: Option<usize>,
     ) -> bool {
+        let (topology, flag_layout) = shape;
         self.nested_entries.get(id).is_some_and(|entry| {
             entry.callable == callable
                 && entry.topology == topology
+                && entry.flag_layout == flag_layout
                 && entry.split == split
                 && entry.then_arm == side
                 && entry.parent == parent
@@ -49,17 +55,22 @@ impl ActionSource {
     pub(in super::super) fn enter_nested_forward_edge(
         &mut self,
         callable: UnitItemId,
-        topology: crate::ownership_checking::UnitBorrowNestedForwardTopology,
+        shape: (
+            crate::ownership_checking::UnitBorrowNestedForwardTopology,
+            crate::ownership_checking::UnitBorrowNestedForwardFlagLayout,
+        ),
         split: UnitExpressionId,
         condition: UnitExpressionId,
         then_arm: bool,
         parent: Option<usize>,
     ) -> Option<usize> {
+        let (topology, flag_layout) = shape;
         if !self.enabled
             || parent.is_some_and(|i| {
                 !self.nested_entries.get(i).is_some_and(|e| {
                     e.callable == callable
                     && e.topology == topology
+                        && e.flag_layout == flag_layout
                     && e.parent.is_none()
                     && (topology
                         == crate::ownership_checking::UnitBorrowNestedForwardTopology::BalancedBoth
@@ -73,6 +84,7 @@ impl ActionSource {
         let index = self.nested_entries.len();
         self.nested_entries.push(Entry {
             callable,
+            flag_layout,
             topology,
             split,
             condition,
@@ -152,7 +164,7 @@ impl ActionSource {
                 let id = entry_id?;
                 let entry = self.nested_entries.get(id)?;
                 let split = state.plan.splits().get(split_index)?;
-                if entry.callable != state.plan.callable || entry.topology != state.plan.topology || entry.split != split.split
+                if entry.callable != state.plan.callable || entry.topology != state.plan.topology || entry.flag_layout != state.plan.flag_layout || entry.split != split.split
                     || entry.condition != split.condition || entry.then_arm != then_arm
                     || entry.parent != parent || entry.cursor < prior_cursor || entry.cursor > handle.index
                     || split.split.source_unit() != source_unit || split.condition.source_unit() != source_unit
@@ -165,6 +177,7 @@ impl ActionSource {
             }
             if parent.is_none() || prior_cursor != handle.index { return None; }
             Some(UnitLoanNestedForwardLineage {
+                flag_layout: state.plan.flag_layout,
                 topology: state.plan.topology,
                 identity: self.identity.clone(), callable: state.plan.callable, root: state.plan.root,
                 control: leaf.control, value: leaf.value, begin: handle.index, handoff: *index, edges,

@@ -128,7 +128,7 @@ fn admitted(
                 expression(file, right)?,
             ],
         ),
-        (Some((left, left_condition, tt, tf)), Some((right, right_condition, ft, ff)), 3) => (
+        (Some((left, left_condition, tt, tf)), Some((right, right_condition, ft, ff)), 2 | 3) => (
             vec![outer_split, left, right],
             vec![outer_condition, left_condition, right_condition],
             vec![
@@ -147,7 +147,13 @@ fn admitted(
     {
         return None;
     }
-    for (condition, flag) in conditions.into_iter().zip(flags) {
+    // Only the exact balanced tree may reuse its one inner parameter; never reuse outer.
+    let split_flags = if splits.len() == 3 && flags.len() == 2 {
+        vec![flags[0], flags[1], flags[1]]
+    } else {
+        flags
+    };
+    for (condition, flag) in conditions.into_iter().zip(split_flags) {
         if !is_symbol(file, names, condition, flag)
             || typed.expression_type(UnitExpressionId::new(unit, condition)) != Some(outer.ty())
         {
