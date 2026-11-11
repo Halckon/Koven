@@ -13964,3 +13964,28 @@ extra statement、inner缺else和outer显式空else拒绝。独立生产因果�
 没有本机执行；strict feature all-target Clippy、默认双crate lib no-run、workspace
 全目标检查、fmt/diff、docs897与尺寸门禁通过：2493手写Rust文件、36历史超限，
 无新增额度。日志nested-tail-*；本地提交、不推送，native全套与远端CI未运行。
+
+### 限定三叶尾续接实际receipt（2026-11-11）
+
+基于`6e291ecf`完成的前端continuation合同，仅扩展NestedThenTail严格三参数
+Distinct形状。真实红核前端Complete已存在，但rooted/memory×观察on/off均在
+244..250原borrow标记Unsupported，verifier与receipt各0。新实际正控四组合均
+lowering成功、原verifier各1次，观察on各1 receipt、off为0，SSA/LLVM观察开关一致。
+
+准入独立核公开continuation、outer-false入口和tail control，保留typed/raw合同；
+producer要求inner两叶终止且inner join无前驱，outer join只有真实false前驱，
+随后记录一次指向该join的Goto，尾叶原block必须为该join。真实fold hook只接受
+该false→join一次；旧终止拓扑继续禁止fold。最终emitted按实际fold映射到保留
+false块，原join必须已消失，按真实父edge映射source/flag，核5块2Read3Call/Return，
+receipt同时保存fold及原plan身份。原最终verifier后的原子发布接线没有改变。
+
+合法tail原拒绝测试迁为错outer flag负界，另固定extra-between、inner缺else及
+explicit-empty-else三种真实邻形。独立审查发现continuation准入在路径长度核验前
+直接索引edge，已改first()缺失即拒绝；修后普通回归无编译警告。旧见证保留，
+一般控制流、任意嵌套与多源不在本片范围。
+最终普通定向后端20项全部通过，涵盖tail正控/邻形、旧三叶/四叶/共享inner及
+branch/aux/binding。新增3项CI-only故障测试覆盖身份替换、fold唯一性及失败发布
+回滚，仅编译未执行；未将手动guard回滚冒充源程序触发的最终verifier失败。
+strict feature all-target Clippy、默认双crate lib no-run、workspace全目标、fmt/diff、
+docs897及尺寸门禁通过：2496手写Rust文件、36历史超限，无新增尺寸额度。
+日志nested-tail-receipt-*；本地提交不推送，native全套与远端CI未运行。

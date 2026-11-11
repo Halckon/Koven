@@ -9,10 +9,10 @@ use lang_frontend::{
 };
 
 #[test]
-fn ordinary_nested_then_tail_keeps_backend_unsupported() {
+fn ordinary_nested_then_tail_wrong_outer_keeps_backend_unsupported() {
     for (shape, body, count) in [(
         "nested-then-tail",
-        "if (outer) { if (inner) { return left(source) } else { return middle(source) } }\nreturn right(source)",
+        "if (outer) { if (outer) { return left(source) } else { return middle(source) } }\nreturn right(source)",
         3,
     )] {
         let text = format!(

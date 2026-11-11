@@ -32,6 +32,7 @@ pub(crate) struct PathReceipt {
 pub(crate) struct Receipt {
     pub(crate) topology: UnitBorrowNestedForwardTopology,
     pub(crate) flag_layout: UnitBorrowNestedForwardFlagLayout,
+    pub(super) fold: Option<(BlockRef, BlockRef)>,
     pub(crate) callable: UnitItemId,
     pub(crate) caller: FunctionId,
     pub(crate) entry: BlockId,
@@ -58,6 +59,7 @@ pub(super) enum Tag {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
     pub(super) plan: Option<Plan>,
+    pub(super) folds: Vec<(BlockRef, BlockRef)>,
 }
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
@@ -71,6 +73,7 @@ pub(super) struct Plan {
     pub(super) splits: Vec<SplitPlan>,
     pub(super) paths: Vec<PathPlan>,
     pub(super) source: Option<Slot>,
+    pub(super) goto_done: bool,
 }
 #[derive(Clone, Debug)]
 pub(super) struct SplitPlan {
@@ -164,7 +167,10 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 impl Plan {
     fn flag_indices(&self) -> Option<Vec<usize>> {
         match (self.topology, self.flag_layout) {
-            (UnitBorrowNestedForwardTopology::NestedThenTail, _) => None,
+            (
+                UnitBorrowNestedForwardTopology::NestedThenTail,
+                UnitBorrowNestedForwardFlagLayout::SharedInner,
+            ) => None,
             (
                 UnitBorrowNestedForwardTopology::BalancedBoth,
                 UnitBorrowNestedForwardFlagLayout::SharedInner,
@@ -174,6 +180,9 @@ impl Plan {
             }
             _ => None,
         }
+    }
+    fn tail(&self) -> bool {
+        self.topology == UnitBorrowNestedForwardTopology::NestedThenTail
     }
     fn valid_shape(&self) -> bool {
         let (splits, leaves) = self.counts();
@@ -218,17 +227,29 @@ impl Plan {
     }
     fn nested_arm(&self) -> Option<usize> {
         match self.topology {
-            UnitBorrowNestedForwardTopology::NestedThen => Some(0),
+            UnitBorrowNestedForwardTopology::NestedThen
+            | UnitBorrowNestedForwardTopology::NestedThenTail => Some(0),
             UnitBorrowNestedForwardTopology::NestedElse => Some(1),
-            UnitBorrowNestedForwardTopology::BalancedBoth
-            | UnitBorrowNestedForwardTopology::NestedThenTail => None,
+            UnitBorrowNestedForwardTopology::BalancedBoth => None,
         }
     }
     fn leaf_route(&self, index: usize) -> Vec<(usize, usize)> {
         match (self.topology, index) {
-            (UnitBorrowNestedForwardTopology::NestedThen, 0) => vec![(0, 0), (1, 0)],
-            (UnitBorrowNestedForwardTopology::NestedThen, 1) => vec![(0, 0), (1, 1)],
-            (UnitBorrowNestedForwardTopology::NestedThen, 2) => vec![(0, 1)],
+            (
+                UnitBorrowNestedForwardTopology::NestedThen
+                | UnitBorrowNestedForwardTopology::NestedThenTail,
+                0,
+            ) => vec![(0, 0), (1, 0)],
+            (
+                UnitBorrowNestedForwardTopology::NestedThen
+                | UnitBorrowNestedForwardTopology::NestedThenTail,
+                1,
+            ) => vec![(0, 0), (1, 1)],
+            (
+                UnitBorrowNestedForwardTopology::NestedThen
+                | UnitBorrowNestedForwardTopology::NestedThenTail,
+                2,
+            ) => vec![(0, 1)],
             (UnitBorrowNestedForwardTopology::NestedElse, 0) => vec![(0, 0)],
             (UnitBorrowNestedForwardTopology::NestedElse, 1) => vec![(0, 1), (1, 0)],
             (UnitBorrowNestedForwardTopology::NestedElse, 2) => vec![(0, 1), (1, 1)],
@@ -238,5 +259,11 @@ impl Plan {
             (UnitBorrowNestedForwardTopology::BalancedBoth, 3) => vec![(0, 1), (2, 1)],
             _ => Vec::new(),
         }
+    }
+}
+
+impl Receipt {
+    pub(crate) fn folded_distinct_blocks(&self) -> bool {
+        self.fold.is_some_and(|(from, to)| from != to)
     }
 }

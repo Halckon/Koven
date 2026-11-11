@@ -100,45 +100,83 @@ fn admitted(
     let Statement::Block { elements } = file.ast().statements().get(*block).ok()?.payload() else {
         return None;
     };
-    let [outer_statement] = elements.as_slice() else {
-        return None;
-    };
-    let (outer_split, outer_condition, then_statement, else_statement) =
-        split(file, *outer_statement)?;
-    let (splits, conditions, returns) = match (
-        split(file, then_statement),
-        split(file, else_statement),
-        flags.len(),
-    ) {
-        (Some((id, condition, left, middle)), None, 2) => (
-            vec![outer_split, id],
-            vec![outer_condition, condition],
+    let (splits, conditions, returns) = if let [outer_statement, tail] = elements.as_slice() {
+        if flags.len() != 2 {
+            return None;
+        }
+        let outer = expression(file, *outer_statement)?;
+        let Expression::If {
+            condition,
+            then_branch,
+            else_branch: None,
+            ..
+        } = file.ast().expressions().get(outer).ok()?.payload()
+        else {
+            return None;
+        };
+        let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+            file.ast().statements().get(*then_branch).ok()?.payload()
+        else {
+            return None;
+        };
+        let [inner] = elements.as_slice() else {
+            return None;
+        };
+        let (inner, inner_condition, left, right) = split(file, *inner)?;
+        (
+            vec![outer, inner],
+            vec![*condition, inner_condition],
             vec![
                 expression(file, left)?,
-                expression(file, middle)?,
-                expression(file, else_statement)?,
-            ],
-        ),
-        (None, Some((id, condition, middle, right)), 2) => (
-            vec![outer_split, id],
-            vec![outer_condition, condition],
-            vec![
-                expression(file, then_statement)?,
-                expression(file, middle)?,
                 expression(file, right)?,
+                expression(file, *tail)?,
             ],
-        ),
-        (Some((left, left_condition, tt, tf)), Some((right, right_condition, ft, ff)), 2 | 3) => (
-            vec![outer_split, left, right],
-            vec![outer_condition, left_condition, right_condition],
-            vec![
-                expression(file, tt)?,
-                expression(file, tf)?,
-                expression(file, ft)?,
-                expression(file, ff)?,
-            ],
-        ),
-        _ => return None,
+        )
+    } else {
+        let [outer_statement] = elements.as_slice() else {
+            return None;
+        };
+        let (outer_split, outer_condition, then_statement, else_statement) =
+            split(file, *outer_statement)?;
+        match (
+            split(file, then_statement),
+            split(file, else_statement),
+            flags.len(),
+        ) {
+            (Some((id, condition, left, middle)), None, 2) => (
+                vec![outer_split, id],
+                vec![outer_condition, condition],
+                vec![
+                    expression(file, left)?,
+                    expression(file, middle)?,
+                    expression(file, else_statement)?,
+                ],
+            ),
+            (None, Some((id, condition, middle, right)), 2) => (
+                vec![outer_split, id],
+                vec![outer_condition, condition],
+                vec![
+                    expression(file, then_statement)?,
+                    expression(file, middle)?,
+                    expression(file, right)?,
+                ],
+            ),
+            (
+                Some((left, left_condition, tt, tf)),
+                Some((right, right_condition, ft, ff)),
+                2 | 3,
+            ) => (
+                vec![outer_split, left, right],
+                vec![outer_condition, left_condition, right_condition],
+                vec![
+                    expression(file, tt)?,
+                    expression(file, tf)?,
+                    expression(file, ft)?,
+                    expression(file, ff)?,
+                ],
+            ),
+            _ => return None,
+        }
     };
     if splits
         .iter()

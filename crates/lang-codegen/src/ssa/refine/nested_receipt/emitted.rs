@@ -74,12 +74,32 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
+        let fold = if p.tail() {
+            let false_arm = p.splits[0].arms.ok_or_else(|| invalid(span))?[1];
+            let join = p.splits[0].join.ok_or_else(|| invalid(span))?;
+            if plans.folds != [(false_arm, join)] || p.paths[2].block != Some(join) {
+                return Err(invalid(span));
+            }
+            Some((false_arm, join))
+        } else {
+            if !plans.folds.is_empty() {
+                return Err(invalid(span));
+            }
+            None
+        };
+        let canonical = |b| {
+            if let Some((from, to)) = fold {
+                if b == to { from } else { b }
+            } else {
+                b
+            }
+        };
         let resolve = |b: Option<BlockRef>| {
-            b.and_then(|b| blocks.get(&b).copied())
+            b.and_then(|b| blocks.get(&canonical(b)).copied())
                 .ok_or_else(|| invalid(span))
         };
         let mapped = |b: Option<BlockRef>, slot: Option<Slot>| -> Result<LoanId, LoweringError> {
-            let b = b.ok_or_else(|| invalid(span))?;
+            let b = canonical(b.ok_or_else(|| invalid(span))?);
             let slot = slot.ok_or_else(|| invalid(span))?;
             let slots = parameters.get(&b).ok_or_else(|| invalid(span))?;
             let values = entities.get(&b).ok_or_else(|| invalid(span))?;
@@ -383,6 +403,7 @@ impl Emitted {
         let receipt = Receipt {
             topology: p.topology,
             flag_layout: p.flag_layout,
+            fold: plans.folds.first().copied(),
             callable: p.callable,
             caller: p.caller,
             entry: l.split_blocks[0],
@@ -411,7 +432,18 @@ impl Receipt {
     ) -> Result<(), LoweringError> {
         plans.finish(span)?;
         let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
-        if self.flag_layout != p.flag_layout
+        let fold_valid = if p.tail() {
+            let arms = p.splits[0].arms.ok_or_else(|| invalid(span))?;
+            let join = p.splits[0].join.ok_or_else(|| invalid(span))?;
+            self.fold == Some((arms[1], join))
+                && arms[1] != join
+                && plans.folds == [(arms[1], join)]
+                && p.paths[2].block == Some(join)
+        } else {
+            self.fold.is_none() && plans.folds.is_empty()
+        };
+        if !fold_valid
+            || self.flag_layout != p.flag_layout
             || self.topology != p.topology
             || self.callable != p.callable
             || self.caller != p.caller
@@ -538,3 +570,6 @@ impl Receipt {
 }
 #[cfg(test)]
 mod ci_tests;
+
+#[cfg(test)]
+mod tail_ci_tests;

@@ -35,7 +35,6 @@ impl Plans {
                         != Some(entry)
                     || p.source != Some(source)
                     || match p.topology {
-                        UnitBorrowNestedForwardTopology::NestedThenTail => true,
                         UnitBorrowNestedForwardTopology::BalancedBoth => match i {
                             1 => p.paths.iter().any(|path| path.stage != 0),
                             2 => {
@@ -45,7 +44,8 @@ impl Plans {
                             }
                             _ => true,
                         },
-                        UnitBorrowNestedForwardTopology::NestedThen => {
+                        UnitBorrowNestedForwardTopology::NestedThen
+                        | UnitBorrowNestedForwardTopology::NestedThenTail => {
                             p.paths.iter().any(|path| path.stage != 0)
                         }
                         UnitBorrowNestedForwardTopology::NestedElse => {
@@ -80,7 +80,17 @@ impl Plans {
             .iter()
             .position(|s| s.split == control)
             .ok_or_else(|| invalid(span))?;
-        if !predecessors.is_empty()
+        let predecessor_valid = if p.tail() && i == 0 {
+            p.splits[0]
+                .arms
+                .is_some_and(|arms| predecessors == [arms[1]])
+                && p.paths[..2].iter().all(|p| p.stage == 3)
+                && p.paths[2].stage == 0
+                && !p.goto_done
+        } else {
+            predecessors.is_empty()
+        };
+        if !predecessor_valid
             || !p.splits[i].done
             || p.splits[i].join.is_some()
             || p.splits.iter().any(|s| {
@@ -90,7 +100,6 @@ impl Plans {
             })
             || (i > 0
                 && match p.topology {
-                    UnitBorrowNestedForwardTopology::NestedThenTail => true,
                     UnitBorrowNestedForwardTopology::BalancedBoth => match i {
                         1 => {
                             p.paths[..2].iter().any(|path| path.stage != 3)
@@ -102,7 +111,8 @@ impl Plans {
                         }
                         _ => true,
                     },
-                    UnitBorrowNestedForwardTopology::NestedThen => {
+                    UnitBorrowNestedForwardTopology::NestedThen
+                    | UnitBorrowNestedForwardTopology::NestedThenTail => {
                         p.paths[0].stage != 3 || p.paths[1].stage != 3 || p.paths[2].stage != 0
                     }
                     UnitBorrowNestedForwardTopology::NestedElse => {
@@ -111,7 +121,11 @@ impl Plans {
                 })
             || (i == 0
                 && (p.splits[1..].iter().any(|s| s.join.is_none())
-                    || p.paths.iter().any(|p| p.stage != 3)))
+                    || if p.tail() {
+                        p.paths[..2].iter().any(|p| p.stage != 3) || p.paths[2].stage != 0
+                    } else {
+                        p.paths.iter().any(|p| p.stage != 3)
+                    }))
         {
             return Err(invalid(span));
         }
@@ -139,9 +153,20 @@ impl Plans {
             .ok_or_else(|| invalid(span))?;
         let route = p.leaf_route(i);
         let (split, arm) = route.last().copied().ok_or_else(|| invalid(span))?;
-        let expected = p.splits[split].arms.map(|a| a[arm]);
+        let expected = if p.tail() && i == 2 {
+            p.splits[0].join
+        } else {
+            p.splits[split].arms.map(|a| a[arm])
+        };
         let phase_valid = match (p.topology, i) {
-            (UnitBorrowNestedForwardTopology::NestedThenTail, _) => false,
+            (UnitBorrowNestedForwardTopology::NestedThenTail, _) => {
+                p.splits.iter().all(|s| s.done)
+                    && if i == 2 {
+                        p.splits[1].join.is_some() && p.splits[0].join.is_some() && p.goto_done
+                    } else {
+                        p.splits[0].join.is_none() && !p.goto_done
+                    }
+            }
             (UnitBorrowNestedForwardTopology::BalancedBoth, 0 | 1) => {
                 p.splits[0].done
                     && p.splits[1].done
@@ -262,6 +287,16 @@ impl Plans {
             s.done = true;
             return Ok(());
         }
+        if p.tail() && p.splits[0].arms.map(|a| a[1]) == Some(block) {
+            if p.goto_done
+                || p.paths[..2].iter().any(|p| p.stage != 3)
+                || !matches!(term, RTerm::Goto(target) if p.splits[0].join == Some(*target))
+            {
+                return Err(invalid(span));
+            }
+            p.goto_done = true;
+            return Ok(());
+        }
         let path = p
             .paths
             .iter_mut()
@@ -277,6 +312,8 @@ impl Plans {
     pub(in crate::ssa::refine) fn finish(&self, span: Span) -> Result<(), LoweringError> {
         if self.plan.as_ref().is_some_and(|p| {
             !p.valid_shape()
+                || (p.tail() != p.goto_done)
+                || (!p.tail() && !self.folds.is_empty())
                 || p.splits.iter().any(|s| !s.done || s.join.is_none())
                 || p.paths.iter().any(|p| p.stage != 3)
         }) {
@@ -285,15 +322,25 @@ impl Plans {
         Ok(())
     }
     pub(in crate::ssa::refine) fn fold(
-        &self,
-        _block: BlockRef,
-        _successor: BlockRef,
+        &mut self,
+        block: BlockRef,
+        successor: BlockRef,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if self.plan.is_some() {
-            Err(invalid(span))
-        } else {
-            Ok(())
+        let Some(p) = &self.plan else {
+            return Ok(());
+        };
+        if !p.valid_shape()
+            || !p.tail()
+            || !p.goto_done
+            || !self.folds.is_empty()
+            || p.splits[0].arms.map(|a| a[1]) != Some(block)
+            || p.splits[0].join != Some(successor)
+            || block == successor
+        {
+            return Err(invalid(span));
         }
+        self.folds.push((block, successor));
+        Ok(())
     }
 }

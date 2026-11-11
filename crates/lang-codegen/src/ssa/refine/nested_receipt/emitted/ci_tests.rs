@@ -6,11 +6,11 @@ use lang_frontend::{
 };
 use std::cell::RefCell;
 #[derive(Clone)]
-struct Snapshot {
-    plans: Plans,
-    function: Function,
-    receipt: Receipt,
-    span: Span,
+pub(super) struct Snapshot {
+    pub(super) plans: Plans,
+    pub(super) function: Function,
+    pub(super) receipt: Receipt,
+    pub(super) span: Span,
 }
 thread_local! {static SNAPSHOTS:RefCell<Option<Vec<Snapshot>>>=const{RefCell::new(None)};}
 pub(super) fn record(plans: &Plans, function: &Function, receipt: &Receipt, span: Span) {
@@ -37,7 +37,7 @@ fn capture_topology(mirror: bool) -> Snapshot {
     };
     capture_text(&text)
 }
-fn capture_text(text: &str) -> Snapshot {
+pub(super) fn capture_text(text: &str) -> Snapshot {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "nested-ci.ko", text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
