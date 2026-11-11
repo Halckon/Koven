@@ -27,6 +27,8 @@ mod owner_conditional_return_tests;
 mod owner_continue_header_tests;
 #[path = "owner_group_condition_tests.rs"]
 mod owner_group_condition_tests;
+#[path = "owner_header_bind_tests.rs"]
+mod owner_header_bind_tests;
 #[path = "owner_loop_return_tests.rs"]
 mod owner_loop_return_tests;
 #[path = "owner_mixed_loop_edge_tests.rs"]

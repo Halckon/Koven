@@ -13409,3 +13409,25 @@ all-target strict Clippy、默认workspace all-target check，再真实重编并
 最终fmt、docs897、相对ba025f6f尺寸2444手写Rust/35历史超限、diff通过，无提高
 尺寸额度。独审重新核green3的47日志、真实artifact与保存binary；实测后仅Spec
 账本变化，完整输入最终绑定。本片仅本地完成，不包含正式CI或最新合流结论。
+
+### 正常 header 的本地最终绑定消费：待验证切片（2026-11-11）
+
+本片从已验本地c57c4b48隔离推进ADR-0038的最终消费义务，不再扩控制组合。
+保留单Int limit、literal String初值、单根Replace与加一及正常回边；循环后唯一
+`val retired = held`，函数返回Unit。当前header仅直接Return；既有Break两出口
+绑定消费不能冒充多轮H。须保留真实H来源及Take→Bind→Drop，不创建新producer，
+实际清理消费与完整incoming分别验证，不以普通运行成功代替owner授权。
+
+首先仅增加普通原样probe，经FE Basic、真实lower、SSA与LLVM分层定位缺口，再核
+实际最终Drop身份及授权。前置失败另记，不提前称authority红；不执行native资源
+计数、fault或CI-only。本阶段尚未执行、未完成生产，不推送或改已冻结工作树。
+
+首次probe编译因测试调用私有UnitSymbolId::new报E0624，尚未执行；该失败仅为测试
+构造API错误，不作为消费缺口红。保留原编译日志，改用公开原身份查询后重新冻结验证。
+
+red2已真实确认消费授权缺口：唯一ordinary exact
+`normal_header_final_binding_requires_actual_drop_authority`在第71行授权缺失失败，
+exit101、0 passed/1 failed/0 ignored；此前Basic、原retired Drop fact、真实lower、
+SSA verifier、LLVM及精确实际Drop观察均通过。4312输入、实际Cargo artifact与保存
+binary SHA绑定；本地证据owner-header-bind-20261111T133204Z保留首编译失败和red2。
+此红仅证明最终Drop缺授权，尚未证明H来源或生产完成，不扩大为语言拒绝。
