@@ -12766,3 +12766,31 @@ FE 编译退出101但日志已不可读，不归因为代码失败，也不算�
 源码复审核独立封印、真实jump消费与重复receipt拒绝，无剩余阻断。有限native
 只观察输出 `outer/next/next/next`，不当任意轮次或泄漏证明。正式CI、一般多分支
 Continue/Break合流、多根、嵌套循环及owner与loan/capture联合合同仍未覆盖。
+
+#### 混合 Continue/Break 单根后继探针范围
+
+基于已验 `913bd6b8` 独立分支，仅探测单Int参数、单String根、零起点/小于limit/
+加一的已有控制；Replace与加一后唯一 `if(index < 2)` 分别 Continue/Break，
+loop后原样Return。依据ADR-0038 §1/2/5，Continue只供应header回边，不参加exit
+join；Break只供应exit，不参加header join。condition-false持当次H，Break持
+当轮Replace后的Q，不能用固定P/Q、上次H或最终Goto倒造共同Return授权。
+这是最窄两类真实出口与回边共存缺口，不扩多根、嵌套、Resource或capture。
+
+普通探针保持源码与末端断言，经真实FE Basic、lower、SSA verifier、LLVM生成后
+断言Return实际receipt。limit0/1/2/7只是源码入口，本阶段不执行native，不称
+运行轨迹或参数化证明。任何前置失败都原样保留，不跳过诊断/verifier来制造
+末端缺授权红；本阶段不修改生产。独审确认普通exact无fault/foreign/压力/
+计数；CI-only不本机执行。取得真实红后再收敛独立sealed混合边合同及生产接线。
+
+混合边探针真实结果：FE Basic、实际lower、SSA verifier与LLVM生成均通过，
+唯一exact在第30行缺Return authority断言失败：0 passed/1 failed/2976 filtered，
+退出101。没有放宽或删除任何前置检查。首次no-run 4m20s；fmt发现注册字母顺序
+问题，保留失败日志后仅排序；重新no-run 9.09s并绑定4288输入及保存binary SHA，
+同一exact仍在同一断言真实失败。两轮均opt0/debug2、仅loan support，不执行native。
+新证据保存于 `Koven/.local-artifacts/owner-mixed-loop-edges-20261111T063124Z`，
+原始与排序后input/binary/log分开保留，至切片合main且远端证据可用；fmt/docs891/
+diff通过。独审确认非同构扩样、无生产改动；此提交是已定位缺口，不是完成修复。
+
+后续应复用真实split/arm/jump hooks，却不全局放宽旧闭合value observation门禁。
+混合产品须独立核live Q的split快照，两arm实际cleanup及Ok(false)/pending witness/
+catalog分别封印；backend在真实If与jump生产点接线，禁止用最后SSA形状替代来源。
