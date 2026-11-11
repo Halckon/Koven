@@ -1,11 +1,32 @@
 //! Normal same-source branch forwarding: establish real lowering before coverage claims.
 use super::*;
 use lang_frontend::ownership_checking::{
-    check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+    UnitLoanAction, check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
 };
 const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source { if (flag) { return view(source) }; return view(source) }\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner, flag); consume(item) }";
 #[test]
 fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
+    let _ = original_branch_lowering();
+}
+
+#[test]
+fn ordinary_branch_requires_actual_aggregate_receipt_with_true_off() {
+    // All four original lower/verifier/SSA/LLVM checks complete before the capability assertion.
+    for (layout, setting, paths) in original_branch_lowering() {
+        if setting == "on" {
+            assert_eq!(
+                paths.len(),
+                1,
+                "{layout}: missing actual aggregate branch receipt"
+            );
+            assert_eq!(paths[0], 2, "both real paths must be included");
+        } else {
+            assert!(paths.is_empty(), "observation off must publish no receipt");
+        }
+    }
+}
+
+fn original_branch_lowering() -> Vec<(&'static str, &'static str, Vec<usize>)> {
     let mut sources = SourceMap::new();
     let (source, parsed) =
         unit_lower_test_support::parsed(&mut sources, "branch-forward.ko", SOURCE);
@@ -34,6 +55,30 @@ fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
         };
         assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
         assert!(catalog.forward_regions().is_empty());
+        let [region] = catalog.branch_forward_regions() else {
+            panic!("one FE branch region")
+        };
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert!(catalog.owns_branch_forward_region(region));
+        assert_eq!(region.paths().len(), 2);
+        assert_ne!(
+            region.paths()[0].branch().then_arm(),
+            region.paths()[1].branch().then_arm()
+        );
+        for path in region.paths() {
+            let ids = path.action_ids().collect::<Vec<_>>();
+            assert_eq!(ids, vec![path.source_begin(), path.live_handoff()]);
+            assert!(matches!(
+                catalog.action(&ids[0]),
+                Some(UnitLoanAction::Begin(_))
+            ));
+            let Some(UnitLoanAction::BorrowForwardHandoff(handoff)) = catalog.action(&ids[1])
+            else {
+                panic!("actual handoff")
+            };
+            assert_eq!(handoff.branch(), Some(path.branch()));
+            assert_eq!(handoff.source_begin(), Some(ids[0].clone()));
+        }
         let [first, second] = on.ownership().borrow_forward_transports() else {
             panic!("two real returns")
         };
@@ -48,19 +93,21 @@ fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
             .find(|d| d.name() == "run")
             .unwrap();
         for (setting, owned) in [("on", &on), ("off", &off)] {
-            let (((result, routes), receipts), verification) =
-                crate::ssa::unit_lower::observe_final_verifier(|| {
-                    crate::ssa::refine::forward_receipt::observe(|| {
-                        crate::ssa::refine::observe_routing(|| {
-                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                &sources,
-                                &inputs,
-                                &names,
-                                &types,
-                                &typed,
-                                owned,
-                                run.id(),
-                            )
+            let ((((result, routes), receipts), verification), branch_receipts) =
+                crate::ssa::refine::branch_receipt::observe(|| {
+                    crate::ssa::unit_lower::observe_final_verifier(|| {
+                        crate::ssa::refine::forward_receipt::observe(|| {
+                            crate::ssa::refine::observe_routing(|| {
+                                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                    &sources,
+                                    &inputs,
+                                    &names,
+                                    &types,
+                                    &typed,
+                                    owned,
+                                    run.id(),
+                                )
+                            })
                         })
                     })
                 });
@@ -77,11 +124,12 @@ fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
                 "layout={layout}; observer={setting}; ownership_phase_succeeded=true; lowering_ok={}; routes={routes:?}",
                 result.is_ok()
             );
-            completed.push((layout, setting, result, routes));
+            completed.push((layout, setting, result, routes, branch_receipts));
         }
     }
     let mut previous = None;
-    for (layout, setting, lowered, routes) in completed {
+    let mut receipt_counts = Vec::new();
+    for (layout, setting, lowered, routes, branch_receipts) in completed {
         let (program, _) = lowered.unwrap_or_else(|error| {
             panic!("{layout}/{setting}: normal same-source branch lowering required: {error:?}")
         });
@@ -161,7 +209,17 @@ fn ordinary_same_source_branch_requires_real_lowering_with_true_off() {
         } else {
             assert_eq!(previous.take().unwrap(), output);
         }
+        let paths = branch_receipts
+            .iter()
+            .map(|receipt| receipt.paths.len())
+            .collect::<Vec<_>>();
+        println!(
+            "layout={layout}; observer={setting}; branch_aggregate_receipts={}; original_ssa_llvm_verified=true",
+            paths.len()
+        );
+        receipt_counts.push((layout, setting, paths));
     }
+    receipt_counts
 }
 
 fn check_branch(

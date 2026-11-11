@@ -12,6 +12,7 @@ pub(crate) use build::owner_consumer_test_support::{
 };
 mod emit;
 pub(crate) mod forward_receipt;
+pub(crate) mod branch_receipt;
 pub(crate) mod loan_receipt;
 pub(crate) mod receiver_receipt;
 mod subset;
