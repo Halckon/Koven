@@ -878,3 +878,7 @@ mod bounded_continuation_tree_boundary_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "single_continuation_neighbor_tests.rs"]
 mod single_continuation_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "distinct_root_auxiliary_research_tests.rs"]
+mod distinct_root_auxiliary_research_tests;

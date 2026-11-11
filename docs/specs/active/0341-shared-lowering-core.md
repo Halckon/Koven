@@ -14300,3 +14300,38 @@ publication顺序通过；原final verifier仍是发布前提，未退休旧见�
 本片FE与尺寸策略均未改变。独立逐diff评审build.rs仅Plans创建与terminate两行接线，
 1008→1010仍在原1025额度内；emit987未越1000，新emitted843。日志为本机
 multi-receipt-*；未跑native全套或远端CI，仅本地提交、未推送。
+
+### 多根辅助与循环借用的下一片研究（2026-11-11）
+
+基线3ffded51，先查合法语义与已有源码证据，不直接扩大有界树或固定shape。
+Guide普通借用结果必须声明唯一from，另一根不能成为条件返回来源。因此“多根”下
+一个合法目标是唯一source加独立auxiliary owner，而非from来源并集。
+
+现有distinct-roots辅助fixture已通过typed/ownership，raw handoff保存aux调用返回
+结束与source延续，但独立同根aux关系/region没有覆盖它。下一最小实现宜先新增
+独立双根辅助退休关系：核真实两次acquisition、不同root身份、typed Parameter(0/1)
+映射、实际call-return aux End与source仍live；不把同根协议的相等判断简单改成不等。
+随后才补从两个owner建立到result/source结束及各自Drop的完整区域和后端receipt。
+辅助先退休不等于aux owner已Drop；两个owner释放顺序必须来自真实cleanup，不能猜测。
+
+循环内borrow val目前在两套ownership checker主动L0164拒绝，即使body含立即break。
+因此最小循环片不是放宽后端receipt gate，而是先建立动态迭代实例与每轮无carry的
+前端闭合合同：正常backedge、continue、break/return分别关闭当轮result/source，
+并证明下一轮不会复用前轮token；body-local owner还须核每轮Drop。静态一次源码
+Begin/End不能冒充任意迭代次数证明。此项只研究，不调整当前语言准入或诊断。
+
+旧见证仍承担observer-off、独立辅助根与循环尚未认证生命周期；本轮无可安全退休
+对象。保持旧尺寸1684>1674及既有策略，研究不代表一般多根/循环能力已完成。
+
+研究实证已完成：独立辅助根在source参数0/1、rooted/memory与on/off均可通过既有
+CG及原verifier；不是新的lowering能力。普通测试核两RootPlace确实不同，实际aux
+End早于consumer，随后result End、source End及各owner Drop；SSA/LLVM开关一致，
+窄同根关系/region/receipt保持空。该既有能力缺的是新的独立双根证明，而非执行支持。
+
+循环普通矩阵覆盖正常回边、continue、立即break、body-local owner四类源码，双入口
+与观察开关均typed合法而ownership精确L0164指向borrow，旧事实/诊断一致、无binding
+transport，不伪装成可交后端的有效输入。两项新增普通研究测试真实通过，未运行任何
+CI-only或native全套/远端CI；日志为distinct-root-research与loop-borrow-research。
+
+本片Clippy -D warnings、fmt/diff及文档897项通过；仅新增测试与研究记录，原尺寸
+阻塞不变且policy无修改。未扩大Complete，不退休见证，仅本地提交、不推送。
