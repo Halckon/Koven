@@ -12,6 +12,7 @@ impl DropPlanner<'_, '_> {
     ) -> Result<bool, OwnershipCheckingError> {
         let branch_usage = self.control_result_usage(id);
         self.observe_branch_condition(id, condition, state, false);
+        self.observe_nested_condition(id, condition, state, false);
         let condition_result = self.expression(condition, DropExpressionUse::Read, state);
         if !matches!(condition_result, Ok(true)) {
             state.branch_forward_plan = None;
@@ -28,6 +29,7 @@ impl DropPlanner<'_, '_> {
         // branch bodies and their cleanup run inside this admission boundary.
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
         self.observe_branch_condition(id, condition, state, true);
+        self.observe_nested_condition(id, condition, state, true);
         self.prepare_forward_split(id, condition, outcomes, state);
         self.prepare_nested_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
@@ -69,6 +71,7 @@ impl DropPlanner<'_, '_> {
         });
         let base = state.clone();
         let branch_plan = base.branch_forward_plan;
+        let nested_plan = base.nested_forward;
         let mut branch_states = Vec::new();
         let mut then_terminated = false;
         let mut else_terminated = false;
@@ -209,6 +212,14 @@ impl DropPlanner<'_, '_> {
             else_terminated,
             &branch_states,
         );
+        self.observe_nested_join(
+            nested_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
         *state = self.merge_resource_states(id, branch_states);
         self.finish_owner_loop_join(id, state);
         self.conditional_break_if_completed(id, continues, state);
@@ -257,6 +268,7 @@ impl DropPlanner<'_, '_> {
             None
         };
         self.observe_branch_return(state, false);
+        self.observe_nested_return(id, state, false);
         self.finish_return_iterations(id, state);
         self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
         self.finish_conditional_return(id, state);
@@ -276,6 +288,7 @@ impl DropPlanner<'_, '_> {
             }
         }
         self.observe_branch_return(state, true);
+        self.observe_nested_return(id, state, true);
         Ok(false)
     }
 

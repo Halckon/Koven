@@ -97,6 +97,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
     pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) nested_forward_regions: Vec<super::UnitBorrowNestedForwardRegion>,
     pub(super) nested_forward_lineages: Vec<super::UnitLoanNestedForwardLineage>,
     pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
@@ -105,6 +106,18 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
+    /// Independent bounded nested closure; absence grants no proof or backend admission.
+    pub fn nested_forward_regions(&self) -> &[super::UnitBorrowNestedForwardRegion] {
+        &self.nested_forward_regions
+    }
+    /// Require the exact originating observation catalog.
+    pub fn owns_nested_forward_region(
+        &self,
+        region: &super::UnitBorrowNestedForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Partial actual nested ancestry; absence grants no proof and enables no receipt.
     pub fn nested_forward_lineages(&self) -> &[super::UnitLoanNestedForwardLineage] {
         &self.nested_forward_lineages

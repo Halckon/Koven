@@ -17,10 +17,15 @@ const SOURCE: &str = "fun left(source: String): borrow String from source = sour
 
 #[test]
 fn ordinary_three_leaf_lineage_keeps_catalog_partial() {
-    check_lineage(SOURCE, 3);
+    check_lineage(SOURCE, 3, false);
 }
 
-fn check_lineage(source_text: &str, expected: usize) {
+#[test]
+fn ordinary_three_leaf_terminal_region_requires_all_path_closure() {
+    check_lineage(SOURCE, 3, true);
+}
+
+fn check_lineage(source_text: &str, expected: usize, require_region: bool) {
     let mut sources = SourceMap::new();
     let source = sources
         .add_source("nested-lineage.ko", source_text)
@@ -156,12 +161,29 @@ fn check_lineage(source_text: &str, expected: usize) {
                 lineages[0].edges()[1].split()
             );
         }
-        results.push((layout, lineages.len()));
+        if require_region {
+            let regions = catalog.nested_forward_regions();
+            for region in regions {
+                assert!(catalog.owns_nested_forward_region(region));
+                assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                assert_eq!(region.paths(), lineages);
+                assert_eq!(region.paths().len(), 3);
+                assert_eq!(region.callable(), lineages[0].callable());
+                assert_eq!(region.source_parameter(), lineages[0].source_parameter());
+            }
+            results.push((layout, regions.len()));
+        } else {
+            if expected == 0 {
+                assert!(catalog.nested_forward_regions().is_empty());
+            }
+            results.push((layout, lineages.len()));
+        }
     }
     for (layout, count) in results {
         assert_eq!(
-            count, expected,
-            "{layout}: missing actual Partial three-leaf lineage"
+            count,
+            if require_region { 1 } else { expected },
+            "{layout}: missing requested three-leaf lineage or terminal region"
         );
     }
 }
@@ -180,6 +202,7 @@ fn ordinary_nested_lineage_rejects_neighbor_shapes() {
                 "{prefix}fun wrap(source: String, outer: Boolean, inner: Boolean): borrow String from source {{ {body} }}"
             ),
             0,
+            false,
         );
     }
 }

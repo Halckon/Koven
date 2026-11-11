@@ -29,6 +29,7 @@ pub(super) struct NestedForwardState {
     pub(super) path: [Option<usize>; 2],
     pub(super) leaf: Option<usize>,
     pub(super) ready_split: Option<usize>,
+    pub(super) coverage: Option<usize>,
 }
 
 impl DropPlanner<'_, '_> {
@@ -369,5 +370,6 @@ impl DropPlanner<'_, '_> {
             _ => None,
         };
         state.nested_forward = Some(nested);
+        self.observe_nested_arm(state, index, then_arm, entry);
     }
 }

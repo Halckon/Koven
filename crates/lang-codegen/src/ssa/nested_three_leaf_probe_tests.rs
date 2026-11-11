@@ -98,6 +98,12 @@ fn ordinary_nested_three_leaf_remains_explicitly_unsupported() {
         for catalog in on.ownership().loan_action_observations() {
             assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
             assert!(catalog.branch_forward_regions().is_empty());
+            let [region] = catalog.nested_forward_regions() else {
+                panic!("frontend terminal certificate must not grant backend admission")
+            };
+            assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+            assert_eq!(region.paths().len(), 3);
+            assert!(catalog.owns_nested_forward_region(region));
         }
         let run = declarations.iter().find(|d| d.name() == "run").unwrap();
         for (setting, owned) in [("on", &on), ("off", &off)] {

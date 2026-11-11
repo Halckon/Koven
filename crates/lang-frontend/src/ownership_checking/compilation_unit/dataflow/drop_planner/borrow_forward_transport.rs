@@ -83,6 +83,18 @@ impl PendingForwardTransport {
         }
     }
 
+    pub(super) fn matches_nested(
+        &self,
+        state: super::nested_forward_scope::NestedForwardState,
+    ) -> bool {
+        self.nested_cause
+            .as_ref()
+            .is_some_and(|cause| cause.state == state)
+            && state
+                .leaf
+                .and_then(|i| state.plan.leaves.get(i))
+                .is_some_and(|leaf| leaf.value == self.returned)
+    }
     pub(super) fn matches_region(&self, scope: ForwardScope) -> bool {
         self.returned == scope.body
             && self

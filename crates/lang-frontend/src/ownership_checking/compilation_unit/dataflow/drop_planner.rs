@@ -18,6 +18,7 @@ mod loan_child_region;
 mod loan_consumer_region;
 mod loan_forward_region;
 mod loan_named_region;
+mod loan_nested_forward_region;
 mod loan_provenance;
 mod loan_receiver_region;
 mod loan_region;
@@ -459,19 +460,25 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                     path: [None; 2],
                                     leaf: None,
                                     ready_split: None,
+                                    coverage: None,
                                 }
                             });
                             let coverage = self.begin_branch_coverage(&mut state);
+                            let nested_coverage = self.begin_nested_coverage(&mut state);
                             let continues = self.statement(body, &mut state)?;
                             if continues {
                                 self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
                             }
                             self.finish_branch_coverage(coverage, continues, &state);
+                            self.finish_nested_coverage(nested_coverage, continues, &state);
                         }
                     },
                 }
                 self.finish_owner_observation();
                 self.iteration_actions.close_branch_callable(
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
+                );
+                self.iteration_actions.close_nested_callable(
                     crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
                 );
             }

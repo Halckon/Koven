@@ -19,12 +19,12 @@ pub(in super::super) struct NestedForwardCause {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
-    callable: UnitItemId,
-    split: UnitExpressionId,
-    condition: UnitExpressionId,
-    then_arm: bool,
-    parent: Option<usize>,
-    cursor: usize,
+    pub(super) callable: UnitItemId,
+    pub(super) split: UnitExpressionId,
+    pub(super) condition: UnitExpressionId,
+    pub(super) then_arm: bool,
+    pub(super) parent: Option<usize>,
+    pub(super) cursor: usize,
 }
 
 impl ActionSource {

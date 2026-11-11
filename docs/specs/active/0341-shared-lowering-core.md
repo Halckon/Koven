@@ -13747,3 +13747,36 @@ CI-only）、workspace all-target check、fmt/diff/docs897 全通过；尺寸247
 手写 Rust 文件、35历史超限，无新增豁免。CI-only、native 全套及远端 CI 未运行。
 验证结果与证据保留在既有检查点 nested-lineage-*。
 本片只本地提交，不推送；下一步仍需独立内外终止证书和后端真实 receipt。
+
+
+### 有限三叶内外终止与全部叶关闭证书（2026-11-11）
+
+基于 `93c7339e` 的真实 Partial lineage，新独立 nested region 不改变旧 lineage
+含义或双臂状态机。先用同一真实三叶源码建立 region 0 != 1 的红测试，原
+raw handoff 与 Partial 路径检查仍通过。只覆盖既定外层 then 单个完整 inner-if、
+外层 else 直接return、同根三个直接borrowed call；不泛化额外语句或递归树。
+
+新的独立穷尽 ValueState 边界检查要求精确 scope/owner 深度及其他义务为空：
+实际 condition 前后、四个 reached-arm entry、三叶 return 前后的完整状态均
+正面核验，pre-return 仅允许唯一匹配真实 pending，post-return 必须为空。
+18阶段协议要求 inner 两叶各自闭合后才产生 inner_closed；实际 outer false
+入口必须消费该凭据，随后第三叶关闭，outer join还须真实两臂终止且无live
+continuation。empty states 或 AST 形状本身不构成关闭证明。
+
+函数正常结束必须在原深度空状态 seal，随后 close cursor 恰为 start+6。发布
+再次核未过滤的六条原始 Begin/Handoff、catalog身份、call/control/root、每叶
+完整父边链与同candidate acquisition cause。缺失、重复、乱序事件保持sticky
+invalid，只能给Partial且空paths。catalog仍Partial，仅该有限region可Complete。
+旧lineage依然恒Partial，后端普通边界测试明确要求前端新region已Complete，
+然后仍在原borrow marker拒绝UnsupportedNode、verifier/receipt为零。
+
+独立双向复审未发现阻塞；新增CI-only覆盖13类关闭/身份故障及错误顺序sticky
+invalid，只编译不在本机执行。前端新旧9项ordinary、后端旧branch6项加
+新增Complete/Unsupported边界1项通过。双crate feature all-target strict Clippy、
+默认lib no-run（含CI-only）、workspace all-target check、fmt/diff/docs897通过。
+首轮Clippy的测试快照类型复杂度已改具名类型，不放宽lint。尺寸门禁发现父planner
+1667→1674超既有1669额度；独立非作者逐diff确认仅7行接线、算法留子模块，
+将已有上限精确锁1674，保留baseline/owner/拆分计划，不机械压行。
+复跑尺寸门禁通过：2480手写Rust文件、35历史超限；未新增例外项。
+原始日志保留既有检查点nested-closure-*。本片只本地提交，不推送，
+CI-only、native全套和远端CI未执行；后端实际receipt仍为下一片。

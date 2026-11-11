@@ -88,11 +88,11 @@
       "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1090→1092 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1092→1105 行（+13）；原 max_lines=1149、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。 2026-11-03 owner A 本地静审范围：1122→1139 行；不提高既有 max_lines，编译/行为仍待 CI。 SPEC-0341 本轮自审仅核对 Exclusive return 前缀事件存储/成功发布接线，1122→1139 行；动作筛选与事实类型留独立子模块，原上限及拆分计划不变，未动态验证。 2026-11-03 #294/main 组合：双方独立观察字段/getter/门控合并为1156行（各父分支1139）；例外上限1149→1156仅覆盖此次17行独立接线，待独立静审，不代表动态验收。再次增长前复审。 2026-11-08独立只读复审确认996→1008（+12）重新跨1000软阈值，仅上述产物接线，无父文件算法增长；现有max_lines=1156、baseline、owner及拆分计划不变，后续增长或职责扩展前仍须复审。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": {
-      "max_lines": 1669,
+      "max_lines": 1674,
       "reason": "SPEC-0265 在实际drop、call前缀求值、closure释放和控制转移点接入有序清理；provider frame和schema动作组装独立于父planner。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0274本轮：增加size同步读取及RHS旧owner保护，必须与既有assignment及drop_named状态协作；独立模型字段已在model子模块。 SPEC-0288接手本轮：Map size 与 intrinsic owning 分类接线，复用已有 receiver 保护和 drop planner。 SPEC-0288 第二轮：仅登记 Map 下标与普通短路子模块并作 descriptor/operator 路由；分支清理算法在子模块。 SPEC-0288 第三轮：仅按 source-qualified Map put descriptor 分派下标赋值，消费与 pending 清理算法位于 drop_planner/map.rs。 SPEC-0331 本轮：仅从共用 planner 提取并传递独立 Map ownership 计划；frame 与退出算法留在 iteration 子模块。 SPEC-0341 owner A：仅在真实 function/Name/binding/pending/replace 转换点接线；事务、结果运输与一致性校验在专用模块。",
       "owner": "lang-frontend unit drop planner",
       "split_plan": "后续抽取完整assignment/replacement职责，保留return与loop scope cleanup合同。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1669 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1615→1618 行（+3）；原 max_lines=1669、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。 2026-11-03 owner A 本地静审范围：1463→1519 行；不提高既有 max_lines，编译/行为仍待 CI。 SPEC-0341 本轮自审仅核对 Exclusive return 前缀事件存储/成功发布接线，1463→1467 行；动作筛选与事实类型留独立子模块，原上限及拆分计划不变，未动态验证。 2026-11-03 #294/main 组合保留独立提取与resource_deferred早返，1519→1523行；上限不变，待独立静审。"
+      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1669 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1615→1618 行（+3）；原 max_lines=1669、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。 2026-11-03 owner A 本地静审范围：1463→1519 行；不提高既有 max_lines，编译/行为仍待 CI。 SPEC-0341 本轮自审仅核对 Exclusive return 前缀事件存储/成功发布接线，1463→1467 行；动作筛选与事实类型留独立子模块，原上限及拆分计划不变，未动态验证。 2026-11-03 #294/main 组合保留独立提取与resource_deferred早返，1519→1523行；上限不变，待独立静审。 2026-11-11 SPEC-0341 独立非作者逐diff复审核验有限三叶关闭证书接线1667→1674（+7）：仅模块注册、coverage初始化、begin/finish和callable close，无父文件算法增长；既有上限1669→1674精确锁定，baseline/owner/原拆分计划不变，再次增长前须重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
       "max_lines": 1385,
