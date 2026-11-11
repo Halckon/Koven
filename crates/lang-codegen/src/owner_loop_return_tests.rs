@@ -187,3 +187,29 @@ fn loop_owned_return_original_source_probe() {
         );
     }
 }
+
+#[test]
+fn loop_owned_return_requires_two_actual_endpoint_receipts() {
+    let source = UnitSource::analyze("loop-owned-return-endpoints.ko", SOURCE).unwrap();
+    source.assert_frontend_clean();
+    assert!(matches!(source.products, OwnedProducts::Basic(..)));
+    let (lowered, receipts) =
+        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let [body, condition_false] = receipts.as_slice() else {
+        panic!("two actual Return emitter receipts");
+    };
+    assert_ne!(body.0, condition_false.0);
+    assert!(
+        body.2.is_some(),
+        "body Q requires delivered endpoint authority"
+    );
+    assert!(
+        condition_false.2.is_some(),
+        "false P requires its own endpoint authority"
+    );
+    assert_eq!(body.1, body.2);
+    assert_eq!(condition_false.1, condition_false.2);
+}
