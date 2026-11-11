@@ -246,7 +246,7 @@ impl DropPlanner<'_, '_> {
         control: ExpressionId,
         state: &ValueState,
     ) {
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {

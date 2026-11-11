@@ -22,7 +22,7 @@ pub use loops::{
     UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
     UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1,
     UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1,
-    UnitOwnerReturnEndpointV1,
+    UnitOwnerReturnEndpointV1, UnitOwnerRootEdgeV1,
 };
 pub(super) mod values;
 pub use values::{

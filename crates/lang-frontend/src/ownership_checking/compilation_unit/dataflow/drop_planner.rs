@@ -231,9 +231,12 @@ fn plan_with_observations(
 struct DropPlanner<'a, 'checker> {
     #[cfg(test)]
     owner_hook_probe: Option<Vec<crate::ownership_checking::UnitOwnerTransportEvent>>,
+    #[cfg(test)]
+    owner_control_probe: Option<Vec<owner_transport::loops::ControlVisit>>,
+    owner_controls: owner_transport::loops::ControlStack,
     owner_observation_enabled: bool,
     owner_choice: Option<owner_transport::choice::ChoiceTransaction>,
-    owner_loop: Option<owner_transport::loops::LoopTransaction>,
+    owner_loop: owner_transport::loops::ControlTransactions,
     owner_branch_depth: usize,
     owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
     owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
@@ -274,9 +277,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             #[cfg(test)]
             owner_hook_probe: None,
+            #[cfg(test)]
+            owner_control_probe: None,
+            owner_controls: owner_transport::loops::ControlStack::default(),
             owner_observation_enabled: true,
             owner_choice: None,
-            owner_loop: None,
+            owner_loop: owner_transport::loops::ControlTransactions::default(),
             owner_branch_depth: 0,
             owner_observation: None,
             owner_observations: Vec::new(),

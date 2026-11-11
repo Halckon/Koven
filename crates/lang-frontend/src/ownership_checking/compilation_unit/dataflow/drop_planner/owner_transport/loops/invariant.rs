@@ -351,7 +351,7 @@ impl DropPlanner<'_, '_> {
         state: &ValueState,
     ) {
         if let (Some(transaction), Some(observation)) =
-            (&mut self.owner_loop, &self.owner_observation)
+            (self.owner_loop.as_mut(), &self.owner_observation)
             && transaction.statement == id
         {
             if let Some(normal) = &mut transaction.normal {

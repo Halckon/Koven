@@ -1,8 +1,15 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 mod conditional;
+mod control_scope;
+mod control_transactions;
+pub(in super::super) use control_scope::ControlStack;
+#[cfg(test)]
+pub(in super::super) use control_scope::ControlVisit;
+pub(in super::super) use control_transactions::ControlTransactions;
 mod invariant;
 mod normal_backedge;
 mod replace_break;
+mod root_frame;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
@@ -101,6 +108,15 @@ impl LoopTransaction {
         item: ItemId,
         identity: std::sync::Arc<()>,
     ) -> Option<Self> {
+        Self::begin_for_control(checker, item, identity, None)
+    }
+
+    fn begin_for_control(
+        checker: &Checker<'_>,
+        item: ItemId,
+        identity: std::sync::Arc<()>,
+        selected_control: Option<StatementId>,
+    ) -> Option<Self> {
         let ast = checker.parsed.ast();
         let Item::Function {
             name,
@@ -168,6 +184,25 @@ impl LoopTransaction {
         let Statement::Block { elements } = ast.statements().get(function_body).ok()?.payload()
         else {
             return None;
+        };
+        // Only a verified member of an all-While function can be collected separately.
+        let selected_elements;
+        let elements = if let Some(control) = selected_control {
+            if elements.len() < 2
+                || !elements.contains(&control)
+                || elements.iter().any(|id| {
+                    !matches!(
+                        ast.statements().get(*id).ok().map(|node| node.payload()),
+                        Some(Statement::While { .. })
+                    )
+                })
+            {
+                return None;
+            }
+            selected_elements = vec![control];
+            &selected_elements
+        } else {
+            elements
         };
         if (owner_parameter.is_none() || (integer_control && parameter_symbols.len() == 1))
             && (parameters.len() == 1
@@ -428,7 +463,10 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         match &transaction.active {
-            Some((identity, boundary)) => (self.loop_boundaries.as_slice() == [*boundary]
+            Some((identity, boundary)) => (self.owner_controls.is_current(UnitStatementId::new(
+                self.checker.source_unit,
+                transaction.statement,
+            )) && self.loop_boundaries.as_slice() == [*boundary]
                 && self.scope_depth == boundary + 1
                 && transaction.completed.is_none()
                 && self.owner_observation.as_ref().is_some_and(|observation| {
@@ -436,7 +474,10 @@ impl DropPlanner<'_, '_> {
                         && std::sync::Arc::ptr_eq(identity, &observation.identity)
                 }))
             .then_some(true),
-            None => (self.loop_boundaries.is_empty() && self.scope_depth == 1).then_some(false),
+            None => (self.owner_controls.balanced()
+                && self.loop_boundaries.is_empty()
+                && self.scope_depth == 1)
+                .then_some(false),
         }
     }
     pub(in super::super) fn take_open_loop_return(
@@ -579,7 +620,7 @@ impl DropPlanner<'_, '_> {
 
     // Only the precise expected tail in the fresh, active body sink is admitted.
     pub(in super::super) fn owner_loop_jump_supported(&self, id: ExpressionId) -> bool {
-        let Some(transaction) = &self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_ref() else {
             return false;
         };
         let Some((identity, boundary)) = &transaction.active else {
@@ -594,6 +635,10 @@ impl DropPlanner<'_, '_> {
             _ => return false,
         };
         expected == self.checker.unit_expression(id)
+            && self.owner_controls.is_current(UnitStatementId::new(
+                self.checker.source_unit,
+                transaction.statement,
+            ))
             && transaction.completed.is_none()
             && transaction.pending_jump.is_none()
             && self.loop_boundaries.as_slice() == [*boundary]
@@ -640,10 +685,58 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        let control = UnitStatementId::new(self.checker.source_unit, id);
+        #[cfg(test)]
+        let parent = self.owner_controls.current();
+        let previous_transaction = self.owner_loop.selected();
+        let entered = self.owner_controls.enter(control);
+        if entered {
+            self.owner_loop.select(Some(control));
+        } else {
+            self.owner_loop.clear();
+        }
+        #[cfg(test)]
+        if let Some(probe) = &mut self.owner_control_probe {
+            probe.push(ControlVisit {
+                entering: true,
+                control,
+                parent,
+                closed_product: None,
+            });
+        }
+        let result = self.owner_while_statement_scoped(id, condition, body, state);
+        #[cfg(test)]
+        let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
+        if entered {
+            self.owner_controls.leave(control);
+        }
+        self.owner_loop.select(previous_transaction);
+        #[cfg(test)]
+        if let Some(probe) = &mut self.owner_control_probe {
+            probe.push(ControlVisit {
+                entering: false,
+                control,
+                parent: self.owner_controls.current(),
+                closed_product,
+            });
+        }
+        result
+    }
+
+    fn owner_while_statement_scoped(
+        &mut self,
+        id: StatementId,
+        condition: ExpressionId,
+        body: StatementId,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
         let collecting = self.owner_observation_enabled
+            && self
+                .owner_controls
+                .is_current(UnitStatementId::new(self.checker.source_unit, id))
             && self.loop_boundaries.is_empty()
             && self.owner_branch_depth == 0
             && self.owner_loop.as_mut().is_some_and(|transaction| {
@@ -699,54 +792,55 @@ impl DropPlanner<'_, '_> {
                 self.owner_choice = choice;
                 self.owner_branch_depth = depth;
                 // Restore every sink before propagating an error or considering publication.
-                let transaction = self.owner_loop.as_mut().expect("checked loop transaction");
-                transaction.active = None;
-                let witnessed = transaction.completed.take();
-                transaction.split_entered = false;
-                transaction.active_branch = None;
-                transaction.pending_jump = None;
-                transaction.branch_completed = [false; 2];
-                if transaction
-                    .replacing
-                    .as_ref()
-                    .is_some_and(|input| input.is_returning())
-                {
-                    if matches!(continued, Ok(false))
-                        && witnessed.is_none()
-                        && transaction.body_completion_boundary(&body_state)
-                        && let Some(collected) = collected
+                if let Some(transaction) = self.owner_loop.as_mut() {
+                    transaction.active = None;
+                    let witnessed = transaction.completed.take();
+                    transaction.split_entered = false;
+                    transaction.active_branch = None;
+                    transaction.pending_jump = None;
+                    transaction.branch_completed = [false; 2];
+                    if transaction
+                        .replacing
+                        .as_ref()
+                        .is_some_and(|input| input.is_returning())
                     {
-                        replacement_body = Some((collected, body_state));
-                    }
-                } else if transaction.body_completion_boundary(&body_state)
-                    && let Some(collected) = collected
-                {
-                    let completion = match (&continued, transaction.expected, witnessed) {
-                        (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
-                            Some(LoopBodyCompletion::Fallthrough)
-                        }
-                        (Ok(continues), expected, Some((identity, completed)))
-                            if *continues == expected.continues()
-                                && expected != LoopBodyCompletion::Fallthrough
-                                && expected == completed
-                                && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
-                        {
-                            Some(completed)
-                        }
-                        _ => None,
-                    };
-                    if let Some(completion) = completion {
-                        if transaction
-                            .normal
-                            .as_mut()
-                            .is_some_and(|normal| normal.finish_role(completion))
-                            || transaction.replacing.is_some()
+                        if matches!(continued, Ok(false))
+                            && witnessed.is_none()
+                            && transaction.body_completion_boundary(&body_state)
+                            && let Some(collected) = collected
                         {
                             replacement_body = Some((collected, body_state));
-                        } else {
-                            body_transport = collected
-                                .value_observation_v1()
-                                .map(|transport| (transport, completion));
+                        }
+                    } else if transaction.body_completion_boundary(&body_state)
+                        && let Some(collected) = collected
+                    {
+                        let completion = match (&continued, transaction.expected, witnessed) {
+                            (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
+                                Some(LoopBodyCompletion::Fallthrough)
+                            }
+                            (Ok(continues), expected, Some((identity, completed)))
+                                if *continues == expected.continues()
+                                    && expected != LoopBodyCompletion::Fallthrough
+                                    && expected == completed
+                                    && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
+                            {
+                                Some(completed)
+                            }
+                            _ => None,
+                        };
+                        if let Some(completion) = completion {
+                            if transaction
+                                .normal
+                                .as_mut()
+                                .is_some_and(|normal| normal.finish_role(completion))
+                                || transaction.replacing.is_some()
+                            {
+                                replacement_body = Some((collected, body_state));
+                            } else {
+                                body_transport = collected
+                                    .value_observation_v1()
+                                    .map(|transport| (transport, completion));
+                            }
                         }
                     }
                 }
@@ -766,7 +860,7 @@ impl DropPlanner<'_, '_> {
         }
         if collecting
             && let (Some(transaction), Some((collected, mut body_state))) =
-                (&mut self.owner_loop, replacement_body)
+                (self.owner_loop.as_mut(), replacement_body)
             && let Some(input) = &mut transaction.replacing
         {
             transaction.replace_result = input.finish(collected, state);
@@ -797,7 +891,7 @@ impl DropPlanner<'_, '_> {
         }
         if collecting
             && let (Some(transaction), Some((transport, completion))) =
-                (&mut self.owner_loop, body_transport)
+                (self.owner_loop.as_mut(), body_transport)
         {
             let statement = UnitStatementId::new(self.checker.source_unit, id);
             let condition = self.checker.unit_expression(condition);

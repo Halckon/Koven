@@ -6,7 +6,7 @@ impl DropPlanner<'_, '_> {
         &self,
         id: ExpressionId,
     ) -> bool {
-        let Some(t) = &self.owner_loop else {
+        let Some(t) = self.owner_loop.as_ref() else {
             return false;
         };
         let LoopBodyCompletion::ConditionalBreak { control, .. } = t.expected else {
@@ -44,7 +44,7 @@ impl DropPlanner<'_, '_> {
         if outcomes != (true, true) || self.owner_branch_depth != 0 {
             return;
         }
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::ConditionalBreak {
@@ -92,7 +92,7 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &ValueState,
     ) {
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::ConditionalBreak {
@@ -135,7 +135,7 @@ impl DropPlanner<'_, '_> {
         result: &EvaluatedOwner,
         state: &ValueState,
     ) {
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::ConditionalBreak {
@@ -185,7 +185,7 @@ impl DropPlanner<'_, '_> {
         after_cleanup: bool,
         state: &ValueState,
     ) {
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::ConditionalBreak {
@@ -233,7 +233,7 @@ impl DropPlanner<'_, '_> {
         else_events: &[UnitOwnerTransportEvent],
         continuations: usize,
     ) -> bool {
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return false;
         };
         let LoopBodyCompletion::ConditionalBreak {
@@ -277,7 +277,7 @@ impl DropPlanner<'_, '_> {
         continues: bool,
         state: &ValueState,
     ) {
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::ConditionalBreak {

@@ -204,7 +204,7 @@ impl DropPlanner<'_, '_> {
         if !self.normal_tail() {
             return;
         }
-        let Some(t) = &mut self.owner_loop else {
+        let Some(t) = self.owner_loop.as_mut() else {
             return;
         };
         let Some(n) = &mut t.normal else {

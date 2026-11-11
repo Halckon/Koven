@@ -13507,3 +13507,115 @@ SourceRetired因果共存，仍不扩Complete/region/receipt或legacy Dependency
 默认CLI构建及实际help（features为空）、fmt/docs897/diff均通过；尺寸2452手写Rust
 文件、35历史超限，无新增豁免。仍用opt0/debug2，不执行CI-only、Abort或资源计数。
 最后只追加本Spec；未推送、未合main，正式CI和独立审查不能由此替代，D10/E2未整体完成。
+
+### Root-qualified edge 身份基础（2026-11-11，本地开发）
+
+依据 ADR-0038，首片将现有 sealed normal header 的结构边绑定同轮 catalog、callable、
+control 及 root，不改变 planner、旧 oracle 或 consumer 权限。此为一般多根/嵌套前置
+身份隔离，不提供多根 incoming 相关性或嵌套 CFG 完整证明。先以真实源码重分析探针
+验证同 AST ID 不等于同轮边。7b75b8b9 的空 API 探针实际编译并执行，1 failed；
+实现后实际重编，三个身份用例全部通过：同分析 clone 保持身份、重分析拒绝复用，
+跨 source，以及同 source 不同 callable/root 隔离。均核旧 observer on/off 产品等价。
+既有 normal_backedge 的 17 项普通回归全部通过；CI-only 损坏未封闭 header 不发布边
+用例已编译但未执行。FE all-target strict Clippy 通过。workspace all-target check（LLVM 21）、fmt、docs897、diff 通过；尺寸2454手写文件、
+35历史超限，无新豁免。尺寸脚本首次漏传必需 --base，未执行；补传93404d2a后通过。
+未运行 native、正式 CI，未完成多根相关 incoming、嵌套 CFG 或旧见证退休。
+原始命令结果在本工作树 `.local-artifacts/root-edge-evidence/`；不以这三个源码用例
+推导任意根或任意控制形状。只读独立审查未发现此身份封装范围的阻断问题。
+
+### 一般多根与嵌套控制的真实输入基线（2026-11-11）
+
+在16a46213后保留五个真实合法输入：双根逐一Replace的正常/Continue回边，外层根与
+内层根共存的嵌套While正常/内层Continue/内层Break。两个general_control_frontier
+测试实际运行通过：无diagnostics/deferred，validate成功，原observer on/off产品等价；
+现有closed/invariant/open-loop能力均不发布，不把一般输入偷换成单根产品。
+这是测试基线，不是新运输实现，也不证明逐路径无泄漏或nested native。
+
+调查确认当前DropPlanner仅持有一个owner_loop槽位，NormalInput严格接收单根及固定
+顶层/循环体序列。后续应按真实control identity组织事务与父控制关系，并在同一控制边
+上整体记录root-to-owner向量，保留根间相关性，禁止按每根独立Choice再取笛卡尔积。
+每条实际回边重新验证该向量；未进入或提前退出的嵌套循环不得伪造incoming，Return/
+Break/Continue分别归属真实目标。现有root-qualified edge是身份基础，不替代这些义务。
+
+### ControlRootFrame 内部原子根向量基础（2026-11-11，本地）
+
+从f6bfb4a5继续，将NormalInput的prefix、jump及body completion真实边界采集接入
+内部ControlRootFrame。该借用视图保留整个原values向量，不排序、分拆或组合路径；
+未初始化owner、重复root、重复owner、root symbol与control跨source或各owner的
+callable彼此不一致时向量整体失败。查询
+须给出相同source-qualified control，现有single_for仍只接受唯一根，旧准入不扩展。
+它不验证owner callable属于该control/root或跨catalog成员关系，不是跨分析capability，
+也尚未替换单槽LoopTransaction；
+真实owner catalog与incoming封闭验证仍由原HeaderEquation完成。
+
+真实normal_backedge 17项回归已通过。结构模型以实际分析的绑定ID构造二元测试向量，
+验证原子保序及控制ID隔离；该测试向量不是实际循环快照，不能用来宣称多根运行支持。
+模型1项已通过，CI-only缺owner/重复root/重复owner负控仅编译、不本地执行。
+最终重编后23项普通测试通过（normal17、qualified3、frontier2、模型1），FE all-target
+strict Clippy、fmt、docs897及diff通过。触及Rust文件均未达1000行，最大900行；
+无新公开API或codegen变化，本片未追加workspace/native，未运行CI-only或远端CI。
+
+本片只读独立复审未发现当前三处single_for接线的语义回归；按审查收窄source归属措辞。
+
+### 真实 While 控制栈与活动事务路由（2026-11-11，本地）
+
+以ef2f161a为基础，While真实遍历入口/出口维护source-qualified ControlStack；内层
+退出先恢复父控制，再传播Result。活动Return、Break/Continue与开始采集均核当前control
+匹配原事务；栈无效或不平衡不得发布loop产品。重复进入同控制、跨source嵌套或错序退出
+将栈置为粘滞无效，不能靠后续pop恢复资格。下一callable重新初始化。
+
+f4a78fbf的空栈实现已真实编译并运行，nested父control应为外层却得到None，1 failed；
+实现后重新编译并实跑：嵌套正常/内层Continue/Break/Return与顺序循环的探针读取实际
+planner hook，不向生产状态回灌。退出后恢复外层、顺序循环不虚构parent，旧observer
+on/off完整产物等价。CI-only重复进入及错序退出粘滞负控已编译、未执行。
+
+普通60项通过：frontier4、normal17、closed18、open-return4、parameter5、replace-break8、
+qualified3、root模型1。FE all-target strict Clippy、LLVM21 workspace all-target check、
+fmt/docs897/diff通过。独立审查无阻断；Err恢复仅源码核实，未做本机故障注入。
+drop_planner.rs增长1657→1663仅字段和初始化接线，经独立尺寸复核仍属原职责，保留
+既有max_lines1669，不提高额度；控制栈算法留专用子模块。
+这是实际控制身份路由基础，仍只有原有单槽LoopTransaction，不发布一般多根incoming、
+嵌套owner运输或退休旧oracle；控制遍历轨迹也不等于运行时循环激活轨迹。
+
+### Control-keyed 私有事务存储（2026-11-11，本地）
+
+基于cbf1720b，以ControlTransactions替换DropPlanner的Option事务槽。容器按
+source-qualified control索引实际LoopTransaction；While进入选择当前control，退出
+在传播Result前恢复旧选择。prefix/suffix仍选择原准入控制；无匹配control时as_ref/as_mut
+均不给出其它事务，borrow准入的is_none仍检查全部存储，不能把暂时未选择误算成无事务。
+若control进入失败清空事务；父级恢复不再假定事务存在，仍恢复原observation/choice/depth
+及legacy错误传播，不因新容器缺项panic。后者为源码审查，本机未注入非法嵌套负控。
+
+真实两函数各发布NormalBackedge且callable/control不同；基于同一checker创建的真实
+admitted事务另核选择其它control时无引用、恢复原control时同一事务仍在，take清空状态。
+该选择测试是实际准入事务的容器隔离测试，不是两个循环在同一callable同时运输的证明。
+现有begin仍只准入一项，take仅接受恰好一项，不从多项中任选；一般多事务采集/发布、
+真实多根incoming、嵌套路径归属仍未完成，旧oracle不退休。
+
+最终普通owner suite 219项通过；全部FE lib普通测试638项通过，43项过滤（ci_only），
+FE all-target strict Clippy、LLVM21 workspace all-target check通过。当前变更不含推送。
+fmt/docs897/diff及Rust尺寸守卫通过（2458个手写Rust文件、35个历史超千行文件，无新额度）；
+独立源码复审无阻断，确认恢复顺序和错误传播保留。loops.rs为939行，DropPlanner仍1663行。
+
+### 顺序 closed While 的实际多事务采集（2026-11-11，本地）
+
+以939892c1为基础，函数原AST仅包含至少两个While且每项均满足现有closed合同才整组
+准入；每项使用同一checker与真实StatementId走原准入，normal/invariant/replacing任一
+命中即不属于本片，任一失败整组拒绝。没有按文本重建AST或伪造body owner。
+While真实遍历分别保存独立body catalog与控制产品，共享callable分析身份；退出后恢复
+原选择，未放宽复杂控制流、跨循环owner、一般多根或嵌套准入。
+
+719fc5c0的真实已编译红测因first real closed completion缺失失败。实现后真实两循环的
+正常、Continue、Break组合均可采到各自产品；test-only探针从真实退出读取已生成产品，
+并核一致性、同callable、不同control和body catalog。它不是运行时两循环同时发生的证明，
+尤其固定flag可能导致首循环不终止；组合可达性和终止不在本片内。
+
+第二成员Return、嵌套While或函数额外语句等合法源码邻接合同覆盖整组拒绝，不能留下首项
+部分准入。初版负向fixture缺少语句分隔符而解析失败，修正后才计入最终验证。
+公共batch尚无合同，finish主动标Unsupported且单槽take拒绝多条；不能把抛弃多结果后的
+空observation发布为Complete。栈不平衡同样在clear之前拒绝observation，CI-only失衡
+finalization守卫只编译、不本地执行。旧witness和legacy on/off完整产物对照保留。
+
+最终FE lib普通测试640项通过，44项ci_only过滤；FE all-target strict Clippy与LLVM21
+workspace all-target check通过，fmt/docs897/diff通过。两次独立源码复核无阻断，确认
+失衡先拒绝再clear不影响合法平衡序列；本片没有运行CI-only守卫或推送远端。

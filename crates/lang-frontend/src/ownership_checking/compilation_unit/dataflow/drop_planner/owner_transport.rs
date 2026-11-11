@@ -36,8 +36,9 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let identity = std::sync::Arc::new(());
+        self.owner_controls = loops::ControlStack::default();
         self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
-        self.owner_loop = loops::LoopTransaction::begin(self.checker, item, identity.clone());
+        self.owner_loop = loops::ControlTransactions::begin(self.checker, item, identity.clone());
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity,
@@ -60,8 +61,9 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
+        self.owner_controls = loops::ControlStack::default();
         self.owner_choice = None;
-        self.owner_loop = None;
+        self.owner_loop.clear();
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
@@ -80,6 +82,27 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn finish_owner_observation(&mut self) {
+        // Unbalanced/invalid control entry cannot publish a sealed loop product.
+        if !self.owner_controls.balanced() {
+            if let Some(observation) = &self.owner_observation {
+                let point = match observation.callable {
+                    UnitOwnerCallable::Function(item) | UnitOwnerCallable::Deinit(item) => {
+                        crate::ownership_checking::UnitDropPoint::FunctionEntry(item)
+                    }
+                    UnitOwnerCallable::Lambda(expression) => {
+                        crate::ownership_checking::UnitDropPoint::LambdaEntry(expression)
+                    }
+                };
+                self.reject_owner(point, UnitOwnerUnsupportedReason::InconsistentTransport);
+            }
+            self.owner_loop.clear();
+        }
+        if let Some(control) = self.owner_loop.publication_blocker() {
+            self.reject_owner(
+                crate::ownership_checking::UnitDropPoint::LoopExit(control),
+                UnitOwnerUnsupportedReason::Syntax,
+            );
+        }
         let choice = self
             .owner_choice
             .take()

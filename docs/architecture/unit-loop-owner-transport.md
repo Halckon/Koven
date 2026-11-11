@@ -99,3 +99,33 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
 真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160、§162、§164；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。
+
+## Normal header 的 root-qualified edge 视图
+
+现有 sealed normal header 可导出 `UnitOwnerRootEdgeV1`：私有构造且先核完整 header
+一致性，保留原 catalog 身份、callable、control、root 与结构边角色。Clone 保持身份，
+同源码重新分析不相等；入口 body、正常回边及 condition-false 出口不可互换。它是原
+封闭产品的身份视图，不生成新 producer、drop 权限或一般多根/嵌套运输能力；旧 witness
+仍保留。真实源码及 observer on/off 检验见 SPEC-0341 的 root-qualified edge 验收。
+
+NormalInput的prefix、jump及body-completion采集使用私有`ControlRootFrame`借用视图：
+整组根保留原顺序，缺owner、重复root/owner、root symbol与control跨source或各owner
+callable彼此不一致时不返回部分
+结果。查询核同一control ID，现有consumer继续只取唯一根。它不发布能力或证明owner callable属于该control/root及跨catalog
+归属，仍由现有HeaderEquation验证实际catalog与运输；未改成一般嵌套事务管理器。
+
+While遍历使用私有ControlStack保存当前control与父控制；进入/退出均来自实际planner
+调用，返回前恢复外层，再传播Result。现有活动Return、jump及采集路由要求当前control
+与事务一致；不平衡/非法栈不会发布loop产品。该栈只约束现有事务，不替代一般多根
+incoming表或嵌套owner合同；事务存储现按control索引，旧准入边界仍保留。
+
+ControlTransactions以source-qualified control保存私有事务，真实While入口选择对应entry，
+不匹配时不可访问其它entry，退出先恢复旧选择再传播Result。prefix/suffix继续关联原准入
+控制；borrow兼容性检查仍基于全部entry而非当前选择。除下述私有顺序closed采集外，既有准入仍限一项；公共finish只接收恰好一项。
+多产品发布、一般多根incoming与嵌套owner语义仍待实现，不能把容器改造算作完成。
+
+当函数仅含多个顺序While且每个均满足原无外来owner的closed合同，私有容器可原子准入
+全部真实控制：每个body独立采集并保存原catalog，共享同一callable分析身份。任一成员
+不合合同则整组不准入。当前只采集、不发布batch；finish明确标Unsupported并丢弃多条，
+不能伪装成空Complete或任取其中一条。该结构采集不证明各循环组合可达或终止。
+栈不平衡时先拒绝observation再清空事务；一般多根incoming、嵌套root及公共batch仍待完成。
