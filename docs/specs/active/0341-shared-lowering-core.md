@@ -12766,3 +12766,20 @@ Rooted/Memory均ownership成功、两个raw handoff、source_begin/callable链�
 legacy/on-off等价先通过，失败精确为缺少实际acquisition原因。不是lowering、Complete或
 receipt失败。证据及独立保存binary在主仓忽略目录
 `.local-artifacts/borrow-branch-causes-20261111/red`，独核输入/产物/runner前后身份一致。
+
+最终代码d3eb16aa的普通验收为FE两项与上述codegen五项，各1 passed。FE新增
+`ordinary_unadmitted_exit_shapes_keep_raw_partial_projection`覆盖三个邻界；动态正例
+逐项核真实AST的callable/split/condition/arm/control/value及两个不同原acquisition。
+旧语义on/off等价、两布局Partial、branch region/receipt为空仍成立。独立入口登记与
+全记录唯一性校验拒绝重复臂、重复入口或共享acquisition，不以首条候选获胜。
+新增CI-only身份负控仅编译未本机执行，不宣称完整故障覆盖或CI已绿。
+
+最终证据在同根green-3与codegen-3：绑定4292输入，输入摘要
+`7ed55c6743d7cbea8ece68803b91cedfd0734df4111e88085476f24dd6ba7f76`；
+FE no-run 0.079秒复用匹配产物，codegen no-run 10.56秒重新编译，各自保存独立binary、
+Cargo JSON、runner和输入清单。七项exact均核list恰一项，执行前后身份不变。
+默认strict Clippy 26.90秒、feature strict Clippy 12.41秒、workspace all-targets check
+4.48秒均通过；fmt、docs891、尺寸与diff通过。99ed34db默认strict曾因observer未使用
+reexport真实失败，保留原日志；d3eb16aa复用已审d5a5722f的三个Rust文件cfg修正，
+不以allow掩盖，重新验证以上最终结果。本账本追加仅文档，不改已冻结Rust。
+未执行native、全量或CI-only，未推送；合流后必须重新联合验证。
