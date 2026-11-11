@@ -39,6 +39,8 @@ mod owner_normal_backedge_tests;
 mod owner_own_call_tests;
 #[path = "owner_pair_call_tests.rs"]
 mod owner_pair_call_tests;
+#[path = "owner_parameter_header_tests.rs"]
+mod owner_parameter_header_tests;
 #[path = "owner_parameter_loop_tests.rs"]
 mod owner_parameter_loop_tests;
 #[path = "owner_parameter_mixed_tests.rs"]

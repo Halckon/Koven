@@ -13366,3 +13366,23 @@ binding/child邻域2项。使用opt0/debug2；不执行CI-only、故障注入、
 默认CLI构建及实际help（features为空）、fmt、docs897、diff均通过。
 相对4150bbd8尺寸2442手写Rust文件、35历史超限，无新增豁免。最后仅追加此Spec；
 本地组合验证不替代正式CI或独立审查，不推送、不合main，D10/E2仍有后续范围。
+
+### own String 参数进入正常 Int header：待验证切片（2026-11-11）
+
+本片从已发布组合 `ba025f6f` 隔离推进ADR-0038的真实入口owner身份。最窄合同为
+一个不可变Int limit及一个own String incoming，`var held = incoming`，index从0
+开始、严格小于limit、body固定Replace及加一，正常回边，循环后直接Return根。
+保留Parameter原catalog/owner身份，经真实Move/Binding进入H，Name或Binding不
+制造新producer；零轮返回实际入口owner，后续激活Q与入口来源独立。
+
+不同时推广Continue/Break/条件Return、多个根、capture或新控制条件；既有Parameter
+无条件loop Return不是本片正常回边的证据。先用普通原样probe经Basic/lower/SSA/
+LLVM及唯一Return authority定位真实缺口；尚未执行，不称确认红或完成。后续独审、
+真实输入/binary绑定、本地分步提交，未获本批推送授权，不动其他工作树或target。
+
+真实普通红已确认：唯一exact `owned_parameter_normal_header_requires_actual_return_authority`
+第32行authority缺失失败（exit101，0 passed/1 failed/0 ignored）；前置Basic、真实
+lower、SSA verifier、LLVM、唯一Return及非空payload均通过，不是前置拒绝。
+4310输入、实际Cargo artifact及保存binary SHA在执行前后绑定不变，原日志保留于
+主仓忽略目录 `.local-artifacts/owner-parameter-header-20261111T125330Z`。
+本阶段尚未生产接线或运行native，CI-only仅编译，不称新增能力完成。
