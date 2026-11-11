@@ -818,3 +818,7 @@ mod branch_distinct_callee_probe_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "nested_three_leaf_probe_tests.rs"]
 mod nested_three_leaf_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_three_leaf_neighbor_tests.rs"]
+mod nested_three_leaf_neighbor_tests;

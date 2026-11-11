@@ -170,6 +170,7 @@ pub(super) fn build(
             aux_binding_plans: super::aux_binding_receipt::Plans::new(inputs)?,
             forward_plans: super::forward_receipt::Plans::new(inputs)?,
             branch_plans: super::branch_receipt::Plans::new(inputs)?,
+            nested_plans: super::nested_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
@@ -412,6 +413,7 @@ impl Builder<'_, '_> {
         self.sync_dead();
         let block = self.current(span)?;
         self.body.branch_plans.terminate(&terminator, block, span)?;
+        self.body.nested_plans.terminate(&terminator, block, span)?;
         self.body
             .forward_plans
             .terminate(&terminator, block, span)?;

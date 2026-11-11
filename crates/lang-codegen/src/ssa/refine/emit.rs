@@ -172,6 +172,7 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
         target.statements.extend(folded.statements);
         target.terminator = folded.terminator;
         body.branch_plans.fold(block, successor, span)?;
+        body.nested_plans.fold(block, successor, span)?;
     }
 }
 
@@ -875,6 +876,14 @@ pub(super) fn emit(
     let mut receipts = statements::LoanReceipts::new(body, function, span)?;
     receipts.branch.layout(
         &body.branch_plans,
+        function,
+        &blocks,
+        &parameters,
+        &entities,
+        span,
+    )?;
+    receipts.nested.layout(
+        &body.nested_plans,
         function,
         &blocks,
         &parameters,

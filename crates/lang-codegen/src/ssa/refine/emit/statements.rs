@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) branch: crate::ssa::refine::branch_receipt::Emitted,
     pub(super) forward: crate::ssa::refine::forward_receipt::Emitted,
     consumer: crate::ssa::refine::loan_receipt::Emitted,
@@ -19,6 +20,11 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            nested: crate::ssa::refine::nested_receipt::Emitted::new(
+                &body.nested_plans,
+                function,
+                span,
+            )?,
             branch: crate::ssa::refine::branch_receipt::Emitted::new(
                 &body.branch_plans,
                 function,
@@ -74,6 +80,8 @@ impl LoanReceipts {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.nested
+            .terminator(&body.nested_plans, function, target, current, span)?;
         self.branch
             .terminator(&body.branch_plans, function, target, current, span)?;
         self.forward
@@ -95,6 +103,7 @@ impl LoanReceipts {
         self.aux_binding
             .finish(&body.aux_binding_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
+        self.nested.finish(&body.nested_plans, function, span)?;
         self.branch.finish(&body.branch_plans, function, span)
     }
 }
@@ -224,6 +233,14 @@ impl Emitter<'_> {
                 }
                 Some(crate::ssa::refine::body::LoanTag::Branch(tag)) => receipts.branch.statement(
                     &body.branch_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
+                Some(crate::ssa::refine::body::LoanTag::Nested(tag)) => receipts.nested.statement(
+                    &body.nested_plans,
                     tag,
                     self.function,
                     instruction,

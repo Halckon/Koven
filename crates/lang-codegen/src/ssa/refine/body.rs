@@ -814,6 +814,7 @@ pub(super) enum LoanTag {
     Child(super::child_receipt::Tag),
     Forward(super::forward_receipt::Tag),
     Branch(super::branch_receipt::Tag),
+    Nested(super::nested_receipt::Tag),
 }
 
 #[derive(Clone, Debug)]
@@ -938,6 +939,7 @@ pub(super) struct RefinedBody {
     pub(super) aux_binding_plans: super::aux_binding_receipt::Plans,
     pub(super) forward_plans: super::forward_receipt::Plans,
     pub(super) branch_plans: super::branch_receipt::Plans,
+    pub(super) nested_plans: super::nested_receipt::Plans,
     pub(super) child_plans: super::child_receipt::Plans,
     pub(super) slots: Vec<EntityType>,
     pub(super) blocks: Vec<RBlock>,

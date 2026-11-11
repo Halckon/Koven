@@ -253,7 +253,7 @@
       "reason": "SPEC-0379 MoveOnly 局部可变重赋值生命周期追踪与 drop 编排；赋值前结束证明视图与重新激活死槽位。",
       "owner": "lang-codegen refine lowering",
       "split_plan": "后续按 statement/expression/terminator 构造职责进一步拆分独立 builder 模块。",
-      "review": "SPEC-0379 审查核对 MoveOnly 赋值与 drop 编排逻辑，锁定 1025 行；再次增长或职责变更前重新审阅。"
+      "review": "SPEC-0379 审查核对 MoveOnly 赋值与 drop 编排逻辑，锁定 1025 行；再次增长或职责变更前重新审阅。 2026-11-11 SPEC-0341 独立非作者逐 diff 复审本片1000→1002，仅 Plans::new 与真实 terminate 两行接线；算法在独立 nested_receipt 子模块。保留原 max_lines、baseline、owner 和职责拆分计划，不新增额度。"
     },
     "crates/lang-codegen/src/ssa/refine/build/expression.rs": {
       "max_lines": 1025,

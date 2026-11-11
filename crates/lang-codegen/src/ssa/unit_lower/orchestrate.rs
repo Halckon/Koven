@@ -45,6 +45,8 @@ fn lower_unit_impl(
     #[cfg(test)]
     let branch_publication = crate::ssa::refine::branch_receipt::UnitPublication::begin();
     #[cfg(test)]
+    let nested_publication = crate::ssa::refine::nested_receipt::UnitPublication::begin();
+    #[cfg(test)]
     let aux_publication = crate::ssa::refine::aux_binding_receipt::UnitPublication::begin();
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
@@ -867,6 +869,8 @@ fn lower_unit_impl(
     })?;
     #[cfg(test)]
     branch_publication.commit();
+    #[cfg(test)]
+    nested_publication.commit();
     #[cfg(test)]
     aux_publication.commit();
     Ok((program, entry_id))

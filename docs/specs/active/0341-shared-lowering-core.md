@@ -13780,3 +13780,33 @@ invalid，只编译不在本机执行。前端新旧9项ordinary、后端旧bran
 复跑尺寸门禁通过：2480手写Rust文件、35历史超限；未新增例外项。
 原始日志保留既有检查点nested-closure-*。本片只本地提交，不推送，
 CI-only、native全套和远端CI未执行；后端实际receipt仍为下一片。
+
+### 有限三叶实际 codegen receipt（2026-11-11）
+
+基于 `76ef1350` 的独立关闭证书，先以真实源码建立后端红测试：rooted/memory
+与观察开关四组均在原 borrow marker 拒绝，原 verifier 和 receipt 都为零。
+本片只开放外层 then 含完整内层 if/else、外层 else 直接返回的固定三叶树；
+String source 与两个 Borrow Boolean 参数，各叶直接返回同 source 的单参
+Borrow call，可用不同 callee；不开放 else-side 嵌套、额外语句、四叶或一般 CFG。
+
+独立 Unit gate 从原始 typed/loan/transport 事实逐叶核声明、来源和 ABI；
+观察关闭仍保持同一支持边界。独立 receipt admission 绑定同 catalog 的唯一
+Complete region、三个 Partial lineage、六条真实 Begin/Handoff 与完整父边链。
+旧单分支事实和验证器均不放宽。producer 在真实 split、return、terminate、
+join 和 layout 路径记录事件；两层 join 均需零前驱并从最终 layout 消失，无 fold。
+冻结实际五块、两个 Read、三个 BorrowCall/BorrowReturn，逐叶核入口 source
+沿全部真实 parent edge 到叶 SSA 参数的对应，另核 inner 条件参数运输。
+原最终 verifier 成功后才提交暂存 receipt；任何提前失败由 guard 原子撤销。
+
+新正控及四叶/邻形负控共3项 ordinary 通过，包含四种模式、SSA/LLVM parity、
+原 verifier 恰一次及仅观察开启产生 receipt。旧 branch 6项、aux 3项、binding
+1项和 frontend 9项回归通过。新增 CI-only 身份/不完整计划/发布撤销变异只编译，
+不在本机运行；其中 foreign FunctionId 变异已确认与原 caller 不同，避免无效扰动。
+双向独立代码复审通过。后端 builder 1000→1002 仅两行初始化/终止事件接线，
+经独立非作者审阅记录本片1002行，保留既有1025额度、owner和拆分计划；
+不新增例外、不提高额度或 baseline。
+本片不退休旧见证，不宣称一般逐路径完整；native 全套与远端 CI 未执行。
+双 crate feature all-target strict Clippy、默认 lib no-run（含 CI-only 编译）、
+workspace all-target check、fmt/diff、docs 897 与 Rust尺寸门禁全部通过；
+尺寸统计2487手写文件、36个超1000行，历史债务仍显式报告。
+日志保留既有检查点 nested-receipt-*；本片只本地提交，不推送。
