@@ -43,11 +43,7 @@ impl UnitOwnerReplaceBreakConsumerV1 {
             return false;
         };
         let source = boundary.statement.source_unit();
-        self.incoming
-            == [
-                boundary.condition_false.clone(),
-                boundary.post_break.clone(),
-            ]
+        self.incoming == [boundary.condition_false.clone(), boundary.installed.clone()]
             && self.initializer == initializer
             && self.statement == statement
             && self.retired == retired

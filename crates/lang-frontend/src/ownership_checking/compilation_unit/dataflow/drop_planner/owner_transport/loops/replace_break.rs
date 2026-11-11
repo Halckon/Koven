@@ -1,12 +1,15 @@
-//! Read-only actual P -> Q replacement and Break witnesses; no loop-state merge.
+//! Shared actual P -> Q prefix for live Break and delivered Return endpoints.
+mod returning;
 use super::*;
 use crate::ownership_checking::{
-    UnitOwnerProducerCatalogV1, UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
+    UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerProducerCatalogV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
 };
 use crate::parser::{BinaryOperator, LiteralKind, PrefixOperator};
 use crate::source::Span;
 
-pub(super) struct ReplaceBreakInput {
+pub(super) struct OpenLoopInput {
+    returning: Option<returning::ReturnInput>,
     pub(super) consumer_target:
         crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix,
     pub(super) statement: StatementId,
@@ -151,7 +154,7 @@ fn boolean_condition_parameter(
         }
     }
 }
-impl ReplaceBreakInput {
+impl OpenLoopInput {
     pub(super) fn admit(
         checker: &Checker<'_>,
         elements: &[StatementId],
@@ -236,13 +239,20 @@ impl ReplaceBreakInput {
         else {
             return None;
         };
-        if !matches!(
-            ast.expressions().get(*jump).ok()?.payload(),
-            Expression::Break { .. }
-        ) || !exact_type(checker, *jump, BuiltinType::Nothing)
-        {
+        if !exact_type(checker, *jump, BuiltinType::Nothing) {
             return None;
         }
+        let returning = match ast.expressions().get(*jump).ok()?.payload() {
+            Expression::Break { .. } => None,
+            Expression::Return { .. } => Some(returning::ReturnInput::admit(
+                checker,
+                *tail,
+                *condition,
+                root,
+                &consumer_target,
+            )?),
+            _ => return None,
+        };
         let call_node = ast.expressions().get(call).ok()?;
         let Expression::Call {
             callee,
@@ -297,6 +307,7 @@ impl ReplaceBreakInput {
             return None;
         }
         Some(Self {
+            returning,
             consumer_target,
             statement: *statement,
             condition: *condition,
@@ -420,47 +431,43 @@ impl ReplaceBreakInput {
         true
     }
     pub(super) fn complete_body(&mut self, state: &ValueState) -> bool {
+        if let Some(returning) = &mut self.returning {
+            return returning.complete_body(state);
+        }
         let Some((identity, _, _)) = &self.transfer else {
             return false;
         };
         self.body_completion = self.output(identity, state);
         self.body_completion.is_some()
     }
-    // Reached only after the exact active Break witness and actual Ok(false) were checked.
-    pub(super) fn finish(
+    pub(super) fn is_returning(&self) -> bool {
+        self.returning.is_some()
+    }
+
+    // Both variants consume exactly the same captured prefix and raw body definitions.
+    fn take_prefix(
         &mut self,
         body: UnitOwnerObservation,
         state: &ValueState,
-    ) -> Option<UnitOwnerReplaceBreakObservationV1> {
+        installed: UnitOwnerReplaceBreakStateV1,
+    ) -> Option<UnitOwnerOpenLoopPrefixV1> {
         let condition_false = self.input(state)?;
         if body.status != UnitOwnerObservationStatus::Complete {
             return None;
         }
-        // This raw sink contains foreign P. Definitions-only validation belongs to the new
-        // bounded protocol; do not weaken or call the old closed from_legacy factory.
         let producers = UnitOwnerProducerCatalogV1 {
             identity: body.identity,
             callable: body.callable,
             definitions: body.definitions,
         };
         let prefix = self.prefix.take()?;
-        let (completed_identity, completed_jump, post_break) = self.transfer.take()?;
         let source = self.initial.source_unit();
-        let statement = UnitStatementId::new(source, self.statement);
-        let condition = UnitExpressionId::new(source, self.condition);
-        let body_statement = UnitStatementId::new(source, self.body);
-        let value = UnitOwnerReplaceBreakObservationV1 {
-            suffix: self.consumer_target.clone(),
-            consumer: None,
-            call_consumer: None,
-            return_consumer: None,
+        let value = UnitOwnerOpenLoopPrefixV1 {
             identity: prefix.identity,
             callable: prefix.callable,
-            completed_identity,
-            completed_jump,
-            statement,
-            condition,
-            body: body_statement,
+            statement: UnitStatementId::new(source, self.statement),
+            condition: UnitExpressionId::new(source, self.condition),
+            body: UnitStatementId::new(source, self.body),
             jump: self.jump,
             call: self.call,
             call_origin: self.call_origin,
@@ -473,11 +480,44 @@ impl ReplaceBreakInput {
             prefix: prefix.events,
             events: body.events,
             entry: self.entry.take()?,
-            post_break,
-            body_completion: self.body_completion.take()?,
+            installed,
             condition_false,
-            edges: LoopBodyCompletion::Break(self.jump).edges(statement, condition, body_statement),
         };
-        value.is_consistent().then_some(value)
+        value.prefix_is_consistent().then_some(value)
+    }
+
+    // Reached only after the actual body result and its terminal witness agree.
+    pub(super) fn finish(
+        &mut self,
+        body: UnitOwnerObservation,
+        state: &ValueState,
+    ) -> Option<UnitOwnerOpenLoopObservationV1> {
+        if let Some(returning) = &self.returning {
+            let installed = returning.body_snapshot()?;
+            let prefix = self.take_prefix(body, state, installed)?;
+            self.returning.as_mut()?.save_prefix(prefix);
+            return None;
+        }
+        let (completed_identity, completed_jump, installed) = self.transfer.take()?;
+        let prefix = self.take_prefix(body, state, installed)?;
+        let edges = LoopBodyCompletion::Break(self.jump).edges(
+            prefix.statement,
+            prefix.condition,
+            prefix.body,
+        );
+        let value = UnitOwnerReplaceBreakObservationV1 {
+            prefix,
+            suffix: self.consumer_target.clone(),
+            consumer: None,
+            call_consumer: None,
+            return_consumer: None,
+            completed_identity,
+            completed_jump,
+            body_completion: self.body_completion.take()?,
+            edges,
+        };
+        value
+            .is_consistent()
+            .then_some(UnitOwnerOpenLoopObservationV1::BreakLive(value))
     }
 }

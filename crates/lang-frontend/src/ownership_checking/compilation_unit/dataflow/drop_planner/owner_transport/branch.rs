@@ -159,6 +159,7 @@ impl DropPlanner<'_, '_> {
             if !result.continues {
                 return Ok(false);
             }
+            self.deliver_open_loop_return(id, value, result.owner.as_ref(), state);
             // Preserve the actual payload carrier before the existing cleanup, not a P projection.
             self.deliver_replace_return_consumer(id, value, result, state)
         } else {
@@ -166,6 +167,7 @@ impl DropPlanner<'_, '_> {
         };
         self.finish_return_iterations(id, state);
         self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
+        self.finish_open_loop_return(id, state);
         if let Some(consumer) = return_consumer
             && let Some(transaction) = &mut self.owner_loop
         {
