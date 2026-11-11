@@ -3,6 +3,7 @@ use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 #[cfg(test)]
 pub(in super::super) use root_tokens::StaticRootPredecessor;
+mod root_exit;
 pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(
     UnitSymbolId,
@@ -12,6 +13,7 @@ pub(super) type RootRetirements = Vec<(
 pub(super) type RootIncoming = Vec<(UnitSymbolId, UnitOwnerId)>;
 pub(super) struct RootEvidence {
     normal_equation: Option<root_tokens::RootBoundaryEquation>,
+    exit_drops: Option<Vec<crate::ownership_checking::UnitDropFact>>,
     pub(super) entry_catalog: Option<UnitOwnerProducerCatalogV1>,
     pub(super) token_transaction: Option<root_tokens::RootTokenTransaction>,
     pub(super) roots: RootIncoming,
@@ -30,6 +32,7 @@ impl RootEvidence {
     pub(super) fn fault_fixture(roots: RootIncoming, writes: Vec<RootWriteReceipt>) -> Self {
         Self {
             normal_equation: None,
+            exit_drops: None,
             entry_catalog: None,
             token_transaction: None,
             roots,
@@ -52,11 +55,12 @@ impl ControlTransactions {
         if self.root_branches_invalid || self.root_entries.len() != 1 {
             return None;
         }
-        self.root_entries[0]
-            .1
-            .normal_equation
-            .take()?
-            .into_boundary()
+        let evidence = &mut self.root_entries[0].1;
+        let boundary = evidence.normal_equation.take()?.into_boundary()?;
+        match evidence.exit_drops.take() {
+            Some(drops) => boundary.with_condition_false_drops(drops),
+            None => Some(boundary),
+        }
     }
 
     pub(in super::super::super) fn invalidate_root_preservation(&mut self) {
@@ -66,6 +70,7 @@ impl ControlTransactions {
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
             evidence.normal_equation = None;
+            evidence.exit_drops = None;
         }
     }
 
@@ -124,6 +129,7 @@ impl ControlTransactions {
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
             evidence.normal_equation = None;
+            evidence.exit_drops = None;
         }
     }
     // Called at the actual planner body-entry edge, not reconstructed from the AST.
@@ -161,6 +167,7 @@ impl ControlTransactions {
             evidence.normal_write_vector = None;
             evidence.normal_retirements = None;
             evidence.normal_equation = None;
+            evidence.exit_drops = None;
             evidence.normal_backedge = normal
                 && evidence.after_condition
                 && !evidence.tainted
@@ -235,6 +242,7 @@ impl ControlTransactions {
             control,
             RootEvidence {
                 normal_equation: None,
+                exit_drops: None,
                 entry_catalog,
                 token_transaction: None,
                 roots,

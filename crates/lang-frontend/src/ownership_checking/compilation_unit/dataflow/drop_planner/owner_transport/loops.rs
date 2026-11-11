@@ -871,7 +871,7 @@ impl DropPlanner<'_, '_> {
         if self.checker.non_fallthrough_whiles.contains(&id.index()) {
             return Ok(false);
         }
-        self.drop_loop_exit(id, state);
+        self.drop_root_loop_exit(id, condition, state);
         if collecting
             && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())
             && let Some((collected, _)) = replacement_body.take()

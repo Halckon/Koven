@@ -666,3 +666,13 @@ fn static_header_alternatives_reject_another_real_control() {
         }
     });
 }
+
+#[test]
+fn actual_all_root_exit_keeps_legacy_planner_output() {
+    let fixture = Fixture::new(&[(
+        "root-exit-legacy.ko",
+        "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") } }",
+    )]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |_| {});
+}

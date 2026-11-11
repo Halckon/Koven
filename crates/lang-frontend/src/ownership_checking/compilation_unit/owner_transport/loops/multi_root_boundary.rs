@@ -50,6 +50,7 @@ pub struct UnitOwnerMultiRootBoundaryV1 {
     slots: Vec<UnitOwnerRootBoundarySlotV1>,
     manifest: BoundaryManifest,
     normal_transport: Option<UnitOwnerMultiRootNormalTransportV1>,
+    exit_drops: Option<Vec<UnitDropFact>>,
 }
 // Original evidence map is private to this module, independent from exposed slot clones.
 #[derive(Clone, Debug)]
@@ -64,6 +65,7 @@ struct BoundaryManifest {
     inputs: Vec<crate::ownership_checking::UnitOwnerDefinition>,
     producers: Vec<crate::ownership_checking::UnitOwnerDefinition>,
     normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
+    exit_drops: Option<Vec<UnitDropFact>>,
 }
 impl UnitOwnerMultiRootBoundaryV1 {
     // Trusted factory: only the validated planner RootBoundaryEquation calls this.
@@ -83,6 +85,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             inputs: inputs.definitions().to_vec(),
             producers: producers.definitions().to_vec(),
             normal_steps: None,
+            exit_drops: None,
         };
         let value = Self {
             control,
@@ -94,6 +97,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
             slots,
             manifest,
             normal_transport: None,
+            exit_drops: None,
         };
         value.is_consistent().then_some(value)
     }
@@ -108,6 +112,37 @@ impl UnitOwnerMultiRootBoundaryV1 {
         self.manifest.normal_steps = Some(actual_steps);
         self.normal_transport = Some(rule);
         self.is_consistent().then_some(self)
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn with_condition_false_drops(
+        mut self,
+        drops: Vec<UnitDropFact>,
+    ) -> Option<Self> {
+        if self.exit_drops.is_some() {
+            return None;
+        }
+        self.manifest.exit_drops = Some(drops.clone());
+        self.exit_drops = Some(drops);
+        self.is_consistent().then_some(self)
+    }
+    pub(super) fn condition_false_drops(&self) -> Option<&[UnitDropFact]> {
+        self.exit_drops.as_deref()
+    }
+    fn valid_exit_drops(&self) -> bool {
+        self.exit_drops == self.manifest.exit_drops
+            && self.exit_drops.as_ref().is_none_or(|drops| {
+                self.normal_transport.is_some()
+                    && drops.len() == self.slots.len()
+                    && self.slots.iter().all(|slot| {
+                        drops
+                            .iter()
+                            .filter(|fact| {
+                                fact.target() == UnitDropTarget::Named(slot.root)
+                                    && fact.point() == UnitDropPoint::LoopExit(self.control)
+                            })
+                            .count()
+                            == 1
+                    })
+            })
     }
     pub(super) fn normal_transport(&self) -> Option<&UnitOwnerMultiRootNormalTransportV1> {
         self.normal_transport.as_ref()
@@ -172,7 +207,7 @@ impl UnitOwnerMultiRootBoundaryV1 {
     /// Structural/catalog verification, not an induction or runtime trace validator.
     pub fn is_consistent(&self) -> bool {
         let source = self.control.source_unit();
-        self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
+        self.valid_exit_drops() && self.matches_normal_transport() && self.manifest.sites == (self.control, self.condition, self.body, self.guard)
             && self.manifest.slots == self.slots
             && self.manifest.inputs == self.inputs.definitions()
             && self.manifest.producers == self.producers.definitions()
@@ -347,5 +382,32 @@ mod tests {
             super::super::super::publish_observations(vec![observation.clone()], false, true)
                 .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod exit_fault_tests {
+    use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+    #[test]
+    fn ci_only_false_exit_rejects_missing_repeated_or_reordered_cleanup() {
+        let fixture = Fixture::new(&[(
+            "exit-fault.ko",
+            "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") } }",
+        )]);
+        let owned = fixture.shared();
+        let boundary = owned.owner_observations()[0]
+            .multi_root_boundary_v1()
+            .unwrap();
+        assert!(boundary.exit_drops.is_some());
+        let mut missing = boundary.clone();
+        missing.exit_drops.as_mut().unwrap().pop();
+        assert!(!missing.is_consistent());
+        let mut repeated = boundary.clone();
+        let drops = repeated.exit_drops.as_mut().unwrap();
+        drops[1] = drops[0];
+        assert!(!repeated.is_consistent());
+        let mut reordered = boundary.clone();
+        reordered.exit_drops.as_mut().unwrap().reverse();
+        assert!(!reordered.is_consistent());
     }
 }

@@ -185,3 +185,10 @@ CFG证明，唯一typed事务来源必须保留。真实逆序root矩阵验证�
 入口使用原输入定义，回边使用 body 输出定义；拒绝逐根混合两条边、缺根、重排、别名及
 跨 analysis/control 输入。这是生产形式消费规则的代入，不生成运行时实例，也不把回边
 定义当作永不变化的对象。尚不证明 header 边可达性、false 退出消费或生成实际 LLVM phi。
+
+受限的全根死亡 false 出口现接入真实 `drop_loop_exit` 后的新事实窗口；仅在正常 body
+已封闭、条件有 false 分支、退出资源状态为空且每根恰有一次本 control 的 LoopExit drop
+时附接消费规则。`condition_false_header_retirements` 把同一完整入口或回边来源代入
+实际出口 drop 顺序，不再只处理 body 内返回旧值。保留任一根给后缀时不发布本规则。
+这是纯 Name 条件、无额外 body 语句的参数化 false 出口；不改旧 owner 状态/门禁，
+不包括 Break/Return/Abort、live-root 合流或 LLVM phi，不宣称已生成动态执行记录。
