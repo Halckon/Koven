@@ -27,6 +27,18 @@ fn ordinary_loop_local_borrow_requires_iteration_instance_proof() {
             "while (flag) { borrow val item = view(source); observe(item); break }",
         ),
         (
+            "return",
+            "while (flag) { borrow val item = view(source); observe(item); return }",
+        ),
+        (
+            "zero-iteration",
+            "while (false) { borrow val item = view(source); observe(item) }",
+        ),
+        (
+            "nested",
+            "while (flag) { while (flag) { borrow val item = view(source); observe(item); break }; break }",
+        ),
+        (
             "body-owner",
             "while (flag) { val local = \"local\"; borrow val item = view(local); observe(item) }",
         ),

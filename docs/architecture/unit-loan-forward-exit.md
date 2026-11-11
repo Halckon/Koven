@@ -107,3 +107,10 @@ BindingEnd关闭的集合token经独立cause匹配完整removed source快照及�
 末A才Drop aux。完整FE区间/集合/退休、typed/sourcePlan及两raw Drop独立准入，
 两owner入口冻结，append/alias逐项核验，原verifier后原子发布；旧见证保留。见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#多b完整区域的真实动态后端收据实施中)。
+
+循环边界实测区分三层：循环内`borrow val`七形状（含立即break、return、false、
+嵌套）typed成功但ownership L0164；循环外binding在while使用等五邻界已通过
+ownership，却在CG为UnsupportedNode、原verifier未运行。循环内临时borrow call
+也被ownership拒绝；普通`consume(source)`循环则有真实SSA/LLVM与verifier成功。
+这些是现边界，不代表动态借用证明完成。见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#循环借用l0164的合同与安全邻界研究实施中)。

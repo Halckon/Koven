@@ -14735,3 +14735,40 @@ SSA/LLVM等价核验；B9/A9仍合法旧执行但不获新receipt。独立复审
 文档897项通过。尺寸2601手写Rust文件/36历史超1000，唯一旧1684>1674失败保留；
 原文件/policy零改。build1014→1015仅Plans创建，经非作者review仍≤1025，emit987
 不增长；新模块与普通研究测试均<1000。无native全套或远端CI，本地提交未推送。
+
+#### 循环借用L0164的合同与安全邻界研究（实施中）
+
+基于e941a483，循环仍只研究，不修改Guide、两套checker准入或receipt gate。
+Guide10普通借用结果节将L0164定义为缺少origin/终止证明的实现边界，并非永久
+禁止循环；双轨析构节同时要求backedge保外层owner，owner liveness不能代替loan
+证明。现两套borrow_binding::check_borrow_binding按While/For/Loop词法span包含
+borrow marker统一拒绝，未区分每轮关闭与跨轮存活；不能直接移除守卫。
+
+建议后续单独审阅实现合同：先限定外部稳定Shared来源、单层while、每轮局部binding
+及同步消费，无逃逸/别名/跨轮携带。header须无当轮token；实际acquisition绑定当前
+loop frame；normal/continue/break/return逐边消耗当轮result/子loan/source lease，
+保留外层source。回边归纳恢复无当轮义务状态，不以一次静态Begin/End冒充任意
+运行次数；后端独立核实际CFG/逐边End与身份。准入证明必须属于核心ownership，
+observer-off也成立，不借可关闭观察器放行语法。这个no-carry方案不新增语言语义，
+但本轮未授权启用实现；条件借用/from并集等仍需另行语言决定，不混入此片。
+
+已有真实binding/transport移除和退出scope cleanup可作观察点，尚不能单独证明
+循环归纳闭合。被拒源码不能伪装成有效后端输入或发布实际动态生命周期证书。
+本轮无可安全退休的同合同旧见证：直线A/B与有界无环树证据都不包含此回边合同，
+旧路径还承担observer-off与其他未覆盖形式。
+
+新增普通实证：循环内绑定原四类加return、while(false)、嵌套，共七形状×双入口×
+on/off=28组合，typed均成功，ownership精确L0164指向borrow，无binding/transport
+且不能形成有效SSA输入。本组false源码也实际被拒，未用静态不可达假设代替结果。
+
+后端邻界七形状另28组合：循环外binding的break/continue/return/false，以及binding
+词法结束后普通loop五类均ownership成功，但CG精确UnsupportedNode、原final
+verifier零次；其中return指向return，其余指向while节点。循环内临时view(source)
+在ownership L0164指向该调用。普通consume(source) while-break为真实正控：
+SSA多块、1 DirectCall/0 BorrowCall，原verifier一次，SSA/LLVM on/off完整文本一致。
+因此只删除borrow-val的L0164远不足以形成完整前后端支持。两项普通测试通过，日志
+loop-expanded-fe-research与loop-neighbor-cg-research；没有生产代码或Guide变更。
+
+独立复审通过两项研究的阶段与精确span/onoff断言，Clippy -D warnings、fmt/diff及
+文档897项通过。本片仅测试/记录，不重跑无关native全套或新增CI-only执行；旧尺寸
+阻塞与policy不变。本地提交不推送，后续按用户新授权独立处理自然职责拆分。
