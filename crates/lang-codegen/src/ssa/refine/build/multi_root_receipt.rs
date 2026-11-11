@@ -113,6 +113,7 @@ impl Builder<'_, '_> {
         blocks: [BlockRef; 4],
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.counter_tail_while(statement, condition, body, blocks)?;
         let Some(plan) = &mut self.multi_root_plan else {
             return Ok(());
         };
@@ -461,7 +462,7 @@ impl Builder<'_, '_> {
         owner_consumer_test_support::record_action("multi-root-header-audit", plan.roots.len());
         Ok(())
     }
-    fn multi_root_definitions(&self, slot: Slot) -> usize {
+    pub(super) fn multi_root_definitions(&self, slot: Slot) -> usize {
         self.body
             .blocks
             .iter()
@@ -469,7 +470,7 @@ impl Builder<'_, '_> {
             .filter(|s| s.results.contains(&slot))
             .count()
     }
-    fn multi_root_literal(
+    pub(super) fn multi_root_literal(
         &self,
         origin: UnitOwnerOrigin,
         block: BlockRef,
@@ -499,7 +500,7 @@ impl Builder<'_, '_> {
         }
         Ok(*slot)
     }
-    fn multi_root_drop(
+    pub(super) fn multi_root_drop(
         &self,
         fact: UnitDropFact,
         block: BlockRef,

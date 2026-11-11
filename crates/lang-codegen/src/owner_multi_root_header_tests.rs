@@ -713,6 +713,22 @@ fn multi_root_counter_tail_preserves_existing_lowering_without_new_authority() {
                 assert_eq!(
                     actions
                         .iter()
+                        .filter(|(kind, _)| *kind == "counter-tail-owner-audit")
+                        .count(),
+                    usize::from(named_guard),
+                    "{text}"
+                );
+                assert_eq!(
+                    source
+                        .ownership()
+                        .owner_observations()
+                        .iter()
+                        .any(|o| o.counter_tail_evidence_v1().is_some()),
+                    named_guard
+                );
+                assert_eq!(
+                    actions
+                        .iter()
                         .filter(|(kind, _)| *kind == "checked-expression-edge-receipt")
                         .count(),
                     1,
@@ -791,4 +807,88 @@ fn checked_expression_receipts_do_not_need_header_authority() {
             .all(|(kind, _)| *kind != "multi-root-header-audit")
     );
     super::assert_native_output(&source, b"ok\n");
+}
+
+#[test]
+fn counter_tail_audit_allows_scalar_reuse_after_loop() {
+    let text = source(2, true, 0)
+        .replace(
+            "while(flag)",
+            "var remaining = 2; var again = remaining > 0; while(again)",
+        )
+        .replace(
+            " };",
+            " remaining = remaining - 1; again = remaining > 0; }; remaining = 7; again = false;",
+        );
+    let source = UnitSource::analyze("counter-reuse.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "counter-tail-owner-audit")
+            .count(),
+        1
+    );
+    super::assert_native_output(&source, b"");
+}
+
+#[test]
+fn ci_only_counter_tail_requires_writeback_comparison_and_success_backedge() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let text = source(2, true, 0)
+        .replace(
+            "while(flag)",
+            "var remaining = 2; var again = remaining > 0; while(again)",
+        )
+        .replace(
+            " };",
+            " remaining = remaining - 1; again = remaining > 0; };",
+        );
+    let source = UnitSource::analyze("counter-tail-fault.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::CounterTailWrongBackedge,
+        OwnerFault::CounterTailWrongCounterWrite,
+        OwnerFault::CounterTailWrongGuardWrite,
+        OwnerFault::CounterTailStaleComparison,
+    ] {
+        assert!(with_owner_fault(fault, || source.lower_entry(source.entry())).is_err());
+    }
+}
+
+#[test]
+fn counter_tail_inout_parameter_keeps_existing_lowering_without_new_audit() {
+    let text = source(2, true, 0)
+        .replace("flag: Boolean", "inout remaining: Int")
+        .replace("while(flag)", "var again = remaining > 0; while(again)")
+        .replace(
+            " };",
+            " remaining = remaining - 1; again = remaining > 0; };",
+        )
+        .replace("run(false)", "var n = 2; run(&n)");
+    let source = UnitSource::analyze("counter-inout-fallback.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    assert!(
+        source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .all(|o| o.counter_tail_evidence_v1().is_none())
+    );
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| *kind != "counter-tail-owner-audit")
+    );
+    super::assert_native_output(&source, b"");
 }

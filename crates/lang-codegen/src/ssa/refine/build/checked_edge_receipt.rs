@@ -5,11 +5,11 @@ use super::*;
 use crate::ssa::model::CheckedArithmeticOperator;
 
 pub(super) struct Receipt {
-    expression: UnitExpressionId,
-    operator: CheckedArithmeticOperator,
-    blocks: [BlockRef; 3],
-    values: [Slot; 4],
-    instruction: usize,
+    pub(super) expression: UnitExpressionId,
+    pub(super) operator: CheckedArithmeticOperator,
+    pub(super) blocks: [BlockRef; 3],
+    pub(super) values: [Slot; 4],
+    pub(super) instruction: usize,
 }
 impl Builder<'_, '_> {
     // Preserve the legacy hook at this same emission point without selecting its plan.

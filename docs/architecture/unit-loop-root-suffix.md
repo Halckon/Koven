@@ -195,6 +195,6 @@ Name、Literal或无插值String，拒绝调用、赋值和其他计算。普通
 独立checked-expression receipt已接到实际算术发射点，结束时复核指令、操作数、结果
 唯一定义、success/abort单前驱及failed分支极性；abort必须仍是匹配的终结Abort。
 它不创建旧单根plan，不授owner权限，也不把abort计作正常回边。计数native矩阵要求
-真实receipt完成；counter写回→比较→guard及success回header的owner专用合同仍未接入。
+真实receipt完成；counter写回→比较→guard及success回header审计见[计数尾部](unit-loop-counter-audit.md)。
 缺receipt、错操作数、反转边的CI-only负控只编译；该receipt不是终止或跨轮证明。
 范围仅为expression.rs的checked binary，不覆盖compound assignment及scalar_text的其他算术发射。
