@@ -28,6 +28,30 @@ impl DropPlanner<'_, '_> {
         if !type_parameters.is_empty() || extension_receiver.is_some() {
             return None;
         }
+        // The broader Partial projection intentionally preserves its first-match policy.
+        // Complete instead requires the original checker collections to be unambiguous.
+        let mut sources = self
+            .checker
+            .borrow_results
+            .forwarded_source_loans()
+            .iter()
+            .filter(|source| source.call() == scope.body);
+        let source = sources.next()?;
+        if sources.next().is_some() || source.argument() != scope.argument {
+            return None;
+        }
+        let mut origins = self
+            .checker
+            .borrow_return_origins
+            .iter()
+            .filter(|origin| origin.expression() == scope.body);
+        let origin = origins.next()?;
+        if origins.next().is_some()
+            || !matches!(origin.origin(), crate::ownership_checking::UnitLoanTarget::Place(place)
+                if place.is_root() && place.root() == scope.root)
+        {
+            return None;
+        }
         let symbol = *self.checker.marker_symbol(*name)?;
         let signatures = self.checker.typed.signatures();
         let wrapper = signatures
