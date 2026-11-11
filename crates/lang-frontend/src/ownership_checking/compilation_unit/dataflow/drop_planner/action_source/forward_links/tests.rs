@@ -36,6 +36,7 @@ fn ci_only_invalid_forward_identity_never_grants_either_causal_getter() {
         panic!("parameter root")
     };
     let scope = ForwardScope {
+        region: None,
         callable: UnitItemId::new(wrap.source_unit(), wrap.root()),
         body: loan.call(),
         argument: loan.argument(),

@@ -27,6 +27,7 @@ fn ci_only_forward_merge_preserves_old_equality_and_only_loses_cause() {
         panic!("parameter")
     };
     let scope = ForwardScope {
+        region: None,
         callable: UnitItemId::new(wrap.source_unit(), wrap.root()),
         body: source.call(),
         argument: source.argument(),

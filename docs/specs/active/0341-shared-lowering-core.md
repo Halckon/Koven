@@ -12452,3 +12452,16 @@ route、entry loan→BorrowCall→BorrowReturn、caller原SSA及verifier/LLVM一
 未接producer前只期待缺新region的真实能力红，不重跑旧probe冒充红。fresh源码/helper及
 artifact/input/binary/runner独审后只执行该exact；红binary覆盖前独核。所有foreign/fault/
 Abort/counter/pressure/CI-only仅编译，不本机执行；后继生产须真实红及方案独审成立。
+
+
+#### 独立LiveForward缺覆盖红实证
+
+冻结d72c422b经fresh源码/完整helper/API及实际artifact/input/binary/runner独审，唯一
+ordinary exact实际0 passed、1 failed、2960 filtered、exit101，在测试112行独立region
+数量0≠1失败。Rooted/Memory四次真实on/off原Partial链、原样SSA、verifier及LLVM1389bytes
+均先完成，实际routes四次均view/wrap/run；新区域Complete及字段后置尚未执行。
+CG lib no-run外层170.41s/Cargo2m50s，原target/jobs2/LLVM21、opt0/debug2/test、仅support。
+4271输入SHA `4fd5f027390dd7d7ec258ebbc5afea017be5476d8cb2c68e7727af2c3e7b931f`，
+实际CG SHA `943d6287a7c84c9207d0fd6efccbe339c4f9e12243ea686743b7df298ffec3cc`。
+原件保留在 `/private/tmp/koven-forward-exit-coverage-evidence/red`；执行前后及覆盖前已独核，
+不重跑或覆盖红证据。该阶段仅编译CG test及FE依赖，不声称FE CI-only测试已编译。
