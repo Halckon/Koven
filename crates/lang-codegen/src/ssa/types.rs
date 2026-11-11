@@ -1,8 +1,8 @@
 //! Target-independent named aggregate and heap-owner type construction.
 
 use super::model::{
-    MapContainerKind, ModelError, Module, Ownership, SequentialContainerKind, SsaTypeId,
-    SsaTypeKind,
+    EntityType, FunctionId, LoanKind, MapContainerKind, ModelError, Module, Ownership,
+    SequentialContainerKind, SsaTypeId, SsaTypeKind,
 };
 
 impl Module {
@@ -329,5 +329,124 @@ impl Module {
         self.type_kind(ty)
             .map(|_| ())
             .ok_or(ModelError::UnknownType { ty })
+    }
+
+    /// Interns `T?` for an inline inner type. Pointer-like owners keep `NullableHandle`;
+    /// String and sequential containers use the null data-pointer niche.
+    pub(crate) fn add_inline_nullable_type(
+        &mut self,
+        inner: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(inner)?;
+        let niche = self
+            .type_is_defined(inner)
+            .then(|| inline_nullable_niche(self, inner))
+            .flatten()
+            .ok_or(ModelError::ExpectedInlineNullableInner { ty: inner })?;
+        Ok(self.intern_type(SsaTypeKind::InlineNullable { inner, niche }))
+    }
+
+    /// Returns `(inner, niche)` for an ADR-0033 inline nullable type.
+    pub(crate) fn inline_nullable(&self, ty: SsaTypeId) -> Option<(SsaTypeId, bool)> {
+        match self.type_kind(ty)? {
+            SsaTypeKind::InlineNullable { inner, niche } => Some((*inner, *niche)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn add_integer_range_type(
+        &mut self,
+        endpoint: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(endpoint)?;
+        if !matches!(
+            self.type_kind(endpoint),
+            Some(SsaTypeKind::Integer {
+                bits: 32 | 64,
+                signed: true
+            })
+        ) {
+            return Err(ModelError::ExpectedAggregate { ty: endpoint });
+        }
+        if let Some((&range, _)) = self.integer_ranges.iter().find(|(_, ty)| **ty == endpoint) {
+            return Ok(range);
+        }
+        let empty = self.intern_type(SsaTypeKind::Boolean);
+        let range = self.add_aggregate_type(
+            format!("$integer.range.t{}", endpoint.index()),
+            vec![endpoint, endpoint, empty],
+        )?;
+        self.integer_ranges.insert(range, endpoint);
+        Ok(range)
+    }
+
+    pub(crate) fn integer_range_endpoint(&self, range: SsaTypeId) -> Option<SsaTypeId> {
+        self.integer_ranges.get(&range).copied()
+    }
+
+    pub(super) fn valid_integer_range_type(&self, range: SsaTypeId, endpoint: SsaTypeId) -> bool {
+        let Some([first, last, empty]) = self.aggregate_fields(range) else {
+            return false;
+        };
+        matches!(
+            self.type_kind(endpoint),
+            Some(SsaTypeKind::Integer {
+                bits: 32 | 64,
+                signed: true
+            })
+        ) && *first == endpoint
+            && *last == endpoint
+            && matches!(self.type_kind(*empty), Some(SsaTypeKind::Boolean))
+            && self.type_ownership(range) == Some(Ownership::Copyable)
+    }
+
+    /// Associate a compiler-only body; callers cannot turn this into an ordinary owned call.
+    pub(crate) fn set_deinit(
+        &mut self,
+        owner: SsaTypeId,
+        function: FunctionId,
+    ) -> Result<(), ModelError> {
+        if !valid_deinit_signature(self, owner, function) {
+            return Err(ModelError::InvalidDeinit { owner, function });
+        }
+        if self.deinits.contains_key(&owner) {
+            return Err(ModelError::DeinitAlreadyDefined { owner });
+        }
+        self.deinits.insert(owner, function);
+        Ok(())
+    }
+
+    pub(crate) fn deinit(&self, owner: SsaTypeId) -> Option<FunctionId> {
+        self.deinits.get(&owner).copied()
+    }
+}
+
+pub(super) fn valid_deinit_signature(
+    module: &Module,
+    owner: SsaTypeId,
+    function: FunctionId,
+) -> bool {
+    matches!(module.type_kind(owner), Some(SsaTypeKind::HeapOwner { .. }))
+        && module.function(function).is_some_and(|function| {
+            function.receiver
+                == Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: owner,
+                })
+                && function.return_types.is_empty()
+                && !function.never_returns
+        })
+}
+
+/// `Some(niche)` when `inner` may carry an inline nullable wrapper, `None` otherwise.
+pub(super) fn inline_nullable_niche(module: &Module, inner: SsaTypeId) -> Option<bool> {
+    match module.type_kind(inner)? {
+        SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. } => Some(false),
+        SsaTypeKind::Aggregate { .. } if module.presence_payload_type(inner).is_none() => {
+            Some(false)
+        }
+        SsaTypeKind::TaggedUnion { .. } => Some(false),
+        SsaTypeKind::StringOwner | SsaTypeKind::SequentialContainer { .. } => Some(true),
+        _ => None,
     }
 }

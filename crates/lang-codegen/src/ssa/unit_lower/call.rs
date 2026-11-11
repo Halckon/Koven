@@ -82,7 +82,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(receiver) =
-            crate::ssa::unit_source_query::non_completing_call_receiver(self.typed, call)
+            crate::ssa::lowering_support::non_completing_call_receiver(self.typed, call)
         {
             if receiver.source_unit() != self.source_unit {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));

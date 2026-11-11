@@ -300,47 +300,27 @@ pub(in crate::ssa) fn route(inputs: &RefineInputs<'_>) -> CallableRoute {
         return CallableRoute::Compatibility;
     }
     #[cfg(test)]
-    if let PerFamilyOverride::Forced { except } = PER_FAMILY_OVERRIDE.with(std::cell::Cell::get)
-        && except.is_none_or(|span| inputs.scope_span() != Some(span))
-    {
+    if PER_FAMILY_OVERRIDE.with(std::cell::Cell::get) {
         return CallableRoute::ForcedPerFamily;
     }
     CallableRoute::Refine
 }
 
 #[cfg(test)]
-#[derive(Clone, Copy)]
-enum PerFamilyOverride {
-    Disabled,
-    Forced { except: Option<Span> },
-}
-
-#[cfg(test)]
 thread_local! {
-    static PER_FAMILY_OVERRIDE: std::cell::Cell<PerFamilyOverride> =
-        const { std::cell::Cell::new(PerFamilyOverride::Disabled) };
+    static PER_FAMILY_OVERRIDE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Test-only: pin the per-family path to observe or fault-inject its private guards.
 #[cfg(test)]
 pub(crate) fn with_per_family_lowering<T>(lower: impl FnOnce() -> T) -> T {
-    with_per_family_lowering_except(None, lower)
-}
-
-/// A fixture producer may retain normal routing while its consumers are pinned.
-#[cfg(test)]
-pub(in crate::ssa) fn with_per_family_lowering_except<T>(
-    except: Option<Span>,
-    lower: impl FnOnce() -> T,
-) -> T {
-    struct Reset(PerFamilyOverride);
+    struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
             PER_FAMILY_OVERRIDE.with(|state| state.set(self.0));
         }
     }
-    let previous =
-        PER_FAMILY_OVERRIDE.with(|state| state.replace(PerFamilyOverride::Forced { except }));
+    let previous = PER_FAMILY_OVERRIDE.with(|state| state.replace(true));
     let _reset = Reset(previous);
     lower()
 }

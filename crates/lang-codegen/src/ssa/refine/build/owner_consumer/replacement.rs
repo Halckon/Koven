@@ -1,4 +1,5 @@
 //! The existing RootReplace and Drop emitters establish distinct installed/old slots.
+use super::super::ROp;
 #[cfg(test)]
 use super::super::owner_consumer_test_support::{OwnerFault, take_fault};
 use super::*;
@@ -270,6 +271,200 @@ impl Builder<'_, '_> {
         if take_fault(OwnerFault::DuplicateReturnReplaceDropReceipt) {
             return self.return_replace_drop_emitted(receipt, span);
         }
+        Ok(())
+    }
+}
+
+impl Builder<'_, '_> {
+    pub(in super::super) fn owner_unit_call(
+        &mut self,
+        call: UnitExpressionId,
+        op: ROp,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        #[cfg(test)]
+        let op = {
+            use super::super::owner_consumer_test_support::{OwnerFault, take_fault};
+            let mut op = op;
+            if self
+                .owner_plan
+                .as_ref()
+                .is_some_and(|p| p.call.is_some_and(|c| c.0 == call))
+            {
+                if take_fault(OwnerFault::MissingOwnCall) {
+                    return Ok(());
+                }
+                if take_fault(OwnerFault::WrongOwnCallSlot)
+                    && let ROp::DirectCall { arguments, .. } = &mut op
+                {
+                    let index = self
+                        .owner_plan
+                        .as_ref()
+                        .and_then(|p| p.call_layout)
+                        .map_or(0, |p| p.0);
+                    arguments[index] = Slot(usize::MAX);
+                }
+            }
+            op
+        };
+        let receipt = if let Some(plan) = self
+            .owner_plan
+            .as_ref()
+            .filter(|p| p.call.is_some_and(|c| c.0 == call))
+        {
+            let ROp::DirectCall {
+                callee,
+                receiver: None,
+                arguments,
+            } = &op
+            else {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            };
+            let selected = plan
+                .root_slot
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let (parameter_index, arity) = plan
+                .call_layout
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if plan.call != Some((call, *callee))
+                || plan.stage != 1
+                || arguments.len() != arity
+                || arguments.get(parameter_index) != Some(&selected)
+                || arguments.iter().filter(|slot| **slot == selected).count() != 1
+                || !self.dead.contains(&plan.root)
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            Some(selected)
+        } else {
+            None
+        };
+        #[cfg(test)]
+        let actual = match &op {
+            ROp::DirectCall {
+                callee, arguments, ..
+            } => Some((*callee, arguments.clone())),
+            _ => None,
+        };
+        #[cfg(test)]
+        let replay = op.clone();
+        self.push(op, Vec::new(), span)?;
+        if receipt.is_some() {
+            let plan = self
+                .owner_plan
+                .as_mut()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            plan.stage = 3;
+            #[cfg(test)]
+            if super::super::owner_consumer_test_support::take_fault(
+                super::super::owner_consumer_test_support::OwnerFault::DuplicateOwnCall,
+            ) {
+                return self.owner_unit_call(call, replay, span);
+            }
+        }
+        #[cfg(test)]
+        if let Some((callee, arguments)) = actual {
+            super::super::super::record_owner_call(call, callee, &arguments, receipt.map(|s| s.0));
+        }
+        Ok(())
+    }
+}
+
+impl Builder<'_, '_> {
+    pub(in super::super) fn owner_return(
+        &mut self,
+        expression: ExpressionId,
+        result: Option<Slot>,
+        unit_return: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let identity = self.unit(expression);
+        #[cfg(test)]
+        let result = {
+            use super::super::owner_consumer_test_support::{OwnerFault, take_fault};
+            if self
+                .owner_plan
+                .as_ref()
+                .is_some_and(|p| p.return_expression == Some(identity))
+            {
+                if take_fault(OwnerFault::MissingOwnerReturn) {
+                    return Ok(());
+                }
+                if take_fault(OwnerFault::WrongReturnPayload) {
+                    Some(Slot(usize::MAX))
+                } else {
+                    result
+                }
+            } else {
+                result
+            }
+        };
+        let receipt = if let Some(plan) = self
+            .owner_plan
+            .as_ref()
+            .filter(|p| p.return_expression == Some(identity))
+        {
+            let (selected, required_stage) = if let Some(replacement) = &plan.return_replacement {
+                if !self.consumed_drops.contains(&replacement.drop_index) {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                (replacement.old, 9)
+            } else if let Some(binding) = &plan.return_binding {
+                if !self.dead.contains(&binding.symbol) {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                (binding.slot, 4)
+            } else {
+                (plan.root_slot, 1)
+            };
+            let selected = selected.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if unit_return
+                || plan.stage != required_stage
+                || result != Some(selected)
+                || !self.dead.contains(&plan.root)
+                || self.inputs.borrow_return.is_some()
+                || self.inputs.carrier_return.is_some()
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            Some(selected)
+        } else {
+            None
+        };
+        let endpoint = self.open_loop_return(identity, result, unit_return, span)?;
+        let header = self.header_return(identity, result, unit_return, span)?;
+        if [endpoint.is_some(), receipt.is_some(), header.is_some()]
+            .into_iter()
+            .filter(|v| *v)
+            .count()
+            > 1
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        self.finish_return(result, unit_return, span)?;
+        self.open_loop_return_emitted(endpoint, span)?;
+        self.header_return_emitted(header, span)?;
+        if receipt.is_some() {
+            self.owner_plan
+                .as_mut()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .stage = 3;
+            #[cfg(test)]
+            if super::super::owner_consumer_test_support::take_fault(
+                super::super::owner_consumer_test_support::OwnerFault::DuplicateOwnerReturn,
+            ) {
+                return self.owner_return(expression, result, unit_return, span);
+            }
+        }
+        #[cfg(test)]
+        super::super::super::record_owner_return(
+            identity,
+            result.map(|s| s.0),
+            receipt
+                .or(endpoint.map(|e| e.slot()))
+                .or(header.map(|e| e.slot()))
+                .map(|s| s.0),
+        );
         Ok(())
     }
 }

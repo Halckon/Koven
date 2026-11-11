@@ -1,6 +1,44 @@
 //! Shared mapping from the frontend's closed integer operators into typed SSA.
-use super::model::IntegerBitwiseOperator;
-use lang_frontend::parser::BinaryOperator;
+use super::model::{CheckedArithmeticOperator, ComparisonOperator, IntegerBitwiseOperator};
+use lang_frontend::parser::{AssignmentOperator, BinaryOperator};
+
+pub(super) const fn checked_operator(
+    operator: BinaryOperator,
+) -> Option<CheckedArithmeticOperator> {
+    match operator {
+        BinaryOperator::Add => Some(CheckedArithmeticOperator::Add),
+        BinaryOperator::Subtract => Some(CheckedArithmeticOperator::Subtract),
+        BinaryOperator::Multiply => Some(CheckedArithmeticOperator::Multiply),
+        BinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
+        BinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
+        _ => None,
+    }
+}
+
+pub(super) const fn assignment_operator(
+    operator: AssignmentOperator,
+) -> Option<CheckedArithmeticOperator> {
+    match operator {
+        AssignmentOperator::AddAssign => Some(CheckedArithmeticOperator::Add),
+        AssignmentOperator::SubtractAssign => Some(CheckedArithmeticOperator::Subtract),
+        AssignmentOperator::MultiplyAssign => Some(CheckedArithmeticOperator::Multiply),
+        AssignmentOperator::DivideAssign => Some(CheckedArithmeticOperator::Divide),
+        AssignmentOperator::RemainderAssign => Some(CheckedArithmeticOperator::Remainder),
+        AssignmentOperator::Assign => None,
+    }
+}
+
+pub(super) const fn comparison_operator(operator: BinaryOperator) -> Option<ComparisonOperator> {
+    match operator {
+        BinaryOperator::Equal => Some(ComparisonOperator::Equal),
+        BinaryOperator::NotEqual => Some(ComparisonOperator::NotEqual),
+        BinaryOperator::Less => Some(ComparisonOperator::LessThan),
+        BinaryOperator::LessEqual => Some(ComparisonOperator::LessThanOrEqual),
+        BinaryOperator::Greater => Some(ComparisonOperator::GreaterThan),
+        BinaryOperator::GreaterEqual => Some(ComparisonOperator::GreaterThanOrEqual),
+        _ => None,
+    }
+}
 
 pub(super) const fn bitwise_operator(operator: BinaryOperator) -> Option<IntegerBitwiseOperator> {
     match operator {

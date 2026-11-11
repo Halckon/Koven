@@ -8,7 +8,7 @@ use lang_frontend::{
         Namespace, SourceUnitId, SymbolKind, UnitSymbolId, ValidatedCompilationUnitNames,
     },
     ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource},
-    parser::{Expression, Statement},
+    parser::Expression,
     source::Span,
     type_checking::{
         BuiltinType, Copyability, ParameterMode, UnitExpressionId, UnitTypeId, UnitTypeKind,
@@ -212,7 +212,7 @@ impl UnitExpressionLowerer<'_> {
         let plan = self
             .callable_plans
             .get(&(
-                self.closure_scope,
+                self.function.id,
                 UnitExpressionId::new(self.source_unit, expression),
             ))
             .cloned()
@@ -258,48 +258,5 @@ impl UnitExpressionLowerer<'_> {
             Expression::Group { expression } => self.closure_origin(*expression),
             _ => Ok(None),
         }
-    }
-}
-
-fn lambda_tail_expression(
-    parsed: &lang_frontend::parser::ParsedFile,
-    body: StatementId,
-    span: Span,
-) -> Result<ExpressionId, LoweringError> {
-    let body = parsed
-        .ast()
-        .statements()
-        .get(body)
-        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let Statement::LambdaBody { elements } = body.payload() else {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    };
-    let last = elements
-        .last()
-        .copied()
-        .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-    let last = parsed
-        .ast()
-        .statements()
-        .get(last)
-        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let Statement::Expression { expression } = last.payload() else {
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    };
-    Ok(*expression)
-}
-
-fn direct_reference_symbol(
-    parsed: &lang_frontend::parser::ParsedFile,
-    expression: ExpressionId,
-    references: &BTreeMap<(usize, usize), UnitSymbolId>,
-) -> Option<UnitSymbolId> {
-    let node = parsed.ast().expressions().get(expression).ok()?;
-    match node.payload() {
-        Expression::Name => references.get(&span_key(node.span())).copied(),
-        Expression::Group { expression } => {
-            direct_reference_symbol(parsed, *expression, references)
-        }
-        _ => None,
     }
 }

@@ -1258,12 +1258,6 @@ impl ExpressionLowerer<'_> {
         ty.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
-    pub(super) fn add_empty_block(&mut self, span: Span) -> Result<BlockId, LoweringError> {
-        self.function
-            .add_block(Vec::new(), Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
-    }
-
     pub(super) fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
         self.parsed
             .ast()

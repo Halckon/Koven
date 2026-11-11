@@ -401,7 +401,7 @@ fn observe(
                 .expect("fresh module after planner");
             let mut mapper = type_lower::UnitTypeLowering::new(&names);
             let parsed_by_source =
-                crate::ssa::unit_source_query::parsed_by_source_unit(&inputs, &names)
+                crate::ssa::lowering_support::parsed_by_source_unit(&inputs, &names)
                     .expect("same qualified source objects");
             let deinits = plan
                 .iter()
@@ -420,7 +420,7 @@ fn observe(
                 assert_eq!(descriptor.item().source_unit(), p);
                 assert_eq!(instance.item(), descriptor.item().item());
                 assert_eq!(instance.source_unit(), p);
-                let declared = deinit::declare(
+                let declared = callable_abi::declare_deinit(
                     module,
                     &parsed_by_source,
                     &names,

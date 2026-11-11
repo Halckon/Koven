@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
-    parser::{BinaryOperator, Expression, LiteralKind},
+    parser::{BinaryOperator, Expression},
     type_checking::{
         BuiltinType, Copyability, IntrinsicTypeConstructor, UnitCallReceiverOrigin, UnitTypeId,
         UnitTypeKind,
@@ -458,19 +458,6 @@ impl Checker<'_, '_> {
         ok
     }
 
-    pub(super) fn is_null_literal(&self, expression: ExpressionId) -> bool {
-        let root = self.ungrouped(expression);
-        matches!(
-            self.inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(root)
-                .map(|node| node.payload()),
-            Ok(Expression::Literal(LiteralKind::Null))
-        )
-    }
-
     /// Temporary null comparison (`m.get(k) == null`, `m.remove(k) != null`) or scalar
     /// `$map.result.tX` equality (`m[k] == value`, `removed == hit`).
     pub(super) fn nullable_equality(
@@ -483,9 +470,9 @@ impl Checker<'_, '_> {
         if !matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual) {
             return false;
         }
-        let operand = if self.is_null_literal(right) {
+        let operand = if crate::ssa::lowering_support::is_null_literal(self.inputs.parsed, right) {
             Some(left)
-        } else if self.is_null_literal(left) {
+        } else if crate::ssa::lowering_support::is_null_literal(self.inputs.parsed, left) {
             Some(right)
         } else {
             None
