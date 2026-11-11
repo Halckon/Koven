@@ -1,8 +1,8 @@
 //! Descriptor metadata and protecting source loan have a single explicit lifetime.
 use super::*;
 
-mod pairs;
-pub(super) mod source;
+pub(super) mod pairs;
+pub(super) use pairs as source;
 fn pair(function: &Function, view: ValueId) -> Option<LoanId> {
     pairs::compute(function)
         .into_iter()
@@ -49,7 +49,7 @@ fn require_root(
     errors: &mut Vec<VerifyError>,
 ) {
     let flows = LoanFlowAliases::compute(function);
-    if source::capability(function, loan).is_none_or(|root| {
+    if pairs::capability(function, loan).is_none_or(|root| {
         !state
             .loans
             .iter()

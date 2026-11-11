@@ -7,8 +7,8 @@ use super::model::{
 
 pub(in crate::ssa) mod closure_content;
 mod closure_escape;
-mod content_flow;
 mod module;
+pub(in crate::ssa::verify) use module as content_flow;
 
 pub(in crate::ssa) use closure_escape::TypeCaptures;
 
