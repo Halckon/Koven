@@ -567,3 +567,5 @@ mod replace_break_replace_return;
 mod normal_backedge;
 
 mod qualified_owner_edges;
+
+mod general_control_frontier;

@@ -13522,3 +13522,17 @@ control 及 root，不改变 planner、旧 oracle 或 consumer 权限。此为�
 未运行 native、正式 CI，未完成多根相关 incoming、嵌套 CFG 或旧见证退休。
 原始命令结果在本工作树 `.local-artifacts/root-edge-evidence/`；不以这三个源码用例
 推导任意根或任意控制形状。只读独立审查未发现此身份封装范围的阻断问题。
+
+### 一般多根与嵌套控制的真实输入基线（2026-11-11）
+
+在16a46213后保留五个真实合法输入：双根逐一Replace的正常/Continue回边，外层根与
+内层根共存的嵌套While正常/内层Continue/内层Break。两个general_control_frontier
+测试实际运行通过：无diagnostics/deferred，validate成功，原observer on/off产品等价；
+现有closed/invariant/open-loop能力均不发布，不把一般输入偷换成单根产品。
+这是测试基线，不是新运输实现，也不证明逐路径无泄漏或nested native。
+
+调查确认当前DropPlanner仅持有一个owner_loop槽位，NormalInput严格接收单根及固定
+顶层/循环体序列。后续应按真实control identity组织事务与父控制关系，并在同一控制边
+上整体记录root-to-owner向量，保留根间相关性，禁止按每根独立Choice再取笛卡尔积。
+每条实际回边重新验证该向量；未进入或提前退出的嵌套循环不得伪造incoming，Return/
+Break/Continue分别归属真实目标。现有root-qualified edge是身份基础，不替代这些义务。
