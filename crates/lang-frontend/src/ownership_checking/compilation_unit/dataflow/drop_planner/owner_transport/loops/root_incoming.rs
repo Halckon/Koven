@@ -154,6 +154,7 @@ impl ControlTransactions {
             evidence.normal_equation = evidence
                 .normal_retirements
                 .as_ref()
+                .filter(|_| clean_root_shape(state, &evidence.roots))
                 .and_then(|_| evidence.token_transaction.as_ref()?.boundary_equation());
         }
     }
@@ -256,6 +257,16 @@ fn preserves(control: UnitStatementId, state: &ValueState, roots: &RootIncoming)
 }
 
 // A bounded normal-body producer vector, never a sealed header or owner equation.
+// Shape/auxiliary-state obligation only. Stale ValueState owner IDs are not evidence.
+fn clean_root_shape(state: &ValueState, roots: &RootIncoming) -> bool {
+    boundary_values(state).is_some_and(|values| {
+        values.len() == roots.len()
+            && roots
+                .iter()
+                .all(|(root, _)| values.iter().filter(|value| value.symbol == *root).count() == 1)
+    })
+}
+
 fn completed_root_writes(
     checker: &Checker<'_>,
     control: UnitStatementId,
@@ -353,6 +364,67 @@ mod cleanup_fault_tests {
     use super::super::super::tests::compare_and_inspect;
     use super::*;
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+
+    #[test]
+    fn ci_only_header_shape_rejects_missing_duplicate_and_borrow_state() {
+        let fixture = Fixture::new(&[(
+            "header-shape-fault.ko",
+            "fun run(flag: Boolean) { var a = \"a\"; var b = \"b\"; while(flag) { val x = replace(&a, \"x\"); val y = replace(&b, \"y\") }; val keptA = a; val keptB = b }",
+        )]);
+        let owned = fixture.shared();
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = DropPlanner::new(
+                checker,
+                super::super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            let visits = planner.owner_control_probe.as_ref().unwrap();
+            let roots = visits[0].incoming_roots.as_ref().unwrap();
+            assert!(visits[1].normal_equation.is_some());
+            let span = checker
+                .parsed
+                .ast()
+                .statements()
+                .get(visits[0].control.statement())
+                .unwrap()
+                .span();
+            // Deliberately assembled shape model, not a real planner boundary snapshot.
+            // No owner IDs: this check must not mistake stale IDs for generation evidence.
+            let state = ValueState {
+                values: roots
+                    .iter()
+                    .map(|(root, _)| OwnedValue {
+                        symbol: *root,
+                        owner: None,
+                        origin: span,
+                        declaration: span,
+                        scope_depth: 1,
+                    })
+                    .collect(),
+                ..ValueState::default()
+            };
+            assert!(clean_root_shape(&state, roots));
+            let mut reordered = state.clone();
+            reordered.values.reverse();
+            assert!(clean_root_shape(&reordered, roots));
+            let mut missing = state.clone();
+            missing.values.pop();
+            assert!(!clean_root_shape(&missing, roots));
+            let mut duplicate = state.clone();
+            duplicate.values[1] = duplicate.values[0].clone();
+            assert!(!clean_root_shape(&duplicate, roots));
+            let mut borrowed = state.clone();
+            borrowed.borrow_bindings.push(roots[0].0);
+            assert!(!clean_root_shape(&borrowed, roots));
+            let mut replacing = state.clone();
+            replacing.replacements.push(roots[0].0);
+            assert!(!clean_root_shape(&replacing, roots));
+            let mut extra = state.clone();
+            extra.values.push(extra.values[0].clone());
+            assert!(!clean_root_shape(&extra, roots));
+        });
+    }
 
     // Compile locally, execute injected-fact scenarios only in remote CI.
     #[test]

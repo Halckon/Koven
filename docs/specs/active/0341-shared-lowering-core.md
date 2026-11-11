@@ -13722,3 +13722,14 @@ CI-only故障测试仅编译，未本机执行；本地提交、不推送，未�
 本片定向10项通过；最终FE lib656通过、50项ci_only过滤；FE all-target strict Clippy、
 LLVM21 workspace all-target check及fmt/diff通过。只读复审未发现错根、错binding或封装
 阻断。CI-only故障用例只编译未本机执行，无远端CI或跨轮运行证明声明。
+
+### header 状态形状闭合前置（2026-11-11，本地）
+
+基于a541b580，在构建私有header候选前核真实body末资源辅助状态全空、活root集合精确覆盖
+入口根且无重复；不读取残留owner ID冒充新代际。既有多根/逆序真实源码仍准入；仅CI执行
+的模型负控覆盖缺失、重复、额外根以及借用binding、待替换残留。普通回执与公开能力不变，
+该前置不单独授权runtime activation或跨轮归纳。
+
+定向10项通过；最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、
+LLVM21 workspace all-target check及fmt/diff通过。只读复审无阻断；纯观察元数据仍按
+boundary_values既有豁免，不把资源辅助状态闭合写成所有字段为空。未本机执行故障注入。

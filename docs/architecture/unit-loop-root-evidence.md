@@ -110,3 +110,9 @@ normal token，不表示下一轮复用这些token，也不是运行时固定点
 配入口根。槽仅通过同control的整组只读查询取得，clone不产生新身份。
 该有限签名为下一步归纳提供“输入槽退休/producer输出”材料，不实例化第二次激活、不重放
 drop，也不把静态producer定义当各运行轮次共享的owner。公开能力及旧见证保持不变。
+
+header候选还须通过真实body末的状态形状门禁：复用既有boundary_values，要求借用、
+临时值、替换、capture及迭代等辅助状态无悬挂，活root集合与入口根集合精确一致且无重复。
+只核symbol集合，不使用Unsupported后可能残留的owner ID；代际关联仍来自独立token事务。
+形状失败仅拒绝header候选，不改旧planner行为或把普通回执升级为能力。此为后续激活
+归纳所需前置之一，仍未证明运行时header合并及任意轮次不变量。
