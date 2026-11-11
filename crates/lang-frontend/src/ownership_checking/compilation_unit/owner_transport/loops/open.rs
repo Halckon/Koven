@@ -380,27 +380,32 @@ pub enum UnitOwnerOpenLoopObservationV1 {
     ReturnDelivered(Box<UnitOwnerOpenLoopReturnV1>),
     /// Normal backedge carries a fresh Q instance into the header; false exit returns H.
     NormalBackedge(Box<super::UnitOwnerNormalBackedgeV1>),
+    /// A distinct actual Continue edge carrying the current header source.
+    ContinueBackedge(Box<super::UnitOwnerContinueBackedgeV1>),
 }
 impl UnitOwnerOpenLoopObservationV1 {
     fn identity(&self) -> &Arc<()> {
         match self {
             Self::BreakLive(v) => &v.identity,
             Self::ReturnDelivered(v) => &v.identity,
-            Self::NormalBackedge(v) => &v.identity,
+            Self::NormalBackedge(v) => &v.core.identity,
+            Self::ContinueBackedge(v) => &v.core.identity,
         }
     }
     fn callable(&self) -> UnitOwnerCallable {
         match self {
             Self::BreakLive(v) => v.callable,
             Self::ReturnDelivered(v) => v.callable,
-            Self::NormalBackedge(v) => v.callable,
+            Self::NormalBackedge(v) => v.core.callable,
+            Self::ContinueBackedge(v) => v.core.callable,
         }
     }
     fn statement(&self) -> UnitStatementId {
         match self {
             Self::BreakLive(v) => v.statement,
             Self::ReturnDelivered(v) => v.statement,
-            Self::NormalBackedge(v) => v.statement,
+            Self::NormalBackedge(v) => v.core.statement,
+            Self::ContinueBackedge(v) => v.core.statement,
         }
     }
     /// Verify the selected terminal variant without treating Return as a loop exit.
@@ -409,6 +414,7 @@ impl UnitOwnerOpenLoopObservationV1 {
             Self::BreakLive(value) => value.is_consistent(),
             Self::ReturnDelivered(value) => value.is_consistent(),
             Self::NormalBackedge(value) => value.is_consistent(),
+            Self::ContinueBackedge(value) => value.is_consistent(),
         }
     }
 }

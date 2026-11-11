@@ -1,20 +1,21 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
 mod loops;
 pub(in crate::ownership_checking::compilation_unit) use loops::{
-    CallConsumerTarget, ReplaceBreakSuffix, ReturnConsumerTarget,
+    CallConsumerTarget, HeaderCompletion, HeaderCore, ReplaceBreakSuffix, ReturnConsumerTarget,
 };
 pub(super) use loops::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
     LoopBranchExit, publish_observations,
 };
 pub use loops::{
-    UnitOwnerContinueArmBoundaryV1, UnitOwnerHeaderSourceV1, UnitOwnerInvariantBreakObservationV1,
-    UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantMixedJoinObservationV1,
-    UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
-    UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
-    UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1,
-    UnitOwnerNormalArmBoundaryV1, UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1,
-    UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1, UnitOwnerReplaceBreakCallActionV1,
+    UnitOwnerContinueArmBoundaryV1, UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1,
+    UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
+    UnitOwnerInvariantMixedJoinObservationV1, UnitOwnerInvariantNormalJoinObservationV1,
+    UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
+    UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
+    UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerNormalArmBoundaryV1,
+    UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1,
+    UnitOwnerOpenLoopReturnV1, UnitOwnerReplaceBreakCallActionV1,
     UnitOwnerReplaceBreakCallConsumerV1, UnitOwnerReplaceBreakConsumerActionV1,
     UnitOwnerReplaceBreakConsumerV1, UnitOwnerReplaceBreakObservationV1,
     UnitOwnerReplaceBreakReturnActionV1, UnitOwnerReplaceBreakReturnConsumerV1,

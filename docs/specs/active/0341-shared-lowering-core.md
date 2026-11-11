@@ -12725,3 +12725,44 @@ no-run为opt0/debug2、仅loan support，6m12s；4287输入与保存binary运行
 本次编译后Mac可用磁盘约3GiB，停止追加大构建，不清理缓存或删除文件。先封存
 真实红及上述独审实施合同；生产尚未接线，红分支不可并入待发布集成头。
 后续需恢复足够构建余量后，实现独立Continue封印和真实jump消费，再做红绿回归。
+
+#### Continue 后继生产与普通验收范围
+
+磁盘余量经用户批准清理指定增量缓存后恢复，继续生产。复用已有Boolean赋false
+和Int零起点/小于唯一参数/加一两种控制，均仅新增body末精确Continue；Boolean
+另验真实无increment的lowering/receipt，不以Int路径替代。私有HeaderCore只承载
+共同H守恒，两公开wrapper分别强制Fallthrough或Continue(jump)，无Deref或转换。
+FE在真实jump清理后记录独立catalog快照，经Ok(false)、expected role和body完成
+再核一致才封印；CG在真实loop_jump清理后及terminate成功后绑定source/header，
+终态核jump身份、唯一receipt、清理消耗和真实边，不从最终Goto反推。
+
+后继普通验收纳入Int双Unit有限0/1/2/7 native、真实Continue terminator origin及
+SSA H链、Boolean无increment真实receipt，并保留旧Normal/Break/Return回归。
+这些普通运行不等于任意循环、泄漏或计数证明；所有fault/foreign/重复receipt/
+错target/缺清理/Abort执行仍CI-only，仅编译不本机运行。原探针阶段不执行native
+的历史记录保留，不改红源码或末端断言。
+
+#### Continue 恢复后验收（2026-11-11）
+
+用户手动清理期间旧临时 Continue、counter 与集成 raw 目录丢失；当时被中断的
+FE 编译退出101但日志已不可读，不归因为代码失败，也不算新增红。原始探针
+`f82a7fc2` 的源码与历史结果仍保留；本段不宣称复核旧 raw。恢复后复用该头及
+保全的生产修改，新建持久 `Koven/.local-artifacts/owner-continue-recovery-20261111T060154Z`
+保存新输入清单、真实 Cargo artifacts、实际 binary SHA、runner 与逐项原日志；
+保留至此切片进入 main 且对应远端证据可用，不清理既有文件。
+
+| 验收 | 本轮实际结果 |
+|---|---|
+| FE lib no-run，默认 feature / opt0 / debug2 | 通过，1m08s；CI-only 仅编译 |
+| FE normal_backedge 的五项普通 exact | 5/5，每项1 passed；含正常/计数回边边界及独立Continue |
+| CG lib no-run，仅 loan-observation-test-support / opt0 / debug2 | 通过，10m25s；CI-only 仅编译 |
+| CG Continue 四项普通 exact | 4/4；原探针末端授权断言转绿，真实SSA Continue来源与H链、Boolean无increment、Basic/Const有限0/1/2/7 native均通过 |
+| CG旧Normal Boolean/Int、Break共同Return、body Return两端点、suffix Replace Return | 五项exact均1 passed，非全量回归 |
+| FE/CG all-targets Clippy `-D warnings` | 通过；含loan support |
+| 默认 workspace all-targets check | 通过，不是全量测试执行 |
+| fmt / docs / Rust尺寸 / diff | 通过；docs891，2426手写Rust，35项旧超限未掩盖 |
+
+独审核4287 tracked输入及实际FE/CG binary SHA一致、14项exact原日志均通过；
+源码复审核独立封印、真实jump消费与重复receipt拒绝，无剩余阻断。有限native
+只观察输出 `outer/next/next/next`，不当任意轮次或泄漏证明。正式CI、一般多分支
+Continue/Break合流、多根、嵌套循环及owner与loan/capture联合合同仍未覆盖。

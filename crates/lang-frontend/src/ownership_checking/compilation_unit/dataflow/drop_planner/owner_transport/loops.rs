@@ -183,7 +183,7 @@ impl LoopTransaction {
                 body: normal.body,
                 identity,
                 callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
-                expected: LoopBodyCompletion::Fallthrough,
+                expected: normal.expected_completion(),
                 active: None,
                 completed: None,
                 split_entered: false,
@@ -717,7 +717,12 @@ impl DropPlanner<'_, '_> {
                         _ => None,
                     };
                     if let Some(completion) = completion {
-                        if transaction.replacing.is_some() || transaction.normal.is_some() {
+                        if transaction
+                            .normal
+                            .as_mut()
+                            .is_some_and(|normal| normal.finish_role(completion))
+                            || transaction.replacing.is_some()
+                        {
                             replacement_body = Some((collected, body_state));
                         } else {
                             body_transport = collected
@@ -753,7 +758,8 @@ impl DropPlanner<'_, '_> {
                     .and_then(|value| match value {
                         UnitOwnerOpenLoopObservationV1::BreakLive(boundary) => Some(boundary),
                         UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
-                        | UnitOwnerOpenLoopObservationV1::NormalBackedge(_) => None,
+                        | UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => None,
                     }),
                 state.values.first(),
                 body_state.values.pop(),

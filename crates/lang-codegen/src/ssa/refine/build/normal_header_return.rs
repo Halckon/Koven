@@ -1,12 +1,59 @@
 //! A changing header is a slot equation, never a fixed P/Q producer identity.
 use super::*;
 use lang_frontend::ownership_checking::{
-    UnitOwnerCallable, UnitOwnerNormalBackedgeV1, UnitOwnerOpenLoopObservationV1,
-    UnitOwnerTransportEvent,
+    UnitOwnerCallable, UnitOwnerContinueBackedgeV1, UnitOwnerNormalBackedgeV1,
+    UnitOwnerOpenLoopObservationV1, UnitOwnerTransportEvent,
 };
 
+// Private adapter keeps the two public edge roles distinct. It never exposes a
+// Continue product as the Normal wrapper and does not manufacture FE facts.
+#[derive(Clone, Copy)]
+enum Boundary<'a> {
+    Normal(&'a UnitOwnerNormalBackedgeV1),
+    Continue(&'a UnitOwnerContinueBackedgeV1),
+}
+macro_rules! boundary_getters {
+    ($($name:ident -> $ty:ty),* $(,)?) => {$ (
+        fn $name(self) -> $ty {
+            match self { Self::Normal(v) => v.$name(), Self::Continue(v) => v.$name() }
+        }
+    )*};
+}
+impl<'a> Boundary<'a> {
+    boundary_getters! {
+        callable -> UnitOwnerCallable,
+        statement -> UnitStatementId,
+        condition -> UnitExpressionId,
+        body -> UnitStatementId,
+        root -> UnitSymbolId,
+        initial -> UnitExpressionId,
+        argument -> UnitExpressionId,
+        call -> UnitExpressionId,
+        increment -> Option<UnitExpressionId>,
+        return_payload -> UnitExpressionId,
+        return_expression -> UnitExpressionId,
+        body_events -> &'a [UnitOwnerTransportEvent],
+        is_consistent -> bool,
+    }
+    fn jump(self) -> Option<UnitExpressionId> {
+        match self {
+            Self::Normal(_) => None,
+            Self::Continue(v) => Some(v.jump()),
+        }
+    }
+}
+
+// Produced only around the actual Continue terminator, after the original cleanup.
+#[derive(Clone, Copy)]
+pub(super) struct ContinueReceipt {
+    expression: UnitExpressionId,
+    source: BlockRef,
+    target: BlockRef,
+    statements: usize,
+}
+
 pub(super) struct Plan<'a> {
-    boundary: &'a UnitOwnerNormalBackedgeV1,
+    boundary: Boundary<'a>,
     previous: UnitSymbolId,
     drop_index: usize,
     produced: [Option<Slot>; 2],
@@ -15,6 +62,7 @@ pub(super) struct Plan<'a> {
     old: Option<Slot>,
     geometry: Option<[BlockRef; 5]>, // actual entry, header, body, false, exit
     increment: Option<([BlockRef; 3], [Slot; 4], usize)>,
+    continued: Option<ContinueReceipt>,
     taken: bool,
     completed: bool,
 }
@@ -44,8 +92,10 @@ impl<'a> Plan<'a> {
         let Some(product) = products.next() else {
             return Ok(None);
         };
-        let UnitOwnerOpenLoopObservationV1::NormalBackedge(boundary) = product else {
-            return Ok(None);
+        let boundary = match product {
+            UnitOwnerOpenLoopObservationV1::NormalBackedge(v) => Boundary::Normal(v),
+            UnitOwnerOpenLoopObservationV1::ContinueBackedge(v) => Boundary::Continue(v),
+            _ => return Ok(None),
         };
         let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
         if products.next().is_some()
@@ -112,12 +162,130 @@ impl<'a> Plan<'a> {
             old: None,
             geometry: None,
             increment: None,
+            continued: None,
             taken: false,
             completed: false,
         }))
     }
 }
 impl Builder<'_, '_> {
+    pub(super) fn header_continue_edge(
+        &mut self,
+        expression: UnitExpressionId,
+        is_break: bool,
+        frame: (UnitStatementId, BlockRef, bool),
+        span: Span,
+    ) -> Result<Option<ContinueReceipt>, LoweringError> {
+        #[cfg(test)]
+        if self
+            .header_return_plan
+            .as_ref()
+            .is_some_and(|p| p.boundary.jump().is_some())
+            && super::owner_consumer_test_support::take_fault(
+                super::owner_consumer_test_support::OwnerFault::MissingHeaderContinueDrop,
+            )
+            && let Some(p) = &self.header_return_plan
+        {
+            self.consumed_drops.remove(&p.drop_index);
+        }
+        let Some(p) = &self.header_return_plan else {
+            return Ok(None);
+        };
+        let fail = || error(LoweringErrorKind::InvalidModel, span);
+        let Some(jump) = p.boundary.jump() else {
+            return Err(fail());
+        };
+        let [_, header, body, _, _] = p.geometry.ok_or_else(fail)?;
+        let source = self.block.ok_or_else(fail)?;
+        let expected_source = match (p.boundary.increment(), p.increment) {
+            (None, None) => body,
+            (Some(_), Some(([_, success, _], _, _))) => success,
+            _ => return Err(fail()),
+        };
+        let (statement, target, plain_while) = frame;
+        if expression != jump
+            || is_break
+            || !plain_while
+            || statement != p.boundary.statement()
+            || target != header
+            || source != expected_source
+            || p.continued.is_some()
+            || p.taken
+            || p.completed
+            || p.old.is_none()
+            || p.root.is_none()
+            || self.bindings.get(&p.boundary.root()).copied() != p.root
+            || self.dead.contains(&p.boundary.root())
+            || !self.consumed_drops.contains(&p.drop_index)
+            || self.body.blocks[source.0].terminator.is_some()
+        {
+            return Err(fail());
+        }
+        Ok(Some(ContinueReceipt {
+            expression,
+            source,
+            target,
+            statements: self.body.blocks[source.0].statements.len(),
+        }))
+    }
+    pub(super) fn header_continue_emitted(
+        &mut self,
+        receipt: Option<ContinueReceipt>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(receipt) = receipt else {
+            return Ok(());
+        };
+        let fail = || error(LoweringErrorKind::InvalidModel, span);
+        let p = self.header_return_plan.as_mut().ok_or_else(fail)?;
+        if p.boundary.jump() != Some(receipt.expression)
+            || p.continued.is_some()
+            || self.block.is_some()
+            || self.body.blocks[receipt.source.0].statements.len() != receipt.statements
+            || !matches!(self.body.blocks[receipt.source.0].terminator,
+                Some((RTerm::Goto(target),_)) if target == receipt.target)
+        {
+            return Err(fail());
+        }
+        #[cfg(test)]
+        {
+            use super::owner_consumer_test_support::{OwnerFault, take_fault};
+            if take_fault(OwnerFault::MissingHeaderContinue) {
+                return Ok(());
+            }
+            if take_fault(OwnerFault::DuplicateHeaderContinue) {
+                p.continued = Some(receipt);
+            }
+            if take_fault(OwnerFault::WrongHeaderContinueIdentity) {
+                p.continued = Some(ContinueReceipt {
+                    expression: p.boundary.return_payload(),
+                    ..receipt
+                });
+                return Ok(());
+            }
+            if take_fault(OwnerFault::WrongHeaderContinueTarget) {
+                let [_, _, _, _, exit] = p.geometry.ok_or_else(fail)?;
+                p.continued = Some(ContinueReceipt {
+                    target: exit,
+                    ..receipt
+                });
+                return Ok(());
+            }
+            if take_fault(OwnerFault::WrongHeaderContinueSource) {
+                let [entry, _, _, _, _] = p.geometry.ok_or_else(fail)?;
+                p.continued = Some(ContinueReceipt {
+                    source: entry,
+                    ..receipt
+                });
+                return Ok(());
+            }
+        }
+        if p.continued.replace(receipt).is_some() {
+            return Err(fail());
+        }
+        Ok(())
+    }
+
     // Called at the actual checked-arithmetic emission, not by searching a finished CFG.
     pub(super) fn header_increment_emitted(
         &mut self,
@@ -417,6 +585,15 @@ impl Builder<'_, '_> {
             }
             _ => return Err(fail()),
         };
+        match (p.boundary.jump(), p.continued) {
+            (None, None) => {}
+            (Some(jump), Some(receipt))
+                if receipt.expression == jump
+                    && receipt.source == backedge
+                    && receipt.target == header
+                    && self.body.blocks[backedge.0].statements.len() == receipt.statements => {}
+            _ => return Err(fail()),
+        }
         // This finite CFG equation closes under any number of traversals: each body
         // replaces the current slot with fresh Q, drops its old value once, and goes
         // back to the same header. SSA subsequently versions that slot into phi inputs.

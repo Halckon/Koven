@@ -275,6 +275,9 @@ impl LoopTransaction {
         identity: &std::sync::Arc<()>,
         state: &ValueState,
     ) -> bool {
+        if let Some(input) = &mut self.normal {
+            return input.jump_boundary(completion, identity, state);
+        }
         if let Some(input) = &mut self.replacing {
             return input.jump_boundary(completion, identity, state);
         }

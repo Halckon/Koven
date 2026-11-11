@@ -1,6 +1,9 @@
 //! Normal-backedge collection at real planner entry, body completion and Return hooks.
 use super::*;
-use crate::ownership_checking::{UnitOwnerNormalBackedgeV1, UnitOwnerProducerCatalogV1};
+use crate::ownership_checking::compilation_unit::owner_transport::{HeaderCompletion, HeaderCore};
+use crate::ownership_checking::{
+    UnitOwnerContinueBackedgeV1, UnitOwnerNormalBackedgeV1, UnitOwnerProducerCatalogV1,
+};
 use crate::parser::AssignmentOperator;
 mod control;
 
@@ -23,7 +26,14 @@ pub(super) struct NormalInput {
     entered: bool,
     assigned: bool,
     completed: Option<crate::ownership_checking::UnitOwnerReplaceBreakStateV1>,
-    product: Option<UnitOwnerNormalBackedgeV1>,
+    product: Option<HeaderCore>,
+    jump: Option<UnitExpressionId>,
+    transfer: Option<(
+        std::sync::Arc<()>,
+        UnitExpressionId,
+        crate::ownership_checking::UnitOwnerReplaceBreakStateV1,
+    )>,
+    finished_role: Option<LoopBodyCompletion>,
     valid: bool,
 }
 impl NormalInput {
@@ -67,11 +77,30 @@ impl NormalInput {
         let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
             return None;
         };
-        let [declaration, assignment_statement] = elements.as_slice() else {
-            return None;
+        let (declaration, assignment_statement, jump) = match elements.as_slice() {
+            [declaration, assignment] => (*declaration, *assignment, None),
+            [declaration, assignment, tail] => {
+                let Statement::Expression { expression } =
+                    ast.statements().get(*tail).ok()?.payload()
+                else {
+                    return None;
+                };
+                if !matches!(
+                    ast.expressions().get(*expression).ok()?.payload(),
+                    Expression::Continue { .. }
+                ) {
+                    return None;
+                }
+                (
+                    *declaration,
+                    *assignment,
+                    Some(checker.unit_expression(*expression)),
+                )
+            }
+            _ => return None,
         };
         let (previous, call) =
-            super::replace_break::variable(checker, *declaration, VariableKind::Val)?;
+            super::replace_break::variable(checker, declaration, VariableKind::Val)?;
         let call_node = ast.expressions().get(call).ok()?;
         let Expression::Call {
             callee,
@@ -124,7 +153,7 @@ impl NormalInput {
         }
         let Statement::Expression {
             expression: assignment,
-        } = ast.statements().get(*assignment_statement).ok()?.payload()
+        } = ast.statements().get(assignment_statement).ok()?.payload()
         else {
             return None;
         };
@@ -162,7 +191,7 @@ impl NormalInput {
             call: checker.unit_expression(call),
             call_origin: call_node.span(),
             previous,
-            previous_statement: UnitStatementId::new(checker.source_unit, *declaration),
+            previous_statement: UnitStatementId::new(checker.source_unit, declaration),
             target,
             expected: None,
             prefix: None,
@@ -170,8 +199,51 @@ impl NormalInput {
             assigned: false,
             completed: None,
             product: None,
+            jump,
+            transfer: None,
+            finished_role: None,
             valid: true,
         })
+    }
+    pub(super) fn expected_completion(&self) -> LoopBodyCompletion {
+        self.jump.map_or(
+            LoopBodyCompletion::Fallthrough,
+            LoopBodyCompletion::Continue,
+        )
+    }
+    pub(super) fn jump_boundary(
+        &mut self,
+        completion: LoopBodyCompletion,
+        identity: &std::sync::Arc<()>,
+        state: &ValueState,
+    ) -> bool {
+        let LoopBodyCompletion::Continue(jump) = completion else {
+            return false;
+        };
+        if self.jump != Some(jump)
+            || !self.valid
+            || !self.entered
+            || !self.assigned
+            || self.transfer.is_some()
+        {
+            return false;
+        }
+        let Some([value]) = boundary_values(state) else {
+            return false;
+        };
+        let Some(snapshot) = super::super::replace_consumer::snapshot(value) else {
+            return false;
+        };
+        self.transfer = Some((identity.clone(), jump, snapshot));
+        true
+    }
+    pub(super) fn finish_role(&mut self, completion: LoopBodyCompletion) -> bool {
+        if completion != self.expected_completion() || self.finished_role.is_some() {
+            self.valid = false;
+            return false;
+        }
+        self.finished_role = Some(completion);
+        true
     }
     pub(super) fn capture(
         &mut self,
@@ -247,7 +319,13 @@ impl NormalInput {
             return false;
         }
         self.completed = super::super::replace_consumer::snapshot(value);
-        self.completed.is_some()
+        match (&self.completed, self.jump, &self.transfer) {
+            (Some(snapshot), Some(jump), Some((_, actual, transferred))) => {
+                jump == *actual && snapshot == transferred
+            }
+            (Some(_), None, None) => true,
+            _ => false,
+        }
     }
     pub(super) fn finish_body(&mut self, body: UnitOwnerObservation, state: &ValueState) {
         let Some(prefix) = self.prefix.take() else {
@@ -263,6 +341,12 @@ impl NormalInput {
             return;
         };
         if body.status != UnitOwnerObservationStatus::Complete
+            || !self.valid
+            || self.finished_role != Some(self.expected_completion())
+            || self
+                .transfer
+                .as_ref()
+                .is_some_and(|(identity, _, _)| !std::sync::Arc::ptr_eq(identity, &body.identity))
             || boundary_values(state) != Some(std::slice::from_ref(expected))
         {
             self.valid = false;
@@ -273,7 +357,10 @@ impl NormalInput {
             return;
         };
         let source = self.initial.source_unit();
-        self.product = Some(UnitOwnerNormalBackedgeV1 {
+        self.product = Some(HeaderCore {
+            completion: self
+                .jump
+                .map_or(HeaderCompletion::Fallthrough, HeaderCompletion::Continue),
             identity: prefix.identity.clone(),
             callable: prefix.callable,
             statement: UnitStatementId::new(source, self.statement),
@@ -355,11 +442,33 @@ impl NormalInput {
             return None;
         }
         product.cleaned = true;
-        product
-            .is_consistent()
-            .then_some(UnitOwnerOpenLoopObservationV1::NormalBackedge(Box::new(
-                product,
-            )))
+        if !product.is_consistent() {
+            return None;
+        }
+        if let Some(jump) = self.jump {
+            let (identity, actual, snapshot) = self.transfer.take()?;
+            let value = UnitOwnerContinueBackedgeV1 {
+                target: product.statement,
+                core: product,
+                jump,
+                identity,
+                snapshot,
+                stopped: actual == jump
+                    && self.finished_role == Some(LoopBodyCompletion::Continue(jump)),
+            };
+            value
+                .is_consistent()
+                .then_some(UnitOwnerOpenLoopObservationV1::ContinueBackedge(Box::new(
+                    value,
+                )))
+        } else {
+            let value = UnitOwnerNormalBackedgeV1 { core: product };
+            value
+                .is_consistent()
+                .then_some(UnitOwnerOpenLoopObservationV1::NormalBackedge(Box::new(
+                    value,
+                )))
+        }
     }
 }
 impl DropPlanner<'_, '_> {

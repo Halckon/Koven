@@ -204,7 +204,8 @@ impl UnitOwnerObservation {
         match self.open_loop_observation_v1()? {
             super::UnitOwnerOpenLoopObservationV1::BreakLive(value) => Some(value),
             super::UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
-            | super::UnitOwnerOpenLoopObservationV1::NormalBackedge(_) => None,
+            | super::UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => None,
         }
     }
 }

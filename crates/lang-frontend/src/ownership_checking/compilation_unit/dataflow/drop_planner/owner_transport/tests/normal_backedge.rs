@@ -114,12 +114,12 @@ fn ci_only_normal_backedge_rejects_damaged_completion() {
     for damage in 0..5 {
         let mut product = (**original).clone();
         match damage {
-            0 => product.assignment_completed = false,
-            1 => product.body_completed = false,
-            2 => product.cleaned = false,
-            3 => product.increment = Some(product.assignment),
+            0 => product.core.assignment_completed = false,
+            1 => product.core.body_completed = false,
+            2 => product.core.cleaned = false,
+            3 => product.core.increment = Some(product.core.assignment),
             _ => {
-                product.events.pop();
+                product.core.events.pop();
             }
         }
         assert!(!product.is_consistent());
@@ -163,5 +163,68 @@ fn counter_control_seals_only_exact_normal_steps() {
         if let Some(product) = products.first() {
             assert!(product.is_consistent());
         }
+    }
+}
+
+#[test]
+fn continue_header_is_a_distinct_completed_jump() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    for text in [
+        SOURCE.replace("again = false }", "again = false; continue }"),
+        SOURCE
+            .replace("flag: Boolean", "flag: Int")
+            .replace("var again = flag", "var again = 0")
+            .replace("while(again)", "while(again < flag)")
+            .replace("again = false }", "again = again + 1; continue }")
+            .replace("run(false)", "run(0)")
+            .replace("run(true)", "run(7)"),
+    ] {
+        let fixture = Fixture::new(&[("continue.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        let products = owned
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.open_loop_observation_v1())
+            .collect::<Vec<_>>();
+        let [O::ContinueBackedge(product)] = products.as_slice() else {
+            panic!("distinct Continue product");
+        };
+        assert!(product.is_consistent());
+        assert_ne!(product.jump(), product.return_expression());
+        assert_eq!(product.body_events().len(), 6);
+        assert_eq!(product.prefix_events().len(), 2);
+    }
+}
+
+#[test]
+fn ci_only_continue_header_rejects_role_target_and_cleanup_damage() {
+    use crate::ownership_checking::UnitOwnerOpenLoopObservationV1 as O;
+    use crate::ownership_checking::compilation_unit::owner_transport::HeaderCompletion;
+    let text = SOURCE.replace("again = false }", "again = false; continue }");
+    let fixture = Fixture::new(&[("continue-damage.ko", &text)]);
+    let owned = fixture.shared();
+    let original = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| match o.open_loop_observation_v1() {
+            Some(O::ContinueBackedge(v)) => Some(v),
+            _ => None,
+        })
+        .unwrap();
+    for damage in 0..7 {
+        let mut p = (**original).clone();
+        match damage {
+            0 => p.stopped = false,
+            1 => p.core.completion = HeaderCompletion::Fallthrough,
+            2 => p.target = p.core.body,
+            3 => p.identity = std::sync::Arc::new(()),
+            4 => p.snapshot = p.core.entry.clone(),
+            5 => p.jump = p.core.assignment,
+            _ => p.core.cleaned = false,
+        }
+        assert!(!p.is_consistent());
     }
 }

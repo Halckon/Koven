@@ -2,7 +2,12 @@
 mod invariant;
 mod normal_backedge;
 mod open;
-pub use normal_backedge::{UnitOwnerHeaderSourceV1, UnitOwnerNormalBackedgeV1};
+pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
+    HeaderCompletion, HeaderCore,
+};
+pub use normal_backedge::{
+    UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerNormalBackedgeV1,
+};
 pub use open::{
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
     UnitOwnerReturnActionV1, UnitOwnerReturnEndpointV1,

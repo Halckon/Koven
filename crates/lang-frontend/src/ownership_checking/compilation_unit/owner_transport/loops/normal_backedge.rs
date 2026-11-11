@@ -14,7 +14,8 @@ pub enum UnitOwnerHeaderSourceV1 {
 /// A sealed finite changing-owner loop with one normal backedge and one Return exit.
 /// The raw first traversal is retained as evidence, not mistaken for all activations.
 #[derive(Clone, Debug)]
-pub struct UnitOwnerNormalBackedgeV1 {
+pub(in crate::ownership_checking::compilation_unit) struct HeaderCore {
+    pub(in crate::ownership_checking::compilation_unit) completion: HeaderCompletion,
     pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) callable: UnitOwnerCallable,
     pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
@@ -41,79 +42,144 @@ pub struct UnitOwnerNormalBackedgeV1 {
     pub(in crate::ownership_checking::compilation_unit) delivered: bool,
     pub(in crate::ownership_checking::compilation_unit) cleaned: bool,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ownership_checking::compilation_unit) enum HeaderCompletion {
+    Fallthrough,
+    Continue(UnitExpressionId),
+}
+/// Sealed ordinary fallthrough backedge. Never a Continue product.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerNormalBackedgeV1 {
+    pub(in crate::ownership_checking::compilation_unit) core: HeaderCore,
+}
+/// Sealed explicit Continue after the real jump cleanup, targeting this header.
+#[derive(Clone, Debug)]
+pub struct UnitOwnerContinueBackedgeV1 {
+    pub(in crate::ownership_checking::compilation_unit) core: HeaderCore,
+    pub(in crate::ownership_checking::compilation_unit) jump: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) target: UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
+    pub(in crate::ownership_checking::compilation_unit) snapshot: UnitOwnerReplaceBreakStateV1,
+    pub(in crate::ownership_checking::compilation_unit) stopped: bool,
+}
+// Both wrappers expose the H equation without exposing or converting their edge role.
+macro_rules! header_accessors {
+    ($wrapper:ty) => {
+        impl $wrapper {
+            /// Source-qualified callable owning both catalogs and the control equation.
+            pub fn callable(&self) -> UnitOwnerCallable {
+                self.core.callable
+            }
+            /// Actual While and header identity, not a value producer.
+            pub fn statement(&self) -> UnitStatementId {
+                self.core.statement
+            }
+            /// Actual condition, whose false edge transports the current header value.
+            pub fn condition(&self) -> UnitExpressionId {
+                self.core.condition
+            }
+            /// Actual loop body.
+            pub fn body(&self) -> UnitStatementId {
+                self.core.body
+            }
+            /// Actual root carried by the header.
+            pub fn root(&self) -> UnitSymbolId {
+                self.core.entry.symbol()
+            }
+            /// Actual creation site of the entry owner.
+            pub fn initial(&self) -> UnitExpressionId {
+                self.core.initial
+            }
+            /// Actual per-activation body creation site.
+            pub fn argument(&self) -> UnitExpressionId {
+                self.core.argument
+            }
+            /// Actual Replace site, consuming current H after Q is completely formed.
+            pub fn call(&self) -> UnitExpressionId {
+                self.core.call
+            }
+            /// Exact initial catalog; no synthetic H definition is appended.
+            pub fn input_producers(&self) -> &UnitOwnerProducerCatalogV1 {
+                &self.core.inputs
+            }
+            /// Actual body definitions; one static Q site creates a fresh instance per activation.
+            pub fn body_producers(&self) -> &UnitOwnerProducerCatalogV1 {
+                &self.core.producers
+            }
+            /// Complete reachable header incoming equation: entry P or the previous activation's Q.
+            pub fn incoming(&self) -> [UnitOwnerHeaderSourceV1; 2] {
+                [
+                    UnitOwnerHeaderSourceV1::Entry(self.core.entry.owner()),
+                    UnitOwnerHeaderSourceV1::Backedge(self.core.backedge.owner()),
+                ]
+            }
+            /// Exact checked Int increment whose normal and Abort edges remain distinct.
+            pub fn increment(&self) -> Option<UnitExpressionId> {
+                self.core.increment
+            }
+            /// The terminal Name consumes H, never a fixed P or Q token.
+            pub fn return_payload(&self) -> UnitExpressionId {
+                self.core.target.payload
+            }
+            /// The real Return receives H before its cleanup completes.
+            pub fn return_expression(&self) -> UnitExpressionId {
+                self.core.target.expression
+            }
+            /// Real prefix transitions, retained independently from the header source equation.
+            pub fn prefix_events(&self) -> &[UnitOwnerTransportEvent] {
+                &self.core.prefix
+            }
+            /// One actual planner traversal, used to establish the parametric body rule.
+            pub fn body_events(&self) -> &[UnitOwnerTransportEvent] {
+                &self.core.events
+            }
+        }
+    };
+}
+header_accessors!(UnitOwnerNormalBackedgeV1);
+header_accessors!(UnitOwnerContinueBackedgeV1);
 impl UnitOwnerNormalBackedgeV1 {
-    /// Source-qualified callable owning both catalogs and the control equation.
-    pub fn callable(&self) -> UnitOwnerCallable {
-        self.callable
+    /// True only for a complete ordinary backedge with no explicit jump role.
+    pub fn is_consistent(&self) -> bool {
+        self.core.completion == HeaderCompletion::Fallthrough && self.core.is_consistent()
     }
-    /// Actual While and header identity, not a value producer.
-    pub fn statement(&self) -> UnitStatementId {
-        self.statement
+}
+impl UnitOwnerContinueBackedgeV1 {
+    /// The actual source-qualified Continue, not an inferred Goto.
+    pub fn jump(&self) -> UnitExpressionId {
+        self.jump
     }
-    /// Actual condition, whose false edge transports the current header value.
-    pub fn condition(&self) -> UnitExpressionId {
-        self.condition
+    /// Checks the distinct jump role, completed cleanup, target and shared H equation.
+    pub fn is_consistent(&self) -> bool {
+        self.core.completion == HeaderCompletion::Continue(self.jump)
+            && self.core.is_consistent()
+            && self.stopped
+            && self.target == self.core.statement
+            && self.jump.source_unit() == self.core.statement.source_unit()
+            && ![
+                self.core.initial,
+                self.core.argument,
+                self.core.call,
+                self.core.assignment,
+                self.core.condition,
+                self.core.target.payload,
+                self.core.target.expression,
+            ]
+            .contains(&self.jump)
+            && self.core.increment != Some(self.jump)
+            && Arc::ptr_eq(&self.identity, &self.core.producers.identity)
+            && self.snapshot == self.core.backedge
     }
-    /// Actual normal body.
-    pub fn body(&self) -> UnitStatementId {
-        self.body
-    }
-    /// Actual root carried by the header.
-    pub fn root(&self) -> UnitSymbolId {
+}
+impl HeaderCore {
+    fn root(&self) -> UnitSymbolId {
         self.entry.symbol()
-    }
-    /// Actual creation site of the entry owner.
-    pub fn initial(&self) -> UnitExpressionId {
-        self.initial
-    }
-    /// Actual per-activation body creation site.
-    pub fn argument(&self) -> UnitExpressionId {
-        self.argument
-    }
-    /// Actual Replace site, consuming current H after Q is completely formed.
-    pub fn call(&self) -> UnitExpressionId {
-        self.call
-    }
-    /// Exact initial catalog; no synthetic H definition is appended.
-    pub fn input_producers(&self) -> &UnitOwnerProducerCatalogV1 {
-        &self.inputs
-    }
-    /// Actual body definitions; one static Q site creates a fresh instance per activation.
-    pub fn body_producers(&self) -> &UnitOwnerProducerCatalogV1 {
-        &self.producers
-    }
-    /// Complete reachable header incoming equation: entry P or the previous activation's Q.
-    pub fn incoming(&self) -> [UnitOwnerHeaderSourceV1; 2] {
-        [
-            UnitOwnerHeaderSourceV1::Entry(self.entry.owner()),
-            UnitOwnerHeaderSourceV1::Backedge(self.backedge.owner()),
-        ]
-    }
-    /// Exact checked Int increment whose normal and Abort edges remain distinct.
-    pub fn increment(&self) -> Option<UnitExpressionId> {
-        self.increment
-    }
-    /// The terminal Name consumes H, never a fixed P or Q token.
-    pub fn return_payload(&self) -> UnitExpressionId {
-        self.target.payload
-    }
-    /// The real Return receives H before its cleanup completes.
-    pub fn return_expression(&self) -> UnitExpressionId {
-        self.target.expression
-    }
-    /// Real prefix transitions, retained independently from the header source equation.
-    pub fn prefix_events(&self) -> &[UnitOwnerTransportEvent] {
-        &self.prefix
-    }
-    /// One actual planner traversal, used to establish the parametric body rule.
-    pub fn body_events(&self) -> &[UnitOwnerTransportEvent] {
-        &self.events
     }
     /// Validate the finite linear rule, not a bounded unrolling of the loop.
     /// Replace's old input is the sole occurrence consumed by the detached binding/Drop;
     /// no operation tests its identity. Substitution of any initialized H preserves the
     /// rule: form fresh Q, replace H with Q, drop H once, carry only Q to the next header.
-    pub fn is_consistent(&self) -> bool {
+    pub(in crate::ownership_checking::compilation_unit) fn is_consistent(&self) -> bool {
         use UnitOwnerTransportEvent as E;
         let p = self.entry.owner();
         let q = self.backedge.owner();

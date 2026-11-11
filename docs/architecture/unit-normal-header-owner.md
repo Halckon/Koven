@@ -28,3 +28,18 @@ old/detached。所有H相关定义仍经完整census。最终Return的实际payl
 
 有限 0/1/2/7 普通运行不证明任意轮次、无泄漏或资源计数；非法构造/fault/Abort执行
 保持CI-only。对应代码与精确验收在[SPEC-0341](../specs/active/0341-shared-lowering-core.md)。
+
+## 显式 Continue 的独立封印
+
+同两种既有控制可在body末使用唯一裸Continue。私有HeaderCore复用H守恒，但公开
+NormalBackedge只接受Fallthrough，ContinueBackedge只接受真实Continue(jump)，
+两者不提供Deref或互转。旧Normal判断仍不把Continue当作正常回边。
+
+真实jump结束loan/owner/iteration清理后，记录同body catalog的独立快照；只有
+原遍历返回Ok(false)、expected Continue与witness身份一致、body完成再次读到同一
+状态，才构造Continue产品。目标固定当前source-qualified While，无嵌套/其他跳转。
+
+后端在原loop_jump清理之后保存实际source/header target和语句数量，原terminate
+成功之后封印一次Continue receipt。Return再核jump身份、block、Goto、source语句数
+和detached Drop已消费，保留所有H定义census；缺失/重复receipt或角色错配不回退。
+Int的checked-add success与Abort仍独立，Boolean直接body回边单独覆盖。

@@ -264,7 +264,18 @@ impl Builder<'_, '_> {
             (frame.continue_target, span)
         };
         self.owner_break_edge(self.unit(expression), target, jump_span)?;
+        let continued = self.header_continue_edge(
+            self.unit(expression),
+            is_break,
+            (
+                frame.statement,
+                target,
+                frame.seq_for.is_none() && frame.map_for.is_none(),
+            ),
+            jump_span,
+        )?;
         self.terminate(RTerm::Goto(target), jump_span)?;
+        self.header_continue_emitted(continued, jump_span)?;
         Ok(Lowered::Diverged)
     }
 
