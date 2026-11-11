@@ -1,5 +1,9 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 mod conditional;
+mod control_scope;
+pub(in super::super) use control_scope::ControlStack;
+#[cfg(test)]
+pub(in super::super) use control_scope::ControlVisit;
 mod invariant;
 mod normal_backedge;
 mod replace_break;
@@ -635,6 +639,40 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(in super::super) fn owner_while_statement(
+        &mut self,
+        id: StatementId,
+        condition: ExpressionId,
+        body: StatementId,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let control = UnitStatementId::new(self.checker.source_unit, id);
+        #[cfg(test)]
+        let parent = self.owner_controls.current();
+        let entered = self.owner_controls.enter(control);
+        #[cfg(test)]
+        if let Some(probe) = &mut self.owner_control_probe {
+            probe.push(ControlVisit {
+                entering: true,
+                control,
+                parent,
+            });
+        }
+        let result = self.owner_while_statement_scoped(id, condition, body, state);
+        if entered {
+            self.owner_controls.leave(control);
+        }
+        #[cfg(test)]
+        if let Some(probe) = &mut self.owner_control_probe {
+            probe.push(ControlVisit {
+                entering: false,
+                control,
+                parent: self.owner_controls.current(),
+            });
+        }
+        result
+    }
+
+    fn owner_while_statement_scoped(
         &mut self,
         id: StatementId,
         condition: ExpressionId,

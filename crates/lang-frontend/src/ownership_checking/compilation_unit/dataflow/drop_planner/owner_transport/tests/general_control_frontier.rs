@@ -71,3 +71,38 @@ fn general_control_frontier_nested_loops_preserve_legacy_without_flattening() {
     assert_frontier(&NESTED.replace("nested = nested + 1", "nested = nested + 1; continue"));
     assert_frontier(&NESTED.replace("nested = nested + 1", "nested = nested + 1; break"));
 }
+
+#[test]
+fn nested_control_stack_records_actual_parent_and_restores_after_jump() {
+    for text in [
+        NESTED.to_owned(),
+        NESTED.replace("nested = nested + 1", "nested = nested + 1; continue"),
+        NESTED.replace("nested = nested + 1", "nested = nested + 1; break"),
+    ] {
+        let fixture = Fixture::new(&[("scopes.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty());
+        assert!(owned.clone().validate().is_ok());
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.owner_control_probe = Some(Vec::new());
+            let planner = planner.run().unwrap();
+            let visits = planner.owner_control_probe.as_ref().unwrap();
+            assert_eq!(visits.len(), 4);
+            assert!(visits[0].entering);
+            assert_eq!(visits[0].parent, None);
+            assert!(visits[1].entering);
+            assert_ne!(visits[0].control, visits[1].control);
+            assert_eq!(visits[1].parent, Some(visits[0].control));
+            assert!(!visits[2].entering);
+            assert_eq!(visits[2].control, visits[1].control);
+            assert_eq!(visits[2].parent, Some(visits[0].control));
+            assert!(!visits[3].entering);
+            assert_eq!(visits[3].control, visits[0].control);
+            assert_eq!(visits[3].parent, None);
+        });
+    }
+}
