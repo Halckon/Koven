@@ -342,14 +342,15 @@ impl Emitted {
                 instruction,
                 source: l.sources[i],
                 result,
-                edges: if i < 2 {
-                    vec![edges[0][0].clone(), edges[1][i].clone()]
-                } else {
-                    vec![edges[0][1].clone()]
-                },
+                edges: p
+                    .leaf_route(i)
+                    .into_iter()
+                    .map(|(split, arm)| edges[split][arm].clone())
+                    .collect(),
             });
         }
         let receipt = Receipt {
+            topology: p.topology,
             callable: p.callable,
             caller: p.caller,
             entry: l.split_blocks[0],
@@ -378,7 +379,8 @@ impl Receipt {
     ) -> Result<(), LoweringError> {
         plans.finish(span)?;
         let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
-        if self.callable != p.callable
+        if self.topology != p.topology
+            || self.callable != p.callable
             || self.caller != p.caller
             || self.caller != function.id()
             || self.splits.len() != 2
@@ -420,8 +422,8 @@ impl Receipt {
         };
         if self.source != *source
             || self.splits[0].flag != *outer
-            || self.splits[0].edges[0].target != self.splits[1].block
-            || mapped(&self.splits[0].edges[0], *inner)? != self.splits[1].flag
+            || self.splits[0].edges[p.nested_arm()].target != self.splits[1].block
+            || mapped(&self.splits[0].edges[p.nested_arm()], *inner)? != self.splits[1].flag
         {
             return Err(invalid(span));
         }
@@ -458,14 +460,11 @@ impl Receipt {
             return Err(invalid(span));
         }
         for (i, path) in self.paths.iter().enumerate() {
-            let expected = if i < 2 {
-                vec![
-                    self.splits[0].edges[0].clone(),
-                    self.splits[1].edges[i].clone(),
-                ]
-            } else {
-                vec![self.splits[0].edges[1].clone()]
-            };
+            let expected = p
+                .leaf_route(i)
+                .into_iter()
+                .map(|(split, arm)| self.splits[split].edges[arm].clone())
+                .collect::<Vec<_>>();
             let mut source = self.source;
             for edge in &path.edges {
                 source = mapped(edge, source)?;

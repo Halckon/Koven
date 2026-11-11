@@ -1,7 +1,7 @@
 //! Independent fixed three-leaf receipt observation, never inferred from final CFG alone.
 use crate::ssa::model::{BlockId, Edge, FunctionId, InstructionId, LoanId, ValueId};
 use lang_frontend::{
-    ownership_checking::UnitLoanActionId,
+    ownership_checking::{UnitBorrowNestedForwardTopology, UnitLoanActionId},
     type_checking::{UnitExpressionId, UnitItemId},
 };
 #[derive(Clone, Debug)]
@@ -28,6 +28,7 @@ pub(crate) struct PathReceipt {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Receipt {
+    pub(crate) topology: UnitBorrowNestedForwardTopology,
     pub(crate) callable: UnitItemId,
     pub(crate) caller: FunctionId,
     pub(crate) entry: BlockId,
@@ -57,6 +58,7 @@ pub(super) struct Plans {
 }
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
+    pub(super) topology: UnitBorrowNestedForwardTopology,
     pub(super) callable: UnitItemId,
     pub(super) caller: FunctionId,
     pub(super) root: UnitSymbolId,
@@ -152,4 +154,24 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
     let result = lower();
     let receipts = RECEIPTS.with(|v| v.borrow_mut().take().unwrap().published);
     (result, receipts)
+}
+
+impl Plan {
+    fn nested_arm(&self) -> usize {
+        match self.topology {
+            UnitBorrowNestedForwardTopology::NestedThen => 0,
+            UnitBorrowNestedForwardTopology::NestedElse => 1,
+        }
+    }
+    fn leaf_route(&self, index: usize) -> Vec<(usize, usize)> {
+        match (self.topology, index) {
+            (UnitBorrowNestedForwardTopology::NestedThen, 0) => vec![(0, 0), (1, 0)],
+            (UnitBorrowNestedForwardTopology::NestedThen, 1) => vec![(0, 0), (1, 1)],
+            (UnitBorrowNestedForwardTopology::NestedThen, 2) => vec![(0, 1)],
+            (UnitBorrowNestedForwardTopology::NestedElse, 0) => vec![(0, 0)],
+            (UnitBorrowNestedForwardTopology::NestedElse, 1) => vec![(0, 1), (1, 0)],
+            (UnitBorrowNestedForwardTopology::NestedElse, 2) => vec![(0, 1), (1, 1)],
+            _ => Vec::new(),
+        }
+    }
 }

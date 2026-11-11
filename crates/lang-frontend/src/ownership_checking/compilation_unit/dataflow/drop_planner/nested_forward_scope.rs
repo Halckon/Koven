@@ -1,6 +1,6 @@
-//! Strict declaration admission for one outer-then nested split, never a completion certificate.
+//! Strict declaration admission for one explicit nested side, never a completion certificate.
 use super::*;
-use crate::ownership_checking::UnitLoanTarget;
+use crate::ownership_checking::{UnitBorrowNestedForwardTopology, UnitLoanTarget};
 use crate::type_checking::{BorrowReturnOrigin, UnitCallTarget, UnitItemId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,6 +18,7 @@ pub(super) struct NestedLeaf {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NestedForwardPlan {
+    pub(super) topology: UnitBorrowNestedForwardTopology,
     pub(super) callable: UnitItemId,
     pub(super) root: UnitSymbolId,
     pub(super) splits: [NestedSplit; 2],
@@ -99,10 +100,26 @@ impl DropPlanner<'_, '_> {
         let [outer_statement] = elements.as_slice() else {
             return None;
         };
-        let (outer_split, outer_condition, nested_statement, outer_return) =
+        let (outer_split, outer_condition, then_statement, else_statement) =
             self.nested_split_shape(*outer_statement)?;
-        let (inner_split, inner_condition, left_return, middle_return) =
-            self.nested_split_shape(nested_statement)?;
+        let (topology, inner_split, inner_condition, returned) = match (
+            self.nested_split_shape(then_statement),
+            self.nested_split_shape(else_statement),
+        ) {
+            (Some((split, condition, left, middle)), None) => (
+                UnitBorrowNestedForwardTopology::NestedThen,
+                split,
+                condition,
+                [left, middle, else_statement],
+            ),
+            (None, Some((split, condition, middle, right))) => (
+                UnitBorrowNestedForwardTopology::NestedElse,
+                split,
+                condition,
+                [then_statement, middle, right],
+            ),
+            _ => return None,
+        };
         let mut splits = Vec::new();
         for ((split, condition), flag) in [
             (outer_split, outer_condition),
@@ -135,10 +152,7 @@ impl DropPlanner<'_, '_> {
         }
         let callable = UnitItemId::new(self.checker.source_unit, item);
         let mut leaves = Vec::new();
-        for (leaf, statement) in [left_return, middle_return, outer_return]
-            .into_iter()
-            .enumerate()
-        {
+        for (leaf, statement) in returned.into_iter().enumerate() {
             let Statement::Expression {
                 expression: control,
             } = ast.statements().get(statement).ok()?.payload()
@@ -239,11 +253,7 @@ impl DropPlanner<'_, '_> {
             {
                 return None;
             }
-            let path = match leaf {
-                0 => [Some((0, true)), Some((1, true))],
-                1 => [Some((0, true)), Some((1, false))],
-                _ => [Some((0, false)), None],
-            };
+            let path = topology.leaf_path(leaf);
             leaves.push(NestedLeaf {
                 control,
                 value: body,
@@ -259,6 +269,7 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(NestedForwardPlan {
+            topology,
             callable,
             root,
             splits: [splits[0], splits[1]],
@@ -352,6 +363,7 @@ impl DropPlanner<'_, '_> {
         let parent = if index == 0 { None } else { nested.path[0] };
         let Some(entry) = self.iteration_actions.enter_nested_forward_edge(
             nested.plan.callable,
+            nested.plan.topology,
             split.split,
             split.condition,
             then_arm,
@@ -362,13 +374,10 @@ impl DropPlanner<'_, '_> {
         };
         nested.path[index] = Some(entry);
         nested.ready_split = None;
-        nested.leaf = match (index, then_arm) {
-            (0, true) => None,
-            (0, false) => Some(2),
-            (1, true) => Some(0),
-            (1, false) => Some(1),
-            _ => None,
-        };
+        nested.leaf = nested.plan.leaves.iter().position(|leaf| {
+            let depth = leaf.path.iter().flatten().count();
+            depth == index + 1 && leaf.path[index] == Some((index, then_arm))
+        });
         state.nested_forward = Some(nested);
         self.observe_nested_arm(state, index, then_arm, entry);
     }

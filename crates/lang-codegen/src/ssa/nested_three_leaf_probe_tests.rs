@@ -1,7 +1,8 @@
 //! Fixed three-leaf actual producer receipt and the adjacent unsupported four-leaf frontier.
 use super::*;
 use lang_frontend::ownership_checking::{
-    check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+    UnitBorrowNestedForwardTopology, check_compilation_unit_ownership, legacy_ownership_eq,
+    with_loan_observation,
 };
 fn nested_three_leaf_source() -> &'static str {
     "fun left(source: String): borrow String from source = source\nfun middle(source: String): borrow String from source = source\nfun right(source: String): borrow String from source = source\nfun wrap(source: String, outer: Boolean, inner: Boolean): borrow String from source { if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { return right(source) } }\nfun consume(item: String): Unit {}\nfun run(outer: Boolean, inner: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner, outer, inner); consume(item) }"
@@ -215,6 +216,10 @@ fn ordinary_nested_three_leaf_requires_actual_receipt() {
             panic!("one independently produced nested receipt")
         };
         assert_eq!(receipt.callable, callable);
+        assert_eq!(
+            receipt.topology,
+            UnitBorrowNestedForwardTopology::NestedThen
+        );
         assert_eq!(receipt.caller, wrapper.id());
         assert_eq!(receipt.entry, wrapper.blocks[0].id);
         assert_eq!(receipt.source, *source);

@@ -4,8 +4,8 @@ use lang_frontend::{
     lexer::lex,
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        UnitDropPoint, UnitLoanAction, UnitLoanActionCoverage, check_compilation_unit_ownership,
-        legacy_ownership_eq, with_loan_observation,
+        UnitBorrowNestedForwardTopology, UnitDropPoint, UnitLoanAction, UnitLoanActionCoverage,
+        check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
     },
     parser::parse_file,
     source::SourceMap,
@@ -17,15 +17,36 @@ const SOURCE: &str = "fun left(source: String): borrow String from source = sour
 
 #[test]
 fn ordinary_three_leaf_lineage_keeps_catalog_partial() {
-    check_lineage(SOURCE, 3, false);
+    check_lineage(
+        SOURCE,
+        3,
+        false,
+        UnitBorrowNestedForwardTopology::NestedThen,
+    );
 }
 
 #[test]
 fn ordinary_three_leaf_terminal_region_requires_all_path_closure() {
-    check_lineage(SOURCE, 3, true);
+    check_lineage(SOURCE, 3, true, UnitBorrowNestedForwardTopology::NestedThen);
 }
 
-fn check_lineage(source_text: &str, expected: usize, require_region: bool) {
+#[test]
+fn ordinary_else_nested_terminal_region_requires_mirrored_path_closure() {
+    let source = SOURCE.replace("if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { return right(source) }", "if (outer) { return left(source) } else { if (inner) { return middle(source) } else { return right(source) } }");
+    check_lineage(
+        &source,
+        3,
+        true,
+        UnitBorrowNestedForwardTopology::NestedElse,
+    );
+}
+
+fn check_lineage(
+    source_text: &str,
+    expected: usize,
+    require_region: bool,
+    topology: UnitBorrowNestedForwardTopology,
+) {
     let mut sources = SourceMap::new();
     let source = sources
         .add_source("nested-lineage.ko", source_text)
@@ -103,6 +124,7 @@ fn check_lineage(source_text: &str, expected: usize, require_region: bool) {
         let mut ids = Vec::new();
         for (index, lineage) in lineages.iter().enumerate() {
             assert_eq!(lineage.coverage(), UnitLoanActionCoverage::Partial);
+            assert_eq!(lineage.topology(), topology);
             assert!(catalog.owns_nested_forward_lineage(lineage));
             assert_eq!(
                 raw[index].point(),
@@ -139,7 +161,12 @@ fn check_lineage(source_text: &str, expected: usize, require_region: bool) {
                     .iter()
                     .map(|e| e.then_arm())
                     .collect::<Vec<_>>(),
-                [vec![true, true], vec![true, false], vec![false]][index]
+                match topology {
+                    UnitBorrowNestedForwardTopology::NestedThen =>
+                        [vec![true, true], vec![true, false], vec![false]],
+                    UnitBorrowNestedForwardTopology::NestedElse =>
+                        [vec![true], vec![false, true], vec![false, false]],
+                }[index]
             );
             for id in [lineage.source_begin(), lineage.handoff()] {
                 assert!(!ids.contains(&id));
@@ -147,24 +174,29 @@ fn check_lineage(source_text: &str, expected: usize, require_region: bool) {
             }
         }
         if lineages.len() == 3 {
-            assert_eq!(lineages[0].edges()[0], lineages[1].edges()[0]);
+            let (a, b, other) = match topology {
+                UnitBorrowNestedForwardTopology::NestedThen => (0, 1, 2),
+                UnitBorrowNestedForwardTopology::NestedElse => (1, 2, 0),
+            };
+            assert_eq!(lineages[a].edges()[0], lineages[b].edges()[0]);
             assert_eq!(
-                lineages[0].edges()[0].split(),
-                lineages[2].edges()[0].split()
+                lineages[a].edges()[0].split(),
+                lineages[other].edges()[0].split()
             );
             assert_eq!(
-                lineages[0].edges()[1].split(),
-                lineages[1].edges()[1].split()
+                lineages[a].edges()[1].split(),
+                lineages[b].edges()[1].split()
             );
             assert_ne!(
-                lineages[0].edges()[0].split(),
-                lineages[0].edges()[1].split()
+                lineages[a].edges()[0].split(),
+                lineages[a].edges()[1].split()
             );
         }
         if require_region {
             let regions = catalog.nested_forward_regions();
             for region in regions {
                 assert!(catalog.owns_nested_forward_region(region));
+                assert_eq!(region.topology(), topology);
                 assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
                 assert_eq!(region.paths(), lineages);
                 assert_eq!(region.paths().len(), 3);
@@ -195,7 +227,7 @@ fn ordinary_nested_lineage_rejects_neighbor_shapes() {
         "if (outer) { if (inner) { return left(source) } else { return middle(source) } }\nreturn right(source)",
         "outer\nif (outer) { if (inner) { return left(source) } else { return middle(source) } } else { return right(source) }",
         "if (outer) { if (inner) { if (inner) { return left(source) } else { return left(source) } } else { return middle(source) } } else { return right(source) }",
-        "if (outer) { return left(source) } else { if (inner) { return middle(source) } else { return right(source) } }",
+        "if (outer) { if (inner) { return left(source) } else { return middle(source) } } else { if (inner) { return right(source) } else { return right(source) } }",
     ] {
         check_lineage(
             &format!(
@@ -203,6 +235,7 @@ fn ordinary_nested_lineage_rejects_neighbor_shapes() {
             ),
             0,
             false,
+            UnitBorrowNestedForwardTopology::NestedThen,
         );
     }
 }

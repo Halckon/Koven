@@ -39,10 +39,16 @@ pub(super) fn record(source: &ActionSource) {
     });
 }
 fn capture() -> ActionSource {
-    let fixture = Fixture::new(&[(
-        "nested.ko",
-        "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) } }",
-    )]);
+    capture_topology(false)
+}
+fn capture_topology(mirror: bool) -> ActionSource {
+    let text = "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) } }";
+    let text = if mirror {
+        text.replace("if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) }", "if (a) { return left(s) } else { if (b) { return middle(s) } else { return right(s) } }")
+    } else {
+        text.to_owned()
+    };
+    let fixture = Fixture::new(&[("nested.ko", text.as_str())]);
     SNAPSHOT.with(|slot| *slot.borrow_mut() = Some(Vec::new()));
     let _owned = fixture.shared();
     let mut snapshots = SNAPSHOT.with(|slot| slot.borrow_mut().take().unwrap());
@@ -117,6 +123,45 @@ fn ci_only_nested_lineage_rejects_wrong_entry_acquisition_and_delivery() {
                 .nested_lineages(unit, file)
                 .iter()
                 .all(|lineage| lineage.value() != original),
+            "fault {fault}"
+        );
+    }
+}
+
+#[test]
+fn ci_only_mirror_lineage_rejects_then_parent_and_foreign_topology() {
+    use crate::ownership_checking::UnitBorrowNestedForwardTopology;
+    for fault in 0..4 {
+        let mut source = capture_topology(true);
+        let cause = &source.nested_handoffs[1].1;
+        let unit = cause.state.plan.callable.source_unit();
+        let original = cause.state.plan.leaves[1].value;
+        let index = source.nested_handoffs[1].0;
+        let Record::BorrowForwardHandoff { transaction, .. } = &source.records[index] else {
+            panic!("handoff")
+        };
+        let file = transaction.source_loan().begin_span().source_id();
+        assert_eq!(source.nested_lineages(unit, file).len(), 3);
+        let parent = source.nested_handoffs[1].1.state.path[0].unwrap();
+        match fault {
+            0 => source.nested_entries[parent].then_arm = true,
+            1 => {
+                source.nested_entries[parent].topology = UnitBorrowNestedForwardTopology::NestedThen
+            }
+            2 => {
+                source.nested_handoffs[1].1.state.plan.topology =
+                    UnitBorrowNestedForwardTopology::NestedThen
+            }
+            _ => {
+                source.nested_handoffs[1].1.state.path[0] =
+                    source.nested_handoffs[0].1.state.path[0]
+            }
+        }
+        assert!(
+            source
+                .nested_lineages(unit, file)
+                .iter()
+                .all(|l| l.value() != original),
             "fault {fault}"
         );
     }

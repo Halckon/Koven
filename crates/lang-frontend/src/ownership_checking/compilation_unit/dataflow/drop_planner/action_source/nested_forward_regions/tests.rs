@@ -44,10 +44,16 @@ pub(super) fn record(source: &ActionSource, lineages: &[UnitLoanNestedForwardLin
     });
 }
 fn capture() -> Snapshot {
-    let fixture = Fixture::new(&[(
-        "closure.ko",
-        "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) } }",
-    )]);
+    capture_topology(false)
+}
+fn capture_topology(mirror: bool) -> Snapshot {
+    let text = "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) } }";
+    let text = if mirror {
+        text.replace("if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) }", "if (a) { return left(s) } else { if (b) { return middle(s) } else { return right(s) } }")
+    } else {
+        text.to_owned()
+    };
+    let fixture = Fixture::new(&[("closure.ko", text.as_str())]);
     SNAPSHOTS.with(|slot| *slot.borrow_mut() = Some(Vec::new()));
     let _owned = fixture.shared();
     let mut snapshots = SNAPSHOTS.with(|slot| slot.borrow_mut().take().unwrap());
@@ -107,4 +113,37 @@ fn ci_only_nested_closure_invalidity_is_sticky_after_missing_or_reordered_event(
     c.closed = None;
     assert!(!c.advance(0, 0, c.start, false));
     assert!(!c.advance(0, 0, c.start, true));
+}
+
+#[test]
+fn ci_only_mirror_terminal_closure_requires_its_own_topology_and_inner_consumption() {
+    use crate::ownership_checking::UnitBorrowNestedForwardTopology;
+    for fault in 0..6 {
+        let (mut source, mut lineages) = capture_topology(true);
+        assert_eq!(
+            source.finish_nested_regions(&lineages)[0].coverage(),
+            UnitLoanActionCoverage::Complete
+        );
+        assert_eq!(
+            source.finish_nested_regions(&lineages)[0].topology(),
+            UnitBorrowNestedForwardTopology::NestedElse
+        );
+        match fault {
+            0 => {
+                source.nested_regions[0].plan.topology = UnitBorrowNestedForwardTopology::NestedThen
+            }
+            1 => source.nested_regions[0].inner_consumed = false,
+            2 => source.nested_regions[0].inner_closed = false,
+            3 => lineages[1].topology = UnitBorrowNestedForwardTopology::NestedThen,
+            4 => source.nested_regions[0].entries[0] = source.nested_regions[0].entries[3],
+            _ => source.nested_region_join(0, 0, true, true, true),
+        }
+        let r = source.finish_nested_regions(&lineages);
+        assert_eq!(
+            r[0].coverage(),
+            UnitLoanActionCoverage::Partial,
+            "fault {fault}"
+        );
+        assert!(r[0].paths().is_empty());
+    }
 }

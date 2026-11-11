@@ -27,8 +27,16 @@ impl Plans {
             || (i == 0 && (entry != BlockRef(0) || p.source.is_some()))
             || (i == 1
                 && (!p.splits[0].done
-                    || p.splits[0].arms.map(|a| a[0]) != Some(entry)
-                    || p.source != Some(source)))
+                    || p.splits[0].arms.map(|a| a[p.nested_arm()]) != Some(entry)
+                    || p.source != Some(source)
+                    || match p.topology {
+                        UnitBorrowNestedForwardTopology::NestedThen => {
+                            p.paths.iter().any(|path| path.stage != 0)
+                        }
+                        UnitBorrowNestedForwardTopology::NestedElse => {
+                            p.paths[0].stage != 3 || p.paths[1..].iter().any(|path| path.stage != 0)
+                        }
+                    }))
         {
             return Err(invalid(span));
         }
@@ -62,7 +70,15 @@ impl Plans {
                     || s.arms.is_some_and(|a| a.contains(&join))
                     || s.join == Some(join)
             })
-            || (i == 1 && (p.paths[0].stage != 3 || p.paths[1].stage != 3 || p.paths[2].stage != 0))
+            || (i == 1
+                && match p.topology {
+                    UnitBorrowNestedForwardTopology::NestedThen => {
+                        p.paths[0].stage != 3 || p.paths[1].stage != 3 || p.paths[2].stage != 0
+                    }
+                    UnitBorrowNestedForwardTopology::NestedElse => {
+                        p.paths.iter().any(|path| path.stage != 3)
+                    }
+                })
             || (i == 0 && (p.splits[1].join.is_none() || p.paths.iter().any(|p| p.stage != 3)))
         {
             return Err(invalid(span));
@@ -86,16 +102,24 @@ impl Plans {
             .iter()
             .position(|path| path.control == control && path.value == value)
             .ok_or_else(|| invalid(span))?;
-        let expected = if i < 2 {
-            p.splits[1].arms.map(|a| a[i])
-        } else {
-            p.splits[0].arms.map(|a| a[1])
+        let route = p.leaf_route(i);
+        let (split, arm) = route.last().copied().ok_or_else(|| invalid(span))?;
+        let expected = p.splits[split].arms.map(|a| a[arm]);
+        let phase_valid = match (p.topology, i) {
+            (UnitBorrowNestedForwardTopology::NestedThen, _) => {
+                p.splits.iter().all(|s| s.done) && (i != 2 || p.splits[1].join.is_some())
+            }
+            (UnitBorrowNestedForwardTopology::NestedElse, 0) => {
+                p.splits[0].done && p.splits[1].entry.is_none() && p.splits[1].join.is_none()
+            }
+            (UnitBorrowNestedForwardTopology::NestedElse, _) => {
+                p.splits.iter().all(|s| s.done) && p.splits[1].join.is_none()
+            }
         };
         if expected != Some(block)
-            || !p.splits.iter().all(|s| s.done)
+            || !phase_valid
             || p.paths[i].stage != 0
             || (i > 0 && p.paths[i - 1].stage != 3)
-            || (i == 2 && p.splits[1].join.is_none())
         {
             return Err(invalid(span));
         }

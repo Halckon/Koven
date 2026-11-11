@@ -26,9 +26,17 @@ pub(super) fn record(plans: &Plans, function: &Function, receipt: &Receipt, span
     });
 }
 fn capture() -> Snapshot {
+    capture_topology(false)
+}
+fn capture_topology(mirror: bool) -> Snapshot {
     let text = "fun left(s: String): borrow String from s = s\nfun middle(s: String): borrow String from s = s\nfun right(s: String): borrow String from s = s\nfun wrap(s: String, a: Boolean, b: Boolean): borrow String from s { if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) } }\nfun consume(s: String): Unit {}\nfun run(a: Boolean, b: Boolean): Unit { val owner = \"kept\"; borrow val item = wrap(owner,a,b); consume(item) }";
+    let text = if mirror {
+        text.replace("if (a) { if (b) { return left(s) } else { return middle(s) } } else { return right(s) }", "if (a) { return left(s) } else { if (b) { return middle(s) } else { return right(s) } }")
+    } else {
+        text.to_owned()
+    };
     let mut sources = SourceMap::new();
-    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "nested-ci.ko", text);
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "nested-ci.ko", &text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (environment, types) = standard_environments();
     let (names, typed, owned) =
@@ -125,4 +133,66 @@ fn ci_only_nested_receipt_publication_rolls_back_before_original_verifier_succes
         guard.commit();
     });
     assert_eq!(receipts.len(), 1);
+}
+
+#[test]
+fn ci_only_mirror_receipt_rejects_wrong_topology_missing_false_parent_and_flag() {
+    let s = capture_topology(true);
+    assert_eq!(
+        s.receipt.topology,
+        UnitBorrowNestedForwardTopology::NestedElse
+    );
+    s.receipt.validate(&s.plans, &s.function, s.span).unwrap();
+    for fault in 0..5 {
+        let mut r = s.receipt.clone();
+        match fault {
+            0 => r.topology = UnitBorrowNestedForwardTopology::NestedThen,
+            1 => {
+                r.paths[1].edges.remove(0);
+            }
+            2 => r.paths[1].edges[0] = r.splits[0].edges[0].clone(),
+            3 => r.splits[1].flag = r.source,
+            _ => r.paths[2].edges[1] = r.splits[1].edges[0].clone(),
+        }
+        assert!(
+            r.validate(&s.plans, &s.function, s.span).is_err(),
+            "mirror fault {fault}"
+        );
+    }
+}
+#[test]
+fn ci_only_mirror_producer_requires_plain_leaf_return_before_inner_split() {
+    let s = capture_topology(true);
+    for stage in 0..=3 {
+        let mut plans = s.plans.clone();
+        let p = plans.plan.as_mut().unwrap();
+        let inner = p.splits[1].clone();
+        let borrowed = BTreeMap::from([
+            (p.root, p.source.unwrap()),
+            (p.flags[1], inner.flag.unwrap()),
+        ]);
+        p.paths[0].stage = stage;
+        p.paths[1].stage = 0;
+        p.paths[2].stage = 0;
+        p.splits[1].entry = None;
+        p.splits[1].arms = None;
+        p.splits[1].flag = None;
+        p.splits[1].value = None;
+        p.splits[1].done = false;
+        p.splits[1].join = None;
+        p.splits[0].join = None;
+        let result = plans.split(
+            inner.split,
+            inner.condition,
+            inner.entry.unwrap(),
+            inner.arms.unwrap(),
+            &borrowed,
+            s.span,
+        );
+        assert_eq!(
+            result.is_ok(),
+            stage == 3,
+            "actual producer precondition stage {stage}"
+        );
+    }
 }

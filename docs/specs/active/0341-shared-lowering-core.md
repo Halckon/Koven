@@ -13821,3 +13821,30 @@ refine subset/range_borrow 和 build/range_borrow 的真实返回 lowering 覆�
 证明全流 absence；projection、观察关闭等价及未支持邻形测试仍保留。
 退休需要对应消费者完整输入范围的独立替代合同、缺失与不支持的明确区分，以及
 关闭旧读取后的等价验证；不能仅凭新增 receipt 正控删除旧表或旧测试。
+
+### 镜像三叶的有限路径扩展（2026-11-11）
+
+退休审计后选择下一有限形状：外层 then 直接返回，else 中为完整内层 if/else。
+先记录前端真实红：raw 三次运输已有，独立 region 却为0；后端真实源码四组
+rooted/memory × on/off 均在原244..250 borrow标记 Unsupported，verifier及receipt为0。
+显式 NestedThen/NestedElse 区分两棵固定树，镜像路径按真实访问顺序 T、F/T、F/F，
+不重排原始动作、不给一般递归嵌套或多根授予完整性。日志为mirror-*-red。
+
+镜像同样18阶段，但第一叶先真实return；外层false入场后才观察内层条件与两叶。
+内层join出具关闭凭据，outer join恰消费一次，然后函数seal/close；原Then仍在
+外层false入场消费其内层关闭凭据。entry、Partial lineage、Complete region均绑定
+同一显式拓扑，return边界深度由实际路径长度决定，原始六条运输及catalog不变。
+后端Unit gate仅接受两侧恰一侧嵌套且另一侧为直接return的固定二择一；admission
+核拓扑、AST与路径身份。producer要求mirror第一叶已真实Return才允许inner split，
+inner join要求全部三叶终止；最终SSA仍五块两Read三BorrowCall/Return，外层false
+真实edge运输source和inner flag，各叶完整父边链必须与recipe/receipt一致。
+
+前端4项、后端4项普通新旧三叶/邻界测试通过，含rooted/memory与观察开关的
+真实SSA/LLVM等价；旧branch6、aux3、binding1及前端6项回归通过。
+双向非作者复审通过，修复了审查发现的CI-only capture辅助函数命名遗漏，
+未因测试问题放宽生产逻辑。新增错拓扑、错误false父边、错误flag、提前进入inner、
+关闭消费缺失与重复join等CI-only变异只编译，不在本机执行；不退休旧见证。
+strict 双crate feature all-target Clippy、默认lib no-run（包含CI-only编译）、
+workspace all-target check、fmt/diff、docs897与尺寸门禁全部通过。尺寸2488手写文件、
+36历史超限；本片不新增例外、不提高额度。日志mirror-*，只本地提交不推送，
+native全套与远端CI未运行。

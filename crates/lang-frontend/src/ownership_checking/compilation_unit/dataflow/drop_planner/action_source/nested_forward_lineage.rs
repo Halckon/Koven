@@ -20,6 +20,7 @@ pub(in super::super) struct NestedForwardCause {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
     pub(super) callable: UnitItemId,
+    pub(super) topology: crate::ownership_checking::UnitBorrowNestedForwardTopology,
     pub(super) split: UnitExpressionId,
     pub(super) condition: UnitExpressionId,
     pub(super) then_arm: bool,
@@ -31,6 +32,7 @@ impl ActionSource {
     pub(in super::super) fn enter_nested_forward_edge(
         &mut self,
         callable: UnitItemId,
+        topology: crate::ownership_checking::UnitBorrowNestedForwardTopology,
         split: UnitExpressionId,
         condition: UnitExpressionId,
         then_arm: bool,
@@ -39,7 +41,11 @@ impl ActionSource {
         if !self.enabled
             || parent.is_some_and(|i| {
                 !self.nested_entries.get(i).is_some_and(|e| {
-                    e.callable == callable && e.parent.is_none() && e.then_arm && e.split != split
+                    e.callable == callable
+                        && e.topology == topology
+                        && e.parent.is_none()
+                        && e.then_arm == topology.nested_then()
+                        && e.split != split
                 })
             })
         {
@@ -48,6 +54,7 @@ impl ActionSource {
         let index = self.nested_entries.len();
         self.nested_entries.push(Entry {
             callable,
+            topology,
             split,
             condition,
             then_arm,
@@ -113,12 +120,7 @@ impl ActionSource {
                         && other.point() == transaction.point())).count() != 1
                 || self.nested_handoffs.iter().filter(|(i,c)| i == index || c.acquisition.same_record(handle)).count() != 1
             { return None; }
-            let expected = match state.leaf? {
-                0 => [Some((0,true)),Some((1,true))],
-                1 => [Some((0,true)),Some((1,false))],
-                2 => [Some((0,false)),None],
-                _ => return None,
-            };
+            let expected = state.plan.topology.leaf_path(state.leaf?);
             if leaf.path != expected { return None; }
             let mut edges = Vec::new();
             let mut parent = None;
@@ -131,7 +133,7 @@ impl ActionSource {
                 let id = entry_id?;
                 let entry = self.nested_entries.get(id)?;
                 let split = state.plan.splits.get(split_index)?;
-                if entry.callable != state.plan.callable || entry.split != split.split
+                if entry.callable != state.plan.callable || entry.topology != state.plan.topology || entry.split != split.split
                     || entry.condition != split.condition || entry.then_arm != then_arm
                     || entry.parent != parent || entry.cursor < prior_cursor || entry.cursor > handle.index
                     || split.split.source_unit() != source_unit || split.condition.source_unit() != source_unit
@@ -144,6 +146,7 @@ impl ActionSource {
             }
             if parent.is_none() || prior_cursor != handle.index { return None; }
             Some(UnitLoanNestedForwardLineage {
+                topology: state.plan.topology,
                 identity: self.identity.clone(), callable: state.plan.callable, root: state.plan.root,
                 control: leaf.control, value: leaf.value, begin: handle.index, handoff: *index, edges,
             })

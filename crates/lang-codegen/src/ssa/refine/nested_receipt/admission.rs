@@ -60,7 +60,11 @@ impl Plans {
                 {
                     return Err(fail());
                 }
-                let first_edges = region.paths()[0].edges();
+                let nested_leaf = match region.topology() {
+                    UnitBorrowNestedForwardTopology::NestedThen => 0,
+                    UnitBorrowNestedForwardTopology::NestedElse => 1,
+                };
+                let first_edges = region.paths()[nested_leaf].edges();
                 let [outer_edge, inner_edge] = first_edges else {
                     return Err(fail());
                 };
@@ -124,12 +128,16 @@ impl Plans {
                 for (leaf, path) in region.paths().iter().enumerate() {
                     let call = path.value();
                     let ids = vec![path.source_begin(), path.handoff()];
-                    let expected: &[bool] = match leaf {
-                        0 => &[true, true],
-                        1 => &[true, false],
-                        _ => &[false],
+                    let expected: &[bool] = match (region.topology(), leaf) {
+                        (UnitBorrowNestedForwardTopology::NestedThen, 0) => &[true, true],
+                        (UnitBorrowNestedForwardTopology::NestedThen, 1) => &[true, false],
+                        (UnitBorrowNestedForwardTopology::NestedThen, _) => &[false],
+                        (UnitBorrowNestedForwardTopology::NestedElse, 0) => &[true],
+                        (UnitBorrowNestedForwardTopology::NestedElse, 1) => &[false, true],
+                        (UnitBorrowNestedForwardTopology::NestedElse, _) => &[false, false],
                     };
-                    if !catalog.owns_nested_forward_lineage(path)
+                    if path.topology() != region.topology()
+                        || !catalog.owns_nested_forward_lineage(path)
                         || path.callable() != callable
                         || path.source_parameter() != root
                         || path.coverage() != UnitLoanActionCoverage::Partial
@@ -320,8 +328,9 @@ impl Plans {
                 }) {
                     return Err(fail());
                 }
-                validate_topology(inputs, &splits, &paths)?;
+                validate_topology(inputs, region.topology(), &splits, &paths)?;
                 plans.plan = Some(Plan {
+                    topology: region.topology(),
                     callable,
                     caller,
                     root,
@@ -339,6 +348,7 @@ impl Plans {
 // Require the original fixed declaration tree, not three unrelated certified leaves.
 fn validate_topology(
     inputs: &RefineInputs<'_>,
+    topology: UnitBorrowNestedForwardTopology,
     splits: &[SplitPlan],
     paths: &[PathPlan],
 ) -> Result<(), LoweringError> {
@@ -376,8 +386,12 @@ fn validate_topology(
     if UnitExpressionId::new(inputs.source_unit, *condition) != splits[0].condition {
         return Err(fail());
     }
-    let inner = single(*then_branch).ok_or_else(fail)?;
-    let right = single(*other).ok_or_else(fail)?;
+    let (nested, plain) = match topology {
+        UnitBorrowNestedForwardTopology::NestedThen => (*then_branch, *other),
+        UnitBorrowNestedForwardTopology::NestedElse => (*other, *then_branch),
+    };
+    let inner = single(nested).ok_or_else(fail)?;
+    let plain = single(plain).ok_or_else(fail)?;
     if UnitExpressionId::new(inputs.source_unit, inner) != splits[1].split {
         return Err(fail());
     }
@@ -393,11 +407,12 @@ fn validate_topology(
     if UnitExpressionId::new(inputs.source_unit, *condition) != splits[1].condition {
         return Err(fail());
     }
-    let returns = [
-        single(*then_branch).ok_or_else(fail)?,
-        single(*other).ok_or_else(fail)?,
-        right,
-    ];
+    let left = single(*then_branch).ok_or_else(fail)?;
+    let right = single(*other).ok_or_else(fail)?;
+    let returns = match topology {
+        UnitBorrowNestedForwardTopology::NestedThen => [left, right, plain],
+        UnitBorrowNestedForwardTopology::NestedElse => [plain, left, right],
+    };
     for (returned, path) in returns.into_iter().zip(paths) {
         let Expression::Return {
             value: Some(value), ..

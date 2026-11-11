@@ -3,10 +3,20 @@ use super::{UnitLoanActionCoverage, UnitLoanNestedForwardLineage};
 use crate::{name_resolution::UnitSymbolId, type_checking::UnitItemId};
 use std::sync::Arc;
 
+/// The exact admitted finite nested tree, never arbitrary nesting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitBorrowNestedForwardTopology {
+    /// The outer true arm contains the inner split.
+    NestedThen,
+    /// The outer false arm contains the inner split.
+    NestedElse,
+}
+
 /// Separately certifies actual terminal closure of the admitted nested three-leaf region.
 /// Its constituent acquisition lineages retain their original Partial meaning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowNestedForwardRegion {
+    pub(super) topology: UnitBorrowNestedForwardTopology,
     pub(super) identity: Arc<()>,
     pub(super) callable: UnitItemId,
     pub(super) root: UnitSymbolId,
@@ -14,6 +24,10 @@ pub struct UnitBorrowNestedForwardRegion {
     pub(super) paths: Vec<UnitLoanNestedForwardLineage>,
 }
 impl UnitBorrowNestedForwardRegion {
+    /// The positively admitted parent side of the inner split.
+    pub const fn topology(&self) -> UnitBorrowNestedForwardTopology {
+        self.topology
+    }
     /// The original function defining this bounded region.
     pub const fn callable(&self) -> UnitItemId {
         self.callable
@@ -30,5 +44,22 @@ impl UnitBorrowNestedForwardRegion {
     /// Enumeration is not runtime sequencing between mutually exclusive paths.
     pub fn paths(&self) -> &[UnitLoanNestedForwardLineage] {
         &self.paths
+    }
+}
+
+impl UnitBorrowNestedForwardTopology {
+    pub(crate) const fn nested_then(self) -> bool {
+        matches!(self, Self::NestedThen)
+    }
+    pub(crate) const fn leaf_path(self, leaf: usize) -> [Option<(usize, bool)>; 2] {
+        match (self, leaf) {
+            (Self::NestedThen, 0) => [Some((0, true)), Some((1, true))],
+            (Self::NestedThen, 1) => [Some((0, true)), Some((1, false))],
+            (Self::NestedThen, 2) => [Some((0, false)), None],
+            (Self::NestedElse, 0) => [Some((0, true)), None],
+            (Self::NestedElse, 1) => [Some((0, false)), Some((1, true))],
+            (Self::NestedElse, 2) => [Some((0, false)), Some((1, false))],
+            _ => [None, None],
+        }
     }
 }

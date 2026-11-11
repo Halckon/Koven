@@ -12,8 +12,8 @@ use lang_frontend::{
 fn ordinary_nested_neighbor_trees_keep_exact_unsupported_boundary() {
     for (shape, body, count) in [
         (
-            "else-nested",
-            "if (outer) { return left(source) } else { if (inner) { return middle(source) } else { return right(source) } }",
+            "swapped-conditions",
+            "if (inner) { return left(source) } else { if (outer) { return middle(source) } else { return right(source) } }",
             3,
         ),
         (

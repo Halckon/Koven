@@ -31,6 +31,7 @@ impl UnitLoanNestedForwardEdge {
 /// Actual acquisition-to-handoff lineage. This is not a region certificate or receipt authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitLoanNestedForwardLineage {
+    pub(super) topology: super::UnitBorrowNestedForwardTopology,
     pub(super) identity: Arc<()>,
     pub(super) callable: UnitItemId,
     pub(super) root: UnitSymbolId,
@@ -41,6 +42,10 @@ pub struct UnitLoanNestedForwardLineage {
     pub(super) edges: Vec<UnitLoanNestedForwardEdge>,
 }
 impl UnitLoanNestedForwardLineage {
+    /// Exact admitted nesting side, bound to the actual parent entry.
+    pub const fn topology(&self) -> super::UnitBorrowNestedForwardTopology {
+        self.topology
+    }
     /// Permanently partial: no all-path, cleanup, or backend admission claim.
     pub const fn coverage(&self) -> UnitLoanActionCoverage {
         UnitLoanActionCoverage::Partial

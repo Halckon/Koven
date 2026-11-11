@@ -167,7 +167,7 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let nesting = if leaf == 2 { 1 } else { 2 };
+        let nesting = nested.plan.leaves[leaf].path.iter().flatten().count();
         let clear = nested.plan.leaves[leaf].control == self.checker.unit_expression(id)
             && nested.ready_split.is_none()
             && self.nested_boundary_clear(

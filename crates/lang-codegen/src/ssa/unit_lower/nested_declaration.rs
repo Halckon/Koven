@@ -95,9 +95,30 @@ fn admitted(
     let [outer_statement] = elements.as_slice() else {
         return None;
     };
-    let (outer_split, outer_condition, nested_statement, right_return) =
+    let (outer_split, outer_condition, then_statement, else_statement) =
         split(file, *outer_statement)?;
-    let (inner_split, inner_condition, left_return, middle_return) = split(file, nested_statement)?;
+    let (inner_split, inner_condition, returns) =
+        match (split(file, then_statement), split(file, else_statement)) {
+            (Some((id, condition, left, middle)), None) => (
+                id,
+                condition,
+                [
+                    expression(file, left)?,
+                    expression(file, middle)?,
+                    expression(file, else_statement)?,
+                ],
+            ),
+            (None, Some((id, condition, middle, right))) => (
+                id,
+                condition,
+                [
+                    expression(file, then_statement)?,
+                    expression(file, middle)?,
+                    expression(file, right)?,
+                ],
+            ),
+            _ => return None,
+        };
     if outer_split == inner_split {
         return None;
     }
@@ -108,11 +129,6 @@ fn admitted(
             return None;
         }
     }
-    let returns = [
-        expression(file, left_return)?,
-        expression(file, middle_return)?,
-        expression(file, right_return)?,
-    ];
     if returns
         .iter()
         .enumerate()
