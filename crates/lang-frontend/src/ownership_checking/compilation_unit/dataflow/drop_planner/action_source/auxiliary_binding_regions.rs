@@ -157,6 +157,7 @@ impl ActionSource {
         if existing.is_some() {
             self.invalidate_auxiliary_root(root);
             self.invalidate_distinct_auxiliary_root(root);
+            self.invalidate_later_auxiliary_root(root);
             existing
         } else {
             auxiliary

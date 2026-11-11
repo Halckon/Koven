@@ -14429,3 +14429,27 @@ aux Drop角色6与source Drop角色10。aux后续使用仍无本region/receipt�
 尺寸复测2562手写Rust文件、36个历史超1000文件，唯一失败仍前序FE1684>1674；
 策略不改。build1010→1011仅Plans创建，经独立职责review低于原1025，emit987无增长。
 日志distinct-aux-receipt-*；没有native全套或远端CI，只本地提交、未推送。
+
+#### 双根辅助owner后续使用的独立区域（实施中）
+
+基于fe74b4c9，增加独立五语句合同：两literal String owner、双根borrow initializer、
+consume(item)、consume(auxiliary)，source参数支持0/1。不得放宽原ASAP四语句区域，
+不得从普通Begin和最终Drop倒推End；需要真实调用返回时消费的acquisition与原
+EndCallLoan动作对应，并独立验证source退休/Drop及随后aux实际removed-owner/Drop。
+完整未过滤记录与真实入口义务、出口边界共同决定Complete，旧owner门禁及见证保留。
+
+普通SSA研究已确认后续aux是独立第三次Begin，LoanId不等于原source、aux或result；
+实际source Drop早于新RootPlace/Begin，后续consume返回后的End早于aux Drop。
+source0/1×ASAP/后续使用×两入口×on/off共16组合保持SSA/LLVM一致。
+本片只增加独立前端证明，不以旧CG成功冒充新receipt；后续使用的新receipt另行实施。
+
+验收：真实typed/raw成功后新region0!=1的红已转绿；独立区域核11原动作，source
+Drop7早于新aux Begin8，真实返回时原acquisition/cursor9对应EndCallLoan9，实际
+removed aux owner经一次cause关联Drop10。独立review确认两Drop因果及旧门禁隔离。
+FE普通11项、CG普通83项通过；新8组CI-only故障仅编译，未执行。Clippy -D warnings、
+workspace all-targets、默认FE/CG lib no-run、fmt/diff及文档897项通过。日志
+later-region-*与distinct-aux-later-research.log；没有native全套或远端CI。
+
+尺寸复测2569手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
+超额文件和policy未改。compilation_unit1123→1126仅模块/导出，经非作者职责审阅
+低于原1156额度。仅本地提交；旧见证不退休，新后端receipt待后续。

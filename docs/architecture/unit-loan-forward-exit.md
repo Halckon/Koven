@@ -45,3 +45,10 @@ ASAP四语句双根形状另发布独立Complete区域：binding入口承接两�
 窗口与真实空义务出口共同验证。辅助根后续另行消费仍不获此资格。独立双根receipt
 消费此区域，实际11角色核两RootPlace、source/aux End与两Drop，role0冻结两owner、
 全7实体身份不变；原verifier成功后原子发布。细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#双根asap区域的独立真实后端收据实施中)。
+
+独立LaterUse五语句区域覆盖结果消费后再消费aux：source参数0/1，完整11动作含
+source退休/Drop及新aux Begin、原EndCallLoan、aux Drop。真实pending移除时保存
+acquisition、活owner及返回cursor，再经独立cause核实际removed owner和Drop，
+不靠Begin+Drop倒推结束；真实入口义务、出口清空和两owner事件共同决定Complete。
+旧ASAP区域不扩展，后续使用仍走既有CG且尚无专属receipt；见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#双根辅助owner后续使用的独立区域实施中)。

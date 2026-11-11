@@ -109,7 +109,15 @@ impl DropPlanner<'_, '_> {
             {
                 continue;
             }
-            let super::model::PendingLoan(action, _, _) = state.pending_loans.remove(index);
+            let super::model::PendingLoan(action, _, acquisition) =
+                state.pending_loans.remove(index);
+            if let Action::EndCallLoan(loan) = &action {
+                self.iteration_actions.observe_later_auxiliary_return(
+                    loan,
+                    acquisition.as_ref(),
+                    &state.values,
+                );
+            }
             self.iteration_actions
                 .push((PlannerDropPoint::CallReturn(call), action));
         }

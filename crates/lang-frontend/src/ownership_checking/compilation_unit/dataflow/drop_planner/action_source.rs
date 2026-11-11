@@ -8,6 +8,7 @@ mod binding_regions;
 mod child_regions;
 mod distinct_auxiliary_binding_regions;
 mod distinct_auxiliary_retirements;
+mod later_auxiliary_binding_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
 mod bounded_forward;
 mod multi_continuation;
@@ -59,6 +60,8 @@ pub(super) struct ActionSource {
     active_auxiliary_binding_region: Option<usize>,
     distinct_auxiliary_binding_regions: Vec<crate::ownership_checking::compilation_unit::loan_distinct_auxiliary_binding_region_validation::Candidate>,
     active_distinct_auxiliary_binding_region: Option<usize>,
+    later_auxiliary_binding_regions: Vec<crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::Candidate>,
+    active_later_auxiliary_binding_region: Option<usize>,
     child_regions:
         Vec<crate::ownership_checking::compilation_unit::loan_child_region_validation::Candidate>,
     active_child_region: Option<usize>,
@@ -120,6 +123,8 @@ impl Default for ActionSource {
             active_auxiliary_binding_region: None,
             distinct_auxiliary_binding_regions: Vec::new(),
             active_distinct_auxiliary_binding_region: None,
+            later_auxiliary_binding_regions: Vec::new(),
+            active_later_auxiliary_binding_region: None,
             child_regions: Vec::new(),
             active_child_region: None,
             dependency_drops: Vec::new(),
@@ -576,6 +581,13 @@ impl ActionSource {
                 region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
             })
             .collect();
+        let later_auxiliary_binding_regions = self
+            .later_auxiliary_binding_regions
+            .into_iter()
+            .map(|region| {
+                region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
+            })
+            .collect();
         let child_regions = self
             .child_regions
             .into_iter()
@@ -610,6 +622,7 @@ impl ActionSource {
             distinct_auxiliary_retirements,
             auxiliary_retirements,
             distinct_auxiliary_binding_regions,
+            later_auxiliary_binding_regions,
             auxiliary_binding_regions,
         }]
     }

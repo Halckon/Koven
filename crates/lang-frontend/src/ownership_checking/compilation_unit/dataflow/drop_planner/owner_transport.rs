@@ -150,6 +150,8 @@ impl DropPlanner<'_, '_> {
         self.observe_distinct_auxiliary_owner_event(&event);
         self.iteration_actions
             .observe_distinct_region_owner_event(&event);
+        self.iteration_actions
+            .observe_later_region_owner_event(&event);
         #[cfg(test)]
         if let Some(probe) = &mut self.owner_hook_probe {
             probe.push(event.clone());

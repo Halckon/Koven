@@ -396,6 +396,77 @@ fn check(program: &Program, entry: FunctionId, source_index: usize, keep_aux: bo
             && *consumer < result_end
             && result_end < source_end
     );
+    if keep_aux {
+        let later_calls = caller
+            .instructions
+            .iter()
+            .enumerate()
+            .filter(|(index, instruction)| {
+                *index > *consumer && matches!(instruction.operation, Operation::DirectCall { .. })
+            })
+            .collect::<Vec<_>>();
+        let [(later_index, later)] = later_calls.as_slice() else {
+            panic!("one actual later auxiliary consumer");
+        };
+        let Operation::DirectCall {
+            receiver: None,
+            arguments,
+            ..
+        } = &later.operation
+        else {
+            panic!("ordinary later auxiliary call");
+        };
+        let [EntityId::Loan(later_loan)] = arguments.as_slice() else {
+            panic!("one fresh auxiliary loan");
+        };
+        assert!(![*source, auxiliary, *result].contains(later_loan));
+        let (later_begin_index, later_begin) = caller
+            .instructions
+            .iter()
+            .enumerate()
+            .find(|(_, instruction)| instruction.results == [EntityId::Loan(*later_loan)])
+            .unwrap();
+        let Operation::BorrowBegin {
+            place: later_place,
+            kind: LoanKind::Shared,
+        } = later_begin.operation
+        else {
+            panic!("real fresh auxiliary shared acquisition");
+        };
+        let (later_place_index, later_root) = caller
+            .instructions
+            .iter()
+            .enumerate()
+            .find(|(_, instruction)| instruction.results == [EntityId::Place(later_place)])
+            .unwrap();
+        assert_eq!(
+            later_root.operation,
+            Operation::RootPlace { owner: roots[1] }
+        );
+        let source_drop = caller
+            .instructions
+            .iter()
+            .position(|i| i.operation == Operation::Drop { owner: roots[0] })
+            .unwrap();
+        let auxiliary_drop = caller
+            .instructions
+            .iter()
+            .position(|i| i.operation == Operation::Drop { owner: roots[1] })
+            .unwrap();
+        let later_end = end(*later_loan);
+        assert!(source_end < source_drop && source_drop < later_place_index);
+        assert!(later_place_index < later_begin_index && later_begin_index < *later_index);
+        assert!(*later_index < later_end && later_end < auxiliary_drop);
+        assert!(later.results.is_empty());
+        assert_eq!(
+            caller
+                .instructions
+                .iter()
+                .filter(|i| matches!(i.operation, Operation::BorrowBegin { .. }))
+                .count(),
+            3
+        );
+    }
     for (root, loan_end) in roots.iter().zip([source_end, aux_end]) {
         let drops = caller
             .instructions

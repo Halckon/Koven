@@ -84,7 +84,10 @@ impl DropPlanner<'_, '_> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
-        self.drop_named_asap_with_binding_drop(point, symbol, state, None);
+        let cause = self
+            .iteration_actions
+            .later_auxiliary_return_drop_cause(point.into_unit(self.checker.source_unit), symbol);
+        self.drop_named_asap_with_binding_drop(point, symbol, state, cause);
     }
 
     pub(super) fn drop_named_asap_with_binding_drop(

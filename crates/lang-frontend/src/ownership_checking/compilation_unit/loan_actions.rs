@@ -107,6 +107,7 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) later_auxiliary_binding_regions: Vec<super::UnitBorrowLaterAuxiliaryBindingRegion>,
     pub(super) distinct_auxiliary_binding_regions:
         Vec<super::UnitBorrowDistinctAuxiliaryBindingRegion>,
     pub(super) auxiliary_binding_regions: Vec<super::UnitBorrowAuxiliaryBindingRegion>,
@@ -208,6 +209,20 @@ impl UnitLoanActionObservation {
     pub fn owns_distinct_auxiliary_binding_region(
         &self,
         region: &super::UnitBorrowDistinctAuxiliaryBindingRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independent five-statement later-use intervals; absence grants no coverage.
+    pub fn later_auxiliary_binding_regions(
+        &self,
+    ) -> &[super::UnitBorrowLaterAuxiliaryBindingRegion] {
+        &self.later_auxiliary_binding_regions
+    }
+    /// Check the observation identity of a later-use region.
+    pub fn owns_later_auxiliary_binding_region(
+        &self,
+        region: &super::UnitBorrowLaterAuxiliaryBindingRegion,
     ) -> bool {
         Arc::ptr_eq(&self.identity, &region.identity)
     }

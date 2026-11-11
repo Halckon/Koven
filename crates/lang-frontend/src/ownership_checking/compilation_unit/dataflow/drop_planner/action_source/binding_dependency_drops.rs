@@ -15,6 +15,8 @@ use std::{collections::BTreeMap, sync::Arc};
 
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) enum BindingDropCause {
     Region(RegionDropCause),
+    LaterAuxiliaryRegion(super::later_auxiliary_binding_regions::LaterAuxiliaryRegionDropCause),
+    LaterAuxiliaryReturn(super::later_auxiliary_binding_regions::LaterAuxiliaryReturnDropCause),
     AuxiliaryRegion(super::auxiliary_binding_regions::AuxiliaryRegionDropCause),
     DistinctAuxiliaryRegion(
         super::distinct_auxiliary_binding_regions::DistinctAuxiliaryRegionDropCause,
@@ -100,6 +102,12 @@ impl ActionSource {
         value: &OwnedValue,
     ) -> Option<BindingDropCause> {
         match cause {
+            BindingDropCause::LaterAuxiliaryRegion(cause) => self
+                .verify_removed_later_auxiliary_region_owner(cause, value)
+                .map(BindingDropCause::LaterAuxiliaryRegion),
+            BindingDropCause::LaterAuxiliaryReturn(cause) => self
+                .verify_removed_later_auxiliary_return_owner(cause, value)
+                .map(BindingDropCause::LaterAuxiliaryReturn),
             BindingDropCause::DistinctAuxiliaryRegion(cause) => self
                 .verify_removed_distinct_auxiliary_region_owner(cause, value)
                 .map(BindingDropCause::DistinctAuxiliaryRegion),
@@ -125,6 +133,12 @@ impl ActionSource {
 
     pub(super) fn record_binding_drop(&mut self, cause: BindingDropCause, cleanup: ActionHandle) {
         match cause {
+            BindingDropCause::LaterAuxiliaryRegion(cause) => {
+                self.record_later_auxiliary_region_drop(cause, cleanup)
+            }
+            BindingDropCause::LaterAuxiliaryReturn(cause) => {
+                self.record_later_auxiliary_return_drop(cause, cleanup)
+            }
             BindingDropCause::Region(cause) => self.record_region_drop(cause, cleanup),
             BindingDropCause::DistinctAuxiliaryRegion(cause) => {
                 self.record_distinct_auxiliary_region_drop(cause, cleanup)
