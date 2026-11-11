@@ -137,18 +137,26 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                     .id();
                 let mut previous = None;
                 for (setting, owned) in [("on", &on), ("off", &off)] {
-                    let ((((lowered, verified), old), asap), later) =
-                        crate::ssa::refine::later_aux_receipt::observe(|| {
-                            crate::ssa::refine::distinct_aux_receipt::observe(|| {
-                                crate::ssa::refine::aux_binding_receipt::observe(|| {
-                                    crate::ssa::unit_lower::observe_final_verifier(|| {
-                                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                            &sources, &inputs, &names, &types, &typed, owned, entry,
-                                        )
+                    let (((((lowered, verified), old), asap), later), sequence) =
+                        crate::ssa::refine::auxiliary_sequence_receipt::observe(|| {
+                            crate::ssa::refine::later_aux_receipt::observe(|| {
+                                crate::ssa::refine::distinct_aux_receipt::observe(|| {
+                                    crate::ssa::refine::aux_binding_receipt::observe(|| {
+                                        crate::ssa::unit_lower::observe_final_verifier(|| {
+                                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                                &sources, &inputs, &names, &types, &typed, owned,
+                                                entry,
+                                            )
+                                        })
                                     })
                                 })
                             })
                         });
+                    assert_eq!(
+                        sequence.len(),
+                        usize::from(setting == "on" && qualified),
+                        "new dynamic sequence receipt"
+                    );
                     let (program, entry) = lowered.unwrap_or_else(|error| {
                         panic!("{word}/source{source_index}/{layout}/{setting}: {error:?}")
                     });
@@ -158,6 +166,123 @@ fn ordinary_auxiliary_consumer_sequences_preserve_real_lifetimes() {
                     assert_eq!(later.len(), usize::from(setting == "on" && word == "BA"));
                     verify_program(&program).unwrap();
                     check(&program, entry, &word, source_index);
+                    if let [receipt] = sequence.as_slice() {
+                        let region = &regions[0];
+                        assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+                        assert_eq!(
+                            receipt.calls,
+                            region
+                                .uses()
+                                .iter()
+                                .map(|u| u.loan().call())
+                                .collect::<Vec<_>>()
+                        );
+                        assert_eq!(receipt.callable, region.callable());
+                        assert_eq!(receipt.caller, entry);
+                        assert_eq!(receipt.binding, region.binding());
+                        assert_eq!(receipt.root, region.root());
+                        assert_eq!(Some(receipt.auxiliary_root), region.auxiliary_root());
+                        assert_eq!(receipt.source_call, region.source_call());
+                        assert_eq!(receipt.consumer_call, region.consumer_call());
+                        assert_eq!(receipt.entry_statement, region.entry_statement());
+                        assert_eq!(receipt.completion_statement, region.completion_statement());
+                        assert_eq!(receipt.instructions.len(), 11 + 4 * count);
+                        assert_eq!(receipt.entities.len(), 7 + 2 * count);
+                        assert_eq!(
+                            receipt.entities.iter().collect::<BTreeSet<_>>().len(),
+                            receipt.entities.len()
+                        );
+                        let function = program.modules[0].function(entry).unwrap();
+                        assert!(
+                            function.blocks[0]
+                                .instructions
+                                .windows(11 + 4 * count)
+                                .any(|w| w == receipt.instructions)
+                        );
+                        let actual = receipt
+                            .instructions
+                            .iter()
+                            .map(|id| function.instruction(*id).unwrap())
+                            .collect::<Vec<_>>();
+                        assert!(actual.iter().all(|i| i.block == function.blocks[0].id));
+                        let [
+                            EntityId::Value(owner),
+                            EntityId::Value(aux_owner),
+                            EntityId::Place(place),
+                            EntityId::Loan(source),
+                            EntityId::Place(aux_place),
+                            EntityId::Loan(aux_loan),
+                            EntityId::Loan(result),
+                        ] = &receipt.entities[..7]
+                        else {
+                            panic!("seven prefix identities")
+                        };
+                        for (offset, owner, place, loan) in [
+                            (source_index * 2, owner, place, source),
+                            ((1 - source_index) * 2, aux_owner, aux_place, aux_loan),
+                        ] {
+                            assert_eq!(
+                                actual[offset].operation,
+                                Operation::RootPlace { owner: *owner }
+                            );
+                            assert_eq!(actual[offset].results, [EntityId::Place(*place)]);
+                            assert_eq!(
+                                actual[offset + 1].operation,
+                                Operation::BorrowBegin {
+                                    place: *place,
+                                    kind: LoanKind::Shared
+                                }
+                            );
+                            assert_eq!(actual[offset + 1].results, [EntityId::Loan(*loan)]);
+                        }
+                        assert!(
+                            matches!(&actual[4].operation,Operation::BorrowCall{source:s,arguments,..} if s==source && arguments[source_index]==EntityId::Loan(*source)&&arguments[1-source_index]==EntityId::Loan(*aux_loan))
+                        );
+                        assert_eq!(actual[4].results, [EntityId::Loan(*result)]);
+                        assert_eq!(
+                            actual[5].operation,
+                            Operation::BorrowEnd { loan: *aux_loan }
+                        );
+                        assert!(
+                            matches!(&actual[6].operation,Operation::DirectCall{arguments,..} if arguments==&[EntityId::Loan(*result)])
+                        );
+                        assert_eq!(actual[7].operation, Operation::BorrowEnd { loan: *result });
+                        assert_eq!(actual[8].operation, Operation::BorrowEnd { loan: *source });
+                        assert_eq!(actual[9].operation, Operation::Drop { owner: *owner });
+                        for i in 0..count {
+                            let [EntityId::Place(place), EntityId::Loan(loan)] =
+                                &receipt.entities[7 + 2 * i..9 + 2 * i]
+                            else {
+                                panic!("use pair")
+                            };
+                            let offset = 10 + 4 * i;
+                            assert_eq!(
+                                actual[offset].operation,
+                                Operation::RootPlace { owner: *aux_owner }
+                            );
+                            assert_eq!(actual[offset].results, [EntityId::Place(*place)]);
+                            assert_eq!(
+                                actual[offset + 1].operation,
+                                Operation::BorrowBegin {
+                                    place: *place,
+                                    kind: LoanKind::Shared
+                                }
+                            );
+                            assert_eq!(actual[offset + 1].results, [EntityId::Loan(*loan)]);
+                            assert!(
+                                matches!(&actual[offset+2].operation,Operation::DirectCall{arguments,..} if arguments==&[EntityId::Loan(*loan)])
+                            );
+                            assert_eq!(
+                                actual[offset + 3].operation,
+                                Operation::BorrowEnd { loan: *loan }
+                            );
+                        }
+                        assert_eq!(
+                            actual[10 + 4 * count].operation,
+                            Operation::Drop { owner: *aux_owner }
+                        );
+                    }
+
                     let output = (
                         crate::ssa::render_program(&program),
                         crate::llvm::render_verified_program(&program).unwrap(),

@@ -489,6 +489,7 @@ pub(crate) mod named_receipt;
 pub(crate) mod temporary_receipt;
 
 pub(crate) mod aux_binding_receipt;
+pub(crate) mod auxiliary_sequence_receipt;
 pub(crate) mod binding_receipt;
 pub(crate) mod distinct_aux_receipt;
 pub(crate) mod later_aux_receipt;

@@ -82,6 +82,9 @@ impl Builder<'_, '_> {
         self.body
             .later_aux_plans
             .activate(symbol, id, source, span)?;
+        self.body
+            .auxiliary_sequence_plans
+            .activate(symbol, id, source, span)?;
         self.body.child_plans.activate(symbol, id, source, span)?;
         let local_policy = ordinary_local::policy(
             self.inputs.parsed,
@@ -112,6 +115,12 @@ impl Builder<'_, '_> {
             span,
         )?;
         self.body.later_aux_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body.auxiliary_sequence_plans.commit(
             symbol,
             &self.borrowed,
             &self.result_source_loans,
@@ -181,6 +190,15 @@ impl Builder<'_, '_> {
                     .map(Vec::as_slice),
                 self.inputs.span,
             )?;
+            self.body.auxiliary_sequence_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
             self.body.child_plans.retire(
                 fact.binding(),
                 point,
@@ -238,6 +256,13 @@ impl Builder<'_, '_> {
     ) -> Result<Slot, LoweringError> {
         let value = self.adapt_borrowed(value, value_expression, parameter_type)?;
         self.body.later_aux_plans.later_operand(
+            call,
+            self.unit(value_expression),
+            value,
+            &self.bindings,
+            span,
+        )?;
+        self.body.auxiliary_sequence_plans.sequence_operand(
             call,
             self.unit(value_expression),
             value,
@@ -364,6 +389,28 @@ impl Builder<'_, '_> {
                 .later_aux_plans
                 .enter(id, &self.bindings, block, self.inputs.span)?;
         }
+        if self.body.auxiliary_sequence_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.auxiliary_sequence_plans.enter(
+                id,
+                &self.bindings,
+                block,
+                self.inputs.span,
+            )?;
+        }
         let result = self.statement_inner(statement)?;
         let point = UnitDropPoint::AfterStatement(id);
         if result != Lowered::Diverged {
@@ -431,6 +478,21 @@ impl Builder<'_, '_> {
                 self.inputs.span,
             )?;
         }
+        if self.body.auxiliary_sequence_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.auxiliary_sequence_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
         self.child_completion(id, result)?;
         Ok(result)
     }
@@ -463,6 +525,7 @@ impl Builder<'_, '_> {
             && !self.body.aux_binding_plans.has_consumer(call)
             && !self.body.distinct_aux_plans.has_consumer(call)
             && !self.body.later_aux_plans.has_consumer(call)
+            && !self.body.auxiliary_sequence_plans.has_consumer(call)
         {
             return Ok(());
         }
@@ -495,8 +558,19 @@ impl Builder<'_, '_> {
             loan,
             span,
         )?;
-        self.body
-            .later_aux_plans
-            .consumer_argument(call, self.unit(argument), binding, loan, span)
+        self.body.later_aux_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.auxiliary_sequence_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )
     }
 }

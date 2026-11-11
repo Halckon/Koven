@@ -536,6 +536,11 @@ impl Builder<'_, '_> {
                     self.body
                         .later_aux_plans
                         .source_operand(call, arg_id, call_arg_span)?;
+                    self.body.auxiliary_sequence_plans.source_operand(
+                        call,
+                        arg_id,
+                        call_arg_span,
+                    )?;
                     self.body
                         .child_plans
                         .source_operand(call, arg_id, call_arg_span)?;

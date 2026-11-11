@@ -14536,3 +14536,30 @@ vec无必要，改为数组并复测该测试后，全Clippy -D warnings、works
 原超额文件/policy零改；compilation_unit1126→1130仅模块和两类型导出，经非作者
 职责review低于原1156额度。新动态序列专属CG receipt尚未实施，旧见证保留；仅
 本地提交，不推送。
+
+#### 动态BA序列的真实后端收据（实施中）
+
+基于ba5871f3，独立后端协议消费预算内BA^n前端Complete证书，n2..8由实际use Vec
+驱动，不逐长度枚举固定shape。预计实际角色为11+4n、实体为7+2n，须逐一核真实
+SSA与前端9+2n动作ID；每轮aux使用拥有独立Place/Loan，沿同一个已冻结owner，
+每轮正常End后才允许下一轮，只有最后一轮之后才领取并消费最终aux Drop。
+
+同catalog、typed/sourcePlan、每个实际Begin/End引用及两raw Drop索引独立准入；
+原producer append和alias逐步维持身份，最终原verifier成功后原子发布，失败撤销
+pending。不把源码已可执行当成新receipt完成；先真实缺失红，再全长度绿与n9预算
+邻界。旧ASAP/Single/见证及尺寸policy保持，仅本地开发提交。
+
+实际receipt0!=1红已转绿，普通CG84项及224组合通过：预算内全n2..8核每个
+9+2n FE action ID、11+4n同块连续真实指令和7+2n独立实体；逐use新Place/Loan与
+原source/aux/result及所有先前use不同。n9和其他交错无新receipt，旧Single/ASAP及
+on/off SSA/LLVM不变。中间两处引用层级编译错误已修复，不算作行为红。
+
+独立审阅确认共用CG MAX_USES预算、动态index范围、实际operand阶段授权、role0
+双owner冻结、append/alias身份、原两Drop索引及final verifier后原子发布。新4组
+CI-only覆盖n2..8逐use身份、预算、角色缺漏错序、跨catalog及发布回滚，仅编译。
+Clippy -D warnings、workspace all-targets、默认FE/CG lib no-run、fmt/diff和文档
+897项通过；格式检查发现的模块排序已修正并复验。日志aux-sequence-receipt-*。
+
+尺寸复测2582手写Rust文件、36个历史超1000文件，唯一失败仍前序1684>1674；
+policy不改。build1012→1013仅独立Plans创建，经非作者职责review低于原1025，
+emit987不增长。FE及旧见证不变，无native全套/远端CI，仅本地提交未推送。

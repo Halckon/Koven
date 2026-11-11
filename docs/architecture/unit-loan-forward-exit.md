@@ -63,5 +63,12 @@ BA^n动态后缀另有独立`auxiliary_sequence_regions()`证书，局部预算2
 旧源码执行。每个use含实际pending返回对应的Begin/End ID与活aux OwnerId；完整
 8条前缀加n对Begin/End及最终Drop逐项核验，最后真实返回后才连接removed owner。
 私有Single/Sequence共用准入和因果，不将Sequence放入旧LaterUse getter；旧n1仍
-严格11动作。预算外或多B/前置A不借用资格，尚无动态序列专属CG receipt。见
+严格11动作。预算外或多B/前置A不借用资格。前端边界见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#动态ba序列的独立前端证书实施中)。
+
+动态BA序列独立CG receipt按use Vec验证11+4n个真实角色和7+2n实体，不逐n枚举。
+每次实际operand授权对应同aux owner的新Place/Loan，前轮End后进入下一轮；source
+Drop固定先于序列，aux Drop仅最后一轮End之后。完整9+2n前端动作与逐use Begin/
+End/owner绑定，role0双owner冻结，后续append/alias维持全部身份；原verifier后
+原子发布，失败回滚，旧见证保留。见
+[SPEC-0341](../specs/active/0341-shared-lowering-core.md#动态ba序列的真实后端收据实施中)。
