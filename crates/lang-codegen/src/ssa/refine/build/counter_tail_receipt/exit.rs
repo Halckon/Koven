@@ -1,7 +1,7 @@
 //! Complete false-exit/suffix consumption using the existing Alias/Drop emission sites.
 use super::*;
 use lang_frontend::ownership_checking::UnitDropFact;
-use retirement::{Permit, Stage};
+use retirement::{Domain, Permit, Stage};
 pub(super) struct Item {
     root: UnitSymbolId,
     fact: UnitDropFact,
@@ -60,7 +60,7 @@ impl Builder<'_, '_> {
             source,
             span,
             instruction: self.body.blocks[block.0].statements.len(),
-            exit: true,
+            domain: Domain::Exit,
         })
     }
     pub(super) fn counter_exit_binding(

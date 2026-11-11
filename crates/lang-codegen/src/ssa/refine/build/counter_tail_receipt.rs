@@ -2,6 +2,7 @@
 use super::*;
 mod boundary;
 mod emission;
+mod entry;
 mod exit;
 mod retirement;
 use crate::ssa::model::{CheckedArithmeticOperator, ComparisonOperator, ScalarConstant};
@@ -16,6 +17,7 @@ pub(super) struct Plan<'a> {
     guard: Option<Slot>,
     roots: Vec<Slot>,
     chain: Vec<retirement::Stage>,
+    initial: Vec<Option<Slot>>,
     exits: Option<Vec<exit::Item>>,
 }
 impl<'a> Plan<'a> {
@@ -43,6 +45,7 @@ impl<'a> Plan<'a> {
             guard: None,
             roots: Vec::new(),
             chain: vec![retirement::Stage::Ready; evidence.steps().len()],
+            initial: vec![None; evidence.root_slots().len()],
             exits: exit::items(evidence),
         }))
     }
@@ -81,6 +84,17 @@ impl Builder<'_, '_> {
                     .ok_or_else(fail)
             })
             .collect::<Result<_, _>>()?;
+        if plan
+            .evidence
+            .root_slots()
+            .iter()
+            .zip(&plan.initial)
+            .any(|(slot, actual)| {
+                self.bindings.get(&slot.root()).copied() != *actual || actual.is_none()
+            })
+        {
+            return Err(fail());
+        }
         plan.geometry = Some([
             self.block.ok_or_else(fail)?,
             blocks[0],

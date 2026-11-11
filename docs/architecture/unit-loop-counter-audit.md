@@ -22,7 +22,11 @@ false-exit活根/退休分区和完成的suffix事实。内部复用既有私有
 
 ## 受限发射消费合同
 
-已选counter范围的每个精确RootReplace call在实际发射前必须获得私有一次性permit：
+已选counter先为每根真实入口Alias取得一次性permit：从原catalog追溯literal或own参数
+及其同块alias链，核实际发射后保存root槽；while开始前要求全入口向量与实际bindings一致。
+入口permit不替代参数模式/typed检查，不把借用参数当作拥有者，不新增Alias指令。
+
+每个精确RootReplace call在实际发射前必须获得私有一次性permit：
 核当前body块、root槽及原catalog对应的真实producer槽；发射后核同一指令位置、call span、
 root/replacement和返回旧值，再提交该项。所有项最终必须恰好提交一次。范围外维持通用
 lowering；这不是借用旧单根plan，也不从“没有receipt”推断所选范围允许跳过消费。

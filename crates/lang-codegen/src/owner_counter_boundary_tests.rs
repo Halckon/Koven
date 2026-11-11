@@ -22,6 +22,13 @@ fn counter_tail_complete_boundary_consumes_live_suffix() {
             assert_eq!(
                 actions
                     .iter()
+                    .filter(|(kind, _)| *kind == "counter-entry-permit-consumed")
+                    .count(),
+                2
+            );
+            assert_eq!(
+                actions
+                    .iter()
                     .filter(|(kind, _)| *kind == "counter-replace-permit-consumed")
                     .count(),
                 2
@@ -78,6 +85,9 @@ fn ci_only_counter_boundary_rejects_missing_suffix_and_wrong_entry() {
     let source = UnitSource::analyze("counter-boundary-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     for fault in [
+        OwnerFault::MissingCounterEntryPermit,
+        OwnerFault::CounterEntryWrongSource,
+        OwnerFault::CounterEntryDuplicateCommit,
         OwnerFault::MissingCounterExitBindingPermit,
         OwnerFault::MissingCounterExitDropPermit,
         OwnerFault::CounterExitWrongSource,
@@ -195,6 +205,40 @@ fn counter_exit_permits_do_not_claim_reinitialized_root_drops() {
         actions
             .iter()
             .filter(|(kind, _)| *kind == "counter-exit-drop-permit-consumed")
+            .count(),
+        2
+    );
+    super::super::assert_native_output(&source, b"");
+}
+
+#[test]
+fn counter_aliased_parameter_entries_consume_original_catalog() {
+    let text = source(2, true, 2)
+        .replace(
+            "flag: Boolean",
+            "flag: Boolean, own a0: String, own b0: String",
+        )
+        .replace("var r0 = \"entry0\";", "val a1 = a0; var r0 = a1;")
+        .replace("var r1 = \"entry1\";", "val b1 = b0; var r1 = b1;")
+        .replace("run(false)", "run(false, \"a\", \"b\")")
+        .replace(
+            "while(flag)",
+            "var remaining = 2; var again = remaining > 0; while(again)",
+        )
+        .replace(
+            " };",
+            " remaining = remaining - 1; again = remaining > 0; };",
+        );
+    let source = UnitSource::analyze("counter-alias-parameter-entry.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "counter-entry-permit-consumed")
             .count(),
         2
     );

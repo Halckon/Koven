@@ -7,13 +7,19 @@ pub(super) enum Stage {
     Bound(Slot),
     Dropped,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Domain {
+    Body,
+    Exit,
+    Entry,
+}
 pub(in super::super) struct Permit {
     pub(super) index: usize,
     pub(super) block: BlockRef,
     pub(super) instruction: usize,
     pub(super) source: Slot,
     pub(super) span: Span,
-    pub(super) exit: bool,
+    pub(super) domain: Domain,
 }
 impl Builder<'_, '_> {
     pub(in super::super) fn counter_binding_authorization(
@@ -30,7 +36,7 @@ impl Builder<'_, '_> {
             s.call() == initializer
                 || s.returned_value_drop().target() == UnitDropTarget::Named(symbol)
         }) else {
-            return self.counter_exit_binding(initializer, symbol, value, span);
+            return self.counter_entry_binding(initializer, symbol, value, span);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let step = &plan.evidence.steps()[index];
@@ -61,7 +67,7 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         Ok(Permit {
-            exit: false,
+            domain: Domain::Body,
             index,
             source,
             block,
@@ -78,7 +84,10 @@ impl Builder<'_, '_> {
         let Some(permit) = permit else {
             return Ok(());
         };
-        if permit.exit {
+        if permit.domain == Domain::Entry {
+            return self.counter_entry_emitted(permit, binding, span);
+        }
+        if permit.domain == Domain::Exit {
             return self.counter_exit_binding_emitted(permit, binding, span);
         }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
@@ -149,7 +158,7 @@ impl Builder<'_, '_> {
         let Some(permit) = permit else {
             return Ok(());
         };
-        if permit.exit {
+        if permit.domain == Domain::Exit {
             return self.counter_exit_drop_emitted(permit, span);
         }
         let fail = || error(LoweringErrorKind::InvalidModel, span);
