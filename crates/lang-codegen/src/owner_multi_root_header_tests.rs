@@ -673,3 +673,62 @@ fn multi_root_new_product_executes_terminal_false_backedge() {
         }
     }
 }
+
+#[test]
+fn multi_root_counter_tail_preserves_existing_lowering_without_new_authority() {
+    // Isolate the scalar tail: root producers and old-value retirement are exactly
+    // the already-supported shape, unlike the concatenating/printing loop fixture.
+    for roots in [2, 3] {
+        for rounds in [0, 1, 2, 5] {
+            for named_guard in [false, true] {
+                let (header, tail) = if named_guard {
+                    (
+                        "var again = remaining > 0; while(again)",
+                        "remaining = remaining - 1; again = remaining > 0;",
+                    )
+                } else {
+                    ("while(remaining > 0)", "remaining = remaining - 1;")
+                };
+                let text = source(roots, true, 0)
+                    .replace("flag: Boolean", "rounds: Int")
+                    .replace("while(flag)", &format!("var remaining = rounds; {header}"))
+                    .replace(
+                        " };",
+                        &format!(" {tail} }}; if(remaining == 0) {{ println(\"zero\") }};"),
+                    )
+                    .replace("run(false)", &format!("run({rounds})"));
+                let source = UnitSource::analyze("multi-root-counter-tail.ko", &text).unwrap();
+                source.assert_frontend_clean();
+                assert!(
+                    source
+                        .ownership()
+                        .owner_observations()
+                        .iter()
+                        .all(|o| o.multi_root_boundary_v1().is_none()),
+                    "{text}"
+                );
+                let (lowered, actions) =
+                    crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+                let (program, entry) = lowered.unwrap();
+                crate::ssa::verify::verify_program(&program).unwrap();
+                let llvm =
+                    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                assert!(
+                    llvm.lines()
+                        .filter(|line| line.contains(" = phi %koven.string.")
+                            && line.matches(" ], [ ").count() == 1)
+                        .count()
+                        >= roots
+                );
+                assert!(
+                    actions
+                        .iter()
+                        .all(|(kind, _)| *kind != "multi-root-header-audit")
+                );
+                // Positive initial counts must traverse backedges to reach zero.
+                // This is finite native evidence, not allocation counting or induction.
+                super::assert_native_output(&source, b"zero\n");
+            }
+        }
+    }
+}

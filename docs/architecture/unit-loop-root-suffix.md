@@ -159,3 +159,20 @@ codegen局部Value guard路径核对应guard槽的唯一body写入、同赋值sp
 
 普通前端负例拒绝true RHS、其他guard、取反及reset后额外语句。CI-only缺/提前/重复
 completion和manifest reset缺失/改写负控仅编译，执行结果留待远端。
+
+
+## 计数尾部的独立兼容性边界
+
+`multi_root_counter_tail_preserves_existing_lowering_without_new_authority` 单独隔离
+标量计数尾部：仍是原来每根直接String字面量Replace、立即退休旧值，不读取或打印
+root。覆盖2/3根、0/1/2/5轮，以及直接 `while(remaining > 0)` 和Boolean Name guard
+两种形状。后一形状尾部先减一，再以新counter比较结果更新guard。
+
+每例核真实SSA verifier、LLVM多根phi和native终止后counter为零；同时明确断言
+新boundary及新header审计均不存在。这证明既有lowering可承载这些有限计数样例，
+不把旧后端成功当成新产品授权，也不证明任意轮数、溢出或运行时分配/释放计数。
+
+当前产品缺口明确在guard合同：Name条件要求、terminal false的精确RHS及一次完成
+状态，不能表达两次有序标量赋值。后端当前只验证false Constant到guard的Alias，
+不验证counter旧值到减法、新counter到比较、比较到guard的实际数据依赖。
+这些条件尚未扩展；现有新产品的0/1轮范围及失败封闭不变。
