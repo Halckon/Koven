@@ -41,7 +41,7 @@ fn lower_unit_impl(
     #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
 ) -> Result<(Program, FunctionId), LoweringError> {
     let (sources, inputs) = source_inputs;
-    let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
+    let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
     let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
         .map(|_| Default::default())
         .collect();

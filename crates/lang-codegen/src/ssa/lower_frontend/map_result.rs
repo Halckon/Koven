@@ -5,7 +5,7 @@ use crate::ssa::model::{
 };
 use lang_frontend::{
     ast::ExpressionId,
-    parser::{BinaryOperator, Expression, LiteralKind},
+    parser::BinaryOperator,
     source::Span,
 };
 
@@ -80,17 +80,7 @@ impl ExpressionLowerer<'_> {
     }
 
     pub(super) fn is_null_literal(&self, expression: ExpressionId) -> bool {
-        match self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map(|node| node.payload())
-        {
-            Ok(Expression::Literal(LiteralKind::Null)) => true,
-            Ok(Expression::Group { expression }) => self.is_null_literal(*expression),
-            _ => false,
-        }
+        crate::ssa::lowering_support::is_null_literal(self.parsed, expression)
     }
 
     pub(super) fn lower_map_result_binary(

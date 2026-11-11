@@ -330,4 +330,86 @@ impl Module {
             .map(|_| ())
             .ok_or(ModelError::UnknownType { ty })
     }
+
+    /// Interns `T?` for an inline inner type. Pointer-like owners keep `NullableHandle`;
+    /// String and sequential containers use the null data-pointer niche.
+    pub(crate) fn add_inline_nullable_type(
+        &mut self,
+        inner: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(inner)?;
+        let niche = self
+            .type_is_defined(inner)
+            .then(|| inline_nullable_niche(self, inner))
+            .flatten()
+            .ok_or(ModelError::ExpectedInlineNullableInner { ty: inner })?;
+        Ok(self.intern_type(SsaTypeKind::InlineNullable { inner, niche }))
+    }
+
+    /// Returns `(inner, niche)` for an ADR-0033 inline nullable type.
+    pub(crate) fn inline_nullable(&self, ty: SsaTypeId) -> Option<(SsaTypeId, bool)> {
+        match self.type_kind(ty)? {
+            SsaTypeKind::InlineNullable { inner, niche } => Some((*inner, *niche)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn add_integer_range_type(
+        &mut self,
+        endpoint: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(endpoint)?;
+        if !matches!(
+            self.type_kind(endpoint),
+            Some(SsaTypeKind::Integer {
+                bits: 32 | 64,
+                signed: true
+            })
+        ) {
+            return Err(ModelError::ExpectedAggregate { ty: endpoint });
+        }
+        if let Some((&range, _)) = self.integer_ranges.iter().find(|(_, ty)| **ty == endpoint) {
+            return Ok(range);
+        }
+        let empty = self.intern_type(SsaTypeKind::Boolean);
+        let range = self.add_aggregate_type(
+            format!("$integer.range.t{}", endpoint.index()),
+            vec![endpoint, endpoint, empty],
+        )?;
+        self.integer_ranges.insert(range, endpoint);
+        Ok(range)
+    }
+
+    pub(crate) fn integer_range_endpoint(&self, range: SsaTypeId) -> Option<SsaTypeId> {
+        self.integer_ranges.get(&range).copied()
+    }
+
+    pub(super) fn valid_integer_range_type(&self, range: SsaTypeId, endpoint: SsaTypeId) -> bool {
+        let Some([first, last, empty]) = self.aggregate_fields(range) else {
+            return false;
+        };
+        matches!(
+            self.type_kind(endpoint),
+            Some(SsaTypeKind::Integer {
+                bits: 32 | 64,
+                signed: true
+            })
+        ) && *first == endpoint
+            && *last == endpoint
+            && matches!(self.type_kind(*empty), Some(SsaTypeKind::Boolean))
+            && self.type_ownership(range) == Some(Ownership::Copyable)
+    }
+}
+
+/// `Some(niche)` when `inner` may carry an inline nullable wrapper, `None` otherwise.
+pub(super) fn inline_nullable_niche(module: &Module, inner: SsaTypeId) -> Option<bool> {
+    match module.type_kind(inner)? {
+        SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. } => Some(false),
+        SsaTypeKind::Aggregate { .. } if module.presence_payload_type(inner).is_none() => {
+            Some(false)
+        }
+        SsaTypeKind::TaggedUnion { .. } => Some(false),
+        SsaTypeKind::StringOwner | SsaTypeKind::SequentialContainer { .. } => Some(true),
+        _ => None,
+    }
 }
