@@ -14371,3 +14371,36 @@ source变更与Drop错配故障仅编译，未执行。独立复审要求final�
 drop_planner.rs及尺寸策略均未改；compilation_unit.rs仅公开关系导出+2至1120，经
 独立职责审查仍低于原1156额度。日志distinct-aux-*，未跑native全套/远端CI；
 旧见证全部保留，仅本地提交、不推送。
+
+#### 双根辅助绑定的独立完整区域（实施中）
+
+基于84865d0c的局部退休关系，本片先补独立完整区域，不把关系自动升级为全局能力。
+两个真实owner建立、source/aux acquisition、aux调用返回退休及可选ASAP Drop、binding
+handoff、consumer、result End、source End与两owner最终Drop均须来自实际producer，
+完整未过滤区间与真实入口/出口义务共同核验。source参数0/1映射继续保留，aux保活
+的额外使用必须有独立覆盖，不能当作无关动作过滤掉以获得Complete。
+
+旧同根region、旧owner Unsupported/目录清空及原清理顺序不变。新区域先与后端
+receipt分阶段验收：普通旧lowering可成功不等于新证书已有生产consumer；真实receipt
+须另核同轮SSA身份、两root建立、实际每次End/Drop与原verifier后原子发布。不得凭最终
+空表证明从未遗漏义务，不退休旧见证，不改变尺寸门禁，仅本地提交。
+
+首片明确限定ASAP四语句：两个literal owner声明、唯一borrow initializer、唯一
+consume(item)，支持source位置0/1。区域入口位于binding前，承接已形成的两个真实
+OwnedValue身份和义务，不声称在区域内证明owner创建。独立完整9动作依次含两Begin、
+aux ASAP Drop、handoff、consumer Begin、实际use-return、binding End、source退休与
+source Drop；两owner事件窗口必须精确auxDrop→sourceDrop。source退休ActionHandle
+经独立cause传到实际removed OwnedValue，再核快照后关联Drop，不能由最终空表回填。
+aux后续另有consume(aux)的保活情况仅保留局部关系，不获得本片Complete区域。
+
+真实红绿：ASAP在原partial关系和raw事实成功后新region0!=1，现16组合全部通过；
+ASAP为Complete且9条原记录完整，保活无region而独立退休关系仍存在。FE普通9项、
+CG普通32项回归通过；Clippy -D warnings、workspace all-targets、默认FE/CG lib
+no-run、fmt/diff及文档897项通过。7组新CI-only缺失/错序/重复/外来身份、入口出口、
+source第二参数、两owner事件与Drop故障仅编译，未执行。独立review确认真实移除
+owner因果、完整义务入口出口及旧协议隔离，不从结束空表或最终记录补造证据。
+
+尺寸复测2558手写Rust文件、36个历史超1000文件，唯一失败仍为前序1684>1674。
+超额drop_planner.rs与尺寸策略均未改；compilation_unit.rs仅模块注册/导出+3至1123，
+经独立职责review仍低于原1156额度。日志distinct-region-*；本片新region尚无新CG
+receipt，旧CG通过不等于迁移完成，旧见证保留。未跑native全套/远端CI，只本地提交。

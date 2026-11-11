@@ -39,3 +39,8 @@ verifier成功后原子发布，失败撤销本批pending；observer-off产物�
 cleanup共同确认ASAP退休。旧owner Unsupported/目录清空不变，新窗口不授予旧资格。
 关系可定位已发生的aux Drop，但不是整生命周期Complete或新receipt；source/result及
 两owner后续结束仍靠旧见证，证据见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#独立双根辅助退休关系实施中)。
+
+ASAP四语句双根形状另发布独立Complete区域：binding入口承接两真实owner，完整9动作
+覆盖aux Drop与source退休后的实际source Drop，独立removed-owner cause及两Drop事件
+窗口与真实空义务出口共同验证。辅助根后续另行消费仍不获此资格；旧CG可运行但尚无
+新双根receipt消费此区域，细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#双根辅助绑定的独立完整区域实施中)。

@@ -397,6 +397,12 @@ impl DropPlanner<'_, '_> {
                             pending.fact.source_loan().call(),
                         )
                     });
+                    let distinct_begin = confirmation.as_ref().and_then(|_| {
+                        match pending.auxiliary_begins.as_slice() {
+                            [Some(begin)] if pending.source_live => Some(begin.clone()),
+                            _ => None,
+                        }
+                    });
                     let handle = self.iteration_actions.commit_borrow_handoff(pending.fact);
                     if let Some(owner_drop) = confirmation {
                         self.iteration_actions
@@ -422,6 +428,13 @@ impl DropPlanner<'_, '_> {
                             &auxiliary_source,
                             source_begin.as_ref(),
                             auxiliary_begin.as_ref(),
+                            &handle,
+                        );
+                        pending.activate_distinct_observation(
+                            binding,
+                            &auxiliary_source,
+                            source_begin.as_ref(),
+                            distinct_begin.as_ref(),
                             &handle,
                         );
                     }

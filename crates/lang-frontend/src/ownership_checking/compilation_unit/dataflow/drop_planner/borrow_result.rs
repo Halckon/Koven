@@ -183,7 +183,11 @@ impl DropPlanner<'_, '_> {
             });
             let aux_cause = auxiliary_retirement.and_then(|retirement| {
                 self.iteration_actions
-                    .auxiliary_binding_drop_cause(binding, retirement)
+                    .auxiliary_binding_drop_cause(binding, retirement.clone())
+                    .or_else(|| {
+                        self.iteration_actions
+                            .distinct_auxiliary_binding_drop_cause(binding, retirement)
+                    })
             });
             if let Some(fact) = self
                 .checker
@@ -202,6 +206,8 @@ impl DropPlanner<'_, '_> {
                     *auxiliary = None;
                     self.iteration_actions
                         .invalidate_auxiliary_root(place.root());
+                    self.iteration_actions
+                        .invalidate_distinct_auxiliary_root(place.root());
                     batch.observe(child_retirement, parent_retirement, &self.iteration_actions);
                 } else {
                     roots.push((

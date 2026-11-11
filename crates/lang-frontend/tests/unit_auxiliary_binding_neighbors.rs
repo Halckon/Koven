@@ -16,6 +16,16 @@ use lang_frontend::{
 fn ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products() {
     let cases = [
         (
+            "distinct-roots-repeated-use",
+            "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(owner, aux); consume(item); consume(item) }",
+            1,
+        ),
+        (
+            "distinct-roots-grouped-source",
+            "fun view(source: String, aux: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view((owner), aux); consume(item) }",
+            1,
+        ),
+        (
             "source-second-distinct-roots",
             "fun view(aux: String, source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; val aux = \"aux\"; borrow val item = view(aux, owner); consume(item) }",
             1,
@@ -113,11 +123,21 @@ fn ordinary_auxiliary_binding_neighbors_preserve_legacy_partial_products() {
             let actual_source_retirements = catalog.actions().iter().filter(|action| {
                 matches!(action, UnitLoanAction::BorrowBindingSourceRetired(retired) if retired.transaction().binding() == raw.binding())
             }).count();
-            // No complete linear use-to-retirement capability for these boundaries.
-            // A first successful use may remain observable before a later use invalidates it.
+            let distinct_complete =
+                matches!(name, "distinct-roots" | "source-second-distinct-roots");
             assert_eq!(
-                actual_source_retirements, 0,
-                "{name}/{layout}: no new source retirement authority"
+                actual_source_retirements,
+                usize::from(distinct_complete),
+                "{name}/{layout}: independent source retirement boundary"
+            );
+            assert_eq!(
+                catalog
+                    .distinct_auxiliary_binding_regions()
+                    .iter()
+                    .filter(|r| r.coverage() == UnitLoanActionCoverage::Complete)
+                    .count(),
+                usize::from(distinct_complete),
+                "{name}/{layout}: exact two-root interval"
             );
             println!(
                 "case={name}; layout={layout}; old_products_equal=true; raw_aux={expected_auxiliary}; auxiliary_relations={}; actual_use_returns={actual_use_returns}; actual_source_retirements={actual_source_retirements}",

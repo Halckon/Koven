@@ -49,6 +49,8 @@ fun run(): Unit { val owner = "kept"; borrow val parent = view(owner); borrow va
         dependency_owner: None,
         auxiliary: None,
         auxiliary_seen: false,
+        distinct: None,
+        distinct_seen: false,
     };
     let mut other = first.clone();
     let drop = shared.drops()[0];

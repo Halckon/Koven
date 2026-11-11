@@ -47,6 +47,8 @@ mod loan_binding_actions;
 pub use loan_binding_actions::{UnitLoanBindingSourceRetirement, UnitLoanBindingUseReturn};
 mod loan_actions;
 mod loan_auxiliary_retirement;
+mod loan_distinct_auxiliary_binding_region_validation;
+mod loan_distinct_auxiliary_binding_regions;
 pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
     UnitLoanConsumerRetirement, UnitLoanForwardBranch, UnitLoanForwardHandoff,
@@ -54,6 +56,7 @@ pub use loan_actions::{
 pub use loan_auxiliary_retirement::{
     UnitLoanAuxiliaryRetirement, UnitLoanDistinctAuxiliaryRetirement,
 };
+pub use loan_distinct_auxiliary_binding_regions::UnitBorrowDistinctAuxiliaryBindingRegion;
 
 mod loan;
 pub use loan::{

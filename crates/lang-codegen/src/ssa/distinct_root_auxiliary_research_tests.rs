@@ -1,8 +1,9 @@
 //! Independent two-root retirement evidence preserves the existing lowering and same-root boundary.
 use super::*;
 use lang_frontend::ownership_checking::{
-    UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanAction, UnitLoanTarget,
-    check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+    UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanAction,
+    UnitLoanActionCoverage, UnitLoanTarget, check_compilation_unit_ownership, legacy_ownership_eq,
+    with_loan_observation,
 };
 
 #[test]
@@ -80,6 +81,65 @@ fn ordinary_distinct_root_auxiliary_research_preserves_actual_source_and_retirem
                 assert!(
                     matches!(catalog.action(&drop), Some(UnitLoanAction::Cleanup { point, action: UnitIterationCleanupAction::Drop(fact) })
                     if *point == relation.point() && fact.point() == relation.point() && fact.target() == UnitDropTarget::Named(place.root()))
+                );
+            }
+
+            let regions = catalog.distinct_auxiliary_binding_regions();
+            if keep_aux {
+                assert!(
+                    regions.is_empty(),
+                    "extra auxiliary consumer is outside the region contract"
+                );
+            } else {
+                assert_eq!(
+                    regions.len(),
+                    1,
+                    "source-index={source_index}/{layout}: ASAP region"
+                );
+                let region = &regions[0];
+                assert!(catalog.owns_distinct_auxiliary_binding_region(region));
+                assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                assert_eq!(region.binding(), handoff.binding());
+                assert_eq!(region.source_call(), origin.call());
+                assert_eq!(region.source_parameter(), Some(source_index));
+                assert_eq!(region.source_owner(), Some(relation.source_owner()));
+                assert_eq!(region.auxiliary_owner(), Some(relation.auxiliary_owner()));
+                let (UnitLoanTarget::Place(source_place), UnitLoanTarget::Place(aux_place)) =
+                    (origin.target(), aux.target())
+                else {
+                    panic!("two roots")
+                };
+                assert_eq!(region.root(), source_place.root());
+                assert_eq!(region.auxiliary_root(), Some(aux_place.root()));
+                let ids = region.action_ids().collect::<Vec<_>>();
+                assert_eq!(
+                    ids.len(),
+                    9,
+                    "complete original interval must include both Drops"
+                );
+                assert_eq!(ids[source_index], relation.source_begin());
+                assert_eq!(ids[1 - source_index], relation.auxiliary_begin());
+                assert_eq!(Some(ids[2].clone()), relation.auxiliary_drop());
+                assert_eq!(ids[3], relation.handoff());
+                let actions = ids
+                    .iter()
+                    .map(|id| catalog.action(id).unwrap())
+                    .collect::<Vec<_>>();
+                assert!(
+                    matches!(actions[4], UnitLoanAction::Begin(loan) if loan.call() == region.consumer_call() && loan.target() == origin.target())
+                );
+                assert!(matches!(
+                    actions[5],
+                    UnitLoanAction::BorrowBindingUseReturned(_)
+                ));
+                assert!(
+                    matches!(actions[6], UnitLoanAction::BorrowBindingEnd(end) if end.binding() == region.binding())
+                );
+                assert!(
+                    matches!(actions[7], UnitLoanAction::BorrowBindingSourceRetired(retired) if retired.transaction().source_loan() == origin)
+                );
+                assert!(
+                    matches!(actions[8], UnitLoanAction::Cleanup { action: UnitIterationCleanupAction::Drop(drop), .. } if drop.target() == UnitDropTarget::Named(region.root()))
                 );
             }
 

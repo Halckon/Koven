@@ -107,6 +107,8 @@ pub struct UnitLoanActionObservation {
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
     pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) distinct_auxiliary_binding_regions:
+        Vec<super::UnitBorrowDistinctAuxiliaryBindingRegion>,
     pub(super) auxiliary_binding_regions: Vec<super::UnitBorrowAuxiliaryBindingRegion>,
 }
 
@@ -194,6 +196,20 @@ impl UnitLoanActionObservation {
     #[must_use]
     pub fn auxiliary_retirements(&self) -> &[super::UnitLoanAuxiliaryRetirement] {
         &self.auxiliary_retirements
+    }
+
+    /// Independent complete two-owner ASAP intervals, never whole-callable coverage.
+    pub fn distinct_auxiliary_binding_regions(
+        &self,
+    ) -> &[super::UnitBorrowDistinctAuxiliaryBindingRegion] {
+        &self.distinct_auxiliary_binding_regions
+    }
+    /// Verify actual catalog identity of a two-owner interval.
+    pub fn owns_distinct_auxiliary_binding_region(
+        &self,
+        region: &super::UnitBorrowDistinctAuxiliaryBindingRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
     }
 
     /// Independent partial two-owner retirement relations, never complete lifecycle authority.

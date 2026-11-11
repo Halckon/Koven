@@ -2,6 +2,7 @@
 mod auxiliary;
 mod child;
 pub(super) mod dependency_drop;
+mod distinct;
 mod observation;
 use super::action_source::ActionHandle;
 use super::{DropPlanner, PlannerDropPoint, ValueState};
@@ -26,6 +27,8 @@ pub(super) struct PendingBindingTransport {
     dependency_owner: Option<super::OwnedValue>,
     auxiliary: Option<auxiliary::AuxiliaryObservation>,
     auxiliary_seen: bool,
+    distinct: Option<distinct::DistinctObservation>,
+    distinct_seen: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +62,8 @@ impl PendingBindingTransport {
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
         // This narrowly linear observation capability never crosses a merge.
         self.auxiliary = None;
+        self.distinct = None;
+        self.distinct_seen = true;
         self.auxiliary_seen = true;
         let mut matching = alternatives.iter().filter(|other| *other == self);
         let other = matching.next();
@@ -165,6 +170,8 @@ impl DropPlanner<'_, '_> {
                 dependency_owner,
                 auxiliary: None,
                 auxiliary_seen: false,
+                distinct: None,
+                distinct_seen: false,
             });
     }
 
@@ -222,10 +229,15 @@ impl PendingBindingTransport {
                 actions.attach_binding_dependency(&retirement, child, owner);
             }
             (Some(retirement), None)
-        } else {
+        } else if self.auxiliary.is_some() {
             (
                 None,
                 self.publish_auxiliary_retirement(actions, transaction, binding_end),
+            )
+        } else {
+            (
+                None,
+                self.publish_distinct_retirement(actions, transaction, binding_end),
             )
         }
     }

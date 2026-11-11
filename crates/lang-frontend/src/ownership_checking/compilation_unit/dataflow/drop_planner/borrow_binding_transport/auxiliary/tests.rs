@@ -44,6 +44,8 @@ fn ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_reviv
         dependency_owner: None,
         auxiliary: None,
         auxiliary_seen: false,
+        distinct: None,
+        distinct_seen: false,
     };
     let mut valid = initial.clone();
     activate(&mut valid, &auxiliary);

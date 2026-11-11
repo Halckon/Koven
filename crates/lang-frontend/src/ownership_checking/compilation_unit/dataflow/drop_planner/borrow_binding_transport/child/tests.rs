@@ -32,6 +32,8 @@ fn ci_only_child_metadata_never_changes_semantic_eq_or_recovers_lost_commit() {
         dependency_owner: None,
         auxiliary: None,
         auxiliary_seen: false,
+        distinct: None,
+        distinct_seen: false,
         child: ChildState::Never,
     };
     // State reconciliation compares record identity, not the role or equal descriptors.

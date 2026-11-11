@@ -16,6 +16,9 @@ use std::{collections::BTreeMap, sync::Arc};
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) enum BindingDropCause {
     Region(RegionDropCause),
     AuxiliaryRegion(super::auxiliary_binding_regions::AuxiliaryRegionDropCause),
+    DistinctAuxiliaryRegion(
+        super::distinct_auxiliary_binding_regions::DistinctAuxiliaryRegionDropCause,
+    ),
     Dependency(Box<DependencyDropCause>),
 }
 
@@ -97,6 +100,9 @@ impl ActionSource {
         value: &OwnedValue,
     ) -> Option<BindingDropCause> {
         match cause {
+            BindingDropCause::DistinctAuxiliaryRegion(cause) => self
+                .verify_removed_distinct_auxiliary_region_owner(cause, value)
+                .map(BindingDropCause::DistinctAuxiliaryRegion),
             BindingDropCause::AuxiliaryRegion(cause) => self
                 .verify_removed_auxiliary_region_owner(cause, value)
                 .map(BindingDropCause::AuxiliaryRegion),
@@ -120,6 +126,9 @@ impl ActionSource {
     pub(super) fn record_binding_drop(&mut self, cause: BindingDropCause, cleanup: ActionHandle) {
         match cause {
             BindingDropCause::Region(cause) => self.record_region_drop(cause, cleanup),
+            BindingDropCause::DistinctAuxiliaryRegion(cause) => {
+                self.record_distinct_auxiliary_region_drop(cause, cleanup)
+            }
             BindingDropCause::AuxiliaryRegion(cause) => {
                 self.record_auxiliary_region_drop(cause, cleanup)
             }
