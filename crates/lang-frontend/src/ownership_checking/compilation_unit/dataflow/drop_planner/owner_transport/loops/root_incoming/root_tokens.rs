@@ -8,7 +8,7 @@ pub(in super::super) fn skip_body_entry() -> bool {
 }
 
 /// A predecessor alternative, not a runtime iteration number or activation identity.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in super::super::super::super) enum StaticRootPredecessor {
     ZeroBody,
     FirstBody,
@@ -51,6 +51,20 @@ impl RootBoundaryEquation {
             StaticRootPredecessor::ZeroBody => &self.entry,
             StaticRootPredecessor::FirstBody => &self.normal,
         })
+    }
+
+    /// Match a whole known static snapshot, never infer a future activation from shape.
+    pub(in super::super::super::super) fn predecessor_for(
+        &self,
+        control: UnitStatementId,
+        incoming: &RootIncoming,
+    ) -> Option<StaticRootPredecessor> {
+        [
+            StaticRootPredecessor::ZeroBody,
+            StaticRootPredecessor::FirstBody,
+        ]
+        .into_iter()
+        .find(|edge| self.incoming(control, *edge) == Some(incoming))
     }
 
     pub(in super::super::super::super) fn transfers(
@@ -192,7 +206,12 @@ impl RootTokenTransaction {
             normal: self.roots.clone(),
             transfers,
         };
-        equation.same_roots().then_some(equation)
+        (equation.same_roots()
+            && equation.predecessor_for(self.control, &equation.entry)
+                == Some(StaticRootPredecessor::ZeroBody)
+            && equation.predecessor_for(self.control, &equation.normal)
+                == Some(StaticRootPredecessor::FirstBody))
+        .then_some(equation)
     }
 
     pub(in super::super) fn begin(

@@ -498,6 +498,7 @@ fn actual_multi_root_cleanup_does_not_publish_generation_retirement() {
         assert!(observation.replace_break_observation_v1().is_none());
     }
     let mut analyses = Vec::new();
+    let mut equations = Vec::new();
     for _ in 0..2 {
         compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
             let mut planner = super::super::super::DropPlanner::new(
@@ -510,6 +511,7 @@ fn actual_multi_root_cleanup_does_not_publish_generation_retirement() {
             assert_eq!(visits[1].normal_write_vector.as_ref().unwrap().len(), 2);
             assert_eq!(visits[1].normal_retirements.as_ref().unwrap().len(), 2);
             assert_eq!(visits[1].root_stages, (true, false));
+            equations.push(visits[1].normal_equation.clone().unwrap());
             analyses.push(
                 visits[1]
                     .root_writes
@@ -519,6 +521,21 @@ fn actual_multi_root_cleanup_does_not_publish_generation_retirement() {
             );
         });
     }
+    let first = &equations[0];
+    let second = &equations[1];
+    let actual_first_body = first
+        .incoming(first.control(), StaticRootPredecessor::FirstBody)
+        .unwrap();
+    assert_eq!(
+        first.predecessor_for(first.control(), actual_first_body),
+        Some(StaticRootPredecessor::FirstBody)
+    );
+    // Real separate analysis: matching source/control and root shape do not share catalog identity.
+    assert!(
+        second
+            .predecessor_for(second.control(), actual_first_body)
+            .is_none()
+    );
     assert_eq!(analyses[0], analyses[0].clone());
     assert!(
         analyses[0]
@@ -555,6 +572,16 @@ fn static_header_alternatives_reject_another_real_control() {
             StaticRootPredecessor::FirstBody,
         ] {
             assert!(equation.incoming(visits[2].control, predecessor).is_none());
+            let actual = equation.incoming(visits[0].control, predecessor).unwrap();
+            assert!(
+                equation
+                    .predecessor_for(visits[2].control, actual)
+                    .is_none()
+            );
+            assert_eq!(
+                equation.predecessor_for(visits[0].control, actual),
+                Some(predecessor)
+            );
             assert!(equation.incoming(visits[0].control, predecessor).is_some());
         }
     });

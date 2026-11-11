@@ -37,6 +37,24 @@ fn ci_only_token_evidence_requires_entry_and_complete_events() {
             assert!(visits[1].normal_retirements.is_some());
             assert_eq!(visits[1].normal_equation.is_some(), phase == 0);
             if phase == 0 {
+                let equation = visits[1].normal_equation.as_ref().unwrap();
+                let mut mixed = equation.entry.clone();
+                mixed[0] = equation.normal[0].clone();
+                assert!(equation.predecessor_for(equation.control, &mixed).is_none());
+                let mut swapped = equation.normal.clone();
+                swapped.swap(0, 1);
+                assert!(
+                    equation
+                        .predecessor_for(equation.control, &swapped)
+                        .is_none()
+                );
+                let mut missing = equation.normal.clone();
+                missing.pop();
+                assert!(
+                    equation
+                        .predecessor_for(equation.control, &missing)
+                        .is_none()
+                );
                 assert!(writes.iter().all(|write| write.token_link.is_some() && write.token_retirement.is_some()));
             } else {
                 assert!(writes.iter().all(|write| write.token_link.is_none() && write.token_retirement.is_none()));

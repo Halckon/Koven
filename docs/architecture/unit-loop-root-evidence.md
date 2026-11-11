@@ -128,3 +128,8 @@ header候选还须通过真实body末的状态形状门禁：复用既有boundar
 须与实际While的condition/body精确匹配，并通过已核条件保持、无污染与资源形状检查；
 静态AST结构本身不能替代进入事件。CI-only遗漏入口hook负控保留普通写回执，但无token
 links及header候选。此事件指首次planner遍历，不代表运行时条件为真或发生了第几次激活。
+
+整组incoming现可反向匹配已有静态前驱：必须同control，root顺序及每个原catalog token
+全部相等；仅shape相同不足。真实独立两次分析的normal快照不可互用，CI-only另覆盖逐根
+拼接entry/new、交换及缺根。该匹配只识别已经保存的两个静态样本，不接受或推断新激活的
+实例，即使新激活具有相同root/producer形状也不能冒用静态token作为跨轮证明。

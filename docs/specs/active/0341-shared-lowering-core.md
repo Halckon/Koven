@@ -13754,3 +13754,13 @@ CI-only增加遗漏入口hook故障场景，普通写回执仍在而token/header
 最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
 all-target check及fmt/diff通过。复审发现的旧CI-only模型签名遗漏已修复并编译通过；模型
 marker明确不是While条件，不替代真实源码入口验证。遗漏hook负控未本机运行，不推送。
+
+### 已知 header incoming 的整组身份匹配（2026-11-11，本地）
+
+基于49df9d06，新增sealed候选整组反向匹配，绑定control、root顺序与每个原catalog owner；
+真实同源码两次分析验证不能互用normal快照，真实另一control拒绝；CI-only覆盖混组/交换/缺根。
+它只匹配已知静态entry/normal，不表示新激活或运行时迭代可直接复用该token，公开能力不变。
+
+最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过。只读复审未发现catalog错配或退化前驱混同；CI-only负控
+仅编译未本机执行，未推送。
