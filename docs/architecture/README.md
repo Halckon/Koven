@@ -51,6 +51,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md)、[Unit owner transport 观察](unit-owner-transport.md)、[受限 Choice value](unit-choice-transport.md)、[While body 与输入边界](unit-loop-owner-transport.md)、[不变输入循环边界](unit-invariant-loop-owner.md) |
 | 普通 loan acquisition、cleanup 投影与覆盖边界 | [Loan 实际动作源](unit-loan-action-source.md) |
+| 单 wrapper 正常 live 出口覆盖 | [Forward 出口区域](unit-loan-forward-exit.md) |
 | wrapper真实live-source交付、Partial因果引用与旧事实投影 | [Wrapper来源交付](unit-loan-forward-source.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | 同轮 Complete2 的有界生产身份核验与真实 on/off | [Receiver production receipts](receiver-production-receipts.md) |

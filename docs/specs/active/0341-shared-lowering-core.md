@@ -12469,3 +12469,62 @@ entry/body completion/condition-false/tail delivery，精确收敛任意合法 H
 旧测试未适配 enum variant 而导致的三处编译错误，未改旧族实际断言。
 backend header Return 授权仍未完成，原 consumer 红不宣称已绿；联合门禁、独审、新main
 组合及正式 CI 仍待后继验证，不标记此片或 D10/E2 完成。
+
+### 单wrapper正常LiveForward出口覆盖合同（2026-11-11）
+
+以发布冻结b331d044为基线独立分片，只复用已验单表达式体String wrapper原样源码，
+不扩同构wrapper、Block lowering、控制、receiver、泛型或ABI。已批准ADR0040允许通过
+明确合法live出口闭合已声明范围；本片独立region可Complete，source/callable仍Partial，
+没有End、权限恢复、production receipt、旧oracle退休或新的cleanup执行责任。
+
+独立窄准入核wrapper与callee各唯一Borrow String参数、唯一结果来源参数0、raw Call/Name，
+以及唯一实际BorrowReturnOrigin的body/root/声明marker；不能缩旧Partial scope或旧raw家族。
+真实item表达式入口保存catalog内区域句柄及records.len游标，建立时所有资源边界清洁。
+expression正常完成后、drop_all之前保存完整义务快照；唯一允许残留是携本候选及原Begin
+句柄的真实PendingForwardTransport。真实remove/append返回确切handoff句柄；原drop_all
+仅执行一次，之后核清态和completion游标。不能把drop_all的clear掩盖成覆盖证据。
+独立validator核全部未过滤区间恰为原Begin与live Handoff、同catalog/先后/完整token、
+入口与前后边界及唯一返回来源；缺边、重复或未完成永久不认证，不从相等事实搜索补链。
+旧表保序投影/off/原Eq和全部错误/deferred撤销门不变，P1至P4及binding/child区域独立。
+
+先API stub及独立ordinary exact original_wrapper_requires_complete_live_exit_with_true_off：
+Rooted/Memory四次真实on/off analyze/lower先全部完成，核旧产品、原Partial因果链、真实
+route、entry loan→BorrowCall→BorrowReturn、caller原SSA及verifier/LLVM一致，再断新区域。
+未接producer前只期待缺新region的真实能力红，不重跑旧probe冒充红。fresh源码/helper及
+artifact/input/binary/runner独审后只执行该exact；红binary覆盖前独核。所有foreign/fault/
+Abort/counter/pressure/CI-only仅编译，不本机执行；后继生产须真实红及方案独审成立。
+
+
+#### 独立LiveForward缺覆盖红实证
+
+冻结d72c422b经fresh源码/完整helper/API及实际artifact/input/binary/runner独审，唯一
+ordinary exact实际0 passed、1 failed、2960 filtered、exit101，在测试112行独立region
+数量0≠1失败。Rooted/Memory四次真实on/off原Partial链、原样SSA、verifier及LLVM1389bytes
+均先完成，实际routes四次均view/wrap/run；新区域Complete及字段后置尚未执行。
+CG lib no-run外层170.41s/Cargo2m50s，原target/jobs2/LLVM21、opt0/debug2/test、仅support。
+4271输入SHA `4fd5f027390dd7d7ec258ebbc5afea017be5476d8cb2c68e7727af2c3e7b931f`，
+实际CG SHA `943d6287a7c84c9207d0fd6efccbe339c4f9e12243ea686743b7df298ffec3cc`。
+原件保留在 `/private/tmp/koven-forward-exit-coverage-evidence/red`；执行前后及覆盖前已独核，
+不重跑或覆盖红证据。该阶段仅编译CG test及FE依赖，不声称FE CI-only测试已编译。
+
+
+#### 单wrapper局部出口生产与验收
+
+生产 `e1bd1d9b` 在原动作源记录真实 entry、pre/post 边界及 handoff 句柄，唯一原始
+forward/source 查询消除歧义后才允许 Complete。原红 exact 未修改，首绿实际1 passed。
+最终代码 `6d53fd17` 补新region的11类CI-only构造负控（仅编译）及Group/Block/branch
+普通旧形状不认证断言；三个ordinary exact各1 passed、2960 filtered，零native。核心
+双布局四次正常on/off SSA/verifier/LLVM成立，另外两项仅FE；不把FE Begin当作新SSA acquisition。
+
+最终输入4274 tracked文件，清单SHA `9488e597604caa3ba5ad56daef178c964d4a319268f993ff5871186b28bb713e`；
+CG binary SHA `4aec912c81d26be512b5041301f359ec969db34846d0199e0ed5d9d1f6259f85`。
+保留原target、LLVM21.1.8、opt0/debug2与显式loan support；执行前后输入及binary一致。
+原件在 `/private/tmp/koven-forward-exit-coverage-evidence/{red,green,final}`，包括原Cargo JSON、
+tracked清单、绑定manifest、runner、3项原日志及静态结果；本机临时保存不保证长期留存。
+
+FE lib no-run（包括新增CI-only）、fmt、FE/CG strict Clippy和默认workspace all-targets通过。
+三项ordinary、全部身份及红绿同源码经独立只读复核；所有其他未审/故障/计数/压力路径未运行。
+架构快照最初追加使旧入口超200行，已改为独立主题页并纳入架构索引；保留失败日志，
+最终docs通过（888篇）；尺寸相对b331d044通过（2417手写Rust、35旧超限，未改额度）。
+source/callable仍Partial，无新End、receipt或旧oracle退休。
+此头尚未纳入后续main `e659b66a`，合流后须重验；未推送、无官方CI结论。

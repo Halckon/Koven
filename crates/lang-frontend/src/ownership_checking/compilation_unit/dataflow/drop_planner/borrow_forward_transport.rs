@@ -14,6 +14,7 @@ use crate::{
 /// Created once at the actual narrow expression-body entry, never inferred at finish.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct ForwardScope {
+    pub(super) region: Option<usize>,
     pub(super) callable: UnitItemId,
     pub(super) body: UnitExpressionId,
     pub(super) argument: UnitExpressionId,
@@ -53,6 +54,14 @@ impl PendingForwardTransport {
         if !same {
             self.cause = None;
         }
+    }
+
+    pub(super) fn matches_region(&self, scope: ForwardScope) -> bool {
+        self.returned == scope.body
+            && self
+                .cause
+                .as_ref()
+                .is_some_and(|cause| cause.scope == scope)
     }
 
     pub(super) fn reconcile_scope(&mut self, scope: Option<ForwardScope>) {
@@ -162,6 +171,7 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(ForwardScope {
+            region: None,
             callable: UnitItemId::new(self.checker.source_unit, item),
             body,
             argument,

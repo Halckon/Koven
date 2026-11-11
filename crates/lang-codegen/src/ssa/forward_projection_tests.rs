@@ -59,6 +59,10 @@ fn check_frontend_only(text: &str, expected_points: &[&str]) {
             panic!("source catalog")
         };
         assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
+        assert!(
+            catalog.forward_regions().is_empty(),
+            "unsupported shapes grant no region"
+        );
         let handoffs = catalog
             .actions()
             .iter()

@@ -7,6 +7,7 @@ mod child_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
 mod consumer_links;
 mod forward_links;
+mod forward_regions;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::{
@@ -39,6 +40,7 @@ pub(super) struct ActionSource {
         Vec<crate::ownership_checking::compilation_unit::loan_child_region_validation::Candidate>,
     active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
+    forward_regions: Vec<forward_regions::Candidate>,
     pub(super) enabled: bool,
 }
 
@@ -84,6 +86,7 @@ impl Default for ActionSource {
             child_regions: Vec::new(),
             active_child_region: None,
             dependency_drops: Vec::new(),
+            forward_regions: Vec::new(),
             enabled: true,
         }
     }
@@ -312,6 +315,9 @@ impl ActionSource {
         cause: Option<super::borrow_forward_transport::ForwardCause>,
         completed: Option<super::borrow_forward_transport::ForwardScope>,
     ) {
+        // Bind the actual append handle, never search for an equal published record.
+        let handle = self.next_handle();
+        self.record_forward_region_handoff(completed, handle);
         // This is the unique old-table source, even with observation disabled.
         self.records.push(Record::BorrowForwardHandoff {
             transaction,
@@ -382,6 +388,7 @@ impl ActionSource {
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
         let forward_links = forward_links::validate(&self.records, &self.identity, source, file);
+        let forward_regions = self.validate_forward_regions(&forward_links);
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -504,6 +511,7 @@ impl ActionSource {
             regions,
             binding_regions,
             child_regions,
+            forward_regions,
             binding_dependency_drops,
         }]
     }

@@ -13,6 +13,7 @@ mod lambda;
 mod loan_binding_region;
 mod loan_child_region;
 mod loan_consumer_region;
+mod loan_forward_region;
 mod loan_named_region;
 mod loan_provenance;
 mod loan_receiver_region;
@@ -427,14 +428,22 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         FunctionBody::Absent => {}
                         FunctionBody::Expression { expression, .. } => {
                             state.forward_scope = self.forward_expression_scope(id, expression);
+                            self.enter_forward_region(id, &mut state);
                             if self.expression(
                                 expression,
                                 DropExpressionUse::Consume,
                                 &mut state,
                             )? {
+                                let pre_clear = self.forward_region_boundary_clear(&state, true);
                                 self.drop_all(
                                     PlannerDropPoint::ControlTransfer(expression),
                                     &mut state,
+                                );
+                                let post_clear = self.forward_region_boundary_clear(&state, false);
+                                self.iteration_actions.complete_forward_region(
+                                    state.forward_scope,
+                                    pre_clear,
+                                    post_clear,
                                 );
                             }
                         }

@@ -783,3 +783,7 @@ mod forward_causal_links;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "forward_projection_tests.rs"]
 mod forward_projection;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_exit_coverage_tests.rs"]
+mod forward_exit_coverage;
