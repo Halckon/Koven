@@ -46,6 +46,19 @@ impl RootEvidence {
     }
 }
 impl ControlTransactions {
+    pub(in super::super::super) fn take_root_boundary(
+        &mut self,
+    ) -> Option<crate::ownership_checking::UnitOwnerMultiRootBoundaryV1> {
+        if self.root_branches_invalid || self.root_entries.len() != 1 {
+            return None;
+        }
+        self.root_entries[0]
+            .1
+            .normal_equation
+            .take()?
+            .into_boundary()
+    }
+
     pub(in super::super::super) fn invalidate_root_preservation(&mut self) {
         for (_, evidence) in &mut self.root_entries {
             evidence.tainted = true;

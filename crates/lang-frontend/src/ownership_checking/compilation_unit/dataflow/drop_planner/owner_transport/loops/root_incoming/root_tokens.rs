@@ -36,6 +36,38 @@ pub(in super::super::super::super) struct RootBoundaryEquation {
     transfers: Vec<RootTransferSlot>,
 }
 impl RootBoundaryEquation {
+    pub(in super::super) fn into_boundary(
+        self,
+    ) -> Option<crate::ownership_checking::UnitOwnerMultiRootBoundaryV1> {
+        if !self.same_roots() {
+            return None;
+        }
+        let slots = self
+            .entry
+            .iter()
+            .zip(&self.normal)
+            .zip(&self.transfers)
+            .map(|(((root, entry), (_, normal)), transfer)| {
+                crate::ownership_checking::UnitOwnerRootBoundarySlotV1 {
+                    root: *root,
+                    entry: entry.clone(),
+                    normal: normal.clone(),
+                    producer: transfer.producer,
+                    retirement: transfer.retired_through,
+                }
+            })
+            .collect();
+        crate::ownership_checking::UnitOwnerMultiRootBoundaryV1::seal(
+            self.control,
+            self.condition,
+            self.body,
+            self.condition_binding,
+            self.inputs,
+            self.producers,
+            slots,
+        )
+    }
+
     pub(in super::super::super::super) fn control(&self) -> UnitStatementId {
         self.control
     }

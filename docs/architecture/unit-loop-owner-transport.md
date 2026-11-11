@@ -135,3 +135,7 @@ open/invariant或straight-line/Choice能力，deferred发布路径会清除整�
 
 多根入口、路径祖先、producer/cleanup向量及独立token事务的现状和边界，见
 [多根入口、写入与清理证据](unit-loop-root-evidence.md)。
+
+独立只读`multi_root_boundary_v1()`公开受限多根首次静态边界及真实catalog，不是header
+激活或loop lowering能力；旧loop/value资格保持不变。发布与撤销边界见
+[多根证据](unit-loop-root-evidence.md#公开只读边界证据非-header运行能力)。

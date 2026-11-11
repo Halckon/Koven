@@ -328,6 +328,15 @@ fn actual_two_root_normal_body_records_only_complete_linear_write_vector() {
         let owned = fixture.shared();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.clone().validate().is_ok());
+        assert_eq!(
+            owned
+                .owner_observations()
+                .iter()
+                .filter_map(|observation| observation.multi_root_boundary_v1())
+                .count(),
+            usize::from(admitted),
+            "{text}"
+        );
         compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
             let mut planner = super::super::super::DropPlanner::new(
                 checker,

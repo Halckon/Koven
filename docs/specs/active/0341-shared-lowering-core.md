@@ -13785,3 +13785,19 @@ all-target check及fmt/diff通过。复审建议的非空/等长及退休definit
 最终FE lib657通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
 all-target check、fmt/diff、docs898及Rust尺寸2467文件/35项旧债通过。复审无阻断，
 提示的历史定义非存活集合与Closure保守边界已明确；CI-only未执行，不推送。
+
+### 公开多根 boundary-only 证据（2026-11-11，本地）
+
+基于e236506a，新增只读UnitOwnerMultiRootBoundaryV1/slot及独立getter，最终发布唯一
+完整root候选。产品包含真实sites、完整catalog、首次entry/normal及旧结果drop关联；
+精确私有manifest锁定sites和各槽，analysis/callable/status/control及双向产品互斥共同门禁。
+失败/有deferred清除；不授予header激活、loop lowering、跨轮归纳或旧见证退休资格。
+真实正反矩阵验证公开准入，单独fixture验证完整三定义catalog与旧能力仍None；CI-only
+覆盖partial/duplicate/交叉old/drop/错sites/foreign catalog/失败deferred及混合value产品。
+
+复审指出的原关联与互斥缺口已修复并复核。manifest只锁定唯一已验证equation转换的输入，
+不是独立CFG证明；该来源链必须保留。最终门禁结果记录于本片收尾。
+
+最终FE lib658通过、52项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check、fmt/diff、docs898及Rust尺寸2468文件/35项旧债通过，无新增例外。
+CI-only破坏/撤销负控只编译未本机执行；本地提交，未推送，未宣称远端CI通过。

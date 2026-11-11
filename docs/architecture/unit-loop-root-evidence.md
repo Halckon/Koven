@@ -145,3 +145,19 @@ links及header候选。此事件指首次planner遍历，不代表运行时条�
 来源、唯一性和逐token查找。不把live roots子集重编号，前缀已退休定义仍留在catalog，
 但不表示它们仍存活。真实回归在两根前增加已退休String，核live roots保留非零原索引。
 不合格catalog使token事务不建立（Closure前缀仍保守拒绝），普通回执和公开产品资格不变。
+
+### 公开只读边界证据（非 header/运行能力）
+
+`UnitOwnerObservation::multi_root_boundary_v1()`现可返回独立
+`UnitOwnerMultiRootBoundaryV1`：真实control/condition/body/guard、完整双catalog及按入口根
+顺序的entry/first-body-output/producer/returned-value-drop。它只证明已验证的首次静态
+边界，不提供header激活、一般循环运输、suffix消费或旧见证替代能力。原observation仍为
+Unsupported且legacy definitions/events为空，旧value/loop getters不因此取得能力。
+
+发布仅取唯一已完整封闭的root候选；getter核原analysis/catalog identity、callable、对应
+control的Syntax状态、与其他产品互斥。成功且无deferred才保留；失败返回无observation，
+deferred清除边界。旧产品getters也反向拒绝混入此产品，不能通过混合状态取得旧资格。
+只读产品内部保留不可改的原manifest，精确核sites、逐root的旧新token/producer/drop关联
+及完整catalog定义，拒绝同source错换、交叉配对和外来analysis。CI-only负控仅远端执行。
+manifest只检查封存后的关联不变，原CFG事实仍来自唯一已验证RootBoundaryEquation转换；
+seal不能视作自由拼装事实的证明器，后续新增构造调用须另审来源完整性。
