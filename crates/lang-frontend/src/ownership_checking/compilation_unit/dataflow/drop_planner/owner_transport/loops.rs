@@ -423,6 +423,8 @@ impl DropPlanner<'_, '_> {
 // Exhaustive destructuring makes new planner slots require an explicit boundary decision.
 fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
     let ValueState {
+        // Pure observation metadata does not change the existing owner boundary.
+        forward_scope: _,
         replace_consumer,
         lambda,
         borrow_bindings,

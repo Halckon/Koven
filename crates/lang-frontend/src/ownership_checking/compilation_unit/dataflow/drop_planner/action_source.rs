@@ -6,6 +6,7 @@ mod binding_regions;
 mod child_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
 mod consumer_links;
+mod forward_links;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::{
@@ -62,6 +63,11 @@ enum Record {
         transfer: Option<ActionHandle>,
         acquisition: Option<ActionHandle>,
         transaction: crate::ownership_checking::UnitBorrowCallTransportFact,
+    },
+    BorrowForwardHandoff {
+        transaction: crate::ownership_checking::UnitBorrowForwardTransportFact,
+        cause: Option<super::borrow_forward_transport::ForwardCause>,
+        completed: Option<super::borrow_forward_transport::ForwardScope>,
     },
     Cleanup((PlannerDropPoint, UnitIterationCleanupAction)),
 }
@@ -300,6 +306,32 @@ impl ActionSource {
             .collect()
     }
 
+    pub(super) fn forward_handoff(
+        &mut self,
+        transaction: crate::ownership_checking::UnitBorrowForwardTransportFact,
+        cause: Option<super::borrow_forward_transport::ForwardCause>,
+        completed: Option<super::borrow_forward_transport::ForwardScope>,
+    ) {
+        // This is the unique old-table source, even with observation disabled.
+        self.records.push(Record::BorrowForwardHandoff {
+            transaction,
+            cause,
+            completed,
+        });
+    }
+
+    pub(super) fn forward_transports(
+        &self,
+    ) -> Vec<crate::ownership_checking::UnitBorrowForwardTransportFact> {
+        self.records
+            .iter()
+            .filter_map(|record| match record {
+                Record::BorrowForwardHandoff { transaction, .. } => Some(transaction.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn len(&self) -> usize {
         self.cleanups
     }
@@ -320,7 +352,8 @@ impl ActionSource {
             | Record::BorrowBindingChildUseReturned(_)
             | Record::BorrowBindingChildRetired(_)
             | Record::BorrowConsumerTransfer { .. }
-            | Record::BorrowConsumerRetired { .. } => None,
+            | Record::BorrowConsumerRetired { .. }
+            | Record::BorrowForwardHandoff { .. } => None,
         })
     }
 
@@ -348,6 +381,7 @@ impl ActionSource {
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
+        let forward_links = forward_links::validate(&self.records, &self.identity, source, file);
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -416,6 +450,17 @@ impl ActionSource {
                             transfer: consumer_links.get(&index).copied(),
                             source_begin: acquisitions.get(&index).map(|&(source, _)| source),
                             consumer_begin: acquisitions.get(&index).map(|&(_, consumer)| consumer),
+                            transaction,
+                        },
+                    )
+                }
+                Record::BorrowForwardHandoff { transaction, .. } => {
+                    let link = forward_links.get(&index);
+                    UnitLoanAction::BorrowForwardHandoff(
+                        crate::ownership_checking::UnitLoanForwardHandoff {
+                            identity: identity.clone(),
+                            source_begin: link.map(|&(begin, _)| begin),
+                            callable: link.map(|&(_, callable)| callable),
                             transaction,
                         },
                     )

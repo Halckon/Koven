@@ -186,6 +186,7 @@ fn plan_with_observations(
     let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
     let borrow_ends = planner.iteration_actions.borrow_binding_ends();
     let borrow_call_transports = planner.iteration_actions.consumer_transports();
+    let borrow_forward_transports = planner.iteration_actions.forward_transports();
     let drops = planner
         .facts
         .into_iter()
@@ -207,7 +208,7 @@ fn plan_with_observations(
         borrow_call_handoffs,
         borrow_call_transports,
         borrow_binding_transports: planner.borrow_binding_transports,
-        borrow_forward_transports: planner.borrow_forward_transports,
+        borrow_forward_transports,
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
         receiver_call_return_ends,
@@ -242,7 +243,6 @@ struct DropPlanner<'a, 'checker> {
     )>,
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
-    borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
     iteration_actions: action_source::ActionSource,
@@ -283,7 +283,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_scope_depths: BTreeMap::new(),
             iteration_actions: action_source::ActionSource::default(),
             borrow_binding_transports: Vec::new(),
-            borrow_forward_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
             borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
@@ -427,6 +426,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     FunctionForm::Explicit { body, .. } => match body {
                         FunctionBody::Absent => {}
                         FunctionBody::Expression { expression, .. } => {
+                            state.forward_scope = self.forward_expression_scope(id, expression);
                             if self.expression(
                                 expression,
                                 DropExpressionUse::Consume,

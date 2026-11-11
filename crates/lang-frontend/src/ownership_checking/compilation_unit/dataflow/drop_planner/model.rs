@@ -263,6 +263,8 @@ impl PendingLoan {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
+    /// Pure observation scope; never part of value availability or owner eligibility.
+    pub(super) forward_scope: Option<super::borrow_forward_transport::ForwardScope>,
     pub(super) replace_consumer:
         Option<super::owner_transport::replace_consumer::ReplaceConsumerCarrier>,
     pub(super) lambda: Option<ExpressionId>,
@@ -358,6 +360,18 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
             .iter()
             .all(|state| state.borrow_forward_transports.contains(transport))
     });
+    if states
+        .iter()
+        .any(|state| state.forward_scope != merged.forward_scope)
+    {
+        merged.forward_scope = None;
+    }
+    for transport in &mut merged.borrow_forward_transports {
+        for state in &states {
+            transport.reconcile(&state.borrow_forward_transports);
+        }
+        transport.reconcile_scope(merged.forward_scope);
+    }
     merged.borrow_binding_transports.retain(|transport| {
         states
             .iter()
