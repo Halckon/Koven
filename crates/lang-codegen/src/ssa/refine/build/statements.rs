@@ -51,6 +51,15 @@ impl Builder<'_, '_> {
             (tag, None) => tag,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
+        let branch = self
+            .body
+            .branch_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, branch) {
+            (None, Some(tag)) => Some(LoanTag::Branch(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
         self.body.blocks[block.0].statements.push(RStmt {
             op,
             results,
@@ -76,6 +85,7 @@ impl Builder<'_, '_> {
 impl Builder<'_, '_> {
     pub(super) fn finish_loan_receipts(&self) -> Result<(), LoweringError> {
         self.body.forward_plans.finish(self.inputs.span)?;
+        self.body.branch_plans.finish(self.inputs.span)?;
         self.body
             .loan_plans
             .finish(&self.consumed_drops, self.inputs.span)?;

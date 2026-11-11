@@ -42,6 +42,8 @@ fn lower_unit_impl(
     entry: DeclarationId,
     #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
 ) -> Result<(Program, FunctionId), LoweringError> {
+    #[cfg(test)]
+    let branch_publication = crate::ssa::refine::branch_receipt::UnitPublication::begin();
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
     let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
@@ -861,5 +863,7 @@ fn lower_unit_impl(
         kind: LoweringErrorKind::InvalidModel,
         span: None,
     })?;
+    #[cfg(test)]
+    branch_publication.commit();
     Ok((program, entry_id))
 }

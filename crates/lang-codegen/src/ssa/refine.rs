@@ -10,6 +10,7 @@ mod build;
 pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
+pub(crate) mod branch_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod loan_receipt;

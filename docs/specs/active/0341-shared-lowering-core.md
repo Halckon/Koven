@@ -13176,3 +13176,60 @@ implicit前驱，其余Break/exit/参数身份不变，未增加宽泛fallback�
 未提高尺寸额度。独审复核29日志、保存binary及真实Cargo artifact（opt0/debug2，
 FE默认、CG仅loan support）；实测输入后仅Architecture/Spec文档变化，无Rust漂移。
 本片仍只作本地完成切片，正式CI与最新main合流未验，不宣称D10/E2全部完成。
+### 有界双出口真实aggregate receipt合同（2026-11-11）
+
+本片基于fa82cfc2，复用已合流的局部branch Complete，不扩语言或声明门禁。
+仅同Shared String来源、动态Boolean参数条件、真臂直接return与唯一false尾return。
+source/callable仍Partial；旧表达式forward receipt保持独立且本分支样例中仍为空。
+不新增Begin/End/Drop、权限恢复、跨函数LoanId，不退休旧oracle，不认领native资源计数。
+
+后继生产必须消费同catalog的唯一Complete区域及两条认证path，核实际typed callee、
+原split/condition/臂/control/value与action身份。真实builder原producer只执行一次；
+实际append得到instruction句柄、实际set_terminator成功后才记录出口，不扫描最终SSA
+凑receipt。entry source经conditional edge operand到arm block parameter再至BorrowCall
+source/result和BorrowReturn的完整身份链必须成立，不能仅比较root或强令LoanId相等。
+全部两路径和实际condition/边闭合后才能发布一个aggregate，含两个路径receipt。
+Partial/off不建计划；已准入后缺失、重复或错身份须报错，不允许退回未观察成功。
+
+前置红版本仅test-only独立branch_receipt观察空壳，无生产consumer/publisher；paths占位仅为
+红探针计数，生产实现时必须替换成真实身份记录，不能由计数硬编码证书。
+新ordinary exact与旧branch probe共享原源码和原lower/verifier/SSA/LLVM检查，先核FE
+唯一局部Complete、两path及真实Begin/handoff、source Partial和on/off旧语义等价。
+Rooted/Memory四次真实lower、原最终verifier捕获、独立SSA核验及LLVM一致全部完成后，
+才断言on各一个aggregate含两path、off零；预期空壳运行时0!=1，编译失败不算红。
+
+真实红0e60721d：codegen no-run 617.08秒成功；唯一ordinary实际0 passed/1 failed。
+四组合原lower、原verifier、SSA与LLVM（1754 bytes）全部先通过，branch aggregate
+均为0，最后rooted精准0!=1。输入与独立保存binary执行前后一致，原证据保全。
+后继consumer独立于旧表达式Plans：builder登记原四block与false唯一Goto，emitter
+在原merge_straight_lines真实折叠处保存false→join映射，不保留额外block改变旧SSA。
+普通probe追加真实FE action IDs及两个call/return、condition Read与Conditional
+原edge的完整身份断言。生产candidate a481a8fe 已完成源码独审及下列真实验收，
+不认领远端CI或native。函数emitter仅暂存完整aggregate；观察批次在原unit最终verifier
+成功后提交，提前lowering/verifier错误由guard撤销pending，不新增验证次数。
+
+首次生产候选2f7d6de4的no-run在43.41秒编译失败：ordinary probe引用私有BlockRef；
+这是编译接线错误，不替代前置behavioral红。a481a8fe保持内部身份私有，只暴露测试布尔
+查询；真实终结事件dispatch归属LoanReceipts，emit.rs回到990行，不提高尺寸额度。
+失败与修复证据分别保留。修复后no-run59.60秒成功，4305个输入及唯一实际编译artifact
+绑定并独立保存binary；六项ordinary执行前后输入/binary摘要一致，各exact唯一list且
+各1 passed。Rooted/Memory各on一个双path aggregate、off零，原SSA/LLVM仍相同。
+默认/观察feature FE+CG all-targets strict Clippy分别56.62/57.48秒成功，workspace
+all-targets check52.51秒成功；fmt/docs893/diff及尺寸2442文件、35项历史欠账门禁通过。
+本片基线仍fa82cfc2；合入更新main的组合须另做联合验证，不外推本片结果。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+| --- | --- | --- |
+| aggregate receipt能力红及后继consumer | branch_forward_probe::ordinary_branch_requires_actual_aggregate_receipt_with_true_off | 0e60721d真实0 passed/1 failed；a481a8fe后继1 passed |
+| 旧双出口lowering/original expression receipt边界 | branch_forward_probe::ordinary_same_source_branch_requires_real_lowering_with_true_off | a481a8fe各1 passed，另核邻界、旧Single门禁、旧expression receipt及raw handoff |
+| 缺路径/重复/错edge operand/异catalog等破损 | branch_receipt::emitted::ci_tests 两项 ci_only | 已实现并编译；本机未执行 |
+
+六项ordinary exact为branch_forward_probe的ordinary_branch_requires_actual_aggregate_receipt_with_true_off、
+ordinary_same_source_branch_requires_real_lowering_with_true_off、ordinary_branch_neighbors_keep_the_unit_declaration_gate，
+borrow_result_contract_tests::borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported，
+forward_receipts::original_live_forward_requires_production_receipt_with_true_off，
+forward_projection::original_branch_returns_keep_both_raw_handoffs_without_a_cause。
+CI-only覆盖12类身份变体、6类缺角色、反向/重复fold及3类builder阶段，另模拟pending
+遇Err撤销/commit正控；不等同真实最终verifier故障注入或独立mixed-join构造的执行证据。
+两位交叉审区分生产作者与注入测试作者，冻结输入、原artifact、独立binary和全部普通
+运行证据另经逐项独核。source/callable仍Partial，非此有界拓扑和新End/Drop未由本片扩大。
