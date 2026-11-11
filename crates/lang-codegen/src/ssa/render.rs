@@ -5,9 +5,8 @@ use super::model::{
     Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, TerminatorKind,
 };
 
-mod map;
 mod types;
-use types::write_type_kind;
+use types::{map, write_type_kind};
 
 const fn binary_name(operator: BinaryOperator) -> &'static str {
     match operator {

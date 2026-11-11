@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod aliases;
+use aliases::direct_fields;
 mod borrow_result;
 mod closure;
-mod direct_fields;
 mod field_exchange;
 #[cfg(test)]
 mod field_exchange_tests;

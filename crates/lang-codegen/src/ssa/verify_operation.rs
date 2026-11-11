@@ -1,8 +1,9 @@
 //! Typed SSA operation 的局部类型契约。
 
 mod integer;
-mod nullable;
+pub(in crate::ssa) use integer::verify_borrow_result;
 mod range;
+use range::nullable;
 pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
