@@ -12136,3 +12136,26 @@ source/callable 仍 Partial，覆盖认证与生产 receipt 必须分别取得�
 执行前先提交输入并独立审源码/helper；fresh no-run 后绑定 artifact、binary SHA 与输入，
 再仅执行这一个普通 exact。复用既有 borrow target，default debug2、LLVM21、串行 Cargo，
 构建前重核进程/锁/资源；不复制 target、不降 debug。所有 CI-only 仅编译，未运行项另记。
+
+#### 原样显式 Return 的真实拒绝与 probe 范围纠正
+
+输入 `7a57052e` 的唯一 ordinary exact 经源码/helper独审和原artifact/binary/input绑定后执行：
+fresh no-run 91.25s成功，opt0/debug2/test、仅loan-observation-test-support；执行结果
+0 passed、1 failed、2951 filtered、exit101。首 Rooted 的旧forward/live非End、caller分离
+和source Partial前置均成功；正常lower在测试112行报UnsupportedNode，SourceId0的
+87..93原文为wrap声明的borrow marker。Memory布局、SSA verifier与LLVM均未到达。
+
+真实拒绝路径是unit_lower::orchestrate先调用validate_declarations，再由
+borrow_result_support::declaration仅接受FunctionBody::Expression；Block wrapper在
+任何refine路由或函数SSA构造前已被拒绝。这是原样lower成功假设失败，不是新因果能力红，
+不据ROUTED空推定Compatibility，也不通过改生产gate或force route消除拒绝。
+旧输入及原始日志保留在 `/private/tmp/koven-forward-loan-probe-evidence`；
+binary SHA `6d8339e3c796b8e17a6ca0605fb25a19348769d75811f73e55e69729c1450175`，
+执行后4261输入及binary SHA不变，并已经独立实读核验。
+
+经协调后只收窄后继原样probe为单表达式体 `wrap(source) = view(source)`，其余三声明、
+caller与普通使用不变，不同时扩展其他语法。新exact名明确为
+original_expression_wrapper_records_live_handoff_and_actual_lowering，另存expression阶段
+artifact/log及输入绑定；新源码差异/helper审与fresh artifact绑定完成后才执行。
+表达式体仍从实际PendingForwardTransport移除处发布live handoff，不能成为source End。
+若该新原样成功，只为表达式体后继Partial因果链提供前置，不宣称显式Return准入已修复。

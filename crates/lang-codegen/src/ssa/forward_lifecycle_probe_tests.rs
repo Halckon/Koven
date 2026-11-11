@@ -1,11 +1,11 @@
-//! One original explicit-return wrapper; ordinary analysis and lowering only.
+//! One original expression-bodied wrapper; ordinary analysis and lowering only.
 use super::*;
 use lang_frontend::ownership_checking::{LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget};
 
-const FORWARD_SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source { return view(source) }\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = wrap(owner); consume(item) }";
+const FORWARD_SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = wrap(owner); consume(item) }";
 
 #[test]
-fn original_single_wrapper_records_live_handoff_and_actual_lowering() {
+fn original_expression_wrapper_records_live_handoff_and_actual_lowering() {
     let mut sources = SourceMap::new();
     let (source, parsed) =
         unit_lower_test_support::parsed(&mut sources, "forward-lifecycle.ko", FORWARD_SOURCE);
@@ -49,9 +49,9 @@ fn original_single_wrapper_records_live_handoff_and_actual_lowering() {
         );
         assert_eq!(text(forwarded.returned_expression()), "view(source)");
         let UnitDropPoint::ControlTransfer(returned) = forwarded.point() else {
-            panic!("the actual explicit Return, not an inferred source end");
+            panic!("the actual expression-body return, not an inferred source end");
         };
-        assert_eq!(text(returned), "return view(source)");
+        assert_eq!(text(returned), "view(source)");
         let UnitLoanTarget::Place(place) = loan.target() else {
             panic!("shared parameter place");
         };
