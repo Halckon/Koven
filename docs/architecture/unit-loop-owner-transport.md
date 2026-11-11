@@ -99,3 +99,11 @@ body definition token 是静态 producer 身份，每次激活都要求新实例
 不删除 Single 循环见证，不扩 Choice，不改变 Guide 的 ASAP 或 loop liveness 合同。
 真实源码、双 Unit 入口、开关完整 Analysis 对照及质量门禁范围见 SPEC-0341 §144、§146、§148、§150、§152、§154、§156、§158、§160、§162、§164；
 手工损坏产物只作为正式 CI 守卫，不能替代生产接线证明。
+
+## Normal header 的 root-qualified edge 视图
+
+现有 sealed normal header 可导出 `UnitOwnerRootEdgeV1`：私有构造且先核完整 header
+一致性，保留原 catalog 身份、callable、control、root 与结构边角色。Clone 保持身份，
+同源码重新分析不相等；入口 body、正常回边及 condition-false 出口不可互换。它是原
+封闭产品的身份视图，不生成新 producer、drop 权限或一般多根/嵌套运输能力；旧 witness
+仍保留。真实源码及 observer on/off 检验见 SPEC-0341 的 root-qualified edge 验收。

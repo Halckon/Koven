@@ -13513,4 +13513,12 @@ SourceRetired因果共存，仍不扩Complete/region/receipt或legacy Dependency
 依据 ADR-0038，首片将现有 sealed normal header 的结构边绑定同轮 catalog、callable、
 control 及 root，不改变 planner、旧 oracle 或 consumer 权限。此为一般多根/嵌套前置
 身份隔离，不提供多根 incoming 相关性或嵌套 CFG 完整证明。先以真实源码重分析探针
-验证同 AST ID 不等于同轮边；当前空 API 待实跑，尚无通过结论。
+验证同 AST ID 不等于同轮边。7b75b8b9 的空 API 探针实际编译并执行，1 failed；
+实现后实际重编，三个身份用例全部通过：同分析 clone 保持身份、重分析拒绝复用，
+跨 source，以及同 source 不同 callable/root 隔离。均核旧 observer on/off 产品等价。
+既有 normal_backedge 的 17 项普通回归全部通过；CI-only 损坏未封闭 header 不发布边
+用例已编译但未执行。FE all-target strict Clippy 通过。workspace all-target check（LLVM 21）、fmt、docs897、diff 通过；尺寸2454手写文件、
+35历史超限，无新豁免。尺寸脚本首次漏传必需 --base，未执行；补传93404d2a后通过。
+未运行 native、正式 CI，未完成多根相关 incoming、嵌套 CFG 或旧见证退休。
+原始命令结果在本工作树 `.local-artifacts/root-edge-evidence/`；不以这三个源码用例
+推导任意根或任意控制形状。只读独立审查未发现此身份封装范围的阻断问题。

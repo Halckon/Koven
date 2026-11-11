@@ -45,6 +45,26 @@ impl super::UnitOwnerNormalBackedgeV1 {
     /// Qualified edges of the sealed single-root normal-header product.
     /// Does not authorize arbitrary nested loops, extra roots or consumer cleanup.
     pub fn qualified_edges(&self) -> Option<[UnitOwnerRootEdgeV1; 3]> {
-        None
+        if !self.is_consistent() {
+            return None;
+        }
+        let edges = [
+            UnitOwnerLoopEdgeV1::EnterBody(self.condition(), self.body()),
+            UnitOwnerLoopEdgeV1::Backedge(
+                UnitDropPoint::AfterStatement(self.body()),
+                self.condition(),
+            ),
+            UnitOwnerLoopEdgeV1::ConditionFalseExit(
+                self.condition(),
+                UnitDropPoint::LoopExit(self.statement()),
+            ),
+        ];
+        Some(edges.map(|edge| UnitOwnerRootEdgeV1 {
+            identity: self.core.identity.clone(),
+            callable: self.callable(),
+            control: self.statement(),
+            root: self.root(),
+            edge,
+        }))
     }
 }
