@@ -13233,3 +13233,28 @@ CI-only覆盖12类身份变体、6类缺角色、反向/重复fold及3类builder
 遇Err撤销/commit正控；不等同真实最终verifier故障注入或独立mixed-join构造的执行证据。
 两位交叉审区分生产作者与注入测试作者，冻结输入、原artifact、独立binary和全部普通
 运行证据另经逐项独核。source/callable仍Partial，非此有界拓扑和新End/Drop未由本片扩大。
+
+### 条件 Break、分支 receipt 与主线退役协调验收（2026-11-11）
+
+已测代码 `3e8ca18b` 保留已发布#412 `fa82cfc2`、main `4150bbd8`、owner `3fcd5a4f`
+与borrow `a9c9318a` 的真实父链；末次核远端main未推进。main删除旧binding_receipt与
+owner_return壳时，保留删除并将PR独立child入口/完成hook迁到borrow_binding，将open-loop/
+header Return互斥授权、emitted与observer记录迁到owner_consumer/replacement，不复活旧壳。
+condition同插入点冲突完整保留cb_split与branch_plans.split，两者在唯一条件发射前登记，
+原emitted顺序不变；Spec双追加原样保全，未纳入任何在途未验成果，源树用户修改未动。
+
+联合35项ordinary加3项binding/parent-child receipt邻域，共38项各1 passed，FE11/CG27。
+包含已审有限Basic/Const正常native；Abort仅SSA结构检查，无资源计数、压力或全量执行。
+新分支聚合receipt与旧child/binding/Return真实接点均有定向回归，CI-only仅编译。
+仍只认领已准入窄形状，不把source/callable Partial或一般循环/借用联合合同宣称完成。
+
+持久唯一证据主目录为主仓忽略目录
+`.local-artifacts/conditional-receipt-integration-evidence-20261111`。attempt-1在38项全过后
+fmt抓到迁移child_entry后的缺换行；仅格式修正成3e8ca18b，保留原记录。attempt-2重新绑定
+4300个tracked输入、实际Cargo artifact、两份保存binary、runner及精确名单，重新实跑全部
+38项并通过；执行前后输入与binary一致，opt0/debug2，FE默认、CG仅loan support。
+
+默认及loan support双套FE/CG all-targets strict Clippy、默认workspace all-targets、
+默认CLI build/真实--help、fmt/docs897、相对4150bbd8尺寸均通过，CLI features=[]。
+尺寸2433手写Rust、35历史超限，无额度豁免。最后仅追加本Spec；未推送、未合main，
+没有本组合正式CI结论，D10/E2继续保持进行中。
