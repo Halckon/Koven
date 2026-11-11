@@ -12556,3 +12556,31 @@ false 出口按当前 H 授权真实 Return。此前 consumer 缺授权红已转
 fmt、FE/CG all-targets strict Clippy、默认 workspace all-targets、默认 CLI build/--help、
 docs 与相对 e659b66a 的尺寸门禁均通过；默认 CLI artifact features=[]。
 最终 Spec 仅追加阶段结果，不改冻结 Rust；D10/E2 仍在推进，尚未推送、无此组合正式 CI。
+
+### 正常回边多次激活的后继探针合同（2026-11-11）
+
+基于已本地验收的合流头 `0f9c395d` 独立分支，只增加原样源码探针：单 String
+根、Int 局部计数器、`index < limit`、一次 Replace 后加一及循环后 Return。
+调用输入 0/1/2/7 仅保留有限正常源码，不作归纳或资源计数证明。ADR-0038 §5
+已规定有限 header 合同与跨激活实例边界；当前 Boolean 一轮准入保持原样。
+先核真实 Basic ownership、SSA/verifier/LLVM，最后独立要求实际 header Return
+receipt；缺失应保持能力红，不补造产品、不以正常 lowering 代替消费授权。
+本片不执行 native、压力、fault 或计数路径，不扩 Continue、多根或 capture。
+若原样分析先拒绝，记录实际阻塞而不修改源码掩盖。后续实现必须单独收敛
+不含任意次数展开的有限闭合规则；此记录不宣称实现或验收完成。
+
+#### 计数正常回边原样缺授权红
+
+基线 `0f9c395d` 加上述未改生产探针，经独立源码/helper与实际artifact复核，
+唯一 ordinary exact `counter_backedge_requires_actual_header_return_authority`
+实际 0 passed、1 failed、2966 filtered、exit101，在末端缺 header Return receipt
+断言失败。真实 Basic ownership、SSA lowering、verifier、LLVM 均先通过，说明
+下一缺口是当前 header 消费授权，不是该原样程序的语言拒绝或正常 lowering。
+输入4279文件与二进制运行前后保持一致；原件在
+`/private/tmp/koven-owner-counter-backedge-evidence`，包含源码清单、Cargo JSON、
+manifest、冻结binary和原日志。本机临时证据不保证长期保留。
+编译 opt0/debug2，仅 loan-observation-test-support，1m24s。首命令误写feature名称
+导致Cargo参数错误，保留失败日志；不将此错误算能力红。fmt、docs与diff检查通过；
+未运行native、CI-only、资源计数、Clippy或全套CI。红测试尚未修复，不可发布合main。
+后续先独立描述Int控制的类型/身份与单步赋值完成事实，复用既有H入边/回边合同；
+核真实运算的正常完成和提前终止边，不靠0/1/2/7展开替代归纳，再接同一真实Return消费。

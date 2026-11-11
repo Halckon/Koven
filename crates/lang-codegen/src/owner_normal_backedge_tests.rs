@@ -199,3 +199,41 @@ fn ci_only_normal_backedge_rejects_extra_header_definition() {
         "a hidden H redefinition must not receive header Return authority"
     );
 }
+
+/// Ordinary source/SSA probe only: four finite caller inputs are not an induction proof.
+#[test]
+fn counter_backedge_requires_actual_header_return_authority() {
+    let source = UnitSource::analyze(
+        "owner-counter-backedge.ko",
+        r#"fun run(limit: Int): String {
+    var held = "outer"
+    var index = 0
+    while(index < limit) { val previous = replace(&held, "next"); index = index + 1 }
+    return held
+}
+fun entry(): Unit {
+    val zero = run(0)
+    val one = run(1)
+    val two = run(2)
+    val seven = run(7)
+}
+"#,
+    )
+    .unwrap();
+    source.assert_frontend_clean();
+    assert!(matches!(source.products, OwnedProducts::Basic(..)));
+    let (lowered, receipts) =
+        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert!(!llvm.is_empty());
+    let [receipt] = receipts.as_slice() else {
+        panic!("one real counter-loop owned Return");
+    };
+    assert!(
+        receipt.2.is_some(),
+        "counter-loop current header owner lacks Return authorization"
+    );
+    assert_eq!(receipt.1, receipt.2);
+}
