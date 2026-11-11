@@ -254,3 +254,35 @@ fn ci_only_shared_inner_lineage_binds_layout_without_merging_control_points() {
         );
     }
 }
+
+#[test]
+fn ci_only_declared_routes_reject_absent_wrong_and_out_of_range_parent_entries() {
+    for fault in 0..4 {
+        let mut source = capture();
+        source.enabled = true;
+        let state = source.nested_handoffs[0].1.state;
+        let plan = state.plan;
+        let child = plan.splits()[1];
+        let before = source.nested_entries.len();
+        let (index, parent) = match fault {
+            0 => (usize::MAX, state.path[0]),
+            1 => (1, None),
+            2 => (0, state.path[0]),
+            _ => (1, source.nested_handoffs[2].1.state.path[0]),
+        };
+        assert!(
+            source
+                .enter_nested_forward_edge(
+                    plan.callable,
+                    (plan.topology, plan.flag_layout),
+                    (index, child.split),
+                    child.condition,
+                    true,
+                    parent,
+                )
+                .is_none(),
+            "fault {fault}"
+        );
+        assert_eq!(source.nested_entries.len(), before);
+    }
+}

@@ -132,23 +132,9 @@ impl UnitBorrowNestedForwardTopology {
     pub(crate) const fn nested_then(self) -> bool {
         matches!(self, Self::NestedThen | Self::NestedThenTail)
     }
-    pub(crate) const fn leaf_path(self, leaf: usize) -> [Option<(usize, bool)>; 2] {
-        match (self, leaf) {
-            (Self::NestedThen | Self::NestedThenTail, 0) => [Some((0, true)), Some((1, true))],
-            (Self::NestedThen | Self::NestedThenTail, 1) => [Some((0, true)), Some((1, false))],
-            (Self::NestedThen | Self::NestedThenTail, 2) => [Some((0, false)), None],
-            (Self::NestedElse | Self::NestedElseCascadeTail, 0) => [Some((0, true)), None],
-            (Self::NestedElse | Self::NestedElseCascadeTail, 1) => {
-                [Some((0, false)), Some((1, true))]
-            }
-            (Self::NestedElse | Self::NestedElseCascadeTail, 2) => {
-                [Some((0, false)), Some((1, false))]
-            }
-            (Self::BalancedBoth, 0) => [Some((0, true)), Some((1, true))],
-            (Self::BalancedBoth, 1) => [Some((0, true)), Some((1, false))],
-            (Self::BalancedBoth, 2) => [Some((0, false)), Some((2, true))],
-            (Self::BalancedBoth, 3) => [Some((0, false)), Some((2, false))],
-            _ => [None, None],
-        }
-    }
 }
+
+#[cfg(test)]
+mod route_tests;
+
+mod route_contract;

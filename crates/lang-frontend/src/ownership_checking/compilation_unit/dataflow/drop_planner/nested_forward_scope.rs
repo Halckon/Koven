@@ -92,25 +92,9 @@ impl NestedForwardPlan {
             FixedNestedTree::BalancedFour { leaves, .. } => leaves,
         }
     }
-    pub(super) fn split_depth(&self, index: usize) -> usize {
-        usize::from(index != 0)
-    }
-    pub(super) fn parent_side(&self, index: usize) -> Option<bool> {
-        match (self.topology, index) {
-            (
-                UnitBorrowNestedForwardTopology::NestedThen
-                | UnitBorrowNestedForwardTopology::NestedThenTail,
-                1,
-            ) => Some(true),
-            (
-                UnitBorrowNestedForwardTopology::NestedElse
-                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
-                1,
-            ) => Some(false),
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => Some(true),
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => Some(false),
-            _ => None,
-        }
+    pub(super) fn split_depth(&self, index: usize) -> Option<usize> {
+        self.splits().get(index)?;
+        self.topology.split_depth(index)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -419,7 +403,7 @@ impl DropPlanner<'_, '_> {
             {
                 return None;
             }
-            let path = topology.leaf_path(leaf);
+            let path = topology.leaf_path(leaf)?;
             leaves.push(NestedLeaf {
                 control,
                 value: body,
@@ -513,8 +497,12 @@ impl DropPlanner<'_, '_> {
                                 parent,
                                 nested.plan.callable,
                                 (nested.plan.topology, nested.plan.flag_layout),
-                                nested.plan.splits()[0].split,
-                                nested.plan.parent_side(i)?,
+                                nested
+                                    .plan
+                                    .splits()
+                                    .get(nested.plan.topology.split_parent(i)??.0)?
+                                    .split,
+                                nested.plan.topology.split_parent(i)??.1,
                                 None,
                             ))
                         .then_some(i)
@@ -556,7 +544,7 @@ impl DropPlanner<'_, '_> {
         let Some(entry) = self.iteration_actions.enter_nested_forward_edge(
             nested.plan.callable,
             (nested.plan.topology, nested.plan.flag_layout),
-            split.split,
+            (index, split.split),
             split.condition,
             then_arm,
             parent,
@@ -564,12 +552,15 @@ impl DropPlanner<'_, '_> {
             state.nested_forward = None;
             return;
         };
-        let depth = nested.plan.split_depth(index);
+        let Some(depth) = nested.plan.split_depth(index) else {
+            state.nested_forward = None;
+            return;
+        };
         nested.path[depth] = Some(entry);
         nested.ready_split = None;
         nested.leaf = nested.plan.leaves().iter().position(|leaf| {
             let depth = leaf.path.iter().flatten().count();
-            depth == nested.plan.split_depth(index) + 1
+            Some(depth) == nested.plan.split_depth(index).map(|d| d + 1)
                 && leaf.path.iter().zip(nested.path).all(|(wanted, handle)| {
                     match (wanted, handle) {
                         (Some((split, side)), Some(handle)) => {

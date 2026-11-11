@@ -77,27 +77,7 @@ impl Candidate {
             && (!self.balanced() || (self.right_closed && self.right_consumed))
     }
     fn entry_role(&self, split: usize, then: bool) -> Option<usize> {
-        if self.balanced() {
-            match (split, then) {
-                (0, true) => Some(0),
-                (0, false) => Some(3),
-                (1, true) => Some(1),
-                (1, false) => Some(2),
-                (2, true) => Some(4),
-                (2, false) => Some(5),
-                _ => None,
-            }
-        } else {
-            match split {
-                0 => Some(if then == self.plan.topology.nested_then() {
-                    0
-                } else {
-                    3
-                }),
-                1 => Some(if then { 1 } else { 2 }),
-                _ => None,
-            }
-        }
+        self.plan.topology.entry_role(split, then)
     }
 
     fn advance(&mut self, stage: usize, offset: usize, cursor: usize, clear: bool) -> bool {

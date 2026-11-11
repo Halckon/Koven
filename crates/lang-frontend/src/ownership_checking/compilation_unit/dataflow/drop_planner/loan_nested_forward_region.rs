@@ -105,6 +105,9 @@ impl DropPlanner<'_, '_> {
         else {
             return;
         };
+        let Some(nesting) = nested.plan.split_depth(index) else {
+            return;
+        };
         let split = nested.plan.splits()[index];
         let clear = split.split == self.checker.unit_expression(id)
             && split.condition == self.checker.unit_expression(condition)
@@ -120,8 +123,8 @@ impl DropPlanner<'_, '_> {
                 state,
                 Some(nested),
                 false,
-                depth + 1 + nested.plan.split_depth(index),
-                owner + nested.plan.split_depth(index),
+                depth + 1 + nesting,
+                owner + nesting,
             );
         self.iteration_actions
             .nested_region_condition(candidate, index, after, clear);
@@ -143,14 +146,17 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.nested_region_base(candidate) else {
             return;
         };
-        let clear = nested.path[nested.plan.split_depth(index)] == Some(entry)
+        let Some(nesting) = nested.plan.split_depth(index) else {
+            return;
+        };
+        let clear = nested.path[nesting] == Some(entry)
             && nested.ready_split.is_none()
             && self.nested_boundary_clear(
                 state,
                 Some(nested),
                 false,
-                depth + 1 + nested.plan.split_depth(index),
-                owner + 1 + nested.plan.split_depth(index),
+                depth + 1 + nesting,
+                owner + 1 + nesting,
             );
         self.iteration_actions
             .nested_region_arm(candidate, index, then_arm, entry, clear);
@@ -209,19 +215,19 @@ impl DropPlanner<'_, '_> {
         let nested = nested?;
         let candidate = nested.coverage?;
         let index = nested.ready_split?;
+        let nesting = nested.plan.split_depth(index)?;
         let (depth, owner) = self.iteration_actions.nested_region_base(candidate)?;
         let clear = nested.plan.splits()[index].split == self.checker.unit_expression(id)
             && self.nested_boundary_clear(
                 state,
                 Some(nested),
                 false,
-                depth + 1 + nested.plan.split_depth(index),
-                owner + 1 + nested.plan.split_depth(index),
+                depth + 1 + nesting,
+                owner + 1 + nesting,
             );
         if nested.plan.topology
             == crate::ownership_checking::UnitBorrowNestedForwardTopology::NestedElseCascadeTail
         {
-            let nesting = nested.plan.split_depth(index);
             let successor = match states {
                 [survivor] => survivor.nested_forward.filter(|next| {
                     self.nested_boundary_clear(

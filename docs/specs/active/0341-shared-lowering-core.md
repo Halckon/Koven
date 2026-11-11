@@ -14041,3 +14041,26 @@ source/flag、callee/Read和返回身份，仍为5块2Read3Call/Return。Receipt
 no-run、workspace全目标、fmt/diff、docs897及尺寸门禁通过：2502手写Rust文件、
 36历史超限，无新增额度。日志nested-cascade-receipt-*；本地提交不推送，native
 全套与远端CI未运行。
+
+### 固定路径结构去重与退出协议隔离（2026-11-11）
+
+基于`dd90b438`，先审计旧见证：观察关闭路径仍依赖typed/raw/declaration合同，
+有限路径证书不能替代更广whole-function或carrier合同，无同合同退休证据，均保留。
+本片不新增拓扑、公开API或Complete范围，而将声明结构与实际退出证明分离。
+
+前端私有表集中TT/TF/F、T/FT/FF及TT/TF/FT/FF三种结构的leaf、split父边/深度
+及历史entry role；越界返回None，不再把任意非零split都当作深度1。进入实际entry
+同时核split索引对应的声明父边，仍保留真实callable/catalog/layout/record/cursor
+与最终具体split身份复核。后端独立私有RouteContract集中counts/parents/routes
+及明确flag布局资格，删除admission重复路径表与Balanced右子树特判；逐实际边
+仍核split/condition/side，SharedInner资格明确只属于Balanced，不按数量猜测。
+
+两阶段各自以literal golden核表，不共享实现作为彼此的正确性oracle。表不包含
+已发生事件，也不生成证据；terminal、单续接、级联的原stage/Goto/fold/token
+协议不合并不放宽，原verifier后原子发布未改。本片是行为保持去重：旧合法路径
+基线与新结构/越界测试均通过，不将此冒充新功能或源程序误编译的真实红绿。
+最终前端17项（含2项结构golden）、后端24项（含1项合同golden）普通定向验证通过，
+现有全部实际receipt和邻界均保留。新增实际entry错误父边CI-only测试仅编译，\
+未执行。双向独立复审、strict feature all-target Clippy、默认双crate lib no-run、
+workspace全目标、fmt/diff、docs897及尺寸门禁通过：2505手写Rust文件、36历史超限，
+无新增额度。日志nested-route-*；本地提交不推送，native全套与远端CI未运行。

@@ -24,22 +24,13 @@ impl Plans {
             for region in catalog.nested_forward_regions().iter().filter(|r| {
                 r.callable() == callable && r.coverage() == UnitLoanActionCoverage::Complete
             }) {
-                let (split_count, leaf_count) = match region.topology() {
-                    UnitBorrowNestedForwardTopology::BalancedBoth => (3, 4),
-                    _ => (2, 3),
-                };
+                let routes = RouteContract::new(region.topology());
+                let (split_count, leaf_count) = routes.counts();
                 let [root, flags @ ..] = inputs.parameters.as_slice() else {
                     return Err(fail());
                 };
                 let (root, flags) = (*root, flags.to_vec());
-                let flag_indices = match (region.topology(), region.flag_layout()) {
-                    (
-                        UnitBorrowNestedForwardTopology::BalancedBoth,
-                        UnitBorrowNestedForwardFlagLayout::SharedInner,
-                    ) => vec![0, 1, 1],
-                    (_, UnitBorrowNestedForwardFlagLayout::Distinct) => (0..split_count).collect(),
-                    _ => return Err(fail()),
-                };
+                let flag_indices = routes.flag_indices(region.flag_layout()).ok_or_else(fail)?;
                 let entry_flag_count = match region.flag_layout() {
                     UnitBorrowNestedForwardFlagLayout::Distinct => split_count,
                     UnitBorrowNestedForwardFlagLayout::SharedInner => 2,
@@ -200,28 +191,7 @@ impl Plans {
                 for (leaf, path) in region.paths().iter().enumerate() {
                     let call = path.value();
                     let ids = vec![path.source_begin(), path.handoff()];
-                    let expected: &[bool] = match (region.topology(), leaf) {
-                        (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 0) => &[true],
-                        (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, 1) => {
-                            &[false, true]
-                        }
-                        (UnitBorrowNestedForwardTopology::NestedElseCascadeTail, _) => {
-                            &[false, false]
-                        }
-                        (UnitBorrowNestedForwardTopology::NestedThenTail, 0) => &[true, true],
-                        (UnitBorrowNestedForwardTopology::NestedThenTail, 1) => &[true, false],
-                        (UnitBorrowNestedForwardTopology::NestedThenTail, _) => &[false],
-                        (UnitBorrowNestedForwardTopology::BalancedBoth, 0) => &[true, true],
-                        (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => &[true, false],
-                        (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => &[false, true],
-                        (UnitBorrowNestedForwardTopology::BalancedBoth, _) => &[false, false],
-                        (UnitBorrowNestedForwardTopology::NestedThen, 0) => &[true, true],
-                        (UnitBorrowNestedForwardTopology::NestedThen, 1) => &[true, false],
-                        (UnitBorrowNestedForwardTopology::NestedThen, _) => &[false],
-                        (UnitBorrowNestedForwardTopology::NestedElse, 0) => &[true],
-                        (UnitBorrowNestedForwardTopology::NestedElse, 1) => &[false, true],
-                        (UnitBorrowNestedForwardTopology::NestedElse, _) => &[false, false],
-                    };
+                    let expected = routes.route(leaf).ok_or_else(fail)?;
                     if path.flag_layout() != region.flag_layout()
                         || path.topology() != region.topology()
                         || !catalog.owns_nested_forward_lineage(path)
@@ -233,20 +203,12 @@ impl Plans {
                             .edges()
                             .iter()
                             .zip(expected)
-                            .enumerate()
-                            .any(|(i, (edge, arm))| {
-                                let i = if region.topology()
-                                    == UnitBorrowNestedForwardTopology::BalancedBoth
-                                    && leaf >= 2
-                                    && i == 1
-                                {
-                                    2
-                                } else {
-                                    i
-                                };
-                                edge.then_arm() != *arm
-                                    || edge.split() != splits[i].split
-                                    || edge.condition() != splits[i].condition
+                            .any(|(edge, (split, arm))| {
+                                splits.get(*split).is_none_or(|actual| {
+                                    edge.then_arm() != (*arm == 0)
+                                        || edge.split() != actual.split
+                                        || edge.condition() != actual.condition
+                                })
                             })
                         || [path.value(), path.control()]
                             .iter()

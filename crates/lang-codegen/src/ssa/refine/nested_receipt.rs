@@ -42,6 +42,8 @@ pub(crate) struct Receipt {
     pub(crate) paths: Vec<PathReceipt>,
 }
 
+mod route_contract;
+use route_contract::RouteContract;
 mod admission;
 mod builder;
 mod emitted;
@@ -168,24 +170,7 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
 
 impl Plan {
     fn flag_indices(&self) -> Option<Vec<usize>> {
-        match (self.topology, self.flag_layout) {
-            (
-                UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
-                UnitBorrowNestedForwardFlagLayout::SharedInner,
-            ) => None,
-            (
-                UnitBorrowNestedForwardTopology::NestedThenTail,
-                UnitBorrowNestedForwardFlagLayout::SharedInner,
-            ) => None,
-            (
-                UnitBorrowNestedForwardTopology::BalancedBoth,
-                UnitBorrowNestedForwardFlagLayout::SharedInner,
-            ) => Some(vec![0, 1, 1]),
-            (_, UnitBorrowNestedForwardFlagLayout::Distinct) => {
-                Some((0..self.counts().0).collect())
-            }
-            _ => None,
-        }
+        RouteContract::new(self.topology).flag_indices(self.flag_layout)
     }
     fn cascade(&self) -> bool {
         self.topology == UnitBorrowNestedForwardTopology::NestedElseCascadeTail
@@ -225,69 +210,16 @@ impl Plan {
                 .all(|(i, index)| self.entry_flags.get(*index) == self.flags.get(i))
     }
     fn counts(&self) -> (usize, usize) {
-        match self.topology {
-            UnitBorrowNestedForwardTopology::BalancedBoth => (3, 4),
-            UnitBorrowNestedForwardTopology::NestedThen
-            | UnitBorrowNestedForwardTopology::NestedElse
-            | UnitBorrowNestedForwardTopology::NestedThenTail
-            | UnitBorrowNestedForwardTopology::NestedElseCascadeTail => (2, 3),
-        }
+        RouteContract::new(self.topology).counts()
     }
     fn parent_arm(&self, split: usize) -> Option<usize> {
-        match (self.topology, split) {
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => Some(0),
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => Some(1),
-            (_, 1) => self.nested_arm(),
-            _ => None,
-        }
-    }
-    fn nested_arm(&self) -> Option<usize> {
-        match self.topology {
-            UnitBorrowNestedForwardTopology::NestedThen
-            | UnitBorrowNestedForwardTopology::NestedThenTail => Some(0),
-            UnitBorrowNestedForwardTopology::NestedElse
-            | UnitBorrowNestedForwardTopology::NestedElseCascadeTail => Some(1),
-            UnitBorrowNestedForwardTopology::BalancedBoth => None,
-        }
+        RouteContract::new(self.topology).parent_arm(split)
     }
     fn leaf_route(&self, index: usize) -> Vec<(usize, usize)> {
-        match (self.topology, index) {
-            (
-                UnitBorrowNestedForwardTopology::NestedThen
-                | UnitBorrowNestedForwardTopology::NestedThenTail,
-                0,
-            ) => vec![(0, 0), (1, 0)],
-            (
-                UnitBorrowNestedForwardTopology::NestedThen
-                | UnitBorrowNestedForwardTopology::NestedThenTail,
-                1,
-            ) => vec![(0, 0), (1, 1)],
-            (
-                UnitBorrowNestedForwardTopology::NestedThen
-                | UnitBorrowNestedForwardTopology::NestedThenTail,
-                2,
-            ) => vec![(0, 1)],
-            (
-                UnitBorrowNestedForwardTopology::NestedElse
-                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
-                0,
-            ) => vec![(0, 0)],
-            (
-                UnitBorrowNestedForwardTopology::NestedElse
-                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
-                1,
-            ) => vec![(0, 1), (1, 0)],
-            (
-                UnitBorrowNestedForwardTopology::NestedElse
-                | UnitBorrowNestedForwardTopology::NestedElseCascadeTail,
-                2,
-            ) => vec![(0, 1), (1, 1)],
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 0) => vec![(0, 0), (1, 0)],
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 1) => vec![(0, 0), (1, 1)],
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 2) => vec![(0, 1), (2, 0)],
-            (UnitBorrowNestedForwardTopology::BalancedBoth, 3) => vec![(0, 1), (2, 1)],
-            _ => Vec::new(),
-        }
+        RouteContract::new(self.topology)
+            .route(index)
+            .unwrap_or_default()
+            .to_vec()
     }
 }
 

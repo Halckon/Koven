@@ -59,26 +59,28 @@ impl ActionSource {
             crate::ownership_checking::UnitBorrowNestedForwardTopology,
             crate::ownership_checking::UnitBorrowNestedForwardFlagLayout,
         ),
-        split: UnitExpressionId,
+        (split_index, split): (usize, UnitExpressionId),
         condition: UnitExpressionId,
         then_arm: bool,
         parent: Option<usize>,
     ) -> Option<usize> {
         let (topology, flag_layout) = shape;
-        if !self.enabled
-            || parent.is_some_and(|i| {
-                !self.nested_entries.get(i).is_some_and(|e| {
-                    e.callable == callable
+        let expected_parent = topology.split_parent(split_index)?;
+        let parent_valid = match (expected_parent, parent) {
+            (None, None) => true,
+            (Some((parent_split, side)), Some(i)) => self.nested_entries.get(i).is_some_and(|e| {
+                // All currently declared inner splits have the outer root as parent.
+                topology.split_parent(parent_split) == Some(None)
+                    && e.callable == callable
                     && e.topology == topology
-                        && e.flag_layout == flag_layout
+                    && e.flag_layout == flag_layout
                     && e.parent.is_none()
-                    && (topology
-                        == crate::ownership_checking::UnitBorrowNestedForwardTopology::BalancedBoth
-                        || e.then_arm == topology.nested_then())
+                    && e.then_arm == side
                     && e.split != split
-                })
-            })
-        {
+            }),
+            _ => false,
+        };
+        if !self.enabled || !parent_valid {
             return None;
         }
         let index = self.nested_entries.len();
@@ -151,7 +153,7 @@ impl ActionSource {
                         && other.point() == transaction.point())).count() != 1
                 || self.nested_handoffs.iter().filter(|(i,c)| i == index || c.acquisition.same_record(handle)).count() != 1
             { return None; }
-            let expected = state.plan.topology.leaf_path(state.leaf?);
+            let expected = state.plan.topology.leaf_path(state.leaf?)?;
             if leaf.path != expected { return None; }
             let mut edges = Vec::new();
             let mut parent = None;
