@@ -531,6 +531,9 @@ impl Builder<'_, '_> {
                         .aux_binding_plans
                         .source_operand(call, arg_id, call_arg_span)?;
                     self.body
+                        .distinct_aux_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
                         .child_plans
                         .source_operand(call, arg_id, call_arg_span)?;
                     self.borrow_call_operand_loan(value_expr, copy_to, call_arg_span)?

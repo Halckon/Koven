@@ -54,6 +54,9 @@ fn lower_unit_impl(
     let multi_publication = crate::ssa::refine::multi_receipt::UnitPublication::begin();
     #[cfg(test)]
     let aux_publication = crate::ssa::refine::aux_binding_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let distinct_aux_publication =
+        crate::ssa::refine::distinct_aux_receipt::UnitPublication::begin();
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
     let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
@@ -885,5 +888,7 @@ fn lower_unit_impl(
     multi_publication.commit();
     #[cfg(test)]
     aux_publication.commit();
+    #[cfg(test)]
+    distinct_aux_publication.commit();
     Ok((program, entry_id))
 }

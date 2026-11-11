@@ -14404,3 +14404,28 @@ owner因果、完整义务入口出口及旧协议隔离，不从结束空表或
 超额drop_planner.rs与尺寸策略均未改；compilation_unit.rs仅模块注册/导出+3至1123，
 经独立职责review仍低于原1156额度。日志distinct-region-*；本片新region尚无新CG
 receipt，旧CG通过不等于迁移完成，旧见证保留。未跑native全套/远端CI，只本地提交。
+
+#### 双根ASAP区域的独立真实后端收据（实施中）
+
+基于c199f0db，独立consumer只接受双根ASAP四语句Complete区域，保留source参数0/1，
+不扩展aux后续使用或旧同根receipt。真实producer需核两owner建立与RootPlace、source
+及aux贷款、borrow call、aux End与其ASAP Drop、结果consumer、result/source End和
+source Drop；角色身份分别追踪，不能仅凭指令种类和相对位置声称来源相同。
+
+入参顺序、callee返回来源索引、实际block/slot/ValueId/LoanId必须与同轮typed/source
+plan及前端九动作对应。最终原verifier成功后才原子发布，任意缺失/重放/跨owner或
+Drop错配撤销本批receipt。旧执行/observer-off产物保持，不退休旧见证，不改尺寸策略，
+先真实receipt缺失红再绿；仅本地提交，不推送。
+
+实际红绿：原FE Complete9与既有CG成功后，新receipt0!=1的真实红已转绿；ASAP
+source0/1×两入口×on/off核全部9个前端action ID、实际11连续SSA指令、7语义实体、
+aux Drop角色6与source Drop角色10。aux后续使用仍无本region/receipt，原SSA/LLVM
+开关一致。role0同时冻结两个已有owner，避免两RootPlace之间替换未访问owner而漏验。
+独立审阅确认两raw Drop索引/根/slot授权、实际阶段消费和verifier成功后原子发布。
+
+普通loan_region_ssa_tests回归83/83通过；Clippy -D warnings、workspace all-targets、
+默认FE/CG lib no-run、fmt/diff及文档897项通过。新4组CI-only身份/角色/owner别名
+破坏、producer阶段与发布回滚测试仅编译，未执行。旧同根receipt、FE及旧见证均不变。
+尺寸复测2562手写Rust文件、36个历史超1000文件，唯一失败仍前序FE1684>1674；
+策略不改。build1010→1011仅Plans创建，经独立职责review低于原1025，emit987无增长。
+日志distinct-aux-receipt-*；没有native全套或远端CI，只本地提交、未推送。

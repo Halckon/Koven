@@ -168,6 +168,7 @@ pub(super) fn build(
             temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
             binding_plans: super::binding_receipt::Plans::new(inputs)?,
             aux_binding_plans: super::aux_binding_receipt::Plans::new(inputs)?,
+            distinct_aux_plans: super::distinct_aux_receipt::Plans::new(inputs)?,
             forward_plans: super::forward_receipt::Plans::new(inputs)?,
             branch_plans: super::branch_receipt::Plans::new(inputs)?,
             nested_plans: super::nested_receipt::Plans::new(inputs)?,

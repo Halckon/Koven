@@ -183,14 +183,21 @@ fn ordinary_distinct_root_auxiliary_research_preserves_actual_source_and_retirem
                 .id();
             let mut previous = None;
             for (setting, owned) in [("on", &on), ("off", &off)] {
-                let ((lowered, verification), receipts) =
-                    crate::ssa::refine::aux_binding_receipt::observe(|| {
-                        crate::ssa::unit_lower::observe_final_verifier(|| {
-                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                &sources, &inputs, &names, &types, &typed, owned, entry,
-                            )
+                let (((lowered, verification), receipts), distinct_receipts) =
+                    crate::ssa::refine::distinct_aux_receipt::observe(|| {
+                        crate::ssa::refine::aux_binding_receipt::observe(|| {
+                            crate::ssa::unit_lower::observe_final_verifier(|| {
+                                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                    &sources, &inputs, &names, &types, &typed, owned, entry,
+                                )
+                            })
                         })
                     });
+                assert_eq!(
+                    distinct_receipts.len(),
+                    usize::from(setting == "on" && !keep_aux),
+                    "new independent ASAP receipt"
+                );
                 let (program, entry) = lowered.unwrap_or_else(|error| {
                     panic!("source-index={source_index}/{layout}/{setting}: {error:?}")
                 });
@@ -198,6 +205,96 @@ fn ordinary_distinct_root_auxiliary_research_preserves_actual_source_and_retirem
                 assert!(receipts.is_empty());
                 verify_program(&program).unwrap();
                 check(&program, entry, source_index, keep_aux);
+                if let [receipt] = distinct_receipts.as_slice() {
+                    let region = &regions[0];
+                    assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+                    assert_eq!(receipt.callable, region.callable());
+                    assert_eq!(receipt.caller, entry);
+                    assert_eq!(receipt.binding, region.binding());
+                    assert_eq!(receipt.root, region.root());
+                    assert_eq!(Some(receipt.auxiliary_root), region.auxiliary_root());
+                    assert_eq!(receipt.source_call, region.source_call());
+                    assert_eq!(receipt.consumer_call, region.consumer_call());
+                    assert_eq!(receipt.auxiliary_argument, aux.argument());
+                    assert_eq!(receipt.entry_statement, region.entry_statement());
+                    assert_eq!(receipt.completion_statement, region.completion_statement());
+                    let caller = program.modules[0].function(entry).unwrap();
+                    let [
+                        EntityId::Value(owner),
+                        EntityId::Value(aux_owner),
+                        EntityId::Place(place),
+                        EntityId::Loan(source),
+                        EntityId::Place(aux_place),
+                        EntityId::Loan(aux_loan),
+                        EntityId::Loan(result),
+                    ] = receipt.entities.as_slice()
+                    else {
+                        panic!("seven independently frozen semantic identities");
+                    };
+                    assert_ne!(owner, aux_owner);
+                    assert_ne!(place, aux_place);
+                    assert_ne!(source, aux_loan);
+                    assert_eq!(receipt.instructions.len(), 11);
+                    let block = &caller.blocks[0];
+                    assert!(
+                        block
+                            .instructions
+                            .windows(11)
+                            .any(|w| w == receipt.instructions)
+                    );
+                    let actual = receipt
+                        .instructions
+                        .iter()
+                        .map(|id| caller.instruction(*id).unwrap())
+                        .collect::<Vec<_>>();
+                    assert!(actual.iter().all(|i| i.block == block.id));
+                    let first = source_index * 2;
+                    let second = (1 - source_index) * 2;
+                    assert_eq!(
+                        actual[first].operation,
+                        Operation::RootPlace { owner: *owner }
+                    );
+                    assert_eq!(actual[first].results, [EntityId::Place(*place)]);
+                    assert_eq!(
+                        actual[first + 1].operation,
+                        Operation::BorrowBegin {
+                            place: *place,
+                            kind: LoanKind::Shared
+                        }
+                    );
+                    assert_eq!(actual[first + 1].results, [EntityId::Loan(*source)]);
+                    assert_eq!(
+                        actual[second].operation,
+                        Operation::RootPlace { owner: *aux_owner }
+                    );
+                    assert_eq!(actual[second].results, [EntityId::Place(*aux_place)]);
+                    assert_eq!(
+                        actual[second + 1].operation,
+                        Operation::BorrowBegin {
+                            place: *aux_place,
+                            kind: LoanKind::Shared
+                        }
+                    );
+                    assert_eq!(actual[second + 1].results, [EntityId::Loan(*aux_loan)]);
+                    assert!(
+                        matches!(&actual[4].operation, Operation::BorrowCall {source:s,arguments,..}
+                        if s==source && arguments[source_index]==EntityId::Loan(*source)
+                        && arguments[1-source_index]==EntityId::Loan(*aux_loan))
+                    );
+                    assert_eq!(actual[4].results, [EntityId::Loan(*result)]);
+                    assert_eq!(
+                        actual[5].operation,
+                        Operation::BorrowEnd { loan: *aux_loan }
+                    );
+                    assert_eq!(actual[6].operation, Operation::Drop { owner: *aux_owner });
+                    assert!(
+                        matches!(&actual[7].operation, Operation::DirectCall {arguments,..} if arguments==&[EntityId::Loan(*result)])
+                    );
+                    assert_eq!(actual[8].operation, Operation::BorrowEnd { loan: *result });
+                    assert_eq!(actual[9].operation, Operation::BorrowEnd { loan: *source });
+                    assert_eq!(actual[10].operation, Operation::Drop { owner: *owner });
+                }
+
                 let output = (
                     crate::ssa::render_program(&program),
                     crate::llvm::render_verified_program(&program).unwrap(),

@@ -42,5 +42,6 @@ cleanup共同确认ASAP退休。旧owner Unsupported/目录清空不变，新窗
 
 ASAP四语句双根形状另发布独立Complete区域：binding入口承接两真实owner，完整9动作
 覆盖aux Drop与source退休后的实际source Drop，独立removed-owner cause及两Drop事件
-窗口与真实空义务出口共同验证。辅助根后续另行消费仍不获此资格；旧CG可运行但尚无
-新双根receipt消费此区域，细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#双根辅助绑定的独立完整区域实施中)。
+窗口与真实空义务出口共同验证。辅助根后续另行消费仍不获此资格。独立双根receipt
+消费此区域，实际11角色核两RootPlace、source/aux End与两Drop，role0冻结两owner、
+全7实体身份不变；原verifier成功后原子发布。细节见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#双根asap区域的独立真实后端收据实施中)。

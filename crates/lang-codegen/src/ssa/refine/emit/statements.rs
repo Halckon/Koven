@@ -14,6 +14,7 @@ pub(super) struct LoanReceipts {
     temporary: crate::ssa::refine::temporary_receipt::Emitted,
     binding: crate::ssa::refine::binding_receipt::Emitted,
     aux_binding: crate::ssa::refine::aux_binding_receipt::Emitted,
+    distinct_aux: crate::ssa::refine::distinct_aux_receipt::Emitted,
     child: crate::ssa::refine::child_receipt::Emitted,
 }
 impl LoanReceipts {
@@ -80,6 +81,11 @@ impl LoanReceipts {
             )?,
             aux_binding: crate::ssa::refine::aux_binding_receipt::Emitted::new(
                 &body.aux_binding_plans,
+                function,
+                span,
+            )?,
+            distinct_aux: crate::ssa::refine::distinct_aux_receipt::Emitted::new(
+                &body.distinct_aux_plans,
                 function,
                 span,
             )?,
@@ -178,6 +184,8 @@ impl LoanReceipts {
         self.binding.finish(&body.binding_plans, function, span)?;
         self.aux_binding
             .finish(&body.aux_binding_plans, function, span)?;
+        self.distinct_aux
+            .finish(&body.distinct_aux_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
         self.nested.finish(&body.nested_plans, function, span)?;
         self.bounded.finish(&body.bounded_plans, function, span)?;
@@ -209,6 +217,11 @@ impl Emitter<'_> {
                     .alias(&body.binding_plans, &self.current, statement.span)?;
                 receipts.aux_binding.alias(
                     &body.aux_binding_plans,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.distinct_aux.alias(
+                    &body.distinct_aux_plans,
                     &self.current,
                     statement.span,
                 )?;
@@ -283,6 +296,16 @@ impl Emitter<'_> {
                 Some(crate::ssa::refine::body::LoanTag::AuxBinding(tag)) => {
                     receipts.aux_binding.statement(
                         &body.aux_binding_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::DistinctAux(tag)) => {
+                    receipts.distinct_aux.statement(
+                        &body.distinct_aux_plans,
                         tag,
                         self.function,
                         instruction,
