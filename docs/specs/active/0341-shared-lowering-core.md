@@ -12579,3 +12579,28 @@ rooted/on receipt数量0≠1失败（exit101；0pass/1fail/2966filtered）；输
 没有运行native、CI-only或全量。fmt/docs890/diff与尺寸2421files、35历史超限通过；
 未跑clippy/workspace，生产接线前还需显式绑定wrap/view身份、实际append与set_terminator，
 再独审并跑同一正常输入绿及CI-only负控编译。该红checkpoint不能合流绿色交付头。
+
+
+#### LiveForward production receipt 正常输入验收
+
+本地候选4c32c821从同一红源码继续：同catalog Complete/唯一原source与typed dispatch准入，
+实际borrowed参数槽→原BorrowCall producer tag→真实append instruction/result→真实
+set_terminator后出口block/LoanId验证；finish核唯一call/return。无新Begin/End/Drop，
+无区域或off无计划；准入后的缺失/重复/身份破损报错。source/callable仍Partial，不认领
+旧oracle退休、跨函数义务闭合或更广wrapper形状。独立代码及绑定artifact审查通过。
+
+4284个tracked输入SHA e6242b465c44850b1d97eb86bb2e54ba08afa6dd7794d8caa10903b0935d3985；
+默认opt0/debug2、LLVM21.1.8、loan-observation-test-support，no-run49.2秒成功，
+binary SHA767bdecc21c3b43f2b2b53f2fba7ef09768adf70558434a180bddba17ed72b43。
+新ordinary exact真实通过：两布局四次on/off原SSA/verifier/LLVM1389bytes保持一致，
+on恰一张实际receipt、off零张，进一步绑定原caller→wrap及view、entry/call/return身份。
+原forward_exit_coverage、两项forward_projection、P4 consumer与receiver普通exact回归
+各1通过，共6项普通测试通过；合计12次SSA/LLVM lower，两个形状邻控仅frontend。
+测试前后输入及binary SHA不变，逐项列表恰1；原始日志与清单在仓库外
+koven-live-forward-receipt-evidence/green。native、全量及CI-only均未本机执行。
+新CI-only实产品负控已编译，覆盖跨程序身份、漏/重复call/return、错source/result/callee/
+block及额外指令；尚未直接覆盖admission的foreign-catalog/Partial注入，不能称完整故障覆盖。
+
+最终门禁：codegen全targets带feature Clippy -D warnings通过34.52秒；fmt、docs890、
+Rust尺寸2424文件/35历史超限、workspace all-targets check及diff检查通过。没有降低
+profile、豁免或删除测试；独审核六项日志/计数/边界一致。仅本地提交，尚未推送/合流或跑CI。

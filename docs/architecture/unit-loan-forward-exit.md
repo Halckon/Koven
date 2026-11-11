@@ -8,6 +8,14 @@
 真实入口、`drop_all` 前全部义务、实际 handoff 句柄、退出后状态与完整未过滤 Begin→Handoff
 区间共同认证局部 Complete；不以清表后的空状态替代义务证明。Group/Block 等旧形状仍不认证。
 
-source/callable 仍 Partial，live 交付不是 End 或权限恢复，不新增生产 receipt、清理责任或旧 oracle 退休。
+source/callable 仍 Partial，live 交付不是 End 或权限恢复，不新增清理责任或旧 oracle 退休。
+
+## 真实生产 receipt
+
+`refine/forward_receipt` 对上述 Complete 区域验证同 catalog Begin/Handoff、实际来源参数及
+callee/caller 映射。原 BorrowCall producer 印记贯穿真实 SSA append，BorrowReturn 在实际
+set_terminator 后绑定出口 block 与返回 LoanId；最终复核唯一 call/return，不扫描 SSA 补造身份。
+entry/source/result 保持当前函数本地身份，不生成额外 Begin/End/Drop。无区域及 observer-off
+不启用新验证；已准入后缺失、重复或身份破损是错误，不静默回退。
 该区域复用[实际动作源](unit-loan-action-source.md)，旧 raw/off/Eq 投影不变；失败或 deferred 撤销新旧产品。
 验收与未覆盖范围见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#单wrapper正常liveforward出口覆盖合同2026-11-11)。
