@@ -30,6 +30,7 @@ mod invariant_split_exits;
 mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
+mod open_loop_return;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;
