@@ -3,7 +3,7 @@ use super::*;
 use lang_frontend::{
     name_resolution::ValidatedCompilationUnitNames,
     ownership_checking::{
-        CompilationUnitOwnership, LoanKind, UnitDropPoint, UnitDropTarget,
+        CompilationUnitOwnership, LoanKind as FrontendLoanKind, UnitDropPoint, UnitDropTarget,
         UnitIterationCleanupAction, UnitLoanTarget, check_compilation_unit_ownership,
         legacy_ownership_eq, with_loan_observation,
     },
@@ -176,7 +176,7 @@ fn assert_original_forward(
     let source = forwarded.source_loan();
     assert_eq!(text(source.call()), "view(source)");
     assert_eq!(text(source.argument()), "source");
-    assert_eq!(source.kind(), LoanKind::Shared);
+    assert_eq!(source.kind(), FrontendLoanKind::Shared);
     assert!(ownership.loans().contains(source));
     assert_eq!(
         forwarded.handoff_point(),

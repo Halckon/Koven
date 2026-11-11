@@ -12222,3 +12222,8 @@ LLVM render。明确核 wrapper 一条 BorrowCall 加 BorrowReturn、caller 原�
 新源码/完整 helper 经 fresh 独审后方可 no-run，fresh artifact/input/binary/runner 绑定后
 仅执行此 ordinary exact；原 probe 不改，红 binary 覆盖前先独核。CI-only、foreign/fault、
 Abort/counter/pressure 均不本机执行。红实证与生产方案独审成立后才接最小生产逻辑。
+
+首次冻结 `9342f611` 的 fresh no-run 在新测试 helper 252 行遇到 E0308：frontend LoanKind
+导入遮蔽 SSA model::LoanKind；这是测试编译错误，没有执行 ordinary exact，不是能力红。
+该阶段原 build JSON/stderr、输入表保留在上述证据根目录的 `causal-red/`；后继仅给
+frontend 枚举显式别名并重冻输入，新的构建/执行证据另存，不覆盖首次失败。
