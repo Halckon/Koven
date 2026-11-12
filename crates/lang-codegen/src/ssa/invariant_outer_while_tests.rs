@@ -6,7 +6,7 @@ use lang_frontend::ownership_checking::{
 
 #[test]
 fn ordinary_invariant_outer_while_preserves_one_lease() {
-    for continued in [false, true] {
+    for jump in [None, Some("continue"), Some("break")] {
         for count in [1, 2, 3, 8, 17] {
             for own in [false, true] {
                 for condition in ["flag", "false", "true"] {
@@ -20,8 +20,8 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
                         })
                         .collect::<Vec<_>>()
                         .join("; ");
-                    let body = if continued {
-                        format!("{body}; continue")
+                    let body = if let Some(jump) = jump {
+                        format!("{body}; {jump}")
                     } else {
                         body
                     };
@@ -73,7 +73,7 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
                                     )
                                 });
                             let (program, _) = lowered.unwrap_or_else(|error| {
-                        panic!("continue={continued}/count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
+                        panic!("jump={jump:?}/count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
                     });
                             assert_eq!(verified.len(), 1);
                             verify_program(&program).unwrap();
@@ -152,7 +152,7 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
                                 run,
                                 own,
                                 condition,
-                                continued.then(|| text.find("continue").unwrap()),
+                                jump.map(|jump| (text.find(jump).unwrap(), jump)),
                             );
                             let text = format!(
                                 "{verified:?}\n{}",
@@ -183,7 +183,7 @@ fn edges(block: &Block) -> Vec<&Edge> {
     }
 }
 
-fn assert_transport(run: &Function, own: bool, literal: &str, continued: Option<usize>) {
+fn assert_transport(run: &Function, own: bool, literal: &str, jump: Option<(usize, &str)>) {
     use std::collections::BTreeMap;
     let acquisition = run
         .instructions
@@ -287,26 +287,44 @@ fn assert_transport(run: &Function, own: bool, literal: &str, continued: Option<
         .flat_map(|b| edges(b).into_iter().map(move |edge| (b, edge)))
         .filter(|(_, edge)| edge.target == header.id)
         .collect::<Vec<_>>();
-    assert_eq!(incoming.len(), 2, "entry and real backedge");
-    if let Some(start) = continued {
+    let broken = jump.is_some_and(|(_, kind)| kind == "break");
+    if broken {
+        assert!(
+            incoming.is_empty(),
+            "break has no backedge after entry/header folding"
+        );
+        assert_eq!(
+            header.id, acquisition.block,
+            "actual original acquisition is retained in the folded header"
+        );
+    } else {
+        assert_eq!(incoming.len(), 2, "entry and real backedge");
+    }
+    let mut break_target = None;
+    if let Some((start, kind)) = jump {
         let jumps = run
             .blocks
             .iter()
             .filter(|block| {
                 block.terminator.as_ref().is_some_and(|term| {
                     term.origin.span().start() == start
-                        && term.origin.span().end() == start + "continue".len()
+                        && term.origin.span().end() == start + kind.len()
                 })
             })
             .collect::<Vec<_>>();
         let [jump] = jumps.as_slice() else {
-            panic!("exactly one actual continue terminator");
+            panic!("exactly one actual tail-jump terminator");
         };
         let TerminatorKind::Branch(edge) = &jump.terminator.as_ref().unwrap().kind else {
-            panic!("continue must be an unconditional Goto");
+            panic!("tail jump must be an unconditional Goto");
         };
-        assert_eq!(edge.target, header.id);
-        assert!(incoming.iter().any(|(block, _)| block.id == jump.id));
+        if broken {
+            assert_ne!(edge.target, header.id);
+            break_target = Some((jump.id, edge.target));
+        } else {
+            assert_eq!(edge.target, header.id);
+            assert!(incoming.iter().any(|(block, _)| block.id == jump.id));
+        }
         assert_ne!(jump.id, acquisition.block);
         for id in &jump.instructions {
             let instruction = run
@@ -322,7 +340,7 @@ fn assert_transport(run: &Function, own: bool, literal: &str, continued: Option<
                         | Operation::BorrowBegin { .. }
                         | Operation::BorrowCall { .. }
                 ),
-                "continue body does not retire or reacquire the outer lease"
+                "jump body does not retire or reacquire the outer lease"
             );
         }
     }
@@ -392,10 +410,58 @@ fn assert_transport(run: &Function, own: bool, literal: &str, continued: Option<
         "never end on body/backedge"
     );
     assert_ne!(result_end.block, acquisition.block);
-    assert_eq!(
-        result_end.block, when_false.target,
-        "cleanup is only on the false edge, even when the literal makes it dynamically unreachable"
-    );
+    if let Some((break_block, exit)) = break_target {
+        assert_eq!(
+            result_end.block, exit,
+            "retirement only after the common exit"
+        );
+        let false_block = run
+            .blocks
+            .iter()
+            .find(|block| block.id == when_false.target)
+            .unwrap();
+        let TerminatorKind::Branch(false_exit) = &false_block.terminator.as_ref().unwrap().kind
+        else {
+            panic!("false path reaches the common exit");
+        };
+        assert_eq!(false_exit.target, exit);
+        let predecessors = run
+            .blocks
+            .iter()
+            .flat_map(|block| edges(block).into_iter().map(move |edge| (block.id, edge)))
+            .filter(|(_, edge)| edge.target == exit)
+            .collect::<Vec<_>>();
+        assert_eq!(predecessors.len(), 2);
+        assert!(predecessors.iter().any(|(block, _)| *block == break_block));
+        assert!(
+            predecessors
+                .iter()
+                .any(|(block, _)| *block == false_block.id)
+        );
+        for (_, edge) in predecessors {
+            assert_eq!(
+                edge.arguments
+                    .iter()
+                    .filter(|argument| lineage.get(argument) == Some(&2))
+                    .count(),
+                1
+            );
+            if own {
+                assert_eq!(
+                    edge.arguments
+                        .iter()
+                        .filter(|argument| lineage.get(argument) == Some(&1))
+                        .count(),
+                    1
+                );
+            }
+        }
+    } else {
+        assert_eq!(
+            result_end.block, when_false.target,
+            "cleanup only on false exit"
+        );
+    }
     if own {
         let source_end = ends.iter().find(|(_, kind)| *kind == Some(1)).unwrap().0;
         assert_eq!(source_end.block, result_end.block);

@@ -209,7 +209,7 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         frame.broken |= is_break;
         let frame = *frame;
-        let invariant = self.invariant_continue_entry(expression, is_break, frame, span)?;
+        let invariant = self.invariant_jump_entry(expression, is_break, frame, span)?;
         let loans_boundary = frame.loans.min(self.pending_call_loans.len());
         while self.pending_call_loans.len() > loans_boundary {
             let loan = self
@@ -320,7 +320,7 @@ impl Builder<'_, '_> {
             ),
             jump_span,
         )?;
-        self.invariant_continue_exit(invariant.as_ref(), target, jump_span)?;
+        self.invariant_jump_exit(invariant.as_ref(), is_break, target, jump_span)?;
         self.terminate(RTerm::Goto(target), jump_span)?;
         self.cb_break_emitted(cb, jump_span)?;
         self.header_continue_emitted(continued, jump_span)?;

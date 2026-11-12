@@ -133,7 +133,7 @@ pub(in crate::ssa) fn admitted(
     if elements.is_empty() {
         return None;
     }
-    let consumers = if tail_continue(file, *while_id).is_some() {
+    let consumers = if tail_jump(file, *while_id).is_some() {
         &elements[..elements.len() - 1]
     } else {
         elements.as_slice()
@@ -211,10 +211,10 @@ fn name(
 }
 
 /// Only the exact final direct jump; eligibility still requires `admitted`.
-pub(in crate::ssa) fn tail_continue(
+pub(in crate::ssa) fn tail_jump(
     file: &ParsedFile,
     statement: StatementId,
-) -> Option<lang_frontend::ast::ExpressionId> {
+) -> Option<(lang_frontend::ast::ExpressionId, JumpKind)> {
     let Statement::While { body, .. } = file.ast().statements().get(statement).ok()?.payload()
     else {
         return None;
@@ -231,9 +231,16 @@ pub(in crate::ssa) fn tail_continue(
     else {
         return None;
     };
-    matches!(
-        file.ast().expressions().get(*expression).ok()?.payload(),
-        Expression::Continue { .. }
-    )
-    .then_some(*expression)
+    let kind = match file.ast().expressions().get(*expression).ok()?.payload() {
+        Expression::Continue { .. } => JumpKind::Continue,
+        Expression::Break { .. } => JumpKind::Break,
+        _ => return None,
+    };
+    Some((*expression, kind))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ssa) enum JumpKind {
+    Continue,
+    Break,
 }

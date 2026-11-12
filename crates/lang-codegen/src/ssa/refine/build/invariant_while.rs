@@ -86,51 +86,62 @@ impl Builder<'_, '_> {
     }
 }
 
-pub(super) struct InvariantContinue {
+pub(super) struct InvariantJump {
     lease: InvariantLease,
     target: BlockRef,
+    is_break: bool,
 }
 
 impl Builder<'_, '_> {
-    pub(super) fn invariant_continue_entry(
+    pub(super) fn invariant_jump_entry(
         &self,
         expression: ExpressionId,
         is_break: bool,
         frame: LoopFrame,
         span: Span,
-    ) -> Result<Option<InvariantContinue>, LoweringError> {
+    ) -> Result<Option<InvariantJump>, LoweringError> {
         let Some(lease) = self.invariant_while_entry(frame.statement.statement(), span)? else {
             return Ok(None);
         };
-        if is_break
-            || frame.seq_for.is_some()
+        let kind = if is_break {
+            crate::ssa::borrow_result_support::invariant_while::JumpKind::Break
+        } else {
+            crate::ssa::borrow_result_support::invariant_while::JumpKind::Continue
+        };
+        if frame.seq_for.is_some()
             || frame.map_for.is_some()
             || frame.statement.source_unit() != self.inputs.source_unit
             || frame.loans != self.pending_call_loans.len()
             || frame.views != self.active_views.len()
-            || crate::ssa::borrow_result_support::invariant_while::tail_continue(
+            || crate::ssa::borrow_result_support::invariant_while::tail_jump(
                 self.inputs.parsed,
                 frame.statement.statement(),
-            ) != Some(expression)
+            ) != Some((expression, kind))
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
-        Ok(Some(InvariantContinue {
+        Ok(Some(InvariantJump {
             lease,
-            target: frame.continue_target,
+            target: if is_break {
+                frame.exit
+            } else {
+                frame.continue_target
+            },
+            is_break,
         }))
     }
 
-    pub(super) fn invariant_continue_exit(
+    pub(super) fn invariant_jump_exit(
         &self,
-        continued: Option<&InvariantContinue>,
+        continued: Option<&InvariantJump>,
+        is_break: bool,
         target: BlockRef,
         span: Span,
     ) -> Result<(), LoweringError> {
         let Some(continued) = continued else {
             return Ok(());
         };
-        if continued.target != target {
+        if continued.is_break != is_break || continued.target != target {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         self.invariant_while_boundary(Some(&continued.lease), span)

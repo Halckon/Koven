@@ -15306,3 +15306,30 @@ BorrowCall。旧source/result/owner lineage及出口顺序、on/off与LLVM/verif
 fmt/diff、文档912项及size基准2beb5592全部通过（2555文件、36历史超1000债务）。
 container_for仅新增两hook至982行；CI-only仅编译未运行，日志invariant-continue-*
 已归档，本片只本地提交、不推送。
+
+## 不变量while尾部break（实施中）
+
+基于9cf0abb0，只在非空已验证consumer序列尾支持一个直接无条件Break。实际jump
+token区分Break/Continue，精确尾节点与原frame.exit/header目标不能互换。原
+loop_jump的LoopExit named Drop逻辑不跳过或推迟：若它提前清理持有lease的root，
+资格或实际cleanup后snapshot必须失败封闭，不能用最终verifier代替提前检测。
+FE既有break实证仍只有外围Block End，目标是break与false两条边运输同一lease
+到共同exit，再按原事实结束结果/source/owner；header仅entry且没有回边。常量
+条件按实际生成边验证，不把结构可达清理声称为运行时必达。L0164与旧见证保留。
+
+真实break红为count1/Borrow/flag/rooted/on的while span Unsupported。实现仅扩
+显式JumpKind及token种类/target绑定，保留原consumer准入与所有原cleanup；实际
+Goto前核kind/target/lease/dead。首次已通过lowering/verifier后发现旧测试假定
+header两incoming不适用于break：原simplifier把无回边header并入acquire块，实际
+零incoming；据真实CFG改强断言，不修改simplifier或伪造折前结构。
+
+最终360正控含旧240与break120；break真实源锚Goto及false边各自运输同lease到
+同exit，恰两前驱，合流后唯一resultEnd→sourceEnd→ownerDrop（Borrow参数不伪End），
+jump块无End/Drop/重新acquire。16类64邻界保留条件/嵌套/空consumer break与return
+等拒绝。88项普通回归通过、独立非作者复审通过。未新增通用receipt或退休旧见证。
+
+最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib仅编译、
+fmt/diff、文档912项及size基准2beb5592全部通过（2555文件、36历史超1000债务）；
+policy未改，CI-only未执行，日志invariant-break-*归档。本片本地提交不推送。
+期间核对新main b1fc7d93已合并#412，与本分支共同基线66ee7526；未覆盖或擅自
+吸收其9a8cd2b7测试修复，后续合流需在新main上重新验证。

@@ -138,3 +138,7 @@ acquire、jump、嵌套和多consumer，不新增通用循环receipt。见[SPEC-
 不变量consumer序列尾现可接无条件continue：独立精确tail/while/frame检查包围
 原jump清理与Goto，核回到原header且lease不变；SSA证明确为continue而非额外
 normal回边。条件/嵌套continue、空consumer、break/return仍不在本合同内。
+
+尾部无条件break亦按独立JumpKind核frame.exit而非header，原ControlTransfer与
+LoopExit清理不绕过。实际无回边CFG中entry/header可折叠，break和false边携同一
+lease到共同exit，随后才End/Drop；条件break及return仍未纳入合同。
