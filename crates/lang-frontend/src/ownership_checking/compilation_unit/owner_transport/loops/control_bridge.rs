@@ -1,6 +1,8 @@
 //! Static, whole-vector alias bridge; not a dynamic exit token or next-loop permission.
 use super::*;
 use crate::name_resolution::UnitSymbolId;
+mod tail;
+pub use tail::UnitOwnerBridgeCounterTailV1;
 
 /// Actual aliases from one complete live exit, retaining both static predecessor sources.
 #[derive(Clone, Debug)]
@@ -12,6 +14,7 @@ pub struct UnitOwnerControlBridgeEvidenceV1 {
     sources: Vec<UnitSymbolId>,
     targets: Vec<UnitSymbolId>,
     next_normal: Option<UnitOwnerMultiRootNormalTransportV1>,
+    next_tail: Option<UnitOwnerBridgeCounterTailV1>,
     normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
 }
 impl UnitOwnerControlBridgeEvidenceV1 {
@@ -31,6 +34,7 @@ impl UnitOwnerControlBridgeEvidenceV1 {
             sources,
             targets,
             next_normal: None,
+            next_tail: None,
             normal_steps: None,
         };
         value.is_consistent().then_some(value)
@@ -76,7 +80,8 @@ impl UnitOwnerControlBridgeEvidenceV1 {
     }
     /// Validate the exact live subset and distinct targets against the sealed exit partition.
     pub fn is_consistent(&self) -> bool {
-        self.normal_steps.as_deref() == self.next_normal.as_ref().map(|n| n.steps())
+        self.tail_matches_normal()
+            && self.normal_steps.as_deref() == self.next_normal.as_ref().map(|n| n.steps())
             && self.next_normal.as_ref().is_none_or(|n| {
                 n.is_consistent()
                     && n.statement() == self.next_control
@@ -140,7 +145,7 @@ impl UnitOwnerObservation {
 #[cfg(test)]
 mod tests {
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
-    fn source(reverse: bool, extra: bool) -> String {
+    pub(super) fn source(reverse: bool, extra: bool) -> String {
         let aliases = if reverse {
             "val saved_b = b0; val saved_a = a0; var b1 = saved_b; var a1 = saved_a;"
         } else {

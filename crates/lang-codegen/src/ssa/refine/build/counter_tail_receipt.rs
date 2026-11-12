@@ -401,7 +401,7 @@ impl<'a> Builder<'_, 'a> {
         Ok(complete)
     }
 
-    fn counter_alias(
+    pub(super) fn counter_alias(
         &self,
         block: BlockRef,
         target: Slot,
@@ -425,10 +425,16 @@ impl<'a> Builder<'_, 'a> {
         }
         Ok(*index)
     }
-    fn counter_integer(&self, block: BlockRef, before: usize, slot: Slot, value: i128) -> bool {
+    pub(super) fn counter_integer(
+        &self,
+        block: BlockRef,
+        before: usize,
+        slot: Slot,
+        value: i128,
+    ) -> bool {
         self.multi_root_definitions(slot) == 1 && self.body.blocks[block.0].statements[..before].iter().any(|s| s.results == [slot] && matches!(s.op, ROp::Constant(ScalarConstant::Integer(actual)) if actual == value))
     }
-    fn counter_guard_comparison(
+    pub(super) fn counter_guard_comparison(
         &self,
         block: BlockRef,
         counter: Slot,

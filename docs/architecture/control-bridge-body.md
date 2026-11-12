@@ -37,3 +37,17 @@ checked arithmetic与通用控制流；此处不单独证明scalar success/abort
 
 该实现是受限body的实际消费约束，不是一般跨轮归纳、动态路径trace、嵌套控制新权限，
 也不宣称这些源码此前不能通过旧lowering执行。
+
+
+## 第二控制的 checked tail 接线
+
+可选counter-tail身份仅在上述normal body和真实减一/guard写回均完成后封存；保留精确
+control、callable、guard/counter及四个表达式身份，不造旧入口token。后端复用已有独立
+checked-expression receipt核减一指令、正常success与terminal abort边、唯一前驱以及
+success→header。正常分支必须按counter写回→大于零比较→guard写回排列，只有精确四条
+scalar指令且不读写活根；header条件使用实际guard槽。整body及入口审计通过后才记录tail完成。
+
+CI-only负控覆盖abort误接header、错误回边、陈旧比较、错误counter写回、缺receipt及
+success多余前驱；本地仅编译。
+真实native覆盖两段非正零轮及正数多轮；不声称运行触发了overflow abort。该片不新增
+第二control初值比较完整证明、false-exit清理许可或一般跨轮owner归纳。

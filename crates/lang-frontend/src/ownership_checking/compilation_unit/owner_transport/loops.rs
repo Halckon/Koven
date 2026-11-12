@@ -1,6 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
 mod control_bridge;
-pub use control_bridge::UnitOwnerControlBridgeEvidenceV1;
+pub use control_bridge::{UnitOwnerBridgeCounterTailV1, UnitOwnerControlBridgeEvidenceV1};
 mod counter_batch;
 pub use counter_batch::UnitOwnerCounterBatchEvidenceV1;
 mod counter_tail;

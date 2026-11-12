@@ -20,6 +20,16 @@ impl BodyPlan {
         }
         true
     }
+    pub(in super::super) fn completed_counter(
+        &self,
+    ) -> Option<(UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4])> {
+        let counter = self.tail.counter.as_ref()?;
+        if !counter.is_complete() {
+            return None;
+        }
+        let (symbol, sites) = counter.sites();
+        Some((self.condition_binding, symbol, sites))
+    }
     pub(in super::super) fn reset(&self) -> Option<UnitExpressionId> {
         self.tail.reset
     }

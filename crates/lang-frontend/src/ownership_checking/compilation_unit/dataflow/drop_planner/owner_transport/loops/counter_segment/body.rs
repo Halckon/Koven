@@ -171,6 +171,10 @@ impl Body {
             return;
         }
 
+        #[cfg(test)]
+        if tests::omit(6) || (self.plan.reset() == Some(id) && tests::omit(7)) {
+            return;
+        }
         let ready = self.ready() && self.matches_state(state);
         if !self.plan.complete_tail(id, ready) {
             self.valid = false;
@@ -212,6 +216,12 @@ impl Body {
             self.catalog.clone(),
             self.steps.clone(),
         );
+    }
+    pub(in super::super) fn counter_tail(
+        &self,
+    ) -> Option<(UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4])> {
+        self.result()?;
+        self.plan.completed_counter()
     }
     pub(in super::super) fn result(&self) -> Option<UnitOwnerMultiRootNormalTransportV1> {
         self.valid.then(|| self.completed.clone()).flatten()
@@ -292,7 +302,7 @@ mod tests {
                 .next_normal_transport()
                 .is_some()
         );
-        for phase in 1..=5 {
+        for phase in 1..=7 {
             HITS.set(0);
             PHASE.set(phase);
             let owned = fixture.shared();
@@ -302,6 +312,7 @@ mod tests {
                 .control_bridge_evidence_v1()
                 .unwrap();
             assert!(bridge.next_normal_transport().is_none());
+            assert!(bridge.next_counter_tail().is_none());
         }
     }
 }

@@ -1,11 +1,13 @@
 //! Slot-CFG bridge audit with an optional independent normal-body consumption rule.
 use super::*;
 mod consumption;
+mod counter;
 use lang_frontend::ownership_checking::{UnitOwnerCallable, UnitOwnerControlBridgeEvidenceV1};
 
 pub(super) struct Plan<'a> {
     evidence: &'a UnitOwnerControlBridgeEvidenceV1,
     chain: Vec<consumption::Stage>,
+    scalar: Option<[Slot; 2]>,
     prior: Option<([BlockRef; 4], Vec<Slot>, Slot)>,
     next: Option<(BlockRef, [BlockRef; 4], Vec<Slot>)>,
 }
@@ -35,6 +37,7 @@ impl<'a> Plan<'a> {
                     .map_or(0, |rule| rule.steps().len())
             ],
             evidence,
+            scalar: None,
             prior: None,
             next: None,
         }))
@@ -87,6 +90,15 @@ impl Builder<'_, '_> {
                 .iter()
                 .map(|s| self.bindings.get(s).copied().ok_or_else(fail))
                 .collect::<Result<Vec<_>, _>>()?;
+            if let Some(tail) = plan.evidence.next_counter_tail() {
+                plan.scalar = Some([
+                    self.bindings
+                        .get(&tail.counter())
+                        .copied()
+                        .ok_or_else(fail)?,
+                    self.bindings.get(&tail.guard()).copied().ok_or_else(fail)?,
+                ]);
+            }
             plan.next = Some((self.block.ok_or_else(fail)?, blocks, roots));
         }
         Ok(())
@@ -128,6 +140,7 @@ impl Builder<'_, '_> {
                 *when_true = *finished;
             }
         }
+        self.check_bridge_counter_tail()?;
         let Some(plan) = &self.control_bridge_plan else {
             return Ok(());
         };
@@ -201,7 +214,18 @@ impl Builder<'_, '_> {
                 return Err(fail());
             }
             #[cfg(test)]
-            owner_consumer_test_support::record_action("bridge-body-complete", rule.steps().len());
+            {
+                if plan.evidence.next_counter_tail().is_some() {
+                    owner_consumer_test_support::record_action(
+                        "bridge-counter-tail-complete",
+                        rule.steps().len(),
+                    );
+                }
+                owner_consumer_test_support::record_action(
+                    "bridge-body-complete",
+                    rule.steps().len(),
+                );
+            }
         }
         // The entry bridge audits actual slot transport, not runtime generations.
         // Optional body permits above do not authorize the whole loop. SSA verification follows.

@@ -462,11 +462,13 @@ impl ControlTransactions {
             return None;
         }
         let normal = segment.normal.as_ref().and_then(|body| body.result());
+        let tail = segment.normal.as_ref().and_then(|body| body.counter_tail());
         segment
             .bridge
             .take()?
             .evidence(next, condition, body)?
-            .with_next_normal(normal)
+            .with_next_normal(normal)?
+            .with_next_counter_tail(tail)
     }
     #[cfg(test)]
     pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {

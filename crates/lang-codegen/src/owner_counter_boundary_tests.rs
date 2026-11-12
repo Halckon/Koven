@@ -513,8 +513,8 @@ fn live_roots_cross_sequential_counters_without_fabricated_batch() {
         };
         let mut calls = String::new();
         let mut expected = String::new();
-        for first in [0, 2] {
-            for second in [0, 1, 2] {
+        for first in [-2, 0, 2] {
+            for second in [-2, 0, 1, 2] {
                 calls.push_str(&format!("run({first}, {second}, \"seed\");"));
                 let (a, b) = if second > 0 {
                     ("second-a", "second-b")
@@ -608,6 +608,13 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
         usize::from(bridge)
     );
     if bridge {
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "bridge-counter-tail-complete")
+                .count(),
+            1
+        );
         assert_eq!(
             actions
                 .iter()
@@ -831,6 +838,7 @@ fn partial_live_exit_bridges_sparse_roots_without_resurrecting_retired_root() {
             assert_eq!(bridge.prior().root_slots().len(), 3);
             assert_eq!(bridge.sources().len(), 2);
             assert!(bridge.next_normal_transport().is_some());
+            assert!(bridge.next_counter_tail().is_some());
             let (live, drops) = bridge.prior().false_exit_partition().unwrap();
             assert_eq!(live.len(), 2);
             assert_eq!(drops.len(), 1);
@@ -886,6 +894,12 @@ fn ci_only_control_bridge_body_chain_fails_closed() {
         OwnerFault::BridgeSecondReplaceFailure,
         OwnerFault::BridgeWrongInstruction,
         OwnerFault::BridgeDropDuplicateCommit,
+        OwnerFault::BridgeCounterAbortToHeader,
+        OwnerFault::BridgeCounterWrongBackedge,
+        OwnerFault::BridgeCounterStaleComparison,
+        OwnerFault::BridgeCounterWrongWriteback,
+        OwnerFault::BridgeCounterMissingReceipt,
+        OwnerFault::BridgeCounterForeignSuccessPredecessor,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             with_owner_fault(fault, || source.lower_entry(source.entry()))

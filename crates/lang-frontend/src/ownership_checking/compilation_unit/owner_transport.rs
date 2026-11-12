@@ -9,7 +9,7 @@ pub(super) use loops::{
     LoopBranchExit, publish_observations,
 };
 pub use loops::{
-    UnitOwnerClosedLoopBatchV1, UnitOwnerConditionalBreakBackedgeV1,
+    UnitOwnerBridgeCounterTailV1, UnitOwnerClosedLoopBatchV1, UnitOwnerConditionalBreakBackedgeV1,
     UnitOwnerConditionalReturnBackedgeV1, UnitOwnerContinueArmBoundaryV1,
     UnitOwnerContinueBackedgeV1, UnitOwnerControlBridgeEvidenceV1, UnitOwnerCounterBatchEvidenceV1,
     UnitOwnerCounterTailEvidenceV1, UnitOwnerHeaderSourceV1, UnitOwnerInvariantBreakObservationV1,
