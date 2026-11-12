@@ -1,5 +1,7 @@
 //! Counter boundary consumption beyond the scalar/body audit.
 use super::{UnitSource, source};
+#[path = "owner_control_bridge_exit_tests.rs"]
+mod exit_partition;
 
 #[test]
 fn counter_tail_complete_boundary_consumes_live_suffix() {
@@ -887,6 +889,12 @@ fn ci_only_control_bridge_body_chain_fails_closed() {
             .is_some()
     }));
     for fault in [
+        OwnerFault::MissingBridgeExitDropPermit,
+        OwnerFault::BridgeExitWrongInstruction,
+        OwnerFault::BridgeExitDuplicateCommit,
+        OwnerFault::BridgeExitWrongFactTarget,
+        OwnerFault::BridgeExitWrongExitEdge,
+        OwnerFault::BridgeExitLateWrongOwner,
         OwnerFault::MissingBridgeReplacePermit,
         OwnerFault::MissingBridgeBindingPermit,
         OwnerFault::MissingBridgeDropPermit,

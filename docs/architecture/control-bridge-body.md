@@ -49,5 +49,23 @@ scalar指令且不读写活根；header条件使用实际guard槽。整body及�
 
 CI-only负控覆盖abort误接header、错误回边、陈旧比较、错误counter写回、缺receipt及
 success多余前驱；本地仅编译。
-真实native覆盖两段非正零轮及正数多轮；不声称运行触发了overflow abort。该片不新增
+真实native覆盖两段非正零轮及正数多轮；不声称运行触发了overflow abort。tail本身不提供
 第二control初值比较完整证明、false-exit清理许可或一般跨轮owner归纳。
+
+
+## 第二控制 false-exit 分区与清理
+
+仅完整normal body和已完成tail可附接真实false出口分区：复用drop_loop_exit新增的实际
+facts及出口ValueState，每个原目标根恰好属于live或LoopExit(next_control)的named Drop，
+不从AST推断清理，不造退出owner token。缺失或重复事件不发布该附加分区。
+
+后端在既有统一Drop发射点消费独立退出permit，核精确fact、根槽、finished块、指令位置
+和span，前项必须完成；发射后核唯一实际Drop并标记一次性完成，与其他Drop许可互斥。
+false边必须唯一抵达finished，再跳至真实exit；finished只有分区规定的Drop，不能碰live根。
+全项消费后才记录分区完成；仅live为空才记录all-dead。没有增加第二次Drop发射。
+
+真实native覆盖两段0/2轮、第二段全死/部分live/全live三种分区。CI-only负控覆盖缺permit、
+错误指令及重复提交，仅编译不执行。live根的后缀清理仍走通用lowering，此分区不授予
+其独立suffix许可，也不是第二control初值或一般跨轮完整证明。已消费的旧fact不认领
+同名变量重新初始化后的新Drop；原fact重复仍拒绝，native覆盖该代际边界。最终再次逐项
+核Drop实际根槽，并用CI-only错误退出边/晚期错根负控防止发射后篡改留下完成记录。

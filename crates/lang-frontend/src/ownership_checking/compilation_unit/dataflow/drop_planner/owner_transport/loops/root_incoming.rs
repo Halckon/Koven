@@ -5,7 +5,7 @@ use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 pub(in super::super) use root_tokens::StaticRootPredecessor;
 pub(super) mod body_plan;
 mod guard_reset;
-mod root_exit;
+pub(super) mod root_exit;
 mod root_suffix;
 pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(

@@ -2,12 +2,14 @@
 use super::*;
 mod consumption;
 mod counter;
+mod exit;
 use lang_frontend::ownership_checking::{UnitOwnerCallable, UnitOwnerControlBridgeEvidenceV1};
 
 pub(super) struct Plan<'a> {
     evidence: &'a UnitOwnerControlBridgeEvidenceV1,
     chain: Vec<consumption::Stage>,
     scalar: Option<[Slot; 2]>,
+    exits: Option<Vec<bool>>,
     prior: Option<([BlockRef; 4], Vec<Slot>, Slot)>,
     next: Option<(BlockRef, [BlockRef; 4], Vec<Slot>)>,
 }
@@ -37,6 +39,9 @@ impl<'a> Plan<'a> {
                     .map_or(0, |rule| rule.steps().len())
             ],
             evidence,
+            exits: evidence
+                .next_false_exit_partition()
+                .map(|(_, drops)| vec![false; drops.len()]),
             scalar: None,
             prior: None,
             next: None,
@@ -132,6 +137,24 @@ impl Builder<'_, '_> {
                 injected.results.clear();
                 self.body.blocks[header.0].statements.push(injected);
             }
+            if take_fault(OwnerFault::BridgeExitWrongExitEdge)
+                && let Some((_, [header, _, finished, _], _)) = &plan.next
+            {
+                self.body.blocks[finished.0].terminator =
+                    Some((RTerm::Goto(*header), self.inputs.span));
+            }
+            if take_fault(OwnerFault::BridgeExitLateWrongOwner)
+                && let Some((_, [_, _, finished, _], roots)) = &plan.next
+                && let Some(statement) = self.body.blocks[finished.0].statements.first_mut()
+            {
+                let replacement = if matches!(statement.op, ROp::Drop { owner } if owner == roots[0])
+                {
+                    roots[1]
+                } else {
+                    roots[0]
+                };
+                statement.op = ROp::Drop { owner: replacement };
+            }
             if take_fault(OwnerFault::ControlBridgeWrongBodyEdge)
                 && let Some((_, [header, _, finished, _], _)) = &plan.next
                 && let Some((RTerm::Branch { when_true, .. }, _)) =
@@ -147,7 +170,7 @@ impl Builder<'_, '_> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let ([header, body, finished, exit], roots, guard) =
             plan.prior.as_ref().ok_or_else(fail)?;
-        let (entry, [next_header, next_body, next_finished, _], targets) =
+        let (entry, [next_header, next_body, next_finished, next_exit], targets) =
             plan.next.as_ref().ok_or_else(fail)?;
         let predecessors = |target| {
             self.body
@@ -198,6 +221,48 @@ impl Builder<'_, '_> {
                 return Err(fail());
             }
         }
+        if let Some((live, drops)) = plan.evidence.next_false_exit_partition() {
+            let consumed = plan.exits.as_ref().ok_or_else(fail)?;
+            if consumed.len() != drops.len()
+                || consumed.iter().any(|done| !done)
+                || predecessors(*next_finished) != [*next_header]
+                || predecessors(*next_exit) != [*next_finished]
+                || !matches!(self.body.blocks[next_finished.0].terminator, Some((RTerm::Goto(t),_)) if t == *next_exit)
+            {
+                return Err(fail());
+            }
+            let statements = &self.body.blocks[next_finished.0].statements;
+            if statements.len() != drops.len()
+                || statements
+                    .iter()
+                    .any(|s| !s.results.is_empty() || !matches!(s.op, ROp::Drop { .. }))
+                || drops.iter().zip(statements).any(|(fact, statement)| {
+                    let UnitDropTarget::Named(root) = fact.target() else {
+                        return true;
+                    };
+                    plan.evidence
+                        .targets()
+                        .iter()
+                        .position(|r| *r == root)
+                        .is_none_or(
+                            |i| !matches!(statement.op, ROp::Drop { owner } if owner == targets[i]),
+                        )
+                })
+                || live.iter().any(|symbol| {
+                    plan.evidence
+                        .targets()
+                        .iter()
+                        .position(|r| r == symbol)
+                        .is_none_or(|i| {
+                            statements
+                                .iter()
+                                .any(|s| s.op.operands().contains(&targets[i]))
+                        })
+                })
+            {
+                return Err(fail());
+            }
+        }
         if let Some(rule) = plan.evidence.next_normal_transport() {
             if plan.chain.len() != rule.steps().len()
                 || plan
@@ -220,6 +285,18 @@ impl Builder<'_, '_> {
                         "bridge-counter-tail-complete",
                         rule.steps().len(),
                     );
+                }
+                if let Some((live, drops)) = plan.evidence.next_false_exit_partition() {
+                    owner_consumer_test_support::record_action(
+                        "bridge-false-exit-partition-consumed",
+                        drops.len(),
+                    );
+                    if live.is_empty() {
+                        owner_consumer_test_support::record_action(
+                            "bridge-false-exit-all-dead",
+                            drops.len(),
+                        );
+                    }
                 }
                 owner_consumer_test_support::record_action(
                     "bridge-body-complete",

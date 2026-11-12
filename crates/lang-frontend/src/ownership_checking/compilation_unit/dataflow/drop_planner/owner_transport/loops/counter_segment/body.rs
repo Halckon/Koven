@@ -15,6 +15,8 @@ pub(in super::super) struct Body {
     phase: u8, // 0 ready, 1 actual literal, 2 Replace, 3 bound
     valid: bool,
     frozen: bool,
+    exit_seen: bool,
+    exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
     reset: bool,
     completed: Option<UnitOwnerMultiRootNormalTransportV1>,
 }
@@ -44,6 +46,8 @@ impl Body {
             phase: 0,
             valid: true,
             frozen: false,
+            exit_seen: false,
+            exit_partition: None,
             reset,
             completed: None,
         })
@@ -217,6 +221,43 @@ impl Body {
             self.steps.clone(),
         );
     }
+    pub(in super::super) fn false_exit(
+        &mut self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        state: &ValueState,
+        drops: &[PlannerDropFact],
+        possible: bool,
+    ) {
+        self.exit_partition = None;
+        if self.exit_seen {
+            return;
+        }
+        self.exit_seen = true;
+        #[cfg(test)]
+        if tests::omit(8) {
+            return;
+        }
+        if !possible
+            || control != self.control
+            || condition != self.plan.condition
+            || self.counter_tail().is_none()
+        {
+            return;
+        }
+        self.exit_partition = super::super::root_incoming::root_exit::actual_partition(
+            control,
+            &self.roots,
+            state,
+            drops,
+        );
+    }
+    pub(in super::super) fn exit_partition(
+        &self,
+    ) -> Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)> {
+        self.counter_tail()?;
+        self.exit_partition.clone()
+    }
     pub(in super::super) fn counter_tail(
         &self,
     ) -> Option<(UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4])> {
@@ -302,6 +343,17 @@ mod tests {
                 .next_normal_transport()
                 .is_some()
         );
+        HITS.set(0);
+        PHASE.set(8);
+        let missing_exit = fixture.shared();
+        PHASE.set(0);
+        assert_eq!(HITS.get(), 1);
+        let bridge = missing_exit.owner_observations()[0]
+            .control_bridge_evidence_v1()
+            .unwrap();
+        assert!(bridge.next_normal_transport().is_some());
+        assert!(bridge.next_counter_tail().is_some());
+        assert!(bridge.next_false_exit_partition().is_none());
         for phase in 1..=7 {
             HITS.set(0);
             PHASE.set(phase);

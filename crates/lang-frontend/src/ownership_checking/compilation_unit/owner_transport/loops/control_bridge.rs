@@ -1,6 +1,7 @@
 //! Static, whole-vector alias bridge; not a dynamic exit token or next-loop permission.
 use super::*;
 use crate::name_resolution::UnitSymbolId;
+mod exit;
 mod tail;
 pub use tail::UnitOwnerBridgeCounterTailV1;
 
@@ -15,6 +16,7 @@ pub struct UnitOwnerControlBridgeEvidenceV1 {
     targets: Vec<UnitSymbolId>,
     next_normal: Option<UnitOwnerMultiRootNormalTransportV1>,
     next_tail: Option<UnitOwnerBridgeCounterTailV1>,
+    next_exit: Option<exit::Partition>,
     normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
 }
 impl UnitOwnerControlBridgeEvidenceV1 {
@@ -35,6 +37,7 @@ impl UnitOwnerControlBridgeEvidenceV1 {
             targets,
             next_normal: None,
             next_tail: None,
+            next_exit: None,
             normal_steps: None,
         };
         value.is_consistent().then_some(value)
@@ -80,7 +83,8 @@ impl UnitOwnerControlBridgeEvidenceV1 {
     }
     /// Validate the exact live subset and distinct targets against the sealed exit partition.
     pub fn is_consistent(&self) -> bool {
-        self.tail_matches_normal()
+        self.exit_matches_normal()
+            && self.tail_matches_normal()
             && self.normal_steps.as_deref() == self.next_normal.as_ref().map(|n| n.steps())
             && self.next_normal.as_ref().is_none_or(|n| {
                 n.is_consistent()
