@@ -161,7 +161,14 @@ impl Builder<'_, '_> {
             (tag, None) => tag,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
+        let loop_tag = self.body.loop_plans.statement(&op, &results, block, span)?;
+        let fresh_loop_tag = self
+            .body
+            .fresh_loop_plans
+            .statement(&op, &results, block, span)?;
         self.body.blocks[block.0].statements.push(RStmt {
+            loop_tag,
+            fresh_loop_tag,
             op,
             results,
             span,
@@ -205,6 +212,8 @@ impl Builder<'_, '_> {
         self.body.branch_plans.finish(self.inputs.span)?;
         self.body.nested_plans.finish(self.inputs.span)?;
         self.body.bounded_plans.finish(self.inputs.span)?;
+        self.body.loop_plans.finish(self.inputs.span)?;
+        self.body.fresh_loop_plans.finish(self.inputs.span)?;
         self.body.single_plans.finish(self.inputs.span)?;
         self.body.multi_plans.finish(self.inputs.span)?;
         self.body
@@ -873,6 +882,7 @@ impl Builder<'_, '_> {
             )?;
         }
         self.child_completion(id, result)?;
+        self.fresh_source_completion(id, result)?;
         Ok(result)
     }
     pub(super) fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
@@ -901,6 +911,7 @@ impl Builder<'_, '_> {
         loan: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.fresh_source_argument(call, argument, loan, span)?;
         if !self.body.binding_plans.has_consumer(call)
             && !self.body.aux_binding_plans.has_consumer(call)
             && !self.body.distinct_aux_plans.has_consumer(call)

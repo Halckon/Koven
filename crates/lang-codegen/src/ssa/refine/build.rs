@@ -18,8 +18,10 @@ pub(in crate::ssa::refine::build) use value::field;
 mod frames;
 pub(super) use frames::Lowered;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
+mod invariant_while;
 mod map;
 mod multi_root_receipt;
+mod no_carry;
 mod normal_header_return;
 mod open_loop_return;
 mod owner_consumer;
@@ -27,6 +29,7 @@ mod owner_consumer;
 pub(crate) mod owner_consumer_test_support;
 mod range_borrow;
 mod rc;
+mod while_loop;
 use rc::receiver;
 mod scalar_text;
 mod tagged;
@@ -145,6 +148,8 @@ pub(super) fn build(
             branch_plans: super::branch_receipt::Plans::new(inputs)?,
             nested_plans: super::nested_receipt::Plans::new(inputs)?,
             bounded_plans: super::bounded_receipt::Plans::new(inputs)?,
+            loop_plans: super::loop_receipt::Plans::new(inputs)?,
+            fresh_loop_plans: super::fresh_loop_receipt::Plans::new(inputs, types)?,
             single_plans: super::single_receipt::Plans::new(inputs)?,
             multi_plans: super::multi_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,
@@ -208,6 +213,7 @@ pub(super) fn build(
         builder.receiver = Some(slot);
     }
     builder.bind_parameters(entities)?;
+    builder.fresh_loop_parameters(inputs.span)?;
     let function_item = inputs
         .function_item
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, inputs.span))?;
@@ -395,6 +401,10 @@ impl Builder<'_, '_> {
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
         self.sync_dead();
         let block = self.current(span)?;
+        self.body.loop_plans.terminate(&terminator, block, span)?;
+        self.body
+            .fresh_loop_plans
+            .terminate(&terminator, block, span)?;
         self.body.branch_plans.terminate(&terminator, block, span)?;
         self.body.nested_plans.terminate(&terminator, block, span)?;
         self.body

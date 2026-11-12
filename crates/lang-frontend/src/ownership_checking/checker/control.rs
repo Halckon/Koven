@@ -1,6 +1,8 @@
 //! 控制表达式先交付分支结果；外围借用不改变分支 tail 的 owner 契约。
 
-use super::{Checker, ExpressionUse, Flows, OwnershipCheckingError, State, merge_optional_state};
+use super::{
+    Checker, ExpressionUse, Flows, OwnershipCheckingError, State, merge_optional_state, merge_state,
+};
 use crate::{
     ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, Severity},
@@ -9,6 +11,51 @@ use crate::{
 };
 
 impl Checker<'_> {
+    pub(super) fn check_maybe_loop_with_headers(
+        &mut self,
+        mut prefix: Flows,
+        body: StatementId,
+        errors: usize,
+        headers: &[(
+            crate::name_resolution::SymbolId,
+            crate::ownership_checking::callable_provenance::graph::NodeId,
+        )],
+        repeated: Option<StatementId>,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let Some(base) = prefix.next.take() else {
+            return Ok(prefix);
+        };
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let research = self.research_loop_start(repeated, body, &base);
+        #[cfg(not(any(test, feature = "loan-observation-test-support")))]
+        let _ = repeated;
+        self.no_carry_begin(repeated, body, &base);
+        let body_id = body;
+        let body = self.check_statement(body, base.clone())?;
+        if self.diagnostics.len() == errors {
+            self.check_loop_backedge(body_id, &body)?;
+        }
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_loop_finish(research, &body);
+        self.no_carry_finish(&body)?;
+        let origins = base.origins.loop_exit(
+            headers,
+            body.next.as_ref().map(|state| &state.origins),
+            body.continues.as_ref().map(|state| &state.origins),
+            body.breaks.as_ref().map(|state| &state.origins),
+        );
+        let mut next = base;
+        for state in [body.next, body.breaks, body.continues]
+            .into_iter()
+            .flatten()
+        {
+            merge_state(&mut next, state);
+        }
+        next.origins = origins;
+        prefix.next = Some(next);
+        Ok(prefix)
+    }
+
     // Only repeating edges require the owner again; exits keep their ordinary flow checks.
     pub(super) fn check_loop_backedge(
         &mut self,

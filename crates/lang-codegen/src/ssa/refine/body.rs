@@ -827,6 +827,8 @@ pub(super) enum LoanTag {
 
 #[derive(Clone, Debug)]
 pub(super) struct RStmt {
+    pub(super) loop_tag: Option<super::loop_receipt::Tag>,
+    pub(super) fresh_loop_tag: Option<(usize, super::fresh_loop_receipt::Tag)>,
     pub(super) loan_tag: Option<LoanTag>,
     pub(super) op: ROp,
     pub(super) results: Vec<Slot>,
@@ -942,6 +944,8 @@ pub(super) struct RefinedBody {
     pub(super) nested_resume_plans: super::nested_resume_receipt::Plans,
     pub(super) nested_exit_plans: super::nested_exit_receipt::Plans,
     pub(super) owner_bridge_plans: super::control_bridge_receipt::Plans,
+    pub(super) loop_plans: super::loop_receipt::Plans,
+    pub(super) fresh_loop_plans: super::fresh_loop_receipt::Plans,
     pub(super) loan_plans: super::loan_receipt::Plans,
     pub(super) receiver_plans: super::receiver_receipt::Plans,
     pub(super) named_plans: super::named_receipt::Plans,

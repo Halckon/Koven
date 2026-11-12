@@ -269,3 +269,100 @@ fn borrow_value_field_single_native_matrix() {
         assert!(run.stderr.is_empty(), "{name}: {run:?}");
     }
 }
+
+#[test]
+fn native_loop_local_no_carry_false_edge_keeps_external_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(source: String, flag: Boolean): Unit {
+ while(flag) { borrow val item = view(source); observe(item) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("loop-local-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_sibling_false_edges_keep_the_same_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(source: String, flag: Boolean): Unit {
+ while(flag) { borrow val first = view(source); observe(first) }
+ while(flag) { borrow val second = view(source); observe(second); observe(second) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-sibling-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_distinct_flags_false_edges_keep_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(flag1: Boolean, source: String, flag0: Boolean): Unit {
+ while(flag0) { borrow val first = view(source); observe(first) }
+ while(flag1) { borrow val second = view(source); observe(second); observe(second) }
+ while(flag0) { borrow val third = view(source); observe(third) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-distinct-flags-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_mixed_own_flags_false_edges_keep_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(flag1: Boolean, source: String, own flag0: Boolean): Unit {
+ while(flag0) { borrow val first = view(source); observe(first) }
+ while(flag1) { borrow val second = view(source); observe(second); observe(second) }
+ while(flag0) { borrow val third = view(source); observe(third) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-mixed-own-flags-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_source_segments_survive_false_edges() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun before(source: String): Unit { println("pre"); println(source) }
+fun between(source: String): Unit { println("mid"); println(source) }
+fun after(source: String): Unit { println("tail"); println(source) }
+fun run(flag1: Boolean, source: String, own flag0: Boolean): Unit {
+ before(source)
+ while(flag0) { borrow val first = view(source); observe(first) }
+ between(source)
+ while(flag1) { borrow val second = view(source); observe(second) }
+ after(source)
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-source-segments-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"pre\nkept\nmid\nkept\ntail\nkept\nkept\n");
+}

@@ -549,6 +549,7 @@ impl Builder<'_, '_> {
             let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             return self.lower_carrier_return(expression, value, span);
         }
+        let invariant = self.invariant_return_entry(expression, value, span)?;
         let result = match value {
             Some(value) => {
                 let saved_expected = self.expected_nullable;
@@ -583,6 +584,7 @@ impl Builder<'_, '_> {
         self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.owner_return(expression, result, unit_return, span)?;
+        self.invariant_return_emitted(invariant.as_ref(), span)?;
         Ok(Lowered::Diverged)
     }
 }

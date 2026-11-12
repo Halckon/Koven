@@ -1,4 +1,4 @@
-//! Loop statements (`while`, `loop`, sequential container `for`, `RangeView` `for`, and
+//! Loop statements (`loop`, sequential container `for`, `RangeView` `for`, and
 //! `Map`/`MutableMap` `for`) and ordered exit cleanup in the refined CFG.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -48,90 +48,6 @@ impl Builder<'_, '_> {
             self.end_views_of(symbol, loop_span)?;
         }
         Ok(())
-    }
-
-    pub(super) fn while_loop(
-        &mut self,
-        statement: StatementId,
-        condition: ExpressionId,
-        loop_body: StatementId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let statement = UnitStatementId::new(self.inputs.source_unit, statement);
-        self.end_reassigned_loop_views(span)?;
-        let header = self.body.block();
-        let body_block = self.body.block();
-        let finished = self.body.block();
-        let exit = self.body.block();
-        self.header_while(
-            statement,
-            self.unit(condition),
-            UnitStatementId::new(self.inputs.source_unit, loop_body),
-            [header, body_block, finished, exit],
-            span,
-        )?;
-        self.open_loop_while(
-            statement,
-            self.unit(condition),
-            UnitStatementId::new(self.inputs.source_unit, loop_body),
-            [header, body_block, finished, exit],
-            span,
-        )?;
-        self.owner_while(
-            statement,
-            self.unit(condition),
-            UnitStatementId::new(self.inputs.source_unit, loop_body),
-            finished,
-            exit,
-            span,
-        )?;
-        self.goto(header, span)?;
-        self.block = Some(header);
-        self.condition(condition, body_block, finished)?;
-        if self.body.blocks[body_block.0].has_predecessor {
-            let mark = self.enter(body_block);
-            self.loops.push(LoopFrame {
-                statement,
-                continue_target: header,
-                exit,
-                views: mark,
-                loans: self.pending_call_loans.len(),
-                broken: false,
-                seq_for: None,
-                map_for: None,
-            });
-            let reached = self.statement(loop_body)? != Lowered::Diverged;
-            self.loops.pop();
-            self.leave(mark, span)?;
-            if reached {
-                let cb = self.cb_backedge(statement, header, span)?;
-                let cr = self.cr_backedge(statement, header, span)?;
-                self.goto(header, span)?;
-                self.cb_backedge_emitted(cb, span)?;
-                self.cr_backedge_emitted(cr, span)?;
-            }
-        } else {
-            let span = self.statement_span(loop_body)?;
-            self.unreachable_drop_scopes.push(span);
-        }
-        let exit_point = UnitDropPoint::LoopExit(statement);
-        let facts = self.collect_drops(exit_point);
-        if self.body.blocks[finished.0].has_predecessor {
-            // The condition-false edge drops here; each break drops on its own path.
-            let mark = self.enter(finished);
-            self.leave_unclaimed(mark, span)?;
-            self.emit_drops(&facts)?;
-            self.owner_false_edge(statement, exit, span)?;
-            self.goto(exit, span)?;
-        }
-        if !self.body.blocks[exit.0].has_predecessor {
-            self.unreachable_drop_points.push(exit_point);
-            return Ok(Lowered::Diverged);
-        }
-        self.finish_drops(&facts);
-        let mark = self.enter(exit);
-        self.leave_unclaimed(mark, span)?;
-        Ok(Lowered::Unit)
     }
 
     /// `loop { body }`: its exit is reached only through `break`.
@@ -188,6 +104,7 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         frame.broken |= is_break;
         let frame = *frame;
+        let invariant = self.invariant_jump_entry(expression, is_break, frame, span)?;
         let loans_boundary = frame.loans.min(self.pending_call_loans.len());
         while self.pending_call_loans.len() > loans_boundary {
             let loan = self
@@ -298,6 +215,7 @@ impl Builder<'_, '_> {
             ),
             jump_span,
         )?;
+        self.invariant_jump_exit(invariant.as_ref(), is_break, target, jump_span)?;
         self.terminate(RTerm::Goto(target), jump_span)?;
         self.cb_break_emitted(cb, jump_span)?;
         self.header_continue_emitted(continued, jump_span)?;

@@ -31,7 +31,7 @@ impl Checker<'_> {
         } else {
             Vec::new()
         };
-        self.check_maybe_loop_with_headers(prefix, body, errors, &headers)
+        self.check_maybe_loop_with_headers(prefix, body, errors, &headers, None)
     }
     fn callable_type(&self, expression: ExpressionId) -> Option<TypeId> {
         self.typed

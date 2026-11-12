@@ -5,6 +5,8 @@ pub(super) struct LoanReceipts {
     nested_resume: crate::ssa::refine::nested_resume_receipt::Emitted,
     nested_exit: crate::ssa::refine::nested_exit_receipt::Emitted,
     pub(super) owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted,
+    fresh_loop: crate::ssa::refine::fresh_loop_receipt::Emitted,
+    loop_receipt: crate::ssa::refine::loop_receipt::Emitted,
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
     pub(super) single: crate::ssa::refine::single_receipt::Emitted,
@@ -34,6 +36,16 @@ impl LoanReceipts {
             nested_resume: Default::default(),
             nested_exit: Default::default(),
             owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted::new(),
+            fresh_loop: crate::ssa::refine::fresh_loop_receipt::Emitted::new(
+                &body.fresh_loop_plans,
+                function,
+                span,
+            )?,
+            loop_receipt: crate::ssa::refine::loop_receipt::Emitted::new(
+                &body.loop_plans,
+                function,
+                span,
+            )?,
             nested: crate::ssa::refine::nested_receipt::Emitted::new(
                 &body.nested_plans,
                 function,
@@ -138,6 +150,22 @@ impl LoanReceipts {
     ) -> Result<(), LoweringError> {
         self.owner_bridge
             .layout(body, function, blocks, parameters, entities, span)?;
+        self.fresh_loop.layout(
+            &body.fresh_loop_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.loop_receipt.layout(
+            &body.loop_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
         self.branch.layout(
             &body.branch_plans,
             function,
@@ -192,6 +220,10 @@ impl LoanReceipts {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.loop_receipt
+            .terminator(&body.loop_plans, function, target, current, span)?;
+        self.fresh_loop
+            .terminator(&body.fresh_loop_plans, function, target, current, span)?;
         self.nested
             .terminator(&body.nested_plans, function, target, current, span)?;
         self.bounded
@@ -214,6 +246,9 @@ impl LoanReceipts {
         self.owner_bridge.finish(body, function, span)?;
         self.nested_exit.finish(body, function, span)?;
         self.nested_resume.finish(body, function, span)?;
+        self.loop_receipt.finish(&body.loop_plans, function, span)?;
+        self.fresh_loop
+            .finish(&body.fresh_loop_plans, function, span)?;
         self.forward.finish(&body.forward_plans, function, span)?;
         self.consumer.finish(&body.loan_plans, function, span)?;
         self.receiver.finish(&body.receiver_plans, function, span)?;
@@ -271,7 +306,10 @@ impl Emitter<'_> {
         for (index, statement) in body.blocks[block.0].statements.iter().enumerate() {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
             {
-                if statement.loan_tag.is_some() {
+                if statement.loan_tag.is_some()
+                    || statement.loop_tag.is_some()
+                    || !body.fresh_loop_plans.loops.is_empty()
+                {
                     return Err(error(LoweringErrorKind::InvalidModel, statement.span));
                 }
                 let entity = self.get(*source, statement.span)?;
@@ -290,6 +328,14 @@ impl Emitter<'_> {
                     self.function,
                     (block, index),
                     None,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.loop_receipt.alias(
+                    &body.loop_plans,
+                    *source,
+                    *result,
+                    target,
                     &self.current,
                     statement.span,
                 )?;
@@ -367,6 +413,26 @@ impl Emitter<'_> {
                 &self.current,
                 statement.span,
             )?;
+            if let Some(tag) = statement.fresh_loop_tag {
+                receipts.fresh_loop.statement(
+                    &body.fresh_loop_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?;
+            }
+            if let Some(tag) = statement.loop_tag {
+                receipts.loop_receipt.statement(
+                    &body.loop_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?;
+            }
             match statement.loan_tag {
                 Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => {
                     receipts.consumer.statement(
