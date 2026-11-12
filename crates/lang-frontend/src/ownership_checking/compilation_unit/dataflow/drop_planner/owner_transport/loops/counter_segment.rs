@@ -1,8 +1,11 @@
 //! Fresh, declaration-only post-loop catalog. Never revives a legacy observation.
 use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
+pub(super) mod bridge;
 
 pub(super) struct Segment {
+    predecessor: UnitStatementId,
+    bridge: Option<bridge::Bridge>,
     statements: Vec<UnitStatementId>,
     condition: UnitExpressionId,
     admitted: bool,
@@ -69,6 +72,8 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
             return Vec::new();
         };
         segments.push(Segment {
+            predecessor: pair[0].0,
+            bridge: None,
             condition: checker.unit_expression(*condition),
             admitted: false,
             ends_function: second + 1 == elements.len(),
@@ -98,6 +103,9 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
 }
 impl Segment {
     fn matches_state(&self, state: &ValueState) -> bool {
+        if let Some(bridge) = &self.bridge {
+            return bridge.matches_state(state);
+        }
         boundary_values(state).is_some_and(|values| {
             values.len() == self.bindings.len()
                 && values
@@ -114,7 +122,7 @@ impl Segment {
                 return;
             }
             self.active = true;
-            if !empty_boundary(state) {
+            if self.bridge.is_none() && !empty_boundary(state) {
                 self.invalid = true;
                 return;
             }
@@ -128,12 +136,20 @@ impl Segment {
         }
         self.next += 1;
         if self.next == self.statements.len() {
-            self.captured = self.bindings.len() >= 2 && self.catalog.is_consistent();
+            self.captured = if let Some(bridge) = &self.bridge {
+                bridge.complete()
+            } else {
+                self.bindings.len() >= 2 && self.catalog.is_consistent()
+            };
             self.invalid = !self.captured;
             self.active = false;
         }
     }
     fn literal(&mut self, expression: UnitExpressionId) {
+        if self.bridge.is_some() {
+            self.invalid = true;
+            return;
+        }
         if self.pending.is_some()
             || self
                 .catalog
@@ -175,7 +191,21 @@ impl ControlTransactions {
         id: UnitStatementId,
         state: &ValueState,
     ) {
+        let predecessor = self
+            .counter_segments
+            .iter()
+            .find(|s| !s.active && !s.invalid && !s.captured && s.statements.first() == Some(&id))
+            .map(|s| s.predecessor);
+        let prior = (!self.root_branches_invalid)
+            .then(|| predecessor.and_then(|control| self.private_counter_evidence(control)))
+            .flatten();
         for segment in &mut self.counter_segments {
+            if !segment.active && segment.statements.first() == Some(&id) && !empty_boundary(state)
+            {
+                segment.bridge = prior
+                    .as_ref()
+                    .and_then(|e| bridge::Bridge::new(e, segment.predecessor, state));
+            }
             segment.statement(id, state);
         }
     }
@@ -197,6 +227,10 @@ impl ControlTransactions {
         let Some(segment) = self.active_segment() else {
             return;
         };
+        if let Some(bridge) = &mut segment.bridge {
+            segment.invalid = !bridge.move_value(expression, value);
+            return;
+        }
         let index = value.and_then(|v| segment.bindings.iter().position(|(s, _)| *s == v.symbol));
         if segment.pending.is_some() || index.is_none() {
             segment.invalid = true;
@@ -221,6 +255,10 @@ impl ControlTransactions {
         let Some(segment) = self.active_segment() else {
             return;
         };
+        if let Some(bridge) = &mut segment.bridge {
+            segment.invalid = !bridge.bind(symbol, expression);
+            return;
+        }
         let Some((source, token)) = segment.pending.take() else {
             segment.invalid = true;
             return;
@@ -244,6 +282,10 @@ impl ControlTransactions {
         let Some(segment) = self.active_segment() else {
             return;
         };
+        if segment.bridge.is_some() {
+            segment.invalid = true;
+            return;
+        }
         let Some(index) = segment.bindings.iter().position(|(s, _)| *s == symbol) else {
             segment.invalid = true;
             return;
@@ -265,6 +307,10 @@ impl ControlTransactions {
             .counter_segments
             .iter_mut()
             .find(|s| s.statements.last() == Some(&control))?;
+        // A static bridge is not a producer catalog or an entry permission.
+        if segment.bridge.is_some() {
+            return None;
+        }
         if !segment.captured
             || segment.invalid
             || segment.admitted
@@ -295,11 +341,21 @@ impl ControlTransactions {
         })
     }
     #[cfg(test)]
-    pub(super) fn segment_catalog(&self, control: UnitStatementId) -> Option<Snapshot> {
-        let segment = self
-            .counter_segments
+    pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {
+        if self.root_branches_invalid {
+            return None;
+        }
+        self.counter_segments
             .iter()
-            .find(|s| s.statements.last() == Some(&control) && s.captured && !s.invalid)?;
+            .find(|s| s.statements.last() == Some(&control) && s.captured && !s.invalid)?
+            .bridge
+            .clone()
+    }
+    #[cfg(test)]
+    pub(super) fn segment_catalog(&self, control: UnitStatementId) -> Option<Snapshot> {
+        let segment = self.counter_segments.iter().find(|s| {
+            s.statements.last() == Some(&control) && s.captured && !s.invalid && s.bridge.is_none()
+        })?;
         Some(Snapshot {
             catalog: segment.catalog.clone(),
             bindings: segment.bindings.clone(),
@@ -322,6 +378,75 @@ mod tests {
     use super::*;
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
 
+    #[test]
+    fn bridge_preserves_both_predecessor_vectors_through_actual_aliases() {
+        for alias in [false, true] {
+            for fresh in [false, true] {
+                let transfer = if fresh {
+                    "var a1 = a0; var b1 = b0; val extra = \"unused\";"
+                } else if alias {
+                    "val saved_b = b0; val saved_a = a0; var b1 = saved_b; var a1 = saved_a;"
+                } else {
+                    "var a1 = a0; var b1 = b0;"
+                };
+                let source = format!(
+                    r#"fun run(n: Int) {{
+                    var n0 = n; var g0 = n0 > 0; var a0 = "a"; var b0 = "b";
+                    while(g0) {{ val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 }};
+                    var n1 = n; var g1 = n1 > 0; {transfer}
+                    while(g1) {{ val x = replace(&a1, "x1"); val y = replace(&b1, "y1"); n1 = n1 - 1; g1 = n1 > 0 }}
+                }}"#
+                );
+                let fixture = Fixture::new(&[("bridge.ko", &source)]);
+                let owned = fixture.shared();
+                assert!(owned.diagnostics().is_empty());
+                assert!(
+                    owned
+                        .owner_observations()
+                        .iter()
+                        .all(|o| o.counter_batch_evidence_v1().is_none())
+                );
+                compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+                    let mut planner = DropPlanner::new(
+                        checker,
+                        crate::ownership_checking::compilation_unit::dataflow::liveness::build(
+                            checker, true,
+                        )
+                        .unwrap(),
+                    );
+                    planner.owner_control_probe = Some(Vec::new());
+                    let planner = planner.run().unwrap();
+                    let visits = planner.owner_control_probe.as_ref().unwrap();
+                    let bridges: Vec<_> = visits
+                        .iter()
+                        .filter(|v| v.entering)
+                        .filter_map(|v| v.segment_bridge.as_ref().map(|bridge| (v.control, bridge)))
+                        .collect();
+                    assert_eq!(bridges.len(), usize::from(!fresh));
+                    for (next, bridge) in bridges {
+                        let (prior, sources) = bridge.sources();
+                        assert_ne!(prior, next);
+                        assert_eq!(sources.len(), 2);
+                        assert_ne!(sources[0].0, sources[1].0);
+                        for (_, entry, body) in &sources {
+                            assert_ne!(entry, body);
+                        }
+                        let predecessor = visits
+                            .iter()
+                            .find(|v| !v.entering && v.control == prior)
+                            .unwrap();
+                        let evidence = predecessor.private_counter.as_ref().unwrap();
+                        for (position, (_, entry, body)) in sources.iter().enumerate() {
+                            let index = if alias { 1 - position } else { position };
+                            let slot = &evidence.root_slots()[index];
+                            assert_eq!(slot.entry(), *entry);
+                            assert_eq!(slot.first_body_output(), *body);
+                        }
+                    }
+                });
+            }
+        }
+    }
     #[test]
     fn fresh_segment_tracks_real_aliases_and_dead_prefix_values() {
         for (carry, interrupted) in [(false, false), (true, false), (false, true)] {

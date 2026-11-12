@@ -168,3 +168,12 @@ Complete身份及checked success/abort边，最后才提交最终成员与全组
 move/Alias与后控制入口，并由同一实际SSA出口/入口值核验，再处理旧根消费与新根
 义务的唯一性。嵌套另需parent/child控制归属与各自退出回边，不能复用顶层顺序批次的
 相邻exit=entry几何假设。当前未放宽任何这些门禁。
+
+前控制限定的私有桥接采集现保留完整counter证据中的原入口/首body两个来源向量，不
+选择某一分支，也不分根混配。仅前段全根存活、无退出drop且真实资源边界精确匹配时
+启动；段间真实Name move与binding以单次pending表达式转移根索引，逐声明核对实际
+资源集合。所有根重绑定到不同symbol并抵达下一while入口后才记录完整关联。新String、
+任何根drop、额外资源或缺失事件使这条桥接失败。Copyable声明仍服从原精确候选范围。
+该关联目前只在私有采集中完成，`take_segment_entry`明确拒绝将它当producer catalog；
+不产生下一段owner token、正常方程、公开批次或codegen permit。后续仍需实际SSA合流值
+与跨轮合同，才能把此静态来源关联升级为运输能力。
