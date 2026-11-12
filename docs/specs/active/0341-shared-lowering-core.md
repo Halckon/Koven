@@ -15144,3 +15144,35 @@ check、FE/CG默认lib --no-run、fmt/diff、文档897项全部通过；CI-only�
 strict Clippy、fmt/diff 通过；6 项 CI-only 编译并列出，依故障注入仅 CI 约束未本地执行。
 普通正控通过不代替负控验收，须明日推送后核对其远端实际结果；未推送、未处理 Preview。
 原始日志留隔离工作树 `.local-artifacts/ci-fixture/`，D10/E2 状态与能力边界不变。
+
+### 职责拆分后冻结合流（2026-11-12）
+
+本次用户明确允许职责拆分后推送。冻结 owner 759b3280、borrow 7da4a4bf，并纳入
+CI fixture 输入修复 ce3c47ce；在已发布 f1e16d56 上合流，再合入 main 6843d4a6。
+后续各开发分支改动未滚动加入。生产冲突保留两条线真实 hook：owner_cleanup 保留
+segment_drop 与旧 token Drop；else 分支既恢复 root-arm 状态，也记录真实终止。
+main 已退休 statements 模块不恢复，push/value/receipt finish/drop authorization
+四方法完整迁至既有 borrow_binding 职责；counter binding 授权/回执保留。
+
+组合首次前端普通测试为 672 passed / 1 failed：新 distinct auxiliary retirement
+证书需要真实 owner ID，owner-observer off 时合理不发布，而旧 helper 把新证书误当
+旧执行产品比较。修复仅测试口径：先严格比较 source/coverage/actual actions 顺序，
+再排除观察证书元数据，对完整旧 Analysis 保持严格 Eq；该 fixture 另明确断言
+on 有一项证书、off 无证书。没有放宽 validator 或伪造 owner ID。该修复、冲突迁移、
+公共 exports 和实际事件 hook 均经独立只读复审。
+
+最终组合输入 0ef17f59 加上述测试修复，默认 profile 与独立 target，普通测试均
+明确 --skip ci_only：frontend lib 673 passed（124 filtered），19 个改动借用
+integration 目标合计33 passed；codegen ordinary_90 passed（含其匹配的 native），
+旧七记录receipt正控1 passed；owner_multi_root_header_tests 23 passed，包含
+counter_boundary六项、SSA/LLVM与有限native执行。另尝试以文件名过滤counter测试
+得到0项，不计验收；实际六项已在上述父模块23项中完整执行。
+
+双crate feature all-target strict Clippy、默认及feature workspace all-target check、
+fmt/diff/docs897、尺寸门禁通过（2548手写Rust文件，36项历史>1000债务）。policy
+与main6843d4a6完全一致，未加入借用历史分支的1669→1674增额；当前
+planner1496、loops965、refine build990、borrow_binding966。CI-only只编译，
+包括ce3c47ce修复的故障fixture仍待正式CI实跑；未执行完整workspace test。
+Preview/DNS按用户要求不排查、不修改、不重跑；不据本地绿灯声称正式CI完成。
+日志留隔离集成工作树 `.local-artifacts/integration/`。推送后须核精确远端head。
+D10/E2继续active；现行各有界能力不代表一般多根/嵌套/复杂CFG及旧见证退休完成。

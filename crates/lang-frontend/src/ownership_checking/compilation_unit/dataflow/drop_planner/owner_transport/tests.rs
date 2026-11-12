@@ -124,9 +124,30 @@ fn compare_and_inspect_control_mode(
     assert!(checker.primitive_deferred.is_empty());
     inspect(&checker);
     let mut observed = plan_with_owner_observation(&checker, true).unwrap();
-    let disabled = plan_with_owner_observation(&checker, false).unwrap();
+    let mut disabled = plan_with_owner_observation(&checker, false).unwrap();
     assert!(!observed.owner_observations.is_empty());
     assert!(disabled.owner_observations.is_empty());
+    // Region certificates may require actual owner identities and therefore fail closed
+    // with owner observation disabled. They are not legacy execution products.
+    assert_eq!(
+        observed.loan_action_observations.len(),
+        disabled.loan_action_observations.len()
+    );
+    for (on, off) in observed
+        .loan_action_observations
+        .iter()
+        .zip(&disabled.loan_action_observations)
+    {
+        assert_eq!(on.source(), off.source());
+        assert_eq!(on.coverage(), off.coverage());
+        assert_eq!(
+            on.actions(),
+            off.actions(),
+            "actual loan records and order remain unchanged"
+        );
+    }
+    observed.loan_action_observations.clear();
+    disabled.loan_action_observations.clear();
     observed.owner_observations.clear();
     assert_eq!(
         observed, disabled,
@@ -331,7 +352,21 @@ fn owner_observation_preserves_all_three_borrow_publication_tables() {
         1
     );
     assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
-    compare(&fixture, &fixture.parts(&shared));
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let on = plan_with_owner_observation(checker, true).unwrap();
+        let off = plan_with_owner_observation(checker, false).unwrap();
+        let [on_catalog] = on.loan_action_observations.as_slice() else {
+            panic!("one source catalog")
+        };
+        let [off_catalog] = off.loan_action_observations.as_slice() else {
+            panic!("one source catalog")
+        };
+        assert_eq!(on_catalog.distinct_auxiliary_retirements().len(), 1);
+        assert!(
+            off_catalog.distinct_auxiliary_retirements().is_empty(),
+            "no certificate without actual owner identities"
+        );
+    });
 }
 
 #[test]
