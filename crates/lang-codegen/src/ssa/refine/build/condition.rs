@@ -477,6 +477,7 @@ impl Builder<'_, '_> {
         else_branch: Option<StatementId>,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        let invariant = self.invariant_if_entry(expression, span)?;
         let control = self.unit(expression);
         let ty = self.expression_type(expression)?;
         let result = if self.is_unit(ty) || self.is_nothing(ty) {
@@ -576,6 +577,7 @@ impl Builder<'_, '_> {
             span,
         )?;
         self.condition_for_control(condition, when_true, when_false, span)?;
+        self.invariant_while_boundary(invariant.as_ref(), span)?;
         self.cb_split_emitted(cb, span)?;
         self.cr_split_emitted(cr, span)?;
         self.mixed_header_split_emitted(mixed_split, span)?;
@@ -638,6 +640,7 @@ impl Builder<'_, '_> {
                 self.push(ROp::Alias { source: slot }, vec![result], span)?;
             }
             self.drops(exit_point)?;
+            self.invariant_while_boundary(invariant.as_ref(), span)?;
             continuing_temporaries
                 .get_or_insert_with(|| self.temporaries.clone())
                 .retain(|id, slot| self.temporaries.get(id) == Some(slot));

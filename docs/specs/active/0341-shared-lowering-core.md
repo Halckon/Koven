@@ -15333,3 +15333,33 @@ fmt/diff、文档912项及size基准2beb5592全部通过（2555文件、36历史
 policy未改，CI-only未执行，日志invariant-break-*归档。本片本地提交不推送。
 期间核对新main b1fc7d93已合并#412，与本分支共同基线66ee7526；未覆盖或擅自
 吸收其9a8cd2b7测试修复，后续合流需在新main上重新验证。
+
+## 不变量while尾部条件break（实施中）
+
+基于c39b6ec4并核工作树干净。客户端更新短暂断线后重新attach并复核，无未提交
+改动被覆盖。本片优先尾if(secondBool){break}无else、then仅一个Break；true
+实际进入公共exit、false正常回边，比两个同目标的conditional continue更便于
+核最终真实分叉，不假定simplifier一定保留双回边。
+
+只有完整不变量合同admitted后，该binding的精确尾If ExpressionId才获共享门
+资格；条件仅typed Boolean Name，不泛放任意if或条件调用。原BranchExit清理和
+原break的ControlTransfer/LoopExit清理保持，分别在false回边及true退出核同一
+lease，最终break和外while false合流后才结束；不能把AST准入当成生命周期证明。
+
+实现的内层条件可与外层引用同一个Boolean，也可为另一Boolean参数；“second”
+指条件位置而非要求不同symbol。不会利用两条件相关性自行剪枝。actual if在condition
+及false BranchExit原drops后复核lease，true仍经精确Break token和原CT/LoopExit
+清理，再核kind/target/lease。共享Expression权限仅该已admitted binding的尾If，
+不放行任意条件。独立非作者生产复审通过；强SSA测试追溯实际原参数身份而不是
+只比类型或名称，分别检查回边和退出合流的source/result运输。
+
+最终强正控600组合（旧360+同/异名内条件240），内条件真实SSA来源沿edge追溯
+原Boolean参数1或2，true精确break→共同exit、false正常回header，两处各两incoming
+逐source/result/owner身份保持，最终合流后唯一End/Drop。原loop研究条件break
+负控改为真正超合同的带else形状，精确错误锚按实际表达式核验；不保留失真的旧拒绝
+预期。19类76邻界与88项普通回归全绿，无新receipt、FE或verifier改动。
+
+最终非作者review、Clippy全targets -D warnings、workspace全targets、默认FE/CG
+lib仅编译、fmt/diff、文档912项及size基准2beb5592通过（2555文件、36历史超1000
+债务）。policy不变、CI-only未执行，conditional-break-*日志归档。本片本地提交，
+未推送；仍需后续与新main合流验证。

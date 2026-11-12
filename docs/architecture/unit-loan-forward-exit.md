@@ -142,3 +142,7 @@ normal回边。条件/嵌套continue、空consumer、break/return仍不在本合
 尾部无条件break亦按独立JumpKind核frame.exit而非header，原ControlTransfer与
 LoopExit清理不绕过。实际无回边CFG中entry/header可折叠，break和false边携同一
 lease到共同exit，随后才End/Drop；条件break及return仍未纳入合同。
+
+尾部条件break现支持精确无else的`if(BooleanName){break}`，then仅break；true
+实际退出、false正常回边，分别核原清理后lease并在共同exit结束。内外条件可同
+symbol，独立资格只授予该binding的尾If，不泛放其他控制流。

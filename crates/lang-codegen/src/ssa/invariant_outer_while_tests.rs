@@ -6,162 +6,197 @@ use lang_frontend::ownership_checking::{
 
 #[test]
 fn ordinary_invariant_outer_while_preserves_one_lease() {
-    for jump in [None, Some("continue"), Some("break")] {
-        for count in [1, 2, 3, 8, 17] {
-            for own in [false, true] {
-                for condition in ["flag", "false", "true"] {
-                    let body = (0..count)
-                        .map(|i| {
-                            if i % 2 == 0 {
-                                "consume(item)"
-                            } else {
-                                "consume_other(item)"
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join("; ");
-                    let body = if let Some(jump) = jump {
-                        format!("{body}; {jump}")
-                    } else {
-                        body
-                    };
-                    let mode = if own { "own " } else { "" };
-                    let text = format!(
-                        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun consume_other(item: String): Unit {{}}\nfun run({mode}source: String, flag: Boolean): Unit {{ borrow val item = view(source); while ({condition}) {{ {body} }} }}"
-                    );
-                    let mut sources = SourceMap::new();
-                    let (source, parsed) =
-                        unit_lower_test_support::parsed(&mut sources, "invariant-while.ko", &text);
-                    let (environment, types) = standard_environments();
-                    for (layout, input) in [
-                        (
-                            "rooted",
-                            SourceUnitInput::new("root", "invariant-while.ko", source, &parsed),
-                        ),
-                        ("memory", SourceUnitInput::memory_document(source, &parsed)),
-                    ] {
-                        let inputs = [input];
-                        let (names, typed, on) = unit_lower_test_support::analyze(
-                            &sources,
-                            &inputs,
-                            &environment,
-                            &types,
-                        );
-                        let off = with_loan_observation(false, || {
-                            check_compilation_unit_ownership(
-                                &sources, &inputs, &names, &types, &typed,
-                            )
-                            .unwrap()
-                            .validate()
-                            .unwrap()
-                        });
-                        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
-                        let entry = names
-                            .names()
-                            .index()
-                            .declarations()
-                            .iter()
-                            .find(|d| d.name() == "run")
-                            .unwrap()
-                            .id();
-                        let mut previous = None;
-                        for (setting, owned) in [("on", &on), ("off", &off)] {
-                            let (lowered, verified) =
-                                crate::ssa::unit_lower::observe_final_verifier(|| {
-                                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                        &sources, &inputs, &names, &types, &typed, owned, entry,
-                                    )
-                                });
-                            let (program, _) = lowered.unwrap_or_else(|error| {
-                        panic!("jump={jump:?}/count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
-                    });
-                            assert_eq!(verified.len(), 1);
-                            verify_program(&program).unwrap();
-                            let run = program.modules[0]
-                                .functions
-                                .iter()
-                                .find(|f| f.name.contains(".run."))
-                                .unwrap();
-                            assert_eq!(
-                                run.instructions
-                                    .iter()
-                                    .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
-                                    .count(),
-                                1
-                            );
-                            assert_eq!(
-                                run.instructions
-                                    .iter()
-                                    .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
-                                    .count(),
-                                count
-                            );
-                            let calls = run
-                                .instructions
-                                .iter()
-                                .filter_map(|i| match i.operation {
-                                    Operation::DirectCall { callee, .. } => Some((i, callee)),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>();
-                            for (index, (call, callee)) in calls.iter().enumerate() {
-                                let expected = if index % 2 == 0 {
-                                    ".consume."
+    for jump in [
+        None,
+        Some("continue"),
+        Some("break"),
+        Some("conditional-break"),
+    ] {
+        let inner_names: &[&str] = if jump == Some("conditional-break") {
+            &["flag2", "flag"]
+        } else {
+            &["flag2"]
+        };
+        for &inner_name in inner_names {
+            for count in [1, 2, 3, 8, 17] {
+                for own in [false, true] {
+                    for condition in ["flag", "false", "true"] {
+                        let body = (0..count)
+                            .map(|i| {
+                                if i % 2 == 0 {
+                                    "consume(item)"
                                 } else {
-                                    ".consume_other."
-                                };
-                                assert!(
-                                    program
-                                        .modules
+                                    "consume_other(item)"
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join("; ");
+                        let body = if jump == Some("conditional-break") {
+                            format!("{body}; if ({inner_name}) {{ break }}")
+                        } else if let Some(jump) = jump {
+                            format!("{body}; {jump}")
+                        } else {
+                            body
+                        };
+                        let mode = if own { "own " } else { "" };
+                        let text = format!(
+                            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun consume_other(item: String): Unit {{}}\nfun run({mode}source: String, flag: Boolean, flag2: Boolean): Unit {{ borrow val item = view(source); while ({condition}) {{ {body} }} }}"
+                        );
+                        let mut sources = SourceMap::new();
+                        let (source, parsed) = unit_lower_test_support::parsed(
+                            &mut sources,
+                            "invariant-while.ko",
+                            &text,
+                        );
+                        let (environment, types) = standard_environments();
+                        for (layout, input) in [
+                            (
+                                "rooted",
+                                SourceUnitInput::new("root", "invariant-while.ko", source, &parsed),
+                            ),
+                            ("memory", SourceUnitInput::memory_document(source, &parsed)),
+                        ] {
+                            let inputs = [input];
+                            let (names, typed, on) = unit_lower_test_support::analyze(
+                                &sources,
+                                &inputs,
+                                &environment,
+                                &types,
+                            );
+                            let off = with_loan_observation(false, || {
+                                check_compilation_unit_ownership(
+                                    &sources, &inputs, &names, &types, &typed,
+                                )
+                                .unwrap()
+                                .validate()
+                                .unwrap()
+                            });
+                            assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+                            let entry = names
+                                .names()
+                                .index()
+                                .declarations()
+                                .iter()
+                                .find(|d| d.name() == "run")
+                                .unwrap()
+                                .id();
+                            let mut previous = None;
+                            for (setting, owned) in [("on", &on), ("off", &off)] {
+                                let (lowered, verified) =
+                                    crate::ssa::unit_lower::observe_final_verifier(|| {
+                                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                            &sources, &inputs, &names, &types, &typed, owned, entry,
+                                        )
+                                    });
+                                let (program, _) = lowered.unwrap_or_else(|error| {
+                        panic!("jump={jump:?}/inner={inner_name}/count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
+                    });
+                                assert_eq!(verified.len(), 1);
+                                verify_program(&program).unwrap();
+                                let run = program.modules[0]
+                                    .functions
+                                    .iter()
+                                    .find(|f| f.name.contains(".run."))
+                                    .unwrap();
+                                assert_eq!(
+                                    run.instructions
                                         .iter()
-                                        .flat_map(|module| &module.functions)
-                                        .find(|function| function.id == *callee)
-                                        .unwrap()
-                                        .name
-                                        .contains(expected)
+                                        .filter(|i| matches!(
+                                            i.operation,
+                                            Operation::BorrowCall { .. }
+                                        ))
+                                        .count(),
+                                    1
                                 );
-                                assert_eq!(call.block, calls[0].0.block);
-                                let block = run.blocks.iter().find(|b| b.id == call.block).unwrap();
-                                if index > 0 {
+                                assert_eq!(
+                                    run.instructions
+                                        .iter()
+                                        .filter(|i| matches!(
+                                            i.operation,
+                                            Operation::DirectCall { .. }
+                                        ))
+                                        .count(),
+                                    count
+                                );
+                                let calls = run
+                                    .instructions
+                                    .iter()
+                                    .filter_map(|i| match i.operation {
+                                        Operation::DirectCall { callee, .. } => Some((i, callee)),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>();
+                                for (index, (call, callee)) in calls.iter().enumerate() {
+                                    let expected = if index % 2 == 0 {
+                                        ".consume."
+                                    } else {
+                                        ".consume_other."
+                                    };
                                     assert!(
-                                        block
-                                            .instructions
+                                        program
+                                            .modules
                                             .iter()
-                                            .position(|id| *id == calls[index - 1].0.id)
+                                            .flat_map(|module| &module.functions)
+                                            .find(|function| function.id == *callee)
                                             .unwrap()
-                                            < block
+                                            .name
+                                            .contains(expected)
+                                    );
+                                    assert_eq!(call.block, calls[0].0.block);
+                                    let block =
+                                        run.blocks.iter().find(|b| b.id == call.block).unwrap();
+                                    if index > 0 {
+                                        assert!(
+                                            block
                                                 .instructions
                                                 .iter()
-                                                .position(|id| *id == call.id)
+                                                .position(|id| *id == calls[index - 1].0.id)
                                                 .unwrap()
-                                    );
+                                                < block
+                                                    .instructions
+                                                    .iter()
+                                                    .position(|id| *id == call.id)
+                                                    .unwrap()
+                                        );
+                                    }
                                 }
+                                assert_eq!(
+                                    run.instructions
+                                        .iter()
+                                        .filter(|i| matches!(
+                                            i.operation,
+                                            Operation::BorrowBegin { .. }
+                                        ))
+                                        .count(),
+                                    usize::from(own),
+                                    "no per-consumer or per-iteration acquisition"
+                                );
+                                assert_transport(
+                                    run,
+                                    own,
+                                    condition,
+                                    jump.map(|jump| {
+                                        (
+                                            text.find(if jump == "conditional-break" {
+                                                "break"
+                                            } else {
+                                                jump
+                                            })
+                                            .unwrap(),
+                                            jump,
+                                        )
+                                    }),
+                                    if inner_name == "flag" { 1 } else { 2 },
+                                );
+                                let text = format!(
+                                    "{verified:?}\n{}",
+                                    crate::llvm::render_verified_program(&program).unwrap()
+                                );
+                                if let Some(previous) = previous.as_ref() {
+                                    assert_eq!(&text, previous);
+                                }
+                                previous = Some(text);
                             }
-                            assert_eq!(
-                                run.instructions
-                                    .iter()
-                                    .filter(|i| matches!(
-                                        i.operation,
-                                        Operation::BorrowBegin { .. }
-                                    ))
-                                    .count(),
-                                usize::from(own),
-                                "no per-consumer or per-iteration acquisition"
-                            );
-                            assert_transport(
-                                run,
-                                own,
-                                condition,
-                                jump.map(|jump| (text.find(jump).unwrap(), jump)),
-                            );
-                            let text = format!(
-                                "{verified:?}\n{}",
-                                crate::llvm::render_verified_program(&program).unwrap()
-                            );
-                            if let Some(previous) = previous.as_ref() {
-                                assert_eq!(&text, previous);
-                            }
-                            previous = Some(text);
                         }
                     }
                 }
@@ -183,7 +218,13 @@ fn edges(block: &Block) -> Vec<&Edge> {
     }
 }
 
-fn assert_transport(run: &Function, own: bool, literal: &str, jump: Option<(usize, &str)>) {
+fn assert_transport(
+    run: &Function,
+    own: bool,
+    literal: &str,
+    jump: Option<(usize, &str)>,
+    inner_parameter: usize,
+) {
     use std::collections::BTreeMap;
     let acquisition = run
         .instructions
@@ -226,6 +267,11 @@ fn assert_transport(run: &Function, own: bool, literal: &str, jump: Option<(usiz
             panic!("source root");
         };
         lineage.insert(EntityId::Value(owner), 4);
+    }
+    let conditional_break = jump.is_some_and(|(_, kind)| kind == "conditional-break");
+    if conditional_break {
+        assert_eq!(run.blocks[0].parameters.len(), 3);
+        lineage.insert(run.blocks[0].parameters[inner_parameter], 8);
     }
     // Follow every actual edge argument at its actual block-parameter position, including the backedge.
     for _ in 0..=run.loans.len() {
@@ -308,7 +354,13 @@ fn assert_transport(run: &Function, own: bool, literal: &str, jump: Option<(usiz
             .filter(|block| {
                 block.terminator.as_ref().is_some_and(|term| {
                     term.origin.span().start() == start
-                        && term.origin.span().end() == start + kind.len()
+                        && term.origin.span().end()
+                            == start
+                                + if kind == "conditional-break" {
+                                    "break".len()
+                                } else {
+                                    kind.len()
+                                }
                 })
             })
             .collect::<Vec<_>>();
@@ -318,7 +370,7 @@ fn assert_transport(run: &Function, own: bool, literal: &str, jump: Option<(usiz
         let TerminatorKind::Branch(edge) = &jump.terminator.as_ref().unwrap().kind else {
             panic!("tail jump must be an unconditional Goto");
         };
-        if broken {
+        if broken || conditional_break {
             assert_ne!(edge.target, header.id);
             break_target = Some((jump.id, edge.target));
         } else {
@@ -342,6 +394,75 @@ fn assert_transport(run: &Function, own: bool, literal: &str, jump: Option<(usiz
                 ),
                 "jump body does not retire or reacquire the outer lease"
             );
+        }
+    }
+
+    if conditional_break {
+        let splits = run
+            .blocks
+            .iter()
+            .filter(|block| {
+                matches!(
+                    block.terminator.as_ref().unwrap().kind,
+                    TerminatorKind::Conditional { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(splits.len(), 2);
+        let inner = splits
+            .into_iter()
+            .find(|block| block.id != header.id)
+            .unwrap();
+        let TerminatorKind::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } = &inner.terminator.as_ref().unwrap().kind
+        else {
+            unreachable!()
+        };
+        let Definition::InstructionResult { instruction, .. } =
+            run.entity(EntityId::Value(*condition)).unwrap().definition
+        else {
+            panic!("real inner condition read");
+        };
+        let Operation::Read {
+            source: PlaceAccess::Loan(flag),
+        } = run.instruction(instruction).unwrap().operation
+        else {
+            panic!("second Boolean loan is read");
+        };
+        assert_eq!(lineage.get(&EntityId::Loan(flag)), Some(&8));
+        let (break_block, _) = break_target.unwrap();
+        assert_eq!(when_true.target, break_block);
+        let false_block = run
+            .blocks
+            .iter()
+            .find(|block| block.id == when_false.target)
+            .unwrap();
+        let TerminatorKind::Branch(backedge) = &false_block.terminator.as_ref().unwrap().kind
+        else {
+            panic!("conditional false is the real normal backedge");
+        };
+        assert_eq!(backedge.target, header.id);
+        assert!(incoming.iter().any(|(block, _)| block.id == false_block.id));
+        for edge in [when_true, when_false] {
+            assert_eq!(
+                edge.arguments
+                    .iter()
+                    .filter(|argument| lineage.get(argument) == Some(&2))
+                    .count(),
+                1
+            );
+            if own {
+                assert_eq!(
+                    edge.arguments
+                        .iter()
+                        .filter(|argument| lineage.get(argument) == Some(&1))
+                        .count(),
+                    1
+                );
+            }
         }
     }
 

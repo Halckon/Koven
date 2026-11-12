@@ -133,7 +133,21 @@ pub(in crate::ssa) fn admitted(
     if elements.is_empty() {
         return None;
     }
-    let consumers = if tail_jump(file, *while_id).is_some() {
+    let conditional = conditional_break(file, *while_id);
+    if let Some(tail) = conditional
+        && (!matches!(
+            file.ast().expressions().get(tail.condition).ok()?.payload(),
+            Expression::Name
+        ) || !matches!(
+            typed
+                .expression_type(unit(tail.condition))
+                .and_then(|ty| typed.types().get(ty)),
+            Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
+        ))
+    {
+        return None;
+    }
+    let consumers = if tail_jump(file, *while_id).is_some() || conditional.is_some() {
         &elements[..elements.len() - 1]
     } else {
         elements.as_slice()
@@ -215,6 +229,25 @@ pub(in crate::ssa) fn tail_jump(
     file: &ParsedFile,
     statement: StatementId,
 ) -> Option<(lang_frontend::ast::ExpressionId, JumpKind)> {
+    let expression = tail_expression(file, statement)?;
+    let kind = match file.ast().expressions().get(expression).ok()?.payload() {
+        Expression::Continue { .. } => JumpKind::Continue,
+        Expression::Break { .. } => JumpKind::Break,
+        _ => return None,
+    };
+    Some((expression, kind))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ssa) enum JumpKind {
+    Continue,
+    Break,
+}
+
+fn tail_expression(
+    file: &ParsedFile,
+    statement: StatementId,
+) -> Option<lang_frontend::ast::ExpressionId> {
     let Statement::While { body, .. } = file.ast().statements().get(statement).ok()?.payload()
     else {
         return None;
@@ -231,16 +264,54 @@ pub(in crate::ssa) fn tail_jump(
     else {
         return None;
     };
-    let kind = match file.ast().expressions().get(*expression).ok()?.payload() {
-        Expression::Continue { .. } => JumpKind::Continue,
-        Expression::Break { .. } => JumpKind::Break,
-        _ => return None,
-    };
-    Some((*expression, kind))
+    Some(*expression)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::ssa) enum JumpKind {
-    Continue,
-    Break,
+#[derive(Clone, Copy)]
+pub(in crate::ssa) struct ConditionalBreak {
+    pub(in crate::ssa) control: lang_frontend::ast::ExpressionId,
+    pub(in crate::ssa) condition: lang_frontend::ast::ExpressionId,
+    pub(in crate::ssa) jump: lang_frontend::ast::ExpressionId,
+}
+
+/// Exact structural candidate only; typed and per-binding authority comes from `admitted`.
+pub(in crate::ssa) fn conditional_break(
+    file: &ParsedFile,
+    statement: StatementId,
+) -> Option<ConditionalBreak> {
+    let control = tail_expression(file, statement)?;
+    let Expression::If {
+        condition,
+        then_branch,
+        else_branch: None,
+        else_span: None,
+        ..
+    } = file.ast().expressions().get(control).ok()?.payload()
+    else {
+        return None;
+    };
+    let Statement::ControlBody { elements } =
+        file.ast().statements().get(*then_branch).ok()?.payload()
+    else {
+        return None;
+    };
+    let [only] = elements.as_slice() else {
+        return None;
+    };
+    let Statement::Expression { expression: jump } =
+        file.ast().statements().get(*only).ok()?.payload()
+    else {
+        return None;
+    };
+    if !matches!(
+        file.ast().expressions().get(*jump).ok()?.payload(),
+        Expression::Break { .. }
+    ) {
+        return None;
+    }
+    Some(ConditionalBreak {
+        control,
+        condition: *condition,
+        jump: *jump,
+    })
 }

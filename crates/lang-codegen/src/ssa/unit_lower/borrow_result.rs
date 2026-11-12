@@ -374,6 +374,16 @@ fn validate_binding(
             allowed,
         );
     }
+    let invariant = crate::ssa::borrow_result_support::invariant_while::admitted(
+        file, names, typed, owned, fact,
+    );
+    if let Some(statement) = invariant
+        && let Some(tail) =
+            crate::ssa::borrow_result_support::invariant_while::conditional_break(file, statement)
+        && let Some(allowed) = &mut allowed_controls
+    {
+        allowed.insert(tail.control.index());
+    }
     let closed_whiles =
         crate::ssa::borrow_result_support::closed_while::following(file, typed, owned, fact);
     crate::ssa::borrow_result_support::binding(
@@ -387,11 +397,7 @@ fn validate_binding(
         builtin,
         call_allowed,
         |statement| {
-            if closed_whiles.contains(&statement)
-                || crate::ssa::borrow_result_support::invariant_while::admitted(
-                    file, names, typed, owned, fact,
-                ) == Some(statement)
-            {
+            if closed_whiles.contains(&statement) || invariant == Some(statement) {
                 return true;
             }
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);

@@ -108,15 +108,28 @@ impl Builder<'_, '_> {
         } else {
             crate::ssa::borrow_result_support::invariant_while::JumpKind::Continue
         };
+        let selected = crate::ssa::borrow_result_support::invariant_while::tail_jump(
+            self.inputs.parsed,
+            frame.statement.statement(),
+        )
+        .or_else(|| {
+            crate::ssa::borrow_result_support::invariant_while::conditional_break(
+                self.inputs.parsed,
+                frame.statement.statement(),
+            )
+            .map(|tail| {
+                (
+                    tail.jump,
+                    crate::ssa::borrow_result_support::invariant_while::JumpKind::Break,
+                )
+            })
+        });
         if frame.seq_for.is_some()
             || frame.map_for.is_some()
             || frame.statement.source_unit() != self.inputs.source_unit
             || frame.loans != self.pending_call_loans.len()
             || frame.views != self.active_views.len()
-            || crate::ssa::borrow_result_support::invariant_while::tail_jump(
-                self.inputs.parsed,
-                frame.statement.statement(),
-            ) != Some((expression, kind))
+            || selected != Some((expression, kind))
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
@@ -145,5 +158,27 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         self.invariant_while_boundary(Some(&continued.lease), span)
+    }
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn invariant_if_entry(
+        &self,
+        control: ExpressionId,
+        span: Span,
+    ) -> Result<Option<InvariantLease>, LoweringError> {
+        let Some(frame) = self.loops.last() else {
+            return Ok(None);
+        };
+        let Some(tail) = crate::ssa::borrow_result_support::invariant_while::conditional_break(
+            self.inputs.parsed,
+            frame.statement.statement(),
+        ) else {
+            return Ok(None);
+        };
+        if tail.control != control {
+            return Ok(None);
+        }
+        self.invariant_while_entry(frame.statement.statement(), span)
     }
 }
