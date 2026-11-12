@@ -354,7 +354,9 @@ impl Emitted {
         }
         for (_, geometry, roots) in plans.roles() {
             if geometry.iter().any(|b| !blocks.contains_key(b))
-                || roots.iter().any(|s| !parameters[&geometry[0]].contains(s))
+                || parameters
+                    .get(&geometry[0])
+                    .is_none_or(|p| roots.iter().any(|s| !p.contains(s)))
             {
                 return Err(invalid(span));
             }
@@ -375,17 +377,18 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
-        if let Some(anchor) = &plans.leading
-            && (anchor
-                .scalar
-                .is_some_and(|s| s.iter().any(|r| !parameters[&anchor.blocks[0]].contains(r)))
-                || anchor.blocks.iter().any(|b| !blocks.contains_key(b))
+        if let Some(anchor) = &plans.leading {
+            let header = parameters
+                .get(&anchor.blocks[0])
+                .ok_or_else(|| invalid(span))?;
+            if anchor.blocks.iter().any(|b| !blocks.contains_key(b))
                 || anchor
-                    .roots
-                    .iter()
-                    .any(|r| !parameters[&anchor.blocks[0]].contains(r)))
-        {
-            return Err(invalid(span));
+                    .scalar
+                    .is_some_and(|s| s.iter().any(|r| !header.contains(r)))
+                || anchor.roots.iter().any(|r| !header.contains(r))
+            {
+                return Err(invalid(span));
+            }
         }
         for link in &plans.links {
             let next = plans

@@ -226,3 +226,50 @@ fn ci_only_leading_scalar_missing_completion_preserves_chain_without_entry_autho
         .unwrap();
     assert!(view.leading().scalar_entry().is_none());
 }
+
+#[test]
+fn ci_only_leading_scalar_duplicate_reordered_and_reentered_events_retract_only_entry() {
+    let text = source("", "", "n");
+    let fixture = Fixture::new(&[("leading-scalar-order.ko", &text)]);
+    let baseline = fixture.shared();
+    let view = baseline
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.control_chain_bodies_v1())
+        .unwrap();
+    let leading = view.leading();
+    let (symbols, expressions, declarations) = leading.scalar_entry().unwrap();
+    let event = |i: usize| {
+        (
+            leading.control(),
+            declarations[i],
+            symbols[i],
+            expressions[i],
+        )
+    };
+    for phase in 1..=3 {
+        super::super::leading_entry::inject_fault(Some((phase, event(0), event(1))));
+        let owned = fixture.shared();
+        let hits = super::super::leading_entry::hits();
+        super::super::leading_entry::inject_fault(None);
+        assert!(
+            hits > 0,
+            "phase {phase} did not hit the actual first-control event"
+        );
+        let observation = owned
+            .owner_observations()
+            .iter()
+            .find(|o| o.control_chain_bodies_v1().is_some())
+            .unwrap();
+        assert!(observation.is_consistent());
+        assert!(
+            observation
+                .control_chain_bodies_v1()
+                .unwrap()
+                .leading()
+                .scalar_entry()
+                .is_none(),
+            "phase {phase}"
+        );
+    }
+}

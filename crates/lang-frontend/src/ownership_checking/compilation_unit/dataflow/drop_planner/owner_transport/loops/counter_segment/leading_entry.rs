@@ -53,6 +53,14 @@ impl LeadingEntry {
         if skip((self.control, statement, symbol, expression)) {
             return;
         }
+        #[cfg(test)]
+        if let Some((phase, second)) = event_fault((self.control, statement, symbol, expression)) {
+            if phase == 1 {
+                self.tracker.completed(statement, symbol, expression, false);
+            } else if phase == 2 {
+                self.tracker.completed(second.1, second.2, second.3, false);
+            }
+        }
         self.tracker.completed(statement, symbol, expression, false);
     }
     pub(in super::super) fn enter(&mut self, control: UnitStatementId) {
@@ -63,6 +71,21 @@ impl LeadingEntry {
             self.valid = false;
         }
         self.entered = true;
+        #[cfg(test)]
+        if self.valid
+            && self
+                .tracker
+                .sites()
+                .is_some_and(|(symbols, expressions, statements)| {
+                    enter_fault(
+                        (control, statements[0], symbols[0], expressions[0]),
+                        (control, statements[1], symbols[1], expressions[1]),
+                    )
+                })
+        {
+            // Re-enter the real transition, rather than directly changing its validity bit.
+            self.enter(control);
+        }
     }
     pub(super) fn sites(
         &self,
@@ -105,4 +128,30 @@ pub(super) fn inject_skip(event: Option<SkippedEvent>) {
 #[cfg(test)]
 pub(super) fn hits() -> usize {
     HITS.get()
+}
+
+#[cfg(test)]
+thread_local! { static FAULT: std::cell::Cell<Option<(usize, SkippedEvent, SkippedEvent)>> = const { std::cell::Cell::new(None) }; }
+#[cfg(test)]
+fn event_fault(event: SkippedEvent) -> Option<(usize, SkippedEvent)> {
+    let (phase, first, second) = FAULT.get()?;
+    if first != event || !matches!(phase, 1 | 2) {
+        return None;
+    }
+    HITS.set(HITS.get() + 1);
+    Some((phase, second))
+}
+#[cfg(test)]
+fn enter_fault(first: SkippedEvent, second: SkippedEvent) -> bool {
+    if FAULT.get() == Some((3, first, second)) {
+        HITS.set(HITS.get() + 1);
+        true
+    } else {
+        false
+    }
+}
+#[cfg(test)]
+pub(super) fn inject_fault(fault: Option<(usize, SkippedEvent, SkippedEvent)>) {
+    FAULT.set(fault);
+    HITS.set(0);
 }
