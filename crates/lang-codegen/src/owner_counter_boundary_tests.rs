@@ -437,3 +437,67 @@ fn ci_only_counter_batch_rejects_foreign_permit_and_late_second_failure_atomical
         );
     }
 }
+
+fn longer_counter_source(count: usize) -> String {
+    let segments = (0..count).map(|i| {
+            let initial = if i == 0 { "seed" } else { "\"a\"" };
+            format!(r#"var n{i} = n; var g{i} = n{i} > 0; var a{i} = {initial}; var b{i} = "b";
+                while(g{i}) {{ val x = replace(&a{i}, "x"); val y = replace(&b{i}, "y"); n{i} = n{i} - 1; g{i} = n{i} > 0 }};"#)
+        }).collect::<Vec<_>>().join(" ");
+    format!(
+        "fun run(n: Int, own seed: String) {{ {segments} }}\nfun entry() {{ run(0, \"seed\"); run(2, \"seed\"); println(\"ok\") }}"
+    )
+}
+#[test]
+fn longer_counter_batches_consume_all_control_qualified_plans() {
+    for count in [3, 4] {
+        let text = longer_counter_source(count);
+        let source = UnitSource::analyze("long-counter-plans.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "counter-tail-complete-boundary-audit")
+                .count(),
+            count
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "counter-entry-permit-consumed")
+                .count(),
+            count * 2
+        );
+        assert!(actions.contains(&("counter-batch-complete-audit", count)));
+        super::super::assert_native_output(&source, b"ok\n");
+    }
+}
+
+#[test]
+fn ci_only_longer_counter_batch_rejects_foreign_member_and_middle_failure() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let text = longer_counter_source(4);
+    let source = UnitSource::analyze("long-counter-fault.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::CounterPermitWrongIndex,
+        OwnerFault::CounterPermitWrongControl,
+        OwnerFault::CounterPermitOtherMember,
+        OwnerFault::CounterBatchSecondLateAbort,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| !kind.starts_with("counter-tail-")
+                    && *kind != "counter-batch-complete-audit")
+        );
+    }
+}

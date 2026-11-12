@@ -112,7 +112,7 @@ catalog或重复进入转Rejected。单候选还需真实完成方程才可Compl
 真实双counter回归可观察首项入口及normal方程；旧observation首次Unsupported仍清空
 其definitions/events，第二项仍不走旧入口capture，不恢复Complete或注入ValueState owner。
 
-现在另有私有第二段catalog：仅两个精确顶层候选、两者之间全为声明时建立采集范围；
+现在另有私有第二段catalog：至少两个精确顶层候选、每对相邻候选之间全为声明时为每个后续段建立独立采集范围；
 在真实首声明入口核实owned、borrow、pending、closure等完整边界为空才启动。
 实际String完成分配独立namespace的dense token；实际Name move和binding转移该token，
 实际named drop入口移除它并记录生命周期事件。死前缀producer保留在catalog但不在活根向量；
@@ -127,21 +127,27 @@ token不来自清理、AST枚举、旧observation恢复或上一循环first-body
 这些是编译遍历中的实际阶段事件，不是多次运行迭代trace；独立catalog identity也不是
 原observation的analysis identity，不放宽旧getter的Arc检查。
 
-`counter_batch_evidence_v1`现在只读发布精确两成员闭合组：第二while必须是函数最后语句，
-每个真实退出均须完整空边界和全根dead分区。构建时固定原analysis与第二catalog各自identity；
+`counter_batch_evidence_v1`现在只读发布完整顺序多成员闭合组：最后while必须是函数最后语句，
+每个真实退出均须完整空边界和全根dead分区。构建时固定原analysis与每个后续catalog各自identity，控制与输入identity向量必须与成员长度完全一致；
 实际退出按control顺序封存，各成员保留自己的命名空间，不拼成假单catalog。缺失、重复、
 乱序或任一成员失败立即清空全组；最终seal核对控制、成员身份、callable、根及body catalog
 独立性。deferred清除整组，旧单counter及其他loop getter不投影该组。
 后端现在对完整入口闭合批次建立多Plan registry：精确按成员index+control选择，
 entry、Replace、返回binding、body Drop和false-exit Drop的permit均携带成员键，domain
-fallback不重选成员；多个匹配拒绝，不把成员局部索引当全组身份。首成员exit块兼作第二段
-前缀也按实际几何检查。所有成员先完成原有scalar/body/entry/exit核验，再统一复核全部
+fallback不重选成员；多个匹配拒绝，不把成员局部索引当全组身份。相邻成员exit块兼作下一段
+前缀也按实际几何检查；非相邻成员不能共享块，全组根槽互斥。所有成员先完成原有scalar/body/entry/exit核验，再统一复核全部
 Complete身份及checked success/abort边，最后才提交最终成员与全组receipt；后项失败不留下
 首项最终完成receipt。当前提交阶段不再修改CFG或Plan，这一条件是原子提交合同的一部分。
 首成员入口现在可为函数入口块内的owned Parameter：最终边界再次核对Value mode、receiver
 偏移后的原parameter slot与实际Alias前缀，追溯中拒绝额外消费、非Alias或错误根；并复用
-已消费入口permit与实际header根一致性。第二成员仍只接纳独立literal来源，不扩展跨控制参数
+已消费入口permit与实际header根一致性。所有后续成员仍只接纳独立literal来源，不扩展跨控制参数
 运输。未知来源批次整体不选择，不只挑支持的成员；旧单Plan非入口块参数保留不完整边界
 回退。真实native覆盖直接/多步Alias参数的非正零轮及正数迭代，静态receipt不是运行时
 逐轮trace。这是受限多Plan实际发射消费，不是一般跨轮归纳、嵌套loop或
 跨段活根运输，也没有退休旧单根权限。
+
+顺序三段/四段真实输入现可完成整组实际消费（首段允许上述owned参数），逐成员计数
+入口与完整边界receipt，并执行零轮/两轮native回归。中段根覆盖不完整即拒绝整组，
+不投影首段或跳过中段；仅CI执行的负控另覆盖短/空身份向量、外来成员permit和
+中段checked失败边破坏。该推广仍要求每段退出全死、段间空资源边界和独立fresh catalog，
+不代表跨段活根运输、嵌套或任意控制流得到支持。

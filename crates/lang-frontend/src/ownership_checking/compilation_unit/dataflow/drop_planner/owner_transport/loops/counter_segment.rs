@@ -20,7 +20,7 @@ pub(super) struct Segment {
 // Reuse the exact counter discovery contract; do not infer tokens from this shape.
 pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
     let candidates = root_incoming::counter_prefixes(checker, item);
-    if candidates.len() != 2 {
+    if candidates.len() < 2 {
         return Vec::new();
     }
     let ast = checker.parsed.ast();
@@ -44,59 +44,57 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
     let Statement::Block { elements } = node.payload() else {
         return Vec::new();
     };
-    let Some(first) = elements
-        .iter()
-        .position(|id| *id == candidates[0].0.statement())
-    else {
-        return Vec::new();
-    };
-    let Some(second) = elements
-        .iter()
-        .position(|id| *id == candidates[1].0.statement())
-    else {
-        return Vec::new();
-    };
-    if first + 1 >= second
-        || !elements[first + 1..second].iter().all(|id| {
-            ast.statements()
-                .get(*id)
-                .ok()
-                .is_some_and(|node| matches!(node.payload(), Statement::LocalVariable { .. }))
-        })
-    {
-        return Vec::new();
+    let mut segments = Vec::new();
+    for pair in candidates.windows(2) {
+        let Some(first) = elements.iter().position(|id| *id == pair[0].0.statement()) else {
+            return Vec::new();
+        };
+        let Some(second) = elements.iter().position(|id| *id == pair[1].0.statement()) else {
+            return Vec::new();
+        };
+        if first + 1 >= second
+            || !elements[first + 1..second].iter().all(|id| {
+                ast.statements()
+                    .get(*id)
+                    .ok()
+                    .is_some_and(|node| matches!(node.payload(), Statement::LocalVariable { .. }))
+            })
+        {
+            return Vec::new();
+        }
+        let Ok(node) = ast.statements().get(elements[second]) else {
+            return Vec::new();
+        };
+        let Statement::While { condition, .. } = node.payload() else {
+            return Vec::new();
+        };
+        segments.push(Segment {
+            condition: checker.unit_expression(*condition),
+            admitted: false,
+            ends_function: second + 1 == elements.len(),
+            statements: elements[first + 1..=second]
+                .iter()
+                .map(|id| UnitStatementId::new(checker.source_unit, *id))
+                .collect(),
+            next: 0,
+            active: false,
+            invalid: false,
+            captured: false,
+            // Separate namespace: dense indexes cannot collide with cleared legacy IDs.
+            catalog: UnitOwnerProducerCatalogV1 {
+                identity: std::sync::Arc::new(()),
+                callable: UnitOwnerCallable::Function(crate::type_checking::UnitItemId::new(
+                    checker.source_unit,
+                    item,
+                )),
+                definitions: Vec::new(),
+            },
+            events: Vec::new(),
+            pending: None,
+            bindings: Vec::new(),
+        });
     }
-    let Ok(node) = ast.statements().get(elements[second]) else {
-        return Vec::new();
-    };
-    let Statement::While { condition, .. } = node.payload() else {
-        return Vec::new();
-    };
-    vec![Segment {
-        condition: checker.unit_expression(*condition),
-        admitted: false,
-        ends_function: second + 1 == elements.len(),
-        statements: elements[first + 1..=second]
-            .iter()
-            .map(|id| UnitStatementId::new(checker.source_unit, *id))
-            .collect(),
-        next: 0,
-        active: false,
-        invalid: false,
-        captured: false,
-        // Separate namespace: dense indexes cannot collide with cleared legacy IDs.
-        catalog: UnitOwnerProducerCatalogV1 {
-            identity: std::sync::Arc::new(()),
-            callable: UnitOwnerCallable::Function(crate::type_checking::UnitItemId::new(
-                checker.source_unit,
-                item,
-            )),
-            definitions: Vec::new(),
-        },
-        events: Vec::new(),
-        pending: None,
-        bindings: Vec::new(),
-    }]
+    segments
 }
 impl Segment {
     fn matches_state(&self, state: &ValueState) -> bool {
@@ -159,13 +157,17 @@ impl Segment {
     }
 }
 impl ControlTransactions {
-    pub(super) fn counter_batch_identity(&self) -> Option<std::sync::Arc<()>> {
-        let [segment] = self.counter_segments.as_slice() else {
+    pub(super) fn counter_batch_identities(&self, count: usize) -> Option<Vec<std::sync::Arc<()>>> {
+        if self.counter_segments.len() + 1 != count || !self.counter_segments.last()?.ends_function
+        {
             return None;
-        };
-        segment
-            .ends_function
-            .then(|| segment.catalog.identity.clone())
+        }
+        Some(
+            self.counter_segments
+                .iter()
+                .map(|segment| segment.catalog.identity.clone())
+                .collect(),
+        )
     }
 
     pub(in super::super::super) fn segment_statement(

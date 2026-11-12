@@ -33,14 +33,17 @@ impl ControlTransactions {
                         .collect(),
                     ..Self::default()
                 };
-                if let ([(first, _, _), (second, _, _)], Some(second_identity)) = (
-                    collection.counter_candidates.as_slice(),
-                    collection.counter_batch_identity(),
-                ) {
+                if let Some(identities) =
+                    collection.counter_batch_identities(collection.counter_candidates.len())
+                {
                     collection.counter_batch = Some(super::counter_batch::Batch::new(
                         identity,
-                        [*first, *second],
-                        second_identity,
+                        collection
+                            .counter_candidates
+                            .iter()
+                            .map(|(control, _, _)| *control)
+                            .collect(),
+                        identities,
                     ));
                 }
                 collection

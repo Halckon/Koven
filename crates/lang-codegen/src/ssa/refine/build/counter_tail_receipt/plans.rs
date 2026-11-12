@@ -18,11 +18,11 @@ pub(in super::super) struct Plans<'a> {
 impl<'a> Plans<'a> {
     #[cfg(test)]
     pub(super) fn corrupt_key(&self, key: &mut Key) {
-        if self.entries.len() != 2 {
+        if self.entries.len() < 2 {
             return;
         }
         use owner_consumer_test_support::{OwnerFault, take_fault};
-        let other = 1 - key.index;
+        let other = (key.index + 1) % self.entries.len();
         if take_fault(OwnerFault::CounterPermitWrongIndex) {
             key.index = other;
         }
@@ -87,17 +87,24 @@ impl<'a> Plans<'a> {
         if !self.batch {
             return Ok(());
         }
-        let [first, second] = self.entries.as_slice() else {
-            return Err(error(LoweringErrorKind::InvalidModel, span));
-        };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let left = first.geometry.ok_or_else(fail)?;
-        let right = second.geometry.ok_or_else(fail)?;
-        if left[4] != right[0]
-            || left[..4].iter().any(|block| right.contains(block))
-            || first.roots.iter().any(|root| second.roots.contains(root))
-        {
+        if self.entries.len() < 2 {
             return Err(fail());
+        }
+        for (index, plan) in self.entries.iter().enumerate() {
+            let right = plan.geometry.ok_or_else(fail)?;
+            for (prior_index, prior) in self.entries[..index].iter().enumerate() {
+                let left = prior.geometry.ok_or_else(fail)?;
+                let adjacent = prior_index + 1 == index;
+                if (adjacent && left[4] != right[0])
+                    || left.iter().enumerate().any(|(i, block)| {
+                        right.contains(block) && !(adjacent && i == 4 && *block == right[0])
+                    })
+                    || prior.roots.iter().any(|root| plan.roots.contains(root))
+                {
+                    return Err(fail());
+                }
+            }
         }
         Ok(())
     }

@@ -2,19 +2,19 @@
 use super::*;
 use std::sync::Arc;
 
-/// Two independently collected closed counter contracts, not runtime induction or lowering permission.
+/// Multiple independently collected closed counter contracts, not runtime induction or lowering permission.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerCounterBatchEvidenceV1 {
     identity: Arc<()>,
-    controls: [UnitStatementId; 2],
-    inputs: [Arc<()>; 2],
+    controls: Vec<UnitStatementId>,
+    inputs: Vec<Arc<()>>,
     members: Vec<UnitOwnerCounterTailEvidenceV1>,
 }
 impl UnitOwnerCounterBatchEvidenceV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
         identity: Arc<()>,
-        controls: [UnitStatementId; 2],
-        inputs: [Arc<()>; 2],
+        controls: Vec<UnitStatementId>,
+        inputs: Vec<Arc<()>>,
         members: Vec<UnitOwnerCounterTailEvidenceV1>,
     ) -> Option<Self> {
         let value = Self {
@@ -31,12 +31,16 @@ impl UnitOwnerCounterBatchEvidenceV1 {
     }
     /// Verify exact expected identities, complete dead-root exits and disjoint members.
     pub fn is_consistent(&self) -> bool {
-        self.members.len() == 2
-            && self.controls[0] != self.controls[1]
+        self.members.len() >= 2
+            && self.controls.len() == self.members.len()
+            && self.inputs.len() == self.members.len()
             && Arc::ptr_eq(&self.identity, &self.inputs[0])
-            && !Arc::ptr_eq(&self.inputs[0], &self.inputs[1])
             && self.members.iter().enumerate().all(|(index, member)| {
-                member.statement() == self.controls[index]
+                !self.controls[..index].contains(&self.controls[index])
+                    && self.inputs[..index]
+                        .iter()
+                        .all(|prior| !Arc::ptr_eq(prior, &self.inputs[index]))
+                    && member.statement() == self.controls[index]
                     && Arc::ptr_eq(&member.analysis, &self.inputs[index])
                     && member.is_consistent()
                     && member.false_exit_partition().is_some_and(|(live, drops)| {
@@ -58,7 +62,8 @@ impl UnitOwnerObservation {
     /// Atomic non-authorizing counter audit group; unsupported legacy state is retained.
     pub fn counter_batch_evidence_v1(&self) -> Option<&UnitOwnerCounterBatchEvidenceV1> {
         let batch = self.counter_batch.as_deref()?;
-        (self.counter_tail.is_none()
+        (batch.is_consistent()
+            && self.counter_tail.is_none()
             && self.closed_loop_batch.is_none()
             && self.multi_root_boundary.is_none()
             && self.loop_value.is_none()
@@ -75,8 +80,7 @@ impl UnitOwnerObservation {
             && matches!(self.status, super::super::UnitOwnerObservationStatus::Unsupported {
                 point: UnitDropPoint::AfterStatement(control) | UnitDropPoint::LoopExit(control),
                 reason: super::super::UnitOwnerUnsupportedReason::Syntax,
-            } if control == batch.controls[0])
-            && batch.is_consistent())
+            } if control == batch.controls[0]))
         .then_some(batch)
     }
 }
@@ -108,6 +112,33 @@ mod tests {
         assert!(observation.closed_loop_batch_v1().is_none());
         assert!(observation.loop_observation_v1().is_none());
     }
+    #[test]
+    fn longer_closed_counter_groups_publish_every_member_or_none() {
+        for count in [3, 4] {
+            let segments = (0..count).map(|i| format!(r#"var n{i} = n; var g{i} = n{i} > 0; var a{i} = "a"; var b{i} = "b";
+                while(g{i}) {{ val x = replace(&a{i}, "x"); val y = replace(&b{i}, "y"); n{i} = n{i} - 1; g{i} = n{i} > 0 }};"#)).collect::<Vec<_>>().join(" ");
+            let text = format!("fun run(n: Int) {{ {segments} }}");
+            for broken in [false, true] {
+                let source = if broken {
+                    text.replace("replace(&b1,", "replace(&a1,")
+                } else {
+                    text.clone()
+                };
+                let fixture = Fixture::new(&[("long-counter-batch.ko", &source)]);
+                let owned = fixture.shared();
+                assert!(owned.diagnostics().is_empty());
+                let observation = &owned.owner_observations()[0];
+                assert!(observation.counter_tail_evidence_v1().is_none());
+                if broken {
+                    assert!(observation.counter_batch_evidence_v1().is_none());
+                } else {
+                    let batch = observation.counter_batch_evidence_v1().unwrap();
+                    assert!(batch.is_consistent());
+                    assert_eq!(batch.members().len(), count);
+                }
+            }
+        }
+    }
     // Local compilation only. Remote CI executes mutations of sealed products.
     #[test]
     fn ci_only_counter_batch_rejects_partial_reordered_foreign_and_colliding_members() {
@@ -116,6 +147,20 @@ mod tests {
         let owned = fixture.shared();
         let observation = &owned.owner_observations()[0];
         let batch = observation.counter_batch_evidence_v1().unwrap();
+        let mut empty_controls = observation.clone();
+        empty_controls
+            .counter_batch
+            .as_mut()
+            .unwrap()
+            .controls
+            .clear();
+        assert!(empty_controls.counter_batch_evidence_v1().is_none());
+        let mut missing_control = batch.clone();
+        missing_control.controls.pop();
+        assert!(!missing_control.is_consistent());
+        let mut missing_input = batch.clone();
+        missing_input.inputs.pop();
+        assert!(!missing_input.is_consistent());
         let mut partial = batch.clone();
         partial.members.pop();
         assert!(!partial.is_consistent());
