@@ -3,7 +3,9 @@ mod private_control_chain;
 pub(in crate::ownership_checking::compilation_unit) use private_control_chain::{
     PrivateChainMember, PrivateControlChain,
 };
-pub use private_control_chain::{UnitOwnerControlChainBodiesV1, UnitOwnerControlChainBodyV1};
+pub use private_control_chain::{
+    UnitOwnerControlChainBodiesV1, UnitOwnerControlChainBodyV1, UnitOwnerControlChainLeadingV1,
+};
 mod control_bridge;
 pub use control_bridge::{
     UnitOwnerBridgeCounterEntryV1, UnitOwnerBridgeCounterTailV1, UnitOwnerControlBridgeEvidenceV1,

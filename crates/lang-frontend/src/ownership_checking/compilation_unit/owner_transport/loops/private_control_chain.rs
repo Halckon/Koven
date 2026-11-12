@@ -244,6 +244,33 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
         self.normal.header_roots()
     }
 }
+/// Original leading-control geometry and completed root mapping; no entry-token authority.
+#[derive(Clone, Copy, Debug)]
+pub struct UnitOwnerControlChainLeadingV1<'a> {
+    control: UnitStatementId,
+    condition: UnitExpressionId,
+    body: UnitStatementId,
+    sources: &'a [UnitSymbolId],
+    targets: &'a [UnitSymbolId],
+}
+impl<'a> UnitOwnerControlChainLeadingV1<'a> {
+    /// Actual first control, not a synthesized group member.
+    pub fn control(&self) -> UnitStatementId {
+        self.control
+    }
+    /// Actual first control condition.
+    pub fn condition(&self) -> UnitExpressionId {
+        self.condition
+    }
+    /// Actual first control body.
+    pub fn body(&self) -> UnitStatementId {
+        self.body
+    }
+    /// Completed source-to-target root mapping of the first link.
+    pub fn roots(&self) -> (&'a [UnitSymbolId], &'a [UnitSymbolId]) {
+        (self.sources, self.targets)
+    }
+}
 /// The second and third bodies of one validated chain, in control order.
 /// Consumers must select and complete both members atomically, never fall back
 /// to independently authorizing one member. No entry token is synthesized.
@@ -251,8 +278,13 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
 pub struct UnitOwnerControlChainBodiesV1<'a> {
     members: [UnitOwnerControlChainBodyV1<'a>; 2],
     link: (&'a [UnitSymbolId], &'a [UnitSymbolId]),
+    leading: UnitOwnerControlChainLeadingV1<'a>,
 }
 impl<'a> UnitOwnerControlChainBodiesV1<'a> {
+    /// Borrow the first link geometry/mapping without granting its body permission.
+    pub fn leading(&self) -> UnitOwnerControlChainLeadingV1<'a> {
+        self.leading
+    }
     /// Original completed second-to-third source/target mapping, including sparse roots.
     pub fn inter_member_roots(&self) -> (&'a [UnitSymbolId], &'a [UnitSymbolId]) {
         self.link
@@ -301,6 +333,13 @@ impl UnitOwnerObservation {
         Some(UnitOwnerControlChainBodiesV1 {
             members: [second, third],
             link: (&chain.sources, &chain.targets),
+            leading: UnitOwnerControlChainLeadingV1 {
+                control: chain.first.prior().statement(),
+                condition: chain.first.prior().condition(),
+                body: chain.first.prior().body(),
+                sources: chain.first.sources(),
+                targets: chain.first.targets(),
+            },
         })
     }
 }

@@ -353,9 +353,9 @@ fn chain_ssa_members_transport_sparse_roots_and_retired_values() {
             assert_eq!(
                 actions
                     .iter()
-                    .filter(|(kind, n)| *kind == "control-chain-link-complete" && *n == 2)
+                    .filter(|(kind, _)| *kind == "control-chain-link-complete")
                     .count(),
-                1
+                2
             );
             super::super::super::assert_native_output(&source, b"");
         }
@@ -397,6 +397,7 @@ fn ci_only_chain_link_wrong_target_rejects_group_receipt() {
     for fault in [
         crate::ssa::OwnerFault::ChainSsaWrongLinkTarget,
         crate::ssa::OwnerFault::ChainSsaLinkWrongEdgeArguments,
+        crate::ssa::OwnerFault::ChainSsaLeadingLinkWrongEdgeArguments,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))

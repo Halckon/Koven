@@ -15,6 +15,7 @@ pub(crate) enum OwnerFault {
     ChainSsaFoldWrongChecked,
     ChainSsaWrongLinkTarget,
     ChainSsaLinkWrongEdgeArguments,
+    ChainSsaLeadingLinkWrongEdgeArguments,
     MissingCounterEntryPermit,
     CounterEntryWrongSource,
     CounterEntryDuplicateCommit,

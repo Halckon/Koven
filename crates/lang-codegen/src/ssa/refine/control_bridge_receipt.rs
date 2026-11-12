@@ -18,7 +18,8 @@ fn invalid(span: Span) -> LoweringError {
 pub(super) struct Plans {
     plan: Option<Plan>,
     group: Vec<Member>,
-    link: Option<Link>,
+    leading: Option<Anchor>,
+    links: Vec<Link>,
 }
 #[derive(Clone, Debug)]
 struct Plan {
@@ -34,6 +35,13 @@ pub(super) struct Member {
     pub control: UnitStatementId,
     pub blocks: [BlockRef; 4],
     pub checked: [BlockRef; 2],
+    pub roots: Vec<Slot>,
+}
+/// Actual first-control transport anchor; it does not authorize that body's replacements.
+#[derive(Clone, Debug)]
+pub(super) struct Anchor {
+    pub control: UnitStatementId,
+    pub blocks: [BlockRef; 4],
     pub roots: Vec<Slot>,
 }
 /// Actual source-to-target alias mapping between the two admitted members.
@@ -73,7 +81,8 @@ impl Plans {
         }
         Ok(Self {
             group: Vec::new(),
-            link: None,
+            leading: None,
+            links: Vec::new(),
             plan: Some(Plan {
                 prior,
                 next,
@@ -85,7 +94,8 @@ impl Plans {
     }
     pub(super) fn seal_group(
         group: Vec<Member>,
-        link: Link,
+        leading: Anchor,
+        links: Vec<Link>,
         span: Span,
     ) -> Result<Self, LoweringError> {
         if group.len() != 2
@@ -107,26 +117,52 @@ impl Plans {
         {
             return Err(invalid(span));
         }
-        if link.from_control != group[0].control
-            || link.to_control != group[1].control
-            || link.block != group[0].blocks[3]
-            || link.pairs.len() != group[1].roots.len()
-            || link.pairs.iter().enumerate().any(|(i, (source, target))| {
-                !group[0].roots.contains(source)
-                    || *target != group[1].roots[i]
-                    || link.pairs[..i]
+        if leading.roots.len() < 2
+            || leading.roots.iter().collect::<BTreeSet<_>>().len() != leading.roots.len()
+            || leading.blocks.iter().collect::<BTreeSet<_>>().len() != leading.blocks.len()
+            || group.iter().any(|m| {
+                m.control == leading.control
+                    || m.control.source_unit() != leading.control.source_unit()
+                    || m.roots.iter().any(|r| leading.roots.contains(r))
+                    || m.blocks
                         .iter()
-                        .any(|(s, t)| s == source || t == target)
+                        .chain(m.checked.iter())
+                        .any(|b| leading.blocks.contains(b))
             })
+            || links.len() != 2
         {
             return Err(invalid(span));
+        }
+        for (index, link) in links.iter().enumerate() {
+            let (control, blocks, roots) = if index == 0 {
+                (leading.control, leading.blocks, &leading.roots)
+            } else {
+                (group[0].control, group[0].blocks, &group[0].roots)
+            };
+            let next = &group[index];
+            if link.from_control != control
+                || link.to_control != next.control
+                || link.block != blocks[3]
+                || link.pairs.len() != next.roots.len()
+                || link.pairs.iter().enumerate().any(|(i, (source, target))| {
+                    !roots.contains(source)
+                        || *target != next.roots[i]
+                        || link.pairs[..i]
+                            .iter()
+                            .any(|(s, t)| s == source || t == target)
+                })
+            {
+                return Err(invalid(span));
+            }
         }
         Ok(Self {
             plan: None,
             group,
-            link: Some(link),
+            leading: Some(leading),
+            links,
         })
     }
+
     fn active(&self) -> bool {
         self.plan.is_some() || !self.group.is_empty()
     }
@@ -178,10 +214,17 @@ impl Plans {
             .group
             .iter()
             .any(|m| m.blocks.contains(&successor) || m.checked.contains(&successor));
-        if let Some(link) = &mut self.link
-            && link.block == successor
-        {
-            link.block = block;
+        for link in &mut self.links {
+            if link.block == successor {
+                link.block = block;
+            }
+        }
+        if let Some(anchor) = &mut self.leading {
+            for b in &mut anchor.blocks {
+                if *b == successor {
+                    *b = block;
+                }
+            }
         }
         for m in &mut self.group {
             for b in m.blocks.iter_mut().chain(m.checked.iter_mut()) {
@@ -211,7 +254,7 @@ impl Plans {
 #[derive(Default)]
 pub(super) struct Emitted {
     caller: Option<FunctionId>,
-    link_observed: bool,
+    links_observed: BTreeSet<(UnitStatementId, UnitStatementId)>,
     blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockRef, Vec<Slot>>,
     current: BTreeMap<BlockRef, BTreeMap<Slot, EntityId>>,
@@ -290,10 +333,23 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
-        if let Some(link) = &plans.link {
-            let last = plans.group.last().ok_or_else(|| invalid(span))?;
+        if let Some(anchor) = &plans.leading
+            && (anchor.blocks.iter().any(|b| !blocks.contains_key(b))
+                || anchor
+                    .roots
+                    .iter()
+                    .any(|r| !parameters[&anchor.blocks[0]].contains(r)))
+        {
+            return Err(invalid(span));
+        }
+        for link in &plans.links {
+            let next = plans
+                .group
+                .iter()
+                .find(|m| m.control == link.to_control)
+                .ok_or_else(|| invalid(span))?;
             if !blocks.contains_key(&link.block)
-                || !matches!(term(link.block), Some(RTerm::Goto(target)) if *target == last.blocks[0])
+                || !matches!(term(link.block), Some(RTerm::Goto(target)) if *target == next.blocks[0])
             {
                 return Err(invalid(span));
             }
@@ -605,7 +661,7 @@ impl Emitted {
             super::build::owner_consumer_test_support::record_action("control-chain-ssa-fault-hit", 2);
         }
         #[cfg(test)]
-        if let Some(link) = &plans.link
+        if let Some(link) = plans.links.last()
             && block == link.block
             && super::build::owner_consumer_test_support::take_fault(
                 super::build::owner_consumer_test_support::OwnerFault::ChainSsaLinkWrongEdgeArguments)
@@ -620,6 +676,23 @@ impl Emitted {
             if a == b || edge.arguments.get(a) == edge.arguments.get(b) || a >= edge.arguments.len() || b >= edge.arguments.len() { return Err(invalid(span)); }
             edge.arguments.swap(a, b);
             super::build::owner_consumer_test_support::record_action("control-chain-link-fault-hit", 2);
+        }
+        #[cfg(test)]
+        if let Some(link) = plans.links.first()
+            && block == link.block
+            && super::build::owner_consumer_test_support::take_fault(
+                super::build::owner_consumer_test_support::OwnerFault::ChainSsaLeadingLinkWrongEdgeArguments) {
+            let next = plans.group.first().ok_or_else(|| invalid(span))?;
+            let positions = &self.parameters[&next.blocks[0]];
+            let a = positions.iter().position(|s| *s == link.pairs[0].1).ok_or_else(|| invalid(span))?;
+            let b = positions.iter().position(|s| *s == link.pairs[1].1).ok_or_else(|| invalid(span))?;
+            let data = function.blocks.iter_mut().find(|b| b.id == self.blocks[&block]).ok_or_else(|| invalid(span))?;
+            let Some(t) = &mut data.terminator else { return Err(invalid(span)); };
+            let TerminatorKind::Branch(edge) = &mut t.kind else { return Err(invalid(span)); };
+            if a == b || a >= edge.arguments.len() || b >= edge.arguments.len()
+                || edge.arguments[a] == edge.arguments[b] { return Err(invalid(span)); }
+            edge.arguments.swap(a,b);
+            super::build::owner_consumer_test_support::record_action("control-chain-link-fault-hit", 3);
         }
         let original = body.blocks.get(block.0).ok_or_else(|| invalid(span))?;
         if self.caller != Some(function.id())
@@ -683,11 +756,14 @@ impl Emitted {
             | (RTerm::RangeReturn { .. }, TerminatorKind::RangeReturn { .. }) => {}
             _ => return Err(invalid(span)),
         }
-        if let Some(link) = &plans.link
-            && block == link.block
-        {
-            let last = plans.group.last().ok_or_else(|| invalid(span))?;
-            if self.link_observed {
+        for link in plans.links.iter().filter(|l| l.block == block) {
+            let last = plans
+                .group
+                .iter()
+                .find(|m| m.control == link.to_control)
+                .ok_or_else(|| invalid(span))?;
+            let key = (link.from_control, link.to_control);
+            if self.links_observed.contains(&key) {
                 return Err(invalid(span));
             }
             let TerminatorKind::Branch(edge) = term else {
@@ -697,9 +773,13 @@ impl Emitted {
                 return Err(invalid(span));
             }
             #[cfg(test)]
-            let corrupt = super::build::owner_consumer_test_support::take_fault(
-                super::build::owner_consumer_test_support::OwnerFault::ChainSsaWrongLinkTarget,
-            );
+            let corrupt = plans
+                .links
+                .last()
+                .is_some_and(|last| last.to_control == link.to_control)
+                && super::build::owner_consumer_test_support::take_fault(
+                    super::build::owner_consumer_test_support::OwnerFault::ChainSsaWrongLinkTarget,
+                );
             #[cfg(test)]
             if corrupt {
                 super::build::owner_consumer_test_support::record_action(
@@ -722,7 +802,7 @@ impl Emitted {
                 }
             }
             self.edge(body, last.blocks[0], edge, current, span)?;
-            self.link_observed = true;
+            self.links_observed.insert(key);
         }
         self.terms.insert(block, term.clone());
         Ok(())
@@ -738,7 +818,12 @@ impl Emitted {
         }
         let roles = plans.roles();
         if self.caller != Some(function.id())
-            || self.link_observed != plans.link.is_some()
+            || self.links_observed.len() != plans.links.len()
+            || plans.links.iter().any(|l| {
+                !self
+                    .links_observed
+                    .contains(&(l.from_control, l.to_control))
+            })
             || self.terms.len() != self.blocks.len()
             || self.replacements.len()
                 != roles.iter().map(|(_, _, roots)| roots.len()).sum::<usize>()
@@ -796,7 +881,7 @@ impl Emitted {
             }
         }
         #[cfg(test)]
-        if let Some(link) = &plans.link {
+        for link in &plans.links {
             super::build::owner_consumer_test_support::record_action(
                 "control-chain-link-complete",
                 link.pairs.len(),

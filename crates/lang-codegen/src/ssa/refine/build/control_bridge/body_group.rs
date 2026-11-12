@@ -1,12 +1,15 @@
 //! One group of normal-body consumers, keyed by actual control, never entry tokens.
 use super::*;
 use lang_frontend::ownership_checking::{
-    UnitDropFact, UnitOwnerControlChainBodyV1, UnitOwnerMultiRootNormalTransportV1,
+    UnitDropFact, UnitOwnerControlChainBodyV1, UnitOwnerControlChainLeadingV1,
+    UnitOwnerMultiRootNormalTransportV1,
 };
 
 pub(in super::super) struct BodyGroup<'a> {
     members: Vec<Member<'a>>,
     link: (&'a [UnitSymbolId], &'a [UnitSymbolId]),
+    leading: UnitOwnerControlChainLeadingV1<'a>,
+    leading_lowered: Option<([BlockRef; 4], Vec<Slot>)>,
 }
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
@@ -65,6 +68,8 @@ impl<'a> BodyGroup<'a> {
         }
         Ok(Some(Self {
             link: group.inter_member_roots(),
+            leading: group.leading(),
+            leading_lowered: None,
             members: group
                 .members()
                 .iter()
@@ -168,6 +173,22 @@ impl Builder<'_, '_> {
         let Some(group) = &mut self.control_chain_bodies else {
             return Ok(());
         };
+        if group.leading.control() == control {
+            if group.leading_lowered.is_some()
+                || group.leading.condition() != condition
+                || group.leading.body() != body
+            {
+                return Err(fail());
+            }
+            let roots = group
+                .leading
+                .roots()
+                .0
+                .iter()
+                .map(|s| self.bindings.get(s).copied().ok_or_else(fail))
+                .collect::<Result<Vec<_>, _>>()?;
+            group.leading_lowered = Some((blocks, roots));
+        }
         for member in &mut group.members {
             if member.evidence.prior_control() == control
                 && member.prior_exit.replace(blocks[3]).is_some()
@@ -345,10 +366,50 @@ impl Builder<'_, '_> {
             block: exit,
             pairs,
         };
+        let (leading_blocks, leading_roots) = group.leading_lowered.as_ref().ok_or_else(fail)?;
+        let first_exit = leading_blocks[3];
+        let mapping = group.leading.roots();
+        if first.counter.map(|c| c.0) != Some(first_exit)
+            || mapping.0.len() != mapping.1.len()
+            || mapping.0.len() != leading_roots.len()
+            || !matches!(self.body.blocks[first_exit.0].terminator, Some((RTerm::Goto(t), _)) if t == prior_blocks[0])
+        {
+            return Err(fail());
+        }
+        let leading_pairs = mapping
+            .1
+            .iter()
+            .enumerate()
+            .map(|(i, target)| {
+                let j = first
+                    .evidence
+                    .roots()
+                    .iter()
+                    .position(|s| s == target)
+                    .ok_or_else(fail)?;
+                let pair = (leading_roots[i], prior_roots[j]);
+                if !super::alias_prefix(&self.body, first_exit, pair.1, pair.0) {
+                    return Err(fail());
+                }
+                Ok(pair)
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let leading = super::super::super::control_bridge_receipt::Anchor {
+            control: group.leading.control(),
+            blocks: *leading_blocks,
+            roots: leading_roots.clone(),
+        };
+        let leading_link = super::super::super::control_bridge_receipt::Link {
+            from_control: group.leading.control(),
+            to_control: first.evidence.control(),
+            block: first_exit,
+            pairs: leading_pairs,
+        };
         self.body.owner_bridge_plans =
             super::super::super::control_bridge_receipt::Plans::seal_group(
                 members,
-                link,
+                leading,
+                vec![leading_link, link],
                 self.inputs.span,
             )?;
         #[cfg(test)]

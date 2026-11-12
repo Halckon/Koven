@@ -7,8 +7,8 @@
 The bounded three-control owner chain selects its second and third members as one group.
 This receipt connects those completed members to actual late SSA emission. It does not
 manufacture a first-control entry catalog, authorize arbitrary nested control flow, or prove
-complete dynamic owner provenance across the two inter-control links. The second-to-third
-link below checks actual static Alias transport without claiming runtime generation induction.
+complete dynamic owner provenance across the two inter-control links. Both links below
+check actual static Alias transport without claiming runtime generation induction.
 
 ## Atomic source
 
@@ -52,3 +52,14 @@ A private Link follows CFG folding. Actual emission must preserve source/target 
 and the real third-header edge arguments. Every target must be covered once, and the link is
 observed once before any final group completion. CI-only wrong-target and actual emitted-edge argument-swap probes are compiled but
 not run locally; both withhold Link and group completion. No first-control entry catalog or arbitrary runtime trace is synthesized.
+
+## Leading first-to-second transport
+
+A borrowed leading view exposes only the already completed first control geometry and
+source/target mapping. The builder captures its actual blocks and source slots at its while
+hook, checks the genuine exit-to-second-entry Alias chains, and seals a separate Anchor.
+It does not invent a first Member or add first-body Replace permissions. Both Links remap
+through folding and must each be observed exactly once; their target headers and parameters
+are selected by control identity, not by a global last-member assumption. A CI-only actual
+leading-edge argument swap must withhold all Link and group completion; local runs compile
+that test without executing it. This closes static Alias transport, not dynamic induction.
