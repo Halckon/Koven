@@ -1,7 +1,7 @@
 //! One group of normal-body consumers, keyed by actual control, never entry tokens.
 use super::*;
 use lang_frontend::ownership_checking::{
-    UnitOwnerControlChainBodyV1, UnitOwnerMultiRootNormalTransportV1,
+    UnitDropFact, UnitOwnerControlChainBodyV1, UnitOwnerMultiRootNormalTransportV1,
 };
 
 pub(in super::super) struct BodyGroup<'a> {
@@ -10,7 +10,8 @@ pub(in super::super) struct BodyGroup<'a> {
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
     stages: Vec<consumption::Stage>,
-    lowered: Option<(BlockRef, Vec<Slot>)>,
+    lowered: Option<([BlockRef; 4], Vec<Slot>)>,
+    exits: Vec<bool>,
 }
 pub(super) struct Selected<'a> {
     pub control: UnitStatementId,
@@ -65,6 +66,7 @@ impl<'a> BodyGroup<'a> {
                     evidence: *e,
                     stages: vec![consumption::Stage::Ready; e.normal().steps().len()],
                     lowered: None,
+                    exits: vec![false; e.false_exit_partition().1.len()],
                 })
                 .collect(),
         }))
@@ -95,7 +97,7 @@ impl Builder<'_, '_> {
                 control: member.evidence.control(),
                 rule: member.evidence.normal(),
                 stages: &member.stages,
-                block: *block,
+                block: block[1],
                 roots,
             }));
         }
@@ -155,7 +157,9 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         if group.members[..index].iter().any(|m| {
-            m.lowered.is_none() || m.stages.iter().any(|s| *s != consumption::Stage::Dropped)
+            m.lowered.is_none()
+                || m.stages.iter().any(|s| *s != consumption::Stage::Dropped)
+                || m.exits.iter().any(|done| !done)
         }) {
             return Err(fail());
         }
@@ -179,7 +183,7 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        member.lowered = Some((blocks[1], roots));
+        member.lowered = Some((blocks, roots));
         Ok(())
     }
     pub(super) fn finish_control_chain_bodies(&self) -> Result<(), LoweringError> {
@@ -188,7 +192,9 @@ impl Builder<'_, '_> {
         };
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         for member in &group.members {
-            let (block, _) = member.lowered.as_ref().ok_or_else(fail)?;
+            let (blocks, roots) = member.lowered.as_ref().ok_or_else(fail)?;
+            let block = blocks[1];
+            self.check_chain_false_exit(member, *blocks, roots)?;
             if member.stages.len() != member.evidence.normal().steps().len()
                 || member
                     .stages
@@ -206,9 +212,161 @@ impl Builder<'_, '_> {
         }
         #[cfg(test)]
         owner_consumer_test_support::record_action(
+            "control-chain-exits-complete",
+            group.members.len(),
+        );
+        #[cfg(test)]
+        owner_consumer_test_support::record_action(
             "control-chain-bodies-complete",
             group.members.len(),
         );
+        Ok(())
+    }
+}
+
+pub(super) struct SelectedExit<'a> {
+    pub control: UnitStatementId,
+    pub symbols: &'a [UnitSymbolId],
+    pub roots: &'a [Slot],
+    pub finished: BlockRef,
+    pub stages: &'a [consumption::Stage],
+    pub drops: &'a [UnitDropFact],
+    pub consumed: &'a [bool],
+}
+impl Builder<'_, '_> {
+    pub(super) fn bridge_select_exit(
+        &self,
+        matches: impl Fn(UnitStatementId, &[UnitDropFact], &[bool]) -> bool,
+    ) -> Result<Option<SelectedExit<'_>>, LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if let Some(group) = &self.control_chain_bodies {
+            if self.control_bridge_plan.is_some() {
+                return Err(fail());
+            }
+            let mut members = group.members.iter().filter(|m| {
+                matches(
+                    m.evidence.control(),
+                    m.evidence.false_exit_partition().1,
+                    &m.exits,
+                )
+            });
+            let Some(m) = members.next() else {
+                return Ok(None);
+            };
+            if members.next().is_some() {
+                return Err(fail());
+            }
+            let (blocks, roots) = m.lowered.as_ref().ok_or_else(fail)?;
+            return Ok(Some(SelectedExit {
+                control: m.evidence.control(),
+                symbols: m.evidence.roots(),
+                roots,
+                finished: blocks[2],
+                stages: &m.stages,
+                drops: m.evidence.false_exit_partition().1,
+                consumed: &m.exits,
+            }));
+        }
+        let Some(p) = &self.control_bridge_plan else {
+            return Ok(None);
+        };
+        let Some((_, drops)) = p.evidence.next_false_exit_partition() else {
+            return Ok(None);
+        };
+        let consumed = p.exits.as_ref().ok_or_else(fail)?;
+        if !matches(p.evidence.next_control(), drops, consumed) {
+            return Ok(None);
+        }
+        let (_, blocks, roots) = p.next.as_ref().ok_or_else(fail)?;
+        Ok(Some(SelectedExit {
+            control: p.evidence.next_control(),
+            symbols: p.evidence.targets(),
+            roots,
+            finished: blocks[2],
+            stages: &p.chain,
+            drops,
+            consumed,
+        }))
+    }
+    pub(super) fn bridge_exit_states_mut(
+        &mut self,
+        control: UnitStatementId,
+    ) -> Result<&mut Vec<bool>, LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if let Some(group) = &mut self.control_chain_bodies {
+            if self.control_bridge_plan.is_some() {
+                return Err(fail());
+            }
+            return group
+                .members
+                .iter_mut()
+                .find(|m| m.evidence.control() == control)
+                .map(|m| &mut m.exits)
+                .ok_or_else(fail);
+        }
+        self.control_bridge_plan
+            .as_mut()
+            .filter(|p| p.evidence.next_control() == control)
+            .and_then(|p| p.exits.as_mut())
+            .ok_or_else(fail)
+    }
+    fn check_chain_false_exit(
+        &self,
+        m: &Member<'_>,
+        blocks: [BlockRef; 4],
+        roots: &[Slot],
+    ) -> Result<(), LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        let [header, body, finished, exit] = blocks;
+        let (live, drops) = m.evidence.false_exit_partition();
+        let predecessors = |target| {
+            self.body
+                .blocks
+                .iter()
+                .enumerate()
+                .filter_map(|(i, b)| {
+                    b.terminator
+                        .as_ref()
+                        .filter(|(t, _)| t.successors().contains(&target))
+                        .map(|_| BlockRef(i))
+                })
+                .collect::<Vec<_>>()
+        };
+        let statements = &self.body.blocks[finished.0].statements;
+        if m.exits.len() != drops.len()
+            || m.exits.iter().any(|d| !d)
+            || predecessors(finished) != [header]
+            || predecessors(exit) != [finished]
+            || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch {when_true,when_false,..},_)) if when_true==body && when_false==finished)
+            || !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(t),_)) if t==exit)
+            || statements.len() != drops.len()
+            || drops.iter().zip(statements).any(|(fact, s)| {
+                let UnitDropTarget::Named(root) = fact.target() else {
+                    return true;
+                };
+                m.evidence
+                    .roots()
+                    .iter()
+                    .position(|r| *r == root)
+                    .is_none_or(|i| {
+                        !s.results.is_empty()
+                            || !matches!(s.op, ROp::Drop {owner} if owner==roots[i])
+                    })
+            })
+            || live.iter().any(|r| {
+                m.evidence
+                    .roots()
+                    .iter()
+                    .position(|x| x == r)
+                    .is_none_or(|i| {
+                        statements
+                            .iter()
+                            .any(|s| s.op.operands().contains(&roots[i]))
+                    })
+            })
+        {
+            return Err(fail());
+        }
         Ok(())
     }
 }

@@ -64,6 +64,39 @@ fn private_three_control_chain_is_retained_only_as_a_complete_group() {
                     );
                     assert_eq!(member.body().source_unit(), member.control().source_unit());
                     assert!(member.normal().is_consistent());
+                    let (live, drops) = member.false_exit_partition();
+                    for root in member.roots() {
+                        assert_eq!(
+                            live.iter().filter(|r| *r == root).count()
+                                + drops
+                                    .iter()
+                                    .filter(|d| d.target()
+                                        == crate::ownership_checking::UnitDropTarget::Named(*root))
+                                    .count(),
+                            1
+                        );
+                    }
+                    for drop in drops {
+                        assert_eq!(
+                            drop.point(),
+                            crate::ownership_checking::UnitDropPoint::LoopExit(member.control())
+                        );
+                        assert!(
+                            owned.drops().contains(drop),
+                            "partition must borrow an actual planner cleanup fact"
+                        );
+                    }
+                }
+                assert_eq!(second.false_exit_partition().0.len(), second.roots().len());
+                assert!(second.false_exit_partition().1.is_empty());
+                if suffix.is_empty() {
+                    assert!(third.false_exit_partition().0.is_empty());
+                    assert_eq!(third.false_exit_partition().1.len(), third.roots().len());
+                } else {
+                    // Live partition preserves planner order, not header-root order.
+                    // Exact per-root membership was checked above.
+                    assert_eq!(third.false_exit_partition().0.len(), third.roots().len());
+                    assert!(third.false_exit_partition().1.is_empty());
                 }
                 let second_owner = second.normal().body_catalog().definitions()[0].id();
                 assert!(

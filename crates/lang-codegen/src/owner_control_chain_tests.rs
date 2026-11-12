@@ -47,7 +47,7 @@ fn three_live_controls_preserve_zero_and_normal_generations() {
     assert_general_counter_baseline(&closed, b"done\ndone\ndone\ndone\ndone\n", false);
 }
 
-fn closed_chain_source() -> super::UnitSource {
+fn closed_chain_source(sparse: bool) -> super::UnitSource {
     let mut text = String::from("fun run(n: Int) {");
     for i in 0..3 {
         text.push_str(&format!("var n{i}=n; var g{i}=n{i}>0;"));
@@ -57,9 +57,21 @@ fn closed_chain_source() -> super::UnitSource {
             let p = i - 1;
             text.push_str(&format!("var a{i}=a{p}; var b{i}=b{p};"));
         }
-        text.push_str(&format!("while(g{i}) {{ val x=replace(&a{i},\"x\"); val y=replace(&b{i},\"y\"); n{i}=n{i}-1; g{i}=n{i}>0 }};"));
+        if sparse && i < 2 {
+            text.push_str(if i == 0 {
+                "var c0=\"c\";"
+            } else {
+                "var c1=c0;"
+            });
+        }
+        let extra = if sparse && i < 2 {
+            format!("val z=replace(&c{i},\"z\");")
+        } else {
+            String::new()
+        };
+        text.push_str(&format!("while(g{i}) {{ val x=replace(&a{i},\"x\"); val y=replace(&b{i},\"y\"); {extra} n{i}=n{i}-1; g{i}=n{i}>0 }};"));
     }
-    text.push_str("}\nfun entry() {run(2)}");
+    text.push_str("}\nfun entry() {run(0); run(2)}");
     let source = super::UnitSource::analyze("chain-body-fault.ko", &text).unwrap();
     source.assert_frontend_clean();
     assert!(
@@ -73,7 +85,7 @@ fn closed_chain_source() -> super::UnitSource {
 }
 #[test]
 fn closed_chain_body_group_consumes_all_members() {
-    let source = closed_chain_source();
+    let source = closed_chain_source(false);
     let (result, actions) =
         crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
     let (program, _) = result.unwrap();
@@ -89,7 +101,7 @@ fn closed_chain_body_group_consumes_all_members() {
 #[test]
 fn ci_only_chain_body_group_rejects_foreign_control_and_last_missing_drop() {
     use crate::ssa::{OwnerFault, with_owner_fault};
-    let source = closed_chain_source();
+    let source = closed_chain_source(false);
     for fault in [
         OwnerFault::ChainBodyWrongControl,
         OwnerFault::ChainLastBodyMissingDrop,
@@ -109,6 +121,59 @@ fn ci_only_chain_body_group_rejects_foreign_control_and_last_missing_drop() {
             actions
                 .iter()
                 .all(|(kind, _)| *kind != "control-chain-bodies-complete")
+        );
+    }
+}
+
+#[test]
+fn chain_false_exit_consumes_sparse_middle_and_dead_final_roots() {
+    for sparse in [false, true] {
+        let source = closed_chain_source(sparse);
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "bridge-exit-drop-consumed")
+                .count(),
+            if sparse { 3 } else { 2 }
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-exits-complete" && *n == 2)
+                .count(),
+            1
+        );
+        super::super::super::assert_native_output(&source, b"");
+    }
+}
+#[test]
+fn ci_only_chain_false_exit_rejects_foreign_control_or_missing_permit() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source = closed_chain_source(false);
+    for fault in [
+        OwnerFault::ChainExitWrongControl,
+        OwnerFault::MissingBridgeExitDropPermit,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-chain-exit-fault-hit")
+                .count(),
+            1
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| *kind != "control-chain-exits-complete"
+                    && *kind != "control-chain-bodies-complete")
         );
     }
 }

@@ -631,6 +631,13 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
         usize::from(chain)
     );
     if chain {
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-chain-exits-complete")
+                .count(),
+            1
+        );
         for kind in [
             "bridge-body-replace-consumed",
             "bridge-body-binding-consumed",

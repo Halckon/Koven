@@ -180,14 +180,15 @@ impl PrivateControlChain {
     }
 }
 
-/// One member of an indivisible normal-body consumption group.
-/// This carries no concrete incoming owner, loop-exit or whole-loop permission.
+/// One member of an indivisible normal-body and implicit-false partition group.
+/// This carries no concrete incoming owner or whole-loop permission.
 #[derive(Clone, Copy, Debug)]
 pub struct UnitOwnerControlChainBodyV1<'a> {
     control: UnitStatementId,
     condition: UnitExpressionId,
     body: UnitStatementId,
     normal: &'a UnitOwnerMultiRootNormalTransportV1,
+    false_exit: (&'a [UnitSymbolId], &'a [UnitDropFact]),
 }
 impl<'a> UnitOwnerControlChainBodyV1<'a> {
     /// Actual source-qualified control owning this body.
@@ -205,6 +206,11 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
     /// Borrow the original normal-body catalog and ordered retirement steps.
     pub fn normal(&self) -> &'a UnitOwnerMultiRootNormalTransportV1 {
         self.normal
+    }
+    /// Actual implicit-false live roots and retired-root cleanup facts.
+    /// Facts retain their original order and LoopExit control; no suffix permission.
+    pub fn false_exit_partition(&self) -> (&'a [UnitSymbolId], &'a [UnitDropFact]) {
+        self.false_exit
     }
     /// Source-root order, not the order of alias declarations or replacement calls.
     pub fn roots(&self) -> &'a [UnitSymbolId] {
@@ -225,8 +231,8 @@ impl<'a> UnitOwnerControlChainBodiesV1<'a> {
     }
 }
 impl UnitOwnerObservation {
-    /// Borrow only the normal-body rules of a complete, exclusive chain.
-    /// This does not grant entry, checked-tail, exit, suffix or SSA permissions.
+    /// Borrow normal-body rules and implicit-false partitions of a complete chain.
+    /// This does not grant entry, checked-tail, suffix or SSA permissions.
     pub fn control_chain_bodies_v1(&self) -> Option<UnitOwnerControlChainBodiesV1<'_>> {
         if !self.is_consistent() {
             return None;
@@ -237,12 +243,14 @@ impl UnitOwnerObservation {
             condition: chain.first.next_condition(),
             body: chain.first.next_body(),
             normal: chain.first.next_normal_transport()?,
+            false_exit: chain.first.next_false_exit_partition()?,
         };
         let third = UnitOwnerControlChainBodyV1 {
             control: chain.last.control,
             condition: chain.last.condition,
             body: chain.last.body,
             normal: &chain.last.normal,
+            false_exit: (&chain.last.exit.0, &chain.last.exit.1),
         };
         Some(UnitOwnerControlChainBodiesV1 {
             members: [second, third],

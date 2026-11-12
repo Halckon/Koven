@@ -158,13 +158,15 @@ body catalog身份及根索引。随后仅通过实际Move→Bind搬运位置，
 control、condition、body、原顺序根和真实normal规则/catalog；成员字段私有，不造入口token。
 getter先核observation整体身份、一致性和互斥；deferred、外来identity或混合旧能力均不投影。
 消费者必须整组选择并完成两个成员的Replace→binding→Drop，不允许单成员降级。
-本接口不提供scalar入口、checked尾部、false出口/suffix或SSA权限；其公开不等于整循环完成。
+成员另以 `false_exit_partition()` 借用真实implicit-false分区：live根与原顺序LoopExit
+清理facts直接来自第二段原bridge及第三段封存exit，不按AST猜测、不复制重造fact。
+本接口不提供scalar入口、checked尾部、suffix或SSA权限；其公开不等于整循环完成。
 嵌套循环的外层恢复与路径合流仍不在本片范围内。
 
 ### 后端按 control 的 normal-body 整组消费
 
-完整三段内部链现在只投影第二、第三段的真实 normal-body 组，不公开入口token、checked
-尾部、退出或整链SSA权限。后端一次选择整组，逐control登记实际body块与根槽；调用、返回
+完整三段内部链投影第二、第三段的真实 normal-body 与 implicit-false 分区组，不公开入口token、checked
+尾部、suffix或整链SSA权限。后端一次选择整组，逐control登记实际body块与根槽；调用、返回
 binding和Drop仍复用原发射点与一次性permit，每张permit增加control身份并在提交时重核
 实际块、指令位置、span及原阶段。第三body登记前第二body必须全部退休完毕，所有成员
 均完成才记录整组完成；组内匹配失败不退回旧单bridge消费者，也不重复发射Drop。
@@ -173,3 +175,11 @@ binding和Drop仍复用原发射点与一次性permit，每张permit增加contro
 消费及整组完成。CI-only错误control和最后成员缺Drop许可要求拒绝且无整组完成，本地
 只编译。该合同是normal指令发射约束；尚未运输每个成员的晚期SSA receipt，不声称入口、
 跨段边参、checked abort或复杂退出的整链授权与任意跨轮归纳已经完成。
+
+implicit-false清理现在复用原单次Drop发射点，permit带control并在commit重新选择对应
+finished块；只认原fact与根槽，不能以另一个control或新生命周期的同名root代替。
+第三control开始前第二段原分区必须全部消费。最终逐段重核header假边、finished/exit
+唯一前驱、原序Drop数量和目标，拒绝活根被消费或额外Drop；所有成员通过后才记整组完成。
+普通native新增三根到两根的稀疏链，实际覆盖中段一根退休与末段两根退休，并运行零轮/两轮。
+CI-only错control与缺退出许可必须恰一次命中、拒绝且不发布组完成；本地仅编译。
+这仅扩展implicit-false分区，后缀、checked tail与晚期SSA合同仍未整组迁移。
