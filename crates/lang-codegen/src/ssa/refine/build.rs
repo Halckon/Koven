@@ -6,7 +6,6 @@ mod condition;
 mod container;
 mod container_for;
 mod expression;
-mod heap;
 mod inout;
 mod map;
 mod owner_consumer;

@@ -1,6 +1,6 @@
 //! One complete two-version cleanup group and bounded constant-presence proof.
 mod carrier;
-mod source;
+use carrier::source;
 
 pub(in crate::ssa::lower_frontend) mod constant_presence {
     mod source;

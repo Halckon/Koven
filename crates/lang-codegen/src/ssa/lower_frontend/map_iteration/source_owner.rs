@@ -1,9 +1,9 @@
 //! Exact source-owner proof for the observed normal and direct-tail Map shapes.
 //! A source facts were first collected by the ordinary 12-path run on 9244391b.
 //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
-pub(super) mod delivery;
-use delivery::future;
 pub(super) mod handoff;
+pub(super) use handoff::delivery;
+use delivery::future;
 pub(super) use delivery::Delivery;
 pub(super) mod provenance;
 use super::*;
