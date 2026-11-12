@@ -662,3 +662,82 @@ fn unused_abi_flag_dies_at_entry_and_cannot_replace_future_flags() {
         assert!(changed.validate(&bad).is_err());
     }
 }
+
+#[test]
+#[ignore = "CI-only own Boolean condition identity, producer seal and ABI modes; compile locally"]
+fn own_boolean_conditions_require_the_exact_local_value_and_mode() {
+    use lang_frontend::type_checking::ParameterMode;
+    let text = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(source:String,own f0:Boolean,own f1:Boolean,unused:Boolean):Unit {while(f0){borrow val a=view(source);consume(a)};while(f1){borrow val b=view(source);consume(b)};while(f0){borrow val c=view(source);consume(c)}}";
+    let (program, receipt) = capture_program_text(text);
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .find(|function| function.id == receipt.caller)
+        .unwrap();
+    receipt.validate(function).unwrap();
+    assert_eq!(receipt.loops.len(), 3);
+    for peer in &receipt.loops {
+        assert!(peer.proof.flag_owned);
+        assert!(peer.proof.condition_used);
+        assert!(
+            peer.instructions
+                .iter()
+                .all(|(tag, _)| *tag != Tag::Condition)
+        );
+    }
+    let roles = actual_roles(function);
+    let entry = function.entry_block().unwrap();
+    let header = receipt.blocks[&receipt.canonical(receipt.loops[0].proof.blocks.header)];
+    let correct = actual_local(function, &roles, header, 1);
+    let wrong = actual_local(function, &roles, header, 2);
+    let old_entry = actual_local(function, &roles, entry, 1);
+    assert_ne!(correct, wrong);
+    assert_ne!(correct, old_entry);
+    for replacement in [wrong, old_entry] {
+        let EntityId::Value(value) = replacement else {
+            panic!("own Boolean parameter must be a Value")
+        };
+        let mut bad = function.clone();
+        let TerminatorKind::Conditional { condition, .. } =
+            &mut bad.blocks[header.index()].terminator.as_mut().unwrap().kind
+        else {
+            panic!()
+        };
+        *condition = value;
+        assert!(receipt.validate(&bad).is_err());
+    }
+    let mut changed = receipt.clone();
+    changed.loops[0].proof.condition_used = false;
+    assert!(changed.validate(function).is_err());
+    let mut changed = receipt.clone();
+    changed.loops[0].proof.flag_owned = false;
+    assert!(changed.validate(function).is_err());
+    let mut changed = receipt.clone();
+    changed.abi_modes[1] = ParameterMode::Borrow;
+    changed.loops[0].proof.flag_owned = false;
+    changed.loops[2].proof.flag_owned = false;
+    assert!(changed.validate(function).is_err());
+    let mut changed = receipt.clone();
+    changed.abi_modes[0] = ParameterMode::Value;
+    assert!(changed.validate(function).is_err());
+
+    let body = receipt.blocks[&receipt.canonical(receipt.loops[1].proof.blocks.body)];
+    let repeated = actual_local(function, &roles, body, 1);
+    let current = actual_local(function, &roles, body, 2);
+    let mut bad = function.clone();
+    let TerminatorKind::Branch(edge) =
+        &mut bad.blocks[body.index()].terminator.as_mut().unwrap().kind
+    else {
+        panic!()
+    };
+    let position = edge
+        .arguments
+        .iter()
+        .position(|arg| *arg == repeated)
+        .unwrap();
+    edge.arguments[position] = current;
+    let mut changed = receipt.clone();
+    synchronize_edges(&mut changed, &bad);
+    assert!(changed.validate(&bad).is_err());
+}

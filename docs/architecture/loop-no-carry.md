@@ -54,11 +54,12 @@ binding 尚不存在；实际 body lowering 后、任何 loop leave 清理前，
 
 `refine/fresh_loop_receipt` 为独立协议，不套用旧 carried-loop 的 entry acquire/exit End。
 当前资格限函数体完全由同源直接 while 构成，唯一 Borrow String source 与一个或多个
-Borrow Boolean 参数的顺序来自 typed ABI，允许其中有未使用的 Boolean。完整入口
-身份与首边之后的活跃角色分别核验；own Boolean 或其它前后语句仍保留原执行/拒绝
-边界而无本片 receipt，不因缺新证书收紧准入。数量取真实有序元素，不枚举固定拓扑。
+Borrow 或 own Boolean 参数的顺序与模式来自 typed ABI，允许其中有未使用的
+Boolean。完整入口身份与首边之后的活跃角色分别核验；其它前后语句仍保留原执行/
+拒绝边界而无本片 receipt，不因缺新证书收紧准入。数量取真实有序元素，不枚举固定拓扑。
 
-真实 builder append 捕获 header 条件读取、body BorrowCall、逐 consumer 和唯一 End；
+真实 builder append 捕获 Borrow 条件的 Read、body BorrowCall、逐 consumer 和唯一 End；
+own 条件不产生 Read，由实际表达式求值后的 condition-use checkpoint 捕获。
 真实 terminator 与 fold 回调捕获每 peer 五个原块角色（相邻共享 exit/entry）、
 正常回边、false 出口及可发生的出口折叠。
 Emitted 将这些 producer 标签绑定实际 InstructionId、EntityId 及各块参数映射，不从
@@ -70,7 +71,7 @@ ABI 参数索引建立独立角色固定点，不合并同型 Boolean，逐 inco
 失败撤回整批。核心检查不依赖观察开关，观察关闭不取消验证。封印 FE 资格归属由准入
 阶段认证，独立最终图验证不冒充重新验证整个 FE catalog。
 
-该证书证明每次执行有限 body 均创建并关闭结果、正常回边只保留外部贷款；它不是已
+该证书证明每次执行有限 body 均创建并关闭结果、正常回边只保留需要的外部参数；它不是已
 原生运行任意多轮的记录，不证明终止性，也不扩大语言准入或退休旧见证。
 
 ## 同源直接兄弟循环
@@ -83,8 +84,8 @@ initializer/body 与唯一 End；从真实 Function body 的 elements 对照直�
 每个 reached while 仍独立走原 NoCarryLease 的入口、cleanup 前关闭、回边和退出
 核验。实际 SSA 用不同结果实体，各自 consumer 与 End 在对应 body 内，任何边均不
 运输本轮结果；两个 false 退出后仍可消费外部 source。分支/跳转/嵌套边界不变。
-执行准入与证书资格分开；own Boolean 或额外语句等较宽执行形状不自动获得组合
-receipt。不同 flag 及未使用 Borrow Boolean 的合格序列使用下面的独立 ABI 角色证明。
+执行准入与证书资格分开；额外语句等较宽执行形状不自动获得组合 receipt。不同
+flag、Borrow/own 混合及未使用 Boolean 的合格序列使用下面的独立 ABI 角色证明。
 
 ## 动态组合证据
 
@@ -100,8 +101,8 @@ receipt。实际入口按 StatementId 激活下一 peer，必须在前一 peer �
 
 ## 多条件参数的活性运输
 
-producer 在真实入口冻结完整 ABI 槽，逐 peer 的 Read 只允许该声明条件对应的槽；
-各边界独立核完整外部映射，旧 NoCarryLease 不被替换。Emitted 将所有 ABI 槽按原
+producer 在真实入口冻结完整 ABI 槽与模式，逐 peer 的条件使用只允许该声明对应的槽；
+各边界独立核完整外部 bindings/borrowed 映射，旧 NoCarryLease 不被替换。Emitted 将所有 ABI 槽按原
 参数顺序绑定实际实体，最终证书不读取这些 builder 槽。
 
 最终固定点以每个 ABI index 区分角色。各 header/body 保留 source 与当前及后续
@@ -113,7 +114,7 @@ peer 需要的 flag 集合，false/exit 只保留后续需求，最后退出为�
 
 ## 未使用 Boolean 的入口消亡
 
-函数 entry 保留并验证全部实际 Borrow ABI 参数，未使用的 Boolean 也不能从入口
+函数 entry 保留并验证全部实际 ABI 参数，未使用的 Boolean 也不能从入口
 身份目录删去。entry 到首 header 的真实边仅运输 source 与有实际条件用途的 flag；
 未使用的角色不得出现在任何后续块参数或边实参中，也不能成为 Read 或 End 的对象。
 这表示外部参数不再需要局部运输，不是给 caller 的原 loan 伪造结束操作。
@@ -121,3 +122,22 @@ peer 需要的 flag 集合，false/exit 只保留后续需求，最后退出为�
 首 entry 的完整 ABI 集合与 header/body 的活跃集合独立核验；后续 peer 的共享
 entry 仍严格等于前一 peer 的 exit 需求，不因本片放宽。重复 flag 的未来需求、
 逐 incoming 的前驱局部实体、真实 producer 和原 verifier 后原子发布保持。
+
+
+## own Boolean 的真实 Value 条件
+
+源码 own Boolean 在 typed ABI 中是 Value 模式，入口来自 bindings；Borrow 条件
+来自 borrowed，实体是 Shared Loan。两种模式按参数原 index 保持各自身份和类型，
+不能只凭同为 Boolean 互换。source 始终是 Borrow String，不由本片改为 owned。
+
+Name 表达式的实际求值完成后、原 Branch terminate 前，condition-use checkpoint
+核精确 UnitExpressionId、span、header、当前阶段和真实返回槽，并且只消费一次。
+Borrow 使用已有 Read append 的结果；own 直接使用预先冻结的 Value 槽，没有
+Condition 指令或新 Read。每阶段检查全部参数在 bindings/borrowed 中的独占归属、
+实际槽类型、dead 状态及完整映射，没有新增临时贷款或结果来源残留。
+
+Emitted 保存真实 checkpoint 完成证据及原 terminator 映射。独立 validator 要求
+own header 无指令，Branch 条件等于该 header 自己的唯一条件角色 Value；Borrow
+仍验证实际 Read。每条 incoming 同时核局部实体、角色和 EntityType，不接受入口旧
+Value、另一同型条件或模式伪换。重复用途与 unused own Boolean 沿原活性规则运输
+或消亡，不制造 Drop/End，不扩大循环执行范围，也不证明条件可变或循环终止。

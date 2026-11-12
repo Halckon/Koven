@@ -5,7 +5,9 @@ use crate::ssa::{
     model::{FunctionId, SsaTypeId},
 };
 use lang_frontend::{
-    ownership_checking::UnitLoopNoCarryFact, source::Span, type_checking::UnitExpressionId,
+    ownership_checking::UnitLoopNoCarryFact,
+    source::Span,
+    type_checking::{ParameterMode, UnitExpressionId},
 };
 use std::collections::{BTreeMap, BTreeSet};
 mod admission;
@@ -45,6 +47,8 @@ pub(super) struct Plan {
     pub(super) end_span: Span,
     pub(super) source_parameter: usize,
     pub(super) flag_parameter: usize,
+    pub(super) flag_owned: bool,
+    pub(super) condition_used: bool,
     pub(super) source_type: SsaTypeId,
     pub(super) flag_type: SsaTypeId,
     pub(super) source: Option<Slot>,
@@ -59,6 +63,7 @@ pub(super) struct Plan {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
     pub(super) abi_types: Vec<SsaTypeId>,
+    pub(super) abi_modes: Vec<ParameterMode>,
     pub(super) abi_slots: Option<Vec<Slot>>,
     pub(super) loops: Vec<Plan>,
     pub(super) active: Option<usize>,

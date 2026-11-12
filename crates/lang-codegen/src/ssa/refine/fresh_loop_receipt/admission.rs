@@ -16,7 +16,7 @@ impl Plans {
             || inputs
                 .modes
                 .iter()
-                .any(|mode| *mode != ParameterMode::Borrow)
+                .any(|mode| !matches!(mode, ParameterMode::Borrow | ParameterMode::Value))
             || inputs.receiver.is_some()
             || !inputs.substitutions.is_empty()
             || inputs.static_self.is_some()
@@ -66,6 +66,9 @@ impl Plans {
             }
         }
         let source_parameter = loops[0].source_parameter;
+        if inputs.modes.get(source_parameter) != Some(&ParameterMode::Borrow) {
+            return Ok(empty);
+        }
         let mut abi_types = Vec::with_capacity(inputs.parameters.len());
         for (index, symbol) in inputs.parameters.iter().enumerate() {
             let ty = inputs
@@ -89,6 +92,7 @@ impl Plans {
         }
         Ok(Self {
             abi_types,
+            abi_modes: inputs.modes.clone(),
             abi_slots: None,
             loops,
             active: None,
@@ -249,6 +253,8 @@ fn loop_plan(
         end_span,
         source_parameter,
         flag_parameter,
+        flag_owned: inputs.modes.get(flag_parameter) == Some(&ParameterMode::Value),
+        condition_used: false,
         source_type: *types
             .type_ids
             .get(&source_ty)

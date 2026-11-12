@@ -353,7 +353,7 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
                 assert_eq!(verified.len(), 1);
                 assert_eq!(
                     receipts.len(),
-                    usize::from(matches!(label, "siblings" | "unused-flag"))
+                    usize::from(matches!(label, "siblings" | "unused-flag" | "own-flag"))
                 );
                 verify_program(&program).unwrap();
                 let rendered = crate::llvm::render_verified_program(&program).unwrap();

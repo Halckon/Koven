@@ -29,6 +29,7 @@ impl Plans {
             .get(next.flag_parameter)
             .ok_or_else(|| invalid(span))?;
         if abi_slots.len() != self.abi_types.len()
+            || self.abi_modes.len() != abi_slots.len()
             || abi_slots.iter().collect::<BTreeSet<_>>().len() != abi_slots.len()
             || self
                 .abi_slots
@@ -74,6 +75,7 @@ impl Plans {
         }
         let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
         if p.fact.loop_statement() != statement
+            || p.condition_used
             || p.boundary != 0
             || !p.events.is_empty()
             || p.blocks.is_some()
@@ -89,6 +91,43 @@ impl Plans {
         if self.abi_slots.is_none() {
             self.abi_slots = Some(abi_slots);
         }
+        Ok(())
+    }
+    /// Capture the actual Name expression result, including an Own value with no Read append.
+    pub(in crate::ssa::refine) fn condition(
+        &mut self,
+        expression: UnitExpressionId,
+        value: Slot,
+        block: BlockRef,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.loops.is_empty() {
+            return Ok(());
+        }
+        let index = self.active.ok_or_else(|| invalid(span))?;
+        let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
+        let expected_events: &[Tag] = if p.flag_owned {
+            &[][..]
+        } else {
+            &[Tag::Condition][..]
+        };
+        if p.condition_used
+            || p.condition != expression
+            || p.condition_span != span
+            || p.boundary != 1
+            || p.blocks.map(|b| b.header) != Some(block)
+            || p.terms.len() != 1
+            || p.events != expected_events
+            || (if p.flag_owned {
+                p.flag
+            } else {
+                p.condition_value
+            }) != Some(value)
+        {
+            return Err(invalid(span));
+        }
+        p.condition_value = Some(value);
+        p.condition_used = true;
         Ok(())
     }
     pub(in crate::ssa::refine) fn statement(
@@ -111,7 +150,11 @@ impl Plans {
         {
             return Err(invalid(span));
         }
-        let index = p.events.len();
+        let index = p
+            .events
+            .len()
+            .checked_add(usize::from(p.flag_owned))
+            .ok_or_else(|| invalid(span))?;
         let n = p.callees.len();
         let tag = if index == 0 {
             if block != b.header
@@ -126,6 +169,7 @@ impl Plans {
             Tag::Condition
         } else if index == 1 {
             if block != b.body
+                || !p.condition_used
                 || p.boundary != 2
                 || span != p.source_span
                 || results.len() != 1
@@ -140,6 +184,7 @@ impl Plans {
         } else if index < n + 2 {
             let i = index - 2;
             if block != b.body
+                || !p.condition_used
                 || p.boundary != 2
                 || span != p.consumer_spans[i]
                 || !results.is_empty()
@@ -150,6 +195,7 @@ impl Plans {
             Tag::Consumer(i)
         } else if index == n + 2 {
             if block != b.body
+                || !p.condition_used
                 || p.boundary != 2
                 || span != p.end_span
                 || !results.is_empty()
@@ -176,8 +222,15 @@ impl Plans {
         let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
         if p.boundary.checked_add(1) != Some(phase)
             || !(2..=5).contains(&phase)
-            || (phase == 2 && p.events != [Tag::Condition])
-            || (phase >= 3 && p.events.len() != p.callees.len() + 3)
+            || !p.condition_used
+            || (phase == 2
+                && p.events.as_slice()
+                    != if p.flag_owned {
+                        &[][..]
+                    } else {
+                        &[Tag::Condition][..]
+                    })
+            || (phase >= 3 && p.events.len() != p.callees.len() + 3 - usize::from(p.flag_owned))
         {
             return Err(invalid(span));
         }
@@ -203,6 +256,8 @@ impl Plans {
             }
             1 => {
                 block == b.header
+                    && p.condition_used
+                    && span == p.condition_span
                     && p.boundary == 1
                     && matches!(term,RTerm::Branch{condition,when_true,when_false} if Some(*condition)==p.condition_value && *when_true==b.body && *when_false==b.finished)
             }
@@ -281,6 +336,7 @@ impl Plans {
             return if self.active.is_none()
                 && self.folds.is_empty()
                 && self.abi_types.is_empty()
+                && self.abi_modes.is_empty()
                 && self.abi_slots.is_none()
             {
                 Ok(())
@@ -299,6 +355,12 @@ impl Plans {
             .map(|p| p.flag_parameter)
             .collect::<BTreeSet<_>>();
         if abi.len() != self.abi_types.len()
+            || abi.len() != self.abi_modes.len()
+            || self.abi_modes.get(first.source_parameter) != Some(&ParameterMode::Borrow)
+            || self
+                .abi_modes
+                .iter()
+                .any(|mode| !matches!(mode, ParameterMode::Borrow | ParameterMode::Value))
             || abi.len() < 2
             || abi.iter().collect::<BTreeSet<_>>().len() != abi.len()
             || flags.contains(&first.source_parameter)
@@ -324,13 +386,15 @@ impl Plans {
                 || p.source != first.source
                 || p.source != abi.get(p.source_parameter).copied()
                 || p.flag != abi.get(p.flag_parameter).copied()
-                || abi
-                    .iter()
-                    .any(|slot| p.condition_value == Some(*slot) || p.result == Some(*slot))
+                || p.flag_owned
+                    != (self.abi_modes.get(p.flag_parameter) == Some(&ParameterMode::Value))
+                || abi.iter().any(|slot| {
+                    (!p.flag_owned && p.condition_value == Some(*slot)) || p.result == Some(*slot)
+                })
                 || p.source_parameter != first.source_parameter
                 || p.source_type != first.source_type
                 || p.flag_type != first.flag_type
-                || !fresh_slots.insert(p.condition_value)
+                || (!p.flag_owned && !fresh_slots.insert(p.condition_value))
                 || !fresh_slots.insert(p.result)
             {
                 return Err(invalid(span));
@@ -370,7 +434,9 @@ impl Plans {
 }
 fn validate_loop(p: &Plan, last: bool, span: Span) -> Result<(), LoweringError> {
     let n = p.callees.len();
-    let expected = std::iter::once(Tag::Condition)
+    let expected = (!p.flag_owned)
+        .then_some(Tag::Condition)
+        .into_iter()
         .chain(std::iter::once(Tag::Result))
         .chain((0..n).map(Tag::Consumer))
         .chain(std::iter::once(Tag::ResultEnd))
@@ -378,6 +444,8 @@ fn validate_loop(p: &Plan, last: bool, span: Span) -> Result<(), LoweringError> 
     if n == 0
         || n != p.fact.consumers().len()
         || n != p.consumer_spans.len()
+        || !p.condition_used
+        || (p.flag_owned && p.condition_value != p.flag)
         || p.boundary != 5
         || p.events != expected
         || p.terms.len() != if last { 5 } else { 4 }
@@ -389,7 +457,7 @@ fn validate_loop(p: &Plan, last: bool, span: Span) -> Result<(), LoweringError> 
             .into_iter()
             .collect::<BTreeSet<_>>()
             .len()
-            != 4
+            != 4 - usize::from(p.flag_owned)
     {
         return Err(invalid(span));
     }

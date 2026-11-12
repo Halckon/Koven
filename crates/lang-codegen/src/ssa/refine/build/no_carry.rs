@@ -83,8 +83,11 @@ impl Builder<'_, '_> {
 
 impl Builder<'_, '_> {
     fn fresh_loop_abi(&self, span: Span) -> Result<Vec<Slot>, LoweringError> {
-        if self.borrowed.len() != self.inputs.parameters.len()
+        use lang_frontend::type_checking::ParameterMode;
+        if self.borrowed.len().checked_add(self.bindings.len())
+            != Some(self.inputs.parameters.len())
             || self.inputs.parameters.len() != self.body.fresh_loop_plans.abi_types.len()
+            || self.inputs.modes != self.body.fresh_loop_plans.abi_modes
             || !self.result_source_loans.is_empty()
             || !self.pending_call_loans.is_empty()
         {
@@ -93,16 +96,51 @@ impl Builder<'_, '_> {
         self.inputs
             .parameters
             .iter()
-            .map(|symbol| {
+            .enumerate()
+            .map(|(index, symbol)| {
+                let fail = || error(LoweringErrorKind::InvalidModel, span);
                 if self.dead.contains(symbol) {
-                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                    return Err(fail());
                 }
-                self.borrowed
-                    .get(symbol)
-                    .copied()
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))
+                let semantic = self.body.fresh_loop_plans.abi_types[index];
+                let (slot, expected) = match self.inputs.modes.get(index) {
+                    Some(ParameterMode::Borrow) if !self.bindings.contains_key(symbol) => (
+                        self.borrowed.get(symbol).copied().ok_or_else(fail)?,
+                        EntityType::Loan {
+                            kind: crate::ssa::model::LoanKind::Shared,
+                            target: semantic,
+                        },
+                    ),
+                    Some(ParameterMode::Value) if !self.borrowed.contains_key(symbol) => (
+                        self.bindings.get(symbol).copied().ok_or_else(fail)?,
+                        EntityType::Value(semantic),
+                    ),
+                    _ => return Err(fail()),
+                };
+                if self.body.slots.get(slot.0) != Some(&expected) {
+                    return Err(fail());
+                }
+                Ok(slot)
             })
             .collect()
+    }
+    pub(super) fn fresh_loop_condition(
+        &mut self,
+        expression: UnitExpressionId,
+        value: Slot,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.body.fresh_loop_plans.loops.is_empty() {
+            return Ok(());
+        }
+        let abi = self.fresh_loop_abi(span)?;
+        if self.body.fresh_loop_plans.abi_slots.as_ref() != Some(&abi) {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        let block = self.current(span)?;
+        self.body
+            .fresh_loop_plans
+            .condition(expression, value, block, span)
     }
     pub(super) fn fresh_loop_entry(
         &mut self,

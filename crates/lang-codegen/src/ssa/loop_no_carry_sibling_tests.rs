@@ -134,7 +134,31 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
         vec![2, 0, 1, 2, 0],
         vec![Some(1), Some(9), Some(0), None, Some(8), Some(2)],
     ));
-    for (counts, flag_order, abi_order) in cases {
+    let mut cases = cases
+        .into_iter()
+        .map(|(counts, flags, abi)| (counts, flags, abi, BTreeSet::new()))
+        .collect::<Vec<_>>();
+    for reversed in [false, true] {
+        for own in [
+            BTreeSet::from([0]),
+            BTreeSet::from([1]),
+            BTreeSet::from([0, 1]),
+        ] {
+            let mut abi = vec![None, Some(0), Some(1), Some(9)];
+            if reversed {
+                abi.reverse();
+            }
+            cases.push((vec![1, 3, 9], vec![0, 1, 0], abi, own));
+        }
+    }
+    cases.push((vec![1], vec![0], vec![Some(0), None], BTreeSet::from([0])));
+    cases.push((
+        vec![1, 2, 3, 4, 17],
+        vec![2, 0, 1, 2, 0],
+        vec![Some(1), Some(9), Some(0), None, Some(8), Some(2)],
+        BTreeSet::from([0, 2, 9]),
+    ));
+    for (counts, flag_order, abi_order, own_flags) in cases {
         let loops = counts
             .iter()
             .enumerate()
@@ -157,6 +181,7 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
             .iter()
             .map(|flag| match flag {
                 None => "source:String".to_owned(),
+                Some(index) if own_flags.contains(index) => format!("own flag{index}:Boolean"),
                 Some(index) => format!("flag{index}:Boolean"),
             })
             .collect::<Vec<_>>()
@@ -244,13 +269,35 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     for (recorded, fact) in receipt.loops.iter().zip(facts) {
                         assert!(recorded.fact.same_identity(fact));
                         assert_eq!(&recorded.fact, fact);
-                        assert_eq!(recorded.instructions.len(), fact.consumers().len() + 3);
+                        let index = facts.iter().position(|f| f.same_identity(fact)).unwrap();
+                        assert_eq!(
+                            recorded.instructions.len(),
+                            fact.consumers().len() + 3
+                                - usize::from(own_flags.contains(&flag_order[index]))
+                        );
                     }
                 }
                 let actual_edges = edges(run);
                 let roles = actual_abi_roles(run, &actual_edges);
                 let actual_entry = run.block(run.entry_block().unwrap()).unwrap();
                 assert_eq!(actual_entry.parameters.len(), abi_order.len());
+                for (index, entity) in actual_entry.parameters.iter().enumerate() {
+                    let own = abi_order[index].is_some_and(|flag| own_flags.contains(&flag));
+                    assert_eq!(matches!(entity, EntityId::Value(_)), own);
+                    assert_eq!(matches!(entity, EntityId::Loan(_)), !own);
+                }
+                for block in &run.blocks {
+                    for entity in &block.parameters {
+                        let role = roles[entity];
+                        let own = abi_order[role].is_some_and(|flag| own_flags.contains(&flag));
+                        assert_eq!(matches!(entity, EntityId::Value(_)), own);
+                        assert_eq!(
+                            run.entity(*entity).unwrap().ty,
+                            run.entity(actual_entry.parameters[role]).unwrap().ty
+                        );
+                    }
+                }
+
                 let unused = (0..abi_order.len())
                     .filter(|index| *index != source_parameter && !flag_parameters.contains(index))
                     .collect::<BTreeSet<_>>();
@@ -415,22 +462,6 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                         );
                         assert_eq!(block.parameters.len(), expected_roles.len());
                     }
-                    let read = run
-                        .instructions
-                        .iter()
-                        .find(|instruction| {
-                            instruction.block == header.id
-                                && matches!(instruction.operation, Operation::Read { .. })
-                        })
-                        .unwrap();
-                    let Operation::Read {
-                        source: PlaceAccess::Loan(flag),
-                    } = read.operation
-                    else {
-                        panic!("actual Boolean loan read")
-                    };
-                    assert!(header.parameters.contains(&EntityId::Loan(flag)));
-                    assert_eq!(roles[&EntityId::Loan(flag)], flag_parameters[index]);
                     let TerminatorKind::Conditional {
                         condition,
                         when_false,
@@ -439,7 +470,36 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     else {
                         unreachable!()
                     };
-                    assert_eq!(read.results.as_slice(), &[EntityId::Value(*condition)]);
+                    if own_flags.contains(&flag_order[index]) {
+                        assert!(
+                            header.instructions.is_empty(),
+                            "Own Name must not manufacture Read"
+                        );
+                        assert!(header.parameters.contains(&EntityId::Value(*condition)));
+                        assert_eq!(roles[&EntityId::Value(*condition)], flag_parameters[index]);
+                        assert_ne!(
+                            EntityId::Value(*condition),
+                            actual_entry.parameters[flag_parameters[index]]
+                        );
+                    } else {
+                        let read = run
+                            .instructions
+                            .iter()
+                            .find(|instruction| {
+                                instruction.block == header.id
+                                    && matches!(instruction.operation, Operation::Read { .. })
+                            })
+                            .unwrap();
+                        let Operation::Read {
+                            source: PlaceAccess::Loan(flag),
+                        } = read.operation
+                        else {
+                            panic!("actual Boolean loan read")
+                        };
+                        assert!(header.parameters.contains(&EntityId::Loan(flag)));
+                        assert_eq!(roles[&EntityId::Loan(flag)], flag_parameters[index]);
+                        assert_eq!(read.results.as_slice(), &[EntityId::Value(*condition)]);
+                    }
                     let after = if index + 1 == facts.len() {
                         BTreeSet::new()
                     } else {

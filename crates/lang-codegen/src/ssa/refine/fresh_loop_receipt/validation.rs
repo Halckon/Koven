@@ -5,6 +5,7 @@ use crate::ssa::model::{
     BlockId, Edge, EntityId, EntityType, Function, Instruction, InstructionId, LoanKind, Operation,
     PlaceAccess, TerminatorKind,
 };
+use lang_frontend::type_checking::ParameterMode;
 
 impl Receipt {
     pub(crate) fn validate(&self, function: &Function) -> Result<(), LoweringError> {
@@ -16,7 +17,11 @@ impl Receipt {
         let mut ids = BTreeSet::new();
         let mut expected_instructions = BTreeMap::<BlockId, Vec<InstructionId>>::new();
         for (local, blocks) in self.loops.iter().zip(&resolved) {
-            let mut tags = vec![Tag::Condition, Tag::Result];
+            let mut tags = Vec::new();
+            if !local.proof.flag_owned {
+                tags.push(Tag::Condition);
+            }
+            tags.push(Tag::Result);
             tags.extend((0..local.proof.callees.len()).map(Tag::Consumer));
             tags.push(Tag::ResultEnd);
             if local.instructions.len() != tags.len() {
@@ -30,11 +35,12 @@ impl Receipt {
                 }
                 instructions.push(instruction.id);
             }
+            let header_count = usize::from(!local.proof.flag_owned);
             if expected_instructions
-                .insert(blocks[1], vec![instructions[0]])
+                .insert(blocks[1], instructions[..header_count].to_vec())
                 .is_some()
                 || expected_instructions
-                    .insert(blocks[2], instructions[1..].to_vec())
+                    .insert(blocks[2], instructions[header_count..].to_vec())
                     .is_some()
             {
                 return Err(invalid(span));
@@ -54,9 +60,22 @@ impl Receipt {
         if entry_block.parameters.len() != self.abi_types.len() {
             return Err(invalid(span));
         }
-        for (entity, semantic) in entry_block.parameters.iter().zip(&self.abi_types) {
-            if !matches!(entity, EntityId::Loan(_))
-                || function.entity(*entity).map(|d| d.ty) != Some(shared(*semantic))
+        for ((entity, semantic), mode) in entry_block
+            .parameters
+            .iter()
+            .zip(&self.abi_types)
+            .zip(&self.abi_modes)
+        {
+            let expected = match mode {
+                ParameterMode::Borrow => shared(*semantic),
+                ParameterMode::Value => EntityType::Value(*semantic),
+                _ => return Err(invalid(span)),
+            };
+            if !matches!(
+                (mode, entity),
+                (ParameterMode::Borrow, EntityId::Loan(_))
+                    | (ParameterMode::Value, EntityId::Value(_))
+            ) || function.entity(*entity).map(|d| d.ty) != Some(expected)
             {
                 return Err(invalid(span));
             }
@@ -71,7 +90,7 @@ impl Receipt {
                 .map(|peer| peer.proof.flag_parameter)
                 .chain(std::iter::once(source_role))
                 .collect::<BTreeSet<_>>();
-            // The function entry retains the complete ABI. Unused Boolean loans
+            // The function entry retains the complete ABI. Unused Boolean parameters
             // disappear on its first edge, not by deleting their original identities.
             if index != 0 {
                 insert_live(&mut live, blocks[0], required.clone(), span)?;
@@ -171,6 +190,11 @@ impl Receipt {
         let span = self.span;
         let first = self.loops.first().ok_or_else(|| invalid(span))?;
         if self.abi_types.len() < 2
+            || self.abi_modes.len() != self.abi_types.len()
+            || self
+                .abi_modes
+                .iter()
+                .any(|mode| !matches!(mode, ParameterMode::Borrow | ParameterMode::Value))
             || self.caller != function.id()
             || function.receiver.is_some()
             || function.never_returns
@@ -204,6 +228,14 @@ impl Receipt {
                 || p.source_type == p.flag_type
                 || self.abi_types.get(p.source_parameter) != Some(&p.source_type)
                 || self.abi_types.get(p.flag_parameter) != Some(&p.flag_type)
+                || self.abi_modes.get(p.source_parameter) != Some(&ParameterMode::Borrow)
+                || self.abi_modes.get(p.flag_parameter)
+                    != Some(&if p.flag_owned {
+                        ParameterMode::Value
+                    } else {
+                        ParameterMode::Borrow
+                    })
+                || !p.condition_used
                 || p.source_parameter == p.flag_parameter
                 || p.source_parameter != first.proof.source_parameter
                 || p.source_type != first.proof.source_type
@@ -383,15 +415,26 @@ impl LoopReceipt {
         span: Span,
     ) -> Result<(EntityId, EntityId), LoweringError> {
         let p = &self.proof;
-        let condition = self.instruction(function, Tag::Condition, span)?;
-        let value = single(condition, span)?;
-        if condition.block != header
-            || !matches!(condition.operation, Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(loan) == local(function, roles, header, p.flag_parameter, span)?)
-            || condition.origin.span() != p.condition_span
-            || function.entity(value).map(|e| e.ty) != Some(EntityType::Value(p.flag_type))
-        {
-            return Err(invalid(span));
-        }
+        let value = if p.flag_owned {
+            let value = local(function, roles, header, p.flag_parameter, span)?;
+            if !matches!(value, EntityId::Value(_))
+                || function.entity(value).map(|e| e.ty) != Some(EntityType::Value(p.flag_type))
+            {
+                return Err(invalid(span));
+            }
+            value
+        } else {
+            let condition = self.instruction(function, Tag::Condition, span)?;
+            let value = single(condition, span)?;
+            if condition.block != header
+                || !matches!(condition.operation, Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(loan) == local(function, roles, header, p.flag_parameter, span)?)
+                || condition.origin.span() != p.condition_span
+                || function.entity(value).map(|e| e.ty) != Some(EntityType::Value(p.flag_type))
+            {
+                return Err(invalid(span));
+            }
+            value
+        };
         let acquire = self.instruction(function, Tag::Result, span)?;
         let result = single(acquire, span)?;
         let source = local(function, roles, body, p.source_parameter, span)?;
@@ -585,7 +628,10 @@ fn transport(
         for (from, edge) in edges {
             for (argument, param) in edge.arguments.iter().zip(params) {
                 let role = *roles.get(param).ok_or_else(|| invalid(span))?;
-                if local(function, &roles, from, role, span)? != *argument {
+                if local(function, &roles, from, role, span)? != *argument
+                    || function.entity(*argument).map(|d| d.ty)
+                        != function.entity(*param).map(|d| d.ty)
+                {
                     return Err(invalid(span));
                 }
             }

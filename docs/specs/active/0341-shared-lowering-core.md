@@ -16028,3 +16028,35 @@ feature/all-targets Clippy -D warnings、默认 workspace/all-targets、fmt/diff
 尺寸按2beb5592基线通过（2627文件/36历史债务），文档结构检查913篇通过。
 本片不改变native执行，未另跑native或FE测试；独立复审通过，旧见证与policy不变。
 本地提交，不推送。
+
+
+### own Boolean Value 条件的独立 receipt（2026-11-12）
+
+仅扩既有同源直接 while/兄弟的证据覆盖，不改变 FE、CG 执行合同或原 verifier，
+不开放分支、跳转、嵌套、多根或计数。唯一 String source 仍必须 Borrow；Boolean
+参数按真实 typed 模式区分 Borrow Shared Loan 与源码 own 对应的 Value，包括混合、
+重复用途和 unused 参数。旧 NoCarryLease、sealed fact 准入及其它见证不退休。
+
+actual condition-use 位于原 Name 表达式求值完成、Branch terminate 之前，精确核
+UnitExpressionId、span、header、阶段和实际槽，一次封口。own 直接使用 bindings
+预冻 Value，无虚构 Condition/Read；Borrow 仍绑定真实 Read 结果。各阶段同时核
+完整 bindings/borrowed、互斥归属、槽 EntityType、dead 与外部 ABI 身份。Emitted
+保存实际 checkpoint 与 terminator 证据；detached validator 要求 own header 零
+指令、条件为该块局部 Value，逐边核精确角色/实体/类型，不用最终图倒造 producer。
+
+真实红：既有合法 own-flag fixture 原 lowering/verifier 成功后 receipt0，对1
+失败。首次实现编译发现 typed 枚举实际名为 ParameterMode::Value（不是源码拼写
+Own）及空 slice 推断错误，修复后保留原日志，不把编译错误计作行为红。
+
+定向5项普通全绿。组合矩阵28个源码变体、双入口与观察 on/off 共112次 lowering，
+新增8变体覆盖 mixed Own/Borrow、ABI换序、重复条件、unused own 与17次消费者。
+逐项核 own 无Read、header-local Value、全参数模式/运输类型、事实身份及独立
+validate；原Borrow与unused矩阵保留。mixed Own/Borrow native零轮1项真实编译、
+链接、运行输出kept；不冒称运行任意非零轮或证明终止。新增1组 ignored 故障，
+共13组仅 lib no-run 编译，未执行，覆盖同型错条件、入口旧Value、checkpoint缺失、
+ABI模式伪换及同步边快照后的未来own flag丢失。
+
+日志保留在本片 checkpoint。断线恢复后核原进程已结束、日志完整：家族97项、
+codegen feature/all-targets Clippy -D warnings、默认workspace/all-targets、fmt/diff
+均通过；尺寸按2beb5592基线通过（2627文件/36历史债务），文档结构913篇通过。
+无policy变动，旧见证保留；本地提交，不推送。

@@ -459,6 +459,7 @@ impl Builder<'_, '_> {
             Lowered::Diverged => return Ok(()),
             Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
+        self.fresh_loop_condition(self.unit(expression), condition, span)?;
         self.terminate(
             RTerm::Branch {
                 condition,

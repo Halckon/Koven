@@ -323,3 +323,22 @@ fun entry() {
     let run = emit_link_and_run("no-carry-distinct-flags-false", text, "entry");
     super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
+
+#[test]
+fn native_no_carry_mixed_own_flags_false_edges_keep_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(flag1: Boolean, source: String, own flag0: Boolean): Unit {
+ while(flag0) { borrow val first = view(source); observe(first) }
+ while(flag1) { borrow val second = view(source); observe(second); observe(second) }
+ while(flag0) { borrow val third = view(source); observe(third) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-mixed-own-flags-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}

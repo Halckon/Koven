@@ -1,9 +1,11 @@
 //! Freeze identities at actual append and terminator callbacks for fresh body leases.
 use super::*;
 use crate::ssa::model::{
-    BlockId, Edge, EntityId, Function, InstructionId, Operation, PlaceAccess, SsaTypeId,
-    TerminatorKind,
+    BlockId, Edge, EntityId, EntityType, Function, InstructionId, LoanKind, Operation, PlaceAccess,
+    SsaTypeId, TerminatorKind,
 };
+
+use lang_frontend::type_checking::ParameterMode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Receipt {
@@ -12,6 +14,7 @@ pub(crate) struct Receipt {
     pub(crate) edges: Vec<(BlockId, Edge)>,
     pub(super) span: Span,
     pub(super) abi_types: Vec<SsaTypeId>,
+    pub(super) abi_modes: Vec<ParameterMode>,
     pub(super) folds: Vec<(BlockRef, BlockRef)>,
     pub(super) blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockId, Vec<Slot>>,
@@ -30,6 +33,8 @@ pub(super) struct Proof {
     pub(super) returns: Vec<BlockRef>,
     pub(super) source_parameter: usize,
     pub(super) flag_parameter: usize,
+    pub(super) flag_owned: bool,
+    pub(super) condition_used: bool,
     pub(super) source_type: SsaTypeId,
     pub(super) flag_type: SsaTypeId,
     pub(super) source_callee: FunctionId,
@@ -134,13 +139,29 @@ impl Emitted {
         let mappings = self.expected.get(&entry).ok_or_else(|| invalid(span))?;
         let abi_slots = plans.abi_slots.as_ref().ok_or_else(|| invalid(span))?;
         if abi_slots.len() != plans.abi_types.len()
+            || abi_slots.len() != plans.abi_modes.len()
             || actual.parameters.len() != abi_slots.len()
             || abi_slots.iter().collect::<BTreeSet<_>>().len() != abi_slots.len()
         {
             return Err(invalid(span));
         }
         for (index, slot) in abi_slots.iter().enumerate() {
-            if mappings.get(slot) != actual.parameters.get(index) {
+            let ty = match plans.abi_modes[index] {
+                ParameterMode::Borrow => EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: plans.abi_types[index],
+                },
+                ParameterMode::Value => EntityType::Value(plans.abi_types[index]),
+                _ => return Err(invalid(span)),
+            };
+            if mappings.get(slot) != actual.parameters.get(index)
+                || actual
+                    .parameters
+                    .get(index)
+                    .and_then(|id| function.entity(*id))
+                    .map(|d| d.ty)
+                    != Some(ty)
+            {
                 return Err(invalid(span));
             }
         }
@@ -150,6 +171,14 @@ impl Emitted {
                 || p.flag != abi_slots.get(p.flag_parameter).copied()
                 || plans.abi_types.get(p.source_parameter) != Some(&p.source_type)
                 || plans.abi_types.get(p.flag_parameter) != Some(&p.flag_type)
+                || plans.abi_modes.get(p.source_parameter) != Some(&ParameterMode::Borrow)
+                || plans.abi_modes.get(p.flag_parameter)
+                    != Some(&if p.flag_owned {
+                        ParameterMode::Value
+                    } else {
+                        ParameterMode::Borrow
+                    })
+                || !p.condition_used
             {
                 return Err(invalid(span));
             }
@@ -180,6 +209,8 @@ impl Emitted {
                     returns,
                     source_parameter: p.source_parameter,
                     flag_parameter: p.flag_parameter,
+                    flag_owned: p.flag_owned,
+                    condition_used: p.condition_used,
                     source_type: p.source_type,
                     flag_type: p.flag_type,
                     source_callee: p.source_callee,
@@ -197,6 +228,7 @@ impl Emitted {
             edges: Vec::new(),
             span,
             abi_types: plans.abi_types.clone(),
+            abi_modes: plans.abi_modes.clone(),
             blocks: blocks.clone(),
             parameters: ps,
             folds: plans.folds.clone(),
