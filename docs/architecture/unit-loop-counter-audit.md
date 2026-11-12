@@ -43,7 +43,7 @@ lowering；这不是借用旧单根plan，也不从“没有receipt”推断所�
 
 ## 实际后端消费
 
-独立plan仅选择同callable的唯一审计记录，不创建旧单根header plan。
+独立plan registry选择同callable的唯一单记录或完整受限批次，不创建旧单根header plan。
 
 1. 在真实while发射时捕获entry/header/body/finished/exit和counter/guard/root槽。
 2. 复用实际checked-expression receipt，要求指定RHS的Subtract、左操作数为counter、
@@ -132,5 +132,12 @@ token不来自清理、AST枚举、旧observation恢复或上一循环first-body
 实际退出按control顺序封存，各成员保留自己的命名空间，不拼成假单catalog。缺失、重复、
 乱序或任一成员失败立即清空全组；最终seal核对控制、成员身份、callable、根及body catalog
 独立性。deferred清除整组，旧单counter及其他loop getter不投影该组。
-这是原子审计证据发布，不是后端权限迁移：现有codegen仍只选择单counter Plan，双counter
-继续走通用lowering，尚无批次receipt或多Plan强制消费。嵌套loop、跨段活根运输也未启用。
+后端现在对完整literal-entry闭合批次建立多Plan registry：精确按成员index+control选择，
+entry、Replace、返回binding、body Drop和false-exit Drop的permit均携带成员键，domain
+fallback不重选成员；多个匹配拒绝，不把成员局部索引当全组身份。首成员exit块兼作第二段
+前缀也按实际几何检查。所有成员先完成原有scalar/body/entry/exit核验，再统一复核全部
+Complete身份及checked success/abort边，最后才提交最终成员与全组receipt；后项失败不留下
+首项最终完成receipt。当前提交阶段不再修改CFG或Plan，这一条件是原子提交合同的一部分。
+含Parameter等尚无完整入口边界证明的批次整体不选择，继续generic lowering，不只挑literal
+成员；旧单Plan路径保留。这是受限多Plan实际发射消费，不是一般跨轮归纳、嵌套loop或
+跨段活根运输，也没有退休旧单根权限。

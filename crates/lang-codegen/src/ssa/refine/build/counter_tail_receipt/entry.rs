@@ -5,21 +5,20 @@ use retirement::{Domain, Permit};
 impl Builder<'_, '_> {
     pub(super) fn counter_entry_binding(
         &self,
+        key: Key,
         initializer: UnitExpressionId,
         symbol: UnitSymbolId,
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
-            return Ok(None);
-        };
+        let plan = self.counter_tail_plan.get(key, span)?;
         let Some(index) = plan
             .evidence
             .root_slots()
             .iter()
             .position(|s| s.root() == symbol)
         else {
-            return self.counter_exit_binding(initializer, symbol, value, span);
+            return self.counter_exit_binding(key, initializer, symbol, value, span);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let block = self.block.ok_or_else(fail)?;
@@ -75,6 +74,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         Ok(Some(Permit {
+            key,
             index,
             block,
             source: value,
@@ -139,7 +139,7 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        let plan = self.counter_tail_plan.as_mut().ok_or_else(fail)?;
+        let plan = self.counter_tail_plan.get_mut(permit.key, span)?;
         #[cfg(test)]
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::CounterEntryDuplicateCommit,

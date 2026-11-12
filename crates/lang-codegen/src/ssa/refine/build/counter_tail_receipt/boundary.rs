@@ -9,13 +9,17 @@ pub(super) struct Complete<'a> {
     roots: Vec<Slot>,
 }
 impl Complete<'_> {
-    pub(super) fn commit(self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn validate(&self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
         if !std::ptr::eq(self.evidence, plan.evidence)
             || Some(self.geometry) != plan.geometry
             || self.roots != plan.roots
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
+        Ok(())
+    }
+    pub(super) fn commit(self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
+        self.validate(plan, span)?;
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             "counter-tail-complete-boundary-audit",
