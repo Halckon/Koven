@@ -426,6 +426,7 @@ subgraph Gactive["现行 active"]
   S0435["S0435<br/>unit_lower/control/result_tests、item_operand_ssa_test_support 及 lower_frontend 守卫与实例测试壳子模块退役"]
   S0436["S0436<br/>unit_lower 借用/编排/字段可空测试、verify_ownership/root_exchange_tests 及 lower_frontend 实例/闭包/待定调用/借用清理测试壳子模块退役"]
   S0437["S0437<br/>lambda_preflight_tests、outer_borrowed_while 守卫、key_return 身份及 lower_frontend 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役"]
+  S0438["S0438<br/>outer_borrowed_while、source_owner/handoff、map_iteration 退出/成形/临时项及可空清理载体与源证明壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1923,6 +1924,7 @@ S0366 --> S0367
 | SPEC-0435 | active | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](../../specs/active/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |
 | SPEC-0436 | active | [0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md](../../specs/active/0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) |
 | SPEC-0437 | active | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](../../specs/active/0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
+| SPEC-0438 | active | [0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md](../../specs/active/0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

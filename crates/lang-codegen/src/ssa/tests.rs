@@ -394,8 +394,7 @@ pub(in crate::ssa) mod source_owner {
     //! Exact source-owner proof for the observed normal and direct-tail Map shapes.
     //! A source facts were first collected by the ordinary 12-path run on 9244391b.
     //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
-    #[path = "../../lower_frontend/map_iteration/source_owner/handoff.rs"]
-    pub(in crate::ssa) mod handoff;
+    pub(in crate::ssa) use crate::ssa::ordered_map_storage_tests::source_owner_handoff as handoff;
     pub(in crate::ssa) use handoff::delivery;
     use delivery::future;
     pub(in crate::ssa) use delivery::Delivery;

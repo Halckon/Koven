@@ -51,7 +51,7 @@ mod map_consume_fixture_tests;
 #[cfg(test)]
 mod map_consume_lowering_tests;
 #[cfg(test)]
-mod map_promotion_contract_tests;
+pub(in crate::ssa) mod map_promotion_contract_tests;
 #[cfg(test)]
 mod nullable_map_consume_fixture_tests;
 #[cfg(test)]
@@ -70,7 +70,7 @@ mod verify_types;
 #[cfg(test)]
 mod aggregate_operation_tests;
 #[cfg(test)]
-mod borrowed_container_lowering_tests;
+pub(in crate::ssa) mod borrowed_container_lowering_tests;
 #[cfg(test)]
 pub(crate) mod borrowed_generate_tests;
 #[cfg(test)]
@@ -106,7 +106,7 @@ mod unit_lower_container_size_tests;
 #[cfg(test)]
 mod unit_lower_container_tests;
 #[cfg(test)]
-mod unit_lower_control_result_tests;
+pub(in crate::ssa) mod unit_lower_control_result_tests;
 #[cfg(test)]
 mod unit_lower_enum_tests;
 #[cfg(test)]
@@ -205,14 +205,14 @@ pub(in crate::ssa) mod bitwise_operation_tests;
 #[cfg(test)]
 mod checked_integer_conversion_backend_tests;
 #[cfg(test)]
-mod checked_integer_conversion_contract_tests;
+pub(in crate::ssa) mod checked_integer_conversion_contract_tests;
 #[cfg(test)]
-mod checked_integer_conversion_tests;
+pub(in crate::ssa) mod checked_integer_conversion_tests;
 #[cfg(test)]
 mod integer_core_contract_tests;
 
 #[cfg(test)]
-mod deinit_tests;
+pub(in crate::ssa) mod deinit_tests;
 
 #[cfg(test)]
 mod unit_root_primitive_tests;
@@ -246,7 +246,7 @@ mod owned_null_cleanup_tests;
 mod owned_map_borrow_tests;
 
 #[cfg(test)]
-mod ordered_map_storage_tests;
+pub(in crate::ssa) mod ordered_map_storage_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod owned_map_borrow_boundary_tests;
@@ -271,7 +271,7 @@ mod borrow_value_field_tests;
 mod single_readonly_method_tests;
 
 #[cfg(test)]
-mod integer_range_contract_tests;
+pub(in crate::ssa) mod integer_range_contract_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod integer_range_pending_tests;

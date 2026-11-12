@@ -1,9 +1,9 @@
 //! One complete two-version cleanup group and bounded constant-presence proof.
-mod carrier;
+pub(in crate::ssa) use crate::ssa::map_promotion_contract_tests::nullable_if_carrier as carrier;
 use carrier::source;
 
 pub(in crate::ssa) mod constant_presence {
-    mod source;
+    pub(in crate::ssa) use crate::ssa::deinit_tests::constant_presence_source as source;
     use source::source_return;
 
     use lang_frontend::ownership_checking::{
