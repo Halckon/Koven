@@ -1,6 +1,345 @@
 //! Original AST anchors plus normalized snapshots from the same public FE products.
-mod representation;
-mod source_drops;
+mod representation {
+    //! Original component and Guard nominal identities from the observed typed products.
+    use super::*;
+    use lang_frontend::{
+        name_resolution::{SymbolKind, ValidatedCompilationUnitNames},
+        ownership_checking::CompilationUnitOwnership,
+        type_checking::{
+            BuiltinType, CompilationUnitTypes, NominalKind, ParameterMode, UnitConstructionTarget,
+            UnitExpressionId, UnitTypeId, UnitTypeKind,
+        },
+    };
+
+    pub(super) fn unit(
+        parsed: &ParsedFile,
+        names: &ValidatedCompilationUnitNames,
+        typed: &CompilationUnitTypes,
+        ty: UnitTypeId,
+    ) -> Result<Representation, Failure> {
+        let (inner, nullable) = match typed.types().get(ty) {
+            Some(UnitTypeKind::Nullable(inner)) => (*inner, true),
+            _ => (ty, false),
+        };
+        if typed.types().get(inner) == Some(&UnitTypeKind::Builtin(BuiltinType::String)) {
+            need(!nullable, "stack qualified String is nonnullable", ty)?;
+            return Ok(Representation {
+                nullable: false,
+                deinit: None,
+                strings: 0,
+            });
+        }
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = typed.types().get(inner)
+        else {
+            return Err(failure("stack qualified actual component type", ty));
+        };
+        let descriptor = one(
+            typed
+                .signatures()
+                .declarations()
+                .iter()
+                .filter(|d| d.declaration() == *declaration)
+                .filter_map(|d| d.nominal()),
+            "stack qualified component nominal",
+        )?;
+        let declared = one(
+            names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .filter(|d| d.id() == *declaration),
+            "stack original qualified Resource declaration",
+        )?;
+        let class = parsed.ast().items().get(declared.root()).unwrap();
+        let deinit = descriptor
+            .deinit()
+            .ok_or_else(|| failure("stack qualified Resource deinit", descriptor))?;
+        let original = parsed.ast().items().get(deinit.item().item()).unwrap();
+        need(
+            arguments.is_empty()
+                && descriptor.kind() == NominalKind::Class
+                && descriptor.type_parameters().is_empty()
+                && descriptor.interfaces().is_empty()
+                && deinit.owner() == *declaration
+                && deinit.receiver_type() == inner
+                && deinit.receiver_mode() == ParameterMode::Borrow
+                && deinit.item().source_unit() == declared.source_unit()
+                && inside(original.span(), class.span())
+                && matches!(original.payload(),Item::Deinit{body,..} if *body==deinit.body().statement())
+                && descriptor.fields().iter().all(|f| {
+                    typed.types().get(f.ty()) == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                }),
+            "stack qualified exact Resource/String field/original deinit",
+            (descriptor, deinit, class),
+        )?;
+        Ok(Representation {
+            nullable,
+            deinit: Some(original.span()),
+            strings: descriptor.fields().len(),
+        })
+    }
+    fn locals(parsed: &ParsedFile, sites: &[AstSite]) -> Vec<(Span, lang_frontend::ast::ExpressionId)> {
+        parsed
+            .ast()
+            .items()
+            .iter()
+            .filter_map(|(_, n)| {
+                let Item::Variable {
+                    name: NameMarker::Present(marker),
+                    initializer,
+                    ..
+                } = n.payload()
+                else {
+                    return None;
+                };
+                sites
+                    .iter()
+                    .any(|s| inside(n.span(), s.body_span))
+                    .then_some((*marker, *initializer))
+            })
+            .collect()
+    }
+    pub(super) fn unit_guards(
+        parsed: &ParsedFile,
+        names: &ValidatedCompilationUnitNames,
+        typed: &CompilationUnitTypes,
+        owned: &CompilationUnitOwnership,
+        sites: &[AstSite],
+    ) -> Result<Vec<GuardInput>, Failure> {
+        let source = one(
+            names.names().source_units().iter(),
+            "stack Guard original qualified source",
+        )?;
+        let unit = source.source_unit();
+        let mut result = Vec::new();
+        for (marker, initializer) in locals(parsed, sites) {
+            let local = one(
+                owned.formed_owned_locals().iter().copied().filter(|s| {
+                    s.source_unit() == unit
+                        && source.resolution().symbols().iter().any(|n| {
+                            n.id() == s.symbol()
+                                && n.span() == marker
+                                && n.kind() == SymbolKind::Variable
+                        })
+                }),
+                "stack qualified original formed Guard",
+            )?;
+            let construction = typed
+                .construction(UnitExpressionId::new(unit, initializer))
+                .ok_or_else(|| failure("stack qualified Guard construction", initializer))?;
+            let repr = self::unit(parsed, names, typed, construction.result_type())?;
+            need(
+                repr.deinit.is_some()
+                    && !repr.nullable
+                    && repr.strings == 0
+                    && construction.arguments().is_empty()
+                    && construction.instance().type_arguments().is_empty()
+                    && matches!(typed.types().get(construction.result_type()),Some(UnitTypeKind::Nominal{declaration,arguments}) if construction.target()==UnitConstructionTarget::Nominal(*declaration)&&arguments.is_empty())
+                    && typed.symbol_type(local) == Some(construction.result_type())
+                    && typed.expression_type(UnitExpressionId::new(unit, initializer))
+                        == Some(construction.result_type()),
+                "stack qualified Guard exact formation and nominal",
+                (construction, &repr, local),
+            )?;
+            result.push(GuardInput {
+                marker,
+                initializer: parsed.ast().expressions().get(initializer).unwrap().span(),
+                deinit: repr.deinit.unwrap(),
+            });
+        }
+        Ok(result)
+    }
+}
+mod source_drops {
+    //! Exact global source Drop obligations, including lexical Returns outside For plans.
+    use super::*;
+    use lang_frontend::{
+        name_resolution::ValidatedCompilationUnitNames,
+        ownership_checking::{CompilationUnitOwnership, UnitDropPoint, UnitDropTarget},
+    };
+
+    pub(super) fn unit(
+        parsed: &ParsedFile,
+        names: &ValidatedCompilationUnitNames,
+        owned: &CompilationUnitOwnership,
+        sites: &[Site],
+    ) -> Result<Vec<SourceDrop>, Failure> {
+        let source = one(
+            names.names().source_units().iter(),
+            "stack global Drop original qualified source",
+        )?;
+        let mut result = Vec::new();
+        for site in sites {
+            let (root, target) = match site.source {
+                Source::Parameter {
+                    marker,
+                    borrow: false,
+                    ..
+                } => {
+                    let symbol = one(
+                        owned.bindings().iter().filter_map(|binding| {
+                            let id = binding.symbol();
+                            (id.source_unit() == source.source_unit()
+                                && source
+                                    .resolution()
+                                    .symbols()
+                                    .iter()
+                                    .any(|s| s.id() == id.symbol() && s.span() == marker))
+                            .then_some(id)
+                        }),
+                        "stack global Drop exact qualified source root",
+                    )?;
+                    (marker, UnitDropTarget::Named(symbol))
+                }
+                Source::Call { span, .. } => (
+                    span,
+                    UnitDropTarget::Temporary(lang_frontend::type_checking::UnitExpressionId::new(
+                        source.source_unit(),
+                        site.ast.source,
+                    )),
+                ),
+                Source::Parameter { borrow: true, .. } => continue,
+            };
+            let drops = owned
+                .drops()
+                .iter()
+                .filter(|d| d.target() == target)
+                .collect::<Vec<_>>();
+            need(
+                !drops.is_empty(),
+                "stack qualified source global Drop obligations",
+                target,
+            )?;
+            for drop in drops {
+                need(
+                    drop.value_origin() == root,
+                    "stack qualified global Drop exact source birth",
+                    drop,
+                )?;
+                let point = match drop.point() {
+                    UnitDropPoint::LoopExit(id) => {
+                        need(
+                            id.source_unit() == source.source_unit(),
+                            "stack global Drop original unit",
+                            drop,
+                        )?;
+                        loop_point(parsed, id.statement(), sites)?
+                    }
+                    UnitDropPoint::ControlTransfer(id) => {
+                        need(
+                            id.source_unit() == source.source_unit(),
+                            "stack global Return Drop original unit",
+                            drop,
+                        )?;
+                        transfer_point(parsed, id.expression(), site.ast.function)?
+                    }
+                    UnitDropPoint::AfterStatement(id) => {
+                        need(
+                            id.source_unit() == source.source_unit(),
+                            "stack global scope Drop original unit",
+                            drop,
+                        )?;
+                        scope_point(parsed, id.statement(), site.ast.function)?
+                    }
+                    _ => {
+                        return Err(failure(
+                            "stack qualified global source Drop original point",
+                            drop,
+                        ));
+                    }
+                };
+                // The public UnitDropFact deliberately has no owner or condition
+                // ID. Preserve its real qualified target/point; SSA independently
+                // proves the current owner on every incoming path.
+                save(
+                    &mut result,
+                    SourceDrop {
+                        root,
+                        function: site.ast.function,
+                        point,
+                    },
+                );
+            }
+        }
+        Ok(result)
+    }
+    fn save(drops: &mut Vec<SourceDrop>, drop: SourceDrop) {
+        if !drops.contains(&drop) {
+            drops.push(drop);
+        }
+    }
+    fn loop_point(
+        parsed: &ParsedFile,
+        statement: StatementId,
+        sites: &[Site],
+    ) -> Result<SourceDropPoint, Failure> {
+        let site = one(
+            sites.iter().filter(|s| s.ast.statement == statement),
+            "stack global Drop actual provider statement",
+        )?;
+        need(
+            parsed.ast().statements().get(statement).unwrap().span() == site.ast.span,
+            "stack global Drop original LoopExit",
+            site,
+        )?;
+        Ok(SourceDropPoint::LoopExit(site.ast.span))
+    }
+    fn transfer_point(
+        parsed: &ParsedFile,
+        expression: ExpressionId,
+        function: Span,
+    ) -> Result<SourceDropPoint, Failure> {
+        let node = parsed.ast().expressions().get(expression).unwrap();
+        need(
+            inside(node.span(), function),
+            "stack global transfer Drop stays in source callable",
+            node,
+        )?;
+        match node.payload() {
+            Expression::Return { value, .. } => Ok(SourceDropPoint::Return {
+                span: node.span(),
+                operand: value.map(|v| parsed.ast().expressions().get(v).unwrap().span()),
+            }),
+            Expression::Break { .. } => Ok(SourceDropPoint::Break(node.span())),
+            _ => Err(failure("stack actual global finite transfer AST", node)),
+        }
+    }
+    fn scope_point(
+        parsed: &ParsedFile,
+        statement: StatementId,
+        function: Span,
+    ) -> Result<SourceDropPoint, Failure> {
+        let span = parsed.ast().statements().get(statement).unwrap().span();
+        let callable = one(
+            parsed.roots().iter().filter_map(|id| {
+                let node = parsed.ast().items().get(*id).ok()?;
+                match node.payload() {
+                    Item::Function {
+                        form:
+                            lang_frontend::parser::FunctionForm::ImplicitUnitBlock(body)
+                            | lang_frontend::parser::FunctionForm::Explicit {
+                                body: lang_frontend::parser::FunctionBody::Block(body),
+                                ..
+                            },
+                        ..
+                    } if node.span() == function => Some(*body),
+                    _ => None,
+                }
+            }),
+            "stack original implicit Return source scope",
+        )?;
+        need(
+            callable == statement,
+            "stack global AfterStatement Drop is exact callable body",
+            (statement, callable),
+        )?;
+        Ok(SourceDropPoint::ScopeEnd(span))
+    }
+}
 mod unit;
 use super::super::{
     fixture::{Failure, failure, need},

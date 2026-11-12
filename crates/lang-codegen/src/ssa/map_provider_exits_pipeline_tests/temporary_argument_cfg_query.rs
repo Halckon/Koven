@@ -1,8 +1,548 @@
 //! Read-only proof for the empty-Map factory's ordinary argument CFG and hidden owner.
 pub(super) mod argument;
-mod ast;
+mod ast {
+    //! Exact ordinary source Call and argument If; independent of expression arena slots.
+    use super::*;
+    use lang_frontend::{
+        ast::StatementId,
+        parser::{IntegerLiteralKind, Item, LiteralKind, NameMarker, Statement},
+    };
+    pub(super) struct Loop {
+        pub span: Span,
+        pub body: StatementId,
+        pub read: Span,
+        pub arguments: [Span; 2],
+    }
+    pub(super) struct Input {
+        pub scan: Span,
+        pub factory: Span,
+        pub call: Span,
+        pub argument: Span,
+        pub flag: Span,
+        pub arms: [Span; 2],
+        pub loop_site: Option<Loop>,
+        pub size: Option<Span>,
+        pub drop_origin: Span,
+        pub construct: Span,
+        pub factory_return: Span,
+        pub mutable: bool,
+    }
+    fn inside(inner: Span, outer: Span) -> bool {
+        inner.source_id() == outer.source_id()
+            && inner.start() > outer.start()
+            && inner.end() < outer.end()
+    }
+    pub(super) fn input(sources: &SourceMap, parsed: &ParsedFile) -> Result<Input, Failure> {
+        let expressions = parsed.ast().expressions();
+        let (call_id, call, argument) = one(
+            expressions.iter().filter_map(|(id, n)| match n.payload() {
+                Expression::Call {
+                    callee, arguments, ..
+                } if sources.slice(expressions.get(*callee).ok()?.span()) == Ok("produce")
+                    && arguments.len() == 1 =>
+                {
+                    Some((id, n.span(), arguments[0].value))
+                }
+                _ => None,
+            }),
+            "original unique produce Call",
+        )?;
+        let scan = one(
+            parsed.roots().iter().filter_map(|id| {
+                let n = parsed.ast().items().get(*id).ok()?;
+                (inside(call, n.span()) && matches!(n.payload(), Item::Function { .. })).then_some(n)
+            }),
+            "actual containing scanner declaration",
+        )?;
+        let Item::Function { parameters, .. } = scan.payload() else {
+            unreachable!()
+        };
+        let [parameter] = parameters.as_slice() else {
+            return Err(failure("scanner original one Boolean parameter", scan));
+        };
+        let NameMarker::Present(parameter_name) = parameter.name else {
+            return Err(failure("scanner real parameter Name", parameter));
+        };
+        need(
+            parameter.mode_marker.is_none()
+                && sources.slice(parameter_name) == Ok("flag")
+                && sources.slice(
+                    parsed
+                        .ast()
+                        .type_refs()
+                        .get(parameter.type_ref)
+                        .unwrap()
+                        .span(),
+                ) == Ok("Boolean"),
+            "original scanner Borrow Boolean syntax",
+            parameter,
+        )?;
+        let factory = one(
+            parsed.roots().iter().filter_map(|id| {
+                let n = parsed.ast().items().get(*id).ok()?;
+                let Item::Function {
+                    name: NameMarker::Present(name),
+                    ..
+                } = n.payload()
+                else {
+                    return None;
+                };
+                (sources.slice(*name) == Ok("produce")).then_some(n)
+            }),
+            "original selected produce declaration",
+        )?;
+        let Item::Function { parameters, .. } = factory.payload() else {
+            unreachable!()
+        };
+        let [p] = parameters.as_slice() else {
+            return Err(failure("factory original one Int parameter", factory));
+        };
+        let NameMarker::Present(factory_parameter) = p.name else {
+            return Err(failure("factory parameter original Name", p));
+        };
+        need(
+            p.mode_marker.is_none()
+                && sources.slice(factory_parameter) == Ok("input")
+                && sources.slice(parsed.ast().type_refs().get(p.type_ref).unwrap().span()) == Ok("Int"),
+            "factory original Borrow Int syntax",
+            p,
+        )?;
+        let argument_node = expressions.get(argument).unwrap();
+        let Expression::If {
+            condition,
+            then_branch,
+            else_branch: Some(no),
+            ..
+        } = argument_node.payload()
+        else {
+            return Err(failure("original actual argument If", argument_node));
+        };
+        let flag = expressions.get(*condition).unwrap();
+        need(
+            flag.payload() == &Expression::Name && sources.slice(flag.span()) == Ok("flag"),
+            "original argument condition flag Name",
+            flag,
+        )?;
+        let arm = |statement, wanted| -> Result<Span, Failure> {
+            let n = parsed.ast().statements().get(statement).unwrap();
+            // parse_if -> parse_control_body -> parse_control_block preserves a
+            // ControlBody for a braced value arm; an ordinary Block is a different node.
+            let Statement::ControlBody { elements } = n.payload() else {
+                return Err(failure(
+                    "original argument arm ControlBody",
+                    (n, n.payload()),
+                ));
+            };
+            let [statement] = elements.as_slice() else {
+                return Err(failure("original single literal arm", n));
+            };
+            let n = parsed.ast().statements().get(*statement).unwrap();
+            let Statement::Expression { expression } = n.payload() else {
+                return Err(failure("original literal arm statement", n));
+            };
+            let n = expressions.get(*expression).unwrap();
+            need(
+                n.payload()
+                    == &Expression::Literal(LiteralKind::Integer(IntegerLiteralKind::Unsuffixed))
+                    && sources.slice(n.span()) == Ok(wanted),
+                "original selected arm literal",
+                n,
+            )?;
+            Ok(n.span())
+        };
+        let arms = [arm(*then_branch, "1")?, arm(*no, "2")?];
+        let loops = parsed
+            .ast()
+            .statements()
+            .iter()
+            .filter_map(|(_, n)| match n.payload() {
+                Statement::For { source, body, .. } if inside(n.span(), scan.span()) => {
+                    Some((n.span(), *source, *body))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let loop_site = if let [(span, source, body)] = loops.as_slice() {
+            need(
+                *source == call_id,
+                "original For source is the selected Call itself",
+                source,
+            )?;
+            let (read, args) = one(
+                expressions.iter().filter_map(|(_, n)| match n.payload() {
+                    Expression::Call {
+                        callee, arguments, ..
+                    } if inside(n.span(), *span)
+                        && sources.slice(expressions.get(*callee).ok()?.span()) == Ok("read")
+                        && arguments.len() == 2 =>
+                    {
+                        Some((n.span(), [arguments[0].value, arguments[1].value]))
+                    }
+                    _ => None,
+                }),
+                "actual body read Call",
+            )?;
+            let arguments = args.map(|id| expressions.get(id).unwrap().span());
+            need(
+                arguments
+                    .iter()
+                    .zip(["key", "value"])
+                    .all(|(s, w)| sources.slice(*s) == Ok(w)),
+                "original body K/V argument order",
+                arguments,
+            )?;
+            Some(Loop {
+                span: *span,
+                body: *body,
+                read,
+                arguments,
+            })
+        } else {
+            need(loops.is_empty(), "exact zero or one original For", &loops)?;
+            None
+        };
+        let (size, drop_origin) = if loop_site.is_none() {
+            let marker = one(
+                parsed
+                    .ast()
+                    .items()
+                    .iter()
+                    .filter_map(|(_, n)| match n.payload() {
+                        Item::Variable {
+                            name: NameMarker::Present(name),
+                            initializer,
+                            ..
+                        } if *initializer == call_id => Some(*name),
+                        _ => None,
+                    }),
+                "ordinary control original owner binding",
+            )?;
+            let size = one(
+                expressions.iter().filter_map(|(_, n)| match n.payload() {
+                    Expression::Member {
+                        receiver,
+                        name_span,
+                        ..
+                    } if inside(n.span(), scan.span())
+                        && sources.slice(*name_span) == Ok("size")
+                        && sources.slice(expressions.get(*receiver).ok()?.span())
+                            == sources.slice(marker) =>
+                    {
+                        Some(n.span())
+                    }
+                    _ => None,
+                }),
+                "control actual source size",
+            )?;
+            (Some(size), marker)
+        } else {
+            (None, call)
+        };
+        let (construct, mutable) = one(
+            expressions.iter().filter_map(|(_, n)| {
+                let Expression::Call {
+                    callee, arguments, ..
+                } = n.payload()
+                else {
+                    return None;
+                };
+                if !inside(n.span(), factory.span()) || !arguments.is_empty() {
+                    return None;
+                }
+                match sources.slice(expressions.get(*callee).ok()?.span()) {
+                    Ok("mapOf") => Some((n.span(), false)),
+                    Ok("mutableMapOf") => Some((n.span(), true)),
+                    _ => None,
+                }
+            }),
+            "factory original empty Map construction",
+        )?;
+        let factory_return = one(
+            expressions.iter().filter_map(|(_, n)| match n.payload() {
+                Expression::Return { value: Some(v), .. }
+                    if inside(n.span(), factory.span())
+                        && expressions.get(*v).ok()?.span() == construct =>
+                {
+                    Some(n.span())
+                }
+                _ => None,
+            }),
+            "factory returns actual empty construct",
+        )?;
+        Ok(Input {
+            scan: scan.span(),
+            factory: factory.span(),
+            call,
+            argument: argument_node.span(),
+            flag: flag.span(),
+            arms,
+            loop_site,
+            size,
+            drop_origin,
+            construct,
+            factory_return,
+            mutable,
+        })
+    }
+}
 mod provider;
-mod wrapper;
+mod wrapper {
+    //! Original runtime entry's literal Boolean is delivered to this exact scanner Borrow ABI.
+    use super::*;
+    use lang_frontend::parser::{Item, LiteralKind, NameMarker};
+
+    pub(super) fn check(
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        module: &Module,
+        scan: &Function,
+    ) -> Result<(), Failure> {
+        let declaration = one(
+            parsed.roots().iter().filter_map(|id| {
+                let node = parsed.ast().items().get(*id).ok()?;
+                (Origin::Source(node.span()) == scan.origin).then_some(node)
+            }),
+            "argument CFG original containing scanner item",
+        )?;
+        let Item::Function {
+            name: NameMarker::Present(name),
+            ..
+        } = declaration.payload()
+        else {
+            return Err(failure(
+                "argument CFG scanner original function name",
+                declaration,
+            ));
+        };
+        if sources.slice(*name) == Ok("entry") {
+            return Ok(());
+        }
+        need(
+            sources.slice(*name) == Ok("scan"),
+            "runtime scanner original name",
+            name,
+        )?;
+        let original = one(
+            parsed.roots().iter().filter_map(|id| {
+                let node = parsed.ast().items().get(*id).ok()?;
+                let Item::Function {
+                    name: NameMarker::Present(name),
+                    parameters,
+                    ..
+                } = node.payload()
+                else {
+                    return None;
+                };
+                (sources.slice(*name) == Ok("entry") && parameters.is_empty()).then_some(node.span())
+            }),
+            "runtime wrapper actual zeroarg entry declaration",
+        )?;
+        let inside = |span: Span| {
+            span.source_id() == original.source_id()
+                && original.start() < span.start()
+                && span.end() < original.end()
+        };
+        let expressions = parsed.ast().expressions();
+        let (call_span, argument) = one(
+            expressions.iter().filter_map(|(_, node)| {
+                let Expression::Call {
+                    callee, arguments, ..
+                } = node.payload()
+                else {
+                    return None;
+                };
+                (inside(node.span())
+                    && sources.slice(expressions.get(*callee).ok()?.span()) == Ok("scan")
+                    && arguments.len() == 1)
+                    .then_some((node.span(), arguments.first()?.value))
+            }),
+            "runtime wrapper original unique scan Call",
+        )?;
+        let argument = expressions.get(argument).unwrap();
+        let Expression::Literal(LiteralKind::Boolean(expected)) = argument.payload() else {
+            return Err(failure("runtime wrapper actual Boolean literal", argument));
+        };
+        need(
+            sources.slice(argument.span()) == Ok(if *expected { "true" } else { "false" }),
+            "runtime wrapper original literal spelling",
+            argument,
+        )?;
+        let entry = function(module, original)?;
+        let g = Graph::new(entry)?;
+        let block = entry.entry_block().unwrap();
+        need(
+            g.block(block)?.parameters.is_empty() && g.blocks == [block] && g.edges.is_empty(),
+            "runtime wrapper actual zeroarg straight normal entry",
+            entry.id,
+        )?;
+        let constant = at(&g, argument.span(), |o| {
+            *o == Operation::Constant(ScalarConstant::Boolean(*expected))
+        })?;
+        let call = one(
+            g.instructions.iter().copied().filter(
+                |i| matches!(i.operation, Operation::DirectCall { callee, .. } if callee == scan.id),
+            ),
+            "runtime wrapper exact actual scanner Call",
+        )?;
+        let Operation::DirectCall {
+            receiver: None,
+            arguments,
+            ..
+        } = &call.operation
+        else {
+            return Err(failure("runtime wrapper actual scanner direct ABI", call));
+        };
+        let [arg @ EntityId::Loan(actual_loan)] = arguments.as_slice() else {
+            return Err(failure(
+                "runtime wrapper actual scanner Borrow argument",
+                call,
+            ));
+        };
+        let begin = g.definition(*arg)?;
+        let Operation::BorrowBegin {
+            place,
+            kind: LoanKind::Shared,
+        } = begin.operation
+        else {
+            return Err(failure(
+                "runtime wrapper actual Shared Boolean birth",
+                begin,
+            ));
+        };
+        let root = g.definition(EntityId::Place(place))?;
+        let boolean = entry.entity(result(constant)?).unwrap().ty.semantic_type();
+        let parameters = &scan.block(scan.entry_block().unwrap()).unwrap().parameters;
+        let shared = EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: boolean,
+        };
+        need(
+            module.type_kind(boolean) == Some(&SsaTypeKind::Boolean)
+                && entry.entity(*arg).unwrap().ty == shared
+                && entry.entity(EntityId::Place(place)).unwrap().ty == EntityType::Place(boolean)
+                && matches!(parameters.as_slice(), [p] if scan.entity(*p).unwrap().ty == shared)
+                && scan.return_types.is_empty()
+                && call.results.is_empty(),
+            "runtime literal actual Boolean Value/place/Shared/scanner ABI",
+            call,
+        )?;
+        let end = one(
+            g.instructions
+                .iter()
+                .copied()
+                .filter(|i| i.operation == Operation::BorrowEnd { loan: *actual_loan }),
+            "runtime wrapper unique actual scanner CallReturn End",
+        )?;
+        let before = marker(sources, parsed, &g, original, "begin")?;
+        let after = marker(sources, parsed, &g, original, "after")?;
+        need(
+            root.operation
+                == Operation::RootPlace {
+                    owner: value(constant)?,
+                }
+                && root.origin == Origin::Source(argument.span())
+                && begin.origin == root.origin
+                && call.origin == Origin::Source(call_span)
+                && end.origin == call.origin
+                && [before, constant, root, begin, call, end, after]
+                    .iter()
+                    .all(|i| i.block == block)
+                && g.position(before)? < g.position(constant)?
+                && g.position(constant)? < g.position(root)?
+                && g.position(root)? < g.position(begin)?
+                && g.position(begin)? < g.position(call)?
+                && g.position(call)? < g.position(end)?
+                && g.position(end)? < g.position(after)?,
+            "runtime begin/literal/root/Shared/actual scan/unique End/after order",
+            (before, constant, root, begin, call, end, after),
+        )?;
+        need(
+            matches!(&g.term(block)?.kind, TerminatorKind::Return { values } if values.is_empty())
+                && g.instructions
+                    .iter()
+                    .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
+                    .count()
+                    == 1
+                && !g.instructions.iter().any(|i| {
+                    iteration(&i.operation)
+                        || matches!(
+                            i.operation,
+                            Operation::MapConstruct { .. } | Operation::MapSize { .. }
+                        )
+                }),
+            "runtime wrapper normal Return delegates container work to exact scanner",
+            g.term(block)?,
+        )?;
+        let mut uses = Uses::default();
+        uses.protect(result(constant)?);
+        uses.permit(result(constant)?, root);
+        uses.protect(EntityId::Place(place));
+        uses.permit(EntityId::Place(place), begin);
+        uses.protect(*arg);
+        uses.permit(*arg, call);
+        uses.permit(*arg, end);
+        uses.check(&g, None)
+    }
+
+    fn marker<'p>(
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        g: &Graph<'p>,
+        scope: Span,
+        wanted: &str,
+    ) -> Result<&'p Instruction, Failure> {
+        let (call, argument) = one(
+            parsed.ast().expressions().iter().filter_map(|(_, node)| {
+                let Expression::Call {
+                    callee, arguments, ..
+                } = node.payload()
+                else {
+                    return None;
+                };
+                let [argument] = arguments.as_slice() else {
+                    return None;
+                };
+                let arg = parsed.ast().expressions().get(argument.value).ok()?.span();
+                (scope.source_id() == node.span().source_id()
+                    && scope.start() < node.span().start()
+                    && node.span().end() < scope.end()
+                    && sources.slice(parsed.ast().expressions().get(*callee).ok()?.span())
+                        == Ok("println")
+                    && sources.slice(arg) == Ok(format!("\"{wanted}\"").as_str()))
+                .then_some((node.span(), arg))
+            }),
+            "runtime wrapper original marker Call",
+        )?;
+        at(g, call, |o| match o {
+            Operation::PrintLiteral { bytes } => {
+                let mut expected = wanted.as_bytes().to_vec();
+                expected.push(b'\n');
+                *bytes == expected
+            }
+            Operation::PrintString { value: loan } => {
+                let Ok(begin) = g.definition(EntityId::Loan(*loan)) else {
+                    return false;
+                };
+                let Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                } = begin.operation
+                else {
+                    return false;
+                };
+                let Ok(root) = g.definition(EntityId::Place(place)) else {
+                    return false;
+                };
+                let Operation::RootPlace { owner } = root.operation else {
+                    return false;
+                };
+                g.definition(EntityId::Value(owner)).is_ok_and(|i| i.origin == Origin::Source(argument)
+                    && matches!(&i.operation, Operation::StringLiteral { bytes, .. } if bytes == wanted.as_bytes()))
+            }
+            _ => false,
+        })
+    }
+}
 use super::{
     fixture::{Failure, failure, need},
     query_graph::{Graph, Uses, function, inherits, loan, result, value},
