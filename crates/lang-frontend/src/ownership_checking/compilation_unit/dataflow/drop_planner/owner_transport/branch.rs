@@ -11,13 +11,32 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         let branch_usage = self.control_result_usage(id);
-        if !self.expression(condition, DropExpressionUse::Read, state)? {
-            return Ok(false);
+        self.observe_branch_condition(id, condition, state, false);
+        self.observe_nested_condition(id, condition, state, false);
+        self.observe_bounded_condition(id, condition, state, false);
+        let condition_result = self.expression(condition, DropExpressionUse::Read, state);
+        if !matches!(condition_result, Ok(true)) {
+            state.branch_forward_plan = None;
+            state.nested_forward = None;
+            if state
+                .forward_scope
+                .is_some_and(|scope| scope.branch.is_some())
+            {
+                state.forward_scope = None;
+            }
+            return condition_result;
         }
         // Restore depth even when legacy traversal returns an error. Only the real
         // branch bodies and their cleanup run inside this admission boundary.
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
+        self.observe_branch_condition(id, condition, state, true);
+        self.observe_nested_condition(id, condition, state, true);
+        self.observe_bounded_condition(id, condition, state, true);
+        self.prepare_forward_split(id, condition, outcomes, state);
+        self.prepare_nested_forward_split(id, condition, outcomes, state);
         self.begin_owner_loop_split(id, condition, outcomes, state);
+        self.conditional_break_split_enter(id, condition, outcomes, state);
+        self.conditional_return_split_enter(id, condition, outcomes, state);
         self.owner_branch_depth += 1;
         let result = self.owner_if_edges(
             id,
@@ -27,6 +46,16 @@ impl DropPlanner<'_, '_> {
             state,
         );
         self.owner_branch_depth -= 1;
+        if result.is_err() {
+            state.branch_forward_plan = None;
+            state.nested_forward = None;
+            if state
+                .forward_scope
+                .is_some_and(|scope| scope.branch.is_some())
+            {
+                state.forward_scope = None;
+            }
+        }
         result
     }
 
@@ -43,17 +72,34 @@ impl DropPlanner<'_, '_> {
                 .then_some(observation.events.len())
         });
         let base = state.clone();
+        let branch_plan = base.branch_forward_plan;
+        let nested_plan = base.nested_forward;
+        let bounded_plan = base.bounded_forward;
+        let single_plan = base.single_continuation;
+        let multi_plan = base.multi_continuation;
         let mut branch_states = Vec::new();
+        let mut then_terminated = false;
+        let mut else_terminated = false;
         if reaches_then {
             let mut then_state = base.clone();
+            self.enter_forward_arm(id, true, &mut then_state);
+            self.enter_nested_forward_arm(id, true, &mut then_state);
+            self.enter_bounded_arm(id, true, &mut then_state);
             self.drop_branch_entry(id, 0, &[], &mut then_state);
             self.begin_owner_loop_arm(id, 0, then_branch, &then_state);
-            let (then_tail, then_result) =
-                self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
+            self.conditional_break_arm_enter(id, then_branch, &then_state);
+            self.conditional_return_arm_enter(id, then_branch, &then_state);
+            self.enter_root_branch_arm(id, 0);
+            let evaluated = self.evaluate_control_body(then_branch, branch_usage, &mut then_state);
+            self.leave_root_branch_arm(id, 0);
+            let (then_tail, then_result) = evaluated?;
+            then_terminated = !then_result.continues;
             if then_result.continues {
                 self.drop_branch_exit(id, 0, &mut then_state);
             }
             self.finish_owner_loop_arm(id, 0, then_tail, &then_result, &then_state);
+            self.conditional_break_arm_finish(id, then_tail, &then_result, &then_state);
+            self.conditional_return_arm_finish(id, then_tail, &then_result, &then_state);
             if then_result.continues {
                 branch_states.push(then_state);
             }
@@ -70,10 +116,17 @@ impl DropPlanner<'_, '_> {
         if reaches_else {
             if let Some(else_branch) = else_branch {
                 let mut else_state = base;
+                self.enter_forward_arm(id, false, &mut else_state);
+                self.enter_nested_forward_arm(id, false, &mut else_state);
+                self.enter_bounded_arm(id, false, &mut else_state);
                 self.drop_branch_entry(id, 1, &[], &mut else_state);
                 self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
-                let (else_tail, else_result) =
-                    self.evaluate_control_body(else_branch, branch_usage, &mut else_state)?;
+                self.enter_root_branch_arm(id, 1);
+                let evaluated =
+                    self.evaluate_control_body(else_branch, branch_usage, &mut else_state);
+                self.leave_root_branch_arm(id, 1);
+                let (else_tail, else_result) = evaluated?;
+                else_terminated = !else_result.continues;
                 if else_result.continues {
                     self.drop_branch_exit(id, 1, &mut else_state);
                 }
@@ -90,11 +143,48 @@ impl DropPlanner<'_, '_> {
                     );
                 }
             } else {
-                // Legacy cleanup still executes on this real edge, even though this slice
-                // does not admit implicit-else observations.
+                // Observe only the strictly admitted nested tail on this actual implicit edge.
+                // All legacy cleanup remains in the same order.
                 let mut implicit = base;
+                implicit.bounded_forward = None;
+                self.enter_single_arm(id, false, &mut implicit);
+                self.enter_multi_arm(id, false, &mut implicit);
+                if then_terminated {
+                    self.enter_forward_arm(id, false, &mut implicit);
+                } else {
+                    implicit.branch_forward_plan = None;
+                    if implicit
+                        .forward_scope
+                        .is_some_and(|scope| scope.branch.is_some())
+                    {
+                        implicit.forward_scope = None;
+                    }
+                }
+                let nested_implicit = implicit.nested_forward.is_some_and(|nested| {
+                    use crate::ownership_checking::UnitBorrowNestedForwardTopology;
+                    match nested.plan.topology {
+                        UnitBorrowNestedForwardTopology::NestedThenTail => {
+                            nested.ready_split == Some(0)
+                        }
+                        UnitBorrowNestedForwardTopology::NestedElseCascadeTail => {
+                            nested.ready_split == Some(1)
+                        }
+                        _ => false,
+                    }
+                });
+                if then_terminated && nested_implicit {
+                    self.enter_nested_forward_arm(id, false, &mut implicit);
+                } else {
+                    implicit.nested_forward = None;
+                }
+                self.conditional_break_implicit(id, false, &implicit);
+                self.conditional_return_implicit(id, false, &implicit);
                 self.drop_branch_entry(id, 1, &[], &mut implicit);
                 self.drop_branch_exit(id, 1, &mut implicit);
+                self.conditional_break_implicit(id, true, &implicit);
+                self.conditional_return_implicit(id, true, &implicit);
+                self.observe_single_hole(&implicit);
+                self.observe_multi_hole(&implicit);
                 branch_states.push(implicit);
             }
         }
@@ -119,7 +209,17 @@ impl DropPlanner<'_, '_> {
                     _ => false,
                 };
                 if same_owners {
-                    if !self.finish_owner_loop_split(
+                    if !self.conditional_return_split_finish(
+                        id,
+                        &then_events,
+                        &else_events,
+                        branch_states.len(),
+                    ) && !self.conditional_break_split_finish(
+                        id,
+                        &then_events,
+                        &else_events,
+                        branch_states.len(),
+                    ) && !self.finish_owner_loop_split(
                         id,
                         &then_events,
                         &else_events,
@@ -140,8 +240,51 @@ impl DropPlanner<'_, '_> {
             }
         }
         let continues = !branch_states.is_empty();
+        self.observe_branch_join(
+            branch_plan,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+        );
+        let nested_continuation = self.observe_nested_join(
+            nested_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
+        self.observe_bounded_join(
+            bounded_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
+        let single_resume = self.observe_single_join(
+            single_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
+        let multi_resume = self.observe_multi_join(
+            multi_plan,
+            id,
+            then_terminated,
+            else_terminated,
+            &branch_states,
+            state,
+        );
         *state = self.merge_resource_states(id, branch_states);
+        self.resume_single_join(single_resume, state);
+        self.resume_multi_join(multi_resume, state);
+        self.resume_nested_join(nested_continuation, state);
         self.finish_owner_loop_join(id, state);
+        self.conditional_break_if_completed(id, continues, state);
+        self.conditional_return_if_completed(id, continues, state);
         Ok(continues)
     }
 
@@ -153,21 +296,51 @@ impl DropPlanner<'_, '_> {
         value: Option<ExpressionId>,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        self.prepare_forward_return(id, value, state);
+        let result = self.owner_return_expression_inner(id, value, state);
+        if state
+            .forward_scope
+            .is_some_and(|scope| scope.branch.is_some())
+        {
+            state.forward_scope = None;
+        }
+        state.branch_forward_plan = None;
+        state.nested_forward = None;
+        state.bounded_forward = None;
+        state.single_continuation = None;
+        state.multi_continuation = None;
+        state.multi_merge = None;
+        result
+    }
+
+    fn owner_return_expression_inner(
+        &mut self,
+        id: ExpressionId,
+        value: Option<ExpressionId>,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
         let return_consumer = if let Some(value) = value {
             let result =
                 self.evaluate_owner_expression(value, DropExpressionUse::Consume, state)?;
             if !result.continues {
                 return Ok(false);
             }
+            self.deliver_conditional_return(id, value, result.owner.as_ref(), state);
+            self.deliver_open_loop_return(id, value, result.owner.as_ref(), state);
             // Preserve the actual payload carrier before the existing cleanup, not a P projection.
             self.deliver_replace_return_consumer(id, value, result, state)
         } else {
             None
         };
+        self.observe_branch_return(state, false);
+        self.observe_nested_return(id, state, false);
+        self.observe_bounded_return(id, state, false);
         self.finish_return_iterations(id, state);
         self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
+        self.finish_conditional_return(id, state);
+        self.finish_open_loop_return(id, state);
         if let Some(consumer) = return_consumer
-            && let Some(transaction) = &mut self.owner_loop
+            && let Some(transaction) = self.owner_loop.as_mut()
         {
             transaction.complete_replace_return_consumer(consumer);
         }
@@ -176,10 +349,13 @@ impl DropPlanner<'_, '_> {
                 self.owner_event(UnitOwnerTransportEvent::UnitReturn {
                     expression: self.checker.unit_expression(id),
                 });
-            } else {
+            } else if !self.conditional_return_cleaned(id) {
                 self.reject_owner_expression(id, UnitOwnerUnsupportedReason::Syntax);
             }
         }
+        self.observe_branch_return(state, true);
+        self.observe_nested_return(id, state, true);
+        self.observe_bounded_return(id, state, true);
         Ok(false)
     }
 

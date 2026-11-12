@@ -5,7 +5,7 @@ use super::super::{
 };
 use std::sync::Arc;
 
-/// Read-only real String producer catalog, independent of the legacy event vocabulary.
+/// Read-only real String or owned-parameter definitions, independent of transport events.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerProducerCatalogV1 {
     pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
@@ -17,7 +17,7 @@ impl UnitOwnerProducerCatalogV1 {
     pub fn callable(&self) -> UnitOwnerCallable {
         self.callable
     }
-    /// Actual String definitions in deterministic completion order.
+    /// Actual entry or String definitions in deterministic definition order.
     pub fn definitions(&self) -> &[UnitOwnerDefinition] {
         &self.definitions
     }
@@ -30,7 +30,13 @@ impl UnitOwnerProducerCatalogV1 {
     pub(in crate::ownership_checking::compilation_unit) fn from_legacy(
         legacy: &UnitOwnerObservation,
     ) -> Option<Self> {
-        if legacy.status != UnitOwnerObservationStatus::Complete || !legacy.is_consistent() {
+        if legacy.status != UnitOwnerObservationStatus::Complete
+            || !legacy.is_consistent()
+            || legacy
+                .definitions
+                .iter()
+                .any(|definition| !matches!(definition.origin, UnitOwnerOrigin::String(_)))
+        {
             return None;
         }
         let catalog = Self {
@@ -50,13 +56,15 @@ impl UnitOwnerProducerCatalogV1 {
             .iter()
             .enumerate()
             .all(|(index, definition)| {
-                let UnitOwnerOrigin::String(expression) = definition.origin else {
-                    return false;
+                let source = match definition.origin {
+                    UnitOwnerOrigin::String(expression) => expression.source_unit(),
+                    UnitOwnerOrigin::Parameter(symbol) => symbol.source_unit(),
+                    UnitOwnerOrigin::Closure(_) => return false,
                 };
                 Arc::ptr_eq(&definition.id.identity, &self.identity)
                     && definition.id.callable == self.callable
                     && definition.id.index == index
-                    && expression.source_unit() == function.source_unit()
+                    && source == function.source_unit()
                     && !self.definitions[..index]
                         .iter()
                         .any(|prior| prior.origin == definition.origin)

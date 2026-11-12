@@ -10,9 +10,15 @@ mod build;
 pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
+pub(crate) mod bounded_receipt;
+pub(crate) mod branch_receipt;
 mod emit;
+pub(crate) mod forward_receipt;
 pub(crate) mod loan_receipt;
+pub(crate) mod multi_receipt;
+pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;
+pub(crate) mod single_receipt;
 mod subset;
 
 use std::collections::BTreeMap;
@@ -482,169 +488,12 @@ pub(crate) mod named_receipt;
 
 pub(crate) mod temporary_receipt;
 
+pub(crate) mod aux_binding_receipt;
+pub(crate) mod auxiliary_sequence_receipt;
 pub(crate) mod binding_receipt;
+pub(crate) mod distinct_aux_receipt;
+pub(crate) mod interleaved_aux_receipt;
+pub(crate) mod later_aux_receipt;
+pub(crate) mod multi_binding_receipt;
 
-pub(super) mod statements {
-    //! Mechanical statement emission, including aliases and optional production receipts.
-    use super::{
-        body::{BlockRef, ROp, RefinedBody},
-        emit::Emitter,
-    };
-    use crate::ssa::{
-        lowering_support::{LoweringError, LoweringErrorKind, error},
-        model::{BlockId, Function, Origin},
-    };
-    use lang_frontend::source::Span;
-
-    /// Each protocol retains its own plans, role identities and final receipt.
-    pub(super) struct LoanReceipts {
-        consumer: crate::ssa::refine::loan_receipt::Emitted,
-        receiver: crate::ssa::refine::receiver_receipt::Emitted,
-        named: crate::ssa::refine::named_receipt::Emitted,
-        temporary: crate::ssa::refine::temporary_receipt::Emitted,
-        binding: crate::ssa::refine::binding_receipt::Emitted,
-    }
-    impl LoanReceipts {
-        pub(super) fn new(
-            body: &RefinedBody,
-            function: &Function,
-            span: Span,
-        ) -> Result<Self, LoweringError> {
-            Ok(Self {
-                consumer: crate::ssa::refine::loan_receipt::Emitted::new(
-                    &body.loan_plans,
-                    function,
-                    span,
-                )?,
-                receiver: crate::ssa::refine::receiver_receipt::Emitted::new(
-                    &body.receiver_plans,
-                    function,
-                    span,
-                )?,
-                named: crate::ssa::refine::named_receipt::Emitted::new(
-                    &body.named_plans,
-                    function,
-                    span,
-                )?,
-                binding: crate::ssa::refine::binding_receipt::Emitted::new(
-                    &body.binding_plans,
-                    function,
-                    span,
-                )?,
-                temporary: crate::ssa::refine::temporary_receipt::Emitted::new(
-                    &body.temporary_plans,
-                    function,
-                    span,
-                )?,
-            })
-        }
-        pub(super) fn finish(
-            self,
-            body: &RefinedBody,
-            function: &Function,
-            span: Span,
-        ) -> Result<(), LoweringError> {
-            self.consumer.finish(&body.loan_plans, function, span)?;
-            self.receiver.finish(&body.receiver_plans, function, span)?;
-            self.named.finish(&body.named_plans, function, span)?;
-            self.temporary
-                .finish(&body.temporary_plans, function, span)?;
-            self.binding.finish(&body.binding_plans, function, span)
-        }
-    }
-
-    impl Emitter<'_> {
-        pub(super) fn statements(
-            &mut self,
-            body: &RefinedBody,
-            block: BlockRef,
-            target: BlockId,
-            receipts: &mut LoanReceipts,
-        ) -> Result<(), LoweringError> {
-            for statement in &body.blocks[block.0].statements {
-                if let (ROp::Alias { source }, [result]) =
-                    (&statement.op, statement.results.as_slice())
-                {
-                    if statement.loan_tag.is_some() {
-                        return Err(error(LoweringErrorKind::InvalidModel, statement.span));
-                    }
-                    let entity = self.get(*source, statement.span)?;
-                    self.current.insert(*result, entity);
-                    self.defined.insert(*result, entity);
-                    receipts
-                        .binding
-                        .alias(&body.binding_plans, &self.current, statement.span)?;
-                    continue;
-                }
-                let operation = self.operation(&statement.op, statement.span)?;
-                let types = statement
-                    .results
-                    .iter()
-                    .map(|slot| body.slots[slot.0])
-                    .collect();
-                let (instruction, results) = self
-                    .function
-                    .append_instruction(target, operation, types, Origin::Source(statement.span))
-                    .map_err(|_| error(LoweringErrorKind::InvalidModel, statement.span))?;
-                for (slot, entity) in statement.results.iter().zip(results) {
-                    self.current.insert(*slot, entity);
-                    self.defined.insert(*slot, entity);
-                }
-                match statement.loan_tag {
-                    Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => {
-                        receipts.consumer.statement(
-                            &body.loan_plans,
-                            tag,
-                            self.function,
-                            instruction,
-                            &self.current,
-                            statement.span,
-                        )?
-                    }
-                    Some(crate::ssa::refine::body::LoanTag::Receiver(tag)) => {
-                        receipts.receiver.statement(
-                            &body.receiver_plans,
-                            tag,
-                            self.function,
-                            instruction,
-                            &self.current,
-                            statement.span,
-                        )?
-                    }
-                    Some(crate::ssa::refine::body::LoanTag::Named(tag)) => {
-                        receipts.named.statement(
-                            &body.named_plans,
-                            tag,
-                            self.function,
-                            instruction,
-                            &self.current,
-                            statement.span,
-                        )?
-                    }
-                    Some(crate::ssa::refine::body::LoanTag::Temporary(tag)) => {
-                        receipts.temporary.statement(
-                            &body.temporary_plans,
-                            tag,
-                            self.function,
-                            instruction,
-                            &self.current,
-                            statement.span,
-                        )?
-                    }
-                    Some(crate::ssa::refine::body::LoanTag::Binding(tag)) => {
-                        receipts.binding.statement(
-                            &body.binding_plans,
-                            tag,
-                            self.function,
-                            instruction,
-                            &self.current,
-                            statement.span,
-                        )?
-                    }
-                    None => {}
-                }
-            }
-            Ok(())
-        }
-    }
-}
+pub(crate) mod child_receipt;

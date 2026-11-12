@@ -1,4 +1,14 @@
 //! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
+#[path = "bounded_declaration.rs"]
+mod bounded_declaration;
+#[path = "branch_declaration.rs"]
+mod branch_declaration;
+#[path = "multi_continuation_declaration.rs"]
+mod multi_continuation_declaration;
+#[path = "nested_declaration.rs"]
+mod nested_declaration;
+#[path = "single_continuation_declaration.rs"]
+mod single_continuation_declaration;
 use super::*;
 use crate::ssa::borrow_result_support::{CallAccess, local_if, ordinary_local};
 use lang_frontend::{
@@ -13,6 +23,7 @@ use lang_frontend::{
 
 pub(super) fn validate_declarations(
     parsed: &[&lang_frontend::parser::ParsedFile],
+    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
 ) -> Result<(), LoweringError> {
@@ -35,7 +46,14 @@ pub(super) fn validate_declarations(
                 .ok_or_else(|| {
                     lowering_error(LoweringErrorKind::MissingFact, contract.marker_span())
                 })?;
-            crate::ssa::borrow_result_support::declaration(file, contract.marker_span())?;
+            if !branch_declaration::allows(file, names, typed, owned, callable)
+                && !nested_declaration::allows(file, names, typed, owned, callable)
+                && !bounded_declaration::allows(file, names, typed, owned, callable)
+                && !single_continuation_declaration::allows(file, names, typed, owned, callable)
+                && !multi_continuation_declaration::allows(file, names, typed, owned, callable)
+            {
+                crate::ssa::borrow_result_support::declaration(file, contract.marker_span())?;
+            }
             if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if callable.parameters().get(index).is_some_and(|parameter| parameter.mode() == ParameterMode::Borrow))
                 || callable.receiver().is_some()
                 || callable.parameters().iter().any(|parameter| parameter.mode() == ParameterMode::Inout)

@@ -1,4 +1,6 @@
 //! Observe the existing normal-return token retirement without changing its cleanup.
+#[path = "distinct_auxiliary.rs"]
+pub(super) mod distinct_auxiliary;
 use super::{DropPlanner, ValueState};
 use crate::{
     ast::ExpressionId,
@@ -7,6 +9,15 @@ use crate::{
     },
     type_checking::{CallableResultSource, UnitCallTarget},
 };
+
+pub(super) struct PendingHandoff {
+    fact: UnitBorrowCallHandoffFact,
+    source_begin: Option<super::action_source::ActionHandle>,
+    auxiliary_begins: Vec<Option<super::action_source::ActionHandle>>,
+    source_live: bool,
+    narrow_shape: bool,
+    distinct: Option<distinct_auxiliary::Witness>,
+}
 
 impl DropPlanner<'_, '_> {
     pub(super) fn observe_borrow_call_handoff(&mut self, id: ExpressionId, state: &mut ValueState) {
@@ -71,8 +82,14 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let source_loan = (*source_loan).clone();
+        let mut source_tokens = state.pending_loans.iter().filter(|pending| {
+            matches!(&pending.0, UnitIterationCleanupAction::EndCallLoan(loan) if *loan == source_loan)
+        });
+        let source_begin = source_tokens.next().and_then(|pending| pending.2.clone());
+        let source_unique = source_tokens.next().is_none();
         let binding = binding.binding();
         let mut auxiliary_loan_ends = Vec::new();
+        let mut auxiliary_begins = Vec::new();
         // These exact tokens would otherwise be removed by the immediately following
         // call-local retain. Observe that retirement, not descriptor end spans.
         let mut index = 0;
@@ -90,19 +107,204 @@ impl DropPlanner<'_, '_> {
                 index += 1;
                 continue;
             }
-            let super::model::PendingLoan(UnitIterationCleanupAction::EndCallLoan(loan), _, _) =
+            let super::model::PendingLoan(UnitIterationCleanupAction::EndCallLoan(loan), _, begin) =
                 state.pending_loans.remove(index)
             else {
                 unreachable!("matched actual pending token")
             };
             auxiliary_loan_ends.push(loan);
+            auxiliary_begins.push(begin);
         }
-        self.pending_borrow_handoffs
-            .push(UnitBorrowCallHandoffFact {
+        let source_live = source_unique && source_begin.as_ref().is_some_and(|begin| {
+            let matching = state.pending_loans.iter().filter(|pending| {
+                matches!(&pending.0, UnitIterationCleanupAction::EndCallLoan(loan) if *loan == source_loan)
+                    && pending.2.as_ref().is_some_and(|actual| actual.same_record(begin))
+            }).count();
+            matching == 1
+        });
+        let narrow_shape =
+            self.auxiliary_retirement_shape(&source_loan, &auxiliary_loan_ends, state);
+        let distinct = self
+            .distinct_auxiliary_witness(&source_loan, &auxiliary_loan_ends, state)
+            .filter(|witness| source_live && witness.still_live(state));
+        self.pending_borrow_handoffs.push(PendingHandoff {
+            fact: UnitBorrowCallHandoffFact {
                 source_loan,
                 binding,
                 auxiliary_loan_ends,
-            });
+            },
+            source_begin,
+            auxiliary_begins,
+            source_live,
+            narrow_shape,
+            distinct,
+        });
+    }
+
+    fn auxiliary_retirement_shape(
+        &self,
+        source: &crate::ownership_checking::UnitLoanFact,
+        auxiliaries: &[crate::ownership_checking::UnitLoanFact],
+        state: &ValueState,
+    ) -> bool {
+        use crate::parser::Expression;
+        use crate::type_checking::{
+            BorrowReturnOrigin, BuiltinType, ExpressionCategory, ParameterMode, UnitTypeKind,
+        };
+        if !self.loop_boundaries.is_empty()
+            || self.owner_loop.is_some()
+            || self.owner_choice.is_some()
+            || self.owner_branch_depth != 0
+            || self.scope_depth != 1
+            || state.lambda.is_some()
+            || state.this.is_some()
+            || !state.iterations.is_empty()
+        {
+            return false;
+        }
+        let ast = self.checker.parsed.ast().expressions();
+        let Ok(node) = ast.get(source.call().expression()) else {
+            return false;
+        };
+        let Expression::Call {
+            callee, arguments, ..
+        } = node.payload()
+        else {
+            return false;
+        };
+        let [first_argument, second_argument] = arguments.as_slice() else {
+            return false;
+        };
+        let Some(call) = self.checker.typed.call(source.call()) else {
+            return false;
+        };
+        let source_index = match call.borrow_return().map(|r| r.origin()) {
+            Some(BorrowReturnOrigin::Parameter(index @ (0 | 1))) => index,
+            _ => return false,
+        };
+        let (source_argument, auxiliary_argument) = if source_index == 0 {
+            (first_argument, second_argument)
+        } else {
+            (second_argument, first_argument)
+        };
+        if !ast
+            .get(*callee)
+            .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+            || arguments.iter().any(|argument| {
+                argument.mode_marker.is_some()
+                    || !ast
+                        .get(argument.value)
+                        .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+            })
+            || self.checker.unit_expression(source_argument.value) != source.argument()
+        {
+            return false;
+        }
+        let [auxiliary] = auxiliaries else {
+            return false;
+        };
+        if self.checker.unit_expression(auxiliary_argument.value) != auxiliary.argument() {
+            return false;
+        }
+        let UnitCallTarget::Declaration(declaration) = call.target() else {
+            return false;
+        };
+        let Some(signature) = self
+            .checker
+            .typed
+            .signatures()
+            .declaration(declaration)
+            .and_then(|d| d.callable())
+        else {
+            return false;
+        };
+        let [first, second] = call.arguments() else {
+            return false;
+        };
+        let [p0, p1] = signature.parameters() else {
+            return false;
+        };
+        let UnitLoanTarget::Place(root) = source.target() else {
+            return false;
+        };
+        if call.receiver().is_some()
+            || call.aborts()
+            || !call.instance().type_arguments().is_empty()
+            || signature.receiver().is_some()
+            || !signature.type_parameters().is_empty()
+            || call
+                .borrow_return()
+                .is_none_or(|r| r.origin() != BorrowReturnOrigin::Parameter(source_index))
+            || signature.result_source() != call.result_source()
+            || signature.return_type() != call.return_type()
+            || self.checker.typed.types().get(call.return_type())
+                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            || !root.is_root()
+            || self.checker.typed.symbol_type(root.root()) != Some(call.return_type())
+            || source.target() != auxiliary.target()
+            || source.argument() == auxiliary.argument()
+        {
+            return false;
+        }
+        let Some(contracts) = self.checker.contracts_by_call.get(&source.call()) else {
+            return false;
+        };
+        if contracts.len() != 2 {
+            return false;
+        }
+        let ordered = if source_index == 0 {
+            [(source, first, p0), (auxiliary, second, p1)]
+        } else {
+            [(auxiliary, first, p0), (source, second, p1)]
+        };
+        ordered
+            .into_iter()
+            .enumerate()
+            .all(|(index, (loan, typed, parameter))| {
+                let matching = contracts
+                    .iter()
+                    .filter(|c| c.argument() == loan.argument())
+                    .collect::<Vec<_>>();
+                let [contract] = matching.as_slice() else {
+                    return false;
+                };
+                let Ok(argument) = self
+                    .checker
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(loan.argument().expression())
+                else {
+                    return false;
+                };
+                loan.kind() == LoanKind::Shared
+                    && loan.call() == source.call()
+                    && typed.argument_index() == index
+                    && typed.parameter_index() == index
+                    && typed.mode() == ParameterMode::Borrow
+                    && !typed.crosses_thread()
+                    && typed.category() == ExpressionCategory::Place
+                    && parameter.mode() == typed.mode()
+                    && parameter.ty() == call.return_type()
+                    && typed.parameter_type() == call.return_type()
+                    && self.checker.typed.expression_type(loan.argument())
+                        == Some(call.return_type())
+                    && self.checker.typed.expression_category(loan.argument())
+                        == Some(ExpressionCategory::Place)
+                    && contract.parameter_index() == index
+                    && contract.parameter_type() == call.return_type()
+                    && contract.kind()
+                        == crate::ownership_checking::UnitCallArgumentOwnershipKind::SharedLoan
+                    && !contract.crosses_thread()
+                    && contract.category() == ExpressionCategory::Place
+                    && contract.call() == source.call()
+                    && contract.loan_begin_span() == loan.begin_span()
+                    && contract.argument_span() == argument.span()
+                    && contract.argument_span() == loan.begin_span()
+                    && contract.call_span() == loan.end_span()
+                    && contract.parameter_span() == loan.parameter_span()
+                    && contract.parameter_span() == Some(parameter.span())
+            })
     }
     fn observes_temporary_borrow_auxiliary(
         &self,
@@ -157,6 +359,19 @@ impl DropPlanner<'_, '_> {
                 .is_ok_and(|actual| actual.as_ref() == Some(place))
     }
 
+    // Observe the real owner transition even when the legacy whole-callable owner
+    // observer has rejected borrow syntax. This sidecar grants no legacy authority.
+    pub(super) fn observe_distinct_auxiliary_owner_event(
+        &mut self,
+        event: &crate::ownership_checking::UnitOwnerTransportEvent,
+    ) {
+        for pending in &mut self.pending_borrow_handoffs {
+            if let Some(witness) = &mut pending.distinct {
+                witness.owner_events.push(event.clone());
+            }
+        }
+    }
+
     pub(super) fn commit_borrow_call_handoff(
         &mut self,
         binding: crate::name_resolution::UnitSymbolId,
@@ -164,16 +379,69 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) {
         let mut remaining = Vec::new();
-        for fact in self.pending_borrow_handoffs.drain(..) {
-            if fact.binding() == binding {
+        for pending in std::mem::take(&mut self.pending_borrow_handoffs) {
+            if pending.fact.binding() == binding {
                 if continues {
-                    let handle = self.iteration_actions.commit_borrow_handoff(fact);
+                    let auxiliary_source = pending.fact.source_loan().clone();
+                    let auxiliary_begin = match pending.auxiliary_begins.as_slice() {
+                        [Some(begin)] if pending.source_live && pending.narrow_shape => {
+                            Some(begin.clone())
+                        }
+                        _ => None,
+                    };
+                    let source_begin = pending.source_begin.clone();
+                    let confirmation = pending.distinct.as_ref().and_then(|witness| {
+                        self.confirm_distinct_auxiliary(
+                            witness,
+                            state,
+                            pending.fact.source_loan().call(),
+                        )
+                    });
+                    let distinct_begin = confirmation.as_ref().and_then(|_| {
+                        match pending.auxiliary_begins.as_slice() {
+                            [Some(begin)] if pending.source_live => Some(begin.clone()),
+                            _ => None,
+                        }
+                    });
+                    let handle = self.iteration_actions.commit_borrow_handoff(pending.fact);
+                    if let Some(owner_drop) = confirmation {
+                        self.iteration_actions
+                            .register_distinct_auxiliary_retirement(
+                                handle.clone(),
+                                pending.source_begin.clone(),
+                                pending.auxiliary_begins.clone(),
+                                pending.source_live,
+                                pending.distinct,
+                                owner_drop,
+                            );
+                    }
+                    self.iteration_actions.register_auxiliary_retirement(
+                        handle.clone(),
+                        pending.source_begin,
+                        pending.auxiliary_begins,
+                        pending.source_live && pending.narrow_shape,
+                    );
                     for pending in &mut state.borrow_binding_transports {
                         pending.commit_handoff(binding, handle.clone());
+                        pending.activate_use_set(&mut self.iteration_actions);
+                        pending.activate_auxiliary_observation(
+                            binding,
+                            &auxiliary_source,
+                            source_begin.as_ref(),
+                            auxiliary_begin.as_ref(),
+                            &handle,
+                        );
+                        pending.activate_distinct_observation(
+                            binding,
+                            &auxiliary_source,
+                            source_begin.as_ref(),
+                            distinct_begin.as_ref(),
+                            &handle,
+                        );
                     }
                 }
             } else {
-                remaining.push(fact);
+                remaining.push(pending);
             }
         }
         self.pending_borrow_handoffs = remaining;

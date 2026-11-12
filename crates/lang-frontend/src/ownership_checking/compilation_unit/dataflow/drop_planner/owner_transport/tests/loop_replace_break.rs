@@ -367,25 +367,25 @@ fn replace_break_model_rejects_damaged_states_and_catalogs() {
     for variant in 0..8 {
         let mut damaged = original.clone();
         match variant {
-            0 => damaged.post_break.owner = damaged.entry.owner.clone(),
-            1 => damaged.condition_false = damaged.post_break.clone(),
-            2 => damaged.body_completion.origin = damaged.entry.origin,
+            0 => damaged.prefix.installed.owner = damaged.prefix.entry.owner.clone(),
+            1 => damaged.prefix.condition_false = damaged.prefix.installed.clone(),
+            2 => damaged.body_completion.origin = damaged.prefix.entry.origin,
             3 => {
-                damaged.events.remove(1);
+                damaged.prefix.events.remove(1);
             }
             4 => {
-                damaged.events.pop();
+                damaged.prefix.events.pop();
             }
             5 => {
-                damaged.producers = repeated.owner_observations()[0]
+                damaged.prefix.producers = repeated.owner_observations()[0]
                     .replace_break_observation_v1()
                     .unwrap()
                     .producers
                     .clone()
             }
             6 => {
-                damaged.jump = damaged.argument;
-                damaged.edges = crate::ownership_checking::compilation_unit::owner_transport::LoopBodyCompletion::Break(damaged.jump).edges(damaged.statement, damaged.condition, damaged.body);
+                damaged.prefix.jump = damaged.prefix.argument;
+                damaged.edges = crate::ownership_checking::compilation_unit::owner_transport::LoopBodyCompletion::Break(damaged.prefix.jump).edges(damaged.statement, damaged.condition, damaged.body);
             }
             _ => damaged.completed_identity = damaged.identity.clone(),
         }
@@ -398,7 +398,7 @@ fn replace_break_model_rejects_damaged_states_and_catalogs() {
     .shared();
     let mut polluted = closed.owner_observations()[0].clone();
     assert!(polluted.loop_observation_v1().is_some());
-    polluted.replace_break_value = owned.owner_observations()[0].replace_break_value.clone();
+    polluted.open_loop_value = owned.owner_observations()[0].open_loop_value.clone();
     assert!(
         polluted.loop_observation_v1().is_none()
             && polluted.replace_break_observation_v1().is_none()
@@ -435,7 +435,7 @@ fn replace_break_deferred_publication_withholds_the_complete_product() {
             .replace_break_observation_v1()
             .is_none()
     );
-    assert!(owned.owner_observations()[0].replace_break_value.is_none());
+    assert!(owned.owner_observations()[0].open_loop_value.is_none());
 }
 
 /// Capability red test, not a complete incoming/consumer acceptance oracle.
@@ -525,12 +525,12 @@ fn replace_break_consumer_rejects_damaged_targets_and_actions() {
         let consumer = damaged.consumer.as_mut().unwrap();
         match variant {
             0 => {
-                consumer.initializer = damaged.argument;
-                consumer.actions[0] = A::Take(damaged.argument, damaged.entry.symbol);
-                consumer.actions[1] = A::Bind(damaged.argument, consumer.retired);
+                consumer.initializer = damaged.prefix.argument;
+                consumer.actions[0] = A::Take(damaged.prefix.argument, damaged.prefix.entry.symbol);
+                consumer.actions[1] = A::Bind(damaged.prefix.argument, consumer.retired);
             }
             1 => {
-                consumer.statement = damaged.previous_statement;
+                consumer.statement = damaged.prefix.previous_statement;
                 consumer.actions[2] = A::Drop(
                     UnitDropPoint::AfterStatement(consumer.statement),
                     consumer.retired,
@@ -542,7 +542,7 @@ fn replace_break_consumer_rejects_damaged_targets_and_actions() {
             5 => {
                 consumer.actions.remove(0);
             }
-            _ => consumer.retired = damaged.previous,
+            _ => consumer.retired = damaged.prefix.previous,
         }
         assert!(!damaged.is_consistent(), "variant {variant}");
         assert!(damaged.suffix_consumer_v1().is_none());

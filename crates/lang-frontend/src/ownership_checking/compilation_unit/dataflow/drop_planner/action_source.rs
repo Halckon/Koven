@@ -1,17 +1,39 @@
 //! The cleanup projections and acquisition observation share one append-only source.
+mod auxiliary_binding_regions;
+mod auxiliary_retirements;
 pub(super) mod binding_child_links;
 mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
+mod binding_use_sets;
+pub(super) use binding_use_sets::{
+    Expected as BindingUseSetExpected, Token as BindingUseSetToken, UseRole as BindingUseRole,
+};
 mod child_regions;
+mod distinct_auxiliary_binding_regions;
+mod distinct_auxiliary_retirements;
+mod later_auxiliary_binding_regions;
 pub(super) use binding_dependency_drops::BindingDropCause;
+mod bounded_forward;
+mod multi_continuation;
+mod single_continuation;
+pub(super) use multi_continuation::{MultiCause, MultiResume, MultiState};
+pub(super) use single_continuation::{SingleCause, SingleResume, SingleState};
+mod branch_forward_regions;
 mod consumer_links;
+mod forward_links;
+mod forward_regions;
+mod nested_forward_lineage;
+mod nested_forward_regions;
 use super::PlannerDropPoint;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::{
     BorrowBindingEndFact, UnitBorrowCallHandoffFact, UnitDropPoint, UnitIterationCleanupAction,
     UnitLoanFact,
 };
+pub(super) use bounded_forward::{BoundedCause, BoundedState};
+pub(super) use nested_forward_lineage::NestedForwardCause;
+pub(super) use nested_forward_regions::ContinuationToken;
 use std::sync::Arc;
 type BindingEnd = BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>;
 
@@ -21,6 +43,10 @@ pub(super) struct ActionHandle {
     index: usize,
 }
 impl ActionHandle {
+    pub(super) fn precedes(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity) && self.index < other.index
+    }
+
     pub(super) fn same_record(&self, other: &Self) -> bool {
         self.index == other.index && Arc::ptr_eq(&self.identity, &other.identity)
     }
@@ -28,16 +54,34 @@ impl ActionHandle {
 
 pub(super) struct ActionSource {
     identity: Arc<()>,
+    binding_use_sets: Vec<binding_use_sets::Candidate>,
     records: Vec<Record>,
     cleanups: usize,
     regions: Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Candidate>,
     binding_regions:
         Vec<crate::ownership_checking::compilation_unit::loan_binding_region_validation::Candidate>,
     active_binding_region: Option<usize>,
+    auxiliary_binding_regions: Vec<crate::ownership_checking::compilation_unit::loan_auxiliary_binding_region_validation::Candidate>,
+    active_auxiliary_binding_region: Option<usize>,
+    distinct_auxiliary_binding_regions: Vec<crate::ownership_checking::compilation_unit::loan_distinct_auxiliary_binding_region_validation::Candidate>,
+    active_distinct_auxiliary_binding_region: Option<usize>,
+    later_auxiliary_binding_regions: Vec<crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::Candidate>,
+    active_later_auxiliary_binding_region: Option<usize>,
     child_regions:
         Vec<crate::ownership_checking::compilation_unit::loan_child_region_validation::Candidate>,
     active_child_region: Option<usize>,
     dependency_drops: Vec<binding_dependency_drops::AppendedDrop>,
+    auxiliary_retirements: Vec<auxiliary_retirements::Candidate>,
+    distinct_auxiliary_retirements: Vec<distinct_auxiliary_retirements::Candidate>,
+    forward_regions: Vec<forward_regions::Candidate>,
+    branch_forward_regions: Vec<branch_forward_regions::Candidate>,
+    nested_regions: Vec<nested_forward_regions::Candidate>,
+    bounded_regions: Vec<bounded_forward::Candidate>,
+    single_regions: Vec<single_continuation::Candidate>,
+    multi_regions: Vec<multi_continuation::Candidate>,
+    nested_entries: Vec<nested_forward_lineage::Entry>,
+    nested_handoffs: Vec<(usize, NestedForwardCause)>,
+    branch_entries: Vec<(crate::ownership_checking::UnitLoanForwardBranch, usize)>,
     pub(super) enabled: bool,
 }
 
@@ -63,6 +107,11 @@ enum Record {
         acquisition: Option<ActionHandle>,
         transaction: crate::ownership_checking::UnitBorrowCallTransportFact,
     },
+    BorrowForwardHandoff {
+        transaction: crate::ownership_checking::UnitBorrowForwardTransportFact,
+        cause: Option<super::borrow_forward_transport::ForwardCause>,
+        completed: Option<super::borrow_forward_transport::ForwardScope>,
+    },
     Cleanup((PlannerDropPoint, UnitIterationCleanupAction)),
 }
 
@@ -71,19 +120,48 @@ impl Default for ActionSource {
         Self {
             identity: Arc::new(()),
             records: Vec::new(),
+            binding_use_sets: Vec::new(),
             cleanups: 0,
             regions: Vec::new(),
             binding_regions: Vec::new(),
             active_binding_region: None,
+            auxiliary_binding_regions: Vec::new(),
+            active_auxiliary_binding_region: None,
+            distinct_auxiliary_binding_regions: Vec::new(),
+            active_distinct_auxiliary_binding_region: None,
+            later_auxiliary_binding_regions: Vec::new(),
+            active_later_auxiliary_binding_region: None,
             child_regions: Vec::new(),
             active_child_region: None,
             dependency_drops: Vec::new(),
+            auxiliary_retirements: Vec::new(),
+            distinct_auxiliary_retirements: Vec::new(),
+            forward_regions: Vec::new(),
+            branch_forward_regions: Vec::new(),
+            branch_entries: Vec::new(),
+            nested_entries: Vec::new(),
+            nested_regions: Vec::new(),
+            bounded_regions: Vec::new(),
+            single_regions: Vec::new(),
+            multi_regions: Vec::new(),
+            nested_handoffs: Vec::new(),
             enabled: true,
         }
     }
 }
 
 impl ActionSource {
+    pub(super) fn enter_forward_branch(
+        &mut self,
+        branch: crate::ownership_checking::UnitLoanForwardBranch,
+    ) -> Option<usize> {
+        if !self.enabled {
+            return None;
+        }
+        let index = self.branch_entries.len();
+        self.branch_entries.push((branch, self.records.len()));
+        Some(index)
+    }
     pub(super) fn enter_region(
         &mut self,
         mut candidate: crate::ownership_checking::compilation_unit::loan_region_validation::Candidate,
@@ -300,6 +378,35 @@ impl ActionSource {
             .collect()
     }
 
+    pub(super) fn forward_handoff(
+        &mut self,
+        transaction: crate::ownership_checking::UnitBorrowForwardTransportFact,
+        cause: Option<super::borrow_forward_transport::ForwardCause>,
+        completed: Option<super::borrow_forward_transport::ForwardScope>,
+    ) {
+        // Bind the actual append handle, never search for an equal published record.
+        let handle = self.next_handle();
+        self.record_forward_region_handoff(completed, handle);
+        // This is the unique old-table source, even with observation disabled.
+        self.records.push(Record::BorrowForwardHandoff {
+            transaction,
+            cause,
+            completed,
+        });
+    }
+
+    pub(super) fn forward_transports(
+        &self,
+    ) -> Vec<crate::ownership_checking::UnitBorrowForwardTransportFact> {
+        self.records
+            .iter()
+            .filter_map(|record| match record {
+                Record::BorrowForwardHandoff { transaction, .. } => Some(transaction.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn len(&self) -> usize {
         self.cleanups
     }
@@ -320,7 +427,8 @@ impl ActionSource {
             | Record::BorrowBindingChildUseReturned(_)
             | Record::BorrowBindingChildRetired(_)
             | Record::BorrowConsumerTransfer { .. }
-            | Record::BorrowConsumerRetired { .. } => None,
+            | Record::BorrowConsumerRetired { .. }
+            | Record::BorrowForwardHandoff { .. } => None,
         })
     }
 
@@ -335,6 +443,9 @@ impl ActionSource {
         }
         let child_links =
             binding_child_links::validate(&self.records, &self.identity, source, file);
+        let auxiliary_retirements = self.validate_auxiliary_retirements(source, file);
+        let distinct_auxiliary_retirements =
+            self.validate_distinct_auxiliary_retirements(source, file);
         let binding_links = binding_links::validate(&self.records, &self.identity, source, file);
         let binding_dependency_drops = binding_dependency_drops::validate(
             &self.records,
@@ -348,6 +459,20 @@ impl ActionSource {
         let consumer_links = consumer_links::validate(&self.records, &self.identity, source, file);
         let acquisitions =
             consumer_links::acquisitions(&self.records, &self.identity, &consumer_links);
+        let forward_links = forward_links::validate(
+            &self.records,
+            &self.identity,
+            source,
+            file,
+            &self.branch_entries,
+        );
+        let forward_regions = self.validate_forward_regions(&forward_links);
+        let branch_forward_regions = self.validate_branch_regions(&forward_links);
+        let nested_forward_lineages = self.nested_lineages(source, file);
+        let nested_forward_regions = self.finish_nested_regions(&nested_forward_lineages);
+        let bounded_forward_regions = self.finish_bounded();
+        let bounded_continuation_regions = self.finish_single();
+        let bounded_multi_continuation_regions = self.finish_multi();
         let identity = self.identity;
         let actions: Vec<_> = self
             .records
@@ -420,6 +545,20 @@ impl ActionSource {
                         },
                     )
                 }
+                Record::BorrowForwardHandoff {
+                    transaction, cause, ..
+                } => {
+                    let link = forward_links.get(&index);
+                    UnitLoanAction::BorrowForwardHandoff(
+                        crate::ownership_checking::UnitLoanForwardHandoff {
+                            identity: identity.clone(),
+                            source_begin: link.map(|&(begin, _)| begin),
+                            callable: link.map(|&(_, callable)| callable),
+                            branch: link.and_then(|_| cause.and_then(|cause| cause.scope.branch)),
+                            transaction,
+                        },
+                    )
+                }
                 Record::Cleanup((point, action)) => UnitLoanAction::Cleanup {
                     point: point.into_unit(source),
                     action,
@@ -436,6 +575,63 @@ impl ActionSource {
             .into_iter()
             .map(|region| region.finish(identity.clone(), &actions))
             .collect();
+        let auxiliary_binding_regions = self
+            .auxiliary_binding_regions
+            .into_iter()
+            .map(|region| region.finish(identity.clone(), &actions, &auxiliary_retirements))
+            .collect();
+        let distinct_auxiliary_binding_regions = self
+            .distinct_auxiliary_binding_regions
+            .into_iter()
+            .map(|region| {
+                region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements)
+            })
+            .collect();
+        let mut multi_binding_regions = Vec::new();
+        let mut binding_use_sets = Vec::new();
+        let mut binding_use_set_retirements = Vec::new();
+        for candidate in self.binding_use_sets {
+            let retirement = candidate.source_retirement(&identity, &actions);
+            if let Some(use_set) = candidate.clone().finish(&identity, &actions) {
+                if let Some((source_owner, source_drop)) = retirement {
+                    let retirement = crate::ownership_checking::UnitLoanBindingUseSetRetirement {
+                        use_set: use_set.clone(),
+                        source_owner,
+                        source_drop,
+                    };
+                    if let Some(region) =
+                        candidate.complete_region(&identity, &actions, &retirement)
+                    {
+                        multi_binding_regions.push(region);
+                    }
+                    binding_use_set_retirements.push(retirement);
+                }
+                binding_use_sets.push(use_set);
+            }
+        }
+        let mut later_auxiliary_binding_regions = Vec::new();
+        let mut auxiliary_sequence_regions = Vec::new();
+        let mut interleaved_auxiliary_regions = Vec::new();
+        for region in self.later_auxiliary_binding_regions {
+            use crate::ownership_checking::compilation_unit::loan_later_auxiliary_binding_region_validation::Protocol;
+            match region.protocol {
+                Protocol::Interleaved => {
+                    interleaved_auxiliary_regions.push(region.finish_interleaved(
+                        identity.clone(),
+                        &actions,
+                        &distinct_auxiliary_retirements,
+                    ))
+                }
+                Protocol::Sequence => auxiliary_sequence_regions.push(region.finish_sequence(
+                    identity.clone(),
+                    &actions,
+                    &distinct_auxiliary_retirements,
+                )),
+                Protocol::Single | Protocol::Unsupported => later_auxiliary_binding_regions.push(
+                    region.finish(identity.clone(), &actions, &distinct_auxiliary_retirements),
+                ),
+            }
+        }
         let child_regions = self
             .child_regions
             .into_iter()
@@ -459,7 +655,24 @@ impl ActionSource {
             regions,
             binding_regions,
             child_regions,
+            forward_regions,
+            branch_forward_regions,
+            nested_forward_lineages,
+            bounded_forward_regions,
+            bounded_continuation_regions,
+            bounded_multi_continuation_regions,
+            nested_forward_regions,
             binding_dependency_drops,
+            distinct_auxiliary_retirements,
+            auxiliary_retirements,
+            distinct_auxiliary_binding_regions,
+            later_auxiliary_binding_regions,
+            auxiliary_sequence_regions,
+            interleaved_auxiliary_regions,
+            binding_use_sets,
+            binding_use_set_retirements,
+            multi_binding_regions,
+            auxiliary_binding_regions,
         }]
     }
 }

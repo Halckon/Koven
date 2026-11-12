@@ -898,7 +898,14 @@ pub(in crate::ssa::refine::build) mod field {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             };
             self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
-            let binding = self.value(ROp::Alias { source: value }, EntityType::Value(ty), span)?;
+            let counter =
+                self.counter_binding_authorization(self.unit(initializer), symbol, value, span)?;
+            let binding = self.value(
+                ROp::Alias { source: value },
+                crate::ssa::model::EntityType::Value(ty),
+                span,
+            )?;
+            self.counter_binding_emitted(counter, binding, span)?;
             self.bindings.insert(symbol, binding);
             self.owner_binding_emitted(symbol, binding);
             #[cfg(test)]

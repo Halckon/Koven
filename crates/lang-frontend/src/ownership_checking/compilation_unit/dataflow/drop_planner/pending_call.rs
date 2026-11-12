@@ -354,7 +354,7 @@ impl DropPlanner<'_, '_> {
                     self.checker.unit_expression(argument),
                     pending.owner.as_ref(),
                 )
-                && let Some(transaction) = &mut self.owner_loop
+                && let Some(transaction) = self.owner_loop.as_mut()
             {
                 transaction.complete_replace_call_consumer(consumer);
             }

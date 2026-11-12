@@ -1,8 +1,6 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
-use super::{
-    body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot},
-    statements,
-};
+mod statements;
+use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{
@@ -173,6 +171,11 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
         }
         target.statements.extend(folded.statements);
         target.terminator = folded.terminator;
+        body.branch_plans.fold(block, successor, span)?;
+        body.nested_plans.fold(block, successor, span)?;
+        body.bounded_plans.fold(block, successor, span)?;
+        body.single_plans.fold(block, successor, span)?;
+        body.multi_plans.fold(block, successor, span)?;
     }
 }
 
@@ -308,14 +311,14 @@ fn place(entity: EntityId, span: Span) -> Result<PlaceId, LoweringError> {
     }
 }
 
-pub(super) struct Emitter<'f> {
-    pub(super) function: &'f mut Function,
-    pub(super) current: BTreeMap<Slot, EntityId>,
-    pub(super) defined: BTreeMap<Slot, EntityId>,
+struct Emitter<'f> {
+    function: &'f mut Function,
+    current: BTreeMap<Slot, EntityId>,
+    defined: BTreeMap<Slot, EntityId>,
 }
 
 impl Emitter<'_> {
-    pub(super) fn get(&self, slot: Slot, span: Span) -> Result<EntityId, LoweringError> {
+    fn get(&self, slot: Slot, span: Span) -> Result<EntityId, LoweringError> {
         self.current
             .get(&slot)
             .copied()
@@ -344,7 +347,7 @@ impl Emitter<'_> {
         value(entity, span)
     }
 
-    pub(super) fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
+    fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
         Ok(match op {
             ROp::Alias { .. } => return Err(error(LoweringErrorKind::InvalidModel, span)),
             ROp::Constant(constant) => Operation::Constant(constant.clone()),
@@ -874,6 +877,7 @@ pub(super) fn emit(
         blocks.insert(*block, id);
     }
     let mut receipts = statements::LoanReceipts::new(body, function, span)?;
+    receipts.layout(body, function, &blocks, &parameters, &entities, span)?;
     let mut emitter = Emitter {
         function,
         current: BTreeMap::new(),
@@ -976,6 +980,7 @@ pub(super) fn emit(
             .function
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
+        receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
     receipts.finish(body, emitter.function, span)?;
     Ok(())

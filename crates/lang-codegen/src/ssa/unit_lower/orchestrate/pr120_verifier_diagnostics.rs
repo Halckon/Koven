@@ -51,6 +51,46 @@ struct Case {
     scope: &'static str,
 }
 
+thread_local! {
+    static FINAL_PROBE: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Observe only the original final verifier call, through the ordinary lowering entry.
+#[cfg(feature = "loan-observation-test-support")]
+pub(in crate::ssa) fn observe_final_verifier<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            FINAL_PROBE.with(|slot| {
+                slot.borrow_mut().take();
+            });
+        }
+    }
+    FINAL_PROBE.with(|slot| {
+        assert!(slot.borrow().is_none());
+        *slot.borrow_mut() = Some(Vec::new());
+    });
+    let _reset = Reset;
+    let result = lower();
+    let snapshots = FINAL_PROBE.with(|slot| slot.borrow_mut().take().unwrap());
+    (result, snapshots)
+}
+
+pub(super) fn record_final_probe(program: &Program, verification: &Result<(), VerifyErrors>) {
+    if !FINAL_PROBE.with(|slot| slot.borrow().is_some()) {
+        return;
+    }
+    let mut capture = Capture::default();
+    capture.debug("final.verify_result", verification);
+    // Debug is the complete original SSA model, even if rendering invalid SSA is unsafe.
+    capture.debug("final.ssa_modules", &program.modules);
+    FINAL_PROBE.with(|slot| {
+        if let Some(snapshots) = slot.borrow_mut().as_mut() {
+            snapshots.push(capture.text);
+        }
+    });
+}
+
 /// 每次调用显式传递；从不存放全局或 thread-local 状态。
 #[derive(Default)]
 pub(super) struct Capture {

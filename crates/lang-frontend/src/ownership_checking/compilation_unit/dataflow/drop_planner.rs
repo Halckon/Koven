@@ -6,20 +6,29 @@ mod borrow_call_handoff;
 mod borrow_forward_transport;
 mod borrow_result;
 mod borrow_transport;
+mod bounded_forward_plan;
+mod branch_forward_scope;
 mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
+mod loan_auxiliary_binding_region;
 mod loan_binding_region;
+mod loan_bounded_forward_region;
+mod loan_branch_forward_region;
 mod loan_child_region;
 mod loan_consumer_region;
+mod loan_forward_region;
 mod loan_named_region;
+mod loan_nested_forward_region;
 mod loan_provenance;
 mod loan_receiver_region;
 mod loan_region;
 mod map;
 mod model;
+mod nested_forward_scope;
 mod nullable_comparison;
+mod owner_cleanup;
 mod owner_transport;
 mod pending_call;
 mod receiver_loan_end;
@@ -186,6 +195,7 @@ fn plan_with_observations(
     let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
     let borrow_ends = planner.iteration_actions.borrow_binding_ends();
     let borrow_call_transports = planner.iteration_actions.consumer_transports();
+    let borrow_forward_transports = planner.iteration_actions.forward_transports();
     let drops = planner
         .facts
         .into_iter()
@@ -207,7 +217,7 @@ fn plan_with_observations(
         borrow_call_handoffs,
         borrow_call_transports,
         borrow_binding_transports: planner.borrow_binding_transports,
-        borrow_forward_transports: planner.borrow_forward_transports,
+        borrow_forward_transports,
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
         receiver_call_return_ends,
@@ -227,9 +237,12 @@ fn plan_with_observations(
 struct DropPlanner<'a, 'checker> {
     #[cfg(test)]
     owner_hook_probe: Option<Vec<crate::ownership_checking::UnitOwnerTransportEvent>>,
+    #[cfg(test)]
+    owner_control_probe: Option<Vec<owner_transport::loops::ControlVisit>>,
+    owner_controls: owner_transport::loops::ControlStack,
     owner_observation_enabled: bool,
     owner_choice: Option<owner_transport::choice::ChoiceTransaction>,
-    owner_loop: Option<owner_transport::loops::LoopTransaction>,
+    owner_loop: owner_transport::loops::ControlTransactions,
     owner_branch_depth: usize,
     owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
     owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
@@ -242,8 +255,7 @@ struct DropPlanner<'a, 'checker> {
     )>,
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
     borrow_binding_transports: Vec<crate::ownership_checking::UnitBorrowBindingTransportFact>,
-    borrow_forward_transports: Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
-    pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
+    pending_borrow_handoffs: Vec<borrow_call_handoff::PendingHandoff>,
     borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
     iteration_actions: action_source::ActionSource,
     iteration_exits: Vec<(
@@ -271,9 +283,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             #[cfg(test)]
             owner_hook_probe: None,
+            #[cfg(test)]
+            owner_control_probe: None,
+            owner_controls: owner_transport::loops::ControlStack::default(),
             owner_observation_enabled: true,
             owner_choice: None,
-            owner_loop: None,
+            owner_loop: owner_transport::loops::ControlTransactions::default(),
             owner_branch_depth: 0,
             owner_observation: None,
             owner_observations: Vec::new(),
@@ -283,7 +298,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_scope_depths: BTreeMap::new(),
             iteration_actions: action_source::ActionSource::default(),
             borrow_binding_transports: Vec::new(),
-            borrow_forward_transports: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
             borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
@@ -427,25 +441,63 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     FunctionForm::Explicit { body, .. } => match body {
                         FunctionBody::Absent => {}
                         FunctionBody::Expression { expression, .. } => {
+                            state.forward_scope = self.forward_expression_scope(id, expression);
+                            self.enter_forward_region(id, &mut state);
                             if self.expression(
                                 expression,
                                 DropExpressionUse::Consume,
                                 &mut state,
                             )? {
+                                let pre_clear = self.forward_region_boundary_clear(&state, true);
                                 self.drop_all(
                                     PlannerDropPoint::ControlTransfer(expression),
                                     &mut state,
                                 );
+                                let post_clear = self.forward_region_boundary_clear(&state, false);
+                                self.iteration_actions.complete_forward_region(
+                                    state.forward_scope,
+                                    pre_clear,
+                                    post_clear,
+                                );
                             }
                         }
                         FunctionBody::Block(body) => {
-                            if self.statement(body, &mut state)? {
+                            state.branch_forward_plan = self.branch_forward_plan(id, body);
+                            state.nested_forward = self.nested_forward_plan(id, body).map(|plan| {
+                                nested_forward_scope::NestedForwardState {
+                                    plan,
+                                    path: [None; 2],
+                                    leaf: None,
+                                    ready_split: None,
+                                    coverage: None,
+                                }
+                            });
+                            let bounded_coverage =
+                                self.begin_bounded_coverage(id, body, &mut state);
+                            let coverage = self.begin_branch_coverage(&mut state);
+                            let nested_coverage = self.begin_nested_coverage(&mut state);
+                            let continues = self.statement(body, &mut state)?;
+                            if continues {
                                 self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
                             }
+                            self.finish_branch_coverage(coverage, continues, &state);
+                            self.finish_nested_coverage(nested_coverage, continues, &state);
+                            self.finish_bounded_coverage(bounded_coverage, continues, &state);
                         }
                     },
                 }
                 self.finish_owner_observation();
+                self.iteration_actions.close_branch_callable(
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
+                );
+                self.iteration_actions
+                    .close_bounded(crate::type_checking::UnitItemId::new(
+                        self.checker.source_unit,
+                        id,
+                    ));
+                self.iteration_actions.close_nested_callable(
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
+                );
             }
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
@@ -707,14 +759,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             return match plan.rhs {
                 UnitShortCircuitRhs::Never => Ok(true),
-                UnitShortCircuitRhs::Always => {
-                    self.expression(plan.right.expression(), DropExpressionUse::Read, state)
-                }
+                UnitShortCircuitRhs::Always => self.owner_short_circuit_rhs(plan, state),
                 UnitShortCircuitRhs::Conditional => {
                     let mut skipped = state.clone();
                     self.drop_branch_exit(id, 1 - plan.rhs_branch, &mut skipped);
                     let mut branches = vec![skipped];
-                    if self.expression(plan.right.expression(), DropExpressionUse::Read, state)? {
+                    if self.owner_short_circuit_rhs(plan, state)? {
                         self.drop_branch_exit(id, plan.rhs_branch, state);
                         branches.push(state.clone());
                     }
@@ -1256,162 +1306,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             .is_some_and(|nominal| nominal.kind() == NominalKind::Object)
     }
 
-    fn drop_named(
-        &mut self,
-        point: PlannerDropPoint,
-        symbol: UnitSymbolId,
-        state: &mut ValueState,
-    ) {
-        self.drop_named_with_binding_drop(point, symbol, state, None);
-    }
-
-    fn drop_named_with_binding_drop(
-        &mut self,
-        point: PlannerDropPoint,
-        symbol: UnitSymbolId,
-        state: &mut ValueState,
-        cause: Option<action_source::BindingDropCause>,
-    ) {
-        if self.call_return_copy_source == Some(symbol)
-            || self.borrow_source_protected(symbol, state)
-            || state.capture_borrow_protects(symbol)
-        {
-            return;
-        }
-        // A provider keeps its source even without a later explicit source read.
-        // Control-transfer cleanup must finish that provider before releasing the root.
-        if state
-            .iterations
-            .iter()
-            .any(|frame| frame.source_root == Some(symbol))
-        {
-            return;
-        }
-        if !matches!(point, PlannerDropPoint::ControlTransfer(_))
-            && (state
-                .pending_borrows
-                .iter()
-                .any(|(_, root)| *root == symbol)
-                || self.has_live_shared_capture(state, symbol))
-        {
-            return;
-        }
-        if state.replacements.contains(&symbol) {
-            // 与单文件 planner 一致：RHS 放弃时清理，内层 loop 跳转保留外层旧值。
-            let leaving = match point {
-                PlannerDropPoint::ControlTransfer(expression) => self
-                    .checker
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(expression)
-                    .is_ok_and(|node| {
-                        matches!(node.payload(), Expression::Return { .. })
-                            || (matches!(
-                                node.payload(),
-                                Expression::Break { .. } | Expression::Continue { .. }
-                            ) && self.loop_boundaries.last().is_some_and(|depth| {
-                                state
-                                    .position(symbol)
-                                    .is_some_and(|index| state.values[index].scope_depth > *depth)
-                            }))
-                    }),
-                _ => false,
-            };
-            if !leaving {
-                return;
-            }
-        }
-        let closure = state.take_closure(symbol);
-        if let Some(value) = state.remove_value(symbol) {
-            self.drop_owned_value_with_binding_drop(point, value, closure, state, cause);
-        }
-    }
-
-    fn drop_owned_value(
-        &mut self,
-        point: PlannerDropPoint,
-        value: OwnedValue,
-        closure: Option<ExpressionId>,
-        state: &mut ValueState,
-    ) {
-        self.drop_owned_value_with_binding_drop(point, value, closure, state, None);
-    }
-
-    fn drop_owned_value_with_binding_drop(
-        &mut self,
-        point: PlannerDropPoint,
-        value: OwnedValue,
-        closure: Option<ExpressionId>,
-        state: &mut ValueState,
-        cause: Option<action_source::BindingDropCause>,
-    ) {
-        let mut shared_sources = Vec::new();
-        if let Some(closure) = closure {
-            let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
-            for capture in captures.into_iter().rev() {
-                if capture.mode() == ClosureCaptureMode::Shared {
-                    self.end_shared_capture(point, &value, capture, state);
-                }
-                if capture.mode() == ClosureCaptureMode::Owned
-                    && capture.effect() == ClosureCaptureEffect::Move
-                {
-                    self.drop_capture_owner(point, value.owner.as_ref(), capture.source());
-                    self.push_fact(PlannerDropFact::new(
-                        point,
-                        PlannerDropTarget::Captured {
-                            closure,
-                            source: capture.source(),
-                        },
-                        capture.reference_span(),
-                    ));
-                } else if capture.mode() == ClosureCaptureMode::Shared
-                    && let UnitClosureCaptureSource::Symbol(source) = capture.source()
-                {
-                    shared_sources.push(source);
-                }
-            }
-        }
-        if let Some(choice) = &mut self.owner_choice {
-            choice.dropped(point.into_unit(self.checker.source_unit), value.symbol);
-        }
-        if let Some(owner) = value.owner.as_ref() {
-            self.owner_event(crate::ownership_checking::UnitOwnerTransportEvent::Drop {
-                point: point.into_unit(self.checker.source_unit),
-                symbol: value.symbol,
-                owner: owner.clone(),
-            });
-        }
-        let cause = cause.and_then(|cause| {
-            self.iteration_actions
-                .verify_removed_binding_owner(cause, &value)
-        });
-        self.push_fact_with_binding_drop(
-            PlannerDropFact::new(point, PlannerDropTarget::Named(value.symbol), value.origin),
-            cause,
-        );
-        self.drop_replace_consumer(point, &value, state);
-        for source in shared_sources {
-            // Match-edge liveness excludes reads in the selected entry body.
-            if !matches!(point, PlannerDropPoint::WhenAlternativeMatch { .. })
-                && !self.has_live_shared_capture(state, source)
-                && !self.live_after(point).contains(&source)
-            {
-                self.drop_named_asap(point, source, state);
-            }
-        }
-    }
-
-    // A closure can keep its source alive after the last explicit source read.
-    fn has_live_shared_capture(&self, state: &ValueState, symbol: UnitSymbolId) -> bool {
-        state.closures.values().any(|&closure| {
-            self.checker.captures_of(closure).any(|capture| {
-                capture.mode() == ClosureCaptureMode::Shared
-                    && capture.source() == UnitClosureCaptureSource::Symbol(symbol)
-            })
-        })
-    }
-
     fn closure_origin(
         &self,
         expression: ExpressionId,
@@ -1552,42 +1446,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             .collect::<Vec<_>>();
         for symbol in symbols.into_iter().rev() {
             self.drop_named_asap(PlannerDropPoint::LoopExit(statement), symbol, state);
-        }
-    }
-
-    fn push_fact(&mut self, fact: PlannerDropFact) {
-        self.push_fact_with_binding_drop(fact, None);
-    }
-
-    fn push_fact_with_binding_drop(
-        &mut self,
-        mut fact: PlannerDropFact,
-        cause: Option<action_source::BindingDropCause>,
-    ) {
-        // Normalize once before both the flat drop product and ordered cleanup consume it.
-        if let crate::ownership_checking::UnitDropTarget::Temporary(expression) =
-            fact.into_unit(self.checker.source_unit).target()
-            && let Some((owner, origin)) = self
-                .checker
-                .constant_temporary_origin(expression.expression())
-        {
-            fact = PlannerDropFact::new(
-                fact.point(),
-                PlannerDropTarget::Temporary(owner.expression()),
-                origin,
-            );
-        }
-        if !self.facts.contains(&fact) {
-            self.facts.push(fact);
-            self.iteration_actions.push_with_binding_drop(
-                (
-                    fact.point(),
-                    crate::ownership_checking::UnitIterationCleanupAction::Drop(
-                        fact.into_unit(self.checker.source_unit),
-                    ),
-                ),
-                cause,
-            );
         }
     }
 

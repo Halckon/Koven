@@ -4,6 +4,8 @@
 mod pr120_range_source_contract_tests;
 #[cfg(test)]
 mod pr120_verifier_diagnostics;
+#[cfg(all(test, feature = "loan-observation-test-support"))]
+pub(in crate::ssa) use pr120_verifier_diagnostics::observe_final_verifier;
 #[cfg(test)]
 mod registration_tests;
 use super::*;
@@ -40,6 +42,32 @@ fn lower_unit_impl(
     entry: DeclarationId,
     #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
 ) -> Result<(Program, FunctionId), LoweringError> {
+    #[cfg(test)]
+    let branch_publication = crate::ssa::refine::branch_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let nested_publication = crate::ssa::refine::nested_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let bounded_publication = crate::ssa::refine::bounded_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let single_publication = crate::ssa::refine::single_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let multi_publication = crate::ssa::refine::multi_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let aux_publication = crate::ssa::refine::aux_binding_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let distinct_aux_publication =
+        crate::ssa::refine::distinct_aux_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let later_aux_publication = crate::ssa::refine::later_aux_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let auxiliary_sequence_publication =
+        crate::ssa::refine::auxiliary_sequence_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let interleaved_aux_publication =
+        crate::ssa::refine::interleaved_aux_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let multi_binding_publication =
+        crate::ssa::refine::multi_binding_receipt::UnitPublication::begin();
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::lowering_support::parsed_by_source_unit(inputs, names)?;
     let while_scopes: Vec<crate::ssa::refine::WhileScopes> = (0..parsed_by_source.len())
@@ -47,7 +75,7 @@ fn lower_unit_impl(
         .collect();
     // Both sealed views have already checked the complete frontend identity chain.
     // Declarations are validated unconditionally for every unit.
-    super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
+    super::borrow_result::validate_declarations(&parsed_by_source, names, typed, owned)?;
     // Map providers are validated at their reached lowering route. Keep the older
     // borrow-binding CFG frontier for bindings without dedicated lowering checks.
     let unit_has_refine_constructs =
@@ -843,6 +871,8 @@ fn lower_unit_impl(
 
     let verification = verify_program(&program);
     #[cfg(test)]
+    pr120_verifier_diagnostics::record_final_probe(&program, &verification);
+    #[cfg(test)]
     if let Some(capture) = capture {
         capture.observe(
             &program,
@@ -857,5 +887,27 @@ fn lower_unit_impl(
         kind: LoweringErrorKind::InvalidModel,
         span: None,
     })?;
+    #[cfg(test)]
+    branch_publication.commit();
+    #[cfg(test)]
+    nested_publication.commit();
+    #[cfg(test)]
+    bounded_publication.commit();
+    #[cfg(test)]
+    single_publication.commit();
+    #[cfg(test)]
+    multi_publication.commit();
+    #[cfg(test)]
+    aux_publication.commit();
+    #[cfg(test)]
+    distinct_aux_publication.commit();
+    #[cfg(test)]
+    later_aux_publication.commit();
+    #[cfg(test)]
+    auxiliary_sequence_publication.commit();
+    #[cfg(test)]
+    interleaved_aux_publication.commit();
+    #[cfg(test)]
+    multi_binding_publication.commit();
     Ok((program, entry_id))
 }

@@ -1,6 +1,8 @@
 //! Carry actual pending source tokens through explicit local borrow bindings.
+mod auxiliary;
 mod child;
 pub(super) mod dependency_drop;
+mod distinct;
 mod observation;
 use super::action_source::ActionHandle;
 use super::{DropPlanner, PlannerDropPoint, ValueState};
@@ -20,9 +22,14 @@ pub(super) struct PendingBindingTransport {
     source_begin: Option<ActionHandle>,
     handoff: Option<ActionHandle>,
     use_return: UseReturn,
+    use_set: Option<super::action_source::BindingUseSetToken>,
     observable: bool,
     child: child::ChildState,
     dependency_owner: Option<super::OwnedValue>,
+    auxiliary: Option<auxiliary::AuxiliaryObservation>,
+    auxiliary_seen: bool,
+    distinct: Option<distinct::DistinctObservation>,
+    distinct_seen: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +47,63 @@ impl PartialEq for PendingBindingTransport {
 }
 impl Eq for PendingBindingTransport {}
 impl PendingBindingTransport {
+    pub(super) fn activate_use_set(&mut self, actions: &mut super::action_source::ActionSource) {
+        self.use_set = actions.activate_binding_use_set(
+            self.binding,
+            &self.source,
+            self.source_begin.as_ref(),
+            self.handoff.as_ref(),
+        );
+    }
+    pub(super) fn capture_use_set_return(
+        &mut self,
+        actions: &mut super::action_source::ActionSource,
+        loan: &UnitLoanFact,
+        begin: Option<&ActionHandle>,
+    ) {
+        if let Some(token) = &mut self.use_set {
+            actions.return_binding_use_set(token, loan, begin);
+        }
+    }
+    /// Read the actual independent multi-use transport without changing old use-return state.
+    pub(super) fn use_set_obligation(
+        &self,
+        binding: UnitSymbolId,
+        source: &UnitLoanFact,
+    ) -> Option<(
+        &super::action_source::BindingUseSetToken,
+        &ActionHandle,
+        &ActionHandle,
+    )> {
+        if self.binding != binding || &self.source != source {
+            return None;
+        }
+        Some((
+            self.use_set.as_ref()?,
+            self.source_begin.as_ref()?,
+            self.handoff.as_ref()?,
+        ))
+    }
+    /// Read the real still-unused transport, never reconstruct it from a declaration.
+    pub(super) fn unused_obligation(
+        &self,
+        binding: UnitSymbolId,
+        source: &UnitLoanFact,
+    ) -> Option<(ActionHandle, ActionHandle)> {
+        if self.binding != binding
+            || &self.source != source
+            || !matches!(self.use_return, UseReturn::Unused)
+        {
+            return None;
+        }
+        let begin = self.source_begin.as_ref()?;
+        let handoff = self.handoff.as_ref()?;
+        Some((begin.clone(), handoff.clone()))
+    }
+    pub(super) fn has_binding(&self, binding: UnitSymbolId) -> bool {
+        self.binding == binding
+    }
+
     fn record_use(&mut self, handle: Option<ActionHandle>) {
         self.use_return = match (&self.use_return, handle) {
             (UseReturn::Unused, Some(handle)) => UseReturn::Unique(handle),
@@ -54,6 +118,12 @@ impl PendingBindingTransport {
     }
 
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        self.use_set = None;
+        // This narrowly linear observation capability never crosses a merge.
+        self.auxiliary = None;
+        self.distinct = None;
+        self.distinct_seen = true;
+        self.auxiliary_seen = true;
         let mut matching = alternatives.iter().filter(|other| *other == self);
         let other = matching.next();
         let unique = matching.next().is_none();
@@ -154,9 +224,14 @@ impl DropPlanner<'_, '_> {
                 source_begin,
                 handoff: None,
                 use_return: UseReturn::Unused,
+                use_set: None,
                 observable,
                 child: child::ChildState::Never,
                 dependency_owner,
+                auxiliary: None,
+                auxiliary_seen: false,
+                distinct: None,
+                distinct_seen: false,
             });
     }
 
@@ -185,24 +260,35 @@ impl DropPlanner<'_, '_> {
 }
 
 impl PendingBindingTransport {
+    pub(super) fn close_use_set_retirement(
+        &mut self,
+        actions: &mut super::action_source::ActionSource,
+        transaction: &UnitBorrowBindingTransportFact,
+        binding_end: &ActionHandle,
+    ) -> Option<super::action_source::BindingDropCause> {
+        let token = self.use_set.take()?;
+        actions.close_binding_use_set(token, transaction, binding_end)
+    }
     pub(super) fn publish_retirement(
         self,
         actions: &mut super::action_source::ActionSource,
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
-    ) -> Option<ActionHandle> {
+    ) -> (Option<ActionHandle>, Option<ActionHandle>) {
         if self.observable {
             let use_return = match &self.use_return {
                 UseReturn::Unique(handle) => Some(handle.clone()),
                 UseReturn::Unused | UseReturn::Ambiguous => None,
             };
-            let retirement = actions.retire_binding_source(
+            let Some(retirement) = actions.retire_binding_source(
                 transaction,
                 self.source_begin,
                 self.handoff,
                 use_return,
                 binding_end,
-            )?;
+            ) else {
+                return (None, None);
+            };
             if matches!(self.use_return, UseReturn::Unused)
                 && let child::ChildState::Retired {
                     retirement: child, ..
@@ -211,9 +297,17 @@ impl PendingBindingTransport {
             {
                 actions.attach_binding_dependency(&retirement, child, owner);
             }
-            Some(retirement)
+            (Some(retirement), None)
+        } else if self.auxiliary.is_some() {
+            (
+                None,
+                self.publish_auxiliary_retirement(actions, transaction, binding_end),
+            )
         } else {
-            None
+            (
+                None,
+                self.publish_distinct_retirement(actions, transaction, binding_end),
+            )
         }
     }
 }

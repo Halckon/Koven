@@ -18,7 +18,7 @@ impl DropPlanner<'_, '_> {
                 && self.loop_boundaries.is_empty()
                 && self.owner_branch_depth == 0
                 && self.owner_choice.is_none()
-                && let Some(transaction) = &mut self.owner_loop
+                && let Some(transaction) = self.owner_loop.as_mut()
                 && let Some(input) = &transaction.invariant
                 && id == input.suffix
                 && input

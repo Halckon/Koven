@@ -56,6 +56,9 @@ pub enum UnitLoanAction {
     },
     /// Actual consumer/source retirement with a separately verified transfer reference.
     BorrowConsumerRetired(UnitLoanConsumerRetirement),
+    /// Actual wrapper delivery of a live source, with an optional validated acquisition link.
+    /// This is not a source End or a complete wrapper lifecycle certificate.
+    BorrowForwardHandoff(UnitLoanForwardHandoff),
     /// An action from the single existing cleanup source, without sorting old tables.
     Cleanup {
         /// Source-qualified cleanup point; separate records are never coalesced by span.
@@ -93,10 +96,232 @@ pub struct UnitLoanActionObservation {
     pub(super) regions: Vec<super::UnitDirectCallLoanRegion>,
     pub(super) binding_regions: Vec<super::UnitBorrowBindingRegion>,
     pub(super) child_regions: Vec<super::UnitBorrowChildRegion>,
+    pub(super) forward_regions: Vec<super::UnitBorrowForwardRegion>,
+    pub(super) bounded_multi_continuation_regions:
+        Vec<super::UnitBoundedBorrowMultiContinuationRegion>,
+    pub(super) bounded_continuation_regions: Vec<super::UnitBoundedBorrowContinuationRegion>,
+    pub(super) bounded_forward_regions: Vec<super::UnitBoundedBorrowForwardRegion>,
+    pub(super) nested_forward_regions: Vec<super::UnitBorrowNestedForwardRegion>,
+    pub(super) nested_forward_lineages: Vec<super::UnitLoanNestedForwardLineage>,
+    pub(super) branch_forward_regions: Vec<super::UnitBorrowBranchForwardRegion>,
     pub(super) binding_dependency_drops: Vec<super::UnitLoanBindingDependencyDrop>,
+    pub(super) distinct_auxiliary_retirements: Vec<super::UnitLoanDistinctAuxiliaryRetirement>,
+    pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
+    pub(super) binding_use_set_retirements: Vec<super::UnitLoanBindingUseSetRetirement>,
+    pub(super) multi_binding_regions: Vec<super::UnitBorrowMultiBindingRegion>,
+    pub(super) binding_use_sets: Vec<super::UnitLoanBindingUseSet>,
+    pub(super) interleaved_auxiliary_regions: Vec<super::UnitBorrowInterleavedAuxiliaryRegion>,
+    pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
+    pub(super) later_auxiliary_binding_regions: Vec<super::UnitBorrowLaterAuxiliaryBindingRegion>,
+    pub(super) distinct_auxiliary_binding_regions:
+        Vec<super::UnitBorrowDistinctAuxiliaryBindingRegion>,
+    pub(super) auxiliary_binding_regions: Vec<super::UnitBorrowAuxiliaryBindingRegion>,
 }
 
 impl UnitLoanActionObservation {
+    /// Actual multi-source continuations; absence never grants admission.
+    pub fn bounded_multi_continuation_regions(
+        &self,
+    ) -> &[super::UnitBoundedBorrowMultiContinuationRegion] {
+        &self.bounded_multi_continuation_regions
+    }
+    /// Check exact catalog identity, not an equal snapshot.
+    pub fn owns_bounded_multi_continuation_region(
+        &self,
+        region: &super::UnitBoundedBorrowMultiContinuationRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independently observed single-continuation closures, never terminal-tree authority.
+    pub fn bounded_continuation_regions(&self) -> &[super::UnitBoundedBorrowContinuationRegion] {
+        &self.bounded_continuation_regions
+    }
+    /// Require the original observation catalog, not an equal snapshot.
+    pub fn owns_bounded_continuation_region(
+        &self,
+        region: &super::UnitBoundedBorrowContinuationRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independent bounded dynamic tree closures; absence grants no backend admission.
+    pub fn bounded_forward_regions(&self) -> &[super::UnitBoundedBorrowForwardRegion] {
+        &self.bounded_forward_regions
+    }
+    /// Check the original catalog identity, not an equal snapshot.
+    pub fn owns_bounded_forward_region(
+        &self,
+        region: &super::UnitBoundedBorrowForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independent bounded nested closure; absence grants no proof or backend admission.
+    pub fn nested_forward_regions(&self) -> &[super::UnitBorrowNestedForwardRegion] {
+        &self.nested_forward_regions
+    }
+    /// Require the exact originating observation catalog.
+    pub fn owns_nested_forward_region(
+        &self,
+        region: &super::UnitBorrowNestedForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Partial actual nested ancestry; absence grants no proof and enables no receipt.
+    pub fn nested_forward_lineages(&self) -> &[super::UnitLoanNestedForwardLineage] {
+        &self.nested_forward_lineages
+    }
+    /// Require the original observation catalog, not an equal snapshot.
+    pub fn owns_nested_forward_lineage(
+        &self,
+        lineage: &super::UnitLoanNestedForwardLineage,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &lineage.identity)
+    }
+
+    /// Independent auxiliary-bearing binding intervals, not legacy binding certificates.
+    /// Missing entries grant no absence proof or backend receipt authority.
+    #[must_use]
+    pub fn auxiliary_binding_regions(&self) -> &[super::UnitBorrowAuxiliaryBindingRegion] {
+        &self.auxiliary_binding_regions
+    }
+
+    /// Check the original catalog, never an equal snapshot from another analysis.
+    #[must_use]
+    pub fn owns_auxiliary_binding_region(
+        &self,
+        region: &super::UnitBorrowAuxiliaryBindingRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Partial relations to original normal-return auxiliary retirements.
+    /// Empty grants no absence proof and does not enable any region or receipt.
+    #[must_use]
+    pub fn auxiliary_retirements(&self) -> &[super::UnitLoanAuxiliaryRetirement] {
+        &self.auxiliary_retirements
+    }
+
+    /// Independent complete two-owner ASAP intervals, never whole-callable coverage.
+    pub fn distinct_auxiliary_binding_regions(
+        &self,
+    ) -> &[super::UnitBorrowDistinctAuxiliaryBindingRegion] {
+        &self.distinct_auxiliary_binding_regions
+    }
+    /// Verify actual catalog identity of a two-owner interval.
+    pub fn owns_distinct_auxiliary_binding_region(
+        &self,
+        region: &super::UnitBorrowDistinctAuxiliaryBindingRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independent five-statement later-use intervals; absence grants no coverage.
+    pub fn later_auxiliary_binding_regions(
+        &self,
+    ) -> &[super::UnitBorrowLaterAuxiliaryBindingRegion] {
+        &self.later_auxiliary_binding_regions
+    }
+    /// Check the observation identity of a later-use region.
+    pub fn owns_later_auxiliary_binding_region(
+        &self,
+        region: &super::UnitBorrowLaterAuxiliaryBindingRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Complete bounded multi-binding-use intervals.
+    pub fn multi_binding_regions(&self) -> &[super::UnitBorrowMultiBindingRegion] {
+        &self.multi_binding_regions
+    }
+    /// Exact catalog identity membership.
+    pub fn owns_multi_binding_region(&self, r: &super::UnitBorrowMultiBindingRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &r.retirement.use_set.identity)
+    }
+
+    /// Partial use-set consumption followed by actual source-owner Drop.
+    pub fn binding_use_set_retirements(&self) -> &[super::UnitLoanBindingUseSetRetirement] {
+        &self.binding_use_set_retirements
+    }
+    /// Identity membership for an independent retirement witness.
+    pub fn owns_binding_use_set_retirement(
+        &self,
+        r: &super::UnitLoanBindingUseSetRetirement,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &r.use_set.identity)
+    }
+    /// Independent actual binding-use collections, with Partial coverage only.
+    pub fn binding_use_sets(&self) -> &[super::UnitLoanBindingUseSet] {
+        &self.binding_use_sets
+    }
+    /// Identity membership, not structural equivalence.
+    pub fn owns_binding_use_set(&self, set: &super::UnitLoanBindingUseSet) -> bool {
+        Arc::ptr_eq(&self.identity, &set.identity)
+    }
+
+    /// Independent bounded dynamic auxiliary-use sequence certificates.
+    pub fn interleaved_auxiliary_regions(&self) -> &[super::UnitBorrowInterleavedAuxiliaryRegion] {
+        &self.interleaved_auxiliary_regions
+    }
+    /// Whether the independent interval belongs to this exact catalog.
+    pub fn owns_interleaved_auxiliary_region(
+        &self,
+        region: &super::UnitBorrowInterleavedAuxiliaryRegion,
+    ) -> bool {
+        std::sync::Arc::ptr_eq(&self.identity, &region.interval.identity)
+    }
+    /// Bounded suffix-only auxiliary-use intervals.
+    pub fn auxiliary_sequence_regions(&self) -> &[super::UnitBorrowAuxiliarySequenceRegion] {
+        &self.auxiliary_sequence_regions
+    }
+    /// Check the actual sequence catalog identity, not structural equality.
+    pub fn owns_auxiliary_sequence_region(
+        &self,
+        region: &super::UnitBorrowAuxiliarySequenceRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.interval.identity)
+    }
+    /// Independent partial two-owner retirement relations, never complete lifecycle authority.
+    pub fn distinct_auxiliary_retirements(&self) -> &[super::UnitLoanDistinctAuxiliaryRetirement] {
+        &self.distinct_auxiliary_retirements
+    }
+    /// Check the actual catalog identity of a two-owner relation.
+    pub fn owns_distinct_auxiliary_retirement(
+        &self,
+        relation: &super::UnitLoanDistinctAuxiliaryRetirement,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &relation.identity)
+    }
+
+    /// Independent coverage of the narrowly declared branch region.
+    /// Absence grants no absence proof and never enables expression-wrapper receipts.
+    #[must_use]
+    pub fn branch_forward_regions(&self) -> &[super::UnitBorrowBranchForwardRegion] {
+        &self.branch_forward_regions
+    }
+
+    /// Check catalog identity, never an equal structural snapshot.
+    pub fn owns_branch_forward_region(
+        &self,
+        region: &super::UnitBorrowBranchForwardRegion,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
+    /// Independently entered wrapper normal-exit regions. Missing entries prove no absence.
+    #[must_use]
+    pub fn forward_regions(&self) -> &[super::UnitBorrowForwardRegion] {
+        &self.forward_regions
+    }
+
+    /// Check the exact observation catalog, not an equal callable or source descriptor.
+    #[must_use]
+    pub fn owns_forward_region(&self, region: &super::UnitBorrowForwardRegion) -> bool {
+        Arc::ptr_eq(&self.identity, &region.identity)
+    }
+
     /// Independently entered direct parent/child regions. Missing entries prove no absence.
     #[must_use]
     pub fn child_regions(&self) -> &[super::UnitBorrowChildRegion] {
@@ -230,6 +455,79 @@ impl UnitLoanConsumerRetirement {
     /// The existing real consumer-then-source retirement transaction.
     #[must_use]
     pub const fn transaction(&self) -> &super::UnitBorrowCallTransportFact {
+        &self.transaction
+    }
+}
+
+/// Partial evidence of live-source delivery at an actual wrapper return.
+/// Equality compares structural snapshots; the acquisition ID remains catalog-bound.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoanForwardHandoff {
+    pub(super) identity: Arc<()>,
+    pub(super) source_begin: Option<usize>,
+    pub(super) callable: Option<crate::type_checking::UnitItemId>,
+    pub(super) transaction: super::UnitBorrowForwardTransportFact,
+    pub(super) branch: Option<UnitLoanForwardBranch>,
+}
+/// A normal branch edge actually entered by the planner, not whole-region coverage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitLoanForwardBranch {
+    pub(super) callable: crate::type_checking::UnitItemId,
+    pub(super) split: crate::type_checking::UnitExpressionId,
+    pub(super) condition: crate::type_checking::UnitExpressionId,
+    pub(super) then_arm: bool,
+    pub(super) control: crate::type_checking::UnitExpressionId,
+    pub(super) value: crate::type_checking::UnitExpressionId,
+}
+impl UnitLoanForwardBranch {
+    /// Enclosing wrapper declaration, qualified by its source unit.
+    pub const fn callable(&self) -> crate::type_checking::UnitItemId {
+        self.callable
+    }
+    /// The actual If expression whose edge was entered.
+    pub const fn split(&self) -> crate::type_checking::UnitExpressionId {
+        self.split
+    }
+    /// The condition evaluated before entering this edge.
+    pub const fn condition(&self) -> crate::type_checking::UnitExpressionId {
+        self.condition
+    }
+    /// True for the then edge; false for its sole normal continuation.
+    pub const fn then_arm(&self) -> bool {
+        self.then_arm
+    }
+    /// The explicit Return control, distinct from the returned call.
+    pub const fn control(&self) -> crate::type_checking::UnitExpressionId {
+        self.control
+    }
+    /// The actual returned call whose source acquisition is delivered.
+    pub const fn value(&self) -> crate::type_checking::UnitExpressionId {
+        self.value
+    }
+}
+impl UnitLoanForwardHandoff {
+    /// Validated actual branch entry. None grants no path or absence proof.
+    pub const fn branch(&self) -> Option<UnitLoanForwardBranch> {
+        self.branch
+    }
+    /// Validated actual acquisition carried through the pending source move.
+    /// None means this edge is unproved, never that the live obligation is absent.
+    #[must_use]
+    pub fn source_begin(&self) -> Option<UnitLoanActionId> {
+        self.source_begin.map(|index| UnitLoanActionId {
+            identity: self.identity.clone(),
+            index,
+        })
+    }
+    /// The enclosing wrapper, not the inner callee or its caller.
+    /// None means this bounded callable identity was not proved.
+    #[must_use]
+    pub const fn callable(&self) -> Option<crate::type_checking::UnitItemId> {
+        self.callable
+    }
+    /// The unchanged real forwarding transaction; its source is still live.
+    #[must_use]
+    pub const fn transaction(&self) -> &super::UnitBorrowForwardTransportFact {
         &self.transaction
     }
 }

@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod aliases;
 use aliases::{direct_fields, provider_lifetime};
 mod borrow_result;
+#[cfg(test)]
+mod borrow_return_transport_tests;
 mod closure;
 mod field_exchange;
 #[cfg(test)]
