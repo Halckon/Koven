@@ -571,11 +571,9 @@ pub(super) mod statements {
                     let entity = self.get(*source, statement.span)?;
                     self.current.insert(*result, entity);
                     self.defined.insert(*result, entity);
-                    receipts.binding.alias(
-                        &body.binding_plans,
-                        &self.current,
-                        statement.span,
-                    )?;
+                    receipts
+                        .binding
+                        .alias(&body.binding_plans, &self.current, statement.span)?;
                     continue;
                 }
                 let operation = self.operation(&statement.op, statement.span)?;

@@ -435,11 +435,10 @@ pub(in crate::ssa::lower_frontend) mod provider {
         let EntityId::Place(place) = only_result(root)? else {
             return None;
         };
-        let begin = unique(
-            ops.iter()
-                .copied()
-                .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. })),
-        )?;
+        let begin =
+            unique(ops.iter().copied().filter(|instruction| {
+                matches!(instruction.operation, Operation::BorrowBegin { .. })
+            }))?;
         if begin.operation
             != (Operation::BorrowBegin {
                 place,
@@ -545,11 +544,10 @@ pub(in crate::ssa::lower_frontend) mod provider {
         let EntityId::Place(place) = only_result(element_place)? else {
             return None;
         };
-        let begin = unique(
-            ops.iter()
-                .copied()
-                .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. })),
-        )?;
+        let begin =
+            unique(ops.iter().copied().filter(|instruction| {
+                matches!(instruction.operation, Operation::BorrowBegin { .. })
+            }))?;
         if element_place.operation
             != (Operation::ContainerElementPlace {
                 owner: EntityId::Loan(body_source),
@@ -668,10 +666,9 @@ pub(in crate::ssa::lower_frontend) mod provider {
             let index = expected.iter().position(|span| *span == origin)?;
             expected.remove(index);
             let ops = instructions(function, block)?;
-            let end =
-                unique(ops.iter().copied().filter(|instruction| {
-                    matches!(instruction.operation, Operation::BorrowEnd { .. })
-                }))?;
+            let end = unique(ops.iter().copied().filter(|instruction| {
+                matches!(instruction.operation, Operation::BorrowEnd { .. })
+            }))?;
             let Operation::BorrowEnd { loan: element } = end.operation else {
                 return None;
             };
@@ -741,15 +738,13 @@ pub(in crate::ssa::lower_frontend) mod provider {
         let source = loan(provider.exhausted.entities[3])?;
         let owner = value(provider.exhausted.entities[2])?;
         let ops = instructions(function, provider.exhausted.block)?;
-        let end =
+        let end = unique(ops.iter().enumerate().filter(|(_, instruction)| {
+            matches!(instruction.operation, Operation::BorrowEnd { .. })
+        }))?;
+        let drop =
             unique(ops.iter().enumerate().filter(|(_, instruction)| {
-                matches!(instruction.operation, Operation::BorrowEnd { .. })
+                matches!(instruction.operation, Operation::Drop { .. })
             }))?;
-        let drop = unique(
-            ops.iter()
-                .enumerate()
-                .filter(|(_, instruction)| matches!(instruction.operation, Operation::Drop { .. })),
-        )?;
         if end.0 >= drop.0
             || end.1.operation != (Operation::BorrowEnd { loan: source })
             || end.1.origin != Origin::Source(span)

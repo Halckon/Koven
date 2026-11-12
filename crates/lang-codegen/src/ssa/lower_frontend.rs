@@ -11,7 +11,6 @@ mod enum_type_test;
 mod field_replace;
 mod instances;
 mod local_storage;
-use local_storage::integer;
 mod loop_control;
 mod map;
 mod map_consume;

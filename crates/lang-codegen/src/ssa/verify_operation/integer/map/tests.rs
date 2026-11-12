@@ -35,7 +35,7 @@ fn map_owned_result_requires_conditional_consuming_extraction() {
         &[EntityType::Value(string)]
     ));
     let boolean = module.aggregate_fields(result).unwrap()[0];
-    assert!(!super::super::aggregate_explode_contract(
+    assert!(!crate::ssa::verify_operation::aggregate_explode_contract(
         module,
         function,
         owner,

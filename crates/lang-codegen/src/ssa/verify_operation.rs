@@ -3,16 +3,16 @@
 mod integer;
 pub(in crate::ssa) use integer::verify_borrow_result;
 mod range;
-use range::nullable;
-pub(super) use range::{
-    callable, parameter as range_parameter, return_contract as range_return_contract,
-    verify_signature as range_verify_signature,
-};
 use callable::{
     callable_invoke_contract, closure_construct_contract, direct_call_contract,
     function_address_contract,
 };
 use integer::{constant_contract, map};
+use range::nullable;
+pub(super) use range::{
+    callable, parameter as range_parameter, return_contract as range_return_contract,
+    verify_signature as range_verify_signature,
+};
 
 use super::{
     model::{
@@ -681,7 +681,7 @@ fn aggregate_project_contract(
         && single_value_result(results) == Some(field)
 }
 
-fn aggregate_explode_contract(
+pub(in crate::ssa::verify_operation) fn aggregate_explode_contract(
     module: &Module,
     function: &Function,
     aggregate: ValueId,

@@ -639,13 +639,8 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod delivery {
             let bad = || error(LoweringErrorKind::MissingFact, span);
             for plan in self.owned.map_iterations() {
                 let descriptor = plan.descriptor();
-                let qualified = qualify::qualify(
-                    self.parsed,
-                    self.names,
-                    self.typed,
-                    self.owned,
-                    *descriptor,
-                )?;
+                let qualified =
+                    qualify::qualify(self.parsed, self.names, self.typed, self.owned, *descriptor)?;
                 let Some(Proof {
                     disposition: Disposition::Delivery(delivery),
                     ..
@@ -682,9 +677,10 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod delivery {
                 .ok_or_else(bad)?;
                 if mapping.mode() != ParameterMode::Value
                     || qualified.source.current_owner(self) != Some(value)
-                    || self.bindings.iter().any(|(&root, v)| {
-                        root != delivery.root && *v == LoweredValue::Value(value)
-                    })
+                    || self
+                        .bindings
+                        .iter()
+                        .any(|(&root, v)| root != delivery.root && *v == LoweredValue::Value(value))
                     || self.temporaries.values().any(|&v| v == value)
                 {
                     return Err(bad());

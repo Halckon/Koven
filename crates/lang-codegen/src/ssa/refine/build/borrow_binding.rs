@@ -1,5 +1,8 @@
 //! Local borrow binding initialization, statement loan-tag dispatch, and receipt retirement.
-use super::{field::{OwnerLoan, OwnerRef}, *};
+use super::{
+    field::{OwnerLoan, OwnerRef},
+    *,
+};
 use crate::ssa::{
     borrow_result_support::ordinary_local,
     model::LoanKind,

@@ -277,13 +277,10 @@ pub(in crate::ssa::verify_operation) mod map {
     };
 
     #[cfg(test)]
-    #[path = "../../map/require_tests.rs"]
     mod require_tests;
     #[cfg(test)]
-    #[path = "../../map/tests.rs"]
     mod tests;
     #[cfg(test)]
-    #[path = "../../map/with_tests.rs"]
     mod with_tests;
 
     fn read_type(function: &Function, entity: EntityId) -> Option<SsaTypeId> {
@@ -358,8 +355,9 @@ pub(in crate::ssa::verify_operation) mod map {
                     return false;
                 };
                 read_type(function, *key) == Some(key_ty)
-                    && single_value_result(results)
-                        .is_some_and(|ty| matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean)))
+                    && single_value_result(results).is_some_and(|ty| {
+                        matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean))
+                    })
             }
             Operation::MapRequireValue { source, key } => {
                 let Some(EntityType::Loan {
@@ -412,8 +410,9 @@ pub(in crate::ssa::verify_operation) mod map {
                         }]
                     && !signature.never_returns
                     && signature.returns.is_empty()
-                    && single_value_result(results)
-                        .is_some_and(|ty| matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean)))
+                    && single_value_result(results).is_some_and(|ty| {
+                        matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean))
+                    })
             }
             Operation::MapGet { owner, key } => {
                 let owner_type = match function.entity(*owner).map(|e| e.ty) {

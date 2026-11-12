@@ -467,9 +467,9 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod topology {
     use super::super::local::*;
     use super::super::*;
     use lang_frontend::ownership_checking::{
-        CleanupConditions, CleanupOwnerValue, CleanupSelectorSource, IterationClosurePhiBinding,
-        IterationPhiBoundary, IterationPhiIncoming, IterationPhiIncomingBinding,
-        IterationPhiIncomingKind, IterationPhiPresenceSource,
+        CleanupConditions, CleanupOwnerValue, CleanupSelectorSource, DropFact, DropTarget,
+        IterationClosurePhiBinding, IterationPhiBoundary, IterationPhiIncoming,
+        IterationPhiIncomingBinding, IterationPhiIncomingKind, IterationPhiPresenceSource,
     };
 
     pub(in crate::ssa::lower_frontend::map_iteration) fn prove(
@@ -807,14 +807,13 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod topology {
         span: Span,
     ) -> Result<DropFact, LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
-        let fact = unique(
-            owned
-                .drops()
-                .iter()
-                .copied()
-                .filter(|fact| fact.target() == DropTarget::Named(root) && fact.point() == point),
-        )
-        .ok_or_else(missing)?;
+        let fact =
+            unique(
+                owned.drops().iter().copied().filter(|fact| {
+                    fact.target() == DropTarget::Named(root) && fact.point() == point
+                }),
+            )
+            .ok_or_else(missing)?;
         if fact.owner() != Some(phi.owner())
             || fact.value_origin() != origin
             || fact.capture_slot().is_some()
@@ -851,8 +850,8 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod topology {
             IterationExitKind::Fallthrough,
             IterationExitKind::Exhaustion,
         ] {
-            let exit =
-                unique(plan.exits().iter().filter(|exit| exit.kind() == kind)).ok_or_else(missing)?;
+            let exit = unique(plan.exits().iter().filter(|exit| exit.kind() == kind))
+                .ok_or_else(missing)?;
             let point = exit_shape::point(kind, statement, site.body);
             conditions::check(
                 owned.cleanup_conditions(),

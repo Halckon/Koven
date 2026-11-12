@@ -506,10 +506,9 @@ pub(in crate::ssa::lower_frontend::nullable_if_cleanup::constant_presence) mod s
             return None;
         }
 
-        let header =
-            unique(plan.closure_phis().iter().filter(|phi| {
-                phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
-            }))?;
+        let header = unique(plan.closure_phis().iter().filter(|phi| {
+            phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
+        }))?;
         let target = unique(
             plan.closure_phis()
                 .iter()
@@ -661,17 +660,16 @@ pub(in crate::ssa::lower_frontend::nullable_if_cleanup::constant_presence) mod s
         let dead = exhausted_binding.values().is_empty()
             && never(conditions, exhausted_binding.available_when());
         if dead {
-            let exhausted_drop =
-                unique(exhaustion.actions().iter().filter_map(
-                    |action| match action {
-                        IterationCleanupAction::Drop(drop)
-                            if drop.target() == DropTarget::Named(symbol) =>
-                        {
-                            Some(*drop)
-                        }
-                        _ => None,
-                    },
-                ))?;
+            let exhausted_drop = unique(exhaustion.actions().iter().filter_map(
+                |action| match action {
+                    IterationCleanupAction::Drop(drop)
+                        if drop.target() == DropTarget::Named(symbol) =>
+                    {
+                        Some(*drop)
+                    }
+                    _ => None,
+                },
+            ))?;
             if exhausted_drop.owner() != Some(header.owner())
                 || exhausted_drop.point() != exhaustion.point()
                 || exhausted_drop.condition() != Some(header.availability_condition())

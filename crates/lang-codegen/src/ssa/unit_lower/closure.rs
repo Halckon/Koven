@@ -267,7 +267,6 @@ pub(super) mod layout {
     use lang_frontend::parser::Statement;
 
     #[cfg(test)]
-    #[path = "../layout_tests.rs"]
     mod tests;
 
     fn shared_capture_storage(

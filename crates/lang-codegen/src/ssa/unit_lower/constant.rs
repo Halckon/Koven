@@ -174,6 +174,7 @@ impl UnitExpressionLowerer<'_> {
 }
 
 pub(in crate::ssa::unit_lower) mod branch {
+    use super::super::cfg::BranchExit;
     use super::super::control::*;
     use super::super::*;
     use crate::ssa::statement_core::{self, StatementLowering};
@@ -268,16 +269,17 @@ pub(in crate::ssa::unit_lower) mod branch {
                 None
             };
             let string_result = result_plan.string;
-            let null_tail = result_expression
-                .zip(string_result)
-                .and_then(|(tail, string_result)| {
-                    let ty = self
-                        .typed
-                        .expression_type(UnitExpressionId::new(self.source_unit, tail))?;
-                    (matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
+            let null_tail =
+                result_expression
+                    .zip(string_result)
+                    .and_then(|(tail, string_result)| {
+                        let ty = self
+                            .typed
+                            .expression_type(UnitExpressionId::new(self.source_unit, tail))?;
+                        (matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
                             if builtin_type(self.typed, *inner) == Some(BuiltinType::Nothing)))
-                    .then_some((tail, string_result))
-                });
+                        .then_some((tail, string_result))
+                    });
             let mut result = if result_required {
                 self.lower_tail_value_body_with_null(statement, null_tail)?
             } else {
@@ -347,15 +349,15 @@ pub(in crate::ssa::unit_lower) mod branch {
             &self,
             statement: StatementId,
         ) -> Result<Option<ExpressionId>, LoweringError> {
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(statement)
-                .map_err(|_| LoweringError {
-                    kind: LoweringErrorKind::MissingFact,
-                    span: None,
-                })?;
+            let node =
+                self.parsed
+                    .ast()
+                    .statements()
+                    .get(statement)
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?;
             let tail = match node.payload() {
                 Statement::Expression { expression } => return Ok(Some(*expression)),
                 Statement::ControlBody { elements } => elements.last(),
@@ -381,15 +383,15 @@ pub(in crate::ssa::unit_lower) mod branch {
             statement: StatementId,
             null_tail: Option<(ExpressionId, (UnitTypeId, SsaTypeId))>,
         ) -> Result<LoweredValue, LoweringError> {
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(statement)
-                .map_err(|_| LoweringError {
-                    kind: LoweringErrorKind::MissingFact,
-                    span: None,
-                })?;
+            let node =
+                self.parsed
+                    .ast()
+                    .statements()
+                    .get(statement)
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?;
             let elements = match node.payload() {
                 lang_frontend::parser::Statement::ControlBody { elements }
                 | lang_frontend::parser::Statement::LambdaBody { elements } => elements,

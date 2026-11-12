@@ -635,7 +635,9 @@ pub(in crate::ssa::refine::build) mod field {
                     self.receiver
                 }
                 OwnerRef::Expression(mut expression) => {
-                    while let (Expression::Group { expression: inner }, _) = self.node(expression)? {
+                    while let (Expression::Group { expression: inner }, _) =
+                        self.node(expression)?
+                    {
                         expression = inner;
                     }
                     let (payload, expression_span) = self.node(expression)?;
@@ -655,9 +657,13 @@ pub(in crate::ssa::refine::build) mod field {
                                 match self.borrowed.get(&symbol).copied() {
                                     Some(loan) => Some(loan),
                                     None => {
-                                        let owner = *self.bindings.get(&symbol).ok_or_else(|| {
-                                            error(LoweringErrorKind::MissingFact, expression_span)
-                                        })?;
+                                        let owner =
+                                            *self.bindings.get(&symbol).ok_or_else(|| {
+                                                error(
+                                                    LoweringErrorKind::MissingFact,
+                                                    expression_span,
+                                                )
+                                            })?;
                                         return self.lend(owner, kind, span);
                                     }
                                 }

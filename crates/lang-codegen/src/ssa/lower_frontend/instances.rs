@@ -845,8 +845,7 @@ mod callable_planner {
                 .typed
                 .expression_type(summary.return_value())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, summary.span()))?;
-            let actual =
-                resolve_concrete_type(self.typed, actual, &substitutions, summary.span())?;
+            let actual = resolve_concrete_type(self.typed, actual, &substitutions, summary.span())?;
             if declared != actual
                 || !matches!(
                     self.typed.types().get(declared),

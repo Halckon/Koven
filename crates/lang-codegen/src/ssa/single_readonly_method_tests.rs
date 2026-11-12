@@ -585,6 +585,7 @@ case!(
 mod boundaries {
     //! Scope controls use only original frontend-produced source facts.
     use super::super::*;
+    use super::*;
     use crate::test_support::diagnostics::assert_eq_diagnostic;
     use lang_frontend::{
         name_resolution::resolve_names, ownership_checking::check_ownership,
@@ -593,7 +594,9 @@ mod boundaries {
 
     // These old negative controls intentionally retain the independent legacy path.
     // They are not positive MemoryDocument consumers and do not select a fallback.
-    fn lower_legacy_single(text: &str) -> (SourceMap, Result<(Program, FunctionId), LoweringError>) {
+    fn lower_legacy_single(
+        text: &str,
+    ) -> (SourceMap, Result<(Program, FunctionId), LoweringError>) {
         let mut sources = SourceMap::new();
         let (_, parsed) = super::super::unit_lower_test_support::parsed(
             &mut sources,

@@ -15,7 +15,7 @@ use lang_frontend::{
     type_checking::{ExpressionCategory, MapConsumeDescriptor},
 };
 
-struct NullableConsumeSource {
+pub(in crate::ssa::lower_frontend::map_consume) struct NullableConsumeSource {
     source: SourceToken,
     control: ExpressionId,
     call: ExpressionId,

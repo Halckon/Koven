@@ -723,17 +723,22 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod actions {
         if symbol.kind() != SymbolKind::Variable {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let expression = unique(parsed.ast().items().iter().filter_map(
-            |(_, node)| match node.payload() {
-                Item::Variable {
-                    name: lang_frontend::parser::NameMarker::Present(marker),
-                    initializer,
-                    ..
-                } if *marker == symbol.span() => Some(*initializer),
-                _ => None,
-            },
-        ))
-        .ok_or_else(missing)?;
+        let expression =
+            unique(
+                parsed
+                    .ast()
+                    .items()
+                    .iter()
+                    .filter_map(|(_, node)| match node.payload() {
+                        Item::Variable {
+                            name: lang_frontend::parser::NameMarker::Present(marker),
+                            initializer,
+                            ..
+                        } if *marker == symbol.span() => Some(*initializer),
+                        _ => None,
+                    }),
+            )
+            .ok_or_else(missing)?;
         let origin = parsed
             .ast()
             .expressions()
@@ -766,9 +771,7 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod actions {
                 })
             )
         {
-            return Ok(
-                formed::formation(parsed, names, typed, owned, root, storage, span)?.birth,
-            );
+            return Ok(formed::formation(parsed, names, typed, owned, root, storage, span)?.birth);
         }
         let (expression, origin) = binding_birth(parsed, names, root, span)?;
         match expression {

@@ -41,3 +41,15 @@
 1. 上述 8 个壳文件已从版本库移除，合并后的宿主文件均严格小于 1000 行（通过 `python3 scripts/check_rust_sizes.py --base main`）。
 2. `crates/lang-codegen/src/ssa/lowering_dependency_tests.rs` 中的所有存在性与依赖边界断言保持原样通过。
 3. `python3 scripts/gen_spec_dag.py` 与 `python3 scripts/check_docs.py` 检查通过。
+
+## 4. 本地验收记录
+
+- 构建修复（`SPEC-0422`～`SPEC-0427` 折叠后本分支从未通过编译；以下均为机械缺口，不改变 lowering 语义）：
+  - 内联模块 `#[path]` 归位：`nullable_numeric_cleanup/carrier{tests}`、`unit_lower/closure/layout{tests}`、`verify_operation/integer/map/{require_tests,tests,with_tests}`、`verify_ownership/aliases/provider_lifetime/{projection_tests,tests}` 移入 rustc 对内联模块期望的目录并去掉重复前缀（模块路径不变，文件内 `super::` 语义未受影响）。
+  - 折叠后丢失的导入与可见性：`unit_lower::constant` 的 `branch` 子模块补 `BranchExit`；`ControlResult::{control,string}` 与 `lower_conditional` 提升到 `unit_lower` 可见；`map_iteration::source::topology` 补 `DropFact`/`DropTarget`；`single_readonly_method_tests::boundaries` 恢复 `use super::*`（折叠后误用 `super::super::*`）；`verify_operation::aggregate_explode_contract` 提升为 `pub(in crate::ssa::verify_operation)`；`NullableConsumeSource` 可见性与消费方法对齐。
+  - 折叠后路径深度变化：`outer_borrowed_while` 的 `guard_tests` 由 `super::super::carrier` 改为 `super::carrier`；`verify_operation/integer/map/tests` 改用 `crate::ssa::verify_operation::aggregate_explode_contract`；`binding_receipt` 的 `ci_tests` 改用父模块重导出的 `catalog_actions`（并把该重导出门控到 `#[cfg(test)]`）。
+  - 未使用导入：删除 `lower_frontend::local_storage::integer`、`map_iteration/local_runtime` 的 `CallableTarget`。
+- 门禁（本地，`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）：
+  - `cargo test -p lang-codegen`：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed。
+  - `cargo clippy --locked --workspace --all-targets -- -D warnings`、`cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`git diff --check` 全部通过（本片无需新增体积例外）。
+- 说明：本分支按 `SPEC-0422`～`SPEC-0427` 堆叠在 `SPEC-0421` 之上，PR 将一并交付 `SPEC-0422`～`SPEC-0427`。

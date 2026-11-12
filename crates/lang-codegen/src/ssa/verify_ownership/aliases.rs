@@ -342,11 +342,9 @@ pub(in crate::ssa::verify_ownership) mod provider_lifetime {
     }
 
     #[cfg(test)]
-    #[path = "../../provider_entry_projection_tests.rs"]
     mod projection_tests;
 
     #[cfg(test)]
-    #[path = "../../provider_lifetime_tests.rs"]
     mod tests;
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

@@ -429,10 +429,10 @@ pub(in crate::ssa::refine::subset) mod receiver {
                             if let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
                             {
                                 let narrowed = self.c(fact.narrowed_type());
-                                let view_ok =
-                                    (self.class(narrowed) || self.move_value_class(narrowed))
-                                        && mode == ParameterMode::Borrow
-                                        && self.view_symbols.contains(&symbol);
+                                let view_ok = (self.class(narrowed)
+                                    || self.move_value_class(narrowed))
+                                    && mode == ParameterMode::Borrow
+                                    && self.view_symbols.contains(&symbol);
                                 let copy_ok = self.value_class(narrowed)
                                     && matches!(mode, ParameterMode::Borrow | ParameterMode::Value);
                                 return (fact.symbol() == symbol && (view_ok || copy_ok))
@@ -632,33 +632,31 @@ pub(in crate::ssa::refine::subset) mod receiver {
                         }
                         let root = self.ungrouped(receiver_expr.expression());
                         let target_ok = match fact.kind() {
-                            UnitReceiverOwnershipKind::Move => {
-                                match fact.target() {
-                                    UnitReceiverOwnershipTarget::This(declaration) => {
-                                        self.inputs.parsed.ast().expressions().get(root).is_ok_and(
-                                            |node| matches!(node.payload(), Expression::This),
-                                        ) && self.inputs.receiver.is_some_and(|this| {
-                                            this.owner == *declaration
-                                                && this.mode == ParameterMode::Value
-                                                && this.ty == receiver_ty
-                                        })
-                                    }
-                                    UnitReceiverOwnershipTarget::Place(place) if place.is_root() => {
-                                        self.inputs.parsed.ast().expressions().get(root).is_ok_and(
-                                            |node| matches!(node.payload(), Expression::Name),
-                                        ) && self.reference(root).is_some_and(|symbol| {
-                                            self.known.contains(&symbol)
-                                                && matches!(
-                                                    self.parameter_mode(symbol),
-                                                    None | Some(ParameterMode::Value)
-                                                )
-                                                && self.symbol_type(symbol) == Some(receiver_ty)
-                                                && place.root() == symbol
-                                        })
-                                    }
-                                    _ => false,
+                            UnitReceiverOwnershipKind::Move => match fact.target() {
+                                UnitReceiverOwnershipTarget::This(declaration) => {
+                                    self.inputs.parsed.ast().expressions().get(root).is_ok_and(
+                                        |node| matches!(node.payload(), Expression::This),
+                                    ) && self.inputs.receiver.is_some_and(|this| {
+                                        this.owner == *declaration
+                                            && this.mode == ParameterMode::Value
+                                            && this.ty == receiver_ty
+                                    })
                                 }
-                            }
+                                UnitReceiverOwnershipTarget::Place(place) if place.is_root() => {
+                                    self.inputs.parsed.ast().expressions().get(root).is_ok_and(
+                                        |node| matches!(node.payload(), Expression::Name),
+                                    ) && self.reference(root).is_some_and(|symbol| {
+                                        self.known.contains(&symbol)
+                                            && matches!(
+                                                self.parameter_mode(symbol),
+                                                None | Some(ParameterMode::Value)
+                                            )
+                                            && self.symbol_type(symbol) == Some(receiver_ty)
+                                            && place.root() == symbol
+                                    })
+                                }
+                                _ => false,
+                            },
                             UnitReceiverOwnershipKind::Temporary => {
                                 fact.target()
                                     == &UnitReceiverOwnershipTarget::Temporary(receiver_expr)

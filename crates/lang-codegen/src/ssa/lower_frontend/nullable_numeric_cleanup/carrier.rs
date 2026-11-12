@@ -690,5 +690,5 @@ pub(in crate::ssa::lower_frontend::nullable_numeric_cleanup) mod source {
 }
 
 #[cfg(test)]
-#[path = "../../nullable_numeric_cleanup/tests.rs"]
+#[path = "tests.rs"]
 mod tests;

@@ -32,9 +32,9 @@ use crate::ssa::{
 /// The published control identity and its result representation travel together.
 #[derive(Clone, Copy)]
 pub(super) struct ControlResult {
-    control: UnitExpressionId,
+    pub(super) control: UnitExpressionId,
     pub(super) required: bool,
-    string: Option<(UnitTypeId, SsaTypeId)>,
+    pub(super) string: Option<(UnitTypeId, SsaTypeId)>,
 }
 
 type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));

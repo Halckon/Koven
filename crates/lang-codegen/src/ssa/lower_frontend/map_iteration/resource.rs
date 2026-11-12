@@ -595,9 +595,7 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod evidence {
         let value_end = position(Operation::BorrowEnd {
             loan: evidence.value,
         })?;
-        let key_end = position(Operation::BorrowEnd {
-            loan: evidence.key,
-        })?;
+        let key_end = position(Operation::BorrowEnd { loan: evidence.key })?;
         let next = position(Operation::MapIterationNext { source, cursor })?;
         if key >= call_position
             || value >= call_position

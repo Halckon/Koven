@@ -2,10 +2,7 @@
 use super::resource::evidence;
 use super::*;
 use crate::ssa::model::InstructionId;
-use lang_frontend::{
-    ownership_checking::{DropFact, DropTarget},
-    type_checking::CallableTarget,
-};
+use lang_frontend::ownership_checking::{DropFact, DropTarget};
 
 pub(in crate::ssa::lower_frontend::map_iteration) mod conditions {
     use super::super::*;

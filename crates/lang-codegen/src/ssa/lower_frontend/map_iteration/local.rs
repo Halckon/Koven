@@ -3,8 +3,8 @@
 //! establish current liveness. Runtime still checks birth, transport and absence.
 pub(in crate::ssa::lower_frontend::map_iteration) use super::local_runtime::conditions;
 pub(super) mod identity;
-pub(super) use identity::{lambda_body, producer};
 use super::source::topology;
+pub(super) use identity::{lambda_body, producer};
 
 use super::*;
 use lang_frontend::{
@@ -544,9 +544,10 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod retained {
             parsed,
             span,
             event.span,
-            names.references().iter().filter_map(|r| {
-                (r.target() == &ReferenceTarget::Symbol(root)).then_some(r.span())
-            }),
+            names
+                .references()
+                .iter()
+                .filter_map(|r| (r.target() == &ReferenceTarget::Symbol(root)).then_some(r.span())),
         );
         if !future && !ancestor_fact((parsed, names, typed, owned), flow, fact, storage, span)? {
             let resource = typed.is_resource_type(storage).ok_or_else(missing)?;
