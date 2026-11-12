@@ -114,3 +114,8 @@ ownership，却在CG为UnsupportedNode、原verifier未运行。循环内临时b
 也被ownership拒绝；普通`consume(source)`循环则有真实SSA/LLVM与verifier成功。
 这些是现边界，不代表动态借用证明完成。见
 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#循环借用l0164的合同与安全邻界研究实施中)。
+
+具名owner销毁由`drop_planner/owner_cleanup.rs`负责：保护检查、实际移除、capture
+逆序清理、owner事件及一次性cause验证，随后规范化、去重并有序发布Drop事实。
+退出点选择、scope/branch/loop策略、receiver清理及liveness仍在原planner，模块
+拆分不改变任何执行或观察次序，也不扩大证书边界。

@@ -14772,3 +14772,26 @@ loop-expanded-fe-research与loop-neighbor-cg-research；没有生产代码或Gui
 独立复审通过两项研究的阶段与精确span/onoff断言，Clippy -D warnings、fmt/diff及
 文档897项通过。本片仅测试/记录，不重跑无关native全套或新增CI-only执行；旧尺寸
 阻塞与policy不变。本地提交不推送，后续按用户新授权独立处理自然职责拆分。
+
+## 具名owner销毁职责拆分（行为保持）
+
+按用户明确要求优先按职责拆分，不修改尺寸policy或通过压缩格式规避门禁。
+将drop_named、drop_named_with_binding_drop、drop_owned_value、
+drop_owned_value_with_binding_drop、has_live_shared_capture、push_fact及
+push_fact_with_binding_drop迁入独立owner_cleanup模块。它拥有完整的具名owner
+销毁事务：保护判定、实际移除、capture逆序清理、owner事件、removed-owner cause
+一次性核验及Drop事实规范化/去重/有序发布。scope/branch/loop退出选择、receiver
+清理和liveness仍在planner；非职责相关逻辑不搬迁。
+
+根文件1684→1492行，新模块205行；五个跨模块入口仅pub(super)，内部两helper私有。
+七方法规范化必要可见性后签名与函数体逐字节一致，独立复审另逐方法确认body一致，
+不改变原guard、状态移除、capture清理、事件和cause消费/发布次序。测试与门禁结果
+见下方验证记录；旧见证、语言限制、observer-off及verifier后发布合同全部保留。
+
+验证：前端check及7项普通integration共310测试通过；另显式启用观察测试feature
+运行6项aux/loop/multi-binding普通回归全部通过（未启用feature的零测试运行不计）。
+CG普通loan-region组85通过；Clippy全targets -D warnings、workspace全targets
+check、FE/CG默认lib --no-run、fmt/diff、文档897项全部通过；CI-only仅编译未执行。
+尺寸检查以2beb5592为基准通过：2603个手写Rust文件、36个历史超1000行债务仍报告，
+本次1684>1674阻塞已由自然职责拆分解除，policy无修改；不宣称其他历史债务已消除。
+未运行native全套或远端CI。日志owner-cleanup-*；独立等价性与复审均通过。
