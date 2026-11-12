@@ -58,7 +58,7 @@ not run locally; both withhold Link and group completion. No first-control entry
 A borrowed leading view exposes only the already completed first control geometry and
 source/target mapping. The builder captures its actual blocks and source slots at its while
 hook, checks the genuine exit-to-second-entry Alias chains, and seals a separate Anchor.
-It does not invent a first full Member or scalar-entry/checked-tail permissions. Both Links remap
+It does not invent a first full Member or scalar-entry permissions. Both Links remap
 through folding and must each be observed exactly once; their target headers and parameters
 are selected by control identity, not by a global last-member assumption. A CI-only actual
 leading-edge argument swap must withhold all Link and group completion; local runs compile
@@ -71,7 +71,19 @@ catalog. At its real while hook the builder captures all normal-body roots, not 
 live subset transported by the leading Link. The same control-qualified Replace→binding→Drop
 permits consume its original instructions once. All leading steps must complete before the
 whole group can finish. Late SSA checks also track its actual replacements and exactly one
-retired-value Drop, while checked-tail/scalar-entry permissions remain limited to the two
-continuation members. Tests exercise a three-root leading body with a two-root outgoing link;
+retired-value Drop. Scalar-entry permissions remain limited to the two continuation members. Tests exercise a three-root leading body with a two-root outgoing link;
 this prevents replacing the complete body root list with its live subset. No dynamic trace
 induction or first-control scalar initialization permission is inferred.
+
+
+## Leading checked-tail consumption
+
+The leading view borrows the original counter/guard and completed ordered tail sites.
+The real while hook snapshots scalar slots and the entry block before later controls can
+rebind them. Whole-group sealing now requires the same checked-subtract receipt, terminal
+abort, exclusive success edge, ordered counter writeback/comparison/guard update, and
+success-to-own-header checks as continuation members. The Anchor carries those actual
+checked blocks through CFG folding and late SSA layout revalidation. Missing receipt revokes
+all group completion; its CI-only injection is compiled, never executed locally. This does
+not grant first scalar initializer or false-exit consumption permission, nor prove dynamic
+cross-iteration induction.

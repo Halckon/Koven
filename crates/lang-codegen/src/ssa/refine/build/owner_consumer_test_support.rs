@@ -62,6 +62,7 @@ pub(crate) enum OwnerFault {
     ChainBodyWrongControl,
     ChainExitWrongControl,
     ChainLastTailMissingReceipt,
+    ChainLeadingTailMissingReceipt,
     ChainLastEntryMissingBinding,
     ChainLastBodyMissingDrop,
     ChainLeadingBodyMissingDrop,

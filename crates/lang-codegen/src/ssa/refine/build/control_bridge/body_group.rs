@@ -12,6 +12,7 @@ pub(in super::super) struct BodyGroup<'a> {
     leading_lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     leading_stages: Vec<consumption::Stage>,
     leading_body_roots: Option<Vec<Slot>>,
+    leading_counter: Option<(BlockRef, [Slot; 2])>,
 }
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
@@ -78,6 +79,7 @@ impl<'a> BodyGroup<'a> {
             leading_lowered: None,
             leading_stages: vec![consumption::Stage::Ready; group.leading().normal().steps().len()],
             leading_body_roots: None,
+            leading_counter: None,
             members: group
                 .members()
                 .iter()
@@ -233,6 +235,14 @@ impl Builder<'_, '_> {
             {
                 return Err(fail());
             }
+            let (counter, guard, _) = group.leading.checked_tail();
+            group.leading_counter = Some((
+                self.block.ok_or_else(fail)?,
+                [
+                    self.bindings.get(&counter).copied().ok_or_else(fail)?,
+                    self.bindings.get(&guard).copied().ok_or_else(fail)?,
+                ],
+            ));
             group.leading_body_roots = Some(body_roots);
             group.leading_lowered = Some((blocks, roots));
         }
@@ -341,6 +351,14 @@ impl Builder<'_, '_> {
         self.finish_bridge_suffix()?;
         #[cfg(test)]
         let count = group.members.len();
+        let (leading_entry, leading_scalar) = group.leading_counter.ok_or_else(fail)?;
+        let leading_tail = (
+            group.leading.checked_tail().2,
+            leading_entry,
+            *leading_blocks,
+            leading_roots.clone(),
+            leading_scalar,
+        );
         let tails = group
             .members
             .iter()
@@ -356,6 +374,21 @@ impl Builder<'_, '_> {
                 ))
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        #[cfg(test)]
+        if owner_consumer_test_support::take_fault(
+            owner_consumer_test_support::OwnerFault::ChainLeadingTailMissingReceipt,
+        ) {
+            self.checked_edge_receipts
+                .retain(|r| r.expression != leading_tail.0[1]);
+            owner_consumer_test_support::record_action("control-chain-leading-tail-fault-hit", 1);
+        }
+        self.check_control_counter_tail(
+            leading_tail.0,
+            leading_tail.1,
+            leading_tail.2,
+            &leading_tail.3,
+            leading_tail.4,
+        )?;
         for (index, (sites, entry, blocks, roots, scalar)) in tails.into_iter().enumerate() {
             #[cfg(test)]
             if index == 1
@@ -466,9 +499,18 @@ impl Builder<'_, '_> {
                 Ok(pair)
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        let mut leading_edges = self
+            .checked_edge_receipts
+            .iter()
+            .filter(|r| r.expression == group.leading.checked_tail().2[1]);
+        let leading_edge = leading_edges.next().ok_or_else(fail)?;
+        if leading_edges.next().is_some() || leading_edge.blocks[0] != leading_blocks[1] {
+            return Err(fail());
+        }
         let leading = super::super::super::control_bridge_receipt::Anchor {
             control: group.leading.control(),
             blocks: *leading_blocks,
+            checked: [leading_edge.blocks[1], leading_edge.blocks[2]],
             roots: leading_roots.clone(),
             body_roots: group.leading_body_roots.as_ref().ok_or_else(fail)?.clone(),
         };
@@ -490,6 +532,8 @@ impl Builder<'_, '_> {
             "control-chain-leading-body-complete",
             group.leading.normal().header_roots().len(),
         );
+        #[cfg(test)]
+        owner_consumer_test_support::record_action("control-chain-leading-tail-complete", 1);
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-tails-complete", count);
         #[cfg(test)]

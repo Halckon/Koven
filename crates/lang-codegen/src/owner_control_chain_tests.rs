@@ -461,3 +461,57 @@ fn leading_normal_body_consumes_all_roots_before_sparse_transport() {
         super::super::super::assert_native_output(&source, b"");
     }
 }
+
+#[test]
+fn leading_checked_tail_consumes_real_receipt_before_group_publication() {
+    for first_only in [false, true] {
+        let source = chain_source_with_shape(true, true, "n", first_only);
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-leading-tail-complete" && *n == 1)
+                .count(),
+            1
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-ssa-complete" && *n == 2)
+                .count(),
+            1
+        );
+        super::super::super::assert_native_output(&source, b"");
+    }
+}
+
+#[test]
+fn ci_only_leading_checked_receipt_loss_revokes_whole_group() {
+    let source = closed_chain_source(false);
+    let (result, actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::with_owner_fault(
+            crate::ssa::OwnerFault::ChainLeadingTailMissingReceipt,
+            || source.lower_entry(source.entry()),
+        )
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "control-chain-leading-tail-fault-hit")
+            .count(),
+        1
+    );
+    assert!(actions.iter().all(|(kind, _)| !matches!(
+        *kind,
+        "control-chain-leading-tail-complete"
+            | "control-chain-leading-body-complete"
+            | "control-chain-tails-complete"
+            | "control-chain-bodies-complete"
+            | "control-chain-link-complete"
+            | "control-chain-ssa-complete"
+    )));
+}

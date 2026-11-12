@@ -253,6 +253,7 @@ pub struct UnitOwnerControlChainLeadingV1<'a> {
     sources: &'a [UnitSymbolId],
     targets: &'a [UnitSymbolId],
     normal: &'a UnitOwnerMultiRootNormalTransportV1,
+    tail: Tail,
 }
 impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// Actual first control, not a synthesized group member.
@@ -271,6 +272,11 @@ impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// This grants no first scalar-entry, checked-tail or false-exit contract.
     pub fn normal(&self) -> &'a UnitOwnerMultiRootNormalTransportV1 {
         self.normal
+    }
+    /// Actual completed first counter, guard and decrement/arithmetic/reset/comparison sites.
+    /// Consumers must validate checked success/abort; this is not scalar initialization evidence.
+    pub fn checked_tail(&self) -> (UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4]) {
+        (self.tail.1, self.tail.0, self.tail.2)
     }
     /// Completed source-to-target root mapping of the first link.
     pub fn roots(&self) -> (&'a [UnitSymbolId], &'a [UnitSymbolId]) {
@@ -346,6 +352,11 @@ impl UnitOwnerObservation {
                 sources: chain.first.sources(),
                 targets: chain.first.targets(),
                 normal: chain.first.prior().roots.normal_transport()?,
+                tail: (
+                    chain.first.prior().guard(),
+                    chain.first.prior().counter(),
+                    chain.first.prior().assignments(),
+                ),
             },
         })
     }

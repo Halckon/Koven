@@ -44,6 +44,7 @@ pub(super) struct Anchor {
     pub blocks: [BlockRef; 4],
     pub roots: Vec<Slot>,
     pub body_roots: Vec<Slot>,
+    pub checked: [BlockRef; 2],
 }
 /// Actual source-to-target alias mapping between the two admitted members.
 #[derive(Clone, Debug)]
@@ -118,6 +119,12 @@ impl Plans {
         {
             return Err(invalid(span));
         }
+        let leading_blocks: Vec<_> = leading
+            .blocks
+            .iter()
+            .chain(leading.checked.iter())
+            .copied()
+            .collect();
         if leading.body_roots.len() < 2
             || leading.body_roots.iter().collect::<BTreeSet<_>>().len() != leading.body_roots.len()
             || leading
@@ -126,7 +133,7 @@ impl Plans {
                 .any(|r| !leading.body_roots.contains(r))
             || leading.roots.len() < 2
             || leading.roots.iter().collect::<BTreeSet<_>>().len() != leading.roots.len()
-            || leading.blocks.iter().collect::<BTreeSet<_>>().len() != leading.blocks.len()
+            || leading_blocks.iter().collect::<BTreeSet<_>>().len() != leading_blocks.len()
             || group.iter().any(|m| {
                 m.control == leading.control
                     || m.control.source_unit() != leading.control.source_unit()
@@ -134,7 +141,7 @@ impl Plans {
                     || m.blocks
                         .iter()
                         .chain(m.checked.iter())
-                        .any(|b| leading.blocks.contains(b))
+                        .any(|b| leading_blocks.contains(b))
             })
             || links.len() != 2
         {
@@ -195,7 +202,11 @@ impl Plans {
         if let Some(p) = &self.plan {
             vec![(p.next, p.checked)]
         } else {
-            self.group.iter().map(|m| (m.blocks, m.checked)).collect()
+            self.leading
+                .iter()
+                .map(|m| (m.blocks, m.checked))
+                .chain(self.group.iter().map(|m| (m.blocks, m.checked)))
+                .collect()
         }
     }
     /// `successor` is folded into `block`, matching merge_straight_lines.
@@ -232,7 +243,7 @@ impl Plans {
             }
         }
         if let Some(anchor) = &mut self.leading {
-            for b in &mut anchor.blocks {
+            for b in anchor.blocks.iter_mut().chain(anchor.checked.iter_mut()) {
                 if *b == successor {
                     *b = block;
                 }
