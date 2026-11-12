@@ -287,12 +287,13 @@ impl DropPlanner<'_, '_> {
 #[cfg(test)]
 impl DropPlanner<'_, '_> {
     fn inject_transparent_event(&mut self, id: StatementId, state: &ValueState) {
-        if !self
-            .owner_loop
-            .root_entries
-            .iter()
-            .any(|(_, e)| e.suffix.as_ref().is_some_and(|s| s.transparent.is_some()))
-        {
+        // Failed suffixes retain their transparent marker. Do not inject again at
+        // subsequent statements after the intended event has invalidated the suffix.
+        if !self.owner_loop.root_entries.iter().any(|(_, e)| {
+            e.suffix
+                .as_ref()
+                .is_some_and(|s| s.active() && s.transparent == Some(id))
+        }) {
             return;
         }
         let Some(value) = boundary_values(state)
