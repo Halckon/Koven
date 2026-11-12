@@ -19,14 +19,36 @@ mod nullable_when_tests;
 mod owner_alias_return_tests;
 #[path = "owner_boolean_comparison_tests.rs"]
 mod owner_boolean_comparison_tests;
+#[path = "owner_conditional_break_tests.rs"]
+mod owner_conditional_break_tests;
+#[path = "owner_conditional_return_tests.rs"]
+mod owner_conditional_return_tests;
+#[path = "owner_continue_header_tests.rs"]
+mod owner_continue_header_tests;
 #[path = "owner_group_condition_tests.rs"]
 mod owner_group_condition_tests;
+#[path = "owner_header_bind_tests.rs"]
+mod owner_header_bind_tests;
+#[path = "owner_loop_return_tests.rs"]
+mod owner_loop_return_tests;
+#[path = "owner_mixed_loop_edge_tests.rs"]
+mod owner_mixed_loop_edge_tests;
+#[path = "owner_multi_root_header_tests.rs"]
+mod owner_multi_root_header_tests;
 #[path = "owner_negated_condition_tests.rs"]
 mod owner_negated_condition_tests;
+#[path = "owner_normal_backedge_tests.rs"]
+mod owner_normal_backedge_tests;
 #[path = "owner_own_call_tests.rs"]
 mod owner_own_call_tests;
 #[path = "owner_pair_call_tests.rs"]
 mod owner_pair_call_tests;
+#[path = "owner_parameter_header_tests.rs"]
+mod owner_parameter_header_tests;
+#[path = "owner_parameter_loop_tests.rs"]
+mod owner_parameter_loop_tests;
+#[path = "owner_parameter_mixed_tests.rs"]
+mod owner_parameter_mixed_tests;
 #[path = "owner_replace_break_ci_tests.rs"]
 mod owner_replace_break_ci_tests;
 #[path = "owner_replace_break_downstream_tests.rs"]

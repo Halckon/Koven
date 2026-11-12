@@ -207,7 +207,7 @@ impl DropPlanner<'_, '_> {
         }
         if let Some(carrier) = state.replace_consumer.take()
             && let Some(consumer) = carrier.drop(point.into_unit(self.checker.source_unit), value)
-            && let Some(transaction) = &mut self.owner_loop
+            && let Some(transaction) = self.owner_loop.as_mut()
         {
             transaction.complete_replace_consumer(consumer);
         }

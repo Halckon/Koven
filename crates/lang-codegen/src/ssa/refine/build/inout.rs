@@ -264,6 +264,8 @@ impl Builder<'_, '_> {
                 Some(replacement),
             ) => {
                 self.owner_replace(id, *binding, replacement, span)?;
+                let counter =
+                    self.counter_replace_authorization(id, *binding, replacement, span)?;
                 let old_slot = self.body.slot(EntityType::Value(target));
                 self.push(
                     ROp::RootReplace {
@@ -274,6 +276,9 @@ impl Builder<'_, '_> {
                     vec![*binding, old_slot],
                     span,
                 )?;
+                self.counter_replace_emitted(counter, old_slot, span)?;
+                self.open_loop_replace_emitted(id, *binding, replacement, old_slot, span)?;
+                self.header_replace_emitted(id, *binding, replacement, old_slot, span)?;
                 self.return_replace_emitted(id, *binding, replacement, old_slot, span)?;
                 if is_unit {
                     super::Lowered::Unit

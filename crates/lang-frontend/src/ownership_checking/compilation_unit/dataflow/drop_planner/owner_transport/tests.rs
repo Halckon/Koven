@@ -30,6 +30,8 @@ mod invariant_split_exits;
 mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
+mod open_loop_return;
+mod parameter_open_loop;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;
@@ -39,9 +41,18 @@ fn compare(fixture: &Fixture, parts: &Parts) {
     compare_and_inspect(fixture, parts, |_| {});
 }
 
-fn compare_and_inspect(
+pub(super) fn compare_and_inspect(
     fixture: &Fixture,
     parts: &Parts,
+    inspect: impl FnOnce(&Checker<'_>),
+) -> usize {
+    compare_and_inspect_control_mode(fixture, parts, false, inspect)
+}
+
+fn compare_and_inspect_control_mode(
+    fixture: &Fixture,
+    parts: &Parts,
+    constant_control: bool,
     inspect: impl FnOnce(&Checker<'_>),
 ) -> usize {
     let inputs = fixture.inputs();
@@ -107,14 +118,36 @@ fn compare_and_inspect(
         fixture.typed.types(),
     )
     .unwrap();
+    checker.constant_control = constant_control;
     let drop_analysis = checker.run().unwrap();
     assert!(drop_analysis.deferred.is_empty());
     assert!(checker.primitive_deferred.is_empty());
     inspect(&checker);
     let mut observed = plan_with_owner_observation(&checker, true).unwrap();
-    let disabled = plan_with_owner_observation(&checker, false).unwrap();
+    let mut disabled = plan_with_owner_observation(&checker, false).unwrap();
     assert!(!observed.owner_observations.is_empty());
     assert!(disabled.owner_observations.is_empty());
+    // Region certificates may require actual owner identities and therefore fail closed
+    // with owner observation disabled. They are not legacy execution products.
+    assert_eq!(
+        observed.loan_action_observations.len(),
+        disabled.loan_action_observations.len()
+    );
+    for (on, off) in observed
+        .loan_action_observations
+        .iter()
+        .zip(&disabled.loan_action_observations)
+    {
+        assert_eq!(on.source(), off.source());
+        assert_eq!(on.coverage(), off.coverage());
+        assert_eq!(
+            on.actions(),
+            off.actions(),
+            "actual loan records and order remain unchanged"
+        );
+    }
+    observed.loan_action_observations.clear();
+    disabled.loan_action_observations.clear();
     observed.owner_observations.clear();
     assert_eq!(
         observed, disabled,
@@ -319,7 +352,21 @@ fn owner_observation_preserves_all_three_borrow_publication_tables() {
         1
     );
     assert_eq!(shared.borrow_call_prefix_ends().len(), 1);
-    compare(&fixture, &fixture.parts(&shared));
+    compare_and_inspect(&fixture, &fixture.parts(&shared), |checker| {
+        let on = plan_with_owner_observation(checker, true).unwrap();
+        let off = plan_with_owner_observation(checker, false).unwrap();
+        let [on_catalog] = on.loan_action_observations.as_slice() else {
+            panic!("one source catalog")
+        };
+        let [off_catalog] = off.loan_action_observations.as_slice() else {
+            panic!("one source catalog")
+        };
+        assert_eq!(on_catalog.distinct_auxiliary_retirements().len(), 1);
+        assert!(
+            off_catalog.distinct_auxiliary_retirements().is_empty(),
+            "no certificate without actual owner identities"
+        );
+    });
 }
 
 #[test]
@@ -561,3 +608,15 @@ mod replace_break_pair_call;
 mod replace_break_alias_return;
 
 mod replace_break_replace_return;
+
+mod normal_backedge;
+
+mod qualified_owner_edges;
+
+mod general_control_frontier;
+
+mod sequential_closed_transactions;
+
+mod multi_root_stages;
+
+mod root_write_receipts;

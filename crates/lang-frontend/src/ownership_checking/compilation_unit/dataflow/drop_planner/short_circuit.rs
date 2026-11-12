@@ -6,6 +6,18 @@ use crate::ownership_checking::compilation_unit::constant::{
 use super::{DropExpressionUse, DropPlanner, ExpressionId, OwnershipCheckingError, ValueState};
 
 impl DropPlanner<'_, '_> {
+    // An evaluated RHS edge, not a history of the left operand or dynamic executions.
+    pub(super) fn owner_short_circuit_rhs(
+        &mut self,
+        plan: UnitShortCircuitPlan,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        self.enter_root_branch_arm(plan.expression.expression(), plan.rhs_branch);
+        let result = self.expression(plan.right.expression(), DropExpressionUse::Read, state);
+        self.leave_root_branch_arm(plan.expression.expression(), plan.rhs_branch);
+        result
+    }
+
     pub(super) fn short_circuit(
         &mut self,
         control: ExpressionId,
@@ -18,11 +30,7 @@ impl DropPlanner<'_, '_> {
         let mut evaluated = state.clone();
         let mut exits = Vec::with_capacity(2);
         if plan.rhs != UnitShortCircuitRhs::Never
-            && self.expression(
-                plan.right.expression(),
-                DropExpressionUse::Read,
-                &mut evaluated,
-            )?
+            && self.owner_short_circuit_rhs(plan, &mut evaluated)?
         {
             self.drop_branch_exit(control, 0, &mut evaluated);
             exits.push(evaluated);

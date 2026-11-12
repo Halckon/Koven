@@ -431,7 +431,19 @@ impl Builder<'_, '_> {
         } else {
             None
         };
+        let endpoint = self.open_loop_return(identity, result, unit_return, span)?;
+        let header = self.header_return(identity, result, unit_return, span)?;
+        if [endpoint.is_some(), receipt.is_some(), header.is_some()]
+            .into_iter()
+            .filter(|v| *v)
+            .count()
+            > 1
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
         self.finish_return(result, unit_return, span)?;
+        self.open_loop_return_emitted(endpoint, span)?;
+        self.header_return_emitted(header, span)?;
         if receipt.is_some() {
             self.owner_plan
                 .as_mut()
@@ -448,7 +460,10 @@ impl Builder<'_, '_> {
         super::super::super::record_owner_return(
             identity,
             result.map(|s| s.0),
-            receipt.map(|s| s.0),
+            receipt
+                .or(endpoint.map(|e| e.slot()))
+                .or(header.map(|e| e.slot()))
+                .map(|s| s.0),
         );
         Ok(())
     }

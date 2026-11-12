@@ -3,14 +3,22 @@
 mod assignment;
 mod borrow_binding;
 mod callable;
+mod checked_edge_receipt;
+mod child_receipt;
 mod condition;
 mod container;
 mod container_for;
+mod counter_tail_receipt;
 mod expression;
 mod field;
+mod frames;
+use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
 mod heap;
 mod inout;
 mod map;
+mod multi_root_receipt;
+mod normal_header_return;
+mod open_loop_return;
 mod owner_consumer;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
@@ -55,6 +63,12 @@ pub(super) enum Lowered {
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
+    open_return_plan: Option<open_loop_return::Plan<'a>>,
+    header_return_plan: Option<normal_header_return::Plan<'a>>,
+    counter_tail_plan: Option<counter_tail_receipt::Plan<'a>>,
+    multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
+    checked_expression_edges: usize,
+    checked_edge_receipts: Vec<checked_edge_receipt::Receipt>,
     types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
@@ -98,50 +112,6 @@ pub(super) struct Builder<'i, 'a> {
     expected_nullable: Option<SsaTypeId>,
 }
 
-/// Jump targets of one loop; views above `views` belong to its iteration.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct LoopFrame {
-    pub(super) statement: UnitStatementId,
-    pub(super) continue_target: BlockRef,
-    pub(super) exit: BlockRef,
-    pub(super) views: usize,
-    pub(super) loans: usize,
-    pub(super) broken: bool,
-    pub(super) seq_for: Option<SeqForFrame>,
-    pub(super) map_for: Option<MapForFrame>,
-}
-
-/// Active sequential-container or `RangeView` `for` provider loans and cursor slots.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct SeqForFrame {
-    pub(super) source_loan: Slot,
-    pub(super) elem_loan: Slot,
-    pub(super) cursor: Slot,
-    pub(super) step: Slot,
-    pub(super) int_ty: SsaTypeId,
-    pub(super) range_source: Option<ExpressionId>,
-}
-
-/// Active `Map` / `MutableMap` `for` provider loans and cursor slots.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct MapForFrame {
-    pub(super) source_loan: Slot,
-    pub(super) key_binding: UnitSymbolId,
-    pub(super) value_binding: UnitSymbolId,
-    pub(super) key_loan: Slot,
-    pub(super) value_loan: Slot,
-    pub(super) cursor: Slot,
-    pub(super) cursor_ty: SsaTypeId,
-}
-
-/// A shared proof view of a MoveOnly nullable binding's inner value.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct View {
-    pub(super) symbol: UnitSymbolId,
-    pub(super) slot: Slot,
-    pub(super) target: BlockRef,
-}
-
 pub(super) fn build(
     inputs: &RefineInputs<'_>,
     entities: &[crate::ssa::model::EntityId],
@@ -150,6 +120,12 @@ pub(super) fn build(
     let mut builder = Builder {
         inputs,
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
+        open_return_plan: open_loop_return::Plan::new(inputs)?,
+        header_return_plan: normal_header_return::Plan::new(inputs)?,
+        counter_tail_plan: counter_tail_receipt::Plan::new(inputs)?,
+        multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
+        checked_expression_edges: 0,
+        checked_edge_receipts: Vec::new(),
         types,
         body: RefinedBody {
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
@@ -157,6 +133,19 @@ pub(super) fn build(
             named_plans: super::named_receipt::Plans::new(inputs)?,
             temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
             binding_plans: super::binding_receipt::Plans::new(inputs)?,
+            aux_binding_plans: super::aux_binding_receipt::Plans::new(inputs)?,
+            distinct_aux_plans: super::distinct_aux_receipt::Plans::new(inputs)?,
+            later_aux_plans: super::later_aux_receipt::Plans::new(inputs)?,
+            auxiliary_sequence_plans: super::auxiliary_sequence_receipt::Plans::new(inputs)?,
+            interleaved_aux_plans: super::interleaved_aux_receipt::Plans::new(inputs)?,
+            multi_binding_plans: super::multi_binding_receipt::Plans::new(inputs)?,
+            forward_plans: super::forward_receipt::Plans::new(inputs)?,
+            branch_plans: super::branch_receipt::Plans::new(inputs)?,
+            nested_plans: super::nested_receipt::Plans::new(inputs)?,
+            bounded_plans: super::bounded_receipt::Plans::new(inputs)?,
+            single_plans: super::single_receipt::Plans::new(inputs)?,
+            multi_plans: super::multi_receipt::Plans::new(inputs)?,
+            child_plans: super::child_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
         block: None,
@@ -183,6 +172,7 @@ pub(super) fn build(
         short_ranges: BTreeMap::new(),
         expected_nullable: None,
     };
+    builder.check_multi_root_plan_exclusivity()?;
     let entry = builder.body.block();
     builder.block = Some(entry);
     let unit_return = builder.is_unit(inputs.return_type);
@@ -191,6 +181,8 @@ pub(super) fn build(
         builder.lower_thunk_body(thunk, unit_return)?;
         builder.check_all_drops_consumed()?;
         builder.finish_owner_plan()?;
+        builder.finish_checked_edge_receipts()?;
+        builder.finish_counter_tail_receipt()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -253,6 +245,8 @@ pub(super) fn build(
     builder.check_all_drops_consumed()?;
     builder.finish_owner_plan()?;
     builder.finish_loan_receipts()?;
+    builder.finish_checked_edge_receipts()?;
+    builder.finish_counter_tail_receipt()?;
     Ok(builder.body)
 }
 
@@ -397,6 +391,16 @@ impl Builder<'_, '_> {
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
         self.sync_dead();
         let block = self.current(span)?;
+        self.body.branch_plans.terminate(&terminator, block, span)?;
+        self.body.nested_plans.terminate(&terminator, block, span)?;
+        self.body
+            .bounded_plans
+            .terminate(&terminator, block, span)?;
+        self.body.single_plans.terminate(&terminator, block, span)?;
+        self.body.multi_plans.terminate(&terminator, block, span)?;
+        self.body
+            .forward_plans
+            .terminate(&terminator, block, span)?;
         for successor in terminator.successors() {
             self.body.blocks[successor.0].has_predecessor = true;
             self.entry_dead
@@ -439,6 +443,8 @@ impl Builder<'_, '_> {
                     let slot = self.body.slot(EntityType::Value(ty));
                     self.body.parameters.push(slot);
                     self.bindings.insert(*symbol, slot);
+                    self.open_loop_parameter_bound(*symbol, *mode, slot)?;
+                    self.header_parameter_bound(*symbol, *mode, slot)?;
                 }
                 (crate::ssa::model::EntityId::Loan(_), Some(kind)) => {
                     let slot = self.body.slot(EntityType::Loan { kind, target: ty });
@@ -580,14 +586,25 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
             self.authorize_loan_drops(*index, *target, slot, *span)?;
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
+            let header = self.header_bind_drop(*index, *target, slot, *span)?;
+            let counter = self.counter_drop_authorization(*index, *target, slot, *span)?;
+            if (receipt.is_some() && header.is_some())
+                || (counter.is_some() && (receipt.is_some() || header.is_some()))
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, *span));
+            }
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
+            self.counter_drop_emitted(counter, *span)?;
             self.owner_drop_emitted(receipt, *span)?;
+            self.header_bind_drop_emitted(header, *span)?;
             #[cfg(test)]
             super::record_owner_drop(
                 *target,
                 *index,
                 slot.0,
-                receipt.map(owner_consumer::DropReceipt::witness),
+                receipt
+                    .map(owner_consumer::DropReceipt::witness)
+                    .or(header.map(|r| r.witness())),
             );
         }
         Ok(())

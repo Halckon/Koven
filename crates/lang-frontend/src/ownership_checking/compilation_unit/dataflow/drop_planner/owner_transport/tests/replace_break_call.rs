@@ -227,7 +227,7 @@ fn ci_only_replace_break_call_rejects_damaged_or_deferred_products() {
         withheld
             .owner_observations()
             .iter()
-            .all(|o| o.replace_break_value.is_none())
+            .all(|o| o.open_loop_value.is_none())
     );
     let bad = Fixture::new(&[(
         "root.ko",

@@ -1,14 +1,29 @@
 //! Capture a genuinely traversed closed While body without changing legacy cleanup.
 mod conditional;
+mod control_scope;
+mod control_transactions;
+mod counter_batch;
+mod counter_segment;
+pub(in super::super) use control_scope::ControlStack;
+#[cfg(test)]
+pub(in super::super) use control_scope::ControlVisit;
+pub(in super::super) use control_transactions::ControlTransactions;
 mod invariant;
+mod normal_backedge;
 mod replace_break;
+mod root_frame;
+mod root_incoming;
+#[cfg(test)]
+pub(super) use root_incoming::StaticRootPredecessor;
+mod root_writes;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
     LoopBranchExit,
 };
-use crate::ownership_checking::{UnitOwnerLoopObservationV1, UnitOwnerReplaceBreakObservationV1};
+use crate::ownership_checking::{UnitOwnerLoopObservationV1, UnitOwnerOpenLoopObservationV1};
 use crate::parser::VariableKind;
+pub(in super::super) use root_writes::RootWriteReceipt;
 use std::collections::BTreeSet;
 
 pub(in super::super) struct LoopTransaction {
@@ -17,6 +32,8 @@ pub(in super::super) struct LoopTransaction {
     body: StatementId,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
+    // Closed-body / live-Break expectation only. The Return variant never reads this
+    // placeholder for completion, edges or publication: it requires its own Ok(false) seal.
     expected: LoopBodyCompletion,
     active: Option<(std::sync::Arc<()>, usize)>,
     completed: Option<(std::sync::Arc<()>, LoopBodyCompletion)>,
@@ -27,8 +44,9 @@ pub(in super::super) struct LoopTransaction {
     result: Option<UnitOwnerLoopObservationV1>,
     invariant: Option<invariant::InvariantInput>,
     invariant_result: Option<InvariantLoopValueV1>,
-    replacing: Option<replace_break::ReplaceBreakInput>,
-    replace_result: Option<UnitOwnerReplaceBreakObservationV1>,
+    normal: Option<normal_backedge::NormalInput>,
+    replacing: Option<replace_break::OpenLoopInput>,
+    replace_result: Option<UnitOwnerOpenLoopObservationV1>,
 }
 
 fn exact_type(checker: &Checker<'_>, expression: ExpressionId, builtin: BuiltinType) -> bool {
@@ -97,6 +115,15 @@ impl LoopTransaction {
         item: ItemId,
         identity: std::sync::Arc<()>,
     ) -> Option<Self> {
+        Self::begin_for_control(checker, item, identity, None)
+    }
+
+    fn begin_for_control(
+        checker: &Checker<'_>,
+        item: ItemId,
+        identity: std::sync::Arc<()>,
+        selected_control: Option<StatementId>,
+    ) -> Option<Self> {
         let ast = checker.parsed.ast();
         let Item::Function {
             name,
@@ -109,9 +136,6 @@ impl LoopTransaction {
         };
         if !checker.parsed.roots().contains(&item)
             || !(1..=2).contains(&parameters.len())
-            || parameters
-                .iter()
-                .any(|parameter| parameter.mode_marker.is_some())
             || checker.receiver_context(*name).is_some()
         {
             return None;
@@ -128,17 +152,33 @@ impl LoopTransaction {
             return None;
         }
         let mut parameter_symbols = BTreeSet::new();
+        let mut owner_parameter = None;
+        let mut integer_control = false;
         for parameter in parameters {
             let symbol = *checker.marker_symbol(parameter.name)?;
-            if checker
+            let ty = checker
                 .typed
                 .symbol_type(symbol)
-                .and_then(|ty| checker.typed.types().get(ty))
-                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-            {
-                return None;
+                .and_then(|ty| checker.typed.types().get(ty));
+            match (ty, parameter.mode_marker) {
+                (Some(UnitTypeKind::Builtin(BuiltinType::Int)), None) => {
+                    integer_control = true;
+                    parameter_symbols.insert(symbol);
+                }
+                (Some(UnitTypeKind::Builtin(BuiltinType::Boolean)), None) => {
+                    parameter_symbols.insert(symbol);
+                }
+                (
+                    Some(UnitTypeKind::Builtin(BuiltinType::String)),
+                    Some(crate::parser::ParameterModeMarker::Own(_)),
+                ) if parameters.len() == 2
+                    && owner_parameter.is_none()
+                    && checker.is_move_only_variable(symbol) =>
+                {
+                    owner_parameter = Some(symbol);
+                }
+                _ => return None,
             }
-            parameter_symbols.insert(symbol);
         }
         let function_body = match form {
             FunctionForm::ImplicitUnitBlock(body)
@@ -152,8 +192,90 @@ impl LoopTransaction {
         else {
             return None;
         };
-        let replacing =
-            replace_break::ReplaceBreakInput::admit(checker, elements, &parameter_symbols);
+        // Only a verified member of an all-While function can be collected separately.
+        let selected_elements;
+        let elements = if let Some(control) = selected_control {
+            if elements.len() < 2
+                || !elements.contains(&control)
+                || elements.iter().any(|id| {
+                    !matches!(
+                        ast.statements().get(*id).ok().map(|node| node.payload()),
+                        Some(Statement::While { .. })
+                    )
+                })
+            {
+                return None;
+            }
+            selected_elements = vec![control];
+            &selected_elements
+        } else {
+            elements
+        };
+        if (owner_parameter.is_none() || (integer_control && parameter_symbols.len() == 1))
+            && (parameters.len() == 1
+                || (integer_control
+                    && parameter_symbols.iter().all(|symbol| {
+                        checker
+                            .typed
+                            .symbol_type(*symbol)
+                            .and_then(|ty| checker.typed.types().get(ty))
+                            == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                    })))
+            && (checker.typed.types().get(signature.return_type())
+                == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                || (checker.typed.types().get(signature.return_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    && signature.result_source()
+                        == crate::type_checking::CallableResultSource::Owned))
+            && let Some(normal) = normal_backedge::NormalInput::admit(
+                checker,
+                elements,
+                &parameter_symbols,
+                owner_parameter,
+                checker.typed.types().get(signature.return_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Unit)),
+                UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
+            )
+        {
+            return Some(Self {
+                statement: normal.statement,
+                condition: normal.condition,
+                body: normal.body,
+                identity,
+                callable: UnitOwnerCallable::Function(UnitItemId::new(checker.source_unit, item)),
+                expected: normal.expected_completion(),
+                active: None,
+                completed: None,
+                split_entered: false,
+                active_branch: None,
+                pending_jump: None,
+                branch_completed: [false; 2],
+                result: None,
+                invariant: None,
+                invariant_result: None,
+                replacing: None,
+                replace_result: None,
+                normal: Some(normal),
+            });
+        }
+        // Int parameters are exclusive to the separately sealed normal-header contract.
+        // A failed admission must never widen any legacy Boolean family.
+        if integer_control {
+            return None;
+        }
+        let replacing = replace_break::OpenLoopInput::admit(
+            checker,
+            elements,
+            &parameter_symbols,
+            owner_parameter,
+        );
+        // Parameter inputs belong only to the delivered Return variant. They must not
+        // fall back into the pre-existing all-Boolean closed or invariant loop gates.
+        if owner_parameter.is_some()
+            && !replacing.as_ref().is_some_and(|input| input.is_returning())
+        {
+            return None;
+        }
         let returns_owner = replacing.as_ref().is_some_and(|input| matches!(input.consumer_target, crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix::Return(_)));
         let result = if returns_owner {
             BuiltinType::String
@@ -209,7 +331,11 @@ impl LoopTransaction {
         let mut expected = replacing
             .as_ref()
             .map_or(LoopBodyCompletion::Fallthrough, |input| {
-                LoopBodyCompletion::Break(input.jump)
+                if input.is_returning() {
+                    LoopBodyCompletion::Fallthrough
+                } else {
+                    LoopBodyCompletion::Break(input.jump)
+                }
             });
         let mut locals = BTreeSet::new();
         if replacing.is_none() {
@@ -319,6 +445,7 @@ impl LoopTransaction {
             result: None,
             invariant,
             invariant_result: None,
+            normal: None,
             replacing,
             replace_result: None,
         })
@@ -329,15 +456,112 @@ impl LoopTransaction {
     ) -> (
         Option<UnitOwnerLoopObservationV1>,
         Option<InvariantLoopValueV1>,
-        Option<UnitOwnerReplaceBreakObservationV1>,
+        Option<UnitOwnerOpenLoopObservationV1>,
     ) {
         (self.result, self.invariant_result, self.replace_result)
+    }
+}
+
+impl DropPlanner<'_, '_> {
+    // The terminal observer uses the same active body catalog and lexical boundary as traversal.
+    fn open_return_context(&self) -> Option<bool> {
+        let transaction = self.owner_loop.as_ref()?;
+        if !transaction.replacing.as_ref()?.is_returning() || self.owner_branch_depth != 0 {
+            return None;
+        }
+        match &transaction.active {
+            Some((identity, boundary)) => (self.owner_controls.is_current(UnitStatementId::new(
+                self.checker.source_unit,
+                transaction.statement,
+            )) && self.loop_boundaries.as_slice() == [*boundary]
+                && self.scope_depth == boundary + 1
+                && transaction.completed.is_none()
+                && self.owner_observation.as_ref().is_some_and(|observation| {
+                    observation.status == UnitOwnerObservationStatus::Complete
+                        && std::sync::Arc::ptr_eq(identity, &observation.identity)
+                }))
+            .then_some(true),
+            None => (self.owner_controls.balanced()
+                && self.loop_boundaries.is_empty()
+                && self.scope_depth == 1)
+                .then_some(false),
+        }
+    }
+    pub(in super::super) fn take_open_loop_return(
+        &mut self,
+        expression: ExpressionId,
+        value: Option<&OwnedValue>,
+    ) {
+        self.take_normal_return(expression, value);
+        if self.open_return_context().is_none() {
+            return;
+        }
+        let transaction = self.owner_loop.as_mut().expect("checked open loop");
+        let identity = transaction.active.as_ref().map(|(identity, _)| identity);
+        transaction
+            .replacing
+            .as_mut()
+            .expect("checked prefix")
+            .return_take(self.checker.unit_expression(expression), value, identity);
+    }
+    pub(in super::super) fn deliver_open_loop_return(
+        &mut self,
+        expression: ExpressionId,
+        payload: ExpressionId,
+        owner: Option<&UnitOwnerId>,
+        state: &ValueState,
+    ) {
+        self.deliver_normal_return(expression, payload, state);
+        let Some(body) = self.open_return_context() else {
+            return;
+        };
+        self.owner_loop
+            .as_mut()
+            .expect("checked open loop")
+            .replacing
+            .as_mut()
+            .expect("checked prefix")
+            .return_deliver(
+                self.checker.unit_expression(expression),
+                self.checker.unit_expression(payload),
+                owner,
+                state,
+                body,
+            );
+    }
+    pub(in super::super) fn finish_open_loop_return(
+        &mut self,
+        expression: ExpressionId,
+        state: &ValueState,
+    ) {
+        self.finish_normal_return(expression, state);
+        let Some(body) = self.open_return_context() else {
+            return;
+        };
+        let transaction = self.owner_loop.as_mut().expect("checked open loop");
+        if let Some(value) = transaction
+            .replacing
+            .as_mut()
+            .expect("checked prefix")
+            .return_cleanup(self.checker.unit_expression(expression), state, body)
+            && transaction.replace_result.is_none()
+        {
+            transaction.replace_result = Some(value);
+        }
     }
 }
 
 // Exhaustive destructuring makes new planner slots require an explicit boundary decision.
 fn boundary_values(state: &ValueState) -> Option<&[OwnedValue]> {
     let ValueState {
+        // Pure observation metadata does not change the existing owner boundary.
+        forward_scope: _,
+        branch_forward_plan: _,
+        nested_forward: _,
+        bounded_forward: _,
+        single_continuation: _,
+        multi_continuation: _,
+        multi_merge: _,
         replace_consumer,
         lambda,
         borrow_bindings,
@@ -408,7 +632,7 @@ impl DropPlanner<'_, '_> {
 
     // Only the precise expected tail in the fresh, active body sink is admitted.
     pub(in super::super) fn owner_loop_jump_supported(&self, id: ExpressionId) -> bool {
-        let Some(transaction) = &self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_ref() else {
             return false;
         };
         let Some((identity, boundary)) = &transaction.active else {
@@ -423,6 +647,10 @@ impl DropPlanner<'_, '_> {
             _ => return false,
         };
         expected == self.checker.unit_expression(id)
+            && self.owner_controls.is_current(UnitStatementId::new(
+                self.checker.source_unit,
+                transaction.statement,
+            ))
             && transaction.completed.is_none()
             && transaction.pending_jump.is_none()
             && self.loop_boundaries.as_slice() == [*boundary]
@@ -462,7 +690,7 @@ impl DropPlanner<'_, '_> {
         }
     }
 
-    pub(in super::super) fn owner_while_statement(
+    fn owner_while_statement_scoped(
         &mut self,
         id: StatementId,
         condition: ExpressionId,
@@ -472,7 +700,15 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
+        self.owner_loop.record_root_condition(
+            UnitStatementId::new(self.checker.source_unit, id),
+            self.checker.unit_expression(condition),
+            state,
+        );
         let collecting = self.owner_observation_enabled
+            && self
+                .owner_controls
+                .is_current(UnitStatementId::new(self.checker.source_unit, id))
             && self.loop_boundaries.is_empty()
             && self.owner_branch_depth == 0
             && self.owner_loop.as_mut().is_some_and(|transaction| {
@@ -487,6 +723,12 @@ impl DropPlanner<'_, '_> {
         let mut body_transport = None;
         let mut replacement_body = None;
         if self.checker.ordinary_condition_outcomes(condition).0 {
+            self.owner_loop.record_root_body_entry(
+                UnitStatementId::new(self.checker.source_unit, id),
+                self.checker.unit_expression(condition),
+                UnitStatementId::new(self.checker.source_unit, body),
+                state,
+            );
             let mut body_state = state.clone();
             // The private body sink has a fresh catalog, never aliases the callable catalog,
             // and is not pushed as an extra callable observation.
@@ -511,7 +753,11 @@ impl DropPlanner<'_, '_> {
                         choice_value: None,
                         loop_value: None,
                         invariant_loop_value: None,
-                        replace_break_value: None,
+                        closed_loop_batch: None,
+                        counter_tail: None,
+                        counter_batch: None,
+                        multi_root_boundary: None,
+                        open_loop_value: None,
                     }),
                     self.owner_choice.take(),
                     self.owner_branch_depth,
@@ -521,6 +767,18 @@ impl DropPlanner<'_, '_> {
             };
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
+            self.owner_loop.record_root_fallthrough(
+                UnitStatementId::new(self.checker.source_unit, id),
+                &body_state,
+                matches!(continued, Ok(true)),
+            );
+            self.owner_loop.record_root_normal_writes(
+                self.checker,
+                UnitStatementId::new(self.checker.source_unit, id),
+                &body_state,
+                matches!(continued, Ok(true)),
+                &self.facts,
+            );
             self.loop_boundaries.pop();
             if let Some((observation, choice, depth)) = saved {
                 let collected = self.owner_observation.take();
@@ -528,37 +786,55 @@ impl DropPlanner<'_, '_> {
                 self.owner_choice = choice;
                 self.owner_branch_depth = depth;
                 // Restore every sink before propagating an error or considering publication.
-                let transaction = self.owner_loop.as_mut().expect("checked loop transaction");
-                transaction.active = None;
-                let witnessed = transaction.completed.take();
-                transaction.split_entered = false;
-                transaction.active_branch = None;
-                transaction.pending_jump = None;
-                transaction.branch_completed = [false; 2];
-                if transaction.body_completion_boundary(&body_state)
-                    && let Some(collected) = collected
-                {
-                    let completion = match (&continued, transaction.expected, witnessed) {
-                        (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
-                            Some(LoopBodyCompletion::Fallthrough)
-                        }
-                        (Ok(continues), expected, Some((identity, completed)))
-                            if *continues == expected.continues()
-                                && expected != LoopBodyCompletion::Fallthrough
-                                && expected == completed
-                                && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
+                if let Some(transaction) = self.owner_loop.as_mut() {
+                    transaction.active = None;
+                    let witnessed = transaction.completed.take();
+                    transaction.split_entered = false;
+                    transaction.active_branch = None;
+                    transaction.pending_jump = None;
+                    transaction.branch_completed = [false; 2];
+                    if transaction
+                        .replacing
+                        .as_ref()
+                        .is_some_and(|input| input.is_returning())
+                    {
+                        if matches!(continued, Ok(false))
+                            && witnessed.is_none()
+                            && transaction.body_completion_boundary(&body_state)
+                            && let Some(collected) = collected
                         {
-                            Some(completed)
-                        }
-                        _ => None,
-                    };
-                    if let Some(completion) = completion {
-                        if transaction.replacing.is_some() {
                             replacement_body = Some((collected, body_state));
-                        } else {
-                            body_transport = collected
-                                .value_observation_v1()
-                                .map(|transport| (transport, completion));
+                        }
+                    } else if transaction.body_completion_boundary(&body_state)
+                        && let Some(collected) = collected
+                    {
+                        let completion = match (&continued, transaction.expected, witnessed) {
+                            (Ok(true), LoopBodyCompletion::Fallthrough, None) => {
+                                Some(LoopBodyCompletion::Fallthrough)
+                            }
+                            (Ok(continues), expected, Some((identity, completed)))
+                                if *continues == expected.continues()
+                                    && expected != LoopBodyCompletion::Fallthrough
+                                    && expected == completed
+                                    && std::sync::Arc::ptr_eq(&identity, &collected.identity) =>
+                            {
+                                Some(completed)
+                            }
+                            _ => None,
+                        };
+                        if let Some(completion) = completion {
+                            if transaction
+                                .normal
+                                .as_mut()
+                                .is_some_and(|normal| normal.finish_role(completion))
+                                || transaction.replacing.is_some()
+                            {
+                                replacement_body = Some((collected, body_state));
+                            } else {
+                                body_transport = collected
+                                    .value_observation_v1()
+                                    .map(|transport| (transport, completion));
+                            }
                         }
                     }
                 }
@@ -568,15 +844,34 @@ impl DropPlanner<'_, '_> {
         if self.checker.non_fallthrough_whiles.contains(&id.index()) {
             return Ok(false);
         }
-        self.drop_loop_exit(id, state);
+        self.drop_root_loop_exit(id, condition, state);
+        if collecting
+            && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())
+            && let Some((collected, _)) = replacement_body.take()
+            && let Some(normal) = self.owner_loop.as_mut().and_then(|t| t.normal.as_mut())
+        {
+            normal.finish_body(collected, state);
+        }
         if collecting
             && let (Some(transaction), Some((collected, mut body_state))) =
-                (&mut self.owner_loop, replacement_body)
+                (self.owner_loop.as_mut(), replacement_body)
             && let Some(input) = &mut transaction.replacing
         {
             transaction.replace_result = input.finish(collected, state);
             if let (Some(boundary), Some(condition), Some(body)) = (
-                transaction.replace_result.as_ref(),
+                transaction
+                    .replace_result
+                    .as_ref()
+                    .and_then(|value| match value {
+                        UnitOwnerOpenLoopObservationV1::BreakLive(boundary) => Some(boundary),
+                        UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
+                        | UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::NormalBindDrop(_)
+                        | UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(_)
+                        | UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => None,
+                    }),
                 state.values.first(),
                 body_state.values.pop(),
             ) {
@@ -590,7 +885,7 @@ impl DropPlanner<'_, '_> {
         }
         if collecting
             && let (Some(transaction), Some((transport, completion))) =
-                (&mut self.owner_loop, body_transport)
+                (self.owner_loop.as_mut(), body_transport)
         {
             let statement = UnitStatementId::new(self.checker.source_unit, id);
             let condition = self.checker.unit_expression(condition);
@@ -623,7 +918,7 @@ impl LoopTransaction {
         &mut self,
         consumer: crate::ownership_checking::UnitOwnerReplaceBreakConsumerV1,
     ) {
-        if let Some(boundary) = &mut self.replace_result
+        if let Some(UnitOwnerOpenLoopObservationV1::BreakLive(boundary)) = &mut self.replace_result
             && boundary.consumer.is_none()
         {
             boundary.consumer = Some(consumer);
@@ -639,7 +934,7 @@ impl LoopTransaction {
         &mut self,
         consumer: crate::ownership_checking::UnitOwnerReplaceBreakCallConsumerV1,
     ) {
-        if let Some(boundary) = &mut self.replace_result
+        if let Some(UnitOwnerOpenLoopObservationV1::BreakLive(boundary)) = &mut self.replace_result
             && boundary.consumer.is_none()
             && boundary.call_consumer.is_none()
         {
@@ -656,7 +951,7 @@ impl LoopTransaction {
         &mut self,
         consumer: crate::ownership_checking::UnitOwnerReplaceBreakReturnConsumerV1,
     ) {
-        if let Some(boundary) = &mut self.replace_result
+        if let Some(UnitOwnerOpenLoopObservationV1::BreakLive(boundary)) = &mut self.replace_result
             && boundary.consumer.is_none()
             && boundary.call_consumer.is_none()
             && boundary.return_consumer.is_none()

@@ -498,7 +498,87 @@ impl Builder<'_, '_> {
             Some(branch) => self.statement_span(branch)?,
             None => span,
         });
+        let mixed_split = self.mixed_header_split(
+            control,
+            self.unit(condition),
+            lang_frontend::type_checking::UnitStatementId::new(
+                self.inputs.source_unit,
+                then_branch,
+            ),
+            else_branch.map(|b| {
+                lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, b)
+            }),
+            [when_true, when_false],
+            span,
+        )?;
+        let cb = self.cb_split(
+            control,
+            self.unit(condition),
+            lang_frontend::type_checking::UnitStatementId::new(
+                self.inputs.source_unit,
+                then_branch,
+            ),
+            else_branch.is_none(),
+            [when_true, when_false],
+            span,
+        )?;
+        let entry = self.current(span)?;
+        let branch_condition = self.unit(condition);
+        self.body.branch_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
+        self.body.nested_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
+        self.body.bounded_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
+        self.body.single_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
+        self.body.multi_plans.split(
+            control,
+            branch_condition,
+            entry,
+            [when_true, when_false],
+            &self.borrowed,
+            span,
+        )?;
+        let cr = self.cr_split(
+            control,
+            self.unit(condition),
+            lang_frontend::type_checking::UnitStatementId::new(
+                self.inputs.source_unit,
+                then_branch,
+            ),
+            else_branch.is_none(),
+            [when_true, when_false],
+            span,
+        )?;
         self.condition_for_control(condition, when_true, when_false, span)?;
+        self.cb_split_emitted(cb, span)?;
+        self.cr_split_emitted(cr, span)?;
+        self.mixed_header_split_emitted(mixed_split, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
         let outer_short_ranges = self.short_ranges.clone();
@@ -537,6 +617,9 @@ impl Builder<'_, '_> {
             {
                 self.expected_nullable = Some(ssa_ty);
             }
+            self.mixed_header_arm(control, index, block, span)?;
+            self.cb_arm(control, index, block, span)?;
+            self.cr_arm(control, index, block, span)?;
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
                 None => Some(None),
@@ -598,7 +681,25 @@ impl Builder<'_, '_> {
         self.pending_call_loans = outer_pending_loans;
         self.short_ranges = outer_short_ranges;
         self.temporaries = continuing_temporaries.unwrap_or_default();
+        let branch_predecessors = predecessors.iter().map(|p| p.block).collect::<Vec<_>>();
+        self.body
+            .branch_plans
+            .join(control, join, &branch_predecessors, span)?;
+        self.body
+            .nested_plans
+            .join(control, join, &branch_predecessors, span)?;
+        self.body
+            .bounded_plans
+            .join(control, join, &branch_predecessors, span)?;
+        self.body
+            .single_plans
+            .join(control, join, &branch_predecessors, span)?;
+        self.body
+            .multi_plans
+            .join(control, join, &branch_predecessors, span)?;
         let reached = self.join_views(predecessors, join, span)?;
+        self.cb_join(control, join, reached, span)?;
+        self.cr_join(control, join, reached, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }

@@ -171,6 +171,11 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
         }
         target.statements.extend(folded.statements);
         target.terminator = folded.terminator;
+        body.branch_plans.fold(block, successor, span)?;
+        body.nested_plans.fold(block, successor, span)?;
+        body.bounded_plans.fold(block, successor, span)?;
+        body.single_plans.fold(block, successor, span)?;
+        body.multi_plans.fold(block, successor, span)?;
     }
 }
 
@@ -872,6 +877,7 @@ pub(super) fn emit(
         blocks.insert(*block, id);
     }
     let mut receipts = statements::LoanReceipts::new(body, function, span)?;
+    receipts.layout(body, function, &blocks, &parameters, &entities, span)?;
     let mut emitter = Emitter {
         function,
         current: BTreeMap::new(),
@@ -974,6 +980,7 @@ pub(super) fn emit(
             .function
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
+        receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
     receipts.finish(body, emitter.function, span)?;
     Ok(())

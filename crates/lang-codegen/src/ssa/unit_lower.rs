@@ -1,6 +1,8 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
 mod orchestrate;
 use orchestrate::lower_unit_from_facts;
+#[cfg(all(test, feature = "loan-observation-test-support"))]
+pub(in crate::ssa) use orchestrate::observe_final_verifier;
 
 mod aggregate;
 mod assignment;

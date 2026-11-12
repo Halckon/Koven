@@ -12,9 +12,9 @@ append-only `ActionSource`。旧 direct/prefix/provider 切片只迭代其中 Cl
 仍在 raw 与公开边界全局撤销。静态 record 的封闭 catalog ID 不可跨 source 产品或重分析解析；
 结构快照相等不表示 catalog 相同，记录顺序不是跨分支、循环或 callable 的执行时间线。
 
-source 总体仍只发布 Partial 或 Unsupported：有记录仍可能遗漏 result handoff、receiver
-activation 和权限恢复；空 source 动作表不能证明 absence。没有整个 callable、动态路径或
-activation 的完整证据，未退休 Single oracle。receiver正常End、结果binding提交和End表已为同源投影；其他result观察独立保留。
+source仍Partial或Unsupported，空表不证明absence，Single oracle未退休。
+[wrapper局部出口](unit-loan-forward-exit.md)之外，双出口区域独立核声明、真实控制及完整路径动作，
+仅局部Complete发布两条path；不扩大旧receipt或增加End/Drop。[合同与验收](../specs/active/0341-shared-lowering-core.md#同来源动态双出口独立路径覆盖合同2026-11-11)。
 
 ## 普通 direct call 正常返回区域
 
@@ -196,5 +196,5 @@ payload owner或Drop。这是已有能力的身份证据补齐，refine准入仍
 单String结果parent/Name child的实际commit、use-return与retirement携原source/handoff句柄，不复制source运输。
 同批child→parent退休、实际owner移除及新Cleanup append发布Drop关联；metadata不入旧Eq，失证永久降级。
 独立四语句child区域从已形成owner后的parent声明起，到root cleanup后scope0/全部active空，核未过滤十记录；
-两binding/端点、实际Drop依赖和入区/移除owner token共同认证Complete，不进入旧七记录binding区域/receipt。
-source/callable仍Partial；额外语句/后用不授此Complete，无新receipt，旧十SSA/emitter不变，旧oracle未退休。
+两binding/端点、实际Drop依赖和owner token共同认证Complete；独立生产receipt核九角色/五实体，不混旧七记录。
+真实child reborrow、consumer复用、三End及原Drop在append冻结；source/callable仍Partial，旧发出顺序不变、oracle未退休。 同根双参数辅助绑定另有[独立Partial原因观察](../specs/active/0341-shared-lowering-core.md#辅助绑定-partial-观察前置独立交付)，不授予上述区域或receipt。

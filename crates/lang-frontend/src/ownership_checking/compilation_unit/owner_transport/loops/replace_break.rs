@@ -10,9 +10,8 @@ pub use return_consumer::{
 };
 // One actual replacement followed by Break and an optional bounded consumer.
 use super::super::{
-    UnitOwnerCallable, UnitOwnerId, UnitOwnerObservation, UnitOwnerObservationStatus,
-    UnitOwnerOrigin, UnitOwnerProducerCatalogV1, UnitOwnerTransportEvent,
-    UnitOwnerUnsupportedReason,
+    UnitOwnerCallable, UnitOwnerId, UnitOwnerObservation, UnitOwnerOrigin,
+    UnitOwnerProducerCatalogV1, UnitOwnerTransportEvent,
 };
 use super::{LoopBodyCompletion, UnitOwnerLoopEdgeV1};
 use crate::{
@@ -66,29 +65,10 @@ pub struct UnitOwnerReplaceBreakObservationV1 {
         Option<UnitOwnerReplaceBreakCallConsumerV1>,
     pub(in crate::ownership_checking::compilation_unit) consumer:
         Option<UnitOwnerReplaceBreakConsumerV1>,
-    pub(in crate::ownership_checking::compilation_unit) identity: Arc<()>,
+    pub(in crate::ownership_checking::compilation_unit) prefix: super::UnitOwnerOpenLoopPrefixV1,
     pub(in crate::ownership_checking::compilation_unit) completed_identity: Arc<()>,
     pub(in crate::ownership_checking::compilation_unit) completed_jump: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) callable: UnitOwnerCallable,
-    pub(in crate::ownership_checking::compilation_unit) statement: UnitStatementId,
-    pub(in crate::ownership_checking::compilation_unit) condition: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) body: UnitStatementId,
-    pub(in crate::ownership_checking::compilation_unit) jump: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) call: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) call_origin: Span,
-    pub(in crate::ownership_checking::compilation_unit) initial: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) argument: UnitExpressionId,
-    pub(in crate::ownership_checking::compilation_unit) previous: UnitSymbolId,
-    pub(in crate::ownership_checking::compilation_unit) previous_statement: UnitStatementId,
-    pub(in crate::ownership_checking::compilation_unit) inputs: UnitOwnerProducerCatalogV1,
-    pub(in crate::ownership_checking::compilation_unit) producers: UnitOwnerProducerCatalogV1,
-    pub(in crate::ownership_checking::compilation_unit) prefix: Vec<UnitOwnerTransportEvent>,
-    pub(in crate::ownership_checking::compilation_unit) events: Vec<UnitOwnerTransportEvent>,
-    pub(in crate::ownership_checking::compilation_unit) entry: UnitOwnerReplaceBreakStateV1,
-    pub(in crate::ownership_checking::compilation_unit) post_break: UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) body_completion:
-        UnitOwnerReplaceBreakStateV1,
-    pub(in crate::ownership_checking::compilation_unit) condition_false:
         UnitOwnerReplaceBreakStateV1,
     pub(in crate::ownership_checking::compilation_unit) edges: Vec<UnitOwnerLoopEdgeV1>,
 }
@@ -158,7 +138,7 @@ impl UnitOwnerReplaceBreakObservationV1 {
     }
     /// Independently read state after Break cleanup, carrying Q.
     pub fn break_boundary(&self) -> &UnitOwnerReplaceBreakStateV1 {
-        &self.post_break
+        &self.installed
     }
     /// Independently read state after the body's actual early return, carrying Q.
     pub fn body_completion(&self) -> &UnitOwnerReplaceBreakStateV1 {
@@ -178,26 +158,30 @@ impl UnitOwnerReplaceBreakObservationV1 {
     }
     /// Verify the fixed cross-catalog transfer, independent boundaries and completion seal.
     pub fn is_consistent(&self) -> bool {
-        let UnitOwnerCallable::Function(function) = self.callable else {
-            return false;
-        };
-        let source = function.source_unit();
-        let p = self.entry.owner();
-        let q = self.post_break.owner();
-        let root = self.entry.symbol;
-        if self
-            .consumer
-            .as_ref()
-            .is_some_and(|consumer| !consumer.matches_boundary(self))
-            || self
+        self.prefix.prefix_is_consistent()
+            && self
+                .inputs
+                .definition(self.entry.owner())
+                .is_some_and(|definition| {
+                    definition.origin() == UnitOwnerOrigin::String(self.initial)
+                })
+            && self.events.len() == 6
+            && Arc::ptr_eq(&self.completed_identity, &self.producers.identity)
+            && self.completed_jump == self.jump
+            && self.installed == self.body_completion
+            && self
+                .consumer
+                .as_ref()
+                .is_none_or(|consumer| consumer.matches_boundary(self))
+            && self
                 .call_consumer
                 .as_ref()
-                .is_some_and(|consumer| !consumer.matches_boundary(self))
-            || self
+                .is_none_or(|consumer| consumer.matches_boundary(self))
+            && self
                 .return_consumer
                 .as_ref()
-                .is_some_and(|consumer| !consumer.matches_boundary(self))
-            || [
+                .is_none_or(|consumer| consumer.matches_boundary(self))
+            && [
                 self.consumer.is_some(),
                 self.call_consumer.is_some(),
                 self.return_consumer.is_some(),
@@ -205,123 +189,7 @@ impl UnitOwnerReplaceBreakObservationV1 {
             .into_iter()
             .filter(|present| *present)
             .count()
-                > 1
-            || !self.inputs.is_consistent()
-            || !self.producers.is_consistent()
-            || self.inputs.callable() != self.callable
-            || self.producers.callable() != self.callable
-            || self.inputs.definitions().len() != 1
-            || self.producers.definitions().len() != 1
-            || !Arc::ptr_eq(&self.identity, &self.inputs.identity)
-            || Arc::ptr_eq(&self.identity, &self.producers.identity)
-            || !Arc::ptr_eq(&self.completed_identity, &self.producers.identity)
-            || self.completed_jump != self.jump
-            || self
-                .inputs
-                .definition(p.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.initial))
-            || self
-                .producers
-                .definition(q.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.argument))
-            || self.inputs.definition(q.clone()).is_some()
-            || self.producers.definition(p.clone()).is_some()
-            || p == q
-            || root == self.previous
-            || root.source_unit() != source
-            || self.previous.source_unit() != source
-            || [self.statement, self.body, self.previous_statement]
-                .iter()
-                .any(|id| id.source_unit() != source)
-            || [
-                self.condition,
-                self.jump,
-                self.call,
-                self.initial,
-                self.argument,
-            ]
-            .iter()
-            .any(|id| id.source_unit() != source)
-            || self.statement == self.body
-            || self.previous_statement == self.statement
-            || self.previous_statement == self.body
-            || [
-                self.condition,
-                self.jump,
-                self.call,
-                self.initial,
-                self.argument,
-            ]
-            .iter()
-            .enumerate()
-            .any(|(i, id)| {
-                [
-                    self.condition,
-                    self.jump,
-                    self.call,
-                    self.initial,
-                    self.argument,
-                ][..i]
-                    .contains(id)
-            })
-            || self.entry != self.condition_false
-            || self.post_break != self.body_completion
-            || self.post_break.symbol != root
-            || self.entry.declaration != self.post_break.declaration
-            || self.entry.scope_depth != self.post_break.scope_depth
-            || self.entry.scope_depth != 1
-            || self.entry.origin != self.entry.declaration
-            || self.post_break.origin != self.call_origin
-            || self.call_origin.source_id() != self.entry.declaration.source_id()
-        {
-            return false;
-        }
-        use UnitOwnerTransportEvent as E;
-        self.prefix
-            == [
-                E::Result {
-                    expression: self.initial,
-                    owner: p.clone(),
-                },
-                E::Binding {
-                    symbol: root,
-                    initializer: self.initial,
-                    owner: p.clone(),
-                },
-            ]
-            && self.events
-                == [
-                    E::Result {
-                        expression: self.argument,
-                        owner: q.clone(),
-                    },
-                    E::Pending {
-                        call: self.call,
-                        argument: self.argument,
-                        owner: q.clone(),
-                    },
-                    E::Replace {
-                        call: self.call,
-                        root,
-                        argument: self.argument,
-                        previous: p.clone(),
-                        incoming: q,
-                    },
-                    E::Result {
-                        expression: self.call,
-                        owner: p.clone(),
-                    },
-                    E::Binding {
-                        symbol: self.previous,
-                        initializer: self.call,
-                        owner: p.clone(),
-                    },
-                    E::Drop {
-                        point: UnitDropPoint::AfterStatement(self.previous_statement),
-                        symbol: self.previous,
-                        owner: p,
-                    },
-                ]
+                <= 1
             && self.edges
                 == LoopBodyCompletion::Break(self.jump).edges(
                     self.statement,
@@ -333,11 +201,22 @@ impl UnitOwnerReplaceBreakObservationV1 {
 impl UnitOwnerObservation {
     /// Separate one-replacement Break capability with an optional exact suffix consumer.
     pub fn replace_break_observation_v1(&self) -> Option<&UnitOwnerReplaceBreakObservationV1> {
-        let value = self.replace_break_value.as_deref()?;
-        (self.loop_value.is_none() && self.invariant_loop_value.is_none() && self.choice_value.is_none()
-            && self.definitions.is_empty() && self.events.is_empty()
-            && matches!(self.status, UnitOwnerObservationStatus::Unsupported { point: UnitDropPoint::AfterStatement(statement), reason: UnitOwnerUnsupportedReason::Syntax } if statement == value.statement)
-            && self.callable == value.callable && Arc::ptr_eq(&self.identity, &value.identity)
-            && value.is_consistent()).then_some(value)
+        match self.open_loop_observation_v1()? {
+            super::UnitOwnerOpenLoopObservationV1::BreakLive(value) => Some(value),
+            super::UnitOwnerOpenLoopObservationV1::ReturnDelivered(_)
+            | super::UnitOwnerOpenLoopObservationV1::NormalBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::NormalBindDrop(_)
+            | super::UnitOwnerOpenLoopObservationV1::MixedBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::ConditionalBreakBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::ConditionalReturnBackedge(_)
+            | super::UnitOwnerOpenLoopObservationV1::ContinueBackedge(_) => None,
+        }
+    }
+}
+
+impl std::ops::Deref for UnitOwnerReplaceBreakObservationV1 {
+    type Target = super::UnitOwnerOpenLoopPrefixV1;
+    fn deref(&self) -> &Self::Target {
+        &self.prefix
     }
 }

@@ -80,11 +80,7 @@ impl UnitOwnerReplaceBreakCallConsumerV1 {
             && self.argument_index() < self.arity()
             && self.parameter_index() < self.arity()
             && self.target == *target
-            && self.incoming
-                == [
-                    boundary.condition_false.clone(),
-                    boundary.post_break.clone(),
-                ]
+            && self.incoming == [boundary.condition_false.clone(), boundary.installed.clone()]
             && self.call().source_unit() == source
             && self.argument().source_unit() == source
             && target.statement.source_unit() == source

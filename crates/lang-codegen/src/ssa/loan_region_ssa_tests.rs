@@ -739,6 +739,9 @@ mod named_literal_mapping;
 #[path = "finite_literal_tests.rs"]
 mod finite_literal;
 
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "aux_handoff_probe_tests.rs"]
+mod aux_handoff_probe;
 #[path = "binding_lifecycle_probe_tests.rs"]
 mod binding_lifecycle_probe;
 
@@ -768,3 +771,122 @@ mod parent_child_drop_dependency;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_coverage_tests.rs"]
 mod parent_child_coverage;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "parent_child_receipt_tests.rs"]
+mod parent_child_receipts;
+
+#[path = "forward_lifecycle_probe_tests.rs"]
+mod forward_lifecycle_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_causal_links_tests.rs"]
+mod forward_causal_links;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_projection_tests.rs"]
+mod forward_projection;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_exit_coverage_tests.rs"]
+mod forward_exit_coverage;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "forward_receipt_tests.rs"]
+mod forward_receipts;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "branch_forward_probe_tests.rs"]
+mod branch_forward_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "aux_binding_receipt_tests.rs"]
+mod aux_binding_receipt_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "aux_source_second_receipt_tests.rs"]
+mod aux_source_second_receipts;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "branch_else_probe_tests.rs"]
+mod branch_else_probe;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "branch_distinct_callee_probe_tests.rs"]
+mod branch_distinct_callee_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_three_leaf_probe_tests.rs"]
+mod nested_three_leaf_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_three_leaf_neighbor_tests.rs"]
+mod nested_three_leaf_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_mirror_probe_tests.rs"]
+mod nested_mirror_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "balanced_four_leaf_probe_tests.rs"]
+mod balanced_four_leaf_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "balanced_four_leaf_neighbor_tests.rs"]
+mod balanced_four_leaf_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "shared_inner_four_leaf_probe_tests.rs"]
+mod shared_inner_four_leaf_probe_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_then_tail_boundary_tests.rs"]
+mod nested_then_tail_boundary_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_then_tail_receipt_tests.rs"]
+mod nested_then_tail_receipt_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_then_tail_neighbor_tests.rs"]
+mod nested_then_tail_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_else_cascade_tail_boundary_tests.rs"]
+mod nested_else_cascade_tail_boundary_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_cascade_tail_receipt_tests.rs"]
+mod nested_cascade_tail_receipt_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "nested_else_cascade_tail_neighbor_tests.rs"]
+mod nested_else_cascade_tail_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "dynamic_terminal_tree_boundary_tests.rs"]
+mod dynamic_terminal_tree_boundary_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "bounded_terminal_tree_neighbor_tests.rs"]
+mod bounded_terminal_tree_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "bounded_continuation_tree_boundary_tests.rs"]
+mod bounded_continuation_tree_boundary_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "single_continuation_neighbor_tests.rs"]
+mod single_continuation_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "distinct_root_auxiliary_research_tests.rs"]
+mod distinct_root_auxiliary_research_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "auxiliary_sequence_research_tests.rs"]
+mod auxiliary_sequence_research_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "loop_borrow_research_tests.rs"]
+mod loop_borrow_research_tests;

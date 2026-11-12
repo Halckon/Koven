@@ -1,12 +1,15 @@
-//! Read-only actual P -> Q replacement and Break witnesses; no loop-state merge.
+//! Shared actual P -> Q prefix for live Break and delivered Return endpoints.
+mod returning;
 use super::*;
 use crate::ownership_checking::{
-    UnitOwnerProducerCatalogV1, UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
+    UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerProducerCatalogV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakStateV1,
 };
 use crate::parser::{BinaryOperator, LiteralKind, PrefixOperator};
 use crate::source::Span;
 
-pub(super) struct ReplaceBreakInput {
+pub(super) struct OpenLoopInput {
+    returning: Option<returning::ReturnInput>,
     pub(super) consumer_target:
         crate::ownership_checking::compilation_unit::owner_transport::ReplaceBreakSuffix,
     pub(super) statement: StatementId,
@@ -15,6 +18,7 @@ pub(super) struct ReplaceBreakInput {
     pub(super) body: StatementId,
     pub(super) jump: UnitExpressionId,
     initial: UnitExpressionId,
+    initial_origin: UnitOwnerOrigin,
     call: UnitExpressionId,
     call_origin: Span,
     argument: UnitExpressionId,
@@ -32,7 +36,7 @@ pub(super) struct ReplaceBreakInput {
     )>,
     body_completion: Option<UnitOwnerReplaceBreakStateV1>,
 }
-fn variable(
+pub(super) fn variable(
     checker: &Checker<'_>,
     statement: StatementId,
     kind: VariableKind,
@@ -62,7 +66,7 @@ fn variable(
         && exact_type(checker, *initializer, BuiltinType::String))
     .then_some((symbol, *initializer))
 }
-fn literal(checker: &Checker<'_>, id: ExpressionId) -> bool {
+pub(super) fn literal(checker: &Checker<'_>, id: ExpressionId) -> bool {
     exact_type(checker, id, BuiltinType::String) && checker.parsed.ast().expressions().get(id).is_ok_and(|node| matches!(node.payload(), Expression::String { parts } if parts.iter().all(|part| !matches!(part, StringPart::Interpolation { .. }))))
 }
 // Logical leaves permit Group/Not wrappers, never another predicate.
@@ -151,11 +155,12 @@ fn boolean_condition_parameter(
         }
     }
 }
-impl ReplaceBreakInput {
+impl OpenLoopInput {
     pub(super) fn admit(
         checker: &Checker<'_>,
         elements: &[StatementId],
         parameters: &BTreeSet<UnitSymbolId>,
+        owner_parameter: Option<UnitSymbolId>,
     ) -> Option<Self> {
         let (prefix, statement, suffix, binding) = match elements {
             [prefix, statement, suffix] => (prefix, statement, suffix, None),
@@ -213,9 +218,21 @@ impl ReplaceBreakInput {
                 super::super::replace_call_consumer::admit(checker, *suffix, root)?,
             )
         };
-        if !literal(checker, initial) {
-            return None;
-        }
+        let initial_origin = match owner_parameter {
+            Some(parameter) => {
+                let node = ast.expressions().get(initial).ok()?;
+                if !matches!(node.payload(), Expression::Name)
+                    || checker.reference_symbol(node.span()) != Some(parameter)
+                {
+                    return None;
+                }
+                UnitOwnerOrigin::Parameter(parameter)
+            }
+            None if literal(checker, initial) => {
+                UnitOwnerOrigin::String(checker.unit_expression(initial))
+            }
+            _ => return None,
+        };
         let Statement::While {
             condition, body, ..
         } = ast.statements().get(*statement).ok()?.payload()
@@ -236,11 +253,21 @@ impl ReplaceBreakInput {
         else {
             return None;
         };
-        if !matches!(
-            ast.expressions().get(*jump).ok()?.payload(),
-            Expression::Break { .. }
-        ) || !exact_type(checker, *jump, BuiltinType::Nothing)
-        {
+        if !exact_type(checker, *jump, BuiltinType::Nothing) {
+            return None;
+        }
+        let returning = match ast.expressions().get(*jump).ok()?.payload() {
+            Expression::Break { .. } => None,
+            Expression::Return { .. } => Some(returning::ReturnInput::admit(
+                checker,
+                *tail,
+                *condition,
+                root,
+                &consumer_target,
+            )?),
+            _ => return None,
+        };
+        if owner_parameter.is_some() && returning.is_none() {
             return None;
         }
         let call_node = ast.expressions().get(call).ok()?;
@@ -297,6 +324,7 @@ impl ReplaceBreakInput {
             return None;
         }
         Some(Self {
+            returning,
             consumer_target,
             statement: *statement,
             condition: *condition,
@@ -304,6 +332,7 @@ impl ReplaceBreakInput {
             body: *body,
             jump: checker.unit_expression(*jump),
             initial: checker.unit_expression(initial),
+            initial_origin,
             call: checker.unit_expression(call),
             call_origin: call_node.span(),
             argument: checker.unit_expression(incoming.value),
@@ -330,29 +359,57 @@ impl ReplaceBreakInput {
         let Some(owner) = value.owner.clone() else {
             return;
         };
-        let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
-            return;
+        let catalog = match self.initial_origin {
+            UnitOwnerOrigin::Parameter(_) => {
+                // Retain the actual function-entry definition and identity. The old
+                // String-only legacy factory must not acquire Parameter admission.
+                if observation.status != UnitOwnerObservationStatus::Complete
+                    || !observation.is_consistent()
+                {
+                    return;
+                }
+                UnitOwnerProducerCatalogV1 {
+                    identity: observation.identity.clone(),
+                    callable: observation.callable,
+                    definitions: observation.definitions.clone(),
+                }
+            }
+            _ => {
+                let Some(catalog) = UnitOwnerProducerCatalogV1::from_legacy(observation) else {
+                    return;
+                };
+                catalog
+            }
         };
+        let mut expected_events = Vec::new();
+        if let UnitOwnerOrigin::Parameter(parameter) = self.initial_origin {
+            expected_events.push(UnitOwnerTransportEvent::Move {
+                expression: self.initial,
+                symbol: parameter,
+                owner: owner.clone(),
+            });
+        }
+        expected_events.extend([
+            UnitOwnerTransportEvent::Result {
+                expression: self.initial,
+                owner: owner.clone(),
+            },
+            UnitOwnerTransportEvent::Binding {
+                symbol: self.root,
+                initializer: self.initial,
+                owner: owner.clone(),
+            },
+        ]);
         if scope != 1
             || value.scope_depth != scope
             || value.symbol != self.root
             || value.origin != value.declaration
             || catalog.definitions().len() != 1
+            || !catalog.is_consistent()
             || catalog
                 .definition(owner.clone())
-                .is_none_or(|d| d.origin() != UnitOwnerOrigin::String(self.initial))
-            || observation.events
-                != [
-                    UnitOwnerTransportEvent::Result {
-                        expression: self.initial,
-                        owner: owner.clone(),
-                    },
-                    UnitOwnerTransportEvent::Binding {
-                        symbol: self.root,
-                        initializer: self.initial,
-                        owner,
-                    },
-                ]
+                .is_none_or(|d| d.origin() != self.initial_origin)
+            || observation.events != expected_events
         {
             return;
         }
@@ -420,47 +477,43 @@ impl ReplaceBreakInput {
         true
     }
     pub(super) fn complete_body(&mut self, state: &ValueState) -> bool {
+        if let Some(returning) = &mut self.returning {
+            return returning.complete_body(state);
+        }
         let Some((identity, _, _)) = &self.transfer else {
             return false;
         };
         self.body_completion = self.output(identity, state);
         self.body_completion.is_some()
     }
-    // Reached only after the exact active Break witness and actual Ok(false) were checked.
-    pub(super) fn finish(
+    pub(super) fn is_returning(&self) -> bool {
+        self.returning.is_some()
+    }
+
+    // Both variants consume exactly the same captured prefix and raw body definitions.
+    fn take_prefix(
         &mut self,
         body: UnitOwnerObservation,
         state: &ValueState,
-    ) -> Option<UnitOwnerReplaceBreakObservationV1> {
+        installed: UnitOwnerReplaceBreakStateV1,
+    ) -> Option<UnitOwnerOpenLoopPrefixV1> {
         let condition_false = self.input(state)?;
         if body.status != UnitOwnerObservationStatus::Complete {
             return None;
         }
-        // This raw sink contains foreign P. Definitions-only validation belongs to the new
-        // bounded protocol; do not weaken or call the old closed from_legacy factory.
         let producers = UnitOwnerProducerCatalogV1 {
             identity: body.identity,
             callable: body.callable,
             definitions: body.definitions,
         };
         let prefix = self.prefix.take()?;
-        let (completed_identity, completed_jump, post_break) = self.transfer.take()?;
         let source = self.initial.source_unit();
-        let statement = UnitStatementId::new(source, self.statement);
-        let condition = UnitExpressionId::new(source, self.condition);
-        let body_statement = UnitStatementId::new(source, self.body);
-        let value = UnitOwnerReplaceBreakObservationV1 {
-            suffix: self.consumer_target.clone(),
-            consumer: None,
-            call_consumer: None,
-            return_consumer: None,
+        let value = UnitOwnerOpenLoopPrefixV1 {
             identity: prefix.identity,
             callable: prefix.callable,
-            completed_identity,
-            completed_jump,
-            statement,
-            condition,
-            body: body_statement,
+            statement: UnitStatementId::new(source, self.statement),
+            condition: UnitExpressionId::new(source, self.condition),
+            body: UnitStatementId::new(source, self.body),
             jump: self.jump,
             call: self.call,
             call_origin: self.call_origin,
@@ -473,11 +526,44 @@ impl ReplaceBreakInput {
             prefix: prefix.events,
             events: body.events,
             entry: self.entry.take()?,
-            post_break,
-            body_completion: self.body_completion.take()?,
+            installed,
             condition_false,
-            edges: LoopBodyCompletion::Break(self.jump).edges(statement, condition, body_statement),
         };
-        value.is_consistent().then_some(value)
+        value.prefix_is_consistent().then_some(value)
+    }
+
+    // Reached only after the actual body result and its terminal witness agree.
+    pub(super) fn finish(
+        &mut self,
+        body: UnitOwnerObservation,
+        state: &ValueState,
+    ) -> Option<UnitOwnerOpenLoopObservationV1> {
+        if let Some(returning) = &self.returning {
+            let installed = returning.body_snapshot()?;
+            let prefix = self.take_prefix(body, state, installed)?;
+            self.returning.as_mut()?.save_prefix(prefix);
+            return None;
+        }
+        let (completed_identity, completed_jump, installed) = self.transfer.take()?;
+        let prefix = self.take_prefix(body, state, installed)?;
+        let edges = LoopBodyCompletion::Break(self.jump).edges(
+            prefix.statement,
+            prefix.condition,
+            prefix.body,
+        );
+        let value = UnitOwnerReplaceBreakObservationV1 {
+            prefix,
+            suffix: self.consumer_target.clone(),
+            consumer: None,
+            call_consumer: None,
+            return_consumer: None,
+            completed_identity,
+            completed_jump,
+            body_completion: self.body_completion.take()?,
+            edges,
+        };
+        value
+            .is_consistent()
+            .then_some(UnitOwnerOpenLoopObservationV1::BreakLive(Box::new(value)))
     }
 }

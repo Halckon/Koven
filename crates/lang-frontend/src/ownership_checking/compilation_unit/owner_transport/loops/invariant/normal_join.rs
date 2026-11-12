@@ -146,7 +146,15 @@ impl UnitOwnerInvariantNormalJoinObservationV1 {
             && self.entry == self.split
             && self.entry == self.exit
             && self.entry.symbol.source_unit() == self.statement().source_unit()
-            && self.inputs.definition(self.entry.owner()).is_some()
+            && self
+                .inputs
+                .definition(self.entry.owner())
+                .is_some_and(|definition| {
+                    matches!(
+                        definition.origin(),
+                        crate::ownership_checking::UnitOwnerOrigin::String(_)
+                    )
+                })
             && self
                 .arms
                 .iter()
@@ -173,7 +181,7 @@ impl UnitOwnerObservation {
         else {
             return None;
         };
-        (self.replace_break_value.is_none()
+        (self.multi_root_boundary.is_none() && self.closed_loop_batch.is_none() && self.counter_batch.is_none() && self.open_loop_value.is_none()
             && self.loop_value.is_none()
             && matches!(self.status, crate::ownership_checking::UnitOwnerObservationStatus::Unsupported {
                 point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),

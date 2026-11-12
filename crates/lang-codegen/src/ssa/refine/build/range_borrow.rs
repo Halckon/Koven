@@ -138,6 +138,12 @@ impl Builder<'_, '_> {
     ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         let id = self.unit(actual);
+        self.body.forward_plans.source_call(id, source, span)?;
+        self.body.branch_plans.source_call(id, source, span)?;
+        self.body.nested_plans.source_call(id, source, span)?;
+        self.body.bounded_plans.source_call(id, source, span)?;
+        self.body.single_plans.source_call(id, source, span)?;
+        self.body.multi_plans.source_call(id, source, span)?;
         if source.call() != id {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -521,6 +527,29 @@ impl Builder<'_, '_> {
                     self.body
                         .binding_plans
                         .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
+                        .aux_binding_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
+                        .distinct_aux_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
+                        .later_aux_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body.auxiliary_sequence_plans.source_operand(
+                        call,
+                        arg_id,
+                        call_arg_span,
+                    )?;
+                    self.body
+                        .interleaved_aux_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
+                        .multi_binding_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
+                    self.body
+                        .child_plans
+                        .source_operand(call, arg_id, call_arg_span)?;
                     self.borrow_call_operand_loan(value_expr, copy_to, call_arg_span)?
                 };
                 let Some((loan, created, read_expr)) = operand else {
@@ -764,6 +793,25 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let return_id = self.unit(control_expr);
         let value_id = self.unit(value_expr);
+        let block = self.current(span)?;
+        self.body
+            .branch_plans
+            .enter(return_id, value_id, block, &self.borrowed, span)?;
+        self.body
+            .nested_plans
+            .enter(return_id, value_id, block, &self.borrowed, span)?;
+        self.body
+            .bounded_plans
+            .enter(return_id, value_id, block, &self.borrowed, span)?;
+        self.body
+            .single_plans
+            .enter(return_id, value_id, block, &self.borrowed, span)?;
+        self.body
+            .multi_plans
+            .enter(return_id, value_id, block, &self.borrowed, span)?;
+        self.body
+            .forward_plans
+            .enter(return_id, value_id, &self.borrowed, span)?;
         let fact = self
             .inputs
             .owned

@@ -184,6 +184,7 @@ impl DropPlanner<'_, '_> {
                 self.drop_named_asap(PlannerDropPoint::AfterExpression(id), symbol, state);
             }
         }
+        self.complete_root_guard_reset(id, state);
         Ok(true)
     }
 }

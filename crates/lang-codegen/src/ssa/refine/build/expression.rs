@@ -522,6 +522,9 @@ impl Builder<'_, '_> {
                 .builtin(lang_frontend::type_checking::BuiltinType::Boolean)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             let boolean = self.ssa_type(boolean, span)?;
+            let operation_block = self
+                .block
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
             let result = self.body.slot(EntityType::Value(ty));
             let failed = self.body.slot(EntityType::Value(boolean));
             self.push(
@@ -552,6 +555,12 @@ impl Builder<'_, '_> {
                 span,
             )?;
             self.block = Some(success);
+            self.checked_expression_emitted(
+                self.unit(expression),
+                [operation_block, success, abort],
+                [result, failed, left, right],
+                span,
+            )?;
             return Ok(Lowered::Value(result));
         }
         if let Some(operator) = bitwise_operator(operator) {
@@ -779,6 +788,7 @@ impl Builder<'_, '_> {
                     self.borrowed_move_only_loan(value_expression, self.c(parameter_type))?
             {
                 self.binding_consumer_argument(call, value_expression, loan, call_arg_span)?;
+                self.child_consumer_argument(call, value_expression, loan, call_arg_span)?;
                 lowered_slots[param_slot] = Some(loan);
                 view_reads.push(value_expression);
                 continue;

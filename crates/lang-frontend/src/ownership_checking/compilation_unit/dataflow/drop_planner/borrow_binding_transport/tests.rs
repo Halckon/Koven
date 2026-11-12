@@ -21,8 +21,13 @@ fn ci_only_binding_metadata_preserves_semantic_eq_and_sticky_merge_loss() {
         source_begin: source_begin.clone(),
         handoff: Some(handoff),
         use_return: UseReturn::Unique(source_begin.clone().unwrap()),
+        use_set: None,
         observable: true,
         dependency_owner: None,
+        auxiliary: None,
+        auxiliary_seen: false,
+        distinct: None,
+        distinct_seen: false,
         child: child::ChildState::Never,
     };
     let mut second = first.clone();

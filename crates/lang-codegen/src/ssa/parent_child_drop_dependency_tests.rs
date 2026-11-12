@@ -215,17 +215,21 @@ fn later_parent_or_owner_use_preserves_old_products_without_drop_dependency() {
                 .unwrap();
             let mut outputs = Vec::new();
             for owned in [&on, &off] {
-                let (lowered, routes) = crate::ssa::refine::observe_routing(|| {
-                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                        &sources,
-                        &inputs,
-                        &names,
-                        &types,
-                        &typed,
-                        owned,
-                        run.id(),
-                    )
-                });
+                let ((lowered, routes), receipts) =
+                    crate::ssa::refine::child_receipt::observe(|| {
+                        crate::ssa::refine::observe_routing(|| {
+                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                &sources,
+                                &inputs,
+                                &names,
+                                &types,
+                                &typed,
+                                owned,
+                                run.id(),
+                            )
+                        })
+                    });
+                assert!(receipts.is_empty());
                 let (program, _) =
                     lowered.expect("ordinary later use retains its existing lowering");
                 verify_program(&program).unwrap();

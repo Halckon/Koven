@@ -263,7 +263,9 @@ impl InvariantInput {
                     .is_consistent()
                     .then_some(InvariantLoopValueV1::Backedge(value))
             }
-            LoopBodyCompletion::Conditional { .. } => None,
+            LoopBodyCompletion::Conditional { .. }
+            | LoopBodyCompletion::ConditionalBreak { .. }
+            | LoopBodyCompletion::ConditionalReturn { .. } => None,
         }
     }
 }
@@ -275,6 +277,9 @@ impl LoopTransaction {
         identity: &std::sync::Arc<()>,
         state: &ValueState,
     ) -> bool {
+        if let Some(input) = &mut self.normal {
+            return input.jump_boundary(completion, identity, state, self.active_branch);
+        }
         if let Some(input) = &mut self.replacing {
             return input.jump_boundary(completion, identity, state);
         }
@@ -298,6 +303,9 @@ impl LoopTransaction {
         true
     }
     pub(super) fn entry_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(normal) = &mut self.normal {
+            return normal.enter(state);
+        }
         if let Some(input) = &mut self.replacing {
             return input.enter(state);
         }
@@ -309,6 +317,9 @@ impl LoopTransaction {
         }
     }
     pub(super) fn body_completion_boundary(&mut self, state: &ValueState) -> bool {
+        if let Some(normal) = &mut self.normal {
+            return normal.complete(state);
+        }
         if let Some(input) = &mut self.replacing {
             return input.complete_body(state);
         }
@@ -340,9 +351,12 @@ impl DropPlanner<'_, '_> {
         state: &ValueState,
     ) {
         if let (Some(transaction), Some(observation)) =
-            (&mut self.owner_loop, &self.owner_observation)
+            (self.owner_loop.as_mut(), &self.owner_observation)
             && transaction.statement == id
         {
+            if let Some(normal) = &mut transaction.normal {
+                normal.capture(observation, state, self.scope_depth);
+            }
             if let Some(input) = &mut transaction.invariant {
                 input.capture(self.checker, observation, state, self.scope_depth);
             }
