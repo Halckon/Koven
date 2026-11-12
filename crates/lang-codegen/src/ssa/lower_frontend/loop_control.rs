@@ -1,8 +1,8 @@
 //! `while` / `loop` 的 backedge、jump 与 loop-carried binding lowering。
 
 mod iteration;
-mod nullable_while;
-pub(super) mod numeric_iteration;
+pub(in crate::ssa) use crate::ssa::carry::columns::nullable_while;
+pub(in crate::ssa) mod numeric_iteration;
 
 use std::collections::BTreeMap;
 
@@ -22,12 +22,12 @@ use crate::ssa::model::{
     TerminatorKind, ValueId,
 };
 
-pub(super) struct LoopJump {
-    exit: BranchExit,
-    span: Span,
+pub(in crate::ssa) struct LoopJump {
+    pub(in crate::ssa) exit: BranchExit,
+    pub(in crate::ssa) span: Span,
 }
 
-pub(super) struct ForLoopData {
+pub(in crate::ssa) struct ForLoopData {
     pub(super) statement: StatementId,
     pub(super) provider_header: crate::ssa::provider::ProviderHeader,
     pub(super) guarded_element: crate::ssa::provider::GuardedElement,
@@ -44,7 +44,7 @@ pub(super) struct ForLoopData {
 }
 
 impl ForLoopData {
-    pub(super) fn rebind_source(&mut self, loan: LoanId) {
+    pub(in crate::ssa) fn rebind_source(&mut self, loan: LoanId) {
         self.body_source = loan;
         // A sibling may have ended its own source. Restore this path from ownership,
         // not the previous path's active state; borrowed sources remain caller-owned.
@@ -53,7 +53,7 @@ impl ForLoopData {
     }
 }
 
-pub(super) struct LoopContext {
+pub(in crate::ssa) struct LoopContext {
     pub(super) entry_views: BTreeMap<SymbolId, super::NonNullProof>,
     pub(super) outer_borrowed_while: Option<super::outer_borrowed_while::Relation>,
     pub(super) header: BlockId,
@@ -66,7 +66,7 @@ pub(super) struct LoopContext {
 }
 
 impl LoopContext {
-    pub(super) fn iteration_plan(
+    pub(in crate::ssa) fn iteration_plan(
         &self,
     ) -> Option<&lang_frontend::ownership_checking::IterationOwnershipPlan> {
         self.for_loop
@@ -77,7 +77,7 @@ impl LoopContext {
 }
 
 impl ExpressionLowerer<'_> {
-    pub(super) fn lower_while(
+    pub(in crate::ssa) fn lower_while(
         &mut self,
         statement: StatementId,
         condition: ExpressionId,
@@ -155,7 +155,7 @@ impl ExpressionLowerer<'_> {
         Ok(result)
     }
 
-    pub(super) fn lower_loop(
+    pub(in crate::ssa) fn lower_loop(
         &mut self,
         statement: StatementId,
         body: StatementId,
@@ -173,7 +173,7 @@ impl ExpressionLowerer<'_> {
         self.finish_loop_exits(statement, context.breaks, &baseline, None, None, span)
     }
 
-    fn finish_loop_exits(
+    pub(in crate::ssa) fn finish_loop_exits(
         &mut self,
         statement: StatementId,
         mut exits: Vec<BranchExit>,
@@ -216,11 +216,11 @@ impl ExpressionLowerer<'_> {
         self.merge_exits(exits, baseline, span)
     }
 
-    fn loop_exit(&self) -> BranchExit {
+    pub(in crate::ssa) fn loop_exit(&self) -> BranchExit {
         self.branch_exit(LoweredValue::Unit)
     }
 
-    pub(super) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+    pub(in crate::ssa) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
         if !self.retire_outer_borrowed_break(span)? {
             self.retire_while_proofs(false, span)?;
         }
@@ -233,12 +233,12 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Diverged)
     }
 
-    pub(super) fn lower_continue(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+    pub(in crate::ssa) fn lower_continue(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
         self.record_continue(span)?;
         Ok(LoweredValue::Diverged)
     }
 
-    fn record_continue(&mut self, span: Span) -> Result<(), LoweringError> {
+    pub(in crate::ssa) fn record_continue(&mut self, span: Span) -> Result<(), LoweringError> {
         self.retire_while_proofs(false, span)?;
         let jump = LoopJump {
             exit: self.loop_exit(),
@@ -252,7 +252,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn finish_loop_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
+    pub(in crate::ssa) fn finish_loop_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
         for jump in &context.continues {
             let arguments = context
                 .carried
@@ -275,7 +275,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn create_loop_header(
+    pub(in crate::ssa) fn create_loop_header(
         &mut self,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
         span: Span,
@@ -334,7 +334,7 @@ impl ExpressionLowerer<'_> {
         })
     }
 
-    pub(super) fn lower_for_break(
+    pub(in crate::ssa) fn lower_for_break(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -384,7 +384,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Diverged)
     }
 
-    pub(super) fn lower_for_continue(
+    pub(in crate::ssa) fn lower_for_continue(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -492,7 +492,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Diverged)
     }
 
-    pub(super) fn emit_iteration_exit_plan(
+    pub(in crate::ssa) fn emit_iteration_exit_plan(
         &mut self,
         exit: &lang_frontend::ownership_checking::IterationExitPlan,
         span: Span,
@@ -505,7 +505,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn emit_iteration_cleanup_action(
+    pub(in crate::ssa) fn emit_iteration_cleanup_action(
         &mut self,
         action: &lang_frontend::ownership_checking::IterationCleanupAction,
         span: Span,
@@ -655,7 +655,7 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn loop_edge(target: BlockId, carried: &LinearBindings) -> Edge {
+pub(in crate::ssa) fn loop_edge(target: BlockId, carried: &LinearBindings) -> Edge {
     Edge {
         target,
         arguments: carried.slots.iter().map(|slot| slot.source).collect(),
@@ -663,7 +663,7 @@ fn loop_edge(target: BlockId, carried: &LinearBindings) -> Edge {
 }
 
 /// Resolve header slots from the exit snapshot, after nested CFG has rebound IDs.
-fn loop_slot_entity(
+pub(in crate::ssa) fn loop_slot_entity(
     lowerer: &ExpressionLowerer<'_>,
     slot: &LinearBindingSlot,
     exit: &BranchExit,

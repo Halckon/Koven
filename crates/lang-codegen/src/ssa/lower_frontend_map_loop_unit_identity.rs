@@ -3,8 +3,7 @@
 
 #[path = "lower_frontend_map_loop_unit_contract.rs"]
 mod map_contract;
-#[path = "lower_frontend_map_source_unit_contract.rs"]
-mod source_contract;
+use map_contract::source_contract;
 
 pub(super) use map_contract::{check_normal, check_original, check_resource};
 pub(super) use source_contract::{SourceScenario, check_source};

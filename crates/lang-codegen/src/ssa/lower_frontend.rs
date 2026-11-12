@@ -1,8 +1,7 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 pub(in crate::ssa) use map_consume::resource_deinit;
-pub(in crate::ssa) mod borrow_argument;
-pub(in crate::ssa) mod borrow_result;
+pub(in crate::ssa) use super::carry::source_columns::frontend_borrow_result as borrow_result;
 #[cfg(test)]
 pub(in crate::ssa) use container::cleanup_guard_harness;
 pub(in crate::ssa) mod container;
@@ -16,18 +15,17 @@ pub(in crate::ssa) use super::statement_core::frontend_map as map;
 pub(in crate::ssa) mod map_consume;
 pub(in crate::ssa) mod map_iteration;
 pub(in crate::ssa) mod map_loop_owner;
-pub(in crate::ssa) mod nominal;
+pub(in crate::ssa) use super::carry::frontend_nominal as nominal;
 pub(in crate::ssa) mod non_null_proof;
 pub(in crate::ssa) mod nullable_borrowed_cleanup;
 pub(in crate::ssa) mod nullable_if_cleanup;
 pub(in crate::ssa) use nullable_if_cleanup::constant_presence;
 pub(in crate::ssa) mod nullable_numeric_cleanup;
-pub(in crate::ssa) mod nullable_when;
 pub(in crate::ssa) mod orchestrate;
 pub(in crate::ssa) mod outer_borrowed_while;
 pub(in crate::ssa) mod ownership_primitive;
 pub(in crate::ssa) use super::expression_core::pending_call;
-pub(in crate::ssa) mod range;
+pub(in crate::ssa) use super::lowering_support::frontend_range as range;
 pub(in crate::ssa) use field_replace::readonly_receiver;
 pub(in crate::ssa) mod source_closure;
 pub(in crate::ssa) mod string_clone;

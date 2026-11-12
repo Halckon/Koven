@@ -1,9 +1,9 @@
 //! The bounded, ordinary named-local Map proof consumes only published FE facts.
 //! Formation history is an anchor; entry Expression owners and every incoming
 //! establish current liveness. Runtime still checks birth, transport and absence.
-pub(in crate::ssa::lower_frontend::map_iteration) use super::local_runtime::conditions;
-pub(super) mod identity;
-pub(super) use identity::{lambda_body, producer};
+pub(in crate::ssa) use super::local_runtime::conditions;
+pub(in crate::ssa) use crate::ssa::constant_materialization::map_local_identity as identity;
+pub(in crate::ssa) use identity::{lambda_body, producer};
 use super::source::topology;
 
 use super::*;
@@ -18,49 +18,49 @@ use lang_frontend::{
     },
 };
 
-pub(super) use self::consumer_prove as consumer;
+pub(in crate::ssa) use self::consumer_prove as consumer;
 
 #[derive(Clone)]
-pub(super) struct Proof {
-    pub(super) root: SymbolId,
-    pub(super) initializer: ExpressionId,
-    pub(super) consumer: ExpressionId,
-    pub(super) birth: CleanupOwnerValueId,
-    pub(super) header: CleanupOwnerValueId,
-    pub(super) exit: CleanupOwnerValueId,
+pub(in crate::ssa) struct Proof {
+    pub(in crate::ssa) root: SymbolId,
+    pub(in crate::ssa) initializer: ExpressionId,
+    pub(in crate::ssa) consumer: ExpressionId,
+    pub(in crate::ssa) birth: CleanupOwnerValueId,
+    pub(in crate::ssa) header: CleanupOwnerValueId,
+    pub(in crate::ssa) exit: CleanupOwnerValueId,
     /// The actual final consumption, not necessarily this provider's exhaustion.
-    pub(super) drop: DropFact,
-    pub(super) late_size: Option<ExpressionId>,
-    pub(super) dead: Vec<DeadColumn>,
-    pub(super) path: Option<Path>,
+    pub(in crate::ssa) drop: DropFact,
+    pub(in crate::ssa) late_size: Option<ExpressionId>,
+    pub(in crate::ssa) dead: Vec<DeadColumn>,
+    pub(in crate::ssa) path: Option<Path>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct DeadColumn {
-    pub(super) root: SymbolId,
-    pub(super) initializer: ExpressionId,
-    pub(super) previous: StatementId,
-    pub(super) consumed: DropFact,
-    pub(super) drop: DropFact,
-    pub(super) header: CleanupOwnerValueId,
-    pub(super) exit: CleanupOwnerValueId,
+pub(in crate::ssa) struct DeadColumn {
+    pub(in crate::ssa) root: SymbolId,
+    pub(in crate::ssa) initializer: ExpressionId,
+    pub(in crate::ssa) previous: StatementId,
+    pub(in crate::ssa) consumed: DropFact,
+    pub(in crate::ssa) drop: DropFact,
+    pub(in crate::ssa) header: CleanupOwnerValueId,
+    pub(in crate::ssa) exit: CleanupOwnerValueId,
 }
 
 /// A precise FE control identity, never permission to assume a branch executed.
 /// The lowering carrier must prove this successful arm dominates the preheader.
 #[derive(Clone, Copy)]
-pub(super) struct Path {
-    pub(super) control: ExpressionId,
-    pub(super) condition: ExpressionId,
-    pub(super) selector: CleanupSelectorId,
-    pub(super) branch: usize,
-    pub(super) success: StatementId,
-    pub(super) failure: StatementId,
-    pub(super) size: ExpressionId,
-    pub(super) previous: StatementId,
+pub(in crate::ssa) struct Path {
+    pub(in crate::ssa) control: ExpressionId,
+    pub(in crate::ssa) condition: ExpressionId,
+    pub(in crate::ssa) selector: CleanupSelectorId,
+    pub(in crate::ssa) branch: usize,
+    pub(in crate::ssa) success: StatementId,
+    pub(in crate::ssa) failure: StatementId,
+    pub(in crate::ssa) size: ExpressionId,
+    pub(in crate::ssa) previous: StatementId,
 }
 
-pub(super) fn qualify<'a>(
+pub(in crate::ssa) fn qualify<'a>(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -166,7 +166,7 @@ fn qualify_scope<'a>(
 
 /// Called only after the fallible whole-descriptor qualification preflight.
 /// A false result is not used to translate a qualification corruption into U.
-pub(super) fn supported_drop(
+pub(in crate::ssa) fn supported_drop(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -183,10 +183,10 @@ pub(super) fn supported_drop(
     })
 }
 
-pub(super) mod consumer_prove {
+pub(in crate::ssa) mod consumer_prove {
     use super::*;
 
-    pub(super) fn prove(
+    pub(in crate::ssa) fn prove(
         parsed: &ParsedFile,
         names: &NameResolution,
         typed: &TypedFile,
@@ -355,7 +355,7 @@ pub(super) mod consumer_prove {
     }
 }
 
-pub(in crate::ssa::lower_frontend::map_iteration) mod retained {
+pub(in crate::ssa) mod retained {
     //! Other live Map roots keep their own epoch and terminal fact across a provider.
     use super::super::formed::{
         drops, formation, owned_parameter, raw_formation, replacement_point,
