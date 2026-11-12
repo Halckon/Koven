@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod aliases;
-use aliases::direct_fields;
+use aliases::{direct_fields, provider_lifetime};
 mod borrow_result;
 #[cfg(test)]
 mod borrow_return_transport_tests;
@@ -11,7 +11,6 @@ mod field_exchange;
 mod field_exchange_tests;
 mod map;
 use map::reborrow;
-mod provider_lifetime;
 mod range;
 pub(super) mod root_exchange;
 #[cfg(test)]

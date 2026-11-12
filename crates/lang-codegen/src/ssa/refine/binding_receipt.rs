@@ -1,5 +1,6 @@
 //! Independent cross-statement binding verification; existing producers own every effect.
-mod admission;
+#[cfg(test)]
+pub(super) use super::receiver_receipt::admission::catalog_actions;
 mod emitted {
     use super::*;
     #[cfg(test)]
@@ -262,38 +263,38 @@ pub(super) struct Tag {
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
-    entries: Vec<Plan>,
+    pub(in crate::ssa::refine) entries: Vec<Plan>,
 }
 #[derive(Clone, Debug)]
-struct Plan {
-    ids: Vec<UnitLoanActionId>,
-    callable: UnitItemId,
-    caller: FunctionId,
-    binding: UnitSymbolId,
-    root: UnitSymbolId,
-    source_call: UnitExpressionId,
-    source_argument: UnitExpressionId,
-    consumer_call: UnitExpressionId,
-    consumer_argument: UnitExpressionId,
-    entry_statement: UnitStatementId,
-    completion_statement: UnitStatementId,
-    end_point: UnitDropPoint,
-    source_callee: FunctionId,
-    consumer_callee: FunctionId,
-    drop_index: usize,
-    owner: Option<Slot>,
-    place: Option<Slot>,
-    source: Option<Slot>,
-    result: Option<Slot>,
-    stage: u8,
-    activated: bool,
-    source_authorized: bool,
-    committed: bool,
-    consumer_authorized: bool,
-    retired: bool,
-    drop_authorized: bool,
-    completed: bool,
-    block: Option<BlockRef>,
+pub(in crate::ssa::refine) struct Plan {
+    pub(in crate::ssa::refine) ids: Vec<UnitLoanActionId>,
+    pub(in crate::ssa::refine) callable: UnitItemId,
+    pub(in crate::ssa::refine) caller: FunctionId,
+    pub(in crate::ssa::refine) binding: UnitSymbolId,
+    pub(in crate::ssa::refine) root: UnitSymbolId,
+    pub(in crate::ssa::refine) source_call: UnitExpressionId,
+    pub(in crate::ssa::refine) source_argument: UnitExpressionId,
+    pub(in crate::ssa::refine) consumer_call: UnitExpressionId,
+    pub(in crate::ssa::refine) consumer_argument: UnitExpressionId,
+    pub(in crate::ssa::refine) entry_statement: UnitStatementId,
+    pub(in crate::ssa::refine) completion_statement: UnitStatementId,
+    pub(in crate::ssa::refine) end_point: UnitDropPoint,
+    pub(in crate::ssa::refine) source_callee: FunctionId,
+    pub(in crate::ssa::refine) consumer_callee: FunctionId,
+    pub(in crate::ssa::refine) drop_index: usize,
+    pub(in crate::ssa::refine) owner: Option<Slot>,
+    pub(in crate::ssa::refine) place: Option<Slot>,
+    pub(in crate::ssa::refine) source: Option<Slot>,
+    pub(in crate::ssa::refine) result: Option<Slot>,
+    pub(in crate::ssa::refine) stage: u8,
+    pub(in crate::ssa::refine) activated: bool,
+    pub(in crate::ssa::refine) source_authorized: bool,
+    pub(in crate::ssa::refine) committed: bool,
+    pub(in crate::ssa::refine) consumer_authorized: bool,
+    pub(in crate::ssa::refine) retired: bool,
+    pub(in crate::ssa::refine) drop_authorized: bool,
+    pub(in crate::ssa::refine) completed: bool,
+    pub(in crate::ssa::refine) block: Option<BlockRef>,
 }
 impl Plans {
     pub(super) fn has_entry(&self, statement: UnitStatementId) -> bool {

@@ -3,7 +3,7 @@ use super::*;
 
 impl UnitExpressionLowerer<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn lower_conditional(
+    pub(in crate::ssa::unit_lower) fn lower_conditional(
         &mut self,
         expression: ExpressionId,
         condition: ExpressionId,

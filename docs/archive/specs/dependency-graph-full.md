@@ -410,6 +410,12 @@ subgraph Gactive["现行 active"]
   S0419["S0419<br/>lower_frontend 绑定、非空断言、Map 结果/资源析构与 map_iteration 壳子模块退役"]
   S0420["S0420<br/>lowering_support、integer、verify_ownership/reborrow、refine 接收者/借用凭证及 lower_frontend/drops 壳子模块退役"]
   S0421["S0421<br/>unit_lower 可空证明/分支、map_source 交接、verify/module 及 lower_frontend 迭代/循环壳子模块退役"]
+  S0422["S0422<br/>refine/emit/statements、verify_operation、verify_ownership/provider_lifetime、unit_lower/closure/layout 及 lower_frontend 实例/接收者壳子模块退役"]
+  S0423["S0423<br/>map_iteration、refine/build、unit_plan、unit_lower 及可空清理壳子模块退役"]
+  S0424["S0424<br/>borrow_result_support、orchestrate、可空清理及 lower_frontend 壳子模块退役"]
+  S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
+  S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
+  S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1891,6 +1897,12 @@ S0366 --> S0367
 | SPEC-0419 | active | [0419-refine-lower-frontend-and-map-iteration-shells-retirement.md](../../specs/active/0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
 | SPEC-0420 | active | [0420-refine-support-verify-receipt-and-drops-shells-retirement.md](../../specs/active/0420-refine-support-verify-receipt-and-drops-shells-retirement.md) |
 | SPEC-0421 | active | [0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md](../../specs/active/0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md) |
+| SPEC-0422 | active | [0422-refine-emit-verify-instances-and-closure-shells-retirement.md](../../specs/active/0422-refine-emit-verify-instances-and-closure-shells-retirement.md) |
+| SPEC-0423 | active | [0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md](../../specs/active/0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md) |
+| SPEC-0424 | active | [0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md](../../specs/active/0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md) |
+| SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](../../specs/active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
+| SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
+| SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](../../specs/active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

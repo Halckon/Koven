@@ -2,7 +2,7 @@
 
 mod iteration;
 mod nullable_while;
-mod numeric_iteration;
+pub(super) mod numeric_iteration;
 
 use std::collections::BTreeMap;
 

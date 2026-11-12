@@ -170,7 +170,6 @@ mod identity {
         (plans, layouts)
     }
 }
-mod prelude;
 
 use super::super::declarations::collect_functions;
 use super::super::instances::{FunctionTemplate, plan_instances};

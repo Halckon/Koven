@@ -104,7 +104,7 @@ impl Shape {
         else {
             unreachable!()
         };
-        let compare = super::super::carrier::result(function, EntityId::Value(*condition)).unwrap();
+        let compare = super::carrier::result(function, EntityId::Value(*condition)).unwrap();
         let Operation::Compare {
             operator: ComparisonOperator::LessThan,
             left: cursor,

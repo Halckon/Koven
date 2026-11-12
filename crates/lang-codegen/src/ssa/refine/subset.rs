@@ -3,20 +3,18 @@
 //! the subset keeps the existing per-family path.
 mod callable;
 mod container;
-mod control;
 mod field;
 mod heap;
 mod inout;
-use control::LoopRoute;
-pub(super) use control::accepts;
 mod map;
 pub(super) mod named_route;
 mod range_borrow;
-mod receiver;
 mod scalar_text;
+use control::LoopRoute;
+pub(super) use control::accepts;
+use scalar_text::control;
 mod tagged;
-mod value;
-mod when;
+use tagged::receiver;
 
 use std::collections::BTreeSet;
 

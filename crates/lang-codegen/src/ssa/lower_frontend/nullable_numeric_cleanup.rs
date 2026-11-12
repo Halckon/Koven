@@ -1,9 +1,6 @@
-//! A single readonly numeric-loop owner, proved by induction over the published
-//! presence slots and separately by the actual SSA owner/view transport.
 mod carrier;
-mod source;
 
-use carrier::{Pair, numeric_exit, transport};
+use carrier::{Pair, numeric_exit, source, transport};
 
 use super::*;
 use crate::ssa::model::SsaTypeKind;

@@ -3,8 +3,7 @@
 mod call_routes;
 mod callable_instances;
 mod concrete_types;
-mod deinit;
-mod recipe_preflight;
+use concrete_types::deinit;
 mod recipe_validation;
 mod runtime_layout;
 
@@ -48,12 +47,12 @@ use callable_instances::CallablePlanner;
 pub(crate) use callable_instances::UnitCallablePlan;
 use concrete_types::contains_type_parameter;
 pub(crate) use concrete_types::{resolve_concrete_type, resolve_enum_runtime_payload_types};
-use recipe_preflight::{
+use recipe_validation::recipe_root_facts_for_instance;
+use runtime_layout::classify_runtime_type_demands;
+use runtime_layout::recipe_preflight::{
     collect_frontier_unit_recipe_failures, pending_recipe_frontier, preflight_unit_call_recipes,
     stable_recipe_failure,
 };
-use recipe_validation::recipe_root_facts_for_instance;
-use runtime_layout::classify_runtime_type_demands;
 pub(crate) use runtime_layout::resolve_nominal_runtime_field_types;
 
 pub(super) use lang_frontend::type_checking::MAX_UNIT_GENERIC_INSTANCES;

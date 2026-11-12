@@ -1,6 +1,5 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
-mod assignment;
 mod borrow_binding;
 mod callable;
 mod checked_edge_receipt;
@@ -10,11 +9,13 @@ mod container;
 mod container_for;
 mod counter_tail_receipt;
 mod expression;
-mod field;
+
+// Main's newer receipt protocols still import the pre-fold paths; the folded
+// modules stay reachable under their historical names.
+pub(in crate::ssa::refine::build) use tagged::inout;
+pub(in crate::ssa::refine::build) use value::field;
 mod frames;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
-mod heap;
-mod inout;
 mod map;
 mod multi_root_receipt;
 mod normal_header_return;

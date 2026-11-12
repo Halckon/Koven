@@ -1,10 +1,10 @@
 //! One complete two-version cleanup group and bounded constant-presence proof.
 mod carrier;
-mod source;
+use carrier::source;
 
 pub(in crate::ssa::lower_frontend) mod constant_presence {
     mod source;
-    mod source_return;
+    use source::source_return;
 
     use lang_frontend::ownership_checking::{
         CleanupCondition, CleanupConditionId, CleanupConditions, CleanupOwnerValue, DropFact,

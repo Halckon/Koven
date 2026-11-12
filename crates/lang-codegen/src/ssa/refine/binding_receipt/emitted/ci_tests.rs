@@ -91,17 +91,12 @@ fn ci_only_binding_rejects_foreign_catalog_and_action_ids() {
     let (_, foreign) = capture();
     let region = &first.binding_regions()[0];
     let ids = region.action_ids().collect::<Vec<_>>();
-    assert!(super::super::admission::catalog_actions(&first, region, &ids, snapshot.span).is_ok());
-    assert!(
-        super::super::admission::catalog_actions(&foreign, region, &ids, snapshot.span).is_err()
-    );
+    assert!(super::super::catalog_actions(&first, region, &ids, snapshot.span).is_ok());
+    assert!(super::super::catalog_actions(&foreign, region, &ids, snapshot.span).is_err());
     let foreign_ids = foreign.binding_regions()[0]
         .action_ids()
         .collect::<Vec<_>>();
-    assert!(
-        super::super::admission::catalog_actions(&first, region, &foreign_ids, snapshot.span)
-            .is_err()
-    );
+    assert!(super::super::catalog_actions(&first, region, &foreign_ids, snapshot.span).is_err());
 }
 #[test]
 fn ci_only_binding_rejects_missing_completion_stage_and_rebound_entity() {
