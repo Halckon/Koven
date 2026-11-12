@@ -364,14 +364,13 @@ mod call_prefix {
     }
 }
 
-#[path = "range_lowering_tests/receiver.rs"]
-mod receiver;
+pub(in crate::ssa) use crate::ssa::unit_receiver_two_phase_tests::range_receiver as receiver;
 
 #[path = "range_lowering_tests/scalar_counts.rs"]
-mod scalar_counts;
+pub(in crate::ssa) mod scalar_counts;
 
 #[path = "range_lowering_tests/local_control.rs"]
-mod local_control;
+pub(in crate::ssa) mod local_control;
 
 mod drop_algorithms {
     //! Healthy source checks for std range algorithms; no IR mutation.

@@ -102,7 +102,7 @@ fn unit_map_return_constant_dead_source_red() {
 }
 
 #[path = "lower_frontend_map_return_controls_tests.rs"]
-mod ordinary_controls;
+pub(in crate::ssa) mod ordinary_controls;
 
 #[path = "lower_frontend_map_return_matrix_tests.rs"]
 mod source_matrix;

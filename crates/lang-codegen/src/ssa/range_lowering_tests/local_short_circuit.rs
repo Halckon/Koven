@@ -3,7 +3,7 @@ use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 
 #[path = "local_short_circuit_boundary.rs"]
-mod boundary;
+pub(in crate::ssa) mod boundary;
 
 mod receiver {
     //! SPEC-0316 × SPEC-0317: the ordinary value-class receiver intersection.
@@ -579,5 +579,97 @@ fn range_short_circuit_pending_prefix_unit_constant() {
 fn range_short_circuit_pending_prefix_reversed_constant() {
     for and in [true, false] {
         dynamic(Pipeline::UnitConstantReversed, and, Use::PendingArgument);
+    }
+}
+
+pub(in crate::ssa) mod comparison_boundary {
+    //! Ordinary source keeps the non-Int, concat and alias gates closed.
+    use super::super::support::{UnitExpectation, observe_original_unit};
+    use crate::ssa::range_lowering_tests::local_control::comparisons::*;
+    use crate::ssa::range_lowering_tests::local_control::*;
+    use crate::ssa::LoweringErrorKind;
+    use crate::test_support::diagnostics::assert_eq_diagnostic;
+
+    fn reject(statement: &str, fragment: &str) {
+        let source = format!(
+            r#"
+    fun check(flag:Boolean):Unit{{}}
+    fun read(view:View<String>):Unit{{}}
+    fun consume(own root:List<String>):Unit{{}}
+    fun scan(n:Int,flag:Boolean):Unit{{
+        val root=listOf("kept")
+        {{borrow val part=take(root,1);{statement};read(part)}}
+        consume(root)
+    }}
+    fun main():Unit{{scan(0,true)}}
+    "#
+        );
+        for pipeline in [
+            Pipeline::Single,
+            Pipeline::Unit,
+            Pipeline::UnitReversed,
+            Pipeline::SingleConstant,
+            Pipeline::UnitConstant,
+            Pipeline::UnitConstantReversed,
+        ] {
+            if matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
+                observe_original_unit(
+                    &source,
+                    fragment,
+                    pipeline,
+                    UnitExpectation::Reject(fragment),
+                    "comparison-boundary",
+                );
+                continue;
+            }
+            let lowered = lower(&source, fragment, pipeline);
+            let error = lowered
+                .result
+                .err()
+                .expect("this ordinary source is still outside the capability gate");
+            assert_eq_diagnostic!(
+                error.kind,
+                LoweringErrorKind::UnsupportedNode,
+                "{pipeline:?}: {error:?}"
+            );
+            assert_eq_diagnostic!(
+                error.span,
+                Some(lowered.expected_span),
+                "{pipeline:?}: {error:?}"
+            );
+            assert_eq!(
+                lowered.sources.slice(error.span.unwrap()).unwrap(),
+                fragment
+            );
+        }
+    }
+
+    #[test]
+    fn range_comparison_boundary_non_int() {
+        for expression in [
+            "2L!=4L",
+            "2L<=4L",
+            "2L>4L",
+            "2L>=4L",
+            "flag!=true",
+            "\"a\"!=\"b\"",
+        ] {
+            reject(&format!("check({expression})"), expression);
+        }
+    }
+
+    #[test]
+    fn range_comparison_boundary_concat() {
+        reject("println(\"a\"+\"b\")", "\"a\"+\"b\"");
+    }
+
+    #[test]
+    fn range_comparison_boundary_metadata_alias() {
+        for expression in ["n!=0", "n<=0", "n>0", "n>=0"] {
+            reject(
+                &format!("borrow val alias=part;read(alias);check({expression})"),
+                expression,
+            );
+        }
     }
 }

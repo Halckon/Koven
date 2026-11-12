@@ -330,12 +330,11 @@ mod selection {
     );
 }
 
-#[path = "local_comparison_boundary.rs"]
-mod boundary;
+use super::short_circuit::comparison_boundary as boundary;
 
 // Single cases use same-source Unit admission; real constants select its constant
 // capability. Existing Unit constant cases retain their dedicated constant path.
-fn expression(pipeline: Pipeline, operator: ComparisonOperator) -> (&'static str, String) {
+pub(in crate::ssa) fn expression(pipeline: Pipeline, operator: ComparisonOperator) -> (&'static str, String) {
     let spelling = match operator {
         ComparisonOperator::NotEqual => "!=",
         ComparisonOperator::LessThanOrEqual => "<=",
@@ -355,7 +354,7 @@ fn expression(pipeline: Pipeline, operator: ComparisonOperator) -> (&'static str
 
 // Explicit truth tables cover negative, equality, positive and both Int extrema.
 // Expected output is independent of the compiler's comparison implementation.
-fn outcomes(operator: ComparisonOperator) -> [bool; 5] {
+pub(in crate::ssa) fn outcomes(operator: ComparisonOperator) -> [bool; 5] {
     match operator {
         ComparisonOperator::NotEqual => [true, true, false, true, true],
         ComparisonOperator::LessThanOrEqual => [true, true, true, false, false],
@@ -365,9 +364,9 @@ fn outcomes(operator: ComparisonOperator) -> [bool; 5] {
     }
 }
 
-const CALLS: &str = "scan(-2147483647-1);scan(-1);scan(0);scan(1);scan(2147483647)";
+pub(in crate::ssa) const CALLS: &str = "scan(-2147483647-1);scan(-1);scan(0);scan(1);scan(2147483647)";
 
-fn assert_comparison(program: &Program, span: Span, expected: ComparisonOperator) {
+pub(in crate::ssa) fn assert_comparison(program: &Program, span: Span, expected: ComparisonOperator) {
     let module = &program.modules[0];
     let comparisons = module
         .functions
@@ -427,11 +426,11 @@ fn assert_comparison(program: &Program, span: Span, expected: ComparisonOperator
     );
 }
 
-fn comparison_case(pipeline: Pipeline, position: Position, operator: ComparisonOperator) {
+pub(in crate::ssa) fn comparison_case(pipeline: Pipeline, position: Position, operator: ComparisonOperator) {
     comparison_with_use(pipeline, position, operator, false);
 }
 
-fn comparison_with_use(
+pub(in crate::ssa) fn comparison_with_use(
     pipeline: Pipeline,
     position: Position,
     operator: ComparisonOperator,
@@ -720,7 +719,7 @@ comparisons!(
 
 // Last-use facts end metadata and source before the comparison inside the block.
 #[test]
-fn range_comparisons_ne_last_read_single() {
+pub(in crate::ssa) fn range_comparisons_ne_last_read_single() {
     comparison_with_use(
         Pipeline::Single,
         Position::WhileLive,
@@ -729,7 +728,7 @@ fn range_comparisons_ne_last_read_single() {
     );
 }
 #[test]
-fn range_comparisons_ne_last_read_unit() {
+pub(in crate::ssa) fn range_comparisons_ne_last_read_unit() {
     comparison_with_use(
         Pipeline::Unit,
         Position::WhileLive,
@@ -738,7 +737,7 @@ fn range_comparisons_ne_last_read_unit() {
     );
 }
 #[test]
-fn range_comparisons_ne_last_read_reversed() {
+pub(in crate::ssa) fn range_comparisons_ne_last_read_reversed() {
     comparison_with_use(
         Pipeline::UnitReversed,
         Position::WhileLive,
@@ -747,7 +746,7 @@ fn range_comparisons_ne_last_read_reversed() {
     );
 }
 #[test]
-fn range_comparisons_ne_last_read_single_constant() {
+pub(in crate::ssa) fn range_comparisons_ne_last_read_single_constant() {
     comparison_with_use(
         Pipeline::SingleConstant,
         Position::WhileLive,
@@ -756,7 +755,7 @@ fn range_comparisons_ne_last_read_single_constant() {
     );
 }
 #[test]
-fn range_comparisons_ne_last_read_unit_constant() {
+pub(in crate::ssa) fn range_comparisons_ne_last_read_unit_constant() {
     comparison_with_use(
         Pipeline::UnitConstant,
         Position::WhileLive,
@@ -765,7 +764,7 @@ fn range_comparisons_ne_last_read_unit_constant() {
     );
 }
 #[test]
-fn range_comparisons_ne_last_read_reversed_constant() {
+pub(in crate::ssa) fn range_comparisons_ne_last_read_reversed_constant() {
     comparison_with_use(
         Pipeline::UnitConstantReversed,
         Position::WhileLive,
@@ -774,7 +773,7 @@ fn range_comparisons_ne_last_read_reversed_constant() {
     );
 }
 #[test]
-fn range_comparisons_le_last_read_single() {
+pub(in crate::ssa) fn range_comparisons_le_last_read_single() {
     comparison_with_use(
         Pipeline::Single,
         Position::WhileLive,
@@ -783,7 +782,7 @@ fn range_comparisons_le_last_read_single() {
     );
 }
 #[test]
-fn range_comparisons_le_last_read_unit() {
+pub(in crate::ssa) fn range_comparisons_le_last_read_unit() {
     comparison_with_use(
         Pipeline::Unit,
         Position::WhileLive,
@@ -792,7 +791,7 @@ fn range_comparisons_le_last_read_unit() {
     );
 }
 #[test]
-fn range_comparisons_le_last_read_reversed() {
+pub(in crate::ssa) fn range_comparisons_le_last_read_reversed() {
     comparison_with_use(
         Pipeline::UnitReversed,
         Position::WhileLive,
@@ -801,7 +800,7 @@ fn range_comparisons_le_last_read_reversed() {
     );
 }
 #[test]
-fn range_comparisons_le_last_read_single_constant() {
+pub(in crate::ssa) fn range_comparisons_le_last_read_single_constant() {
     comparison_with_use(
         Pipeline::SingleConstant,
         Position::WhileLive,
@@ -810,7 +809,7 @@ fn range_comparisons_le_last_read_single_constant() {
     );
 }
 #[test]
-fn range_comparisons_le_last_read_unit_constant() {
+pub(in crate::ssa) fn range_comparisons_le_last_read_unit_constant() {
     comparison_with_use(
         Pipeline::UnitConstant,
         Position::WhileLive,
@@ -819,7 +818,7 @@ fn range_comparisons_le_last_read_unit_constant() {
     );
 }
 #[test]
-fn range_comparisons_le_last_read_reversed_constant() {
+pub(in crate::ssa) fn range_comparisons_le_last_read_reversed_constant() {
     comparison_with_use(
         Pipeline::UnitConstantReversed,
         Position::WhileLive,
@@ -828,7 +827,7 @@ fn range_comparisons_le_last_read_reversed_constant() {
     );
 }
 #[test]
-fn range_comparisons_gt_last_read_single() {
+pub(in crate::ssa) fn range_comparisons_gt_last_read_single() {
     comparison_with_use(
         Pipeline::Single,
         Position::WhileLive,
@@ -837,7 +836,7 @@ fn range_comparisons_gt_last_read_single() {
     );
 }
 #[test]
-fn range_comparisons_gt_last_read_unit() {
+pub(in crate::ssa) fn range_comparisons_gt_last_read_unit() {
     comparison_with_use(
         Pipeline::Unit,
         Position::WhileLive,
@@ -846,7 +845,7 @@ fn range_comparisons_gt_last_read_unit() {
     );
 }
 #[test]
-fn range_comparisons_gt_last_read_reversed() {
+pub(in crate::ssa) fn range_comparisons_gt_last_read_reversed() {
     comparison_with_use(
         Pipeline::UnitReversed,
         Position::WhileLive,
@@ -855,7 +854,7 @@ fn range_comparisons_gt_last_read_reversed() {
     );
 }
 #[test]
-fn range_comparisons_gt_last_read_single_constant() {
+pub(in crate::ssa) fn range_comparisons_gt_last_read_single_constant() {
     comparison_with_use(
         Pipeline::SingleConstant,
         Position::WhileLive,
@@ -864,7 +863,7 @@ fn range_comparisons_gt_last_read_single_constant() {
     );
 }
 #[test]
-fn range_comparisons_gt_last_read_unit_constant() {
+pub(in crate::ssa) fn range_comparisons_gt_last_read_unit_constant() {
     comparison_with_use(
         Pipeline::UnitConstant,
         Position::WhileLive,
@@ -873,7 +872,7 @@ fn range_comparisons_gt_last_read_unit_constant() {
     );
 }
 #[test]
-fn range_comparisons_gt_last_read_reversed_constant() {
+pub(in crate::ssa) fn range_comparisons_gt_last_read_reversed_constant() {
     comparison_with_use(
         Pipeline::UnitConstantReversed,
         Position::WhileLive,
@@ -882,7 +881,7 @@ fn range_comparisons_gt_last_read_reversed_constant() {
     );
 }
 #[test]
-fn range_comparisons_ge_last_read_single() {
+pub(in crate::ssa) fn range_comparisons_ge_last_read_single() {
     comparison_with_use(
         Pipeline::Single,
         Position::WhileLive,
@@ -891,7 +890,7 @@ fn range_comparisons_ge_last_read_single() {
     );
 }
 #[test]
-fn range_comparisons_ge_last_read_unit() {
+pub(in crate::ssa) fn range_comparisons_ge_last_read_unit() {
     comparison_with_use(
         Pipeline::Unit,
         Position::WhileLive,
@@ -900,7 +899,7 @@ fn range_comparisons_ge_last_read_unit() {
     );
 }
 #[test]
-fn range_comparisons_ge_last_read_reversed() {
+pub(in crate::ssa) fn range_comparisons_ge_last_read_reversed() {
     comparison_with_use(
         Pipeline::UnitReversed,
         Position::WhileLive,
@@ -909,7 +908,7 @@ fn range_comparisons_ge_last_read_reversed() {
     );
 }
 #[test]
-fn range_comparisons_ge_last_read_single_constant() {
+pub(in crate::ssa) fn range_comparisons_ge_last_read_single_constant() {
     comparison_with_use(
         Pipeline::SingleConstant,
         Position::WhileLive,
@@ -918,7 +917,7 @@ fn range_comparisons_ge_last_read_single_constant() {
     );
 }
 #[test]
-fn range_comparisons_ge_last_read_unit_constant() {
+pub(in crate::ssa) fn range_comparisons_ge_last_read_unit_constant() {
     comparison_with_use(
         Pipeline::UnitConstant,
         Position::WhileLive,
@@ -927,7 +926,7 @@ fn range_comparisons_ge_last_read_unit_constant() {
     );
 }
 #[test]
-fn range_comparisons_ge_last_read_reversed_constant() {
+pub(in crate::ssa) fn range_comparisons_ge_last_read_reversed_constant() {
     comparison_with_use(
         Pipeline::UnitConstantReversed,
         Position::WhileLive,

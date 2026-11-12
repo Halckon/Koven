@@ -236,3 +236,669 @@ fn receiver_two_phase_nested_borrow_this_ends_before_exclusive_delivery() {
             ))
     );
 }
+
+pub(in crate::ssa) mod range_receiver {
+    //! Trusted source receivers use the same checked descriptor ABI as free producers.
+    use crate::ssa::range_lowering_tests::*;
+
+    use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::ordinary_controls::range_receiver_count_break as count_break;
+
+    pub(in crate::ssa) const EXTENSIONS: &str = "borrow fun <T> List<T>.prefix(count:Int):View<T> from this=rangeView(this,0,count)\nborrow fun <T> View<T>.prefix(count:Int):View<T> from this=rangeView(this,0,count)";
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_single_and_unit_keep_root_until_last_child() {
+        let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun consume(own source:List<String>):Unit{}\nfun main():Unit{val source=listOf(\"first\",\"second\");borrow val parent=source.prefix(2);borrow val child=parent.prefix(1);read(child);consume(source)}";
+        for program in [
+            memory_unit_llvm(&format!("{EXTENSIONS}\n{consumer}")),
+            unit_with_provider_entry(
+                &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                EXTENSIONS,
+            )
+            .0,
+        ] {
+            let module = &program.modules[0];
+            assert!(
+                module
+                    .functions
+                    .iter()
+                    .filter(|f| f.carrier_return.is_some())
+                    .all(|f| f.receiver.is_none() && f.carrier_return == Some(0))
+            );
+            assert_eq!(
+                module
+                    .functions
+                    .iter()
+                    .flat_map(|f| &f.instructions)
+                    .filter(|i| matches!(i.operation, Operation::RangeCall { .. }))
+                    .count(),
+                2
+            );
+            crate::llvm::render_verified_program(&program).unwrap();
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_native_single_and_reversed_unit_clean_exactly_once() {
+        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        for (declaration, element, values, read, drops) in [
+            (
+                "",
+                "String",
+                "\"first\".clone(),\"second\".clone()",
+                "println(item)",
+                "",
+            ),
+            (
+                "class Item(val text:String){}",
+                "Item",
+                "Item(\"first\"),Item(\"second\")",
+                "println(item.text)",
+                "",
+            ),
+            (
+                "class Item(val text:String){deinit(){println(this.text)}}",
+                "Item",
+                "Item(\"first\"),Item(\"second\")",
+                "println(item.text)",
+                "second\nfirst\n",
+            ),
+        ] {
+            let consumer = format!(
+                "{declaration}\nfun read(view:View<{element}>):Unit{{for(item in view){{{read}}}}}\nfun consume(own source:List<{element}>):Unit{{println(\"consume\")}}\nfun main():Unit{{val source=listOf({values});borrow val parent=(source).prefix(2);borrow val child=(parent).prefix(1);read(child);println(\"after\");consume(source);println(\"done\")}}"
+            );
+            for (program, entry) in [
+                memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+                unit_with_provider_order(
+                    &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                    EXTENSIONS,
+                    false,
+                ),
+                unit_with_provider_order(
+                    &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                    EXTENSIONS,
+                    true,
+                ),
+            ] {
+                let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
+                assert_success(
+                    &run,
+                    format!("first\nafter\nconsume\n{drops}done\n").as_bytes(),
+                );
+            }
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_count_control_flow_ends_receiver_before_early_return() {
+        let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun scan(stop:Boolean):Unit{val source=listOf(Item(\"first\"),Item(\"second\"));read(source.prefix(if(stop){return}else{1}))}\nfun main():Unit{scan(false);scan(true)}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+            unit_with_provider_order(
+                &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                EXTENSIONS,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+                &llvm,
+                &[1, 0, 2, 4, 3, 5],
+            );
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &run,
+                b"first\nsecond\nfirst\nsecond\nfirst\n",
+            );
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_this_size_and_group_size_preserve_actual_view_extent() {
+        let trusted = "borrow fun <T> List<T>.all():View<T> from this=rangeView(this,0,this.size)\nborrow fun <T> View<T>.all():View<T> from this=rangeView(this,0,(this).size)";
+        let consumer = "fun read(view:View<String>):Unit{if(view.size!=2){error(\"size\")}}\nfun main():Unit{val source=listOf(\"first\",\"second\");borrow val parent=source.all();borrow val child=parent.all();read(child)}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
+            unit_with_provider_order(
+                &format!("package app\nimport koven.algorithms.all\n{consumer}"),
+                trusted,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run =
+                crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
+            crate::native_tests::boxed_enum_tests::assert_success(&run, b"");
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_temporary_chain_cleans_the_root_once() {
+        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun source():List<Item>{println(\"source\");return listOf(Item(\"first\"),Item(\"second\"))}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{read(source().prefix(2).prefix(1));println(\"done\")}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+            unit_with_provider_order(
+                &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                EXTENSIONS,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
+            assert_success(&run, b"source\nfirst\nsecond\nfirst\ndone\n");
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets() {
+        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        let trusted = format!(
+            "{EXTENSIONS}\nborrow fun <T> List<T>.window():View<T> from this=rangeView(this,1,2)\nborrow fun <T> View<T>.forward(count:Int):View<T> from this=this.prefix(count)"
+        );
+        let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{val root=listOf(Item(\"first\"),Item(\"second\"));borrow val parent=root.window();borrow val child=parent.forward(1);read(child);println(\"done\")}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
+            unit_with_provider_order(
+                &format!(
+                    "package app\nimport koven.algorithms.window\nimport koven.algorithms.forward\n{consumer}"
+                ),
+                &trusted,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
+            assert_success(&run, b"second\ndone\nsecond\nfirst\n");
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_count_break_retains_existing_loop_cfg_frontier() {
+        let body = "for(item in source){read(source.prefix(if(stop){break}else{1}))}";
+        assert_cfg_frontier(body, UnitCfgFrontier::CountBreak);
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch() {
+        let trusted = EXTENSIONS;
+        let consumer = "fun read(view:View<String>):Unit{println(\"read\")}\nfun scan(source:List<String>,flag:Boolean):Unit{read((source).prefix(if(flag){1}else{0}))}\nfun scan_view(source:View<String>,flag:Boolean):Unit{read((source).prefix(if(flag){1}else{0}))}\nfun main():Unit{val root=listOf(\"first\");scan(root,true);scan(root,false);borrow val parent=root.prefix(1);scan_view(parent,true);scan_view(parent,false)}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
+            unit_with_provider_order(
+                &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                trusted,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run =
+                crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
+            crate::native_tests::boxed_enum_tests::assert_success(&run, b"read\nread\nread\nread\n");
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_retains_existing_binding_cfg_frontier() {
+        assert_cfg_frontier(
+            "borrow val part=source.prefix(if(stop){return}else{1});read(part)",
+            UnitCfgFrontier::Reject("return"),
+        );
+    }
+
+    enum UnitCfgFrontier<'a> {
+        Reject(&'a str),
+        CountBreak,
+    }
+
+    pub(in crate::ssa) fn assert_cfg_frontier(body: &str, unit_frontier: UnitCfgFrontier<'_>) {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "package app\n{EXTENSIONS}\nfun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}\nfun scan(stop:Boolean):Unit{{val source=listOf(\"first\");{body}}}\nfun main():Unit{{scan(false);scan(true)}}"
+        );
+        let (source, parsed) =
+            crate::ssa::unit_lower_test_support::parsed(&mut sources, "frontier.ko", &text);
+        let (environment, mut types) = standard_environments();
+        types.authorize_range_source(&sources, source).unwrap();
+        types
+            .authorize_range_extension_source(&sources, source)
+            .unwrap();
+        {
+            let inputs = [SourceUnitInput::new(
+                "app",
+                "app/frontier.ko",
+                source,
+                &parsed,
+            )];
+            let (names, typed, owned) =
+                crate::ssa::unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let lowered = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                &owned,
+                crate::ssa::unit_lower_test_support::declaration(&names, "app", "main"),
+            );
+            match unit_frontier {
+                UnitCfgFrontier::Reject(unit_fragment) => {
+                    let error = lowered
+                        .err()
+                        .expect("the existing CFG frontier must reject source before emission");
+                    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+                    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), unit_fragment);
+                }
+                UnitCfgFrontier::CountBreak => {
+                    let (program, entry) =
+                        lowered.expect("real loop-target cleanup admits this Unit source");
+                    let [source_unit] = names.names().index().source_units() else {
+                        panic!("one original source unit")
+                    };
+                    assert_eq!(source_unit.source_id(), source);
+                    let receiver_begin_span = assert_count_break_products(
+                        &sources,
+                        &parsed,
+                        source_unit.id(),
+                        owned.ownership(),
+                    );
+                    count_break::assert_count_break_structure(&sources, &program, receiver_begin_span);
+                    verify_program(&program).unwrap();
+                    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                }
+            }
+        }
+        assert_memory_cfg_frontier(&text, &unit_frontier);
+    }
+
+    // Observe the original public cleanup products, not a reconstructed liveness set.
+    pub(in crate::ssa) fn assert_count_break_products(
+        sources: &SourceMap,
+        parsed: &lang_frontend::parser::ParsedFile,
+        source_unit: lang_frontend::name_resolution::SourceUnitId,
+        owned: &lang_frontend::ownership_checking::CompilationUnitOwnership,
+    ) -> lang_frontend::source::Span {
+        use lang_frontend::ownership_checking::{
+            UnitDropTarget, UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
+            UnitLoanTarget, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+        };
+        use lang_frontend::type_checking::UnitCallReceiverOrigin;
+
+        let text = |expression: lang_frontend::type_checking::UnitExpressionId| {
+            assert_eq!(expression.source_unit(), source_unit);
+            sources
+                .slice(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(expression.expression())
+                        .unwrap()
+                        .span(),
+                )
+                .unwrap()
+        };
+        let plans = owned
+            .iterations()
+            .iter()
+            .filter(|plan| text(plan.descriptor().source()) == "source")
+            .collect::<Vec<_>>();
+        let [plan] = plans.as_slice() else {
+            panic!("one original scan provider")
+        };
+        let Some(UnitLoanTarget::Place(place)) = plan.source() else {
+            panic!("original named List source")
+        };
+        assert!(place.is_root());
+        let statement = plan.descriptor().statement();
+        let exits = plan
+            .exits()
+            .iter()
+            .filter(|exit| matches!(exit.kind(), Exit::Break(_) | Exit::Exhaustion))
+            .collect::<Vec<_>>();
+        assert_eq!(exits.len(), 2);
+        let mut receiver_begin_span = None;
+        for exit in exits {
+            let actions = exit.actions();
+            assert_eq!(owned.iteration_cleanup_at(exit.point()), Some(actions));
+            let position = |action| actions.iter().position(|actual| *actual == action).unwrap();
+            let finish = position(Action::FinishProvider(statement));
+            let end_source = position(Action::EndSource(statement));
+            let drops = actions
+                .iter()
+                .enumerate()
+                .filter_map(|(index, action)| match action {
+                    Action::Drop(fact) if fact.target() == UnitDropTarget::Named(place.root()) => {
+                        Some((index, fact))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [(drop_index, fact)] = drops.as_slice() else {
+                panic!("one source drop on each real exit, including break")
+            };
+            assert!(finish < end_source && end_source < *drop_index);
+            assert_eq!(fact.point(), exit.point());
+            assert_eq!(
+                owned.drops().iter().filter(|other| *other == *fact).count(),
+                1
+            );
+            let receivers = actions
+                .iter()
+                .enumerate()
+                .filter_map(|(index, action)| match action {
+                    Action::EndReceiverLoan(fact) => Some((index, fact)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            match exit.kind() {
+                Exit::Break(jump) => {
+                    assert_eq!(text(jump), "break");
+                    let [(receiver_index, fact)] = receivers.as_slice() else {
+                        panic!("cancel the exact evaluated receiver before its provider")
+                    };
+                    assert_eq!(text(fact.call()), "source.prefix(if(stop){break}else{1})");
+                    let UnitCallReceiverOrigin::Expression(receiver) = fact.source() else {
+                        panic!("source receiver expression")
+                    };
+                    assert_eq!(text(receiver), "source");
+                    let span = parsed
+                        .ast()
+                        .expressions()
+                        .get(receiver.expression())
+                        .unwrap()
+                        .span();
+                    assert_eq!(fact.begin_span(), span);
+                    assert!(receiver_begin_span.replace(span).is_none());
+                    assert_eq!(fact.kind(), UnitReceiverOwnershipKind::SharedLoan);
+                    assert!(matches!(
+                        fact.target(),
+                        UnitReceiverOwnershipTarget::Place(actual) if actual == place
+                    ));
+                    let end_element = position(Action::EndElement(statement));
+                    assert!(*receiver_index < end_element && end_element < finish);
+                }
+                Exit::Exhaustion => assert!(receivers.is_empty()),
+                _ => unreachable!(),
+            }
+        }
+        receiver_begin_span.expect("one original receiver loan begin")
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_source_temporary_for_cleans_the_root_after_elements() {
+        let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun source():List<Item>{println(\"source\");return listOf(Item(\"first\"),Item(\"second\"))}\nfun main():Unit{for(item in source().prefix(2).prefix(1)){println(item.text)};println(\"done\")}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+            unit_with_provider_order(
+                &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
+                EXTENSIONS,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+                &llvm,
+                &[1, 0, 2],
+            );
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &run,
+                b"source\nfirst\nsecond\nfirst\ndone\n",
+            );
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibility() {
+        let trusted = "fun window(source:List<String>):View<String> from source=rangeView(source,1,2)";
+        let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun main():Unit{val root=listOf(\"first\".clone(),\"second\".clone());borrow val parent=window(root);borrow val child=parent.take(2147483647);read(child);read(take(child,1));read(child.take(0))}";
+        for (program, entry) in [
+            memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
+            unit_with_provider_order(
+                &format!(
+                    "package app\nimport koven.algorithms.take\nimport koven.algorithms.window\n{consumer}"
+                ),
+                trusted,
+                true,
+            ),
+        ] {
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+                &llvm,
+                &[1, 0, 2],
+            );
+            crate::native_tests::boxed_enum_tests::assert_success(&run, b"second\nsecond\n");
+        }
+    }
+
+    #[test]
+    pub(in crate::ssa) fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return() {
+        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        for (declaration, element, values, read, drops) in [
+            (
+                "",
+                "String",
+                "\"first\".clone(),\"second\".clone()",
+                "println(item)",
+                "",
+            ),
+            (
+                "class Item(val text:String){deinit(){println(this.text)}}",
+                "Item",
+                "Item(\"first\"),Item(\"second\")",
+                "println(item.text)",
+                "second\nfirst\n",
+            ),
+        ] {
+            for operation in ["cut(root,1)", "root.prefix(1)"] {
+                for reader in [
+                    "println(\"read\")".to_owned(),
+                    format!("for(item in view){{{read}}};println(\"read\")"),
+                ] {
+                    let provider = format!(
+                        "{EXTENSIONS}\nfun <T> cut(source:List<T>,count:Int):View<T> from source=rangeView(source,0,count)"
+                    );
+                    let consumer = format!(
+                        "{declaration}\nfun read(view:View<{element}>,number:Int):Unit{{{reader}}}\nfun scan(stop:Boolean):Unit{{val root=listOf({values});read({operation},if(stop){{return}}else{{0}});println(\"after\")}}\nfun main():Unit{{scan(false);scan(true);println(\"done\")}}"
+                    );
+                    for (program, entry) in [
+                        memory_unit_with_entry(&format!("{provider}\n{consumer}")),
+                        unit_with_provider_order(
+                            &format!(
+                                "package app\nimport koven.algorithms.prefix\nimport koven.algorithms.cut\n{consumer}"
+                            ),
+                            &provider,
+                            true,
+                        ),
+                    ] {
+                        let llvm =
+                            crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                        let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2, 4, 3, 5]);
+                        let prefix = if reader.starts_with("for") {
+                            "first\n"
+                        } else {
+                            ""
+                        };
+                        assert_success(
+                            &run,
+                            format!("{prefix}read\nafter\n{drops}{drops}done\n").as_bytes(),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // MemoryDocument Unit preserves the original Single source layout and all three
+    // concrete roots; the project-key Unit arm remains above.
+    pub(in crate::ssa) fn assert_memory_cfg_frontier(text: &str, frontier: &UnitCfgFrontier<'_>) {
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use lang_frontend::{
+            name_resolution::{SourceUnitKey, SymbolKind},
+            parser::{Item, NameMarker},
+        };
+
+        let mut authorized_source = None;
+        let analysis =
+            UnitSource::analyze_with_type_environment("frontier.ko", text, |sources, source, types| {
+                types.authorize_range_source(sources, source).unwrap();
+                types
+                    .authorize_range_extension_source(sources, source)
+                    .unwrap();
+                authorized_source = Some(source);
+            })
+            .unwrap_or_else(|error| panic!("original frontier MemoryDocument admission: {error:?}"));
+        analysis.assert_frontend_clean();
+        assert!(analysis.ownership().deferred().is_empty());
+        let parsed = analysis.parsed();
+        let sources = analysis.sources();
+        let index = analysis.names().names().index();
+        let [source] = index.source_units() else {
+            panic!("one original frontier MemoryDocument");
+        };
+        assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+        assert_eq!(source.source_id(), parsed.source_id());
+        assert_eq!(authorized_source, Some(source.source_id()));
+        assert_eq!(
+            sources.source_name(source.source_id()).unwrap(),
+            "frontier.ko"
+        );
+        assert_eq!(sources.source_text(source.source_id()).unwrap(), text);
+
+        // Reconcile the actual AST/index/signatures before lowering any root. Generic
+        // templates remain in full admission and lower only as real reachable instances.
+        let mut functions = Vec::new();
+        let mut concrete = Vec::new();
+        for root in parsed.roots() {
+            let original = parsed.ast().items().get(*root).unwrap();
+            let mut node = original;
+            while let Item::Modified { declaration, .. } = node.payload() {
+                node = parsed.ast().items().get(*declaration).unwrap();
+            }
+            let Item::Function {
+                name: NameMarker::Present(name),
+                type_parameters,
+                parameters,
+                ..
+            } = node.payload()
+            else {
+                continue;
+            };
+            let declarations = index
+                .declarations()
+                .iter()
+                .filter(|declaration| {
+                    declaration.root() == *root
+                        && declaration.source_unit() == source.id()
+                        && declaration.kind() == SymbolKind::Function
+                })
+                .collect::<Vec<_>>();
+            let [declaration] = declarations.as_slice() else {
+                panic!("one real declaration for every original function root");
+            };
+            assert_eq!(declaration.package(), source.package());
+            assert_eq!(declaration.name_span(), *name);
+            assert_eq!(name.source_id(), source.source_id());
+            assert_eq!(sources.slice(*name).unwrap(), declaration.name());
+            assert_eq!(analysis.declaration_span(declaration.id()), original.span());
+            let signature = analysis
+                .types()
+                .signatures()
+                .declaration(declaration.id())
+                .and_then(|signature| signature.callable())
+                .expect("same-analysis callable signature");
+            assert_eq!(signature.name_span(), *name);
+            assert_eq!(signature.type_parameters().len(), type_parameters.len());
+            assert_eq!(signature.parameters().len(), parameters.len());
+            assert!(!functions.contains(&declaration.id()));
+            functions.push(declaration.id());
+            if type_parameters.is_empty() {
+                concrete.push(*declaration);
+            }
+        }
+        assert_eq!(functions.len(), 5);
+        assert_eq!(
+            functions.len(),
+            index
+                .declarations()
+                .iter()
+                .filter(|declaration| declaration.kind() == SymbolKind::Function)
+                .count()
+        );
+        assert_eq!(
+            concrete.iter().map(|root| root.name()).collect::<Vec<_>>(),
+            ["read", "scan", "main"]
+        );
+        let scan = analysis.declaration("scan", SymbolKind::Function);
+        let main = analysis.declaration("main", SymbolKind::Function);
+        assert_eq!(concrete[1].id(), scan);
+        assert_eq!(concrete[2].id(), main);
+        let expected_span = match frontier {
+            UnitCfgFrontier::Reject(fragment) => {
+                let scan_span = analysis.declaration_span(scan);
+                let offsets = sources
+                    .slice(scan_span)
+                    .unwrap()
+                    .match_indices(*fragment)
+                    .map(|(offset, _)| offset)
+                    .collect::<Vec<_>>();
+                let [offset] = offsets.as_slice() else {
+                    panic!("one exact original scan frontier");
+                };
+                let start = scan_span.start() + offset;
+                Some(
+                    sources
+                        .span(source.source_id(), start, start + fragment.len())
+                        .unwrap(),
+                )
+            }
+            UnitCfgFrontier::CountBreak => None,
+        };
+        let receiver_begin_span = matches!(frontier, UnitCfgFrontier::CountBreak)
+            .then(|| assert_count_break_products(sources, parsed, source.id(), analysis.ownership()));
+        let mut programs = Vec::new();
+        for root in concrete {
+            let lowered = analysis.lower_entry(root.id());
+            match frontier {
+                UnitCfgFrontier::Reject(fragment) => {
+                    // This whole-set capability gate precedes instance planning:
+                    // even the read entry must retain the rejection located in scan.
+                    let error = lowered
+                        .err()
+                        .expect("original binding frontier must reject");
+                    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+                    assert_eq!(error.span, expected_span, "root {}", root.name());
+                    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), *fragment);
+                }
+                UnitCfgFrontier::CountBreak => {
+                    let (program, entry) = lowered.unwrap_or_else(|error| {
+                        panic!("original count-break root {}: {error:?}", root.name())
+                    });
+                    let function = program
+                        .module(entry.module())
+                        .unwrap()
+                        .function(entry)
+                        .unwrap();
+                    assert_eq!(
+                        function.origin,
+                        Origin::Source(analysis.declaration_span(root.id()))
+                    );
+                    if root.id() == scan || root.id() == main {
+                        count_break::assert_count_break_structure(
+                            sources,
+                            &program,
+                            receiver_begin_span.unwrap(),
+                        );
+                    }
+                    verify_program(&program).unwrap();
+                    programs.push((root.id(), program, entry));
+                }
+            }
+        }
+        // All root programs are strongly verified before LLVM; their IDs stay local.
+        for (root, program, entry) in programs {
+            crate::llvm::render_verified_program(&program).unwrap();
+            if root == main {
+                crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            }
+        }
+    }
+}
