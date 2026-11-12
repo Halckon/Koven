@@ -15480,3 +15480,50 @@ all-targets、两crate默认lib no-run通过。fmt/diff/docs912通过，尺寸�
 2beb5592通过（2570个手写Rust文件、36个既有超千行项），policy未改。独立审阅
 覆盖真实Alias、冻结实体图、条件参数、fold与verifier后发布。新增4组ignored
 CI故障只编译未执行，CI需显式include-ignored才运行，不将编译成功记作故障验证通过。
+
+## 循环运输证书自包含与每轮no-carry合同复核（实施中）
+
+54e2a400已在真实producer/emitter校验，但receipt重放仍依赖临时Plans/current，
+finish只枚举已映射块内的指令，尚未独立拒绝证书外函数块。本片先补脱离Plans的
+有限CFG运输验证：保留实际producer输入、Alias与fold，核whole-function集合，
+独立传播owner/source/result实体角色，区分entry建立、body回边保持与false退出。
+它证明现有外部lease的有限图运输，仍不把FE Partial升级为完整循环生命周期。
+
+每轮新borrow的下一必要合同经两套checker复核：两处borrow_binding guard均按
+While/For/Loop span拒绝；ActiveLoanOwner仅静态Call/Binding身份，merge_state的
+loan并集/binding交集不等于迭代实例证明。check_maybe_loop在一次body遍历后合流，
+既有check_loop_backedge检查owner move/closure，不能代替普通loan闭合。
+
+真实可用核心闭合点是end_last_borrow_uses：实际remove binding/nonowning/loans
+并append End；restore_borrow_scope只静默清除局部项，不能以它之后的空集合推导
+已执行End。未来no-carry证书必须在该静默清理前核实际closure，且在merge之前核
+normal回边恢复entry外部义务。planner的remove binding/finish transport/End可作
+后端因果输入，但不能代替observer-off核心合法性证明。
+
+最小候选仍为单层dynamic while、稳定外部Borrow String、每轮一条borrowval与
+非空同步Borrow-Unit消费者、无jump/别名/逃逸：header无当轮token，实际acquire/
+return/lastEnd绑定loop frame，normal回边无当轮残留、false零轮不造loan。
+两套checker须同合同，CG另证body新结果End位于回边前；不以当前外部carried lease
+receipt充当每轮fresh实例。该候选不新增语言语义，仍未启用或移除L0164。
+
+真实红已成立：先把原finish“映射块内指令集合”检查等价抽成validate(function)，
+不是空stub；实际lower+原verifier一次+receipt捕获后，脱离Plans验证原Function
+成功。克隆该Function并通过真实add_block/set_terminator追加完整Unit Return块，
+旧子集检查仍接受，在“必须拒绝额外块”断言失败。不是缺API编译错误、缺terminator
+占位或未经过原pipeline的假receipt；生产原verifier与语言准入均未放宽。
+
+独立图验证已补whole-function块、global指令、定义元数据、terminator及可达集合；
+仅保留真实producer原边/fold与实际Alias实体seal，不复制Plans，不读Slot/current。
+角色从真实entry定义建立，有限单调传播至固定点后核全部incoming。独立审查指出
+“同Role的entry旧实体”仍不能替代本块参数，已补每block唯一角色实体、每操作与
+每出边精确身份核验；header/body/finished/exit的三资源义务均不允许重复或缺失。
+
+真实覆盖红已绿，五项local普通测试及原新CG合计93项全绿；counts1/2/3/8/17的
+所有receipt均可clone后独立validate原Function，不传Plans。Clippy与workspace
+all-targets通过，docs912与尺寸相对2beb5592通过（2576个手写Rust文件、36项旧
+超千行债务），policy未改。新增4组ignored自包含故障只编译，不执行，覆盖角色
+错配、同角色旧实体偷换、Alias/fold缺损及定义/覆盖损坏。
+
+默认lib no-run首次因写incremental query-cache报磁盘无空间失败，非代码断言失败。
+保留全部数据、未cargo clean；同target仅设CARGO_INCREMENTAL=0重试，两crate
+默认lib no-run于1m42s通过，未变更其余配置。初始失败和成功重试日志均保留。

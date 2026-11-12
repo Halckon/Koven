@@ -918,3 +918,7 @@ mod local_loop_owned_condition_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "local_loop_extra_parameter_tests.rs"]
 mod local_loop_extra_parameter_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "local_loop_whole_function_tests.rs"]
+mod local_loop_whole_function_tests;

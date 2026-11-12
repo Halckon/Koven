@@ -12,9 +12,13 @@ use std::collections::{BTreeMap, BTreeSet};
 mod admission;
 mod builder;
 mod emitted;
+mod proof;
+mod roles;
+mod validation;
+mod whole_function;
 pub(super) use emitted::Emitted;
 pub(crate) use emitted::Receipt;
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Tag {
     Owner,
     Place,

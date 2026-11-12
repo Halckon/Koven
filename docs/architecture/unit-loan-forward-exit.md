@@ -167,3 +167,9 @@ while发布Partial关系：实际入口/被遍历body回交/正常退出/原Bind
 emitter固定真实定义与各block参数，逐边按slot身份核SSA运输，原verifier成功后才发布。
 owner模式条件或额外参数仍走原执行但无新receipt；此处仍引用FE Partial，不证明
 循环内新借用、任意迭代完整性、跳转、多根循环或终止性，也不退休旧见证。
+
+loop receipt另提供不依赖Plans/Slot/current的有限图复核：保留真实原边、fold和
+Alias证据，核完整Function块/指令/定义元数据与可达集合；从真实entry建立点传播
+owner/source/result/flag角色至固定点，并逐incoming及每块实际实体核保持关系。
+它封闭CG运输证书的漏覆盖边界，不重新验证FE catalog，不替代原SSA verifier，也
+不将一次planner遍历升级为完整FE循环生命周期；每轮fresh借用仍受L0164保护。

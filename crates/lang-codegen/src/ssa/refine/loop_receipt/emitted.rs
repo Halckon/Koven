@@ -7,6 +7,8 @@ use crate::ssa::model::{
 
 #[derive(Clone, Debug)]
 pub(crate) struct Receipt {
+    pub(super) validation_span: Span,
+    pub(super) proof: super::proof::ProducerProof,
     pub(crate) lineage: UnitLoanLoopInvariantLineage,
     pub(crate) caller: FunctionId,
     pub(crate) instructions: Vec<(Tag, InstructionId)>,
@@ -101,6 +103,8 @@ impl Emitted {
             return Err(invalid(span));
         }
         self.receipt = Some(Receipt {
+            validation_span: span,
+            proof: super::proof::ProducerProof::captured(p, span)?,
             lineage: p.lineage.clone(),
             caller: p.caller,
             instructions: Vec::new(),
@@ -150,6 +154,11 @@ impl Emitted {
             return Err(invalid(span));
         }
         expected.insert(result, id);
+        self.receipt
+            .as_mut()
+            .ok_or_else(|| invalid(span))?
+            .proof
+            .owner_alias = Some((id, id));
         self.owner_aliased = true;
         Ok(())
     }
@@ -407,23 +416,7 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
-        let actual = r
-            .blocks
-            .values()
-            .map(|id| function.block(*id).map(|b| b.instructions.clone()))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| invalid(span))?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        let ids = r
-            .instructions
-            .iter()
-            .map(|(_, id)| *id)
-            .collect::<BTreeSet<_>>();
-        if actual.len() != ids.len() || actual.iter().copied().collect::<BTreeSet<_>>() != ids {
-            return Err(invalid(span));
-        }
+        r.validate(function)?;
         #[cfg(test)]
         ci_tests::record(plans, function, std::slice::from_ref(&r), span);
         record(r);

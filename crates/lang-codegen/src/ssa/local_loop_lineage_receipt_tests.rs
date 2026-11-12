@@ -121,6 +121,10 @@ fn ordinary_local_loop_lineage_requires_actual_lowering() {
                         assert_eq!(receipts.len(), usize::from(setting == "on"));
                         if let Some(receipt) = receipts.first() {
                             use crate::ssa::refine::loop_receipt::Tag;
+                            let detached = receipt.clone();
+                            detached
+                                .validate(run)
+                                .expect("detached receipt validates actual function without plans");
                             assert_eq!(receipt.caller, run.id);
                             assert!(catalog.owns_loop_invariant_lineage(&receipt.lineage));
                             assert_eq!(&receipt.lineage, lineage);

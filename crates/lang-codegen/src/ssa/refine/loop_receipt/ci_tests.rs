@@ -176,3 +176,6 @@ fn loop_parameter_transport_substitution_rejected() {
     bad.receipt.entities.get_mut(&block).unwrap().swap(0, 1);
     assert!(replay(&bad, false).is_err());
 }
+
+#[path = "selfcontained_ci.rs"]
+mod selfcontained_ci;
