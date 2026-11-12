@@ -713,5 +713,3 @@ fn require_loan(entity: EntityId, span: Span) -> Result<crate::ssa::model::LoanI
     }
 }
 
-#[cfg(test)]
-mod tests;

@@ -301,8 +301,6 @@ impl UnitExpressionLowerer<'_> {
 
 pub(in crate::ssa::unit_lower) mod nullable_if {
     //! Bounded nullable entries: root Borrow and heap Ifs.
-    #[cfg(test)]
-    mod field_tests;
     pub(in crate::ssa::unit_lower) use crate::ssa::unit_lower::loop_control::heap_nullable_if::NamedNullableIfRoot;
 
     use super::super::super::unwrap_modified;

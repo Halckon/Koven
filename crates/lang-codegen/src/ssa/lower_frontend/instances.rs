@@ -261,8 +261,7 @@ mod tests {
 
 
 #[cfg(test)]
-#[path = "instances/callable_plan_tests.rs"]
-pub(in crate::ssa) mod callable_plan_tests;
+pub(in crate::ssa) use crate::ssa::unit_llvm_tests::callable_plan_tests;
 
 mod callable_planner {
     //! Deterministic source worklist; callback identity lives in the shared flat arena.

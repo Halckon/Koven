@@ -459,7 +459,7 @@ fn plain_binding(
         && binding.origins().is_empty()
 }
 
-mod runtime {
+pub(in crate::ssa) mod runtime {
     //! Local provider admission; final cleanup rechecks the fully emitted CFG.
     use super::carrier::{Birth, Columns, birth, parameter, transport};
     use super::*;
@@ -712,7 +712,7 @@ mod runtime {
             Ok(true)
         }
 
-        fn checked_nullable_borrowed_owner(&self, plan: &Plan) -> Result<ValueId, LoweringError> {
+        pub(in crate::ssa) fn checked_nullable_borrowed_owner(&self, plan: &Plan) -> Result<ValueId, LoweringError> {
             let span = plan.fact.value_origin();
             self.ensure_no_unresolved_while_proof_carriers(span)?;
             let (proof, birth) = self.borrowed_while_pair(plan, span)?;
@@ -729,6 +729,4 @@ mod runtime {
         }
     }
 
-    #[cfg(test)]
-    mod tests;
 }

@@ -88,7 +88,7 @@ mod type_tests;
 #[cfg(test)]
 mod unit_generic_container_tests;
 #[cfg(test)]
-mod unit_llvm_tests;
+pub(in crate::ssa) mod unit_llvm_tests;
 #[cfg(test)]
 mod unit_lower_aggregate_tests;
 #[cfg(test)]

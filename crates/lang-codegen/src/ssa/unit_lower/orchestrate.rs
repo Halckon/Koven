@@ -4,13 +4,11 @@
 mod pr120_range_source_contract_tests;
 #[cfg(test)]
 mod pr120_verifier_diagnostics;
-#[cfg(test)]
-mod registration_tests;
 use super::*;
 use crate::ssa::refine::CallableRoute;
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。
-pub(super) fn lower_unit_from_facts(
+pub(in crate::ssa) fn lower_unit_from_facts(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,

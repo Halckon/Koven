@@ -1,10 +1,10 @@
 //! Shared expression algorithms; entry adapters retain identity and stateful submission.
-pub(super) mod checked;
+pub(in crate::ssa) mod checked;
 
 use super::model::ValueId;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum LoweredValue {
+pub(in crate::ssa) enum LoweredValue {
     Unit,
     Value(ValueId),
     Diverged,
@@ -605,9 +605,6 @@ pub(in crate::ssa) mod pending_call {
         }
     }
 
-    #[cfg(test)]
-    #[path = "../../lower_frontend/pending_call/guard_tests.rs"]
-    mod guard_tests;
 }
 
 #[cfg(test)]
