@@ -172,6 +172,14 @@ fn assert_nested_ssa_retirement(source: &UnitSource) {
     assert_eq!(
         actions
             .iter()
+            .filter(|(k, _)| *k == "nested-parent-resume-ssa-complete")
+            .map(|(_, n)| *n)
+            .collect::<Vec<_>>(),
+        [1]
+    );
+    assert_eq!(
+        actions
+            .iter()
             .filter(|(k, _)| *k == "nested-parent-resume-consumed")
             .count(),
         1
@@ -703,6 +711,51 @@ fn ci_only_nested_parent_resume_requires_each_independent_permit() {
             actions
                 .iter()
                 .all(|(k, _)| *k != "nested-parent-resume-consumed")
+        );
+    }
+}
+
+#[test]
+fn ci_only_nested_parent_resume_ssa_checks_actual_retirement() {
+    let source = UnitSource::analyze(
+        "nested-resume-permits.ko",
+        r#"
+    fun run(outer:Int,inner:Int) {
+        var a="a"; var b="b"; var n0=outer; var g0=n0>0;
+        while(g0) {var n1=inner; var g1=n1>0;
+            while(g1) {val x=replace(&a,"inner-a"); val y=replace(&b,"inner-b"); n1=n1-1; g1=n1>0};
+            val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
+        }; println(a); println(b)
+    }
+    fun entry() {run(2,2)}
+    "#,
+    )
+    .unwrap();
+    source.assert_frontend_clean();
+    assert!(source.ownership().owner_observations().iter().any(|o| {
+        o.nested_normal_body_v1()
+            .is_some_and(|n| n.parent_resume_write().is_some())
+    }));
+    for fault in [
+        crate::ssa::OwnerFault::NestedResumeSsaMissingDrop,
+        crate::ssa::OwnerFault::NestedResumeSsaDropNewRoot,
+        crate::ssa::OwnerFault::NestedResumeSsaDuplicateReplace,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(k, _)| *k == "nested-resume-ssa-fault-hit")
+                .count(),
+            1
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|(k, _)| *k != "nested-parent-resume-ssa-complete")
         );
     }
 }

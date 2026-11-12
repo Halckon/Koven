@@ -939,6 +939,7 @@ pub(super) struct RBlock {
 /// Block 0 is the function entry; `parameters` are defined there.
 #[derive(Clone, Debug, Default)]
 pub(super) struct RefinedBody {
+    pub(super) nested_resume_plans: super::nested_resume_receipt::Plans,
     pub(super) nested_exit_plans: super::nested_exit_receipt::Plans,
     pub(super) owner_bridge_plans: super::control_bridge_receipt::Plans,
     pub(super) loan_plans: super::loan_receipt::Plans,

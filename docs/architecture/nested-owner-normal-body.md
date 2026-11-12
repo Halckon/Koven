@@ -77,3 +77,8 @@ val/direct String Replace，真实四事件及声明clean完成后封存。后�
 frame的join块[3]消费独立阶段，[2]false清理→[3]运输须唯一且根透明；按symbol匹配。
 重新核准备loan及old→binding→Drop，不复活child许可、不重复发射。其他父恢复形状
 仍走旧路径；受限编译期许可不是一般循环归纳。
+
+独立 `refine/nested_resume_receipt.rs` 随实际 straight-line fold 维护恢复块与三阶段
+位置，观察实际 SSA Replace 第二结果、Alias 消除后的同一 Entity 和原 Drop。
+终检 false 根参数运输及唯一旧值消费后才给出 receipt 完成；它不新增消费权限，
+且发生在整个 Program 的最终 verifier 之前，不能代替 verifier 或跨轮代际归纳。

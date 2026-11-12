@@ -235,7 +235,7 @@ impl Builder<'_, '_> {
         );
         Ok(())
     }
-    pub(super) fn finish_nested_resume(&self) -> Result<(), LoweringError> {
+    pub(super) fn finish_nested_resume(&mut self) -> Result<(), LoweringError> {
         let Some(plan) = &self.nested_owner_body else {
             return Ok(());
         };
@@ -243,13 +243,17 @@ impl Builder<'_, '_> {
             if plan.resume_stage != Stage::Dropped {
                 return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
             }
-            self.recheck_nested_resume()?;
+            let receipt = self.recheck_nested_resume()?;
+            self.body.nested_resume_plans =
+                super::super::super::nested_resume_receipt::Plans(Some(receipt));
             #[cfg(test)]
             owner_consumer_test_support::record_action("nested-parent-resume-consumed", 1);
         }
         Ok(())
     }
-    fn recheck_nested_resume(&self) -> Result<(), LoweringError> {
+    fn recheck_nested_resume(
+        &self,
+    ) -> Result<super::super::super::nested_resume_receipt::Plan, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let plan = self.nested_owner_body.as_ref().ok_or_else(fail)?;
         let w = plan.evidence.parent_resume_write().ok_or_else(fail)?;
@@ -327,7 +331,23 @@ impl Builder<'_, '_> {
                 return Err(fail());
             }
         }
-        Ok(())
+        Ok(super::super::super::nested_resume_receipt::Plan {
+            parent: plan.evidence.parent(),
+            child: plan.evidence.control(),
+            header: blocks[0],
+            finished: blocks[2],
+            resume: body,
+            root,
+            replacement,
+            old: *old,
+            bound,
+            positions: [*replace, alias, drop],
+            spans: [
+                statement.span,
+                statements[alias].span,
+                statements[drop].span,
+            ],
+        })
     }
     fn recheck_resume_preparation(
         &self,

@@ -160,6 +160,8 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
             return Ok(body);
         };
         let prefix_len = body.blocks[block.0].statements.len();
+        body.nested_resume_plans
+            .fold(block, successor, prefix_len, span)?;
         body.nested_exit_plans
             .fold(block, successor, prefix_len, span)?;
         body.owner_bridge_plans
@@ -991,6 +993,8 @@ pub(super) fn emit(
     }
     #[cfg(test)]
     super::nested_exit_receipt::inject_final(&body.nested_exit_plans, emitter.function);
+    #[cfg(test)]
+    super::nested_resume_receipt::inject_final(&body.nested_resume_plans, emitter.function);
     receipts.finish(body, emitter.function, span)?;
     Ok(())
 }

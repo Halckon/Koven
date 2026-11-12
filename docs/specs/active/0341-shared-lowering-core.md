@@ -15406,3 +15406,25 @@ Clippy与workspace all-target check均通过（各约1分钟）；fmt、docs915�
 FE事件缺失/完成后重放负控仅编译，不宣称本地执行通过。独立只读复审未见确定阻断。
 日志nested-resume-final-*；本地提交不推送。尚无独立父恢复late-SSA receipt或
 任意跨轮代际归纳，仍沿用通用SSA验证及既有child false根receipt。
+
+### 受限父恢复独立 late-SSA receipt（2026-11-12）
+
+在既有单笔parent许可和原始CFG终检全部完成后，独立封存实际parent/child、
+header/false-cleanup/join、root/replacement/old/binding槽及Replace/Alias/Drop精确位置。
+straight-line fold同步块和指令偏移，允许false-cleanup与join合并，但不能并入header。
+生产发射按实际layout把各块根slot映射到Entity，核child false边与必要的后续Branch
+运输。实际Replace输出快照、被消除Alias的current映射及原Drop分别观察；末端再核
+真实指令列表唯一有序、操作未改变和第二输出唯一消费且不从块参数/terminator逃逸，
+全通过才记录本receipt完成。不额外发射Drop，不扩大父恢复可接纳形状。
+
+receipt在全部函数块发射完成后核验，仍早于整个Program的verify_program；不调整或
+绕过原verifier，也不把receipt完成标记说成最终验证已通过。真实SSA负控覆盖删除
+block清单中的Drop、改Drop为消费新根、重复Replace清单项，均限CI执行。
+
+本片最终普通counter_boundary native 27/27通过（33.19s，含新receipt标记与九组输入）；
+CG all-target strict Clippy通过（28.01s），workspace all-target check通过（38.48s）。
+独立复审补齐原RefinedBody三操作精确复核、RootReplace含loan完整操作快照及根槽
+恰一次后未见确定阻断。三项新增CI-only负控仅编译，未在本地执行；FE代码未修改，
+本片未重跑FE。日志nested-resume-ssa-*；仅本地提交不推送。
+静态门禁：fmt、docs915、diff通过；Rust尺寸门禁以7c1f2ae8为基线通过，2587手写文件、
+37历史超限，无新增豁免或门禁调整（emit.rs保持1000行上限内）。
