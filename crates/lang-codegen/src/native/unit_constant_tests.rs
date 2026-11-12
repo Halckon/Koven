@@ -2,7 +2,7 @@
 mod handoff_contracts;
 
 #[path = "unit_numeric_literal_tests.rs"]
-mod numeric_literal_tests;
+pub(crate) mod numeric_literal_tests;
 
 use super::{Command, TestDirectory, assert_no_sibling_temporary, fs};
 use crate::{NativeObjectErrorKind, NativeUnitEntry, emit_native_constant_unit_object};

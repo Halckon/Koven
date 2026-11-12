@@ -9,8 +9,7 @@ mod comma_when_cleanup_tests;
 #[path = "native_direct_call_prefix_tests.rs"]
 mod direct_call_prefix_tests;
 #[cfg(test)]
-#[path = "native_local_object_constant_qualifier_tests.rs"]
-mod local_object_constant_qualifier_tests;
+#[allow(unused_imports)] pub(crate) use crate::ssa::lower_frontend_tests::owned_source_return_tests::native::packed_local_object_constant_qualifier_tests_2 as local_object_constant_qualifier_tests;
 #[allow(unused_imports)] pub(crate) use pending_construction_tests::nullable_rc_proof_tests;
 #[path = "native_nullable_when_tests.rs"]
 mod nullable_when_tests;

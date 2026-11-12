@@ -970,11 +970,10 @@ fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
 #[path = "root_primitive_lower_tests.rs"]
 pub(in crate::ssa) mod root_primitive_tests;
 
-#[path = "field_replace_lower_tests.rs"]
-mod field_replace_tests;
+#[allow(unused_imports)] pub(crate) use crate::native_tests::sequential_for_tests::cleanup_tests::packed_field_replace_tests_5 as field_replace_tests;
 
 #[path = "lower_frontend_owned_source_continue_tests.rs"]
 mod owned_source_continue_tests;
 
 #[path = "lower_frontend_owned_source_return_tests.rs"]
-pub(in crate::ssa) mod owned_source_return_tests;
+pub(crate) mod owned_source_return_tests;

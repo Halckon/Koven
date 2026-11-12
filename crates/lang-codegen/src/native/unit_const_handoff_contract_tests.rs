@@ -18,9 +18,8 @@ use crate::{
     ssa::{LoweringError, LoweringErrorKind},
 };
 
-#[path = "unit_const_handoff_test_support.rs"]
-mod support;
-use support::{Handoff, PATHWAYS, Pathway, fixture};
+#[allow(unused_imports)] pub(crate) use crate::ssa::sequential_for_lowering_tests::cleanup_tests::packed_support_1 as support;
+use crate::ssa::sequential_for_lowering_tests::cleanup_tests::packed_support_1::{Handoff, PATHWAYS, Pathway, fixture};
 
 const COUNTER_CHILD: &str = "KOVEN_CONST_UNIT_HANDOFF_COUNTER_CHILD";
 const COUNTER_TEST: &str = "native::unit_tests::constants::handoff_contracts::identity_rejection_never_reserves_sibling_output";

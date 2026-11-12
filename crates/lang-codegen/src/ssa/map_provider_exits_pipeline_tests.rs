@@ -341,7 +341,7 @@ mod query_test {
 }
 pub(in crate::ssa) mod resource;
 pub(in crate::ssa) mod resource_forms;
-pub(in crate::ssa) mod scope_future_observer;
+pub(crate) mod scope_future_observer;
 pub(crate) use scope_future_observer::cases as scope_future_sources;
 mod sequential;
 mod source_forms;
@@ -561,7 +561,7 @@ mod temporary_argument_cfg_runtime {
     }
 }
 mod temporary_arguments;
-mod temporary_delivery;
+pub(crate) mod temporary_delivery;
 mod temporary_delivery_boundaries {
     //! Ordinary invalid aliasing stays separate from the supported local Borrow-result continuation.
     use super::{

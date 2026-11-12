@@ -1,8 +1,7 @@
 #[path = "unit_borrow_result_tests.rs"]
 mod borrow_result_tests;
 #[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::borrow_string_tests;
-#[path = "unit_companion_boundary_tests.rs"]
-mod companion_boundary;
+#[allow(unused_imports)] pub(crate) use container_size_tests::companion_boundary;
 #[allow(unused_imports)] pub(crate) use test_directory::container_append_tests;
 #[allow(unused_imports)] pub(crate) use test_directory::container_clear_tests;
 #[allow(unused_imports)] pub(crate) use map_consume_tests::container_insert_at_tests;
@@ -10,7 +9,7 @@ mod companion_boundary;
 #[allow(unused_imports)] pub(crate) use map_consume_tests::container_remove_first_tests;
 #[allow(unused_imports)] pub(crate) use map_consume_tests::container_remove_last_tests;
 #[path = "unit_container_size_tests.rs"]
-mod container_size_tests;
+pub(crate) mod container_size_tests;
 #[path = "unit_handoff_contract_tests.rs"]
 mod handoff_contracts;
 #[path = "unit_map_consume_tests.rs"]
@@ -63,7 +62,7 @@ pub(crate) mod iteration_report_resources;
 #[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::non_null_assertion_tests;
 
 #[path = "unit_constant_tests.rs"]
-mod constants;
+pub(crate) mod constants;
 
 #[path = "unit_boxed_enum_tests.rs"]
 pub(crate) mod boxed_enum_tests;

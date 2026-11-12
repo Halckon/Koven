@@ -27,7 +27,7 @@ pub(crate) mod scalar_joint_tests;
 #[allow(unused_imports)] pub(crate) use boxed_enum_tests::abort_output_tests;
 
 #[path = "native_sequential_for_tests.rs"]
-mod sequential_for_tests;
+pub(crate) mod sequential_for_tests;
 
 #[path = "native_boxed_enum_tests.rs"]
 pub(crate) mod boxed_enum_tests;
@@ -38,7 +38,7 @@ mod map_tests;
 #[allow(unused_imports)] pub(crate) use numeric_literal_tests::map_sibling_route_tests;
 
 #[path = "native_ordered_map_tests.rs"]
-mod ordered_map_tests;
+pub(crate) mod ordered_map_tests;
 
 #[allow(unused_imports)] pub(crate) use boxed_enum_tests::borrow_result_tests;
 

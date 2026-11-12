@@ -4,7 +4,7 @@
 //! They are not ordinary local regression tests; no ignore or environment skip.
 
 #[path = "native_ordered_map_tests/fixtures.rs"]
-mod fixtures;
+pub(crate) mod fixtures;
 mod probe {
 //! Single-source identity checks and one-call-only instrumentation of its checkpoint.
 

@@ -290,9 +290,9 @@ pub(super) fn build_key_equal<'ctx>(
     }
 }
 }
-pub(super) mod iteration;
+#[allow(unused_imports)] pub(crate) use mutation::iteration;
 mod lookup;
-mod mutation;
+pub(crate) mod mutation;
 mod order {
 //! 插入链只维护 bucket 索引，不创建或清理 key/value owner。
 

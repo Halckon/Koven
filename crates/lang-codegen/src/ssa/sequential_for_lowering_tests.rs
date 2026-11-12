@@ -1,5 +1,5 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-pub(in crate::ssa) mod cleanup_tests;
+pub(crate) mod cleanup_tests;
 pub(in crate::ssa) mod determinism_tests;
 mod provider_lifetime_tests {
     use super::super::{

@@ -384,7 +384,7 @@ mod ast {
         })
     }
 }
-mod facts;
+pub(crate) mod facts;
 pub(in crate::ssa) mod graph;
 use super::{
     Report,

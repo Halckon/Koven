@@ -118,7 +118,7 @@ fn resource_and_non_source_owner_replacement_emission_failure_preserves_output()
 }
 }
 #[path = "native_sequential_for_tests/cleanup_tests.rs"]
-mod cleanup_tests;
+pub(crate) mod cleanup_tests;
 mod owned_source_tests {
 //! SPEC-0182 owned/Borrow sources: independent native stdout across 72 cells.
 use super::super::{SymbolKind, UnitSource, boxed_enum_tests, emit_link_and_run};
@@ -917,5 +917,4 @@ fn temporary_mutable_list_source_boundaries_run_natively() {
     );
 }
 
-#[path = "native_sequential_for_tests/conditional_owned_source_tests.rs"]
-mod conditional_owned_source_tests;
+#[allow(unused_imports)] pub(crate) use cleanup_tests::conditional_owned_source_tests;

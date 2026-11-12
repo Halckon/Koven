@@ -157,7 +157,7 @@ mod verify_loan_mutate_tests;
 mod verify_scalar_tests;
 
 #[cfg(test)]
-pub(in crate::ssa) mod lower_frontend_tests;
+pub(crate) mod lower_frontend_tests;
 
 #[cfg(test)]
 #[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::unit_lower_receiver_tests::inout_fields::lower_frontend_scalar_abi_unit_comparison_tests as lower_frontend_scalar_abi_unit_comparison_tests;
@@ -194,7 +194,7 @@ mod string_operation_tests;
 #[allow(unused_imports)] pub(in crate::ssa) use bitwise_lowering_tests::char_constant_tests;
 
 #[cfg(test)]
-pub(in crate::ssa) mod sequential_for_lowering_tests;
+pub(crate) mod sequential_for_lowering_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod unit_constant_tests;
 

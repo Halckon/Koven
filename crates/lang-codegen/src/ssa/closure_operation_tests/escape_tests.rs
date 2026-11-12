@@ -2,7 +2,7 @@ use super::*;
 
 #[path = "delivery_tests.rs"]
 mod delivery_tests;
-mod projected_content_tests;
+#[allow(unused_imports)] pub(crate) use crate::native_tests::ordered_map_tests::fixtures::packed_projected_content_tests_4 as projected_content_tests;
 mod root_content_tests;
 mod shared_retain_tests {
     use super::*;

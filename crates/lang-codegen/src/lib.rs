@@ -1,6 +1,6 @@
 //! Koven SSA 与本机代码生成的公共 crate 边界。
 
-mod native;
+pub(crate) mod native;
 #[cfg(test)]
 mod native_borrow_last_use_cases {
 //! Normal source inventories for restricted last-use; no fault/IR generation.
@@ -573,9 +573,9 @@ fn run_unit(case: &str, source_text: &str) -> Output {
 #[cfg(test)]
 mod native_sanitizer_tests;
 #[cfg(test)]
-mod native_tests;
+pub(crate) mod native_tests;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 #[allow(unused_imports)] pub(crate) use native_borrow_value_field_cases::unit_container_origin_bridge_tests;
 #[cfg(test)]
@@ -675,10 +675,10 @@ mod llvm;
 
 // SPEC-0033 只建立 crate 内部 SSA；SPEC-0034 接入 lowering 后移除该暂时的未使用门禁。
 #[allow(dead_code)]
-mod ssa;
+pub(crate) mod ssa;
 
 #[cfg(test)]
-mod bitwise_test_support;
+#[allow(unused_imports)] pub(crate) use native_borrow_value_field_cases::bitwise_test_support;
 
 #[cfg(test)]
 mod native_map_require_cases {
@@ -916,13 +916,13 @@ fun entry() { exercise("prefix") }
 }
 
 #[cfg(test)]
-mod native_multi_borrow_cases;
+#[allow(unused_imports)] pub(crate) use native_borrow_value_field_cases::native_multi_borrow_cases;
 
 #[cfg(test)]
 mod native_mixed_borrow_cases;
 
 #[cfg(test)]
-mod native_nested_borrow_cases;
+#[allow(unused_imports)] pub(crate) use test_support::native_nested_borrow_cases;
 
 #[cfg(test)]
 pub(crate) mod native_borrow_value_field_cases;

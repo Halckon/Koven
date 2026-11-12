@@ -1,13 +1,13 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
-mod abort;
-mod inline_nullable;
+pub(crate) mod abort;
+#[allow(unused_imports)] pub(crate) use abort::inline_nullable;
 pub(in crate::llvm) use abort::AbortMessage;
-mod map_result;
+#[allow(unused_imports)] pub(crate) use abort::map_result;
 mod requirements;
 use requirements::RuntimeRequirements;
 #[cfg(test)]
-mod narrow_tests;
-mod string;
+#[allow(unused_imports)] pub(crate) use crate::ssa::map_provider_exits_pipeline_tests::temporary_delivery::graph::packed_narrow_tests_0 as narrow_tests;
+#[allow(unused_imports)] pub(crate) use abort::string;
 
 use std::{
     cell::RefCell,

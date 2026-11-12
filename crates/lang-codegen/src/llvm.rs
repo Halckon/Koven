@@ -55,13 +55,13 @@ pub(super) fn explode<'ctx>(
 #[allow(unused_imports)] pub(crate) use layout_tests::aggregate_tests;
 #[cfg(test)]
 #[allow(unused_imports)] pub(crate) use object_tests::borrowed_generate_tests;
-mod closure;
+pub(crate) mod closure;
 #[cfg(test)]
-mod closure_tests;
+#[allow(unused_imports)] pub(crate) use crate::native::unit_tests::constants::numeric_literal_tests::packed_closure_tests_6 as closure_tests;
 mod container;
 #[cfg(test)]
 pub(crate) mod container_tests;
-mod debug;
+#[allow(unused_imports)] pub(crate) use closure::debug;
 #[cfg(test)]
 pub(crate) mod debug_tests;
 #[cfg(test)]
@@ -209,7 +209,7 @@ pub(super) fn value_name(value: ValueId) -> String {
     format!("v{}", value.index())
 }
 }
-pub(crate) mod entry;
+#[allow(unused_imports)] pub(crate) use string::entry;
 #[cfg(test)]
 #[allow(unused_imports)] pub(crate) use container_tests::entry_tests;
 #[cfg(test)]
@@ -397,7 +397,7 @@ pub(super) fn integer_signed(
     }
 }
 }
-mod string;
+pub(crate) mod string;
 #[cfg(test)]
 #[allow(unused_imports)] pub(crate) use debug_tests::string_tests;
 #[cfg(test)]
@@ -484,10 +484,10 @@ pub(super) fn payload_place<'ctx>(
     Ok(builder.build_struct_gep(layout.value, storage, 1, name)?)
 }
 }
-mod type_map;
+#[allow(unused_imports)] pub(crate) use layout::type_map;
 #[cfg(test)]
 mod unit_storage_tests;
-mod utf8;
+#[allow(unused_imports)] pub(crate) use closure::utf8;
 #[cfg(test)]
 mod utf8_tests {
 //! The shared scanner must report the start of the first invalid sequence, not the bad continuation.

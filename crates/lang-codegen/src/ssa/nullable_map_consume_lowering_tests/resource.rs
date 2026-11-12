@@ -365,7 +365,7 @@ mod memory {
         }
     }
 }
-mod runtime;
+#[allow(unused_imports)] pub(crate) use crate::native::unit_tests::map_loop_owner_tests::conditional_return::packed_runtime_7 as runtime;
 mod sources {
     //! Frozen four-source Resource baseline; source order is not mapper registration order.
 

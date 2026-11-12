@@ -113,7 +113,7 @@ fn ret(function: &mut Function, block: BlockId, values: Vec<ValueId>, origin: &O
         .expect("return must be settable");
 }
 
-mod provider_cfg;
+#[allow(unused_imports)] pub(crate) use crate::ssa::map_provider_exits_pipeline_tests::scope_future_observer::facts::packed_provider_cfg_3 as provider_cfg;
 
 #[test]
 fn fixed_headers_and_list_construction_use_one_checked_continuous_allocation() {

@@ -656,7 +656,7 @@ mod facts {
         Ok(())
     }
 }
-mod graph;
+pub(crate) mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
