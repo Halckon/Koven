@@ -428,6 +428,7 @@ subgraph Gactive["现行 active"]
   S0437["S0437<br/>lambda_preflight_tests、outer_borrowed_while 守卫、key_return 身份及 lower_frontend 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役"]
   S0438["S0438<br/>outer_borrowed_while、source_owner/handoff、map_iteration 退出/成形/临时项及可空清理载体与源证明壳子模块退役"]
   S0439["S0439<br/>numeric_iteration、map_consume、map_iteration 根/资源/校验/源及 rc_nullable_while_presence_identity 壳子模块退役"]
+  S0440["S0440<br/>rc_nullable_while_identity_queries、same_guard、map_loop/operand_unit_identity、owner_consumer_test_support 及 loop_control/instances 壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1927,6 +1928,7 @@ S0366 --> S0367
 | SPEC-0437 | active | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](../../specs/active/0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
 | SPEC-0438 | active | [0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md](../../specs/active/0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) |
 | SPEC-0439 | active | [0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md](../../specs/active/0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) |
+| SPEC-0440 | active | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](../../specs/active/0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

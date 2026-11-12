@@ -24,8 +24,7 @@ use super::{
     unit_lower::lower_scalar_unit_with_entry, verify::verify_program,
 };
 
-#[path = "rc_nullable_while_identity_queries.rs"]
-mod identity;
+use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::rc_nullable_while_identity_queries as identity;
 
 const SOURCE: &str =
     "fun inspect(own owner: Rc<Int>?): Rc<Int>? { while (owner != null) { break }; return owner }";
@@ -60,7 +59,7 @@ fn observe(unit: bool) -> Observation {
     observe_with_inspector(unit, false).0
 }
 
-fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, Result<(), String>) {
+pub(in crate::ssa) fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, Result<(), String>) {
     let (obs, identity, _) = observe_with_options(unit, inspect_identity, true);
     (obs, identity)
 }

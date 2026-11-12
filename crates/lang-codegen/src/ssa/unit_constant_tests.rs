@@ -17,7 +17,7 @@ use super::{
 mod control_completion;
 
 #[path = "unit_receiver_two_phase_control_tests.rs"]
-mod receiver_two_phase_control;
+pub(in crate::ssa) mod receiver_two_phase_control;
 
 #[test]
 fn scalar_materializations_use_exact_values_and_reject_foreign_analysis() {

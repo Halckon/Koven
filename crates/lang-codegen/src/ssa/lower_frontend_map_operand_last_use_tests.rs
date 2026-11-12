@@ -2,13 +2,11 @@
 use crate::ssa::map_unit_consumer_test_support::assert_source;
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
-#[path = "lower_frontend_map_operand_unit_identity.rs"]
-mod unit_identity;
+use crate::ssa::lower_frontend_tests::constant_lowering_tests::map_operand_unit_identity as unit_identity;
 
 #[path = "lower_frontend_map_nullable_operand_unit_test_support.rs"]
-mod nullable_operand;
-#[path = "lower_frontend_map_same_guard_unit_test_support.rs"]
-mod same_guard;
+pub(in crate::ssa) mod nullable_operand;
+pub(in crate::ssa) use crate::ssa::unit_constant_tests::receiver_two_phase_control::map_same_guard_unit as same_guard;
 
 const ORIGINAL: &str =
     include_str!("../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko");

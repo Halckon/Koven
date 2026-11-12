@@ -730,7 +730,7 @@ mod temporary_siblings;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "multi_temporary_loan_tests.rs"]
-mod multi_temporary;
+pub(in crate::ssa) mod multi_temporary;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "named_literal_mapping_tests.rs"]

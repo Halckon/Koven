@@ -1,7 +1,7 @@
 //! Snapshot, transport and cleanup of a compiler-bound shared provider.
 use super::*;
 impl ExpressionLowerer<'_> {
-    pub(in super::super) fn lower_for(
+    pub(in crate::ssa) fn lower_for(
         &mut self,
         statement: StatementId,
         source: ExpressionId,

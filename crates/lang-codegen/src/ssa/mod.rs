@@ -136,7 +136,7 @@ mod unit_map_tests;
 #[cfg(test)]
 mod unit_plan_tests;
 #[cfg(test)]
-mod unit_receiver_two_phase_tests;
+pub(in crate::ssa) mod unit_receiver_two_phase_tests;
 #[cfg(test)]
 mod unit_type_origin_tests;
 
@@ -196,7 +196,7 @@ mod char_constant_tests;
 #[cfg(test)]
 mod sequential_for_lowering_tests;
 #[cfg(test)]
-mod unit_constant_tests;
+pub(in crate::ssa) mod unit_constant_tests;
 
 #[cfg(test)]
 mod bitwise_lowering_tests;
@@ -286,7 +286,7 @@ mod numeric_iteration_tests;
 mod while_flow_tests;
 
 #[cfg(test)]
-mod rc_nullable_while_observation_tests;
+pub(in crate::ssa) mod rc_nullable_while_observation_tests;
 
 #[cfg(test)]
 pub(crate) mod rc_nullable_while_bounded_tests;

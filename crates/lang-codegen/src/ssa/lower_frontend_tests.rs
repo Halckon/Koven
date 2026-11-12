@@ -3,10 +3,10 @@ mod frontend_boundaries;
 
 use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic, assert_text_eq};
 #[path = "boxed_signature_storage_tests.rs"]
-mod boxed_signature_storage_tests;
+pub(in crate::ssa) mod boxed_signature_storage_tests;
 
 #[path = "lower_frontend_map_tests.rs"]
-mod map_result_tests;
+pub(in crate::ssa) mod map_result_tests;
 
 #[path = "lower_frontend_resource_deinit_tests.rs"]
 mod resource_deinit_tests;
@@ -544,7 +544,7 @@ fn non_null_assertion_does_not_register_unreachable_inline_types() {
 }
 
 #[path = "constant_lowering_tests.rs"]
-mod constant_lowering_tests;
+pub(in crate::ssa) mod constant_lowering_tests;
 
 #[test]
 fn rejects_produced_guarded_cleanup_before_lowering_bindings() {
