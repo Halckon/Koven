@@ -15,6 +15,21 @@ impl Binding {
     pub(super) fn block(&self) -> BlockRef {
         self.block
     }
+    pub(super) fn ssa_entry(
+        &self,
+        control: UnitStatementId,
+        index: usize,
+    ) -> super::super::super::control_bridge_receipt::Entry {
+        super::super::super::control_bridge_receipt::Entry {
+            control,
+            index,
+            block: self.block,
+            instruction: self.instruction,
+            source: self.source,
+            target: self.target,
+            span: self.span,
+        }
+    }
 }
 pub(in super::super) struct Permit {
     index: usize,

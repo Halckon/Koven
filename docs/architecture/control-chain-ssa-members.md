@@ -114,3 +114,18 @@ the existing scalar consumer. Validated counter/guard slots are separately carri
 leading Anchor's late SSA header-parameter check, without counting them as owner roots.
 This remains the existing bounded three-control contract, not general nesting or dynamic
 cross-iteration induction. Missing-binding CI-only injection is compiled, not run locally.
+
+
+## Actual scalar Alias-to-SSA transport
+
+The admitted group now carries every consumed scalar initializer binding's original control,
+index, block, instruction, source/target slots and span into a separate late-SSA receipt.
+The receipt is attached atomically with all continuation pairs and the optional completed
+leading pair; missing, duplicate or foreign entries are rejected. Real CFG folding remaps
+both block identity and instruction offset. Each actual Alias emission must preserve the
+source Entity in its target and be observed exactly once; finalization rereads every original
+Alias before publishing scalar/group completion. The existing Name initializer contract can
+therefore verify a later counter copied from the prior control's actual exit counter. This
+is static emitted-SSA equality, not an invented runtime generation trace or general loop
+induction; positive first rounds may leave later counters at zero and do not prove later
+bodies executed.

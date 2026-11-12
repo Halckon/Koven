@@ -541,13 +541,33 @@ impl Builder<'_, '_> {
             block: first_exit,
             pairs: leading_pairs,
         };
+        let scalar_entries = group
+            .members
+            .iter()
+            .map(|m| (m.evidence.control(), &m.initial))
+            .chain(
+                group
+                    .leading
+                    .scalar_entry()
+                    .map(|_| (group.leading.control(), &group.leading_initial)),
+            )
+            .flat_map(|(control, bindings)| {
+                bindings.iter().enumerate().map(move |(index, binding)| {
+                    binding
+                        .as_ref()
+                        .map(|b| b.ssa_entry(control, index))
+                        .ok_or_else(fail)
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         self.body.owner_bridge_plans =
             super::super::super::control_bridge_receipt::Plans::seal_group(
                 members,
                 leading,
                 vec![leading_link, link],
                 self.inputs.span,
-            )?;
+            )?
+            .with_scalar_entries(scalar_entries, self.inputs.span)?;
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             "control-chain-leading-body-complete",

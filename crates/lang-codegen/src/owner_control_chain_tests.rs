@@ -644,3 +644,65 @@ fn ci_only_leading_scalar_missing_binding_revokes_group() {
             | "control-chain-ssa-complete"
     )));
 }
+
+#[test]
+fn cross_control_scalar_entries_consume_actual_exit_entities() {
+    let text = r#"
+        fun run(n: Int) {
+            var n0=n; var g0=n0>0; var a0="a"; var b0="b";
+            while(g0) { val x=replace(&a0,"a0"); val y=replace(&b0,"b0"); n0=n0-1; g0=n0>0 };
+            var n1=n0; var g1=n1>0; var a1=a0; var b1=b0;
+            while(g1) { val x=replace(&a1,"a1"); val y=replace(&b1,"b1"); n1=n1-1; g1=n1>0 };
+            var n2=n1; var g2=n2>0; var a2=a1; var b2=b1;
+            while(g2) { val x=replace(&a2,"a2"); val y=replace(&b2,"b2"); n2=n2-1; g2=n2>0 };
+            val final_a=a2; val final_b=b2; show(n2)
+        }
+        fun show(value: Int) { if(value==0) { println("zero") } else { println("negative") } }
+        fun entry() { run(0); run(2); run(-2) }
+    "#;
+    let source = super::UnitSource::analyze("cross-control-scalar.ko", text).unwrap();
+    source.assert_frontend_clean();
+    assert!(source.ownership().owner_observations().iter().any(|o| {
+        o.control_chain_bodies_v1()
+            .is_some_and(|g| g.leading().scalar_entry().is_some())
+    }));
+    let (result, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; actions={actions:?}"));
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, n)| *k == "control-chain-scalar-ssa-complete" && *n == 6)
+            .count(),
+        1
+    );
+    super::super::super::assert_native_output(&source, b"zero\nzero\nnegative\n");
+}
+
+#[test]
+fn ci_only_scalar_ssa_missing_observation_or_wrong_fold_withholds_group() {
+    let source = chain_source(true, true);
+    for fault in [
+        crate::ssa::OwnerFault::ChainScalarSsaMissingLast,
+        crate::ssa::OwnerFault::ChainScalarSsaWrongFoldOffset,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(k, _)| *k == "control-chain-scalar-ssa-fault-hit")
+                .count(),
+            1
+        );
+        assert!(actions.iter().all(|(k, _)| !matches!(
+            *k,
+            "control-chain-scalar-ssa-complete"
+                | "control-chain-link-complete"
+                | "control-chain-ssa-complete"
+        )));
+    }
+}

@@ -10,6 +10,9 @@ use crate::ssa::{
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod scalar_entry;
+pub(super) use scalar_entry::Entry;
+
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
 }
@@ -20,6 +23,7 @@ pub(super) struct Plans {
     group: Vec<Member>,
     leading: Option<Anchor>,
     links: Vec<Link>,
+    scalar_entries: Option<Vec<Entry>>,
 }
 #[derive(Clone, Debug)]
 struct Plan {
@@ -83,6 +87,7 @@ impl Plans {
             return Err(invalid(span));
         }
         Ok(Self {
+            scalar_entries: None,
             group: Vec::new(),
             leading: None,
             links: Vec::new(),
@@ -174,6 +179,7 @@ impl Plans {
             }
         }
         Ok(Self {
+            scalar_entries: None,
             plan: None,
             group,
             leading: Some(leading),
@@ -218,12 +224,13 @@ impl Plans {
         &mut self,
         block: BlockRef,
         successor: BlockRef,
-        _prefix_len: usize,
+        prefix_len: usize,
         span: Span,
     ) -> Result<(), LoweringError> {
         if block == successor {
             return Err(invalid(span));
         }
+        self.fold_scalar_entries(block, successor, prefix_len, span)?;
         if let Some(p) = &mut self.plan {
             for b in p
                 .prior
@@ -295,6 +302,7 @@ impl Plans {
 
 #[derive(Default)]
 pub(super) struct Emitted {
+    scalar_entries: scalar_entry::Observed,
     caller: Option<FunctionId>,
     links_observed: BTreeSet<(UnitStatementId, UnitStatementId)>,
     blocks: BTreeMap<BlockRef, BlockId>,
@@ -425,6 +433,8 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
+        self.scalar_entries
+            .observe(body, position, instruction, current, span)?;
         let stmt = body
             .blocks
             .get(block.0)
@@ -880,13 +890,15 @@ impl Emitted {
     }
     pub(super) fn finish(
         &self,
-        plans: &Plans,
+        body: &RefinedBody,
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
+        let plans = &body.owner_bridge_plans;
         if !plans.active() {
             return Ok(());
         }
+        self.scalar_entries.finish(body, span)?;
         let roles = plans.roles();
         if self.caller != Some(function.id())
             || self.links_observed.len() != plans.links.len()
@@ -951,6 +963,8 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
+        #[cfg(test)]
+        scalar_entry::record_complete(plans);
         #[cfg(test)]
         for link in &plans.links {
             super::build::owner_consumer_test_support::record_action(

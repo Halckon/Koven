@@ -203,8 +203,7 @@ impl LoanReceipts {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
-        self.owner_bridge
-            .finish(&body.owner_bridge_plans, function, span)?;
+        self.owner_bridge.finish(body, function, span)?;
         self.forward.finish(&body.forward_plans, function, span)?;
         self.consumer.finish(&body.loan_plans, function, span)?;
         self.receiver.finish(&body.receiver_plans, function, span)?;
