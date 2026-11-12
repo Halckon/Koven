@@ -15206,3 +15206,19 @@ check（3m58s）、fmt/diff、文档915与尺寸2582文件/37项历史超限均�
 共有 Lowered outcome 移至既有 frames，历史超限文件1016→1012，不新增超限文件。
 输入为173cf3f7及本片，核 main 仍 f78c8c20；验证日志保留 `.local-artifacts/root-edge-evidence/`
 的 nested-body-*（含首红），本片只本地提交，不推送，正式 CI 与上述未覆盖权限仍待后续。
+
+### 嵌套已消费 body 的末端退休一致性（2026-11-12）
+
+在 b7a5f8cc 已批准范围内重读实际 slot IR：按 FE step.header_root 映射根（不把
+执行顺序与根序 zip），核 call/producer 与原返回 Drop 事实；要求 Replace < binding
+Alias < Drop，并核整个函数 old/binding 唯一定义和消费，无 terminator 逃逸。
+这只防止后续 IR 修改绕过已消费 stage，不增加入口、出口、外层恢复或轮次权限。
+普通测试按真实调用 span 定位最终 typed-SSA Replace 第二结果并核同块唯一后置 Drop；
+新增晚期删除/重复实际 Drop 的 CI-only 负控，仅编译，不在本地执行。
+
+本片验证：普通 counter_boundary 26/26（62.32s，含新最终 SSA 旧值断言），codegen
+all-target strict Clippy（1m21s）、workspace all-target check（1m26s）、fmt/diff、
+文档915与尺寸2582/37历史超限通过，未增加额度。无 FE 修改，本片未重复运行 FE
+全回归（基线 b7a5f8cc 的690项仍仅为该基线证据）。两个新晚期故障仅编译、未执行；
+静态最终 SSA 旧值一致性不等于运行时释放次数或跨轮归纳。独立只读复审未发现确定
+阻断，native通过确认死局部binding槽在终检仍可查。日志 nested-retirement-*，仅本地提交。

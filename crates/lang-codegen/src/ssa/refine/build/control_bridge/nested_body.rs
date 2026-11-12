@@ -157,6 +157,23 @@ impl Builder<'_, '_> {
                 statements.push(extra);
                 record_action("nested-preparation-fault-hit", 1);
             }
+            if take_fault(OwnerFault::NestedBodyLateMissingDrop)
+                && let Some(index) = statements
+                    .iter()
+                    .position(|s| matches!(s.op, ROp::Drop { .. }))
+            {
+                statements.remove(index);
+                record_action("nested-retirement-fault-hit", 1);
+            }
+            if take_fault(OwnerFault::NestedBodyLateDuplicateDrop)
+                && let Some(extra) = statements
+                    .iter()
+                    .find(|s| matches!(s.op, ROp::Drop { .. }))
+                    .cloned()
+            {
+                statements.push(extra);
+                record_action("nested-retirement-fault-hit", 1);
+            }
             if take_fault(OwnerFault::NestedBodyForeignLoan) {
                 let other = statements
                     .iter()
@@ -243,10 +260,91 @@ impl Builder<'_, '_> {
                 }
             }
         }
+        self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             "nested-owner-normal-body-complete",
             plan.stages.len(),
+        );
+        Ok(())
+    }
+}
+
+impl Builder<'_, '_> {
+    // Re-read completed emission, not just the mutable one-shot stage flags.
+    fn check_nested_retirement(
+        &self,
+        rule: &UnitOwnerMultiRootNormalTransportV1,
+        body: BlockRef,
+        roots: &[Slot],
+    ) -> Result<(), LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        let statements = &self.body.blocks[body.0].statements;
+        let mut previous = None;
+        for step in rule.steps() {
+            let root_index = rule
+                .header_roots()
+                .iter()
+                .position(|r| *r == step.header_root())
+                .ok_or_else(fail)?;
+            let root = *roots.get(root_index).ok_or_else(fail)?;
+            let producer = self.multi_root_literal(
+                rule.body_catalog()
+                    .definition(step.producer())
+                    .ok_or_else(fail)?
+                    .origin(),
+                body,
+            )?;
+            let matching = statements.iter().enumerate().filter(|(_, s)| s.span == self.span(step.call().expression())
+                && matches!(s.op, ROp::RootReplace {owner,replacement,..} if owner==root && replacement==producer)).collect::<Vec<_>>();
+            let [(replace_index, replace)] = matching.as_slice() else {
+                return Err(fail());
+            };
+            let [actual_root, old] = replace.results.as_slice() else {
+                return Err(fail());
+            };
+            let fact = step.returned_value_drop();
+            let UnitDropTarget::Named(symbol) = fact.target() else {
+                return Err(fail());
+            };
+            let bound = *self.bindings.get(&symbol).ok_or_else(fail)?;
+            let alias = self.counter_alias(body, bound, *old, None)?;
+            let drop = self.multi_root_drop(fact, body, bound)?;
+            if *actual_root != root
+                || roots.contains(old)
+                || roots.contains(&bound)
+                || *old == bound
+                || previous.is_some_and(|p| p >= *replace_index)
+                || *replace_index >= alias
+                || alias >= drop
+            {
+                return Err(fail());
+            }
+            for (block_index, block) in self.body.blocks.iter().enumerate() {
+                for (index, statement) in block.statements.iter().enumerate() {
+                    let at = |position| block_index == body.0 && index == position;
+                    if statement.results.contains(old) != at(*replace_index)
+                        || statement.results.contains(&bound) != at(alias)
+                        || statement.op.operands().contains(old) != at(alias)
+                        || statement.op.operands().contains(&bound) != at(drop)
+                    {
+                        return Err(fail());
+                    }
+                }
+                if block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|(t, _)| t.operands().iter().any(|s| *s == *old || *s == bound))
+                {
+                    return Err(fail());
+                }
+            }
+            previous = Some(drop);
+        }
+        #[cfg(test)]
+        owner_consumer_test_support::record_action(
+            "nested-owner-retirement-rechecked",
+            rule.steps().len(),
         );
         Ok(())
     }

@@ -36,6 +36,8 @@ fn ci_only_nested_body_missing_permits_and_foreign_parent_fail_closed() {
         OwnerFault::MissingBridgeDropPermit,
         OwnerFault::BridgeDropDuplicateCommit,
         OwnerFault::NestedBodyWrongParent,
+        OwnerFault::NestedBodyLateMissingDrop,
+        OwnerFault::NestedBodyLateDuplicateDrop,
         OwnerFault::NestedBodyForeignLoan,
         OwnerFault::NestedBodyLateRootPlace,
     ] {
@@ -58,6 +60,23 @@ fn ci_only_nested_body_missing_permits_and_foreign_parent_fail_closed() {
                     .filter(|(kind, _)| *kind == "nested-preparation-fault-hit")
                     .count(),
                 1
+            );
+        }
+        if matches!(
+            fault,
+            OwnerFault::NestedBodyLateMissingDrop | OwnerFault::NestedBodyLateDuplicateDrop
+        ) {
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, _)| *kind == "nested-retirement-fault-hit")
+                    .count(),
+                1
+            );
+            assert!(
+                actions
+                    .iter()
+                    .all(|(kind, _)| *kind != "nested-owner-retirement-rechecked")
             );
         }
         if fault == OwnerFault::NestedBodyWrongParent {
@@ -112,5 +131,80 @@ fn nested_counters_preserve_outer_live_roots_without_flat_batch() {
             .count(),
         1
     );
+    assert_nested_ssa_retirement(&source);
     assert_general_counter_baseline(&text, expected.as_bytes(), false);
+}
+
+fn assert_nested_ssa_retirement(source: &UnitSource) {
+    use crate::ssa::model::{EntityId, Operation};
+    let product = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.nested_normal_body_v1())
+        .unwrap();
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "nested-owner-retirement-rechecked")
+            .map(|(_, count)| *count)
+            .collect::<Vec<_>>(),
+        [2]
+    );
+    for step in product.normal().steps() {
+        let span = source
+            .parsed()
+            .ast()
+            .expressions()
+            .get(step.call().expression())
+            .unwrap()
+            .span();
+        let matches = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .flat_map(|f| {
+                f.instructions
+                    .iter()
+                    .filter(move |i| {
+                        i.origin.span() == span
+                            && matches!(i.operation, Operation::RootReplace { .. })
+                    })
+                    .map(move |i| (f, i))
+            })
+            .collect::<Vec<_>>();
+        let [(function, replace)] = matches.as_slice() else {
+            panic!("unique actual inner Replace")
+        };
+        let [new, old] = replace.results.as_slice() else {
+            panic!("new/retired pair")
+        };
+        assert_ne!(new, old);
+        let drops = function
+            .instructions
+            .iter()
+            .filter(
+                |i| matches!(i.operation, Operation::Drop {owner} if EntityId::Value(owner)==*old),
+            )
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].block, replace.block);
+        let block = function.block(replace.block).unwrap();
+        assert!(
+            block
+                .instructions
+                .iter()
+                .position(|id| *id == replace.id)
+                .unwrap()
+                < block
+                    .instructions
+                    .iter()
+                    .position(|id| *id == drops[0].id)
+                    .unwrap()
+        );
+    }
 }

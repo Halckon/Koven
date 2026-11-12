@@ -4,6 +4,8 @@ use std::cell::{Cell, RefCell};
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerFault {
     NestedBodyWrongParent,
+    NestedBodyLateMissingDrop,
+    NestedBodyLateDuplicateDrop,
     NestedBodyForeignLoan,
     NestedBodyLateRootPlace,
     BridgeSsaWrongRootArgument,
