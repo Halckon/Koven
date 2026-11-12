@@ -15998,3 +15998,33 @@ Clippy通过，最终格式及diff检查通过。尺寸按2beb5592基线通过�
 policy无修改。首次Clippy的两处测试collapsible_if仅作等价let-chain修复；首次尺寸
 命令缺--base是用法错误，均保留原日志，不计作行为红。默认workspace/all-targets检查通过，文档结构检查913篇通过。
 本片仅扩独立证据覆盖，无旧见证退休；本地提交，不推送。
+
+
+### 未使用 Borrow Boolean 的入口消亡证据（2026-11-12）
+
+本片仅扩独立 receipt 覆盖，不改变既有 FE/CG 执行范围。保留唯一稳定 Borrow String
+source、同函数直接有序 while 和原 sealed facts；ABI 其余参数仍全部是 Borrow
+Boolean，但允许没有实际条件用途的参数。own Boolean、额外语句等仍不获得本片
+receipt，不开放分支、跳转、嵌套、多根或计数语义。
+
+真实 producer 和 Emitted 继续冻结完整 ABI 槽及实体。独立 validator 对函数 entry
+验证完整参数集合，首 header/body 只接受 source 与实际条件用途的角色；unused
+不能进入任何后续参数、边、Read 或 End。后续共享 entry 仍与前一 exit 精确相等，
+重复 flag 的未来活性不受影响。不是删去原 ABI 身份，也不为 caller 的 loan 造 End。
+原 NoCarryLease、sealed fact 准入、carried-loop 证书等合同不同，均不退休。
+
+真实红：既有 unused 合法源码已 lowering 且原 verifier 成功，但 receipt 为0，
+期望1失败；不是编译失败。最小生产修复后定向5项普通全绿。组合矩阵由14增至20个
+源码变体，双入口及观察 on/off 共80次实际 lowering；新增24组合覆盖 unused
+位于 ABI 首/中/尾、多个 unused、三 flag 与重复用途组合，独立核入口身份、后继
+精确活性、真实 fresh consumer/End、逐 fact 身份及 detached validate，LLVM 对等。
+旧 own Boolean 无 receipt、前后语句及非法边界保持。
+
+新增1组 ignored 故障，连旧组共12组仅 lib no-run 编译，未执行：unused 偷换条件
+Read、proof flag index，以及同步边快照后 unused 或当前 flag 替代未来 flag。边
+故障保持真实 arity/global metadata，避免仅快照拒绝的假阳性。原红绿及编译日志
+保留在本片 checkpoint。最终 loan_region_ssa_tests（跳过 ci_only）97项、codegen
+feature/all-targets Clippy -D warnings、默认 workspace/all-targets、fmt/diff通过。
+尺寸按2beb5592基线通过（2627文件/36历史债务），文档结构检查913篇通过。
+本片不改变native执行，未另跑native或FE测试；独立复审通过，旧见证与policy不变。
+本地提交，不推送。

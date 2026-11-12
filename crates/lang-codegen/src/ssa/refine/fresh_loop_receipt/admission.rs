@@ -66,16 +66,6 @@ impl Plans {
             }
         }
         let source_parameter = loops[0].source_parameter;
-        let flags = loops
-            .iter()
-            .map(|plan| plan.flag_parameter)
-            .collect::<BTreeSet<_>>();
-        if flags.len().checked_add(1) != Some(inputs.parameters.len())
-            || flags.contains(&source_parameter)
-        {
-            // Unused Boolean parameters remain outside this exact receipt ABI slice.
-            return Ok(empty);
-        }
         let mut abi_types = Vec::with_capacity(inputs.parameters.len());
         for (index, symbol) in inputs.parameters.iter().enumerate() {
             let ty = inputs

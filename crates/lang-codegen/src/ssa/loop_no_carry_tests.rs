@@ -351,7 +351,10 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
                     });
                 let (program, _) = result.unwrap_or_else(|error| panic!("{label}: {error:?}"));
                 assert_eq!(verified.len(), 1);
-                assert_eq!(receipts.len(), usize::from(label == "siblings"));
+                assert_eq!(
+                    receipts.len(),
+                    usize::from(matches!(label, "siblings" | "unused-flag"))
+                );
                 verify_program(&program).unwrap();
                 let rendered = crate::llvm::render_verified_program(&program).unwrap();
                 if let Some(previous) = baseline.as_ref() {

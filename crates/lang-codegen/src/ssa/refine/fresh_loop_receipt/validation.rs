@@ -71,7 +71,12 @@ impl Receipt {
                 .map(|peer| peer.proof.flag_parameter)
                 .chain(std::iter::once(source_role))
                 .collect::<BTreeSet<_>>();
-            for block in [blocks[0], blocks[1], blocks[2]] {
+            // The function entry retains the complete ABI. Unused Boolean loans
+            // disappear on its first edge, not by deleting their original identities.
+            if index != 0 {
+                insert_live(&mut live, blocks[0], required.clone(), span)?;
+            }
+            for block in [blocks[1], blocks[2]] {
                 insert_live(&mut live, block, required.clone(), span)?;
             }
             let remaining = if index + 1 < self.loops.len() {
@@ -250,7 +255,7 @@ impl Receipt {
             .map(|peer| peer.proof.flag_parameter)
             .collect::<BTreeSet<_>>();
         used.insert(first.proof.source_parameter);
-        if used != (0..self.abi_types.len()).collect::<BTreeSet<_>>()
+        if used.iter().any(|index| *index >= self.abi_types.len())
             || self.abi_types.iter().enumerate().any(|(index, ty)| {
                 *ty != if index == first.proof.source_parameter {
                     first.proof.source_type

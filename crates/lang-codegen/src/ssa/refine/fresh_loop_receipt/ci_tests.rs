@@ -586,3 +586,79 @@ fn flags_dead_after_last_use_are_not_retained_by_the_certificate() {
     super::whole_function::check(&bad, &covered, &instructions, changed.span).unwrap();
     assert!(changed.validate(&bad).is_err());
 }
+
+#[test]
+#[ignore = "CI-only unused ABI flag identity and synchronized future transport faults; compile locally"]
+fn unused_abi_flag_dies_at_entry_and_cannot_replace_future_flags() {
+    let text = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(source:String,f0:Boolean,f1:Boolean,unused:Boolean):Unit {while(f0){borrow val a=view(source);consume(a)};while(f1){borrow val b=view(source);consume(b)};while(f0){borrow val c=view(source);consume(c)}}";
+    let (program, receipt) = capture_program_text(text);
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .find(|function| function.id == receipt.caller)
+        .unwrap();
+    assert_eq!(receipt.loops.len(), 3);
+    receipt.validate(function).unwrap();
+    let entry = function.entry_block().unwrap();
+    let roles = actual_roles(function);
+    let unused = actual_local(function, &roles, entry, 3);
+    let current = actual_local(function, &roles, entry, 1);
+    let future = actual_local(function, &roles, entry, 2);
+    assert_ne!(unused, current);
+    assert_ne!(unused, future);
+    for block in &function.blocks {
+        if block.id != entry {
+            assert!(
+                block
+                    .parameters
+                    .iter()
+                    .all(|parameter| roles.get(parameter) != Some(&3))
+            );
+        }
+    }
+
+    let condition = tagged(&receipt, Tag::Condition);
+    let header = function.instruction(condition).unwrap().block;
+    assert_ne!(header, entry);
+    let EntityId::Loan(unused_loan) = unused else {
+        panic!()
+    };
+    let mut bad = function.clone();
+    let Operation::Read { source } = &mut bad.instructions[condition.index()].operation else {
+        panic!()
+    };
+    *source = crate::ssa::model::PlaceAccess::Loan(unused_loan);
+    assert!(receipt.validate(&bad).is_err());
+
+    let mut changed = receipt.clone();
+    changed.loops[0].proof.flag_parameter = 3;
+    assert!(changed.validate(function).is_err());
+
+    for replacement in [unused, current] {
+        let mut bad = function.clone();
+        let TerminatorKind::Branch(edge) =
+            &mut bad.blocks[entry.index()].terminator.as_mut().unwrap().kind
+        else {
+            panic!()
+        };
+        assert_eq!(edge.target, header);
+        let future_index = edge
+            .arguments
+            .iter()
+            .position(|argument| *argument == future)
+            .unwrap();
+        edge.arguments[future_index] = replacement;
+        let mut changed = receipt.clone();
+        synchronize_edges(&mut changed, &bad);
+        let covered = changed.blocks.values().copied().collect::<BTreeSet<_>>();
+        let instructions = changed
+            .loops
+            .iter()
+            .flat_map(|peer| peer.instructions.iter().map(|(_, id)| *id))
+            .collect::<BTreeSet<_>>();
+        // The actual graph remains complete and snapshots agree; exact roles reject it.
+        super::whole_function::check(&bad, &covered, &instructions, changed.span).unwrap();
+        assert!(changed.validate(&bad).is_err());
+    }
+}

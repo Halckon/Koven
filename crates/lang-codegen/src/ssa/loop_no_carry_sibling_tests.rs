@@ -115,6 +115,25 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
         vec![2, 0, 1, 2, 0],
         vec![Some(1), Some(0), None, Some(2)],
     ));
+    // Unused Borrow Boolean parameters retain ABI identity but leave no loop obligation.
+    for abi in [
+        vec![Some(9), None, Some(0)],
+        vec![None, Some(9), Some(0)],
+        vec![None, Some(0), Some(9)],
+        vec![Some(9), Some(0), Some(8), None],
+    ] {
+        cases.push((vec![1], vec![0], abi));
+    }
+    cases.push((
+        vec![1, 3, 9],
+        vec![0, 1, 0],
+        vec![Some(9), Some(1), None, Some(0), Some(8)],
+    ));
+    cases.push((
+        vec![1, 2, 3, 4, 9],
+        vec![2, 0, 1, 2, 0],
+        vec![Some(1), Some(9), Some(0), None, Some(8), Some(2)],
+    ));
     for (counts, flag_order, abi_order) in cases {
         let loops = counts
             .iter()
@@ -230,6 +249,40 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                 }
                 let actual_edges = edges(run);
                 let roles = actual_abi_roles(run, &actual_edges);
+                let actual_entry = run.block(run.entry_block().unwrap()).unwrap();
+                assert_eq!(actual_entry.parameters.len(), abi_order.len());
+                let unused = (0..abi_order.len())
+                    .filter(|index| *index != source_parameter && !flag_parameters.contains(index))
+                    .collect::<BTreeSet<_>>();
+                for block in &run.blocks {
+                    if block.id != actual_entry.id {
+                        assert!(
+                            block
+                                .parameters
+                                .iter()
+                                .all(|entity| !unused.contains(&roles[entity]))
+                        );
+                    }
+                }
+                for (_, edge) in &actual_edges {
+                    assert!(
+                        edge.arguments
+                            .iter()
+                            .all(|entity| !unused.contains(&roles[entity]))
+                    );
+                }
+                for instruction in &run.instructions {
+                    let loan = match instruction.operation {
+                        Operation::Read {
+                            source: PlaceAccess::Loan(loan),
+                        }
+                        | Operation::BorrowEnd { loan } => Some(loan),
+                        _ => None,
+                    };
+                    if let Some(role) = loan.and_then(|loan| roles.get(&EntityId::Loan(loan))) {
+                        assert!(!unused.contains(role));
+                    }
+                }
                 // Derive source transport from the actual ABI and every actual incoming edge.
                 let source_seed =
                     run.block(run.entry_block().unwrap()).unwrap().parameters[source_parameter];

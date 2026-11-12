@@ -302,7 +302,7 @@ impl Plans {
             || abi.len() < 2
             || abi.iter().collect::<BTreeSet<_>>().len() != abi.len()
             || flags.contains(&first.source_parameter)
-            || flags.len().checked_add(1) != Some(abi.len())
+            || flags.iter().any(|index| *index >= abi.len())
             || self.abi_types.iter().enumerate().any(|(index, ty)| {
                 *ty != if index == first.source_parameter {
                     first.source_type

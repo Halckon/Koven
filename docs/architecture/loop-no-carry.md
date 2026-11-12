@@ -54,9 +54,9 @@ binding 尚不存在；实际 body lowering 后、任何 loop leave 清理前，
 
 `refine/fresh_loop_receipt` 为独立协议，不套用旧 carried-loop 的 entry acquire/exit End。
 当前资格限函数体完全由同源直接 while 构成，唯一 Borrow String source 与一个或多个
-Borrow Boolean 条件参数的顺序来自 typed ABI。每个 Boolean 参数至少作为一个 peer
-条件使用；未使用的 Boolean、own Boolean 或其它前后语句保留原执行/拒绝边界，
-不因缺新证书收紧准入。数量取真实有序元素，不枚举固定拓扑。
+Borrow Boolean 参数的顺序来自 typed ABI，允许其中有未使用的 Boolean。完整入口
+身份与首边之后的活跃角色分别核验；own Boolean 或其它前后语句仍保留原执行/拒绝
+边界而无本片 receipt，不因缺新证书收紧准入。数量取真实有序元素，不枚举固定拓扑。
 
 真实 builder append 捕获 header 条件读取、body BorrowCall、逐 consumer 和唯一 End；
 真实 terminator 与 fold 回调捕获每 peer 五个原块角色（相邻共享 exit/entry）、
@@ -83,8 +83,8 @@ initializer/body 与唯一 End；从真实 Function body 的 elements 对照直�
 每个 reached while 仍独立走原 NoCarryLease 的入口、cleanup 前关闭、回边和退出
 核验。实际 SSA 用不同结果实体，各自 consumer 与 End 在对应 body 内，任何边均不
 运输本轮结果；两个 false 退出后仍可消费外部 source。分支/跳转/嵌套边界不变。
-执行准入与证书资格分开；own Boolean、未使用的 Boolean 参数或额外语句等较宽执行
-形状不自动获得组合 receipt。不同 flag 的合格序列使用下面的独立 ABI 角色证明。
+执行准入与证书资格分开；own Boolean 或额外语句等较宽执行形状不自动获得组合
+receipt。不同 flag 及未使用 Borrow Boolean 的合格序列使用下面的独立 ABI 角色证明。
 
 ## 动态组合证据
 
@@ -109,3 +109,15 @@ peer 需要的 flag 集合，false/exit 只保留后续需求，最后退出为�
 角色集合须一致。重复使用的 flag 不提前丢弃，最后使用后不强留。每个 incoming 的
 实参必须是前驱块自身的唯一对应角色实体，不能用入口旧实体或另一个同型 flag 替换。
 这是既有执行合同的独立证据扩展，不新增 FE 资格或循环控制流。
+
+
+## 未使用 Boolean 的入口消亡
+
+函数 entry 保留并验证全部实际 Borrow ABI 参数，未使用的 Boolean 也不能从入口
+身份目录删去。entry 到首 header 的真实边仅运输 source 与有实际条件用途的 flag；
+未使用的角色不得出现在任何后续块参数或边实参中，也不能成为 Read 或 End 的对象。
+这表示外部参数不再需要局部运输，不是给 caller 的原 loan 伪造结束操作。
+
+首 entry 的完整 ABI 集合与 header/body 的活跃集合独立核验；后续 peer 的共享
+entry 仍严格等于前一 peer 的 exit 需求，不因本片放宽。重复 flag 的未来需求、
+逐 incoming 的前驱局部实体、真实 producer 和原 verifier 后原子发布保持。
