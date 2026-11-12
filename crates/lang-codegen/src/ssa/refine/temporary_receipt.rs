@@ -257,11 +257,10 @@ mod admission {
         Ok(operands)
     }
 }
-mod emitted {
+pub(in crate::ssa::refine) mod emitted {
     use super::*;
     #[cfg(test)]
-    #[path = "ci_tests.rs"]
-    mod ci_tests;
+    use crate::ssa::refine::temporary_ci_tests as ci_tests;
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     use std::collections::BTreeMap;
     #[derive(Clone, Debug)]
@@ -461,19 +460,19 @@ use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{FunctionId, LoanKind},
 };
-pub(super) use emitted::Emitted;
+pub(in crate::ssa::refine) use emitted::Emitted;
 use lang_frontend::{
     ownership_checking::{UnitDropTarget, UnitLoanActionId, UnitLoanFact},
     source::Span,
     type_checking::{UnitExpressionId, UnitItemId},
 };
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Tag {
-    pub(super) plan: usize,
-    pub(super) role: usize,
+pub(in crate::ssa::refine) struct Tag {
+    pub(in crate::ssa::refine) plan: usize,
+    pub(in crate::ssa::refine) role: usize,
 }
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans {
+pub(in crate::ssa::refine) struct Plans {
     entries: Vec<Plan>,
 }
 #[derive(Clone, Debug)]
@@ -561,7 +560,7 @@ impl Plan {
     }
 }
 impl Plans {
-    pub(super) fn form(
+    pub(in crate::ssa::refine) fn form(
         &mut self,
         argument: UnitExpressionId,
         bytes: &[u8],
@@ -582,7 +581,7 @@ impl Plans {
         }
         Ok(())
     }
-    pub(super) fn enter(
+    pub(in crate::ssa::refine) fn enter(
         &mut self,
         call: UnitExpressionId,
         argument: UnitExpressionId,
@@ -611,7 +610,7 @@ impl Plans {
         a.borrowed = true;
         Ok(())
     }
-    pub(super) fn drop_fact(
+    pub(in crate::ssa::refine) fn drop_fact(
         &mut self,
         index: usize,
         target: UnitDropTarget,
@@ -636,7 +635,7 @@ impl Plans {
         }
         Ok(())
     }
-    pub(super) fn statement(
+    pub(in crate::ssa::refine) fn statement(
         &mut self,
         op: &ROp,
         results: &[Slot],
@@ -721,7 +720,7 @@ impl Plans {
         }
         Ok(tag)
     }
-    pub(super) fn finish(
+    pub(in crate::ssa::refine) fn finish(
         &self,
         consumed: &std::collections::BTreeSet<usize>,
         span: Span,

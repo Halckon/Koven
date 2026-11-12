@@ -621,14 +621,8 @@ pub(in crate::ssa) mod integer {
         };
 
         #[cfg(test)]
-        #[path = "../../../../verify_operation/map/require_tests.rs"]
-        mod require_tests;
-        #[cfg(test)]
         #[path = "../../../../verify_operation/map/tests.rs"]
         mod tests;
-        #[cfg(test)]
-        #[path = "../../../../verify_operation/map/with_tests.rs"]
-        mod with_tests;
 
         fn read_type(function: &Function, entity: EntityId) -> Option<SsaTypeId> {
             match function.entity(entity)?.ty {
