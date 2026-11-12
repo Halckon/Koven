@@ -1,5 +1,7 @@
 //! Counter boundary consumption beyond the scalar/body audit.
 use super::{UnitSource, source};
+#[path = "owner_control_chain_tests.rs"]
+mod chain;
 #[path = "owner_control_bridge_exit_tests.rs"]
 mod exit_partition;
 

@@ -3,11 +3,13 @@ use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 mod body;
 pub(super) mod bridge;
+pub(super) mod continuation;
 mod entry;
 
 pub(super) struct Segment {
     predecessor: UnitStatementId,
     bridge: Option<bridge::Bridge>,
+    continuation: Option<continuation::Continuation>,
     normal: Option<body::Body>,
     normal_started: bool,
     entry: Option<entry::Entry>,
@@ -85,6 +87,7 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
         segments.push(Segment {
             predecessor: pair[0].0,
             bridge: None,
+            continuation: None,
             normal: None,
             normal_started: false,
             entry: entry::Entry::discover(
@@ -130,6 +133,9 @@ impl Segment {
         if let Some(bridge) = &self.bridge {
             return bridge.matches_state(state);
         }
+        if let Some(continuation) = &self.continuation {
+            return continuation.matches_state(state);
+        }
         boundary_values(state).is_some_and(|values| {
             values.len() == self.bindings.len()
                 && values
@@ -146,7 +152,7 @@ impl Segment {
                 return;
             }
             self.active = true;
-            if self.bridge.is_none() && !empty_boundary(state) {
+            if self.bridge.is_none() && self.continuation.is_none() && !empty_boundary(state) {
                 self.invalid = true;
                 return;
             }
@@ -162,6 +168,8 @@ impl Segment {
         if self.next == self.statements.len() {
             self.captured = if let Some(bridge) = &self.bridge {
                 bridge.complete()
+            } else if let Some(continuation) = &self.continuation {
+                continuation.complete()
             } else {
                 self.bindings.len() >= 2 && self.catalog.is_consistent()
             };
@@ -170,7 +178,7 @@ impl Segment {
         }
     }
     fn literal(&mut self, expression: UnitExpressionId) {
-        if self.bridge.is_some() {
+        if self.bridge.is_some() || self.continuation.is_some() {
             self.invalid = true;
             return;
         }
@@ -223,12 +231,16 @@ impl ControlTransactions {
         let prior = (!self.root_branches_invalid)
             .then(|| predecessor.and_then(|control| self.private_counter_evidence(control)))
             .flatten();
+        let continuation = self.continuation_source(id, state);
         for segment in &mut self.counter_segments {
             if !segment.active && segment.statements.first() == Some(&id) && !empty_boundary(state)
             {
                 segment.bridge = prior
                     .as_ref()
                     .and_then(|e| bridge::Bridge::new(e, segment.predecessor, state));
+                if segment.bridge.is_none() {
+                    segment.continuation = continuation.clone();
+                }
             }
             segment.statement(id, state);
         }
@@ -253,6 +265,10 @@ impl ControlTransactions {
         };
         if let Some(bridge) = &mut segment.bridge {
             segment.invalid = !bridge.move_value(expression, value);
+            return;
+        }
+        if let Some(continuation) = &mut segment.continuation {
+            segment.invalid = !continuation.move_value(expression, value);
             return;
         }
         let index = value.and_then(|v| segment.bindings.iter().position(|(s, _)| *s == v.symbol));
@@ -283,6 +299,10 @@ impl ControlTransactions {
             segment.invalid = !bridge.bind(symbol, expression);
             return;
         }
+        if let Some(continuation) = &mut segment.continuation {
+            segment.invalid = !continuation.bind(symbol, expression);
+            return;
+        }
         let Some((source, token)) = segment.pending.take() else {
             segment.invalid = true;
             return;
@@ -306,7 +326,7 @@ impl ControlTransactions {
         let Some(segment) = self.active_segment() else {
             return;
         };
-        if segment.bridge.is_some() {
+        if segment.bridge.is_some() || segment.continuation.is_some() {
             segment.invalid = true;
             return;
         }
@@ -332,7 +352,7 @@ impl ControlTransactions {
             .iter_mut()
             .find(|s| s.statements.last() == Some(&control))?;
         // A static bridge is not a producer catalog or an entry permission.
-        if segment.bridge.is_some() {
+        if segment.bridge.is_some() || segment.continuation.is_some() {
             return None;
         }
         if !segment.captured
@@ -520,7 +540,11 @@ impl ControlTransactions {
     #[cfg(test)]
     pub(super) fn segment_catalog(&self, control: UnitStatementId) -> Option<Snapshot> {
         let segment = self.counter_segments.iter().find(|s| {
-            s.statements.last() == Some(&control) && s.captured && !s.invalid && s.bridge.is_none()
+            s.statements.last() == Some(&control)
+                && s.captured
+                && !s.invalid
+                && s.bridge.is_none()
+                && s.continuation.is_none()
         })?;
         Some(Snapshot {
             catalog: segment.catalog.clone(),

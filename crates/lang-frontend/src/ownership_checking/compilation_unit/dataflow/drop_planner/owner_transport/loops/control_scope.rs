@@ -46,6 +46,7 @@ impl ControlStack {
 pub(in super::super::super) struct ControlVisit {
     pub(in super::super::super) private_counter:
         Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1>,
+    pub(super) segment_continuation: Option<super::counter_segment::continuation::Continuation>,
     pub(super) segment_bridge: Option<super::counter_segment::bridge::Bridge>,
     pub(in super::super::super) segment_catalog: Option<super::counter_segment::Snapshot>,
     pub(in super::super::super) counter_phase: Option<super::control_transactions::CounterPhase>,
@@ -75,6 +76,7 @@ impl DropPlanner<'_, '_> {
             probe.push(ControlVisit {
                 private_counter: self.owner_loop.private_counter_evidence(control),
                 segment_bridge: self.owner_loop.segment_bridge(control),
+                segment_continuation: self.owner_loop.segment_continuation(control),
                 segment_catalog: self.owner_loop.segment_catalog(control),
                 counter_phase: self.owner_loop.counter_phase(control),
                 entering,
