@@ -349,9 +349,13 @@ impl Checker<'_> {
         let _ = scope;
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let body_ticket = self.research_zero_body_enter(scope, &state);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let consumer_body = self.research_body_enter(scope, &state);
         let mut flows = self.check_elements(elements, state)?;
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_zero_body_close(body_ticket, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_body_close(consumer_body, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         if frame.is_some() {
             let ends = self.borrow_results.ends[checkpoint.0..]

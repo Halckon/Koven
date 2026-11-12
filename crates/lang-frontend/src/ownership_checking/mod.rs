@@ -209,3 +209,10 @@ pub use research_borrow_loop::{
     BorrowLoopBinding, BorrowLoopConsumerReturn, BorrowLoopEdgeKind, BorrowLoopEdgeObservation,
     BorrowLoopExpression, capture_borrow_loop_edges,
 };
+
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_consumer_body;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+pub use research_borrow_consumer_body::{
+    BorrowBodyConsumerReturn, BorrowConsumerBodyObservation, capture_borrow_consumer_bodies,
+};

@@ -15758,3 +15758,44 @@ fresh/常量/跳转与无前序闭合拒绝。2组8项CI-only故障仅feature li
 最终11个普通target共253项通过；FE feature all-targets Clippy -D warnings、默认
 workspace all-targets、fmt/diff/docs912通过。尺寸相对2beb5592通过（2599手写Rust
 文件、36历史超限），policy不变。未执行CI故障或CG/native；仅本地提交，不推送。
+
+
+### 非空外部参数 consumer body 的实际 call-loan 研究
+
+独立 capture_borrow_consumer_bodies/BorrowConsumerBodyObservation 不扩大旧
+zero-loop 空 body 入口，也不改变已有 carried/local BorrowBinding 适配器资格。
+仅动态 Boolean 参数 Name、非空直线普通 source Unit 调用，各 operand 为真实外部
+Borrow String 参数 Name；Unit 还要求源域限定 ValueParameter，不能只凭 Shared
+目录把迭代 binding 或 receiver 当成参数。拒绝新 binding、分支、跳转、嵌套调用、
+borrow-return、abort、非参数 operand 和复杂资源入口。L0164 不变。
+
+证据从 condition 后真实 body-entry 起，不称 condition 前 header。两个 checker
+分别在原 apply_argument_contract/apply_contract 前后对实际状态取证：每 operand
+恰新增一条 Shared Place call loan，与原 call/argument LoanFact、canonical place
+及 origin 一一对应，Unit 排除 reserved。两边原 fact/active 插入顺序不同但均
+包围完整原方法；同 root 双参数仍是两个独立 operand，不按 root 合并。
+raw LoanFact 游标从入口连续推进，最终核整个未过滤增量等于全部 operand 数。
+
+原 call-loan cleanup 前准备、后核精确删除仅本 call 贷款，原清理及 Nothing 判定后
+才确认正常返回；各阶段复核实际 frame、session、loop，按原 call/operand 顺序推进。
+cleanup 前真实 body scope 封闭，再由 normal pre-merge 单次消费完整出口，最终
+独立复核返回事件集合、唯一性、来源域和计数，失败不得污染兄弟；计数采用checked
+运算。有限源码声明驱动，不枚举固定 consumer 数；不声称所有核验均为线性复杂度。
+
+实际合法正控的类型、ownership 与原产品对照先通过，再因未接实际事件观察0≠1
+取得行为红；之后接入真实 acquisition/release/return。它证明普通参数暂借的静态
+body路径，不证明 fresh循环实例、运行时归纳、condition前header或CG每轮receipt，
+不退休旧见证，不改变策略。
+
+新4项普通测试覆盖19源码×5 checker/配置（95次capture及等量baseline），另真实
+rooted双源×observer开关2次对照；故意同AST索引但不同SourceUnit的事件不可互认，
+同根多operand、1/3/8消费者及兄弟loop均核。多源fixture最初错误请求memory多源，
+在index阶段报MemoryDocumentRequiresSingleSource；仅修为受支持rooted双源，
+单源memory覆盖保留，生产与构造器未放宽，原失败日志保留。
+
+新增2组9项CI-only故障仅feature lib no-run编译通过，未执行；首兄弟故障后第二
+兄弟恢复，漏acquire/释放/正常返回、原fact计数和身份错配失败封闭。独立生产、
+实际接点及最终测试复审通过。13个普通target共257项通过，Clippy三处风格项
+以等价控制流修正，随后新4项重跑通过；FE feature all-targets Clippy -D warnings、
+默认workspace all-targets、fmt/diff/docs912与尺寸门禁通过。尺寸相对2beb5592为
+2605手写Rust文件、36历史超限，policy不变。未运行CI故障或CG/native，仅本地提交。

@@ -7,6 +7,7 @@ use crate::{
 pub(super) struct LoopResearch {
     carried: Option<carried::Ticket<State>>,
     zero: Option<zero::Ticket<State>>,
+    body: Option<crate::ownership_checking::research_borrow_consumer_body::LoopTicket<State>>,
 }
 impl Checker<'_> {
     pub(super) fn research_zero_header(
@@ -110,6 +111,7 @@ impl Checker<'_> {
             None
         };
         LoopResearch {
+            body: self.research_body_loop_start(statement, body, state),
             carried: self.research_carried_loop_start(statement, body, state),
             zero,
         }
@@ -136,6 +138,7 @@ impl Checker<'_> {
                 ),
             );
         }
+        self.research_body_finish(ticket.body, flows);
         self.research_carried_loop_finish(ticket.carried, flows);
     }
 }

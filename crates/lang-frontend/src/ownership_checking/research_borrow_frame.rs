@@ -102,6 +102,9 @@ pub(crate) struct FrameIdentity {
     unit: Option<SourceUnitId>,
 }
 impl FrameIdentity {
+    pub(crate) fn source_unit(&self) -> Option<SourceUnitId> {
+        self.unit
+    }
     pub(crate) fn source_matches(&self, span: Span) -> bool {
         self.source == span.source_id()
     }

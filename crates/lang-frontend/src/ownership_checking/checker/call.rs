@@ -194,6 +194,11 @@ impl Checker<'_> {
             if self.diagnostics.len() == argument_diagnostics
                 && let Some(mode) = mode
             {
+                #[cfg(any(test, feature = "loan-observation-test-support"))]
+                let acquired = flows
+                    .next
+                    .as_ref()
+                    .and_then(|s| self.research_body_acquiring(id, argument.value, s));
                 self.apply_argument_contract(
                     id,
                     argument,
@@ -202,6 +207,8 @@ impl Checker<'_> {
                     copy_to_nullable,
                     &mut flows,
                 )?;
+                #[cfg(any(test, feature = "loan-observation-test-support"))]
+                self.research_body_acquired(acquired, flows.next.as_ref());
             }
         }
         if self.diagnostics.len() == diagnostic_count {
@@ -214,9 +221,13 @@ impl Checker<'_> {
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_return = self.research_prepare_consumer(id, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let body_return = self.research_body_prepare_return(id, &flows);
         self.end_call_loans(id, &mut flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_return = self.research_release_consumer(consumer_return, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let body_return = self.research_body_release_return(body_return, &flows);
         self.finish_call_closures(id, &mut flows);
         for expression in receiver_expression
             .into_iter()
@@ -230,6 +241,8 @@ impl Checker<'_> {
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_complete_consumer(consumer_return, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_body_complete_return(body_return, &flows);
         Ok(flows)
     }
 }

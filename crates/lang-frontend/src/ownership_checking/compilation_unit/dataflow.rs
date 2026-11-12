@@ -31,6 +31,8 @@ mod receiver;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_body;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_consumer;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_zero;

@@ -188,13 +188,13 @@ move源仍保持原执行，但不获恢复认证；未capture不复制状态，
 和原call/operand/binding声明顺序关联，End前不得遗留该binding未来consumer；保留
 原闭合validate边界。它仍是普通scope基础，循环实例、回边和CG每轮receipt未接入。
 
-已有非空外层carried loan另有test-support回边观察：条件后body-entry至合流前
-normal/尾continue分别核完整资源投影保持，break单列退出且不认证。仅动态Boolean
-参数及无声明/嵌套/分支的直线Unit消费者；支持多个既有来源但不形成fresh循环实例。
-逐consumer另按真实call/argument ID核暂借loan移除前后，并在原清理与Nothing判断后
-确认正常next，按独占loop/session票据有序回交；回边认证要求全部真实返回及入口义务
-保持。观察无副作用，不替代fresh实例、任意控制流归纳或后端每轮receipt。
-前序普通frame整链还可向紧邻空while一次性交接，核真实condition前header、后base
-及normal pre-merge边的零binding/loan与完整外部义务保持。实际空body另由独占
-permit在真实frame入口认领、cleanup前封闭，再由pre-merge唯一消费，核父frame、
-实际零acquire/End与义务不变；不是运行时每轮证明，仍不授予fresh借用准入。
+既有carried loan的test-support观察核condition后至pre-merge的normal/尾continue
+资源保持，break不认证；限Boolean参数与直线Unit消费者，无声明、嵌套或分支。
+每consumer按真实call/argument核暂借移除、Nothing后返回及独占loop/session顺序。
+前序ordinary闭合另可一次性交给紧邻空while，核condition前header、后base与
+pre-merge零资源保持；实际body frame由permit认领、cleanup前封闭、出口单次消费。
+独立consumer-body观察针对外部Borrow String参数，不改变上述空body入口：
+逐operand核真实Shared call贷款和原LoanFact连续增量、精确释放及正常返回；
+完整有序事件与实际body frame在cleanup前闭合，再核pre-merge义务保持。
+非空证据仅为condition后直线Unit body，无新binding，源域/frame不可混用；
+不授予fresh循环借用、任意控制流归纳或CG每轮receipt，L0164及原验证器保留。

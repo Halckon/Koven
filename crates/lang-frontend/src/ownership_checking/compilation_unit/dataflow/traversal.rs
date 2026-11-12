@@ -831,7 +831,11 @@ impl Checker<'_> {
                     self.reject_borrowed_closure_escape(argument.value, next)?;
                 }
                 if self.diagnostics.len() == diagnostic_count {
+                    #[cfg(any(test, feature = "loan-observation-test-support"))]
+                    let acquired = self.research_body_acquiring(id, argument.value, next);
                     self.apply_contract(contract, copy_to_nullable, next)?;
+                    #[cfg(any(test, feature = "loan-observation-test-support"))]
+                    self.research_body_acquired(acquired, Some(next));
                 }
             }
             self.hold_call_closure(call, argument.value, false, &mut flows)?;
@@ -856,6 +860,8 @@ impl Checker<'_> {
             });
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_return = self.research_prepare_consumer(id, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let body_return = self.research_body_prepare_return(id, &flows);
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
@@ -867,6 +873,8 @@ impl Checker<'_> {
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_return = self.research_release_consumer(consumer_return, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let body_return = self.research_body_release_return(body_return, &flows);
         for expression in receiver_expression
             .into_iter()
             .chain(receiver_contract.is_none().then_some(callee))
@@ -882,6 +890,8 @@ impl Checker<'_> {
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_complete_consumer(consumer_return, &flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_body_complete_return(body_return, &flows);
         Ok(flows)
     }
 }
