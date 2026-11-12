@@ -15547,3 +15547,41 @@ Block退出；不能只检查最终loan集合为空。对应dynamic while及嵌�
 -D warnings、fmt/diff、docs912通过；尺寸相对2beb5592为2577文件/36项旧债且通过。
 独立只读复审通过。未运行全workspace或CG回归（生产未改），未执行CI-only故障，
 未推送；下一实现仍需scope restore之前实际frame闭合及回边义务核验。
+
+## 普通scope frame闭合与外部义务恢复基础（实施中）
+
+本片继续保持循环内L0164，以两套core checker真实普通Block建立研究证据，不把
+循环外闭合等同迭代/backedge证明。研究collector仅test/显式test-support编译，
+不接旧loan_action产品，不改变默认语言准入、错误、清理和Complete边界。
+
+采证必须来自实际执行：进入scope的外部状态、实际成功binding交接、实际最后使用
+移除的前后状态及原AfterStatement End；在check_elements返回后、任何scope退出
+清理前封闭。只有本frame非空acquire与一一真实End、正常出口及外部义务恢复可
+形成研究证据。外层仍live的binding及source loan必须保留，不能以同根loan统清
+误作恢复；scope cleanup造成的空状态不能替代真实结束事件。
+
+首次正控因unit closure_results在调用后增加空集合缓存而结构不等；读取该缓存
+对缺项取空，故仅在研究快照两端去空缓存（真实State不改、非空义务不丢），不把
+该非目标失败称为产品红。研究资格另严格限制Name直接callee、String Name实参，
+拒复杂capture/replacement/pending/nullable/provenance入口；不以OriginState的
+共享arena指针相等声称整个可变图的深层证明。
+
+目标真实红随后成立：合法普通Block先关闭借用再take(own source)，原ownership
+无诊断且End齐全，外部moved却改变；旧End-only研究见证validate仍true，被“必须
+拒绝外部未恢复”的断言抓到。closed与外层live-binding正控以及L0164负控先通过。
+这不是语言误接受或空stub，而是新研究frame恢复合同不能只复用End见证。
+
+外部恢复守卫补强后，研究认证要求closed且external_unchanged；实际合法source
+move不改变ownership输出。独立审查通过frame唯一身份、真实移除差分和cleanup前
+接点。资格再排除非Unit consumer返回、borrow-return消费者及Abort，避免将未纳入
+State的丢弃owned临时量清理混入首片；initializer仍限String借用结果。未显式capture
+不复制entry/exit或acquire loan Vec，不改默认dependency graph或旧诊断。
+
+最终普通测试16项全通过（新增frame2项、既有borrow result12项、两项loop边界/
+双checker证据）。新片含40次实际capture checker执行及20次未capture产品对照，
+覆盖closed、外部live lease、同名sibling、End后合法source move，以及loop门禁、
+非Unit返回和嵌套调用资格负控。frontend feature all-targets Clippy -D warnings、
+默认workspace all-targets、fmt/diff/docs912通过；尺寸相对2beb5592通过
+（2579手写Rust文件、36项历史超限，policy不改）。未执行CI-only故障或CG/native
+运行测试，本片无CG改动；默认配置及显式feature的编译路径均已核。未推送，
+本片不是循环backedge证明，也未退休旧见证。

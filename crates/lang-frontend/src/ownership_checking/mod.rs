@@ -186,3 +186,11 @@ pub use ownership_primitive::{
 pub use compilation_unit::loan_observation_test_support::{
     legacy_ownership_eq, with_loan_observation,
 };
+
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_frame;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+#[doc(hidden)]
+pub use research_borrow_frame::{
+    BorrowFrameChecker, BorrowFrameObservation, capture_borrow_frames,
+};

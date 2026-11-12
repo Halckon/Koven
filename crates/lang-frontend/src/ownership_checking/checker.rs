@@ -598,7 +598,7 @@ impl<'a> Checker<'a> {
             Statement::Error => Ok(Flows::next(state)),
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
-            | Statement::ControlBody { elements } => self.check_borrow_scope(&elements, state),
+            | Statement::ControlBody { elements } => self.check_borrow_scope(id, &elements, state),
             Statement::LocalVariable { declaration } => {
                 let Item::Variable {
                     kind,

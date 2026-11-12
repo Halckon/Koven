@@ -315,7 +315,7 @@ impl Checker<'_> {
             Statement::Error => Ok(Flows::next(state)),
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
-            | Statement::ControlBody { elements } => self.check_borrow_scope(&elements, state),
+            | Statement::ControlBody { elements } => self.check_borrow_scope(id, &elements, state),
             Statement::LocalVariable { declaration } => {
                 if let Item::Variable {
                     kind: super::VariableKind::BorrowVal(marker),

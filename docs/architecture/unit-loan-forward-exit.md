@@ -178,3 +178,10 @@ no-carry研究对照分别运行file-local与compilation-unit两套checker；普
 有同binding的唯一末consumer AfterStatement End，而相同body放入dynamic while
 （包括内层lexical Block）仍精确L0164，未伪造binding/End。这只验证关闭原语与
 门禁一致性，不证明回边无实例残留，也不启用每轮fresh借用。
+
+显式test-support另提供普通Block frame研究capture：两core checker真实acquire、
+最后使用移除的前后义务及原End，在任何scope cleanup前按独占frame身份对证；
+正常非空闭合还要求外部义务投影不变（仅去无资源的空closure_results缓存）。
+限定直接Name/String借用initializer与Unit消费者、无复杂捕获入口。End后合法
+move源仍保持原执行，但不获恢复认证；未capture不复制状态，默认产品无此资格。
+这只是普通scope的安全基础，循环实例、回边和CG每轮receipt仍未接入。

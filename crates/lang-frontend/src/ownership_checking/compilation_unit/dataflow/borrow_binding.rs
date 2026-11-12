@@ -199,6 +199,19 @@ impl Checker<'_> {
         }
         next.borrow_bindings.insert(binding, origin.clone());
         next.non_owning.insert(binding, marker);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        if crate::ownership_checking::research_borrow_frame::is_capturing() {
+            crate::ownership_checking::research_borrow_frame::acquired(
+                binding,
+                next.borrow_bindings.get(&binding),
+                next.non_owning.get(&binding),
+                next.loans
+                    .iter()
+                    .filter(|loan| loan.owner == ActiveLoanOwner::BorrowBinding(binding))
+                    .cloned()
+                    .collect(),
+            );
+        }
         self.mark_available(name, next);
         let fact = BorrowBindingFact {
             binding,
@@ -260,11 +273,27 @@ impl Checker<'_> {
             .map(|fact| fact.binding)
             .collect::<Vec<_>>();
         for binding in ended {
+            #[cfg(any(test, feature = "loan-observation-test-support"))]
+            let removal = crate::ownership_checking::research_borrow_frame::removing(
+                binding,
+                &state.borrow_bindings,
+                &state.non_owning,
+                &state.loans,
+                |loan| loan.owner == ActiveLoanOwner::BorrowBinding(binding),
+            );
             state.borrow_bindings.remove(&binding);
             state.non_owning.remove(&binding);
             state
                 .loans
                 .retain(|loan| loan.owner != ActiveLoanOwner::BorrowBinding(binding));
+            #[cfg(any(test, feature = "loan-observation-test-support"))]
+            crate::ownership_checking::research_borrow_frame::removed(
+                removal,
+                statement,
+                &state.borrow_bindings,
+                &state.non_owning,
+                &state.loans,
+            );
             self.borrow_results
                 .ends
                 .push(crate::ownership_checking::BorrowBindingEndFact {
@@ -278,6 +307,7 @@ impl Checker<'_> {
 
     pub(super) fn check_borrow_scope(
         &mut self,
+        scope: StatementId,
         elements: &[StatementId],
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
@@ -287,7 +317,106 @@ impl Checker<'_> {
             .copied()
             .collect::<std::collections::BTreeSet<_>>();
         let locals = self.scope_locals(elements)?;
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let frame = if crate::ownership_checking::research_borrow_frame::is_capturing() {
+            let mut snapshot = state.clone();
+            // Empty closure-result caches contain no captured environment obligations.
+            snapshot
+                .closure_results
+                .retain(|_, origins| !origins.is_empty());
+            let mut empty_origins = Default::default();
+            // This only constructs the comparison anchor; it does not alter actual state.
+            crate::ownership_checking::callable_provenance::graph::OriginState::attach(
+                &mut empty_origins,
+                &self.callable_sources.arena,
+            );
+            let simple = snapshot.origins == empty_origins
+                && snapshot.closure_results.is_empty()
+                && snapshot.replacements.is_empty()
+                && snapshot.closures.is_empty()
+                && snapshot.closure_captures.is_empty()
+                && snapshot.immutable_captures.is_empty()
+                && snapshot.pending_closure_calls.is_empty();
+            crate::ownership_checking::research_borrow_frame::begin(
+                crate::ownership_checking::research_borrow_frame::BorrowFrameChecker::Unit,
+                self.parsed,
+                scope,
+                &snapshot,
+                simple,
+                |call, initializer| {
+                    let Some(typed) = self.typed.call(self.unit_expression(call)) else {
+                        return false;
+                    };
+                    let Ok(node) = self.parsed.ast().expressions().get(call) else {
+                        return false;
+                    };
+                    let Expression::Call { arguments, .. } = node.payload() else {
+                        return false;
+                    };
+                    let expected_return = if initializer {
+                        crate::type_checking::BuiltinType::String
+                    } else {
+                        crate::type_checking::BuiltinType::Unit
+                    };
+                    typed.receiver().is_none()
+                        && !typed.aborts()
+                        && typed.borrow_return().is_some() == initializer
+                        && self.typed.types().get(typed.return_type())
+                            == Some(&crate::type_checking::UnitTypeKind::Builtin(
+                                expected_return,
+                            ))
+                        && matches!(
+                            typed.target(),
+                            crate::type_checking::UnitCallTarget::Declaration(_)
+                        )
+                        && arguments.iter().all(|arg| {
+                            self.typed
+                                .expression_type(self.unit_expression(arg.value))
+                                .and_then(|ty| self.typed.types().get(ty))
+                                == Some(&crate::type_checking::UnitTypeKind::Builtin(
+                                    crate::type_checking::BuiltinType::String,
+                                ))
+                        })
+                },
+            )
+        } else {
+            None
+        };
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let checkpoint = (self.borrow_results.ends.len(), self.diagnostics.len());
+        #[cfg(not(any(test, feature = "loan-observation-test-support")))]
+        let _ = scope;
         let mut flows = self.check_elements(elements, state)?;
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        if frame.is_some() {
+            let ends = self.borrow_results.ends[checkpoint.0..]
+                .iter()
+                .map(|end| {
+                    (
+                        end.binding,
+                        match end.point {
+                            crate::ownership_checking::UnitDropPoint::AfterStatement(id) => {
+                                Some(id.statement())
+                            }
+                            _ => None,
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            let mut exit = flows.next.clone();
+            if let Some(exit) = &mut exit {
+                exit.closure_results
+                    .retain(|_, origins| !origins.is_empty());
+            }
+            crate::ownership_checking::research_borrow_frame::finish(
+                frame,
+                exit.as_ref(),
+                flows.breaks.is_none()
+                    && flows.continues.is_none()
+                    && self.diagnostics.len() == checkpoint.1,
+                &ends,
+            );
+        }
         self.check_scope_exit_loans(&locals, None, &mut flows)?;
         self.restore_borrow_scope(&parents, &mut flows);
         Ok(flows)
