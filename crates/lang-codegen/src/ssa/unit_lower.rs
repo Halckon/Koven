@@ -3,12 +3,11 @@ mod orchestrate;
 use orchestrate::lower_unit_from_facts;
 
 mod aggregate;
-mod assignment;
 mod borrow;
 mod borrow_result;
 mod call;
 mod call_lifetimes;
-mod callable_abi;
+use call_lifetimes::callable_abi;
 mod cfg;
 mod closure;
 pub(crate) mod constant;
@@ -21,7 +20,7 @@ use construction::nullable_proof;
 mod nullable_when;
 mod ownership;
 mod receiver;
-mod scalar;
+use control::scalar;
 mod type_lower;
 #[cfg(test)]
 mod type_origin_cache_tests;

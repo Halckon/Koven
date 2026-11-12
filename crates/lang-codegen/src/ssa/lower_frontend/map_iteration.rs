@@ -2,20 +2,18 @@
 mod carrier;
 mod checked;
 use checked::nested;
-mod cleanup;
-use cleanup::exit_shape;
 mod conditional;
 mod exits;
+use exits::exit_shape;
 mod formed;
 mod local;
 mod local_runtime;
-mod qualify;
 mod resource;
 mod source;
 use source::borrowed;
 mod source_owner;
 mod temporary;
-use temporary::guard;
+use temporary::{guard, qualify};
 
 use super::*;
 use crate::ssa::model::{Definition, MapContainerKind, Module, SsaTypeKind};
