@@ -35,7 +35,6 @@ mod range;
 use field_replace::readonly_receiver;
 mod source_closure;
 mod string_clone;
-mod while_proof;
 
 use std::collections::BTreeMap;
 

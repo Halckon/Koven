@@ -15,7 +15,6 @@ pub(crate) mod constant;
 mod construction;
 mod container;
 mod control;
-mod field_borrow;
 mod loop_control;
 mod map;
 use construction::nullable_proof;

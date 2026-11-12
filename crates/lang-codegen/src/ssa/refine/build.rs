@@ -1,13 +1,11 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
-mod assignment;
 mod borrow_binding;
 mod callable;
 mod condition;
 mod container;
 mod container_for;
 mod expression;
-mod field;
 mod heap;
 mod inout;
 mod map;
@@ -20,6 +18,7 @@ use rc::receiver;
 mod scalar_text;
 mod tagged;
 mod value;
+use value::field;
 mod when;
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -3,7 +3,7 @@
 mod call_routes;
 mod callable_instances;
 mod concrete_types;
-mod deinit;
+use concrete_types::deinit;
 mod recipe_preflight;
 mod recipe_validation;
 mod runtime_layout;
