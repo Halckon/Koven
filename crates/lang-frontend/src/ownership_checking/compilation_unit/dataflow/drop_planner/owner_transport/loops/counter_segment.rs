@@ -3,12 +3,14 @@ use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 mod body;
 pub(super) mod bridge;
+mod entry;
 
 pub(super) struct Segment {
     predecessor: UnitStatementId,
     bridge: Option<bridge::Bridge>,
     normal: Option<body::Body>,
     normal_started: bool,
+    entry: Option<entry::Entry>,
     statements: Vec<UnitStatementId>,
     condition: UnitExpressionId,
     body: UnitStatementId,
@@ -85,6 +87,14 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
             bridge: None,
             normal: None,
             normal_started: false,
+            entry: entry::Entry::discover(
+                checker,
+                &elements[first + 1..=second]
+                    .iter()
+                    .map(|id| UnitStatementId::new(checker.source_unit, *id))
+                    .collect::<Vec<_>>(),
+                pair[1].1,
+            ),
             condition: checker.unit_expression(*condition),
             body: UnitStatementId::new(checker.source_unit, *body),
             bridge_condition: None,
@@ -481,6 +491,7 @@ impl ControlTransactions {
             .normal
             .as_ref()
             .and_then(|body| body.exit_partition());
+        let entry = segment.entry.as_ref().and_then(|entry| entry.sites());
         let suffix = segment
             .normal
             .as_ref()
@@ -492,7 +503,8 @@ impl ControlTransactions {
             .with_next_normal(normal)?
             .with_next_counter_tail(tail)?
             .with_next_false_exit_partition(exit)?
-            .with_next_false_exit_suffix(suffix)
+            .with_next_false_exit_suffix(suffix)?
+            .with_next_counter_entry(entry)
     }
     #[cfg(test)]
     pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {

@@ -2,6 +2,7 @@
 use super::*;
 mod consumption;
 mod counter;
+mod entry;
 mod exit;
 mod suffix;
 use lang_frontend::ownership_checking::{UnitOwnerCallable, UnitOwnerControlBridgeEvidenceV1};
@@ -10,6 +11,7 @@ pub(super) struct Plan<'a> {
     evidence: &'a UnitOwnerControlBridgeEvidenceV1,
     chain: Vec<consumption::Stage>,
     scalar: Option<[Slot; 2]>,
+    initial: [Option<entry::Binding>; 2],
     exits: Option<Vec<bool>>,
     suffix: Option<Vec<suffix::Stage>>,
     prior: Option<([BlockRef; 4], Vec<Slot>, Slot)>,
@@ -48,6 +50,7 @@ impl<'a> Plan<'a> {
                 .next_false_exit_suffix()
                 .map(|items| vec![suffix::Stage::Ready; items.len()]),
             scalar: None,
+            initial: [None, None],
             prior: None,
             next: None,
         }))
@@ -61,6 +64,13 @@ impl Builder<'_, '_> {
         body: UnitStatementId,
         blocks: [BlockRef; 4],
     ) -> Result<(), LoweringError> {
+        if self
+            .control_bridge_plan
+            .as_ref()
+            .is_some_and(|p| p.evidence.next_control() == control)
+        {
+            self.check_bridge_entry()?;
+        }
         let Some(plan) = &mut self.control_bridge_plan else {
             return Ok(());
         };
@@ -117,6 +127,47 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         if let Some(plan) = &mut self.control_bridge_plan {
             use owner_consumer_test_support::{OwnerFault, take_fault};
+            if take_fault(OwnerFault::BridgeEntryLateWrongLiteral)
+                && let (Some(entry), Some((block, _, _))) =
+                    (plan.evidence.next_counter_entry(), &plan.next)
+            {
+                for statement in &mut self.body.blocks[block.0].statements {
+                    if statement.span
+                        == self
+                            .inputs
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(entry.counter_initializer().expression())
+                            .map(|n| n.span())
+                            .unwrap_or(self.inputs.span)
+                        && let ROp::Constant(crate::ssa::model::ScalarConstant::Integer(value)) =
+                            &mut statement.op
+                    {
+                        *value = 0;
+                    }
+                }
+            }
+            if take_fault(OwnerFault::BridgeEntryLateWrongComparison)
+                && let (Some(entry), Some((block, _, _))) =
+                    (plan.evidence.next_counter_entry(), &plan.next)
+            {
+                for statement in &mut self.body.blocks[block.0].statements {
+                    if statement.span
+                        == self
+                            .inputs
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(entry.guard_initializer().expression())
+                            .map(|n| n.span())
+                            .unwrap_or(self.inputs.span)
+                        && let ROp::Compare { left, right, .. } = &mut statement.op
+                    {
+                        *left = *right;
+                    }
+                }
+            }
             if take_fault(OwnerFault::ControlBridgeWrongRoot)
                 && let Some((_, _, roots)) = &mut plan.next
             {
@@ -168,6 +219,7 @@ impl Builder<'_, '_> {
                 *when_true = *finished;
             }
         }
+        self.check_bridge_entry()?;
         self.check_bridge_counter_tail()?;
         self.finish_bridge_suffix()?;
         let Some(plan) = &self.control_bridge_plan else {
@@ -303,6 +355,9 @@ impl Builder<'_, '_> {
                             drops.len(),
                         );
                     }
+                }
+                if plan.evidence.next_counter_entry().is_some() {
+                    owner_consumer_test_support::record_action("bridge-counter-entry-complete", 2);
                 }
                 if let Some(items) = plan.evidence.next_false_exit_suffix() {
                     owner_consumer_test_support::record_action(

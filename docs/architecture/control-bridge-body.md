@@ -85,3 +85,22 @@ live根一次。只保留源root与真实binding DropFact；不按owned drops倒
 普通native覆盖零轮/两轮、部分live、全live、逆序清理及后续同名重新初始化；CI-only测试
 覆盖缺binding/drop permit、错source及重复Drop提交，本地仅编译。仍不证明一般suffix、
 嵌套新产品、第二control初值完整合同或任意跨轮代际归纳。
+
+## 第二控制 scalar entry 强制消费
+
+可选entry合同只来自实际成功完成的counter声明及随后guard声明；AST身份仅作为预期，
+缺事件、乱序、错误initializer不发布entry。该合同绑定已有normal/tail的counter与guard，
+不生成owner token。counter初值限定Int Name或直接Integer literal，guard限定counter > 0。
+
+后端在原Alias发射点逐一消费counter/guard绑定permit：核实际当前入口块、symbol、initializer、
+来源槽、指令位置和span；Name必须是实际引用绑定；默认Borrow Int参数则核真实ReadLoan，
+保存loan/producer位置并最终重核。literal必须是同块同来源的唯一Constant且等于源码解析值；
+保存producer位置和值，最终再次核验。
+第二个Alias必须使用真实counter > 0结果且counter定义在Compare之前。进入第二while前两项
+必须已完成；最终重新核原Alias、无重复定义、比较依赖及header实际counter/guard槽一致。
+缺permit不会降级到通用路径后仍声称完成。Alias仍只发射一次，scalar入口不借用旧owner权限。
+
+普通native覆盖参数值及直接0/2字面量初值，结合既有checked success/abort、body和退出消费。
+CI-only缺绑定、错source及晚期错误Compare只编译不在本地执行。此处约束真实初值传递与
+首次guard决定，不把静态owner来源向量提升为跨轮动态owner实例证明，也未开放计算型初值、
+任意控制流入口或嵌套新owner产品。

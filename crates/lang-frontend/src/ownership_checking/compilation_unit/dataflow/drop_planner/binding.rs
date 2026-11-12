@@ -62,6 +62,15 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         if let Some(symbol) = self.checker.marker_symbol(name).copied()
+            && !self.checker.is_move_only_variable(symbol)
+        {
+            self.owner_loop.bridge_scalar_completed(
+                UnitStatementId::new(self.checker.source_unit, id),
+                symbol,
+                self.checker.unit_expression(initializer),
+            );
+        }
+        if let Some(symbol) = self.checker.marker_symbol(name).copied()
             && self.checker.is_move_only_variable(symbol)
         {
             self.binding_depths.insert(symbol, self.scope_depth);
