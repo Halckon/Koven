@@ -168,3 +168,61 @@ fn ci_only_private_chain_rejects_foreign_observation_identity() {
 }
 
 mod getter_exclusion;
+
+#[test]
+fn leading_scalar_entry_is_actual_and_matches_frozen_tail() {
+    for initial in ["n", "0", "2"] {
+        let text = source("", "", "n").replacen("var n0=n", &format!("var n0={initial}"), 1);
+        let fixture = Fixture::new(&[("leading-scalar.ko", &text)]);
+        let owned = fixture.shared();
+        let view = owned
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.control_chain_bodies_v1())
+            .unwrap();
+        let leading = view.leading();
+        let (symbols, expressions, declarations) = leading.scalar_entry().unwrap();
+        let (counter, guard, _) = leading.checked_tail();
+        assert_eq!(symbols, [counter, guard]);
+        assert_ne!(expressions[0], expressions[1]);
+        assert_ne!(declarations[0], declarations[1]);
+        assert!(
+            expressions
+                .iter()
+                .all(|id| id.source_unit() == leading.control().source_unit())
+        );
+    }
+}
+#[test]
+fn ci_only_leading_scalar_missing_completion_preserves_chain_without_entry_authority() {
+    let text = source("", "", "n");
+    let fixture = Fixture::new(&[("leading-scalar-missing.ko", &text)]);
+    let baseline = fixture.shared();
+    let view = baseline
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.control_chain_bodies_v1())
+        .unwrap();
+    let leading = view.leading();
+    let (symbols, expressions, declarations) = leading.scalar_entry().unwrap();
+    // Match the exact first counter event on every analysis pass, never the guard.
+    super::super::leading_entry::inject_skip(Some((
+        leading.control(),
+        declarations[0],
+        symbols[0],
+        expressions[0],
+    )));
+    let owned = fixture.shared();
+    let hits = super::super::leading_entry::hits();
+    super::super::leading_entry::inject_skip(None);
+    assert!(
+        hits > 0,
+        "expected actual first-counter completion hits, got {hits}"
+    );
+    let view = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.control_chain_bodies_v1())
+        .unwrap();
+    assert!(view.leading().scalar_entry().is_none());
+}

@@ -105,6 +105,7 @@ pub(in crate::ownership_checking::compilation_unit) struct PrivateControlChain {
     sources: Vec<UnitSymbolId>,
     targets: Vec<UnitSymbolId>,
     last: PrivateChainMember,
+    leading_entry: Option<Entry>,
 }
 impl PrivateControlChain {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -113,6 +114,7 @@ impl PrivateControlChain {
         sources: Vec<UnitSymbolId>,
         targets: Vec<UnitSymbolId>,
         last: PrivateChainMember,
+        leading_entry: Option<Entry>,
     ) -> Option<Self> {
         let group = Self {
             first,
@@ -120,6 +122,7 @@ impl PrivateControlChain {
             sources,
             targets,
             last,
+            leading_entry,
         };
         group.is_consistent().then_some(group)
     }
@@ -130,7 +133,16 @@ impl PrivateControlChain {
         let Some((live, _)) = self.first.next_false_exit_partition() else {
             return false;
         };
-        self.first.is_consistent()
+        self.leading_entry.is_none_or(|e| {
+            let p = self.first.prior();
+            let source = p.statement().source_unit();
+            e.0 == [p.counter(), p.guard()]
+                && e.1[1] == p.initializer()
+                && e.1[0] != e.1[1]
+                && e.2[0] != e.2[1]
+                && e.1.iter().all(|id| id.source_unit() == source)
+                && e.2.iter().all(|id| id.source_unit() == source)
+        }) && self.first.is_consistent()
             && self.first.next_counter_tail().is_some()
             && self.first.next_counter_entry().is_some()
             && self.predecessor.is_consistent()
@@ -254,6 +266,7 @@ pub struct UnitOwnerControlChainLeadingV1<'a> {
     targets: &'a [UnitSymbolId],
     normal: &'a UnitOwnerMultiRootNormalTransportV1,
     tail: Tail,
+    entry: Option<Entry>,
     false_exit: (&'a [UnitSymbolId], &'a [UnitDropFact]),
 }
 impl<'a> UnitOwnerControlChainLeadingV1<'a> {
@@ -278,6 +291,17 @@ impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// Consumers must validate checked success/abort; this is not scalar initialization evidence.
     pub fn checked_tail(&self) -> (UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4]) {
         (self.tail.1, self.tail.0, self.tail.2)
+    }
+    /// Actual ordered scalar initializer completions, frozen at the first while entry.
+    /// Absent when the restricted Name/Integer initialization has no complete event pair.
+    pub fn scalar_entry(
+        &self,
+    ) -> Option<(
+        [UnitSymbolId; 2],
+        [UnitExpressionId; 2],
+        [UnitStatementId; 2],
+    )> {
+        self.entry
     }
     /// Actual implicit-false live roots and retirement facts, not suffix permission.
     pub fn false_exit_partition(&self) -> (&'a [UnitSymbolId], &'a [UnitDropFact]) {
@@ -352,6 +376,7 @@ impl UnitOwnerObservation {
             link: (&chain.sources, &chain.targets),
             leading: UnitOwnerControlChainLeadingV1 {
                 control: chain.first.prior().statement(),
+                entry: chain.leading_entry,
                 condition: chain.first.prior().condition(),
                 body: chain.first.prior().body(),
                 sources: chain.first.sources(),

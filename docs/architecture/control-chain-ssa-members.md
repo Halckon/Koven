@@ -58,7 +58,7 @@ not run locally; both withhold Link and group completion. No first-control entry
 A borrowed leading view exposes only the already completed first control geometry and
 source/target mapping. The builder captures its actual blocks and source slots at its while
 hook, checks the genuine exit-to-second-entry Alias chains, and seals a separate Anchor.
-It does not invent a first full Member or scalar-entry permissions. Both Links remap
+It does not invent a first full Member; optional first scalar-entry evidence is collected separately below. Both Links remap
 through folding and must each be observed exactly once; their target headers and parameters
 are selected by control identity, not by a global last-member assumption. A CI-only actual
 leading-edge argument swap must withhold all Link and group completion; local runs compile
@@ -71,7 +71,7 @@ catalog. At its real while hook the builder captures all normal-body roots, not 
 live subset transported by the leading Link. The same control-qualified Replace→binding→Drop
 permits consume its original instructions once. All leading steps must complete before the
 whole group can finish. Late SSA checks also track its actual replacements and exactly one
-retired-value Drop. Scalar-entry permissions remain limited to the two continuation members. Tests exercise a three-root leading body with a two-root outgoing link;
+retired-value Drop. First scalar-entry permissions require the separate completed events described below. Tests exercise a three-root leading body with a two-root outgoing link;
 this prevents replacing the complete body root list with its live subset. No dynamic trace
 induction or first-control scalar initialization permission is inferred.
 
@@ -98,4 +98,19 @@ all leading cleanup must finish before entering the second control or publishing
 A three-root first body with one retired exit root and two transported roots exercises zero and
 two native iterations. Dedicated CI-only missing-permit and late Anchor checked-block/abort
 corruptions withhold group completion; local verification compiles but does not execute them.
-First scalar initializer permission remains a separate gap.
+First scalar initializer permission uses the separate event contract below.
+
+
+## Leading scalar initializer events
+
+The existing three-control chain may additionally carry the first counter and guard's two
+actual, ordered successful declaration-completion events. A separate tracker freezes at the
+first control; AST shape recognition alone does not publish this evidence. Missing events
+leave the older chain capability unchanged instead of inventing initializer authority.
+When present, the codegen group must consume both original bindings in the same captured
+entry block before entering the first loop and recheck them before group publication.
+Parameter/ReadLoan or integer-literal production and the ordered fresh guard comparison use
+the existing scalar consumer. Validated counter/guard slots are separately carried into the
+leading Anchor's late SSA header-parameter check, without counting them as owner roots.
+This remains the existing bounded three-control contract, not general nesting or dynamic
+cross-iteration induction. Missing-binding CI-only injection is compiled, not run locally.

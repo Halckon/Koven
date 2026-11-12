@@ -260,6 +260,9 @@ impl ControlTransactions {
         state: &ValueState,
         observation: Option<&UnitOwnerObservation>,
     ) {
+        if let Some(leading) = &mut self.leading_entry {
+            leading.enter(control);
+        }
         // Never retain a stale partial capture if this control cannot be recaptured.
         self.root_entries.retain(|(key, _)| *key != control);
         if self.root_branches_invalid {

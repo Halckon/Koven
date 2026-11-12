@@ -6,6 +6,7 @@ pub(super) mod bridge;
 mod chain;
 pub(super) mod continuation;
 mod entry;
+pub(super) mod leading_entry;
 
 pub(super) struct Segment {
     predecessor: UnitStatementId,

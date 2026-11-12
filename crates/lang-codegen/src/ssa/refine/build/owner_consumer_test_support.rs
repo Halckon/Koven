@@ -66,6 +66,7 @@ pub(crate) enum OwnerFault {
     ChainLeadingSsaAbortBackedge,
     ChainLeadingSsaFoldWrongChecked,
     ChainLeadingExitMissingPermit,
+    ChainLeadingEntryMissingBinding,
     ChainLastEntryMissingBinding,
     ChainLastBodyMissingDrop,
     ChainLeadingBodyMissingDrop,

@@ -14,6 +14,7 @@ pub(in super::super) struct BodyGroup<'a> {
     leading_body_roots: Option<Vec<Slot>>,
     leading_counter: Option<(BlockRef, [Slot; 2])>,
     leading_exits: Vec<bool>,
+    leading_initial: [Option<entry::Binding>; 2],
 }
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
@@ -82,6 +83,7 @@ impl<'a> BodyGroup<'a> {
             leading_body_roots: None,
             leading_counter: None,
             leading_exits: vec![false; group.leading().false_exit_partition().1.len()],
+            leading_initial: [None, None],
             members: group
                 .members()
                 .iter()
@@ -199,11 +201,10 @@ impl Builder<'_, '_> {
         blocks: [BlockRef; 4],
     ) -> Result<(), LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
-        if self
-            .control_chain_bodies
-            .as_ref()
-            .is_some_and(|g| g.members.iter().any(|m| m.evidence.control() == control))
-        {
+        if self.control_chain_bodies.as_ref().is_some_and(|g| {
+            g.members.iter().any(|m| m.evidence.control() == control)
+                || (g.leading.control() == control && g.leading.scalar_entry().is_some())
+        }) {
             self.check_control_entry(control)?;
         }
         let Some(group) = &mut self.control_chain_bodies else {
@@ -330,6 +331,9 @@ impl Builder<'_, '_> {
                 != group.leading_stages.len()
         {
             return Err(fail());
+        }
+        if group.leading.scalar_entry().is_some() {
+            self.check_control_entry(group.leading.control())?;
         }
         self.check_chain_false_exit(
             group.leading.normal().header_roots(),
@@ -525,6 +529,7 @@ impl Builder<'_, '_> {
         }
         let leading = super::super::super::control_bridge_receipt::Anchor {
             control: group.leading.control(),
+            scalar: group.leading.scalar_entry().map(|_| leading_scalar),
             blocks: *leading_blocks,
             checked: [leading_edge.blocks[1], leading_edge.blocks[2]],
             roots: leading_roots.clone(),
@@ -550,6 +555,10 @@ impl Builder<'_, '_> {
         );
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-leading-tail-complete", 1);
+        #[cfg(test)]
+        if group.leading.scalar_entry().is_some() {
+            owner_consumer_test_support::record_action("control-chain-leading-entry-complete", 2);
+        }
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             "control-chain-leading-exit-complete",
@@ -845,7 +854,35 @@ impl Builder<'_, '_> {
                 let e = m.evidence.scalar_entry();
                 matches(m.evidence.control(), e.0, e.1)
             });
-            let Some(m) = found.next() else {
+            let member = found.next();
+            if let Some(e) = group.leading.scalar_entry()
+                && matches(group.leading.control(), e.0, e.1)
+            {
+                if member.is_some() {
+                    return Err(fail());
+                }
+                let block = group.leading_initial[0]
+                    .as_ref()
+                    .map(entry::Binding::block)
+                    .or(self.block)
+                    .ok_or_else(fail)?;
+                if group
+                    .leading_counter
+                    .is_some_and(|(entry, _)| entry != block)
+                {
+                    return Err(fail());
+                }
+                return Ok(Some(SelectedEntry {
+                    control: group.leading.control(),
+                    symbols: e.0,
+                    initializers: e.1,
+                    block,
+                    initial: &group.leading_initial,
+                    scalar: group.leading_counter.map(|(_, s)| s),
+                    entered: group.leading_lowered.is_some(),
+                }));
+            }
+            let Some(m) = member else {
                 return Ok(None);
             };
             if found.next().is_some() {
@@ -890,6 +927,9 @@ impl Builder<'_, '_> {
         if let Some(group) = &mut self.control_chain_bodies {
             if self.control_bridge_plan.is_some() {
                 return Err(fail());
+            }
+            if group.leading.control() == control && group.leading.scalar_entry().is_some() {
+                return Ok(&mut group.leading_initial);
             }
             return group
                 .members

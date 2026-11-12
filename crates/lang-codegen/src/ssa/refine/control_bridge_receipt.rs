@@ -44,6 +44,7 @@ pub(super) struct Anchor {
     pub blocks: [BlockRef; 4],
     pub roots: Vec<Slot>,
     pub body_roots: Vec<Slot>,
+    pub scalar: Option<[Slot; 2]>,
     pub checked: [BlockRef; 2],
 }
 /// Actual source-to-target alias mapping between the two admitted members.
@@ -125,7 +126,10 @@ impl Plans {
             .chain(leading.checked.iter())
             .copied()
             .collect();
-        if leading.body_roots.len() < 2
+        if leading
+            .scalar
+            .is_some_and(|s| s[0] == s[1] || s.iter().any(|r| leading.body_roots.contains(r)))
+            || leading.body_roots.len() < 2
             || leading.body_roots.iter().collect::<BTreeSet<_>>().len() != leading.body_roots.len()
             || leading
                 .roots
@@ -372,7 +376,10 @@ impl Emitted {
             }
         }
         if let Some(anchor) = &plans.leading
-            && (anchor.blocks.iter().any(|b| !blocks.contains_key(b))
+            && (anchor
+                .scalar
+                .is_some_and(|s| s.iter().any(|r| !parameters[&anchor.blocks[0]].contains(r)))
+                || anchor.blocks.iter().any(|b| !blocks.contains_key(b))
                 || anchor
                     .roots
                     .iter()

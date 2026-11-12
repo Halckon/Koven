@@ -68,7 +68,12 @@ impl ControlTransactions {
             normal.exit_partition()?,
             normal.suffix_result(),
         )?;
-        let group = PrivateControlChain::seal(first, predecessor, sources, targets, member)?;
+        let leading_entry = self
+            .leading_entry
+            .as_ref()
+            .and_then(|e| e.sites(first.prior().statement()));
+        let group =
+            PrivateControlChain::seal(first, predecessor, sources, targets, member, leading_entry)?;
         // Nothing has been taken before the whole group succeeded. No first-member fallback.
         self.counter_segments.clear();
         Some(group)

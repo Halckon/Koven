@@ -288,6 +288,14 @@ fn ci_only_chain_final_suffix_rejects_missing_or_reused_consumption() {
 fn chain_scalar_entries_consume_original_parameter_and_literal_bindings() {
     for counter in ["n", "0", "2"] {
         let source = chain_source_with_counter(true, true, counter);
+        let expected = source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.control_chain_bodies_v1())
+            .map(|g| 2 * (g.members().len() + usize::from(g.leading().scalar_entry().is_some())))
+            .sum::<usize>();
+        assert_eq!(expected, 6);
         let (result, actions) =
             crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
         let (program, _) = result.unwrap();
@@ -297,7 +305,7 @@ fn chain_scalar_entries_consume_original_parameter_and_literal_bindings() {
                 .iter()
                 .filter(|(kind, _)| *kind == "bridge-entry-binding-consumed")
                 .count(),
-            4
+            expected
         );
         assert_eq!(
             actions
@@ -586,6 +594,53 @@ fn ci_only_leading_false_exit_missing_permit_revokes_group() {
         "control-chain-leading-exit-complete"
             | "control-chain-bodies-complete"
             | "control-chain-link-complete"
+            | "control-chain-ssa-complete"
+    )));
+}
+
+#[test]
+fn leading_scalar_entry_consumes_original_parameter_or_literal_events() {
+    for counter in ["n", "2"] {
+        let source = chain_source_with_counter(true, true, counter);
+        assert!(source.ownership().owner_observations().iter().any(|o| {
+            o.control_chain_bodies_v1()
+                .is_some_and(|g| g.leading().scalar_entry().is_some())
+        }));
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(k, n)| *k == "control-chain-leading-entry-complete" && *n == 2)
+                .count(),
+            1
+        );
+        super::super::super::assert_native_output(&source, b"");
+    }
+}
+#[test]
+fn ci_only_leading_scalar_missing_binding_revokes_group() {
+    let source = chain_source(true, true);
+    let (result, actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::with_owner_fault(
+            crate::ssa::OwnerFault::ChainLeadingEntryMissingBinding,
+            || source.lower_entry(source.entry()),
+        )
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "control-chain-leading-entry-fault-hit")
+            .count(),
+        1
+    );
+    assert!(actions.iter().all(|(k, _)| !matches!(
+        *k,
+        "control-chain-leading-entry-complete"
+            | "control-chain-bodies-complete"
             | "control-chain-ssa-complete"
     )));
 }

@@ -88,21 +88,23 @@ impl Entry {
             valid: true,
         })
     }
-    fn completed(
+    pub(super) fn completed(
         &mut self,
         statement: UnitStatementId,
         symbol: UnitSymbolId,
         expression: UnitExpressionId,
+        inject: bool,
     ) {
+        let _ = inject;
         if !self.valid || !self.symbols.contains(&symbol) {
             return;
         }
         #[cfg(test)]
-        if tests::skip(self.next + 1) {
+        if inject && tests::skip(self.next + 1) {
             return;
         }
         #[cfg(test)]
-        let expression = if tests::skip(4) {
+        let expression = if inject && tests::skip(4) {
             self.expressions[1]
         } else {
             expression
@@ -116,8 +118,8 @@ impl Entry {
         }
         self.next += 1;
         #[cfg(test)]
-        if tests::skip(3) {
-            self.completed(statement, symbol, expression);
+        if inject && tests::skip(3) {
+            self.completed(statement, symbol, expression, inject);
         }
     }
     pub(super) fn sites(
@@ -139,6 +141,9 @@ impl ControlTransactions {
     ) {
         if self.root_branches_invalid || !self.root_branch_arms.is_empty() {
             return;
+        }
+        if let Some(leading) = &mut self.leading_entry {
+            leading.completed(statement, symbol, expression);
         }
         let Some(segment) = self
             .active_segment()
@@ -163,7 +168,7 @@ impl ControlTransactions {
                 entry.valid = false;
                 return;
             }
-            entry.completed(statement, symbol, expression);
+            entry.completed(statement, symbol, expression, true);
         }
     }
 }

@@ -3,12 +3,18 @@ use super::*;
 use crate::ssa::model::ScalarConstant;
 
 pub(super) struct Binding {
+    block: BlockRef,
     source: Slot,
     target: Slot,
     instruction: usize,
     span: Span,
     literal: Option<(usize, i128)>,
     read_loan: Option<(usize, Slot)>,
+}
+impl Binding {
+    pub(super) fn block(&self) -> BlockRef {
+        self.block
+    }
 }
 pub(in super::super) struct Permit {
     index: usize,
@@ -34,6 +40,18 @@ impl Builder<'_, '_> {
         else {
             return Ok(None);
         };
+        #[cfg(test)]
+        if self
+            .control_chain_bodies
+            .as_ref()
+            .is_some_and(|g| g.is_leading(selected.control))
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ChainLeadingEntryMissingBinding,
+            )
+        {
+            owner_consumer_test_support::record_action("control-chain-leading-entry-fault-hit", 1);
+            return Ok(None);
+        }
         let symbols = selected.symbols;
         let initializers = selected.initializers;
         let Some(index) = (0..2).find(|&i| symbols[i] == symbol || initializers[i] == initializer)
@@ -194,6 +212,7 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         *state = Some(Binding {
+            block: permit.block,
             source: permit.source,
             target,
             instruction: permit.instruction,
@@ -231,7 +250,8 @@ impl Builder<'_, '_> {
                 .statements
                 .get(item.instruction)
                 .ok_or_else(fail)?;
-            if statement.span != item.span
+            if item.block != block
+                || statement.span != item.span
                 || statement.results != [item.target]
                 || !matches!(statement.op, ROp::Alias { source } if source == item.source)
                 || self.counter_alias(block, item.target, item.source, None)? != item.instruction
