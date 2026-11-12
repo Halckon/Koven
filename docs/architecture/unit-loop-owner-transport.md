@@ -121,11 +121,21 @@ incoming表或嵌套owner合同；事务存储现按control索引，旧准入边
 
 ControlTransactions以source-qualified control保存私有事务，真实While入口选择对应entry，
 不匹配时不可访问其它entry，退出先恢复旧选择再传播Result。prefix/suffix继续关联原准入
-控制；borrow兼容性检查仍基于全部entry而非当前选择。除下述私有顺序closed采集外，既有准入仍限一项；公共finish只接收恰好一项。
-多产品发布、一般多根incoming与嵌套owner语义仍待实现，不能把容器改造算作完成。
+控制；borrow兼容性检查仍基于全部entry而非当前选择。除下述顺序closed合同外，既有准入
+仍限一项；一般多根incoming与嵌套owner语义仍待实现。
 
 当函数仅含多个顺序While且每个均满足原无外来owner的closed合同，私有容器可原子准入
 全部真实控制：每个body独立采集并保存原catalog，共享同一callable分析身份。任一成员
-不合合同则整组不准入。当前只采集、不发布batch；finish明确标Unsupported并丢弃多条，
-不能伪装成空Complete或任取其中一条。该结构采集不证明各循环组合可达或终止。
-栈不平衡时先拒绝observation再清空事务；一般多根incoming、嵌套root及公共batch仍待完成。
+不合合同则整组不准入。`UnitOwnerClosedLoopBatchV1`按原AST控制顺序、准确数量、共同
+callable/catalog身份、不同control/body与独立body catalog完整封存；缺一项即不发布。
+`closed_loop_batch_v1`是独立只读结构能力，legacy仍为Unsupported，不投影成Single、
+open/invariant或straight-line/Choice能力，deferred发布路径会清除整个batch。
+该结构目录不证明各循环组合可达、终止或运行时激活顺序，不授予跨循环owner运输。
+栈不平衡时先拒绝observation再清空事务；一般多根incoming和嵌套root仍待完成。
+
+多根入口、路径祖先、producer/cleanup向量及独立token事务的现状和边界，见
+[多根入口、写入与清理证据](unit-loop-root-evidence.md)。
+
+独立只读`multi_root_boundary_v1()`公开受限多根首次静态边界及真实catalog，不是header
+激活或loop lowering能力；旧loop/value资格保持不变。发布与撤销边界见
+[多根证据](unit-loop-root-evidence.md#公开只读边界证据非-header运行能力)。

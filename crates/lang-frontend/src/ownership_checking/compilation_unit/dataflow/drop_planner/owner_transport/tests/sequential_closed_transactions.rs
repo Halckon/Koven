@@ -2,7 +2,7 @@
 use super::*;
 
 #[test]
-fn sequential_closed_transactions_capture_each_real_control_without_single_publication() {
+fn sequential_closed_transactions_capture_each_real_control_with_separate_batch_publication() {
     for tail in ["", "; continue", "; break"] {
         let text = format!(
             r#"fun run(flag: Boolean) {{
@@ -14,6 +14,16 @@ fn sequential_closed_transactions_capture_each_real_control_without_single_publi
         let owned = fixture.shared();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.clone().validate().is_ok());
+        let batch = owned.owner_observations()[0]
+            .closed_loop_batch_v1()
+            .expect("atomic real sequence publication");
+        assert_eq!(batch.products().len(), 2);
+        assert!(batch.is_consistent());
+        assert!(
+            owned.owner_observations()[0]
+                .value_observation_v1()
+                .is_none()
+        );
         assert!(
             owned
                 .owner_observations()
@@ -72,6 +82,12 @@ fn sequential_closed_transactions_decline_entire_batch_when_any_member_is_outsid
         let owned = fixture.shared();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.clone().validate().is_ok());
+        assert!(
+            owned
+                .owner_observations()
+                .iter()
+                .all(|o| o.closed_loop_batch_v1().is_none())
+        );
         compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
             let mut planner = super::super::super::DropPlanner::new(
                 checker,
@@ -120,4 +136,27 @@ fn ci_only_unbalanced_transaction_finalization_does_not_publish_empty_complete_o
         assert!(observation.loop_observation_v1().is_none());
         assert!(observation.value_observation_v1().is_none());
     });
+}
+
+#[test]
+fn sequential_closed_batch_publishes_three_real_controls_atomically() {
+    let fixture = Fixture::new(&[(
+        "three-controls.ko",
+        r#"fun run(flag: Boolean) {
+        while(flag) { val first = "first"; break }
+        while(flag) { val second = "second"; break }
+        while(flag) { val third = "third"; break }
+    }"#,
+    )]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    let observation = &owned.owner_observations()[0];
+    let batch = observation.closed_loop_batch_v1().unwrap();
+    assert!(batch.is_consistent());
+    assert!(batch.clone().is_consistent());
+    assert_eq!(batch.products().len(), 3);
+    assert!(observation.loop_observation_v1().is_none());
+    assert!(observation.value_observation_v1().is_none());
+    compare(&fixture, &fixture.parts(&owned));
 }

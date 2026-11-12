@@ -41,9 +41,18 @@ fn compare(fixture: &Fixture, parts: &Parts) {
     compare_and_inspect(fixture, parts, |_| {});
 }
 
-fn compare_and_inspect(
+pub(super) fn compare_and_inspect(
     fixture: &Fixture,
     parts: &Parts,
+    inspect: impl FnOnce(&Checker<'_>),
+) -> usize {
+    compare_and_inspect_control_mode(fixture, parts, false, inspect)
+}
+
+fn compare_and_inspect_control_mode(
+    fixture: &Fixture,
+    parts: &Parts,
+    constant_control: bool,
     inspect: impl FnOnce(&Checker<'_>),
 ) -> usize {
     let inputs = fixture.inputs();
@@ -109,6 +118,7 @@ fn compare_and_inspect(
         fixture.typed.types(),
     )
     .unwrap();
+    checker.constant_control = constant_control;
     let drop_analysis = checker.run().unwrap();
     assert!(drop_analysis.deferred.is_empty());
     assert!(checker.primitive_deferred.is_empty());
@@ -571,3 +581,7 @@ mod qualified_owner_edges;
 mod general_control_frontier;
 
 mod sequential_closed_transactions;
+
+mod multi_root_stages;
+
+mod root_write_receipts;

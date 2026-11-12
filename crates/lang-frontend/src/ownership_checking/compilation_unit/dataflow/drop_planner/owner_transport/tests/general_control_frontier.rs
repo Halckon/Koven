@@ -232,3 +232,116 @@ fn control_transaction_registry_isolates_real_callable_controls_and_restores_pre
         assert!(first.selected().is_none());
     });
 }
+
+const TWO_ROOT_ENTRY: &str = r#"fun run(flag: Boolean) {
+    var left = "left"
+    var right = "right"
+    while(flag) {
+        val oldLeft = replace(&left, "next-left")
+        val oldRight = replace(&right, "next-right")
+        break
+    }
+    val finalLeft = left
+    val finalRight = right
+}"#;
+
+#[test]
+fn actual_multi_root_entry_preserves_correlated_catalog_owners() {
+    let fixture = Fixture::new(&[("multi-root-entry.ko", TWO_ROOTS)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let entry = planner
+            .owner_control_probe
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|v| v.entering)
+            .unwrap();
+        let roots = entry
+            .incoming_roots
+            .as_ref()
+            .expect("actual two-root incoming capture");
+        assert_eq!(roots.len(), 2);
+        assert_ne!(roots[0].0, roots[1].0);
+        assert_ne!(roots[0].1, roots[1].1);
+        assert_eq!(roots[0].1.callable, roots[1].1.callable);
+        assert!(std::sync::Arc::ptr_eq(
+            &roots[0].1.identity,
+            &roots[1].1.identity
+        ));
+        assert!(
+            roots
+                .iter()
+                .all(|(root, _)| root.source_unit() == entry.control.source_unit())
+        );
+    });
+    assert_frontier(TWO_ROOTS);
+}
+
+#[test]
+fn actual_multi_root_entry_keeps_replaced_owner_not_original_binding_owner() {
+    let text = TWO_ROOT_ENTRY.replace(
+        "while(flag)",
+        "val prior = replace(&left, \"prepared\")\n    while(flag)",
+    );
+    let fixture = Fixture::new(&[("updated-root-entry.ko", &text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        let entry = planner
+            .owner_control_probe
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|v| v.entering)
+            .unwrap();
+        let roots = entry.incoming_roots.as_ref().expect("updated actual roots");
+        assert_eq!(roots.len(), 2);
+        assert!(
+            roots[0].1.index > roots[1].1.index,
+            "left now holds the later prepared producer, not the original earlier token"
+        );
+    });
+}
+
+#[test]
+fn multi_root_entry_does_not_recover_tokens_from_an_unsupported_opaque_prefix() {
+    let text = format!(
+        "{}\nfun touch() {{}}",
+        TWO_ROOT_ENTRY.replace("while(flag)", "touch()\n    while(flag)")
+    );
+    let fixture = Fixture::new(&[("unsupported-entry.ko", &text)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.owner_control_probe = Some(Vec::new());
+        let planner = planner.run().unwrap();
+        assert!(
+            planner
+                .owner_control_probe
+                .as_ref()
+                .unwrap()
+                .iter()
+                .all(|visit| visit.incoming_roots.is_none())
+        );
+    });
+}

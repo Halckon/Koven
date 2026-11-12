@@ -732,14 +732,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             return match plan.rhs {
                 UnitShortCircuitRhs::Never => Ok(true),
-                UnitShortCircuitRhs::Always => {
-                    self.expression(plan.right.expression(), DropExpressionUse::Read, state)
-                }
+                UnitShortCircuitRhs::Always => self.owner_short_circuit_rhs(plan, state),
                 UnitShortCircuitRhs::Conditional => {
                     let mut skipped = state.clone();
                     self.drop_branch_exit(id, 1 - plan.rhs_branch, &mut skipped);
                     let mut branches = vec![skipped];
-                    if self.expression(plan.right.expression(), DropExpressionUse::Read, state)? {
+                    if self.owner_short_circuit_rhs(plan, state)? {
                         self.drop_branch_exit(id, plan.rhs_branch, state);
                         branches.push(state.clone());
                     }
@@ -1371,6 +1369,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         state: &mut ValueState,
         cause: Option<action_source::BindingDropCause>,
     ) {
+        self.owner_loop
+            .segment_drop(point.into_unit(self.checker.source_unit), value.symbol);
         let mut shared_sources = Vec::new();
         if let Some(closure) = closure {
             let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
@@ -1605,6 +1605,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
+            self.drop_root_old_token(fact);
             self.iteration_actions.push_with_binding_drop(
                 (
                     fact.point(),

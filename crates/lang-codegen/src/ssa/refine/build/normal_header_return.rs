@@ -470,6 +470,7 @@ impl Builder<'_, '_> {
         geometry: [BlockRef; 4],
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.multi_root_while(statement, condition, body, geometry, span)?;
         let Some(p) = &mut self.header_return_plan else {
             return Ok(());
         };

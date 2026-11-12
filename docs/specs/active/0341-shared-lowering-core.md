@@ -13780,3 +13780,199 @@ diff、docs897 及尺寸门禁通过（2473 手写 Rust 文件，35 历史超限
 能力仍按前述切片限定：owner 为控制身份/私有顺序闭合事务采集基础，借用为限定
 辅助区域与 receipt；多根 incoming、一般嵌套/复杂 CFG、完整逐路径证明和旧见证
 退休未完成。D10/E2 保持 active。远端推送及新头 CI 结果需另核实。
+### 独立 closed-loop batch 原子发布（2026-11-11，本地）
+
+在eaa4be48的实际顺序closed采集上，d5aa8066公开空getter红checkpoint已编译实跑，
+因atomic real sequence publication缺失失败。现以独立UnitOwnerClosedLoopBatchV1
+承接原registry中的完整有序控制manifest与全部已封存产品：至少两项，数量、顺序、
+共同callable/analysis身份、各产品完整性、control/body唯一及body catalog独立均核验。
+任一result缺失或交易混有normal/invariant/replacing族则整体失败，不选第一个或拼部分。
+
+closed_loop_batch_v1核observation身份与第一control的Unsupported Syntax边界、空旧事件
+及与Single/open/invariant/Choice互斥。legacy状态不改Complete，旧投影不能获得batch。
+不完整/deferred的总发布会清空batch。真实两循环正常/Continue/Break与三循环Break检验
+产品及on/off旧完整产物等价；这是结构目录，不证明多个循环共同可达或终止。
+CI-only缺项、乱序、重复、跨analysis拼接/替换、旧产品冲突及deferred清除守卫仅编译，
+不在本机执行。一般多根incoming、嵌套root、跨循环owner与旧见证退休均不在本片。
+
+最终641项普通FE lib测试通过，45项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。独立源码复核未发现阻断；公开目录仍
+限定closed结构模板，不扩大组合可达性声明。未运行Preview、CI-only故障守卫或远端CI。
+
+### 真实多根控制入口关联（2026-11-11，本地）
+
+基于a454fbde，de320135以真实源码记录缺失入口的红checkpoint。条件求值前从实际
+ValueState原子保留control-keyed root→owner向量；先核ControlRootFrame整组约束，
+再核当前Complete observation的callable/source、Arc catalog身份及definition成员。
+没有按symbol重建owner或用原绑定token替代当前token；同control失败重采集先删旧项，
+函数结束清空，借用准入is_none不读取该私有观察数据。
+
+初始记录位置晚于旧While statement precheck，catalog已被该拒绝清空，导致真入口测试
+继续失败。修正为在真实statement precheck内、旧拒绝之前采集，不改变原拒绝本身。
+真实Int/index两根入口与Boolean循环前实际Replace的新producer关联均覆盖；已有opaque
+调用使observation提前Unsupported的前缀则仍不能用残留ID恢复资格。
+该快照仅代表条件求值前入口，不证明条件后的存活、body/backedge运输、嵌套语义或一般
+多根phi。公开产品保持旧边界，旧见证不退休。
+CI-only跨catalog、缺owner、未知definition、失败重采集清旧值和finish清理守卫只编译；
+其状态模型不替代真实入口测试。独立源码复审未发现现行私有采集路径阻断。
+
+最终普通FE lib测试644项通过、46项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。入口采集顺序修正另经独立复核，原拒绝
+仍执行，不提升已有Unsupported前缀。未推送，未处理Preview。
+
+### 多根条件后与正常落通候选证据（2026-11-11，本地）
+
+基于df5f1da0，fc84d241真实红checkpoint因缺少条件后/落通标记而失败。RootEvidence
+保留入口向量，真实condition求值成功完成后核整组root/owner精确相同；body实际Ok(true)
+且条件后证据有效、整组仍相同才记normal候选。非正常返回不记正常回边，重采集和失败
+清除相应旧标记，不更改ValueState、原admission或公开产品。
+
+真实body Replace负测曾捕获误报：Unsupported后ValueState可残留旧owner ID，单凭向量
+相同不足以证明保持。修正为活动控制中实际Call/Assignment求值前、owner active早退之前
+独立置sticky tainted；条件后或body后不能靠同样残留ID恢复资格。body污染只撤正常候选，
+保留此前已核条件后标记；所有候选一并污染是保守收窄，不是路径敏感别名分析。
+
+真实两根不变循环、Break/Continue/Return、body Replace与condition内赋值覆盖实际hook；
+CI-only重采集、缺owner、非正常退出及sticky后不可恢复仅编译。该私有候选不等于完整
+header equation、一般多根运输或复杂控制流逐路径证明，亦不表示条件值为真或运行时
+正常回边可达。旧见证继续保留，不处理Preview、不推送。
+
+最终646项普通FE lib测试通过，47项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。独立复审确认sticky修正封住此次
+真实Replace负测，不能把静态复审替代实测或扩大为逐路径完整证明。
+
+### 实际 root 写入与直接 producer 回执（2026-11-11，本地）
+
+基于caa74a97，7ec4cd4c真实红checkpoint期望两次提交回执却得到0。独立记录直接、
+非插值String到达真实完成hook；在checked Replace提交边界核同call唯一pending
+transfers-at-call temporary、String primitive单root、当前root存在且属于已验证入口，
+再消费对应producer完成记录，生成control/root/call/producer表达式关联。
+该hook位于实参成功求值及returns检查后，但在旧owner observer早退前，因此不依赖
+残留owner ID。每个call/producer仅一次，不造新的UnitOwnerId、不更新旧owner状态，
+上一片sticky污染不因此解除。
+
+真实两根分别写入与同根连续两次不同直接producer均覆盖；group/name RHS拒绝对应
+回执（另一个符合合同的实际提交仍可记录），RHS提前return未到提交点所以无回执。
+此处只能说遍历观察顺序；互斥分支可能分别被planner访问，回执尚无路径身份，不能拼成
+运行时trace、逐路径完整证明或后续cleanup能力。所有数据私有，旧公开能力和见证不变。
+独立源码复审未发现提前提交或producer错配阻断；未处理Preview、不推送。
+
+最终649项普通FE lib测试通过，47项ci_only过滤；FE all-target strict Clippy、LLVM21
+workspace all-target check、fmt/docs897/diff通过。无新的故障注入本机执行或远端CI声明。
+
+### 静态 header 前驱候选封装（2026-11-11，本地）
+
+在20ffa330私有守恒关系上，将入口与首次body末向量收为只读整组选择；ZeroBody与
+FirstBody是静态前驱标签，不是运行时激活编号。同control才可查询，旧新定义须不同
+catalog；真实两控制源码覆盖错control拒绝，原多根及逆序矩阵覆盖整组身份与clone稳定。
+保持现有产品前置、Unsupported公开结果和旧observer输出；不声称跨迭代归纳或旧见证退休。
+
+本片最终FE lib为656通过、50项ci_only过滤，FE all-target strict Clippy、LLVM21
+workspace all-target check及fmt/diff通过。docs898与Rust尺寸2466文件/35项旧债通过，
+无新增例外。只读复审发现的control可改写缺口已以私有字段及只读getter封闭并复核。
+CI-only故障测试仅编译，未本机执行；本地提交、不推送，未处理Preview。
+
+### 静态逐根转移签名（2026-11-11，本地）
+
+基于8ac8658e，独立事务保存真实drop消费的旧token与fact，构建header候选时按root
+关联计划声明、producer定义、返回binding及消费事实，形成封闭的整组只读转移槽。
+真实多根正反矩阵与逆序写入覆盖槽/root/producer/drop精确配对、clone稳定和错control拒绝。
+这是首次静态body的有限签名，不是第二次激活、运行时trace或跨轮归纳完成；不发布公开能力。
+
+本片定向10项通过；最终FE lib656通过、50项ci_only过滤；FE all-target strict Clippy、
+LLVM21 workspace all-target check及fmt/diff通过。只读复审未发现错根、错binding或封装
+阻断。CI-only故障用例只编译未本机执行，无远端CI或跨轮运行证明声明。
+
+### header 状态形状闭合前置（2026-11-11，本地）
+
+基于a541b580，在构建私有header候选前核真实body末资源辅助状态全空、活root集合精确覆盖
+入口根且无重复；不读取残留owner ID冒充新代际。既有多根/逆序真实源码仍准入；仅CI执行
+的模型负控覆盖缺失、重复、额外根以及借用binding、待替换残留。普通回执与公开能力不变，
+该前置不单独授权runtime activation或跨轮归纳。
+
+定向10项通过；最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、
+LLVM21 workspace all-target check及fmt/diff通过。只读复审无阻断；纯观察元数据仍按
+boundary_values既有豁免，不把资源辅助状态闭合写成所有字段为空。未本机执行故障注入。
+
+### header guard 与 body 身份（2026-11-11，本地）
+
+基于70787815，将实际While condition/body及解析到的Boolean Name binding封入事务与
+候选，核same-source和guard/root分离。真实矩阵补局部val/var guard，逐项回查AST/reference；
+不假设所有Name都是参数，不扩大body合同或公开能力，不声称runtime activation已实现。
+
+最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过，新增guard矩阵断言随普通lib执行。只读复审无阻断；
+CI-only只编译未执行，本地保留、不推送。
+
+### 实际 planner body 入口回执（2026-11-11，本地）
+
+基于83cea6f2，将condition成功完成及body入口的真实hook接入独立token事务前置；记录
+精确control/condition/body身份且匹配实际While，不能仅凭静态body形状开始事务。
+CI-only增加遗漏入口hook故障场景，普通写回执仍在而token/header证据不得建立。这里的
+入口仅指首次planner遍历，不等价于runtime激活或跨迭代证明；原公开能力不变。
+
+最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过。复审发现的旧CI-only模型签名遗漏已修复并编译通过；模型
+marker明确不是While条件，不替代真实源码入口验证。遗漏hook负控未本机运行，不推送。
+
+### 已知 header incoming 的整组身份匹配（2026-11-11，本地）
+
+基于49df9d06，新增sealed候选整组反向匹配，绑定control、root顺序与每个原catalog owner；
+真实同源码两次分析验证不能互用normal快照，真实另一control拒绝；CI-only覆盖混组/交换/缺根。
+它只匹配已知静态entry/normal，不表示新激活或运行时迭代可直接复用该token，公开能力不变。
+
+最终FE lib656通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过。只读复审未发现catalog错配或退化前驱混同；CI-only负控
+仅编译未本机执行，未推送。
+
+### 真实证据驱动的有限激活审计模型（2026-11-11，本地）
+
+基于c3b46689，仅测试层建立独立作用域/出生轮次的模型实例，以真实sealed两组incoming
+和消费槽审计0/1/2/8个正常前缀、正反root写入顺序、唯一退休和当前实例存活。
+模型不生成UnitOwnerId，不接入运行时/公开产品，不以有限回放替代归纳证明。
+
+最终FE lib657通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff通过。复审建议的非空/等长及退休definition断言已补齐，模型
+作用域采用独立身份且clone稳定。普通有限模型已本地执行；CI-only故障注入仍未本机执行。
+
+### 正式 producer catalog 的私有产品接线（2026-11-11，本地）
+
+基于8e196095，将入口完整原catalog及真实body定义catalog接入sealed boundary，复用
+既有UnitOwnerProducerCatalogV1一致性与精确token查找；不将根子集改号，不推断历史定义
+仍活。真实矩阵补前缀已退休String，验证live roots仍保留原非零index及完整三定义catalog。
+该生产接线未新增公开header消费能力，也不将catalog验证等同于跨轮运输证明。
+
+最终FE lib657通过、51项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check、fmt/diff、docs898及Rust尺寸2467文件/35项旧债通过。复审无阻断，
+提示的历史定义非存活集合与Closure保守边界已明确；CI-only未执行，不推送。
+
+### 公开多根 boundary-only 证据（2026-11-11，本地）
+
+基于e236506a，新增只读UnitOwnerMultiRootBoundaryV1/slot及独立getter，最终发布唯一
+完整root候选。产品包含真实sites、完整catalog、首次entry/normal及旧结果drop关联；
+精确私有manifest锁定sites和各槽，analysis/callable/status/control及双向产品互斥共同门禁。
+失败/有deferred清除；不授予header激活、loop lowering、跨轮归纳或旧见证退休资格。
+真实正反矩阵验证公开准入，单独fixture验证完整三定义catalog与旧能力仍None；CI-only
+覆盖partial/duplicate/交叉old/drop/错sites/foreign catalog/失败deferred及混合value产品。
+
+复审指出的原关联与互斥缺口已修复并复核。manifest只锁定唯一已验证equation转换的输入，
+不是独立CFG证明；该来源链必须保留。最终门禁结果记录于本片收尾。
+
+最终FE lib658通过、52项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check、fmt/diff、docs898及Rust尺寸2468文件/35项旧债通过，无新增例外。
+CI-only破坏/撤销负控只编译未本机执行；本地提交，未推送，未宣称远端CI通过。
+
+### 参数化多根正常 body 运输（2026-11-11，本地）
+
+基于282bec0b，生产形式校验器以Header(root)/Produced(definition)义务运行真实ordered
+Replace步骤，拒绝重复根/producer/结果binding及不完整输出；旧Header恰消费一次且新
+producer全保留在根。公开独立normal-body规则不引用固定P充当任意轮次输入，不是快照堆叠。
+精确typed线性body与真实hooks提供参数化前提；完整header/exit/lowering仍未实现。
+
+复审发现附接遗漏call/order，已用真实事务actual_steps独立清单锁定并精确附接，禁止覆盖；
+CI-only补错call/重排附接及重复义务/缺步骤等负控。真实正反、逆序root及稀疏catalog矩阵
+验证新规则准入和实际调用顺序；旧完整loop/value getter不新增资格。
+
+最终FE lib658通过、53项ci_only过滤；FE all-target strict Clippy、LLVM21 workspace
+all-target check及fmt/diff/docs898通过。复审确认call/order附接修复；CI-only负控仅编译
+未本机执行，未推送、未声明远端CI或完整循环能力。

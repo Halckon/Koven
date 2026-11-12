@@ -2,6 +2,8 @@
 mod conditional;
 mod control_scope;
 mod control_transactions;
+mod counter_batch;
+mod counter_segment;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
 pub(in super::super) use control_scope::ControlVisit;
@@ -10,6 +12,10 @@ mod invariant;
 mod normal_backedge;
 mod replace_break;
 mod root_frame;
+mod root_incoming;
+#[cfg(test)]
+pub(super) use root_incoming::StaticRootPredecessor;
+mod root_writes;
 use super::*;
 use crate::ownership_checking::compilation_unit::owner_transport::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
@@ -17,6 +23,7 @@ use crate::ownership_checking::compilation_unit::owner_transport::{
 };
 use crate::ownership_checking::{UnitOwnerLoopObservationV1, UnitOwnerOpenLoopObservationV1};
 use crate::parser::VariableKind;
+pub(in super::super) use root_writes::RootWriteReceipt;
 use std::collections::BTreeSet;
 
 pub(in super::super) struct LoopTransaction {
@@ -678,51 +685,6 @@ impl DropPlanner<'_, '_> {
         }
     }
 
-    pub(in super::super) fn owner_while_statement(
-        &mut self,
-        id: StatementId,
-        condition: ExpressionId,
-        body: StatementId,
-        state: &mut ValueState,
-    ) -> Result<bool, OwnershipCheckingError> {
-        let control = UnitStatementId::new(self.checker.source_unit, id);
-        #[cfg(test)]
-        let parent = self.owner_controls.current();
-        let previous_transaction = self.owner_loop.selected();
-        let entered = self.owner_controls.enter(control);
-        if entered {
-            self.owner_loop.select(Some(control));
-        } else {
-            self.owner_loop.clear();
-        }
-        #[cfg(test)]
-        if let Some(probe) = &mut self.owner_control_probe {
-            probe.push(ControlVisit {
-                entering: true,
-                control,
-                parent,
-                closed_product: None,
-            });
-        }
-        let result = self.owner_while_statement_scoped(id, condition, body, state);
-        #[cfg(test)]
-        let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
-        if entered {
-            self.owner_controls.leave(control);
-        }
-        self.owner_loop.select(previous_transaction);
-        #[cfg(test)]
-        if let Some(probe) = &mut self.owner_control_probe {
-            probe.push(ControlVisit {
-                entering: false,
-                control,
-                parent: self.owner_controls.current(),
-                closed_product,
-            });
-        }
-        result
-    }
-
     fn owner_while_statement_scoped(
         &mut self,
         id: StatementId,
@@ -733,6 +695,11 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
+        self.owner_loop.record_root_condition(
+            UnitStatementId::new(self.checker.source_unit, id),
+            self.checker.unit_expression(condition),
+            state,
+        );
         let collecting = self.owner_observation_enabled
             && self
                 .owner_controls
@@ -751,6 +718,12 @@ impl DropPlanner<'_, '_> {
         let mut body_transport = None;
         let mut replacement_body = None;
         if self.checker.ordinary_condition_outcomes(condition).0 {
+            self.owner_loop.record_root_body_entry(
+                UnitStatementId::new(self.checker.source_unit, id),
+                self.checker.unit_expression(condition),
+                UnitStatementId::new(self.checker.source_unit, body),
+                state,
+            );
             let mut body_state = state.clone();
             // The private body sink has a fresh catalog, never aliases the callable catalog,
             // and is not pushed as an extra callable observation.
@@ -775,6 +748,10 @@ impl DropPlanner<'_, '_> {
                         choice_value: None,
                         loop_value: None,
                         invariant_loop_value: None,
+                        closed_loop_batch: None,
+                        counter_tail: None,
+                        counter_batch: None,
+                        multi_root_boundary: None,
                         open_loop_value: None,
                     }),
                     self.owner_choice.take(),
@@ -785,6 +762,18 @@ impl DropPlanner<'_, '_> {
             };
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
+            self.owner_loop.record_root_fallthrough(
+                UnitStatementId::new(self.checker.source_unit, id),
+                &body_state,
+                matches!(continued, Ok(true)),
+            );
+            self.owner_loop.record_root_normal_writes(
+                self.checker,
+                UnitStatementId::new(self.checker.source_unit, id),
+                &body_state,
+                matches!(continued, Ok(true)),
+                &self.facts,
+            );
             self.loop_boundaries.pop();
             if let Some((observation, choice, depth)) = saved {
                 let collected = self.owner_observation.take();
@@ -850,7 +839,7 @@ impl DropPlanner<'_, '_> {
         if self.checker.non_fallthrough_whiles.contains(&id.index()) {
             return Ok(false);
         }
-        self.drop_loop_exit(id, state);
+        self.drop_root_loop_exit(id, condition, state);
         if collecting
             && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())
             && let Some((collected, _)) = replacement_body.take()

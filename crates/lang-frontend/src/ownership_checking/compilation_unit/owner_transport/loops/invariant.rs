@@ -118,7 +118,10 @@ impl UnitOwnerObservation {
         let InvariantLoopValueV1::Backedge(value) = self.invariant_loop_value.as_deref()? else {
             return None;
         };
-        (self.open_loop_value.is_none()
+        (self.multi_root_boundary.is_none()
+            && self.closed_loop_batch.is_none()
+            && self.counter_batch.is_none()
+            && self.open_loop_value.is_none()
             && self.loop_value.is_none()
             && matches!(self.status, super::super::UnitOwnerObservationStatus::Unsupported {
                 point: crate::ownership_checking::UnitDropPoint::AfterStatement(statement),

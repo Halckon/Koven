@@ -725,6 +725,7 @@ impl Builder<'_, '_> {
     pub(super) fn finish_owner_plan(&self) -> Result<(), LoweringError> {
         self.finish_open_loop_return()?;
         self.finish_header_return()?;
+        self.finish_multi_root_receipt()?;
         if let Some(plan) = &self.owner_plan
             && (plan.stage != 3
                 || plan

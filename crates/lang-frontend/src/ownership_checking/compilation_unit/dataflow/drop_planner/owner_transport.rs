@@ -49,6 +49,10 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            closed_loop_batch: None,
+            counter_tail: None,
+            counter_batch: None,
+            multi_root_boundary: None,
             open_loop_value: None,
         });
     }
@@ -77,6 +81,10 @@ impl DropPlanner<'_, '_> {
             choice_value: None,
             loop_value: None,
             invariant_loop_value: None,
+            closed_loop_batch: None,
+            counter_tail: None,
+            counter_batch: None,
+            multi_root_boundary: None,
             open_loop_value: None,
         });
     }
@@ -107,12 +115,20 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
+        let counter_batch = self.owner_loop.take_counter_batch();
+        let counter_tail = self.owner_loop.counter_tail_evidence();
+        let multi_root_boundary = self.owner_loop.take_root_boundary();
+        let closed_loop_batch = self.owner_loop.take_closed_batch();
         let (loop_value, invariant_loop_value, open_loop_value) = self
             .owner_loop
             .take()
             .map(loops::LoopTransaction::finish)
             .unwrap_or_default();
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.counter_tail = counter_tail.map(Box::new);
+            observation.counter_batch = counter_batch.map(Box::new);
+            observation.closed_loop_batch = closed_loop_batch.map(Box::new);
+            observation.multi_root_boundary = multi_root_boundary.map(Box::new);
             observation.open_loop_value = open_loop_value;
             observation.loop_value = loop_value.map(Box::new);
             observation.invariant_loop_value = invariant_loop_value.map(Box::new);
@@ -130,6 +146,9 @@ impl DropPlanner<'_, '_> {
                     point,
                     reason: UnitOwnerUnsupportedReason::InconsistentTransport,
                 };
+                observation.counter_tail = None;
+                observation.counter_batch = None;
+                observation.multi_root_boundary = None;
                 observation.definitions.clear();
                 observation.events.clear();
             }
@@ -218,6 +237,9 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        self.owner_loop
+            .segment_literal(self.checker.unit_expression(expression));
+        self.record_root_literal(expression);
         if let Some(choice) = &mut self.owner_choice {
             choice.string_completed(self.checker.unit_expression(expression));
         }
@@ -231,6 +253,11 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        if self.is_string_expression(expression) {
+            self.owner_loop
+                .segment_move(self.checker.unit_expression(expression), value.as_ref());
+        }
+        self.move_root_suffix(expression, value.as_ref());
         self.take_conditional_return(expression, value.as_ref());
         self.take_open_loop_return(expression, value.as_ref());
         if let Some(choice) = &mut self.owner_choice {
@@ -259,6 +286,10 @@ impl DropPlanner<'_, '_> {
         initializer: ExpressionId,
         owner: Option<UnitOwnerId>,
     ) -> Option<UnitOwnerId> {
+        self.owner_loop
+            .segment_bind(symbol, self.checker.unit_expression(initializer));
+        self.bind_root_suffix(symbol, initializer);
+        self.bind_root_old_token(symbol, initializer);
         if let Some(owner) = owner.as_ref() {
             self.owner_event(UnitOwnerTransportEvent::Binding {
                 symbol,
@@ -282,7 +313,20 @@ impl DropPlanner<'_, '_> {
         id: StatementId,
         state: &ValueState,
     ) -> Result<(), OwnershipCheckingError> {
+        self.owner_loop
+            .segment_statement(UnitStatementId::new(self.checker.source_unit, id), state);
+        self.begin_root_suffix_statement(id, state);
         self.prepare_owner_loop_input(id, state);
+        if matches!(
+            self.checker.parsed.ast().statements().get(id)?.payload(),
+            Statement::While { .. }
+        ) {
+            self.owner_loop.record_root_entry(
+                crate::type_checking::UnitStatementId::new(self.checker.source_unit, id),
+                state,
+                self.owner_observation.as_ref(),
+            );
+        }
         if !self.owner_observation_active() {
             return Ok(());
         }
@@ -301,6 +345,16 @@ impl DropPlanner<'_, '_> {
     }
 
     fn check_owner_expression(&mut self, id: ExpressionId) -> Result<(), OwnershipCheckingError> {
+        // Unsupported owner observation may retain stale IDs in legacy ValueState.
+        // Never infer preservation across a potentially mutating evaluated expression.
+        if self.owner_controls.current().is_some()
+            && matches!(
+                self.checker.parsed.ast().expressions().get(id)?.payload(),
+                Expression::Call { .. } | Expression::Assignment { .. }
+            )
+        {
+            self.owner_loop.invalidate_root_preservation();
+        }
         if !self.owner_observation_active() {
             return Ok(());
         }
@@ -348,7 +402,12 @@ impl DropPlanner<'_, '_> {
                         }))
             }
             Expression::Assignment { .. } => self.normal_assignment_supported(id),
-            Expression::Binary { .. } => self.normal_control_expression_supported(id),
+            Expression::Binary { .. } => {
+                self.normal_control_expression_supported(id)
+                    || self
+                        .owner_loop
+                        .private_counter_initializer(self.checker.unit_expression(id))
+            }
             Expression::Literal(_) => self
                 .checker
                 .typed
@@ -474,6 +533,7 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         state: &mut ValueState,
     ) -> Option<UnitOwnerId> {
+        self.record_root_primitive_write(call, state);
         if !self.owner_observation_active() {
             return None;
         }
