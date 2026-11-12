@@ -90,8 +90,7 @@ fun entry(): Unit { receiver(Node()); loan(); owner_call(false); owner_drop(fals
 pub(in crate::ssa) mod map_iteration {
     //! Bounded two-component Map provider; independent from Sequential snapshots.
     pub(in crate::ssa) use crate::ssa::lower_frontend::control::map_frames::carrier;
-    #[path = "lower_frontend/map_iteration/conditional.rs"]
-    pub(in crate::ssa) mod conditional;
+    pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::nested_exits::query_cleanup::map_iteration_conditional as conditional;
     pub(in crate::ssa) use conditional::checked;
     pub(in crate::ssa) use checked::nested;
     pub(in crate::ssa) use crate::ssa::checked_integer_conversion_tests::map_iteration_exits as exits;

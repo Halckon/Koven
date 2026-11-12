@@ -55,7 +55,7 @@ pub(in crate::ssa) mod map_promotion_contract_tests;
 #[cfg(test)]
 mod nullable_map_consume_fixture_tests;
 #[cfg(test)]
-mod nullable_map_consume_lowering_tests;
+pub(in crate::ssa) mod nullable_map_consume_lowering_tests;
 #[cfg(test)]
 pub(crate) use nullable_map_consume_lowering_tests::ordinary_nullable_consume_sources;
 mod types;

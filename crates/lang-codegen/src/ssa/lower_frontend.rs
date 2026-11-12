@@ -20,7 +20,7 @@ pub(in crate::ssa) mod non_null_proof;
 pub(in crate::ssa) use super::integer_range_contract_tests::nullable_borrowed_cleanup;
 pub(in crate::ssa) mod nullable_if_cleanup;
 pub(in crate::ssa) use nullable_if_cleanup::constant_presence;
-pub(in crate::ssa) mod nullable_numeric_cleanup;
+pub(in crate::ssa) use super::map_provider_exits_pipeline_tests::temporary_exits::query_cleanup::nullable_numeric_cleanup;
 pub(in crate::ssa) mod orchestrate;
 pub(in crate::ssa) use super::checked_integer_conversion_contract_tests::outer_borrowed_while;
 pub(in crate::ssa) use super::integer_range_pending_tests::ownership_primitive;

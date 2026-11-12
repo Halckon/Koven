@@ -20,7 +20,7 @@ mod consume_identity;
 mod read_cross_join;
 mod read_identity;
 mod resource;
-mod single;
+pub(in crate::ssa) mod single;
 mod sources;
 mod unit;
 

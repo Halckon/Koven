@@ -3,7 +3,7 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
-mod deep;
+pub(in crate::ssa) mod deep;
 mod unit;
 
 use super::{

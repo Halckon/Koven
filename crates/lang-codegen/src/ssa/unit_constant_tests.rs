@@ -14,7 +14,7 @@ use super::{
     unit_lower_test_support::{declaration, parsed},
 };
 
-mod control_completion;
+pub(in crate::ssa) mod control_completion;
 
 #[path = "unit_receiver_two_phase_control_tests.rs"]
 pub(in crate::ssa) mod receiver_two_phase_control;

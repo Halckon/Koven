@@ -4,8 +4,7 @@ use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 use crate::ssa::lower_frontend_tests::constant_lowering_tests::map_operand_unit_identity as unit_identity;
 
-#[path = "lower_frontend_map_nullable_operand_unit_test_support.rs"]
-pub(in crate::ssa) mod nullable_operand;
+pub(in crate::ssa) use crate::ssa::unit_constant_tests::control_completion::map_nullable_operand_unit as nullable_operand;
 pub(in crate::ssa) use crate::ssa::unit_constant_tests::receiver_two_phase_control::map_same_guard_unit as same_guard;
 
 const ORIGINAL: &str =

@@ -20,9 +20,9 @@ pub(crate) use local_arguments::{
     generic_sources as local_generic_argument_sources, sources as local_argument_sources,
 };
 
-mod local_sources;
+pub(in crate::ssa) mod local_sources;
 mod nested;
-mod nested_exits;
+pub(in crate::ssa) mod nested_exits;
 mod pipeline;
 mod query_cleanup;
 mod query_graph;
@@ -49,7 +49,7 @@ mod temporary_argument_cfg_runtime;
 mod temporary_arguments;
 mod temporary_delivery;
 mod temporary_delivery_boundaries;
-mod temporary_exits;
+pub(in crate::ssa) mod temporary_exits;
 mod temporary_forms;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
