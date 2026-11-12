@@ -88,6 +88,7 @@ subgraph Gactive["现行 active"]
   S0440["S0440<br/>rc_nullable_while_identity_queries、same_guard、map_loop/operand_unit_identity、owner_consumer_test_support 及 loop_control/instances 壳子模块退役"]
   S0441["S0441<br/>container_lowering_tests 三子壳及剩余 lower_frontend 支撑/清理壳子模块退役"]
   S0442["S0442<br/>range_lowering_tests、unit_lower_container_tests、unit_plan_tests、borrowed_generate_tests 及 source_forms 子壳模块退役"]
+  S0443["S0443<br/>owned_source_return、range_lowering_tests、local_arguments、nested 及 temporary_exits 子壳模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -195,6 +196,7 @@ ARCH --> S0341
 | SPEC-0440 | active | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](active/0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
 | SPEC-0441 | active | [0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md](active/0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) |
 | SPEC-0442 | active | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](active/0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
+| SPEC-0443 | active | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](active/0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
