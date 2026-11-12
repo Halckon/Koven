@@ -75,8 +75,20 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
             "borrow val item = view(source); while (flag) { consume(item); if (flag) { if (flag) { break } } }",
         ),
         (
-            "return",
-            "borrow val item = view(source); while (flag) { consume(item); return }",
+            "conditional-return",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { return } }",
+        ),
+        (
+            "return-without-consumer",
+            "borrow val item = view(source); while (flag) { return }",
+        ),
+        (
+            "nested-return",
+            "borrow val item = view(source); while (flag) { consume(item); { return } }",
+        ),
+        (
+            "return-call-value",
+            "borrow val item = view(source); while (flag) { consume(item); return consume(item) }",
         ),
         (
             "extra-statement",
@@ -104,10 +116,21 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
                 .unwrap()
                 .validate()
                 .unwrap();
-            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-                .unwrap()
-                .validate()
-                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            if name == "return-call-value" {
+                assert!(
+                    typed
+                        .diagnostics()
+                        .iter()
+                        .any(|diagnostic| diagnostic.code().to_string() == "L0087")
+                );
+                assert!(
+                    typed.validate().is_err(),
+                    "a Unit callable requires bare return; do not pass invalid source to CG"
+                );
+                continue;
+            }
+            let typed = typed.validate().unwrap();
             let on = with_loan_observation(true, || {
                 check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap()
             });

@@ -80,17 +80,23 @@ pub(in crate::ssa) fn admitted(
     {
         return None;
     }
-    let mut ends = owned
+    let ends = owned
         .borrow_results()
         .ends()
         .iter()
-        .filter(|end| end.binding() == fact.binding());
-    let (Some(end), None) = (ends.next(), ends.next()) else {
+        .filter(|end| end.binding() == fact.binding())
+        .collect::<Vec<_>>();
+    let scopes = ends
+        .iter()
+        .filter_map(|end| match end.point() {
+            UnitDropPoint::AfterStatement(scope) => Some(scope),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [scope] = scopes.as_slice() else {
         return None;
     };
-    let UnitDropPoint::AfterStatement(scope) = end.point() else {
-        return None;
-    };
+    let scope = *scope;
     if scope.source_unit() != fact.binding().source_unit() {
         return None;
     }
@@ -115,6 +121,26 @@ pub(in crate::ssa) fn admitted(
     else {
         return None;
     };
+    let returned = tail_return(file, *while_id);
+    if let Some(returned) = returned {
+        if ends.len() != 2
+            || ends
+                .iter()
+                .filter(|end| {
+                    end.point()
+                        == UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                            fact.binding().source_unit(),
+                            returned,
+                        ))
+                })
+                .count()
+                != 1
+        {
+            return None;
+        }
+    } else if ends.len() != 1 {
+        return None;
+    }
     let unit = |expression| UnitExpressionId::new(fact.binding().source_unit(), expression);
     if !matches!(
         file.ast().expressions().get(*condition).ok()?.payload(),
@@ -147,11 +173,12 @@ pub(in crate::ssa) fn admitted(
     {
         return None;
     }
-    let consumers = if tail_jump(file, *while_id).is_some() || conditional.is_some() {
-        &elements[..elements.len() - 1]
-    } else {
-        elements.as_slice()
-    };
+    let consumers =
+        if tail_jump(file, *while_id).is_some() || conditional.is_some() || returned.is_some() {
+            &elements[..elements.len() - 1]
+        } else {
+            elements.as_slice()
+        };
     if consumers.is_empty() {
         return None;
     }
@@ -314,4 +341,16 @@ pub(in crate::ssa) fn conditional_break(
         condition: *condition,
         jump: *jump,
     })
+}
+
+pub(in crate::ssa) fn tail_return(
+    file: &ParsedFile,
+    statement: StatementId,
+) -> Option<lang_frontend::ast::ExpressionId> {
+    let expression = tail_expression(file, statement)?;
+    matches!(
+        file.ast().expressions().get(expression).ok()?.payload(),
+        Expression::Return { value: None, .. }
+    )
+    .then_some(expression)
 }

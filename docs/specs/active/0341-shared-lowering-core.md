@@ -15363,3 +15363,31 @@ lease，最终break和外while false合流后才结束；不能把AST准入当�
 lib仅编译、fmt/diff、文档912项及size基准2beb5592通过（2555文件、36历史超1000
 债务）。policy不变、CI-only未执行，conditional-break-*日志归档。本片本地提交，
 未推送；仍需后续与新main合流验证。
+
+## 不变量while尾部裸Unit return（实施中）
+
+基于506e7f16评估消费序列后直接Return(None)，与break/continue保活合同不同。
+准入必须精确同binding双End：该Return的真实ControlTransfer与外围Block的
+AfterStatement，拒额外End或返回值；原L0164和verifier不变。已有CT清理刻意保留
+borrowed/source逻辑maps给false路径，但真实return路径必须结束result/source并
+按原Drop事实清理owner，再发Return。不得以Diverged直接豁免活状态检查或复活
+owner；需独立的实际完成凭据，false路径仍依原控制流状态独立核活lease。
+实施前须核原状态转换，未经真实路径验证不计入支持。
+
+原false恢复机制已实测：emit_drops即使facts为空也先sync_dead，按进入finished
+时的entry_dead恢复该路径；未新增手工清dead或复活。return前捕lease/block/append
+cursor，原cleanup/owner_return后核新增区间精确resultEnd、sources逆序End及own
+Drop，且精确Return(None)源锚；逻辑maps保留但owner在return路为dead。body结束
+仅该已核tailReturn及原body块完整suffix可用退休检查，不泛放Diverged；false仍
+要求原活snapshot。独立非作者复审通过，FE/verifier/旧产品未改。
+
+真实return红指向裸return；720强正控含旧600及return120，return真支与外while
+false各自实际Return(None)，逐路径各一次resultEnd→sourceEnd→ownDrop，Borrow
+参数不伪sourceEnd。无回边CFG据实按原fold结果核，不强造header incoming。21类
+84合法CG负组合及2个typed L0087负例分阶段验证，不把类型拒绝输入传CG；88项
+普通回归全绿，未新增通用循环receipt、未退休旧见证。
+
+终门禁manual_contains告警以等价contains替换解决，没有放宽检查；重新88普通
+回归、Clippy全targets -D warnings、workspace全targets、默认FE/CG lib仅编译
+全部通过。fmt/diff、文档912项及size基准2beb5592通过（2555文件、36历史超1000
+债务），policy未改、CI-only未执行。invariant-return-*日志归档，本片本地提交。

@@ -11,6 +11,7 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
         Some("continue"),
         Some("break"),
         Some("conditional-break"),
+        Some("return"),
     ] {
         let inner_names: &[&str] = if jump == Some("conditional-break") {
             &["flag2", "flag"]
@@ -326,6 +327,10 @@ fn assert_transport(
             actual.operation,
             Operation::Constant(ScalarConstant::Boolean(literal == "true"))
         );
+    }
+    if let Some((start, "return")) = jump {
+        assert_return_paths(run, own, &lineage, header, acquisition.block, start);
+        return;
     }
     let incoming = run
         .blocks
@@ -644,4 +649,109 @@ fn assert_transport(
             "caller lease not locally ended"
         );
     }
+}
+
+fn assert_return_paths(
+    run: &Function,
+    own: bool,
+    lineage: &std::collections::BTreeMap<EntityId, u8>,
+    header: &Block,
+    acquisition: BlockId,
+    start: usize,
+) {
+    assert_eq!(header.id, acquisition);
+    assert!(
+        !run.blocks
+            .iter()
+            .any(|block| edges(block).iter().any(|edge| edge.target == header.id)),
+        "return body has no backedge"
+    );
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &header.terminator.as_ref().unwrap().kind
+    else {
+        unreachable!()
+    };
+    assert_ne!(when_true.target, when_false.target);
+    assert_eq!(
+        run.blocks.len(),
+        3,
+        "one condition and two separately closed exits"
+    );
+    for (returned, edge) in [(true, when_true), (false, when_false)] {
+        assert_eq!(
+            edge.arguments
+                .iter()
+                .filter(|argument| lineage.get(argument) == Some(&2))
+                .count(),
+            1
+        );
+        if own {
+            assert_eq!(
+                edge.arguments
+                    .iter()
+                    .filter(|argument| lineage.get(argument) == Some(&1))
+                    .count(),
+                1
+            );
+        }
+        let block = run
+            .blocks
+            .iter()
+            .find(|block| block.id == edge.target)
+            .unwrap();
+        let term = block.terminator.as_ref().unwrap();
+        assert!(matches!(&term.kind, TerminatorKind::Return { values } if values.is_empty()));
+        if returned {
+            assert_eq!(term.origin.span().start(), start);
+            assert_eq!(term.origin.span().end(), start + "return".len());
+        }
+        let operations = block
+            .instructions
+            .iter()
+            .map(|id| run.instruction(*id).unwrap())
+            .collect::<Vec<_>>();
+        let count = if own { 3 } else { 1 };
+        let (calls, cleanup) = operations.split_at(operations.len().checked_sub(count).unwrap());
+        assert_eq!(calls.is_empty(), !returned);
+        for instruction in calls {
+            let Operation::DirectCall { arguments, .. } = &instruction.operation else {
+                panic!("only synchronous consumers precede return cleanup");
+            };
+            let [argument] = arguments.as_slice() else {
+                panic!("one result argument");
+            };
+            assert_eq!(lineage.get(argument), Some(&2));
+        }
+        let Operation::BorrowEnd { loan } = cleanup[0].operation else {
+            panic!("result ends first on each path");
+        };
+        assert_eq!(lineage.get(&EntityId::Loan(loan)), Some(&2));
+        if own {
+            let Operation::BorrowEnd { loan } = cleanup[1].operation else {
+                panic!("local source ends second");
+            };
+            assert_eq!(lineage.get(&EntityId::Loan(loan)), Some(&1));
+            let Operation::Drop { owner } = cleanup[2].operation else {
+                panic!("original owner drops last");
+            };
+            assert_eq!(lineage.get(&EntityId::Value(owner)), Some(&4));
+        }
+    }
+    assert_eq!(
+        run.instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::BorrowEnd { .. }))
+            .count(),
+        if own { 4 } else { 2 }
+    );
+    assert_eq!(
+        run.instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        if own { 2 } else { 0 }
+    );
 }

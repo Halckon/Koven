@@ -121,7 +121,7 @@ impl Builder<'_, '_> {
             let reached = self.statement(loop_body)? != Lowered::Diverged;
             self.loops.pop();
             self.leave(mark, span)?;
-            self.invariant_while_boundary(invariant.as_ref(), span)?;
+            self.invariant_while_body_end(invariant.as_ref(), body_block, reached, span)?;
             if reached {
                 let cb = self.cb_backedge(statement, header, span)?;
                 let cr = self.cr_backedge(statement, header, span)?;

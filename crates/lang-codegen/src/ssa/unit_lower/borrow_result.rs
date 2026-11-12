@@ -384,6 +384,13 @@ fn validate_binding(
     {
         allowed.insert(tail.control.index());
     }
+    if let Some(statement) = invariant
+        && let Some(returned) =
+            crate::ssa::borrow_result_support::invariant_while::tail_return(file, statement)
+        && let Some(allowed) = &mut allowed_controls
+    {
+        allowed.insert(returned.index());
+    }
     let closed_whiles =
         crate::ssa::borrow_result_support::closed_while::following(file, typed, owned, fact);
     crate::ssa::borrow_result_support::binding(

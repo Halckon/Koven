@@ -146,3 +146,7 @@ lease到共同exit，随后才End/Drop；条件break及return仍未纳入合同�
 尾部条件break现支持精确无else的`if(BooleanName){break}`，then仅break；true
 实际退出、false正常回边，分别核原清理后lease并在共同exit结束。内外条件可同
 symbol，独立资格只授予该binding的尾If，不泛放其他控制流。
+
+尾裸Unit return另用真实双End合同：精确Return的CT End和外围Block End，return
+实际清理完整区间与终结点由局部checkpoint核验；false仍依原sync_dead独立入口
+恢复活lease。两路径分别正确End/Drop，不把Diverged当作跳过检查的许可。

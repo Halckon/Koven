@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) struct InvariantLease {
+    statement: StatementId,
     binding: UnitSymbolId,
     root: UnitSymbolId,
     result: Slot,
@@ -51,6 +52,7 @@ impl Builder<'_, '_> {
             .cloned()
             .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
         let lease = InvariantLease {
+            statement,
             binding: fact.binding(),
             root: root.root(),
             result,
@@ -180,5 +182,155 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         self.invariant_while_entry(frame.statement.statement(), span)
+    }
+}
+
+/// Captured immediately before the original return cleanup, not reconstructed from final SSA.
+pub(super) struct InvariantReturn {
+    lease: InvariantLease,
+    block: BlockRef,
+    start: usize,
+    expression: ExpressionId,
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn invariant_return_entry(
+        &self,
+        expression: ExpressionId,
+        value: Option<ExpressionId>,
+        span: Span,
+    ) -> Result<Option<InvariantReturn>, LoweringError> {
+        let Some(frame) = self.loops.last() else {
+            return Ok(None);
+        };
+        let Some(lease) = self.invariant_while_entry(frame.statement.statement(), span)? else {
+            return Ok(None);
+        };
+        if value.is_some()
+            || !self.is_unit(self.inputs.return_type)
+            || crate::ssa::borrow_result_support::invariant_while::tail_return(
+                self.inputs.parsed,
+                frame.statement.statement(),
+            ) != Some(expression)
+            || frame.loans != self.pending_call_loans.len()
+            || frame.views != self.active_views.len()
+            || frame.seq_for.is_some()
+            || frame.map_for.is_some()
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        let block = self.current(span)?;
+        Ok(Some(InvariantReturn {
+            lease,
+            block,
+            start: self.body.blocks[block.0].statements.len(),
+            expression,
+        }))
+    }
+
+    pub(super) fn invariant_return_emitted(
+        &self,
+        returned: Option<&InvariantReturn>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(returned) = returned else {
+            return Ok(());
+        };
+        self.invariant_return_ending(
+            &returned.lease,
+            returned.block,
+            Some(returned.start),
+            returned.expression,
+            span,
+        )
+    }
+
+    pub(super) fn invariant_while_body_end(
+        &self,
+        lease: Option<&InvariantLease>,
+        body: BlockRef,
+        reached: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if let Some(lease) = lease
+            && let Some(returned) = crate::ssa::borrow_result_support::invariant_while::tail_return(
+                self.inputs.parsed,
+                lease.statement,
+            )
+        {
+            if reached {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            return self.invariant_return_ending(lease, body, None, returned, span);
+        }
+        self.invariant_while_boundary(lease, span)
+    }
+
+    fn invariant_return_ending(
+        &self,
+        lease: &InvariantLease,
+        block: BlockRef,
+        captured: Option<usize>,
+        returned: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let invalid = || error(LoweringErrorKind::InvalidModel, span);
+        let original = self.body.blocks.get(block.0).ok_or_else(invalid)?;
+        let return_span = self
+            .inputs
+            .parsed
+            .ast()
+            .expressions()
+            .get(returned)
+            .map_err(|_| invalid())?
+            .span();
+        if self.block.is_some()
+            || !matches!(original.terminator, Some((RTerm::Return(None), actual)) if actual == return_span)
+            || self.borrowed.get(&lease.binding) != Some(&lease.result)
+            || self.result_source_loans.get(&lease.binding) != Some(&lease.sources)
+            || self.bindings.get(&lease.root).copied() != lease.owner
+            || self.borrowed.get(&lease.root).copied() != lease.parameter
+            || self.dead.contains(&lease.root) != lease.owner.is_some()
+            || !self.pending_call_loans.is_empty()
+            || !self.active_views.is_empty()
+            || !self.pending_views.is_empty()
+            || lease.sources.contains(&lease.result)
+            || lease
+                .sources
+                .iter()
+                .enumerate()
+                .any(|(index, source)| lease.sources[..index].contains(source))
+        {
+            return Err(invalid());
+        }
+        let count = 1 + lease.sources.len() + usize::from(lease.owner.is_some());
+        let start = original
+            .statements
+            .len()
+            .checked_sub(count)
+            .ok_or_else(invalid)?;
+        if captured.is_some_and(|captured| captured != start) {
+            return Err(invalid());
+        }
+        let cleanup = &original.statements[start..];
+        for (statement, loan) in cleanup
+            .iter()
+            .zip(std::iter::once(lease.result).chain(lease.sources.iter().rev().copied()))
+        {
+            if !statement.results.is_empty()
+                || !matches!(statement.op, ROp::BorrowEnd { loan: actual } if actual == loan)
+            {
+                return Err(invalid());
+            }
+        }
+        if let Some(owner) = lease.owner {
+            let last = cleanup.last().ok_or_else(invalid)?;
+            if !last.results.is_empty()
+                || !matches!(last.op, ROp::Drop { owner: actual } if actual == owner)
+            {
+                return Err(invalid());
+            }
+        }
+        Ok(())
     }
 }

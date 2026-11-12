@@ -19,7 +19,7 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
         ),
         (
             "outer-binding-return",
-            "borrow val item = view(source); while (flag) { consume(item); return }",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { return } }",
         ),
         (
             "outer-binding-zero",
