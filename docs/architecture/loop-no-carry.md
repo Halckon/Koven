@@ -161,3 +161,14 @@ Emitted 保存实际段块与指令身份；中段可共享前 exit/后 entry，
 指令清单。detached 验证每调用的实参恰为当前块的 source 实体，拒入口旧实体或
 body fresh result 替代。尾段要求 source 经 false/finished/exit 运输至调用后 Return；
 不再一律要求末出口为空。全指令覆盖、真实 fold 重放及原 verifier 后整批发布保持。
+
+## CI 故障用例的精确执行入口
+
+`scripts/borrow_fault_tests.json` 枚举 12 个 frontend 与 23 个 codegen 真正 ignored
+用例（其中 fresh receipt 15 个、既有 loop receipt 8 个）。CI 的 Targeted Tests
+在普通集成测试后调用 `scripts/check_borrow_faults.py`，先核 ignored 列表与清单精确
+一致且非空，再逐项 exact 执行并校验实际通过数量。ownership checking 与 refine
+范围新增或删除 ignored 必须同步清单；永久忽略的 debugserver 不在范围内。
+
+本地只允许 `--list-only` 编译枚举和脚本的模拟单测，不执行这些故障。普通 cargo
+test 不会运行 ignored；入口接线不等于远端已通过，远端结果须另核实际 CI 日志。

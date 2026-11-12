@@ -1,0 +1,41 @@
+{
+  "lang-frontend": [
+    "ownership_checking::loop_no_carry::tests::foreign_end_missing_precleanup_or_normal_edge_revokes_capability",
+    "ownership_checking::loop_no_carry::tests::missing_actual_acquire_release_return_never_grants_core_authority",
+    "ownership_checking::research_borrow_consumer_body::tests::body_consumer_requires_every_actual_acquisition_and_ordered_operand",
+    "ownership_checking::research_borrow_consumer_body::tests::body_consumer_requires_release_completion_and_precleanup_frame",
+    "ownership_checking::research_borrow_frame::consumer::tests::frame_consumers_reject_duplicate_pending_reordered_operands_foreign_source",
+    "ownership_checking::research_borrow_frame::consumer::tests::frame_consumers_require_release_normal_completion_and_owned_identity",
+    "ownership_checking::research_borrow_loop::consumer::tests::consumer_tokens_reject_duplicate_reordered_and_foreign_transactions",
+    "ownership_checking::research_borrow_loop::consumer::tests::consumer_tokens_require_release_completion_and_same_loop_identity",
+    "ownership_checking::research_borrow_zero_loop::body::tests::body_actual_identity_and_checkpoint_fail_closed",
+    "ownership_checking::research_borrow_zero_loop::body::tests::body_missing_claim_or_close_cannot_poison_next_sibling",
+    "ownership_checking::research_borrow_zero_loop::tests::zero_loop_requires_condition_and_exact_normal_edge",
+    "ownership_checking::research_borrow_zero_loop::tests::zero_loop_requires_real_header_parent_session_and_checkpoint"
+  ],
+  "lang-codegen": [
+    "ssa::refine::fresh_loop_receipt::ci_tests::distinct_flag_edges_preserve_repeated_future_uses",
+    "ssa::refine::fresh_loop_receipt::ci_tests::distinct_flag_read_is_not_interchangeable_with_same_typed_loan",
+    "ssa::refine::fresh_loop_receipt::ci_tests::flags_dead_after_last_use_are_not_retained_by_the_certificate",
+    "ssa::refine::fresh_loop_receipt::ci_tests::fresh_actual_acquisition_and_consumer_identity_reject",
+    "ssa::refine::fresh_loop_receipt::ci_tests::fresh_end_must_be_unique_and_after_every_consumer",
+    "ssa::refine::fresh_loop_receipt::ci_tests::fresh_fact_from_another_analysis_is_not_the_producer_fact",
+    "ssa::refine::fresh_loop_receipt::ci_tests::fresh_false_path_and_fold_authority_cannot_be_forged",
+    "ssa::refine::fresh_loop_receipt::ci_tests::fresh_pending_receipt_guard_rolls_back_after_verifier_error",
+    "ssa::refine::fresh_loop_receipt::ci_tests::fresh_result_cannot_cross_backedge_even_with_changed_snapshot",
+    "ssa::refine::fresh_loop_receipt::ci_tests::own_boolean_conditions_require_the_exact_local_value_and_mode",
+    "ssa::refine::fresh_loop_receipt::ci_tests::sequence_fresh_results_and_false_links_do_not_cross_peers",
+    "ssa::refine::fresh_loop_receipt::ci_tests::sequence_peer_identity_order_and_fold_evidence_are_independent",
+    "ssa::refine::fresh_loop_receipt::ci_tests::source_segments_cannot_borrow_an_old_or_fresh_loop_lease",
+    "ssa::refine::fresh_loop_receipt::ci_tests::source_segments_require_complete_returns_and_the_real_tail_source",
+    "ssa::refine::fresh_loop_receipt::ci_tests::unused_abi_flag_dies_at_entry_and_cannot_replace_future_flags",
+    "ssa::refine::loop_receipt::emitted::ci_tests::loop_failure_rolls_back_pending",
+    "ssa::refine::loop_receipt::emitted::ci_tests::loop_frozen_current_and_missing_foreign_events",
+    "ssa::refine::loop_receipt::emitted::ci_tests::loop_parameter_transport_substitution_rejected",
+    "ssa::refine::loop_receipt::emitted::ci_tests::loop_wrong_fold_and_entry_flag_rejected",
+    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_actual_edge_same_type_roles_cannot_swap",
+    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_consumer_and_cleanup_require_actual_result_role",
+    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_entry_seeds_cannot_bypass_body_parameters",
+    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_provenance_metadata_and_foreign_function_rejected"
+  ]
+}
