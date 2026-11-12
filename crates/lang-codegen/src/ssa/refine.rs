@@ -6,6 +6,7 @@
 //! a failure is an error; there is no fallback to the per-family lowering.
 mod body;
 mod build;
+mod control_bridge_receipt;
 #[cfg(test)]
 pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,

@@ -104,3 +104,23 @@ live根一次。只保留源root与真实binding DropFact；不按owned drops倒
 CI-only缺绑定、错source及晚期错误Compare只编译不在本地执行。此处约束真实初值传递与
 首次guard决定，不把静态owner来源向量提升为跨轮动态owner实例证明，也未开放计算型初值、
 任意控制流入口或嵌套新owner产品。
+
+## 生产 typed-SSA 运输校验
+
+slot-CFG桥接、body和checked tail验证成功后，封存独立RefinedBody计划，保存两control的
+实际块、成对根槽及第二control正常success/abort块。此计划不复用借用receipt授权；未选择
+该桥接的函数不增加合同。直线CFG合并同步重映射计划中的块，不保留已失效的块身份。
+
+SSA发射时从真实layout初始化每块slot→Entity映射；Alias按实际来源更新映射（不要求
+不存在的SSA Alias指令），RootReplace核真实旧owner/loan/replacement与两个输出，逐根
+仅一次。每个实际边逐位置核目标参数对应的当前Entity；nullable view沿用原有排除规则。
+第二body必须保留checked正常/abort分支，正常success回header而abort为终止，不作回边。
+所有发射事件齐备、两body对应根均Replace且最终RootReplace/终结器未变，才结束该生产校验。
+另保留原指令前缀并核实际指令ID清单等于前缀加观察列表，拒绝绕过hook的额外Drop；
+这不重复验证所有其他指令的内部语义。
+
+普通跨control及稀疏live根native测试现在断言生产receipt完成；嵌套旧lowering无该receipt。
+CI-only错根edge实参、遗漏终结器、abort改回边和额外Drop作用于实际SSA，均要求一次命中，
+只在CI运行，本地仅编译。
+该校验强制连接新owner产品与实际SSA运输，不等于运行时逐轮释放次数证明，也不开放
+任意嵌套新权限。完整SSA仍须经过原有verifier；发射完成标记不是绕过verifier的授权。

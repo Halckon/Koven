@@ -375,6 +375,25 @@ impl Builder<'_, '_> {
         // Optional body permits above do not authorize the whole loop. SSA verification follows.
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-bridge-slot-audit", roots.len());
+        if let Some(tail) = plan.evidence.next_counter_tail() {
+            let arithmetic = tail.assignments()[1];
+            let mut edges = self
+                .checked_edge_receipts
+                .iter()
+                .filter(|r| r.expression == arithmetic);
+            let edge = edges.next().ok_or_else(fail)?;
+            if edges.next().is_some() {
+                return Err(fail());
+            }
+            self.body.owner_bridge_plans = super::super::control_bridge_receipt::Plans::seal(
+                [*header, *body, *finished, *exit],
+                [*next_header, *next_body, *next_finished, *next_exit],
+                [edge.blocks[1], edge.blocks[2]],
+                roots.clone(),
+                targets.clone(),
+                self.inputs.span,
+            )?;
+        }
         Ok(())
     }
 }

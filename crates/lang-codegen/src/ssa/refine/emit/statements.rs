@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    pub(super) owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted,
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
     pub(super) single: crate::ssa::refine::single_receipt::Emitted,
@@ -28,6 +29,7 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted::new(),
             nested: crate::ssa::refine::nested_receipt::Emitted::new(
                 &body.nested_plans,
                 function,
@@ -130,6 +132,8 @@ impl LoanReceipts {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.owner_bridge
+            .layout(body, function, blocks, parameters, entities, span)?;
         self.branch.layout(
             &body.branch_plans,
             function,
@@ -199,6 +203,8 @@ impl LoanReceipts {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.owner_bridge
+            .finish(&body.owner_bridge_plans, function, span)?;
         self.forward.finish(&body.forward_plans, function, span)?;
         self.consumer.finish(&body.loan_plans, function, span)?;
         self.receiver.finish(&body.receiver_plans, function, span)?;
@@ -228,6 +234,24 @@ impl LoanReceipts {
 }
 
 impl Emitter<'_> {
+    /// Both ordinary and abort terminators complete the independently selected owner protocol.
+    pub(super) fn owner_terminator(
+        &mut self,
+        body: &RefinedBody,
+        block: BlockRef,
+        receipts: &mut LoanReceipts,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        receipts.owner_bridge.terminator(
+            &body.owner_bridge_plans,
+            body,
+            self.function,
+            block,
+            &self.current,
+            span,
+        )
+    }
+
     pub(super) fn statements(
         &mut self,
         body: &RefinedBody,
@@ -235,7 +259,7 @@ impl Emitter<'_> {
         target: BlockId,
         receipts: &mut LoanReceipts,
     ) -> Result<(), LoweringError> {
-        for statement in &body.blocks[block.0].statements {
+        for (index, statement) in body.blocks[block.0].statements.iter().enumerate() {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
             {
                 if statement.loan_tag.is_some() {
@@ -244,6 +268,14 @@ impl Emitter<'_> {
                 let entity = self.get(*source, statement.span)?;
                 self.current.insert(*result, entity);
                 self.defined.insert(*result, entity);
+                receipts.owner_bridge.statement(
+                    body,
+                    self.function,
+                    (block, index),
+                    None,
+                    &self.current,
+                    statement.span,
+                )?;
                 receipts
                     .binding
                     .alias(&body.binding_plans, &self.current, statement.span)?;
@@ -294,6 +326,14 @@ impl Emitter<'_> {
                 self.current.insert(*slot, entity);
                 self.defined.insert(*slot, entity);
             }
+            receipts.owner_bridge.statement(
+                body,
+                self.function,
+                (block, index),
+                Some(instruction),
+                &self.current,
+                statement.span,
+            )?;
             match statement.loan_tag {
                 Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => {
                     receipts.consumer.statement(

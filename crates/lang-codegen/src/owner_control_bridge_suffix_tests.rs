@@ -148,3 +148,32 @@ fn ci_only_bridge_counter_entry_requires_actual_bindings_and_comparison() {
         );
     }
 }
+
+#[test]
+fn ci_only_bridge_ssa_transport_rejects_wrong_root_missing_edge_and_abort_backedge() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source = source("val final_a = a1; val final_b = b1;");
+    for fault in [
+        OwnerFault::BridgeSsaWrongRootArgument,
+        OwnerFault::BridgeSsaMissingTerminator,
+        OwnerFault::BridgeSsaAbortBackedge,
+        OwnerFault::BridgeSsaExtraDrop,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "bridge-ssa-fault-injected")
+                .count(),
+            1
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| *kind != "bridge-ssa-receipt-complete")
+        );
+    }
+}

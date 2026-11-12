@@ -609,6 +609,13 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
             .count(),
         usize::from(bridge)
     );
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "bridge-ssa-receipt-complete")
+            .count(),
+        usize::from(bridge)
+    );
     if bridge {
         assert_eq!(
             actions
