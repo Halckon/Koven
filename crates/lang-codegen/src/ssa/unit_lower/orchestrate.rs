@@ -874,7 +874,7 @@ fn lower_unit_impl(
     }
 
     #[cfg(test)]
-    crate::ssa::refine::fresh_loop_receipt::before_final_verifier();
+    crate::ssa::refine::fresh_loop_receipt::before_final_verifier(&mut program);
     let verification = verify_program(&program);
     #[cfg(test)]
     pr120_verifier_diagnostics::record_final_probe(&program, &verification);

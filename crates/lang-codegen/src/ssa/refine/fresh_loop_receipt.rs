@@ -15,6 +15,8 @@ mod builder;
 #[cfg(test)]
 mod ci_tests;
 mod emitted;
+#[cfg(test)]
+mod publication_ci;
 mod source_admission;
 mod source_segments;
 mod validation;
@@ -119,12 +121,13 @@ impl Observations {
     }
 }
 #[cfg(test)]
-pub(in crate::ssa) fn before_final_verifier() {
+pub(in crate::ssa) fn before_final_verifier(program: &mut crate::ssa::model::Program) {
     RECEIPTS.with(|v| {
         if let Some(v) = v.borrow_mut().as_mut() {
             v.trace(PublicationStage::BeforeVerifier);
         }
     });
+    publication_ci::before_verifier(program);
 }
 #[cfg(test)]
 #[derive(Default)]

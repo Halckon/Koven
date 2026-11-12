@@ -360,7 +360,7 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
-      - name: Run exact borrowing fault contracts (35 tests)
+      - name: Run exact borrowing fault contracts (36 tests)
         run: python3 scripts/check_borrow_faults.py
       - name: Observe final Linux composition disk usage
         if: always() && runner.os == 'Linux'

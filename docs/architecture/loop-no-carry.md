@@ -164,8 +164,8 @@ body fresh result 替代。尾段要求 source 经 false/finished/exit 运输至
 
 ## CI 故障用例的精确执行入口
 
-`scripts/borrow_fault_tests.json` 枚举 12 个 frontend 与 23 个 codegen 真正 ignored
-用例（其中 fresh receipt 15 个、既有 loop receipt 8 个）。CI 的 Targeted Tests
+`scripts/borrow_fault_tests.json` 枚举 12 个 frontend 与 24 个 codegen 真正 ignored
+用例（其中 fresh receipt 16 个、既有 loop receipt 8 个）。CI 的 Targeted Tests
 在普通集成测试后调用 `scripts/check_borrow_faults.py`，先核 ignored 列表与清单精确
 一致且非空，再逐项 exact 执行并校验实际通过数量。ownership checking 与 refine
 范围新增或删除 ignored 必须同步清单；永久忽略的 debugserver 不在范围内。
@@ -181,3 +181,10 @@ whole-unit verifier 前观察 published 仍为空；原验证通过后才整体�
 span、原 verifier 未运行及整批撤回，随后独立 capture 可成功。两路覆盖 rooted / memory
 输入与观察开关，不人工注入错误或伪造 receipt。新增旁听仅为 cfg(test)，不改变
 生产准入、原 verifier、drain/truncate 或提交顺序；CI-only 人工故障仍只在远端执行。
+
+CI 清单另登记真实最终 verifier 失败的原子性用例：仅测试专用、一次性 hook 在两份
+真实 pending 已生成后移除该 caller 的实际入口 terminator，随后仍调用原 verifier。
+用例要求验证确实失败、两份 pending 撤回且 published 为空，并在下一次正常 capture
+验证恢复。hook 未武装时无操作，RAII 清除武装；不改生产路径或只读诊断捕获器。
+该项本地仅编译和列举，行为是否通过须以远端精确执行日志为准，不能将编译成功
+表述为故障验收通过。

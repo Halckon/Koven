@@ -29,6 +29,7 @@
     "ssa::refine::fresh_loop_receipt::ci_tests::source_segments_cannot_borrow_an_old_or_fresh_loop_lease",
     "ssa::refine::fresh_loop_receipt::ci_tests::source_segments_require_complete_returns_and_the_real_tail_source",
     "ssa::refine::fresh_loop_receipt::ci_tests::unused_abi_flag_dies_at_entry_and_cannot_replace_future_flags",
+    "ssa::refine::fresh_loop_receipt::publication_ci::actual_unit_verifier_error_revokes_two_pending_receipts_and_recovers",
     "ssa::refine::loop_receipt::emitted::ci_tests::loop_failure_rolls_back_pending",
     "ssa::refine::loop_receipt::emitted::ci_tests::loop_frozen_current_and_missing_foreign_events",
     "ssa::refine::loop_receipt::emitted::ci_tests::loop_parameter_transport_substitution_rejected",
