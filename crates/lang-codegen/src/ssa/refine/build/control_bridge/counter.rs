@@ -12,8 +12,31 @@ impl Builder<'_, '_> {
         };
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let (entry, [header, body, finished, _], roots) = plan.next.as_ref().ok_or_else(fail)?;
-        let [counter, guard] = plan.scalar.ok_or_else(fail)?;
-        let [decrement, arithmetic, reset, comparison] = tail.assignments();
+        let scalar = plan.scalar.ok_or_else(fail)?;
+        let (sites, entry, blocks, roots) = (
+            tail.assignments(),
+            *entry,
+            [
+                *header,
+                *body,
+                *finished,
+                plan.next.as_ref().ok_or_else(fail)?.1[3],
+            ],
+            roots.clone(),
+        );
+        self.check_control_counter_tail(sites, entry, blocks, &roots, scalar)
+    }
+    pub(super) fn check_control_counter_tail(
+        &mut self,
+        sites: [UnitExpressionId; 4],
+        entry: BlockRef,
+        blocks: [BlockRef; 4],
+        roots: &[Slot],
+        [counter, guard]: [Slot; 2],
+    ) -> Result<(), LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        let [header, body, finished, _] = &blocks;
+        let [decrement, arithmetic, reset, comparison] = sites;
         #[cfg(test)]
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::BridgeCounterMissingReceipt,
@@ -86,7 +109,7 @@ impl Builder<'_, '_> {
         if !edge.matches(&self.body, self.span(arithmetic.expression()))
             || predecessors(success) != [*body]
             || predecessors(abort) != [*body]
-            || predecessors(*header) != [*entry, success]
+            || predecessors(*header) != [entry, success]
             || !matches!(self.body.blocks[success.0].terminator, Some((RTerm::Goto(t),_)) if t == *header)
             || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch{condition,when_true,when_false},_)) if condition == guard && when_true == *body && when_false == *finished)
         {

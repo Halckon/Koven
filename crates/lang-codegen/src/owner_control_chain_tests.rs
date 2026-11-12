@@ -147,6 +147,13 @@ fn chain_false_exit_consumes_sparse_middle_and_dead_final_roots() {
                 .count(),
             1
         );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-tails-complete" && *n == 2)
+                .count(),
+            1
+        );
         super::super::super::assert_native_output(&source, b"");
     }
 }
@@ -176,4 +183,28 @@ fn ci_only_chain_false_exit_rejects_foreign_control_or_missing_permit() {
                     && *kind != "control-chain-bodies-complete")
         );
     }
+}
+
+#[test]
+fn ci_only_chain_tail_missing_last_receipt_revokes_whole_group() {
+    let source = closed_chain_source(false);
+    let (result, actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::with_owner_fault(crate::ssa::OwnerFault::ChainLastTailMissingReceipt, || {
+            source.lower_entry(source.entry())
+        })
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "control-chain-tail-fault-hit")
+            .count(),
+        1
+    );
+    assert!(actions.iter().all(|(kind, _)| !matches!(
+        *kind,
+        "control-chain-tails-complete"
+            | "control-chain-exits-complete"
+            | "control-chain-bodies-complete"
+    )));
 }

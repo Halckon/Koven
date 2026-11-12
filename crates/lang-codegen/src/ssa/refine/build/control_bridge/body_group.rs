@@ -12,6 +12,7 @@ struct Member<'a> {
     stages: Vec<consumption::Stage>,
     lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     exits: Vec<bool>,
+    counter: Option<(BlockRef, [Slot; 2])>,
 }
 pub(super) struct Selected<'a> {
     pub control: UnitStatementId,
@@ -66,6 +67,7 @@ impl<'a> BodyGroup<'a> {
                     evidence: *e,
                     stages: vec![consumption::Stage::Ready; e.normal().steps().len()],
                     lowered: None,
+                    counter: None,
                     exits: vec![false; e.false_exit_partition().1.len()],
                 })
                 .collect(),
@@ -183,10 +185,18 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
+        let (counter, guard, _) = member.evidence.checked_tail();
+        member.counter = Some((
+            self.block.ok_or_else(fail)?,
+            [
+                self.bindings.get(&counter).copied().ok_or_else(fail)?,
+                self.bindings.get(&guard).copied().ok_or_else(fail)?,
+            ],
+        ));
         member.lowered = Some((blocks, roots));
         Ok(())
     }
-    pub(super) fn finish_control_chain_bodies(&self) -> Result<(), LoweringError> {
+    pub(super) fn finish_control_chain_bodies(&mut self) -> Result<(), LoweringError> {
         let Some(group) = &self.control_chain_bodies else {
             return Ok(());
         };
@@ -211,15 +221,42 @@ impl Builder<'_, '_> {
             }
         }
         #[cfg(test)]
-        owner_consumer_test_support::record_action(
-            "control-chain-exits-complete",
-            group.members.len(),
-        );
+        let count = group.members.len();
+        let tails = group
+            .members
+            .iter()
+            .map(|m| {
+                let (blocks, roots) = m.lowered.as_ref().ok_or_else(fail)?;
+                let (entry, scalar) = m.counter.ok_or_else(fail)?;
+                Ok((
+                    m.evidence.checked_tail().2,
+                    entry,
+                    *blocks,
+                    roots.clone(),
+                    scalar,
+                ))
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        for (index, (sites, entry, blocks, roots, scalar)) in tails.into_iter().enumerate() {
+            #[cfg(test)]
+            if index == 1
+                && owner_consumer_test_support::take_fault(
+                    owner_consumer_test_support::OwnerFault::ChainLastTailMissingReceipt,
+                )
+            {
+                self.checked_edge_receipts
+                    .retain(|r| r.expression != sites[1]);
+                owner_consumer_test_support::record_action("control-chain-tail-fault-hit", index);
+            }
+            let _ = index;
+            self.check_control_counter_tail(sites, entry, blocks, &roots, scalar)?;
+        }
         #[cfg(test)]
-        owner_consumer_test_support::record_action(
-            "control-chain-bodies-complete",
-            group.members.len(),
-        );
+        owner_consumer_test_support::record_action("control-chain-tails-complete", count);
+        #[cfg(test)]
+        owner_consumer_test_support::record_action("control-chain-exits-complete", count);
+        #[cfg(test)]
+        owner_consumer_test_support::record_action("control-chain-bodies-complete", count);
         Ok(())
     }
 }

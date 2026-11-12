@@ -189,6 +189,7 @@ pub struct UnitOwnerControlChainBodyV1<'a> {
     body: UnitStatementId,
     normal: &'a UnitOwnerMultiRootNormalTransportV1,
     false_exit: (&'a [UnitSymbolId], &'a [UnitDropFact]),
+    tail: Tail,
 }
 impl<'a> UnitOwnerControlChainBodyV1<'a> {
     /// Actual source-qualified control owning this body.
@@ -212,6 +213,11 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
     pub fn false_exit_partition(&self) -> (&'a [UnitSymbolId], &'a [UnitDropFact]) {
         self.false_exit
     }
+    /// Completed counter, guard and ordered decrement/arithmetic/reset/comparison sites.
+    /// These are source facts, not an initializer or dynamic iteration proof.
+    pub fn checked_tail(&self) -> (UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4]) {
+        (self.tail.1, self.tail.0, self.tail.2)
+    }
     /// Source-root order, not the order of alias declarations or replacement calls.
     pub fn roots(&self) -> &'a [UnitSymbolId] {
         self.normal.header_roots()
@@ -232,7 +238,7 @@ impl<'a> UnitOwnerControlChainBodiesV1<'a> {
 }
 impl UnitOwnerObservation {
     /// Borrow normal-body rules and implicit-false partitions of a complete chain.
-    /// This does not grant entry, checked-tail, suffix or SSA permissions.
+    /// Consumers must validate actual checked edges; no entry, suffix or SSA permission.
     pub fn control_chain_bodies_v1(&self) -> Option<UnitOwnerControlChainBodiesV1<'_>> {
         if !self.is_consistent() {
             return None;
@@ -244,6 +250,10 @@ impl UnitOwnerObservation {
             body: chain.first.next_body(),
             normal: chain.first.next_normal_transport()?,
             false_exit: chain.first.next_false_exit_partition()?,
+            tail: {
+                let tail = chain.first.next_counter_tail()?;
+                (tail.guard(), tail.counter(), tail.assignments())
+            },
         };
         let third = UnitOwnerControlChainBodyV1 {
             control: chain.last.control,
@@ -251,6 +261,7 @@ impl UnitOwnerObservation {
             body: chain.last.body,
             normal: &chain.last.normal,
             false_exit: (&chain.last.exit.0, &chain.last.exit.1),
+            tail: chain.last.tail,
         };
         Some(UnitOwnerControlChainBodiesV1 {
             members: [second, third],
