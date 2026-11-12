@@ -11,8 +11,24 @@ use lang_frontend::type_checking::check_compilation_unit_types;
 fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
     for (name, body) in [
         (
-            "two-uses",
-            "borrow val item = view(source); while (flag) { consume(item); consume(item) }",
+            "mixed-root-first",
+            "borrow val item = view(source); while (flag) { consume(source); consume(item); consume(item) }",
+        ),
+        (
+            "mixed-root-middle",
+            "borrow val item = view(source); while (flag) { consume(item); consume(source); consume(item) }",
+        ),
+        (
+            "mixed-root-last",
+            "borrow val item = view(source); while (flag) { consume(item); consume(item); consume(source) }",
+        ),
+        (
+            "empty-body",
+            "borrow val item = view(source); while (flag) {}",
+        ),
+        (
+            "nested-block",
+            "borrow val item = view(source); while (flag) { { consume(item) } }",
         ),
         (
             "wrong-consumer-root",

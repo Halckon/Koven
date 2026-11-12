@@ -15258,3 +15258,24 @@ fmt/diff及文档912项通过。尺寸基准2beb5592通过：2555个手写Rust�
 超1000行债务继续报告，policy无改动。新增production职责分为独立准入201行及
 实际lease状态核验87行；build根仅新增模块声明，未扩大其调度职责。CI-only未执行。
 日志invariant-while-*与outer-loop-fe-final已归档；本片仅本地提交，不推送。
+
+## 外层不变量while直线消费序列（实施中）
+
+基于3da9ea3a，实际运输状态不依赖consumer数量；唯一旧准入限制为单元素body。
+本片将合同推广为非空动态AST直线序列，逐调用完整校验原直接Declaration、唯一
+Borrow(item)映射、Unit同步返回与无abort，不枚举n或新增无根据形状预算。循环内
+依旧不acquire、不跳转或分支，不混入其他root或嵌套调用；唯一真实End仍在外块，
+L0164、旧见证与verifier保持。支持须由实际各call同result身份和每条循环edge来源
+保持证明，不以通过AST扫描替代SSA验证。
+
+真实count=2红为while整span Unsupported；生产改为非空for逐项执行同一谓词，
+Builder/FE/verifier均未改变。正控n=1/2/3/8/17×Borrow/own×flag/false/true×
+双入口×on/off共120组合，交替两个实际consumer；逐所有DirectCall核同result
+lineage、callee身份与block顺序，BorrowBegin仅own=1/Borrow=0、BorrowCall一次，
+原每edge运输与唯一出口End/Drop断言保留。独立12类48邻界核首/中/末混root、
+空body、nestedblock及旧jump等拒绝；nested view仍原FE L0164，不假装合法CG输入。
+最终88项普通回归通过，独立非作者审查通过。未新增循环receipt或退休旧见证。
+
+最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib --no-run、
+fmt/diff及文档912项通过；size基准2beb5592通过（2555手写Rust文件、36历史超限
+债务），policy未改。CI-only仅编译，日志invariant-consumers-*归档。本片本地提交。

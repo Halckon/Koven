@@ -130,3 +130,7 @@ Borrow参数原loan继续存活，owned source的新loan则在resultEnd后结束
 exit维持同一lease，SSA按边参数位置核source/result/owner来源；结束仅在出口，
 own source为resultEnd→sourceEnd→ownerDrop，Borrow参数不伪End。仍拒循环内
 acquire、jump、嵌套和多consumer，不新增通用循环receipt。见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#外层不变量借用while合同实施中)。
+
+上述不变量while现推广为非空动态直线consumer序列：每个调用独立满足原身份与
+同步Borrow合同，actual SSA逐call保持同一result loan并核callee顺序。无固定n
+枚举、无每call acquire；混root、空body、嵌套及jump仍拒，其他循环边界不变。

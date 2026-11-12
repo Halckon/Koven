@@ -1,4 +1,4 @@
-//! Narrow Unit-only capability: one outer result lease, one invariant synchronous loop use.
+//! Narrow Unit-only capability: one outer result lease, a nonempty invariant synchronous consumer sequence.
 use lang_frontend::{
     ast::StatementId,
     name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
@@ -130,52 +130,54 @@ pub(in crate::ssa) fn admitted(
     let Statement::Block { elements } = file.ast().statements().get(*body).ok()?.payload() else {
         return None;
     };
-    let [consumer] = elements.as_slice() else {
-        return None;
-    };
-    let Statement::Expression { expression } =
-        file.ast().statements().get(*consumer).ok()?.payload()
-    else {
-        return None;
-    };
-    let Expression::Call {
-        callee, arguments, ..
-    } = file.ast().expressions().get(*expression).ok()?.payload()
-    else {
-        return None;
-    };
-    let [argument] = arguments.as_slice() else {
-        return None;
-    };
-    if !name(file, names, unit(argument.value), fact.binding()) {
+    if elements.is_empty() {
         return None;
     }
-    let call = typed.call(unit(*expression))?;
-    let [mapping] = call.arguments() else {
-        return None;
-    };
-    if !file
-        .ast()
-        .expressions()
-        .get(*callee)
-        .is_ok_and(|node| matches!(node.payload(), Expression::Name))
-        || !matches!(call.target(), UnitCallTarget::Declaration(_))
-        || call.receiver().is_some()
-        || call.borrow_return().is_some()
-        || call.aborts()
-        || mapping.argument_index() != 0
-        || mapping.parameter_index() != 0
-        || mapping.mode() != ParameterMode::Borrow
-        || Some(mapping.parameter_type()) != typed.symbol_type(fact.binding())
-        || mapping.crosses_thread()
-        || !matches!(
-            typed
-                .expression_type(unit(*expression))
-                .and_then(|ty| typed.types().get(ty)),
-            Some(UnitTypeKind::Builtin(BuiltinType::Unit))
-        )
-    {
-        return None;
+    for consumer in elements {
+        let Statement::Expression { expression } =
+            file.ast().statements().get(*consumer).ok()?.payload()
+        else {
+            return None;
+        };
+        let Expression::Call {
+            callee, arguments, ..
+        } = file.ast().expressions().get(*expression).ok()?.payload()
+        else {
+            return None;
+        };
+        let [argument] = arguments.as_slice() else {
+            return None;
+        };
+        if !name(file, names, unit(argument.value), fact.binding()) {
+            return None;
+        }
+        let call = typed.call(unit(*expression))?;
+        let [mapping] = call.arguments() else {
+            return None;
+        };
+        if !file
+            .ast()
+            .expressions()
+            .get(*callee)
+            .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+            || !matches!(call.target(), UnitCallTarget::Declaration(_))
+            || call.receiver().is_some()
+            || call.borrow_return().is_some()
+            || call.aborts()
+            || mapping.argument_index() != 0
+            || mapping.parameter_index() != 0
+            || mapping.mode() != ParameterMode::Borrow
+            || Some(mapping.parameter_type()) != typed.symbol_type(fact.binding())
+            || mapping.crosses_thread()
+            || !matches!(
+                typed
+                    .expression_type(unit(*expression))
+                    .and_then(|ty| typed.types().get(ty)),
+                Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+            )
+        {
+            return None;
+        }
     }
     Some(*while_id)
 }

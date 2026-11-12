@@ -6,82 +6,143 @@ use lang_frontend::ownership_checking::{
 
 #[test]
 fn ordinary_invariant_outer_while_preserves_one_lease() {
-    for own in [false, true] {
-        for condition in ["flag", "false", "true"] {
-            let mode = if own { "own " } else { "" };
-            let text = format!(
-                "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run({mode}source: String, flag: Boolean): Unit {{ borrow val item = view(source); while ({condition}) {{ consume(item) }} }}"
-            );
-            let mut sources = SourceMap::new();
-            let (source, parsed) =
-                unit_lower_test_support::parsed(&mut sources, "invariant-while.ko", &text);
-            let (environment, types) = standard_environments();
-            for (layout, input) in [
-                (
-                    "rooted",
-                    SourceUnitInput::new("root", "invariant-while.ko", source, &parsed),
-                ),
-                ("memory", SourceUnitInput::memory_document(source, &parsed)),
-            ] {
-                let inputs = [input];
-                let (names, typed, on) =
-                    unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
-                let off = with_loan_observation(false, || {
-                    check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
-                        .unwrap()
-                        .validate()
-                        .unwrap()
-                });
-                assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
-                let entry = names
-                    .names()
-                    .index()
-                    .declarations()
-                    .iter()
-                    .find(|d| d.name() == "run")
-                    .unwrap()
-                    .id();
-                let mut previous = None;
-                for (setting, owned) in [("on", &on), ("off", &off)] {
-                    let (lowered, verified) =
-                        crate::ssa::unit_lower::observe_final_verifier(|| {
-                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                &sources, &inputs, &names, &types, &typed, owned, entry,
-                            )
-                        });
-                    let (program, _) = lowered.unwrap_or_else(|error| {
-                        panic!("own={own}/condition={condition}/{layout}/{setting}: {error:?}")
+    for count in [1, 2, 3, 8, 17] {
+        for own in [false, true] {
+            for condition in ["flag", "false", "true"] {
+                let body = (0..count)
+                    .map(|i| {
+                        if i % 2 == 0 {
+                            "consume(item)"
+                        } else {
+                            "consume_other(item)"
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                let mode = if own { "own " } else { "" };
+                let text = format!(
+                    "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun consume_other(item: String): Unit {{}}\nfun run({mode}source: String, flag: Boolean): Unit {{ borrow val item = view(source); while ({condition}) {{ {body} }} }}"
+                );
+                let mut sources = SourceMap::new();
+                let (source, parsed) =
+                    unit_lower_test_support::parsed(&mut sources, "invariant-while.ko", &text);
+                let (environment, types) = standard_environments();
+                for (layout, input) in [
+                    (
+                        "rooted",
+                        SourceUnitInput::new("root", "invariant-while.ko", source, &parsed),
+                    ),
+                    ("memory", SourceUnitInput::memory_document(source, &parsed)),
+                ] {
+                    let inputs = [input];
+                    let (names, typed, on) =
+                        unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+                    let off = with_loan_observation(false, || {
+                        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                            .unwrap()
+                            .validate()
+                            .unwrap()
                     });
-                    assert_eq!(verified.len(), 1);
-                    verify_program(&program).unwrap();
-                    let run = program.modules[0]
-                        .functions
+                    assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+                    let entry = names
+                        .names()
+                        .index()
+                        .declarations()
                         .iter()
-                        .find(|f| f.name.contains(".run."))
-                        .unwrap();
-                    assert_eq!(
-                        run.instructions
+                        .find(|d| d.name() == "run")
+                        .unwrap()
+                        .id();
+                    let mut previous = None;
+                    for (setting, owned) in [("on", &on), ("off", &off)] {
+                        let (lowered, verified) =
+                            crate::ssa::unit_lower::observe_final_verifier(|| {
+                                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                    &sources, &inputs, &names, &types, &typed, owned, entry,
+                                )
+                            });
+                        let (program, _) = lowered.unwrap_or_else(|error| {
+                        panic!("count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
+                    });
+                        assert_eq!(verified.len(), 1);
+                        verify_program(&program).unwrap();
+                        let run = program.modules[0]
+                            .functions
                             .iter()
-                            .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
-                            .count(),
-                        1
-                    );
-                    assert_eq!(
-                        run.instructions
+                            .find(|f| f.name.contains(".run."))
+                            .unwrap();
+                        assert_eq!(
+                            run.instructions
+                                .iter()
+                                .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
+                                .count(),
+                            1
+                        );
+                        assert_eq!(
+                            run.instructions
+                                .iter()
+                                .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
+                                .count(),
+                            count
+                        );
+                        let calls = run
+                            .instructions
                             .iter()
-                            .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
-                            .count(),
-                        1
-                    );
-                    assert_transport(run, own, condition);
-                    let text = format!(
-                        "{verified:?}\n{}",
-                        crate::llvm::render_verified_program(&program).unwrap()
-                    );
-                    if let Some(previous) = previous.as_ref() {
-                        assert_eq!(&text, previous);
+                            .filter_map(|i| match i.operation {
+                                Operation::DirectCall { callee, .. } => Some((i, callee)),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>();
+                        for (index, (call, callee)) in calls.iter().enumerate() {
+                            let expected = if index % 2 == 0 {
+                                ".consume."
+                            } else {
+                                ".consume_other."
+                            };
+                            assert!(
+                                program
+                                    .modules
+                                    .iter()
+                                    .flat_map(|module| &module.functions)
+                                    .find(|function| function.id == *callee)
+                                    .unwrap()
+                                    .name
+                                    .contains(expected)
+                            );
+                            assert_eq!(call.block, calls[0].0.block);
+                            let block = run.blocks.iter().find(|b| b.id == call.block).unwrap();
+                            if index > 0 {
+                                assert!(
+                                    block
+                                        .instructions
+                                        .iter()
+                                        .position(|id| *id == calls[index - 1].0.id)
+                                        .unwrap()
+                                        < block
+                                            .instructions
+                                            .iter()
+                                            .position(|id| *id == call.id)
+                                            .unwrap()
+                                );
+                            }
+                        }
+                        assert_eq!(
+                            run.instructions
+                                .iter()
+                                .filter(|i| matches!(i.operation, Operation::BorrowBegin { .. }))
+                                .count(),
+                            usize::from(own),
+                            "no per-consumer or per-iteration acquisition"
+                        );
+                        assert_transport(run, own, condition);
+                        let text = format!(
+                            "{verified:?}\n{}",
+                            crate::llvm::render_verified_program(&program).unwrap()
+                        );
+                        if let Some(previous) = previous.as_ref() {
+                            assert_eq!(&text, previous);
+                        }
+                        previous = Some(text);
                     }
-                    previous = Some(text);
                 }
             }
         }
@@ -243,16 +304,19 @@ fn assert_transport(run: &Function, own: bool, literal: &str) {
             );
         }
     }
-    let consumer = run
+    let consumers = run
         .instructions
         .iter()
-        .find(|i| matches!(i.operation, Operation::DirectCall { .. }))
-        .unwrap();
-    let Operation::DirectCall { ref arguments, .. } = consumer.operation else {
-        unreachable!()
-    };
-    assert_eq!(arguments.len(), 1);
-    assert_eq!(lineage.get(&arguments[0]), Some(&2));
+        .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
+        .collect::<Vec<_>>();
+    let consumer = consumers[0];
+    for consumer in &consumers {
+        let Operation::DirectCall { ref arguments, .. } = consumer.operation else {
+            unreachable!()
+        };
+        assert_eq!(arguments.len(), 1);
+        assert_eq!(lineage.get(&arguments[0]), Some(&2));
+    }
     let ends = run
         .instructions
         .iter()
