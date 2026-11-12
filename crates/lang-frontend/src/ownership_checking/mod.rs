@@ -200,5 +200,6 @@ mod research_borrow_loop;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 #[doc(hidden)]
 pub use research_borrow_loop::{
-    BorrowLoopEdgeKind, BorrowLoopEdgeObservation, capture_borrow_loop_edges,
+    BorrowLoopBinding, BorrowLoopConsumerReturn, BorrowLoopEdgeKind, BorrowLoopEdgeObservation,
+    BorrowLoopExpression, capture_borrow_loop_edges,
 };

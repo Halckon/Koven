@@ -212,7 +212,11 @@ impl Checker<'_> {
         {
             self.record_ownership_primitive(id, &argument_expressions, next)?;
         }
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let consumer_return = self.research_prepare_consumer(id, &flows);
         self.end_call_loans(id, &mut flows);
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let consumer_return = self.research_release_consumer(consumer_return, &flows);
         self.finish_call_closures(id, &mut flows);
         for expression in receiver_expression
             .into_iter()
@@ -224,6 +228,8 @@ impl Checker<'_> {
         if self.is_nothing_expression(id) {
             flows.next = None;
         }
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_complete_consumer(consumer_return, &flows);
         Ok(flows)
     }
 }

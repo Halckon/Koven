@@ -181,6 +181,7 @@ impl Checker<'_> {
                 self.borrow_results.ends.len(),
                 self.diagnostics.len(),
             ),
+            Some(self.source_unit),
         )
     }
     pub(super) fn research_loop_finish(&self, ticket: Option<loops::Ticket<State>>, flows: &Flows) {

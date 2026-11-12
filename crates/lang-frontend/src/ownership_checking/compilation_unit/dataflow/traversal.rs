@@ -965,6 +965,8 @@ impl Checker<'_> {
                     .find(|fact| fact.call() == call && fact.argument() == argument)
                     .map(|fact| fact.begin_span())
             });
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let consumer_return = self.research_prepare_consumer(id, &flows);
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
@@ -974,6 +976,8 @@ impl Checker<'_> {
                     || source_origin == Some(loan.origin)
             });
         }
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let consumer_return = self.research_release_consumer(consumer_return, &flows);
         for expression in receiver_expression
             .into_iter()
             .chain(receiver_contract.is_none().then_some(callee))
@@ -987,6 +991,8 @@ impl Checker<'_> {
         if self.is_nothing_expression(call) {
             flows.next = None;
         }
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_complete_consumer(consumer_return, &flows);
         Ok(flows)
     }
 }

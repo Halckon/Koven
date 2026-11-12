@@ -165,6 +165,7 @@ impl Checker<'_> {
                 self.borrow_results.ends.len(),
                 self.diagnostics.len(),
             ),
+            None,
         )
     }
     pub(super) fn research_loop_finish(&self, ticket: Option<loops::Ticket<State>>, flows: &Flows) {

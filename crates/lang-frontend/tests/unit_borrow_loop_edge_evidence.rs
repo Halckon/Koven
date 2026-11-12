@@ -16,7 +16,7 @@ use lang_frontend::{
 
 #[test]
 fn ordinary_existing_loan_edges_keep_backedge_and_exit_distinct() {
-    for count in [1, 3] {
+    for count in [1, 3, 8] {
         let calls = vec!["observe(item)"; count].join("; ");
         for (name, tail, expected) in [
             ("normal", "", Some(BorrowLoopEdgeKind::NormalBackedge)),
@@ -71,7 +71,7 @@ fn ordinary_empty_or_fresh_borrow_cannot_fake_carried_loop_evidence() {
 
 fn check_case(name: &str, body: &str, expected: Option<BorrowLoopEdgeKind>, rejected: bool) {
     let text = format!(
-        "fun view(source: String): borrow String from source = source\nfun observe(item: String): Unit {{}}\nfun run(source: String, other: String, flag: Boolean): Unit {{ {body} }}"
+        "fun view(source: String): borrow String from source = source\nfun observe(item: String): Unit {{}}\nfun observe_pair(first: String, second: String): Unit {{}}\nfun run(source: String, other: String, flag: Boolean): Unit {{ {body} }}"
     );
     let mut sources = SourceMap::new();
     let source = sources.add_source("loop-edge.ko", &text).unwrap();
@@ -104,6 +104,28 @@ fn check_case(name: &str, body: &str, expected: Option<BorrowLoopEdgeKind>, reje
         );
     }
     assert_edges(name, &edges, expected);
+    assert_actual_consumer_returns(&parsed, &edges, |argument| {
+        let lang_frontend::ownership_checking::BorrowLoopExpression::Single { source, expression } =
+            argument
+        else {
+            panic!("single identity")
+        };
+        assert_eq!(source, parsed.source_id());
+        let span = parsed.ast().expressions().get(expression).unwrap().span();
+        let reference = names
+            .references()
+            .iter()
+            .find(|reference| reference.span() == span)
+            .unwrap();
+        let lang_frontend::name_resolution::ReferenceTarget::Symbol(symbol) = reference.target()
+        else {
+            panic!("resolved binding")
+        };
+        lang_frontend::ownership_checking::BorrowLoopBinding::Single {
+            source,
+            symbol: *symbol,
+        }
+    });
     for rooted in [false, true] {
         let inputs = [if rooted {
             SourceUnitInput::new("root", "loop-edge.ko", source, &parsed)
@@ -145,6 +167,34 @@ fn check_case(name: &str, body: &str, expected: Option<BorrowLoopEdgeKind>, reje
                 );
             }
             assert_edges(name, &edges, expected);
+            assert_actual_consumer_returns(&parsed, &edges, |argument| {
+                let lang_frontend::ownership_checking::BorrowLoopExpression::Unit(argument) =
+                    argument
+                else {
+                    panic!("unit identity")
+                };
+                let span = parsed
+                    .ast()
+                    .expressions()
+                    .get(argument.expression())
+                    .unwrap()
+                    .span();
+                let reference = names
+                    .names()
+                    .references()
+                    .iter()
+                    .find(|reference| {
+                        reference.source_unit() == argument.source_unit()
+                            && reference.span() == span
+                    })
+                    .unwrap();
+                let lang_frontend::name_resolution::UnitReferenceTarget::Symbol(symbol) =
+                    reference.target()
+                else {
+                    panic!("resolved unit binding")
+                };
+                lang_frontend::ownership_checking::BorrowLoopBinding::Unit(*symbol)
+            });
         }
     }
 }
@@ -161,6 +211,9 @@ fn assert_edges(
     if name == "sibling-loops" {
         assert_eq!(edges.len(), 2);
         assert!(!edges[0].same_loop_as(&edges[1]));
+        for event in edges[1].consumer_returns() {
+            assert!(!edges[0].owns_consumer_return(event));
+        }
         assert_ne!(edges[0].loop_span(), edges[1].loop_span());
         for edge in edges {
             assert_eq!(edge.kind(), kind);
@@ -175,7 +228,11 @@ fn assert_edges(
     assert_eq!(edge.kind(), kind);
     assert_eq!(
         edge.carried_binding_count(),
-        if name == "two-roots" { 2 } else { 1 }
+        if matches!(name, "two-roots" | "two-roots-pair") {
+            2
+        } else {
+            1
+        }
     );
     assert!(edge.preserved(), "{name}: {edge:?}");
     assert_eq!(
@@ -201,6 +258,93 @@ fn ordinary_sibling_loops_cannot_share_an_analysis_ticket() {
         "sibling-loops",
         "borrow val item = view(source); while (flag) { observe(item) }; while (flag) { observe(item) }",
         Some(BorrowLoopEdgeKind::NormalBackedge),
+        false,
+    );
+}
+
+fn assert_actual_consumer_returns(
+    parsed: &lang_frontend::parser::ParsedFile,
+    edges: &[BorrowLoopEdgeObservation],
+    resolve: impl Fn(
+        lang_frontend::ownership_checking::BorrowLoopExpression,
+    ) -> lang_frontend::ownership_checking::BorrowLoopBinding,
+) {
+    use lang_frontend::{
+        ownership_checking::BorrowLoopExpression,
+        parser::{Expression, Statement},
+    };
+    for edge in edges {
+        let (_, node) = parsed
+            .ast()
+            .statements()
+            .iter()
+            .find(|(_, node)| node.span() == edge.loop_span())
+            .unwrap();
+        let Statement::While { body, .. } = node.payload() else {
+            panic!("actual while")
+        };
+        let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+            parsed.ast().statements().get(*body).unwrap().payload()
+        else {
+            panic!("actual body")
+        };
+        let expected = elements
+            .iter()
+            .filter_map(|statement| {
+                let Statement::Expression { expression } =
+                    parsed.ast().statements().get(*statement).unwrap().payload()
+                else {
+                    return None;
+                };
+                match parsed
+                    .ast()
+                    .expressions()
+                    .get(*expression)
+                    .unwrap()
+                    .payload()
+                {
+                    Expression::Call { arguments, .. } => Some((*expression, arguments)),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            edge.consumer_returns().len(),
+            expected.len(),
+            "one independent real return for every consumer, not just equal final states"
+        );
+        for (event, (call, arguments)) in edge.consumer_returns().iter().zip(expected) {
+            assert!(edge.owns_consumer_return(event));
+            let raw = |id| match id {
+                BorrowLoopExpression::Single { source, expression } => {
+                    assert_eq!(source, parsed.source_id());
+                    expression
+                }
+                BorrowLoopExpression::Unit(id) => id.expression(),
+            };
+            assert_eq!(raw(event.call()), call);
+            assert_eq!(event.arguments().len(), arguments.len());
+            assert_eq!(event.released_loan_count(), arguments.len());
+            for ((actual, binding), expected) in event.arguments().iter().zip(arguments) {
+                assert_eq!(raw(*actual), expected.value);
+                assert_eq!(*binding, resolve(*actual));
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_call_return_is_per_operand_not_per_root() {
+    check_case(
+        "repeated-root-pair",
+        "borrow val item = view(source); while (flag) { observe_pair(item, item) }",
+        Some(BorrowLoopEdgeKind::NormalBackedge),
+        false,
+    );
+    check_case(
+        "two-roots-pair",
+        "borrow val left = view(source); borrow val right = view(other); while (flag) { observe_pair(left, right); continue }",
+        Some(BorrowLoopEdgeKind::ContinueBackedge),
         false,
     );
 }

@@ -15617,3 +15617,32 @@ return/条件跳转、空入口/fresh门禁/嵌套/局部名/常量，以及双�
 frontend feature all-targets Clippy -D warnings、默认workspace all-targets、fmt/diff、
 docs912及尺寸门禁通过（2583手写Rust文件、36旧超限），独立最终复审通过。
 未运行CG/native和CI-only故障；仅本地提交未推送，L0164与旧见证完整保留。
+
+## 已有循环借用逐consumer真实返回关联（实施中）
+
+在前片非空既有carried loan研究范围内，回边状态相等不再充当每次调用返回证据。
+两checker在实际call-owned loan移除前后取证，随后原closure/operand清理及Nothing
+判断完成，仍有正常next且无诊断/分叉才交付非Clone释放票据。每operand先按真实
+source-qualified call/argument ID核唯一原LoanFact，再一一核active Shared loan、
+canonical place及origin，不能把同owner的不同调用或同call不同实参合并。
+
+独占loop invocation/session票据保存按AST真实consumer顺序的返回记录；每次只移除
+当前call loan的预期状态必须等于入口义务投影，实际移除后和最终normal completion
+再核一次。回边认证同时要求原状态保持、完整有序返回集合及无未完成票据。
+此处不补造原End、不改变source_origin交接例外，break仍非重复边；默认cfg-off不
+接观察。既有L0164、旧检查器和见证保留，不证明fresh实例、复杂分支或CG每轮receipt。
+
+真实缺证据红：保留原有效边认证、先建立尚未连接调用释放接点的事件tape，普通源码
+的normal/sibling/two-root三项在实际consumer_returns为0、期望1/2处失败；非法/
+fresh负控仍通过。这是新研究合同缺真实事件的断言失败，不是编译错误或语言误接受。
+接入真实释放前后与正常完成接点后原四项普通测试通过；完整验收另记下方。
+
+最终普通矩阵扩至1/3/8消费者，并覆盖同call同binding双operand与两binding双operand，
+逐实参核原AST/解析symbol，兄弟loop事件不可互认。5项研究测试含125次capture与
+125次未capture产品对照；新旧八个定向target共242项全部通过。两组CI-only真实
+fixture故障（重放/错序/异源/漏release/漏complete/异loop事件）仅feature lib no-run
+编译通过，未执行，不将故障断言称为本地验证。显式SourceId/SourceUnitId防御及
+最终完整tape检查经独立复审，无阻断。FE feature all-targets Clippy -D warnings、
+默认workspace all-targets、fmt/diff/docs912全部通过，尺寸相对2beb5592通过
+（2587手写Rust文件、36历史超限；policy不改）。父文件仅cfg注册与真实接点，
+traversal为998行、checker/dataflow保持既有额度；未运行CG/native，未推送。

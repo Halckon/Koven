@@ -189,4 +189,6 @@ move源仍保持原执行，但不获恢复认证；未capture不复制状态，
 已有非空外层carried loan另有test-support回边观察：条件后body-entry至合流前
 normal/尾continue分别核完整资源投影保持，break单列退出且不认证。仅动态Boolean
 参数及无声明/嵌套/分支的直线Unit消费者；支持多个既有来源但不形成fresh循环实例。
-观察无副作用，不替代逐consumer return、任意控制流归纳或后端每轮receipt。
+逐consumer另按真实call/argument ID核暂借loan移除前后，并在原清理与Nothing判断后
+确认正常next，按独占loop/session票据有序回交；回边认证要求全部真实返回及入口义务
+保持。观察无副作用，不替代fresh实例、任意控制流归纳或后端每轮receipt。

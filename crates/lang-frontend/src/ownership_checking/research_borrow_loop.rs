@@ -6,6 +6,12 @@ use crate::{
     source::Span,
 };
 use std::{cell::RefCell, rc::Rc};
+mod consumer;
+pub use consumer::{BorrowLoopBinding, BorrowLoopConsumerReturn, BorrowLoopExpression};
+pub(crate) use consumer::{
+    Prepared, Released, active as consumer_active, complete as complete_consumer,
+    prepare as prepare_consumer, release as release_consumer,
+};
 
 /// Actual outgoing edge class, never inferred from the merged result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,6 +33,7 @@ pub struct BorrowLoopEdgeObservation {
     preserved: bool,
     strict: bool,
     loop_identity: Rc<()>,
+    consumers: Vec<BorrowLoopConsumerReturn>,
 }
 impl BorrowLoopEdgeObservation {
     /// Actual checker producing this edge.
@@ -56,6 +63,14 @@ impl BorrowLoopEdgeObservation {
             && self.carried > 0
             && self.kind != BorrowLoopEdgeKind::BreakExit
     }
+    /// Ordered actual normal consumer-return events captured before this edge.
+    pub fn consumer_returns(&self) -> &[BorrowLoopConsumerReturn] {
+        &self.consumers
+    }
+    /// Whether a return event belongs to this actual loop invocation.
+    pub fn owns_consumer_return(&self, event: &BorrowLoopConsumerReturn) -> bool {
+        Rc::ptr_eq(&self.loop_identity, &event.identity)
+    }
     /// Compare the identity of the actual loop analysis invocation, not just its span.
     pub fn same_loop_as(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.loop_identity, &other.loop_identity)
@@ -64,6 +79,7 @@ impl BorrowLoopEdgeObservation {
 struct Capture {
     identity: Rc<()>,
     observations: Vec<BorrowLoopEdgeObservation>,
+    active: Option<Rc<RefCell<consumer::Protocol>>>,
 }
 thread_local! { static CAPTURE:RefCell<Option<Capture>>=const{RefCell::new(None)}; }
 /// Observe only real core-checker loop edge states during this call.
@@ -80,6 +96,7 @@ pub fn capture_borrow_loop_edges<T>(
         c.replace(Some(Capture {
             identity: Rc::new(()),
             observations: Vec::new(),
+            active: None,
         }))
     }));
     let result = run();
@@ -93,6 +110,7 @@ pub(crate) fn is_capturing() -> bool {
 pub(crate) struct Shape {
     span: Span,
     expected: BorrowLoopEdgeKind,
+    calls: Vec<ExpressionId>,
 }
 pub(crate) fn shape(
     parsed: &ParsedFile,
@@ -137,6 +155,7 @@ pub(crate) fn shape(
     if consumers.is_empty() {
         return None;
     }
+    let mut calls = Vec::new();
     for statement in consumers {
         let Statement::Expression { expression } =
             parsed.ast().statements().get(*statement).ok()?.payload()
@@ -149,6 +168,7 @@ pub(crate) fn shape(
         else {
             return None;
         };
+        calls.push(*expression);
         if arguments.is_empty()
             || !matches!(
                 parsed.ast().expressions().get(*callee).ok()?.payload(),
@@ -169,6 +189,7 @@ pub(crate) fn shape(
     Some(Shape {
         span: node.span(),
         expected,
+        calls,
     })
 }
 /// One non-clone token per actual condition-after/body invocation.
@@ -180,29 +201,62 @@ pub(crate) struct Ticket<S> {
     checkpoint: (usize, usize, usize),
     session: Rc<()>,
     identity: Rc<()>,
+    protocol: Rc<RefCell<consumer::Protocol>>,
 }
-pub(crate) fn begin<S>(
+impl<S> Drop for Ticket<S> {
+    fn drop(&mut self) {
+        CAPTURE.with(|c| {
+            if let Some(c) = c.borrow_mut().as_mut()
+                && c.active
+                    .as_ref()
+                    .is_some_and(|active| Rc::ptr_eq(active, &self.protocol))
+            {
+                c.active = None;
+            }
+        });
+    }
+}
+pub(crate) fn begin<S: Clone + 'static>(
     entry: S,
     shape: Shape,
     checker: BorrowFrameChecker,
     carried: usize,
     checkpoint: (usize, usize, usize),
+    source_unit: Option<crate::name_resolution::SourceUnitId>,
 ) -> Option<Ticket<S>> {
     if carried == 0 {
         return None;
     }
     CAPTURE.with(|c| {
+        let mut c = c.borrow_mut();
+        let c = c.as_mut()?;
+        if let Some(active) = &c.active {
+            active.borrow_mut().valid = false;
+            return None;
+        }
+        let identity = Rc::new(());
+        let protocol = Rc::new(RefCell::new(consumer::Protocol::new(
+            identity.clone(),
+            checker,
+            shape.calls.clone(),
+            entry.clone(),
+            shape.span.source_id(),
+            source_unit,
+        )));
+        c.active = Some(protocol.clone());
         Some(Ticket {
             entry,
             shape,
             checker,
             carried,
             checkpoint,
-            session: c.borrow().as_ref()?.identity.clone(),
-            identity: Rc::new(()),
+            session: c.identity.clone(),
+            identity,
+            protocol,
         })
     })
 }
+
 pub(crate) fn finish<S: PartialEq>(
     ticket: Option<Ticket<S>>,
     edges: [Option<S>; 3],
@@ -231,8 +285,12 @@ pub(crate) fn finish<S: PartialEq>(
                     span: t.shape.span,
                     carried: t.carried,
                     preserved: edge == t.entry,
-                    strict: present == 1 && kind == t.shape.expected && checkpoint == t.checkpoint,
+                    strict: present == 1
+                        && kind == t.shape.expected
+                        && checkpoint == t.checkpoint
+                        && consumer::complete_tape(&t.protocol.borrow()),
                     loop_identity: t.identity.clone(),
+                    consumers: t.protocol.borrow().returns.clone(),
                 });
             }
         }
