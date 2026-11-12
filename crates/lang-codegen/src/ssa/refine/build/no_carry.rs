@@ -84,12 +84,18 @@ impl Builder<'_, '_> {
 impl Builder<'_, '_> {
     pub(super) fn fresh_loop_entry(
         &mut self,
+        statement: UnitStatementId,
         blocks: [BlockRef; 5],
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &self.body.fresh_loop_plans.plan else {
+        if self.body.fresh_loop_plans.loops.is_empty() {
             return Ok(());
-        };
+        }
+        let p = self
+            .body
+            .fresh_loop_plans
+            .next()
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
         let source = *self
             .borrowed
             .get(&p.fact.source())
@@ -111,6 +117,7 @@ impl Builder<'_, '_> {
         }
         let [entry, header, body, finished, exit] = blocks;
         self.body.fresh_loop_plans.begin(
+            statement,
             super::super::fresh_loop_receipt::LoopBlocks {
                 entry,
                 header,
@@ -128,9 +135,14 @@ impl Builder<'_, '_> {
         phase: usize,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &self.body.fresh_loop_plans.plan else {
+        if self.body.fresh_loop_plans.loops.is_empty() {
             return Ok(());
-        };
+        }
+        let p = self
+            .body
+            .fresh_loop_plans
+            .current()
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
         let flag_symbol = *self
             .inputs
             .parameters

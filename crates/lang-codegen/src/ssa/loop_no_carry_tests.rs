@@ -110,9 +110,9 @@ fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
                     .validate(run)
                     .expect("detached actual no-carry proof");
                 assert_eq!(receipt.caller, run.id);
-                assert!(owned.ownership().owns_no_carry_loop(&receipt.fact));
-                assert_eq!(receipt.fact.binding(), binding.binding());
-                assert_eq!(receipt.instructions.len(), count + 3);
+                assert!(owned.ownership().owns_no_carry_loop(&receipt.loops[0].fact));
+                assert_eq!(receipt.loops[0].fact.binding(), binding.binding());
+                assert_eq!(receipt.loops[0].instructions.len(), count + 3);
                 let calls = run
                     .instructions
                     .iter()
@@ -345,7 +345,7 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
                     });
                 let (program, _) = result.unwrap_or_else(|error| panic!("{label}: {error:?}"));
                 assert_eq!(verified.len(), 1);
-                assert!(receipts.is_empty());
+                assert_eq!(receipts.len(), usize::from(label == "siblings"));
                 verify_program(&program).unwrap();
                 let rendered = crate::llvm::render_verified_program(&program).unwrap();
                 if let Some(previous) = baseline.as_ref() {

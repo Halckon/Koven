@@ -8,13 +8,18 @@ use crate::ssa::model::{
 #[derive(Clone, Debug)]
 pub(crate) struct Receipt {
     pub(crate) caller: FunctionId,
-    pub(crate) fact: UnitLoopNoCarryFact,
-    pub(crate) instructions: Vec<(Tag, InstructionId)>,
+    pub(crate) loops: Vec<LoopReceipt>,
     pub(crate) edges: Vec<(BlockId, Edge)>,
     pub(super) span: Span,
-    pub(super) proof: Proof,
+    pub(super) folds: Vec<(BlockRef, BlockRef)>,
     pub(super) blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockId, Vec<Slot>>,
+}
+#[derive(Clone, Debug)]
+pub(crate) struct LoopReceipt {
+    pub(crate) fact: UnitLoopNoCarryFact,
+    pub(crate) instructions: Vec<(Tag, InstructionId)>,
+    pub(super) proof: Proof,
 }
 #[derive(Clone, Debug)]
 pub(super) struct Proof {
@@ -22,7 +27,6 @@ pub(super) struct Proof {
     pub(super) blocks: LoopBlocks,
     pub(super) edges: Vec<(BlockRef, BlockRef)>,
     pub(super) returns: Vec<BlockRef>,
-    pub(super) folds: Vec<(BlockRef, BlockRef)>,
     pub(super) source_parameter: usize,
     pub(super) flag_parameter: usize,
     pub(super) source_type: SsaTypeId,
@@ -34,7 +38,20 @@ pub(super) struct Proof {
     pub(super) consumer_spans: Vec<Span>,
     pub(super) end_span: Span,
 }
-impl Proof {
+impl Receipt {
+    #[cfg(test)]
+    pub(crate) fn recorded_fold_count(&self) -> usize {
+        self.folds.len()
+    }
+    #[cfg(test)]
+    pub(crate) fn sequential_exit_links(&self) -> bool {
+        self.loops.windows(2).all(|pair| {
+            let from = pair[0].proof.blocks.exit;
+            let to = pair[1].proof.blocks.entry;
+            let actual = self.blocks.get(&self.canonical(from));
+            from == to && actual.is_some() && actual == self.blocks.get(&self.canonical(to))
+        })
+    }
     pub(super) fn canonical(&self, mut block: BlockRef) -> BlockRef {
         for &(from, to) in &self.folds {
             if block == to {
@@ -57,11 +74,7 @@ impl Emitted {
         span: Span,
     ) -> Result<Self, LoweringError> {
         plans.finish(span)?;
-        if plans
-            .plan
-            .as_ref()
-            .is_some_and(|p| p.caller != function.id())
-        {
+        if plans.loops.iter().any(|p| p.caller != function.id()) {
             return Err(invalid(span));
         }
         Ok(Self::default())
@@ -75,15 +88,21 @@ impl Emitted {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &plans.plan else { return Ok(()) };
+        let Some(first) = plans.loops.first() else {
+            return Ok(());
+        };
         if self.receipt.is_some() {
             return Err(invalid(span));
         }
-        let b = p.blocks.ok_or_else(|| invalid(span))?;
-        let expected = [b.entry, b.header, b.body, b.finished, b.exit]
-            .into_iter()
-            .map(|b| plans.canonical(b))
-            .collect::<BTreeSet<_>>();
+        let mut expected = BTreeSet::new();
+        for p in &plans.loops {
+            let b = p.blocks.ok_or_else(|| invalid(span))?;
+            expected.extend(
+                [b.entry, b.header, b.body, b.finished, b.exit]
+                    .into_iter()
+                    .map(|b| plans.canonical(b)),
+            );
+        }
         if blocks.keys().copied().collect::<BTreeSet<_>>() != expected
             || parameters.len() != blocks.len()
             || entities.len() != blocks.len()
@@ -108,80 +127,99 @@ impl Emitted {
             ps.insert(*id, slots.clone());
         }
         let entry = *blocks
-            .get(&plans.canonical(b.entry))
+            .get(&plans.canonical(first.blocks.ok_or_else(|| invalid(span))?.entry))
             .ok_or_else(|| invalid(span))?;
         let actual = function.block(entry).ok_or_else(|| invalid(span))?;
         let mappings = self.expected.get(&entry).ok_or_else(|| invalid(span))?;
-        if p.source == p.flag
-            || p.source.is_none()
-            || p.flag.is_none()
-            || mappings.get(&p.source.ok_or_else(|| invalid(span))?)
-                != actual.parameters.get(p.source_parameter)
-            || mappings.get(&p.flag.ok_or_else(|| invalid(span))?)
-                != actual.parameters.get(p.flag_parameter)
+        if first.source == first.flag
+            || first.source.is_none()
+            || first.flag.is_none()
+            || mappings.get(&first.source.ok_or_else(|| invalid(span))?)
+                != actual.parameters.get(first.source_parameter)
+            || mappings.get(&first.flag.ok_or_else(|| invalid(span))?)
+                != actual.parameters.get(first.flag_parameter)
         {
             return Err(invalid(span));
         }
-        let mut edges = Vec::new();
-        let mut returns = Vec::new();
-        for (raw, term) in &p.terms {
-            match term {
-                RTerm::Goto(to) => edges.push((*raw, *to)),
-                RTerm::Branch {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    edges.push((*raw, *when_true));
-                    edges.push((*raw, *when_false));
-                }
-                RTerm::Return(None) => returns.push(*raw),
-                _ => return Err(invalid(span)),
+        let mut loops = Vec::new();
+        for p in &plans.loops {
+            if p.source != first.source || p.flag != first.flag {
+                return Err(invalid(span));
             }
+            let mut edges = Vec::new();
+            let mut returns = Vec::new();
+            for (raw, term) in &p.terms {
+                match term {
+                    RTerm::Goto(to) => edges.push((*raw, *to)),
+                    RTerm::Branch {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        edges.push((*raw, *when_true));
+                        edges.push((*raw, *when_false));
+                    }
+                    RTerm::Return(None) => returns.push(*raw),
+                    _ => return Err(invalid(span)),
+                }
+            }
+            loops.push(LoopReceipt {
+                fact: p.fact.clone(),
+                instructions: Vec::new(),
+                proof: Proof {
+                    original_fact: p.fact.clone(),
+                    blocks: p.blocks.ok_or_else(|| invalid(span))?,
+                    edges,
+                    returns,
+                    source_parameter: p.source_parameter,
+                    flag_parameter: p.flag_parameter,
+                    source_type: p.source_type,
+                    flag_type: p.flag_type,
+                    source_callee: p.source_callee,
+                    callees: p.callees.clone(),
+                    condition_span: p.condition_span,
+                    source_span: p.source_span,
+                    consumer_spans: p.consumer_spans.clone(),
+                    end_span: p.end_span,
+                },
+            });
         }
         self.receipt = Some(Receipt {
-            caller: p.caller,
-            fact: p.fact.clone(),
-            instructions: Vec::new(),
+            caller: first.caller,
+            loops,
             edges: Vec::new(),
             span,
             blocks: blocks.clone(),
             parameters: ps,
-            proof: Proof {
-                original_fact: p.fact.clone(),
-                blocks: b,
-                edges,
-                returns,
-                folds: p.folds.clone(),
-                source_parameter: p.source_parameter,
-                flag_parameter: p.flag_parameter,
-                source_type: p.source_type,
-                flag_type: p.flag_type,
-                source_callee: p.source_callee,
-                callees: p.callees.clone(),
-                condition_span: p.condition_span,
-                source_span: p.source_span,
-                consumer_spans: p.consumer_spans.clone(),
-                end_span: p.end_span,
-            },
+            folds: plans.folds.clone(),
         });
         Ok(())
     }
     pub(in crate::ssa::refine) fn statement(
         &mut self,
         plans: &Plans,
-        tag: Tag,
+        tagged: (usize, Tag),
         function: &Function,
         instruction: InstructionId,
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let p = plans.plan.as_ref().ok_or_else(|| invalid(span))?;
+        let (index, tag) = tagged;
+        let p = plans.loops.get(index).ok_or_else(|| invalid(span))?;
         let r = self.receipt.as_mut().ok_or_else(|| invalid(span))?;
+        if r.loops
+            .iter()
+            .flat_map(|l| &l.instructions)
+            .any(|(_, id)| *id == instruction)
+        {
+            return Err(invalid(span));
+        }
+        let local = r.loops.get_mut(index).ok_or_else(|| invalid(span))?;
         let d = function
             .instruction(instruction)
             .ok_or_else(|| invalid(span))?;
-        if r.instructions
+        if local
+            .instructions
             .iter()
             .any(|(t, id)| *t == tag || *id == instruction)
             || !p.events.contains(&tag)
@@ -257,7 +295,7 @@ impl Emitted {
         if !valid {
             return Err(invalid(span));
         }
-        r.instructions.push((tag, instruction));
+        local.instructions.push((tag, instruction));
         Ok(())
     }
     pub(in crate::ssa::refine) fn terminator(
@@ -268,9 +306,9 @@ impl Emitted {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &plans.plan else {
+        if plans.loops.is_empty() {
             return Ok(());
-        };
+        }
         let r = self.receipt.as_mut().ok_or_else(|| invalid(span))?;
         if !self.terminated.insert(target) {
             return Err(invalid(span));
@@ -282,9 +320,10 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
-        let candidates = p
-            .terms
+        let candidates = plans
+            .loops
             .iter()
+            .flat_map(|p| &p.terms)
             .filter(|(b, t)| {
                 r.blocks.get(&plans.canonical(*b)) == Some(&target)
                     && !matches!(t,RTerm::Goto(to) if plans.canonical(*b)==plans.canonical(*to))
@@ -356,21 +395,30 @@ impl Emitted {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &plans.plan else { return Ok(()) };
+        if plans.loops.is_empty() {
+            return Ok(());
+        }
         plans.finish(span)?;
         let r = self.receipt.ok_or_else(|| invalid(span))?;
         if r.caller != function.id()
-            || r.instructions.len() != p.events.len()
+            || r.loops.len() != plans.loops.len()
             || self.terminated.len() != r.blocks.len()
-            || p.events.iter().any(|tag| {
-                r.instructions
-                    .iter()
-                    .filter(|(actual, _)| actual == tag)
-                    .count()
-                    != 1
-            })
         {
             return Err(invalid(span));
+        }
+        for (local, p) in r.loops.iter().zip(&plans.loops) {
+            if local.instructions.len() != p.events.len()
+                || p.events.iter().any(|tag| {
+                    local
+                        .instructions
+                        .iter()
+                        .filter(|(actual, _)| actual == tag)
+                        .count()
+                        != 1
+                })
+            {
+                return Err(invalid(span));
+            }
         }
         r.validate(function)?;
         record(r);

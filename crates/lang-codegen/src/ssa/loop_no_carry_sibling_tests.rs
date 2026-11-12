@@ -27,7 +27,15 @@ fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
 
 #[test]
 fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
-    for counts in [vec![1, 3], vec![1, 3, 9]] {
+    for (counts, same_flag, reversed) in [vec![1, 3], vec![1, 3, 9], vec![1, 2, 3, 4, 9]]
+        .into_iter()
+        .flat_map(|counts| {
+            [false, true].into_iter().flat_map(move |same_flag| {
+                let counts = counts.clone();
+                [false, true].map(move |reversed| (counts.clone(), same_flag, reversed))
+            })
+        })
+    {
         let loops = counts
             .iter()
             .enumerate()
@@ -38,7 +46,7 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     .join(";");
                 format!(
                     "while(flag{}){{borrow val item{index}=view(source);{calls}}}",
-                    index % 2
+                    if same_flag { 0 } else { index % 2 }
                 )
             })
             .collect::<Vec<_>>()
@@ -46,8 +54,14 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
         let declarations = (0..counts.len())
             .map(|index| format!("fun consume{index}(item:String):Unit {{}}\n"))
             .collect::<String>();
+        let parameters = match (same_flag, reversed) {
+            (true, false) => "source:String,flag0:Boolean",
+            (true, true) => "flag0:Boolean,source:String",
+            (false, false) => "source:String,flag0:Boolean,flag1:Boolean",
+            (false, true) => "flag0:Boolean,source:String,flag1:Boolean",
+        };
         let text = format!(
-            "fun view(source:String):borrow String from source=source\n{declarations}fun run(source:String,flag0:Boolean,flag1:Boolean):Unit {{{loops}}}"
+            "fun view(source:String):borrow String from source=source\n{declarations}fun run({parameters}):Unit {{{loops}}}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "siblings.ko", &text);
@@ -100,9 +114,10 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     });
                 let (program, _) = lowered.expect("sealed independent sibling lowering");
                 assert_eq!(verified.len(), 1);
-                assert!(
-                    receipts.is_empty(),
-                    "whole-function single-loop receipt is not widened"
+                assert_eq!(
+                    receipts.len(),
+                    usize::from(same_flag),
+                    "composed receipt qualification"
                 );
                 verify_program(&program).unwrap();
                 let run = program
@@ -111,9 +126,24 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     .flat_map(|m| &m.functions)
                     .find(|f| f.name.contains(".run."))
                     .unwrap();
+                if same_flag {
+                    let receipt = receipts[0].clone();
+                    receipt
+                        .validate(run)
+                        .expect("independent composed graph verification");
+                    assert_eq!(receipt.loops.len(), facts.len());
+                    assert_eq!(receipt.recorded_fold_count(), facts.len());
+                    assert!(receipt.sequential_exit_links());
+                    for (recorded, fact) in receipt.loops.iter().zip(facts) {
+                        assert!(recorded.fact.same_identity(fact));
+                        assert_eq!(&recorded.fact, fact);
+                        assert_eq!(recorded.instructions.len(), fact.consumers().len() + 3);
+                    }
+                }
                 let actual_edges = edges(run);
                 // Derive source transport from the actual ABI and every actual incoming edge.
-                let source_seed = run.block(run.entry_block().unwrap()).unwrap().parameters[0];
+                let source_seed = run.block(run.entry_block().unwrap()).unwrap().parameters
+                    [usize::from(reversed)];
                 let mut source_entities = BTreeSet::from([source_seed]);
                 loop {
                     let old = source_entities.len();

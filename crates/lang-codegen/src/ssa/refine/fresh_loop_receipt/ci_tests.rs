@@ -9,6 +9,9 @@ use lang_frontend::{
 };
 fn capture_program() -> (crate::ssa::model::Program, Receipt) {
     let text = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(source:String,flag:Boolean):Unit {while(flag){borrow val item=view(source);consume(item);consume(item)}}";
+    capture_program_text(text)
+}
+fn capture_program_text(text: &str) -> (crate::ssa::model::Program, Receipt) {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "fresh-ci.ko", text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
@@ -52,8 +55,24 @@ fn capture() -> (Function, Receipt) {
         .clone();
     (function, receipt)
 }
+fn capture_sequence() -> (Function, Receipt) {
+    let loops = (0..3).map(|index| format!("while(flag){{borrow val item{index}=view(source);consume(item{index});consume(item{index})}}")).collect::<Vec<_>>().join(";");
+    let text = format!(
+        "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(source:String,flag:Boolean):Unit {{{loops}}}"
+    );
+    let (program, receipt) = capture_program_text(&text);
+    assert_eq!(receipt.loops.len(), 3);
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|m| &m.functions)
+        .find(|f| f.id == receipt.caller)
+        .unwrap()
+        .clone();
+    (function, receipt)
+}
 fn tagged(receipt: &Receipt, tag: Tag) -> InstructionId {
-    receipt
+    receipt.loops[0]
         .instructions
         .iter()
         .find(|(t, _)| *t == tag)
@@ -70,7 +89,7 @@ fn fresh_actual_acquisition_and_consumer_identity_reject() {
     else {
         panic!()
     };
-    let entry_source = function.blocks[0].parameters[receipt.proof.source_parameter];
+    let entry_source = function.blocks[0].parameters[receipt.loops[0].proof.source_parameter];
     for fault in 0..4 {
         let mut bad = function.clone();
         match fault {
@@ -112,7 +131,9 @@ fn fresh_actual_acquisition_and_consumer_identity_reject() {
     let (foreign, _) = capture();
     assert!(receipt.validate(&foreign).is_err());
     let mut missing = receipt.clone();
-    missing.instructions.retain(|(t, _)| *t != Tag::Result);
+    missing.loops[0]
+        .instructions
+        .retain(|(t, _)| *t != Tag::Result);
     assert!(missing.validate(&function).is_err());
 }
 #[test]
@@ -123,10 +144,12 @@ fn fresh_end_must_be_unique_and_after_every_consumer() {
     let acquire = tagged(&receipt, Tag::Result);
     let body = function.instruction(end).unwrap().block;
     let mut missing = receipt.clone();
-    missing.instructions.retain(|(t, _)| *t != Tag::ResultEnd);
+    missing.loops[0]
+        .instructions
+        .retain(|(t, _)| *t != Tag::ResultEnd);
     assert!(missing.validate(&function).is_err());
     let mut duplicate = receipt.clone();
-    duplicate.instructions.push((Tag::ResultEnd, end));
+    duplicate.loops[0].instructions.push((Tag::ResultEnd, end));
     assert!(duplicate.validate(&function).is_err());
     let mut early = function.clone();
     let ids = &mut early.blocks[body.index()].instructions;
@@ -173,7 +196,7 @@ fn fresh_false_path_and_fold_authority_cannot_be_forged() {
     let (function, receipt) = capture();
     let acquire = tagged(&receipt, Tag::Result);
     let body = function.instruction(acquire).unwrap().block;
-    let header = receipt.blocks[&receipt.proof.canonical(receipt.proof.blocks.header)];
+    let header = receipt.blocks[&receipt.canonical(receipt.loops[0].proof.blocks.header)];
     let mut bad = function.clone();
     let TerminatorKind::Conditional { when_false, .. } =
         &mut bad.blocks[header.index()].terminator.as_mut().unwrap().kind
@@ -183,7 +206,7 @@ fn fresh_false_path_and_fold_authority_cannot_be_forged() {
     when_false.target = body;
     let changed = when_false.clone();
     let mut r = receipt.clone();
-    let original_false = receipt.blocks[&receipt.proof.canonical(receipt.proof.blocks.finished)];
+    let original_false = receipt.blocks[&receipt.canonical(receipt.loops[0].proof.blocks.finished)];
     r.edges
         .iter_mut()
         .find(|(from, e)| *from == header && e.target == original_false)
@@ -191,12 +214,11 @@ fn fresh_false_path_and_fold_authority_cannot_be_forged() {
         .1 = changed;
     assert!(r.validate(&bad).is_err());
     let mut r = receipt.clone();
-    r.proof
-        .folds
-        .push((r.proof.blocks.header, r.proof.blocks.body));
+    r.folds
+        .push((r.loops[0].proof.blocks.header, r.loops[0].proof.blocks.body));
     assert!(r.validate(&function).is_err());
     let mut r = receipt.clone();
-    r.proof.edges.pop();
+    r.loops[0].proof.edges.pop();
     assert!(r.validate(&function).is_err());
 }
 #[test]
@@ -225,8 +247,78 @@ fn fresh_pending_receipt_guard_rolls_back_after_verifier_error() {
 fn fresh_fact_from_another_analysis_is_not_the_producer_fact() {
     let (function, mut receipt) = capture();
     let (_, other) = capture();
-    assert_eq!(receipt.fact, other.fact);
-    assert!(!receipt.fact.same_identity(&other.fact));
-    receipt.fact = other.fact;
+    assert_eq!(receipt.loops[0].fact, other.loops[0].fact);
+    assert!(!receipt.loops[0].fact.same_identity(&other.loops[0].fact));
+    receipt.loops[0].fact = other.loops[0].fact.clone();
     assert!(receipt.validate(&function).is_err());
+}
+
+#[test]
+#[ignore = "CI-only actual sequence proof mutations; compile locally"]
+fn sequence_peer_identity_order_and_fold_evidence_are_independent() {
+    let (function, receipt) = capture_sequence();
+    receipt.validate(&function).unwrap();
+    for fault in 0..5 {
+        let mut bad = receipt.clone();
+        match fault {
+            0 => bad.loops.swap(0, 1),
+            1 => bad.loops[1].fact = bad.loops[0].fact.clone(),
+            2 => bad.loops[1]
+                .instructions
+                .retain(|(tag, _)| *tag != Tag::ResultEnd),
+            3 => {
+                assert!(!bad.folds.is_empty());
+                bad.folds.remove(0);
+            }
+            _ => bad.loops.push(bad.loops[0].clone()),
+        }
+        assert!(bad.validate(&function).is_err(), "sequence proof {fault}");
+    }
+}
+
+#[test]
+#[ignore = "CI-only actual cross-body operand and false-link mutations; compile locally"]
+fn sequence_fresh_results_and_false_links_do_not_cross_peers() {
+    let (function, receipt) = capture_sequence();
+    let first_result_id = receipt.loops[0]
+        .instructions
+        .iter()
+        .find(|(tag, _)| *tag == Tag::Result)
+        .unwrap()
+        .1;
+    let first_result = function.instruction(first_result_id).unwrap().results[0];
+    let second_consumer = receipt.loops[1]
+        .instructions
+        .iter()
+        .find(|(tag, _)| *tag == Tag::Consumer(0))
+        .unwrap()
+        .1;
+    let mut bad = function.clone();
+    let Operation::DirectCall { arguments, .. } =
+        &mut bad.instructions[second_consumer.index()].operation
+    else {
+        panic!()
+    };
+    arguments[0] = first_result;
+    assert!(receipt.validate(&bad).is_err());
+
+    let header = receipt.blocks[&receipt.canonical(receipt.loops[0].proof.blocks.header)];
+    let wrong_target = receipt.blocks[&receipt.canonical(receipt.loops[1].proof.blocks.body)];
+    let mut bad = function.clone();
+    let TerminatorKind::Conditional { when_false, .. } =
+        &mut bad.blocks[header.index()].terminator.as_mut().unwrap().kind
+    else {
+        panic!()
+    };
+    let original = when_false.target;
+    when_false.target = wrong_target;
+    let changed = when_false.clone();
+    let mut proof = receipt.clone();
+    proof
+        .edges
+        .iter_mut()
+        .find(|(from, edge)| *from == header && edge.target == original)
+        .unwrap()
+        .1 = changed;
+    assert!(proof.validate(&bad).is_err());
 }

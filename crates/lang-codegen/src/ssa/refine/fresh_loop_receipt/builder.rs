@@ -1,30 +1,69 @@
-//! Record only actual append, boundary, terminator and fold events.
+//! Actual sequential loop production, with global fold provenance and no final-graph inference.
 use super::*;
 impl Plans {
+    pub(in crate::ssa::refine) fn current(&self) -> Option<&Plan> {
+        self.loops.get(self.active?)
+    }
+    pub(in crate::ssa::refine) fn next(&self) -> Option<&Plan> {
+        let index = match self.active {
+            Some(index) => index.checked_add(1)?,
+            None => 0,
+        };
+        self.loops.get(index)
+    }
     pub(in crate::ssa::refine) fn begin(
         &mut self,
+        statement: lang_frontend::type_checking::UnitStatementId,
         blocks: LoopBlocks,
         source: Slot,
         flag: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &mut self.plan else {
+        if self.loops.is_empty() {
             return Ok(());
+        }
+        let index = match self.active {
+            Some(index) => {
+                let previous = self.loops.get(index).ok_or_else(|| invalid(span))?;
+                validate_loop(previous, false, span)?;
+                if previous.blocks.map(|b| b.exit) != Some(blocks.entry)
+                    || previous.source != Some(source)
+                    || previous.flag != Some(flag)
+                {
+                    return Err(invalid(span));
+                }
+                index.checked_add(1).ok_or_else(|| invalid(span))?
+            }
+            None => 0,
         };
-        if p.boundary != 0
+        let prior_blocks = self.loops[..index.min(self.loops.len())]
+            .iter()
+            .filter_map(|p| p.blocks)
+            .flat_map(|b| [b.entry, b.header, b.body, b.finished, b.exit])
+            .collect::<BTreeSet<_>>();
+        if [
+            blocks.entry,
+            blocks.header,
+            blocks.body,
+            blocks.finished,
+            blocks.exit,
+        ]
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .len()
+            != 5
+            || [blocks.header, blocks.body, blocks.finished, blocks.exit]
+                .iter()
+                .any(|b| prior_blocks.contains(b))
+        {
+            return Err(invalid(span));
+        }
+        let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
+        if p.fact.loop_statement() != statement
+            || p.boundary != 0
             || !p.events.is_empty()
+            || p.blocks.is_some()
             || source == flag
-            || [
-                blocks.entry,
-                blocks.header,
-                blocks.body,
-                blocks.finished,
-                blocks.exit,
-            ]
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .len()
-                != 5
         {
             return Err(invalid(span));
         }
@@ -32,6 +71,7 @@ impl Plans {
         p.source = Some(source);
         p.flag = Some(flag);
         p.boundary = 1;
+        self.active = Some(index);
         Ok(())
     }
     pub(in crate::ssa::refine) fn statement(
@@ -40,10 +80,13 @@ impl Plans {
         results: &[Slot],
         block: BlockRef,
         span: Span,
-    ) -> Result<Option<Tag>, LoweringError> {
-        let Some(p) = &mut self.plan else {
+    ) -> Result<Option<(usize, Tag)>, LoweringError> {
+        if self.loops.is_empty() {
             return Ok(None);
-        };
+        }
+        let index = self.active.ok_or_else(|| invalid(span))?;
+        let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
+        let peer = index;
         let b = p.blocks.ok_or_else(|| invalid(span))?;
         if p.callees.is_empty()
             || p.callees.len() != p.fact.consumers().len()
@@ -102,16 +145,18 @@ impl Plans {
             return Err(invalid(span));
         };
         p.events.push(tag);
-        Ok(Some(tag))
+        Ok(Some((peer, tag)))
     }
     pub(in crate::ssa::refine) fn boundary(
         &mut self,
         phase: usize,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &mut self.plan else {
+        if self.loops.is_empty() {
             return Ok(());
-        };
+        }
+        let index = self.active.ok_or_else(|| invalid(span))?;
+        let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
         if p.boundary.checked_add(1) != Some(phase)
             || !(2..=5).contains(&phase)
             || (phase == 2 && p.events != [Tag::Condition])
@@ -128,9 +173,12 @@ impl Plans {
         block: BlockRef,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &mut self.plan else {
+        if self.loops.is_empty() {
             return Ok(());
-        };
+        }
+        let index = self.active.ok_or_else(|| invalid(span))?;
+        let last = index.checked_add(1) == Some(self.loops.len());
+        let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
         let b = p.blocks.ok_or_else(|| invalid(span))?;
         let valid = match p.terms.len() {
             0 => {
@@ -149,7 +197,7 @@ impl Plans {
                     && p.boundary == 4
                     && matches!(term,RTerm::Goto(t) if *t==b.exit)
             }
-            4 => block == b.exit && p.boundary == 5 && matches!(term, RTerm::Return(None)),
+            4 => last && block == b.exit && p.boundary == 5 && matches!(term, RTerm::Return(None)),
             _ => false,
         };
         if !valid {
@@ -164,54 +212,141 @@ impl Plans {
         to: BlockRef,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &mut self.plan else {
+        if self.loops.is_empty() {
             return Ok(());
-        };
-        let b = p.blocks.ok_or_else(|| invalid(span))?;
-        if !p.folds.is_empty() || from != b.finished || to != b.exit || p.terms.len() != 5 {
+        }
+        self.finish(span)?;
+        if self.folds.iter().any(|(a, b)| *a == from || *b == to)
+            || !self
+                .loops
+                .iter()
+                .any(|p| p.blocks.is_some_and(|b| b.finished == from && b.exit == to))
+        {
             return Err(invalid(span));
         }
-        p.folds.push((from, to));
+        // Validate the actual unique predecessor before consuming this fold callback.
+        let mut predecessors = Vec::new();
+        for p in &self.loops {
+            for (raw, term) in &p.terms {
+                let targets = match term {
+                    RTerm::Goto(target) => vec![*target],
+                    RTerm::Branch {
+                        when_true,
+                        when_false,
+                        ..
+                    } => vec![*when_true, *when_false],
+                    RTerm::Return(None) => Vec::new(),
+                    _ => return Err(invalid(span)),
+                };
+                for target in targets {
+                    if self.canonical(target) == to {
+                        predecessors.push(self.canonical(*raw));
+                    }
+                }
+            }
+        }
+        if predecessors != [from] {
+            return Err(invalid(span));
+        }
+        self.folds.push((from, to));
         Ok(())
     }
     pub(in crate::ssa::refine) fn canonical(&self, mut block: BlockRef) -> BlockRef {
-        if let Some(p) = &self.plan {
-            for (from, to) in &p.folds {
-                if block == *to {
-                    block = *from;
-                }
+        for (from, to) in &self.folds {
+            if block == *to {
+                block = *from;
             }
         }
         block
     }
     pub(in crate::ssa::refine) fn finish(&self, span: Span) -> Result<(), LoweringError> {
-        let Some(p) = &self.plan else {
-            return Ok(());
-        };
-        let n = p.callees.len();
-        let expected = std::iter::once(Tag::Condition)
-            .chain(std::iter::once(Tag::Result))
-            .chain((0..n).map(Tag::Consumer))
-            .chain(std::iter::once(Tag::ResultEnd))
-            .collect::<Vec<_>>();
-        if n == 0
-            || n != p.fact.consumers().len()
-            || n != p.consumer_spans.len()
-            || p.boundary != 5
-            || p.events != expected
-            || p.terms.len() != 5
-            || p.blocks.is_none()
-            || [p.source, p.flag, p.condition_value, p.result]
-                .iter()
-                .any(Option::is_none)
-            || [p.source, p.flag, p.condition_value, p.result]
+        if self.loops.is_empty() {
+            return if self.active.is_none() && self.folds.is_empty() {
+                Ok(())
+            } else {
+                Err(invalid(span))
+            };
+        }
+        if self.active.and_then(|index| index.checked_add(1)) != Some(self.loops.len()) {
+            return Err(invalid(span));
+        }
+        let first = &self.loops[0];
+        let mut raw_blocks = BTreeSet::new();
+        let mut fresh_slots = BTreeSet::new();
+        for (index, p) in self.loops.iter().enumerate() {
+            validate_loop(p, index + 1 == self.loops.len(), span)?;
+            let b = p.blocks.ok_or_else(|| invalid(span))?;
+            if p.caller != first.caller
+                || p.fact.callable() != first.fact.callable()
+                || p.fact.source() != first.fact.source()
+                || p.source != first.source
+                || p.flag != first.flag
+                || p.source_parameter != first.source_parameter
+                || p.flag_parameter != first.flag_parameter
+                || p.source_type != first.source_type
+                || p.flag_type != first.flag_type
+                || !fresh_slots.insert(p.condition_value)
+                || !fresh_slots.insert(p.result)
+            {
+                return Err(invalid(span));
+            }
+            if index == 0 {
+                raw_blocks.insert(b.entry);
+            } else if self.loops[index - 1].blocks.map(|previous| previous.exit) != Some(b.entry) {
+                return Err(invalid(span));
+            }
+            if [b.header, b.body, b.finished, b.exit]
                 .into_iter()
-                .collect::<BTreeSet<_>>()
-                .len()
-                != 4
+                .any(|block| !raw_blocks.insert(block))
+            {
+                return Err(invalid(span));
+            }
+            if self.loops[..index].iter().any(|previous| {
+                previous.fact.binding() == p.fact.binding()
+                    || previous.fact.loop_statement() == p.fact.loop_statement()
+                    || previous.fact.body() == p.fact.body()
+                    || previous.fact.initializer() == p.fact.initializer()
+            }) {
+                return Err(invalid(span));
+            }
+        }
+        let allowed = self
+            .loops
+            .iter()
+            .filter_map(|p| p.blocks.map(|b| (b.finished, b.exit)))
+            .collect::<BTreeSet<_>>();
+        if self.folds.iter().copied().collect::<BTreeSet<_>>().len() != self.folds.len()
+            || self.folds.iter().any(|pair| !allowed.contains(pair))
         {
             return Err(invalid(span));
         }
         Ok(())
     }
+}
+fn validate_loop(p: &Plan, last: bool, span: Span) -> Result<(), LoweringError> {
+    let n = p.callees.len();
+    let expected = std::iter::once(Tag::Condition)
+        .chain(std::iter::once(Tag::Result))
+        .chain((0..n).map(Tag::Consumer))
+        .chain(std::iter::once(Tag::ResultEnd))
+        .collect::<Vec<_>>();
+    if n == 0
+        || n != p.fact.consumers().len()
+        || n != p.consumer_spans.len()
+        || p.boundary != 5
+        || p.events != expected
+        || p.terms.len() != if last { 5 } else { 4 }
+        || p.blocks.is_none()
+        || [p.source, p.flag, p.condition_value, p.result]
+            .iter()
+            .any(Option::is_none)
+        || [p.source, p.flag, p.condition_value, p.result]
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != 4
+    {
+        return Err(invalid(span));
+    }
+    Ok(())
 }

@@ -41,6 +41,7 @@ impl Builder<'_, '_> {
         let finished = self.body.block();
         let exit = self.body.block();
         self.fresh_loop_entry(
+            statement,
             [self.current(span)?, header, body_block, finished, exit],
             span,
         )?;

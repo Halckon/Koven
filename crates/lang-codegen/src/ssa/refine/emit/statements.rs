@@ -275,7 +275,7 @@ impl Emitter<'_> {
             {
                 if statement.loan_tag.is_some()
                     || statement.loop_tag.is_some()
-                    || body.fresh_loop_plans.plan.is_some()
+                    || !body.fresh_loop_plans.loops.is_empty()
                 {
                     return Err(error(LoweringErrorKind::InvalidModel, statement.span));
                 }

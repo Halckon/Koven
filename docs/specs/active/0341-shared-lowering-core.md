@@ -15940,3 +15940,31 @@ object/link/run输出kept，未冒充非零多轮或组合receipt。相关CG家�
 target共4项通过，feature all-targets Clippy -D warnings通过；未新增或执行CI-only。
 默认workspace all-targets及fmt/diff/docs913、尺寸2627手写Rust文件/36历史超限通过。
 policy未改，旧见证保留；本地提交实现，不推送。
+
+### 同源兄弟的动态组合 receipt（2026-11-12）
+
+在已批准兄弟执行合同内扩展独立证据，不扩大语言。首组合资格限函数体全部为同源
+直接 while，条件共享一个 Borrow Boolean 参数、另一个参数为 Borrow String source；
+数量取真实有序元素，不枚举固定2/3形状。不同Bool参数、own Bool和额外语句保持
+原执行/拒绝边界，无本片组合证书。
+
+复用 fresh-loop 协议，动态有序 peer 各自封存原 fact 身份、实际 acquire/consumer/End。
+原 term/fold 使用整函数账本：前一 exit 是下一实际 entry，只有最后出口 Return；
+标签携 peer 身份，不把单loop五块/末Return规则机械复制。最终整图覆盖只做一次，
+核每peer局部关闭、共享source/flag实际逐边身份、精确peer顺序及所有结果不出边。
+整组随原 unit verifier 成功才原子发布，任一peer失败撤回，不先发布部分兄弟。
+
+真实红已确认：sameflag两兄弟lowering和原verifier成功，但组合receipt为空；在此
+基础实施，不把编译失败计红。计划正控1兼容、2/3/5动态序列、正反ABI和consumer
+变化，differentflag保留合法无receipt；CI故障只编译，本地提交不推送。
+
+组合实现与完整独立复审通过：逐peer身份/metadata/角色标签，原边内容、共享出口、
+真实fold顺序与唯一前驱，以及整函数集合覆盖均独立核对；fold先删除消费的Goto，
+再重写后继entry，未从最终SSA补造历史。首次编译修正空slice类型推断与CI Vec
+索引取值clone，不记行为红。真实green2五普通通过：sameflag 2/3/5、正反ABI、双
+入口/onoff共24组合发一个组合receipt，逐peer身份/fold数量/实际链接并clone后
+独立validate；异flag另24组合执行无receipt。旧单loop正控和阴性边界保持。
+双false原生1项真实输出kept；8组ignored故障仅lib no-run编译通过，未执行。
+最终CG家族97项、FE三个target共4项通过；FE+CG feature all-targets Clippy -D warnings、
+默认workspace all-targets、fmt/diff/docs913及尺寸2627手写Rust文件/36历史超限通过。
+独立生产、最终图、测试和文档复审通过。未改尺寸policy，无旧见证退休，本地提交。

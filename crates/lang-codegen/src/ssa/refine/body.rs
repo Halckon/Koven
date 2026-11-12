@@ -828,7 +828,7 @@ pub(super) enum LoanTag {
 #[derive(Clone, Debug)]
 pub(super) struct RStmt {
     pub(super) loop_tag: Option<super::loop_receipt::Tag>,
-    pub(super) fresh_loop_tag: Option<super::fresh_loop_receipt::Tag>,
+    pub(super) fresh_loop_tag: Option<(usize, super::fresh_loop_receipt::Tag)>,
     pub(super) loan_tag: Option<LoanTag>,
     pub(super) op: ROp,
     pub(super) results: Vec<Slot>,

@@ -54,12 +54,13 @@ pub(super) struct Plan {
     pub(super) blocks: Option<LoopBlocks>,
     pub(super) events: Vec<Tag>,
     pub(super) terms: Vec<(BlockRef, RTerm)>,
-    pub(super) folds: Vec<(BlockRef, BlockRef)>,
     pub(super) boundary: usize,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
-    pub(super) plan: Option<Plan>,
+    pub(super) loops: Vec<Plan>,
+    pub(super) active: Option<usize>,
+    pub(super) folds: Vec<(BlockRef, BlockRef)>,
 }
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)

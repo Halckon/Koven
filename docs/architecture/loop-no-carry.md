@@ -53,11 +53,13 @@ binding 尚不存在；实际 body lowering 后、任何 loop leave 清理前，
 ## 独立 fresh-loop receipt
 
 `refine/fresh_loop_receipt` 为独立协议，不套用旧 carried-loop 的 entry acquire/exit End。
-首证书仅限函数体唯一 while、两个 Borrow source/flag 参数，参数顺序来自 typed ABI。
-own Boolean、兄弟循环或其它前后语句保留原有执行/拒绝边界，不因缺新证书收紧准入。
+当前资格限函数体完全由同源直接 while 构成，使用同一 Borrow flag 与 Borrow source
+两个参数，参数顺序来自 typed ABI。数量取真实有序元素，不枚举固定拓扑。不同 flag、
+own Boolean 或其它前后语句保留原执行/拒绝边界，不因缺新证书收紧准入。
 
 真实 builder append 捕获 header 条件读取、body BorrowCall、逐 consumer 和唯一 End；
-真实 terminator 与 fold 回调捕获五个原块、正常回边、false 出口及可发生的出口折叠。
+真实 terminator 与 fold 回调捕获每 peer 五个原块角色（相邻共享 exit/entry）、
+正常回边、false 出口及可发生的出口折叠。
 Emitted 将这些 producer 标签绑定实际 InstructionId、EntityId 及各块参数映射，不从
 最终 SSA 扫描补造 producer。最后独立验证不读取 Plans/Slot/current map，而从实际
 ABI 参数建立 Source/Flag 角色固定点，逐 incoming 检查运输，核 body fresh Result
@@ -80,4 +82,16 @@ initializer/body 与唯一 End；从真实 Function body 的 elements 对照直�
 每个 reached while 仍独立走原 NoCarryLease 的入口、cleanup 前关闭、回边和退出
 核验。实际 SSA 用不同结果实体，各自 consumer 与 End 在对应 body 内，任何边均不
 运输本轮结果；两个 false 退出后仍可消费外部 source。分支/跳转/嵌套边界不变。
-此为兄弟执行准入，不扩独立 fresh-loop receipt 的 whole-function 单 while 资格。
+执行准入与证书资格分开；不同 flag 等较宽执行形状不自动获得组合 receipt。
+
+## 动态组合证据
+
+同 flag 的兄弟共享一个整函数 receipt，内部是有序 peer 证据，而非多个已发布的单loop
+receipt。实际入口按 StatementId 激活下一 peer，必须在前一 peer 真正关闭并恢复后，
+以其 exit 作为下一 entry。每 peer 标签、原 fact 独占身份及 fresh 结果独立保存。
+
+整函数记录实际 term/fold：中间 peer 无 Return，只有最后出口返回；fold 先消费真实
+唯一前驱 Goto，再重写剩余边及共享 exit/entry，不推测最终图以前发生过何种折叠。
+最终一次核 whole-function 全集、每 peer 的原身份和顺序、各自 consumer/End，以及
+共享外部参数逐入边的准确局部实体。任何一条边都不得携出任一 fresh 结果。
+任一 peer 或最终 verifier 失败均撤回整组；仍不声称已运行任意非零多轮或证明终止。
