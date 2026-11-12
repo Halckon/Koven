@@ -604,6 +604,23 @@ impl Emitted {
             *when_true.arguments.get_mut(index).ok_or_else(|| invalid(span))? = foreign;
             super::build::owner_consumer_test_support::record_action("control-chain-ssa-fault-hit", 2);
         }
+        #[cfg(test)]
+        if let Some(link) = &plans.link
+            && block == link.block
+            && super::build::owner_consumer_test_support::take_fault(
+                super::build::owner_consumer_test_support::OwnerFault::ChainSsaLinkWrongEdgeArguments)
+        {
+            let last = plans.group.last().ok_or_else(|| invalid(span))?;
+            let positions = &self.parameters[&last.blocks[0]];
+            let a = positions.iter().position(|s| *s == link.pairs[0].1).ok_or_else(|| invalid(span))?;
+            let b = positions.iter().position(|s| *s == link.pairs[1].1).ok_or_else(|| invalid(span))?;
+            let data = function.blocks.iter_mut().find(|b| b.id == self.blocks[&block]).ok_or_else(|| invalid(span))?;
+            let Some(t) = &mut data.terminator else { return Err(invalid(span)) };
+            let TerminatorKind::Branch(edge) = &mut t.kind else { return Err(invalid(span)) };
+            if a == b || edge.arguments.get(a) == edge.arguments.get(b) || a >= edge.arguments.len() || b >= edge.arguments.len() { return Err(invalid(span)); }
+            edge.arguments.swap(a, b);
+            super::build::owner_consumer_test_support::record_action("control-chain-link-fault-hit", 2);
+        }
         let original = body.blocks.get(block.0).ok_or_else(|| invalid(span))?;
         if self.caller != Some(function.id())
             || self.current.get(&block) != Some(current)

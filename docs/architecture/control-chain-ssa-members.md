@@ -50,5 +50,5 @@ the builder requires the second exit to be the actual third entry, a Goto to its
 an original whole-block Alias chain with exactly the intended source/intermediate uses.
 A private Link follows CFG folding. Actual emission must preserve source/target Entity equality
 and the real third-header edge arguments. Every target must be covered once, and the link is
-observed once before any final group completion. A CI-only wrong-target probe is compiled but
-not run locally. No first-control entry catalog or arbitrary runtime trace is synthesized.
+observed once before any final group completion. CI-only wrong-target and actual emitted-edge argument-swap probes are compiled but
+not run locally; both withhold Link and group completion. No first-control entry catalog or arbitrary runtime trace is synthesized.
