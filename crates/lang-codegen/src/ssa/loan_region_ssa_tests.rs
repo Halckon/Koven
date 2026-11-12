@@ -706,7 +706,7 @@ mod receiver_route;
 mod receiver_receipts;
 
 #[path = "receiver_receipt_sibling_tests.rs"]
-mod receiver_receipt_siblings;
+pub(in crate::ssa) mod receiver_receipt_siblings;
 
 #[path = "named_loan_route_tests.rs"]
 mod named_route;
@@ -734,13 +734,13 @@ mod multi_temporary;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "named_literal_mapping_tests.rs"]
-mod named_literal_mapping;
+pub(in crate::ssa) mod named_literal_mapping;
 
 #[path = "finite_literal_tests.rs"]
 mod finite_literal;
 
 #[path = "binding_lifecycle_probe_tests.rs"]
-mod binding_lifecycle_probe;
+pub(in crate::ssa) mod binding_lifecycle_probe;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "binding_causal_links_tests.rs"]

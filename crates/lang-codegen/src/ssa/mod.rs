@@ -45,7 +45,7 @@ mod borrow_result_support;
 #[cfg(test)]
 mod borrow_storage_contract_tests;
 #[cfg(test)]
-mod loan_region_ssa_tests;
+pub(in crate::ssa) mod loan_region_ssa_tests;
 #[cfg(test)]
 mod map_consume_fixture_tests;
 #[cfg(test)]
@@ -157,7 +157,7 @@ mod verify_loan_mutate_tests;
 mod verify_scalar_tests;
 
 #[cfg(test)]
-mod lower_frontend_tests;
+pub(in crate::ssa) mod lower_frontend_tests;
 
 #[cfg(test)]
 mod lower_frontend_scalar_abi_unit_comparison_tests;
@@ -223,7 +223,7 @@ mod unit_field_borrow_tests;
 mod unit_field_replace_tests;
 
 #[cfg(test)]
-mod lowering_support_tests;
+pub(in crate::ssa) mod lowering_support_tests;
 
 #[cfg(test)]
 mod lowering_entry_contract_tests;
@@ -252,7 +252,7 @@ pub(in crate::ssa) mod ordered_map_storage_tests;
 pub(in crate::ssa) mod owned_map_borrow_boundary_tests;
 
 #[cfg(test)]
-mod multi_borrow_range_boundary_tests;
+pub(in crate::ssa) mod multi_borrow_range_boundary_tests;
 #[cfg(test)]
 mod multi_borrow_tests;
 

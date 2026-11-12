@@ -2,7 +2,7 @@
 use verify::actions;
 pub(in crate::ssa) use crate::ssa::borrow_result_boundary_tests::conditional_facts as facts;
 pub(in crate::ssa) use retained as successor;
-mod verify;
+pub(in crate::ssa) use crate::ssa::lower_frontend_tests::root_primitive_tests::conditional_verify as verify;
 
 use super::*;
 use lang_frontend::{

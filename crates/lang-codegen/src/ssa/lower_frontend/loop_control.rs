@@ -2,7 +2,7 @@
 
 mod iteration;
 pub(in crate::ssa) use crate::ssa::carry::columns::nullable_while;
-pub(in crate::ssa) mod numeric_iteration;
+pub(in crate::ssa) use crate::ssa::lowering_support_tests::numeric_iteration;
 
 use std::collections::BTreeMap;
 
@@ -28,19 +28,19 @@ pub(in crate::ssa) struct LoopJump {
 }
 
 pub(in crate::ssa) struct ForLoopData {
-    pub(super) statement: StatementId,
-    pub(super) provider_header: crate::ssa::provider::ProviderHeader,
-    pub(super) guarded_element: crate::ssa::provider::GuardedElement,
-    pub(super) int_type: SsaTypeId,
-    pub(super) plan: lang_frontend::ownership_checking::IterationOwnershipPlan,
-    pub(super) new_source_loan: Option<LoanId>,
-    pub(super) active_source_loan: Option<LoanId>,
-    pub(super) body_source: LoanId,
-    pub(super) body_cursor: ValueId,
-    pub(super) source_slot: usize,
-    pub(super) length_slot: usize,
-    pub(super) cursor_slot: usize,
-    pub(super) is_carried_source: bool,
+    pub(in crate::ssa) statement: StatementId,
+    pub(in crate::ssa) provider_header: crate::ssa::provider::ProviderHeader,
+    pub(in crate::ssa) guarded_element: crate::ssa::provider::GuardedElement,
+    pub(in crate::ssa) int_type: SsaTypeId,
+    pub(in crate::ssa) plan: lang_frontend::ownership_checking::IterationOwnershipPlan,
+    pub(in crate::ssa) new_source_loan: Option<LoanId>,
+    pub(in crate::ssa) active_source_loan: Option<LoanId>,
+    pub(in crate::ssa) body_source: LoanId,
+    pub(in crate::ssa) body_cursor: ValueId,
+    pub(in crate::ssa) source_slot: usize,
+    pub(in crate::ssa) length_slot: usize,
+    pub(in crate::ssa) cursor_slot: usize,
+    pub(in crate::ssa) is_carried_source: bool,
 }
 
 impl ForLoopData {
@@ -54,15 +54,15 @@ impl ForLoopData {
 }
 
 pub(in crate::ssa) struct LoopContext {
-    pub(super) entry_views: BTreeMap<SymbolId, super::NonNullProof>,
-    pub(super) outer_borrowed_while: Option<super::outer_borrowed_while::Relation>,
-    pub(super) header: BlockId,
-    pub(super) carried: LinearBindings,
-    pub(super) continues: Vec<LoopJump>,
-    pub(super) breaks: Vec<BranchExit>,
-    pub(super) for_loop: Option<ForLoopData>,
-    pub(super) numeric_loop: Option<numeric_iteration::NumericLoopData>,
-    pub(super) map_loop: Option<super::map_iteration::Context>,
+    pub(in crate::ssa) entry_views: BTreeMap<SymbolId, super::NonNullProof>,
+    pub(in crate::ssa) outer_borrowed_while: Option<super::outer_borrowed_while::Relation>,
+    pub(in crate::ssa) header: BlockId,
+    pub(in crate::ssa) carried: LinearBindings,
+    pub(in crate::ssa) continues: Vec<LoopJump>,
+    pub(in crate::ssa) breaks: Vec<BranchExit>,
+    pub(in crate::ssa) for_loop: Option<ForLoopData>,
+    pub(in crate::ssa) numeric_loop: Option<numeric_iteration::NumericLoopData>,
+    pub(in crate::ssa) map_loop: Option<super::map_iteration::Context>,
 }
 
 impl LoopContext {

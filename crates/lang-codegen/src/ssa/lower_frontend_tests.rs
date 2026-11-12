@@ -15,7 +15,7 @@ mod resource_deinit_tests;
 mod return_control_tests;
 
 #[path = "lower_frontend_root_boundary_tests.rs"]
-mod root_boundaries;
+pub(in crate::ssa) mod root_boundaries;
 
 use lang_frontend::{
     lexer::lex,
@@ -707,7 +707,7 @@ fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
 }
 
 #[path = "root_primitive_lower_tests.rs"]
-mod root_primitive_tests;
+pub(in crate::ssa) mod root_primitive_tests;
 
 #[path = "field_replace_lower_tests.rs"]
 mod field_replace_tests;

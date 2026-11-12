@@ -26,31 +26,31 @@ use lang_frontend::{
 type Query<T> = Result<T, String>;
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct CallSpans {
-    pub(super) inspect: Span,
-    pub(super) reader: Span,
+pub(in crate::ssa) struct CallSpans {
+    pub(in crate::ssa) inspect: Span,
+    pub(in crate::ssa) reader: Span,
 }
 
 #[derive(Debug)]
-pub(super) struct Facts {
-    pub(super) inspect: Span,
-    pub(super) reader: Span,
-    pub(super) entry: Span,
-    pub(super) guard: Span,
-    pub(super) while_span: Span,
-    pub(super) tail_return: Span,
-    pub(super) reader_comparison: Span,
-    pub(super) reader_return: Span,
-    pub(super) reader_drop_origin: Span,
-    pub(super) entry_present_statement: Span,
-    pub(super) entry_construction: Span,
-    pub(super) entry_payload: Span,
-    pub(super) entry_null: Span,
-    pub(super) body_return: Option<Span>,
-    pub(super) body_null: Option<Span>,
-    pub(super) backedge_origin: Option<Span>,
-    pub(super) inspect_drop_origin: Option<Span>,
-    pub(super) calls: [CallSpans; 2],
+pub(in crate::ssa) struct Facts {
+    pub(in crate::ssa) inspect: Span,
+    pub(in crate::ssa) reader: Span,
+    pub(in crate::ssa) entry: Span,
+    pub(in crate::ssa) guard: Span,
+    pub(in crate::ssa) while_span: Span,
+    pub(in crate::ssa) tail_return: Span,
+    pub(in crate::ssa) reader_comparison: Span,
+    pub(in crate::ssa) reader_return: Span,
+    pub(in crate::ssa) reader_drop_origin: Span,
+    pub(in crate::ssa) entry_present_statement: Span,
+    pub(in crate::ssa) entry_construction: Span,
+    pub(in crate::ssa) entry_payload: Span,
+    pub(in crate::ssa) entry_null: Span,
+    pub(in crate::ssa) body_return: Option<Span>,
+    pub(in crate::ssa) body_null: Option<Span>,
+    pub(in crate::ssa) backedge_origin: Option<Span>,
+    pub(in crate::ssa) inspect_drop_origin: Option<Span>,
+    pub(in crate::ssa) calls: [CallSpans; 2],
 }
 
 #[derive(Clone, Copy)]
@@ -549,7 +549,7 @@ fn reference(names: &NameResolution, span: Span) -> Query<SymbolId> {
     }
 }
 
-pub(super) fn single(
+pub(in crate::ssa) fn single(
     sources: &SourceMap,
     file: &ParsedFile,
     names: &NameResolution,
@@ -743,7 +743,7 @@ fn declaration(
     .id())
 }
 
-pub(super) fn unit(
+pub(in crate::ssa) fn unit(
     sources: &SourceMap,
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,

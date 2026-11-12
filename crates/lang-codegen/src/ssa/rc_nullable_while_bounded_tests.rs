@@ -3,12 +3,11 @@ use crate::test_support::diagnostics::diagnostic;
 use std::fmt::Debug;
 
 #[path = "rc_nullable_while_memory_document_tests.rs"]
-mod memory_document;
+pub(in crate::ssa) mod memory_document;
 
-#[path = "rc_nullable_while_presence_identity.rs"]
-mod identity;
+pub(in crate::ssa) use crate::ssa::loan_region_ssa_tests::named_literal_mapping::rc_nullable_while_presence_identity as identity;
 #[path = "rc_nullable_while_presence_facts.rs"]
-mod identity_facts;
+pub(in crate::ssa) mod identity_facts;
 
 use lang_frontend::{
     lexer::lex,
@@ -204,7 +203,7 @@ fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
     observe_with_identity(case, source_text, unit, false).0
 }
 
-fn observe_with_identity(
+pub(in crate::ssa) fn observe_with_identity(
     case: &'static str,
     source_text: &str,
     unit: bool,
@@ -465,7 +464,7 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
 }
 
 /// Independent presence-only source bytes and golden output for later native reuse.
-pub(crate) fn presence_cases() -> [(&'static str, &'static str, &'static str); 4] {
+pub(crate) pub(in crate::ssa) fn presence_cases() -> [(&'static str, &'static str, &'static str); 4] {
     [
         (
             "normal-presence",
