@@ -159,6 +159,13 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
         let Some((block, successor)) = candidate else {
             return Ok(body);
         };
+        let prefix_len = body.blocks[block.0].statements.len();
+        body.nested_resume_plans
+            .fold(block, successor, prefix_len, span)?;
+        body.nested_exit_plans
+            .fold(block, successor, prefix_len, span)?;
+        body.owner_bridge_plans
+            .fold(block, successor, prefix_len, span)?;
         let folded = std::mem::take(&mut body.blocks[successor.0]);
         let target = &mut body.blocks[block.0];
         if target.origin.is_none() {
@@ -930,6 +937,7 @@ pub(super) fn emit(
                 .function
                 .set_abort_terminator(target, reason, origin)
                 .map_err(model_error)?;
+            emitter.owner_terminator(body, *block, &mut receipts, *term_span)?;
             continue;
         }
         let kind = match terminator {
@@ -980,8 +988,13 @@ pub(super) fn emit(
             .function
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
+        emitter.owner_terminator(body, *block, &mut receipts, *term_span)?;
         receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
+    #[cfg(test)]
+    super::nested_exit_receipt::inject_final(&body.nested_exit_plans, emitter.function);
+    #[cfg(test)]
+    super::nested_resume_receipt::inject_final(&body.nested_resume_plans, emitter.function);
     receipts.finish(body, emitter.function, span)?;
     Ok(())
 }

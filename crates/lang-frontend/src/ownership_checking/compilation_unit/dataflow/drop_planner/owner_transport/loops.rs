@@ -4,6 +4,7 @@ mod control_scope;
 mod control_transactions;
 mod counter_batch;
 mod counter_segment;
+mod nested;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
 pub(in super::super) use control_scope::ControlVisit;
@@ -729,6 +730,10 @@ impl DropPlanner<'_, '_> {
                 UnitStatementId::new(self.checker.source_unit, body),
                 state,
             );
+            self.owner_loop.begin_bridge_normal(
+                self.checker,
+                UnitStatementId::new(self.checker.source_unit, id),
+            );
             let mut body_state = state.clone();
             // The private body sink has a fresh catalog, never aliases the callable catalog,
             // and is not pushed as an extra callable observation.
@@ -756,6 +761,9 @@ impl DropPlanner<'_, '_> {
                         closed_loop_batch: None,
                         counter_tail: None,
                         counter_batch: None,
+                        control_bridge: None,
+                        private_control_chain: None,
+                        nested_normal: None,
                         multi_root_boundary: None,
                         open_loop_value: None,
                     }),

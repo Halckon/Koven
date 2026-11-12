@@ -52,6 +52,9 @@ impl DropPlanner<'_, '_> {
             closed_loop_batch: None,
             counter_tail: None,
             counter_batch: None,
+            control_bridge: None,
+            private_control_chain: None,
+            nested_normal: None,
             multi_root_boundary: None,
             open_loop_value: None,
         });
@@ -84,6 +87,9 @@ impl DropPlanner<'_, '_> {
             closed_loop_batch: None,
             counter_tail: None,
             counter_batch: None,
+            control_bridge: None,
+            private_control_chain: None,
+            nested_normal: None,
             multi_root_boundary: None,
             open_loop_value: None,
         });
@@ -115,6 +121,9 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
+        let nested_normal = self.owner_loop.take_nested_normal();
+        let private_control_chain = self.owner_loop.take_private_chain();
+        let control_bridge = self.owner_loop.take_control_bridge();
         let counter_batch = self.owner_loop.take_counter_batch();
         let counter_tail = self.owner_loop.counter_tail_evidence();
         let multi_root_boundary = self.owner_loop.take_root_boundary();
@@ -127,6 +136,9 @@ impl DropPlanner<'_, '_> {
         if let Some(mut observation) = self.owner_observation.take() {
             observation.counter_tail = counter_tail.map(Box::new);
             observation.counter_batch = counter_batch.map(Box::new);
+            observation.control_bridge = control_bridge.map(Box::new);
+            observation.private_control_chain = private_control_chain.map(Box::new);
+            observation.nested_normal = nested_normal.map(Box::new);
             observation.closed_loop_batch = closed_loop_batch.map(Box::new);
             observation.multi_root_boundary = multi_root_boundary.map(Box::new);
             observation.open_loop_value = open_loop_value;
@@ -148,6 +160,9 @@ impl DropPlanner<'_, '_> {
                 };
                 observation.counter_tail = None;
                 observation.counter_batch = None;
+                observation.control_bridge = None;
+                observation.private_control_chain = None;
+                observation.nested_normal = None;
                 observation.multi_root_boundary = None;
                 observation.definitions.clear();
                 observation.events.clear();
@@ -321,6 +336,7 @@ impl DropPlanner<'_, '_> {
     ) -> Result<(), OwnershipCheckingError> {
         self.owner_loop
             .segment_statement(UnitStatementId::new(self.checker.source_unit, id), state);
+        self.begin_nested_resume_statement(id, state);
         self.begin_root_suffix_statement(id, state);
         self.prepare_owner_loop_input(id, state);
         if matches!(

@@ -7,6 +7,7 @@ mod child_receipt;
 mod condition;
 mod container;
 mod container_for;
+mod control_bridge;
 mod counter_tail_receipt;
 mod expression;
 
@@ -15,6 +16,7 @@ mod expression;
 pub(in crate::ssa::refine::build) use tagged::inout;
 pub(in crate::ssa::refine::build) use value::field;
 mod frames;
+pub(super) use frames::Lowered;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
 mod map;
 mod multi_root_receipt;
@@ -54,19 +56,15 @@ use crate::ssa::{
     model::{EntityType, SsaTypeId},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Lowered {
-    Value(Slot),
-    Unit,
-    Diverged,
-}
-
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     open_return_plan: Option<open_loop_return::Plan<'a>>,
     header_return_plan: Option<normal_header_return::Plan<'a>>,
-    counter_tail_plan: Option<counter_tail_receipt::Plan<'a>>,
+    control_bridge_plan: Option<control_bridge::Plan<'a>>,
+    control_chain_bodies: Option<control_bridge::BodyGroup<'a>>,
+    nested_owner_body: Option<control_bridge::NestedBody<'a>>,
+    counter_tail_plan: counter_tail_receipt::Plans<'a>,
     multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
     checked_expression_edges: usize,
     checked_edge_receipts: Vec<checked_edge_receipt::Receipt>,
@@ -123,7 +121,10 @@ pub(super) fn build(
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         open_return_plan: open_loop_return::Plan::new(inputs)?,
         header_return_plan: normal_header_return::Plan::new(inputs)?,
-        counter_tail_plan: counter_tail_receipt::Plan::new(inputs)?,
+        control_bridge_plan: control_bridge::Plan::new(inputs)?,
+        control_chain_bodies: control_bridge::BodyGroup::new(inputs)?,
+        nested_owner_body: control_bridge::NestedBody::new(inputs)?,
+        counter_tail_plan: counter_tail_receipt::Plans::new(inputs)?,
         multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
         checked_expression_edges: 0,
         checked_edge_receipts: Vec::new(),
@@ -184,6 +185,7 @@ pub(super) fn build(
         builder.finish_owner_plan()?;
         builder.finish_checked_edge_receipts()?;
         builder.finish_counter_tail_receipt()?;
+        builder.finish_control_bridge()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -248,6 +250,7 @@ pub(super) fn build(
     builder.finish_loan_receipts()?;
     builder.finish_checked_edge_receipts()?;
     builder.finish_counter_tail_receipt()?;
+    builder.finish_control_bridge()?;
     Ok(builder.body)
 }
 
@@ -589,13 +592,32 @@ impl Builder<'_, '_> {
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             let header = self.header_bind_drop(*index, *target, slot, *span)?;
             let counter = self.counter_drop_authorization(*index, *target, slot, *span)?;
-            if (receipt.is_some() && header.is_some())
+            let bridge = self.bridge_drop_authorization(*index, *target, slot, *span)?;
+            let bridge_exit = self.bridge_exit_drop_authorization(*index, *target, slot, *span)?;
+            let suffix = self.bridge_suffix_drop(*index, *target, slot, *span)?;
+            if (suffix.is_some()
+                && (bridge_exit.is_some()
+                    || bridge.is_some()
+                    || counter.is_some()
+                    || receipt.is_some()
+                    || header.is_some()))
+                || (bridge_exit.is_some()
+                    && (bridge.is_some()
+                        || counter.is_some()
+                        || receipt.is_some()
+                        || header.is_some()))
+                || (bridge.is_some()
+                    && (counter.is_some() || receipt.is_some() || header.is_some()))
+                || (receipt.is_some() && header.is_some())
                 || (counter.is_some() && (receipt.is_some() || header.is_some()))
             {
                 return Err(error(LoweringErrorKind::InvalidModel, *span));
             }
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
             self.counter_drop_emitted(counter, *span)?;
+            self.bridge_emitted(bridge, None, *span)?;
+            self.bridge_exit_drop_emitted(bridge_exit, *span)?;
+            self.bridge_suffix_emitted(suffix, None, *span)?;
             self.owner_drop_emitted(receipt, *span)?;
             self.header_bind_drop_emitted(header, *span)?;
             #[cfg(test)]

@@ -46,6 +46,9 @@ impl ControlStack {
 pub(in super::super::super) struct ControlVisit {
     pub(in super::super::super) private_counter:
         Option<crate::ownership_checking::UnitOwnerCounterTailEvidenceV1>,
+    pub(super) continuation_body: Option<super::counter_segment::continuation::CompletedBody>,
+    pub(super) segment_continuation: Option<super::counter_segment::continuation::Continuation>,
+    pub(super) segment_bridge: Option<super::counter_segment::bridge::Bridge>,
     pub(in super::super::super) segment_catalog: Option<super::counter_segment::Snapshot>,
     pub(in super::super::super) counter_phase: Option<super::control_transactions::CounterPhase>,
     pub(in super::super::super) entering: bool,
@@ -73,6 +76,9 @@ impl DropPlanner<'_, '_> {
         if let Some(probe) = &mut self.owner_control_probe {
             probe.push(ControlVisit {
                 private_counter: self.owner_loop.private_counter_evidence(control),
+                segment_bridge: self.owner_loop.segment_bridge(control),
+                segment_continuation: self.owner_loop.segment_continuation(control),
+                continuation_body: self.owner_loop.segment_continuation_body(control),
                 segment_catalog: self.owner_loop.segment_catalog(control),
                 counter_phase: self.owner_loop.counter_phase(control),
                 entering,
@@ -124,7 +130,6 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         let control = UnitStatementId::new(self.checker.source_unit, id);
-        #[cfg(test)]
         let parent = self.owner_controls.current();
         let previous_transaction = self.owner_loop.selected();
         let entered = self.owner_controls.enter(control);
@@ -132,6 +137,19 @@ impl DropPlanner<'_, '_> {
             self.owner_loop.select(Some(control));
         } else {
             self.owner_loop.clear();
+        }
+        if entered {
+            self.owner_loop.nested_enter(
+                (
+                    control,
+                    self.checker.unit_expression(condition),
+                    UnitStatementId::new(self.checker.source_unit, body),
+                ),
+                parent,
+                self.owner_controls.controls.len(),
+                state,
+                self.owner_observation.as_ref(),
+            );
         }
         #[cfg(test)]
         self.record_control_visit(control, parent, true, None);
@@ -141,11 +159,19 @@ impl DropPlanner<'_, '_> {
             state,
             entered && matches!(result, Ok(true)),
         );
+        self.owner_loop
+            .nested_leave(control, entered && result.is_ok());
         #[cfg(test)]
         let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
         if entered {
             self.owner_controls.leave(control);
         }
+        self.owner_loop.nested_parent_resume(
+            control,
+            self.owner_controls.current(),
+            state,
+            entered && matches!(result, Ok(true)),
+        );
         self.owner_loop.select(previous_transaction);
         #[cfg(test)]
         self.record_control_visit(

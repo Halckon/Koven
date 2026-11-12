@@ -39,6 +39,27 @@ impl UnitOwnerObservation {
     /// Check source/product identity and path-local binding/pending/replace conservation.
     /// This does not grant unsupported syntax or replace ordinary ownership validation.
     pub fn is_consistent(&self) -> bool {
+        if let Some(nested) = &self.nested_normal {
+            return nested.matches(self);
+        }
+        if let Some(chain) = &self.private_control_chain {
+            return chain.matches_observation(&self.identity, self.callable)
+                && self.definitions.is_empty()
+                && self.events.is_empty()
+                && self.control_bridge.is_none()
+                && self.counter_batch.is_none()
+                && self.counter_tail.is_none()
+                && self.closed_loop_batch.is_none()
+                && self.multi_root_boundary.is_none()
+                && self.loop_value.is_none()
+                && self.open_loop_value.is_none()
+                && self.invariant_loop_value.is_none()
+                && self.choice_value.is_none()
+                && matches!(self.status, UnitOwnerObservationStatus::Unsupported {
+                    point: UnitDropPoint::AfterStatement(control) | UnitDropPoint::LoopExit(control),
+                    reason: UnitOwnerUnsupportedReason::Syntax,
+                } if control == chain.first_control());
+        }
         let source = match self.callable {
             UnitOwnerCallable::Function(item) | UnitOwnerCallable::Deinit(item) => {
                 item.source_unit()

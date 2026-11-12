@@ -98,6 +98,12 @@ impl DropPlanner<'_, '_> {
         let Some(control) = self.owner_controls.current() else {
             return;
         };
+        if let Some(r) = self.owner_loop.nested_resume_mut(control) {
+            r.bind(self.checker.unit_expression(initializer), symbol);
+        }
+        if let Some(body) = self.owner_loop.bridge_body_mut(control) {
+            body.bind(self.checker.unit_expression(initializer), symbol);
+        }
         let Some((_, evidence)) = self
             .owner_loop
             .root_entries
@@ -121,6 +127,12 @@ impl DropPlanner<'_, '_> {
         let Some(control) = self.owner_controls.current() else {
             return;
         };
+        if let Some(r) = self.owner_loop.nested_resume_mut(control) {
+            r.drop_result(fact.into_unit(self.checker.source_unit));
+        }
+        if let Some(body) = self.owner_loop.bridge_body_mut(control) {
+            body.drop_result(fact.into_unit(self.checker.source_unit));
+        }
         let Some((_, evidence)) = self
             .owner_loop
             .root_entries
@@ -166,6 +178,12 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let expression = self.checker.unit_expression(expression);
+        if let Some(r) = self.owner_loop.nested_resume_mut(control) {
+            r.literal(expression);
+        }
+        if let Some(body) = self.owner_loop.bridge_body_mut(control) {
+            body.literal(expression);
+        }
         if let Some((_, evidence)) = self
             .owner_loop
             .root_entries
@@ -239,6 +257,12 @@ impl DropPlanner<'_, '_> {
             || !self.pending_value_registered(call, producer.expression(), state)
         {
             return;
+        }
+        if let Some(r) = self.owner_loop.nested_resume_mut(control) {
+            r.replace(call_id, root, producer);
+        }
+        if let Some(body) = self.owner_loop.bridge_body_mut(control) {
+            body.replace(call_id, root, producer);
         }
         let Some((_, evidence)) = self
             .owner_loop

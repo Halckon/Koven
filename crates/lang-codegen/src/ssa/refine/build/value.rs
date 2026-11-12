@@ -900,12 +900,25 @@ pub(in crate::ssa::refine::build) mod field {
             self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
             let counter =
                 self.counter_binding_authorization(self.unit(initializer), symbol, value, span)?;
+            let bridge =
+                self.bridge_binding_authorization(self.unit(initializer), symbol, value, span)?;
+            let suffix = self.bridge_suffix_binding(self.unit(initializer), symbol, value, span)?;
+            let entry = self.bridge_entry_binding(self.unit(initializer), symbol, value, span)?;
+            if (entry.is_some() && (suffix.is_some() || bridge.is_some() || counter.is_some()))
+                || (suffix.is_some() && (bridge.is_some() || counter.is_some()))
+                || (bridge.is_some() && counter.is_some())
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
             let binding = self.value(
                 ROp::Alias { source: value },
                 crate::ssa::model::EntityType::Value(ty),
                 span,
             )?;
             self.counter_binding_emitted(counter, binding, span)?;
+            self.bridge_emitted(bridge, Some(binding), span)?;
+            self.bridge_suffix_emitted(suffix, Some(binding), span)?;
+            self.bridge_entry_emitted(entry, binding, span)?;
             self.bindings.insert(symbol, binding);
             self.owner_binding_emitted(symbol, binding);
             #[cfg(test)]

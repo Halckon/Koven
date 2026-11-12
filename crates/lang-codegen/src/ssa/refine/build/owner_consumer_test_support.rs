@@ -3,6 +3,37 @@ use std::cell::{Cell, RefCell};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerFault {
+    NestedBodyWrongParent,
+    NestedBodyLateMissingDrop,
+    NestedBodyLateDuplicateDrop,
+    NestedBodyForeignLoan,
+    NestedBodyLateRootPlace,
+    NestedBodyEscapedPreparation,
+    NestedFalseMissingDrop,
+    NestedResumeMissingReplace,
+    NestedResumeMissingBinding,
+    NestedResumeMissingDrop,
+    NestedResumeForeignLoan,
+    NestedResumeSsaMissingDrop,
+    NestedResumeSsaDropNewRoot,
+    NestedResumeSsaDuplicateReplace,
+    NestedFalseSsaMissingBlockDrop,
+    NestedFalseSsaDuplicateBlockDrop,
+    NestedFalseSsaSwappedFalseArguments,
+    NestedBodyEscapedLoanTerminator,
+    BridgeSsaWrongRootArgument,
+    BridgeSsaMissingTerminator,
+    BridgeSsaAbortBackedge,
+    BridgeSsaExtraDrop,
+    BridgeSsaDropNewGeneration,
+    ChainSsaMissingLastTerminator,
+    ChainSsaLastDropNewGeneration,
+    ChainSsaCrossMemberRootArgument,
+    ChainSsaFoldWrongBody,
+    ChainSsaFoldWrongChecked,
+    ChainSsaWrongLinkTarget,
+    ChainSsaLinkWrongEdgeArguments,
+    ChainSsaLeadingLinkWrongEdgeArguments,
     MissingCounterEntryPermit,
     CounterEntryWrongSource,
     CounterEntryDuplicateCommit,
@@ -18,7 +49,57 @@ pub(crate) enum OwnerFault {
     CounterReplaceWrongRoot,
     CounterReplaceDuplicateCommit,
     CounterLateAbortToHeader,
+    CounterBatchSecondLateAbort,
+    ControlBridgeWrongRoot,
+    MissingBridgeReplacePermit,
+    MissingBridgeExitDropPermit,
+    MissingBridgeSuffixBinding,
+    MissingBridgeEntryBinding,
+    BridgeEntryWrongSource,
+    BridgeEntryLateWrongComparison,
+    BridgeEntryLateWrongLiteral,
+    MissingBridgeSuffixDrop,
+    BridgeSuffixWrongSource,
+    BridgeSuffixDuplicateDrop,
+    BridgeExitWrongInstruction,
+    BridgeExitDuplicateCommit,
+    BridgeExitWrongFactTarget,
+    BridgeExitWrongExitEdge,
+    BridgeExitLateWrongOwner,
+    BridgeCounterAbortToHeader,
+    BridgeCounterWrongBackedge,
+    BridgeCounterStaleComparison,
+    BridgeCounterWrongWriteback,
+    BridgeCounterMissingReceipt,
+    BridgeCounterForeignSuccessPredecessor,
+    MissingBridgeBindingPermit,
+    MissingBridgeDropPermit,
+    BridgeReplaceWrongRoot,
+    BridgeSecondReplaceFailure,
+    BridgeWrongInstruction,
+    ChainBodyWrongControl,
+    ChainExitWrongControl,
+    ChainLastTailMissingReceipt,
+    ChainLeadingTailMissingReceipt,
+    ChainLeadingSsaAbortBackedge,
+    ChainLeadingSsaFoldWrongChecked,
+    ChainLeadingExitMissingPermit,
+    ChainLeadingEntryMissingBinding,
+    ChainScalarSsaMissingLast,
+    ChainScalarSsaWrongFoldOffset,
+    ChainLastEntryMissingBinding,
+    ChainLastBodyMissingDrop,
+    ChainLeadingBodyMissingDrop,
+    BridgeDropDuplicateCommit,
+    ControlBridgeHeaderRootDrop,
+    ControlBridgeWrongBodyEdge,
+    ControlBridgeMissingNext,
+    ControlBridgeLateSourceDrop,
+    CounterPermitWrongIndex,
+    CounterPermitWrongControl,
+    CounterPermitOtherMember,
     CounterBoundaryWrongEntry,
+    CounterParameterLateRootUse,
     CounterBoundaryMissingSuffix,
     CounterTailLateInitialization,
     CounterTailWrongBackedge,
@@ -79,7 +160,7 @@ thread_local! {
     static FAULT: Cell<Option<OwnerFault>> = const { Cell::new(None) };
     static ACTIONS: RefCell<Option<Vec<(&'static str, usize)>>> = const { RefCell::new(None) };
 }
-pub(super) fn take_fault(expected: OwnerFault) -> bool {
+pub(in crate::ssa::refine) fn take_fault(expected: OwnerFault) -> bool {
     FAULT.with(|fault| {
         if fault.get() == Some(expected) {
             fault.set(None);
@@ -99,7 +180,7 @@ pub(crate) fn with_owner_fault<T>(fault: OwnerFault, run: impl FnOnce() -> T) ->
     let _reset = Reset(FAULT.with(|state| state.replace(Some(fault))));
     run()
 }
-pub(super) fn record_action(action: &'static str, slot: usize) {
+pub(in crate::ssa::refine) fn record_action(action: &'static str, slot: usize) {
     ACTIONS.with(|events| {
         if let Some(events) = events.borrow_mut().as_mut() {
             events.push((action, slot));

@@ -1,8 +1,9 @@
 //! Exact immediate Name -> val -> drop suffix; never use legacy owner IDs as phi values.
 use super::*;
 type Receipt = (UnitSymbolId, crate::ownership_checking::UnitDropFact);
-pub(super) struct RootSuffix {
+pub(in super::super) struct RootSuffix {
     scope_depth: usize,
+    transparent_literals: bool,
     remaining: Vec<UnitSymbolId>,
     pending: Option<Pending>,
     transparent: Option<StatementId>,
@@ -22,12 +23,18 @@ impl RootSuffix {
     pub(super) fn new(remaining: Vec<UnitSymbolId>, scope_depth: usize) -> Self {
         Self {
             scope_depth,
+            transparent_literals: true,
             remaining,
             pending: None,
             transparent: None,
             receipts: Vec::new(),
             valid: true,
         }
+    }
+    pub(in super::super) fn new_strict(remaining: Vec<UnitSymbolId>, scope_depth: usize) -> Self {
+        let mut value = Self::new(remaining, scope_depth);
+        value.transparent_literals = false;
+        value
     }
     pub(super) fn completed(self) -> Option<Vec<Receipt>> {
         (self.valid
@@ -36,7 +43,7 @@ impl RootSuffix {
             && self.transparent.is_none())
         .then_some(self.receipts)
     }
-    pub(super) fn completed_snapshot(&self) -> Option<Vec<Receipt>> {
+    pub(in super::super) fn completed_snapshot(&self) -> Option<Vec<Receipt>> {
         (self.valid
             && self.remaining.is_empty()
             && self.pending.is_none()
@@ -94,10 +101,17 @@ impl DropPlanner<'_, '_> {
         let altered = tests::resource_mismatch(state, 9, transparent_literal(self.checker, id));
         #[cfg(test)]
         let state = altered.as_ref().unwrap_or(state);
-        for (_, evidence) in &mut self.owner_loop.root_entries {
-            let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
+        let branching = !self.owner_loop.root_branch_arms.is_empty();
+        for suffix in self
+            .owner_loop
+            .suffixes_mut()
+            .filter(|suffix| suffix.active())
+        {
+            #[cfg(test)]
+            if tests::bridge_skip(5, !suffix.transparent_literals) {
                 continue;
-            };
+            }
+
             if suffix.transparent.is_some() {
                 suffix.valid = false;
                 continue;
@@ -106,11 +120,14 @@ impl DropPlanner<'_, '_> {
                 if self.scope_depth != suffix.scope_depth
                     || suffix.pending.is_some()
                     || self.owner_controls.current().is_some()
-                    || !self.owner_loop.root_branch_arms.is_empty()
+                    || branching
                 {
                     return None;
                 }
-                if transparent_literal(self.checker, id) && suffix.matches_resources(state) {
+                if suffix.transparent_literals
+                    && transparent_literal(self.checker, id)
+                    && suffix.matches_resources(state)
+                {
                     suffix.transparent = Some(id);
                     return None;
                 }
@@ -165,10 +182,16 @@ impl DropPlanner<'_, '_> {
         if tests::skip(1) {
             return;
         }
-        for (_, evidence) in &mut self.owner_loop.root_entries {
-            let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
+        for suffix in self
+            .owner_loop
+            .suffixes_mut()
+            .filter(|suffix| suffix.active())
+        {
+            #[cfg(test)]
+            if tests::bridge_skip(1, !suffix.transparent_literals) {
                 continue;
-            };
+            }
+
             match &mut suffix.pending {
                 Some(p)
                     if p.expression == expression
@@ -190,10 +213,16 @@ impl DropPlanner<'_, '_> {
         if tests::skip(2) {
             return;
         }
-        for (_, evidence) in &mut self.owner_loop.root_entries {
-            let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
+        for suffix in self
+            .owner_loop
+            .suffixes_mut()
+            .filter(|suffix| suffix.active())
+        {
+            #[cfg(test)]
+            if tests::bridge_skip(2, !suffix.transparent_literals) {
                 continue;
-            };
+            }
+
             match &mut suffix.pending {
                 Some(p)
                     if p.expression == expression && p.binding == symbol && p.moved && !p.bound =>
@@ -209,10 +238,16 @@ impl DropPlanner<'_, '_> {
         if tests::skip(3) {
             return;
         }
-        for (_, evidence) in &mut self.owner_loop.root_entries {
-            let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
+        for suffix in self
+            .owner_loop
+            .suffixes_mut()
+            .filter(|suffix| suffix.active())
+        {
+            #[cfg(test)]
+            if tests::bridge_skip(3, !suffix.transparent_literals) {
                 continue;
-            };
+            }
+
             match &mut suffix.pending {
                 Some(p)
                     if p.bound
@@ -246,10 +281,16 @@ impl DropPlanner<'_, '_> {
         );
         #[cfg(test)]
         let state = altered.as_ref().unwrap_or(state);
-        for (_, evidence) in &mut self.owner_loop.root_entries {
-            let Some(suffix) = evidence.suffix.as_mut().filter(|suffix| suffix.active()) else {
+        for suffix in self
+            .owner_loop
+            .suffixes_mut()
+            .filter(|suffix| suffix.active())
+        {
+            #[cfg(test)]
+            if tests::bridge_skip(4, !suffix.transparent_literals) {
                 continue;
-            };
+            }
+
             #[cfg(test)]
             if suffix.transparent.is_some() && tests::skip(5) {
                 continue;
@@ -352,6 +393,48 @@ mod tests {
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
     thread_local! { static SKIP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) }; }
     thread_local! { static HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+    thread_local! { static BRIDGE_SKIP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) }; static BRIDGE_HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+    pub(super) fn bridge_skip(phase: u8, strict: bool) -> bool {
+        if strict && BRIDGE_SKIP.get() == phase && BRIDGE_HITS.get() == 0 {
+            BRIDGE_HITS.set(1);
+            true
+        } else {
+            false
+        }
+    }
+    #[test]
+    fn ci_only_bridge_suffix_requires_each_actual_event() {
+        let source = r#"fun run(n: Int) {
+            var n0 = n; var g0 = n0 > 0; var a0 = "a"; var b0 = "b";
+            while(g0) { val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 };
+            var n1 = n; var g1 = n1 > 0; var a1 = a0; var b1 = b0;
+            while(g1) { val x = replace(&a1, "x1"); val y = replace(&b1, "y1"); n1 = n1 - 1; g1 = n1 > 0 };
+            val x = a1; val y = b1
+        }"#;
+        let fixture = Fixture::new(&[("bridge-suffix-event.ko", source)]);
+        let baseline = fixture.shared();
+        assert_eq!(
+            baseline.owner_observations()[0]
+                .control_bridge_evidence_v1()
+                .unwrap()
+                .next_false_exit_suffix()
+                .unwrap()
+                .len(),
+            2
+        );
+        for phase in 1..=5 {
+            BRIDGE_SKIP.set(phase);
+            BRIDGE_HITS.set(0);
+            let owned = fixture.shared();
+            BRIDGE_SKIP.set(0);
+            assert_eq!(BRIDGE_HITS.get(), 1);
+            let bridge = owned.owner_observations()[0]
+                .control_bridge_evidence_v1()
+                .unwrap();
+            assert!(bridge.next_false_exit_partition().is_some());
+            assert!(bridge.next_false_exit_suffix().is_none());
+        }
+    }
     pub(super) fn hit() {
         HITS.set(HITS.get() + 1);
     }

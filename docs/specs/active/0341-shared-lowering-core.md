@@ -15176,3 +15176,255 @@ planner1496、loops965、refine build990、borrow_binding966。CI-only只编译�
 Preview/DNS按用户要求不排查、不修改、不重跑；不据本地绿灯声称正式CI完成。
 日志留隔离集成工作树 `.local-artifacts/integration/`。推送后须核精确远端head。
 D10/E2继续active；现行各有界能力不代表一般多根/嵌套/复杂CFG及旧见证退休完成。
+
+### 已批准下一片：嵌套内层 normal-body（2026-11-12）
+
+用户明确同意只开放嵌套循环内层受限 normal-body 权限：绑定实际父/子 control、
+callable/analysis 身份和干净资源边界，沿用真实 Replace→返回 binding→Drop 完成
+事件与单次消费许可。不得以 AST 计划补造完成事件、借用旧 Complete 或构造入口 token。
+本片仅接纳一个直接父子对的现有线性内层 body；缺失/损坏证据不得发布新权限，
+未覆盖合法程序保持旧路径。内层出口、外层恢复和任意轮次证明仍走旧路径，
+不宣称一般嵌套或跨轮归纳完成。
+
+验收要求：普通真实输入覆盖零/一/多次内外循环并断言新内层 body 消费；
+父子身份、资源边界、缺失/错序完成与重复消费必须失败封闭。故障注入负控仅 CI
+执行，本地只编译；本片当前实施中，未将未运行检查记为通过。
+
+本片本地实现：实际 ControlStack 父子进入、condition/body 边界及共享 Body 完成事件
+封存独立 normal 产品，旧 Complete/其他产品互斥；后端按实际 parent frame 与唯一根
+slot 接入已有非 Clone 单次 permit，不重复发射 Drop。未授予入口/退出/外层恢复权限。
+只读复审发现原终检会误拒正常 RootPlace 准备链；首有效 native 正控实测 InvalidModel，
+修复为逐根唯一真实 place→exclusive loan→对应 Replace 并核整块定义/使用后转绿。
+普通 counter_boundary 26/26（59.03s），含内/外 0、1、2 轮九组合及新产品/完成标记；
+frontend lib 普通 690/690（17.12s），含合法第二 child/三层嵌套不发布新产品。
+三项新增 CI-only 测试覆盖身份/混合权限、漏/错序事件、缺许可/重复提交、错误真实
+父 frame、foreign loan 与额外 RootPlace，仅编译，未本地执行，远端实跑待推送后核验。
+
+最终本地门禁：双 crate all-target strict Clippy（5m01s）、workspace all-target
+check（3m58s）、fmt/diff、文档915与尺寸2582文件/37项历史超限均通过；未改额度。
+共享选择器按职责拆至 body_group/selection，嵌套正控迁到专属测试模块；build 的
+共有 Lowered outcome 移至既有 frames，历史超限文件1016→1012，不新增超限文件。
+输入为173cf3f7及本片，核 main 仍 f78c8c20；验证日志保留 `.local-artifacts/root-edge-evidence/`
+的 nested-body-*（含首红），本片只本地提交，不推送，正式 CI 与上述未覆盖权限仍待后续。
+
+### 嵌套已消费 body 的末端退休一致性（2026-11-12）
+
+在 b7a5f8cc 已批准范围内重读实际 slot IR：按 FE step.header_root 映射根（不把
+执行顺序与根序 zip），核 call/producer 与原返回 Drop 事实；要求 Replace < binding
+Alias < Drop，并核整个函数 old/binding 唯一定义和消费，无 terminator 逃逸。
+这只防止后续 IR 修改绕过已消费 stage，不增加入口、出口、外层恢复或轮次权限。
+普通测试按真实调用 span 定位最终 typed-SSA Replace 第二结果并核同块唯一后置 Drop；
+新增晚期删除/重复实际 Drop 的 CI-only 负控，仅编译，不在本地执行。
+
+本片验证：普通 counter_boundary 26/26（62.32s，含新最终 SSA 旧值断言），codegen
+all-target strict Clippy（1m21s）、workspace all-target check（1m26s）、fmt/diff、
+文档915与尺寸2582/37历史超限通过，未增加额度。无 FE 修改，本片未重复运行 FE
+全回归（基线 b7a5f8cc 的690项仍仅为该基线证据）。两个新晚期故障仅编译、未执行；
+静态最终 SSA 旧值一致性不等于运行时释放次数或跨轮归纳。独立只读复审未发现确定
+阻断，native通过确认死局部binding槽在终检仍可查。日志 nested-retirement-*，仅本地提交。
+
+### 嵌套旧路径出口/恢复实证审计（2026-11-12，仅测试，无新许可）
+
+基于0a0d9eb5，仅加强已有九组有限 native 输入的最终 SSA 断言：以原前端 primitive
+调用身份定位内层 b Replace、外层恢复 b Replace，核 child body 参数→header 参数；
+从 header.false-edge 逐实际 edge.arguments/destination.parameters 的相同索引运输，
+每边同根恰一次，visited 防止绕入另一轮。只沿无条件走廊，中途不得读/消费根，
+到外层实际 Replace 时核唯一 RootPlace→exclusive loan→Replace 准备链和 owner 身份。
+entry/normal 两个静态 header 入边不标成某一运行时实例，不推出任意轮次归纳。
+
+下一出口/恢复权限仍未批准、未实现：需要实际 parent 暂停与 child false-exit 完成
+事件、entry/normal 合流来源和根/资源分区、parent 恢复完成及对应消费者；不能把
+此测试中的 SSA 参数映射当作现成 owner token 或用有限运行次数代替循环不变量。
+本片没有生产代码改动，也不改变多 child/更深嵌套的发布边界。
+
+本片最终普通 native 用例1/1（1.55s，内部外/内0、1、2轮九组输出及上述SSA断言）
+通过，codegen all-target strict Clippy（58.78s）通过。仅测试与说明变更，未重跑
+完整counter/FE/workspace回归，未执行任何CI-only；独立只读复审未发现确定阻断。
+该测试核末块准备链定义、顺序及owner使用，不单独宣称place/loan全函数消费证明。
+日志 nested-exit-audit-*；仅本地提交，不推送，不开启新权限。
+
+### 受限嵌套 normal-body 临时准备能力不逃逸（2026-11-12）
+
+保持 b7a5f8cc 的批准边界，终检除 body 内根访问限制外，对实际 RootPlace/BorrowBegin
+产生的临时 place/loan 槽核全函数精确唯一定义及消费，所有 terminator 禁止引用两槽。
+owner 根仍可走既有出口/外层恢复路径，不把临时能力约束扩大为根的跨块禁令。
+新增 CI-only 异块复制实际 BorrowBegin 故障，要求命中一次且不发布 body 完成；
+故障仅编译、不在本地执行。独立只读审计确认这是现有消费合同终检缺口而非新权限。
+
+补充第二个 CI-only 直接将 false 块终结器改为携带实际 loan 的 BorrowReturn，
+同样要求命中恰一次且无 body 完成。普通 counter_boundary 26/26（47.63s）通过；
+之后仅增加该测试故障，未改变生产逻辑。两故障均仅编译，不宣称已运行通过。
+codegen all-target strict Clippy通过（26.73s）；最终只读复审无确定阻断。
+本片未重跑FE/workspace；不把静态不逃逸等同于任意轮次动态证明。仅本地提交。
+
+### 下一嵌套出口合同选项（2026-11-12，设计待批准，未启用）
+
+当前 Nested 仅保存 conditioned/body_entered/left 与 normal sink；nested_leave 的
+success/left 不是独立 false-exit 完成事件，也不包含零轮与正常回边的运行时选择。
+因此不能从 left 或现有测试的最终 SSA 映射合成出口 owner token。
+
+建议拆为两个需明确批准的交付边界：
+
+1. **出口事实产品，不授予恢复消费。** 为同一 analysis/callable/parent/child 建立
+   独立 child false-exit 完成采集，记录实际 header、false successor、根 symbol 向量
+   和干净资源分区。入口与 normal 来源须保持两个有身份的候选，不把它们压成遍历
+   最后见到的 producer。缺事件、重复/错 control、根/资源不一致则整项不发布；旧路径
+   继续负责发射。后端仅核真实 CFG/参数映射，不将此事实当 Drop 或 Replace 许可。
+2. **外层恢复消费迁移。** 只有第一步具备完整实际合流身份后，再为 parent resume
+   的实际完成位置、root binding 和下一消费者发一次性许可。必须防止已离开 child
+   的旧 permit 重用，防止与 generic 发射双 Drop，独立核零轮/一轮/多轮有限用例。
+   不包括多 child、更深嵌套、break/continue/return 或任意轮次归纳。
+
+选项1优先级高于继续叠加normal-body审计，但它仍需用户批准该新增事实合同，当前
+不做生产接线。选项2必须另明确是否授予恢复消费，不能把选项1批准解释为一并批准。
+验收应包含真实事件丢失/错序、不同control串换、false边根参数串换和脏资源负控；
+故障遵循CI-only，本地只编译。有限native输出与静态SSA候选身份均不是动态迭代证明。
+
+### 已批准：内层 false 出口事实采集（2026-11-12，不授权外层恢复）
+
+用户明确批准选项1。实际 drop_root_loop_exit 调用 drop_loop_exit 后，仅使用本次新增
+LoopExit facts及清理后state封存可选分区，绑定既有analysis/callable/parent/child/condition。
+已完成condition/body/normal事件为前置；首次实际false cleanup、false可能性、完整干净
+boundary_values及所有根恰落live或fresh Drop之一才记录。重复事件撤销可选事实，不把
+left当出口事件。不更新旧ValueState，不复活Complete，不给后端恢复或新Drop许可。
+header根身份与normal producer候选保持分离；没有真实entry token catalog，因此不造
+零轮token、不选择运行时代际。此片是前端实际清理点身份/分区，尚无新后端CFG receipt。
+缺出口事实保留已批准normal-body权限。CI-only覆盖缺实际cleanup与重复cleanup，仅编译。
+
+本片最终FE691/691（6.75s）、普通counter native26/26（31.23s）、双crate all-target
+strict Clippy（38.56s）通过。最初补充测试误期望去掉最终a读就退休a，真实结果live2；
+已确认外层下一轮仍需a，将其保留为真实活性正例，未为迎合测试改生产分区。
+当前普通输入覆盖全live和父回边仍需根，尚未实证嵌套部分退休正例；不得宣称此矩阵完成。
+两新增故障仅编译未执行。独立只读复审无确定阻断；所有结论仅静态清理事实。
+workspace all-target check（28.48s）、fmt/diff、docs915及Rust尺寸门禁通过。
+仅本地提交，不推送；下一步仍需真实CFG receipt与候选来源关系，恢复消费未授权。
+
+### 已批准出口事实的原清理发射核验（2026-11-12）
+
+真实部分退休fixture将a/b声明置于outer body，使a不跨父回边存活；child false分区
+为live b + a的LoopExit Drop。外/内0、1、2轮九组native输出已通过针对测试。
+不能用“移除最终读取”替代这个实际生命周期边界。
+
+后端仅在可选false分区存在时复核已捕获header.false→false块几何，把精确Named根
+映射到原normal根槽，按原LoopExit fact/consumed_drops/span验证旧通用发射中的唯一
+Drop及顺序。不发新Drop，不禁live根后续println/Replace，不禁止槽的新生命周期复用。
+这是RefinedBody阶段原清理指令事实，不是late-SSA CFG fold receipt或退出消费许可。
+新增CI-only删除实际false块Drop，要求实际命中且无清理/normal完成；本地仅编译。
+
+最终普通counter native27/27（33.50s）、codegen all-target strict Clippy（32.67s）
+通过；独立只读复审无确定阻断。本片未改FE、未重跑FE/workspace；CI-only仅编译。
+最初fixture声明分隔parse红已修正，日志nested-local-exit-*保留。仅本地提交不推送。
+
+### 部分退休的最终 SSA 独立检查（2026-11-12，仅测试）
+
+在普通Refine/fold完成后的Program中，以原FE root step与call span唯一定位child
+Replace，从body根参数找真实header，沿false边的arguments/parameters运输到原
+LoopExit fact span唯一Drop。逐边要求根恰一次，走廊无提前使用/重定义，visited防环，
+目标Drop必须消费运输后的实际SSA值且该值恰有一个Drop。
+这是对558f3ff2前折叠核验的独立测试，不新增生产late-SSA receipt或恢复权限。
+不证明动态释放次数，也未单独检查Drop后全部其他用途；完整IR合法性仍由verifier核验。
+独立只读复审无确定阻断，有限native九组输入仍不代表任意轮次归纳。
+本片普通native1/1（0.27s，内部九组）与codegen all-target strict Clippy（39.63s）
+通过；仅测试/说明变更，未重跑全counter/FE/workspace，未执行CI-only。日志
+nested-exit-final-ssa-*，仅本地提交不推送。
+
+### 内层 false 清理生产 late-SSA receipt（2026-11-12，不授恢复权限）
+
+新增独立 nested_exit_receipt，不复用旧bridge权限。Builder在原清理事实全部核对后
+封存child/header/false块、退休根slot、原Drop指令位置和span；RefinedBody携带独立计划。
+straight-line fold同步块号及移入指令prefix偏移（溢出/合并成同块失败封闭）。
+layout绑定真实函数、control及header/false的slot→Entity参数快照；实际Drop发射钩子
+要求匹配位置、origin、owner且消费原false入口Entity，恰观察一次。
+最终重读实际header.false边、根实参、参数快照、Drop操作及块内清单唯一位置和顺序，
+全部完成后才记录receipt。不会额外发射Drop，不检查/授权parent后续消费。
+空退休集合仅核几何，不声称核验所有live根运输。静态SSA一致性不等于动态跨轮归纳。
+新增CI-only实际移除/重复出口块Drop引用；本地仅编译。独立复审发现的块清单/参数
+终检缺口已补，不把instruction arena仍有记录当作实际执行指令仍存在。
+
+普通counter native27/27（28.65s）通过，真实完成marker及前片最终SSA独立断言仍通过。
+严格Clippy首轮仅两处CI注入collapsible-if报错，已改为等价let-chain，未改变生产代码。
+复审终检修正后无确定阻断。两新晚期故障仅编译，不声称本地执行通过。
+最终codegen all-target strict Clippy（38.66s）、workspace all-target check（29.30s）
+通过；fmt/diff、docs915和尺寸2583/37历史超限通过，不增加额度。本片无FE变更，
+未重跑FE全回归。日志nested-exit-ssa-*；仅本地提交不推送。
+
+### false边完整根向量（2026-11-12，仍仅事实）
+
+基于b414093b，生产receipt现保存完整normal根槽而非从退休集合反推；layout要求
+向量非空无重复且每根在header/false块参数中恰一次，Drop根必须属于该向量。
+finish逐live及retired根核真实false实参与header入口Entity，保留原Drop核验。
+全live及部分退休普通输入均断言完整向量数2。此片使空drops不再仅核几何，但不
+证明退出后的持续有效性、动态代际或授权parent消费。新增真实false边参数交换
+CI-only负控，仅编译。普通counter27/27（13.13s）通过，独立只读复审无确定阻断。
+后续恢复权限仍需单独批准，不能因完整边向量匹配直接使用既有normal permit。
+codegen all-target strict Clippy（28.11s）通过；新故障只编译，未执行。未重跑FE和
+workspace（本片无外部API变化）；fmt/docs/尺寸/diff门禁通过后本地提交，不推送。
+
+### 已批准：受限父恢复的一次性消费合同，第一步真实边界（2026-11-12）
+
+用户明确同意：仅child false证据完整、实际parent及根向量匹配时允许一次性恢复消费；
+新恢复链缺项或错配整组拒绝，不扩大一般嵌套/任意跨轮。此提交先落实必要真实边界，
+尚不发布恢复消费许可：实际control stack离开child之后，要求当前parent精确匹配、
+child正常返回、已记录false分区，重新以boundary_values核干净live根；重复/缺事件
+无resume事实，不能用left或AST顺序代替。退休根不得重新加入恢复向量。
+
+后续实现限定紧接child的单条 `val old=replace(&liveRoot,"literal")`，AST/typed primitive
+仅识别预期，必须由真实literal→Replace→binding→AfterStatement Drop事件完成独立
+状态机，再接非Clone一次性消费者。不套用要求两根及完整while body的BodyPlan，不
+将child normal permit复活，不将形式根来源冒充运行时代际。新恢复许可未完成不影响
+旧child normal产品；不能把本提交边界事实宣称为已完成恢复授权。
+恢复向量按实际symbol集合匹配，不保证与false分区顺序相同；后续消费者必须按symbol
+配对，不得直接zip。独立复审无确定阻断；缺实际恢复事件CI-only仅编译，重复恢复/
+错parent专用故障矩阵尚待补。FE691/691（6.58s）、普通native27/27（25.89s）通过。
+双crate all-target strict Clippy（53.81s）、fmt/docs915/尺寸/diff通过。未重跑workspace；
+本片仅本地提交不推送。日志nested-parent-boundary-*。
+
+### 已批准受限父恢复：真实单笔事件与独立一次性发射许可（2026-11-12）
+
+新增独立Resume collector，只识别child后紧接的一条val/direct String Replace声明。
+真实literal完成→Replace提交→返回binding→新增AfterStatement Drop→声明成功且clean
+状态齐备才封存parent_resume_write；错序/缺项/插入其他语句不发布。完成后相同精确
+statement/call/producer/binding/drop重现撤销，后续无关事件可继续。返回值保持存活、
+非直接literal或非紧邻语句均不进入新恢复产品。不造旧owner动态token或伪装完整BodyPlan。
+
+CG共享原发射钩子的互斥入口但使用独立resume标记和Ready→Replaced→Bound→Dropped
+状态；non-Clone permit绑定parent、恢复块、指令位置/span、真实root/replacement槽。
+按root symbol查槽不zip。实际parent frame和资源必须匹配，既有child许可不得复活。
+最终重新核原call/literal、Replace→Alias→原Drop及old/binding全函数唯一定义消费，
+核实际RootPlace→exclusive loan→Replace和place/loan整函数不逃逸；恢复前缀除对应
+RootPlace外不得读写原根，恢复后允许既有合法操作，不额外发射Drop。
+
+实证修正：while的[2]是false清理块，[3]才是恢复join；新许可要求[2]→[3]且唯一
+前驱，[2]对恢复live根透明。首两次联合测试因误把恢复literal放[2]拒绝，未放宽保护，
+按实际CFG修正后九组native输入通过。最终SSA false-root receipt仍独立全组核验；
+这是编译期单次发射许可，不声称运行时只执行一次或一般嵌套/任意轮次归纳。
+
+验收：最终FE 692/692（15.38s）、counter_boundary普通native 27/27（31.73s）
+通过，包含受限恢复完成标记与外/内零、一、二轮九组合。双crate all-target strict
+Clippy与workspace all-target check均通过（各约1分钟）；fmt、docs915、尺寸
+2586手写文件/37历史超限、diff门禁通过。CI-only缺独立permit、真实foreign loan及
+FE事件缺失/完成后重放负控仅编译，不宣称本地执行通过。独立只读复审未见确定阻断。
+日志nested-resume-final-*；本地提交不推送。尚无独立父恢复late-SSA receipt或
+任意跨轮代际归纳，仍沿用通用SSA验证及既有child false根receipt。
+
+### 受限父恢复独立 late-SSA receipt（2026-11-12）
+
+在既有单笔parent许可和原始CFG终检全部完成后，独立封存实际parent/child、
+header/false-cleanup/join、root/replacement/old/binding槽及Replace/Alias/Drop精确位置。
+straight-line fold同步块和指令偏移，允许false-cleanup与join合并，但不能并入header。
+生产发射按实际layout把各块根slot映射到Entity，核child false边与必要的后续Branch
+运输。实际Replace输出快照、被消除Alias的current映射及原Drop分别观察；末端再核
+真实指令列表唯一有序、操作未改变和第二输出唯一消费且不从块参数/terminator逃逸，
+全通过才记录本receipt完成。不额外发射Drop，不扩大父恢复可接纳形状。
+
+receipt在全部函数块发射完成后核验，仍早于整个Program的verify_program；不调整或
+绕过原verifier，也不把receipt完成标记说成最终验证已通过。真实SSA负控覆盖删除
+block清单中的Drop、改Drop为消费新根、重复Replace清单项，均限CI执行。
+
+本片最终普通counter_boundary native 27/27通过（33.19s，含新receipt标记与九组输入）；
+CG all-target strict Clippy通过（28.01s），workspace all-target check通过（38.48s）。
+独立复审补齐原RefinedBody三操作精确复核、RootReplace含loan完整操作快照及根槽
+恰一次后未见确定阻断。三项新增CI-only负控仅编译，未在本地执行；FE代码未修改，
+本片未重跑FE。日志nested-resume-ssa-*；仅本地提交不推送。
+静态门禁：fmt、docs915、diff通过；Rust尺寸门禁以7c1f2ae8为基线通过，2587手写文件、
+37历史超限，无新增豁免或门禁调整（emit.rs保持1000行上限内）。

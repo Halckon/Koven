@@ -9,13 +9,17 @@ pub(super) struct Complete<'a> {
     roots: Vec<Slot>,
 }
 impl Complete<'_> {
-    pub(super) fn commit(self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn validate(&self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
         if !std::ptr::eq(self.evidence, plan.evidence)
             || Some(self.geometry) != plan.geometry
             || self.roots != plan.roots
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
+        Ok(())
+    }
+    pub(super) fn commit(self, plan: &Plan<'_>, span: Span) -> Result<(), LoweringError> {
+        self.validate(plan, span)?;
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             "counter-tail-complete-boundary-audit",
@@ -48,20 +52,32 @@ impl Builder<'_, '_> {
         } else {
             suffix
         };
-        // Literal entry resolver is deliberately narrower than the scalar audit.
-        // Parameter-backed roots keep the old path without a complete receipt.
+        // Only literal and direct function-entry owned parameter origins are covered.
         if evidence.root_slots().iter().any(|slot| {
             !matches!(
                 evidence
                     .input_catalog()
                     .definition(slot.entry())
                     .map(|d| d.origin()),
-                Some(UnitOwnerOrigin::String(_))
+                Some(UnitOwnerOrigin::String(_) | UnitOwnerOrigin::Parameter(_))
             )
         }) {
             return Ok(None);
         }
         let [entry, _, _, finished, exit] = plan.geometry.ok_or_else(fail)?;
+        if entry != BlockRef(0)
+            && evidence.root_slots().iter().any(|slot| {
+                matches!(
+                    evidence
+                        .input_catalog()
+                        .definition(slot.entry())
+                        .map(|d| d.origin()),
+                    Some(UnitOwnerOrigin::Parameter(_))
+                )
+            })
+        {
+            return Ok(None);
+        }
         if !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(t), _)) if t == exit)
         {
             return Err(fail());
@@ -104,18 +120,26 @@ impl Builder<'_, '_> {
                 .definition(slot.entry())
                 .ok_or_else(fail)?
                 .origin();
-            let UnitOwnerOrigin::String(id) = origin else {
-                return Err(fail());
-            };
-            let initial = multi_root_receipt::entry::prefix(
-                &self.body,
-                entry,
-                root,
-                self.span(id.expression()),
-            )
-            .ok_or_else(fail)?;
-            if self.multi_root_literal(origin, initial.producer_block)? != initial.producer {
-                return Err(fail());
+            match origin {
+                UnitOwnerOrigin::String(id) => {
+                    let initial = multi_root_receipt::entry::prefix(
+                        &self.body,
+                        entry,
+                        root,
+                        self.span(id.expression()),
+                    )
+                    .ok_or_else(fail)?;
+                    if self.multi_root_literal(origin, initial.producer_block)? != initial.producer
+                    {
+                        return Err(fail());
+                    }
+                }
+                UnitOwnerOrigin::Parameter(parameter) => {
+                    if !self.counter_parameter_root(entry, root, parameter) {
+                        return Err(fail());
+                    }
+                }
+                _ => return Err(fail()),
             }
             if let Some(fact) = drops
                 .iter()

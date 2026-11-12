@@ -43,7 +43,7 @@ lowering；这不是借用旧单根plan，也不从“没有receipt”推断所�
 
 ## 实际后端消费
 
-独立plan仅选择同callable的唯一审计记录，不创建旧单根header plan。
+独立plan registry选择同callable的唯一单记录或完整受限批次，不创建旧单根header plan。
 
 1. 在真实while发射时捕获entry/header/body/finished/exit和counter/guard/root槽。
 2. 复用实际checked-expression receipt，要求指定RHS的Subtract、左操作数为counter、
@@ -112,7 +112,7 @@ catalog或重复进入转Rejected。单候选还需真实完成方程才可Compl
 真实双counter回归可观察首项入口及normal方程；旧observation首次Unsupported仍清空
 其definitions/events，第二项仍不走旧入口capture，不恢复Complete或注入ValueState owner。
 
-现在另有私有第二段catalog：仅两个精确顶层候选、两者之间全为声明时建立采集范围；
+现在另有私有第二段catalog：至少两个精确顶层候选、每对相邻候选之间全为声明时为每个后续段建立独立采集范围；
 在真实首声明入口核实owned、borrow、pending、closure等完整边界为空才启动。
 实际String完成分配独立namespace的dense token；实际Name move和binding转移该token，
 实际named drop入口移除它并记录生命周期事件。死前缀producer保留在catalog但不在活根向量；
@@ -127,10 +127,74 @@ token不来自清理、AST枚举、旧observation恢复或上一循环first-body
 这些是编译遍历中的实际阶段事件，不是多次运行迭代trace；独立catalog identity也不是
 原observation的analysis identity，不放宽旧getter的Arc检查。
 
-`counter_batch_evidence_v1`现在只读发布精确两成员闭合组：第二while必须是函数最后语句，
-每个真实退出均须完整空边界和全根dead分区。构建时固定原analysis与第二catalog各自identity；
+`counter_batch_evidence_v1`现在只读发布完整顺序多成员闭合组：最后while必须是函数最后语句，
+每个真实退出均须完整空边界和全根dead分区。构建时固定原analysis与每个后续catalog各自identity，控制与输入identity向量必须与成员长度完全一致；
 实际退出按control顺序封存，各成员保留自己的命名空间，不拼成假单catalog。缺失、重复、
 乱序或任一成员失败立即清空全组；最终seal核对控制、成员身份、callable、根及body catalog
 独立性。deferred清除整组，旧单counter及其他loop getter不投影该组。
-这是原子审计证据发布，不是后端权限迁移：现有codegen仍只选择单counter Plan，双counter
-继续走通用lowering，尚无批次receipt或多Plan强制消费。嵌套loop、跨段活根运输也未启用。
+后端现在对完整入口闭合批次建立多Plan registry：精确按成员index+control选择，
+entry、Replace、返回binding、body Drop和false-exit Drop的permit均携带成员键，domain
+fallback不重选成员；多个匹配拒绝，不把成员局部索引当全组身份。相邻成员exit块兼作下一段
+前缀也按实际几何检查；非相邻成员不能共享块，全组根槽互斥。所有成员先完成原有scalar/body/entry/exit核验，再统一复核全部
+Complete身份及checked success/abort边，最后才提交最终成员与全组receipt；后项失败不留下
+首项最终完成receipt。当前提交阶段不再修改CFG或Plan，这一条件是原子提交合同的一部分。
+首成员入口现在可为函数入口块内的owned Parameter：最终边界再次核对Value mode、receiver
+偏移后的原parameter slot与实际Alias前缀，追溯中拒绝额外消费、非Alias或错误根；并复用
+已消费入口permit与实际header根一致性。所有后续成员仍只接纳独立literal来源，不扩展跨控制参数
+运输。未知来源批次整体不选择，不只挑支持的成员；旧单Plan非入口块参数保留不完整边界
+回退。真实native覆盖直接/多步Alias参数的非正零轮及正数迭代，静态receipt不是运行时
+逐轮trace。这是受限多Plan实际发射消费，不是一般跨轮归纳、嵌套loop或
+跨段活根运输，也没有退休旧单根权限。
+
+顺序三段/四段真实输入现可完成整组实际消费（首段允许上述owned参数），逐成员计数
+入口与完整边界receipt，并执行零轮/两轮native回归。中段根覆盖不完整即拒绝整组，
+不投影首段或跳过中段；仅CI执行的负控另覆盖短/空身份向量、外来成员permit和
+中段checked失败边破坏。该推广仍要求每段退出全死、段间空资源边界和独立fresh catalog，
+不代表跨段活根运输、嵌套或任意控制流得到支持。
+
+## 跨段活根与嵌套的真实行为基线
+
+通用 lowering 的独立 native 回归现覆盖：两根从首counter退出直接或逆序多步Alias进入
+次counter（首段0/2轮 × 次段0/1/2轮），以及同两根在嵌套counter中被内外层置换
+（两层各0/1/2轮）。入口包含owned参数，输出区分零轮入口值、首段/内层值及末段/外层值。
+这些输入同时断言新counter单项/批次及multi-root boundary产品缺席、没有counter消费动作，
+再通过SSA verifier、LLVM验证与native执行。不能把旧通用lowering可执行解释成新运输权限
+已覆盖；这些有限输出也不是精确析构次数或所有运行路径的证明。
+
+跨段接线的具体缺口不只是移除空边界检查：条件false处的live root可能来自原入口或
+正常回边，现有独立下一段catalog只从实际String事件建立producer；现有静态
+`Entry`/`Backedge`代入也未提供真实退出合流来源。不得以首body输出token、原入口token
+或新造literal token替代它。后续产品需要保留前控制的完整退出来源向量，绑定实际
+move/Alias与后控制入口，并由同一实际SSA出口/入口值核验，再处理旧根消费与新根
+义务的唯一性。嵌套另需parent/child控制归属与各自退出回边，不能复用顶层顺序批次的
+相邻exit=entry几何假设。当前未放宽任何这些门禁。
+
+前控制限定的私有桥接采集现保留完整counter证据中的原入口/首body两个来源向量，不
+选择某一分支，也不分根混配。仅前段完整退出分区中至少两根存活、退休根有真实退出drop且资源边界精确匹配时
+启动；段间真实Name move与binding以单次pending表达式转移根索引，逐声明核对实际
+资源集合。所有存活根重绑定到不同symbol并抵达下一while入口后才记录完整关联。新String、
+任何根drop、额外资源或缺失事件使这条桥接失败。Copyable声明仍服从原精确候选范围。
+该关联作为独立只读`control_bridge_evidence_v1`交付，按原根顺序排列目标，绑定原analysis
+identity及callable，与旧owner产品互斥；平衡、deferred、全局失效仍撤销产品。`take_segment_entry`继续拒绝将它当producer catalog，不产生
+下一段owner token、正常方程、counter批次或codegen permit。
+
+后端独立bridge审计捕获前后control的真实root槽与CFG：前header的false边经唯一finished
+到下一入口块，下一入口必须跳往后header；逐根逆向追溯该块实际Alias链，拒绝额外
+读取、重定义、非Alias定义、错目标和不完整几何。finished不得触碰活根，根槽及目标槽
+各自唯一。此为slot-CFG对应审计，不给下一body或跨轮owner权限；它不替代前段checked
+arithmetic/正常代际证明或最终SSA verifier。最终typed-SSA回归另沿前header的false边、
+退出合流、后header的true边核对实际block参数/edge操作数到后段RootReplace owner，
+同时要求前header的零轮入口与正常回边两个前驱存在。native继续执行零轮与多轮输出
+矩阵；静态CFG关系与有限运行正确仍不等同动态owner实例的归纳证明。
+
+跨段桥接现在可保留部分live分区：例如前段3根中的中间根在false出口退休，来源向量
+只包含按原根顺序保留的a/c两根，targets逐项对应；退休根仍由原真实drop事实及通用
+lowering处理，不为它创建新token或桥接入口。后端核验仅这些存活槽，允许finished块
+清理其他根，但不允许触碰任一存活根。真实稀疏3→2回归继续沿最终SSA边操作数检查
+源/目标对应，并执行两段各0/2轮native；段间丢弃存活根或不足两根不发布该产品。
+
+桥接现按control/condition/body记录真实条件完成及body-entry事件和资源一致性；
+缺条件完成、进入顺序错误或资源改变不交付产品，不以语法发现代替事件。后端同时核对同一condition/body身份，要求next header的
+true/false边抵达所捕获body/finished，body入口只来自该header，header操作不得读写桥接
+活根。仅CI负控覆盖header额外Drop与true边错投。这是到body入口的静态资格和真实CFG
+对应本身不是body消费许可；额外可选[独立body消费链](control-bridge-body.md)仍不证明完整跨轮或嵌套。
