@@ -19,6 +19,7 @@ mod iteration;
 mod loan;
 mod map;
 mod map_iteration;
+mod no_carry;
 mod nullable_when;
 mod ownership_primitive;
 mod range_construction;
@@ -32,6 +33,7 @@ mod research_body;
 mod research_consumer;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_zero;
+mod resource_state;
 mod string;
 
 use crate::{
@@ -147,6 +149,7 @@ struct Checker<'a> {
     current_receiver_mode: Option<ParameterMode>,
     checking_borrow_return: bool,
     allowed_borrow_call: Option<ExpressionId>,
+    no_carry: Option<no_carry::Session>,
     borrow_results: super::borrow_result::FileBorrowResults,
     range_producers: Vec<Span>,
     current_borrow_return: Option<super::borrow_result::ReturnSource<SymbolId>>,
@@ -259,6 +262,7 @@ impl<'a> Checker<'a> {
             current_receiver_mode: None,
             checking_borrow_return: false,
             allowed_borrow_call: None,
+            no_carry: None,
             borrow_results: Default::default(),
             range_producers: super::range_producer::collect_single(sources, parsed, names, typed)?,
             current_borrow_return: None,

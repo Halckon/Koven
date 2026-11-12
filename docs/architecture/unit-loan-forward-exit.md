@@ -172,29 +172,8 @@ loop receipt另提供不依赖Plans/Slot/current的有限图复核：保留真�
 Alias证据，核完整Function块/指令/定义元数据与可达集合；从真实entry建立点传播
 owner/source/result/flag角色至固定点，并逐incoming及每块实际实体核保持关系。
 它封闭CG运输证书的漏覆盖边界，不重新验证FE catalog，不替代原SSA verifier，也
-不将一次planner遍历升级为完整FE循环生命周期；每轮fresh借用仍受L0164保护。
+不将一次planner遍历升级为完整FE循环生命周期。循环内新借用的独立准入见下文。
 
-no-carry研究对照分别运行file-local与compilation-unit两套checker；普通Block
-有同binding的唯一末consumer AfterStatement End，而相同body放入dynamic while
-（包括内层lexical Block）仍精确L0164，未伪造binding/End。这只验证关闭原语与
-门禁一致性，不证明回边无实例残留，也不启用每轮fresh借用。
 
-显式test-support另提供普通Block frame研究capture：两core checker真实acquire、
-最后使用移除的前后义务及原End，在任何scope cleanup前按独占frame身份对证；
-正常非空闭合还要求外部义务投影不变（仅去无资源的空closure_results缓存）。
-限定直接Name/String借用initializer与Unit消费者、无复杂捕获入口。End后合法
-move源仍保持原执行，但不获恢复认证；未capture不复制状态，默认产品无此资格。
-另有独立普通frame整链研究：实际acquire、逐consumer正常return及最后End按同frame
-和原call/operand/binding声明顺序关联，End前不得遗留该binding未来consumer；保留
-原闭合validate边界。它仍是普通scope基础，循环实例、回边和CG每轮receipt未接入。
-
-既有carried loan的test-support观察核condition后至pre-merge的normal/尾continue
-资源保持，break不认证；限Boolean参数与直线Unit消费者，无声明、嵌套或分支。
-每consumer按真实call/argument核暂借移除、Nothing后返回及独占loop/session顺序。
-前序ordinary闭合另可一次性交给紧邻空while，核condition前header、后base与
-pre-merge零资源保持；实际body frame由permit认领、cleanup前封闭、出口单次消费。
-独立consumer-body观察针对外部Borrow String参数，不改变上述空body入口：
-逐operand核真实Shared call贷款和原LoanFact连续增量、精确释放及正常返回；
-完整有序事件与实际body frame在cleanup前闭合，再核pre-merge义务保持。
-非空证据仅为condition后直线Unit body，无新binding，源域/frame不可混用；
-不授予fresh循环借用、任意控制流归纳或CG每轮receipt，L0164及原验证器保留。
+循环内有限 no-carry 的生产合同、实际每轮关闭及研究边界，见
+[循环内 no-carry](loop-no-carry.md)。它不依赖上述 carried-loop receipt，也不退休旧见证。

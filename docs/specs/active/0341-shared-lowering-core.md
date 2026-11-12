@@ -15839,3 +15839,31 @@ observer on/off 产品及诊断对照成立；逐一覆盖 normal、零轮、源
 FE、实际 SSA/LLVM/native 与 receipt 分账；定向回归、Clippy、workspace、fmt/docs/
 size/diff 及独立复审分别登记，不并发争用 Cargo target，不改尺寸策略。分步本地
 提交，不推送；在真实完成前不把本合同记为已通过或将 D10/E2 标为完成。
+
+### 有限 no-carry 核心与实际 lowering 落地（2026-11-12）
+
+本地实现两套非 cfg Frame/票据协议：真实 acquire、逐 consumer 暂借返回、原末使用
+End、cleanup 前恢复及正常回边消费。Unit 私有同实例资格再核原 binding/End，错误
+全局撤回；observer-off 同样执行。资源快照按职责从 research 移入 resource_state，
+不改空缓存归一化以外的义务。直接函数 body while 外的控制形状保留 L0164。
+
+默认无 feature 合法源码先因原 L0164 真红，再实现为绿；CG 同一合法产品先在原
+UnsupportedNode 真红，再接精确资格、实际 body 槽恢复和原 verifier。编译修正及
+五个旧 ordinary 研究 fixture 的新合法预期迁移另记，不算行为红测试；owned source
+等原拒绝断言保留，未以宽泛 fresh 标签放宽边界。
+
+FE 15 个普通 integration target 共 260 项通过，含 1/3/9/17 consumers、own Boolean
+只读条件、兄弟隔离、诊断全局撤回及 14 个有效类型负界。CG loan_region_ssa_tests
+普通家族 93 项通过；专门的 SSA 矩阵和 false 原生执行曾独立通过 2 项。实际 source/
+consumer 身份逐边断言补强后 SSA/native 两项复跑通过；CI-only 两组六故障仅编译，不执行。
+
+本实现尚不是独立每轮 CG receipt，不退休旧见证。条件固定 true 在此无赋值/跳转
+合同下自然无限，不能伪造可终止一轮/多轮 native 样例；false 原生执行证明退出后
+仍能消费 source，实际 SSA 证明正常回边恢复。剩余复杂控制流、多根与跨轮合同另议。
+当前实现事实与责任入口见 [循环内 no-carry](../../architecture/loop-no-carry.md)。
+
+独立复审核核心生产身份/关闭/撤回与CG边界无阻断，并补 consumer exact result、
+source 从入口经header/body/回边的实际参数映射断言。FE+CG feature all-targets
+Clippy、默认workspace all-targets通过；fmt/diff/docs913与尺寸门禁通过。尺寸相对
+2beb5592为2618手写Rust文件、36历史超限，policy及Guide未改。最后CG断言补强
+再作Clippy复核通过；只本地保存，不推送。

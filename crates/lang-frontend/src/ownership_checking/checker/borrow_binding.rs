@@ -41,13 +41,18 @@ impl Checker<'_> {
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         // 循环动态实例运输尚未有普通结果证明；不把静态绑定 identity 当作循环实例。
-        if self.parsed.ast().statements().iter().any(|(_, node)| {
-            matches!(
-                node.payload(),
-                Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
-            ) && node.span().start() <= marker.start()
-                && marker.end() <= node.span().end()
-        }) {
+        let no_carry_allowed = self
+            .marker_symbol(name)
+            .is_some_and(|binding| self.no_carry_allows(binding, initializer, marker));
+        if !no_carry_allowed
+            && self.parsed.ast().statements().iter().any(|(_, node)| {
+                matches!(
+                    node.payload(),
+                    Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
+                ) && node.span().start() <= marker.start()
+                    && marker.end() <= node.span().end()
+            })
+        {
             self.emit_borrow_binding_diagnostic(
                 codes::UNSUPPORTED_BORROW_FLOW,
                 "borrow result loop continuation is not yet proven",
@@ -204,6 +209,7 @@ impl Checker<'_> {
         {
             self.borrow_results.bindings.push(fact);
         }
+        self.no_carry_acquired(binding, next);
         Ok(flows)
     }
 
@@ -247,6 +253,7 @@ impl Checker<'_> {
             .map(|fact| fact.binding)
             .collect::<Vec<_>>();
         for binding in ended {
+            let no_carry_removal = self.no_carry_removing(binding, statement, state);
             #[cfg(any(test, feature = "loan-observation-test-support"))]
             let removal = crate::ownership_checking::research_borrow_frame::removing(
                 binding,
@@ -274,6 +281,7 @@ impl Checker<'_> {
                     binding,
                     point: crate::ownership_checking::DropPoint::AfterStatement(statement),
                 });
+            self.no_carry_removed(no_carry_removal, state);
         }
     }
 
@@ -283,6 +291,7 @@ impl Checker<'_> {
         elements: &[StatementId],
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let no_carry_scope = self.no_carry_claim(scope, &state);
         let parents = state
             .borrow_bindings
             .keys()
@@ -290,8 +299,8 @@ impl Checker<'_> {
             .collect::<std::collections::BTreeSet<_>>();
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let frame = if crate::ownership_checking::research_borrow_frame::is_capturing() {
-            let snapshot = self.research_resource_snapshot(&state);
-            let simple = self.research_simple_resources(&snapshot);
+            let snapshot = self.resource_snapshot(&state);
+            let simple = self.simple_resources(&snapshot);
             crate::ownership_checking::research_borrow_frame::begin(
                 (
                     crate::ownership_checking::research_borrow_frame::BorrowFrameChecker::Single,
@@ -344,7 +353,7 @@ impl Checker<'_> {
             let exit = flows
                 .next
                 .as_ref()
-                .map(|state| self.research_resource_snapshot(state));
+                .map(|state| self.resource_snapshot(state));
             crate::ownership_checking::research_borrow_frame::finish(
                 frame,
                 exit.as_ref(),
@@ -354,6 +363,7 @@ impl Checker<'_> {
                 &ends,
             );
         }
+        self.no_carry_close(scope, no_carry_scope, &flows);
         self.restore_borrow_scope(&parents, &mut flows);
         Ok(flows)
     }

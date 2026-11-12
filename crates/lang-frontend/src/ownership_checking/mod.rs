@@ -17,6 +17,7 @@ mod error;
 mod handoff;
 mod iteration;
 mod iteration_source;
+mod loop_no_carry;
 mod map_iteration;
 mod map_iteration_validation;
 pub use iteration_source::IterationSource;
@@ -85,8 +86,8 @@ pub use compilation_unit::{
     UnitLoanDistinctAuxiliaryRetirement, UnitLoanFact, UnitLoanForwardBranch,
     UnitLoanForwardHandoff, UnitLoanInterleavedAuxiliaryUse, UnitLoanLoopInvariantLineage,
     UnitLoanNestedForwardEdge, UnitLoanNestedForwardLineage, UnitLoanRegionFamily, UnitLoanTarget,
-    UnitMapIterationLoan, UnitMapIterationOwnershipPlan, UnitMultiBindingAuxiliaryUse,
-    UnitMultiBindingSourceState, UnitNonNullAssertionOwnershipPlan,
+    UnitLoopNoCarryFact, UnitMapIterationLoan, UnitMapIterationOwnershipPlan,
+    UnitMultiBindingAuxiliaryUse, UnitMultiBindingSourceState, UnitNonNullAssertionOwnershipPlan,
     UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact,
     UnitNullableWhenUseKind, UnitOwnerCallable, UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1,
     UnitOwnerChoiceV1, UnitOwnerClosedLoopBatchV1, UnitOwnerConditionalBreakBackedgeV1,

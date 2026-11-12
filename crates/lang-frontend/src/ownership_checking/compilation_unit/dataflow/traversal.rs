@@ -862,6 +862,7 @@ impl Checker<'_> {
         let consumer_return = self.research_prepare_consumer(id, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let body_return = self.research_body_prepare_return(id, &flows);
+        let no_carry_return = self.no_carry_prepare(id, &flows);
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
@@ -875,6 +876,7 @@ impl Checker<'_> {
         let consumer_return = self.research_release_consumer(consumer_return, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let body_return = self.research_body_release_return(body_return, &flows);
+        let no_carry_return = self.no_carry_released(no_carry_return, &flows);
         for expression in receiver_expression
             .into_iter()
             .chain(receiver_contract.is_none().then_some(callee))
@@ -892,6 +894,7 @@ impl Checker<'_> {
         self.research_complete_consumer(consumer_return, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_body_complete_return(body_return, &flows);
+        self.no_carry_complete(no_carry_return, &flows);
         Ok(flows)
     }
 }

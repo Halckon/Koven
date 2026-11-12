@@ -50,8 +50,8 @@ impl Checker<'_> {
         {
             return None;
         }
-        let snapshot = self.research_resource_snapshot(state);
-        if !self.research_simple_resources(&snapshot) {
+        let snapshot = self.resource_snapshot(state);
+        if !self.simple_resources(&snapshot) {
             return None;
         }
         let node = self.parsed.ast().statements().get(statement?).ok()?;
@@ -156,16 +156,13 @@ impl Checker<'_> {
         if !body::capturing() {
             return None;
         }
-        body::enter(scope, &self.research_resource_snapshot(state))
+        body::enter(scope, &self.resource_snapshot(state))
     }
     pub(super) fn research_body_close(&self, ticket: Option<body::BodyTicket>, flows: &Flows) {
         if ticket.is_none() {
             return;
         }
-        let normal = flows
-            .next
-            .as_ref()
-            .map(|s| self.research_resource_snapshot(s));
+        let normal = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         body::close(
             ticket,
             normal.as_ref(),
@@ -181,10 +178,7 @@ impl Checker<'_> {
         if ticket.is_none() {
             return;
         }
-        let normal = flows
-            .next
-            .as_ref()
-            .map(|s| self.research_resource_snapshot(s));
+        let normal = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         body::finish(
             ticket,
             normal.as_ref(),
@@ -210,7 +204,7 @@ impl Checker<'_> {
             return None;
         }
         Some(Acquisition {
-            before: self.research_resource_snapshot(state),
+            before: self.resource_snapshot(state),
             facts: self.loans.len(),
             call,
             argument,
@@ -230,7 +224,7 @@ impl Checker<'_> {
         };
         let call = t.call;
         let argument = t.argument;
-        let after = self.research_resource_snapshot(actual);
+        let after = self.resource_snapshot(actual);
         let mut stripped = after.clone();
         let added = stripped.loans.pop();
         let place = self
@@ -276,7 +270,7 @@ impl Checker<'_> {
         {
             return None;
         }
-        let before = self.research_resource_snapshot(flows.next.as_ref()?);
+        let before = self.resource_snapshot(flows.next.as_ref()?);
         let mut expected = before.clone();
         expected
             .loans
@@ -289,10 +283,7 @@ impl Checker<'_> {
         flows: &Flows,
     ) -> Option<body::Released<State>> {
         t.as_ref()?;
-        let actual = flows
-            .next
-            .as_ref()
-            .map(|s| self.research_resource_snapshot(s));
+        let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         body::release(t, actual.as_ref())
     }
     pub(super) fn research_body_complete_return(
@@ -303,10 +294,7 @@ impl Checker<'_> {
         if t.is_none() {
             return;
         }
-        let actual = flows
-            .next
-            .as_ref()
-            .map(|s| self.research_resource_snapshot(s));
+        let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         body::complete(
             t,
             actual.as_ref(),

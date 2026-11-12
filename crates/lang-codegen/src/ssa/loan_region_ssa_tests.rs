@@ -922,3 +922,7 @@ mod local_loop_extra_parameter_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "local_loop_whole_function_tests.rs"]
 mod local_loop_whole_function_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "loop_no_carry_tests.rs"]
+mod loop_no_carry_tests;

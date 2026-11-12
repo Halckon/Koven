@@ -15,6 +15,7 @@ use lang_frontend::{
 pub(super) mod closed_while;
 pub(super) mod invariant_while;
 pub(super) mod local_if;
+pub(super) mod no_carry;
 pub(super) mod ordinary_local;
 #[cfg(test)]
 pub(super) use local_if::stable_map;

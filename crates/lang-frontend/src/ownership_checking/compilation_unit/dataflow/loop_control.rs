@@ -85,11 +85,16 @@ impl Checker<'_> {
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let research = self.research_loop_start(Some(repeated), body, &base);
         let body_id = body;
-        let body = self.check_statement(body, base.clone())?;
+        let session = self.no_carry_begin(repeated, body, &base);
+        let previous = std::mem::replace(&mut self.no_carry, session);
+        let checked = self.check_statement(body, base.clone());
+        let session = std::mem::replace(&mut self.no_carry, previous);
+        let body = checked?;
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, repeated, &body)?;
             self.check_loop_capture_transport(repeated, body_id, &base, &body)?;
         }
+        self.no_carry_finish(session, &body)?;
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_loop_finish(research, &body);
         if !can_skip {

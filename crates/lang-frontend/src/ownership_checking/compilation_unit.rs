@@ -1,4 +1,6 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
+mod loop_no_carry;
+pub use loop_no_carry::UnitLoopNoCarryFact;
 mod loan_bounded_forward_regions;
 pub use loan_bounded_forward_regions::{
     UnitBoundedBorrowContinuation, UnitBoundedBorrowContinuationRegion,
@@ -444,6 +446,7 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    no_carry_loops: Vec<UnitLoopNoCarryFact>,
     pub(super) callable_provenance: super::callable_provenance::UnitCallableFacts,
     pub(super) borrow_results: super::borrow_result::UnitBorrowResults,
     pub(super) borrow_return_origins:
@@ -629,6 +632,11 @@ impl CompilationUnitOwnership {
                 && dataflow.deferred.is_empty()
                 && typed.constants().is_some())
             .then_some(dataflow.constant_materializations),
+            no_carry_loops: if successful && dataflow.deferred.is_empty() {
+                dataflow.no_carry_loops
+            } else {
+                Vec::new()
+            },
             borrow_results: if successful && dataflow.deferred.is_empty() {
                 dataflow.borrow_results
             } else {

@@ -269,3 +269,20 @@ fn borrow_value_field_single_native_matrix() {
         assert!(run.stderr.is_empty(), "{name}: {run:?}");
     }
 }
+
+#[test]
+fn native_loop_local_no_carry_false_edge_keeps_external_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(source: String, flag: Boolean): Unit {
+ while(flag) { borrow val item = view(source); observe(item) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("loop-local-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}

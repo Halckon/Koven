@@ -42,13 +42,15 @@ impl Checker<'_> {
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         // 循环动态实例运输尚未有普通结果证明；不把静态绑定 identity 当作循环实例。
-        if self.parsed.ast().statements().iter().any(|(_, node)| {
-            matches!(
-                node.payload(),
-                Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
-            ) && node.span().start() <= marker.start()
-                && marker.end() <= node.span().end()
-        }) {
+        if !self.no_carry_allows(name, initializer, marker)
+            && self.parsed.ast().statements().iter().any(|(_, node)| {
+                matches!(
+                    node.payload(),
+                    Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
+                ) && node.span().start() <= marker.start()
+                    && marker.end() <= node.span().end()
+            })
+        {
             self.emit_borrow_binding_diagnostic(
                 codes::UNSUPPORTED_BORROW_FLOW,
                 "borrow result loop continuation is not yet proven",
@@ -230,6 +232,7 @@ impl Checker<'_> {
         {
             self.borrow_results.bindings.push(fact);
         }
+        self.no_carry_acquired(binding, next);
         Ok(flows)
     }
 
@@ -273,6 +276,7 @@ impl Checker<'_> {
             .map(|fact| fact.binding)
             .collect::<Vec<_>>();
         for binding in ended {
+            let no_carry_end = self.no_carry_removing(binding, statement, state);
             #[cfg(any(test, feature = "loan-observation-test-support"))]
             let removal = crate::ownership_checking::research_borrow_frame::removing(
                 binding,
@@ -302,6 +306,7 @@ impl Checker<'_> {
                         crate::type_checking::UnitStatementId::new(self.source_unit, statement),
                     ),
                 });
+            self.no_carry_removed(no_carry_end, state);
         }
     }
 
@@ -319,8 +324,8 @@ impl Checker<'_> {
         let locals = self.scope_locals(elements)?;
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let frame = if crate::ownership_checking::research_borrow_frame::is_capturing() {
-            let snapshot = self.research_resource_snapshot(&state);
-            let simple = self.research_simple_resources(&snapshot);
+            let snapshot = self.resource_snapshot(&state);
+            let simple = self.simple_resources(&snapshot);
             crate::ownership_checking::research_borrow_frame::begin(
                 (
                     crate::ownership_checking::research_borrow_frame::BorrowFrameChecker::Unit,
@@ -351,7 +356,9 @@ impl Checker<'_> {
         let body_ticket = self.research_zero_body_enter(scope, &state);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_body = self.research_body_enter(scope, &state);
+        let no_carry_scope = self.no_carry_claim(scope, &state);
         let mut flows = self.check_elements(elements, state)?;
+        self.no_carry_close(scope, no_carry_scope, &flows)?;
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_zero_body_close(body_ticket, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
@@ -375,7 +382,7 @@ impl Checker<'_> {
             let exit = flows
                 .next
                 .as_ref()
-                .map(|state| self.research_resource_snapshot(state));
+                .map(|state| self.resource_snapshot(state));
             crate::ownership_checking::research_borrow_frame::finish(
                 frame,
                 exit.as_ref(),

@@ -223,7 +223,9 @@ impl Checker<'_> {
         let consumer_return = self.research_prepare_consumer(id, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let body_return = self.research_body_prepare_return(id, &flows);
+        let no_carry_return = self.no_carry_prepare(id, &flows);
         self.end_call_loans(id, &mut flows);
+        let no_carry_return = self.no_carry_release(no_carry_return, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_return = self.research_release_consumer(consumer_return, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
@@ -243,6 +245,7 @@ impl Checker<'_> {
         self.research_complete_consumer(consumer_return, &flows);
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_body_complete_return(body_return, &flows);
+        self.no_carry_complete(no_carry_return, &flows);
         Ok(flows)
     }
 }

@@ -21,6 +21,7 @@ mod loop_capture;
 mod map;
 mod map_iteration_source;
 mod missing_name_receiver;
+mod no_carry;
 mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
@@ -36,6 +37,7 @@ mod research_body;
 mod research_consumer;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_zero;
+mod resource_state;
 mod scope_escape;
 use receiver::ReceiverContext;
 mod loop_control;
@@ -76,6 +78,7 @@ use flow::{
 };
 
 pub(super) struct Analysis {
+    pub(super) no_carry_loops: Vec<super::UnitLoopNoCarryFact>,
     pub(super) borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     pub(super) callable_provenance:
@@ -252,6 +255,7 @@ pub(super) fn analyze(
     let mut ownership_primitives = Vec::new();
     let mut field_replacements = Vec::new();
     let mut borrow_return_origins = Vec::new();
+    let mut no_carry_loops = Vec::new();
     let mut borrow_results = crate::ownership_checking::borrow_result::UnitBorrowResults::default();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
@@ -318,6 +322,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        no_carry_loops.extend(checker.finish_no_carry_proofs(&drop_analysis.borrow_ends)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
         map_iteration_templates.extend(checker.map_iterations.into_values());
@@ -414,6 +419,7 @@ pub(super) fn analyze(
         borrow_call_transports.clear();
         borrow_binding_transports.clear();
         borrow_results = Default::default();
+        no_carry_loops.clear();
     }
     // Raw consumers share the public gate. Deferred keeps the legacy diagnostic
     // projection, but no sealed loop/B capability may survive global rejection.
@@ -429,6 +435,7 @@ pub(super) fn analyze(
         .range_uses
         .sort_by_key(|fact| fact.expression());
     Ok(Analysis {
+        no_carry_loops,
         borrow_results,
         borrow_return_origins,
         callable_provenance,
@@ -552,6 +559,8 @@ struct Checker<'a> {
     current_receiver: Option<ReceiverContext>,
     checking_borrow_return: bool,
     allowed_borrow_call: Option<ExpressionId>,
+    no_carry: Option<no_carry::Session>,
+    no_carry_proofs: Vec<crate::ownership_checking::loop_no_carry::Plan<UnitSymbolId>>,
     borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
     range_producers: Vec<Span>,
     current_borrow_return:
@@ -715,6 +724,8 @@ impl<'a> Checker<'a> {
             current_receiver: None,
             checking_borrow_return: false,
             allowed_borrow_call: None,
+            no_carry: None,
+            no_carry_proofs: Vec::new(),
             borrow_results: Default::default(),
             range_producers: Vec::new(),
             current_borrow_return: None,

@@ -139,7 +139,7 @@ fn ordinary_research_frame_cannot_certify_gated_iteration_bindings() {
     for (body, rejected) in [
         (
             "while (flag) { borrow val item = view(source); observe(item) }",
-            true,
+            false,
         ),
         (
             "while (flag) { { borrow val item = view(source); observe(item) } }",
@@ -161,6 +161,37 @@ fn ordinary_research_frame_cannot_certify_gated_iteration_bindings() {
         let source = sources.add_source("gated-frame.ko", &text).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
         assert!(parsed.diagnostics().is_empty());
+        let direct_loop = body == "while (flag) { borrow val item = view(source); observe(item) }";
+        let check_frames =
+            |frames: &[lang_frontend::ownership_checking::BorrowFrameObservation]| {
+                if direct_loop {
+                    let expected = parsed
+                        .ast()
+                        .statements()
+                        .iter()
+                        .find_map(|(_, node)| {
+                            if let lang_frontend::parser::Statement::While { body, .. } =
+                                node.payload()
+                            {
+                                Some(parsed.ast().statements().get(*body).unwrap().span())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap();
+                    let valid = frames.iter().filter(|f| f.validate()).collect::<Vec<_>>();
+                    let [frame] = valid.as_slice() else {
+                        panic!("one actual analyzed body frame: {frames:?}")
+                    };
+                    assert_eq!(frame.scope_span(), expected);
+                    assert_eq!(frame.local_binding_count(), 1);
+                    assert_eq!(frame.end_count(), 1);
+                    assert!(frame.external_unchanged());
+                    // This observes one static body check, not repeated runtime instances.
+                } else {
+                    assert!(!frames.iter().any(|f| f.validate()));
+                }
+            };
         let (environment, types) = standard_environments();
         let names = resolve_names(&sources, &parsed, &environment).unwrap();
         let typed = check_types(&sources, &parsed, &names, &types).unwrap();
@@ -181,7 +212,7 @@ fn ordinary_research_frame_cannot_certify_gated_iteration_bindings() {
                 single.diagnostics()
             );
         }
-        assert!(!frames.iter().any(|f| f.validate()));
+        check_frames(&frames);
         for rooted in [false, true] {
             let inputs = [if rooted {
                 SourceUnitInput::new("root", "gated-frame.ko", source, &parsed)
@@ -218,7 +249,7 @@ fn ordinary_research_frame_cannot_certify_gated_iteration_bindings() {
                         checked.diagnostics()
                     );
                 }
-                assert!(!frames.iter().any(|f| f.validate()));
+                check_frames(&frames);
             }
         }
     }

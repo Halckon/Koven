@@ -42,7 +42,7 @@ fn ordinary_empty_or_fresh_borrow_cannot_fake_carried_loop_evidence() {
         (
             "fresh",
             "while (flag) { borrow val item = view(source); observe(item) }",
-            true,
+            false,
         ),
         (
             "nested-scope",

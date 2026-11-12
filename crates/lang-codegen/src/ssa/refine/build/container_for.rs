@@ -58,6 +58,7 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Lowered, LoweringError> {
         let invariant = self.invariant_while_entry(statement, span)?;
+        let no_carry = self.no_carry_entry(statement, span)?;
         for fact in self.inputs.owned.borrow_results().bindings() {
             if fact.binding().source_unit() == self.inputs.source_unit
                 && crate::ssa::borrow_result_support::closed_while::following(
@@ -110,6 +111,7 @@ impl Builder<'_, '_> {
         self.goto(header, span)?;
         self.block = Some(header);
         self.condition(condition, body_block, finished)?;
+        self.no_carry_boundary(no_carry.as_ref(), span)?;
         self.invariant_while_boundary(invariant.as_ref(), span)?;
         self.loop_receipt_boundary(invariant.as_ref(), 2, span)?;
         if self.body.blocks[body_block.0].has_predecessor {
@@ -125,6 +127,10 @@ impl Builder<'_, '_> {
                 map_for: None,
             });
             let reached = self.statement(loop_body)? != Lowered::Diverged;
+            if no_carry.is_some() && !reached {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            self.no_carry_boundary(no_carry.as_ref(), span)?;
             self.loops.pop();
             self.leave(mark, span)?;
             self.invariant_while_body_end(invariant.as_ref(), body_block, reached, span)?;
@@ -149,6 +155,7 @@ impl Builder<'_, '_> {
             self.emit_drops(&facts)?;
             self.invariant_while_boundary(invariant.as_ref(), span)?;
             self.loop_receipt_boundary(invariant.as_ref(), 4, span)?;
+            self.no_carry_boundary(no_carry.as_ref(), span)?;
             self.owner_false_edge(statement, exit, span)?;
             self.goto(exit, span)?;
         }
@@ -161,6 +168,7 @@ impl Builder<'_, '_> {
         self.leave_unclaimed(mark, span)?;
         self.invariant_while_boundary(invariant.as_ref(), span)?;
         self.loop_receipt_boundary(invariant.as_ref(), 5, span)?;
+        self.no_carry_boundary(no_carry.as_ref(), span)?;
         Ok(Lowered::Unit)
     }
 

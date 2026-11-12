@@ -105,7 +105,7 @@ impl Checker<'_> {
                 BorrowLoopBinding::Unit(binding),
             ));
         }
-        let mut expected = self.research_resource_snapshot(state);
+        let mut expected = self.resource_snapshot(state);
         expected.loans.retain(|loan| loan.owner != call_owner);
         let call = BorrowLoopExpression::Unit(self.unit_expression(call));
         let frame = frame_active
@@ -128,7 +128,7 @@ impl Checker<'_> {
         let actual = flows
             .next
             .as_ref()
-            .map(|state| self.research_resource_snapshot(state));
+            .map(|state| self.resource_snapshot(state));
         Some((
             loops::release_consumer(loop_token, actual.as_ref()),
             frames::release_consumer(frame, actual.as_ref()),
@@ -141,7 +141,7 @@ impl Checker<'_> {
         let actual = flows
             .next
             .as_ref()
-            .map(|state| self.research_resource_snapshot(state));
+            .map(|state| self.resource_snapshot(state));
         loops::complete_consumer(
             loop_token,
             actual.as_ref(),

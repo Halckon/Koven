@@ -6,29 +6,6 @@ use crate::{
     parser::Expression,
 };
 impl Checker<'_> {
-    pub(super) fn research_resource_snapshot(&self, state: &State) -> State {
-        let mut snapshot = state.clone();
-        // Empty closure-result caches contain no captured environment obligations.
-        snapshot
-            .closure_results
-            .retain(|_, origins| !origins.is_empty());
-        snapshot
-    }
-    pub(super) fn research_simple_resources(&self, snapshot: &State) -> bool {
-        let mut empty_origins = Default::default();
-        // This only constructs the comparison anchor; it does not alter actual state.
-        crate::ownership_checking::callable_provenance::graph::OriginState::attach(
-            &mut empty_origins,
-            &self.callable_sources.arena,
-        );
-        snapshot.origins == empty_origins
-            && snapshot.closure_results.is_empty()
-            && snapshot.replacements.is_empty()
-            && snapshot.closures.is_empty()
-            && snapshot.closure_captures.is_empty()
-            && snapshot.immutable_captures.is_empty()
-            && snapshot.pending_closure_calls.is_empty()
-    }
     pub(super) fn research_direct_string_call(
         &self,
         call: ExpressionId,
@@ -114,8 +91,8 @@ impl Checker<'_> {
         if state.borrow_bindings.is_empty() {
             return None;
         }
-        let entry = self.research_resource_snapshot(state);
-        if !self.research_simple_resources(&entry) {
+        let entry = self.resource_snapshot(state);
+        if !self.simple_resources(&entry) {
             return None;
         }
         // Require every real carried binding's exact nonowning marker, place and shared loan.
@@ -198,7 +175,7 @@ impl Checker<'_> {
             flows.continues.as_ref(),
             flows.breaks.as_ref(),
         ]
-        .map(|state| state.map(|state| self.research_resource_snapshot(state)));
+        .map(|state| state.map(|state| self.resource_snapshot(state)));
         loops::finish(
             ticket,
             edges,

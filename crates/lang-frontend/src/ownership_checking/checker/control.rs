@@ -29,6 +29,7 @@ impl Checker<'_> {
         let research = self.research_loop_start(repeated, body, &base);
         #[cfg(not(any(test, feature = "loan-observation-test-support")))]
         let _ = repeated;
+        self.no_carry_begin(repeated, body, &base);
         let body_id = body;
         let body = self.check_statement(body, base.clone())?;
         if self.diagnostics.len() == errors {
@@ -36,6 +37,7 @@ impl Checker<'_> {
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         self.research_loop_finish(research, &body);
+        self.no_carry_finish(&body)?;
         let origins = base.origins.loop_exit(
             headers,
             body.next.as_ref().map(|state| &state.origins),

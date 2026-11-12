@@ -266,7 +266,7 @@ fn ordinary_consumer_body_strict_neighbors_remain_ineligible() {
         (
             "fresh",
             "while(flag){borrow val item=view(source);observe(item)}",
-            true,
+            false,
         ),
         ("call-condition", "while(ready()){observe(source)}", false),
         ("constant-condition", "while(true){observe(source)}", false),

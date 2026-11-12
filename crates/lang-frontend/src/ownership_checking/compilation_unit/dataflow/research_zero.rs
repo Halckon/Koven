@@ -23,8 +23,8 @@ impl Checker<'_> {
         {
             return None;
         }
-        let snapshot = self.research_resource_snapshot(state);
-        if !self.research_simple_resources(&snapshot) {
+        let snapshot = self.resource_snapshot(state);
+        if !self.simple_resources(&snapshot) {
             return None;
         }
         let span = zero::shape(self.parsed, statement, body, |condition| {
@@ -53,7 +53,7 @@ impl Checker<'_> {
         }
         zero::enter_body(
             scope,
-            &self.research_resource_snapshot(state),
+            &self.resource_snapshot(state),
             state.loans.is_empty() && state.borrow_bindings.is_empty(),
             (
                 self.borrow_results.bindings.len(),
@@ -73,7 +73,7 @@ impl Checker<'_> {
         let exit = flows
             .next
             .as_ref()
-            .map(|state| self.research_resource_snapshot(state));
+            .map(|state| self.resource_snapshot(state));
         zero::close_body(
             ticket,
             exit.as_ref(),
@@ -96,7 +96,7 @@ impl Checker<'_> {
         state: &State,
     ) -> LoopResearch {
         let zero = if zero::active() {
-            let snapshot = self.research_resource_snapshot(state);
+            let snapshot = self.resource_snapshot(state);
             zero::condition(
                 statement,
                 &snapshot,
@@ -121,7 +121,7 @@ impl Checker<'_> {
             let normal = flows
                 .next
                 .as_ref()
-                .map(|state| self.research_resource_snapshot(state));
+                .map(|state| self.resource_snapshot(state));
             let empty = flows
                 .next
                 .as_ref()

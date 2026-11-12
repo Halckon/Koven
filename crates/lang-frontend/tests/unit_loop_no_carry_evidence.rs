@@ -22,7 +22,11 @@ fn ordinary_no_carry_scope_needs_real_end_in_both_checkers() {
         let body = format!("borrow val item = view(source); {consumers}");
         for (name, statement, rejected) in [
             ("straight-scope", format!("{{ {body} }}"), false),
-            ("iteration-body", format!("while (flag) {{ {body} }}"), true),
+            (
+                "iteration-body",
+                format!("while (flag) {{ {body} }}"),
+                false,
+            ),
             (
                 "iteration-inner-scope",
                 format!("while (flag) {{ {{ {body} }} }}"),
