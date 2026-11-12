@@ -210,6 +210,7 @@ pub(super) fn build(
         builder.receiver = Some(slot);
     }
     builder.bind_parameters(entities)?;
+    builder.fresh_loop_parameters(inputs.span)?;
     let function_item = inputs
         .function_item
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, inputs.span))?;

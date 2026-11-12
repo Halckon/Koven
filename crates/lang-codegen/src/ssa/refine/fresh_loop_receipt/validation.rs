@@ -46,6 +46,20 @@ impl Receipt {
                 return Err(invalid(span));
             }
         }
+        self.segment_proofs(span)?;
+        for segment in &self.segments {
+            let block = *self
+                .blocks
+                .get(&self.canonical(segment.block))
+                .ok_or_else(|| invalid(span))?;
+            let expected = expected_instructions.entry(block).or_default();
+            for id in &segment.instructions {
+                if !ids.insert(*id) {
+                    return Err(invalid(span));
+                }
+                expected.push(*id);
+            }
+        }
         for block in &function.blocks {
             if block.instructions.as_slice()
                 != expected_instructions
@@ -98,20 +112,36 @@ impl Receipt {
             for block in [blocks[1], blocks[2]] {
                 insert_live(&mut live, block, required.clone(), span)?;
             }
-            let remaining = if index + 1 < self.loops.len() {
-                self.loops[index + 1..]
-                    .iter()
-                    .map(|peer| peer.proof.flag_parameter)
-                    .chain(std::iter::once(source_role))
-                    .collect::<BTreeSet<_>>()
-            } else {
-                BTreeSet::new()
-            };
+            let mut remaining = self.loops[index + 1..]
+                .iter()
+                .map(|peer| peer.proof.flag_parameter)
+                .collect::<BTreeSet<_>>();
+            if index + 1 < self.loops.len() || !self.segments[index + 1].consumers.is_empty() {
+                remaining.insert(source_role);
+            }
             for block in [blocks[3], blocks[4]] {
                 insert_live(&mut live, block, remaining.clone(), span)?;
             }
         }
         let roles = transport(function, entry, &live, span)?;
+        for segment in &self.segments {
+            let block = *self
+                .blocks
+                .get(&self.canonical(segment.block))
+                .ok_or_else(|| invalid(span))?;
+            for (consumer, id) in segment.consumers.iter().zip(&segment.instructions) {
+                let instruction = function.instruction(*id).ok_or_else(|| invalid(span))?;
+                let source = local(function, &roles, block, source_role, span)?;
+                if instruction.block != block
+                    || instruction.origin.span() != consumer.span
+                    || !instruction.results.is_empty()
+                    || !matches!(&instruction.operation, Operation::DirectCall { callee, receiver: None, arguments }
+                        if *callee == consumer.callee && arguments.as_slice() == [source])
+                {
+                    return Err(invalid(span));
+                }
+            }
+        }
         let mut terms = BTreeMap::new();
         let mut results = BTreeSet::new();
         for (index, (local, blocks)) in self.loops.iter().zip(&resolved).enumerate() {
@@ -181,6 +211,74 @@ impl Receipt {
                 .any(|edge| self.edges.iter().filter(|actual| *actual == edge).count() != 1)
         {
             return Err(invalid(span));
+        }
+        Ok(())
+    }
+
+    fn segment_proofs(&self, span: Span) -> Result<(), LoweringError> {
+        let first = self.loops.first().ok_or_else(|| invalid(span))?;
+        if self.segments.len()
+            != self
+                .loops
+                .len()
+                .checked_add(1)
+                .ok_or_else(|| invalid(span))?
+        {
+            return Err(invalid(span));
+        }
+        let unit = first.fact.callable().source_unit();
+        let mut statements = BTreeSet::new();
+        let mut expressions = BTreeSet::new();
+        for peer in &self.loops {
+            statements.insert(peer.fact.loop_statement());
+            statements.insert(peer.fact.body());
+            expressions.insert(peer.fact.initializer());
+            expressions.insert(peer.fact.source_argument());
+            for (statement, call, argument) in peer.fact.consumers() {
+                statements.insert(*statement);
+                expressions.insert(*call);
+                expressions.insert(*argument);
+            }
+        }
+        for (index, segment) in self.segments.iter().enumerate() {
+            let block = if index == 0 {
+                first.proof.blocks.entry
+            } else {
+                self.loops[index - 1].proof.blocks.exit
+            };
+            if segment.block != block
+                || !segment.sealed()
+                || segment.instructions.len() != segment.consumers.len()
+            {
+                return Err(invalid(span));
+            }
+            let mut previous_end = if index == 0 {
+                None
+            } else {
+                Some(self.loops[index - 1].proof.end_span.end())
+            };
+            for consumer in &segment.consumers {
+                if consumer.statement.source_unit() != unit
+                    || consumer.call.source_unit() != unit
+                    || consumer.argument.source_unit() != unit
+                    || !statements.insert(consumer.statement)
+                    || !expressions.insert(consumer.call)
+                    || !expressions.insert(consumer.argument)
+                    || consumer.span.source_id() != first.proof.source_span.source_id()
+                    || consumer.argument_span.source_id() != consumer.span.source_id()
+                    || consumer.argument_span.start() < consumer.span.start()
+                    || consumer.argument_span.end() > consumer.span.end()
+                    || consumer.span.start() >= consumer.span.end()
+                    || previous_end.is_some_and(|end| end > consumer.span.start())
+                    || self
+                        .loops
+                        .get(index)
+                        .is_some_and(|peer| consumer.span.end() > peer.proof.condition_span.start())
+                {
+                    return Err(invalid(span));
+                }
+                previous_end = Some(consumer.span.end());
+            }
         }
         Ok(())
     }

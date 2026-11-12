@@ -53,10 +53,11 @@ binding 尚不存在；实际 body lowering 后、任何 loop leave 清理前，
 ## 独立 fresh-loop receipt
 
 `refine/fresh_loop_receipt` 为独立协议，不套用旧 carried-loop 的 entry acquire/exit End。
-当前资格限函数体完全由同源直接 while 构成，唯一 Borrow String source 与一个或多个
-Borrow 或 own Boolean 参数的顺序与模式来自 typed ABI，允许其中有未使用的
-Boolean。完整入口身份与首边之后的活跃角色分别核验；其它前后语句仍保留原执行/
-拒绝边界而无本片 receipt，不因缺新证书收紧准入。数量取真实有序元素，不枚举固定拓扑。
+当前资格允许同源直接 while 及其前、中、后的直线外部 source 消费段。唯一 Borrow
+String source 与一个或多个 Borrow 或 own Boolean 参数的顺序与模式来自 typed ABI，
+允许其中有未使用的 Boolean。消费段只接受直接、普通、同步、单 source 实参的 Unit
+调用；其它语句保留原执行/拒绝边界而无本片 receipt，不因缺新证书收紧准入。完整
+入口身份与首边之后的活跃角色分别核验，数量取真实有序元素，不枚举固定拓扑。
 
 真实 builder append 捕获 Borrow 条件的 Read、body BorrowCall、逐 consumer 和唯一 End；
 own 条件不产生 Read，由实际表达式求值后的 condition-use checkpoint 捕获。
@@ -106,7 +107,8 @@ producer 在真实入口冻结完整 ABI 槽与模式，逐 peer 的条件使用
 参数顺序绑定实际实体，最终证书不读取这些 builder 槽。
 
 最终固定点以每个 ABI index 区分角色。各 header/body 保留 source 与当前及后续
-peer 需要的 flag 集合，false/exit 只保留后续需求，最后退出为空；共享 exit/entry 的
+peer 需要的 flag 集合，false/exit 只保留后续需求；最后有消费段时保留 source，
+没有时为空。共享 exit/entry 的
 角色集合须一致。重复使用的 flag 不提前丢弃，最后使用后不强留。每个 incoming 的
 实参必须是前驱块自身的唯一对应角色实体，不能用入口旧实体或另一个同型 flag 替换。
 这是既有执行合同的独立证据扩展，不新增 FE 资格或循环控制流。
@@ -141,3 +143,21 @@ own header 无指令，Branch 条件等于该 header 自己的唯一条件角色
 仍验证实际 Read。每条 incoming 同时核局部实体、角色和 EntityType，不接受入口旧
 Value、另一同型条件或模式伪换。重复用途与 unused own Boolean 沿原活性规则运输
 或消亡，不制造 Drop/End，不扩大循环执行范围，也不证明条件可变或循环终止。
+
+
+## 前、中、后的外部 source 消费段
+
+有序 peer 对应 n+1 个动态消费段，空段与多调用段均保留原顺序。准入逐调用核 typed
+直接声明、Unit 正常返回、Borrow String 实参以及原 LoanFact/参数合同的精确
+call、argument、source place 和模式。named 实参、非 Unit、特殊调用、receiver、
+Nothing、借用返回或其它 source 不进入本片证书；合法非候选仍走原执行路径。
+
+实际参数绑定完成后先冻结完整 ABI，首段不借首个 BorrowCall 倒推 source。每调用
+依次经历实际 operand 身份核验、DirectCall append 捕获、原正常 statement 完成与
+清理后的封口。完整外部映射必须保持，前一 loop 真正关闭后才允许下一段。外部
+参数直接复用原 source loan，没有新建 loan 的指令，也不伪造 Begin/End。
+
+Emitted 保存实际段块与指令身份；中段可共享前 exit/后 entry，按原序合并而非覆盖
+指令清单。detached 验证每调用的实参恰为当前块的 source 实体，拒入口旧实体或
+body fresh result 替代。尾段要求 source 经 false/finished/exit 运输至调用后 Return；
+不再一律要求末出口为空。全指令覆盖、真实 fold 重放及原 verifier 后整批发布保持。

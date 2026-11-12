@@ -39,8 +39,22 @@ impl Plans {
         if elements.is_empty() {
             return Ok(empty);
         }
-        let mut loops = Vec::with_capacity(elements.len());
+        let mut loops = Vec::new();
+        let mut statements = vec![Vec::new()];
         for statement in elements {
+            let node = inputs
+                .parsed
+                .ast()
+                .statements()
+                .get(*statement)
+                .map_err(|_| invalid(inputs.span))?;
+            if !matches!(node.payload(), Statement::While { .. }) {
+                statements
+                    .last_mut()
+                    .ok_or_else(|| invalid(inputs.span))?
+                    .push(*statement);
+                continue;
+            }
             let Some(plan) = loop_plan(inputs, types, *statement)? else {
                 return Ok(empty);
             };
@@ -54,6 +68,23 @@ impl Plans {
                 }
             }
             loops.push(plan);
+            statements.push(Vec::new());
+        }
+        let Some(first) = loops.first() else {
+            return Ok(empty);
+        };
+        let mut segments = Vec::new();
+        for statements in statements {
+            let mut segment = SourceSegment::default();
+            for statement in statements {
+                let Some(consumer) =
+                    super::source_admission::consumer(inputs, statement, first.fact.source())?
+                else {
+                    return Ok(empty);
+                };
+                segment.consumers.push(consumer);
+            }
+            segments.push(segment);
         }
         for (index, plan) in loops.iter().enumerate() {
             if loops[..index].iter().any(|previous| {
@@ -95,6 +126,7 @@ impl Plans {
             abi_modes: inputs.modes.clone(),
             abi_slots: None,
             loops,
+            segments,
             active: None,
             folds: Vec::new(),
         })
@@ -273,7 +305,10 @@ fn loop_plan(
         boundary: 0,
     }))
 }
-fn callee(inputs: &RefineInputs<'_>, call: UnitExpressionId) -> Result<FunctionId, LoweringError> {
+pub(super) fn callee(
+    inputs: &RefineInputs<'_>,
+    call: UnitExpressionId,
+) -> Result<FunctionId, LoweringError> {
     let fail = || invalid(inputs.span);
     let descriptor = inputs.typed.call(call).ok_or_else(fail)?;
     let UnitCallTarget::Declaration(declaration) = descriptor.target() else {

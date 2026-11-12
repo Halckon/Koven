@@ -124,6 +124,51 @@ impl Builder<'_, '_> {
             })
             .collect()
     }
+    pub(super) fn fresh_loop_parameters(&mut self, span: Span) -> Result<(), LoweringError> {
+        if self.body.fresh_loop_plans.loops.is_empty() {
+            return Ok(());
+        }
+        let abi = self.fresh_loop_abi(span)?;
+        let block = self.current(span)?;
+        self.body.fresh_loop_plans.bind_abi(abi, block, span)
+    }
+    pub(super) fn fresh_source_argument(
+        &mut self,
+        call: UnitExpressionId,
+        argument: ExpressionId,
+        loan: Slot,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if !self.body.fresh_loop_plans.has_source_call(call) {
+            return Ok(());
+        }
+        let abi = self.fresh_loop_abi(span)?;
+        if self.body.fresh_loop_plans.abi_slots.as_ref() != Some(&abi) {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        let block = self.current(span)?;
+        self.body
+            .fresh_loop_plans
+            .source_operand(call, self.unit(argument), loan, block, span)
+    }
+    pub(super) fn fresh_source_completion(
+        &mut self,
+        statement: UnitStatementId,
+        result: Lowered,
+    ) -> Result<(), LoweringError> {
+        if !self.body.fresh_loop_plans.has_source_statement(statement) {
+            return Ok(());
+        }
+        let span = self.statement_span(statement.statement())?;
+        let abi = self.fresh_loop_abi(span)?;
+        if result != Lowered::Unit || self.body.fresh_loop_plans.abi_slots.as_ref() != Some(&abi) {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        let block = self.current(span)?;
+        self.body
+            .fresh_loop_plans
+            .source_complete(statement, block, span)
+    }
     pub(super) fn fresh_loop_condition(
         &mut self,
         expression: UnitExpressionId,

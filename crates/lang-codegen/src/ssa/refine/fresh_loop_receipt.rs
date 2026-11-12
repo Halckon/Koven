@@ -7,7 +7,7 @@ use crate::ssa::{
 use lang_frontend::{
     ownership_checking::UnitLoopNoCarryFact,
     source::Span,
-    type_checking::{ParameterMode, UnitExpressionId},
+    type_checking::{ParameterMode, UnitExpressionId, UnitStatementId},
 };
 use std::collections::{BTreeMap, BTreeSet};
 mod admission;
@@ -15,6 +15,8 @@ mod builder;
 #[cfg(test)]
 mod ci_tests;
 mod emitted;
+mod source_admission;
+mod source_segments;
 mod validation;
 mod whole_function;
 pub(super) use emitted::Emitted;
@@ -25,6 +27,7 @@ pub(crate) enum Tag {
     Result,
     Consumer(usize),
     ResultEnd,
+    SourceConsumer(usize),
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct LoopBlocks {
@@ -60,12 +63,30 @@ pub(super) struct Plan {
     pub(super) terms: Vec<(BlockRef, RTerm)>,
     pub(super) boundary: usize,
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct SourceConsumer {
+    pub(super) statement: UnitStatementId,
+    pub(super) call: UnitExpressionId,
+    pub(super) argument: UnitExpressionId,
+    pub(super) callee: FunctionId,
+    pub(super) span: Span,
+    pub(super) argument_span: Span,
+}
+#[derive(Clone, Debug, Default)]
+pub(super) struct SourceSegment {
+    pub(super) consumers: Vec<SourceConsumer>,
+    pub(super) block: Option<BlockRef>,
+    pub(super) completed: usize,
+    pub(super) pending: bool,
+    pub(super) appended: bool,
+}
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
     pub(super) abi_types: Vec<SsaTypeId>,
     pub(super) abi_modes: Vec<ParameterMode>,
     pub(super) abi_slots: Option<Vec<Slot>>,
     pub(super) loops: Vec<Plan>,
+    pub(super) segments: Vec<SourceSegment>,
     pub(super) active: Option<usize>,
     pub(super) folds: Vec<(BlockRef, BlockRef)>,
 }

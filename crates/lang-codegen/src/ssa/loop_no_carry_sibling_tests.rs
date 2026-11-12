@@ -158,7 +158,37 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
         vec![Some(1), Some(9), Some(0), None, Some(8), Some(2)],
         BTreeSet::from([0, 2, 9]),
     ));
-    for (counts, flag_order, abi_order, own_flags) in cases {
+    let mut cases = cases
+        .into_iter()
+        .map(|(counts, flags, abi, own)| {
+            let gaps = vec![0; counts.len() + 1];
+            (counts, flags, abi, own, gaps)
+        })
+        .collect::<Vec<_>>();
+    for gaps in [vec![2, 0], vec![0, 3], vec![2, 3]] {
+        cases.push((vec![3], vec![0], vec![None, Some(0)], BTreeSet::new(), gaps));
+    }
+    for reversed in [false, true] {
+        let mut abi = vec![Some(1), None, Some(0), Some(9)];
+        if reversed {
+            abi.reverse();
+        }
+        cases.push((
+            vec![1, 3, 9],
+            vec![0, 1, 0],
+            abi,
+            BTreeSet::from([0, 9]),
+            vec![2, 0, 3, 2],
+        ));
+    }
+    cases.push((
+        vec![1, 3],
+        vec![0, 0],
+        vec![Some(0), None],
+        BTreeSet::new(),
+        vec![0, 2, 0],
+    ));
+    for (counts, flag_order, abi_order, own_flags, gaps) in cases {
         let loops = counts
             .iter()
             .enumerate()
@@ -172,8 +202,21 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     flag_order[index]
                 )
             })
-            .collect::<Vec<_>>()
-            .join(";");
+            .collect::<Vec<_>>();
+        let mut elements = Vec::new();
+        let mut source_declarations = String::new();
+        for (gap, size) in gaps.iter().enumerate() {
+            for call in 0..*size {
+                elements.push(format!("outside{gap}_{call}(source)"));
+                source_declarations.push_str(&format!(
+                    "fun outside{gap}_{call}(source:String):Unit {{}}\n"
+                ));
+            }
+            if let Some(loop_body) = loops.get(gap) {
+                elements.push(loop_body.clone());
+            }
+        }
+        let loops = elements.join(";");
         let declarations = (0..counts.len())
             .map(|index| format!("fun consume{index}(item:String):Unit {{}}\n"))
             .collect::<String>();
@@ -197,7 +240,7 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
             })
             .collect::<Vec<_>>();
         let text = format!(
-            "fun view(source:String):borrow String from source=source\n{declarations}fun run({parameters}):Unit {{{loops}}}"
+            "fun view(source:String):borrow String from source=source\n{declarations}{source_declarations}fun run({parameters}):Unit {{{loops}}}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "siblings.ko", &text);
@@ -501,7 +544,11 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                         assert_eq!(read.results.as_slice(), &[EntityId::Value(*condition)]);
                     }
                     let after = if index + 1 == facts.len() {
-                        BTreeSet::new()
+                        if gaps[index + 1] > 0 {
+                            BTreeSet::from([source_parameter])
+                        } else {
+                            BTreeSet::new()
+                        }
                     } else {
                         std::iter::once(source_parameter)
                             .chain(flag_parameters[index + 1..].iter().copied())
@@ -517,6 +564,62 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     );
                     assert_eq!(exit.parameters.len(), after.len());
                 }
+                assert_eq!(receipts[0].segments.len(), gaps.len());
+                let mut outside_ids = BTreeSet::new();
+                for (gap, (segment, size)) in receipts[0].segments.iter().zip(&gaps).enumerate() {
+                    assert_eq!(segment.instructions.len(), *size);
+                    let mut block_id = None;
+                    for (call, id) in segment.instructions.iter().enumerate() {
+                        assert!(outside_ids.insert(*id));
+                        let instruction = run.instruction(*id).unwrap();
+                        let block = run.block(instruction.block).unwrap();
+                        if let Some(previous) = block_id {
+                            assert_eq!(previous, block.id);
+                        }
+                        block_id = Some(block.id);
+                        let Operation::DirectCall {
+                            callee,
+                            receiver: None,
+                            arguments,
+                        } = &instruction.operation
+                        else {
+                            panic!("external source consumer")
+                        };
+                        let source = block
+                            .parameters
+                            .iter()
+                            .copied()
+                            .filter(|entity| roles[entity] == source_parameter)
+                            .collect::<Vec<_>>();
+                        assert_eq!(source.len(), 1);
+                        assert_eq!(arguments, &source);
+                        assert!(instruction.results.is_empty());
+                        let target = program
+                            .modules
+                            .iter()
+                            .flat_map(|m| &m.functions)
+                            .find(|f| f.id == *callee)
+                            .unwrap();
+                        assert!(target.name.contains(&format!(".outside{gap}_{call}.")));
+                        assert_eq!(
+                            instruction.origin.span().start(),
+                            text.find(&format!("outside{gap}_{call}(source)")).unwrap()
+                        );
+                    }
+                    if let Some(block) = block_id {
+                        assert_eq!(
+                            &run.block(block).unwrap().instructions,
+                            &segment.instructions
+                        );
+                    }
+                }
+                assert_eq!(
+                    run.instructions
+                        .iter()
+                        .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
+                        .count(),
+                    counts.iter().sum::<usize>() + gaps.iter().sum::<usize>()
+                );
                 assert_eq!(
                     run.instructions
                         .iter()

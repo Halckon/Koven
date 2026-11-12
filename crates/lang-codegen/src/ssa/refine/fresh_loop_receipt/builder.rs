@@ -31,10 +31,7 @@ impl Plans {
         if abi_slots.len() != self.abi_types.len()
             || self.abi_modes.len() != abi_slots.len()
             || abi_slots.iter().collect::<BTreeSet<_>>().len() != abi_slots.len()
-            || self
-                .abi_slots
-                .as_ref()
-                .is_some_and(|original| original != &abi_slots)
+            || self.abi_slots.as_ref() != Some(&abi_slots)
         {
             return Err(invalid(span));
         }
@@ -73,6 +70,7 @@ impl Plans {
         {
             return Err(invalid(span));
         }
+        self.segment_complete(index, blocks.entry, span)?;
         let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
         if p.fact.loop_statement() != statement
             || p.condition_used
@@ -88,9 +86,6 @@ impl Plans {
         p.flag = Some(flag);
         p.boundary = 1;
         self.active = Some(index);
-        if self.abi_slots.is_none() {
-            self.abi_slots = Some(abi_slots);
-        }
         Ok(())
     }
     /// Capture the actual Name expression result, including an Own value with no Read append.
@@ -139,6 +134,9 @@ impl Plans {
     ) -> Result<Option<(usize, Tag)>, LoweringError> {
         if self.loops.is_empty() {
             return Ok(None);
+        }
+        if let Some(tag) = self.source_append(op, results, block, span)? {
+            return Ok(Some(tag));
         }
         let index = self.active.ok_or_else(|| invalid(span))?;
         let p = self.loops.get_mut(index).ok_or_else(|| invalid(span))?;
@@ -235,6 +233,14 @@ impl Plans {
             return Err(invalid(span));
         }
         p.boundary = phase;
+        if phase == 5 {
+            let exit = p.blocks.ok_or_else(|| invalid(span))?.exit;
+            let next = index.checked_add(1).ok_or_else(|| invalid(span))?;
+            let segment = self.segments.get_mut(next).ok_or_else(|| invalid(span))?;
+            if segment.block.replace(exit).is_some() {
+                return Err(invalid(span));
+            }
+        }
         Ok(())
     }
     pub(in crate::ssa::refine) fn terminate(
@@ -269,7 +275,17 @@ impl Plans {
                     && p.boundary == 4
                     && matches!(term,RTerm::Goto(t) if *t==b.exit)
             }
-            4 => last && block == b.exit && p.boundary == 5 && matches!(term, RTerm::Return(None)),
+            4 => {
+                last && block == b.exit
+                    && p.boundary == 5
+                    && matches!(term, RTerm::Return(None))
+                    && self.segments.last().is_some_and(|s| {
+                        s.block == Some(block)
+                            && s.completed == s.consumers.len()
+                            && !s.pending
+                            && !s.appended
+                    })
+            }
             _ => false,
         };
         if !valid {
@@ -337,6 +353,7 @@ impl Plans {
                 && self.folds.is_empty()
                 && self.abi_types.is_empty()
                 && self.abi_modes.is_empty()
+                && self.segments.is_empty()
                 && self.abi_slots.is_none()
             {
                 Ok(())
@@ -419,6 +436,7 @@ impl Plans {
                 return Err(invalid(span));
             }
         }
+        self.validate_segments(span)?;
         let allowed = self
             .loops
             .iter()

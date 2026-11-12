@@ -11,6 +11,7 @@ use lang_frontend::type_checking::ParameterMode;
 pub(crate) struct Receipt {
     pub(crate) caller: FunctionId,
     pub(crate) loops: Vec<LoopReceipt>,
+    pub(crate) segments: Vec<SegmentReceipt>,
     pub(crate) edges: Vec<(BlockId, Edge)>,
     pub(super) span: Span,
     pub(super) abi_types: Vec<SsaTypeId>,
@@ -24,6 +25,24 @@ pub(crate) struct LoopReceipt {
     pub(crate) fact: UnitLoopNoCarryFact,
     pub(crate) instructions: Vec<(Tag, InstructionId)>,
     pub(super) proof: Proof,
+}
+#[derive(Clone, Debug)]
+pub(crate) struct SegmentReceipt {
+    pub(super) block: BlockRef,
+    pub(super) consumers: Vec<SourceConsumer>,
+    pub(crate) instructions: Vec<InstructionId>,
+    pub(super) completed: usize,
+    pub(super) pending: bool,
+    pub(super) appended: bool,
+    original_consumers: Vec<SourceConsumer>,
+}
+impl SegmentReceipt {
+    pub(super) fn sealed(&self) -> bool {
+        self.consumers == self.original_consumers
+            && self.completed == self.consumers.len()
+            && !self.pending
+            && !self.appended
+    }
 }
 #[derive(Clone, Debug)]
 pub(super) struct Proof {
@@ -222,8 +241,39 @@ impl Emitted {
                 },
             });
         }
+        if plans.segments.len()
+            != plans
+                .loops
+                .len()
+                .checked_add(1)
+                .ok_or_else(|| invalid(span))?
+        {
+            return Err(invalid(span));
+        }
+        let segments = plans
+            .segments
+            .iter()
+            .map(|segment| {
+                if segment.completed != segment.consumers.len()
+                    || segment.pending
+                    || segment.appended
+                {
+                    return Err(invalid(span));
+                }
+                Ok(SegmentReceipt {
+                    block: segment.block.ok_or_else(|| invalid(span))?,
+                    consumers: segment.consumers.clone(),
+                    original_consumers: segment.consumers.clone(),
+                    instructions: Vec::new(),
+                    completed: segment.completed,
+                    pending: segment.pending,
+                    appended: segment.appended,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         self.receipt = Some(Receipt {
             caller: first.caller,
+            segments,
             loops,
             edges: Vec::new(),
             span,
@@ -245,12 +295,25 @@ impl Emitted {
         span: Span,
     ) -> Result<(), LoweringError> {
         let (index, tag) = tagged;
+        if let Tag::SourceConsumer(call) = tag {
+            return self.source_statement(
+                plans,
+                (index, call),
+                function,
+                instruction,
+                current,
+                span,
+            );
+        }
         let p = plans.loops.get(index).ok_or_else(|| invalid(span))?;
         let r = self.receipt.as_mut().ok_or_else(|| invalid(span))?;
         if r.loops
             .iter()
             .flat_map(|l| &l.instructions)
             .any(|(_, id)| *id == instruction)
+            || r.segments
+                .iter()
+                .any(|segment| segment.instructions.contains(&instruction))
         {
             return Err(invalid(span));
         }
@@ -336,6 +399,69 @@ impl Emitted {
             return Err(invalid(span));
         }
         local.instructions.push((tag, instruction));
+        Ok(())
+    }
+    fn source_statement(
+        &mut self,
+        plans: &Plans,
+        indices: (usize, usize),
+        function: &Function,
+        instruction: InstructionId,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let (segment_index, call_index) = indices;
+        let receipt = self.receipt.as_mut().ok_or_else(|| invalid(span))?;
+        if receipt
+            .loops
+            .iter()
+            .flat_map(|peer| &peer.instructions)
+            .any(|(_, id)| *id == instruction)
+            || receipt
+                .segments
+                .iter()
+                .any(|segment| segment.instructions.contains(&instruction))
+        {
+            return Err(invalid(span));
+        }
+        let segment = receipt
+            .segments
+            .get(segment_index)
+            .ok_or_else(|| invalid(span))?;
+        let consumer = segment
+            .consumers
+            .get(call_index)
+            .ok_or_else(|| invalid(span))?;
+        let actual = function
+            .instruction(instruction)
+            .ok_or_else(|| invalid(span))?;
+        let block = receipt
+            .blocks
+            .get(&plans.canonical(segment.block))
+            .ok_or_else(|| invalid(span))?;
+        let expected = self.expected.get(block).ok_or_else(|| invalid(span))?;
+        let source_slot = plans
+            .loops
+            .first()
+            .and_then(|plan| plan.source)
+            .ok_or_else(|| invalid(span))?;
+        let source = expected.get(&source_slot).ok_or_else(|| invalid(span))?;
+        if segment.instructions.len() != call_index
+            || !segment.sealed()
+            || actual.block != *block
+            || actual.origin.span() != consumer.span
+            || !actual.results.is_empty()
+            || expected
+                .iter()
+                .any(|(slot, id)| current.get(slot) != Some(id))
+            || !matches!(&actual.operation, Operation::DirectCall { callee, receiver: None, arguments }
+                if *callee == consumer.callee && arguments.as_slice() == [*source])
+        {
+            return Err(invalid(span));
+        }
+        receipt.segments[segment_index]
+            .instructions
+            .push(instruction);
         Ok(())
     }
     pub(in crate::ssa::refine) fn terminator(
@@ -442,6 +568,16 @@ impl Emitted {
         let r = self.receipt.ok_or_else(|| invalid(span))?;
         if r.caller != function.id()
             || r.loops.len() != plans.loops.len()
+            || r.segments.len() != plans.segments.len()
+            || r.segments
+                .iter()
+                .zip(&plans.segments)
+                .any(|(actual, plan)| {
+                    !actual.sealed()
+                        || actual.instructions.len() != plan.consumers.len()
+                        || actual.consumers != plan.consumers
+                        || Some(actual.block) != plan.block
+                })
             || self.terminated.len() != r.blocks.len()
         {
             return Err(invalid(span));

@@ -303,6 +303,30 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
             1,
         ),
         (
+            "named-source-call",
+            "source:String,flag:Boolean",
+            "consume(item=source);while(flag){borrow val item=view(source);consume(item)}",
+            1,
+        ),
+        (
+            "non-unit-source-call",
+            "source:String,flag:Boolean",
+            "produce(source);while(flag){borrow val item=view(source);consume(item)}",
+            1,
+        ),
+        (
+            "special-source-call",
+            "source:String,flag:Boolean",
+            "println(source);while(flag){borrow val item=view(source);consume(item)}",
+            1,
+        ),
+        (
+            "other-source-call",
+            "source:String,other:String,flag:Boolean",
+            "consume(other);while(flag){borrow val item=view(source);consume(item)}",
+            1,
+        ),
+        (
             "before-after",
             "source:String,flag:Boolean",
             "consume(source);while(flag){borrow val item=view(source);consume(item)};consume(source)",
@@ -310,7 +334,7 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
         ),
     ] {
         let text = format!(
-            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({parameters}):Unit {{{body}}}"
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun produce(source:String):String=\"extra\"\nfun run({parameters}):Unit {{{body}}}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) =
@@ -353,7 +377,10 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
                 assert_eq!(verified.len(), 1);
                 assert_eq!(
                     receipts.len(),
-                    usize::from(matches!(label, "siblings" | "unused-flag" | "own-flag"))
+                    usize::from(matches!(
+                        label,
+                        "siblings" | "unused-flag" | "own-flag" | "before-after"
+                    ))
                 );
                 verify_program(&program).unwrap();
                 let rendered = crate::llvm::render_verified_program(&program).unwrap();

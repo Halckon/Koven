@@ -342,3 +342,27 @@ fun entry() {
     let run = emit_link_and_run("no-carry-mixed-own-flags-false", text, "entry");
     super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
+
+#[test]
+fn native_no_carry_source_segments_survive_false_edges() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun before(source: String): Unit { println("pre"); println(source) }
+fun between(source: String): Unit { println("mid"); println(source) }
+fun after(source: String): Unit { println("tail"); println(source) }
+fun run(flag1: Boolean, source: String, own flag0: Boolean): Unit {
+ before(source)
+ while(flag0) { borrow val first = view(source); observe(first) }
+ between(source)
+ while(flag1) { borrow val second = view(source); observe(second) }
+ after(source)
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-source-segments-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"pre\nkept\nmid\nkept\ntail\nkept\nkept\n");
+}

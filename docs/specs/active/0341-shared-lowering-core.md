@@ -16060,3 +16060,35 @@ ABI模式伪换及同步边快照后的未来own flag丢失。
 codegen feature/all-targets Clippy -D warnings、默认workspace/all-targets、fmt/diff
 均通过；尺寸按2beb5592基线通过（2627文件/36历史债务），文档结构913篇通过。
 无policy变动，旧见证保留；本地提交，不推送。
+
+
+### 直接外部 source 消费段的组合 receipt（2026-11-12）
+
+本片仅扩既有执行的独立证据覆盖，不改 FE/CG 准入、控制流或原 verifier。函数内
+同源直接 while 的前、中、后可有动态直线消费段，n 个 peer 对应 n+1 个有序段。
+仅普通 direct、无 receiver、正常同步返回 Unit、单 Borrow String source 实参
+调用合格；named、非 Unit、特殊调用、Nothing、借用返回及其它 source 整函数
+回退为无本片 receipt，仍保留原执行/拒绝边界。旧见证不退休。
+
+独立准入匹配 typed 与原 LoanFact/参数合同的完整 call/argument/source 身份。
+真实 bind_parameters 后冻结 ABI；每段按 operand→实际 DirectCall append→正常
+statement completion 顺序捕获，不能从最终 SSA 填造事件。段调用复用外部 source，
+无伪 Begin/End。loop 关闭后才许可后段；共享 exit/entry 的指令按序合并。末段非空
+时 source 必须运至尾调用后 Return，后续无用途的 flag 仍消亡。最终验证段的局部
+source 实体、精确指令全集和真实 fold，原 unit verifier 后原子发布保持。
+
+真实缺证红：before-after 原 lowering 与原 verifier 成功，receipt0 对期望1失败。
+实现后定向5项普通全绿，其中组合矩阵34个源码变体、rooted/memory 与 on/off 共
+136次实际 lowering，保留旧28变体并新增6个空/多调用段、单/多 loop、混合条件及
+ABI换序变体。逐段实际 callee/span/顺序、当前块 source、尾运输与 independent
+validate 均核；named/nonUnit/special/other-source 四项合法边界保持 receipt0。
+
+native 零轮1项真实编译、链接、运行，验证前/中/后仍可用 source，输出依次为
+pre、kept、mid、kept、tail、kept、kept；不宣称执行任意非零轮。新增2组 ignored
+故障，合计15组仅 lib no-run 编译，未执行，覆盖错 source、缺失/重复/乱序段调用、
+封口及元数据破坏、同步边快照后的尾 source 丢失。
+
+日志保留于本片 checkpoint。独立生产与 CI 静审无阻断；家族97项、codegen
+feature/all-targets Clippy -D warnings、默认workspace/all-targets、fmt/diff通过。
+尺寸按2beb5592基线通过（2629文件/36历史债务），文档结构913篇通过。
+本片未修改FE，未另跑FE测试；旧见证和尺寸policy保留。本地提交，不推送。

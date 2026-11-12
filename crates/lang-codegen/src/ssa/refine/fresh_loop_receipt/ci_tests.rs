@@ -741,3 +741,92 @@ fn own_boolean_conditions_require_the_exact_local_value_and_mode() {
     synchronize_edges(&mut changed, &bad);
     assert!(changed.validate(&bad).is_err());
 }
+
+fn capture_source_segments() -> (Function, Receipt) {
+    let text = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(source:String,flag:Boolean):Unit {consume(source);while(flag){borrow val a=view(source);consume(a)};consume(source);consume(source);while(flag){borrow val b=view(source);consume(b)};consume(source)}";
+    let (program, receipt) = capture_program_text(text);
+    assert_eq!(receipt.segments.len(), 3);
+    assert_eq!(
+        receipt
+            .segments
+            .iter()
+            .map(|s| s.instructions.len())
+            .collect::<Vec<_>>(),
+        vec![1, 2, 1]
+    );
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .find(|function| function.id == receipt.caller)
+        .unwrap()
+        .clone();
+    receipt.validate(&function).unwrap();
+    (function, receipt)
+}
+
+#[test]
+#[ignore = "CI-only source segment exact local operand and original instruction order; compile locally"]
+fn source_segments_cannot_borrow_an_old_or_fresh_loop_lease() {
+    let (function, receipt) = capture_source_segments();
+    let roles = actual_roles(&function);
+    let source_role = receipt.loops[0].proof.source_parameter;
+    let entry = function.entry_block().unwrap();
+    let old = actual_local(&function, &roles, entry, source_role);
+    let call = receipt.segments[1].instructions[0];
+    let block = function.instruction(call).unwrap().block;
+    let correct = actual_local(&function, &roles, block, source_role);
+    assert_ne!(old, correct);
+    let acquire = tagged(&receipt, Tag::Result);
+    let fresh = function.instruction(acquire).unwrap().results[0];
+    for replacement in [old, fresh] {
+        let mut bad = function.clone();
+        let Operation::DirectCall { arguments, .. } = &mut bad.instructions[call.index()].operation
+        else {
+            panic!()
+        };
+        arguments[0] = replacement;
+        assert!(receipt.validate(&bad).is_err());
+    }
+    let mut bad = receipt.clone();
+    bad.segments[1].instructions.swap(0, 1);
+    assert!(bad.validate(&function).is_err());
+    let mut bad = receipt.clone();
+    bad.segments[1].instructions.pop();
+    assert!(bad.validate(&function).is_err());
+    let mut bad = receipt.clone();
+    bad.segments[1].instructions[1] = bad.segments[1].instructions[0];
+    assert!(bad.validate(&function).is_err());
+}
+
+#[test]
+#[ignore = "CI-only source segment producer completion, identity and tail transport; compile locally"]
+fn source_segments_require_complete_returns_and_the_real_tail_source() {
+    let (function, receipt) = capture_source_segments();
+    for fault in 0..6 {
+        let mut bad = receipt.clone();
+        match fault {
+            0 => bad.segments[1].completed -= 1,
+            1 => bad.segments[1].pending = true,
+            2 => bad.segments[1].appended = true,
+            3 => bad.segments[1].consumers.swap(0, 1),
+            4 => bad.segments[1].block = bad.segments[0].block,
+            5 => bad.segments[1].consumers[0].argument = bad.loops[0].fact.source_argument(),
+            _ => unreachable!(),
+        }
+        assert!(bad.validate(&function).is_err(), "segment fault {fault}");
+    }
+    let last = receipt.loops.last().unwrap();
+    let header = receipt.blocks[&receipt.canonical(last.proof.blocks.header)];
+    let mut bad = function.clone();
+    let TerminatorKind::Conditional { when_false, .. } =
+        &mut bad.blocks[header.index()].terminator.as_mut().unwrap().kind
+    else {
+        panic!()
+    };
+    assert_eq!(when_false.arguments.len(), 1, "tail retains only source");
+    when_false.arguments.clear();
+    let mut changed = receipt.clone();
+    synchronize_edges(&mut changed, &bad);
+    assert!(changed.validate(&bad).is_err());
+}

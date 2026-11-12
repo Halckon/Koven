@@ -876,6 +876,7 @@ impl Builder<'_, '_> {
             )?;
         }
         self.child_completion(id, result)?;
+        self.fresh_source_completion(id, result)?;
         Ok(result)
     }
     pub(super) fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
@@ -904,6 +905,7 @@ impl Builder<'_, '_> {
         loan: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.fresh_source_argument(call, argument, loan, span)?;
         if !self.body.binding_plans.has_consumer(call)
             && !self.body.aux_binding_plans.has_consumer(call)
             && !self.body.distinct_aux_plans.has_consumer(call)
