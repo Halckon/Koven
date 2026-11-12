@@ -193,6 +193,36 @@ impl Builder<'_, '_> {
                 }
             }
         }
+        #[cfg(test)]
+        if owner_consumer_test_support::take_fault(
+            owner_consumer_test_support::OwnerFault::NestedBodyEscapedPreparation,
+        ) && let Some(extra) = self.body.blocks[blocks[1].0]
+            .statements
+            .iter()
+            .find(|s| matches!(s.op, ROp::BorrowBegin { .. }))
+            .cloned()
+        {
+            self.body.blocks[blocks[2].0].statements.push(extra);
+            owner_consumer_test_support::record_action("nested-preparation-fault-hit", 1);
+        }
+        #[cfg(test)]
+        if owner_consumer_test_support::take_fault(
+            owner_consumer_test_support::OwnerFault::NestedBodyEscapedLoanTerminator,
+        ) && let Some(loan) = self.body.blocks[blocks[1].0]
+            .statements
+            .iter()
+            .find_map(|s| {
+                if let ROp::RootReplace { loan, .. } = s.op {
+                    Some(loan)
+                } else {
+                    None
+                }
+            })
+        {
+            self.body.blocks[blocks[2].0].terminator =
+                Some((RTerm::BorrowReturn { loan }, self.inputs.span));
+            owner_consumer_test_support::record_action("nested-preparation-fault-hit", 1);
+        }
         let statements = &self.body.blocks[blocks[1].0].statements;
         if plan.stages.is_empty()
             || plan
@@ -255,6 +285,27 @@ impl Builder<'_, '_> {
                     || (statement.results.contains(place) && i != *prepare)
                     || (statement.op.operands().contains(loan) && i != *replace)
                     || (statement.results.contains(loan) && i != *borrow)
+                {
+                    return Err(fail());
+                }
+            }
+            // Preparation capabilities belong only to this normal body. Root owners
+            // may legitimately cross its boundary; ephemeral places and loans may not.
+            for (block_index, block) in self.body.blocks.iter().enumerate() {
+                for (index, statement) in block.statements.iter().enumerate() {
+                    let at = |position| block_index == blocks[1].0 && index == position;
+                    if statement.results.contains(place) != at(*prepare)
+                        || statement.op.operands().contains(place) != at(*borrow)
+                        || statement.results.contains(loan) != at(*borrow)
+                        || statement.op.operands().contains(loan) != at(*replace)
+                    {
+                        return Err(fail());
+                    }
+                }
+                if block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|(t, _)| t.operands().iter().any(|s| s == place || s == loan))
                 {
                     return Err(fail());
                 }

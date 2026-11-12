@@ -15242,3 +15242,17 @@ entry/normal 两个静态 header 入边不标成某一运行时实例，不推�
 完整counter/FE/workspace回归，未执行任何CI-only；独立只读复审未发现确定阻断。
 该测试核末块准备链定义、顺序及owner使用，不单独宣称place/loan全函数消费证明。
 日志 nested-exit-audit-*；仅本地提交，不推送，不开启新权限。
+
+### 受限嵌套 normal-body 临时准备能力不逃逸（2026-11-12）
+
+保持 b7a5f8cc 的批准边界，终检除 body 内根访问限制外，对实际 RootPlace/BorrowBegin
+产生的临时 place/loan 槽核全函数精确唯一定义及消费，所有 terminator 禁止引用两槽。
+owner 根仍可走既有出口/外层恢复路径，不把临时能力约束扩大为根的跨块禁令。
+新增 CI-only 异块复制实际 BorrowBegin 故障，要求命中一次且不发布 body 完成；
+故障仅编译、不在本地执行。独立只读审计确认这是现有消费合同终检缺口而非新权限。
+
+补充第二个 CI-only 直接将 false 块终结器改为携带实际 loan 的 BorrowReturn，
+同样要求命中恰一次且无 body 完成。普通 counter_boundary 26/26（47.63s）通过；
+之后仅增加该测试故障，未改变生产逻辑。两故障均仅编译，不宣称已运行通过。
+codegen all-target strict Clippy通过（26.73s）；最终只读复审无确定阻断。
+本片未重跑FE/workspace；不把静态不逃逸等同于任意轮次动态证明。仅本地提交。

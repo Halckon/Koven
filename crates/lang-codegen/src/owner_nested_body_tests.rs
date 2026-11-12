@@ -40,6 +40,8 @@ fn ci_only_nested_body_missing_permits_and_foreign_parent_fail_closed() {
         OwnerFault::NestedBodyLateDuplicateDrop,
         OwnerFault::NestedBodyForeignLoan,
         OwnerFault::NestedBodyLateRootPlace,
+        OwnerFault::NestedBodyEscapedPreparation,
+        OwnerFault::NestedBodyEscapedLoanTerminator,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
@@ -52,7 +54,10 @@ fn ci_only_nested_body_missing_permits_and_foreign_parent_fail_closed() {
         );
         if matches!(
             fault,
-            OwnerFault::NestedBodyForeignLoan | OwnerFault::NestedBodyLateRootPlace
+            OwnerFault::NestedBodyForeignLoan
+                | OwnerFault::NestedBodyLateRootPlace
+                | OwnerFault::NestedBodyEscapedPreparation
+                | OwnerFault::NestedBodyEscapedLoanTerminator
         ) {
             assert_eq!(
                 actions
