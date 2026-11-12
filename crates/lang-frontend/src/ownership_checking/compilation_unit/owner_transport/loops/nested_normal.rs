@@ -17,6 +17,7 @@ pub struct UnitOwnerNestedNormalBodyV1 {
     normal: UnitOwnerMultiRootNormalTransportV1,
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
     resume_roots: Option<Vec<UnitSymbolId>>,
+    resume_write: Option<UnitOwnerNestedResumeWriteV1>,
 }
 impl UnitOwnerNestedNormalBodyV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -31,6 +32,7 @@ impl UnitOwnerNestedNormalBodyV1 {
         normal: UnitOwnerMultiRootNormalTransportV1,
         exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
         resume_roots: Option<Vec<UnitSymbolId>>,
+        resume_write: Option<UnitOwnerNestedResumeWriteV1>,
     ) -> Option<Self> {
         let value = Self {
             identity,
@@ -39,6 +41,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             normal,
             exit_partition,
             resume_roots,
+            resume_write,
         };
         value.is_consistent().then_some(value)
     }
@@ -75,7 +78,18 @@ impl UnitOwnerNestedNormalBodyV1 {
     pub fn parent_resume_roots(&self) -> Option<&[UnitSymbolId]> {
         self.resume_roots.as_deref()
     }
+    /// Completed single-statement facts; no backend resume permission is implied.
+    pub fn parent_resume_write(&self) -> Option<&UnitOwnerNestedResumeWriteV1> {
+        self.resume_write.as_ref()
+    }
     fn resume_is_consistent(&self) -> bool {
+        if self.resume_write.as_ref().is_some_and(|w| {
+            self.resume_roots
+                .as_ref()
+                .is_none_or(|r| !w.is_consistent(self.parent(), r))
+        }) {
+            return false;
+        }
         let Some(roots) = &self.resume_roots else {
             return true;
         };

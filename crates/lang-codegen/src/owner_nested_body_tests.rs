@@ -150,7 +150,7 @@ fn assert_nested_ssa_retirement(source: &UnitSource) {
         .unwrap();
     let (lowered, actions) =
         crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
-    let (program, _) = lowered.unwrap();
+    let (program, _) = lowered.unwrap_or_else(|e| panic!("{e:?}; actions={actions:?}"));
     crate::ssa::verify::verify_program(&program).unwrap();
     assert_eq!(
         actions
@@ -167,6 +167,14 @@ fn assert_nested_ssa_retirement(source: &UnitSource) {
             .map(|(_, n)| *n)
             .collect::<Vec<_>>(),
         [2]
+    );
+    assert!(product.parent_resume_write().is_some());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "nested-parent-resume-consumed")
+            .count(),
+        1
     );
     assert_existing_false_exit_resume(source, &program);
     for step in product.normal().steps() {
@@ -450,7 +458,7 @@ fn nested_false_exit_retires_child_local_root_without_resume_permission() {
     assert_eq!(n.parent_resume_roots(), Some(live));
     let (lowered, actions) =
         crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
-    let (program, _) = lowered.unwrap();
+    let (program, _) = lowered.unwrap_or_else(|e| panic!("{e:?}; actions={actions:?}"));
     crate::ssa::verify::verify_program(&program).unwrap();
     assert_eq!(
         actions
@@ -650,5 +658,51 @@ fn assert_final_false_cleanup_transport(source: &UnitSource, program: &crate::ss
             };
             edge = next;
         }
+    }
+}
+
+#[test]
+fn ci_only_nested_parent_resume_requires_each_independent_permit() {
+    let source = UnitSource::analyze(
+        "nested-resume-permits.ko",
+        r#"
+    fun run(outer:Int,inner:Int) {
+        var a="a"; var b="b"; var n0=outer; var g0=n0>0;
+        while(g0) {var n1=inner; var g1=n1>0;
+            while(g1) {val x=replace(&a,"inner-a"); val y=replace(&b,"inner-b"); n1=n1-1; g1=n1>0};
+            val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
+        }; println(a); println(b)
+    }
+    fun entry() {run(2,2)}
+    "#,
+    )
+    .unwrap();
+    source.assert_frontend_clean();
+    assert!(source.ownership().owner_observations().iter().any(|o| {
+        o.nested_normal_body_v1()
+            .is_some_and(|n| n.parent_resume_write().is_some())
+    }));
+    for fault in [
+        crate::ssa::OwnerFault::NestedResumeMissingReplace,
+        crate::ssa::OwnerFault::NestedResumeMissingBinding,
+        crate::ssa::OwnerFault::NestedResumeMissingDrop,
+        crate::ssa::OwnerFault::NestedResumeForeignLoan,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(k, _)| *k == "nested-resume-fault-hit")
+                .count(),
+            1
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|(k, _)| *k != "nested-parent-resume-consumed")
+        );
     }
 }

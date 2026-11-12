@@ -2,6 +2,7 @@
 use super::*;
 mod body_group;
 mod nested_body;
+mod nested_resume;
 pub(super) use nested_body::NestedBody;
 mod consumption;
 pub(super) use body_group::BodyGroup;
@@ -131,6 +132,7 @@ impl Builder<'_, '_> {
     }
     pub(super) fn finish_control_bridge(&mut self) -> Result<(), LoweringError> {
         self.finish_nested_owner_body()?;
+        self.finish_nested_resume()?;
         self.finish_control_chain_bodies()?;
         #[cfg(test)]
         if let Some(plan) = &mut self.control_bridge_plan {

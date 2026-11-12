@@ -1,4 +1,5 @@
 //! One actually entered nested normal body. No entry owner or loop-exit authority.
+mod resume;
 use super::*;
 use crate::ownership_checking::UnitOwnerNestedNormalBodyV1;
 pub(super) struct Nested {
@@ -14,6 +15,7 @@ pub(super) struct Nested {
     left: bool,
     exit_seen: bool,
     resume_seen: bool,
+    resume: Option<resume::Resume>,
     resume_roots: Option<Vec<UnitSymbolId>>,
     exit_partition: Option<(
         Vec<UnitSymbolId>,
@@ -100,6 +102,7 @@ impl ControlTransactions {
             left: false,
             exit_seen: false,
             resume_seen: false,
+            resume: None,
             resume_roots: None,
             exit_partition: None,
             valid: true,
@@ -208,6 +211,7 @@ impl ControlTransactions {
         let repeated = n.resume_seen;
         n.resume_seen = true;
         n.resume_roots = None;
+        n.resume = None;
         if repeated || !success || !n.valid || !n.left || parent != Some(n.parent) {
             return;
         }
@@ -227,6 +231,7 @@ impl ControlTransactions {
                 .enumerate()
                 .all(|(i, r)| !roots[..i].contains(r))
         {
+            n.resume = Some(resume::Resume::new(n.parent, roots.clone()));
             n.resume_roots = Some(roots);
         }
     }
@@ -269,6 +274,7 @@ impl ControlTransactions {
             n.sink?.result()?,
             n.exit_partition,
             n.resume_roots,
+            n.resume.as_ref().and_then(|r| r.result()),
         )
     }
 }
@@ -286,6 +292,7 @@ fn fault(control: UnitStatementId, phase: u8) -> bool {
 }
 #[cfg(test)]
 mod tests {
+    use super::resume;
     use super::{FAULT, HITS};
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
     const SOURCE: &str = r#"fun run(outer: Int, inner: Int, own seed: String) {
@@ -313,6 +320,12 @@ mod tests {
         assert_eq!(live.len(), 2);
         assert!(drops.is_empty());
         assert_eq!(n.parent_resume_roots(), Some(live));
+        let write = n.parent_resume_write().expect("real resumed statement");
+        assert!(live.contains(&write.root()));
+        assert_eq!(
+            write.returned_value_drop().target(),
+            crate::ownership_checking::UnitDropTarget::Named(write.binding())
+        );
         assert!(live.iter().all(|r| n.normal().header_roots().contains(r)));
         assert_ne!(n.parent(), n.control());
         assert_eq!(n.normal().statement(), n.control());
@@ -483,5 +496,51 @@ mod tests {
             .unwrap();
         assert!(n.false_exit_partition().is_some());
         assert!(n.parent_resume_roots().is_none());
+    }
+    #[test]
+    fn resumed_write_requires_immediate_direct_dead_val() {
+        for replacement in [
+            r#"val gap=1; val old=replace(&b,"outer-b")"#,
+            r#"val old=replace(&b,("outer-b"))"#,
+            r#"val old=replace(&b,"outer-b"); println(old)"#,
+        ] {
+            let text = SOURCE.replace(r#"val old=replace(&b,"outer-b")"#, replacement);
+            let fixture = Fixture::new(&[("resume-rejected.ko", &text)]);
+            let owned = fixture.shared();
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            let n = owned
+                .owner_observations()
+                .iter()
+                .find_map(|o| o.nested_normal_body_v1())
+                .unwrap();
+            assert!(n.parent_resume_roots().is_some());
+            assert!(n.parent_resume_write().is_none(), "{replacement}");
+        }
+    }
+    #[test]
+    fn ci_only_resumed_write_requires_every_actual_event() {
+        let fixture = Fixture::new(&[("resume-events.ko", SOURCE)]);
+        let baseline = fixture.shared();
+        let n = baseline
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.nested_normal_body_v1())
+            .unwrap();
+        assert!(n.parent_resume_write().is_some());
+        for phase in 1..=6 {
+            resume::FAULT.set(Some((n.parent(), phase)));
+            resume::HITS.set(0);
+            let owned = fixture.shared();
+            let hits = resume::HITS.get();
+            resume::FAULT.set(None);
+            assert!(hits > 0, "phase {phase}");
+            let actual = owned
+                .owner_observations()
+                .iter()
+                .find_map(|o| o.nested_normal_body_v1())
+                .unwrap();
+            assert!(actual.parent_resume_roots().is_some());
+            assert!(actual.parent_resume_write().is_none(), "phase {phase}");
+        }
     }
 }

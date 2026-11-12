@@ -336,6 +336,7 @@ impl DropPlanner<'_, '_> {
     ) -> Result<(), OwnershipCheckingError> {
         self.owner_loop
             .segment_statement(UnitStatementId::new(self.checker.source_unit, id), state);
+        self.begin_nested_resume_statement(id, state);
         self.begin_root_suffix_statement(id, state);
         self.prepare_owner_loop_input(id, state);
         if matches!(

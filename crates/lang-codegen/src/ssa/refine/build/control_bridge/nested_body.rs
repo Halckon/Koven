@@ -5,9 +5,10 @@ use lang_frontend::ownership_checking::{
 };
 
 pub(in super::super) struct NestedBody<'a> {
-    evidence: &'a UnitOwnerNestedNormalBodyV1,
+    pub(super) evidence: &'a UnitOwnerNestedNormalBodyV1,
     stages: Vec<consumption::Stage>,
-    lowered: Option<([BlockRef; 4], Vec<Slot>)>,
+    pub(super) lowered: Option<([BlockRef; 4], Vec<Slot>)>,
+    pub(super) resume_stage: consumption::Stage,
 }
 impl<'a> NestedBody<'a> {
     pub(in super::super) fn new(inputs: &RefineInputs<'a>) -> Result<Option<Self>, LoweringError> {
@@ -41,6 +42,7 @@ impl<'a> NestedBody<'a> {
             evidence,
             stages: vec![consumption::Stage::Ready; evidence.normal().steps().len()],
             lowered: None,
+            resume_stage: consumption::Stage::Ready,
         }))
     }
     pub(super) fn select_body(

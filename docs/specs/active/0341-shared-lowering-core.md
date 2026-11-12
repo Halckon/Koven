@@ -15378,3 +15378,31 @@ child正常返回、已记录false分区，重新以boundary_values核干净live
 错parent专用故障矩阵尚待补。FE691/691（6.58s）、普通native27/27（25.89s）通过。
 双crate all-target strict Clippy（53.81s）、fmt/docs915/尺寸/diff通过。未重跑workspace；
 本片仅本地提交不推送。日志nested-parent-boundary-*。
+
+### 已批准受限父恢复：真实单笔事件与独立一次性发射许可（2026-11-12）
+
+新增独立Resume collector，只识别child后紧接的一条val/direct String Replace声明。
+真实literal完成→Replace提交→返回binding→新增AfterStatement Drop→声明成功且clean
+状态齐备才封存parent_resume_write；错序/缺项/插入其他语句不发布。完成后相同精确
+statement/call/producer/binding/drop重现撤销，后续无关事件可继续。返回值保持存活、
+非直接literal或非紧邻语句均不进入新恢复产品。不造旧owner动态token或伪装完整BodyPlan。
+
+CG共享原发射钩子的互斥入口但使用独立resume标记和Ready→Replaced→Bound→Dropped
+状态；non-Clone permit绑定parent、恢复块、指令位置/span、真实root/replacement槽。
+按root symbol查槽不zip。实际parent frame和资源必须匹配，既有child许可不得复活。
+最终重新核原call/literal、Replace→Alias→原Drop及old/binding全函数唯一定义消费，
+核实际RootPlace→exclusive loan→Replace和place/loan整函数不逃逸；恢复前缀除对应
+RootPlace外不得读写原根，恢复后允许既有合法操作，不额外发射Drop。
+
+实证修正：while的[2]是false清理块，[3]才是恢复join；新许可要求[2]→[3]且唯一
+前驱，[2]对恢复live根透明。首两次联合测试因误把恢复literal放[2]拒绝，未放宽保护，
+按实际CFG修正后九组native输入通过。最终SSA false-root receipt仍独立全组核验；
+这是编译期单次发射许可，不声称运行时只执行一次或一般嵌套/任意轮次归纳。
+
+验收：最终FE 692/692（15.38s）、counter_boundary普通native 27/27（31.73s）
+通过，包含受限恢复完成标记与外/内零、一、二轮九组合。双crate all-target strict
+Clippy与workspace all-target check均通过（各约1分钟）；fmt、docs915、尺寸
+2586手写文件/37历史超限、diff门禁通过。CI-only缺独立permit、真实foreign loan及
+FE事件缺失/完成后重放负控仅编译，不宣称本地执行通过。独立只读复审未见确定阻断。
+日志nested-resume-final-*；本地提交不推送。尚无独立父恢复late-SSA receipt或
+任意跨轮代际归纳，仍沿用通用SSA验证及既有child false根receipt。

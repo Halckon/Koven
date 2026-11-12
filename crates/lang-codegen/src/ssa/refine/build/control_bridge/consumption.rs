@@ -9,14 +9,15 @@ pub(super) enum Stage {
     Dropped,
 }
 pub(in super::super) struct Permit {
-    index: usize,
-    control: UnitStatementId,
-    block: BlockRef,
-    instruction: usize,
-    span: Span,
-    stage: Stage,
-    source: Slot,
-    replacement: Option<Slot>,
+    pub(super) index: usize,
+    pub(super) control: UnitStatementId,
+    pub(super) block: BlockRef,
+    pub(super) instruction: usize,
+    pub(super) span: Span,
+    pub(super) stage: Stage,
+    pub(super) source: Slot,
+    pub(super) replacement: Option<Slot>,
+    pub(super) resume: bool,
 }
 impl Builder<'_, '_> {
     pub(in super::super) fn bridge_replace_authorization(
@@ -29,7 +30,7 @@ impl Builder<'_, '_> {
         let Some(selected) =
             self.bridge_select_body(|r| r.steps().iter().any(|s| s.call() == call))?
         else {
-            return Ok(None);
+            return self.resume_replace_authorization(call, root, replacement, span);
         };
         let rule = selected.rule;
         let Some(index) = rule.steps().iter().position(|s| s.call() == call) else {
@@ -90,7 +91,7 @@ impl Builder<'_, '_> {
             })
         })?
         else {
-            return Ok(None);
+            return self.resume_binding_authorization(initializer, symbol, value, span);
         };
         let rule = selected.rule;
         let Some(index) = rule.steps().iter().position(|s| {
@@ -134,7 +135,7 @@ impl Builder<'_, '_> {
                 .any(|s| s.returned_value_drop().target() == target)
         })?
         else {
-            return Ok(None);
+            return self.resume_drop_authorization(fact_index, target, value, span);
         };
         let rule = selected.rule;
         let Some(index) = rule
@@ -207,6 +208,7 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         Ok(Permit {
+            resume: false,
             index,
             control,
             block: body,
@@ -224,6 +226,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         let Some(permit) = permit else { return Ok(()) };
+        if permit.resume {
+            return self.resume_emitted(permit, output, span);
+        }
         #[cfg(test)]
         let permit = {
             let mut permit = permit;

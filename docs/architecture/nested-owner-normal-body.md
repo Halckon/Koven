@@ -4,12 +4,11 @@
 
 ## 范围
 
-SPEC-0341 经明确批准的切片仅接纳一个直接父/子 while 对的内层线性 body。
-它给出形式 header 根上的 Replace→返回 binding→实际 Drop 单次消费权限；
-不是入口 owner token、内层退出证明、外层恢复许可或任意轮次归纳。
-有限 native 输入的输出也不能代替这些尚缺合同。
-普通测试另核现有通用 lowering 的内层 header false-edge→外层 Replace SSA 运输；
-这是旧路径实证，不是新 owner 产品的出口/恢复许可。
+SPEC-0341 经明确批准的切片接纳一个直接父/子 while 对的内层线性 body，
+及完整 false 出口事实之后紧邻的一笔受限父恢复写入。两者分别使用独立的
+Replace→返回 binding→实际 Drop 单次发射许可，不能互相复用。
+不是入口 owner 动态 token、一般嵌套或任意轮次归纳；有限 native 输入不能代替
+这些尚缺合同。普通测试另核最终 SSA 运输，事实 receipt 与消费许可仍分开。
 
 ## 前端事件
 
@@ -39,7 +38,8 @@ Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span
 原事实 Drop，整函数检查 old/binding 唯一定义和消费且不从 terminator 逃逸；不只依赖
 已推进的 stage。普通测试核最终 typed-SSA 旧值恰一次同块后置 Drop，Alias 会被消除。
 没有另发一次 Drop，也没有向 whole-loop 或 late-SSA group 授予新权限。
-内层退出、checked abort 及外层恢复继续由原通用 lowering 和 SSA verifier 负责。
+内层退出和 checked abort 继续由原通用 lowering 和 SSA verifier 负责；
+父恢复仅下述明确限定的单笔写入有独立许可，其他形状保持旧路径。
 
 ## 验证位置
 
@@ -56,18 +56,24 @@ Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span
 返回 live 根和精确 LoopExit drops，完整覆盖且互斥；干净资源检查复用 boundary_values。
 重复或缺事件不给可选事实，但不撤销原 normal-body 权限。
 这是 planner false 清理点的静态分区，不是入口/回边 token 的实际代际合流证明；
-没有 parent 恢复消费者，仍不得据此额外发射 Drop；退休根late-SSA事实见下段。
+false分区本身不授权parent消费，不得据此额外发射Drop；退休根late-SSA事实见下段。
 后端在既有几何仍有效的RefinedBody阶段只读核原false块实际Drop：精确root槽、
 LoopExit fact、原consumed记录、span及清理顺序；不限制live根的后续旧路径操作。
 
 生产 `refine/nested_exit_receipt.rs` 现在独立跟踪已核对退休根的实际false入口Entity
 到原Drop，随straight-line fold同步块/指令偏移，终检真实边参数、指令表与块清单。
 这不是owner退出消费许可。现已核完整live+retired根的false边参数映射，空drops也核全根；
-live根的后续消费及parent恢复仍由原路径负责，不证明动态代际。
+live根的后续消费须由独立受限恢复产品或原路径负责，不证明动态代际。
 
-## 父恢复边界（已批准合同的第一步）
+## 父恢复边界与受限单笔消费
 
 实际child控制栈弹出后，以当前parent身份、正常返回结果及干净live根向量记录
 `parent_resume_roots()`；依赖完整false分区，缺事件/重复/错parent不给事实。
-这不是恢复消费许可。已批准的后续单次Replace→binding→Drop仍需独立实际事件
-状态机和一次性消费者，不能复用child已经消费的normal permit。
+边界事实本身不是消费许可；下述独立单笔产品负责已批准的Replace→binding→Drop，
+不能复用child已经消费的normal permit。
+
+受限恢复已进一步接入独立单笔collector和non-Clone发射许可：仅child紧邻的
+val/direct String Replace，真实四事件及声明clean完成后封存。后端在实际parent
+frame的join块[3]消费独立阶段，[2]false清理→[3]运输须唯一且根透明；按symbol匹配。
+重新核准备loan及old→binding→Drop，不复活child许可、不重复发射。其他父恢复形状
+仍走旧路径；受限编译期许可不是一般循环归纳。

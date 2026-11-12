@@ -94,6 +94,7 @@ impl DropPlanner<'_, '_> {
                 self.drop_named_asap(PlannerDropPoint::AfterStatement(id), symbol, state);
             }
         }
+        self.finish_nested_resume_statement(id, state);
         self.finish_root_suffix_statement(id, state);
         Ok(true)
     }
