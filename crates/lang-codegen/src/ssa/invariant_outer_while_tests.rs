@@ -11,13 +11,15 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
         Some("continue"),
         Some("break"),
         Some("conditional-break"),
+        Some("conditional-continue"),
         Some("return"),
     ] {
-        let inner_names: &[&str] = if jump == Some("conditional-break") {
-            &["flag2", "flag"]
-        } else {
-            &["flag2"]
-        };
+        let inner_names: &[&str] =
+            if matches!(jump, Some("conditional-break" | "conditional-continue")) {
+                &["flag2", "flag"]
+            } else {
+                &["flag2"]
+            };
         for &inner_name in inner_names {
             for count in [1, 2, 3, 8, 17] {
                 for own in [false, true] {
@@ -34,6 +36,8 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
                             .join("; ");
                         let body = if jump == Some("conditional-break") {
                             format!("{body}; if ({inner_name}) {{ break }}")
+                        } else if jump == Some("conditional-continue") {
+                            format!("{body}; if ({inner_name}) {{ continue }}")
                         } else if let Some(jump) = jump {
                             format!("{body}; {jump}")
                         } else {
@@ -180,6 +184,8 @@ fn ordinary_invariant_outer_while_preserves_one_lease() {
                                         (
                                             text.find(if jump == "conditional-break" {
                                                 "break"
+                                            } else if jump == "conditional-continue" {
+                                                "continue"
                                             } else {
                                                 jump
                                             })
@@ -270,7 +276,8 @@ fn assert_transport(
         lineage.insert(EntityId::Value(owner), 4);
     }
     let conditional_break = jump.is_some_and(|(_, kind)| kind == "conditional-break");
-    if conditional_break {
+    let conditional_continue = jump.is_some_and(|(_, kind)| kind == "conditional-continue");
+    if conditional_break || conditional_continue {
         assert_eq!(run.blocks[0].parameters.len(), 3);
         lineage.insert(run.blocks[0].parameters[inner_parameter], 8);
     }
@@ -349,9 +356,14 @@ fn assert_transport(
             "actual original acquisition is retained in the folded header"
         );
     } else {
-        assert_eq!(incoming.len(), 2, "entry and real backedge");
+        assert_eq!(
+            incoming.len(),
+            if conditional_continue { 3 } else { 2 },
+            "entry and all real backedges"
+        );
     }
     let mut break_target = None;
+    let mut continue_block = None;
     if let Some((start, kind)) = jump {
         let jumps = run
             .blocks
@@ -363,6 +375,8 @@ fn assert_transport(
                             == start
                                 + if kind == "conditional-break" {
                                     "break".len()
+                                } else if kind == "conditional-continue" {
+                                    "continue".len()
                                 } else {
                                     kind.len()
                                 }
@@ -380,6 +394,7 @@ fn assert_transport(
             break_target = Some((jump.id, edge.target));
         } else {
             assert_eq!(edge.target, header.id);
+            continue_block = Some(jump.id);
             assert!(incoming.iter().any(|(block, _)| block.id == jump.id));
         }
         assert_ne!(jump.id, acquisition.block);
@@ -402,7 +417,7 @@ fn assert_transport(
         }
     }
 
-    if conditional_break {
+    if conditional_break || conditional_continue {
         let splits = run
             .blocks
             .iter()
@@ -438,8 +453,13 @@ fn assert_transport(
             panic!("second Boolean loan is read");
         };
         assert_eq!(lineage.get(&EntityId::Loan(flag)), Some(&8));
-        let (break_block, _) = break_target.unwrap();
-        assert_eq!(when_true.target, break_block);
+        if conditional_break {
+            let (break_block, _) = break_target.unwrap();
+            assert_eq!(when_true.target, break_block);
+        } else {
+            assert_eq!(when_true.target, continue_block.unwrap());
+            assert_ne!(when_true.target, when_false.target);
+        }
         let false_block = run
             .blocks
             .iter()
@@ -450,6 +470,18 @@ fn assert_transport(
             panic!("conditional false is the real normal backedge");
         };
         assert_eq!(backedge.target, header.id);
+        if conditional_continue {
+            let continued = run
+                .blocks
+                .iter()
+                .find(|block| block.id == continue_block.unwrap())
+                .unwrap();
+            assert_ne!(
+                continued.terminator.as_ref().unwrap().origin.span(),
+                false_block.terminator.as_ref().unwrap().origin.span(),
+                "explicit Continue and normal backedge retain different actual origins"
+            );
+        }
         assert!(incoming.iter().any(|(block, _)| block.id == false_block.id));
         for edge in [when_true, when_false] {
             assert_eq!(

@@ -150,3 +150,7 @@ symbol，独立资格只授予该binding的尾If，不泛放其他控制流。
 尾裸Unit return另用真实双End合同：精确Return的CT End和外围Block End，return
 实际清理完整区间与终结点由局部checkpoint核验；false仍依原sync_dead独立入口
 恢复活lease。两路径分别正确End/Drop，不把Diverged当作跳过检查的许可。
+
+尾条件continue复用精确ConditionalJump的显式kind，true实际Continue与false
+正常回边都到原header。最终SSA实测保留entry加两回边三前驱，逐source/result
+与条件参数身份核验；没有伪造折叠前边或新增独立循环receipt。

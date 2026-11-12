@@ -115,16 +115,11 @@ impl Builder<'_, '_> {
             frame.statement.statement(),
         )
         .or_else(|| {
-            crate::ssa::borrow_result_support::invariant_while::conditional_break(
+            crate::ssa::borrow_result_support::invariant_while::conditional_jump(
                 self.inputs.parsed,
                 frame.statement.statement(),
             )
-            .map(|tail| {
-                (
-                    tail.jump,
-                    crate::ssa::borrow_result_support::invariant_while::JumpKind::Break,
-                )
-            })
+            .map(|tail| (tail.jump, tail.kind))
         });
         if frame.seq_for.is_some()
             || frame.map_for.is_some()
@@ -172,7 +167,7 @@ impl Builder<'_, '_> {
         let Some(frame) = self.loops.last() else {
             return Ok(None);
         };
-        let Some(tail) = crate::ssa::borrow_result_support::invariant_while::conditional_break(
+        let Some(tail) = crate::ssa::borrow_result_support::invariant_while::conditional_jump(
             self.inputs.parsed,
             frame.statement.statement(),
         ) else {

@@ -15391,3 +15391,26 @@ false各自实际Return(None)，逐路径各一次resultEnd→sourceEnd→ownDro
 回归、Clippy全targets -D warnings、workspace全targets、默认FE/CG lib仅编译
 全部通过。fmt/diff、文档912项及size基准2beb5592通过（2555文件、36历史超1000
 债务），policy未改、CI-only未执行。invariant-return-*日志归档，本片本地提交。
+
+## 不变量while尾部条件continue（实施中）
+
+基于4b08ac80，尾部精确If(BooleanName){Continue}无else/then唯一jump；复用
+条件jump描述但显式kind，Continue必须匹配原header而非Break exit。true经原
+jump清理和Goto，false经原BranchExit及正常回边，两路分别核同lease。权限仍只
+属于完整admitted的该binding尾If，不泛放控制或新借用。
+原emit简化仅合并Goto到单前驱后继；此形预期header有entry和两回边，但必须
+以实际最终CFG为准，不为测试禁止优化或伪造边，也不将普通SSA测试称为新receipt。
+
+真实红为尾条件Continue的If span Unsupported；生产只将精确ConditionalJump
+携带既有kind，原Break资格与其exit目标不变。最终SSA实际保留两个Conditional和
+header三个incoming：entry、true显式Continue、false正常回边。两回边块与原
+terminator源锚不同，均指原header，逐source/result/owner及原Boolean参数身份
+保持；无需禁止优化或伪造pre-fold证据。此为支持合同实证，尚非独立循环receipt。
+
+最终960强正组合含旧720与条件continue240，24类96合法CG负组合及2个typed
+L0087负例全部通过，88项普通回归全绿。独立非作者review通过，L0164/FE/verifier/
+policy不变，无循环内新borrow或多根循环支持，旧见证仍保留。
+
+最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib仅编译、
+fmt/diff、文档912项及size基准2beb5592通过（2555文件、36历史超1000债务）。
+CI-only未执行，conditional-continue-*日志归档。本片仅本地提交、不推送。

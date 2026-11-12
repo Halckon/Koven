@@ -379,7 +379,7 @@ fn validate_binding(
     );
     if let Some(statement) = invariant
         && let Some(tail) =
-            crate::ssa::borrow_result_support::invariant_while::conditional_break(file, statement)
+            crate::ssa::borrow_result_support::invariant_while::conditional_jump(file, statement)
         && let Some(allowed) = &mut allowed_controls
     {
         allowed.insert(tail.control.index());
