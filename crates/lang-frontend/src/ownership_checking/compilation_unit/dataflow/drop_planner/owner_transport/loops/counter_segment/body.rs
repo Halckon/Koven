@@ -26,21 +26,32 @@ impl Body {
         checker: &Checker<'_>,
         bridge: &crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1,
     ) -> Option<Self> {
-        let roots = bridge.targets().to_vec();
-        let plan = BodyPlan::admit(
+        Self::begin_at(
             checker,
             bridge.next_control(),
-            &roots,
-            Some((bridge.next_condition(), bridge.next_body())),
-        )?;
+            bridge.next_condition(),
+            bridge.next_body(),
+            bridge.targets().to_vec(),
+            bridge.prior().callable(),
+        )
+    }
+    fn begin_at(
+        checker: &Checker<'_>,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+        roots: Vec<UnitSymbolId>,
+        callable: crate::ownership_checking::UnitOwnerCallable,
+    ) -> Option<Self> {
+        let plan = BodyPlan::admit(checker, control, &roots, Some((condition, body)))?;
         let reset = plan.reset().is_none();
         Some(Self {
-            control: bridge.next_control(),
+            control,
             roots,
             plan,
             catalog: UnitOwnerProducerCatalogV1 {
                 identity: std::sync::Arc::new(()),
-                callable: bridge.prior().callable(),
+                callable,
                 definitions: Vec::new(),
             },
             steps: Vec::new(),
@@ -330,11 +341,18 @@ impl ControlTransactions {
             return;
         }
         s.normal_started = true;
-        s.normal = s
-            .bridge
-            .as_ref()
-            .and_then(|b| b.evidence(control, condition, body))
-            .and_then(|e| Body::begin(checker, &e));
+        s.normal = if let Some(bridge) = &s.bridge {
+            bridge
+                .evidence(control, condition, body)
+                .and_then(|e| Body::begin(checker, &e))
+        } else {
+            s.continuation
+                .as_ref()
+                .and_then(|c| c.body_inputs())
+                .and_then(|(roots, callable)| {
+                    Body::begin_at(checker, control, condition, body, roots, callable)
+                })
+        };
     }
 }
 

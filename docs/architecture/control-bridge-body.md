@@ -140,7 +140,12 @@ CI-only错代际负控把退休Drop改为新根Entity，必须拒绝且不得记
 body catalog身份及根索引。随后仅通过实际Move→Bind搬运位置，逐步核完整资源边界；
 缺根、额外owner生产、实际drop或未完成绑定均使该候选失效，不复活旧Complete。
 
-这仍是私有第三段入口基础，不发布第三段body/退出权限，也不把第一段producer当作第三段
+这仍是私有第三段基础，不发布第三段body/退出权限，也不把第一段producer当作第三段
 运行时实例。普通三段native基线覆盖零轮和正常回边组合及逆序重绑定，仍走原通用lowering；
-后续须接第三段真实body事件、整链原子发布和后端逐control消费，才能声明新链产品支持。
+第三段现在复用独立BodyPlan及真实producer→Replace→返回binding→Drop事件机：condition
+完成与body进入必须按同一control顺序发生；入口只有完整continuation才能提供根位置，
+新的body catalog独立分配，不挪用前驱producer。normal、checked tail和false-exit分区继续
+各自以实际事件完成为前提，未支持body形状不产生完整结果。
+第三段scalar入口实际完成尚未接入；后续仍须补齐该合同、整链原子发布和后端逐control
+消费，才能声明新链产品支持。
 嵌套循环的外层恢复与路径合流仍不在本片范围内。

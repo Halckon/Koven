@@ -128,6 +128,30 @@ impl Continuation {
                         == 1
                 })
     }
+    pub(super) fn body_inputs(
+        &self,
+    ) -> Option<(
+        Vec<UnitSymbolId>,
+        crate::ownership_checking::UnitOwnerCallable,
+    )> {
+        if !self.complete() {
+            return None;
+        }
+        let targets = self
+            .normal
+            .header_roots()
+            .iter()
+            .enumerate()
+            .filter(|(_, root)| self.live.contains(root))
+            .map(|(index, _)| {
+                self.bindings
+                    .iter()
+                    .find(|(_, source)| *source == index)
+                    .map(|(target, _)| *target)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some((targets, self.normal.body_catalog().callable()))
+    }
     #[cfg(test)]
     pub(in super::super) fn pairs(&self) -> Vec<(UnitSymbolId, UnitSymbolId)> {
         self.bindings
@@ -157,6 +181,27 @@ impl ControlTransactions {
         Continuation::freeze(first, second.predecessor, state)
     }
     #[cfg(test)]
+    pub(in super::super) fn segment_continuation_body(
+        &self,
+        control: UnitStatementId,
+    ) -> Option<CompletedBody> {
+        if self.root_branches_invalid {
+            return None;
+        }
+        let segment = self.counter_segments.iter().find(|s| {
+            s.statements.last() == Some(&control)
+                && s.captured
+                && !s.invalid
+                && s.continuation.is_some()
+        })?;
+        let body = segment.normal.as_ref()?;
+        Some(CompletedBody {
+            normal: body.result()?,
+            tail: body.counter_tail(),
+            exit: body.exit_partition(),
+        })
+    }
+    #[cfg(test)]
     pub(in super::super) fn segment_continuation(
         &self,
         control: UnitStatementId,
@@ -174,3 +219,11 @@ impl ControlTransactions {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[derive(Debug)]
+pub(in super::super) struct CompletedBody {
+    pub(in super::super) normal: UnitOwnerMultiRootNormalTransportV1,
+    pub(in super::super) tail: Option<(UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4])>,
+    pub(in super::super) exit: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
+}

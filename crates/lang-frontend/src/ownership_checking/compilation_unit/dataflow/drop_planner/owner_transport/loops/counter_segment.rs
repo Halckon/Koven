@@ -129,6 +129,10 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
     segments
 }
 impl Segment {
+    fn has_bridge_input(&self) -> bool {
+        self.bridge.is_some() || self.continuation.as_ref().is_some_and(|c| c.complete())
+    }
+
     fn matches_state(&self, state: &ValueState) -> bool {
         if let Some(bridge) = &self.bridge {
             return bridge.matches_state(state);
@@ -397,7 +401,7 @@ impl ControlTransactions {
             .iter()
             .find(|s| {
                 s.statements.last() == Some(&control)
-                    && s.bridge.is_some()
+                    && s.has_bridge_input()
                     && s.captured
                     && !s.invalid
             })
@@ -411,7 +415,7 @@ impl ControlTransactions {
             }
         }
         for segment in &mut self.counter_segments {
-            if segment.statements.last() != Some(&control) || segment.bridge.is_none() {
+            if segment.statements.last() != Some(&control) || !segment.has_bridge_input() {
                 continue;
             }
             if segment.invalid {
@@ -437,14 +441,20 @@ impl ControlTransactions {
     ) {
         #[cfg(test)]
         if self.counter_segments.iter().any(|s| {
-            s.statements.last() == Some(&control) && s.bridge.is_some() && s.captured && !s.invalid
+            s.statements.last() == Some(&control)
+                && s.has_bridge_input()
+                && s.captured
+                && !s.invalid
         }) && bridge_entry_tests::fault(2)
         {
             return;
         }
         #[cfg(test)]
         let altered = (self.counter_segments.iter().any(|s| {
-            s.statements.last() == Some(&control) && s.bridge.is_some() && s.captured && !s.invalid
+            s.statements.last() == Some(&control)
+                && s.has_bridge_input()
+                && s.captured
+                && !s.invalid
         }) && bridge_entry_tests::fault(4))
         .then(|| {
             let mut altered = state.clone();
@@ -454,7 +464,7 @@ impl ControlTransactions {
         #[cfg(test)]
         let state = altered.as_ref().unwrap_or(state);
         for segment in &mut self.counter_segments {
-            if segment.statements.last() != Some(&control) || segment.bridge.is_none() {
+            if segment.statements.last() != Some(&control) || !segment.has_bridge_input() {
                 continue;
             }
             if segment.invalid {
