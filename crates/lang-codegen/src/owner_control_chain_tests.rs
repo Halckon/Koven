@@ -361,6 +361,9 @@ fn ci_only_chain_ssa_last_member_failure_revokes_group_receipt() {
     for fault in [
         OwnerFault::ChainSsaMissingLastTerminator,
         OwnerFault::ChainSsaLastDropNewGeneration,
+        OwnerFault::ChainSsaCrossMemberRootArgument,
+        OwnerFault::ChainSsaFoldWrongBody,
+        OwnerFault::ChainSsaFoldWrongChecked,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             with_owner_fault(fault, || source.lower_entry(source.entry()))

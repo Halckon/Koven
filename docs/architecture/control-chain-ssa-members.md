@@ -33,7 +33,9 @@ root slots. Missing or duplicate checked evidence rejects the group before seali
 Normal tests cover two-root and sparse three-to-two-root chains, final dead-root cleanup
 and live-root suffix cleanup, and native zero/two-round executions. CI-only faults remove
 last-member terminator observation or redirect its retired-value Drop to the new generation;
-these fault tests are compiled locally but executed only in CI.
+additional group faults substitute another member's root edge argument or corrupt body/checked
+mapping after a real fold. Each must hit once and withhold group completion. These fault tests
+are compiled locally but executed only in CI.
 
 The existing single-bridge receipt remains separate and uses the same emission checks.
 This member receipt is not arbitrary runtime-trace induction or complete inter-control

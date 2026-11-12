@@ -141,11 +141,30 @@ impl Plans {
                 }
             }
         }
+        #[cfg(test)]
+        let touched = self
+            .group
+            .iter()
+            .any(|m| m.blocks.contains(&successor) || m.checked.contains(&successor));
         for m in &mut self.group {
             for b in m.blocks.iter_mut().chain(m.checked.iter_mut()) {
                 if *b == successor {
                     *b = block;
                 }
+            }
+        }
+        #[cfg(test)]
+        if touched && self.group.len() == 2 {
+            use super::build::owner_consumer_test_support::{
+                OwnerFault, record_action, take_fault,
+            };
+            if take_fault(OwnerFault::ChainSsaFoldWrongBody) {
+                self.group[1].blocks[1] = self.group[0].blocks[1];
+                record_action("control-chain-ssa-fault-hit", 3);
+            }
+            if take_fault(OwnerFault::ChainSsaFoldWrongChecked) {
+                self.group[1].checked[0] = self.group[0].checked[0];
+                record_action("control-chain-ssa-fault-hit", 4);
             }
         }
         Ok(())
@@ -521,6 +540,23 @@ impl Emitted {
                     .operation = Operation::Drop { owner: new_owner };
                 record_action("control-chain-ssa-fault-hit", 1);
             }
+        }
+        #[cfg(test)]
+        if let (Some(first), Some(last)) = (plans.group.first(), plans.group.last())
+            && block == last.blocks[0]
+            && super::build::owner_consumer_test_support::take_fault(
+                super::build::owner_consumer_test_support::OwnerFault::ChainSsaCrossMemberRootArgument)
+        {
+            let foreign = *self.current.get(&first.blocks[0])
+                .and_then(|c| c.get(&first.roots[0])).ok_or_else(|| invalid(span))?;
+            let index = self.parameters[&last.blocks[1]].iter()
+                .position(|s| *s == last.roots[0]).ok_or_else(|| invalid(span))?;
+            let data = function.blocks.iter_mut().find(|b| b.id == self.blocks[&block]).ok_or_else(|| invalid(span))?;
+            let Some(t) = &mut data.terminator else { return Err(invalid(span)) };
+            let TerminatorKind::Conditional { when_true, .. } = &mut t.kind else { return Err(invalid(span)) };
+            if when_true.arguments.get(index) == Some(&foreign) { return Err(invalid(span)); }
+            *when_true.arguments.get_mut(index).ok_or_else(|| invalid(span))? = foreign;
+            super::build::owner_consumer_test_support::record_action("control-chain-ssa-fault-hit", 2);
         }
         let original = body.blocks.get(block.0).ok_or_else(|| invalid(span))?;
         if self.caller != Some(function.id())
