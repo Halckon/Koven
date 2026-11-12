@@ -138,6 +138,7 @@ impl ControlTransactions {
         condition: UnitExpressionId,
         state: &ValueState,
     ) {
+        self.record_bridge_condition(control, condition, state);
         let independent_preserved = self.segment_condition(control, condition, state);
         if let Some((_, evidence)) = self
             .root_entries
@@ -173,6 +174,7 @@ impl ControlTransactions {
         if root_tokens::skip_body_entry() {
             return;
         }
+        self.record_bridge_body_entry(control, condition, body, state);
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
             evidence.entered_body = (evidence.after_condition
                 && !evidence.tainted

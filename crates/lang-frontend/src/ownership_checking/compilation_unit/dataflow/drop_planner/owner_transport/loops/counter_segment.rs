@@ -8,6 +8,9 @@ pub(super) struct Segment {
     bridge: Option<bridge::Bridge>,
     statements: Vec<UnitStatementId>,
     condition: UnitExpressionId,
+    body: UnitStatementId,
+    bridge_condition: Option<UnitExpressionId>,
+    bridge_body: Option<(UnitExpressionId, UnitStatementId)>,
     admitted: bool,
     ends_function: bool,
     next: usize,
@@ -68,13 +71,19 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
         let Ok(node) = ast.statements().get(elements[second]) else {
             return Vec::new();
         };
-        let Statement::While { condition, .. } = node.payload() else {
+        let Statement::While {
+            condition, body, ..
+        } = node.payload()
+        else {
             return Vec::new();
         };
         segments.push(Segment {
             predecessor: pair[0].0,
             bridge: None,
             condition: checker.unit_expression(*condition),
+            body: UnitStatementId::new(checker.source_unit, *body),
+            bridge_condition: None,
+            bridge_body: None,
             admitted: false,
             ends_function: second + 1 == elements.len(),
             statements: elements[first + 1..=second]
@@ -340,6 +349,96 @@ impl ControlTransactions {
                 && state.values.iter().all(|value| value.owner.is_none())
         })
     }
+    // These are actual planner events, never candidate-discovery evidence.
+    pub(super) fn record_bridge_condition(
+        &mut self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        state: &ValueState,
+    ) {
+        #[cfg(test)]
+        if let Some(body) = self
+            .counter_segments
+            .iter()
+            .find(|s| {
+                s.statements.last() == Some(&control)
+                    && s.bridge.is_some()
+                    && s.captured
+                    && !s.invalid
+            })
+            .map(|s| s.body)
+        {
+            if bridge_entry_tests::fault(1) {
+                return;
+            }
+            if bridge_entry_tests::fault(3) {
+                self.record_bridge_body_entry(control, condition, body, state);
+            }
+        }
+        for segment in &mut self.counter_segments {
+            if segment.statements.last() != Some(&control) || segment.bridge.is_none() {
+                continue;
+            }
+            if segment.invalid {
+                continue;
+            }
+            let valid = !self.root_branches_invalid
+                && segment.captured
+                && segment.condition == condition
+                && segment.bridge_condition.is_none()
+                && segment.bridge_body.is_none()
+                && segment.matches_state(state);
+            segment.invalid = !valid;
+            segment.bridge_condition = valid.then_some(condition);
+            segment.bridge_body = None;
+        }
+    }
+    pub(super) fn record_bridge_body_entry(
+        &mut self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+        state: &ValueState,
+    ) {
+        #[cfg(test)]
+        if self.counter_segments.iter().any(|s| {
+            s.statements.last() == Some(&control) && s.bridge.is_some() && s.captured && !s.invalid
+        }) && bridge_entry_tests::fault(2)
+        {
+            return;
+        }
+        #[cfg(test)]
+        let altered = (self.counter_segments.iter().any(|s| {
+            s.statements.last() == Some(&control) && s.bridge.is_some() && s.captured && !s.invalid
+        }) && bridge_entry_tests::fault(4))
+        .then(|| {
+            let mut altered = state.clone();
+            altered.values.pop();
+            altered
+        });
+        #[cfg(test)]
+        let state = altered.as_ref().unwrap_or(state);
+        for segment in &mut self.counter_segments {
+            if segment.statements.last() != Some(&control) || segment.bridge.is_none() {
+                continue;
+            }
+            if segment.invalid {
+                continue;
+            }
+            let valid = !self.root_branches_invalid
+                && segment.captured
+                && segment.condition == condition
+                && segment.body == body
+                && segment.bridge_condition == Some(condition)
+                && segment.bridge_body.is_none()
+                && segment.matches_state(state);
+            segment.invalid = !valid;
+            segment.bridge_body = valid.then_some((condition, body));
+            if !valid {
+                segment.bridge_condition = None;
+            }
+        }
+    }
     pub(in super::super::super) fn take_control_bridge(
         &mut self,
     ) -> Option<crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1> {
@@ -353,7 +452,11 @@ impl ControlTransactions {
             return None;
         }
         let next = *segment.statements.last()?;
-        segment.bridge.take()?.evidence(next)
+        let (condition, body) = segment.bridge_body?;
+        if segment.bridge_condition != Some(condition) {
+            return None;
+        }
+        segment.bridge.take()?.evidence(next, condition, body)
     }
     #[cfg(test)]
     pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {
@@ -721,5 +824,49 @@ mod tests {
             );
             assert!(planner.owner_loop.segment_catalog(control).is_none());
         });
+    }
+}
+
+#[cfg(test)]
+mod bridge_entry_tests {
+    use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+    thread_local! { static OMIT: std::cell::Cell<u8> = const { std::cell::Cell::new(0) }; }
+    thread_local! { static HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+    pub(super) fn fault(phase: u8) -> bool {
+        OMIT.with(|value| value.get() == phase)
+            && HITS.with(|hits| {
+                if hits.get() != 0 {
+                    return false;
+                }
+                hits.set(1);
+                true
+            })
+    }
+    #[test]
+    fn ci_only_control_bridge_requires_actual_condition_and_body_entry() {
+        let source = r#"fun run(n: Int) {
+            var n0 = n; var g0 = n0 > 0; var a0 = "a"; var b0 = "b";
+            while(g0) { val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 };
+            var n1 = n; var g1 = n1 > 0; var a1 = a0; var b1 = b0;
+            while(g1) { val x = replace(&a1, "x1"); val y = replace(&b1, "y1"); n1 = n1 - 1; g1 = n1 > 0 }
+        }"#;
+        let fixture = Fixture::new(&[("bridge-entry-events.ko", source)]);
+        assert!(
+            fixture.shared().owner_observations()[0]
+                .control_bridge_evidence_v1()
+                .is_some()
+        );
+        for phase in [1, 2, 3, 4] {
+            HITS.with(|hits| hits.set(0));
+            OMIT.with(|value| value.set(phase));
+            let result = fixture.shared();
+            OMIT.with(|value| value.set(0));
+            assert_eq!(HITS.with(|hits| hits.get()), 1);
+            assert!(
+                result.owner_observations()[0]
+                    .control_bridge_evidence_v1()
+                    .is_none()
+            );
+        }
     }
 }

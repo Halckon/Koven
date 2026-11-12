@@ -94,6 +94,8 @@ impl Bridge {
     pub(super) fn evidence(
         &self,
         next: UnitStatementId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
     ) -> Option<crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1> {
         if !self.complete() {
             return None;
@@ -122,6 +124,8 @@ impl Bridge {
         crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1::seal(
             self.prior.clone(),
             next,
+            condition,
+            body,
             sources,
             targets,
         )

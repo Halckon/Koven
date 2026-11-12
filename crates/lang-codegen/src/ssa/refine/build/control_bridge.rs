@@ -5,7 +5,7 @@ use lang_frontend::ownership_checking::{UnitOwnerCallable, UnitOwnerControlBridg
 pub(super) struct Plan<'a> {
     evidence: &'a UnitOwnerControlBridgeEvidenceV1,
     prior: Option<([BlockRef; 4], Vec<Slot>, Slot)>,
-    next: Option<(BlockRef, BlockRef, Vec<Slot>)>,
+    next: Option<(BlockRef, [BlockRef; 4], Vec<Slot>)>,
 }
 impl<'a> Plan<'a> {
     pub(super) fn new(inputs: &RefineInputs<'a>) -> Result<Option<Self>, LoweringError> {
@@ -66,7 +66,11 @@ impl Builder<'_, '_> {
                 .ok_or_else(fail)?;
             plan.prior = Some((blocks, roots, guard));
         } else if control == plan.evidence.next_control() {
-            if plan.prior.is_none() || plan.next.is_some() {
+            if plan.prior.is_none()
+                || plan.next.is_some()
+                || condition != plan.evidence.next_condition()
+                || body != plan.evidence.next_body()
+            {
                 return Err(fail());
             }
             let roots = plan
@@ -75,7 +79,7 @@ impl Builder<'_, '_> {
                 .iter()
                 .map(|s| self.bindings.get(s).copied().ok_or_else(fail))
                 .collect::<Result<Vec<_>, _>>()?;
-            plan.next = Some((self.block.ok_or_else(fail)?, blocks[0], roots));
+            plan.next = Some((self.block.ok_or_else(fail)?, blocks, roots));
         }
         Ok(())
     }
@@ -100,6 +104,21 @@ impl Builder<'_, '_> {
                 late.results.clear();
                 statements.push(late);
             }
+            if take_fault(OwnerFault::ControlBridgeHeaderRootDrop)
+                && let Some((entry, [header, ..], roots)) = &plan.next
+            {
+                let mut injected = self.body.blocks[entry.0].statements[0].clone();
+                injected.op = ROp::Drop { owner: roots[0] };
+                injected.results.clear();
+                self.body.blocks[header.0].statements.push(injected);
+            }
+            if take_fault(OwnerFault::ControlBridgeWrongBodyEdge)
+                && let Some((_, [header, _, finished, _], _)) = &plan.next
+                && let Some((RTerm::Branch { when_true, .. }, _)) =
+                    &mut self.body.blocks[header.0].terminator
+            {
+                *when_true = *finished;
+            }
         }
         let Some(plan) = &self.control_bridge_plan else {
             return Ok(());
@@ -107,7 +126,8 @@ impl Builder<'_, '_> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let ([header, body, finished, exit], roots, guard) =
             plan.prior.as_ref().ok_or_else(fail)?;
-        let (entry, next_header, targets) = plan.next.as_ref().ok_or_else(fail)?;
+        let (entry, [next_header, next_body, next_finished, _], targets) =
+            plan.next.as_ref().ok_or_else(fail)?;
         let predecessors = |target| {
             self.body
                 .blocks
@@ -127,6 +147,13 @@ impl Builder<'_, '_> {
             || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch {condition,when_true,when_false},_)) if condition == *guard && when_true == *body && when_false == *finished)
             || !matches!(self.body.blocks[finished.0].terminator, Some((RTerm::Goto(t),_)) if t == *exit)
             || !matches!(self.body.blocks[entry.0].terminator, Some((RTerm::Goto(t),_)) if t == *next_header)
+            || !matches!(self.body.blocks[next_header.0].terminator, Some((RTerm::Branch {condition,when_true,when_false},_)) if when_true == *next_body && when_false == *next_finished && !targets.contains(&condition))
+            || self.body.blocks[next_header.0].statements.iter().any(|s| {
+                targets
+                    .iter()
+                    .any(|root| s.results.contains(root) || s.op.operands().contains(root))
+            })
+            || predecessors(*next_body) != [*next_header]
             || predecessors(*finished) != [*header]
             || predecessors(*exit) != [*finished]
             || self.body.blocks[finished.0].statements.iter().any(|s| {

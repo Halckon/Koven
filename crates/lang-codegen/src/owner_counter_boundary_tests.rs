@@ -726,6 +726,8 @@ fn ci_only_control_bridge_rejects_wrong_target_and_missing_next() {
         OwnerFault::ControlBridgeWrongRoot,
         OwnerFault::ControlBridgeMissingNext,
         OwnerFault::ControlBridgeLateSourceDrop,
+        OwnerFault::ControlBridgeHeaderRootDrop,
+        OwnerFault::ControlBridgeWrongBodyEdge,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             with_owner_fault(fault, || source.lower_entry(source.entry()))

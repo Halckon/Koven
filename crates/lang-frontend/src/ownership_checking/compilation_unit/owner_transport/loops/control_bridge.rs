@@ -7,6 +7,8 @@ use crate::name_resolution::UnitSymbolId;
 pub struct UnitOwnerControlBridgeEvidenceV1 {
     prior: UnitOwnerCounterTailEvidenceV1,
     next_control: UnitStatementId,
+    next_condition: UnitExpressionId,
+    next_body: UnitStatementId,
     sources: Vec<UnitSymbolId>,
     targets: Vec<UnitSymbolId>,
 }
@@ -14,12 +16,16 @@ impl UnitOwnerControlBridgeEvidenceV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
         prior: UnitOwnerCounterTailEvidenceV1,
         next_control: UnitStatementId,
+        next_condition: UnitExpressionId,
+        next_body: UnitStatementId,
         sources: Vec<UnitSymbolId>,
         targets: Vec<UnitSymbolId>,
     ) -> Option<Self> {
         let value = Self {
             prior,
             next_control,
+            next_condition,
+            next_body,
             sources,
             targets,
         };
@@ -32,6 +38,14 @@ impl UnitOwnerControlBridgeEvidenceV1 {
     /// The next actual control whose entry locations were observed.
     pub fn next_control(&self) -> UnitStatementId {
         self.next_control
+    }
+    /// Actual successfully completed condition expression of the next loop.
+    pub fn next_condition(&self) -> UnitExpressionId {
+        self.next_condition
+    }
+    /// Actual planner body-entry target, not proof that the body completed.
+    pub fn next_body(&self) -> UnitStatementId {
+        self.next_body
     }
     /// Live predecessor roots in original root_slots order; retired roots are excluded.
     pub fn sources(&self) -> &[UnitSymbolId] {
@@ -46,6 +60,9 @@ impl UnitOwnerControlBridgeEvidenceV1 {
         self.prior.is_consistent()
             && self.next_control != self.prior.statement()
             && self.next_control.source_unit() == self.prior.statement().source_unit()
+            && self.next_condition.source_unit() == self.next_control.source_unit()
+            && self.next_body.source_unit() == self.next_control.source_unit()
+            && self.next_body != self.next_control
             && self.targets.len() == self.sources.len()
             && self.targets.len() >= 2
             && self.targets.iter().enumerate().all(|(i, target)| {
@@ -130,6 +147,25 @@ mod tests {
                     assert_eq!(bridge.targets().len(), 2);
                     assert_eq!(bridge.sources().len(), 2);
                     assert_ne!(bridge.next_control(), bridge.prior().statement());
+                    let condition = fixture.parsed[0]
+                        .ast()
+                        .expressions()
+                        .get(bridge.next_condition().expression())
+                        .unwrap();
+                    assert_eq!(fixture.sources.slice(condition.span()).unwrap(), "g1");
+                    let body = fixture.parsed[0]
+                        .ast()
+                        .statements()
+                        .get(bridge.next_body().statement())
+                        .unwrap();
+                    assert!(
+                        fixture
+                            .sources
+                            .slice(body.span())
+                            .unwrap()
+                            .contains("replace(&a1,")
+                    );
+
                     assert_ne!(bridge.targets()[0], bridge.targets()[1]);
                     let target_names = bridge
                         .targets()

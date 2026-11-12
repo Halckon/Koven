@@ -20,6 +20,8 @@ pub(crate) enum OwnerFault {
     CounterLateAbortToHeader,
     CounterBatchSecondLateAbort,
     ControlBridgeWrongRoot,
+    ControlBridgeHeaderRootDrop,
+    ControlBridgeWrongBodyEdge,
     ControlBridgeMissingNext,
     ControlBridgeLateSourceDrop,
     CounterPermitWrongIndex,

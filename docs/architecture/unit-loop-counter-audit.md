@@ -174,11 +174,9 @@ move/Alias与后控制入口，并由同一实际SSA出口/入口值核验，再
 启动；段间真实Name move与binding以单次pending表达式转移根索引，逐声明核对实际
 资源集合。所有存活根重绑定到不同symbol并抵达下一while入口后才记录完整关联。新String、
 任何根drop、额外资源或缺失事件使这条桥接失败。Copyable声明仍服从原精确候选范围。
-该关联经完整双候选核验后可作为独立只读`control_bridge_evidence_v1`交付，按原根顺序
-排列目标，绑定原analysis identity及callable，与所有旧owner产品互斥。平衡、deferred、
-全局失效仍撤销产品。`take_segment_entry`继续拒绝将它当producer catalog，不产生
+该关联作为独立只读`control_bridge_evidence_v1`交付，按原根顺序排列目标，绑定原analysis
+identity及callable，与旧owner产品互斥；平衡、deferred、全局失效仍撤销产品。`take_segment_entry`继续拒绝将它当producer catalog，不产生
 下一段owner token、正常方程、counter批次或codegen permit。
-
 
 后端独立bridge审计捕获前后control的真实root槽与CFG：前header的false边经唯一finished
 到下一入口块，下一入口必须跳往后header；逐根逆向追溯该块实际Alias链，拒绝额外
@@ -189,10 +187,14 @@ arithmetic/正常代际证明或最终SSA verifier。最终typed-SSA回归另沿
 同时要求前header的零轮入口与正常回边两个前驱存在。native继续执行零轮与多轮输出
 矩阵；静态CFG关系与有限运行正确仍不等同动态owner实例的归纳证明。
 
-
 跨段桥接现在可保留部分live分区：例如前段3根中的中间根在false出口退休，来源向量
 只包含按原根顺序保留的a/c两根，targets逐项对应；退休根仍由原真实drop事实及通用
 lowering处理，不为它创建新token或桥接入口。后端核验仅这些存活槽，允许finished块
 清理其他根，但不允许触碰任一存活根。真实稀疏3→2回归继续沿最终SSA边操作数检查
 源/目标对应，并执行两段各0/2轮native；段间丢弃存活根或不足两根不发布该产品。
-这仍是同一两control静态桥接合同，不是下一body完整权限或嵌套循环支持。
+
+桥接现按control/condition/body记录真实条件完成及body-entry事件和资源一致性；
+缺条件完成、进入顺序错误或资源改变不交付产品，不以语法发现代替事件。后端同时核对同一condition/body身份，要求next header的
+true/false边抵达所捕获body/finished，body入口只来自该header，header操作不得读写桥接
+活根。仅CI负控覆盖header额外Drop与true边错投。这是到body入口的静态资格和真实CFG
+对应，不是body中Replace/返回绑定/Drop的独立许可，更不是完整跨轮代际或嵌套证明。
