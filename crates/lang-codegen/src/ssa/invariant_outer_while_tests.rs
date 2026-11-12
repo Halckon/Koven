@@ -225,7 +225,7 @@ fn edges(block: &Block) -> Vec<&Edge> {
     }
 }
 
-fn assert_transport(
+pub(super) fn assert_transport(
     run: &Function,
     own: bool,
     literal: &str,

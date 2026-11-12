@@ -160,3 +160,10 @@ while发布Partial关系：实际入口/被遍历body回交/正常退出/原Bind
 真实pending移除回交。Borrow/own参数旧记录没有Handoff，不伪造身份；常量、jump
 等新资格为空且旧行为保留。它不是循环每轮完整证明，也不是CG receipt；local
 三语句形状的后端资格仍需另接，不能以该关系自动放行。
+
+对应局部三语句的CG执行准入不依赖observer；独立loop receipt另限单Borrow Boolean
+参数及普通直接callee。实际producer记录literal→binding唯一Alias、source/result槽、
+条件和consumer、正常回边/false出口、最终End/Drop；实际fold仅合并false→exit。
+emitter固定真实定义与各block参数，逐边按slot身份核SSA运输，原verifier成功后才发布。
+owner模式条件或额外参数仍走原执行但无新receipt；此处仍引用FE Partial，不证明
+循环内新借用、任意迭代完整性、跳转、多根循环或终止性，也不退休旧见证。

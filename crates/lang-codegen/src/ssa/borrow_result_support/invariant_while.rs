@@ -5,10 +5,13 @@ use lang_frontend::{
     ownership_checking::{
         BorrowBindingFact, CompilationUnitOwnership, UnitDropPoint, UnitLoanTarget,
     },
-    parser::{Expression, ParsedFile, Statement},
+    parser::{
+        Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile, Statement,
+        StringPart, VariableKind,
+    },
     type_checking::{
-        BorrowReturnOrigin, BuiltinType, CompilationUnitTypes, ParameterMode, UnitCallTarget,
-        UnitExpressionId, UnitTypeKind,
+        BorrowReturnOrigin, BuiltinType, CompilationUnitTypes, ExpressionCategory, ParameterMode,
+        UnitCallTarget, UnitExpressionId, UnitTypeKind,
     },
 };
 
@@ -109,8 +112,14 @@ pub(in crate::ssa) fn admitted(
     else {
         return None;
     };
-    let [binding, while_id] = elements.as_slice() else {
-        return None;
+    let (binding, while_id, local) = match elements.as_slice() {
+        [binding, while_id] => (binding, while_id, false),
+        [owner, binding, while_id]
+            if local_literal_owner(file, names, typed, *owner, scope.statement(), root.root()) =>
+        {
+            (binding, while_id, true)
+        }
+        _ => return None,
     };
     if super::local_if::binding_marker(file, *binding) != Some(fact.marker_span()) {
         return None;
@@ -121,6 +130,23 @@ pub(in crate::ssa) fn admitted(
     else {
         return None;
     };
+    // The newly admitted local-owner shape has only a dynamic, straight normal body.
+    // Existing parameter-source jump/constant support is unchanged.
+    if local
+        && (!matches!(
+            file.ast().expressions().get(*condition).ok()?.payload(),
+            Expression::Name
+        ) || typed.constants().is_some_and(|constants| {
+            constants.uses().iter().any(|usage| {
+                usage.expression()
+                    == UnitExpressionId::new(fact.binding().source_unit(), *condition)
+            })
+        }) || tail_jump(file, *while_id).is_some()
+            || conditional_jump(file, *while_id).is_some()
+            || tail_return(file, *while_id).is_some())
+    {
+        return None;
+    }
     let returned = tail_return(file, *while_id);
     if let Some(returned) = returned {
         if ends.len() != 2
@@ -229,6 +255,79 @@ pub(in crate::ssa) fn admitted(
         }
     }
     Some(*while_id)
+}
+
+/// Execution admission uses original typed/name facts, never optional observations.
+fn local_literal_owner(
+    file: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    statement: StatementId,
+    scope: StatementId,
+    root: UnitSymbolId,
+) -> bool {
+    let check = || -> Option<()> {
+        let Statement::LocalVariable { declaration } =
+            file.ast().statements().get(statement).ok()?.payload()
+        else {
+            return None;
+        };
+        let Item::Variable {
+            kind: VariableKind::Val,
+            name: NameMarker::Present(marker),
+            initializer,
+            ..
+        } = file.ast().items().get(*declaration).ok()?.payload()
+        else {
+            return None;
+        };
+        let symbol = names
+            .names()
+            .source_units()
+            .iter()
+            .find(|source| source.source_unit() == root.source_unit())?
+            .resolution()
+            .symbols()
+            .get(root.symbol().index())?;
+        let Expression::String { parts } =
+            file.ast().expressions().get(*initializer).ok()?.payload()
+        else {
+            return None;
+        };
+        let expression = UnitExpressionId::new(root.source_unit(), *initializer);
+        if symbol.span() != *marker
+            || !parts.iter().all(|part| matches!(part, StringPart::Text(_)))
+            || typed.expression_category(expression) != Some(ExpressionCategory::Temporary)
+            || typed.expression_type(expression) != typed.symbol_type(root)
+            || !matches!(
+                typed.symbol_type(root).and_then(|ty| typed.types().get(ty)),
+                Some(UnitTypeKind::Builtin(BuiltinType::String))
+            )
+        {
+            return None;
+        }
+        file.roots().iter().find_map(|item| {
+            let Item::Function {
+                type_parameters,
+                extension_receiver: None,
+                form,
+                ..
+            } = file.ast().items().get(*item).ok()?.payload()
+            else {
+                return None;
+            };
+            let block = match form {
+                FunctionForm::ImplicitUnitBlock(block)
+                | FunctionForm::Explicit {
+                    body: FunctionBody::Block(block),
+                    ..
+                } => *block,
+                _ => return None,
+            };
+            (type_parameters.is_empty() && block == scope).then_some(())
+        })
+    };
+    check().is_some()
 }
 
 fn name(

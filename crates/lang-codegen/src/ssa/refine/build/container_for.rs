@@ -80,6 +80,11 @@ impl Builder<'_, '_> {
         let body_block = self.body.block();
         let finished = self.body.block();
         let exit = self.body.block();
+        self.loop_receipt_entry(
+            invariant.as_ref(),
+            [self.current(span)?, header, body_block, finished, exit],
+            span,
+        )?;
         self.header_while(
             statement,
             self.unit(condition),
@@ -106,6 +111,7 @@ impl Builder<'_, '_> {
         self.block = Some(header);
         self.condition(condition, body_block, finished)?;
         self.invariant_while_boundary(invariant.as_ref(), span)?;
+        self.loop_receipt_boundary(invariant.as_ref(), 2, span)?;
         if self.body.blocks[body_block.0].has_predecessor {
             let mark = self.enter(body_block);
             self.loops.push(LoopFrame {
@@ -123,6 +129,7 @@ impl Builder<'_, '_> {
             self.leave(mark, span)?;
             self.invariant_while_body_end(invariant.as_ref(), body_block, reached, span)?;
             if reached {
+                self.loop_receipt_boundary(invariant.as_ref(), 3, span)?;
                 let cb = self.cb_backedge(statement, header, span)?;
                 let cr = self.cr_backedge(statement, header, span)?;
                 self.goto(header, span)?;
@@ -141,6 +148,7 @@ impl Builder<'_, '_> {
             self.leave_unclaimed(mark, span)?;
             self.emit_drops(&facts)?;
             self.invariant_while_boundary(invariant.as_ref(), span)?;
+            self.loop_receipt_boundary(invariant.as_ref(), 4, span)?;
             self.owner_false_edge(statement, exit, span)?;
             self.goto(exit, span)?;
         }
@@ -152,6 +160,7 @@ impl Builder<'_, '_> {
         let mark = self.enter(exit);
         self.leave_unclaimed(mark, span)?;
         self.invariant_while_boundary(invariant.as_ref(), span)?;
+        self.loop_receipt_boundary(invariant.as_ref(), 5, span)?;
         Ok(Lowered::Unit)
     }
 

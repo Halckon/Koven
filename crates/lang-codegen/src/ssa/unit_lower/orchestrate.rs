@@ -49,6 +49,8 @@ fn lower_unit_impl(
     #[cfg(test)]
     let bounded_publication = crate::ssa::refine::bounded_receipt::UnitPublication::begin();
     #[cfg(test)]
+    let loop_publication = crate::ssa::refine::loop_receipt::UnitPublication::begin();
+    #[cfg(test)]
     let single_publication = crate::ssa::refine::single_receipt::UnitPublication::begin();
     #[cfg(test)]
     let multi_publication = crate::ssa::refine::multi_receipt::UnitPublication::begin();
@@ -893,6 +895,8 @@ fn lower_unit_impl(
     nested_publication.commit();
     #[cfg(test)]
     bounded_publication.commit();
+    #[cfg(test)]
+    loop_publication.commit();
     #[cfg(test)]
     single_publication.commit();
     #[cfg(test)]

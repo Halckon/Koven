@@ -902,3 +902,19 @@ mod invariant_outer_while_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "invariant_outer_while_neighbor_tests.rs"]
 mod invariant_outer_while_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "local_loop_lineage_receipt_tests.rs"]
+mod local_loop_lineage_receipt_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "local_loop_lineage_neighbor_tests.rs"]
+mod local_loop_lineage_neighbor_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "local_loop_owned_condition_tests.rs"]
+mod local_loop_owned_condition_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "local_loop_extra_parameter_tests.rs"]
+mod local_loop_extra_parameter_tests;

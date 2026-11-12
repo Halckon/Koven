@@ -668,6 +668,7 @@ impl Builder<'_, '_> {
                     if !dead {
                         self.body.blocks[exit_block.0].statements.push(
                             crate::ssa::refine::body::RStmt {
+                                loop_tag: None,
                                 loan_tag: None,
                                 op: ROp::Drop { owner: slot },
                                 results: Vec::new(),

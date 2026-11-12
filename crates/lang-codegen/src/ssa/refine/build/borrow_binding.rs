@@ -155,7 +155,9 @@ impl Builder<'_, '_> {
             (tag, None) => tag,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
+        let loop_tag = self.body.loop_plans.statement(&op, &results, block, span)?;
         self.body.blocks[block.0].statements.push(RStmt {
+            loop_tag,
             op,
             results,
             span,
@@ -199,6 +201,7 @@ impl Builder<'_, '_> {
         self.body.branch_plans.finish(self.inputs.span)?;
         self.body.nested_plans.finish(self.inputs.span)?;
         self.body.bounded_plans.finish(self.inputs.span)?;
+        self.body.loop_plans.finish(self.inputs.span)?;
         self.body.single_plans.finish(self.inputs.span)?;
         self.body.multi_plans.finish(self.inputs.span)?;
         self.body

@@ -15451,3 +15451,32 @@ CI-only组16故障仅编译。Clippy question_mark/clone_on_copy以等价写法�
 FE/CG全目标Clippy、workspace all-targets及默认lib no-run均通过。
 fmt/diff/docs与相对2beb5592尺寸门禁通过（2561个手写Rust文件、36个既有超千行项），
 尺寸policy未改；独立审查确认实际回交侧记录完整、顺序严格，不提前给CG验收资格。
+
+## 局部循环独立CG运输证据（实施中）
+
+1aed13e4的FE Partial来自local literal owner、borrow binding、dynamic while三语句，
+旧CG只准入外部参数binding+while两语句。真实普通红先证FE lineage及各consumer
+CallReturn存在，再证rooted/memory和观察on/off四种lowering均UnsupportedNode，
+原final verifier未运行；不是用编译错误或注入故障代替红。
+
+执行准入独立于观察开关：仅顶层非泛型function三语句、val纯文本String、真实root
+symbol及类型、动态非常量Boolean Name、非空直接consumer序列；新片不扩常量、
+jump、nested、多根或循环内新借用。旧两语句能力保留。独立receipt额外绑定FE
+Partial和实际producer身份，不能提升Complete或拿它代替L0164/旧见证。
+
+CG receipt实证补正：首次严格producer正控在local声明处InvalidModel，定位为原
+literal临时槽→binding槽真实Alias。未删除原Alias或泛放别名；分别保留两槽、exact
+声明span、唯一entry别名事件，并由emitter actual Alias回调证明同一冻结Value。
+仅此别名成立后，RootPlace/sourceBegin/BorrowCall和后续活owner运输可接续。
+
+首片receipt再限定单Borrow Boolean参数与普通callee：own Boolean条件、额外own
+String参数各有真实on/off执行对等正控，保留额外Drop但不发新receipt。print/text
+primitive不以DirectCall角色伪装。真实CG四项普通测试全绿：consumer1/2/3/8/17
+双入口开关共20正组合、12类邻界共48组合，以及ownflag/额外owner各4组合；
+正控核8+n实际指令角色、4条实际CFG边、各参数实体、原verifier一次及LLVM对等。
+
+本片最终门禁：CG普通92测试通过；frontend/codegen全目标Clippy、workspace
+all-targets、两crate默认lib no-run通过。fmt/diff/docs912通过，尺寸门禁相对
+2beb5592通过（2570个手写Rust文件、36个既有超千行项），policy未改。独立审阅
+覆盖真实Alias、冻结实体图、条件参数、fold与verifier后发布。新增4组ignored
+CI故障只编译未执行，CI需显式include-ignored才运行，不将编译成功记作故障验证通过。

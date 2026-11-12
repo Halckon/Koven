@@ -329,3 +329,68 @@ impl Builder<'_, '_> {
         Ok(())
     }
 }
+
+impl Builder<'_, '_> {
+    pub(super) fn loop_receipt_entry(
+        &mut self,
+        lease: Option<&InvariantLease>,
+        blocks: [BlockRef; 5],
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.body.loop_plans.plan.is_none() {
+            return Ok(());
+        }
+        let lease = lease.ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        let [entry, header, body, finished, exit] = blocks;
+        let condition = self
+            .body
+            .loop_plans
+            .plan
+            .as_ref()
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+            .condition;
+        let (_, condition_span) = self.node(condition.expression())?;
+        let symbol = self.reference(condition_span)?;
+        let flag = *self
+            .borrowed
+            .get(&symbol)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        self.body.loop_plans.begin(
+            lease.statement,
+            super::super::loop_receipt::LoopBlocks {
+                entry,
+                header,
+                body,
+                finished,
+                exit,
+            },
+            super::super::loop_receipt::EntryLease {
+                owner: lease.owner,
+                sources: &lease.sources,
+                result: Some(lease.result),
+                flag,
+            },
+            span,
+        )
+    }
+    pub(super) fn loop_receipt_boundary(
+        &mut self,
+        lease: Option<&InvariantLease>,
+        phase: usize,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if let Some(plan) = &self.body.loop_plans.plan {
+            let lease = lease.ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+            self.invariant_while_boundary(Some(lease), span)?;
+            if plan.binding != lease.binding
+                || plan.root != lease.root
+                || plan.owner != lease.owner
+                || plan.result != Some(lease.result)
+                || lease.sources.as_slice() != plan.source.as_slice()
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+        }
+        self.body.loop_plans.boundary(phase, span)
+    }
+}
