@@ -80,6 +80,7 @@ subgraph Gactive["现行 active"]
   S0432["S0432<br/>source_owner、local_storage、string_clone、checkpoint、carrier、closure/runtime_tests、nullable_numeric_cleanup/tests 及 orchestrate/registration_tests 壳子模块退役"]
   S0433["S0433<br/>refine 五类借用凭证 ci_tests、verify/closure_escape/types/graph_tests 及 verify_operation/map 壳子模块退役"]
   S0434["S0434<br/>verify_operation/map/tests、verify_ownership 字段与生命周期测试及 unit_lower 闭包/类型原点测试壳子模块退役"]
+  S0435["S0435<br/>unit_lower/control/result_tests、item_operand_ssa_test_support 及 lower_frontend 守卫与实例测试壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -179,6 +180,7 @@ ARCH --> S0341
 | SPEC-0432 | active | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](active/0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
 | SPEC-0433 | active | [0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md](active/0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) |
 | SPEC-0434 | active | [0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md](active/0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) |
+| SPEC-0435 | active | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](active/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

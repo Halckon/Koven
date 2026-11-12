@@ -15,7 +15,7 @@ use lang_frontend::{
 };
 use std::collections::BTreeSet;
 
-struct Fixture {
+pub(in crate::ssa) struct Fixture {
     sources: SourceMap,
     parsed: ParsedFile,
     names: NameResolution,
@@ -26,7 +26,7 @@ struct Fixture {
 
 impl Fixture {
     /// A provenance assertion must never disguise parser, type or ownership fixture errors.
-    fn analyze(text: &str) -> Self {
+    pub(in crate::ssa) fn analyze(text: &str) -> Self {
         let mut sources = SourceMap::new();
         let source = sources.add_source("single-callable-plan.ko", text).unwrap();
         let lexed = lex(&sources, source).unwrap();
@@ -81,7 +81,7 @@ impl Fixture {
         }
     }
 
-    fn symbol(&self, name: &str) -> SymbolId {
+    pub(in crate::ssa) fn symbol(&self, name: &str) -> SymbolId {
         let symbols = self
             .names
             .symbols()
@@ -93,7 +93,7 @@ impl Fixture {
         symbols[0]
     }
 
-    fn expression(&self, text: &str) -> ExpressionId {
+    pub(in crate::ssa) fn expression(&self, text: &str) -> ExpressionId {
         let ids = self
             .parsed
             .ast()
@@ -107,7 +107,7 @@ impl Fixture {
         ids[0]
     }
 
-    fn lambdas(&self) -> Vec<ExpressionId> {
+    pub(in crate::ssa) fn lambdas(&self) -> Vec<ExpressionId> {
         self.parsed
             .ast()
             .expressions()
@@ -118,11 +118,11 @@ impl Fixture {
             .collect()
     }
 
-    fn plan(&self) -> Result<FunctionInstancePlan, LoweringError> {
+    pub(in crate::ssa) fn plan(&self) -> Result<FunctionInstancePlan, LoweringError> {
         plan_instances(&self.parsed, &self.typed, &self.owned, &self.templates, &[])
     }
 
-    fn assert_count(&self, plan: &FunctionInstancePlan, name: &str, count: usize) {
+    pub(in crate::ssa) fn assert_count(&self, plan: &FunctionInstancePlan, name: &str, count: usize) {
         let symbol = self.symbol(name);
         let keys = plan
             .instances()
@@ -137,7 +137,7 @@ impl Fixture {
         );
     }
 
-    fn assert_unsupported(&self, argument: &str) {
+    pub(in crate::ssa) fn assert_unsupported(&self, argument: &str) {
         let expected = self
             .parsed
             .ast()
@@ -539,5 +539,3 @@ fn single_callable_plan_repeated_origin_deduplicates_before_source_budget() {
     fixture.assert_count(&plan, "helper", 1);
 }
 
-#[path = "callable_route_tests.rs"]
-mod route_contract;

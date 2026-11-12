@@ -17,17 +17,17 @@ use crate::ssa::lowering_support::callable_instances::{
 };
 
 /// 防止合法但病态的源码让单次标量 lowering 无界扩张。
-pub(super) const MAX_GENERIC_INSTANCES: usize = 1024;
+pub(in crate::ssa) const MAX_GENERIC_INSTANCES: usize = 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct FunctionInstanceKey {
+pub(in crate::ssa) struct FunctionInstanceKey {
     symbol: SymbolId,
     type_arguments: Vec<TypeId>,
     callable_arguments: Vec<(usize, CallableToken)>,
 }
 
 impl FunctionInstanceKey {
-    pub(super) fn new(symbol: SymbolId, type_arguments: Vec<TypeId>) -> Self {
+    pub(in crate::ssa) fn new(symbol: SymbolId, type_arguments: Vec<TypeId>) -> Self {
         Self {
             symbol,
             type_arguments,
@@ -35,15 +35,15 @@ impl FunctionInstanceKey {
         }
     }
 
-    pub(super) const fn symbol(&self) -> SymbolId {
+    pub(in crate::ssa) const fn symbol(&self) -> SymbolId {
         self.symbol
     }
 
-    pub(super) fn type_arguments(&self) -> &[TypeId] {
+    pub(in crate::ssa) fn type_arguments(&self) -> &[TypeId] {
         &self.type_arguments
     }
 
-    pub(super) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+    pub(in crate::ssa) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
         &self.callable_arguments
     }
 
@@ -60,10 +60,10 @@ impl SourceIdentity for FunctionInstanceKey {
 
 /// AST IDs compare by index within this planner's already validated single-file chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct OrderedExpressionId(ExpressionId);
+pub(in crate::ssa) struct OrderedExpressionId(ExpressionId);
 
 impl OrderedExpressionId {
-    pub(super) const fn expression(self) -> ExpressionId {
+    pub(in crate::ssa) const fn expression(self) -> ExpressionId {
         self.0
     }
 }
@@ -80,22 +80,22 @@ impl PartialOrd for OrderedExpressionId {
     }
 }
 
-pub(super) struct FunctionTemplate {
-    pub(super) symbol: SymbolId,
-    pub(super) type_parameters: Vec<SymbolId>,
-    pub(super) span: Span,
+pub(in crate::ssa) struct FunctionTemplate {
+    pub(in crate::ssa) symbol: SymbolId,
+    pub(in crate::ssa) type_parameters: Vec<SymbolId>,
+    pub(in crate::ssa) span: Span,
 }
 
-pub(super) struct PlannedInstance {
-    pub(super) source: SourceToken,
-    pub(super) key: FunctionInstanceKey,
-    pub(super) template_index: usize,
-    pub(super) substitutions: BTreeMap<SymbolId, TypeId>,
+pub(in crate::ssa) struct PlannedInstance {
+    pub(in crate::ssa) source: SourceToken,
+    pub(in crate::ssa) key: FunctionInstanceKey,
+    pub(in crate::ssa) template_index: usize,
+    pub(in crate::ssa) substitutions: BTreeMap<SymbolId, TypeId>,
 }
 
 /// Frozen source routes retain complete callback slots independently of unfinished closure ABI.
 #[derive(Default)]
-pub(super) struct FunctionInstancePlan {
+pub(in crate::ssa) struct FunctionInstancePlan {
     instances: Vec<PlannedInstance>,
     arena: CallableArena<FunctionInstanceKey, OrderedExpressionId>,
     routes: BTreeMap<(SourceToken, OrderedExpressionId), FunctionInstanceKey>,
@@ -103,22 +103,22 @@ pub(super) struct FunctionInstancePlan {
 }
 
 impl FunctionInstancePlan {
-    pub(super) fn instances(&self) -> &[PlannedInstance] {
+    pub(in crate::ssa) fn instances(&self) -> &[PlannedInstance] {
         &self.instances
     }
 
-    pub(super) fn source(&self, source: SourceToken) -> Option<&FunctionInstanceKey> {
+    pub(in crate::ssa) fn source(&self, source: SourceToken) -> Option<&FunctionInstanceKey> {
         self.arena.source(source)
     }
 
-    pub(super) fn callable(
+    pub(in crate::ssa) fn callable(
         &self,
         callable: CallableToken,
     ) -> Option<&CallableKey<OrderedExpressionId>> {
         self.arena.callable(callable)
     }
 
-    pub(super) fn call_site(
+    pub(in crate::ssa) fn call_site(
         &self,
         caller: SourceToken,
         expression: ExpressionId,
@@ -126,14 +126,14 @@ impl FunctionInstancePlan {
         self.routes.get(&(caller, OrderedExpressionId(expression)))
     }
 
-    pub(super) fn pointer_return(&self, source: SourceToken) -> Option<CallableToken> {
+    pub(in crate::ssa) fn pointer_return(&self, source: SourceToken) -> Option<CallableToken> {
         self.pointer_returns.get(&source).copied().flatten()
     }
 }
 
 /// The private caller must validate Names -> Typed -> Owned analysis identity first.
 /// Orchestrate's validate_inputs is authoritative; matching source IDs alone is not a witness.
-pub(super) fn plan_instances(
+pub(in crate::ssa) fn plan_instances(
     parsed: &ParsedFile,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
@@ -143,7 +143,7 @@ pub(super) fn plan_instances(
     callable_planner::plan(parsed, typed, owned, templates, deinit_spans)
 }
 
-pub(super) fn resolve_concrete_type(
+pub(in crate::ssa) fn resolve_concrete_type(
     typed: &TypedFile,
     ty: TypeId,
     substitutions: &BTreeMap<SymbolId, TypeId>,
@@ -259,13 +259,10 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-#[path = "instances/canonical_callable_tests.rs"]
-mod canonical_callable_tests;
 
 #[cfg(test)]
 #[path = "instances/callable_plan_tests.rs"]
-mod callable_plan_tests;
+pub(in crate::ssa) mod callable_plan_tests;
 
 mod callable_planner {
     //! Deterministic source worklist; callback identity lives in the shared flat arena.
@@ -278,7 +275,7 @@ mod callable_planner {
     };
     use std::collections::BTreeSet;
 
-    pub(super) struct Planner<'a> {
+    pub(in crate::ssa) struct Planner<'a> {
         parsed: &'a ParsedFile,
         typed: &'a TypedFile,
         owned: &'a OwnershipCheckedFile,
@@ -292,7 +289,7 @@ mod callable_planner {
         resolving_calls: BTreeSet<(Option<SourceToken>, OrderedExpressionId)>,
     }
 
-    pub(super) fn plan(
+    pub(in crate::ssa) fn plan(
         parsed: &ParsedFile,
         typed: &TypedFile,
         owned: &OwnershipCheckedFile,
@@ -547,7 +544,7 @@ mod callable_planner {
             result
         }
 
-        pub(super) fn callback_slots(
+        pub(in crate::ssa) fn callback_slots(
             &mut self,
             caller: Option<SourceToken>,
             call: &CallDescriptor,
@@ -813,7 +810,7 @@ mod callable_planner {
         }
 
         /// Freeze one summary per concrete factory source, including the absence of a pointer return.
-        pub(super) fn freeze_pointer_return(
+        pub(in crate::ssa) fn freeze_pointer_return(
             &mut self,
             source: SourceToken,
             span: Span,

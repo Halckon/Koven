@@ -1,7 +1,7 @@
 //! SSA entity storage alias roots 与 CFG 不动点，以及 direct owned heap sibling fields 证明。
 use super::*;
 
-pub(in crate::ssa::verify_ownership) mod direct_fields {
+pub(in crate::ssa) mod direct_fields {
     use super::*;
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -11,10 +11,10 @@ pub(in crate::ssa::verify_ownership) mod direct_fields {
         Field(EntityId, SsaTypeId, usize),
     }
 
-    pub(in crate::ssa::verify_ownership) struct DirectFields(BTreeMap<EntityId, BTreeSet<Path>>);
+    pub(in crate::ssa) struct DirectFields(BTreeMap<EntityId, BTreeSet<Path>>);
 
     impl DirectFields {
-        pub(in crate::ssa::verify_ownership) fn compute(
+        pub(in crate::ssa) fn compute(
             function: &Function,
             roots: &BTreeMap<EntityId, BTreeSet<EntityId>>,
         ) -> Self {
@@ -114,7 +114,7 @@ pub(in crate::ssa::verify_ownership) mod direct_fields {
             Self(paths)
         }
 
-        pub(in crate::ssa::verify_ownership) fn disjoint(
+        pub(in crate::ssa) fn disjoint(
             &self,
             left: EntityId,
             right: EntityId,
@@ -270,7 +270,7 @@ impl AliasRoots {
     }
 }
 
-pub(in crate::ssa::verify_ownership) mod provider_lifetime {
+pub(in crate::ssa) mod provider_lifetime {
     //! Bounded path-correlated loan provenance for provider places; no may-origin union.
     use super::super::super::{
         model::{
@@ -341,13 +341,6 @@ pub(in crate::ssa::verify_ownership) mod provider_lifetime {
         }
     }
 
-    #[cfg(test)]
-    #[path = "../../provider_entry_projection_tests.rs"]
-    mod projection_tests;
-
-    #[cfg(test)]
-    #[path = "../../provider_lifetime_tests.rs"]
-    mod tests;
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     struct Reference {
@@ -390,7 +383,7 @@ pub(in crate::ssa::verify_ownership) mod provider_lifetime {
         }
     }
 
-    pub(in crate::ssa::verify_ownership) fn verify(
+    pub(in crate::ssa) fn verify(
         function: &Function,
         errors: &mut Vec<VerifyError>,
     ) {
@@ -619,15 +612,15 @@ pub(in crate::ssa::verify_ownership) mod provider_lifetime {
     }
 }
 
-pub(in crate::ssa::verify_ownership) mod map {
+pub(in crate::ssa) mod map {
     use super::super::*;
     use crate::ssa::model::Origin;
 
-    pub(in crate::ssa::verify_ownership) mod reborrow {
+    pub(in crate::ssa) mod reborrow {
         use super::super::super::*;
 
         #[allow(clippy::too_many_arguments)]
-        pub(in crate::ssa::verify_ownership) fn end_loan(
+        pub(in crate::ssa) fn end_loan(
             function: &Function,
             loan: LoanId,
             aliases: &AliasRoots,
@@ -657,7 +650,7 @@ pub(in crate::ssa::verify_ownership) mod map {
         }
 
         impl ReborrowDependencies {
-            pub(in crate::ssa::verify_ownership) fn compute(
+            pub(in crate::ssa) fn compute(
                 module: &Module,
                 function: &Function,
             ) -> Self {
@@ -737,7 +730,7 @@ pub(in crate::ssa::verify_ownership) mod map {
                 }
             }
 
-            pub(in crate::ssa::verify_ownership) fn is_derived(
+            pub(in crate::ssa) fn is_derived(
                 &self,
                 loan: LoanId,
                 _aliases: &AliasRoots,
@@ -747,7 +740,7 @@ pub(in crate::ssa::verify_ownership) mod map {
                     .any(|child| self.flows.equivalent(loan, *child))
             }
 
-            pub(in crate::ssa::verify_ownership) fn active_descendant(
+            pub(in crate::ssa) fn active_descendant(
                 &self,
                 parent: LoanId,
                 _aliases: &AliasRoots,
@@ -756,7 +749,7 @@ pub(in crate::ssa::verify_ownership) mod map {
                 self.active_descendant_among(parent, state.loans.iter().copied())
             }
 
-            pub(in crate::ssa::verify_ownership) fn active_descendant_among(
+            pub(in crate::ssa) fn active_descendant_among(
                 &self,
                 parent: LoanId,
                 active_loans: impl Iterator<Item = LoanId> + Clone,
@@ -786,7 +779,7 @@ pub(in crate::ssa::verify_ownership) mod map {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(in crate::ssa::verify_ownership) fn verify_map_ownership(
+    pub(in crate::ssa) fn verify_map_ownership(
         module: &Module,
         function: &Function,
         operation: &Operation,

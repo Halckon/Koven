@@ -2,7 +2,7 @@
 mod carrier;
 use carrier::source;
 
-pub(in crate::ssa::lower_frontend) mod constant_presence {
+pub(in crate::ssa) mod constant_presence {
     mod source;
     use source::source_return;
 
@@ -60,7 +60,7 @@ pub(in crate::ssa::lower_frontend) mod constant_presence {
         result
     }
 
-    pub(in crate::ssa::lower_frontend) fn constant_drop(
+    pub(in crate::ssa) fn constant_drop(
         parsed: &lang_frontend::parser::ParsedFile,
         names: &lang_frontend::name_resolution::NameResolution,
         typed: &TypedFile,
@@ -100,7 +100,7 @@ pub(in crate::ssa::lower_frontend) mod constant_presence {
             || source_return::prove(parsed, names, typed, owned, fact).is_some()
     }
 
-    pub(in crate::ssa::lower_frontend) fn prove_graph(
+    pub(in crate::ssa) fn prove_graph(
         owned: &OwnershipCheckedFile,
         owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
         symbol: lang_frontend::name_resolution::SymbolId,
@@ -222,7 +222,7 @@ use lang_frontend::ownership_checking::{
 
 use super::*;
 
-pub(super) struct GroupPlan {
+pub(in crate::ssa) struct GroupPlan {
     members: [DropFact; 2],
     root: SymbolId,
     storage: TypeId,
@@ -237,7 +237,7 @@ pub(super) struct GroupPlan {
     parameter_count: usize,
 }
 
-pub(super) fn candidate(
+pub(in crate::ssa) fn candidate(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -361,7 +361,7 @@ fn control(
 }
 
 impl ExpressionLowerer<'_> {
-    pub(super) fn is_proven_nullable_if_field_read(
+    pub(in crate::ssa) fn is_proven_nullable_if_field_read(
         &self,
         expression: ExpressionId,
         proof: NonNullProof,
@@ -381,7 +381,7 @@ impl ExpressionLowerer<'_> {
         })
     }
 
-    pub(super) fn preflight_nullable_if_cleanup_groups(
+    pub(in crate::ssa) fn preflight_nullable_if_cleanup_groups(
         &self,
         facts: &[DropFact],
     ) -> Result<(), LoweringError> {
@@ -413,7 +413,7 @@ impl ExpressionLowerer<'_> {
         Ok(owner)
     }
 
-    pub(super) fn emit_nullable_if_cleanup_group(
+    pub(in crate::ssa) fn emit_nullable_if_cleanup_group(
         &mut self,
         remaining: &[DropFact],
     ) -> Result<Option<usize>, LoweringError> {
@@ -435,10 +435,8 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-#[cfg(test)]
-mod tests;
 
-pub(in crate::ssa::lower_frontend) mod local_runtime {
+pub(in crate::ssa) mod local_runtime {
     use crate::ssa::lower_frontend::map_iteration::resource::evidence;
     use crate::ssa::lower_frontend::map_iteration::*;
     use crate::ssa::model::InstructionId;
@@ -849,7 +847,7 @@ pub(in crate::ssa::lower_frontend) mod local_runtime {
             })
         }
 
-        pub(in crate::ssa::lower_frontend) fn emit_local_map_drop(
+        pub(in crate::ssa) fn emit_local_map_drop(
             &mut self,
             fact: DropFact,
         ) -> Result<bool, LoweringError> {
@@ -938,7 +936,7 @@ pub(in crate::ssa::lower_frontend) mod local_runtime {
             Ok(true)
         }
 
-        pub(in crate::ssa::lower_frontend) fn validate_local_map_carriers(
+        pub(in crate::ssa) fn validate_local_map_carriers(
             &self,
         ) -> Result<(), LoweringError> {
             for state in self.map_iteration_state.locals.values() {

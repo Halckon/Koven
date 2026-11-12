@@ -1,5 +1,5 @@
 //! The checked owned-local consume path; ordinary Map borrowing stays separate.
-mod nullable;
+pub(in crate::ssa) mod nullable;
 
 use super::{nominal::NominalTypeMapper, *};
 use crate::ssa::model::{Definition, LoanKind, MapContainerKind, Module, SsaTypeKind};

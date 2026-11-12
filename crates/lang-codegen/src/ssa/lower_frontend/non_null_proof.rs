@@ -16,7 +16,7 @@ use super::{
 use crate::ssa::model::{Ownership, SsaTypeKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ProofScope {
+pub(in crate::ssa) enum ProofScope {
     If(ExpressionId),
     When(ExpressionId),
     While(StatementId),
@@ -24,21 +24,21 @@ pub(super) enum ProofScope {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct ProofOrigin {
+pub(in crate::ssa) struct ProofOrigin {
     birth: LoanId,
     introduced_by: ProofScope,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct NonNullProof {
-    pub(super) loan: LoanId,
-    pub(super) owner: ValueId,
-    pub(super) inner: SsaTypeId,
-    pub(super) origin: ProofOrigin,
+pub(in crate::ssa) struct NonNullProof {
+    pub(in crate::ssa) loan: LoanId,
+    pub(in crate::ssa) owner: ValueId,
+    pub(in crate::ssa) inner: SsaTypeId,
+    pub(in crate::ssa) origin: ProofOrigin,
 }
 
 impl NonNullProof {
-    pub(super) fn introduced(
+    pub(in crate::ssa) fn introduced(
         loan: LoanId,
         owner: ValueId,
         inner: SsaTypeId,
@@ -55,27 +55,27 @@ impl NonNullProof {
         }
     }
 
-    pub(super) fn while_origin(self) -> Option<(StatementId, LoanId)> {
+    pub(in crate::ssa) fn while_origin(self) -> Option<(StatementId, LoanId)> {
         match self.origin.introduced_by {
             ProofScope::While(statement) => Some((statement, self.origin.birth)),
             _ => None,
         }
     }
 
-    pub(super) fn if_origin(self) -> Option<(ExpressionId, LoanId)> {
+    pub(in crate::ssa) fn if_origin(self) -> Option<(ExpressionId, LoanId)> {
         match self.origin.introduced_by {
             ProofScope::If(expression) => Some((expression, self.origin.birth)),
             _ => None,
         }
     }
 
-    pub(super) fn is_while_origin(self) -> bool {
+    pub(in crate::ssa) fn is_while_origin(self) -> bool {
         matches!(self.origin.introduced_by, ProofScope::While(_))
     }
 }
 
 impl ExpressionLowerer<'_> {
-    pub(super) fn finish_borrowed_call(
+    pub(in crate::ssa) fn finish_borrowed_call(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -83,7 +83,7 @@ impl ExpressionLowerer<'_> {
         self.finish_borrowed_call_with_sources(expression, span, Vec::new())
     }
 
-    pub(super) fn finish_borrowed_call_with_sources(
+    pub(in crate::ssa) fn finish_borrowed_call_with_sources(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -113,7 +113,7 @@ impl ExpressionLowerer<'_> {
         self.emit_drops(DropPoint::CallReturn(expression))
     }
 
-    pub(super) fn emit_control_transfer_cleanup(
+    pub(in crate::ssa) fn emit_control_transfer_cleanup(
         &mut self,
         transfer: ExpressionId,
     ) -> Result<(), LoweringError> {
@@ -173,7 +173,7 @@ impl ExpressionLowerer<'_> {
         self.emit_drops(DropPoint::ControlTransfer(transfer))
     }
 
-    pub(super) fn emit_drops(&mut self, point: DropPoint) -> Result<(), LoweringError> {
+    pub(in crate::ssa) fn emit_drops(&mut self, point: DropPoint) -> Result<(), LoweringError> {
         let facts = self
             .owned
             .drops()
@@ -292,7 +292,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn shared_owner_operand(
+    pub(in crate::ssa) fn shared_owner_operand(
         &mut self,
         receiver: ExpressionId,
         span: Span,
@@ -308,7 +308,7 @@ impl ExpressionLowerer<'_> {
             })
     }
 
-    pub(super) fn validate_non_null_proof_types(
+    pub(in crate::ssa) fn validate_non_null_proof_types(
         &self,
         proof: NonNullProof,
         span: Span,
@@ -346,7 +346,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn validate_non_null_proof(
+    pub(in crate::ssa) fn validate_non_null_proof(
         &self,
         symbol: SymbolId,
         proof: NonNullProof,
@@ -359,7 +359,7 @@ impl ExpressionLowerer<'_> {
         self.validate_non_null_proof_types(proof, span)
     }
 
-    pub(super) fn checked_non_null_proof(
+    pub(in crate::ssa) fn checked_non_null_proof(
         &self,
         symbol: SymbolId,
         inner: SsaTypeId,
@@ -375,7 +375,7 @@ impl ExpressionLowerer<'_> {
         Ok(Some(proof))
     }
 
-    pub(super) fn end_non_null_proof(
+    pub(in crate::ssa) fn end_non_null_proof(
         &mut self,
         symbol: SymbolId,
         span: Span,
@@ -392,7 +392,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn non_null_proof_for_expression(
+    pub(in crate::ssa) fn non_null_proof_for_expression(
         &self,
         expression: ExpressionId,
         span: Span,
@@ -410,7 +410,7 @@ impl ExpressionLowerer<'_> {
         )
     }
 
-    pub(super) fn validate_non_null_exit_proofs(
+    pub(in crate::ssa) fn validate_non_null_exit_proofs(
         &self,
         exits: &[BranchExit],
         span: Span,
@@ -434,7 +434,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn merged_non_null_proofs(
+    pub(in crate::ssa) fn merged_non_null_proofs(
         &self,
         bindings: &BTreeMap<SymbolId, LoweredValue>,
         parameters: Vec<(SymbolId, LoanId, NonNullProof)>,
@@ -457,10 +457,8 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-#[cfg(test)]
-mod guard_tests;
 
-pub(in crate::ssa::lower_frontend) mod outer_borrowed_provider {
+pub(in crate::ssa) mod outer_borrowed_provider {
     //! Actual provider and nullable-branch births; no loan is identified by type alone.
     use super::super::outer_borrowed_while::carrier::{
         Columns, Guard, forward, incoming, instructions, parameter, result, transport,
@@ -468,24 +466,24 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_provider {
     };
     use super::super::outer_borrowed_while::*;
     use crate::ssa::model::{BinaryOperator, Instruction, SsaTypeKind};
-    pub(in crate::ssa::lower_frontend) struct Provider {
-        pub(in crate::ssa::lower_frontend) preheader: BlockId,
-        pub(in crate::ssa::lower_frontend) header: Columns,
-        pub(in crate::ssa::lower_frontend) body: Columns,
-        pub(in crate::ssa::lower_frontend) exhausted: Columns,
-        pub(in crate::ssa::lower_frontend) length: ValueId,
-        pub(in crate::ssa::lower_frontend) cursor: ValueId,
-        pub(in crate::ssa::lower_frontend) body_cursor: ValueId,
-        pub(in crate::ssa::lower_frontend) step: ValueId,
+    pub(in crate::ssa) struct Provider {
+        pub(in crate::ssa) preheader: BlockId,
+        pub(in crate::ssa) header: Columns,
+        pub(in crate::ssa) body: Columns,
+        pub(in crate::ssa) exhausted: Columns,
+        pub(in crate::ssa) length: ValueId,
+        pub(in crate::ssa) cursor: ValueId,
+        pub(in crate::ssa) body_cursor: ValueId,
+        pub(in crate::ssa) step: ValueId,
     }
-    pub(in crate::ssa::lower_frontend) fn value(entity: EntityId) -> Option<ValueId> {
+    pub(in crate::ssa) fn value(entity: EntityId) -> Option<ValueId> {
         if let EntityId::Value(value) = entity {
             Some(value)
         } else {
             None
         }
     }
-    pub(in crate::ssa::lower_frontend) fn loan(entity: EntityId) -> Option<LoanId> {
+    pub(in crate::ssa) fn loan(entity: EntityId) -> Option<LoanId> {
         if let EntityId::Loan(loan) = entity {
             Some(loan)
         } else {
@@ -498,7 +496,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_provider {
         };
         Some(*entity)
     }
-    pub(in crate::ssa::lower_frontend) fn context<'a>(
+    pub(in crate::ssa) fn context<'a>(
         lowerer: &'a ExpressionLowerer<'_>,
         relation: &Relation,
     ) -> Option<&'a loop_control::LoopContext> {
@@ -521,7 +519,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_provider {
         }
         Some(outer)
     }
-    pub(in crate::ssa::lower_frontend) fn shape(
+    pub(in crate::ssa) fn shape(
         lowerer: &ExpressionLowerer<'_>,
         relation: &Relation,
     ) -> Option<Provider> {
@@ -766,7 +764,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_provider {
 
     /// The only NullableBranch which transport may cross. Its two owner/provider
     /// columns are explicit; only the non-null target owns the newly born view.
-    pub(in crate::ssa::lower_frontend) fn guard(
+    pub(in crate::ssa) fn guard(
         lowerer: &ExpressionLowerer<'_>,
         relation: &Relation,
         provider: &Provider,
@@ -848,7 +846,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_provider {
         })
     }
 
-    pub(in crate::ssa::lower_frontend) fn completed_backedge(
+    pub(in crate::ssa) fn completed_backedge(
         lowerer: &ExpressionLowerer<'_>,
         relation: &Relation,
         provider: &Provider,

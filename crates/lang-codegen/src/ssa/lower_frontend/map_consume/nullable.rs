@@ -1,6 +1,4 @@
 //! Direct If-born nullable Map ownership extraction, before ordinary consume.
-#[cfg(test)]
-mod guard_tests;
 
 use std::collections::BTreeSet;
 
@@ -408,7 +406,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn nullable_consume_source(
+    pub(in crate::ssa) fn nullable_consume_source(
         &self,
         descriptor: MapConsumeDescriptor,
         inner: SsaTypeId,
@@ -544,7 +542,7 @@ impl ExpressionLowerer<'_> {
         ungroup(self.parsed, *condition, span)
     }
 
-    pub(super) fn validate_nullable_consume_control(
+    pub(in crate::ssa) fn validate_nullable_consume_control(
         &self,
         source: &NullableConsumeSource,
         span: Span,

@@ -28,10 +28,9 @@ use lang_frontend::{
     },
 };
 
-#[path = "lower_frontend_map_item_operand_ssa_test_support.rs"]
-mod item_ssa;
+use super::same_guard::item_ssa;
 
-fn one<'a, T>(values: &'a [T], label: &str) -> &'a T {
+pub(super) fn one<'a, T>(values: &'a [T], label: &str) -> &'a T {
     let [value] = values else {
         panic!("expected exactly one {label}, got {}", values.len());
     };
@@ -54,7 +53,7 @@ fn within(inner: Span, outer: Span) -> bool {
         && inner.end() <= outer.end()
 }
 
-fn expression_span(unit: &UnitSource, expression: UnitExpressionId) -> Span {
+pub(super) fn expression_span(unit: &UnitSource, expression: UnitExpressionId) -> Span {
     assert_eq!(expression.source_unit(), source(unit));
     unit.parsed()
         .ast()
@@ -64,7 +63,7 @@ fn expression_span(unit: &UnitSource, expression: UnitExpressionId) -> Span {
         .span()
 }
 
-fn symbol_span(unit: &UnitSource, symbol: UnitSymbolId) -> Span {
+pub(super) fn symbol_span(unit: &UnitSource, symbol: UnitSymbolId) -> Span {
     assert_eq!(symbol.source_unit(), source(unit));
     let resolution = one(unit.names().names().source_units(), "original resolution");
     assert_eq!(resolution.source_unit(), source(unit));
@@ -174,7 +173,7 @@ fn roots(unit: &UnitSource, supported: bool) -> Vec<DeclarationId> {
         .collect()
 }
 
-struct LoopIdentity {
+pub(super) struct LoopIdentity {
     statement: UnitStatementId,
     body: UnitStatementId,
     provider: UnitExpressionId,
