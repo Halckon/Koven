@@ -94,6 +94,7 @@ pub(super) struct Emitted {
     positions: BTreeMap<BlockRef, usize>,
     instructions: BTreeMap<BlockRef, Vec<InstructionId>>,
     terms: BTreeMap<BlockRef, TerminatorKind>,
+    drops: BTreeMap<InstructionId, (BlockRef, EntityId)>,
     replacements: BTreeMap<(usize, usize), (InstructionId, Operation, Vec<EntityId>)>,
 }
 impl Emitted {
@@ -260,6 +261,17 @@ impl Emitted {
                     }
                 }
             }
+            if let ROp::Drop { owner } = stmt.op {
+                let value = *expected.get(&owner).ok_or_else(|| invalid(span))?;
+                let EntityId::Value(value_id) = value else {
+                    return Err(invalid(span));
+                };
+                if actual.operation != (Operation::Drop { owner: value_id })
+                    || self.drops.insert(id, (block, value)).is_some()
+                {
+                    return Err(invalid(span));
+                }
+            }
             for (slot, value) in stmt.results.iter().zip(&actual.results) {
                 expected.insert(*slot, *value);
             }
@@ -317,6 +329,29 @@ impl Emitted {
             use super::build::owner_consumer_test_support::{
                 OwnerFault, record_action, take_fault,
             };
+            if block == plan.next[1] && take_fault(OwnerFault::BridgeSsaDropNewGeneration) {
+                let (_, _, results) = self
+                    .replacements
+                    .get(&(1, 0))
+                    .ok_or_else(|| invalid(span))?;
+                let EntityId::Value(new_owner) = results[0] else {
+                    return Err(invalid(span));
+                };
+                let retired = results[1];
+                let id = *self
+                    .drops
+                    .iter()
+                    .find(|(_, (b, v))| *b == block && *v == retired)
+                    .map(|(id, _)| id)
+                    .ok_or_else(|| invalid(span))?;
+                function
+                    .instructions
+                    .iter_mut()
+                    .find(|i| i.id == id)
+                    .ok_or_else(|| invalid(span))?
+                    .operation = Operation::Drop { owner: new_owner };
+                record_action("bridge-ssa-fault-injected", 4);
+            }
             if block == plan.next[1] && take_fault(OwnerFault::BridgeSsaExtraDrop) {
                 let target = self.blocks[&block];
                 let drop = function
@@ -476,6 +511,31 @@ impl Emitted {
                 .and_then(|b| b.terminator.as_ref())
                 .map(|t| &t.kind)
                 != Some(term)
+            {
+                return Err(invalid(span));
+            }
+        }
+        // A replacement's second result is the retired generation, not the new
+        // header-carried root. Require its actual same-body consumption once.
+        for ((side, _), (_, _, results)) in &self.replacements {
+            let retired = results.get(1).ok_or_else(|| invalid(span))?;
+            let block = if *side == 0 { p.prior[1] } else { p.next[1] };
+            if self
+                .drops
+                .values()
+                .filter(|(b, value)| *b == block && value == retired)
+                .count()
+                != 1
+            {
+                return Err(invalid(span));
+            }
+        }
+        for (id, (_, entity)) in &self.drops {
+            let EntityId::Value(value) = entity else {
+                return Err(invalid(span));
+            };
+            if function.instruction(*id).map(|i| &i.operation)
+                != Some(&Operation::Drop { owner: *value })
             {
                 return Err(invalid(span));
             }

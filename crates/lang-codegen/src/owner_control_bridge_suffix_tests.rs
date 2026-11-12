@@ -158,6 +158,7 @@ fn ci_only_bridge_ssa_transport_rejects_wrong_root_missing_edge_and_abort_backed
         OwnerFault::BridgeSsaMissingTerminator,
         OwnerFault::BridgeSsaAbortBackedge,
         OwnerFault::BridgeSsaExtraDrop,
+        OwnerFault::BridgeSsaDropNewGeneration,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             with_owner_fault(fault, || source.lower_entry(source.entry()))

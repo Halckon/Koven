@@ -7,6 +7,7 @@ pub(crate) enum OwnerFault {
     BridgeSsaMissingTerminator,
     BridgeSsaAbortBackedge,
     BridgeSsaExtraDrop,
+    BridgeSsaDropNewGeneration,
     MissingCounterEntryPermit,
     CounterEntryWrongSource,
     CounterEntryDuplicateCommit,
