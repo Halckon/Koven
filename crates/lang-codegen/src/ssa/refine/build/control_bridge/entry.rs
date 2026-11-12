@@ -1,4 +1,4 @@
-//! Required original scalar bindings for the second control, not an owner token source.
+//! Required original scalar bindings keyed by control, not an owner token source.
 use super::*;
 use crate::ssa::model::ScalarConstant;
 
@@ -12,6 +12,7 @@ pub(super) struct Binding {
 }
 pub(in super::super) struct Permit {
     index: usize,
+    control: UnitStatementId,
     block: BlockRef,
     source: Slot,
     instruction: usize,
@@ -27,26 +28,26 @@ impl Builder<'_, '_> {
         source: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
+        let Some(selected) = self.bridge_select_entry(|_, symbols, initializers| {
+            symbols.contains(&symbol) || initializers.contains(&initializer)
+        })?
+        else {
             return Ok(None);
         };
-        let Some(entry) = plan.evidence.next_counter_entry() else {
-            return Ok(None);
-        };
-        let symbols = [entry.counter(), entry.guard()];
-        let initializers = entry.initializers();
+        let symbols = selected.symbols;
+        let initializers = selected.initializers;
         let Some(index) = (0..2).find(|&i| symbols[i] == symbol || initializers[i] == initializer)
         else {
             return Ok(None);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let ([_, _, _, block], _, _) = plan.prior.as_ref().ok_or_else(fail)?;
+        let block = selected.block;
         if symbols[index] != symbol
             || initializers[index] != initializer
-            || plan.next.is_some()
-            || self.block != Some(*block)
-            || plan.initial[index].is_some()
-            || plan.initial[..index].iter().any(Option::is_none)
+            || selected.entered
+            || self.block != Some(block)
+            || selected.initial[index].is_some()
+            || selected.initial[..index].iter().any(Option::is_none)
         {
             return Err(fail());
         }
@@ -94,11 +95,27 @@ impl Builder<'_, '_> {
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::MissingBridgeEntryBinding,
         ) {
+            if self.control_chain_bodies.is_some() {
+                owner_consumer_test_support::record_action("control-chain-entry-fault-hit", 1);
+            }
+            return Ok(None);
+        }
+        #[cfg(test)]
+        if self
+            .control_chain_bodies
+            .as_ref()
+            .is_some_and(|g| g.is_last(selected.control))
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ChainLastEntryMissingBinding,
+            )
+        {
+            owner_consumer_test_support::record_action("control-chain-entry-fault-hit", 1);
             return Ok(None);
         }
         Ok(Some(Permit {
             index,
-            block: *block,
+            control: selected.control,
+            block,
             source,
             instruction: self.body.blocks[block.0].statements.len(),
             span,
@@ -120,6 +137,9 @@ impl Builder<'_, '_> {
             if owner_consumer_test_support::take_fault(
                 owner_consumer_test_support::OwnerFault::BridgeEntryWrongSource,
             ) {
+                if self.control_chain_bodies.is_some() {
+                    owner_consumer_test_support::record_action("control-chain-entry-fault-hit", 1);
+                }
                 p.source = target;
             }
             p
@@ -135,15 +155,26 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        let plan = self.control_bridge_plan.as_ref().ok_or_else(fail)?;
+        let selected = self
+            .bridge_select_entry(|control, _, _| control == permit.control)?
+            .ok_or_else(fail)?;
+        if selected.block != permit.block
+            || selected.entered
+            || selected
+                .initial
+                .get(permit.index)
+                .is_none_or(Option::is_some)
+            || selected.initial[..permit.index].iter().any(Option::is_none)
+        {
+            return Err(fail());
+        }
         if permit.index == 1 {
-            let entry = plan.evidence.next_counter_entry().ok_or_else(fail)?;
-            let counter = plan.initial[0].as_ref().ok_or_else(fail)?;
+            let counter = selected.initial[0].as_ref().ok_or_else(fail)?;
             self.counter_guard_comparison(
                 permit.block,
                 counter.target,
                 target,
-                entry.guard_initializer(),
+                selected.initializers[1],
                 None,
             )?;
             let compare = block
@@ -155,7 +186,10 @@ impl Builder<'_, '_> {
                 return Err(fail());
             }
         }
-        let state = &mut self.control_bridge_plan.as_mut().ok_or_else(fail)?.initial[permit.index];
+        let state = self
+            .bridge_initial_states_mut(permit.control)?
+            .get_mut(permit.index)
+            .ok_or_else(fail)?;
         if state.is_some() {
             return Err(fail());
         }
@@ -175,12 +209,21 @@ impl Builder<'_, '_> {
         let Some(plan) = &self.control_bridge_plan else {
             return Ok(());
         };
-        let Some(entry) = plan.evidence.next_counter_entry() else {
+        if plan.evidence.next_counter_entry().is_none() {
             return Ok(());
-        };
+        }
+        self.check_control_entry(plan.evidence.next_control())
+    }
+    pub(super) fn check_control_entry(
+        &self,
+        control: UnitStatementId,
+    ) -> Result<(), LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
-        let ([_, _, _, block], _, _) = plan.prior.as_ref().ok_or_else(fail)?;
-        let [Some(counter), Some(guard)] = &plan.initial else {
+        let selected = self
+            .bridge_select_entry(|candidate, _, _| candidate == control)?
+            .ok_or_else(fail)?;
+        let block = selected.block;
+        let [Some(counter), Some(guard)] = selected.initial else {
             return Err(fail());
         };
         for item in [counter, guard] {
@@ -191,7 +234,7 @@ impl Builder<'_, '_> {
             if statement.span != item.span
                 || statement.results != [item.target]
                 || !matches!(statement.op, ROp::Alias { source } if source == item.source)
-                || self.counter_alias(*block, item.target, item.source, None)? != item.instruction
+                || self.counter_alias(block, item.target, item.source, None)? != item.instruction
             {
                 return Err(fail());
             }
@@ -202,7 +245,7 @@ impl Builder<'_, '_> {
                 .get(position)
                 .ok_or_else(fail)?;
             if position >= counter.instruction
-                || producer.span != self.span(entry.counter_initializer().expression())
+                || producer.span != self.span(selected.initializers[0].expression())
                 || producer.results != [counter.source]
                 || self.multi_root_definitions(counter.source) != 1
                 || !matches!(producer.op, ROp::ReadLoan { loan: actual } if actual == loan)
@@ -216,7 +259,7 @@ impl Builder<'_, '_> {
                 .get(position)
                 .ok_or_else(fail)?;
             if position >= counter.instruction
-                || producer.span != self.span(entry.counter_initializer().expression())
+                || producer.span != self.span(selected.initializers[0].expression())
                 || producer.results != [counter.source]
                 || self.multi_root_definitions(counter.source) != 1
                 || !matches!(producer.op, ROp::Constant(ScalarConstant::Integer(value)) if value == expected)
@@ -225,10 +268,10 @@ impl Builder<'_, '_> {
             }
         }
         self.counter_guard_comparison(
-            *block,
+            block,
             counter.target,
             guard.target,
-            entry.guard_initializer(),
+            selected.initializers[1],
             None,
         )?;
         let compare = self.body.blocks[block.0]
@@ -238,7 +281,7 @@ impl Builder<'_, '_> {
             .ok_or_else(fail)?;
         if counter.instruction >= compare
             || compare >= guard.instruction
-            || plan
+            || selected
                 .scalar
                 .is_some_and(|actual| actual != [counter.target, guard.target])
         {

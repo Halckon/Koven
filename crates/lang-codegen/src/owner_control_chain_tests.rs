@@ -51,9 +51,12 @@ fn closed_chain_source(sparse: bool) -> super::UnitSource {
     chain_source(sparse, false)
 }
 fn chain_source(sparse: bool, suffix: bool) -> super::UnitSource {
+    chain_source_with_counter(sparse, suffix, "n")
+}
+fn chain_source_with_counter(sparse: bool, suffix: bool, counter: &str) -> super::UnitSource {
     let mut text = String::from("fun run(n: Int) {");
     for i in 0..3 {
-        text.push_str(&format!("var n{i}=n; var g{i}=n{i}>0;"));
+        text.push_str(&format!("var n{i}={counter}; var g{i}=n{i}>0;"));
         if i == 0 {
             text.push_str("var a0=\"a\"; var b0=\"b\";");
         } else {
@@ -260,6 +263,60 @@ fn ci_only_chain_final_suffix_rejects_missing_or_reused_consumption() {
             actions
                 .iter()
                 .filter(|(kind, _)| *kind == "control-chain-suffix-fault-hit")
+                .count(),
+            1
+        );
+        assert!(actions.iter().all(|(kind, _)| !matches!(
+            *kind,
+            "control-chain-tails-complete"
+                | "control-chain-exits-complete"
+                | "control-chain-bodies-complete"
+        )));
+    }
+}
+
+#[test]
+fn chain_scalar_entries_consume_original_parameter_and_literal_bindings() {
+    for counter in ["n", "0", "2"] {
+        let source = chain_source_with_counter(true, true, counter);
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "bridge-entry-binding-consumed")
+                .count(),
+            4
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-bodies-complete" && *n == 2)
+                .count(),
+            1
+        );
+        super::super::super::assert_native_output(&source, b"");
+    }
+}
+#[test]
+fn ci_only_chain_scalar_entries_reject_missing_or_wrong_source() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source = chain_source(false, true);
+    for fault in [
+        OwnerFault::MissingBridgeEntryBinding,
+        OwnerFault::BridgeEntryWrongSource,
+        OwnerFault::ChainLastEntryMissingBinding,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-chain-entry-fault-hit")
                 .count(),
             1
         );

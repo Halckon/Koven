@@ -191,6 +191,8 @@ pub struct UnitOwnerControlChainBodyV1<'a> {
     false_exit: (&'a [UnitSymbolId], &'a [UnitDropFact]),
     tail: Tail,
     suffix: Option<&'a [(UnitSymbolId, UnitDropFact)]>,
+    entry: Entry,
+    prior_control: UnitStatementId,
 }
 impl<'a> UnitOwnerControlChainBodyV1<'a> {
     /// Actual source-qualified control owning this body.
@@ -223,6 +225,20 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
     pub fn false_exit_suffix(&self) -> Option<&'a [(UnitSymbolId, UnitDropFact)]> {
         self.suffix
     }
+    /// Original completed counter and guard initializer/declaration identities.
+    pub fn scalar_entry(
+        &self,
+    ) -> (
+        [UnitSymbolId; 2],
+        [UnitExpressionId; 2],
+        [UnitStatementId; 2],
+    ) {
+        self.entry
+    }
+    /// Actual immediately preceding control whose exit contains the initializers.
+    pub fn prior_control(&self) -> UnitStatementId {
+        self.prior_control
+    }
     /// Source-root order, not the order of alias declarations or replacement calls.
     pub fn roots(&self) -> &'a [UnitSymbolId] {
         self.normal.header_roots()
@@ -243,7 +259,7 @@ impl<'a> UnitOwnerControlChainBodiesV1<'a> {
 }
 impl UnitOwnerObservation {
     /// Borrow normal-body rules and implicit-false partitions of a complete chain.
-    /// Consumers must validate actual checked edges; no entry or SSA permission.
+    /// Consumers must validate actual checked edges; no whole-chain SSA permission.
     pub fn control_chain_bodies_v1(&self) -> Option<UnitOwnerControlChainBodiesV1<'_>> {
         if !self.is_consistent() {
             return None;
@@ -256,6 +272,11 @@ impl UnitOwnerObservation {
             normal: chain.first.next_normal_transport()?,
             false_exit: chain.first.next_false_exit_partition()?,
             suffix: None,
+            prior_control: chain.first.prior().statement(),
+            entry: {
+                let e = chain.first.next_counter_entry()?;
+                ([e.counter(), e.guard()], e.initializers(), e.declarations())
+            },
             tail: {
                 let tail = chain.first.next_counter_tail()?;
                 (tail.guard(), tail.counter(), tail.assignments())
@@ -269,6 +290,8 @@ impl UnitOwnerObservation {
             false_exit: (&chain.last.exit.0, &chain.last.exit.1),
             tail: chain.last.tail,
             suffix: chain.last.suffix.as_deref(),
+            entry: chain.last.entry,
+            prior_control: chain.first.next_control(),
         };
         Some(UnitOwnerControlChainBodiesV1 {
             members: [second, third],

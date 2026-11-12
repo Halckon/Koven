@@ -14,6 +14,8 @@ struct Member<'a> {
     exits: Vec<bool>,
     counter: Option<(BlockRef, [Slot; 2])>,
     suffix: Option<Vec<suffix::Stage>>,
+    prior_exit: Option<BlockRef>,
+    initial: [Option<entry::Binding>; 2],
 }
 pub(super) struct Selected<'a> {
     pub control: UnitStatementId,
@@ -69,6 +71,8 @@ impl<'a> BodyGroup<'a> {
                     stages: vec![consumption::Stage::Ready; e.normal().steps().len()],
                     lowered: None,
                     counter: None,
+                    prior_exit: None,
+                    initial: [None, None],
                     suffix: e
                         .false_exit_suffix()
                         .map(|s| vec![suffix::Stage::Ready; s.len()]),
@@ -152,9 +156,23 @@ impl Builder<'_, '_> {
         blocks: [BlockRef; 4],
     ) -> Result<(), LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if self
+            .control_chain_bodies
+            .as_ref()
+            .is_some_and(|g| g.members.iter().any(|m| m.evidence.control() == control))
+        {
+            self.check_control_entry(control)?;
+        }
         let Some(group) = &mut self.control_chain_bodies else {
             return Ok(());
         };
+        for member in &mut group.members {
+            if member.evidence.prior_control() == control
+                && member.prior_exit.replace(blocks[3]).is_some()
+            {
+                return Err(fail());
+            }
+        }
         let Some(index) = group
             .members
             .iter()
@@ -208,6 +226,7 @@ impl Builder<'_, '_> {
         for member in &group.members {
             let (blocks, roots) = member.lowered.as_ref().ok_or_else(fail)?;
             let block = blocks[1];
+            self.check_control_entry(member.evidence.control())?;
             self.check_chain_false_exit(member, *blocks, roots)?;
             if member.stages.len() != member.evidence.normal().steps().len()
                 || member
@@ -495,6 +514,90 @@ impl Builder<'_, '_> {
             .as_mut()
             .filter(|p| p.evidence.next_control() == control)
             .and_then(|p| p.suffix.as_mut())
+            .ok_or_else(fail)
+    }
+}
+
+pub(super) struct SelectedEntry<'a> {
+    pub control: UnitStatementId,
+    pub symbols: [UnitSymbolId; 2],
+    pub initializers: [UnitExpressionId; 2],
+    pub block: BlockRef,
+    pub initial: &'a [Option<entry::Binding>; 2],
+    pub scalar: Option<[Slot; 2]>,
+    pub entered: bool,
+}
+impl Builder<'_, '_> {
+    pub(super) fn bridge_select_entry(
+        &self,
+        matches: impl Fn(UnitStatementId, [UnitSymbolId; 2], [UnitExpressionId; 2]) -> bool,
+    ) -> Result<Option<SelectedEntry<'_>>, LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if let Some(group) = &self.control_chain_bodies {
+            if self.control_bridge_plan.is_some() {
+                return Err(fail());
+            }
+            let mut found = group.members.iter().filter(|m| {
+                let e = m.evidence.scalar_entry();
+                matches(m.evidence.control(), e.0, e.1)
+            });
+            let Some(m) = found.next() else {
+                return Ok(None);
+            };
+            if found.next().is_some() {
+                return Err(fail());
+            }
+            let e = m.evidence.scalar_entry();
+            return Ok(Some(SelectedEntry {
+                control: m.evidence.control(),
+                symbols: e.0,
+                initializers: e.1,
+                block: m.prior_exit.ok_or_else(fail)?,
+                initial: &m.initial,
+                scalar: m.counter.map(|(_, s)| s),
+                entered: m.lowered.is_some(),
+            }));
+        }
+        let Some(p) = &self.control_bridge_plan else {
+            return Ok(None);
+        };
+        let Some(e) = p.evidence.next_counter_entry() else {
+            return Ok(None);
+        };
+        let symbols = [e.counter(), e.guard()];
+        if !matches(p.evidence.next_control(), symbols, e.initializers()) {
+            return Ok(None);
+        }
+        Ok(Some(SelectedEntry {
+            control: p.evidence.next_control(),
+            symbols,
+            initializers: e.initializers(),
+            block: p.prior.as_ref().ok_or_else(fail)?.0[3],
+            initial: &p.initial,
+            scalar: p.scalar,
+            entered: p.next.is_some(),
+        }))
+    }
+    pub(super) fn bridge_initial_states_mut(
+        &mut self,
+        control: UnitStatementId,
+    ) -> Result<&mut [Option<entry::Binding>; 2], LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if let Some(group) = &mut self.control_chain_bodies {
+            if self.control_bridge_plan.is_some() {
+                return Err(fail());
+            }
+            return group
+                .members
+                .iter_mut()
+                .find(|m| m.evidence.control() == control)
+                .map(|m| &mut m.initial)
+                .ok_or_else(fail);
+        }
+        self.control_bridge_plan
+            .as_mut()
+            .filter(|p| p.evidence.next_control() == control)
+            .map(|p| &mut p.initial)
             .ok_or_else(fail)
     }
 }

@@ -158,7 +158,7 @@ getter先核observation整体身份、一致性和互斥；deferred、外来iden
 消费者必须整组选择并完成两个成员的Replace→binding→Drop，不允许单成员降级。
 成员另以 `false_exit_partition()` 借用真实implicit-false分区：live根与原顺序LoopExit
 清理facts直接来自第二段原bridge及第三段封存exit，不按AST猜测、不复制重造fact。
-本接口不提供scalar入口或SSA权限；checked尾部须核真实边，公开不等于整循环完成。
+本接口不提供整链SSA权限；scalar和checked尾部须核真实发射，公开不等于整循环完成。
 嵌套循环的外层恢复与路径合流仍不在本片范围内。
 
 ### 后端按 control 的 normal-body 整组消费
@@ -171,7 +171,7 @@ binding和Drop仍复用原发射点与一次性permit，每张permit增加contro
 
 普通三段native保留零轮/两轮组合和逆序root映射，封闭终段时另外要求两成员各两根的三步
 消费及整组完成。CI-only错误control和最后成员缺Drop许可要求拒绝且无整组完成，本地
-只编译。该合同是normal指令发射约束；尚未运输每个成员的晚期SSA receipt，不声称入口、
+只编译。该合同是normal指令发射约束；尚未运输每个成员的晚期SSA receipt，不声称owner入口、
 跨段边参或复杂退出的整链授权与任意跨轮归纳已经完成。
 
 implicit-false清理现在复用原单次Drop发射点，permit带control并在commit重新选择对应
@@ -181,17 +181,19 @@ finished块；只认原fact与根槽，不能以另一个control或新生命周�
 普通native新增三根到两根的稀疏链，实际覆盖中段一根退休与末段两根退休，并运行零轮/两轮。
 CI-only错control与缺退出许可必须恰一次命中、拒绝且不发布组完成；本地仅编译。
 这扩展implicit-false分区，晚期SSA合同仍未整组迁移。
-
 组成员的 `checked_tail()` 提供原完成counter/guard及四个有序赋值点，不制造旧入口catalog。
 后端在每个真实while登记时快照entry块和scalar槽，复用单bridge的实际checked校验：唯一
 subtraction receipt、减数1、body双分支、terminal abort、success写回counter→比较→guard→header，
 并核success不消费根。两成员的body、退出与tail全部通过后才发布组完成。
 CI-only删除最后成员receipt要求整组拒绝且无任何完成记录，本地仅编译；普通稀疏/全根native
-要求两tail完成并运行零轮/两轮。本片仍不授权scalar初始化、不证明跨轮代际归纳或晚期SSA。
-
+要求两tail完成并运行零轮/两轮。不证明跨轮代际归纳或晚期SSA。
 最终成员现在通过 `false_exit_suffix()` 借用原完成的live-root后缀事实；中段保持None，
 不能把向下一control的运输当作终段清理。绑定与Drop沿原发射点使用control限定的一次permit，
 绑定核真实源root槽，Drop核原fact；提交时重选control/exit并核指令位置/span/阶段。
 只有原有body与退出分区已完成才可消费，终检要求每条Alias→Drop均完成后才允许组完成。
 普通稀疏/全根native覆盖最终两根的绑定与Drop各两次；CI-only缺binding、缺Drop、错源和
-重复Drop必须恰一次命中并撤销整组，本地仅编译。scalar初值与整链晚期SSA仍未迁移。
+重复Drop必须恰一次命中并撤销整组，本地仅编译。整链晚期SSA仍未迁移。
+组scalar入口现借用真实initializer/declaration身份，跟踪实际前control出口而非伪造旧入口token。
+单次permit绑定control、块、位置、span与顺序，核Int Name/ReadLoan或直接literal以及counter>0。
+进入对应body前与整组终检都强制两个binding完成，终检再比对实际scalar槽；组内不退回旧路径。
+普通参数/0/2 literal执行要求四次binding消费；CI-only缺许可、错源、第三control缺许可只编译。
