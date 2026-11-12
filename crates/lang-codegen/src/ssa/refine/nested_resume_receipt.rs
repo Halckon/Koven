@@ -7,11 +7,14 @@ use crate::ssa::{
 };
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::BTreeMap;
+mod carry;
+pub(super) use carry::{Carry, CarryChecked};
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
 }
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
+    pub carry: Option<Carry>,
     pub parent: UnitStatementId,
     pub child: UnitStatementId,
     pub header: BlockRef,
@@ -35,6 +38,9 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         if let Some(p) = &mut self.0 {
+            if let Some(c) = &mut p.carry {
+                c.fold(block, successor, prefix, span)?;
+            }
             if p.header == successor {
                 p.header = block;
             }
@@ -56,6 +62,7 @@ impl Plans {
 }
 #[derive(Default)]
 pub(super) struct Emitted {
+    checked: BTreeMap<BlockRef, (InstructionId, Operation)>,
     function: Option<FunctionId>,
     blocks: BTreeMap<BlockRef, BlockId>,
     inputs: BTreeMap<BlockRef, EntityId>,
@@ -146,6 +153,9 @@ impl Emitted {
             return Ok(());
         };
         recheck_plan(body, p, span)?;
+        if let Some(c) = &p.carry {
+            c.observe(function, position, instruction, &mut self.checked, span)?;
+        }
         if position.0 != p.resume {
             return Ok(());
         }
@@ -307,6 +317,20 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
+        if let Some(c) = &p.carry {
+            c.finish(
+                p,
+                carry::CarryView {
+                    function,
+                    blocks: &self.blocks,
+                    slots: &self.slots,
+                    parameters: &self.parameters,
+                    seen: &self.checked,
+                },
+                (replace, new),
+                span,
+            )?;
+        }
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(
             "nested-parent-resume-ssa-complete",
@@ -387,5 +411,45 @@ pub(super) fn inject_final(plans: &Plans, function: &mut Function) {
             .instructions
             .push(replace);
         record_action("nested-resume-ssa-fault-hit", 1);
+    }
+    if let Some(carry) = &p.carry
+        && let Some(checked) = carry.checked.first()
+        && let Some(body) = function
+            .instructions
+            .iter()
+            .find(|i| {
+                i.origin.span() == checked.span
+                    && matches!(i.operation, Operation::CheckedArithmetic { .. })
+            })
+            .map(|i| i.block)
+    {
+        if take_fault(OwnerFault::NestedCarrySsaWrongRootArgument)
+            && let Some(term) = function
+                .blocks
+                .iter_mut()
+                .find(|b| b.id == body)
+                .and_then(|b| b.terminator.as_mut())
+            && let TerminatorKind::Conditional { when_false, .. } = &mut term.kind
+            && let Some(index) = when_false.arguments.iter().position(|v| *v == new)
+            && when_false.arguments.len() > 1
+        {
+            when_false.arguments.swap(index, usize::from(index == 0));
+            record_action("nested-resume-ssa-fault-hit", 1);
+        }
+        if take_fault(OwnerFault::NestedCarrySsaAbortToSuccess)
+            && let Some(term) = function
+                .blocks
+                .iter_mut()
+                .find(|b| b.id == body)
+                .and_then(|b| b.terminator.as_mut())
+            && let TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } = &mut term.kind
+        {
+            when_true.target = when_false.target;
+            record_action("nested-resume-ssa-fault-hit", 1);
+        }
     }
 }

@@ -17,6 +17,8 @@ pub(crate) enum OwnerFault {
     NestedResumeSsaMissingDrop,
     NestedResumeSsaDropNewRoot,
     NestedResumeSsaDuplicateReplace,
+    NestedCarrySsaWrongRootArgument,
+    NestedCarrySsaAbortToSuccess,
     NestedFalseSsaMissingBlockDrop,
     NestedFalseSsaDuplicateBlockDrop,
     NestedFalseSsaSwappedFalseArguments,

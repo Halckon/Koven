@@ -8,6 +8,7 @@ pub(in super::super) struct NestedBody<'a> {
     pub(super) evidence: &'a UnitOwnerNestedNormalBodyV1,
     stages: Vec<consumption::Stage>,
     pub(super) lowered: Option<([BlockRef; 4], Vec<Slot>)>,
+    pub(super) parent_header: Option<BlockRef>,
     pub(super) resume_stage: consumption::Stage,
 }
 impl<'a> NestedBody<'a> {
@@ -42,6 +43,7 @@ impl<'a> NestedBody<'a> {
             evidence,
             stages: vec![consumption::Stage::Ready; evidence.normal().steps().len()],
             lowered: None,
+            parent_header: None,
             resume_stage: consumption::Stage::Ready,
         }))
     }
@@ -137,6 +139,7 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
+        plan.parent_header = self.loops.last().map(|parent| parent.continue_target);
         plan.lowered = Some((blocks, roots));
         Ok(())
     }

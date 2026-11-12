@@ -16362,3 +16362,25 @@ all-targets Clippy、feature workspace all-targets、fmt/diff通过，文档922�
 清单脚本10项单测通过；真实36故障清单已精确编译列举（FE12、CG24），本地未执行。
 该清单在双平台远端 CI 逐FQN以exact/ignored运行，必须每项实际1 passed/0 ignored；
 未取得远端证据前不得将其列作通过。完整workspace测试及Preview未运行。
+
+### 受限父恢复后正常回边的可选运输事实（2026-11-12）
+
+此片不授予新消费权限。实际child lowering在已匹配的parent LoopFrame上捕获
+continue_target，原恢复终检后仅选择保持新root不读写的Goto/真实checked receipt
+success走廊。checked receipt必须唯一并重新匹配真实expression/指令/span，abort
+实际终止且不通往parent header；visited防环，到捕获的header即停止，不跨下一轮。
+合法但更复杂suffix（如打印、再次Replace或提前退出）不发布可选事实，保持原许可。
+
+选中候选后随fold迁移边和checked位置；SSA发射观察实际checked操作快照，终检从
+恢复Replace第一输出沿真实边实参→目标参数运输到parent header，核每段根不被消费、
+checked失败标志→abort及success方向，缺项/错配返回InvalidModel，不静默降级。
+该事实仅证明受限静态CFG的正常运输，既不把abort算回边，也不证明所有退出路径、
+动态代际或任意轮次归纳。另真实正例覆盖child局部根退休、剩余第二根按symbol恢复，
+恢复后打印应保留单笔许可但不发布此新回边事实。
+
+本片必要验收：最终counter_boundary普通native 28/28（87.10s）、CG all-target
+strict Clippy（35.34s）、workspace all-target check（36.01s）均通过。fmt/docs915/
+diff/尺寸门禁通过（2589手写文件，37历史超限，无新增豁免）。独立复审未见确定阻断。
+新错根实参与abort错向两项CI-only负控仅编译；普通部分退休恢复正例通过并确认
+复杂suffix不发布carry事实、原单笔恢复仍完成。额外nested广域回归提交时仍在运行，
+不计为已通过；本片不修改FE，未重跑FE。日志nested-parent-carry-*，仅本地提交。

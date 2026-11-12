@@ -82,3 +82,7 @@ frame的join块[3]消费独立阶段，[2]false清理→[3]运输须唯一且根
 位置，观察实际 SSA Replace 第二结果、Alias 消除后的同一 Entity 和原 Drop。
 终检 false 根参数运输及唯一旧值消费后才给出 receipt 完成；它不新增消费权限，
 且发生在整个 Program 的最终 verifier 之前，不能代替 verifier 或跨轮代际归纳。
+
+可选 `nested_resume_receipt/carry.rs` 只跟踪恢复新 Value 沿已核 checked-success/Goto
+到实际 parent header 的运输。支持范围外的合法 suffix 不选中该事实，已选中的
+缺项或错误运输则失败封闭；到 header 即停止，不将 abort 当回边，也不推导下一轮。

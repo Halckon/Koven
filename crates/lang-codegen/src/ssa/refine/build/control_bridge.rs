@@ -3,6 +3,7 @@ use super::*;
 mod body_group;
 mod nested_body;
 mod nested_resume;
+mod resume_carry;
 pub(super) use nested_body::NestedBody;
 mod consumption;
 pub(super) use body_group::BodyGroup;

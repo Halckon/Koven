@@ -243,7 +243,8 @@ impl Builder<'_, '_> {
             if plan.resume_stage != Stage::Dropped {
                 return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
             }
-            let receipt = self.recheck_nested_resume()?;
+            let mut receipt = self.recheck_nested_resume()?;
+            receipt.carry = self.nested_resume_carry(&receipt);
             self.body.nested_resume_plans =
                 super::super::super::nested_resume_receipt::Plans(Some(receipt));
             #[cfg(test)]
@@ -332,6 +333,7 @@ impl Builder<'_, '_> {
             }
         }
         Ok(super::super::super::nested_resume_receipt::Plan {
+            carry: None,
             parent: plan.evidence.parent(),
             child: plan.evidence.control(),
             header: blocks[0],
