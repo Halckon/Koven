@@ -15926,3 +15926,17 @@ elements 中且 source/callable/source unit 一致。不能仅凭某个目标有
 若只完成兄弟执行，不宣称已发布兄弟组合 receipt，不退休旧见证。
 复用前序第二 while Unsupported 真红，增加2/3兄弟、独立结果/End、双false原生及
 不同 source/未封印控制负界；CI故障仅编译。本地分步提交，不推送。
+
+实施采用精确 peer StatementId 集合而非全体 while 白名单。双方独立admitted、同
+owned/callable/source、真实直接子节点；ordinary/carried无自身资格时集合为空。
+独立静审通过。原Unsupported真红后，同source 2/3兄弟的真实SSA正控及原单loop
+正控转绿。负控发现外部ordinary binding混入在FE即L0164，按真实阶段独立记录，
+不修改FE或强造CG反例；不同root与未封印peer保留原CG拒绝，失败日志保存。
+
+强化后五项普通测试通过：新2/3兄弟SSA共8组合，两个CG拒绝邻界8组合，三个FE
+精确L0164边界12组合，均含双入口/on-off。独立复审补强actual BorrowCall source须
+为body自身唯一source角色参数，CG阴性准确核第二while错误span。双false真实
+object/link/run输出kept，未冒充非零多轮或组合receipt。相关CG家族97项与FE三个
+target共4项通过，feature all-targets Clippy -D warnings通过；未新增或执行CI-only。
+默认workspace all-targets及fmt/diff/docs913、尺寸2627手写Rust文件/36历史超限通过。
+policy未改，旧见证保留；本地提交实现，不推送。

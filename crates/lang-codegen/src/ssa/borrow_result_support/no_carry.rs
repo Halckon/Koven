@@ -54,3 +54,77 @@ pub(in crate::ssa) fn admitted(
     };
     (*body == proof.body().statement()).then_some(proof.loop_statement().statement())
 }
+
+/// Direct peers grant permission only to a binding with its own sealed no-carry proof.
+pub(in crate::ssa) fn siblings(
+    file: &ParsedFile,
+    owned: &CompilationUnitOwnership,
+    binding: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+) -> Vec<StatementId> {
+    let Some(current_statement) = admitted(file, owned, binding) else {
+        return Vec::new();
+    };
+    let Some(current) = owned.no_carry_loops().iter().find(|proof| {
+        proof.binding() == binding.binding()
+            && proof.loop_statement().statement() == current_statement
+    }) else {
+        return Vec::new();
+    };
+    let Some(elements) = direct_elements(file, current.callable().item()) else {
+        return Vec::new();
+    };
+    if !elements.contains(&current_statement) {
+        return Vec::new();
+    }
+    owned
+        .no_carry_loops()
+        .iter()
+        .filter_map(|peer| {
+            if !owned.owns_no_carry_loop(peer)
+                || peer.callable() != current.callable()
+                || peer.source() != current.source()
+                || peer.binding() == current.binding()
+                || peer.body() == current.body()
+                || peer.loop_statement() == current.loop_statement()
+                || peer.loop_statement().source_unit() != current.loop_statement().source_unit()
+                || !elements.contains(&peer.loop_statement().statement())
+            {
+                return None;
+            }
+            let mut bindings = owned
+                .borrow_results()
+                .bindings()
+                .iter()
+                .filter(|b| b.binding() == peer.binding());
+            let actual = bindings.next()?;
+            if bindings.next().is_some()
+                || admitted(file, owned, actual) != Some(peer.loop_statement().statement())
+            {
+                return None;
+            }
+            Some(peer.loop_statement().statement())
+        })
+        .collect()
+}
+
+fn direct_elements(
+    file: &ParsedFile,
+    callable: lang_frontend::ast::ItemId,
+) -> Option<&[StatementId]> {
+    use lang_frontend::parser::{FunctionBody, FunctionForm, Item};
+    let Item::Function { form, .. } = file.ast().items().get(callable).ok()?.payload() else {
+        return None;
+    };
+    let body = match form {
+        FunctionForm::ImplicitUnitBlock(body) => *body,
+        FunctionForm::Explicit {
+            body: FunctionBody::Block(body),
+            ..
+        } => *body,
+        _ => return None,
+    };
+    let Statement::Block { elements } = file.ast().statements().get(body).ok()?.payload() else {
+        return None;
+    };
+    Some(elements)
+}

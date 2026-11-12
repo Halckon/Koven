@@ -69,3 +69,15 @@ ABI 参数建立 Source/Flag 角色固定点，逐 incoming 检查运输，核 b
 
 该证书证明每次执行有限 body 均创建并关闭结果、正常回边只保留外部贷款；它不是已
 原生运行任意多轮的记录，不证明终止性，也不扩大语言准入或退休旧见证。
+
+## 同源直接兄弟循环
+
+`borrow_result_support/no_carry::siblings` 只为当前已封印 binding 增加同函数、同稳定
+source 的直接兄弟 while 许可。当前和 peer 都独立核原 binding/source loan、准确
+initializer/body 与唯一 End；从真实 Function body 的 elements 对照直接兄弟结构。
+没有自身事实的 ordinary/carried binding 不能借用别人的许可；不同 root 不准入。
+
+每个 reached while 仍独立走原 NoCarryLease 的入口、cleanup 前关闭、回边和退出
+核验。实际 SSA 用不同结果实体，各自 consumer 与 End 在对应 body 内，任何边均不
+运输本轮结果；两个 false 退出后仍可消费外部 source。分支/跳转/嵌套边界不变。
+此为兄弟执行准入，不扩独立 fresh-loop receipt 的 whole-function 单 while 资格。

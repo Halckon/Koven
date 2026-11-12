@@ -286,3 +286,21 @@ fun entry() {
     let run = emit_link_and_run("loop-local-false", text, "entry");
     super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
+
+#[test]
+fn native_no_carry_sibling_false_edges_keep_the_same_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(source: String, flag: Boolean): Unit {
+ while(flag) { borrow val first = view(source); observe(first) }
+ while(flag) { borrow val second = view(source); observe(second); observe(second) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-sibling-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}

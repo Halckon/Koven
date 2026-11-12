@@ -392,6 +392,8 @@ fn validate_binding(
         allowed.insert(returned.index());
     }
     let no_carry = crate::ssa::borrow_result_support::no_carry::admitted(file, owned, fact);
+    let no_carry_siblings =
+        crate::ssa::borrow_result_support::no_carry::siblings(file, owned, fact);
     let closed_whiles =
         crate::ssa::borrow_result_support::closed_while::following(file, typed, owned, fact);
     crate::ssa::borrow_result_support::binding(
@@ -408,6 +410,7 @@ fn validate_binding(
             if closed_whiles.contains(&statement)
                 || invariant == Some(statement)
                 || no_carry == Some(statement)
+                || no_carry_siblings.contains(&statement)
             {
                 return true;
             }

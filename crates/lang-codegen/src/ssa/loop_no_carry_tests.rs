@@ -343,26 +343,6 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
                             )
                         })
                     });
-                if label == "siblings" {
-                    let error = result.err().expect("existing sibling boundary");
-                    assert_eq!(
-                        error.kind,
-                        crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
-                    );
-                    let second = parsed
-                        .ast()
-                        .statements()
-                        .iter()
-                        .filter_map(|(_, node)| {
-                            matches!(node.payload(), Statement::While { .. }).then_some(node.span())
-                        })
-                        .max_by_key(|span| span.start())
-                        .unwrap();
-                    assert_eq!(error.span, Some(second));
-                    assert!(verified.is_empty());
-                    assert!(receipts.is_empty());
-                    continue;
-                }
                 let (program, _) = result.unwrap_or_else(|error| panic!("{label}: {error:?}"));
                 assert_eq!(verified.len(), 1);
                 assert!(receipts.is_empty());

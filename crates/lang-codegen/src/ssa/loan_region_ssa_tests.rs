@@ -926,3 +926,7 @@ mod local_loop_whole_function_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "loop_no_carry_tests.rs"]
 mod loop_no_carry_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "loop_no_carry_sibling_tests.rs"]
+mod loop_no_carry_sibling_tests;
