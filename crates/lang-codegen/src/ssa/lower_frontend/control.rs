@@ -2,7 +2,6 @@
 
 mod carried;
 pub(super) mod map_frames;
-mod proof_join;
 
 use std::collections::BTreeMap;
 

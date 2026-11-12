@@ -1,15 +1,55 @@
 use std::fmt::{self, Write};
 
 use super::model::{
-    CallableSignature, ClosureCaptureOperand, Edge, EntityId, EntityType, Function, LoanKind,
+    BinaryOperator, CallableSignature, CheckedArithmeticOperator, ClosureCaptureOperand,
+    ComparisonOperator, Edge, EntityId, EntityType, Function, IntegerBitwiseOperator, LoanKind,
     Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, TerminatorKind,
 };
 
-mod map;
-mod scalar_names;
 mod types;
-use scalar_names::{binary_name, checked_arithmetic_name, comparison_name, integer_bitwise_name};
-use types::write_type_kind;
+use types::{map, write_type_kind};
+
+const fn binary_name(operator: BinaryOperator) -> &'static str {
+    match operator {
+        BinaryOperator::Add => "add",
+        BinaryOperator::Subtract => "sub",
+        BinaryOperator::Multiply => "mul",
+        BinaryOperator::Equal => "eq",
+        BinaryOperator::LessThan => "lt",
+    }
+}
+
+const fn integer_bitwise_name(operator: IntegerBitwiseOperator) -> &'static str {
+    match operator {
+        IntegerBitwiseOperator::And => "and",
+        IntegerBitwiseOperator::Or => "or",
+        IntegerBitwiseOperator::Xor => "xor",
+        IntegerBitwiseOperator::Shl => "shl",
+        IntegerBitwiseOperator::Shr => "shr",
+        IntegerBitwiseOperator::Ushr => "ushr",
+    }
+}
+
+const fn checked_arithmetic_name(operator: CheckedArithmeticOperator) -> &'static str {
+    match operator {
+        CheckedArithmeticOperator::Add => "add",
+        CheckedArithmeticOperator::Subtract => "sub",
+        CheckedArithmeticOperator::Multiply => "mul",
+        CheckedArithmeticOperator::Divide => "div",
+        CheckedArithmeticOperator::Remainder => "rem",
+    }
+}
+
+const fn comparison_name(operator: ComparisonOperator) -> &'static str {
+    match operator {
+        ComparisonOperator::Equal => "eq",
+        ComparisonOperator::NotEqual => "ne",
+        ComparisonOperator::LessThan => "lt",
+        ComparisonOperator::LessThanOrEqual => "le",
+        ComparisonOperator::GreaterThan => "gt",
+        ComparisonOperator::GreaterThanOrEqual => "ge",
+    }
+}
 
 /// 生成只用于调试和测试的确定性 SSA 文本。
 pub(super) fn render_program(program: &Program) -> String {

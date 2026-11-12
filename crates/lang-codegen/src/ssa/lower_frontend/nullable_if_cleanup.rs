@@ -1,7 +1,219 @@
-//! One complete two-version cleanup group, consumed through its actual SSA owner column.
-//! A source candidate only passes preflight; it never substitutes for the carrier proof.
+//! One complete two-version cleanup group and bounded constant-presence proof.
 mod carrier;
 mod source;
+
+pub(in crate::ssa::lower_frontend) mod constant_presence {
+    mod source;
+    mod source_return;
+
+    use lang_frontend::ownership_checking::{
+        CleanupCondition, CleanupConditionId, CleanupConditions, CleanupOwnerValue, DropFact,
+        DropTarget, IterationPhiBoundary, IterationPhiIncomingKind, IterationPhiPresenceSource,
+        LoanTarget, OwnershipCheckedFile,
+    };
+    use lang_frontend::type_checking::TypedFile;
+    use std::collections::BTreeSet;
+
+    fn implies(
+        conditions: &CleanupConditions,
+        path: CleanupConditionId,
+        presence: CleanupConditionId,
+        proven: &BTreeSet<CleanupConditionId>,
+        visiting: &mut BTreeSet<(CleanupConditionId, CleanupConditionId)>,
+    ) -> bool {
+        if path == presence || proven.contains(&presence) {
+            return true;
+        }
+        if !visiting.insert((path, presence)) {
+            return false;
+        }
+        let always = CleanupCondition::Always;
+        let path_node = if proven.contains(&path) {
+            Some(&always)
+        } else {
+            conditions.get(path)
+        };
+        let result = match (path_node, conditions.get(presence)) {
+            (_, Some(CleanupCondition::Always)) | (Some(CleanupCondition::Never), _) => true,
+            (
+                Some(CleanupCondition::Choice {
+                    selector: a,
+                    branches: x,
+                }),
+                Some(CleanupCondition::Choice {
+                    selector: b,
+                    branches: y,
+                }),
+            ) if a == b && x.len() == y.len() => x
+                .iter()
+                .zip(y)
+                .all(|(x, y)| implies(conditions, *x, *y, proven, visiting)),
+            (Some(CleanupCondition::Choice { branches, .. }), _) => branches
+                .iter()
+                .all(|branch| implies(conditions, *branch, presence, proven, visiting)),
+            (_, Some(CleanupCondition::Choice { branches, .. })) => branches
+                .iter()
+                .all(|branch| implies(conditions, path, *branch, proven, visiting)),
+            _ => false,
+        };
+        visiting.remove(&(path, presence));
+        result
+    }
+
+    pub(in crate::ssa::lower_frontend) fn constant_drop(
+        parsed: &lang_frontend::parser::ParsedFile,
+        names: &lang_frontend::name_resolution::NameResolution,
+        typed: &TypedFile,
+        owned: &OwnershipCheckedFile,
+        fact: DropFact,
+    ) -> bool {
+        let DropTarget::Named(symbol) = fact.target() else {
+            return false;
+        };
+        let Some(owner) = fact.owner() else {
+            return false;
+        };
+        let conditions = owned.cleanup_conditions();
+        let Some(CleanupOwnerValue::IterationPhi {
+            statement,
+            symbol: identity,
+            ..
+        }) = conditions.owner_value(owner)
+        else {
+            return false;
+        };
+        if *identity != symbol {
+            return false;
+        }
+        let Some(plan) = owned.iteration(*statement) else {
+            return false;
+        };
+        let source = matches!(plan.source(), Some(LoanTarget::Place(path)) if path.is_root() && path.root() == symbol);
+        let resource = typed
+            .symbol_type(symbol)
+            .is_some_and(|ty| typed.is_resource_type(ty) == Some(true));
+        if !source && !resource {
+            return false;
+        }
+        prove_graph(owned, owner, symbol, fact.condition())
+            || source::prove(parsed, names, typed, owned, fact).is_some()
+            || source_return::prove(parsed, names, typed, owned, fact).is_some()
+    }
+
+    pub(in crate::ssa::lower_frontend) fn prove_graph(
+        owned: &OwnershipCheckedFile,
+        owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
+        symbol: lang_frontend::name_resolution::SymbolId,
+        expected: Option<CleanupConditionId>,
+    ) -> bool {
+        let conditions = owned.cleanup_conditions();
+        let mut pending = vec![owner];
+        let mut visited = BTreeSet::new();
+        let mut origins = BTreeSet::new();
+        let mut proven = BTreeSet::new();
+        let mut requirements = Vec::new();
+        while let Some(current) = pending.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+            let Some(CleanupOwnerValue::IterationPhi {
+                statement,
+                boundary,
+                symbol: identity,
+                ..
+            }) = conditions.owner_value(current)
+            else {
+                return false;
+            };
+            if *identity != symbol {
+                return false;
+            }
+            let Some(plan) = owned.iteration(*statement) else {
+                return false;
+            };
+            let Some(target) = plan.closure_phis().iter().find(|phi| {
+                phi.owner() == current && phi.boundary() == *boundary && phi.root_nodes().is_empty()
+            }) else {
+                return false;
+            };
+            if current == owner && expected != Some(target.availability_condition()) {
+                return false;
+            }
+            let Some(header) = plan.closure_phis().iter().find(|phi| {
+                phi.symbol() == symbol
+                    && phi.boundary() == IterationPhiBoundary::Header
+                    && phi.root_nodes().is_empty()
+            }) else {
+                return false;
+            };
+            pending.push(header.owner());
+            proven.insert(header.availability_condition());
+            proven.insert(target.availability_condition());
+            let edges = plan
+                .closure_phi_incomings()
+                .iter()
+                .filter(|edge| edge.boundary() == *boundary)
+                .collect::<Vec<_>>();
+            if edges.is_empty()
+                || (*boundary == IterationPhiBoundary::Header
+                    && edges
+                        .iter()
+                        .filter(|edge| edge.kind() == IterationPhiIncomingKind::Entry)
+                        .count()
+                        != 1)
+            {
+                return false;
+            }
+            for edge in edges {
+                let Some(binding) = edge
+                    .bindings()
+                    .iter()
+                    .find(|binding| binding.target() == current)
+                else {
+                    return false;
+                };
+                if binding.presence_source() != IterationPhiPresenceSource::StaticConditions
+                    || binding.values().len() != 1
+                {
+                    return false;
+                }
+                let value = binding.values()[0];
+                for condition in [binding.available_when(), value.condition()] {
+                    requirements.push((edge.condition(), condition));
+                }
+                match conditions.owner_value(value.source()) {
+                    Some(CleanupOwnerValue::IterationPhi {
+                        symbol: source_symbol,
+                        ..
+                    }) if *source_symbol == symbol => pending.push(value.source()),
+                    Some(
+                        CleanupOwnerValue::Expression { .. } | CleanupOwnerValue::Parameter { .. },
+                    ) => {
+                        if *boundary != IterationPhiBoundary::Header
+                            || edge.kind() != IterationPhiIncomingKind::Entry
+                            || !matches!(
+                                conditions.get(binding.available_when()),
+                                Some(CleanupCondition::Always)
+                            )
+                            || !matches!(
+                                conditions.get(value.condition()),
+                                Some(CleanupCondition::Always)
+                            )
+                        {
+                            return false;
+                        }
+                        origins.insert(value.source());
+                    }
+                    _ => return false,
+                }
+            }
+        }
+        origins.len() == 1
+            && requirements.into_iter().all(|(path, presence)| {
+                implies(conditions, path, presence, &proven, &mut BTreeSet::new())
+            })
+    }
+}
 
 use lang_frontend::ownership_checking::{
     CleanupCondition, CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorId,
@@ -25,7 +237,6 @@ pub(super) struct GroupPlan {
     parameter_count: usize,
 }
 
-/// Shared by the global conditional-drop gate and the consumer. No SSA is admitted here.
 pub(super) fn candidate(
     parsed: &ParsedFile,
     names: &NameResolution,
@@ -47,7 +258,6 @@ pub(super) fn candidate(
         return None;
     };
     let members = [*old, *new];
-    // Consume consecutive original facts together, never reorder another obligation.
     if !owned
         .drops()
         .windows(2)
@@ -101,8 +311,6 @@ pub(super) fn candidate(
     )
 }
 
-/// Exact DAG: (!A && B_arm) OR (A && B_arm). The alternatives are disjoint and
-/// exhaustive on B_arm; neither version is individually an unconditional drop.
 fn coverage(
     parsed: &ParsedFile,
     conditions: &CleanupConditions,
@@ -153,8 +361,6 @@ fn control(
 }
 
 impl ExpressionLowerer<'_> {
-    /// Reuse the existing Int projection reader only for the same fully proven
-    /// true-arm group. This query does not consume a fact, view, or owner.
     pub(super) fn is_proven_nullable_if_field_read(
         &self,
         expression: ExpressionId,
@@ -175,8 +381,6 @@ impl ExpressionLowerer<'_> {
         })
     }
 
-    /// Do not let existing point cleanup retire a live child before this new path's
-    /// strict qualification. This pass is read-only, including for every other fact.
     pub(super) fn preflight_nullable_if_cleanup_groups(
         &self,
         facts: &[DropFact],
@@ -220,7 +424,6 @@ impl ExpressionLowerer<'_> {
             return Ok(None);
         };
         let span = fact.value_origin();
-        // Every identity and both real incoming versions must be checked before mutation.
         let owner = self.checked_nullable_if_cleanup_owner(&plan, remaining)?;
         self.end_non_null_proof(plan.root, span)?;
         if self.bindings.remove(&plan.root) != Some(LoweredValue::Value(owner)) {
@@ -228,7 +431,6 @@ impl ExpressionLowerer<'_> {
         }
         self.append(Operation::Drop { owner }, Vec::new(), span)?;
         self.release_owner_capture_loans(owner, span)?;
-        // The caller advances over ALL members; no second version can drop this binding again.
         Ok(Some(plan.members.len()))
     }
 }

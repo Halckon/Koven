@@ -1,6 +1,182 @@
 //! Optional bounded protocol-3 verification. The existing producers alone emit effects.
-mod admission;
-mod emitted;
+mod emitted {
+    use super::*;
+    #[cfg(test)]
+    #[path = "ci_tests.rs"]
+    mod ci_tests;
+    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
+    use std::collections::BTreeMap;
+    #[derive(Clone, Debug)]
+    pub(crate) struct Receipt {
+        pub(crate) ids: Vec<UnitLoanActionId>,
+        pub(crate) callable: UnitItemId,
+        pub(crate) caller: FunctionId,
+        pub(crate) call: UnitExpressionId,
+        pub(crate) instructions: Vec<InstructionId>,
+        /// Original parameter owner, root place, and caller-local argument loan.
+        pub(crate) entities: Vec<EntityId>,
+    }
+    pub(in crate::ssa::refine) struct Emitted {
+        receipts: Vec<Receipt>,
+        blocks: Vec<Option<BlockId>>,
+    }
+    impl Emitted {
+        pub(in crate::ssa::refine) fn new(
+            plans: &Plans,
+            function: &Function,
+            span: Span,
+        ) -> Result<Self, LoweringError> {
+            let mut receipts = Vec::new();
+            for p in &plans.entries {
+                if p.stage != 5 || p.caller != function.id() {
+                    return Err(invalid(span));
+                }
+                receipts.push(Receipt {
+                    ids: p.ids.clone(),
+                    callable: p.callable,
+                    caller: p.caller,
+                    call: p.call,
+                    instructions: Vec::new(),
+                    entities: Vec::new(),
+                });
+            }
+            Ok(Self {
+                blocks: vec![None; receipts.len()],
+                receipts,
+            })
+        }
+        pub(in crate::ssa::refine) fn statement(
+            &mut self,
+            plans: &Plans,
+            tag: Tag,
+            function: &Function,
+            instruction: InstructionId,
+            current: &BTreeMap<Slot, EntityId>,
+            span: Span,
+        ) -> Result<(), LoweringError> {
+            let p = plans.entries.get(tag.plan).ok_or_else(|| invalid(span))?;
+            let r = self
+                .receipts
+                .get_mut(tag.plan)
+                .ok_or_else(|| invalid(span))?;
+            let data = function
+                .instruction(instruction)
+                .ok_or_else(|| invalid(span))?;
+            if r.caller != function.id()
+                || r.instructions.len() != usize::from(tag.role)
+                || self.blocks[tag.plan].is_some_and(|b| b != data.block)
+            {
+                return Err(invalid(span));
+            }
+            let entity = |slot: Option<Slot>| {
+                slot.and_then(|s| current.get(&s).copied())
+                    .ok_or_else(|| invalid(span))
+            };
+            for (slot, frozen) in [p.owner, p.place, p.loan].into_iter().zip(&r.entities) {
+                if entity(slot)? != *frozen {
+                    return Err(invalid(span));
+                }
+            }
+            match (tag.role, &data.operation) {
+                (0, Operation::RootPlace { owner })
+                    if EntityId::Value(*owner) == entity(p.owner)? =>
+                {
+                    let [place @ EntityId::Place(_)] = data.results.as_slice() else {
+                        return Err(invalid(span));
+                    };
+                    if *place != entity(p.place)? {
+                        return Err(invalid(span));
+                    }
+                    if !function
+                        .blocks
+                        .first()
+                        .is_some_and(|b| b.parameters.contains(&EntityId::Value(*owner)))
+                    {
+                        return Err(invalid(span));
+                    }
+                    r.entities.extend([EntityId::Value(*owner), *place]);
+                }
+                (
+                    1,
+                    Operation::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                ) if Some(&EntityId::Place(*place)) == r.entities.get(1) => {
+                    let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
+                        return Err(invalid(span));
+                    };
+                    if *loan != entity(p.loan)? || id.function() != function.id() {
+                        return Err(invalid(span));
+                    }
+                    r.entities.push(*loan);
+                }
+                (
+                    2,
+                    Operation::DirectCall {
+                        callee,
+                        receiver,
+                        arguments,
+                    },
+                ) if *callee == p.callee
+                    && receiver.is_none()
+                    && arguments.as_slice() == [entity(p.loan)?]
+                    && data.results.len() == usize::from(p.returns_value)
+                    && data.results.iter().all(|e| matches!(e, EntityId::Value(_))) => {}
+                (3, Operation::BorrowEnd { loan })
+                    if EntityId::Loan(*loan) == entity(p.loan)? && data.results.is_empty() => {}
+                (4, Operation::Drop { owner })
+                    if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
+                _ => return Err(invalid(span)),
+            }
+            self.blocks[tag.plan] = Some(data.block);
+            r.instructions.push(instruction);
+            Ok(())
+        }
+        pub(in crate::ssa::refine) fn finish(
+            self,
+            plans: &Plans,
+            function: &Function,
+            span: Span,
+        ) -> Result<(), LoweringError> {
+            if self.receipts.len() != plans.entries.len()
+                || self.blocks.len() != plans.entries.len()
+            {
+                return Err(invalid(span));
+            }
+            for ((r, b), p) in self.receipts.iter().zip(&self.blocks).zip(&plans.entries) {
+                if r.ids != p.ids
+                    || r.callable != p.callable
+                    || r.call != p.call
+                    || r.caller != function.id()
+                    || r.instructions.len() != 5
+                    || r.entities.len() != 3
+                {
+                    return Err(invalid(span));
+                }
+                let block = b
+                    .and_then(|b| function.block(b))
+                    .ok_or_else(|| invalid(span))?;
+                if r.instructions
+                    .iter()
+                    .any(|id| !block.instructions.contains(id))
+                {
+                    return Err(invalid(span));
+                }
+            }
+            #[cfg(test)]
+            ci_tests::record(plans, function, &self.receipts);
+            #[cfg(test)]
+            RECEIPTS.with(|output| {
+                if let Some(output) = output.borrow_mut().as_mut() {
+                    output.extend(self.receipts);
+                }
+            });
+            Ok(())
+        }
+    }
+}
+
 use super::body::{BlockRef, ROp, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -9,9 +185,12 @@ use crate::ssa::{
 pub(super) use emitted::Emitted;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
-    ownership_checking::{UnitDropTarget, UnitLoanActionId, UnitLoanFact},
+    ownership_checking::{
+        UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanAction,
+        UnitLoanActionCoverage, UnitLoanActionId, UnitLoanFact, UnitLoanTarget,
+    },
     source::Span,
-    type_checking::{UnitExpressionId, UnitItemId},
+    type_checking::{BuiltinType, UnitCallableTarget, UnitExpressionId, UnitItemId, UnitTypeKind},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -19,10 +198,12 @@ pub(super) struct Tag {
     pub(super) plan: usize,
     pub(super) role: u8,
 }
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
     entries: Vec<Plan>,
 }
+
 #[derive(Clone, Debug)]
 struct Plan {
     ids: Vec<UnitLoanActionId>,
@@ -41,7 +222,181 @@ struct Plan {
     drop_authorized: bool,
     block: Option<BlockRef>,
 }
+
 impl Plans {
+    pub(in crate::ssa::refine) fn new(
+        inputs: &super::RefineInputs<'_>,
+    ) -> Result<Self, LoweringError> {
+        let mut result = Self::default();
+        let Some(call) = super::subset::named_route::bounded_named_call(inputs) else {
+            return Ok(result);
+        };
+        let item = inputs.function_item.ok_or_else(|| invalid(inputs.span))?;
+        let callable = UnitItemId::new(inputs.source_unit, item);
+        let fail = || error(LoweringErrorKind::MissingFact, inputs.span);
+        for observation in inputs.owned.loan_action_observations() {
+            for region in observation.regions().iter().filter(|r| {
+                r.protocol_version() == 3
+                    && r.coverage() == UnitLoanActionCoverage::Complete
+                    && r.callable() == Some(callable)
+            }) {
+                if observation.source() != inputs.source_unit
+                    || !observation.owns_region(region)
+                    || region.call() != call
+                    || !result.entries.is_empty()
+                {
+                    return Err(fail());
+                }
+                let ids = region.action_ids().collect::<Vec<_>>();
+                let actions = ids
+                    .iter()
+                    .map(|id| observation.action(id).ok_or_else(fail))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let [
+                    UnitLoanAction::Begin(begin),
+                    UnitLoanAction::Cleanup {
+                        point: end_point,
+                        action: UnitIterationCleanupAction::EndCallLoan(end),
+                    },
+                    UnitLoanAction::Cleanup {
+                        point,
+                        action: UnitIterationCleanupAction::Drop(drop),
+                    },
+                ] = actions.as_slice()
+                else {
+                    return Err(fail());
+                };
+                let UnitLoanTarget::Place(root) = begin.target() else {
+                    return Err(fail());
+                };
+                if begin.call() != call
+                    || end != begin
+                    || inputs
+                        .owned
+                        .loans()
+                        .iter()
+                        .filter(|loan| *loan == begin)
+                        .count()
+                        != 1
+                    || inputs
+                        .owned
+                        .direct_call_loan_ends()
+                        .iter()
+                        .filter(|fact| fact.loan() == begin && fact.point() == *point)
+                        .count()
+                        != 1
+                    || !root.is_root()
+                    || root.root().source_unit() != inputs.source_unit
+                    || *point != UnitDropPoint::CallReturn(call)
+                    || *end_point != *point
+                    || drop.point() != *point
+                    || drop.target() != UnitDropTarget::Named(root.root())
+                {
+                    return Err(fail());
+                }
+                let contracts = inputs
+                    .owned
+                    .call_argument_contracts()
+                    .iter()
+                    .filter(|c| c.call() == call)
+                    .collect::<Vec<_>>();
+                let [contract] = contracts.as_slice() else {
+                    return Err(fail());
+                };
+                let typed_call = inputs.typed.call(call).ok_or_else(fail)?;
+                let [argument] = typed_call.arguments() else {
+                    return Err(fail());
+                };
+                if begin.argument().source_unit() != inputs.source_unit
+                    || contract.argument() != begin.argument()
+                    || contract.kind()
+                        != lang_frontend::ownership_checking::UnitCallArgumentOwnershipKind::SharedLoan
+                    || contract.parameter_index() != argument.parameter_index()
+                    || contract.parameter_type() != argument.parameter_type()
+                    || contract.category() != argument.category()
+                    || contract.crosses_thread()
+                    || argument.crosses_thread()
+                    || contract.argument_span() != begin.begin_span()
+                    || contract.loan_begin_span() != begin.begin_span()
+                    || contract.call_span() != begin.end_span()
+                    || contract.parameter_span() != begin.parameter_span()
+                {
+                    return Err(fail());
+                }
+                let indices = inputs
+                    .owned
+                    .drops()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, fact)| **fact == *drop)
+                    .map(|(i, _)| i)
+                    .collect::<Vec<_>>();
+                let [drop_index] = indices.as_slice() else {
+                    return Err(fail());
+                };
+                let caller_key = inputs
+                    .source_plan
+                    .source(inputs.source_token)
+                    .ok_or_else(fail)?;
+                let UnitCallableTarget::Declaration(id) = caller_key.target() else {
+                    return Err(fail());
+                };
+                let declaration = inputs
+                    .names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .find(|d| d.id() == id)
+                    .ok_or_else(fail)?;
+                if UnitItemId::new(declaration.source_unit(), declaration.root()) != callable {
+                    return Err(fail());
+                }
+                let caller = *inputs.function_ids.get(caller_key).ok_or_else(fail)?;
+                let site = inputs
+                    .source_plan
+                    .call_site(inputs.source_token, call)
+                    .ok_or_else(fail)?;
+                if !site.delegation().is_empty() {
+                    return Err(fail());
+                }
+                let callee = *inputs
+                    .function_ids
+                    .get(site.dispatch_key().ok_or_else(fail)?)
+                    .ok_or_else(fail)?;
+                if callee == caller {
+                    return Err(fail());
+                }
+                let ty = inputs
+                    .concrete(inputs.typed.call(call).ok_or_else(fail)?.return_type())
+                    .ok_or_else(fail)?;
+                let returns_value = match inputs.typed.types().get(ty) {
+                    Some(UnitTypeKind::Builtin(BuiltinType::Int)) => true,
+                    Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => false,
+                    _ => return Err(fail()),
+                };
+                result.entries.push(Plan {
+                    ids,
+                    callable,
+                    caller,
+                    call,
+                    callee,
+                    fact: (*begin).clone(),
+                    root: root.root(),
+                    drop_index: *drop_index,
+                    returns_value,
+                    owner: None,
+                    place: None,
+                    loan: None,
+                    stage: 0,
+                    drop_authorized: false,
+                    block: None,
+                });
+            }
+        }
+        Ok(result)
+    }
+
     pub(super) fn enter(
         &mut self,
         call: UnitExpressionId,
@@ -62,6 +417,7 @@ impl Plans {
         plan.owner = Some(owner);
         Ok(())
     }
+
     pub(super) fn drop_fact(
         &mut self,
         index: usize,
@@ -83,6 +439,7 @@ impl Plans {
         }
         Ok(())
     }
+
     pub(super) fn statement(
         &mut self,
         op: &ROp,
@@ -147,6 +504,7 @@ impl Plans {
         }
         Ok(tag)
     }
+
     pub(super) fn finish(
         &self,
         consumed: &std::collections::BTreeSet<usize>,
@@ -162,11 +520,16 @@ impl Plans {
         Ok(())
     }
 }
+
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
 }
+
 #[cfg(test)]
-thread_local! { static RECEIPTS: std::cell::RefCell<Option<Vec<emitted::Receipt>>> = const { std::cell::RefCell::new(None) }; }
+thread_local! {
+    static RECEIPTS: std::cell::RefCell<Option<Vec<emitted::Receipt>>> = const { std::cell::RefCell::new(None) };
+}
+
 #[cfg(test)]
 pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<emitted::Receipt>) {
     RECEIPTS.with(|r| {

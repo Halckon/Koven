@@ -1,8 +1,5 @@
 //! Synthetic entry-state guards, not end-to-end verifier rejection tests.
-use super::{
-    super::{Reference, State},
-    EntryProjection,
-};
+use super::{EntryProjection, Reference, State};
 use crate::ssa::model::{
     BlockId, Definition, Edge, EntityId, EntityType, Function, LoanId, LoanKind, Operation, Origin,
     PlaceId, Program, SequentialContainerKind, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,

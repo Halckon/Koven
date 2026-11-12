@@ -1,40 +1,30 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod aggregate;
-mod binding;
+pub(in crate::ssa::lower_frontend) use aggregate::resource_deinit;
 mod borrow_argument;
 mod borrow_result;
-mod call_lifetimes;
-mod checked;
 #[cfg(test)]
 mod cleanup_guard_harness;
-mod constant;
-mod constant_presence;
 mod container;
 mod control;
 mod declarations;
-mod drops;
-mod enum_condition;
 mod enum_type_test;
 mod field_replace;
 mod instances;
 mod integer;
-mod integer_range;
 mod local_storage;
 mod loop_control;
 mod map;
 mod map_consume;
 mod map_iteration;
 mod map_loop_owner;
-mod map_require;
-mod map_result;
-mod map_with;
 mod nominal;
-mod non_null_assertion;
 mod non_null_proof;
 mod nullable_borrowed_cleanup;
 mod nullable_comparison;
 mod nullable_if_cleanup;
+pub(in crate::ssa::lower_frontend) use nullable_if_cleanup::constant_presence;
 mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;
@@ -43,9 +33,7 @@ mod ownership_primitive;
 mod pending_call;
 mod range;
 mod readonly_receiver;
-mod resource_deinit;
 mod source_closure;
-mod statement;
 mod string_clone;
 mod while_proof;
 

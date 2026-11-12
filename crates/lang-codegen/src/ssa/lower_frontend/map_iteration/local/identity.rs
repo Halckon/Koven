@@ -10,24 +10,24 @@ use lang_frontend::{
     },
 };
 
-pub(super) struct Site<'a> {
-    pub(super) plan: &'a MapIterationOwnershipPlan,
-    pub(super) root: SymbolId,
-    pub(super) initializer: ExpressionId,
-    pub(super) consumer: ExpressionId,
-    pub(super) body: StatementId,
-    pub(super) origin: Span,
-    pub(super) span: Span,
-    pub(super) guard: Option<Guard>,
+pub(in crate::ssa::lower_frontend::map_iteration) struct Site<'a> {
+    pub(in crate::ssa::lower_frontend::map_iteration) plan: &'a MapIterationOwnershipPlan,
+    pub(in crate::ssa::lower_frontend::map_iteration) root: SymbolId,
+    pub(in crate::ssa::lower_frontend::map_iteration) initializer: ExpressionId,
+    pub(in crate::ssa::lower_frontend::map_iteration) consumer: ExpressionId,
+    pub(in crate::ssa::lower_frontend::map_iteration) body: StatementId,
+    pub(in crate::ssa::lower_frontend::map_iteration) origin: Span,
+    pub(in crate::ssa::lower_frontend::map_iteration) span: Span,
+    pub(in crate::ssa::lower_frontend::map_iteration) guard: Option<Guard>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Guard {
-    pub(super) control: ExpressionId,
-    pub(super) condition: ExpressionId,
-    pub(super) success: StatementId,
-    pub(super) failure: StatementId,
-    pub(super) size: ExpressionId,
+pub(in crate::ssa::lower_frontend::map_iteration) struct Guard {
+    pub(in crate::ssa::lower_frontend::map_iteration) control: ExpressionId,
+    pub(in crate::ssa::lower_frontend::map_iteration) condition: ExpressionId,
+    pub(in crate::ssa::lower_frontend::map_iteration) success: StatementId,
+    pub(in crate::ssa::lower_frontend::map_iteration) failure: StatementId,
+    pub(in crate::ssa::lower_frontend::map_iteration) size: ExpressionId,
 }
 
 pub(super) fn collect<'a>(

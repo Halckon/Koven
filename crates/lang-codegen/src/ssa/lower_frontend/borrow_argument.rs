@@ -1,6 +1,5 @@
 //! Value/Borrow argument evaluation and temporary-place carriers.
 mod nullable_field;
-mod owned_field;
 
 use super::{
     EntityId, EntityType, ExpressionLowerer, LoanId, LoanKind, LoweredValue, LoweringError,
