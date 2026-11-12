@@ -16,6 +16,7 @@ pub struct UnitOwnerNestedNormalBodyV1 {
     ),
     normal: UnitOwnerMultiRootNormalTransportV1,
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
+    resume_roots: Option<Vec<UnitSymbolId>>,
 }
 impl UnitOwnerNestedNormalBodyV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -29,6 +30,7 @@ impl UnitOwnerNestedNormalBodyV1 {
         ),
         normal: UnitOwnerMultiRootNormalTransportV1,
         exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
+        resume_roots: Option<Vec<UnitSymbolId>>,
     ) -> Option<Self> {
         let value = Self {
             identity,
@@ -36,6 +38,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             sites,
             normal,
             exit_partition,
+            resume_roots,
         };
         value.is_consistent().then_some(value)
     }
@@ -67,6 +70,24 @@ impl UnitOwnerNestedNormalBodyV1 {
             .as_ref()
             .map(|(live, drops)| (live.as_slice(), drops.as_slice()))
     }
+    /// Actual traversal return to the declared parent after child false cleanup.
+    /// This boundary fact alone is not permission for any resumed consumer.
+    pub fn parent_resume_roots(&self) -> Option<&[UnitSymbolId]> {
+        self.resume_roots.as_deref()
+    }
+    fn resume_is_consistent(&self) -> bool {
+        let Some(roots) = &self.resume_roots else {
+            return true;
+        };
+        let Some((live, _)) = &self.exit_partition else {
+            return false;
+        };
+        roots.len() == live.len()
+            && roots
+                .iter()
+                .enumerate()
+                .all(|(i, r)| !roots[..i].contains(r) && live.contains(r))
+    }
     fn exit_is_consistent(&self) -> bool {
         let Some((live, drops)) = &self.exit_partition else {
             return true;
@@ -96,6 +117,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             && self.parent().source_unit() == self.control().source_unit()
             && self.condition().source_unit() == self.control().source_unit()
             && self.body().source_unit() == self.control().source_unit()
+            && self.resume_is_consistent()
             && self.exit_is_consistent()
             && self.normal.is_consistent()
             && self.normal.statement() == self.control()

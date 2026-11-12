@@ -166,6 +166,12 @@ impl DropPlanner<'_, '_> {
         if entered {
             self.owner_controls.leave(control);
         }
+        self.owner_loop.nested_parent_resume(
+            control,
+            self.owner_controls.current(),
+            state,
+            entered && matches!(result, Ok(true)),
+        );
         self.owner_loop.select(previous_transaction);
         #[cfg(test)]
         self.record_control_visit(

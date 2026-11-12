@@ -64,3 +64,10 @@ LoopExit fact、原consumed记录、span及清理顺序；不限制live根的后
 到原Drop，随straight-line fold同步块/指令偏移，终检真实边参数、指令表与块清单。
 这不是owner退出消费许可。现已核完整live+retired根的false边参数映射，空drops也核全根；
 live根的后续消费及parent恢复仍由原路径负责，不证明动态代际。
+
+## 父恢复边界（已批准合同的第一步）
+
+实际child控制栈弹出后，以当前parent身份、正常返回结果及干净live根向量记录
+`parent_resume_roots()`；依赖完整false分区，缺事件/重复/错parent不给事实。
+这不是恢复消费许可。已批准的后续单次Replace→binding→Drop仍需独立实际事件
+状态机和一次性消费者，不能复用child已经消费的normal permit。

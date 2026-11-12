@@ -447,6 +447,7 @@ fn nested_false_exit_retires_child_local_root_without_resume_permission() {
     let (live, drops) = n.false_exit_partition().expect("actual cleanup partition");
     assert_eq!(live.len(), 1);
     assert_eq!(drops.len(), 1);
+    assert_eq!(n.parent_resume_roots(), Some(live));
     let (lowered, actions) =
         crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
     let (program, _) = lowered.unwrap();

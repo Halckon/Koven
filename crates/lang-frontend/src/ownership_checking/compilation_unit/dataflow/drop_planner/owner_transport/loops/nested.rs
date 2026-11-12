@@ -13,6 +13,8 @@ pub(super) struct Nested {
     body_entered: bool,
     left: bool,
     exit_seen: bool,
+    resume_seen: bool,
+    resume_roots: Option<Vec<UnitSymbolId>>,
     exit_partition: Option<(
         Vec<UnitSymbolId>,
         Vec<crate::ownership_checking::UnitDropFact>,
@@ -97,6 +99,8 @@ impl ControlTransactions {
             body_entered: false,
             left: false,
             exit_seen: false,
+            resume_seen: false,
+            resume_roots: None,
             exit_partition: None,
             valid: true,
             sink: None,
@@ -187,6 +191,45 @@ impl ControlTransactions {
         n.exit_partition =
             root_incoming::root_exit::actual_partition(control, &n.roots, state, drops);
     }
+    pub(in super::super::super) fn nested_parent_resume(
+        &mut self,
+        child: UnitStatementId,
+        parent: Option<UnitStatementId>,
+        state: &ValueState,
+        success: bool,
+    ) {
+        let Some(n) = self.nested.as_mut().filter(|n| n.control == child) else {
+            return;
+        };
+        #[cfg(test)]
+        if fault(child, 7) {
+            return;
+        }
+        let repeated = n.resume_seen;
+        n.resume_seen = true;
+        n.resume_roots = None;
+        if repeated || !success || !n.valid || !n.left || parent != Some(n.parent) {
+            return;
+        }
+        let Some((live, _)) = &n.exit_partition else {
+            return;
+        };
+        let Some(values) = boundary_values(state) else {
+            return;
+        };
+        let roots = values.iter().map(|v| v.symbol).collect::<Vec<_>>();
+        if roots.len() == live.len()
+            && roots
+                .iter()
+                .all(|r| live.iter().filter(|s| *s == r).count() == 1)
+            && roots
+                .iter()
+                .enumerate()
+                .all(|(i, r)| !roots[..i].contains(r))
+        {
+            n.resume_roots = Some(roots);
+        }
+    }
     pub(in super::super::super) fn nested_leave(
         &mut self,
         control: UnitStatementId,
@@ -225,6 +268,7 @@ impl ControlTransactions {
             (n.parent, n.control, n.condition, n.body),
             n.sink?.result()?,
             n.exit_partition,
+            n.resume_roots,
         )
     }
 }
@@ -268,6 +312,7 @@ mod tests {
         let (live, drops) = n.false_exit_partition().expect("actual false cleanup");
         assert_eq!(live.len(), 2);
         assert!(drops.is_empty());
+        assert_eq!(n.parent_resume_roots(), Some(live));
         assert!(live.iter().all(|r| n.normal().header_roots().contains(r)));
         assert_ne!(n.parent(), n.control());
         assert_eq!(n.normal().statement(), n.control());
@@ -413,5 +458,30 @@ mod tests {
         // needs it for the next child activation. Preserve actual planner liveness.
         assert_eq!(live.len(), 2);
         assert!(drops.is_empty());
+        assert_eq!(n.parent_resume_roots(), Some(live));
+    }
+    #[test]
+    fn ci_only_nested_parent_resume_requires_actual_stack_return() {
+        let fixture = Fixture::new(&[("nested-resume-event.ko", SOURCE)]);
+        let baseline = fixture.shared();
+        let child = baseline
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.nested_normal_body_v1())
+            .unwrap()
+            .control();
+        FAULT.set(Some((child, 7)));
+        HITS.set(0);
+        let owned = fixture.shared();
+        let hits = HITS.get();
+        FAULT.set(None);
+        assert!(hits > 0);
+        let n = owned
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.nested_normal_body_v1())
+            .unwrap();
+        assert!(n.false_exit_partition().is_some());
+        assert!(n.parent_resume_roots().is_none());
     }
 }

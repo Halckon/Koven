@@ -15359,3 +15359,22 @@ CI-only负控，仅编译。普通counter27/27（13.13s）通过，独立只读�
 后续恢复权限仍需单独批准，不能因完整边向量匹配直接使用既有normal permit。
 codegen all-target strict Clippy（28.11s）通过；新故障只编译，未执行。未重跑FE和
 workspace（本片无外部API变化）；fmt/docs/尺寸/diff门禁通过后本地提交，不推送。
+
+### 已批准：受限父恢复的一次性消费合同，第一步真实边界（2026-11-12）
+
+用户明确同意：仅child false证据完整、实际parent及根向量匹配时允许一次性恢复消费；
+新恢复链缺项或错配整组拒绝，不扩大一般嵌套/任意跨轮。此提交先落实必要真实边界，
+尚不发布恢复消费许可：实际control stack离开child之后，要求当前parent精确匹配、
+child正常返回、已记录false分区，重新以boundary_values核干净live根；重复/缺事件
+无resume事实，不能用left或AST顺序代替。退休根不得重新加入恢复向量。
+
+后续实现限定紧接child的单条 `val old=replace(&liveRoot,"literal")`，AST/typed primitive
+仅识别预期，必须由真实literal→Replace→binding→AfterStatement Drop事件完成独立
+状态机，再接非Clone一次性消费者。不套用要求两根及完整while body的BodyPlan，不
+将child normal permit复活，不将形式根来源冒充运行时代际。新恢复许可未完成不影响
+旧child normal产品；不能把本提交边界事实宣称为已完成恢复授权。
+恢复向量按实际symbol集合匹配，不保证与false分区顺序相同；后续消费者必须按symbol
+配对，不得直接zip。独立复审无确定阻断；缺实际恢复事件CI-only仅编译，重复恢复/
+错parent专用故障矩阵尚待补。FE691/691（6.58s）、普通native27/27（25.89s）通过。
+双crate all-target strict Clippy（53.81s）、fmt/docs915/尺寸/diff通过。未重跑workspace；
+本片仅本地提交不推送。日志nested-parent-boundary-*。
