@@ -5,7 +5,6 @@ mod callable;
 mod container;
 mod field;
 mod heap;
-mod inout;
 mod map;
 pub(super) mod named_route;
 mod range_borrow;

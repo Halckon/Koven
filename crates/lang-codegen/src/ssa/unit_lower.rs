@@ -4,7 +4,7 @@ use orchestrate::lower_unit_from_facts;
 
 mod aggregate;
 mod borrow;
-mod borrow_result;
+pub(crate) mod borrow_result;
 mod call;
 mod call_lifetimes;
 use call_lifetimes::callable_abi;

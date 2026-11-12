@@ -30,7 +30,7 @@ pub(crate) use refine::with_per_family_lowering;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
-pub(crate) mod provider;
+pub(crate) use unit_lower::borrow_result::provider;
 mod render;
 mod statement_core;
 #[cfg(test)]

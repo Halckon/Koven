@@ -1,7 +1,7 @@
-mod provider;
-mod source;
 use super::control::BranchExit;
-use super::*;
+use super::non_null_proof::outer_borrowed_provider as provider;
+mod source;
+pub(in crate::ssa::lower_frontend) use super::*;
 use crate::ssa::model::SsaTypeKind;
 use carrier::{Columns, instructions, transport};
 use lang_frontend::{
@@ -16,21 +16,21 @@ use lang_frontend::{
         SequentialIterationBinding,
     },
 };
-use source::carrier;
+pub(in crate::ssa::lower_frontend) use source::carrier;
 
 /// Only complete published facts and the bounded source relation construct this token.
 #[derive(Clone, PartialEq, Eq)]
-pub(super) struct Relation {
-    outer: StatementId,
-    inner: StatementId,
-    breaking: ExpressionId,
-    root: SymbolId,
-    items: SymbolId,
-    item: SymbolId,
-    storage: TypeId,
-    parameter_slot: usize,
-    initializer: ExpressionId,
-    drops: [DropFact; 2],
+pub(in crate::ssa::lower_frontend) struct Relation {
+    pub(in crate::ssa::lower_frontend) outer: StatementId,
+    pub(in crate::ssa::lower_frontend) inner: StatementId,
+    pub(in crate::ssa::lower_frontend) breaking: ExpressionId,
+    pub(in crate::ssa::lower_frontend) root: SymbolId,
+    pub(in crate::ssa::lower_frontend) items: SymbolId,
+    pub(in crate::ssa::lower_frontend) item: SymbolId,
+    pub(in crate::ssa::lower_frontend) storage: TypeId,
+    pub(in crate::ssa::lower_frontend) parameter_slot: usize,
+    pub(in crate::ssa::lower_frontend) initializer: ExpressionId,
+    pub(in crate::ssa::lower_frontend) drops: [DropFact; 2],
 }
 
 pub(super) fn candidate(
@@ -338,7 +338,7 @@ pub(super) fn candidate(
         drops: [*items_drop, *current_drop],
     })
 }
-fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
+pub(in crate::ssa::lower_frontend) fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
     let first = items.next()?;
     items.next().is_none().then_some(first)
 }
