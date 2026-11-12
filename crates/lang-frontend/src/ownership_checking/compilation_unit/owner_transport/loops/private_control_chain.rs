@@ -190,6 +190,7 @@ pub struct UnitOwnerControlChainBodyV1<'a> {
     normal: &'a UnitOwnerMultiRootNormalTransportV1,
     false_exit: (&'a [UnitSymbolId], &'a [UnitDropFact]),
     tail: Tail,
+    suffix: Option<&'a [(UnitSymbolId, UnitDropFact)]>,
 }
 impl<'a> UnitOwnerControlChainBodyV1<'a> {
     /// Actual source-qualified control owning this body.
@@ -218,6 +219,10 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
     pub fn checked_tail(&self) -> (UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4]) {
         (self.tail.1, self.tail.0, self.tail.2)
     }
+    /// Original final straight-line live-root binding and cleanup facts, if present.
+    pub fn false_exit_suffix(&self) -> Option<&'a [(UnitSymbolId, UnitDropFact)]> {
+        self.suffix
+    }
     /// Source-root order, not the order of alias declarations or replacement calls.
     pub fn roots(&self) -> &'a [UnitSymbolId] {
         self.normal.header_roots()
@@ -238,7 +243,7 @@ impl<'a> UnitOwnerControlChainBodiesV1<'a> {
 }
 impl UnitOwnerObservation {
     /// Borrow normal-body rules and implicit-false partitions of a complete chain.
-    /// Consumers must validate actual checked edges; no entry, suffix or SSA permission.
+    /// Consumers must validate actual checked edges; no entry or SSA permission.
     pub fn control_chain_bodies_v1(&self) -> Option<UnitOwnerControlChainBodiesV1<'_>> {
         if !self.is_consistent() {
             return None;
@@ -250,6 +255,7 @@ impl UnitOwnerObservation {
             body: chain.first.next_body(),
             normal: chain.first.next_normal_transport()?,
             false_exit: chain.first.next_false_exit_partition()?,
+            suffix: None,
             tail: {
                 let tail = chain.first.next_counter_tail()?;
                 (tail.guard(), tail.counter(), tail.assignments())
@@ -262,6 +268,7 @@ impl UnitOwnerObservation {
             normal: &chain.last.normal,
             false_exit: (&chain.last.exit.0, &chain.last.exit.1),
             tail: chain.last.tail,
+            suffix: chain.last.suffix.as_deref(),
         };
         Some(UnitOwnerControlChainBodiesV1 {
             members: [second, third],

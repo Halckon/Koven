@@ -9,6 +9,7 @@ pub(super) enum Stage {
 }
 pub(in super::super) struct Permit {
     index: usize,
+    control: UnitStatementId,
     block: BlockRef,
     instruction: usize,
     span: Span,
@@ -23,12 +24,15 @@ impl Builder<'_, '_> {
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
+        let Some(selected) = self.bridge_select_suffix(|_, items| {
+            items
+                .iter()
+                .any(|(_, f)| f.target() == UnitDropTarget::Named(symbol))
+        })?
+        else {
             return Ok(None);
         };
-        let Some(items) = plan.evidence.next_false_exit_suffix() else {
-            return Ok(None);
-        };
+        let items = selected.items;
         let Some(index) = items
             .iter()
             .position(|(_, fact)| fact.target() == UnitDropTarget::Named(symbol))
@@ -36,11 +40,10 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let (_, _, roots) = plan.next.as_ref().ok_or_else(fail)?;
+        let roots = selected.roots;
         let root = items[index].0;
-        let position = plan
-            .evidence
-            .targets()
+        let position = selected
+            .symbols
             .iter()
             .position(|r| *r == root)
             .ok_or_else(fail)?;
@@ -54,9 +57,12 @@ impl Builder<'_, '_> {
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::MissingBridgeSuffixBinding,
         ) {
+            if self.control_chain_bodies.is_some() {
+                owner_consumer_test_support::record_action("control-chain-suffix-fault-hit", index);
+            }
             return Ok(None);
         }
-        self.bridge_suffix_permit(index, Stage::Ready, value, span)
+        self.bridge_suffix_permit(selected.control, index, Stage::Ready, value, span)
             .map(Some)
     }
     pub(in super::super) fn bridge_suffix_drop(
@@ -66,13 +72,16 @@ impl Builder<'_, '_> {
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
-            return Ok(None);
-        };
-        let Some(items) = plan.evidence.next_false_exit_suffix() else {
-            return Ok(None);
-        };
         let actual = self.inputs.owned.drops().get(fact_index);
+        let Some(selected) = self.bridge_select_suffix(|_, items| {
+            items
+                .iter()
+                .any(|(_, f)| actual == Some(f) || f.target() == target)
+        })?
+        else {
+            return Ok(None);
+        };
+        let items = selected.items;
         let Some(index) = items
             .iter()
             .position(|(_, fact)| actual == Some(fact) || fact.target() == target)
@@ -86,40 +95,43 @@ impl Builder<'_, '_> {
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::MissingBridgeSuffixDrop,
         ) {
+            if self.control_chain_bodies.is_some() {
+                owner_consumer_test_support::record_action("control-chain-suffix-fault-hit", index);
+            }
             return Ok(None);
         }
-        self.bridge_suffix_permit(index, Stage::Bound(value), value, span)
+        self.bridge_suffix_permit(selected.control, index, Stage::Bound(value), value, span)
             .map(Some)
     }
     fn bridge_suffix_permit(
         &self,
+        control: UnitStatementId,
         index: usize,
         stage: Stage,
         source: Slot,
         span: Span,
     ) -> Result<Permit, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let plan = self.control_bridge_plan.as_ref().ok_or_else(fail)?;
-        let (_, [_, _, _, exit], _) = plan.next.as_ref().ok_or_else(fail)?;
-        let stages = plan.suffix.as_ref().ok_or_else(fail)?;
+        let selected = self
+            .bridge_select_suffix(|c, _| c == control)?
+            .ok_or_else(fail)?;
+        let exit = selected.exit;
+        let stages = selected.stages;
         let instruction = index * 2 + usize::from(matches!(stage, Stage::Bound(_)));
-        if self.block != Some(*exit)
+        if self.block != Some(exit)
             || self.body.blocks[exit.0].statements.len() != instruction
             || stages.get(index) != Some(&stage)
             || stages[..index]
                 .iter()
                 .any(|s| !matches!(s, Stage::Dropped(_)))
-            || plan
-                .exits
-                .as_ref()
-                .is_none_or(|items| items.iter().any(|done| !done))
-            || plan.chain.iter().any(|s| *s != consumption::Stage::Dropped)
+            || !selected.complete
         {
             return Err(fail());
         }
         Ok(Permit {
             index,
-            block: *exit,
+            block: exit,
+            control,
             instruction,
             span,
             source,
@@ -141,6 +153,12 @@ impl Builder<'_, '_> {
                 owner_consumer_test_support::OwnerFault::BridgeSuffixWrongSource,
             ) {
                 permit.source = Slot(usize::MAX);
+                if self.control_chain_bodies.is_some() {
+                    owner_consumer_test_support::record_action(
+                        "control-chain-suffix-fault-hit",
+                        permit.index,
+                    );
+                }
             }
             permit
         };
@@ -168,11 +186,17 @@ impl Builder<'_, '_> {
             }
             _ => return Err(fail()),
         };
+        let selected = self
+            .bridge_select_suffix(|c, _| c == permit.control)?
+            .ok_or_else(fail)?;
+        if selected.exit != permit.block || !selected.complete {
+            return Err(fail());
+        }
+        #[cfg(test)]
+        let is_group = self.control_chain_bodies.is_some();
         let state = self
-            .control_bridge_plan
-            .as_mut()
-            .and_then(|p| p.suffix.as_mut())
-            .and_then(|s| s.get_mut(permit.index))
+            .bridge_suffix_states_mut(permit.control)?
+            .get_mut(permit.index)
             .ok_or_else(fail)?;
         #[cfg(test)]
         if matches!(next, Stage::Dropped(_))
@@ -180,6 +204,12 @@ impl Builder<'_, '_> {
                 owner_consumer_test_support::OwnerFault::BridgeSuffixDuplicateDrop,
             )
         {
+            if is_group {
+                owner_consumer_test_support::record_action(
+                    "control-chain-suffix-fault-hit",
+                    permit.index,
+                );
+            }
             *state = next;
         }
         if *state != permit.stage {
@@ -198,15 +228,17 @@ impl Builder<'_, '_> {
         Ok(())
     }
     pub(super) fn finish_bridge_suffix(&self) -> Result<(), LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
+        let Some(selected) = self.bridge_select_suffix(|_, _| true)? else {
             return Ok(());
         };
-        let Some(items) = plan.evidence.next_false_exit_suffix() else {
-            return Ok(());
-        };
+        let items = selected.items;
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
-        let (_, [_, _, _, exit], roots) = plan.next.as_ref().ok_or_else(fail)?;
-        let stages = plan.suffix.as_ref().ok_or_else(fail)?;
+        let exit = selected.exit;
+        let roots = selected.roots;
+        let stages = selected.stages;
+        if !selected.complete {
+            return Err(fail());
+        }
         if stages.len() != items.len() {
             return Err(fail());
         }
@@ -215,9 +247,8 @@ impl Builder<'_, '_> {
             let Stage::Dropped(binding) = stages[index] else {
                 return Err(fail());
             };
-            let position = plan
-                .evidence
-                .targets()
+            let position = selected
+                .symbols
                 .iter()
                 .position(|r| r == root)
                 .ok_or_else(fail)?;

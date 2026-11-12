@@ -13,6 +13,7 @@ struct Member<'a> {
     lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     exits: Vec<bool>,
     counter: Option<(BlockRef, [Slot; 2])>,
+    suffix: Option<Vec<suffix::Stage>>,
 }
 pub(super) struct Selected<'a> {
     pub control: UnitStatementId,
@@ -68,6 +69,9 @@ impl<'a> BodyGroup<'a> {
                     stages: vec![consumption::Stage::Ready; e.normal().steps().len()],
                     lowered: None,
                     counter: None,
+                    suffix: e
+                        .false_exit_suffix()
+                        .map(|s| vec![suffix::Stage::Ready; s.len()]),
                     exits: vec![false; e.false_exit_partition().1.len()],
                 })
                 .collect(),
@@ -220,6 +224,7 @@ impl Builder<'_, '_> {
                 return Err(fail());
             }
         }
+        self.finish_bridge_suffix()?;
         #[cfg(test)]
         let count = group.members.len();
         let tails = group
@@ -405,5 +410,91 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         Ok(())
+    }
+}
+
+pub(super) struct SelectedSuffix<'a> {
+    pub control: UnitStatementId,
+    pub items: &'a [(UnitSymbolId, UnitDropFact)],
+    pub symbols: &'a [UnitSymbolId],
+    pub roots: &'a [Slot],
+    pub exit: BlockRef,
+    pub stages: &'a [suffix::Stage],
+    pub complete: bool,
+}
+impl Builder<'_, '_> {
+    pub(super) fn bridge_select_suffix(
+        &self,
+        matches: impl Fn(UnitStatementId, &[(UnitSymbolId, UnitDropFact)]) -> bool,
+    ) -> Result<Option<SelectedSuffix<'_>>, LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if let Some(group) = &self.control_chain_bodies {
+            if self.control_bridge_plan.is_some() {
+                return Err(fail());
+            }
+            let mut found = group.members.iter().filter_map(|m| {
+                let items = m.evidence.false_exit_suffix()?;
+                matches(m.evidence.control(), items).then_some((m, items))
+            });
+            let Some((m, items)) = found.next() else {
+                return Ok(None);
+            };
+            if found.next().is_some() {
+                return Err(fail());
+            }
+            let (blocks, roots) = m.lowered.as_ref().ok_or_else(fail)?;
+            return Ok(Some(SelectedSuffix {
+                control: m.evidence.control(),
+                items,
+                symbols: m.evidence.roots(),
+                roots,
+                exit: blocks[3],
+                stages: m.suffix.as_deref().ok_or_else(fail)?,
+                complete: m.exits.iter().all(|d| *d)
+                    && m.stages.iter().all(|s| *s == consumption::Stage::Dropped),
+            }));
+        }
+        let Some(p) = &self.control_bridge_plan else {
+            return Ok(None);
+        };
+        let Some(items) = p.evidence.next_false_exit_suffix() else {
+            return Ok(None);
+        };
+        if !matches(p.evidence.next_control(), items) {
+            return Ok(None);
+        }
+        let (_, blocks, roots) = p.next.as_ref().ok_or_else(fail)?;
+        Ok(Some(SelectedSuffix {
+            control: p.evidence.next_control(),
+            items,
+            symbols: p.evidence.targets(),
+            roots,
+            exit: blocks[3],
+            stages: p.suffix.as_deref().ok_or_else(fail)?,
+            complete: p.exits.as_ref().is_some_and(|e| e.iter().all(|d| *d))
+                && p.chain.iter().all(|s| *s == consumption::Stage::Dropped),
+        }))
+    }
+    pub(super) fn bridge_suffix_states_mut(
+        &mut self,
+        control: UnitStatementId,
+    ) -> Result<&mut Vec<suffix::Stage>, LoweringError> {
+        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        if let Some(group) = &mut self.control_chain_bodies {
+            if self.control_bridge_plan.is_some() {
+                return Err(fail());
+            }
+            return group
+                .members
+                .iter_mut()
+                .find(|m| m.evidence.control() == control)
+                .and_then(|m| m.suffix.as_mut())
+                .ok_or_else(fail);
+        }
+        self.control_bridge_plan
+            .as_mut()
+            .filter(|p| p.evidence.next_control() == control)
+            .and_then(|p| p.suffix.as_mut())
+            .ok_or_else(fail)
     }
 }

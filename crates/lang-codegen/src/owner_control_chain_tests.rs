@@ -48,6 +48,9 @@ fn three_live_controls_preserve_zero_and_normal_generations() {
 }
 
 fn closed_chain_source(sparse: bool) -> super::UnitSource {
+    chain_source(sparse, false)
+}
+fn chain_source(sparse: bool, suffix: bool) -> super::UnitSource {
     let mut text = String::from("fun run(n: Int) {");
     for i in 0..3 {
         text.push_str(&format!("var n{i}=n; var g{i}=n{i}>0;"));
@@ -70,6 +73,9 @@ fn closed_chain_source(sparse: bool) -> super::UnitSource {
             String::new()
         };
         text.push_str(&format!("while(g{i}) {{ val x=replace(&a{i},\"x\"); val y=replace(&b{i},\"y\"); {extra} n{i}=n{i}-1; g{i}=n{i}>0 }};"));
+    }
+    if suffix {
+        text.push_str("val final_a=a2; val final_b=b2;");
     }
     text.push_str("}\nfun entry() {run(0); run(2)}");
     let source = super::UnitSource::analyze("chain-body-fault.ko", &text).unwrap();
@@ -207,4 +213,61 @@ fn ci_only_chain_tail_missing_last_receipt_revokes_whole_group() {
             | "control-chain-exits-complete"
             | "control-chain-bodies-complete"
     )));
+}
+
+#[test]
+fn chain_final_suffix_consumes_original_bindings_and_drops() {
+    for sparse in [false, true] {
+        let source = chain_source(sparse, true);
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        for action in [
+            "bridge-suffix-binding-consumed",
+            "bridge-suffix-drop-consumed",
+        ] {
+            assert_eq!(
+                actions.iter().filter(|(kind, _)| *kind == action).count(),
+                2
+            );
+        }
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-bodies-complete" && *n == 2)
+                .count(),
+            1
+        );
+        super::super::super::assert_native_output(&source, b"");
+    }
+}
+#[test]
+fn ci_only_chain_final_suffix_rejects_missing_or_reused_consumption() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source = chain_source(false, true);
+    for fault in [
+        OwnerFault::MissingBridgeSuffixBinding,
+        OwnerFault::MissingBridgeSuffixDrop,
+        OwnerFault::BridgeSuffixWrongSource,
+        OwnerFault::BridgeSuffixDuplicateDrop,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-chain-suffix-fault-hit")
+                .count(),
+            1
+        );
+        assert!(actions.iter().all(|(kind, _)| !matches!(
+            *kind,
+            "control-chain-tails-complete"
+                | "control-chain-exits-complete"
+                | "control-chain-bodies-complete"
+        )));
+    }
 }
