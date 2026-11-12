@@ -160,6 +160,14 @@ fn assert_nested_ssa_retirement(source: &UnitSource) {
             .collect::<Vec<_>>(),
         [2]
     );
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "nested-false-root-vector-complete")
+            .map(|(_, n)| *n)
+            .collect::<Vec<_>>(),
+        [2]
+    );
     assert_existing_false_exit_resume(source, &program);
     for step in product.normal().steps() {
         let span = source
@@ -460,6 +468,14 @@ fn nested_false_exit_retires_child_local_root_without_resume_permission() {
             .collect::<Vec<_>>(),
         [1]
     );
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "nested-false-root-vector-complete")
+            .map(|(_, n)| *n)
+            .collect::<Vec<_>>(),
+        [2]
+    );
     assert_final_false_cleanup_transport(&source, &program);
     assert_general_counter_baseline(&text, expected.as_bytes(), false);
 }
@@ -484,6 +500,7 @@ fn ci_only_nested_false_cleanup_missing_actual_drop_fails_closed() {
         crate::ssa::OwnerFault::NestedFalseMissingDrop,
         crate::ssa::OwnerFault::NestedFalseSsaMissingBlockDrop,
         crate::ssa::OwnerFault::NestedFalseSsaDuplicateBlockDrop,
+        crate::ssa::OwnerFault::NestedFalseSsaSwappedFalseArguments,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))

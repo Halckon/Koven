@@ -15347,3 +15347,15 @@ layout绑定真实函数、control及header/false的slot→Entity参数快照；
 最终codegen all-target strict Clippy（38.66s）、workspace all-target check（29.30s）
 通过；fmt/diff、docs915和尺寸2583/37历史超限通过，不增加额度。本片无FE变更，
 未重跑FE全回归。日志nested-exit-ssa-*；仅本地提交不推送。
+
+### false边完整根向量（2026-11-12，仍仅事实）
+
+基于b414093b，生产receipt现保存完整normal根槽而非从退休集合反推；layout要求
+向量非空无重复且每根在header/false块参数中恰一次，Drop根必须属于该向量。
+finish逐live及retired根核真实false实参与header入口Entity，保留原Drop核验。
+全live及部分退休普通输入均断言完整向量数2。此片使空drops不再仅核几何，但不
+证明退出后的持续有效性、动态代际或授权parent消费。新增真实false边参数交换
+CI-only负控，仅编译。普通counter27/27（13.13s）通过，独立只读复审无确定阻断。
+后续恢复权限仍需单独批准，不能因完整边向量匹配直接使用既有normal permit。
+codegen all-target strict Clippy（28.11s）通过；新故障只编译，未执行。未重跑FE和
+workspace（本片无外部API变化）；fmt/docs/尺寸/diff门禁通过后本地提交，不推送。

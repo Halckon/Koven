@@ -358,6 +358,7 @@ impl Builder<'_, '_> {
                     header: blocks[0],
                     exit: blocks[2],
                     drops: sites,
+                    roots: roots.clone(),
                 },
             ));
             #[cfg(test)]

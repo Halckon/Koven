@@ -62,4 +62,5 @@ LoopExit fact、原consumed记录、span及清理顺序；不限制live根的后
 
 生产 `refine/nested_exit_receipt.rs` 现在独立跟踪已核对退休根的实际false入口Entity
 到原Drop，随straight-line fold同步块/指令偏移，终检真实边参数、指令表与块清单。
-这不是owner退出消费许可；空drops只核几何，live根和parent恢复仍由原路径负责。
+这不是owner退出消费许可。现已核完整live+retired根的false边参数映射，空drops也核全根；
+live根的后续消费及parent恢复仍由原路径负责，不证明动态代际。

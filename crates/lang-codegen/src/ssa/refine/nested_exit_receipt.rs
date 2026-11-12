@@ -22,6 +22,7 @@ pub(super) struct Plan {
     pub header: BlockRef,
     pub exit: BlockRef,
     pub drops: Vec<DropSite>,
+    pub roots: Vec<Slot>,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans(pub Option<Plan>);
@@ -78,6 +79,15 @@ impl Emitted {
         if self.function.is_some() || p.header == p.exit {
             return Err(invalid(span));
         }
+        if p.roots.is_empty()
+            || p.roots
+                .iter()
+                .enumerate()
+                .any(|(i, r)| p.roots[..i].contains(r))
+            || p.drops.iter().any(|d| !p.roots.contains(&d.root))
+        {
+            return Err(invalid(span));
+        }
         for b in [p.header, p.exit] {
             let id = blocks.get(&b).ok_or_else(|| invalid(span))?;
             let s = slots.get(&b).ok_or_else(|| invalid(span))?;
@@ -85,8 +95,8 @@ impl Emitted {
             if s.len() != e.len() || function.block(*id).map(|b| &b.parameters) != Some(e) {
                 return Err(invalid(span));
             }
-            for d in &p.drops {
-                if s.iter().filter(|r| **r == d.root).count() != 1 {
+            for root in &p.roots {
+                if s.iter().filter(|r| **r == *root).count() != 1 {
                     return Err(invalid(span));
                 }
             }
@@ -177,19 +187,21 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
-        let mut previous = None;
-        for (i, d) in p.drops.iter().enumerate() {
+        for root in &p.roots {
             let h = self.slots[&p.header]
                 .iter()
-                .position(|s| *s == d.root)
+                .position(|s| *s == *root)
                 .ok_or_else(|| invalid(span))?;
             let e = self.slots[&p.exit]
                 .iter()
-                .position(|s| *s == d.root)
+                .position(|s| *s == *root)
                 .ok_or_else(|| invalid(span))?;
             if when_false.arguments[e] != self.entities[&p.header][h] {
                 return Err(invalid(span));
             }
+        }
+        let mut previous = None;
+        for (i, d) in p.drops.iter().enumerate() {
             let (id, value) = self.observed.get(&i).ok_or_else(|| invalid(span))?;
             let actual = function.instruction(*id).ok_or_else(|| invalid(span))?;
             let positions = exit
@@ -213,6 +225,11 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
+        #[cfg(test)]
+        super::build::owner_consumer_test_support::record_action(
+            "nested-false-root-vector-complete",
+            p.roots.len(),
+        );
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(
             "nested-false-ssa-complete",
@@ -239,6 +256,31 @@ pub(super) fn inject_final(plans: &Plans, function: &mut Function) {
     else {
         return;
     };
+    if take_fault(OwnerFault::NestedFalseSsaSwappedFalseArguments) {
+        let value = match function.instruction(id).unwrap().operation {
+            Operation::Drop { owner } => EntityId::Value(owner),
+            _ => unreachable!(),
+        };
+        let position = function
+            .block(block)
+            .unwrap()
+            .parameters
+            .iter()
+            .position(|v| *v == value)
+            .unwrap();
+        for b in &mut function.blocks {
+            if let Some(term) = &mut b.terminator
+                && let TerminatorKind::Conditional { when_false, .. } = &mut term.kind
+                && when_false.target == block
+                && when_false.arguments.len() > 1
+            {
+                let other = usize::from(position == 0);
+                when_false.arguments.swap(position, other);
+                record_action("nested-false-ssa-fault-hit", 1);
+                break;
+            }
+        }
+    }
     if take_fault(OwnerFault::NestedFalseSsaMissingBlockDrop)
         && let Some(b) = function.blocks.iter_mut().find(|b| b.id == block)
     {
