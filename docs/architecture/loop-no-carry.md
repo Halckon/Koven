@@ -53,16 +53,17 @@ binding 尚不存在；实际 body lowering 后、任何 loop leave 清理前，
 ## 独立 fresh-loop receipt
 
 `refine/fresh_loop_receipt` 为独立协议，不套用旧 carried-loop 的 entry acquire/exit End。
-当前资格限函数体完全由同源直接 while 构成，使用同一 Borrow flag 与 Borrow source
-两个参数，参数顺序来自 typed ABI。数量取真实有序元素，不枚举固定拓扑。不同 flag、
-own Boolean 或其它前后语句保留原执行/拒绝边界，不因缺新证书收紧准入。
+当前资格限函数体完全由同源直接 while 构成，唯一 Borrow String source 与一个或多个
+Borrow Boolean 条件参数的顺序来自 typed ABI。每个 Boolean 参数至少作为一个 peer
+条件使用；未使用的 Boolean、own Boolean 或其它前后语句保留原执行/拒绝边界，
+不因缺新证书收紧准入。数量取真实有序元素，不枚举固定拓扑。
 
 真实 builder append 捕获 header 条件读取、body BorrowCall、逐 consumer 和唯一 End；
 真实 terminator 与 fold 回调捕获每 peer 五个原块角色（相邻共享 exit/entry）、
 正常回边、false 出口及可发生的出口折叠。
 Emitted 将这些 producer 标签绑定实际 InstructionId、EntityId 及各块参数映射，不从
 最终 SSA 扫描补造 producer。最后独立验证不读取 Plans/Slot/current map，而从实际
-ABI 参数建立 Source/Flag 角色固定点，逐 incoming 检查运输，核 body fresh Result
+ABI 参数索引建立独立角色固定点，不合并同型 Boolean，逐 incoming 检查运输，核 body fresh Result
 的准确使用和关闭，拒绝 Result 跨边、false 创建实例、漏块/漏指令/多余定义。
 
 单函数完整核验后仅暂存；整个 unit 的原 verifier 成功后原子发布，后续函数或 verifier
@@ -82,11 +83,12 @@ initializer/body 与唯一 End；从真实 Function body 的 elements 对照直�
 每个 reached while 仍独立走原 NoCarryLease 的入口、cleanup 前关闭、回边和退出
 核验。实际 SSA 用不同结果实体，各自 consumer 与 End 在对应 body 内，任何边均不
 运输本轮结果；两个 false 退出后仍可消费外部 source。分支/跳转/嵌套边界不变。
-执行准入与证书资格分开；不同 flag 等较宽执行形状不自动获得组合 receipt。
+执行准入与证书资格分开；own Boolean、未使用的 Boolean 参数或额外语句等较宽执行
+形状不自动获得组合 receipt。不同 flag 的合格序列使用下面的独立 ABI 角色证明。
 
 ## 动态组合证据
 
-同 flag 的兄弟共享一个整函数 receipt，内部是有序 peer 证据，而非多个已发布的单loop
+合格兄弟共享一个整函数 receipt，内部是有序 peer 证据，而非多个已发布的单loop
 receipt。实际入口按 StatementId 激活下一 peer，必须在前一 peer 真正关闭并恢复后，
 以其 exit 作为下一 entry。每 peer 标签、原 fact 独占身份及 fresh 结果独立保存。
 
@@ -95,3 +97,15 @@ receipt。实际入口按 StatementId 激活下一 peer，必须在前一 peer �
 最终一次核 whole-function 全集、每 peer 的原身份和顺序、各自 consumer/End，以及
 共享外部参数逐入边的准确局部实体。任何一条边都不得携出任一 fresh 结果。
 任一 peer 或最终 verifier 失败均撤回整组；仍不声称已运行任意非零多轮或证明终止。
+
+## 多条件参数的活性运输
+
+producer 在真实入口冻结完整 ABI 槽，逐 peer 的 Read 只允许该声明条件对应的槽；
+各边界独立核完整外部映射，旧 NoCarryLease 不被替换。Emitted 将所有 ABI 槽按原
+参数顺序绑定实际实体，最终证书不读取这些 builder 槽。
+
+最终固定点以每个 ABI index 区分角色。各 header/body 保留 source 与当前及后续
+peer 需要的 flag 集合，false/exit 只保留后续需求，最后退出为空；共享 exit/entry 的
+角色集合须一致。重复使用的 flag 不提前丢弃，最后使用后不强留。每个 incoming 的
+实参必须是前驱块自身的唯一对应角色实体，不能用入口旧实体或另一个同型 flag 替换。
+这是既有执行合同的独立证据扩展，不新增 FE 资格或循环控制流。

@@ -51,27 +51,43 @@ impl Receipt {
         }
         super::whole_function::check(function, &covered, &ids, span)?;
         let entry_block = function.block(entry).ok_or_else(|| invalid(span))?;
-        if entry_block.parameters.len() != 2 {
+        if entry_block.parameters.len() != self.abi_types.len() {
             return Err(invalid(span));
         }
-        let p = &first.proof;
-        let source = entry_block.parameters[p.source_parameter];
-        let flag = entry_block.parameters[p.flag_parameter];
-        if !matches!(source, EntityId::Loan(_))
-            || !matches!(flag, EntityId::Loan(_))
-            || function.entity(source).map(|d| d.ty) != Some(shared(p.source_type))
-            || function.entity(flag).map(|d| d.ty) != Some(shared(p.flag_type))
-        {
-            return Err(invalid(span));
-        }
-        let mut live = BTreeSet::new();
-        for (index, blocks) in resolved.iter().enumerate() {
-            live.extend([blocks[0], blocks[1], blocks[2]]);
-            if index + 1 != resolved.len() {
-                live.extend([blocks[3], blocks[4]]);
+        for (entity, semantic) in entry_block.parameters.iter().zip(&self.abi_types) {
+            if !matches!(entity, EntityId::Loan(_))
+                || function.entity(*entity).map(|d| d.ty) != Some(shared(*semantic))
+            {
+                return Err(invalid(span));
             }
         }
-        let roles = transport(function, entry, &live, source, flag, span)?;
+        let source_role = first.proof.source_parameter;
+        let mut live = BTreeMap::new();
+        let all = (0..self.abi_types.len()).collect::<BTreeSet<_>>();
+        insert_live(&mut live, entry, all, span)?;
+        for (index, blocks) in resolved.iter().enumerate() {
+            let required = self.loops[index..]
+                .iter()
+                .map(|peer| peer.proof.flag_parameter)
+                .chain(std::iter::once(source_role))
+                .collect::<BTreeSet<_>>();
+            for block in [blocks[0], blocks[1], blocks[2]] {
+                insert_live(&mut live, block, required.clone(), span)?;
+            }
+            let remaining = if index + 1 < self.loops.len() {
+                self.loops[index + 1..]
+                    .iter()
+                    .map(|peer| peer.proof.flag_parameter)
+                    .chain(std::iter::once(source_role))
+                    .collect::<BTreeSet<_>>()
+            } else {
+                BTreeSet::new()
+            };
+            for block in [blocks[3], blocks[4]] {
+                insert_live(&mut live, block, remaining.clone(), span)?;
+            }
+        }
+        let roles = transport(function, entry, &live, span)?;
         let mut terms = BTreeMap::new();
         let mut results = BTreeSet::new();
         for (index, (local, blocks)) in self.loops.iter().zip(&resolved).enumerate() {
@@ -149,7 +165,8 @@ impl Receipt {
     fn proofs(&self, function: &Function) -> Result<Vec<[BlockId; 5]>, LoweringError> {
         let span = self.span;
         let first = self.loops.first().ok_or_else(|| invalid(span))?;
-        if self.caller != function.id()
+        if self.abi_types.len() < 2
+            || self.caller != function.id()
             || function.receiver.is_some()
             || function.never_returns
             || function.borrow_return.is_some()
@@ -180,11 +197,10 @@ impl Receipt {
                 || local.fact.consumers().len() != p.callees.len()
                 || p.consumer_spans.len() != p.callees.len()
                 || p.source_type == p.flag_type
-                || p.source_parameter > 1
-                || p.flag_parameter > 1
+                || self.abi_types.get(p.source_parameter) != Some(&p.source_type)
+                || self.abi_types.get(p.flag_parameter) != Some(&p.flag_type)
                 || p.source_parameter == p.flag_parameter
                 || p.source_parameter != first.proof.source_parameter
-                || p.flag_parameter != first.proof.flag_parameter
                 || p.source_type != first.proof.source_type
                 || p.flag_type != first.proof.flag_type
                 || [b.entry, b.header, b.body, b.finished, b.exit]
@@ -227,6 +243,23 @@ impl Receipt {
                 return Err(invalid(span));
             }
             allowed_folds.insert((b.finished, b.exit));
+        }
+        let mut used = self
+            .loops
+            .iter()
+            .map(|peer| peer.proof.flag_parameter)
+            .collect::<BTreeSet<_>>();
+        used.insert(first.proof.source_parameter);
+        if used != (0..self.abi_types.len()).collect::<BTreeSet<_>>()
+            || self.abi_types.iter().enumerate().any(|(index, ty)| {
+                *ty != if index == first.proof.source_parameter {
+                    first.proof.source_type
+                } else {
+                    first.proof.flag_type
+                }
+            })
+        {
+            return Err(invalid(span));
         }
         let mut seen = BTreeSet::new();
         let mut active = original.clone();
@@ -348,7 +381,7 @@ impl LoopReceipt {
         let condition = self.instruction(function, Tag::Condition, span)?;
         let value = single(condition, span)?;
         if condition.block != header
-            || !matches!(condition.operation, Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(loan) == local(function, roles, header, 1, span)?)
+            || !matches!(condition.operation, Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(loan) == local(function, roles, header, p.flag_parameter, span)?)
             || condition.origin.span() != p.condition_span
             || function.entity(value).map(|e| e.ty) != Some(EntityType::Value(p.flag_type))
         {
@@ -356,7 +389,7 @@ impl LoopReceipt {
         }
         let acquire = self.instruction(function, Tag::Result, span)?;
         let result = single(acquire, span)?;
-        let source = local(function, roles, body, 0, span)?;
+        let source = local(function, roles, body, p.source_parameter, span)?;
         if acquire.block != body
             || !matches!(result, EntityId::Loan(_))
             || function.entity(result).map(|e| e.ty) != Some(shared(p.source_type))
@@ -434,16 +467,40 @@ fn insert_term(
     Ok(())
 }
 
+fn insert_live(
+    live: &mut BTreeMap<BlockId, BTreeSet<usize>>,
+    block: BlockId,
+    roles: BTreeSet<usize>,
+    span: Span,
+) -> Result<(), LoweringError> {
+    if let Some(previous) = live.insert(block, roles.clone())
+        && previous != roles
+    {
+        return Err(invalid(span));
+    }
+    Ok(())
+}
+
 /// Start from actual ABI entities, then recheck every incoming edge and predecessor-local role.
 fn transport(
     function: &Function,
     entry: BlockId,
-    live: &BTreeSet<BlockId>,
-    source: EntityId,
-    flag: EntityId,
+    live: &BTreeMap<BlockId, BTreeSet<usize>>,
     span: Span,
 ) -> Result<BTreeMap<EntityId, usize>, LoweringError> {
-    let mut roles = BTreeMap::from([(source, 0), (flag, 1)]);
+    let entry_parameters = &function
+        .block(entry)
+        .ok_or_else(|| invalid(span))?
+        .parameters;
+    let mut roles = entry_parameters
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, entity)| (entity, index))
+        .collect::<BTreeMap<_, _>>();
+    if roles.len() != entry_parameters.len() {
+        return Err(invalid(span));
+    }
     let mut incoming = BTreeMap::<BlockId, Vec<(BlockId, &Edge)>>::new();
     for block in &function.blocks {
         let term = &block.terminator.as_ref().ok_or_else(|| invalid(span))?.kind;
@@ -497,13 +554,22 @@ fn transport(
             break;
         }
     }
+    if live.keys().copied().collect::<BTreeSet<_>>()
+        != function
+            .blocks
+            .iter()
+            .map(|block| block.id)
+            .collect::<BTreeSet<_>>()
+    {
+        return Err(invalid(span));
+    }
     for block in &function.blocks {
-        if block.parameters.len() != if live.contains(&block.id) { 2 } else { 0 } {
+        let required = live.get(&block.id).ok_or_else(|| invalid(span))?;
+        if block.parameters.len() != required.len() {
             return Err(invalid(span));
         }
-        if live.contains(&block.id) {
-            local(function, &roles, block.id, 0, span)?;
-            local(function, &roles, block.id, 1, span)?;
+        for role in required {
+            local(function, &roles, block.id, *role, span)?;
         }
     }
     for (target, edges) in incoming {

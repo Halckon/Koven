@@ -82,6 +82,28 @@ impl Builder<'_, '_> {
 }
 
 impl Builder<'_, '_> {
+    fn fresh_loop_abi(&self, span: Span) -> Result<Vec<Slot>, LoweringError> {
+        if self.borrowed.len() != self.inputs.parameters.len()
+            || self.inputs.parameters.len() != self.body.fresh_loop_plans.abi_types.len()
+            || !self.result_source_loans.is_empty()
+            || !self.pending_call_loans.is_empty()
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        self.inputs
+            .parameters
+            .iter()
+            .map(|symbol| {
+                if self.dead.contains(symbol) {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                self.borrowed
+                    .get(symbol)
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))
+            })
+            .collect()
+    }
     pub(super) fn fresh_loop_entry(
         &mut self,
         statement: UnitStatementId,
@@ -96,25 +118,10 @@ impl Builder<'_, '_> {
             .fresh_loop_plans
             .next()
             .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        let source = *self
-            .borrowed
-            .get(&p.fact.source())
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        let flag_symbol = *self
-            .inputs
-            .parameters
-            .get(p.flag_parameter)
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        let flag = *self
-            .borrowed
-            .get(&flag_symbol)
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        if self.borrowed.len() != 2
-            || !self.result_source_loans.is_empty()
-            || !self.pending_call_loans.is_empty()
-        {
+        if self.inputs.parameters.get(p.source_parameter) != Some(&p.fact.source()) {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
+        let abi = self.fresh_loop_abi(span)?;
         let [entry, header, body, finished, exit] = blocks;
         self.body.fresh_loop_plans.begin(
             statement,
@@ -125,8 +132,7 @@ impl Builder<'_, '_> {
                 finished,
                 exit,
             },
-            source,
-            flag,
+            abi,
             span,
         )
     }
@@ -143,18 +149,11 @@ impl Builder<'_, '_> {
             .fresh_loop_plans
             .current()
             .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        let flag_symbol = *self
-            .inputs
-            .parameters
-            .get(p.flag_parameter)
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        if self.borrowed.len() != 2
-            || self.borrowed.get(&p.fact.source()).copied() != p.source
-            || self.borrowed.get(&flag_symbol).copied() != p.flag
-            || !self.result_source_loans.is_empty()
-            || !self.pending_call_loans.is_empty()
-            || self.dead.contains(&p.fact.source())
-            || self.dead.contains(&flag_symbol)
+        let abi = self.fresh_loop_abi(span)?;
+        if self.body.fresh_loop_plans.abi_slots.as_ref() != Some(&abi)
+            || self.inputs.parameters.get(p.source_parameter) != Some(&p.fact.source())
+            || abi.get(p.source_parameter).copied() != p.source
+            || abi.get(p.flag_parameter).copied() != p.flag
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }

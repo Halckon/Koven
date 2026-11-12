@@ -25,17 +25,97 @@ fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
         .collect()
 }
 
+fn actual_abi_roles(
+    function: &Function,
+    edges: &[(BlockId, &Edge)],
+) -> std::collections::BTreeMap<EntityId, usize> {
+    let mut roles = function
+        .block(function.entry_block().unwrap())
+        .unwrap()
+        .parameters
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, entity)| (entity, index))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    loop {
+        let old = roles.len();
+        for (_, edge) in edges {
+            for (argument, parameter) in edge
+                .arguments
+                .iter()
+                .zip(&function.block(edge.target).unwrap().parameters)
+            {
+                if let Some(role) = roles.get(argument).copied()
+                    && let Some(previous) = roles.insert(*parameter, role)
+                {
+                    assert_eq!(previous, role);
+                }
+            }
+        }
+        if old == roles.len() {
+            break;
+        }
+    }
+    for block in &function.blocks {
+        assert_eq!(
+            block
+                .parameters
+                .iter()
+                .map(|entity| roles[entity])
+                .collect::<BTreeSet<_>>()
+                .len(),
+            block.parameters.len()
+        );
+    }
+    for (from, edge) in edges {
+        for (argument, parameter) in edge
+            .arguments
+            .iter()
+            .zip(&function.block(edge.target).unwrap().parameters)
+        {
+            let role = roles[parameter];
+            let local = function
+                .block(*from)
+                .unwrap()
+                .parameters
+                .iter()
+                .filter(|entity| roles[entity] == role)
+                .collect::<Vec<_>>();
+            assert_eq!(local, vec![argument]);
+        }
+    }
+    roles
+}
+
 #[test]
 fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
-    for (counts, same_flag, reversed) in [vec![1, 3], vec![1, 3, 9], vec![1, 2, 3, 4, 9]]
-        .into_iter()
-        .flat_map(|counts| {
-            [false, true].into_iter().flat_map(move |same_flag| {
-                let counts = counts.clone();
-                [false, true].map(move |reversed| (counts.clone(), same_flag, reversed))
-            })
-        })
-    {
+    let mut cases = Vec::new();
+    for counts in [vec![1, 3], vec![1, 3, 9], vec![1, 2, 3, 4, 9]] {
+        for same_flag in [false, true] {
+            for reversed in [false, true] {
+                let flags = (0..counts.len())
+                    .map(|index| if same_flag { 0 } else { index % 2 })
+                    .collect::<Vec<_>>();
+                let mut abi = if same_flag {
+                    vec![None, Some(0)]
+                } else {
+                    vec![None, Some(0), Some(1)]
+                };
+                if reversed {
+                    abi.swap(0, 1);
+                }
+                cases.push((counts.clone(), flags, abi));
+            }
+        }
+    }
+    cases.push((vec![1, 3, 9], vec![0, 0, 1], vec![Some(1), None, Some(0)]));
+    cases.push((
+        vec![1, 2, 3, 4, 9],
+        vec![2, 0, 1, 2, 0],
+        vec![Some(1), Some(0), None, Some(2)],
+    ));
+    for (counts, flag_order, abi_order) in cases {
         let loops = counts
             .iter()
             .enumerate()
@@ -46,7 +126,7 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     .join(";");
                 format!(
                     "while(flag{}){{borrow val item{index}=view(source);{calls}}}",
-                    if same_flag { 0 } else { index % 2 }
+                    flag_order[index]
                 )
             })
             .collect::<Vec<_>>()
@@ -54,12 +134,24 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
         let declarations = (0..counts.len())
             .map(|index| format!("fun consume{index}(item:String):Unit {{}}\n"))
             .collect::<String>();
-        let parameters = match (same_flag, reversed) {
-            (true, false) => "source:String,flag0:Boolean",
-            (true, true) => "flag0:Boolean,source:String",
-            (false, false) => "source:String,flag0:Boolean,flag1:Boolean",
-            (false, true) => "flag0:Boolean,source:String,flag1:Boolean",
-        };
+        let parameters = abi_order
+            .iter()
+            .map(|flag| match flag {
+                None => "source:String".to_owned(),
+                Some(index) => format!("flag{index}:Boolean"),
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let source_parameter = abi_order.iter().position(Option::is_none).unwrap();
+        let flag_parameters = flag_order
+            .iter()
+            .map(|flag| {
+                abi_order
+                    .iter()
+                    .position(|entry| *entry == Some(*flag))
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
         let text = format!(
             "fun view(source:String):borrow String from source=source\n{declarations}fun run({parameters}):Unit {{{loops}}}"
         );
@@ -114,11 +206,7 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     });
                 let (program, _) = lowered.expect("sealed independent sibling lowering");
                 assert_eq!(verified.len(), 1);
-                assert_eq!(
-                    receipts.len(),
-                    usize::from(same_flag),
-                    "composed receipt qualification"
-                );
+                assert_eq!(receipts.len(), 1, "distinct flag composed receipt missing");
                 verify_program(&program).unwrap();
                 let run = program
                     .modules
@@ -126,7 +214,7 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     .flat_map(|m| &m.functions)
                     .find(|f| f.name.contains(".run."))
                     .unwrap();
-                if same_flag {
+                {
                     let receipt = receipts[0].clone();
                     receipt
                         .validate(run)
@@ -141,9 +229,10 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                     }
                 }
                 let actual_edges = edges(run);
+                let roles = actual_abi_roles(run, &actual_edges);
                 // Derive source transport from the actual ABI and every actual incoming edge.
-                let source_seed = run.block(run.entry_block().unwrap()).unwrap().parameters
-                    [usize::from(reversed)];
+                let source_seed =
+                    run.block(run.entry_block().unwrap()).unwrap().parameters[source_parameter];
                 let mut source_entities = BTreeSet::from([source_seed]);
                 loop {
                     let old = source_entities.len();
@@ -259,6 +348,61 @@ fn ordinary_no_carry_siblings_have_independent_real_body_leases() {
                         panic!("header")
                     };
                     assert_eq!(when_true.target, body.id);
+                    let expected_roles = std::iter::once(source_parameter)
+                        .chain(flag_parameters[index..].iter().copied())
+                        .collect::<BTreeSet<_>>();
+                    for block in [header, body] {
+                        assert_eq!(
+                            block
+                                .parameters
+                                .iter()
+                                .map(|entity| roles[entity])
+                                .collect::<BTreeSet<_>>(),
+                            expected_roles
+                        );
+                        assert_eq!(block.parameters.len(), expected_roles.len());
+                    }
+                    let read = run
+                        .instructions
+                        .iter()
+                        .find(|instruction| {
+                            instruction.block == header.id
+                                && matches!(instruction.operation, Operation::Read { .. })
+                        })
+                        .unwrap();
+                    let Operation::Read {
+                        source: PlaceAccess::Loan(flag),
+                    } = read.operation
+                    else {
+                        panic!("actual Boolean loan read")
+                    };
+                    assert!(header.parameters.contains(&EntityId::Loan(flag)));
+                    assert_eq!(roles[&EntityId::Loan(flag)], flag_parameters[index]);
+                    let TerminatorKind::Conditional {
+                        condition,
+                        when_false,
+                        ..
+                    } = &header.terminator.as_ref().unwrap().kind
+                    else {
+                        unreachable!()
+                    };
+                    assert_eq!(read.results.as_slice(), &[EntityId::Value(*condition)]);
+                    let after = if index + 1 == facts.len() {
+                        BTreeSet::new()
+                    } else {
+                        std::iter::once(source_parameter)
+                            .chain(flag_parameters[index + 1..].iter().copied())
+                            .collect::<BTreeSet<_>>()
+                    };
+                    let exit = run.block(when_false.target).unwrap();
+                    assert_eq!(
+                        exit.parameters
+                            .iter()
+                            .map(|entity| roles[entity])
+                            .collect::<BTreeSet<_>>(),
+                        after
+                    );
+                    assert_eq!(exit.parameters.len(), after.len());
                 }
                 assert_eq!(
                     run.instructions

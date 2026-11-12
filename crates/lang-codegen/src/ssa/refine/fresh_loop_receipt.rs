@@ -58,6 +58,8 @@ pub(super) struct Plan {
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
+    pub(super) abi_types: Vec<SsaTypeId>,
+    pub(super) abi_slots: Option<Vec<Slot>>,
     pub(super) loops: Vec<Plan>,
     pub(super) active: Option<usize>,
     pub(super) folds: Vec<(BlockRef, BlockRef)>,

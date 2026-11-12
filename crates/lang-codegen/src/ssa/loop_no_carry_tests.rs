@@ -297,6 +297,12 @@ fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
             2,
         ),
         (
+            "unused-flag",
+            "source:String,flag:Boolean,unused:Boolean",
+            "while(flag){borrow val item=view(source);consume(item)}",
+            1,
+        ),
+        (
             "before-after",
             "source:String,flag:Boolean",
             "consume(source);while(flag){borrow val item=view(source);consume(item)};consume(source)",

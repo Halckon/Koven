@@ -15,12 +15,27 @@ impl Plans {
         &mut self,
         statement: lang_frontend::type_checking::UnitStatementId,
         blocks: LoopBlocks,
-        source: Slot,
-        flag: Slot,
+        abi_slots: Vec<Slot>,
         span: Span,
     ) -> Result<(), LoweringError> {
         if self.loops.is_empty() {
             return Ok(());
+        }
+        let next = self.next().ok_or_else(|| invalid(span))?;
+        let source = *abi_slots
+            .get(next.source_parameter)
+            .ok_or_else(|| invalid(span))?;
+        let flag = *abi_slots
+            .get(next.flag_parameter)
+            .ok_or_else(|| invalid(span))?;
+        if abi_slots.len() != self.abi_types.len()
+            || abi_slots.iter().collect::<BTreeSet<_>>().len() != abi_slots.len()
+            || self
+                .abi_slots
+                .as_ref()
+                .is_some_and(|original| original != &abi_slots)
+        {
+            return Err(invalid(span));
         }
         let index = match self.active {
             Some(index) => {
@@ -28,7 +43,6 @@ impl Plans {
                 validate_loop(previous, false, span)?;
                 if previous.blocks.map(|b| b.exit) != Some(blocks.entry)
                     || previous.source != Some(source)
-                    || previous.flag != Some(flag)
                 {
                     return Err(invalid(span));
                 }
@@ -72,6 +86,9 @@ impl Plans {
         p.flag = Some(flag);
         p.boundary = 1;
         self.active = Some(index);
+        if self.abi_slots.is_none() {
+            self.abi_slots = Some(abi_slots);
+        }
         Ok(())
     }
     pub(in crate::ssa::refine) fn statement(
@@ -261,7 +278,11 @@ impl Plans {
     }
     pub(in crate::ssa::refine) fn finish(&self, span: Span) -> Result<(), LoweringError> {
         if self.loops.is_empty() {
-            return if self.active.is_none() && self.folds.is_empty() {
+            return if self.active.is_none()
+                && self.folds.is_empty()
+                && self.abi_types.is_empty()
+                && self.abi_slots.is_none()
+            {
                 Ok(())
             } else {
                 Err(invalid(span))
@@ -271,6 +292,27 @@ impl Plans {
             return Err(invalid(span));
         }
         let first = &self.loops[0];
+        let abi = self.abi_slots.as_ref().ok_or_else(|| invalid(span))?;
+        let flags = self
+            .loops
+            .iter()
+            .map(|p| p.flag_parameter)
+            .collect::<BTreeSet<_>>();
+        if abi.len() != self.abi_types.len()
+            || abi.len() < 2
+            || abi.iter().collect::<BTreeSet<_>>().len() != abi.len()
+            || flags.contains(&first.source_parameter)
+            || flags.len().checked_add(1) != Some(abi.len())
+            || self.abi_types.iter().enumerate().any(|(index, ty)| {
+                *ty != if index == first.source_parameter {
+                    first.source_type
+                } else {
+                    first.flag_type
+                }
+            })
+        {
+            return Err(invalid(span));
+        }
         let mut raw_blocks = BTreeSet::new();
         let mut fresh_slots = BTreeSet::new();
         for (index, p) in self.loops.iter().enumerate() {
@@ -280,9 +322,12 @@ impl Plans {
                 || p.fact.callable() != first.fact.callable()
                 || p.fact.source() != first.fact.source()
                 || p.source != first.source
-                || p.flag != first.flag
+                || p.source != abi.get(p.source_parameter).copied()
+                || p.flag != abi.get(p.flag_parameter).copied()
+                || abi
+                    .iter()
+                    .any(|slot| p.condition_value == Some(*slot) || p.result == Some(*slot))
                 || p.source_parameter != first.source_parameter
-                || p.flag_parameter != first.flag_parameter
                 || p.source_type != first.source_type
                 || p.flag_type != first.flag_type
                 || !fresh_slots.insert(p.condition_value)

@@ -11,8 +11,12 @@ impl Plans {
         types: &RefineTypes<'_>,
     ) -> Result<Self, LoweringError> {
         let empty = Self::default();
-        if inputs.parameters.len() != 2
-            || inputs.modes.as_slice() != [ParameterMode::Borrow, ParameterMode::Borrow]
+        if inputs.parameters.len() < 2
+            || inputs.modes.len() != inputs.parameters.len()
+            || inputs
+                .modes
+                .iter()
+                .any(|mode| *mode != ParameterMode::Borrow)
             || inputs.receiver.is_some()
             || !inputs.substitutions.is_empty()
             || inputs.static_self.is_some()
@@ -45,7 +49,6 @@ impl Plans {
                 if plan.fact.source() != first.fact.source()
                     || plan.fact.callable() != first.fact.callable()
                     || plan.source_parameter != first.source_parameter
-                    || plan.flag_parameter != first.flag_parameter
                 {
                     return Ok(empty);
                 }
@@ -62,7 +65,41 @@ impl Plans {
                 return Err(invalid(inputs.span));
             }
         }
+        let source_parameter = loops[0].source_parameter;
+        let flags = loops
+            .iter()
+            .map(|plan| plan.flag_parameter)
+            .collect::<BTreeSet<_>>();
+        if flags.len().checked_add(1) != Some(inputs.parameters.len())
+            || flags.contains(&source_parameter)
+        {
+            // Unused Boolean parameters remain outside this exact receipt ABI slice.
+            return Ok(empty);
+        }
+        let mut abi_types = Vec::with_capacity(inputs.parameters.len());
+        for (index, symbol) in inputs.parameters.iter().enumerate() {
+            let ty = inputs
+                .typed
+                .symbol_type(*symbol)
+                .ok_or_else(|| invalid(inputs.span))?;
+            let expected = if index == source_parameter {
+                BuiltinType::String
+            } else {
+                BuiltinType::Boolean
+            };
+            if inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(expected)) {
+                return Ok(empty);
+            }
+            abi_types.push(
+                *types
+                    .type_ids
+                    .get(&ty)
+                    .ok_or_else(|| invalid(inputs.span))?,
+            );
+        }
         Ok(Self {
+            abi_types,
+            abi_slots: None,
             loops,
             active: None,
             folds: Vec::new(),

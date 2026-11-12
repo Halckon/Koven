@@ -11,6 +11,7 @@ pub(crate) struct Receipt {
     pub(crate) loops: Vec<LoopReceipt>,
     pub(crate) edges: Vec<(BlockId, Edge)>,
     pub(super) span: Span,
+    pub(super) abi_types: Vec<SsaTypeId>,
     pub(super) folds: Vec<(BlockRef, BlockRef)>,
     pub(super) blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockId, Vec<Slot>>,
@@ -131,19 +132,25 @@ impl Emitted {
             .ok_or_else(|| invalid(span))?;
         let actual = function.block(entry).ok_or_else(|| invalid(span))?;
         let mappings = self.expected.get(&entry).ok_or_else(|| invalid(span))?;
-        if first.source == first.flag
-            || first.source.is_none()
-            || first.flag.is_none()
-            || mappings.get(&first.source.ok_or_else(|| invalid(span))?)
-                != actual.parameters.get(first.source_parameter)
-            || mappings.get(&first.flag.ok_or_else(|| invalid(span))?)
-                != actual.parameters.get(first.flag_parameter)
+        let abi_slots = plans.abi_slots.as_ref().ok_or_else(|| invalid(span))?;
+        if abi_slots.len() != plans.abi_types.len()
+            || actual.parameters.len() != abi_slots.len()
+            || abi_slots.iter().collect::<BTreeSet<_>>().len() != abi_slots.len()
         {
             return Err(invalid(span));
         }
+        for (index, slot) in abi_slots.iter().enumerate() {
+            if mappings.get(slot) != actual.parameters.get(index) {
+                return Err(invalid(span));
+            }
+        }
         let mut loops = Vec::new();
         for p in &plans.loops {
-            if p.source != first.source || p.flag != first.flag {
+            if p.source != abi_slots.get(p.source_parameter).copied()
+                || p.flag != abi_slots.get(p.flag_parameter).copied()
+                || plans.abi_types.get(p.source_parameter) != Some(&p.source_type)
+                || plans.abi_types.get(p.flag_parameter) != Some(&p.flag_type)
+            {
                 return Err(invalid(span));
             }
             let mut edges = Vec::new();
@@ -189,6 +196,7 @@ impl Emitted {
             loops,
             edges: Vec::new(),
             span,
+            abi_types: plans.abi_types.clone(),
             blocks: blocks.clone(),
             parameters: ps,
             folds: plans.folds.clone(),

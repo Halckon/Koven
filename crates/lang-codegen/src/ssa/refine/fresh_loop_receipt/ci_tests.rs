@@ -322,3 +322,267 @@ fn sequence_fresh_results_and_false_links_do_not_cross_peers() {
         .1 = changed;
     assert!(proof.validate(&bad).is_err());
 }
+
+fn capture_flags(pattern: &[usize]) -> (Function, Receipt) {
+    let loops = pattern
+        .iter()
+        .enumerate()
+        .map(|(index, flag)| {
+            format!("while(f{flag}){{borrow val item{index}=view(source);consume(item{index})}}")
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    let text = format!(
+        "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(source:String,f0:Boolean,f1:Boolean):Unit {{{loops}}}"
+    );
+    let (program, receipt) = capture_program_text(&text);
+    assert_eq!(receipt.loops.len(), pattern.len());
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|m| &m.functions)
+        .find(|f| f.id == receipt.caller)
+        .unwrap()
+        .clone();
+    receipt.validate(&function).unwrap();
+    (function, receipt)
+}
+
+fn actual_roles(function: &Function) -> BTreeMap<EntityId, usize> {
+    let mut roles = function.blocks[0]
+        .parameters
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, entity)| (entity, index))
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let count = roles.len();
+        for block in &function.blocks {
+            let edges = match &block.terminator.as_ref().unwrap().kind {
+                TerminatorKind::Branch(edge) => vec![edge],
+                TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true, when_false],
+                TerminatorKind::Return { .. } => Vec::new(),
+                _ => panic!("fixture terminator"),
+            };
+            for edge in edges {
+                for (argument, parameter) in edge
+                    .arguments
+                    .iter()
+                    .zip(&function.block(edge.target).unwrap().parameters)
+                {
+                    if let Some(role) = roles.get(argument).copied()
+                        && let Some(previous) = roles.insert(*parameter, role)
+                    {
+                        assert_eq!(previous, role);
+                    }
+                }
+            }
+        }
+        if roles.len() == count {
+            return roles;
+        }
+    }
+}
+
+fn actual_local(
+    function: &Function,
+    roles: &BTreeMap<EntityId, usize>,
+    block: crate::ssa::model::BlockId,
+    role: usize,
+) -> EntityId {
+    let values = function
+        .block(block)
+        .unwrap()
+        .parameters
+        .iter()
+        .copied()
+        .filter(|entity| roles.get(entity) == Some(&role))
+        .collect::<Vec<_>>();
+    let [value] = values.as_slice() else {
+        panic!("fixture local role")
+    };
+    *value
+}
+
+fn synchronize_edges(receipt: &mut Receipt, function: &Function) {
+    receipt.edges = function
+        .blocks
+        .iter()
+        .flat_map(|block| match &block.terminator.as_ref().unwrap().kind {
+            TerminatorKind::Branch(edge) => vec![(block.id, edge.clone())],
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![
+                (block.id, when_true.clone()),
+                (block.id, when_false.clone()),
+            ],
+            TerminatorKind::Return { .. } => Vec::new(),
+            _ => panic!("fixture terminator"),
+        })
+        .collect();
+}
+
+#[test]
+#[ignore = "CI-only actual distinct-flag read and ABI identity; compile locally"]
+fn distinct_flag_read_is_not_interchangeable_with_same_typed_loan() {
+    let (function, receipt) = capture_flags(&[0, 1, 0]);
+    let roles = actual_roles(&function);
+    let condition = tagged(&receipt, Tag::Condition);
+    let header = function.instruction(condition).unwrap().block;
+    let correct = actual_local(&function, &roles, header, 1);
+    let other = actual_local(&function, &roles, header, 2);
+    assert_ne!(correct, other);
+    let EntityId::Loan(other) = other else {
+        panic!()
+    };
+    let mut bad = function.clone();
+    let Operation::Read { source } = &mut bad.instructions[condition.index()].operation else {
+        panic!()
+    };
+    *source = crate::ssa::model::PlaceAccess::Loan(other);
+    assert!(receipt.validate(&bad).is_err());
+    let entry_flag = function
+        .block(function.entry_block().unwrap())
+        .unwrap()
+        .parameters[1];
+    assert_ne!(entry_flag, correct);
+    let EntityId::Loan(entry_flag) = entry_flag else {
+        panic!()
+    };
+    let mut bad = function.clone();
+    let Operation::Read { source } = &mut bad.instructions[condition.index()].operation else {
+        panic!()
+    };
+    *source = crate::ssa::model::PlaceAccess::Loan(entry_flag);
+    assert!(
+        receipt.validate(&bad).is_err(),
+        "same-role entry loan is not the local header loan"
+    );
+    let mut bad = receipt.clone();
+    bad.loops[0].proof.flag_parameter = 2;
+    assert!(bad.validate(&function).is_err());
+    let mut bad = receipt.clone();
+    bad.abi_types.swap(0, 1);
+    assert!(bad.validate(&function).is_err());
+}
+
+#[test]
+#[ignore = "CI-only actual flag transport substitutions with synchronized snapshots; compile locally"]
+fn distinct_flag_edges_preserve_repeated_future_uses() {
+    let (function, receipt) = capture_flags(&[0, 1, 0]);
+    let roles = actual_roles(&function);
+    for peer in [0, 1] {
+        let acquire = receipt.loops[peer]
+            .instructions
+            .iter()
+            .find(|(tag, _)| *tag == Tag::Result)
+            .unwrap()
+            .1;
+        let body = function.instruction(acquire).unwrap().block;
+        let first = actual_local(&function, &roles, body, 1);
+        let second = actual_local(&function, &roles, body, 2);
+        assert_ne!(first, second);
+        let mut bad = function.clone();
+        let TerminatorKind::Branch(edge) =
+            &mut bad.blocks[body.index()].terminator.as_mut().unwrap().kind
+        else {
+            panic!()
+        };
+        let a = edge
+            .arguments
+            .iter()
+            .position(|entity| *entity == first)
+            .unwrap();
+        let b = edge
+            .arguments
+            .iter()
+            .position(|entity| *entity == second)
+            .unwrap();
+        if peer == 0 {
+            edge.arguments.swap(a, b);
+        } else {
+            // f0 is not the current condition, but the next peer still needs its exact lease.
+            edge.arguments[a] = second;
+        }
+        let mut changed = receipt.clone();
+        synchronize_edges(&mut changed, &bad);
+        assert!(changed.validate(&bad).is_err(), "flag edge peer {peer}");
+    }
+}
+
+#[test]
+#[ignore = "CI-only structurally complete extra dead-flag transport; compile locally"]
+fn flags_dead_after_last_use_are_not_retained_by_the_certificate() {
+    use crate::ssa::model::{Definition, LoanId};
+    let (function, receipt) = capture_flags(&[0, 0, 1]);
+    let roles = actual_roles(&function);
+    let original = receipt.loops[2].proof.blocks;
+    let suffix = [original.entry, original.header, original.body]
+        .map(|raw| receipt.blocks[&receipt.canonical(raw)]);
+    assert_eq!(suffix.into_iter().collect::<BTreeSet<_>>().len(), 3);
+    for block in suffix {
+        assert!(
+            function
+                .block(block)
+                .unwrap()
+                .parameters
+                .iter()
+                .all(|entity| roles.get(entity) != Some(&1))
+        );
+    }
+    let mut bad = function.clone();
+    let mut added = BTreeMap::new();
+    let template = function.entity(function.blocks[0].parameters[1]).unwrap();
+    for block in suffix {
+        let index = bad.blocks[block.index()].parameters.len();
+        let loan = LoanId {
+            function: bad.id(),
+            index: bad.loans.len(),
+        };
+        let mut data = template.clone();
+        data.definition = Definition::BlockParameter { block, index };
+        bad.loans.push(data);
+        let entity = EntityId::Loan(loan);
+        bad.blocks[block.index()].parameters.push(entity);
+        added.insert(block, entity);
+    }
+    for block in &mut bad.blocks {
+        let edges = match &mut block.terminator.as_mut().unwrap().kind {
+            TerminatorKind::Branch(edge) => vec![edge],
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            TerminatorKind::Return { .. } => Vec::new(),
+            _ => panic!("fixture terminator"),
+        };
+        for edge in edges {
+            if added.contains_key(&edge.target) {
+                let extra = added
+                    .get(&block.id)
+                    .copied()
+                    .unwrap_or_else(|| actual_local(&function, &roles, block.id, 1));
+                edge.arguments.push(extra);
+            }
+        }
+    }
+    let mut changed = receipt.clone();
+    synchronize_edges(&mut changed, &bad);
+    // Entity definitions and every edge arity are complete; exact role liveness rejects this.
+    let covered = changed.blocks.values().copied().collect::<BTreeSet<_>>();
+    let instructions = changed
+        .loops
+        .iter()
+        .flat_map(|peer| peer.instructions.iter().map(|(_, id)| *id))
+        .collect::<BTreeSet<_>>();
+    super::whole_function::check(&bad, &covered, &instructions, changed.span).unwrap();
+    assert!(changed.validate(&bad).is_err());
+}

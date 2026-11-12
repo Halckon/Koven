@@ -15968,3 +15968,33 @@ policy未改，旧见证保留；本地提交实现，不推送。
 最终CG家族97项、FE三个target共4项通过；FE+CG feature all-targets Clippy -D warnings、
 默认workspace all-targets、fmt/diff/docs913及尺寸2627手写Rust文件/36历史超限通过。
 独立生产、最终图、测试和文档复审通过。未改尺寸policy，无旧见证退休，本地提交。
+
+
+### 不同 Boolean 条件的兄弟组合 receipt（2026-11-12）
+
+在既有合法执行范围内扩展独立证据：唯一 Borrow String source，其余 ABI 参数均为
+实际使用的 Borrow Boolean，按真实参数索引区分各条件身份。函数体仍只有已封印的
+同源直接 while；未使用 Boolean、own Boolean 或额外语句保留执行而不获本片 receipt。
+不改变 FE/CG 执行语义、原 verifier 或旧见证，也不开放分支、跳转、嵌套或多根。
+
+实际 producer 冻结完整 ABI 槽并在各阶段复核；每 peer 的条件读取绑定其参数索引。
+最终图从 ABI 实体独立传播角色，header/body 保留 source 与该 peer 起的所有未来
+flag 需求，false/exit 保留后续需求，末出口为空。共享出口集合、每 incoming 的前驱
+局部实体与唯一角色都要匹配。g0,g1,g0 不提前裁掉 g0，g0,g0,g1 在第二 peer 退出后
+裁掉 g0；不按同型 Boolean 合并身份。原 fact 独占性、每个真实 End、global fold 和
+整 unit verifier 后原子发布保持。
+
+真实缺证红已执行：不同 flag 原 lowering/原 verifier 成功而 receipt 数为0，对1断言
+失败；日志独立保留。实现后定向五项普通测试通过：组合14个源码变体、双入口/on-off
+共56次 lowering 都核一个组合 receipt、逐 fact 身份与独立最终验证；含2/3/5 peer、
+正反及中间 source ABI、重复 flag 和三条件顺序。实际各 Read 与逐块活跃角色集合
+另有普通断言；未用 Boolean 保留合法执行及 receipt0。旧单loop与CG/FE阴性保持。
+新增3组CI-only同型 flag/read、edge及已死flag保留故障，连同旧8组共11组，只编译不
+执行；entry旧flag替代本块Read也在同组检查。
+
+验收：定向普通5项、loan_region_ssa_tests家族98项、FE三个目标共4项、native实际
+编译链接运行3项均通过；CI-only 11组仅编译，未执行。双crate feature/all-targets
+Clippy通过，最终格式及diff检查通过。尺寸按2beb5592基线通过（2627文件/36历史债务），
+policy无修改。首次Clippy的两处测试collapsible_if仅作等价let-chain修复；首次尺寸
+命令缺--base是用法错误，均保留原日志，不计作行为红。默认workspace/all-targets检查通过，文档结构检查913篇通过。
+本片仅扩独立证据覆盖，无旧见证退休；本地提交，不推送。
