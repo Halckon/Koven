@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    nested_body: crate::ssa::refine::nested_body_receipt::Emitted,
     nested_resume: crate::ssa::refine::nested_resume_receipt::Emitted,
     nested_exit: crate::ssa::refine::nested_exit_receipt::Emitted,
     pub(super) owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted,
@@ -33,6 +34,7 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            nested_body: Default::default(),
             nested_resume: Default::default(),
             nested_exit: Default::default(),
             owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted::new(),
@@ -174,6 +176,8 @@ impl LoanReceipts {
             entities,
             span,
         )?;
+        self.nested_body
+            .layout(body, function, blocks, parameters, entities, span)?;
         self.nested_resume
             .layout(body, function, blocks, parameters, entities, span)?;
         self.nested_exit
@@ -244,6 +248,7 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.owner_bridge.finish(body, function, span)?;
+        self.nested_body.finish(body, function, span)?;
         self.nested_exit.finish(body, function, span)?;
         self.nested_resume.finish(body, function, span)?;
         self.loop_receipt.finish(&body.loop_plans, function, span)?;
@@ -315,6 +320,14 @@ impl Emitter<'_> {
                 let entity = self.get(*source, statement.span)?;
                 self.current.insert(*result, entity);
                 self.defined.insert(*result, entity);
+                receipts.nested_body.statement(
+                    body,
+                    self.function,
+                    (block, index),
+                    None,
+                    &self.current,
+                    statement.span,
+                )?;
                 receipts.nested_resume.statement(
                     body,
                     self.function,
@@ -390,6 +403,14 @@ impl Emitter<'_> {
                 self.defined.insert(*slot, entity);
             }
             receipts.owner_bridge.statement(
+                body,
+                self.function,
+                (block, index),
+                Some(instruction),
+                &self.current,
+                statement.span,
+            )?;
+            receipts.nested_body.statement(
                 body,
                 self.function,
                 (block, index),
@@ -609,4 +630,11 @@ impl Emitter<'_> {
         }
         Ok(())
     }
+}
+
+#[cfg(test)]
+pub(super) fn inject_owner_final(body: &RefinedBody, function: &mut Function) {
+    crate::ssa::refine::nested_exit_receipt::inject_final(&body.nested_exit_plans, function);
+    crate::ssa::refine::nested_resume_receipt::inject_final(&body.nested_resume_plans, function);
+    crate::ssa::refine::nested_body_receipt::inject_final(&body.nested_body_plans, function);
 }

@@ -16386,3 +16386,20 @@ diff/尺寸门禁通过（2589手写文件，37历史超限，无新增豁免）
 不计为已通过；本片不修改FE，未重跑FE。日志nested-parent-carry-*，仅本地提交。
 补充广域回归随后完成：nested_普通测试108/108通过（587.04s），较长用时来自既有
 native组合矩阵；无失败。仅执行非ci_only测试，未把故障注入算作本地通过。
+
+### 已批准 child normal-body 的独立生产退休终检（2026-11-12）
+
+同合同审计未发现可直接退休的旧生产权限witness。现有parent恢复receipt不覆盖
+inner normal每个Replace的第二输出；Builder原始CFG检查与普通最终SSA测试仍不可
+互相冒充。此片将已批准child normal的真实root/producer/old/binding及原三位置/span
+封存为独立生产计划，随fold同步，在发射中观察Replace完整操作、Alias真实Entity
+映射和原Drop，最终全组核每个旧Value唯一消费、不逃逸及实际指令清单/顺序。
+所有step通过才发布完成标记，不新增任何入口/退出/恢复/跨轮权限；不删generic
+verifier、FE互斥、原一次性许可或其负控，保留普通最终SSA独立抽查。
+
+验收：最终counter_boundary普通native 28/28（46.39s）、CG all-target strict Clippy
+（41.39s）、workspace all-target check（21.85s）通过；fmt/docs915/diff及尺寸门禁
+通过（2590手写文件，37历史超限，无新增豁免）。独立只读复审未见生产阻断，并补
+缺Alias观察专属故障；三项CI-only负控仅编译，未在本地执行。FE未修改且未重跑。
+旧witness审计结论与保留理由记入nested-owner-normal-body实现文档。本片仅本地
+提交不推送，日志nested-body-receipt-*；后续集成#420需将新fold hook迁到其folding.rs。

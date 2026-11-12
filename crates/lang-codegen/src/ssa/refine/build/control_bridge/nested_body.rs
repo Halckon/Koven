@@ -327,7 +327,12 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
+        let retirement = self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
+        if retirement.control != plan.evidence.control() {
+            return Err(fail());
+        }
+        self.body.nested_body_plans =
+            super::super::super::nested_body_receipt::Plans(Some(retirement));
         if let Some((_live, drops)) = plan.evidence.false_exit_partition() {
             let mut previous = None;
             let mut sites = Vec::new();
@@ -389,10 +394,11 @@ impl Builder<'_, '_> {
         rule: &UnitOwnerMultiRootNormalTransportV1,
         body: BlockRef,
         roots: &[Slot],
-    ) -> Result<(), LoweringError> {
+    ) -> Result<super::super::super::nested_body_receipt::Plan, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let statements = &self.body.blocks[body.0].statements;
         let mut previous = None;
+        let mut steps = Vec::new();
         for step in rule.steps() {
             let root_index = rule
                 .header_roots()
@@ -451,6 +457,14 @@ impl Builder<'_, '_> {
                     return Err(fail());
                 }
             }
+            steps.push(super::super::super::nested_body_receipt::Step {
+                root,
+                replacement: producer,
+                old: *old,
+                bound,
+                positions: [*replace_index, alias, drop],
+                spans: [replace.span, statements[alias].span, statements[drop].span],
+            });
             previous = Some(drop);
         }
         #[cfg(test)]
@@ -458,6 +472,10 @@ impl Builder<'_, '_> {
             "nested-owner-retirement-rechecked",
             rule.steps().len(),
         );
-        Ok(())
+        Ok(super::super::super::nested_body_receipt::Plan {
+            control: rule.statement(),
+            body,
+            steps,
+        })
     }
 }

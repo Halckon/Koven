@@ -86,3 +86,15 @@ frame的join块[3]消费独立阶段，[2]false清理→[3]运输须唯一且根
 可选 `nested_resume_receipt/carry.rs` 只跟踪恢复新 Value 沿已核 checked-success/Goto
 到实际 parent header 的运输。支持范围外的合法 suffix 不选中该事实，已选中的
 缺项或错误运输则失败封闭；到 header 即停止，不将 abort 当回边，也不推导下一轮。
+
+## 同合同退休审计
+
+`refine/nested_body_receipt.rs` 现为已批准 child normal 的旧值退休增加独立生产
+late-SSA 核验。它与 parent-resume receipt 分开，逐根观察原 Replace 第二结果、
+Alias 映射及原 Drop，随 fold 追踪位置，所有根终检成功后才记录组完成。
+
+- 原 Builder/一次性许可保留：核源事实、真实发射与准备 loan，不由 late receipt 替代。
+- `assert_nested_ssa_retirement` 保留独立最终 SSA 抽查；测试不是生产权限 witness。
+- `assert_existing_false_exit_resume` 不整段退休：还核 header 入边及准备链锚点。
+- `assert_final_false_cleanup_transport` 不整段退休：还核路径上无提前根消费。
+- generic verifier 与 FE 能力互斥全部保留，不能从这些局部 receipt 推出等价替代。

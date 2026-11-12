@@ -7,6 +7,7 @@
 mod body;
 mod build;
 mod control_bridge_receipt;
+mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
 #[cfg(test)]

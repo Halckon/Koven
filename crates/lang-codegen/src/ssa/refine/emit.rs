@@ -937,9 +937,7 @@ pub(super) fn emit(
         receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
     #[cfg(test)]
-    super::nested_exit_receipt::inject_final(&body.nested_exit_plans, emitter.function);
-    #[cfg(test)]
-    super::nested_resume_receipt::inject_final(&body.nested_resume_plans, emitter.function);
+    statements::inject_owner_final(body, emitter.function);
     receipts.finish(body, emitter.function, span)?;
     Ok(())
 }
