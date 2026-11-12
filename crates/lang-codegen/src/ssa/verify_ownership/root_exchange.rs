@@ -620,9 +620,6 @@ pub(in crate::ssa) mod integer {
             verify_operation::{is_koven_int, single_value_result, value_type},
         };
 
-        #[cfg(test)]
-        #[path = "../../../../verify_operation/map/tests.rs"]
-        mod tests;
 
         fn read_type(function: &Function, entity: EntityId) -> Option<SsaTypeId> {
             match function.entity(entity)?.ty {

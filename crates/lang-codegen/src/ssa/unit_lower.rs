@@ -21,9 +21,7 @@ mod nullable_when;
 mod ownership;
 mod receiver;
 use control::scalar;
-mod type_lower;
-#[cfg(test)]
-mod type_origin_cache_tests;
+pub(in crate::ssa) mod type_lower;
 mod type_plan;
 
 #[cfg(test)]

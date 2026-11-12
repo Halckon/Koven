@@ -681,7 +681,7 @@ fn aggregate_project_contract(
         && single_value_result(results) == Some(field)
 }
 
-fn aggregate_explode_contract(
+pub(in crate::ssa) fn aggregate_explode_contract(
     module: &Module,
     function: &Function,
     aggregate: ValueId,

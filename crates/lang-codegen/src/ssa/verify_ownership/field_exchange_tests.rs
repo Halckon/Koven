@@ -6,19 +6,19 @@ use crate::ssa::{
     verify::verify_program,
 };
 
-struct Fixture {
+pub(in crate::ssa) struct Fixture {
     program: Program,
     module: ModuleId,
     function: FunctionId,
     entry: BlockId,
     owner_ty: SsaTypeId,
     payload_ty: SsaTypeId,
-    field_ty: SsaTypeId,
-    origin: Origin,
+    pub(in crate::ssa) field_ty: SsaTypeId,
+    pub(in crate::ssa) origin: Origin,
 }
 
 impl Fixture {
-    fn new(copyable: bool) -> Self {
+    pub(in crate::ssa) fn new(copyable: bool) -> Self {
         let mut sources = SourceMap::default();
         let source = sources.add_source("field-exchange.ko", "replace").unwrap();
         let origin = Origin::Source(sources.span(source, 0, 7).unwrap());
@@ -62,24 +62,24 @@ impl Fixture {
             origin,
         }
     }
-    fn function(&self) -> &Function {
+    pub(in crate::ssa) fn function(&self) -> &Function {
         self.program
             .module(self.module)
             .unwrap()
             .function(self.function)
             .unwrap()
     }
-    fn function_mut(&mut self) -> &mut Function {
+    pub(in crate::ssa) fn function_mut(&mut self) -> &mut Function {
         self.program
             .module_mut(self.module)
             .unwrap()
             .function_mut(self.function)
             .unwrap()
     }
-    fn arg(&self, index: usize) -> ValueId {
+    pub(in crate::ssa) fn arg(&self, index: usize) -> ValueId {
         value(self.function().block(self.entry).unwrap().parameters[index])
     }
-    fn append(
+    pub(in crate::ssa) fn append(
         &mut self,
         block: BlockId,
         operation: Operation,
@@ -91,7 +91,7 @@ impl Fixture {
             .unwrap()
             .1
     }
-    fn field_place(&mut self, owner: ValueId, field: usize) -> PlaceId {
+    pub(in crate::ssa) fn field_place(&mut self, owner: ValueId, field: usize) -> PlaceId {
         let payload = place(
             self.append(
                 self.entry,
@@ -110,7 +110,7 @@ impl Fixture {
             )[0],
         )
     }
-    fn borrow(&mut self, place: PlaceId, kind: LoanKind) -> LoanId {
+    pub(in crate::ssa) fn borrow(&mut self, place: PlaceId, kind: LoanKind) -> LoanId {
         loan(
             self.append(
                 self.entry,
@@ -122,11 +122,11 @@ impl Fixture {
             )[0],
         )
     }
-    fn field_loan(&mut self, owner: ValueId, field: usize, kind: LoanKind) -> LoanId {
+    pub(in crate::ssa) fn field_loan(&mut self, owner: ValueId, field: usize, kind: LoanKind) -> LoanId {
         let place = self.field_place(owner, field);
         self.borrow(place, kind)
     }
-    fn exchange(
+    pub(in crate::ssa) fn exchange(
         &mut self,
         block: BlockId,
         owner: ValueId,
@@ -147,16 +147,16 @@ impl Fixture {
             )[0],
         )
     }
-    fn terminate(&mut self, block: BlockId, kind: TerminatorKind) {
+    pub(in crate::ssa) fn terminate(&mut self, block: BlockId, kind: TerminatorKind) {
         let origin = self.origin.clone();
         self.function_mut()
             .set_terminator(block, kind, origin)
             .unwrap();
     }
-    fn abort(&mut self) {
+    pub(in crate::ssa) fn abort(&mut self) {
         self.terminate(self.entry, TerminatorKind::Abort);
     }
-    fn assert_rejected(&self) {
+    pub(in crate::ssa) fn assert_rejected(&self) {
         assert!(
             verify_program(&self.program).is_err(),
             "malformed exchange accepted"
@@ -834,5 +834,3 @@ fn field_exchange_cfg_rejects_same_typed_other_field_on_one_incoming_edge() {
     }
 }
 
-#[path = "direct_field_tests.rs"]
-mod direct_field_tests;

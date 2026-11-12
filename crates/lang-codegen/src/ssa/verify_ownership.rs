@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-mod aliases;
+pub(in crate::ssa) mod aliases;
 use aliases::{
     direct_fields,
     map::{self, reborrow},
@@ -9,7 +9,7 @@ use aliases::{
 mod closure;
 pub(in crate::ssa) mod field_exchange;
 #[cfg(test)]
-mod field_exchange_tests;
+pub(in crate::ssa) mod field_exchange_tests;
 mod range;
 use range::borrow_result;
 pub(in crate::ssa) mod root_exchange;
