@@ -10,7 +10,9 @@ use crate::ssa::{
 pub(super) use emitted::Emitted;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
-    ownership_checking::{BorrowSourceLoan, UnitLoanActionId, UnitLoanForwardBranch},
+    ownership_checking::{
+        BorrowSourceLoan, UnitBorrowBranchForwardTopology, UnitLoanActionId, UnitLoanForwardBranch,
+    },
     source::Span,
     type_checking::{UnitExpressionId, UnitItemId},
 };
@@ -27,6 +29,7 @@ pub(super) struct Plans {
 }
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
+    pub(super) topology: UnitBorrowBranchForwardTopology,
     pub(super) callable: UnitItemId,
     pub(super) caller: FunctionId,
     pub(super) root: UnitSymbolId,

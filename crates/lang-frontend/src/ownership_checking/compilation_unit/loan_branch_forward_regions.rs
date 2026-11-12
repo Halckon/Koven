@@ -6,11 +6,21 @@ use crate::{
 };
 use std::{ops::Range, sync::Arc};
 
+/// Exact control topology certified by the two-path region.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitBorrowBranchForwardTopology {
+    /// A terminating then arm and a false-edge continuation to the tail return.
+    TailContinuation,
+    /// Both explicit arms return; no live continuation exists.
+    BothArmsReturn,
+}
+
 /// Independently scoped branch coverage, never a linear sequence across both arms.
 /// Source/callable coverage and backend
 /// receipt eligibility are unaffected by this separate product.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowBranchForwardRegion {
+    pub(super) topology: UnitBorrowBranchForwardTopology,
     pub(super) identity: Arc<()>,
     pub(super) callable: UnitItemId,
     pub(super) parameter: UnitSymbolId,
@@ -21,6 +31,10 @@ pub struct UnitBorrowBranchForwardRegion {
 }
 
 impl UnitBorrowBranchForwardRegion {
+    /// Positively witnessed topology, not inferred from optional records.
+    pub const fn topology(&self) -> UnitBorrowBranchForwardTopology {
+        self.topology
+    }
     /// Original wrapper owning the declared region.
     pub const fn callable(&self) -> UnitItemId {
         self.callable

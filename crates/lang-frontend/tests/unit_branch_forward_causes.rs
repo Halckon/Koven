@@ -402,10 +402,6 @@ fn ordinary_unadmitted_exit_shapes_keep_raw_partial_projection() {
             "{ if (flag) { return view(source) }; return ((view(source))) }",
             2,
         ),
-        (
-            "{ if (flag) { return view(source) } else { return view(source) } }",
-            2,
-        ),
     ] {
         let text = format!(
             "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source {body}"

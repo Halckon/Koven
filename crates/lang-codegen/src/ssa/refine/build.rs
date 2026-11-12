@@ -137,8 +137,17 @@ pub(super) fn build(
             temporary_plans: super::temporary_receipt::Plans::new(inputs)?,
             binding_plans: super::binding_receipt::Plans::new(inputs)?,
             aux_binding_plans: super::aux_binding_receipt::Plans::new(inputs)?,
+            distinct_aux_plans: super::distinct_aux_receipt::Plans::new(inputs)?,
+            later_aux_plans: super::later_aux_receipt::Plans::new(inputs)?,
+            auxiliary_sequence_plans: super::auxiliary_sequence_receipt::Plans::new(inputs)?,
+            interleaved_aux_plans: super::interleaved_aux_receipt::Plans::new(inputs)?,
+            multi_binding_plans: super::multi_binding_receipt::Plans::new(inputs)?,
             forward_plans: super::forward_receipt::Plans::new(inputs)?,
             branch_plans: super::branch_receipt::Plans::new(inputs)?,
+            nested_plans: super::nested_receipt::Plans::new(inputs)?,
+            bounded_plans: super::bounded_receipt::Plans::new(inputs)?,
+            single_plans: super::single_receipt::Plans::new(inputs)?,
+            multi_plans: super::multi_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,
             ..RefinedBody::default()
         },
@@ -386,6 +395,12 @@ impl Builder<'_, '_> {
         self.sync_dead();
         let block = self.current(span)?;
         self.body.branch_plans.terminate(&terminator, block, span)?;
+        self.body.nested_plans.terminate(&terminator, block, span)?;
+        self.body
+            .bounded_plans
+            .terminate(&terminator, block, span)?;
+        self.body.single_plans.terminate(&terminator, block, span)?;
+        self.body.multi_plans.terminate(&terminator, block, span)?;
         self.body
             .forward_plans
             .terminate(&terminator, block, span)?;

@@ -10,11 +10,15 @@ mod build;
 pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
+pub(crate) mod bounded_receipt;
 pub(crate) mod branch_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod loan_receipt;
+pub(crate) mod multi_receipt;
+pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;
+pub(crate) mod single_receipt;
 mod subset;
 
 use std::collections::BTreeMap;
@@ -485,6 +489,11 @@ pub(crate) mod named_receipt;
 pub(crate) mod temporary_receipt;
 
 pub(crate) mod aux_binding_receipt;
+pub(crate) mod auxiliary_sequence_receipt;
 pub(crate) mod binding_receipt;
+pub(crate) mod distinct_aux_receipt;
+pub(crate) mod interleaved_aux_receipt;
+pub(crate) mod later_aux_receipt;
+pub(crate) mod multi_binding_receipt;
 
 pub(crate) mod child_receipt;

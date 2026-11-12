@@ -1,6 +1,7 @@
 //! Narrow branch state witnesses; the expression-region boundary is deliberately unchanged.
 use super::*;
 use super::{borrow_forward_transport::ForwardScope, branch_forward_scope::BranchForwardPlan};
+use crate::ownership_checking::UnitBorrowBranchForwardTopology;
 
 impl DropPlanner<'_, '_> {
     pub(super) fn branch_boundary_clear(
@@ -15,6 +16,11 @@ impl DropPlanner<'_, '_> {
         let ValueState {
             forward_scope,
             branch_forward_plan,
+            nested_forward,
+            bounded_forward,
+            single_continuation,
+            multi_continuation,
+            multi_merge,
             replace_consumer,
             lambda,
             borrow_bindings,
@@ -39,7 +45,12 @@ impl DropPlanner<'_, '_> {
         } else {
             borrow_forward_transports.is_empty()
         };
-        self.scope_depth == depth
+        multi_continuation.is_none()
+            && multi_merge.is_none()
+            && single_continuation.is_none()
+            && bounded_forward.is_none()
+            && nested_forward.is_none()
+            && self.scope_depth == depth
             && self.owner_branch_depth == owner_depth
             && *forward_scope == scope
             && *branch_forward_plan == plan
@@ -80,6 +91,7 @@ impl DropPlanner<'_, '_> {
         );
         let id = self.iteration_actions.begin_branch_region(
             plan.scopes,
+            plan.topology,
             (self.scope_depth, self.owner_branch_depth),
             clear,
         );
@@ -128,7 +140,13 @@ impl DropPlanner<'_, '_> {
         let Some((depth, owner)) = self.iteration_actions.branch_base(candidate) else {
             return;
         };
-        let true_arm = usize::from(branch.then_arm());
+        let true_arm = match self.iteration_actions.branch_topology(candidate) {
+            Some(UnitBorrowBranchForwardTopology::TailContinuation) => {
+                usize::from(branch.then_arm())
+            }
+            Some(UnitBorrowBranchForwardTopology::BothArmsReturn) => 1,
+            None => return,
+        };
         let clear = self.branch_boundary_clear(
             state,
             Some(scope),
@@ -145,11 +163,20 @@ impl DropPlanner<'_, '_> {
         &mut self,
         plan: Option<BranchForwardPlan>,
         terminated: bool,
+        else_terminated: bool,
         states: &[ValueState],
     ) {
         let Some(candidate) = plan.and_then(|p| p.coverage) else {
             return;
         };
+        if plan.is_some_and(|p| p.topology == UnitBorrowBranchForwardTopology::BothArmsReturn) {
+            self.iteration_actions.branch_terminal_join(
+                candidate,
+                terminated && else_terminated,
+                states.is_empty(),
+            );
+            return;
+        }
         let Some((depth, owner)) = self.iteration_actions.branch_base(candidate) else {
             return;
         };

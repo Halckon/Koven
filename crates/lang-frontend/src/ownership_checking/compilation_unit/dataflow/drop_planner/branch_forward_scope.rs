@@ -1,11 +1,14 @@
 //! Narrow Partial evidence for two actual same-source branch returns.
 use super::borrow_forward_transport::ForwardScope;
 use super::*;
-use crate::ownership_checking::{UnitLoanForwardBranch, UnitLoanTarget};
+use crate::ownership_checking::{
+    UnitBorrowBranchForwardTopology, UnitLoanForwardBranch, UnitLoanTarget,
+};
 use crate::type_checking::{BorrowReturnOrigin, UnitCallTarget, UnitItemId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct BranchForwardPlan {
+    pub(super) topology: UnitBorrowBranchForwardTopology,
     pub(super) split: UnitExpressionId,
     pub(super) condition: UnitExpressionId,
     pub(super) flag: UnitSymbolId,
@@ -72,8 +75,10 @@ impl DropPlanner<'_, '_> {
         let Statement::Block { elements } = ast.statements().get(block).ok()?.payload() else {
             return None;
         };
-        let [conditional, tail] = elements.as_slice() else {
-            return None;
+        let (conditional, tail) = match elements.as_slice() {
+            [conditional, tail] => (conditional, Some(*tail)),
+            [conditional] => (conditional, None),
+            _ => return None,
         };
         let Statement::Expression { expression: split } =
             ast.statements().get(*conditional).ok()?.payload()
@@ -83,11 +88,26 @@ impl DropPlanner<'_, '_> {
         let Expression::If {
             condition,
             then_branch,
-            else_branch: None,
+            else_branch,
             ..
         } = ast.expressions().get(*split).ok()?.payload()
         else {
             return None;
+        };
+        let (topology, second_return) = match (tail, else_branch) {
+            (Some(tail), None) => (UnitBorrowBranchForwardTopology::TailContinuation, tail),
+            (None, Some(other)) => {
+                let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+                    ast.statements().get(*other).ok()?.payload()
+                else {
+                    return None;
+                };
+                let [returned] = elements.as_slice() else {
+                    return None;
+                };
+                (UnitBorrowBranchForwardTopology::BothArmsReturn, *returned)
+            }
+            _ => return None,
         };
         if !matches!(
             ast.expressions().get(*condition).ok()?.payload(),
@@ -115,8 +135,7 @@ impl DropPlanner<'_, '_> {
         };
         let callable = UnitItemId::new(self.checker.source_unit, item);
         let mut scopes = Vec::new();
-        let mut targets = Vec::new();
-        for (arm, statement) in [*then_return, *tail].into_iter().enumerate() {
+        for (arm, statement) in [*then_return, second_return].into_iter().enumerate() {
             let Statement::Expression {
                 expression: control,
             } = ast.statements().get(statement).ok()?.payload()
@@ -235,15 +254,12 @@ impl DropPlanner<'_, '_> {
                 branch: Some(branch),
                 branch_entry: None,
             });
-            targets.push(target);
         }
-        if targets[0] != targets[1]
-            || scopes[0].body == scopes[1].body
-            || scopes[0].control == scopes[1].control
-        {
+        if scopes[0].body == scopes[1].body || scopes[0].control == scopes[1].control {
             return None;
         }
         Some(BranchForwardPlan {
+            topology,
             split: self.checker.unit_expression(*split),
             condition: self.checker.unit_expression(*condition),
             scopes: [scopes[0], scopes[1]],

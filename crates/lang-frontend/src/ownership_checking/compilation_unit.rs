@@ -1,4 +1,11 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
+mod loan_bounded_forward_regions;
+pub use loan_bounded_forward_regions::{
+    UnitBoundedBorrowContinuation, UnitBoundedBorrowContinuationRegion,
+    UnitBoundedBorrowForwardPath, UnitBoundedBorrowForwardRegion,
+    UnitBoundedBorrowMultiContinuationRegion, UnitBoundedBorrowMultiJoin,
+    UnitBoundedBorrowSharedTail, UnitBoundedBorrowTailOrigin,
+};
 mod drop_point;
 pub use drop_point::{
     UnitConditionalReceiverDropFact, UnitDropFact, UnitDropPoint, UnitDropTarget,
@@ -13,11 +20,21 @@ mod loan_binding_region_validation;
 mod loan_binding_regions;
 pub use loan_auxiliary_binding_regions::UnitBorrowAuxiliaryBindingRegion;
 mod loan_branch_forward_regions;
+mod loan_nested_forward_lineage;
+mod loan_nested_forward_regions;
+pub use loan_nested_forward_lineage::{UnitLoanNestedForwardEdge, UnitLoanNestedForwardLineage};
+pub use loan_nested_forward_regions::{
+    UnitBorrowNestedForwardCascadeContinuation, UnitBorrowNestedForwardContinuation,
+    UnitBorrowNestedForwardFlagLayout, UnitBorrowNestedForwardRegion,
+    UnitBorrowNestedForwardTopology,
+};
 mod loan_child_region_validation;
 mod loan_child_regions;
 mod loan_forward_regions;
 pub use loan_binding_regions::UnitBorrowBindingRegion;
-pub use loan_branch_forward_regions::{UnitBorrowBranchForwardPath, UnitBorrowBranchForwardRegion};
+pub use loan_branch_forward_regions::{
+    UnitBorrowBranchForwardPath, UnitBorrowBranchForwardRegion, UnitBorrowBranchForwardTopology,
+};
 pub use loan_child_regions::UnitBorrowChildRegion;
 pub use loan_forward_regions::UnitBorrowForwardRegion;
 mod loan_binding_dependency_drop;
@@ -30,11 +47,35 @@ mod loan_binding_actions;
 pub use loan_binding_actions::{UnitLoanBindingSourceRetirement, UnitLoanBindingUseReturn};
 mod loan_actions;
 mod loan_auxiliary_retirement;
+mod loan_auxiliary_sequence_regions;
+mod loan_binding_use_sets;
+mod loan_multi_binding_regions;
+pub use loan_multi_binding_regions::{
+    UnitBorrowMultiBindingRegion, UnitMultiBindingAuxiliaryUse, UnitMultiBindingSourceState,
+};
+mod loan_interleaved_auxiliary_regions;
+pub use loan_binding_use_sets::{
+    UnitBindingUseReturn, UnitLoanBindingUseSet, UnitLoanBindingUseSetRetirement,
+};
+pub use loan_interleaved_auxiliary_regions::{
+    UnitAuxiliarySourceState, UnitBorrowInterleavedAuxiliaryRegion, UnitLoanInterleavedAuxiliaryUse,
+};
+mod loan_distinct_auxiliary_binding_region_validation;
+mod loan_distinct_auxiliary_binding_regions;
+mod loan_later_auxiliary_binding_region_validation;
+mod loan_later_auxiliary_binding_regions;
 pub use loan_actions::{
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
     UnitLoanConsumerRetirement, UnitLoanForwardBranch, UnitLoanForwardHandoff,
 };
-pub use loan_auxiliary_retirement::UnitLoanAuxiliaryRetirement;
+pub use loan_auxiliary_retirement::{
+    UnitLoanAuxiliaryRetirement, UnitLoanDistinctAuxiliaryRetirement,
+};
+pub use loan_auxiliary_sequence_regions::{
+    UnitBorrowAuxiliarySequenceRegion, UnitLoanAuxiliarySequenceUse,
+};
+pub use loan_distinct_auxiliary_binding_regions::UnitBorrowDistinctAuxiliaryBindingRegion;
+pub use loan_later_auxiliary_binding_regions::UnitBorrowLaterAuxiliaryBindingRegion;
 
 mod loan;
 pub use loan::{

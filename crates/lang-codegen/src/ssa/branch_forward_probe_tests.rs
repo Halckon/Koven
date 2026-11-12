@@ -362,7 +362,8 @@ fn ordinary_branch_neighbors_keep_the_unit_declaration_gate() {
     for body in [
         "{ return view(source) }",
         "{ if (flag) { return view(source) }; return ((view(source))) }",
-        "{ if (flag) { return view(source) } else { return view(source) } }",
+        "{ if (flag) { return view(source) } else { return ((view(source))) } }",
+        "{ if (flag) { if (flag) { return view(source) }; return view(source) } else { return view(source) } }",
     ] {
         let text = format!(
             "fun view(source: String): borrow String from source = source\nfun wrap(source: String, flag: Boolean): borrow String from source {body}\nfun run(): Unit {{}}"

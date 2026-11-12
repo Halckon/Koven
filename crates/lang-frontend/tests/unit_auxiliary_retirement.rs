@@ -70,6 +70,8 @@ fn ordinary_auxiliary_retirement_requires_actual_acquisition_links() {
         };
         assert_ne!(raw.source_loan().argument(), aux.argument());
         assert_eq!(raw.source_loan().target(), aux.target());
+        assert!(catalog.distinct_auxiliary_retirements().is_empty());
+        assert!(catalog.distinct_auxiliary_binding_regions().is_empty());
         assert_eq!(raw.source_loan().call(), aux.call());
         assert!(!raw.auxiliary_loan_ends().contains(raw.source_loan()));
         for loan in [raw.source_loan(), aux] {
@@ -180,13 +182,44 @@ fn ordinary_auxiliary_retirement_neighbors_keep_partial_raw_handoffs() {
                 panic!("one catalog")
             };
             assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
+            if name == "distinct-roots" {
+                let [relation] = catalog.distinct_auxiliary_retirements() else {
+                    panic!("{name}/{layout}: separate two-owner relation");
+                };
+                assert!(catalog.owns_distinct_auxiliary_retirement(relation));
+                let [region] = catalog.distinct_auxiliary_binding_regions() else {
+                    panic!("{name}/{layout}: separate ASAP binding interval");
+                };
+                assert!(catalog.owns_distinct_auxiliary_binding_region(region));
+                assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                assert_eq!(region.action_ids().len(), 9);
+                assert_eq!(region.source_owner(), Some(relation.source_owner()));
+                assert_eq!(region.auxiliary_owner(), Some(relation.auxiliary_owner()));
+
+                assert_ne!(relation.source_owner(), relation.auxiliary_owner());
+                assert_eq!(
+                    catalog.action(&relation.source_begin()),
+                    Some(&UnitLoanAction::Begin(raw.source_loan().clone()))
+                );
+                assert_eq!(
+                    catalog.action(&relation.auxiliary_begin()),
+                    Some(&UnitLoanAction::Begin(raw.auxiliary_loan_ends()[0].clone()))
+                );
+                assert_eq!(
+                    catalog.action(&relation.handoff()),
+                    Some(&UnitLoanAction::BorrowHandoffCommitted(raw.clone()))
+                );
+            } else {
+                assert!(catalog.distinct_auxiliary_retirements().is_empty());
+            }
+
             assert!(catalog.binding_regions().is_empty());
             assert!(
                 catalog.auxiliary_retirements().is_empty(),
                 "{name}/{layout}: narrow relation remains absent"
             );
             println!(
-                "case={name}; layout={layout}; old_products_equal=true; raw_aux={expected_auxiliary}; relations=0"
+                "case={name}; layout={layout}; old_products_equal=true; raw_aux={expected_auxiliary}; same_root_relations=0"
             );
         }
     }

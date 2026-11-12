@@ -1,4 +1,6 @@
 //! Observe the existing normal-return token retirement without changing its cleanup.
+#[path = "distinct_auxiliary.rs"]
+pub(super) mod distinct_auxiliary;
 use super::{DropPlanner, ValueState};
 use crate::{
     ast::ExpressionId,
@@ -14,6 +16,7 @@ pub(super) struct PendingHandoff {
     auxiliary_begins: Vec<Option<super::action_source::ActionHandle>>,
     source_live: bool,
     narrow_shape: bool,
+    distinct: Option<distinct_auxiliary::Witness>,
 }
 
 impl DropPlanner<'_, '_> {
@@ -121,6 +124,9 @@ impl DropPlanner<'_, '_> {
         });
         let narrow_shape =
             self.auxiliary_retirement_shape(&source_loan, &auxiliary_loan_ends, state);
+        let distinct = self
+            .distinct_auxiliary_witness(&source_loan, &auxiliary_loan_ends, state)
+            .filter(|witness| source_live && witness.still_live(state));
         self.pending_borrow_handoffs.push(PendingHandoff {
             fact: UnitBorrowCallHandoffFact {
                 source_loan,
@@ -131,6 +137,7 @@ impl DropPlanner<'_, '_> {
             auxiliary_begins,
             source_live,
             narrow_shape,
+            distinct,
         });
     }
 
@@ -352,6 +359,19 @@ impl DropPlanner<'_, '_> {
                 .is_ok_and(|actual| actual.as_ref() == Some(place))
     }
 
+    // Observe the real owner transition even when the legacy whole-callable owner
+    // observer has rejected borrow syntax. This sidecar grants no legacy authority.
+    pub(super) fn observe_distinct_auxiliary_owner_event(
+        &mut self,
+        event: &crate::ownership_checking::UnitOwnerTransportEvent,
+    ) {
+        for pending in &mut self.pending_borrow_handoffs {
+            if let Some(witness) = &mut pending.distinct {
+                witness.owner_events.push(event.clone());
+            }
+        }
+    }
+
     pub(super) fn commit_borrow_call_handoff(
         &mut self,
         binding: crate::name_resolution::UnitSymbolId,
@@ -359,7 +379,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) {
         let mut remaining = Vec::new();
-        for pending in self.pending_borrow_handoffs.drain(..) {
+        for pending in std::mem::take(&mut self.pending_borrow_handoffs) {
             if pending.fact.binding() == binding {
                 if continues {
                     let auxiliary_source = pending.fact.source_loan().clone();
@@ -370,7 +390,31 @@ impl DropPlanner<'_, '_> {
                         _ => None,
                     };
                     let source_begin = pending.source_begin.clone();
+                    let confirmation = pending.distinct.as_ref().and_then(|witness| {
+                        self.confirm_distinct_auxiliary(
+                            witness,
+                            state,
+                            pending.fact.source_loan().call(),
+                        )
+                    });
+                    let distinct_begin = confirmation.as_ref().and_then(|_| {
+                        match pending.auxiliary_begins.as_slice() {
+                            [Some(begin)] if pending.source_live => Some(begin.clone()),
+                            _ => None,
+                        }
+                    });
                     let handle = self.iteration_actions.commit_borrow_handoff(pending.fact);
+                    if let Some(owner_drop) = confirmation {
+                        self.iteration_actions
+                            .register_distinct_auxiliary_retirement(
+                                handle.clone(),
+                                pending.source_begin.clone(),
+                                pending.auxiliary_begins.clone(),
+                                pending.source_live,
+                                pending.distinct,
+                                owner_drop,
+                            );
+                    }
                     self.iteration_actions.register_auxiliary_retirement(
                         handle.clone(),
                         pending.source_begin,
@@ -379,11 +423,19 @@ impl DropPlanner<'_, '_> {
                     );
                     for pending in &mut state.borrow_binding_transports {
                         pending.commit_handoff(binding, handle.clone());
+                        pending.activate_use_set(&mut self.iteration_actions);
                         pending.activate_auxiliary_observation(
                             binding,
                             &auxiliary_source,
                             source_begin.as_ref(),
                             auxiliary_begin.as_ref(),
+                            &handle,
+                        );
+                        pending.activate_distinct_observation(
+                            binding,
+                            &auxiliary_source,
+                            source_begin.as_ref(),
+                            distinct_begin.as_ref(),
                             &handle,
                         );
                     }

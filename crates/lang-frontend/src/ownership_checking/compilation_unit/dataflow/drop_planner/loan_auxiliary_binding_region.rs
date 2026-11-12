@@ -1,4 +1,10 @@
 //! Exact three-statement syntax and independent typed/current-state admission.
+#[path = "loan_distinct_auxiliary_binding_region.rs"]
+mod distinct;
+#[path = "loan_later_auxiliary_binding_region.rs"]
+mod later;
+#[path = "loan_binding_use_set.rs"]
+mod use_set;
 use super::*;
 use crate::{
     name_resolution::SymbolKind,
@@ -29,6 +35,9 @@ impl DropPlanner<'_, '_> {
         statement: StatementId,
         state: &ValueState,
     ) {
+        self.enter_binding_use_set(statement, state);
+        self.enter_distinct_auxiliary_binding_region(statement, state);
+        self.enter_later_auxiliary_binding_region(statement, state);
         if !self.iteration_actions.enabled {
             return;
         }
@@ -46,11 +55,18 @@ impl DropPlanner<'_, '_> {
         continues: bool,
         state: &ValueState,
     ) {
+        self.finish_distinct_auxiliary_binding_region_statement(statement, continues, state);
+        self.finish_later_auxiliary_binding_region_statement(statement, continues, state);
         // Completion follows the enclosing block's drop_scope and its borrow-end wrapper.
         // Empty active state also proves the following item-level drop_all is inert.
         let empty = self.scope_depth == 0
             && self.binding_region_boundary_clear(state)
             && state.values.is_empty();
+        self.iteration_actions.finish_multi_region_statement(
+            UnitStatementId::new(self.checker.source_unit, statement),
+            continues,
+            empty,
+        );
         self.iteration_actions
             .finish_auxiliary_binding_region_statement(
                 UnitStatementId::new(self.checker.source_unit, statement),

@@ -44,11 +44,14 @@ fun run(): Unit { val owner = "kept"; borrow val parent = view(owner); borrow va
         source_begin: Some(handle.clone()),
         handoff: Some(handle),
         use_return: UseReturn::Unused,
+        use_set: None,
         observable: true,
         child: ChildState::Never,
         dependency_owner: None,
         auxiliary: None,
         auxiliary_seen: false,
+        distinct: None,
+        distinct_seen: false,
     };
     let mut other = first.clone();
     let drop = shared.drops()[0];

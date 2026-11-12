@@ -2,6 +2,10 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
+    pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
+    pub(super) single: crate::ssa::refine::single_receipt::Emitted,
+    pub(super) multi: crate::ssa::refine::multi_receipt::Emitted,
     pub(super) branch: crate::ssa::refine::branch_receipt::Emitted,
     pub(super) forward: crate::ssa::refine::forward_receipt::Emitted,
     consumer: crate::ssa::refine::loan_receipt::Emitted,
@@ -10,6 +14,11 @@ pub(super) struct LoanReceipts {
     temporary: crate::ssa::refine::temporary_receipt::Emitted,
     binding: crate::ssa::refine::binding_receipt::Emitted,
     aux_binding: crate::ssa::refine::aux_binding_receipt::Emitted,
+    distinct_aux: crate::ssa::refine::distinct_aux_receipt::Emitted,
+    later_aux: crate::ssa::refine::later_aux_receipt::Emitted,
+    auxiliary_sequence: crate::ssa::refine::auxiliary_sequence_receipt::Emitted,
+    interleaved_aux: crate::ssa::refine::interleaved_aux_receipt::Emitted,
+    multi_binding: crate::ssa::refine::multi_binding_receipt::Emitted,
     child: crate::ssa::refine::child_receipt::Emitted,
 }
 impl LoanReceipts {
@@ -19,6 +28,26 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            nested: crate::ssa::refine::nested_receipt::Emitted::new(
+                &body.nested_plans,
+                function,
+                span,
+            )?,
+            bounded: crate::ssa::refine::bounded_receipt::Emitted::new(
+                &body.bounded_plans,
+                function,
+                span,
+            )?,
+            single: crate::ssa::refine::single_receipt::Emitted::new(
+                &body.single_plans,
+                function,
+                span,
+            )?,
+            multi: crate::ssa::refine::multi_receipt::Emitted::new(
+                &body.multi_plans,
+                function,
+                span,
+            )?,
             branch: crate::ssa::refine::branch_receipt::Emitted::new(
                 &body.branch_plans,
                 function,
@@ -59,12 +88,89 @@ impl LoanReceipts {
                 function,
                 span,
             )?,
+            distinct_aux: crate::ssa::refine::distinct_aux_receipt::Emitted::new(
+                &body.distinct_aux_plans,
+                function,
+                span,
+            )?,
+            later_aux: crate::ssa::refine::later_aux_receipt::Emitted::new(
+                &body.later_aux_plans,
+                function,
+                span,
+            )?,
+            auxiliary_sequence: crate::ssa::refine::auxiliary_sequence_receipt::Emitted::new(
+                &body.auxiliary_sequence_plans,
+                function,
+                span,
+            )?,
+            interleaved_aux: crate::ssa::refine::interleaved_aux_receipt::Emitted::new(
+                &body.interleaved_aux_plans,
+                function,
+                span,
+            )?,
+            multi_binding: crate::ssa::refine::multi_binding_receipt::Emitted::new(
+                &body.multi_binding_plans,
+                function,
+                span,
+            )?,
             temporary: crate::ssa::refine::temporary_receipt::Emitted::new(
                 &body.temporary_plans,
                 function,
                 span,
             )?,
         })
+    }
+    /// Forward the shared SSA layout through each independent protocol, fail-fast in order.
+    pub(super) fn layout(
+        &mut self,
+        body: &RefinedBody,
+        function: &Function,
+        blocks: &BTreeMap<BlockRef, BlockId>,
+        parameters: &BTreeMap<BlockRef, Vec<Slot>>,
+        entities: &BTreeMap<BlockRef, Vec<EntityId>>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.branch.layout(
+            &body.branch_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.nested.layout(
+            &body.nested_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.bounded.layout(
+            &body.bounded_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.single.layout(
+            &body.single_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.multi.layout(
+            &body.multi_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        Ok(())
     }
     pub(super) fn terminator(
         &mut self,
@@ -74,6 +180,14 @@ impl LoanReceipts {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.nested
+            .terminator(&body.nested_plans, function, target, current, span)?;
+        self.bounded
+            .terminator(&body.bounded_plans, function, target, current, span)?;
+        self.single
+            .terminator(&body.single_plans, function, target, current, span)?;
+        self.multi
+            .terminator(&body.multi_plans, function, target, current, span)?;
         self.branch
             .terminator(&body.branch_plans, function, target, current, span)?;
         self.forward
@@ -94,7 +208,21 @@ impl LoanReceipts {
         self.binding.finish(&body.binding_plans, function, span)?;
         self.aux_binding
             .finish(&body.aux_binding_plans, function, span)?;
+        self.distinct_aux
+            .finish(&body.distinct_aux_plans, function, span)?;
+        self.later_aux
+            .finish(&body.later_aux_plans, function, span)?;
+        self.auxiliary_sequence
+            .finish(&body.auxiliary_sequence_plans, function, span)?;
+        self.interleaved_aux
+            .finish(&body.interleaved_aux_plans, function, span)?;
+        self.multi_binding
+            .finish(&body.multi_binding_plans, function, span)?;
         self.child.finish(&body.child_plans, function, span)?;
+        self.nested.finish(&body.nested_plans, function, span)?;
+        self.bounded.finish(&body.bounded_plans, function, span)?;
+        self.single.finish(&body.single_plans, function, span)?;
+        self.multi.finish(&body.multi_plans, function, span)?;
         self.branch.finish(&body.branch_plans, function, span)
     }
 }
@@ -121,6 +249,29 @@ impl Emitter<'_> {
                     .alias(&body.binding_plans, &self.current, statement.span)?;
                 receipts.aux_binding.alias(
                     &body.aux_binding_plans,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.distinct_aux.alias(
+                    &body.distinct_aux_plans,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts
+                    .later_aux
+                    .alias(&body.later_aux_plans, &self.current, statement.span)?;
+                receipts.auxiliary_sequence.alias(
+                    &body.auxiliary_sequence_plans,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.interleaved_aux.alias(
+                    &body.interleaved_aux_plans,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.multi_binding.alias(
+                    &body.multi_binding_plans,
                     &self.current,
                     statement.span,
                 )?;
@@ -202,6 +353,56 @@ impl Emitter<'_> {
                         statement.span,
                     )?
                 }
+                Some(crate::ssa::refine::body::LoanTag::DistinctAux(tag)) => {
+                    receipts.distinct_aux.statement(
+                        &body.distinct_aux_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::LaterAux(tag)) => {
+                    receipts.later_aux.statement(
+                        &body.later_aux_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::AuxiliarySequence(tag)) => {
+                    receipts.auxiliary_sequence.statement(
+                        &body.auxiliary_sequence_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::InterleavedAux(tag)) => {
+                    receipts.interleaved_aux.statement(
+                        &body.interleaved_aux_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::MultiBinding(tag)) => {
+                    receipts.multi_binding.statement(
+                        &body.multi_binding_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
                 Some(crate::ssa::refine::body::LoanTag::Child(tag)) => {
                     receipts.child.statement(
                         &body.child_plans,
@@ -224,6 +425,40 @@ impl Emitter<'_> {
                 }
                 Some(crate::ssa::refine::body::LoanTag::Branch(tag)) => receipts.branch.statement(
                     &body.branch_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
+                Some(crate::ssa::refine::body::LoanTag::Nested(tag)) => receipts.nested.statement(
+                    &body.nested_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
+                Some(crate::ssa::refine::body::LoanTag::Bounded(tag)) => {
+                    receipts.bounded.statement(
+                        &body.bounded_plans,
+                        tag,
+                        self.function,
+                        instruction,
+                        &self.current,
+                        statement.span,
+                    )?
+                }
+                Some(crate::ssa::refine::body::LoanTag::Single(tag)) => receipts.single.statement(
+                    &body.single_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?,
+                Some(crate::ssa::refine::body::LoanTag::Multi(tag)) => receipts.multi.statement(
+                    &body.multi_plans,
                     tag,
                     self.function,
                     instruction,

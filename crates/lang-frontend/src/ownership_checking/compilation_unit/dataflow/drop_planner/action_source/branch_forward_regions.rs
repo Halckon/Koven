@@ -2,12 +2,15 @@
 use super::super::borrow_forward_transport::ForwardScope;
 use super::{ActionSource, Record};
 use crate::ownership_checking::{
-    UnitBorrowBranchForwardPath, UnitBorrowBranchForwardRegion, UnitLoanActionCoverage,
+    UnitBorrowBranchForwardPath, UnitBorrowBranchForwardRegion, UnitBorrowBranchForwardTopology,
+    UnitLoanActionCoverage,
 };
 use crate::type_checking::UnitItemId;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) struct Candidate {
+    topology: UnitBorrowBranchForwardTopology,
+    terminal_join: bool,
     expected: [ForwardScope; 2],
     base: (usize, usize),
     start: usize,
@@ -33,11 +36,14 @@ impl ActionSource {
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn begin_branch_region(
         &mut self,
         expected: [ForwardScope; 2],
+        topology: UnitBorrowBranchForwardTopology,
         base: (usize, usize),
         clear: bool,
     ) -> usize {
         let id = self.branch_forward_regions.len();
         self.branch_forward_regions.push(Candidate {
+            topology,
+            terminal_join: false,
             expected,
             base,
             start: self.records.len(),
@@ -56,6 +62,33 @@ impl ActionSource {
         id: usize,
     ) -> Option<(usize, usize)> {
         self.branch_forward_regions.get(id).map(|c| c.base)
+    }
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn branch_topology(
+        &self,
+        id: usize,
+    ) -> Option<UnitBorrowBranchForwardTopology> {
+        self.branch_forward_regions.get(id).map(|c| c.topology)
+    }
+    pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn branch_terminal_join(
+        &mut self,
+        id: usize,
+        both_terminated: bool,
+        no_live_states: bool,
+    ) {
+        let Some(c) = self.branch_forward_regions.get_mut(id) else {
+            return;
+        };
+        c.invalid |= c.topology != UnitBorrowBranchForwardTopology::BothArmsReturn
+            || c.end.is_some()
+            || c.terminal_join
+            || c.continuation
+            || !both_terminated
+            || !no_live_states
+            || !c
+                .arms
+                .iter()
+                .all(|a| a.as_ref().is_some_and(|a| a.end == Some(a.start + 2)));
+        c.terminal_join = true;
     }
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn branch_condition(
         &mut self,
@@ -159,7 +192,13 @@ impl ActionSource {
             && c.arms[1]
                 .as_ref()
                 .is_some_and(|a| scopes == [Some(a.scope)]);
-        c.invalid |= c.end.is_some() || c.continuation || !then_terminated || !valid || !clear;
+        c.invalid |= c.topology != UnitBorrowBranchForwardTopology::TailContinuation
+            || c.terminal_join
+            || c.end.is_some()
+            || c.continuation
+            || !then_terminated
+            || !valid
+            || !clear;
         c.continuation = true;
     }
     pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) fn seal_branch_region(
@@ -211,7 +250,11 @@ impl ActionSource {
                             && other.expected[0].branch.is_some_and(|b| b.split() == branch.split())
                     }).count() == 1
             });
-            let complete = declaration && !c.invalid && c.continuation && c.end.is_some() && c.closed == c.end
+            let topology_complete = match c.topology {
+                UnitBorrowBranchForwardTopology::TailContinuation => c.continuation && !c.terminal_join,
+                UnitBorrowBranchForwardTopology::BothArmsReturn => c.terminal_join && !c.continuation,
+            };
+            let complete = declaration && !c.invalid && topology_complete && c.end.is_some() && c.closed == c.end
                 && c.condition == Some((c.start, true)) && c.split == Some(c.start)
                 && c.arms[0].as_ref().is_some_and(|a| a.start == c.start)
                 && c.arms[0].as_ref().zip(c.arms[1].as_ref()).is_some_and(|(a,b)| a.end == Some(b.start) && b.end == c.end)
@@ -225,7 +268,7 @@ impl ActionSource {
                 }));
             let scope = c.expected[0];
             Some(UnitBorrowBranchForwardRegion {
-                identity: self.identity.clone(), callable: scope.callable, parameter: scope.root,
+                topology: c.topology, identity: self.identity.clone(), callable: scope.callable, parameter: scope.root,
                 split: branch.split(), condition: branch.condition(),
                 coverage: if complete { UnitLoanActionCoverage::Complete } else { UnitLoanActionCoverage::Partial },
                 paths: if complete { c.arms.iter().flatten().filter_map(|a| Some(UnitBorrowBranchForwardPath {

@@ -156,6 +156,8 @@ impl ActionSource {
         // Old Region/Dependency evidence has priority. Never steal its actual Drop.
         if existing.is_some() {
             self.invalidate_auxiliary_root(root);
+            self.invalidate_distinct_auxiliary_root(root);
+            self.invalidate_later_auxiliary_root(root);
             existing
         } else {
             auxiliary
