@@ -184,7 +184,9 @@ no-carry研究对照分别运行file-local与compilation-unit两套checker；普
 正常非空闭合还要求外部义务投影不变（仅去无资源的空closure_results缓存）。
 限定直接Name/String借用initializer与Unit消费者、无复杂捕获入口。End后合法
 move源仍保持原执行，但不获恢复认证；未capture不复制状态，默认产品无此资格。
-这只是普通scope的安全基础，循环实例、回边和CG每轮receipt仍未接入。
+另有独立普通frame整链研究：实际acquire、逐consumer正常return及最后End按同frame
+和原call/operand/binding声明顺序关联，End前不得遗留该binding未来consumer；保留
+原闭合validate边界。它仍是普通scope基础，循环实例、回边和CG每轮receipt未接入。
 
 已有非空外层carried loan另有test-support回边观察：条件后body-entry至合流前
 normal/尾continue分别核完整资源投影保持，break单列退出且不认证。仅动态Boolean

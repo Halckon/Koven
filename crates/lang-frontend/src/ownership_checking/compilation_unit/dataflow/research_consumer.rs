@@ -2,16 +2,26 @@
 use super::{Checker, Flows, State};
 use crate::ownership_checking::{
     BorrowLoopBinding, BorrowLoopExpression, LoanKind, UnitLoanTarget,
-    research_borrow_loop as loops,
+    research_borrow_frame as frames, research_borrow_loop as loops,
 };
 use crate::{ast::ExpressionId, parser::Expression};
+type Prepared = (
+    Option<loops::Prepared<State>>,
+    Option<frames::Prepared<State>>,
+);
+type Released = (
+    Option<loops::Released<State>>,
+    Option<frames::Released<State>>,
+);
 impl Checker<'_> {
     pub(super) fn research_prepare_consumer(
         &self,
         call: ExpressionId,
         flows: &Flows,
-    ) -> Option<loops::Prepared<State>> {
-        if !loops::consumer_active()
+    ) -> Option<Prepared> {
+        let loop_active = loops::consumer_active();
+        let frame_active = frames::consumer_active();
+        if (!loop_active && !frame_active)
             || !self.diagnostics.is_empty()
             || flows.breaks.is_some()
             || flows.continues.is_some()
@@ -40,6 +50,21 @@ impl Checker<'_> {
             let node = self.parsed.ast().expressions().get(argument.value).ok()?;
             let binding = self.reference_symbol(node.span())?;
             let place = state.borrow_bindings.get(&binding)?;
+            if frame_active {
+                frames::consumer_live(
+                    binding,
+                    Some(place),
+                    state.non_owning.get(&binding),
+                    state
+                        .loans
+                        .iter()
+                        .filter(|loan| {
+                            loan.owner == super::flow::ActiveLoanOwner::BorrowBinding(binding)
+                        })
+                        .cloned()
+                        .collect(),
+                );
+            }
             // The fact is selected by exact original call/argument IDs before relating its
             // origin to an actual active loan. Span alone never selects the transaction.
             let facts = self
@@ -82,37 +107,48 @@ impl Checker<'_> {
         }
         let mut expected = self.research_resource_snapshot(state);
         expected.loans.retain(|loan| loan.owner != call_owner);
-        loops::prepare_consumer(
-            BorrowLoopExpression::Unit(self.unit_expression(call)),
-            identities,
-            expected,
-            active.len(),
-        )
+        let call = BorrowLoopExpression::Unit(self.unit_expression(call));
+        let frame = frame_active
+            .then(|| {
+                frames::prepare_consumer(call, identities.clone(), expected.clone(), active.len())
+            })
+            .flatten();
+        let loop_token = loop_active
+            .then(|| loops::prepare_consumer(call, identities, expected, active.len()))
+            .flatten();
+        Some((loop_token, frame))
     }
+
     pub(super) fn research_release_consumer(
         &self,
-        prepared: Option<loops::Prepared<State>>,
+        prepared: Option<Prepared>,
         flows: &Flows,
-    ) -> Option<loops::Released<State>> {
-        let prepared = prepared?;
+    ) -> Option<Released> {
+        let (loop_token, frame) = prepared?;
         let actual = flows
             .next
             .as_ref()
             .map(|state| self.research_resource_snapshot(state));
-        loops::release_consumer(Some(prepared), actual.as_ref())
+        Some((
+            loops::release_consumer(loop_token, actual.as_ref()),
+            frames::release_consumer(frame, actual.as_ref()),
+        ))
     }
-    pub(super) fn research_complete_consumer(
-        &self,
-        released: Option<loops::Released<State>>,
-        flows: &Flows,
-    ) {
-        let Some(released) = released else { return };
+    pub(super) fn research_complete_consumer(&self, released: Option<Released>, flows: &Flows) {
+        let Some((loop_token, frame)) = released else {
+            return;
+        };
         let actual = flows
             .next
             .as_ref()
             .map(|state| self.research_resource_snapshot(state));
         loops::complete_consumer(
-            Some(released),
+            loop_token,
+            actual.as_ref(),
+            self.diagnostics.is_empty() && flows.breaks.is_none() && flows.continues.is_none(),
+        );
+        frames::complete_consumer(
+            frame,
             actual.as_ref(),
             self.diagnostics.is_empty() && flows.breaks.is_none() && flows.continues.is_none(),
         );

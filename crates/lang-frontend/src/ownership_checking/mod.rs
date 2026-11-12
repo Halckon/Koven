@@ -192,7 +192,7 @@ mod research_borrow_frame;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 #[doc(hidden)]
 pub use research_borrow_frame::{
-    BorrowFrameChecker, BorrowFrameObservation, capture_borrow_frames,
+    BorrowFrameChecker, BorrowFrameConsumerReturn, BorrowFrameObservation, capture_borrow_frames,
 };
 
 #[cfg(any(test, feature = "loan-observation-test-support"))]

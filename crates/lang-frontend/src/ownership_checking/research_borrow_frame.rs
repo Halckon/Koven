@@ -1,9 +1,15 @@
 //! Test-support research of actual ordinary-block acquisition/removal, not loop eligibility.
 use crate::{
     ast::{ExpressionId, StatementId},
-    name_resolution::{SymbolId, UnitSymbolId},
+    name_resolution::{SourceUnitId, SymbolId, UnitSymbolId},
     parser::{Expression, Item, ParsedFile, Statement, VariableKind},
     source::Span,
+};
+mod consumer;
+pub use consumer::BorrowFrameConsumerReturn;
+pub(crate) use consumer::{
+    Name, Prepared, Released, complete_consumer, consumer_active, consumer_live, prepare_consumer,
+    release_consumer,
 };
 use std::{any::Any, cell::RefCell, collections::BTreeMap, rc::Rc};
 
@@ -40,6 +46,9 @@ pub struct BorrowFrameObservation {
     end_count: usize,
     external_unchanged: bool,
     closed: bool,
+    identity: Rc<()>,
+    returns: Vec<BorrowFrameConsumerReturn>,
+    returned_and_closed: bool,
 }
 impl BorrowFrameObservation {
     /// Producing checker.
@@ -62,6 +71,19 @@ impl BorrowFrameObservation {
     pub fn external_unchanged(&self) -> bool {
         self.external_unchanged
     }
+    /// Actual normal consumer returns in this ordinary frame, never loop iterations.
+    pub fn consumer_returns(&self) -> &[BorrowFrameConsumerReturn] {
+        &self.returns
+    }
+    /// Whether this event was produced by this exact frame invocation.
+    pub fn owns_consumer_return(&self, event: &BorrowFrameConsumerReturn) -> bool {
+        Rc::ptr_eq(&self.identity, &event.identity)
+    }
+    /// Complete local acquire/consumer-return/last-End chain and external restoration.
+    /// This is research evidence for an ordinary Block, not a Complete loan capability.
+    pub fn complete_closure(&self) -> bool {
+        self.validate() && self.returned_and_closed
+    }
     /// Accept only real local closure together with unchanged external resource obligations.
     pub fn validate(&self) -> bool {
         self.closed && self.external_unchanged
@@ -75,12 +97,14 @@ struct Acquisition {
 struct Frame {
     identity: Rc<()>,
     checker: BorrowFrameChecker,
+    source_unit: Option<SourceUnitId>,
     span: Span,
     elements: Vec<StatementId>,
     eligible: bool,
     valid: bool,
     acquired: Vec<Acquisition>,
     ends: Vec<(Binding, StatementId)>,
+    consumers: consumer::Tape,
 }
 #[derive(Default)]
 struct Capture {
@@ -124,12 +148,13 @@ impl<S> Drop for Start<S> {
     }
 }
 pub(crate) fn begin<S: Clone>(
-    checker: BorrowFrameChecker,
+    context: (BorrowFrameChecker, Option<SourceUnitId>),
     parsed: &ParsedFile,
     id: StatementId,
     state: &S,
     simple_entry: bool,
     direct_call: impl Fn(ExpressionId, bool) -> bool,
+    resolve: impl Fn(Name) -> Option<Binding>,
 ) -> Option<Start<S>> {
     CAPTURE.with(|cell| {
         let mut cell = cell.borrow_mut();
@@ -186,15 +211,18 @@ pub(crate) fn begin<S: Clone>(
             _ => (Vec::new(), false),
         };
         let identity = Rc::new(());
+        let plan = consumer::plan(parsed, &elements, resolve);
         c.frames.push(Frame {
             identity: identity.clone(),
-            checker,
+            checker: context.0,
+            source_unit: context.1,
             span: node.span(),
             elements,
             eligible,
             valid: true,
             acquired: Vec::new(),
             ends: Vec::new(),
+            consumers: consumer::Tape::new(plan),
         });
         Some(Start {
             entry: state.clone(),
@@ -219,6 +247,7 @@ pub(crate) fn acquired<B: Copy + Into<Binding>, P: Clone + 'static, L: Clone + '
                 f.valid = false;
                 return;
             }
+            consumer::acquire(f, binding);
             f.acquired.push(Acquisition {
                 binding,
                 snapshot: Box::new((place.cloned(), marker.copied(), loans)),
@@ -308,6 +337,7 @@ pub(crate) fn removed<B: Copy + Ord + Into<Binding>, P: PartialEq, L: PartialEq>
             } else {
                 f.valid = false;
             }
+            consumer::close_binding(f, binding, statement);
             f.ends.push((binding, statement));
         }
     });
@@ -344,6 +374,7 @@ pub(crate) fn finish<S: PartialEq, B: Copy + Into<Binding>>(
             && f.acquired.iter().all(|a| a.ended)
             && f.ends.len() == f.acquired.len()
             && actual == expected;
+        let returned_and_closed = consumer::complete_tape(&f);
         c.observations.push(BorrowFrameObservation {
             checker: f.checker,
             scope_span: f.span,
@@ -351,6 +382,9 @@ pub(crate) fn finish<S: PartialEq, B: Copy + Into<Binding>>(
             end_count: f.ends.len(),
             external_unchanged: exit == Some(&start.entry),
             closed,
+            identity: f.identity,
+            returns: f.consumers.returns,
+            returned_and_closed,
         });
     });
 }

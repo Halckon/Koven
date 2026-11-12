@@ -322,12 +322,23 @@ impl Checker<'_> {
             let snapshot = self.research_resource_snapshot(&state);
             let simple = self.research_simple_resources(&snapshot);
             crate::ownership_checking::research_borrow_frame::begin(
-                crate::ownership_checking::research_borrow_frame::BorrowFrameChecker::Unit,
+                (
+                    crate::ownership_checking::research_borrow_frame::BorrowFrameChecker::Unit,
+                    Some(self.source_unit),
+                ),
                 self.parsed,
                 scope,
                 &snapshot,
                 simple,
                 |call, initializer| self.research_direct_string_call(call, initializer),
+                |name| {
+                    use crate::ownership_checking::research_borrow_frame::Name;
+                    match name {
+                        Name::Declaration(marker) => self.marker_symbol(marker).copied(),
+                        Name::Reference(span) => self.reference_symbol(span),
+                    }
+                    .map(Into::into)
+                },
             )
         } else {
             None

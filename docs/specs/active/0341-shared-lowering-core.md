@@ -15646,3 +15646,46 @@ fixture故障（重放/错序/异源/漏release/漏complete/异loop事件）仅f
 默认workspace all-targets、fmt/diff/docs912全部通过，尺寸相对2beb5592通过
 （2587手写Rust文件、36历史超限；policy不改）。父文件仅cfg注册与真实接点，
 traversal为998行、checker/dataflow保持既有额度；未运行CG/native，未推送。
+
+## 普通frame的acquire/consumer/End完整顺序基础（实施中）
+
+本片保持现行L0164与普通frame原validate合同；新增独立ordinary closure研究证据，
+不将其称为循环Complete。原frame已有实际acquisition、最后使用End及cleanup前
+外部义务恢复，但尚未统一证明中间每个consumer正常返回与同frame/同binding顺序。
+固定loop entry的投影不能用于新frame consumer：新binding在entry不存在，consumer
+时必须仍保留该真实lease；不得删去它来伪造状态相等。
+
+研究目标按真实执行链接acquire、逐call实际暂借移除/正常完成与最后End，精确
+call/operand/source/binding/frame身份，End前核该binding全部声明consumer返回，
+多binding交错不能仅比较三个无序集合。初始化borrow-return仍按原source交接，不
+当作普通Unit consumer；最后完整关闭才比较外部entry义务。只复用现有真实核心
+接点，不修改诊断、observer-off产品、scope cleanup、旧见证和尺寸策略。
+
+普通frame整链即使通过，循环header零实例、body acquisition归属、回边唯一消费
+闭合票据、零迭代路径与后端每轮receipt仍须另证，不从循环外成功推导准入。
+
+新增研究接口complete_closure独立组合旧validate与逐事件tape，原validate不因新证据
+缺失而变动。声明计划保存真实名称解析binding、原ordered argument ExprIDs及直接
+statement；每次acquire和consumer正常返回各推进一次，consumer必须仍持同frame
+真实acquisition快照；End核未来无该binding使用且对应最后真实返回的statement。
+每个consumer移除后与final normal next分别核完整预期状态，不以固定loop entry
+消去新binding；loop与frame票据独立，未capture不复制新状态。
+
+真实缺证据红为原普通闭合validate通过、完整研究complete_closure失败，原因是
+尚未接实际consumer返回事件。此前Expression导入错误不计行为红。接线后首轮
+3项新测试通过、1项失败，是测试误要求继承-only空frame发布；既有finish明确
+过滤acquired.empty，故修测试为所有观察无完整资格，保留产品行为，未扩资格。
+
+最后5项新普通测试通过：1/3/8消费者、同call同binding双实参、同根多binding交错、
+兄弟frame隔离、外层parent存活与inner新binding、继承-only及门禁/复杂/外部move
+负控。12组源码各执行single和unit双布局/观察开关，共60次capture+60次原产品
+对照；与旧frame/loop三target共12项通过。两组CI-only真实fixture故障仅编译，
+未执行，覆盖重放、同binding原operand错序、异源、漏release/complete及异frame；
+故障仍要求旧validate有效而新整链拒绝。独立最终只读审查通过。
+
+最终九个普通定向target共247项通过。Clippy首轮仅指出consumer声明tuple过于复杂，
+已抽取等价ConsumerPlan名称而非豁免；修复后12项直接回归、FE feature all-targets
+Clippy -D warnings及默认workspace all-targets全部通过，独立复审确认无行为变化。
+fmt/diff/docs912及尺寸门禁通过（相对2beb5592，2590手写Rust文件、36旧超限），
+policy未改。并行编译期间只读确认进程活跃和磁盘空间，不删缓存或中断其他工作。
+未执行CI-only故障、CG/native测试，未推送；完整语言准入与每轮回边证明仍未授予。
