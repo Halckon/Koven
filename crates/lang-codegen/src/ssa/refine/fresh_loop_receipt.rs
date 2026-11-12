@@ -94,8 +94,42 @@ fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
 }
 #[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum PublicationStage {
+    Recorded,
+    BeforeVerifier,
+    Committed,
+    RolledBack,
+}
+#[cfg(test)]
+#[derive(Clone, Debug)]
+pub(crate) struct PublicationEvent {
+    pub(crate) stage: PublicationStage,
+    pub(crate) pending: Vec<FunctionId>,
+    pub(crate) published: Vec<FunctionId>,
+}
+#[cfg(test)]
+impl Observations {
+    fn trace(&mut self, stage: PublicationStage) {
+        self.trace.push(PublicationEvent {
+            stage,
+            pending: self.pending.iter().map(|r| r.caller).collect(),
+            published: self.published.iter().map(|r| r.caller).collect(),
+        });
+    }
+}
+#[cfg(test)]
+pub(in crate::ssa) fn before_final_verifier() {
+    RECEIPTS.with(|v| {
+        if let Some(v) = v.borrow_mut().as_mut() {
+            v.trace(PublicationStage::BeforeVerifier);
+        }
+    });
+}
+#[cfg(test)]
 #[derive(Default)]
 struct Observations {
+    trace: Vec<PublicationEvent>,
     pending: Vec<Receipt>,
     published: Vec<Receipt>,
 }
@@ -118,6 +152,7 @@ impl UnitPublication {
         RECEIPTS.with(|v| {
             if let Some(v) = v.borrow_mut().as_mut() {
                 v.published.extend(v.pending.drain(self.start..));
+                v.trace(PublicationStage::Committed);
             }
         });
         self.committed = true;
@@ -130,6 +165,7 @@ impl Drop for UnitPublication {
             RECEIPTS.with(|v| {
                 if let Some(v) = v.borrow_mut().as_mut() {
                     v.pending.truncate(self.start);
+                    v.trace(PublicationStage::RolledBack);
                 }
             });
         }
@@ -137,6 +173,13 @@ impl Drop for UnitPublication {
 }
 #[cfg(test)]
 pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
+    let (result, receipts, _) = observe_publication(lower);
+    (result, receipts)
+}
+#[cfg(test)]
+pub(crate) fn observe_publication<T>(
+    lower: impl FnOnce() -> T,
+) -> (T, Vec<Receipt>, Vec<PublicationEvent>) {
     struct Reset;
     impl Drop for Reset {
         fn drop(&mut self) {
@@ -151,14 +194,15 @@ pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<Receipt>) {
     });
     let _reset = Reset;
     let result = lower();
-    let values = RECEIPTS.with(|v| v.borrow_mut().take().unwrap().published);
-    (result, values)
+    let values = RECEIPTS.with(|v| v.borrow_mut().take().unwrap());
+    (result, values.published, values.trace)
 }
 pub(super) fn record(receipt: Receipt) {
     #[cfg(test)]
     RECEIPTS.with(|v| {
         if let Some(v) = v.borrow_mut().as_mut() {
             v.pending.push(receipt);
+            v.trace(PublicationStage::Recorded);
         }
     });
     #[cfg(not(test))]

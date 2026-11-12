@@ -172,3 +172,12 @@ body fresh result 替代。尾段要求 source 经 false/finished/exit 运输至
 
 本地只允许 `--list-only` 编译枚举和脚本的模拟单测，不执行这些故障。普通 cargo
 test 不会运行 ignored；入口接线不等于远端已通过，远端结果须另核实际 CI 日志。
+
+## 跨函数发布的普通编排验收
+
+普通测试从真实入口调用两个候选函数，记录两份不同 caller 的 pending，并在原
+whole-unit verifier 前观察 published 仍为空；原验证通过后才整体发布。另一路使
+后函数遇到既有不支持的字符串插值，必须先有前函数的实际 pending，再核精确失败
+span、原 verifier 未运行及整批撤回，随后独立 capture 可成功。两路覆盖 rooted / memory
+输入与观察开关，不人工注入错误或伪造 receipt。新增旁听仅为 cfg(test)，不改变
+生产准入、原 verifier、drain/truncate 或提交顺序；CI-only 人工故障仍只在远端执行。
