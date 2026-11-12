@@ -357,6 +357,11 @@ fn chain_ssa_members_transport_sparse_roots_and_retired_values() {
                     .count(),
                 2
             );
+            let sizes = actions
+                .iter()
+                .filter_map(|(kind, n)| (*kind == "control-chain-link-complete").then_some(*n))
+                .collect::<Vec<_>>();
+            assert_eq!(sizes, if sparse { vec![3, 2] } else { vec![2, 2] });
             super::super::super::assert_native_output(&source, b"");
         }
     }
