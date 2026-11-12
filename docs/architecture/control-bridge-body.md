@@ -65,7 +65,23 @@ false边必须唯一抵达finished，再跳至真实exit；finished只有分区�
 全项消费后才记录分区完成；仅live为空才记录all-dead。没有增加第二次Drop发射。
 
 真实native覆盖两段0/2轮、第二段全死/部分live/全live三种分区。CI-only负控覆盖缺permit、
-错误指令及重复提交，仅编译不执行。live根的后缀清理仍走通用lowering，此分区不授予
-其独立suffix许可，也不是第二control初值或一般跨轮完整证明。已消费的旧fact不认领
+错误指令及重复提交，仅编译不执行。此分区本身不授予live根
+独立suffix许可（附加合同见下节），也不是第二control初值或一般跨轮完整证明。已消费的旧fact不认领
 同名变量重新初始化后的新Drop；原fact重复仍拒绝，native覆盖该代际边界。最终再次逐项
 核Drop实际根槽，并用CI-only错误退出边/晚期错根负控防止发射后篡改留下完成记录。
+
+## 第二控制 live-root suffix 消费
+
+附接可选suffix只接受同scope、紧邻出口的连续dead-val Name move：实际statement开始、
+move、binding、fresh AfterStatement Drop及末态全部通过共享RootSuffix状态机，覆盖每个
+live根一次。只保留源root与真实binding DropFact；不按owned drops倒推来源，不制造新token。
+不同于旧suffix，此入口不接受中间scalar-literal透明语句；借用println和部分清理不发布该产品。
+
+后端以next exit的源根槽核真实initializer和Alias，再以同一fact、实际binding槽核唯一Drop，
+只复用原Alias/Drop发射。每项Ready→Bound→Dropped，之前所有退出Drop和suffix项必须完成；
+最终重核exit前缀恰为逐项Alias/Drop，防止错根或缺发射仍得到完成标记。后续新代际不被认领。
+该许可与旧counter/body/exit权限互斥；没有产品的旧路径不因本片扩大声明。
+
+普通native覆盖零轮/两轮、部分live、全live、逆序清理及后续同名重新初始化；CI-only测试
+覆盖缺binding/drop permit、错source及重复Drop提交，本地仅编译。仍不证明一般suffix、
+嵌套新产品、第二control初值完整合同或任意跨轮代际归纳。

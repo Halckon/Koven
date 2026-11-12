@@ -20,6 +20,7 @@ impl DropPlanner<'_, '_> {
                 &self.facts[start..],
                 false_possible,
             );
+            body.begin_suffix(self.scope_depth);
         }
         let Some((_, evidence)) = self
             .owner_loop

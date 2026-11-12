@@ -16,6 +16,7 @@ pub(in super::super) struct Body {
     valid: bool,
     frozen: bool,
     exit_seen: bool,
+    suffix: Option<super::super::root_incoming::root_suffix::RootSuffix>,
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
     reset: bool,
     completed: Option<UnitOwnerMultiRootNormalTransportV1>,
@@ -47,6 +48,7 @@ impl Body {
             valid: true,
             frozen: false,
             exit_seen: false,
+            suffix: None,
             exit_partition: None,
             reset,
             completed: None,
@@ -230,6 +232,7 @@ impl Body {
         possible: bool,
     ) {
         self.exit_partition = None;
+        self.suffix = None;
         if self.exit_seen {
             return;
         }
@@ -251,6 +254,28 @@ impl Body {
             state,
             drops,
         );
+    }
+    pub(in super::super) fn begin_suffix(&mut self, scope_depth: usize) {
+        let Some((live, _)) = self.exit_partition.as_ref() else {
+            return;
+        };
+        if !live.is_empty() {
+            self.suffix = Some(
+                super::super::root_incoming::root_suffix::RootSuffix::new_strict(
+                    live.clone(),
+                    scope_depth,
+                ),
+            );
+        }
+    }
+    pub(in super::super) fn suffix_mut(
+        &mut self,
+    ) -> Option<&mut super::super::root_incoming::root_suffix::RootSuffix> {
+        self.suffix.as_mut()
+    }
+    pub(in super::super) fn suffix_result(&self) -> Option<Vec<(UnitSymbolId, UnitDropFact)>> {
+        self.exit_partition()?;
+        self.suffix.as_ref()?.completed_snapshot()
     }
     pub(in super::super) fn exit_partition(
         &self,

@@ -444,6 +444,20 @@ impl ControlTransactions {
             }
         }
     }
+    pub(super) fn suffixes_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut root_incoming::root_suffix::RootSuffix> {
+        let invalid = self.root_branches_invalid;
+        self.root_entries
+            .iter_mut()
+            .filter_map(|(_, e)| e.suffix_mut())
+            .chain(
+                self.counter_segments
+                    .iter_mut()
+                    .filter(move |s| !invalid && !s.invalid && s.captured)
+                    .filter_map(|s| s.normal.as_mut()?.suffix_mut()),
+            )
+    }
     pub(in super::super::super) fn take_control_bridge(
         &mut self,
     ) -> Option<crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1> {
@@ -467,13 +481,18 @@ impl ControlTransactions {
             .normal
             .as_ref()
             .and_then(|body| body.exit_partition());
+        let suffix = segment
+            .normal
+            .as_ref()
+            .and_then(|body| body.suffix_result());
         segment
             .bridge
             .take()?
             .evidence(next, condition, body)?
             .with_next_normal(normal)?
             .with_next_counter_tail(tail)?
-            .with_next_false_exit_partition(exit)
+            .with_next_false_exit_partition(exit)?
+            .with_next_false_exit_suffix(suffix)
     }
     #[cfg(test)]
     pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {

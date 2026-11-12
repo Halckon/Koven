@@ -305,7 +305,10 @@ impl Builder<'_, '_> {
             self.counter_binding_authorization(self.unit(initializer), symbol, value, span)?;
         let bridge =
             self.bridge_binding_authorization(self.unit(initializer), symbol, value, span)?;
-        if bridge.is_some() && counter.is_some() {
+        let suffix = self.bridge_suffix_binding(self.unit(initializer), symbol, value, span)?;
+        if (suffix.is_some() && (bridge.is_some() || counter.is_some()))
+            || (bridge.is_some() && counter.is_some())
+        {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         let binding = self.value(
@@ -315,6 +318,7 @@ impl Builder<'_, '_> {
         )?;
         self.counter_binding_emitted(counter, binding, span)?;
         self.bridge_emitted(bridge, Some(binding), span)?;
+        self.bridge_suffix_emitted(suffix, Some(binding), span)?;
         self.bindings.insert(symbol, binding);
         self.owner_binding_emitted(symbol, binding);
         #[cfg(test)]

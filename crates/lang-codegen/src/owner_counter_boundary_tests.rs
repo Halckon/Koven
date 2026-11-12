@@ -918,3 +918,6 @@ fn ci_only_control_bridge_body_chain_fails_closed() {
         ));
     }
 }
+
+#[path = "owner_control_bridge_suffix_tests.rs"]
+mod suffix_consumption;

@@ -6,7 +6,7 @@ pub(in super::super) use root_tokens::StaticRootPredecessor;
 pub(super) mod body_plan;
 mod guard_reset;
 pub(super) mod root_exit;
-mod root_suffix;
+pub(super) mod root_suffix;
 pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(
     UnitSymbolId,
@@ -36,6 +36,11 @@ pub(super) struct RootEvidence {
     pub(super) entered_body: Option<(UnitExpressionId, UnitStatementId)>,
     normal_backedge: bool,
     tainted: bool,
+}
+impl RootEvidence {
+    pub(super) fn suffix_mut(&mut self) -> Option<&mut root_suffix::RootSuffix> {
+        self.suffix.as_mut()
+    }
 }
 #[cfg(test)]
 impl RootEvidence {

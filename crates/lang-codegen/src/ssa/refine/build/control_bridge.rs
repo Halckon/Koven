@@ -3,6 +3,7 @@ use super::*;
 mod consumption;
 mod counter;
 mod exit;
+mod suffix;
 use lang_frontend::ownership_checking::{UnitOwnerCallable, UnitOwnerControlBridgeEvidenceV1};
 
 pub(super) struct Plan<'a> {
@@ -10,6 +11,7 @@ pub(super) struct Plan<'a> {
     chain: Vec<consumption::Stage>,
     scalar: Option<[Slot; 2]>,
     exits: Option<Vec<bool>>,
+    suffix: Option<Vec<suffix::Stage>>,
     prior: Option<([BlockRef; 4], Vec<Slot>, Slot)>,
     next: Option<(BlockRef, [BlockRef; 4], Vec<Slot>)>,
 }
@@ -42,6 +44,9 @@ impl<'a> Plan<'a> {
             exits: evidence
                 .next_false_exit_partition()
                 .map(|(_, drops)| vec![false; drops.len()]),
+            suffix: evidence
+                .next_false_exit_suffix()
+                .map(|items| vec![suffix::Stage::Ready; items.len()]),
             scalar: None,
             prior: None,
             next: None,
@@ -164,6 +169,7 @@ impl Builder<'_, '_> {
             }
         }
         self.check_bridge_counter_tail()?;
+        self.finish_bridge_suffix()?;
         let Some(plan) = &self.control_bridge_plan else {
             return Ok(());
         };
@@ -297,6 +303,12 @@ impl Builder<'_, '_> {
                             drops.len(),
                         );
                     }
+                }
+                if let Some(items) = plan.evidence.next_false_exit_suffix() {
+                    owner_consumer_test_support::record_action(
+                        "bridge-suffix-complete",
+                        items.len(),
+                    );
                 }
                 owner_consumer_test_support::record_action(
                     "bridge-body-complete",

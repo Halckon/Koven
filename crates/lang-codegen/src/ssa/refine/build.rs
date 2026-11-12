@@ -595,8 +595,18 @@ impl Builder<'_, '_> {
             let counter = self.counter_drop_authorization(*index, *target, slot, *span)?;
             let bridge = self.bridge_drop_authorization(*index, *target, slot, *span)?;
             let bridge_exit = self.bridge_exit_drop_authorization(*index, *target, slot, *span)?;
-            if (bridge_exit.is_some()
-                && (bridge.is_some() || counter.is_some() || receipt.is_some() || header.is_some()))
+            let suffix = self.bridge_suffix_drop(*index, *target, slot, *span)?;
+            if (suffix.is_some()
+                && (bridge_exit.is_some()
+                    || bridge.is_some()
+                    || counter.is_some()
+                    || receipt.is_some()
+                    || header.is_some()))
+                || (bridge_exit.is_some()
+                    && (bridge.is_some()
+                        || counter.is_some()
+                        || receipt.is_some()
+                        || header.is_some()))
                 || (bridge.is_some()
                     && (counter.is_some() || receipt.is_some() || header.is_some()))
                 || (receipt.is_some() && header.is_some())
@@ -608,6 +618,7 @@ impl Builder<'_, '_> {
             self.counter_drop_emitted(counter, *span)?;
             self.bridge_emitted(bridge, None, *span)?;
             self.bridge_exit_drop_emitted(bridge_exit, *span)?;
+            self.bridge_suffix_emitted(suffix, None, *span)?;
             self.owner_drop_emitted(receipt, *span)?;
             self.header_bind_drop_emitted(header, *span)?;
             #[cfg(test)]
