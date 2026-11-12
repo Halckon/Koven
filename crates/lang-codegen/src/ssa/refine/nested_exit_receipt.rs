@@ -225,6 +225,32 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
+        // Only retired exit-parameter Values are constrained; later incarnations of the
+        // same source symbol and all live roots retain their existing behavior.
+        for (id, value) in self.observed.values() {
+            for i in &function.instructions {
+                if i.results.contains(value)
+                    || i.operation
+                        .entities()
+                        .iter()
+                        .filter(|e| *e == value)
+                        .count()
+                        != usize::from(i.id == *id)
+                {
+                    return Err(invalid(span));
+                }
+            }
+            for b in &function.blocks {
+                let definitions = b.parameters.iter().filter(|e| *e == value).count();
+                if definitions != usize::from(b.id == exit.id)
+                    || b.terminator
+                        .as_ref()
+                        .is_some_and(|t| t.kind.entities().contains(value))
+                {
+                    return Err(invalid(span));
+                }
+            }
+        }
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(
             "nested-false-root-vector-complete",
@@ -291,6 +317,55 @@ pub(super) fn inject_final(plans: &Plans, function: &mut Function) {
         && let Some(b) = function.blocks.iter_mut().find(|b| b.id == block)
     {
         b.instructions.push(id);
+        record_action("nested-false-ssa-fault-hit", 1);
+    }
+    let Operation::Drop { owner } = function.instruction(id).unwrap().operation else {
+        return;
+    };
+    for (fault, operation, before) in [
+        (
+            OwnerFault::NestedFalseSsaExtraConsume,
+            Operation::Consume { owner },
+            true,
+        ),
+        (
+            OwnerFault::NestedFalseSsaSecondDrop,
+            Operation::Drop { owner },
+            false,
+        ),
+    ] {
+        if take_fault(fault) {
+            let saved = function
+                .blocks
+                .iter_mut()
+                .find(|b| b.id == block)
+                .unwrap()
+                .terminator
+                .take();
+            let origin = function.instruction(id).unwrap().origin.clone();
+            let (extra, _) = function
+                .append_instruction(block, operation, Vec::new(), origin)
+                .unwrap();
+            let b = function.blocks.iter_mut().find(|b| b.id == block).unwrap();
+            b.terminator = saved;
+            if before {
+                b.instructions.retain(|i| *i != extra);
+                let index = b.instructions.iter().position(|i| *i == id).unwrap();
+                b.instructions.insert(index, extra);
+            }
+            record_action("nested-false-ssa-fault-hit", 1);
+        }
+    }
+    if take_fault(OwnerFault::NestedFalseSsaTerminatorEscape)
+        && let Some(term) = function
+            .blocks
+            .iter_mut()
+            .find(|b| b.id == block)
+            .and_then(|b| b.terminator.as_mut())
+    {
+        term.kind = TerminatorKind::Return {
+            values: vec![owner],
+        };
         record_action("nested-false-ssa-fault-hit", 1);
     }
 }

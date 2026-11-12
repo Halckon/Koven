@@ -534,6 +534,9 @@ fn ci_only_nested_false_cleanup_missing_actual_drop_fails_closed() {
         crate::ssa::OwnerFault::NestedFalseSsaMissingBlockDrop,
         crate::ssa::OwnerFault::NestedFalseSsaDuplicateBlockDrop,
         crate::ssa::OwnerFault::NestedFalseSsaSwappedFalseArguments,
+        crate::ssa::OwnerFault::NestedFalseSsaExtraConsume,
+        crate::ssa::OwnerFault::NestedFalseSsaSecondDrop,
+        crate::ssa::OwnerFault::NestedFalseSsaTerminatorEscape,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
@@ -913,3 +916,6 @@ fn ci_only_nested_body_ssa_retires_each_original_value_atomically() {
         );
     }
 }
+
+#[path = "owner_nested_lifecycle_tests.rs"]
+mod lifecycle;

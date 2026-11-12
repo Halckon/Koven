@@ -96,5 +96,9 @@ Alias 映射及原 Drop，随 fold 追踪位置，所有根终检成功后才记
 - 原 Builder/一次性许可保留：核源事实、真实发射与准备 loan，不由 late receipt 替代。
 - `assert_nested_ssa_retirement` 保留独立最终 SSA 抽查；测试不是生产权限 witness。
 - `assert_existing_false_exit_resume` 不整段退休：还核 header 入边及准备链锚点。
-- `assert_final_false_cleanup_transport` 不整段退休：还核路径上无提前根消费。
+- `assert_final_false_cleanup_transport` 保留独立抽查：从原 inner Replace/true 边锚点重建运输，不能仅用生产完成 marker 替代。
 - generic verifier 与 FE 能力互斥全部保留，不能从这些局部 receipt 推出等价替代。
+
+既有 false receipt 现补全具体退休出口参数 Value 的排他性：仅该参数定义、仅原
+Drop 使用一次、无指令重定义或 terminator 逃逸。live 根和同源码 symbol 的后续
+新 Value 不受限制，普通再赋值用例覆盖此区分；该规则仅用于当前受限 String 清理。

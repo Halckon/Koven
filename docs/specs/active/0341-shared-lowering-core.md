@@ -16403,3 +16403,19 @@ verifier、FE互斥、原一次性许可或其负控，保留普通最终SSA独�
 缺Alias观察专属故障；三项CI-only负控仅编译，未在本地执行。FE未修改且未重跑。
 旧witness审计结论与保留理由记入nested-owner-normal-body实现文档。本片仅本地
 提交不推送，日志nested-body-receipt-*；后续集成#420需将新fold hook迁到其folding.rs。
+
+### 既有 nested false receipt 的退休 Value 排他性（2026-11-12）
+
+不新增receipt或权限。已退休String false参数Value在既有finish内必须仅由该exit
+参数定义、全函数仅被原Drop使用一次，不得被其他指令读取/重新定义或从terminator
+逃逸；原span、顺序和清单唯一检查保留。只约束具体退休Entity，不约束同源码symbol
+后续新生命周期，也不收紧live根行为。旧独立最终SSA抽查继续保留，不冒称可退休
+generic verifier或其他未等价witness。CI-only针对提前实际Consume、不同ID第二Drop、
+真实terminator逃逸；本机仅编译。普通正例验证部分退休后的恢复和同symbol重新赋值。
+
+验收：同symbol新生命周期九组合正例1/1（0.60s）；counter_boundary普通native
+29/29（29.71s）、CG all-target strict Clippy（1m10s）、workspace all-target check
+（38.33s）通过。fmt/docs915/diff/尺寸通过（2591手写文件、37历史超限，无豁免）。
+独立复审未见确定阻断。三项新增CI-only真实SSA故障仅编译，不计本地执行成功；FE
+未修改且未重跑。日志nested-false-exclusive-*。本片不触及#420 folding拆分，
+不新增receipt、不扩大权限、不退休未证明等价的旧检查，仅本地提交不推送。
