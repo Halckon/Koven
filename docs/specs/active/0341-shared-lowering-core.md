@@ -15799,3 +15799,43 @@ rooted双源×observer开关2次对照；故意同AST索引但不同SourceUnit�
 以等价控制流修正，随后新4项重跑通过；FE feature all-targets Clippy -D warnings、
 默认workspace all-targets、fmt/diff/docs912与尺寸门禁通过。尺寸相对2beb5592为
 2605手写Rust文件、36历史超限，policy不变。未运行CI故障或CG/native，仅本地提交。
+
+## 已批准有限 loop-local no-carry 核心实施（2026-11-12）
+
+状态：approved／in-progress。用户对“修改 Spec 并实施有限 no-carry”合同明确回复
+“是的”：稳定外部 source，循环体内直线同步借用且不逃逸；每条正常回边前真实结束
+本轮全部 loan 并恢复外部义务，零轮和退出单独验证，两套 checker 在观察关闭时也
+执行相同检查。分支、跳转、嵌套和多根暂不开放，旧见证保留至同合同完整。
+本授权推进此前未启用的实现边界，不改 Guide 的借用语义，不接受条件 from 并集、
+跨轮携带或动态 capture。此前“本轮未授权”账本仍是其当时事实，不追改历史记录。
+
+### 最小实施边界
+
+首片限定单个稳定外部 Borrow String 参数来源、动态 Boolean 参数 Name、单层 while，
+body 为一条直接普通借用结果 binding 及非空直线同步 Borrow-Unit consumer。不得
+逃逸、保存别名、混入新 owner、第二来源、分支、jump、嵌套控制或其他未证事务；
+不满足范围的已有合法源码保持原边界，未支持 fresh 路径仍 L0164，不全局删除门禁。
+核心资格不得依赖可关闭 observer 或 test-support；两套 checker 均须真实消费相同合同。
+
+真实 condition 后 body frame 的准入只授权该精确声明；实际 source-call loan 交接、
+binding acquire、各 consumer 暂借/return 及末使用 End 必须关联本 frame，不能由
+语法扫描补造事件。在任何 restore_borrow_scope 之前证明全部本轮 binding/loan 已
+真实结束，正常回边再核恢复完整外部义务；不可从 cleanup 后为空倒推 End。
+零轮/condition-false 边不建立本轮实例，正常退出保持外部 source；一次静态检查只
+在已证入口不变量和回边恢复条件下构成有限合同归纳，不宣称覆盖任意循环或路径。
+失败须按现行诊断和全局原子撤销约束阻断成功产品；兄弟 frame 不能复用许可或票据。
+
+后端另核实际 body acquisition/consumer/End、normal 回边和 false 出口，保持原
+SSA verifier、ABI 与唯一 emitter；FE 通过不等于 CG 通过，也不得以现有外部 carried
+lease receipt 替换本轮结果关闭。只有相同实际合同的完整证据成立后再单独审退休。
+
+### 验收与提交
+
+先真实合法源码因旧 L0164／lowering 缺能力失败，再实现至双 checker、Unit 双入口与
+observer on/off 产品及诊断对照成立；逐一覆盖 normal、零轮、源退出后可用、连续
+迭代结构及兄弟循环隔离。分支/jump/nested/multiroot/alias/escape 等邻界必须保留
+拒绝，原 ordinary、carried、zero/consumer-body 合同不回退。跨 source/分析身份、
+遗漏 End、错 frame、污染外部义务等破损/注入测试遵守 CI-only，只本地编译不执行。
+FE、实际 SSA/LLVM/native 与 receipt 分账；定向回归、Clippy、workspace、fmt/docs/
+size/diff 及独立复审分别登记，不并发争用 Cargo target，不改尺寸策略。分步本地
+提交，不推送；在真实完成前不把本合同记为已通过或将 D10/E2 标为完成。
