@@ -16343,3 +16343,22 @@ pre、kept、mid、kept、tail、kept、kept；不宣称执行任意非零轮。
 feature/all-targets Clippy -D warnings、默认workspace/all-targets、fmt/diff通过。
 尺寸按2beb5592基线通过（2629文件/36历史债务），文档结构913篇通过。
 本片未修改FE，未另跑FE测试；旧见证和尺寸policy保留。本地提交，不推送。
+
+### 受限 owner / borrow 冻结合流验收（2026-11-12）
+
+以远端 main `f78c8c20` 为基线，冻结 owner `005675cb` 与 borrow `1341d0c4`；
+不纳入其它工作区未提交内容。保留 main 的退休成果，将 field/inout/assignment 的新增
+授权与发射钩子放入现有 value/tagged 职责；两线独立 receipt 的构造、layout、fold、
+statement、terminator 与 finish 保留。独立逐方法复审无阻断。
+
+首次尺寸门禁发现合流后的 borrow_binding 1315 行、emit 1002 行超出基线额度，未放宽
+policy。将五个聚合值方法移至 aggregate_value，将实际 CFG folding 移至 emit/folding；
+六个函数体与拆分前逐字一致。原文件分别降至977/945行；最终尺寸检查通过，2623手写
+Rust文件、37项历史超限仍明示，不声称清零。
+
+本地普通验证：FE lib 692通过（12 ignored、146 filtered）；CG owner 家族420通过，
+包含实际 native 编译链接运行；loan_region_ssa_tests 99通过。严格双crate feature
+all-targets Clippy、feature workspace all-targets、fmt/diff通过，文档922篇结构通过。
+清单脚本10项单测通过；真实36故障清单已精确编译列举（FE12、CG24），本地未执行。
+该清单在双平台远端 CI 逐FQN以exact/ignored运行，必须每项实际1 passed/0 ignored；
+未取得远端证据前不得将其列作通过。完整workspace测试及Preview未运行。
