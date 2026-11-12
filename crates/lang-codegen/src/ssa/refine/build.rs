@@ -6,7 +6,7 @@ mod condition;
 mod container;
 mod container_for;
 mod expression;
-mod inout;
+use tagged::inout;
 mod map;
 mod owner_consumer;
 #[cfg(test)]

@@ -4,24 +4,30 @@ use crate::ssa::model::{Definition, Instruction, SsaTypeKind};
 use std::collections::BTreeSet;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct Columns {
-    pub(super) block: BlockId,
-    pub(super) entities: Vec<EntityId>,
+pub(in crate::ssa::lower_frontend) struct Columns {
+    pub(in crate::ssa::lower_frontend) block: BlockId,
+    pub(in crate::ssa::lower_frontend) entities: Vec<EntityId>,
 }
 
-pub(super) struct Birth {
-    pub(super) pair: Columns,
-    pub(super) source_owner: ValueId,
+pub(in crate::ssa::lower_frontend) struct Birth {
+    pub(in crate::ssa::lower_frontend) pair: Columns,
+    pub(in crate::ssa::lower_frontend) source_owner: ValueId,
 }
 
-pub(super) fn parameter(function: &Function, entity: EntityId) -> Option<(BlockId, usize)> {
+pub(in crate::ssa::lower_frontend) fn parameter(
+    function: &Function,
+    entity: EntityId,
+) -> Option<(BlockId, usize)> {
     let Definition::BlockParameter { block, index } = function.entity(entity)?.definition else {
         return None;
     };
     (function.block(block)?.parameters.get(index) == Some(&entity)).then_some((block, index))
 }
 
-pub(super) fn result(function: &Function, entity: EntityId) -> Option<&Instruction> {
+pub(in crate::ssa::lower_frontend) fn result(
+    function: &Function,
+    entity: EntityId,
+) -> Option<&Instruction> {
     let Definition::InstructionResult { instruction, index } = function.entity(entity)?.definition
     else {
         return None;
@@ -30,7 +36,10 @@ pub(super) fn result(function: &Function, entity: EntityId) -> Option<&Instructi
     (instruction.results.get(index) == Some(&entity)).then_some(instruction)
 }
 
-pub(super) fn instructions(function: &Function, block: BlockId) -> Option<Vec<&Instruction>> {
+pub(in crate::ssa::lower_frontend) fn instructions(
+    function: &Function,
+    block: BlockId,
+) -> Option<Vec<&Instruction>> {
     function
         .block(block)?
         .instructions
@@ -39,7 +48,10 @@ pub(super) fn instructions(function: &Function, block: BlockId) -> Option<Vec<&I
         .collect()
 }
 
-pub(super) fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
+pub(in crate::ssa::lower_frontend) fn incoming(
+    function: &Function,
+    target: BlockId,
+) -> Vec<(BlockId, &Edge)> {
     function
         .blocks
         .iter()
@@ -66,7 +78,11 @@ pub(super) fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &E
         .collect()
 }
 
-pub(super) fn forward(function: &Function, edge: &Edge, entities: &[EntityId]) -> Option<Columns> {
+pub(in crate::ssa::lower_frontend) fn forward(
+    function: &Function,
+    edge: &Edge,
+    entities: &[EntityId],
+) -> Option<Columns> {
     let parameters = &function.block(edge.target)?.parameters;
     let entities = entities
         .iter()
@@ -208,7 +224,7 @@ pub(super) fn birth(
 
 /// All columns cross each predecessor together. Closed ungrounded SCCs fail.
 /// Only the caller's exact terminal element end may consume a tracked loan.
-pub(super) fn transport(
+pub(in crate::ssa::lower_frontend) fn transport(
     function: &Function,
     current: Columns,
     anchor: &Columns,

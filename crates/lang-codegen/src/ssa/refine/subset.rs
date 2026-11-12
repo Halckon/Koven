@@ -15,7 +15,6 @@ use control::LoopRoute;
 pub(super) use control::accepts;
 mod tagged;
 use tagged::receiver;
-mod when;
 
 use std::collections::BTreeSet;
 

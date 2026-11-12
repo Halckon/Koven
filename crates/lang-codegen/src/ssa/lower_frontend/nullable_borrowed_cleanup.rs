@@ -1,8 +1,8 @@
 //! One readonly nullable owner across one independently owned List provider.
 //! Published presence and actual owner/view/provider columns are separate proofs.
-mod carrier;
+pub(super) mod carrier;
 use carrier::source;
-mod provider;
+use super::loop_control::numeric_iteration::provider;
 
 use super::*;
 use lang_frontend::{
@@ -20,11 +20,11 @@ pub(super) struct Plan {
     fact: DropFact,
     root: SymbolId,
     storage: TypeId,
-    statement: StatementId,
+    pub(super) statement: StatementId,
     outer: StatementId,
-    source_root: SymbolId,
-    element: SymbolId,
-    source_drop: DropFact,
+    pub(super) source_root: SymbolId,
+    pub(super) element: SymbolId,
+    pub(super) source_drop: DropFact,
 }
 
 /// Admission never installs a proof, rewrites a condition or admits an SSA value.
@@ -426,7 +426,7 @@ pub(super) fn candidate(
     })
 }
 
-fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
+pub(super) fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
     let first = items.next()?;
     items.next().is_none().then_some(first)
 }

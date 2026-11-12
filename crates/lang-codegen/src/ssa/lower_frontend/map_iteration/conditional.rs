@@ -1,5 +1,5 @@
 //! Ordinary body CFG uses a plan-bound source identity and append-only exit evidence.
-mod actions;
+use verify::actions;
 mod facts;
 pub(super) use retained as successor;
 mod verify;

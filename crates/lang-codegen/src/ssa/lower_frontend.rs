@@ -1,7 +1,6 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
-mod aggregate;
-pub(in crate::ssa::lower_frontend) use aggregate::resource_deinit;
+pub(in crate::ssa::lower_frontend) use map_consume::resource_deinit;
 mod borrow_argument;
 mod borrow_result;
 #[cfg(test)]

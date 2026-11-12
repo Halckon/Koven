@@ -1,5 +1,5 @@
 //! Current local owners, their one final consumption, and two-selector condition checks.
-mod evidence;
+use super::resource::evidence;
 use super::*;
 use crate::ssa::model::InstructionId;
 use lang_frontend::{
@@ -217,22 +217,22 @@ pub(in crate::ssa::lower_frontend::map_iteration) mod conditions {
 }
 
 #[derive(Clone, Copy)]
-struct Consumption {
-    block: BlockId,
-    owner: ValueId,
-    instruction: InstructionId,
+pub(in crate::ssa::lower_frontend::map_iteration) struct Consumption {
+    pub(in crate::ssa::lower_frontend::map_iteration) block: BlockId,
+    pub(in crate::ssa::lower_frontend::map_iteration) owner: ValueId,
+    pub(in crate::ssa::lower_frontend::map_iteration) instruction: InstructionId,
 }
 
 #[derive(Clone)]
 pub(super) struct Carrier {
-    proof: local::Proof,
-    statement: StatementId,
-    birth: ValueId,
-    current: ValueId,
-    continuation: BlockId,
-    source: LoanId,
-    consumed: Option<Consumption>,
-    size: Option<ValueId>,
+    pub(in crate::ssa::lower_frontend::map_iteration) proof: local::Proof,
+    pub(in crate::ssa::lower_frontend::map_iteration) statement: StatementId,
+    pub(in crate::ssa::lower_frontend::map_iteration) birth: ValueId,
+    pub(in crate::ssa::lower_frontend::map_iteration) current: ValueId,
+    pub(in crate::ssa::lower_frontend::map_iteration) continuation: BlockId,
+    pub(in crate::ssa::lower_frontend::map_iteration) source: LoanId,
+    pub(in crate::ssa::lower_frontend::map_iteration) consumed: Option<Consumption>,
+    pub(in crate::ssa::lower_frontend::map_iteration) size: Option<ValueId>,
 }
 
 impl Carrier {
@@ -515,7 +515,7 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn validate_consumption(
+pub(in crate::ssa::lower_frontend::map_iteration) fn validate_consumption(
     function: &Function,
     state: &Carrier,
     span: Span,
