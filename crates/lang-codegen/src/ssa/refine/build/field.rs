@@ -303,12 +303,18 @@ impl Builder<'_, '_> {
         self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
         let counter =
             self.counter_binding_authorization(self.unit(initializer), symbol, value, span)?;
+        let bridge =
+            self.bridge_binding_authorization(self.unit(initializer), symbol, value, span)?;
+        if bridge.is_some() && counter.is_some() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
         let binding = self.value(
             ROp::Alias { source: value },
             crate::ssa::model::EntityType::Value(ty),
             span,
         )?;
         self.counter_binding_emitted(counter, binding, span)?;
+        self.bridge_emitted(bridge, Some(binding), span)?;
         self.bindings.insert(symbol, binding);
         self.owner_binding_emitted(symbol, binding);
         #[cfg(test)]

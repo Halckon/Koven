@@ -81,6 +81,9 @@ impl DropPlanner<'_, '_> {
             return;
         };
         let id = self.checker.unit_expression(id);
+        if let Some(body) = self.owner_loop.bridge_body_mut(control) {
+            body.assignment(id, state);
+        }
         for (site, evidence) in &mut self.owner_loop.root_entries {
             if *site == control
                 && clean_root_shape(state, &evidence.roots)

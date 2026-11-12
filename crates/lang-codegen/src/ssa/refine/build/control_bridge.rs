@@ -1,9 +1,11 @@
-//! Non-authorizing slot-CFG correspondence for a real cross-control alias bridge.
+//! Slot-CFG bridge audit with an optional independent normal-body consumption rule.
 use super::*;
+mod consumption;
 use lang_frontend::ownership_checking::{UnitOwnerCallable, UnitOwnerControlBridgeEvidenceV1};
 
 pub(super) struct Plan<'a> {
     evidence: &'a UnitOwnerControlBridgeEvidenceV1,
+    chain: Vec<consumption::Stage>,
     prior: Option<([BlockRef; 4], Vec<Slot>, Slot)>,
     next: Option<(BlockRef, [BlockRef; 4], Vec<Slot>)>,
 }
@@ -26,6 +28,12 @@ impl<'a> Plan<'a> {
             return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
         }
         Ok(Some(Self {
+            chain: vec![
+                consumption::Stage::Ready;
+                evidence
+                    .next_normal_transport()
+                    .map_or(0, |rule| rule.steps().len())
+            ],
             evidence,
             prior: None,
             next: None,
@@ -177,8 +185,26 @@ impl Builder<'_, '_> {
                 return Err(fail());
             }
         }
-        // This audits actual slot transport, not runtime generation identities or
-        // a permission to consume the next body's roots. SSA verification still follows.
+        if let Some(rule) = plan.evidence.next_normal_transport() {
+            if plan.chain.len() != rule.steps().len()
+                || plan
+                    .chain
+                    .iter()
+                    .any(|stage| *stage != consumption::Stage::Dropped)
+                || self.body.blocks[next_body.0]
+                    .statements
+                    .iter()
+                    .filter(|s| matches!(s.op, ROp::RootReplace { .. }))
+                    .count()
+                    != rule.steps().len()
+            {
+                return Err(fail());
+            }
+            #[cfg(test)]
+            owner_consumer_test_support::record_action("bridge-body-complete", rule.steps().len());
+        }
+        // The entry bridge audits actual slot transport, not runtime generations.
+        // Optional body permits above do not authorize the whole loop. SSA verification follows.
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-bridge-slot-audit", roots.len());
         Ok(())

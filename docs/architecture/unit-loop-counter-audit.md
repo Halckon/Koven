@@ -197,4 +197,4 @@ lowering处理，不为它创建新token或桥接入口。后端核验仅这些�
 缺条件完成、进入顺序错误或资源改变不交付产品，不以语法发现代替事件。后端同时核对同一condition/body身份，要求next header的
 true/false边抵达所捕获body/finished，body入口只来自该header，header操作不得读写桥接
 活根。仅CI负控覆盖header额外Drop与true边错投。这是到body入口的静态资格和真实CFG
-对应，不是body中Replace/返回绑定/Drop的独立许可，更不是完整跨轮代际或嵌套证明。
+对应本身不是body消费许可；额外可选[独立body消费链](control-bridge-body.md)仍不证明完整跨轮或嵌套。

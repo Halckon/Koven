@@ -3,6 +3,7 @@ use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 #[cfg(test)]
 pub(in super::super) use root_tokens::StaticRootPredecessor;
+pub(super) mod body_plan;
 mod guard_reset;
 mod root_exit;
 mod root_suffix;
@@ -216,6 +217,9 @@ impl ControlTransactions {
         normal: bool,
         facts: &[PlannerDropFact],
     ) {
+        if let Some(body) = self.bridge_body_mut(control) {
+            body.finish(state, normal);
+        }
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
             if !normal
                 || !evidence

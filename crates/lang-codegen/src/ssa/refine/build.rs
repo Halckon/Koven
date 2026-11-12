@@ -593,13 +593,16 @@ impl Builder<'_, '_> {
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             let header = self.header_bind_drop(*index, *target, slot, *span)?;
             let counter = self.counter_drop_authorization(*index, *target, slot, *span)?;
-            if (receipt.is_some() && header.is_some())
+            let bridge = self.bridge_drop_authorization(*index, *target, slot, *span)?;
+            if (bridge.is_some() && (counter.is_some() || receipt.is_some() || header.is_some()))
+                || (receipt.is_some() && header.is_some())
                 || (counter.is_some() && (receipt.is_some() || header.is_some()))
             {
                 return Err(error(LoweringErrorKind::InvalidModel, *span));
             }
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
             self.counter_drop_emitted(counter, *span)?;
+            self.bridge_emitted(bridge, None, *span)?;
             self.owner_drop_emitted(receipt, *span)?;
             self.header_bind_drop_emitted(header, *span)?;
             #[cfg(test)]

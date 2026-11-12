@@ -11,6 +11,8 @@ pub struct UnitOwnerControlBridgeEvidenceV1 {
     next_body: UnitStatementId,
     sources: Vec<UnitSymbolId>,
     targets: Vec<UnitSymbolId>,
+    next_normal: Option<UnitOwnerMultiRootNormalTransportV1>,
+    normal_steps: Option<Vec<UnitOwnerRootReplaceStepV1>>,
 }
 impl UnitOwnerControlBridgeEvidenceV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -28,8 +30,25 @@ impl UnitOwnerControlBridgeEvidenceV1 {
             next_body,
             sources,
             targets,
+            next_normal: None,
+            normal_steps: None,
         };
         value.is_consistent().then_some(value)
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn with_next_normal(
+        mut self,
+        normal: Option<UnitOwnerMultiRootNormalTransportV1>,
+    ) -> Option<Self> {
+        if self.next_normal.is_some() || self.normal_steps.is_some() {
+            return None;
+        }
+        self.normal_steps = normal.as_ref().map(|n| n.steps().to_vec());
+        self.next_normal = normal;
+        self.is_consistent().then_some(self)
+    }
+    /// Exact normal-body Header obligations; no exit or full-loop authority.
+    pub fn next_normal_transport(&self) -> Option<&UnitOwnerMultiRootNormalTransportV1> {
+        self.next_normal.as_ref()
     }
     /// Completed predecessor contract, not a selected dynamic exit instance.
     pub fn prior(&self) -> &UnitOwnerCounterTailEvidenceV1 {
@@ -57,7 +76,14 @@ impl UnitOwnerControlBridgeEvidenceV1 {
     }
     /// Validate the exact live subset and distinct targets against the sealed exit partition.
     pub fn is_consistent(&self) -> bool {
-        self.prior.is_consistent()
+        self.normal_steps.as_deref() == self.next_normal.as_ref().map(|n| n.steps())
+            && self.next_normal.as_ref().is_none_or(|n| {
+                n.is_consistent()
+                    && n.statement() == self.next_control
+                    && n.header_roots() == self.targets
+                    && n.body_catalog().callable() == self.prior.callable()
+            })
+            && self.prior.is_consistent()
             && self.next_control != self.prior.statement()
             && self.next_control.source_unit() == self.prior.statement().source_unit()
             && self.next_condition.source_unit() == self.next_control.source_unit()
@@ -144,6 +170,14 @@ mod tests {
                 assert_eq!(product.is_some(), !extra);
                 if let Some(bridge) = product {
                     assert!(bridge.is_consistent());
+                    let normal = bridge
+                        .next_normal_transport()
+                        .expect("actual next normal body");
+                    assert!(normal.is_consistent());
+                    assert_eq!(normal.header_roots(), bridge.targets());
+                    assert_eq!(normal.statement(), bridge.next_control());
+                    assert_eq!(normal.steps().len(), 2);
+                    assert_eq!(normal.body_catalog().definitions().len(), 2);
                     assert_eq!(bridge.targets().len(), 2);
                     assert_eq!(bridge.sources().len(), 2);
                     assert_ne!(bridge.next_control(), bridge.prior().statement());
@@ -190,6 +224,57 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn control_bridge_normal_uses_actual_replace_order_not_root_order() {
+        let text = source(false, false).replace(
+            "val x = replace(&a1, \"x1\"); val y = replace(&b1, \"y1\");",
+            "val y = replace(&b1, \"y1\"); val x = replace(&a1, \"x1\");",
+        );
+        let fixture = Fixture::new(&[("bridge-reverse-normal.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty());
+        let bridge = owned.owner_observations()[0]
+            .control_bridge_evidence_v1()
+            .unwrap();
+        let normal = bridge.next_normal_transport().unwrap();
+        assert_eq!(
+            normal
+                .steps()
+                .iter()
+                .map(|s| s.header_root())
+                .collect::<Vec<_>>(),
+            [bridge.targets()[1], bridge.targets()[0]]
+        );
+        for step in normal.steps() {
+            assert!(normal.body_catalog().definition(step.producer()).is_some());
+        }
+    }
+    #[test]
+    fn ci_only_control_bridge_rejects_foreign_normal_attachment() {
+        let text = source(false, false);
+        let fixture = Fixture::new(&[("bridge-foreign-normal.ko", &text)]);
+        let first = fixture.shared();
+        let second = fixture.shared();
+        let mut bridge = first.owner_observations()[0]
+            .control_bridge_evidence_v1()
+            .unwrap()
+            .clone();
+        let foreign = second.owner_observations()[0]
+            .control_bridge_evidence_v1()
+            .unwrap()
+            .next_normal_transport()
+            .unwrap()
+            .clone();
+        assert!(bridge.next_normal_transport().is_some());
+        assert!(
+            bridge
+                .clone()
+                .with_next_normal(Some(foreign.clone()))
+                .is_none()
+        );
+        bridge.next_normal = Some(foreign);
+        assert!(!bridge.is_consistent());
+    }
     pub(super) fn partial_source(one_live: bool) -> String {
         source(false, false)
             .replace("var b0 = \"b\";", "var b0 = \"b\"; var c0 = \"c\";")
@@ -217,6 +302,7 @@ mod tests {
             let bridge = observation.control_bridge_evidence_v1();
             assert_eq!(bridge.is_some(), !one_live);
             if let Some(bridge) = bridge {
+                assert!(bridge.next_normal_transport().is_some());
                 assert_eq!(bridge.prior().root_slots().len(), 3);
                 assert_eq!(bridge.targets().len(), 2);
                 assert_eq!(bridge.sources().len(), 2);

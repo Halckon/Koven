@@ -1,11 +1,14 @@
 //! Fresh, declaration-only post-loop catalog. Never revives a legacy observation.
 use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
+mod body;
 pub(super) mod bridge;
 
 pub(super) struct Segment {
     predecessor: UnitStatementId,
     bridge: Option<bridge::Bridge>,
+    normal: Option<body::Body>,
+    normal_started: bool,
     statements: Vec<UnitStatementId>,
     condition: UnitExpressionId,
     body: UnitStatementId,
@@ -80,6 +83,8 @@ pub(super) fn discover(checker: &Checker<'_>, item: ItemId) -> Vec<Segment> {
         segments.push(Segment {
             predecessor: pair[0].0,
             bridge: None,
+            normal: None,
+            normal_started: false,
             condition: checker.unit_expression(*condition),
             body: UnitStatementId::new(checker.source_unit, *body),
             bridge_condition: None,
@@ -456,7 +461,12 @@ impl ControlTransactions {
         if segment.bridge_condition != Some(condition) {
             return None;
         }
-        segment.bridge.take()?.evidence(next, condition, body)
+        let normal = segment.normal.as_ref().and_then(|body| body.result());
+        segment
+            .bridge
+            .take()?
+            .evidence(next, condition, body)?
+            .with_next_normal(normal)
     }
     #[cfg(test)]
     pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {

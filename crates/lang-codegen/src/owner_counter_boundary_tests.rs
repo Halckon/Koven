@@ -538,6 +538,14 @@ fn live_roots_cross_sequential_counters_without_fabricated_batch() {
         }}
         fun entry() {{ {calls} }}"#
         );
+        let text = if aliased {
+            text.replace(
+                "val x = replace(&a1, \"second-a\"); val y = replace(&b1, \"second-b\");",
+                "val y = replace(&b1, \"second-b\"); val x = replace(&a1, \"second-a\");",
+            )
+        } else {
+            text
+        };
         assert_general_counter_baseline(&text, expected.as_bytes(), true);
     }
 }
@@ -600,6 +608,23 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
         usize::from(bridge)
     );
     if bridge {
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "bridge-body-complete")
+                .count(),
+            1
+        );
+        for kind in [
+            "bridge-body-replace-consumed",
+            "bridge-body-binding-consumed",
+            "bridge-body-drop-consumed",
+        ] {
+            assert_eq!(
+                actions.iter().filter(|(actual, _)| *actual == kind).count(),
+                2
+            );
+        }
         assert_cross_control_ssa(&source, &program, &[("a", "a"), ("b", "b")]);
     }
     super::super::assert_native_output(&source, expected);
@@ -805,6 +830,7 @@ fn partial_live_exit_bridges_sparse_roots_without_resurrecting_retired_root() {
         if let Some(bridge) = bridges.first() {
             assert_eq!(bridge.prior().root_slots().len(), 3);
             assert_eq!(bridge.sources().len(), 2);
+            assert!(bridge.next_normal_transport().is_some());
             let (live, drops) = bridge.prior().false_exit_partition().unwrap();
             assert_eq!(live.len(), 2);
             assert_eq!(drops.len(), 1);
@@ -822,8 +848,51 @@ fn partial_live_exit_bridges_sparse_roots_without_resurrecting_retired_root() {
             usize::from(carry == 2)
         );
         if carry == 2 {
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, _)| *kind == "bridge-body-complete")
+                    .count(),
+                1
+            );
             assert_cross_control_ssa(&source, &program, &[("a", "a"), ("c", "b")]);
         }
         super::super::assert_native_output(&source, expected.as_bytes());
+    }
+}
+
+#[test]
+fn ci_only_control_bridge_body_chain_fails_closed() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let text = r#"fun run(n: Int) {
+        var n0 = n; var g0 = n0 > 0; var a0 = "a"; var b0 = "b";
+        while(g0) { val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 };
+        var n1 = n; var g1 = n1 > 0; var a1 = a0; var b1 = b0;
+        while(g1) { val x = replace(&a1, "x1"); val y = replace(&b1, "y1"); n1 = n1 - 1; g1 = n1 > 0 }
+    }
+    fun entry() { run(2) }"#;
+    let source = UnitSource::analyze("bridge-body-chain.ko", text).unwrap();
+    source.assert_frontend_clean();
+    assert!(source.ownership().owner_observations().iter().any(|o| {
+        o.control_bridge_evidence_v1()
+            .and_then(|b| b.next_normal_transport())
+            .is_some()
+    }));
+    for fault in [
+        OwnerFault::MissingBridgeReplacePermit,
+        OwnerFault::MissingBridgeBindingPermit,
+        OwnerFault::MissingBridgeDropPermit,
+        OwnerFault::BridgeReplaceWrongRoot,
+        OwnerFault::BridgeSecondReplaceFailure,
+        OwnerFault::BridgeWrongInstruction,
+        OwnerFault::BridgeDropDuplicateCommit,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert!(actions.iter().all(
+            |(kind, _)| *kind != "bridge-body-complete" && *kind != "control-bridge-slot-audit"
+        ));
     }
 }
