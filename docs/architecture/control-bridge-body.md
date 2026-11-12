@@ -146,6 +146,10 @@ body catalog身份及根索引。随后仅通过实际Move→Bind搬运位置，
 完成与body进入必须按同一control顺序发生；入口只有完整continuation才能提供根位置，
 新的body catalog独立分配，不挪用前驱producer。normal、checked tail和false-exit分区继续
 各自以实际事件完成为前提，未支持body形状不产生完整结果。
-第三段scalar入口实际完成尚未接入；后续仍须补齐该合同、整链原子发布和后端逐control
-消费，才能声明新链产品支持。
+第三段scalar入口现接实际有序声明完成；完整根转移前也保留初始化事件，不用AST形状
+代替实际完成。恰三段的整链先验证全部成员及跨段来源，成功才一次性取走，内部证据
+保存在observation而非测试旁路；缺入口、body、tail、退出或终段清理均不产生部分链。
+中间live根由续接转移，终段必须全死或有真实完整suffix。内部链与其他能力互斥，绑定
+原analysis/callable和首次Syntax拒绝点，deferred时撤销，旧Complete不恢复。
+该内部封存没有公共权限getter；后端逐control消费尚未接入，不能宣称新链产品已可用。
 嵌套循环的外层恢复与路径合流仍不在本片范围内。

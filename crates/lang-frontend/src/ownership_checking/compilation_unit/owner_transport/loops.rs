@@ -1,4 +1,8 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod private_control_chain;
+pub(in crate::ownership_checking::compilation_unit) use private_control_chain::{
+    PrivateChainMember, PrivateControlChain,
+};
 mod control_bridge;
 pub use control_bridge::{
     UnitOwnerBridgeCounterEntryV1, UnitOwnerBridgeCounterTailV1, UnitOwnerControlBridgeEvidenceV1,
@@ -361,6 +365,7 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
             observation.counter_tail = None;
             observation.counter_batch = None;
             observation.control_bridge = None;
+            observation.private_control_chain = None;
             observation.multi_root_boundary = None;
             observation.open_loop_value = None;
             observation.loop_value = None;

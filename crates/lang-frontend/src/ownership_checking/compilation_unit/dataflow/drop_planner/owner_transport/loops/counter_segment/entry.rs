@@ -140,10 +140,20 @@ impl ControlTransactions {
         if self.root_branches_invalid || !self.root_branch_arms.is_empty() {
             return;
         }
-        let Some(segment) = self.active_segment().filter(|s| s.bridge.is_some()) else {
+        let Some(segment) = self
+            .active_segment()
+            .filter(|s| s.bridge.is_some() || s.continuation.is_some())
+        else {
             return;
         };
         if let Some(entry) = &mut segment.entry {
+            #[cfg(test)]
+            if segment.continuation.is_some()
+                && entry.symbols.contains(&symbol)
+                && super::chain::tests::skip_scalar()
+            {
+                return;
+            }
             if segment
                 .next
                 .checked_sub(1)

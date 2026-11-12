@@ -38,4 +38,11 @@ fn three_live_controls_preserve_zero_and_normal_generations() {
     "#
     );
     assert_general_counter_baseline(&text, expected.as_bytes(), false);
+    // Closed final cleanup can seal private chain evidence, but grants no new
+    // codegen permission until the whole-chain consumer is implemented.
+    let closed = text.replace(
+        "println(a2); println(b2)",
+        "val final_a = a2; val final_b = b2; println(\"done\")",
+    );
+    assert_general_counter_baseline(&closed, b"done\ndone\ndone\ndone\ndone\n", false);
 }

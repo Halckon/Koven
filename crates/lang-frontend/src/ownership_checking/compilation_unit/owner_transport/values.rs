@@ -463,7 +463,8 @@ impl UnitOwnerObservation {
     /// Unsupported controls, parameters and captures return no partial projection.
     /// Legacy definitions/events remain Unsupported for Choice-producing AST paths.
     pub fn value_observation_v1(&self) -> Option<UnitOwnerValueObservationV1> {
-        if self.control_bridge.is_some()
+        if self.private_control_chain.is_some()
+            || self.control_bridge.is_some()
             || self.counter_batch.is_some()
             || self.multi_root_boundary.is_some()
             || self.closed_loop_batch.is_some()

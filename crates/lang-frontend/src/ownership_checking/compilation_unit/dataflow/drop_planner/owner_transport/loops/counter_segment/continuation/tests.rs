@@ -145,7 +145,11 @@ fn third_control_body_uses_actual_formal_events_without_publication() {
                 assert_eq!(proof.normal.header_roots(), targets);
                 assert_eq!(proof.normal.body_catalog().callable(), callable);
                 assert_eq!(proof.normal.steps().len(), 2);
-                assert!(proof.tail.is_some());
+                let (guard, counter, _) = proof.tail.unwrap();
+                let (symbols, initializers, statements) = proof.entry.unwrap();
+                assert_eq!(symbols, [counter, guard]);
+                assert_ne!(initializers[0], initializers[1]);
+                assert_ne!(statements[0], statements[1]);
                 let (live, drops) = proof.exit.as_ref().unwrap();
                 assert!(live.is_empty());
                 assert_eq!(drops.len(), 2);

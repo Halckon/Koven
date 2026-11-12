@@ -53,6 +53,7 @@ impl DropPlanner<'_, '_> {
             counter_tail: None,
             counter_batch: None,
             control_bridge: None,
+            private_control_chain: None,
             multi_root_boundary: None,
             open_loop_value: None,
         });
@@ -86,6 +87,7 @@ impl DropPlanner<'_, '_> {
             counter_tail: None,
             counter_batch: None,
             control_bridge: None,
+            private_control_chain: None,
             multi_root_boundary: None,
             open_loop_value: None,
         });
@@ -117,6 +119,7 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
+        let private_control_chain = self.owner_loop.take_private_chain();
         let control_bridge = self.owner_loop.take_control_bridge();
         let counter_batch = self.owner_loop.take_counter_batch();
         let counter_tail = self.owner_loop.counter_tail_evidence();
@@ -131,6 +134,7 @@ impl DropPlanner<'_, '_> {
             observation.counter_tail = counter_tail.map(Box::new);
             observation.counter_batch = counter_batch.map(Box::new);
             observation.control_bridge = control_bridge.map(Box::new);
+            observation.private_control_chain = private_control_chain.map(Box::new);
             observation.closed_loop_batch = closed_loop_batch.map(Box::new);
             observation.multi_root_boundary = multi_root_boundary.map(Box::new);
             observation.open_loop_value = open_loop_value;
@@ -153,6 +157,7 @@ impl DropPlanner<'_, '_> {
                 observation.counter_tail = None;
                 observation.counter_batch = None;
                 observation.control_bridge = None;
+                observation.private_control_chain = None;
                 observation.multi_root_boundary = None;
                 observation.definitions.clear();
                 observation.events.clear();

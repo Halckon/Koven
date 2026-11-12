@@ -128,6 +128,41 @@ impl Continuation {
                         == 1
                 })
     }
+    pub(super) fn chain_inputs(
+        &self,
+        first: &crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1,
+    ) -> Option<(
+        UnitOwnerMultiRootNormalTransportV1,
+        Vec<UnitSymbolId>,
+        Vec<UnitSymbolId>,
+    )> {
+        let normal = first.next_normal_transport()?;
+        let tail = first.next_counter_tail()?;
+        let (live, drops) = first.next_false_exit_partition()?;
+        if !self.complete()
+            || self.normal.statement() != first.next_control()
+            || self.normal.header_roots() != normal.header_roots()
+            || self.normal.steps() != normal.steps()
+            || !std::sync::Arc::ptr_eq(
+                &self.normal.body_catalog().identity,
+                &normal.body_catalog().identity,
+            )
+            || self.tail != (tail.guard(), tail.counter(), tail.assignments())
+            || self.live != live
+            || self.drops != drops
+        {
+            return None;
+        }
+        let (targets, _) = self.body_inputs()?;
+        let sources = self
+            .normal
+            .header_roots()
+            .iter()
+            .filter(|r| self.live.contains(r))
+            .copied()
+            .collect();
+        Some((self.normal.clone(), sources, targets))
+    }
     pub(super) fn body_inputs(
         &self,
     ) -> Option<(
@@ -197,6 +232,7 @@ impl ControlTransactions {
         let body = segment.normal.as_ref()?;
         Some(CompletedBody {
             normal: body.result()?,
+            entry: segment.entry.as_ref().and_then(|e| e.sites()),
             tail: body.counter_tail(),
             exit: body.exit_partition(),
         })
@@ -224,6 +260,11 @@ mod tests;
 #[derive(Debug)]
 pub(in super::super) struct CompletedBody {
     pub(in super::super) normal: UnitOwnerMultiRootNormalTransportV1,
+    pub(in super::super) entry: Option<(
+        [UnitSymbolId; 2],
+        [UnitExpressionId; 2],
+        [UnitStatementId; 2],
+    )>,
     pub(in super::super) tail: Option<(UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4])>,
     pub(in super::super) exit: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
 }

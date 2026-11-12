@@ -8,6 +8,9 @@ pub(super) use loops::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
     LoopBranchExit, publish_observations,
 };
+pub(in crate::ownership_checking::compilation_unit) use loops::{
+    PrivateChainMember, PrivateControlChain,
+};
 pub use loops::{
     UnitOwnerBridgeCounterEntryV1, UnitOwnerBridgeCounterTailV1, UnitOwnerClosedLoopBatchV1,
     UnitOwnerConditionalBreakBackedgeV1, UnitOwnerConditionalReturnBackedgeV1,
@@ -277,6 +280,7 @@ pub struct UnitOwnerObservation {
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
     pub(super) control_bridge: Option<Box<UnitOwnerControlBridgeEvidenceV1>>,
+    pub(super) private_control_chain: Option<Box<PrivateControlChain>>,
     pub(super) counter_batch: Option<Box<UnitOwnerCounterBatchEvidenceV1>>,
     pub(super) counter_tail: Option<Box<UnitOwnerCounterTailEvidenceV1>>,
     pub(super) multi_root_boundary: Option<Box<UnitOwnerMultiRootBoundaryV1>>,
