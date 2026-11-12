@@ -7,6 +7,7 @@
 mod body;
 mod build;
 mod control_bridge_receipt;
+mod nested_exit_receipt;
 #[cfg(test)]
 pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,

@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    nested_exit: crate::ssa::refine::nested_exit_receipt::Emitted,
     pub(super) owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted,
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
@@ -29,6 +30,7 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            nested_exit: Default::default(),
             owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted::new(),
             nested: crate::ssa::refine::nested_receipt::Emitted::new(
                 &body.nested_plans,
@@ -142,6 +144,8 @@ impl LoanReceipts {
             entities,
             span,
         )?;
+        self.nested_exit
+            .layout(body, function, blocks, parameters, entities, span)?;
         self.nested.layout(
             &body.nested_plans,
             function,
@@ -204,6 +208,7 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.owner_bridge.finish(body, function, span)?;
+        self.nested_exit.finish(body, function, span)?;
         self.forward.finish(&body.forward_plans, function, span)?;
         self.consumer.finish(&body.loan_plans, function, span)?;
         self.receiver.finish(&body.receiver_plans, function, span)?;
@@ -330,6 +335,14 @@ impl Emitter<'_> {
                 self.function,
                 (block, index),
                 Some(instruction),
+                &self.current,
+                statement.span,
+            )?;
+            receipts.nested_exit.statement(
+                body,
+                self.function,
+                (block, index),
+                instruction,
                 &self.current,
                 statement.span,
             )?;

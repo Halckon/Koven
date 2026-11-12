@@ -325,6 +325,7 @@ impl Builder<'_, '_> {
         self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
         if let Some((_live, drops)) = plan.evidence.false_exit_partition() {
             let mut previous = None;
+            let mut sites = Vec::new();
             for fact in drops {
                 let UnitDropTarget::Named(root) = fact.target() else {
                     return Err(fail());
@@ -345,7 +346,20 @@ impl Builder<'_, '_> {
                     return Err(fail());
                 }
                 previous = Some(actual);
+                sites.push(super::super::super::nested_exit_receipt::DropSite {
+                    root: roots[index],
+                    instruction: actual,
+                    span: fact.value_origin(),
+                });
             }
+            self.body.nested_exit_plans = super::super::super::nested_exit_receipt::Plans(Some(
+                super::super::super::nested_exit_receipt::Plan {
+                    control: plan.evidence.control(),
+                    header: blocks[0],
+                    exit: blocks[2],
+                    drops: sites,
+                },
+            ));
             #[cfg(test)]
             owner_consumer_test_support::record_action(
                 "nested-false-cleanup-rechecked",

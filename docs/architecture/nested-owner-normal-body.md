@@ -56,6 +56,10 @@ Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span
 返回 live 根和精确 LoopExit drops，完整覆盖且互斥；干净资源检查复用 boundary_values。
 重复或缺事件不给可选事实，但不撤销原 normal-body 权限。
 这是 planner false 清理点的静态分区，不是入口/回边 token 的实际代际合流证明；
-没有 late-SSA CFG receipt 或 parent 恢复消费者，仍不得据此额外发射 Drop。
+没有 parent 恢复消费者，仍不得据此额外发射 Drop；退休根late-SSA事实见下段。
 后端在既有几何仍有效的RefinedBody阶段只读核原false块实际Drop：精确root槽、
 LoopExit fact、原consumed记录、span及清理顺序；不限制live根的后续旧路径操作。
+
+生产 `refine/nested_exit_receipt.rs` 现在独立跟踪已核对退休根的实际false入口Entity
+到原Drop，随straight-line fold同步块/指令偏移，终检真实边参数、指令表与块清单。
+这不是owner退出消费许可；空drops只核几何，live根和parent恢复仍由原路径负责。

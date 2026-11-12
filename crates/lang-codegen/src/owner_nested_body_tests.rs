@@ -452,6 +452,14 @@ fn nested_false_exit_retires_child_local_root_without_resume_permission() {
         [1]
     );
 
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "nested-false-ssa-complete")
+            .map(|(_, n)| *n)
+            .collect::<Vec<_>>(),
+        [1]
+    );
     assert_final_false_cleanup_transport(&source, &program);
     assert_general_counter_baseline(&text, expected.as_bytes(), false);
 }
@@ -472,25 +480,27 @@ fn ci_only_nested_false_cleanup_missing_actual_drop_fails_closed() {
     )
     .unwrap();
     source.assert_frontend_clean();
-    let (result, actions) = crate::ssa::observe_owner_actions(|| {
-        crate::ssa::with_owner_fault(crate::ssa::OwnerFault::NestedFalseMissingDrop, || {
-            source.lower_entry(source.entry())
-        })
-    });
-    assert!(result.is_err());
-    assert_eq!(
-        actions
-            .iter()
-            .filter(|(k, _)| *k == "nested-false-fault-hit")
-            .count(),
-        1
-    );
-    assert!(
-        actions
-            .iter()
-            .all(|(k, _)| *k != "nested-false-cleanup-rechecked"
-                && *k != "nested-owner-normal-body-complete")
-    );
+    for fault in [
+        crate::ssa::OwnerFault::NestedFalseMissingDrop,
+        crate::ssa::OwnerFault::NestedFalseSsaMissingBlockDrop,
+        crate::ssa::OwnerFault::NestedFalseSsaDuplicateBlockDrop,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        let marker = if fault == crate::ssa::OwnerFault::NestedFalseMissingDrop {
+            "nested-false-fault-hit"
+        } else {
+            "nested-false-ssa-fault-hit"
+        };
+        assert_eq!(actions.iter().filter(|(k, _)| *k == marker).count(), 1);
+        assert!(
+            actions
+                .iter()
+                .all(|(k, _)| *k != "nested-false-ssa-complete")
+        );
+    }
 }
 
 // Inspect final SSA after the normal refinement/folding pipeline, independently of

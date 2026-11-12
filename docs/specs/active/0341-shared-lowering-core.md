@@ -15327,3 +15327,23 @@ LoopExit fact span唯一Drop。逐边要求根恰一次，走廊无提前使用/
 本片普通native1/1（0.27s，内部九组）与codegen all-target strict Clippy（39.63s）
 通过；仅测试/说明变更，未重跑全counter/FE/workspace，未执行CI-only。日志
 nested-exit-final-ssa-*，仅本地提交不推送。
+
+### 内层 false 清理生产 late-SSA receipt（2026-11-12，不授恢复权限）
+
+新增独立 nested_exit_receipt，不复用旧bridge权限。Builder在原清理事实全部核对后
+封存child/header/false块、退休根slot、原Drop指令位置和span；RefinedBody携带独立计划。
+straight-line fold同步块号及移入指令prefix偏移（溢出/合并成同块失败封闭）。
+layout绑定真实函数、control及header/false的slot→Entity参数快照；实际Drop发射钩子
+要求匹配位置、origin、owner且消费原false入口Entity，恰观察一次。
+最终重读实际header.false边、根实参、参数快照、Drop操作及块内清单唯一位置和顺序，
+全部完成后才记录receipt。不会额外发射Drop，不检查/授权parent后续消费。
+空退休集合仅核几何，不声称核验所有live根运输。静态SSA一致性不等于动态跨轮归纳。
+新增CI-only实际移除/重复出口块Drop引用；本地仅编译。独立复审发现的块清单/参数
+终检缺口已补，不把instruction arena仍有记录当作实际执行指令仍存在。
+
+普通counter native27/27（28.65s）通过，真实完成marker及前片最终SSA独立断言仍通过。
+严格Clippy首轮仅两处CI注入collapsible-if报错，已改为等价let-chain，未改变生产代码。
+复审终检修正后无确定阻断。两新晚期故障仅编译，不声称本地执行通过。
+最终codegen all-target strict Clippy（38.66s）、workspace all-target check（29.30s）
+通过；fmt/diff、docs915和尺寸2583/37历史超限通过，不增加额度。本片无FE变更，
+未重跑FE全回归。日志nested-exit-ssa-*；仅本地提交不推送。
