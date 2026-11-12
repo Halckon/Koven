@@ -452,6 +452,7 @@ fn nested_false_exit_retires_child_local_root_without_resume_permission() {
         [1]
     );
 
+    assert_final_false_cleanup_transport(&source, &program);
     assert_general_counter_baseline(&text, expected.as_bytes(), false);
 }
 
@@ -490,4 +491,136 @@ fn ci_only_nested_false_cleanup_missing_actual_drop_fails_closed() {
             .all(|(k, _)| *k != "nested-false-cleanup-rechecked"
                 && *k != "nested-owner-normal-body-complete")
     );
+}
+
+// Inspect final SSA after the normal refinement/folding pipeline, independently of
+// the pre-fold builder receipt. No production authority is added by this test.
+fn assert_final_false_cleanup_transport(source: &UnitSource, program: &crate::ssa::model::Program) {
+    use crate::ssa::model::{EntityId, Operation, TerminatorKind};
+    use lang_frontend::ownership_checking::UnitDropTarget;
+    let n = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.nested_normal_body_v1())
+        .unwrap();
+    let (_, facts) = n.false_exit_partition().unwrap();
+    assert!(!facts.is_empty());
+    for fact in facts {
+        let UnitDropTarget::Named(root) = fact.target() else {
+            panic!("named root");
+        };
+        let step = n
+            .normal()
+            .steps()
+            .iter()
+            .find(|s| s.header_root() == root)
+            .unwrap();
+        let span = source
+            .parsed()
+            .ast()
+            .expressions()
+            .get(step.call().expression())
+            .unwrap()
+            .span();
+        let matches = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .flat_map(|f| {
+                f.instructions
+                    .iter()
+                    .filter(move |i| {
+                        i.origin.span() == span
+                            && matches!(i.operation, Operation::RootReplace { .. })
+                    })
+                    .map(move |i| (f, i))
+            })
+            .collect::<Vec<_>>();
+        let [(function, replace)] = matches.as_slice() else {
+            panic!("unique actual root Replace");
+        };
+        let Operation::RootReplace { owner, .. } = replace.operation else {
+            unreachable!();
+        };
+        let body = function.block(replace.block).unwrap();
+        let position = body
+            .parameters
+            .iter()
+            .position(|p| *p == EntityId::Value(owner))
+            .unwrap();
+        let headers = function
+            .blocks
+            .iter()
+            .filter_map(|b| match &b.terminator.as_ref()?.kind {
+                TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } if when_true.target == body.id => Some((b, when_true, when_false)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(header, yes, no)] = headers.as_slice() else {
+            panic!("unique child header");
+        };
+        let mut value = yes.arguments[position];
+        assert!(header.parameters.contains(&value));
+        let drops = function
+            .instructions
+            .iter()
+            .filter(|i| {
+                i.origin.span() == fact.value_origin()
+                    && matches!(i.operation, Operation::Drop { .. })
+            })
+            .collect::<Vec<_>>();
+        let [drop] = drops.as_slice() else {
+            panic!("one original exit drop in final SSA");
+        };
+        let mut edge = *no;
+        let mut visited = std::collections::BTreeSet::new();
+        loop {
+            assert!(
+                visited.insert(edge.target),
+                "must not cross another iteration"
+            );
+            let block = function.block(edge.target).unwrap();
+            let positions = edge
+                .arguments
+                .iter()
+                .enumerate()
+                .filter_map(|(i, v)| (*v == value).then_some(i))
+                .collect::<Vec<_>>();
+            let [index] = positions.as_slice() else {
+                panic!("one carried root");
+            };
+            value = block.parameters[*index];
+            if block.id == drop.block {
+                assert!(
+                    matches!(drop.operation,Operation::Drop {owner} if EntityId::Value(owner)==value)
+                );
+                let at = block
+                    .instructions
+                    .iter()
+                    .position(|id| *id == drop.id)
+                    .unwrap();
+                for id in &block.instructions[..at] {
+                    let instruction = function.instruction(*id).unwrap();
+                    assert!(!instruction.operation.entities().contains(&value));
+                    assert!(!instruction.results.contains(&value));
+                }
+                assert_eq!(function.instructions.iter().filter(|i| matches!(i.operation,Operation::Drop {owner} if EntityId::Value(owner)==value)).count(),1);
+                break;
+            }
+            for id in &block.instructions {
+                let instruction = function.instruction(*id).unwrap();
+                assert!(!instruction.operation.entities().contains(&value));
+                assert!(!instruction.results.contains(&value));
+            }
+            let TerminatorKind::Branch(next) = &block.terminator.as_ref().unwrap().kind else {
+                panic!("unconditional cleanup corridor");
+            };
+            edge = next;
+        }
+    }
 }

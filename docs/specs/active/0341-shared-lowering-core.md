@@ -15314,3 +15314,16 @@ Drop及顺序。不发新Drop，不禁live根后续println/Replace，不禁止�
 最终普通counter native27/27（33.50s）、codegen all-target strict Clippy（32.67s）
 通过；独立只读复审无确定阻断。本片未改FE、未重跑FE/workspace；CI-only仅编译。
 最初fixture声明分隔parse红已修正，日志nested-local-exit-*保留。仅本地提交不推送。
+
+### 部分退休的最终 SSA 独立检查（2026-11-12，仅测试）
+
+在普通Refine/fold完成后的Program中，以原FE root step与call span唯一定位child
+Replace，从body根参数找真实header，沿false边的arguments/parameters运输到原
+LoopExit fact span唯一Drop。逐边要求根恰一次，走廊无提前使用/重定义，visited防环，
+目标Drop必须消费运输后的实际SSA值且该值恰有一个Drop。
+这是对558f3ff2前折叠核验的独立测试，不新增生产late-SSA receipt或恢复权限。
+不证明动态释放次数，也未单独检查Drop后全部其他用途；完整IR合法性仍由verifier核验。
+独立只读复审无确定阻断，有限native九组输入仍不代表任意轮次归纳。
+本片普通native1/1（0.27s，内部九组）与codegen all-target strict Clippy（39.63s）
+通过；仅测试/说明变更，未重跑全counter/FE/workspace，未执行CI-only。日志
+nested-exit-final-ssa-*，仅本地提交不推送。
