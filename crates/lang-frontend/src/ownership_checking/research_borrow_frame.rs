@@ -3,7 +3,7 @@ use crate::{
     ast::{ExpressionId, StatementId},
     name_resolution::{SourceUnitId, SymbolId, UnitSymbolId},
     parser::{Expression, Item, ParsedFile, Statement, VariableKind},
-    source::Span,
+    source::{SourceId, Span},
 };
 mod consumer;
 pub use consumer::BorrowFrameConsumerReturn;
@@ -94,17 +94,48 @@ struct Acquisition {
     snapshot: Box<dyn Any>,
     ended: bool,
 }
+pub(crate) struct FrameIdentity {
+    identity: Rc<()>,
+    pub(crate) checker: BorrowFrameChecker,
+    source: SourceId,
+    unit: Option<SourceUnitId>,
+}
+impl FrameIdentity {
+    pub(crate) fn source_matches(&self, span: Span) -> bool {
+        self.source == span.source_id()
+    }
+    pub(crate) fn same(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+            && self.checker == other.checker
+            && self.source == other.source
+            && self.unit == other.unit
+    }
+}
+pub(crate) fn current_identity() -> Option<FrameIdentity> {
+    CAPTURE.with(|c| c.borrow().as_ref()?.frames.last().map(Frame::identity))
+}
 struct Frame {
     identity: Rc<()>,
     checker: BorrowFrameChecker,
     source_unit: Option<SourceUnitId>,
     span: Span,
+    statement: StatementId,
     elements: Vec<StatementId>,
     eligible: bool,
     valid: bool,
     acquired: Vec<Acquisition>,
     ends: Vec<(Binding, StatementId)>,
     consumers: consumer::Tape,
+}
+impl Frame {
+    fn identity(&self) -> FrameIdentity {
+        FrameIdentity {
+            identity: self.identity.clone(),
+            checker: self.checker,
+            source: self.span.source_id(),
+            unit: self.source_unit,
+        }
+    }
 }
 #[derive(Default)]
 struct Capture {
@@ -217,6 +248,7 @@ pub(crate) fn begin<S: Clone>(
             checker: context.0,
             source_unit: context.1,
             span: node.span(),
+            statement: id,
             elements,
             eligible,
             valid: true,
@@ -342,7 +374,7 @@ pub(crate) fn removed<B: Copy + Ord + Into<Binding>, P: PartialEq, L: PartialEq>
         }
     });
 }
-pub(crate) fn finish<S: PartialEq, B: Copy + Into<Binding>>(
+pub(crate) fn finish<S: Clone + PartialEq + 'static, B: Copy + Into<Binding>>(
     start: Option<Start<S>>,
     exit: Option<&S>,
     clean: bool,
@@ -375,7 +407,8 @@ pub(crate) fn finish<S: PartialEq, B: Copy + Into<Binding>>(
             && f.ends.len() == f.acquired.len()
             && actual == expected;
         let returned_and_closed = consumer::complete_tape(&f);
-        c.observations.push(BorrowFrameObservation {
+        let statement = f.statement;
+        let observation = BorrowFrameObservation {
             checker: f.checker,
             scope_span: f.span,
             local_binding_count: f.acquired.len(),
@@ -385,6 +418,14 @@ pub(crate) fn finish<S: PartialEq, B: Copy + Into<Binding>>(
             identity: f.identity,
             returns: f.consumers.returns,
             returned_and_closed,
-        });
+        };
+        if super::research_borrow_zero_loop::active()
+            && let (Some(parent), Some(exit)) = (c.frames.last(), exit)
+            && let Some(index) = parent.elements.iter().position(|id| *id == statement)
+            && let Some(next) = parent.elements.get(index + 1)
+        {
+            super::research_borrow_zero_loop::closed(&observation, parent.identity(), *next, exit);
+        }
+        c.observations.push(observation);
     });
 }

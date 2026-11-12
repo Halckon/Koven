@@ -32,8 +32,11 @@ mod receiver;
 mod research;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_consumer;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_zero;
 mod scope_escape;
 use receiver::ReceiverContext;
+mod loop_control;
 mod short_circuit;
 mod string;
 mod traversal;

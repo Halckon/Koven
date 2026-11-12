@@ -190,10 +190,14 @@ pub use compilation_unit::loan_observation_test_support::{
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_borrow_frame;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_zero_loop;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
 #[doc(hidden)]
 pub use research_borrow_frame::{
     BorrowFrameChecker, BorrowFrameConsumerReturn, BorrowFrameObservation, capture_borrow_frames,
 };
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+pub use research_borrow_zero_loop::{BorrowZeroLoopObservation, capture_borrow_zero_loops};
 
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_borrow_loop;

@@ -68,7 +68,40 @@ impl Checker<'_> {
                     ))
             })
     }
-    pub(super) fn research_loop_start(
+    pub(super) fn research_boolean_parameter(&self, condition: ExpressionId) -> bool {
+        !self.is_constant_use(condition)
+            && self
+                .parsed
+                .ast()
+                .expressions()
+                .get(condition)
+                .ok()
+                .and_then(|node| self.reference_symbol(node.span()))
+                .is_some_and(|symbol| {
+                    self.bindings.contains_key(&symbol)
+                        && self
+                            .names
+                            .source_units()
+                            .iter()
+                            .find(|unit| unit.source_unit() == symbol.source_unit())
+                            .and_then(|unit| {
+                                unit.resolution().symbols().get(symbol.symbol().index())
+                            })
+                            .is_some_and(|declaration| {
+                                declaration.kind()
+                                    == crate::name_resolution::SymbolKind::ValueParameter
+                            })
+                })
+            && self.ordinary_condition_outcomes(condition) == (true, true)
+            && self
+                .typed
+                .expression_type(self.unit_expression(condition))
+                .and_then(|ty| self.typed.types().get(ty))
+                == Some(&crate::type_checking::UnitTypeKind::Builtin(
+                    crate::type_checking::BuiltinType::Boolean,
+                ))
+    }
+    pub(super) fn research_carried_loop_start(
         &self,
         statement: Option<StatementId>,
         body: StatementId,
@@ -108,39 +141,7 @@ impl Checker<'_> {
             self.parsed,
             statement,
             body,
-            |condition| {
-                !self.is_constant_use(condition)
-                    && self
-                        .parsed
-                        .ast()
-                        .expressions()
-                        .get(condition)
-                        .ok()
-                        .and_then(|node| self.reference_symbol(node.span()))
-                        .is_some_and(|symbol| {
-                            self.bindings.contains_key(&symbol)
-                                && self
-                                    .names
-                                    .source_units()
-                                    .iter()
-                                    .find(|unit| unit.source_unit() == symbol.source_unit())
-                                    .and_then(|unit| {
-                                        unit.resolution().symbols().get(symbol.symbol().index())
-                                    })
-                                    .is_some_and(|declaration| {
-                                        declaration.kind()
-                                            == crate::name_resolution::SymbolKind::ValueParameter
-                                    })
-                        })
-                    && self.ordinary_condition_outcomes(condition) == (true, true)
-                    && self
-                        .typed
-                        .expression_type(self.unit_expression(condition))
-                        .and_then(|ty| self.typed.types().get(ty))
-                        == Some(&crate::type_checking::UnitTypeKind::Builtin(
-                            crate::type_checking::BuiltinType::Boolean,
-                        ))
-            },
+            |condition| self.research_boolean_parameter(condition),
             |expression| {
                 if !self.research_direct_string_call(expression, false) {
                     return false;
@@ -184,7 +185,11 @@ impl Checker<'_> {
             Some(self.source_unit),
         )
     }
-    pub(super) fn research_loop_finish(&self, ticket: Option<loops::Ticket<State>>, flows: &Flows) {
+    pub(super) fn research_carried_loop_finish(
+        &self,
+        ticket: Option<loops::Ticket<State>>,
+        flows: &Flows,
+    ) {
         if ticket.is_none() {
             return;
         }

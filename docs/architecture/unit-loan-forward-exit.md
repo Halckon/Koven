@@ -194,3 +194,6 @@ normal/尾continue分别核完整资源投影保持，break单列退出且不认
 逐consumer另按真实call/argument ID核暂借loan移除前后，并在原清理与Nothing判断后
 确认正常next，按独占loop/session票据有序回交；回边认证要求全部真实返回及入口义务
 保持。观察无副作用，不替代fresh实例、任意控制流归纳或后端每轮receipt。
+前序普通frame整链还可向紧邻空while一次性交接，核真实condition前header、后base
+及normal pre-merge边的零binding/loan与完整外部义务保持；入口票据不能复用为
+body每轮闭合，仍不授予fresh借用准入。

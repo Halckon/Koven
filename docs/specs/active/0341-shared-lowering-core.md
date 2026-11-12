@@ -15689,3 +15689,41 @@ Clippy -D warnings及默认workspace all-targets全部通过，独立复审确�
 fmt/diff/docs912及尺寸门禁通过（相对2beb5592，2590手写Rust文件、36旧超限），
 policy未改。并行编译期间只读确认进程活跃和磁盘空间，不删缓存或中断其他工作。
 未执行CI-only故障、CG/native测试，未推送；完整语言准入与每轮回边证明仍未授予。
+
+## 前序普通闭合至真实零资源while header（实施中）
+
+本片不是循环内fresh借用或每轮闭合准入，而是前序普通frame已完整闭合后的真实
+零资源边界研究。只有同一真实父frame内紧邻的空body dynamic while，才能在入口
+一次性消费前序非空ordinary complete_closure；不将这张入口票据称为body回边票据。
+独占身份来自实际frame栈与checker/source域，不靠事后扫描两张公开观察凑证。
+
+真实header必须在原While分支origins.attach后、begin_loop与condition求值之前采集；
+condition后base另核相同义务与无binding/active loan，旧回边诊断后、merge前独立
+核唯一normal边保持，区间不能新增binding/End或诊断。首片仅Boolean参数Name和
+空body，拒常量/调用条件、break/continue/return、新声明与嵌套；空body不能冒充
+已经证明非空consumer或新acquisition。此前闭合只在入口消费一次，兄弟loop不得复用。
+
+后续必须另证：循环header没有本轮实例、body acquisition隶属真正loop frame、
+cleanup前完整闭合票据由实际回边唯一消费、false零迭代不建实例，以及独立CG
+每轮acquisition/End。当前L0164、旧产品、旧见证和尺寸策略均不改变。
+
+真实红：已具备实际ordinary frame闭合和Ready生产、但尚未接While header接点时，
+合法源码的names/types/ownership及capture产品对照先通过；新边界观察为0而预期1，
+普通断言失败，非编译错误。接入实际condition前header、condition后base和normal
+pre-merge取证后，新增3项普通测试与旧frame/consumer/carried共15项通过。
+15组源码执行75次zero capture与75次原产品对照，正控另10次真实frame完整闭合
+验证；覆盖票据单用与兄弟loop隔离、无前序闭合/非相邻/外层live lease/非空body/
+常量或调用条件/嵌套/跳转/fresh门禁负控。未将空body正控描述为每轮新借用。
+
+Unit原check_loop_backedge与check_maybe_loop完整迁入loop_control职责模块，保持
+调用时序；独立去空白逐token比对两方法与父提交相等。traversal从998降到887，
+checker为1358且在原额度内，policy不变。新增2组8项CI-only故障仅feature lib
+no-run编译通过，未执行，覆盖缺header、错父checker/session/checkpoint、缺condition、
+错loop身份、缺normal边及非法出口类别。独立静审通过实际父/源/session票据链、
+失败封闭和旧carried协议保持；各阶段只消费实际token，不接受公开观察拼接。
+
+最终十个普通定向target共250项全通过；FE feature all-targets Clippy -D warnings、
+默认workspace all-targets、fmt/diff/docs912全部通过。尺寸相对2beb5592通过
+（2596手写Rust文件、36历史超限），策略未改。独立最终复审还核CI故障仅cfg(test)、
+thread-local/RAII恢复及ignored边界；未执行故障或CG/native。仅本地交付，不推送，
+不宣称empty body证明了fresh acquire/End、非空body事务或任意动态迭代归纳。

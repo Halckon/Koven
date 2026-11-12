@@ -28,6 +28,8 @@ mod receiver;
 mod research;
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_consumer;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_zero;
 mod string;
 
 use crate::{
@@ -648,6 +650,8 @@ impl<'a> Checker<'a> {
                 let errors = self.diagnostics.len();
                 let mut state = state;
                 state.origins.attach(&self.callable_sources.arena);
+                #[cfg(any(test, feature = "loan-observation-test-support"))]
+                let _zero = self.research_zero_header(id, body, &state);
                 let headers = state.origins.begin_loop();
                 let condition = self.check_expression(condition, state, ExpressionUse::Read)?;
                 let mut flows = self.check_maybe_loop_with_headers(
