@@ -328,3 +328,55 @@ fn ci_only_chain_scalar_entries_reject_missing_or_wrong_source() {
         )));
     }
 }
+
+#[test]
+fn chain_ssa_members_transport_sparse_roots_and_retired_values() {
+    for sparse in [false, true] {
+        for suffix in [false, true] {
+            let source = chain_source(sparse, suffix);
+            let (result, actions) =
+                crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+            let (program, _) = result.unwrap();
+            crate::ssa::verify::verify_program(&program).unwrap();
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, n)| *kind == "control-chain-ssa-complete" && *n == 2)
+                    .count(),
+                1
+            );
+            assert!(
+                actions
+                    .iter()
+                    .all(|(kind, _)| *kind != "bridge-ssa-receipt-complete")
+            );
+            super::super::super::assert_native_output(&source, b"");
+        }
+    }
+}
+#[test]
+fn ci_only_chain_ssa_last_member_failure_revokes_group_receipt() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source = chain_source(true, true);
+    for fault in [
+        OwnerFault::ChainSsaMissingLastTerminator,
+        OwnerFault::ChainSsaLastDropNewGeneration,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-chain-ssa-fault-hit")
+                .count(),
+            1
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| *kind != "control-chain-ssa-complete")
+        );
+    }
+}

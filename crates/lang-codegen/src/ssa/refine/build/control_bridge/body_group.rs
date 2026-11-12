@@ -275,6 +275,36 @@ impl Builder<'_, '_> {
             let _ = index;
             self.check_control_counter_tail(sites, entry, blocks, &roots, scalar)?;
         }
+        let members = self
+            .control_chain_bodies
+            .as_ref()
+            .ok_or_else(fail)?
+            .members
+            .iter()
+            .map(|m| {
+                let (blocks, roots) = m.lowered.as_ref().ok_or_else(fail)?;
+                let arithmetic = m.evidence.checked_tail().2[1];
+                let mut edges = self
+                    .checked_edge_receipts
+                    .iter()
+                    .filter(|r| r.expression == arithmetic);
+                let edge = edges.next().ok_or_else(fail)?;
+                if edges.next().is_some() || edge.blocks[0] != blocks[1] {
+                    return Err(fail());
+                }
+                Ok(super::super::super::control_bridge_receipt::Member {
+                    control: m.evidence.control(),
+                    blocks: *blocks,
+                    checked: [edge.blocks[1], edge.blocks[2]],
+                    roots: roots.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        self.body.owner_bridge_plans =
+            super::super::super::control_bridge_receipt::Plans::seal_group(
+                members,
+                self.inputs.span,
+            )?;
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-tails-complete", count);
         #[cfg(test)]

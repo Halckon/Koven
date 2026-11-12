@@ -7,7 +7,7 @@ use crate::ssa::{
         BlockId, Edge, EntityId, Function, FunctionId, InstructionId, Operation, TerminatorKind,
     },
 };
-use lang_frontend::source::Span;
+use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn invalid(span: Span) -> LoweringError {
@@ -17,6 +17,7 @@ fn invalid(span: Span) -> LoweringError {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Plans {
     plan: Option<Plan>,
+    group: Vec<Member>,
 }
 #[derive(Clone, Debug)]
 struct Plan {
@@ -25,6 +26,19 @@ struct Plan {
     checked: [BlockRef; 2],
     sources: Vec<Slot>,
     targets: Vec<Slot>,
+}
+/// Already validated actual control geometry, not a concrete entry-owner catalog.
+#[derive(Clone, Debug)]
+pub(super) struct Member {
+    pub control: UnitStatementId,
+    pub blocks: [BlockRef; 4],
+    pub checked: [BlockRef; 2],
+    pub roots: Vec<Slot>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Role {
+    Legacy(usize),
+    Control(UnitStatementId),
 }
 impl Plans {
     pub(super) fn seal(
@@ -49,6 +63,7 @@ impl Plans {
             return Err(invalid(span));
         }
         Ok(Self {
+            group: Vec::new(),
             plan: Some(Plan {
                 prior,
                 next,
@@ -57,6 +72,51 @@ impl Plans {
                 targets,
             }),
         })
+    }
+    pub(super) fn seal_group(group: Vec<Member>, span: Span) -> Result<Self, LoweringError> {
+        if group.len() != 2
+            || group.iter().enumerate().any(|(i, m)| {
+                let blocks: Vec<_> = m.blocks.iter().chain(m.checked.iter()).copied().collect();
+                m.roots.len() < 2
+                    || m.roots.iter().collect::<BTreeSet<_>>().len() != m.roots.len()
+                    || blocks.iter().collect::<BTreeSet<_>>().len() != blocks.len()
+                    || group[..i].iter().any(|p| {
+                        p.control == m.control
+                            || p.control.source_unit() != m.control.source_unit()
+                            || p.blocks
+                                .iter()
+                                .chain(p.checked.iter())
+                                .any(|b| blocks.contains(b))
+                            || p.roots.iter().any(|r| m.roots.contains(r))
+                    })
+            })
+        {
+            return Err(invalid(span));
+        }
+        Ok(Self { plan: None, group })
+    }
+    fn active(&self) -> bool {
+        self.plan.is_some() || !self.group.is_empty()
+    }
+    fn roles(&self) -> Vec<(Role, [BlockRef; 4], &[Slot])> {
+        if let Some(p) = &self.plan {
+            vec![
+                (Role::Legacy(0), p.prior, &p.sources),
+                (Role::Legacy(1), p.next, &p.targets),
+            ]
+        } else {
+            self.group
+                .iter()
+                .map(|m| (Role::Control(m.control), m.blocks, m.roots.as_slice()))
+                .collect()
+        }
+    }
+    fn checked(&self) -> Vec<([BlockRef; 4], [BlockRef; 2])> {
+        if let Some(p) = &self.plan {
+            vec![(p.next, p.checked)]
+        } else {
+            self.group.iter().map(|m| (m.blocks, m.checked)).collect()
+        }
     }
     /// `successor` is folded into `block`, matching merge_straight_lines.
     pub(super) fn fold(
@@ -81,6 +141,13 @@ impl Plans {
                 }
             }
         }
+        for m in &mut self.group {
+            for b in m.blocks.iter_mut().chain(m.checked.iter_mut()) {
+                if *b == successor {
+                    *b = block;
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -95,7 +162,7 @@ pub(super) struct Emitted {
     instructions: BTreeMap<BlockRef, Vec<InstructionId>>,
     terms: BTreeMap<BlockRef, TerminatorKind>,
     drops: BTreeMap<InstructionId, (BlockRef, EntityId)>,
-    replacements: BTreeMap<(usize, usize), (InstructionId, Operation, Vec<EntityId>)>,
+    replacements: BTreeMap<(Role, usize), (InstructionId, Operation, Vec<EntityId>)>,
 }
 impl Emitted {
     pub(super) fn new() -> Self {
@@ -110,9 +177,10 @@ impl Emitted {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &body.owner_bridge_plans.plan else {
+        let plans = &body.owner_bridge_plans;
+        if !plans.active() {
             return Ok(());
-        };
+        }
         if self.caller.is_some() {
             return Err(invalid(span));
         }
@@ -142,26 +210,26 @@ impl Emitted {
                     .clone(),
             );
         }
-        for block in p.prior.iter().chain(p.next.iter()).chain(p.checked.iter()) {
-            if !blocks.contains_key(block) {
+        for (_, geometry, roots) in plans.roles() {
+            if geometry.iter().any(|b| !blocks.contains_key(b))
+                || roots.iter().any(|s| !parameters[&geometry[0]].contains(s))
+            {
                 return Err(invalid(span));
             }
         }
-        // The admitted checked normal predecessor is success, never abort.
+        // Normal success must return to its own header; abort is not a backedge.
         let term = |b: BlockRef| {
             body.blocks
                 .get(b.0)
                 .and_then(|b| b.terminator.as_ref())
                 .map(|(t, _)| t)
         };
-        if !matches!(term(p.next[1]), Some(RTerm::Branch { when_true, when_false, .. }) if *when_true == p.checked[1] && *when_false == p.checked[0])
-            || !matches!(term(p.checked[0]), Some(RTerm::Goto(b)) if *b == p.next[0])
-            || !matches!(term(p.checked[1]), Some(RTerm::Abort(_)))
-        {
-            return Err(invalid(span));
-        }
-        for (header, roots) in [(p.prior[0], &p.sources), (p.next[0], &p.targets)] {
-            if roots.iter().any(|s| !parameters[&header].contains(s)) {
+        for (geometry, checked) in plans.checked() {
+            if checked.iter().any(|b| !blocks.contains_key(b))
+                || !matches!(term(geometry[1]), Some(RTerm::Branch { when_true, when_false, .. }) if *when_true == checked[1] && *when_false == checked[0])
+                || !matches!(term(checked[0]), Some(RTerm::Goto(b)) if *b == geometry[0])
+                || !matches!(term(checked[1]), Some(RTerm::Abort(_)))
+            {
                 return Err(invalid(span));
             }
         }
@@ -178,9 +246,10 @@ impl Emitted {
         span: Span,
     ) -> Result<(), LoweringError> {
         let (block, index) = position;
-        let Some(p) = &body.owner_bridge_plans.plan else {
+        let plans = &body.owner_bridge_plans;
+        if !plans.active() {
             return Ok(());
-        };
+        }
         if self.caller != Some(function.id())
             || self.positions.get(&block) != Some(&index)
             || self.terms.contains_key(&block)
@@ -222,13 +291,12 @@ impl Emitted {
                 replacement,
             } = stmt.op
             {
-                let role = if block == p.prior[1] {
-                    Some((0, &p.sources))
-                } else if block == p.next[1] {
-                    Some((1, &p.targets))
-                } else {
-                    None
-                };
+                let roles = plans.roles();
+                let mut matching = roles.iter().filter(|(_, geometry, _)| geometry[1] == block);
+                let role = matching.next().map(|(role, _, roots)| (*role, *roots));
+                if matching.next().is_some() {
+                    return Err(invalid(span));
+                }
                 if let Some((side, roots)) = role
                     && let Some(root) = roots.iter().position(|s| *s == owner)
                 {
@@ -321,18 +389,18 @@ impl Emitted {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(plan) = &plans.plan else {
+        if !plans.active() {
             return Ok(());
-        };
+        }
         #[cfg(test)]
-        {
+        if let Some(plan) = &plans.plan {
             use super::build::owner_consumer_test_support::{
                 OwnerFault, record_action, take_fault,
             };
             if block == plan.next[1] && take_fault(OwnerFault::BridgeSsaDropNewGeneration) {
                 let (_, _, results) = self
                     .replacements
-                    .get(&(1, 0))
+                    .get(&(Role::Legacy(1), 0))
                     .ok_or_else(|| invalid(span))?;
                 let EntityId::Value(new_owner) = results[0] else {
                     return Err(invalid(span));
@@ -419,7 +487,41 @@ impl Emitted {
                     });
             }
         }
-        let _ = plan;
+        #[cfg(test)]
+        if let Some(last) = plans.group.last()
+            && block == last.blocks[1]
+        {
+            use super::build::owner_consumer_test_support::{
+                OwnerFault, record_action, take_fault,
+            };
+            if take_fault(OwnerFault::ChainSsaMissingLastTerminator) {
+                record_action("control-chain-ssa-fault-hit", 0);
+                return Ok(());
+            }
+            if take_fault(OwnerFault::ChainSsaLastDropNewGeneration) {
+                let (_, _, results) = self
+                    .replacements
+                    .get(&(Role::Control(last.control), 0))
+                    .ok_or_else(|| invalid(span))?;
+                let EntityId::Value(new_owner) = results[0] else {
+                    return Err(invalid(span));
+                };
+                let retired = results[1];
+                let id = *self
+                    .drops
+                    .iter()
+                    .find(|(_, (b, v))| *b == block && *v == retired)
+                    .map(|(id, _)| id)
+                    .ok_or_else(|| invalid(span))?;
+                function
+                    .instructions
+                    .iter_mut()
+                    .find(|i| i.id == id)
+                    .ok_or_else(|| invalid(span))?
+                    .operation = Operation::Drop { owner: new_owner };
+                record_action("control-chain-ssa-fault-hit", 1);
+            }
+        }
         let original = body.blocks.get(block.0).ok_or_else(|| invalid(span))?;
         if self.caller != Some(function.id())
             || self.current.get(&block) != Some(current)
@@ -491,12 +593,14 @@ impl Emitted {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &plans.plan else {
+        if !plans.active() {
             return Ok(());
-        };
+        }
+        let roles = plans.roles();
         if self.caller != Some(function.id())
             || self.terms.len() != self.blocks.len()
-            || self.replacements.len() != p.sources.len() * 2
+            || self.replacements.len()
+                != roles.iter().map(|(_, _, roots)| roots.len()).sum::<usize>()
         {
             return Err(invalid(span));
         }
@@ -519,7 +623,11 @@ impl Emitted {
         // header-carried root. Require its actual same-body consumption once.
         for ((side, _), (_, _, results)) in &self.replacements {
             let retired = results.get(1).ok_or_else(|| invalid(span))?;
-            let block = if *side == 0 { p.prior[1] } else { p.next[1] };
+            let block = roles
+                .iter()
+                .find(|(role, _, _)| role == side)
+                .map(|(_, geometry, _)| geometry[1])
+                .ok_or_else(|| invalid(span))?;
             if self
                 .drops
                 .values()
@@ -547,10 +655,17 @@ impl Emitted {
             }
         }
         #[cfg(test)]
-        super::build::owner_consumer_test_support::record_action(
-            "bridge-ssa-receipt-complete",
-            p.sources.len(),
-        );
+        if let Some(p) = &plans.plan {
+            super::build::owner_consumer_test_support::record_action(
+                "bridge-ssa-receipt-complete",
+                p.sources.len(),
+            );
+        } else {
+            super::build::owner_consumer_test_support::record_action(
+                "control-chain-ssa-complete",
+                plans.group.len(),
+            );
+        }
         Ok(())
     }
 }
