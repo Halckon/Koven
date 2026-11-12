@@ -28,6 +28,8 @@ mod places;
 mod range_construction;
 mod rc;
 mod receiver;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research;
 mod scope_escape;
 use receiver::ReceiverContext;
 mod short_circuit;

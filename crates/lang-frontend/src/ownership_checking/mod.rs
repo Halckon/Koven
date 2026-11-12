@@ -194,3 +194,11 @@ mod research_borrow_frame;
 pub use research_borrow_frame::{
     BorrowFrameChecker, BorrowFrameObservation, capture_borrow_frames,
 };
+
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_loop;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+#[doc(hidden)]
+pub use research_borrow_loop::{
+    BorrowLoopEdgeKind, BorrowLoopEdgeObservation, capture_borrow_loop_edges,
+};

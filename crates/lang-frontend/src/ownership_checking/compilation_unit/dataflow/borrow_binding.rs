@@ -319,65 +319,15 @@ impl Checker<'_> {
         let locals = self.scope_locals(elements)?;
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let frame = if crate::ownership_checking::research_borrow_frame::is_capturing() {
-            let mut snapshot = state.clone();
-            // Empty closure-result caches contain no captured environment obligations.
-            snapshot
-                .closure_results
-                .retain(|_, origins| !origins.is_empty());
-            let mut empty_origins = Default::default();
-            // This only constructs the comparison anchor; it does not alter actual state.
-            crate::ownership_checking::callable_provenance::graph::OriginState::attach(
-                &mut empty_origins,
-                &self.callable_sources.arena,
-            );
-            let simple = snapshot.origins == empty_origins
-                && snapshot.closure_results.is_empty()
-                && snapshot.replacements.is_empty()
-                && snapshot.closures.is_empty()
-                && snapshot.closure_captures.is_empty()
-                && snapshot.immutable_captures.is_empty()
-                && snapshot.pending_closure_calls.is_empty();
+            let snapshot = self.research_resource_snapshot(&state);
+            let simple = self.research_simple_resources(&snapshot);
             crate::ownership_checking::research_borrow_frame::begin(
                 crate::ownership_checking::research_borrow_frame::BorrowFrameChecker::Unit,
                 self.parsed,
                 scope,
                 &snapshot,
                 simple,
-                |call, initializer| {
-                    let Some(typed) = self.typed.call(self.unit_expression(call)) else {
-                        return false;
-                    };
-                    let Ok(node) = self.parsed.ast().expressions().get(call) else {
-                        return false;
-                    };
-                    let Expression::Call { arguments, .. } = node.payload() else {
-                        return false;
-                    };
-                    let expected_return = if initializer {
-                        crate::type_checking::BuiltinType::String
-                    } else {
-                        crate::type_checking::BuiltinType::Unit
-                    };
-                    typed.receiver().is_none()
-                        && !typed.aborts()
-                        && typed.borrow_return().is_some() == initializer
-                        && self.typed.types().get(typed.return_type())
-                            == Some(&crate::type_checking::UnitTypeKind::Builtin(
-                                expected_return,
-                            ))
-                        && matches!(
-                            typed.target(),
-                            crate::type_checking::UnitCallTarget::Declaration(_)
-                        )
-                        && arguments.iter().all(|arg| {
-                            self.typed
-                                .expression_type(self.unit_expression(arg.value))
-                                .and_then(|ty| self.typed.types().get(ty))
-                                == Some(&crate::type_checking::UnitTypeKind::Builtin(
-                                    crate::type_checking::BuiltinType::String,
-                                ))
-                        })
-                },
+                |call, initializer| self.research_direct_string_call(call, initializer),
             )
         } else {
             None
@@ -403,11 +353,10 @@ impl Checker<'_> {
                     )
                 })
                 .collect::<Vec<_>>();
-            let mut exit = flows.next.clone();
-            if let Some(exit) = &mut exit {
-                exit.closure_results
-                    .retain(|_, origins| !origins.is_empty());
-            }
+            let exit = flows
+                .next
+                .as_ref()
+                .map(|state| self.research_resource_snapshot(state));
             crate::ownership_checking::research_borrow_frame::finish(
                 frame,
                 exit.as_ref(),

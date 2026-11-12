@@ -24,6 +24,8 @@ mod ownership_primitive;
 mod range_construction;
 mod rc;
 mod receiver;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research;
 mod string;
 
 use crate::{
@@ -646,8 +648,13 @@ impl<'a> Checker<'a> {
                 state.origins.attach(&self.callable_sources.arena);
                 let headers = state.origins.begin_loop();
                 let condition = self.check_expression(condition, state, ExpressionUse::Read)?;
-                let mut flows =
-                    self.check_maybe_loop_with_headers(condition, body, errors, &headers)?;
+                let mut flows = self.check_maybe_loop_with_headers(
+                    condition,
+                    body,
+                    errors,
+                    &headers,
+                    Some(id),
+                )?;
                 self.release_dead_loop_closures(id, &mut flows);
                 Ok(flows)
             }
@@ -704,39 +711,6 @@ impl<'a> Checker<'a> {
             flows.merge(checked);
         }
         Ok(flows)
-    }
-
-    fn check_maybe_loop_with_headers(
-        &mut self,
-        mut prefix: Flows,
-        body: StatementId,
-        errors: usize,
-        headers: &[(SymbolId, super::callable_provenance::graph::NodeId)],
-    ) -> Result<Flows, OwnershipCheckingError> {
-        let Some(base) = prefix.next.take() else {
-            return Ok(prefix);
-        };
-        let body_id = body;
-        let body = self.check_statement(body, base.clone())?;
-        if self.diagnostics.len() == errors {
-            self.check_loop_backedge(body_id, &body)?;
-        }
-        let origins = base.origins.loop_exit(
-            headers,
-            body.next.as_ref().map(|state| &state.origins),
-            body.continues.as_ref().map(|state| &state.origins),
-            body.breaks.as_ref().map(|state| &state.origins),
-        );
-        let mut next = base;
-        for state in [body.next, body.breaks, body.continues]
-            .into_iter()
-            .flatten()
-        {
-            merge_state(&mut next, state);
-        }
-        next.origins = origins;
-        prefix.next = Some(next);
-        Ok(prefix)
     }
 
     fn check_expression_inner(

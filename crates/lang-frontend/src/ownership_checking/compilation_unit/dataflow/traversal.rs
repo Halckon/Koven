@@ -466,12 +466,16 @@ impl Checker<'_> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
         };
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        let research = self.research_loop_start(Some(repeated), body, &base);
         let body_id = body;
         let body = self.check_statement(body, base.clone())?;
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, repeated, &body)?;
             self.check_loop_capture_transport(repeated, body_id, &base, &body)?;
         }
+        #[cfg(any(test, feature = "loan-observation-test-support"))]
+        self.research_loop_finish(research, &body);
         if !can_skip {
             for state in [&body.next, &body.continues].into_iter().flatten() {
                 state.origins.backedge(headers);

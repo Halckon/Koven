@@ -185,3 +185,8 @@ no-carry研究对照分别运行file-local与compilation-unit两套checker；普
 限定直接Name/String借用initializer与Unit消费者、无复杂捕获入口。End后合法
 move源仍保持原执行，但不获恢复认证；未capture不复制状态，默认产品无此资格。
 这只是普通scope的安全基础，循环实例、回边和CG每轮receipt仍未接入。
+
+已有非空外层carried loan另有test-support回边观察：条件后body-entry至合流前
+normal/尾continue分别核完整资源投影保持，break单列退出且不认证。仅动态Boolean
+参数及无声明/嵌套/分支的直线Unit消费者；支持多个既有来源但不形成fresh循环实例。
+观察无副作用，不替代逐consumer return、任意控制流归纳或后端每轮receipt。

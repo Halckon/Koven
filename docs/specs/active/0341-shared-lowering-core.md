@@ -15585,3 +15585,35 @@ State的丢弃owned临时量清理混入首片；initializer仍限String借用�
 （2579手写Rust文件、36项历史超限，policy不改）。未执行CI-only故障或CG/native
 运行测试，本片无CG改动；默认配置及显式feature的编译路径均已核。未推送，
 本片不是循环backedge证明，也未退休旧见证。
+
+## 已有外层借用的真实回边义务观察（实施中）
+
+本片沿既有循环研究授权，不改变Guide、L0164或默认检查器算法。两套checker在
+condition之后取得实际base，body检查和旧回边诊断完成后、任何origin图回连及
+merge_state之前，分别观察normal/continue/break。base不是条件前状态，故不声称
+条件求值保持；body已过scope restore，故仅允许无声明、无嵌套、无条件分支的
+非空直线Unit消费者，可末尾唯一continue或break，绝不据清理后状态证明fresh实例。
+
+入口要求非空真实carried binding及其place/nonowning/对应loan，观察区间不得新增
+binding或End。normal和continue按真实边类别分别核入口义务投影保持；break只记录
+退出，不得作为重复边认证，return不凭缺失状态补证。动态非常量Boolean参数Name为首片条件
+边界，常量条件两checker可达性不同而不纳入。现有普通Block frame与CG循环图证据
+仍各守独立边界；本片不是任意分支逐路径证明，也不是循环内每轮acquire/End。
+
+共享frame快照/直接调用资格归入两checker私有research适配模块；single循环流helper
+整体归control，与旧backedge诊断相邻，执行顺序不变，checker.rs降至1352行。
+Unit dataflow.rs只新增受cfg保护模块注册，仍在原额度内；尺寸policy不改。
+
+首次编译两处Option<UnitSymbolId>误用copied已修，此不计行为红。随后真实双checker
+正控指出Unit无观察而single已通过：误把仅lambda参数事实body_parameter_mode用于
+普通具名函数。已改为真实callable参数binding目录与source-qualified名称解析ValueParameter
+身份相交，不放宽成任意Name。local Boolean名、常量条件仍不给研究资格。
+
+最终新增4项普通研究测试通过：18组源码分别执行single及unit双布局/观察开关，
+共90次capture与90次未capture产品对照，涵盖1/3消费者、normal/continue/break、
+return/条件跳转、空入口/fresh门禁/嵌套/局部名/常量，以及双既有来源、兄弟循环
+不同票据。消费者实参均Borrow/非跨线程且引用现存binding，不声明独立逐call return
+证据或动态任意迭代证明。新旧相关普通测试共241项通过（含for/while 219项），
+frontend feature all-targets Clippy -D warnings、默认workspace all-targets、fmt/diff、
+docs912及尺寸门禁通过（2583手写Rust文件、36旧超限），独立最终复审通过。
+未运行CG/native和CI-only故障；仅本地提交未推送，L0164与旧见证完整保留。
