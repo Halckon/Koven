@@ -403,7 +403,7 @@ mod control {
         crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(g, &types, &proven)
     }
 }
-mod factory;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::lower_frontend_tests::owned_source_return_tests::native::factory as factory;
 mod provider {
     //! The hidden returned owner keeps exact three-column identity through every loop edge.
     use super::*;

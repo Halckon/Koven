@@ -341,7 +341,7 @@ mod query_test {
 }
 pub(in crate::ssa) mod resource;
 pub(in crate::ssa) mod resource_forms;
-mod scope_future_observer;
+pub(in crate::ssa) mod scope_future_observer;
 pub(crate) use scope_future_observer::cases as scope_future_sources;
 mod sequential;
 mod source_forms;
@@ -706,7 +706,7 @@ mod temporary_delivery_boundaries {
     }
 }
 pub(in crate::ssa) mod temporary_exits;
-mod temporary_forms;
+pub(in crate::ssa) mod temporary_forms;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
@@ -902,11 +902,11 @@ fn map_and_mutable_map_unconditional_exits_reach_verified_llvm() {
     );
 }
 
-mod local_exits;
+pub(in crate::ssa) mod local_exits;
 
 pub(crate) use local_exits::sources as local_exits_sources;
 
-mod local_resources;
+pub(in crate::ssa) mod local_resources;
 pub(crate) use local_resources::sources as local_resource_sources;
 
 pub(in crate::ssa) mod local_future;
@@ -931,16 +931,16 @@ pub(crate) use local_reassignment::completed_epoch_sources as local_completed_ep
 pub(crate) use local_exits::alias_rebound_source as local_alias_rebound_source;
 pub(crate) use local_exits::alternate_sources as alternate_local_sources;
 
-mod births;
+pub(in crate::ssa) mod births;
 pub(crate) use births::{Kind as MapBirthKind, sources as map_birth_sources};
 
 pub(in crate::ssa) mod scope_lowering;
 pub(crate) use scope_lowering::sources as scope_a1_sources;
 
-mod scope_lambda_body;
+pub(in crate::ssa) mod scope_lambda_body;
 pub(crate) use scope_lambda_body::sources as scope_a2_sources;
 
-mod scope_member_parameter;
+pub(in crate::ssa) mod scope_member_parameter;
 pub(in crate::ssa) mod scope_value_births;
 pub(crate) use scope_member_parameter::sources as scope_member_parameter_sources;
 pub(crate) use scope_value_births::int_storage_sources as scope_int_storage_sources;

@@ -1,5 +1,5 @@
 //! Independent future-use identity and pure-owner ASAP checks over reachable SSA.
-mod continuation;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::scope_member_parameter::graph::continuation as continuation;
 use super::Case;
 use crate::ssa::{
     map_provider_exits_pipeline_tests::{

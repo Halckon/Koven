@@ -1,5 +1,5 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-mod cleanup_tests;
+pub(in crate::ssa) mod cleanup_tests;
 pub(in crate::ssa) mod determinism_tests;
 mod provider_lifetime_tests {
     use super::super::{
@@ -130,7 +130,7 @@ mod provider_lifetime_tests {
         );
     }
 }
-mod source_cfg_tests;
+pub(in crate::ssa) mod source_cfg_tests;
 mod unit_storage_boundary_tests {
     //! Unit storage never erases the SSA operation's concrete type contract.
 

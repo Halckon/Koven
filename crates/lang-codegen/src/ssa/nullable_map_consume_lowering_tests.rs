@@ -16,7 +16,7 @@ use lang_frontend::{
 use super::model::{FunctionId, Program};
 use sources::{CASES, Case};
 
-mod consume_identity;
+pub(in crate::ssa) mod consume_identity;
 mod read_cross_join {
     //! B3 first observation: the original nullable owner remains live after its If.
     //! This independent source does not change the frozen A/B/C source partitions.

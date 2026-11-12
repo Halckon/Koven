@@ -2,7 +2,7 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
-mod graph;
+pub(in crate::ssa) mod graph;
 mod sources {
     //! Fixed source matrix; each case executes a populated and a truly empty local producer.
     pub(crate) struct Case {

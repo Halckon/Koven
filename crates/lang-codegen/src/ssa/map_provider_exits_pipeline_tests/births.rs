@@ -300,7 +300,7 @@ pub(super) mod ast {
         })
     }
 }
-mod facts;
+pub(in crate::ssa) mod facts;
 pub(super) mod graph;
 mod sources {
     //! Frozen actual attribution inputs; Single FunctionValue stays a separate 0336 goal.

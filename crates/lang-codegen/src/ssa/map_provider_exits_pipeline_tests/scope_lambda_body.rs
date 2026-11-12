@@ -559,7 +559,7 @@ pub(super) mod facts {
 
     pub(super) use unit::check as unit;
 }
-pub(super) mod graph;
+pub(in crate::ssa) mod graph;
 mod sources {
     //! P15 keeps the original no-capture Unit callback and its internal Map local.
     pub(crate) struct Case {

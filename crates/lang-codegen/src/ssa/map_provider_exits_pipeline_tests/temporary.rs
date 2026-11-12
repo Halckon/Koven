@@ -2,7 +2,7 @@
 //! 每份 entry 有两个真实 For；golden 仅留给后续独立准入的 native，不是执行结果。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 #[allow(unused_imports)] pub(in crate::ssa) use query_ssa::ast;
-mod unit;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::borrow_alias_observer::facts::unit_9 as unit;
 
 use super::{
     Report,

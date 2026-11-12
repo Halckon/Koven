@@ -846,7 +846,7 @@ mod sources {
         },
     ];
 }
-mod syntax;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::births::facts::syntax as syntax;
 
 fn collect(with_formed_queries: bool) -> Vec<Observation> {
     let mut observations = Vec::new();

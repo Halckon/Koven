@@ -413,7 +413,7 @@ mod llvm {
         )
     }
 }
-mod source;
+pub(in crate::ssa) mod source;
 mod unit;
 
 pub(super) use unit::facts as unit_facts;

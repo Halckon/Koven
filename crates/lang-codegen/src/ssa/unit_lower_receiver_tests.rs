@@ -706,7 +706,7 @@ mod delegation {
         render_verified_program(&program).expect("delegation loan chain must lower to LLVM");
     }
 }
-mod inout_fields;
+pub(in crate::ssa) mod inout_fields;
 mod inout_inline;
 mod interface;
 mod representation {

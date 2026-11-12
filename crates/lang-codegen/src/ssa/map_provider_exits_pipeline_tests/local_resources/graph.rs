@@ -1,5 +1,5 @@
 //! Independent SSA proof for factory-formed Resource locals and their lexical cleanup.
-mod provider;
+pub(in crate::ssa) mod provider;
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod storage {
     //! Representation is queried from the actual factory result, not from source type spelling.
     use super::*;

@@ -116,7 +116,7 @@ mod guards {
     }
 }
 pub(in crate::ssa) mod query_body;
-mod query_callers;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::scope_lambda_body::graph::query_callers as query_callers;
 mod query_graph {
     //! Nested-only role witness, beside the unchanged generic read-only graph helper.
     use super::super::{

@@ -170,8 +170,7 @@ fn reachable_body_only_string_type_preserves_owner_drop() {
 }
 
 // Stage A only: legacy whole-file/shared-instance witnesses remain unchanged.
-#[path = "unit_legacy_instance_witness_tests.rs"]
-mod legacy_instance_witnesses;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::resource::continuation::legacy_instance_witnesses as legacy_instance_witnesses;
 
 mod registration_tests {
     //! CI-only mapper contract after the complete unit planner; Resource never bypasses admission.

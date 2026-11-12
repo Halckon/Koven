@@ -1,6 +1,5 @@
 //! Unit 原始退出表；旧 owner/condition/phi 行为由同轮 SSA 全列和完整库存证明。
-#[path = "query_cleanup_unit.rs"]
-mod unit_cleanup;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_exits::boundaries::inlined_unit_cleanup_1 as unit_cleanup;
 use super::{Failure, failure, need, one};
 pub(super) use unit_cleanup::{caller as unit_caller, check as unit};
 

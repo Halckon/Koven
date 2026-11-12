@@ -880,5 +880,4 @@ fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError>
 }
 
 #[cfg(test)]
-#[path = "unit_lower_deinit_tests.rs"]
-mod deinit_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_future::graph::continuation::deinit_tests as deinit_tests;

@@ -696,7 +696,7 @@ mod facts {
         })
     }
 }
-mod graph;
+pub(in crate::ssa) mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure, need},

@@ -702,7 +702,7 @@ fn owned_source_return_unit_mutable_list_own_live_constant() {
 }
 
 #[path = "lower_frontend_owned_source_return_native_tests.rs"]
-mod native;
+pub(in crate::ssa) mod native;
 
 mod boundaries {
     //! Ordinary-source boundaries kept separate from the core acceptance matrix.

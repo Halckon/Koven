@@ -1,7 +1,7 @@
 //! Real local formation and Move sources; red observations precede capability changes.
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
-mod boundaries;
+pub(in crate::ssa) mod boundaries;
 pub(super) use boundaries::formation;
 pub(crate) use boundaries::{alias_rebound_source, sources as alternate_sources};
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;

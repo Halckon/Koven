@@ -229,7 +229,7 @@ mod capture_proof_tests {
         );
     }
 }
-mod transport;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::sequential_for_lowering_tests::cleanup_tests::transport as transport;
 
 use lang_frontend::source::SourceMap;
 

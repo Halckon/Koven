@@ -1,5 +1,5 @@
 //! Independent SSA epoch identities, assignment ordering and finite-path cleanup.
-mod provider;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::unit_lower_closure_tests::direct_prefix::provider_7 as provider;
 mod storage {
     //! Actual returned map and payload ABI; empty producers are proved from SSA construction.
     use super::*;

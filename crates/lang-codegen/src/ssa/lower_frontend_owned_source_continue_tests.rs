@@ -1,6 +1,5 @@
 //! SPEC-0312: real ordinary source, no Map and no synthetic facts.
-#[path = "lower_frontend_owned_source_structure_tests.rs"]
-mod structure;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_exits::boundaries::structure as structure;
 use super::owned_source_return_tests::unit_contract::{self, Control, Expected};
 use super::{analyze, lower_scalar_file};
 use lang_frontend::{

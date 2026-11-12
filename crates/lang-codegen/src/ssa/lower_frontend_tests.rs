@@ -271,7 +271,7 @@ pub(in crate::ssa) mod boxed_signature_storage_tests;
 pub(in crate::ssa) mod map_result_tests;
 
 #[path = "lower_frontend_resource_deinit_tests.rs"]
-mod resource_deinit_tests;
+pub(in crate::ssa) mod resource_deinit_tests;
 
 #[allow(unused_imports)] pub(in crate::ssa) use map_result_tests::return_control_tests;
 
@@ -977,4 +977,4 @@ mod field_replace_tests;
 mod owned_source_continue_tests;
 
 #[path = "lower_frontend_owned_source_return_tests.rs"]
-mod owned_source_return_tests;
+pub(in crate::ssa) mod owned_source_return_tests;

@@ -264,7 +264,7 @@ mod facts {
         }
     }
 }
-mod fixture;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::sequential_for_lowering_tests::source_cfg_tests::fixture_6 as fixture;
 mod group;
 mod roots {
     //! 同一 sealed view 逐真实声明 lower；结果逐根验证，不拼接 Program 或重跑 frontend。

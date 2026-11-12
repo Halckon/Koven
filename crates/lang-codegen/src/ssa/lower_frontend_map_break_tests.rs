@@ -1,5 +1,4 @@
-#[path = "lower_frontend_map_break_structure_tests.rs"]
-mod structure;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::temporary_forms::graph::structure as structure;
 // Original conditional break source, admitted through the same Unit analysis.
 use super::unit_iteration::{Control, assert_facts};
 

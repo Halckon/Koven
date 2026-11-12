@@ -1,7 +1,7 @@
 //! Newly rebuilt finite Map<String, Resource> normal-exhaustion pipelines.
 //! Resource values remain container-owned; the loop creates Shared component loans.
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-pub(super) mod continuation;
+pub(in crate::ssa) mod continuation;
 pub(super) mod continued {
     //! Resource continue retains provider/source and lexical owner across every backedge.
     use super::continuation::{Case, sources as continuations};

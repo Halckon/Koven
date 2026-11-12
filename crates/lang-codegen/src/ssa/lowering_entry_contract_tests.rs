@@ -286,7 +286,7 @@ mod products {
     }
 }
 #[allow(unused_imports)] pub(in crate::ssa) use carry_join::receiver;
-mod temporary_alias;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::refine_subset_tests::temporary_sequential_for::temporary_alias as temporary_alias;
 
 use lang_frontend::{
     parser::ParsedFile,

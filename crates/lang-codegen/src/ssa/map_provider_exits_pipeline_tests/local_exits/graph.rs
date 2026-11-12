@@ -1,5 +1,5 @@
 //! Actual local producer identities and all normal exit cleanup, without fabricated Move ops.
-mod provider;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::scope_future_observer::graph::provider::provider_16 as provider;
 use super::Case;
 use crate::ssa::{
     map_provider_exits_pipeline_tests::{

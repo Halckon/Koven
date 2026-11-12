@@ -18,9 +18,9 @@ pub(crate) use refine::{
 #[cfg(test)]
 #[allow(unused_imports)] pub(in crate::ssa) use nullable_map_consume_fixture_tests::refine_string_when_tests;
 #[cfg(test)]
-mod refine_subset_tests;
+pub(in crate::ssa) mod refine_subset_tests;
 #[cfg(test)]
-mod refine_tests;
+pub(in crate::ssa) mod refine_tests;
 #[cfg(test)]
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 #[cfg(test)]
@@ -98,7 +98,7 @@ pub(in crate::ssa) mod unit_lower_assignment_tests;
 #[cfg(test)]
 mod unit_lower_borrow_tests;
 #[cfg(test)]
-mod unit_lower_closure_tests;
+pub(in crate::ssa) mod unit_lower_closure_tests;
 #[cfg(test)]
 #[allow(unused_imports)] pub(in crate::ssa) use owned_map_borrow_tests::unit_lower_container_element_tests;
 #[cfg(test)]
@@ -114,7 +114,7 @@ mod unit_lower_loop_tests;
 #[cfg(test)]
 mod unit_lower_rc_tests;
 #[cfg(test)]
-mod unit_lower_receiver_tests;
+pub(in crate::ssa) mod unit_lower_receiver_tests;
 #[cfg(test)]
 mod unit_lower_scalar_tests;
 #[cfg(test)]
@@ -160,7 +160,7 @@ mod verify_scalar_tests;
 pub(in crate::ssa) mod lower_frontend_tests;
 
 #[cfg(test)]
-mod lower_frontend_scalar_abi_unit_comparison_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::unit_lower_receiver_tests::inout_fields::lower_frontend_scalar_abi_unit_comparison_tests as lower_frontend_scalar_abi_unit_comparison_tests;
 
 #[cfg(test)]
 mod lower_frontend_cfg_ownership_unit_comparison_tests;
@@ -194,7 +194,7 @@ mod string_operation_tests;
 #[allow(unused_imports)] pub(in crate::ssa) use bitwise_lowering_tests::char_constant_tests;
 
 #[cfg(test)]
-mod sequential_for_lowering_tests;
+pub(in crate::ssa) mod sequential_for_lowering_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod unit_constant_tests;
 
