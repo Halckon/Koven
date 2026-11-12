@@ -25,7 +25,7 @@
 2. `ssa/render/types.rs`（222 行）：仅向 `ssa/render.rs` 暴露 SSA 类型渲染辅助，完全可收敛入 `ssa/verify_types.rs` 的内联 `render_types` 子模块。
 3. `ssa/verify_ownership/map.rs`（372 行）：仅向 `ssa/verify_ownership.rs` 暴露 `verify_map_ownership` 与 `reborrow` 子模块，完全可收敛入 `ssa/verify_ownership/aliases.rs`。
 4. `ssa/lower_frontend/map_iteration/local_runtime.rs`（549 行）：仅向 `map_iteration` 与 `lower_frontend` 暴露局部 Map 迭代载体与双选择器条件校验，可收敛入 `ssa/lower_frontend/nullable_if_cleanup.rs`。
-5. `ssa/provider.rs`（450 行）：仅提供顺序 provider 的固定 SSA 构造辅助，可收敛入 `ssa/unit_lower/borrow_result.rs` 的内联 `provider` 子模块并由 `ssa/mod.rs` 统一重导出。
+5. `ssa/unit_lower/borrow_result.rs`（540 行）：仅向 `unit_lower` 暴露借用结果声明与绑定校验，可收敛入 `ssa/provider.rs` 的内联 `borrow_result` 子模块。
 6. `ssa/refine/build/owner_consumer/replacement.rs`（455 行）：仅向 `ssa/refine/build/owner_consumer.rs` 暴露 `ReturnReplacementPlan` 及相关 `Builder` 方法，可收敛入 `ssa/refine/build/scalar_text.rs`。
 7. `ssa/refine/subset/inout.rs`（470 行）：仅为 `refine/subset::Checker` 提供 `Inout` 与所有权原语准入方法，可与 `ssa/refine/subset/heap.rs` 合并。
 8. `ssa/lower_frontend/outer_borrowed_while/provider.rs`（519 行）：仅向 `outer_borrowed_while` 暴露外层借用 `for` 与内层可空 `while` 的 provider 形状与回边证明，可收敛入 `ssa/lower_frontend/non_null_proof.rs`。
@@ -40,7 +40,7 @@
 2. 退役 `crates/lang-codegen/src/ssa/render/types.rs`，将其内联至 `crates/lang-codegen/src/ssa/verify_types.rs`。
 3. 退役 `crates/lang-codegen/src/ssa/verify_ownership/map.rs`，将其内联至 `crates/lang-codegen/src/ssa/verify_ownership/aliases.rs`。
 4. 退役 `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/local_runtime.rs`，将其内联至 `crates/lang-codegen/src/ssa/lower_frontend/nullable_if_cleanup.rs`。
-5. 退役 `crates/lang-codegen/src/ssa/provider.rs`，将其内联至 `crates/lang-codegen/src/ssa/unit_lower/borrow_result.rs`。
+5. 退役 `crates/lang-codegen/src/ssa/unit_lower/borrow_result.rs`，将其内联至 `crates/lang-codegen/src/ssa/provider.rs`。
 6. 退役 `crates/lang-codegen/src/ssa/refine/build/owner_consumer/replacement.rs`，将其内联至 `crates/lang-codegen/src/ssa/refine/build/scalar_text.rs`。
 7. 退役 `crates/lang-codegen/src/ssa/refine/subset/inout.rs`，将其内联至 `crates/lang-codegen/src/ssa/refine/subset/heap.rs`。
 8. 退役 `crates/lang-codegen/src/ssa/lower_frontend/outer_borrowed_while/provider.rs`，将其内联至 `crates/lang-codegen/src/ssa/lower_frontend/non_null_proof.rs`。
@@ -62,7 +62,7 @@
 | `crates/lang-codegen/src/ssa/render/types.rs` | `crates/lang-codegen/src/ssa/verify_types.rs` | < 1000 行 |
 | `crates/lang-codegen/src/ssa/verify_ownership/map.rs` | `crates/lang-codegen/src/ssa/verify_ownership/aliases.rs` | < 1000 行 |
 | `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/local_runtime.rs` | `crates/lang-codegen/src/ssa/lower_frontend/nullable_if_cleanup.rs` | < 1000 行 |
-| `crates/lang-codegen/src/ssa/provider.rs` | `crates/lang-codegen/src/ssa/unit_lower/borrow_result.rs` | < 1000 行 |
+| `crates/lang-codegen/src/ssa/unit_lower/borrow_result.rs` | `crates/lang-codegen/src/ssa/provider.rs` | < 1000 行 |
 | `crates/lang-codegen/src/ssa/refine/build/owner_consumer/replacement.rs` | `crates/lang-codegen/src/ssa/refine/build/scalar_text.rs` | < 1000 行 |
 | `crates/lang-codegen/src/ssa/refine/subset/inout.rs` | `crates/lang-codegen/src/ssa/refine/subset/heap.rs` | < 1000 行 |
 | `crates/lang-codegen/src/ssa/lower_frontend/outer_borrowed_while/provider.rs` | `crates/lang-codegen/src/ssa/lower_frontend/non_null_proof.rs` | < 1000 行 |

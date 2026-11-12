@@ -1,5 +1,5 @@
 //! Temporary source exits retain the real Expression owner without parameter closure phis.
-mod cleanup;
+use crate::ssa::refine::build::rc::map_temporary_cleanup as cleanup;
 use super::*;
 use lang_frontend::{
     name_resolution::ReferenceTarget,

@@ -5,7 +5,7 @@
 //! when [`accepts`] proves its whole body lies inside the migrated subset. Once routed,
 //! a failure is an error; there is no fallback to the per-family lowering.
 mod body;
-mod build;
+pub(in crate::ssa) mod build;
 #[cfg(test)]
 pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,

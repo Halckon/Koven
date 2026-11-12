@@ -567,7 +567,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(self.typed.copyability(ty) == Copyability::Copyable)
     }
 
-    pub(super) fn direct_name_symbol(
+    pub(in crate::ssa) fn direct_name_symbol(
         &self,
         expression: ExpressionId,
         span: Span,

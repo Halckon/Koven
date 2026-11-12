@@ -1,6 +1,6 @@
 //! compilation-unit `if` 的 owner-aware CFG 与 branch-state 合流。
 
-mod conditional;
+pub(in crate::ssa::unit_lower) mod conditional;
 #[cfg(test)]
 mod result_tests;
 

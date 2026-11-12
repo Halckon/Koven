@@ -303,7 +303,7 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
     //! Bounded nullable entries: root Borrow and heap Ifs.
     #[cfg(test)]
     mod field_tests;
-    mod heap;
+    pub(in crate::ssa::unit_lower) use crate::ssa::unit_lower::loop_control::heap_nullable_if::NamedNullableIfRoot;
 
     use super::super::super::unwrap_modified;
     use super::super::super::{
@@ -320,12 +320,12 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
     };
 
     #[derive(Clone, Copy)]
-    pub(in super::super) struct NullableIfEntry {
-        pub(in super::super) root: UnitSymbolId,
-        pub(in super::super) owner: ValueId,
-        pub(in super::super) inner: SsaTypeId,
-        pub(in super::super) scope: UnitExpressionId,
-        pub(in super::super) non_null_when_true: bool,
+    pub(in crate::ssa::unit_lower) struct NullableIfEntry {
+        pub(in crate::ssa::unit_lower) root: UnitSymbolId,
+        pub(in crate::ssa::unit_lower) owner: ValueId,
+        pub(in crate::ssa::unit_lower) inner: SsaTypeId,
+        pub(in crate::ssa::unit_lower) scope: UnitExpressionId,
+        pub(in crate::ssa::unit_lower) non_null_when_true: bool,
     }
 
     impl UnitExpressionLowerer<'_> {

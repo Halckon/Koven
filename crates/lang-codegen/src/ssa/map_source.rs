@@ -1,6 +1,6 @@
 //! Transparent source syntax does not change the validated type, category or owner.
-mod formation;
-use super::{LoweringError, LoweringErrorKind};
+pub(in crate::ssa) use super::{LoweringError, LoweringErrorKind};
+pub(in crate::ssa) use super::lower_frontend::nullable_numeric_cleanup::formation;
 pub(super) use formation::{
     BindingDeclaration, Birth, Formation, OwnerUpdate, continuation, named_formation,
 };
@@ -110,7 +110,7 @@ pub(super) mod transport {
     }
 }
 
-pub(super) mod handoff {
+pub(in crate::ssa) mod handoff {
     //! Original Return/local-Move syntax selects a terminal; consumers prove ownership and SSA.
     use super::*;
     use lang_frontend::{
@@ -119,7 +119,7 @@ pub(super) mod handoff {
     };
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub(in super::super) enum Handoff<R> {
+    pub(in crate::ssa) enum Handoff<R> {
         Return {
             expression: ExpressionId,
             operand: ExpressionId,
@@ -131,7 +131,7 @@ pub(super) mod handoff {
         },
     }
 
-    pub(in super::super) fn same_callable(parsed: &ParsedFile, left: Span, right: Span) -> bool {
+    pub(in crate::ssa) fn same_callable(parsed: &ParsedFile, left: Span, right: Span) -> bool {
         let enclosing = |at| {
             parsed
                 .ast()
@@ -151,7 +151,7 @@ pub(super) mod handoff {
             })
     }
 
-    pub(in super::super) fn find<R: Copy + Eq, T: Copy + Eq>(
+    pub(in crate::ssa) fn find<R: Copy + Eq, T: Copy + Eq>(
         parsed: &ParsedFile,
         span: Span,
         source: R,
@@ -228,7 +228,7 @@ pub(super) mod handoff {
 
 /// Return the canonical expression of a pure Group chain. Consumers keep the
 /// original descriptor/loan source ID and independently verify its published root.
-pub(super) fn transparent_expression<T: Copy + Eq>(
+pub(in crate::ssa) fn transparent_expression<T: Copy + Eq>(
     parsed: &ParsedFile,
     outer: ExpressionId,
     mut typed: impl FnMut(ExpressionId) -> Option<T>,
@@ -267,7 +267,7 @@ pub(super) fn transparent_expression<T: Copy + Eq>(
 
 /// A published later Drop must contain a real future reference in the same callable.
 /// This checks scope/identity, never adjacency or a whitelist of continuation shapes.
-pub(super) fn future_reference(
+pub(in crate::ssa) fn future_reference(
     parsed: &ParsedFile,
     current: lang_frontend::source::Span,
     point: lang_frontend::source::Span,
@@ -311,7 +311,7 @@ pub(super) fn future_reference(
 /// Preserve the actual FE event: finishing an RHS and finishing its enclosing
 /// assignment have the same end offset, but install different binding epochs.
 #[derive(Clone, Copy)]
-pub(super) struct DropEvent {
+pub(in crate::ssa) struct DropEvent {
     pub span: lang_frontend::source::Span,
     after_expression: Option<ExpressionId>,
 }
@@ -328,7 +328,7 @@ impl DropEvent {
 
 /// Select the actual epoch first; span equality alone cannot distinguish the
 /// replaced owner's RHS cleanup from the new owner's immediate ASAP cleanup.
-pub(super) fn in_formation<R>(
+pub(in crate::ssa) fn in_formation<R>(
     parsed: &ParsedFile,
     formation: &Formation<R>,
     event: DropEvent,

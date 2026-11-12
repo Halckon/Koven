@@ -5,9 +5,9 @@ pub(super) mod handoff;
 pub(super) use handoff::delivery;
 use delivery::future;
 pub(super) use delivery::Delivery;
-pub(super) mod provenance;
-use super::*;
-use lang_frontend::ownership_checking::{
+pub(in crate::ssa::lower_frontend) use crate::ssa::lower_frontend::orchestrate::nullable_map_guard_support::provenance;
+pub(in crate::ssa::lower_frontend) use super::*;
+pub(in crate::ssa::lower_frontend) use lang_frontend::ownership_checking::{
     CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource, DropFact,
     DropTarget, IterationClosurePhiBinding, IterationPhiBoundary, IterationPhiIncomingBinding,
     IterationPhiIncomingKind, IterationPhiPresenceSource,

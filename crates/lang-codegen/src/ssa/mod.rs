@@ -1,5 +1,3 @@
-//! Target-independent typed SSA model、验证与确定性调试表示。
-
 mod carry;
 mod closure;
 use closure::integer;
@@ -30,7 +28,7 @@ pub(crate) use refine::with_per_family_lowering;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
-pub(crate) use unit_lower::borrow_result::provider;
+pub(crate) mod provider;
 mod render;
 mod statement_core;
 #[cfg(test)]

@@ -12,7 +12,7 @@ mod owner_consumer;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
 mod range_borrow;
-mod rc;
+pub(in crate::ssa) mod rc;
 use rc::receiver;
 mod scalar_text;
 mod tagged;

@@ -6,23 +6,23 @@ mod borrow_result;
 #[cfg(test)]
 mod cleanup_guard_harness;
 mod container;
-mod control;
+pub(in crate::ssa) mod control;
 mod enum_type_test;
 mod field_replace;
 mod instances;
 mod local_storage;
 use local_storage::integer;
-mod loop_control;
+pub(in crate::ssa) mod loop_control;
 mod map;
 mod map_consume;
-mod map_iteration;
+pub(in crate::ssa) mod map_iteration;
 mod map_loop_owner;
 mod nominal;
 mod non_null_proof;
 mod nullable_borrowed_cleanup;
 mod nullable_if_cleanup;
 pub(in crate::ssa::lower_frontend) use nullable_if_cleanup::constant_presence;
-mod nullable_numeric_cleanup;
+pub(in crate::ssa) mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod outer_borrowed_while;
@@ -34,9 +34,9 @@ mod source_closure;
 mod string_clone;
 use string_clone::declarations;
 
-use std::collections::BTreeMap;
+pub(in crate::ssa) use std::collections::BTreeMap;
 
-use lang_frontend::{
+pub(in crate::ssa) use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{EnumCaseId, NameResolution, SymbolId, SymbolKind},
     ownership_checking::{
@@ -54,7 +54,7 @@ use lang_frontend::{
     },
 };
 
-use super::model::{
+pub(in crate::ssa) use super::model::{
     BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId, EntityType, Function,
     FunctionId, LoanId, LoanKind, ModelError, Operation, Origin, PlaceId, ScalarConstant,
     SsaTypeId, TerminatorKind, ValueId,
@@ -64,13 +64,13 @@ use non_null_proof::NonNullProof;
 use pending_call::PendingCallLoans;
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
-use super::{
+pub(in crate::ssa) use super::{
     expression_core::LoweredValue,
     integer::{assignment_operator, bitwise_operator, checked_operator, comparison_operator},
     lowering_support::{error, parse_integer_literal_text, present_name, span_key, string_literal},
 };
 
-fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
+pub(in crate::ssa) fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
     match typed.types().get(ty) {
         Some(TypeKind::Builtin(builtin)) => Some(*builtin),
         _ => None,
@@ -95,7 +95,7 @@ fn return_values(
     }
 }
 
-struct ExpressionLowerer<'a> {
+pub(in crate::ssa) struct ExpressionLowerer<'a> {
     map_loop_owners: map_loop_owner::Carriers,
     map_iteration_state: map_iteration::State,
     parsed: &'a ParsedFile,

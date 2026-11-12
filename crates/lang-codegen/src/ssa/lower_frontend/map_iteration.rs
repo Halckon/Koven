@@ -1,31 +1,31 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
-mod carrier;
-mod checked;
-use checked::nested;
-mod conditional;
-mod exits;
-use exits::exit_shape;
-mod formed;
-mod local;
-use super::nullable_if_cleanup::local_runtime;
-mod resource;
-mod source;
-use source::borrowed;
-mod source_owner;
-mod temporary;
-use temporary::{guard, qualify};
+pub(in crate::ssa) use super::control::map_frames::carrier;
+pub(in crate::ssa) mod conditional;
+pub(in crate::ssa) use conditional::checked;
+pub(in crate::ssa) use checked::nested;
+pub(in crate::ssa) mod exits;
+pub(in crate::ssa) use exits::exit_shape;
+pub(in crate::ssa) mod formed;
+pub(in crate::ssa) mod local;
+pub(in crate::ssa) use super::nullable_if_cleanup::local_runtime;
+pub(in crate::ssa) mod resource;
+pub(in crate::ssa) mod source;
+pub(in crate::ssa) use source::borrowed;
+pub(in crate::ssa) mod source_owner;
+pub(in crate::ssa) mod temporary;
+pub(in crate::ssa) use temporary::{guard, qualify};
 
-use super::*;
-use crate::ssa::model::{Definition, MapContainerKind, Module, SsaTypeKind};
-use control::{LinearBindingSlot, LinearBindings};
-use lang_frontend::ownership_checking::{
+pub(in crate::ssa) use super::*;
+pub(in crate::ssa) use crate::ssa::model::{Definition, MapContainerKind, Module, SsaTypeKind};
+pub(in crate::ssa) use control::{LinearBindingSlot, LinearBindings};
+pub(in crate::ssa) use lang_frontend::ownership_checking::{
     CleanupCondition, IterationCleanupAction, IterationExitKind, IterationExitPlan,
     MapIterationOwnershipPlan, MapIterationSourceAccess,
 };
 
 pub(super) use exits::Context;
 pub(super) use qualify::validate;
-use source::SourceIdentity;
+pub(in crate::ssa) use source::SourceIdentity;
 pub(super) fn supported_drop(
     parsed: &ParsedFile,
     names: &NameResolution,
@@ -91,7 +91,7 @@ impl State {
     }
 }
 
-fn unique<T>(mut values: impl Iterator<Item = T>) -> Option<T> {
+pub(in crate::ssa) fn unique<T>(mut values: impl Iterator<Item = T>) -> Option<T> {
     let result = values.next()?;
     values.next().is_none().then_some(result)
 }
@@ -862,7 +862,7 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn roles(
+pub(in crate::ssa) fn roles(
     parameters: &[EntityId],
     source: usize,
     cursor: usize,
