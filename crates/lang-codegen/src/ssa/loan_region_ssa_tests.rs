@@ -8,10 +8,10 @@ use lang_frontend::{
     type_checking::standard_environments,
 };
 
-const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; consume(view(owner)) }";
+pub(in crate::ssa) const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; consume(view(owner)) }";
 
 #[test]
-fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
+pub(in crate::ssa) fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "consumer.ko", SOURCE);
     let (environment, types) = standard_environments();
@@ -194,12 +194,12 @@ fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
     }
 }
 
-fn assert_span(span: Span, source: SourceId, expected: (usize, usize)) {
+pub(in crate::ssa) fn assert_span(span: Span, source: SourceId, expected: (usize, usize)) {
     assert_eq!(span.source_id(), source);
     assert_eq!((span.start(), span.end()), expected);
 }
 
-fn assert_lifecycle(
+pub(in crate::ssa) fn assert_lifecycle(
     program: &Program,
     entry: FunctionId,
     source_file: SourceId,
@@ -363,7 +363,7 @@ fn assert_lifecycle(
 }
 
 #[test]
-fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
+pub(in crate::ssa) fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
     use lang_frontend::ownership_checking::{
         UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanRegionFamily,
         UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
@@ -556,7 +556,7 @@ fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
     }
 }
 
-fn assert_receiver_lifecycle(
+pub(in crate::ssa) fn assert_receiver_lifecycle(
     program: &Program,
     entry: FunctionId,
     source: SourceId,
@@ -695,28 +695,16 @@ fn assert_receiver_lifecycle(
 mod receipts;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "loan_observer_off_tests.rs"]
-mod observer_off;
 
-#[path = "receiver_route_tests.rs"]
-mod receiver_route;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "receiver_receipt_tests.rs"]
-mod receiver_receipts;
 
 #[path = "receiver_receipt_sibling_tests.rs"]
 pub(in crate::ssa) mod receiver_receipt_siblings;
 
-#[path = "named_loan_route_tests.rs"]
-mod named_route;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "named_loan_receipt_tests.rs"]
-mod named_receipts;
 
-#[path = "named_loan_sibling_tests.rs"]
-mod named_siblings;
 
 #[path = "temporary_loan_route_tests.rs"]
 mod temporary_route;
@@ -725,8 +713,138 @@ mod temporary_route;
 #[path = "temporary_loan_receipt_tests.rs"]
 mod temporary_receipts;
 
-#[path = "temporary_loan_sibling_tests.rs"]
-mod temporary_siblings;
+mod temporary_siblings {
+    //! One ordinary analysis containing P1/P2/P3/P4 and B/Call/Return, without native execution.
+    use super::*;
+    #[test]
+    fn temporary_named_receiver_and_owner_siblings_keep_receipts_separate() {
+        let text = r#"class Node { fun touch(): Int = 1 }
+    fun receiver(own node: Node): Unit { node.touch() }
+    fun view(source: String): borrow String from source = source
+    fun consume(item: String): Unit {}
+    fun loan(): Unit { val owner = "kept"; consume(view(owner)) }
+    fun sink(own item: String): Unit {}
+    fun owner_call(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; sink(held) }
+    fun owner_drop(flag: Boolean) { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; val retired = held }
+    fun inspect(value: String): Int = 1
+    fun named(own source: String): Unit { inspect(source) }
+    fun owner_return(flag: Boolean): String { var held = "outer"; while(flag) { val previous = replace(&held, "next"); break }; return held }
+    fun temporary(): Unit { inspect("temporary") }
+    fun entry(): Unit { temporary(); receiver(Node()); named("named"); loan(); owner_call(false); owner_drop(false); val result = owner_return(false) }"#;
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "receipt-siblings.ko", text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "receipt-siblings.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, owned) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let entry = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "entry")
+                .unwrap()
+                .id();
+            let (((((((lowered, calls), drops), consumer), receiver), named), returns), temporary) =
+                super::super::refine::temporary_receipt::observe(|| {
+                    crate::ssa::observe_owner_returns(|| {
+                        super::super::refine::named_receipt::observe(|| {
+                            super::super::refine::receiver_receipt::observe(|| {
+                                super::super::refine::loan_receipt::observe(|| {
+                                    crate::ssa::observe_owner_drops(|| {
+                                        crate::ssa::observe_owner_calls(|| {
+                                            super::super::unit_lower::lower_scalar_unit_with_entry(
+                                                &sources, &inputs, &names, &types, &typed, &owned,
+                                                entry,
+                                            )
+                                        })
+                                    })
+                                })
+                            })
+                        })
+                    })
+                });
+            let (program, _) = lowered.unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            let [p1] = temporary.as_slice() else {
+                panic!("one P1 receipt");
+            };
+            let [p3] = named.as_slice() else {
+                panic!("one P3 receipt");
+            };
+            assert_eq!(returns.len(), 1);
+            assert!(returns[0].1.is_some());
+            assert_eq!(returns[0].1, returns[0].2);
+            let [p2] = receiver.as_slice() else {
+                panic!("one P2 receipt");
+            };
+            let [p4] = consumer.as_slice() else {
+                panic!("one P4 receipt");
+            };
+            for (caller, ids, entities) in [
+                (p2.caller, &p2.ids, &p2.entities),
+                (p3.caller, &p3.ids, &p3.entities),
+                (p4.caller, &p4.ids, &p4.entities),
+            ] {
+                assert_ne!(p1.caller, caller);
+                assert!(p1.ids.iter().all(|id| !ids.contains(id)));
+                assert!(p1.entities.iter().all(|entity| !entities.contains(entity)));
+            }
+            for (caller, ids, entities) in [
+                (p2.caller, &p2.ids, &p2.entities),
+                (p4.caller, &p4.ids, &p4.entities),
+            ] {
+                assert_ne!(p3.caller, caller);
+                assert!(p3.ids.iter().all(|id| !ids.contains(id)));
+                assert!(p3.entities.iter().all(|entity| !entities.contains(entity)));
+            }
+            assert_ne!(p2.caller, p4.caller);
+            assert_ne!(p2.call, p4.call);
+            assert_ne!(p2.callable, p4.callable);
+            assert!(p2.ids.iter().all(|id| !p4.ids.contains(id)));
+            assert!(
+                p2.entities
+                    .iter()
+                    .all(|entity| !p4.entities.contains(entity))
+            );
+            assert_eq!(
+                drops.iter().filter(|drop| drop.3.is_some()).count(),
+                1,
+                "only B owner Drop authorization"
+            );
+            assert_eq!(
+                calls.iter().filter(|call| call.3.is_some()).count(),
+                1,
+                "only own String Call authorization"
+            );
+            for (protocol, ids, call) in [
+                (1, &p1.ids, p1.call),
+                (2, &p2.ids, p2.call),
+                (3, &p3.ids, p3.call),
+                (4, &p4.ids, p4.call),
+            ] {
+                let matches = owned
+                    .ownership()
+                    .loan_action_observations()
+                    .iter()
+                    .flat_map(|o| o.regions())
+                    .filter(|r| r.protocol_version() == protocol && r.call() == call)
+                    .collect::<Vec<_>>();
+                let [region] = matches.as_slice() else {
+                    panic!("one same-analysis region");
+                };
+                assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+                assert_eq!(*ids, region.action_ids().collect::<Vec<_>>());
+            }
+        }
+    }
+}
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "multi_temporary_loan_tests.rs"]
@@ -736,8 +854,102 @@ pub(in crate::ssa) mod multi_temporary;
 #[path = "named_literal_mapping_tests.rs"]
 pub(in crate::ssa) mod named_literal_mapping;
 
-#[path = "finite_literal_tests.rs"]
-mod finite_literal;
+mod finite_literal {
+    //! Ordinary three-literal source exercises the finite-arity route.
+    use super::*;
+    const SOURCE: &str = "fun inspect(a: String, b: String, c: String): Int = 1\nfun run(): Unit { inspect(\"first\", \"second\", \"third\") }";
+    #[test]
+    fn finite_literal_caller_requires_real_refine_route() {
+        check(false);
+    }
+    fn check(receipt: bool) {
+        let mut sources = SourceMap::new();
+        let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-literal.ko", SOURCE);
+        let (environment, types) = standard_environments();
+        let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let regions = owned
+            .ownership()
+            .loan_action_observations()
+            .iter()
+            .flat_map(|o| o.regions())
+            .collect::<Vec<_>>();
+        let [region] = regions.as_slice() else {
+            panic!("one actual region")
+        };
+        assert_eq!(region.protocol_version(), 1);
+        assert_eq!(region.coverage(), UnitLoanActionCoverage::Complete);
+        assert_eq!(region.action_ids().count(), 9);
+        let run = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run")
+            .unwrap();
+        let ((lowered, routes), receipts) = super::super::refine::temporary_receipt::observe(|| {
+            super::super::refine::observe_routing(|| {
+                super::super::unit_lower::lower_scalar_unit_with_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    &owned,
+                    run.id(),
+                )
+            })
+        });
+        let (program, entry) = lowered.unwrap();
+        verify_program(&program).unwrap();
+        crate::llvm::render_verified_program(&program).unwrap();
+        let caller = program.modules[0].function(entry).unwrap();
+        assert_eq!(
+            routes.as_slice(),
+            std::slice::from_ref(&caller.name),
+            "only actual caller should migrate"
+        );
+        if receipt {
+            assert_eq!(
+                receipts.len(),
+                1,
+                "complete triple needs one actual call receipt"
+            );
+        }
+    }
+
+    #[test]
+    fn finite_literal_call_requires_real_production_receipt() {
+        check(true);
+    }
+
+    #[cfg(feature = "loan-observation-test-support")]
+    #[test]
+    fn finite_literal_non_involutive_mappings_preserve_true_off() {
+        super::multi_temporary::products::check_cases(
+            &[(
+                "fun inspect(a: String, b: String, c: String): Int = 1\nfun run(): Unit { inspect(c = \"zero\", a = \"one\", b = \"two\") }",
+                [b"zero".as_slice(), b"one".as_slice(), b"two".as_slice()],
+                1,
+            )],
+            [1, 2, 0],
+        );
+        super::multi_temporary::products::check_cases(
+            &[(
+                "fun inspect(a: String, b: String, c: String, d: String): Unit {}\nfun run(): Unit { inspect(c = \"same\", a = \"\", d = \"same\", b = \"last\") }",
+                [
+                    b"same".as_slice(),
+                    b"".as_slice(),
+                    b"same".as_slice(),
+                    b"last".as_slice(),
+                ],
+                0,
+            )],
+            [1, 3, 0, 2],
+        );
+    }
+}
 
 #[path = "binding_lifecycle_probe_tests.rs"]
 pub(in crate::ssa) mod binding_lifecycle_probe;
