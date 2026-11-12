@@ -7,7 +7,8 @@
 The bounded three-control owner chain selects its second and third members as one group.
 This receipt connects those completed members to actual late SSA emission. It does not
 manufacture a first-control entry catalog, authorize arbitrary nested control flow, or prove
-complete dynamic owner provenance across the two inter-control links.
+complete dynamic owner provenance across the two inter-control links. The second-to-third
+link below checks actual static Alias transport without claiming runtime generation induction.
 
 ## Atomic source
 
@@ -40,3 +41,14 @@ are compiled locally but executed only in CI.
 The existing single-bridge receipt remains separate and uses the same emission checks.
 This member receipt is not arbitrary runtime-trace induction or complete inter-control
 owner-link authorization.
+
+## Second-to-third transport
+
+The group borrows the frontend's completed source/target vectors rather than zipping member
+root lists; sparse retired roots are excluded by the original observed mapping. Before sealing,
+the builder requires the second exit to be the actual third entry, a Goto to its header, and
+an original whole-block Alias chain with exactly the intended source/intermediate uses.
+A private Link follows CFG folding. Actual emission must preserve source/target Entity equality
+and the real third-header edge arguments. Every target must be covered once, and the link is
+observed once before any final group completion. A CI-only wrong-target probe is compiled but
+not run locally. No first-control entry catalog or arbitrary runtime trace is synthesized.

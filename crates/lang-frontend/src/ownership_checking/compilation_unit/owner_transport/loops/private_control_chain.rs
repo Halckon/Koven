@@ -250,8 +250,13 @@ impl<'a> UnitOwnerControlChainBodyV1<'a> {
 #[derive(Debug)]
 pub struct UnitOwnerControlChainBodiesV1<'a> {
     members: [UnitOwnerControlChainBodyV1<'a>; 2],
+    link: (&'a [UnitSymbolId], &'a [UnitSymbolId]),
 }
 impl<'a> UnitOwnerControlChainBodiesV1<'a> {
+    /// Original completed second-to-third source/target mapping, including sparse roots.
+    pub fn inter_member_roots(&self) -> (&'a [UnitSymbolId], &'a [UnitSymbolId]) {
+        self.link
+    }
     /// Both continuation bodies in control order; consume as one group.
     pub fn members(&self) -> &[UnitOwnerControlChainBodyV1<'a>; 2] {
         &self.members
@@ -295,6 +300,7 @@ impl UnitOwnerObservation {
         };
         Some(UnitOwnerControlChainBodiesV1 {
             members: [second, third],
+            link: (&chain.sources, &chain.targets),
         })
     }
 }

@@ -350,6 +350,13 @@ fn chain_ssa_members_transport_sparse_roots_and_retired_values() {
                     .iter()
                     .all(|(kind, _)| *kind != "bridge-ssa-receipt-complete")
             );
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(kind, n)| *kind == "control-chain-link-complete" && *n == 2)
+                    .count(),
+                1
+            );
             super::super::super::assert_native_output(&source, b"");
         }
     }
@@ -382,4 +389,27 @@ fn ci_only_chain_ssa_last_member_failure_revokes_group_receipt() {
                 .all(|(kind, _)| *kind != "control-chain-ssa-complete")
         );
     }
+}
+
+#[test]
+fn ci_only_chain_link_wrong_target_rejects_group_receipt() {
+    let source = chain_source(true, true);
+    let (result, actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::with_owner_fault(crate::ssa::OwnerFault::ChainSsaWrongLinkTarget, || {
+            source.lower_entry(source.entry())
+        })
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "control-chain-link-fault-hit")
+            .count(),
+        1
+    );
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| *kind != "control-chain-ssa-complete")
+    );
 }

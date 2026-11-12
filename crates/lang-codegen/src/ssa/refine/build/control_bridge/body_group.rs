@@ -6,6 +6,7 @@ use lang_frontend::ownership_checking::{
 
 pub(in super::super) struct BodyGroup<'a> {
     members: Vec<Member<'a>>,
+    link: (&'a [UnitSymbolId], &'a [UnitSymbolId]),
 }
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
@@ -63,6 +64,7 @@ impl<'a> BodyGroup<'a> {
             return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
         }
         Ok(Some(Self {
+            link: group.inter_member_roots(),
             members: group
                 .members()
                 .iter()
@@ -300,9 +302,53 @@ impl Builder<'_, '_> {
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        let group = self.control_chain_bodies.as_ref().ok_or_else(fail)?;
+        let first = group.members.first().ok_or_else(fail)?;
+        let last = group.members.last().ok_or_else(fail)?;
+        let (prior_blocks, prior_roots) = first.lowered.as_ref().ok_or_else(fail)?;
+        let (next_blocks, next_roots) = last.lowered.as_ref().ok_or_else(fail)?;
+        let exit = prior_blocks[3];
+        if last.counter.map(|c| c.0) != Some(exit)
+            || group.link.0.len() != group.link.1.len()
+            || !matches!(self.body.blocks[exit.0].terminator, Some((RTerm::Goto(t), _)) if t == next_blocks[0])
+        {
+            return Err(fail());
+        }
+        let pairs = group
+            .link
+            .0
+            .iter()
+            .zip(group.link.1)
+            .map(|(source, target)| {
+                let a = first
+                    .evidence
+                    .roots()
+                    .iter()
+                    .position(|s| s == source)
+                    .ok_or_else(fail)?;
+                let b = last
+                    .evidence
+                    .roots()
+                    .iter()
+                    .position(|s| s == target)
+                    .ok_or_else(fail)?;
+                let pair = (prior_roots[a], next_roots[b]);
+                if !super::alias_prefix(&self.body, exit, pair.1, pair.0) {
+                    return Err(fail());
+                }
+                Ok(pair)
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let link = super::super::super::control_bridge_receipt::Link {
+            from_control: first.evidence.control(),
+            to_control: last.evidence.control(),
+            block: exit,
+            pairs,
+        };
         self.body.owner_bridge_plans =
             super::super::super::control_bridge_receipt::Plans::seal_group(
                 members,
+                link,
                 self.inputs.span,
             )?;
         #[cfg(test)]
