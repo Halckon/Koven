@@ -23,6 +23,7 @@ pub(crate) enum OwnerFault {
     CounterPermitWrongControl,
     CounterPermitOtherMember,
     CounterBoundaryWrongEntry,
+    CounterParameterLateRootUse,
     CounterBoundaryMissingSuffix,
     CounterTailLateInitialization,
     CounterTailWrongBackedge,

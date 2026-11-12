@@ -83,9 +83,22 @@ impl Builder<'_, '_> {
             domain: Domain::Entry,
         }))
     }
-    fn counter_parameter_chain(&self, block: BlockRef, mut value: Slot, parameter: Slot) -> bool {
+    fn counter_parameter_chain(&self, block: BlockRef, value: Slot, parameter: Slot) -> bool {
+        self.counter_parameter_prefix(
+            block,
+            value,
+            parameter,
+            self.body.blocks[block.0].statements.len(),
+        )
+    }
+    fn counter_parameter_prefix(
+        &self,
+        block: BlockRef,
+        mut value: Slot,
+        parameter: Slot,
+        mut before: usize,
+    ) -> bool {
         let statements = &self.body.blocks[block.0].statements;
-        let mut before = statements.len();
         loop {
             if value == parameter {
                 return !statements[..before].iter().any(|s| {
@@ -114,6 +127,33 @@ impl Builder<'_, '_> {
             before = i;
             value = source;
         }
+    }
+    // Recheck the original parameter-to-root prefix after lowering has finished.
+    // Only the function entry block is covered; no cross-control parameter transport.
+    pub(super) fn counter_parameter_root(
+        &self,
+        block: BlockRef,
+        root: Slot,
+        parameter: UnitSymbolId,
+    ) -> bool {
+        if block != BlockRef(0) {
+            return false;
+        }
+        let Some(i) = self.inputs.parameters.iter().position(|p| *p == parameter) else {
+            return false;
+        };
+        if self.inputs.modes.get(i) != Some(&ParameterMode::Value) {
+            return false;
+        }
+        let Some(&source) = self
+            .body
+            .parameters
+            .get(i + usize::from(self.inputs.receiver.is_some()))
+        else {
+            return false;
+        };
+        let statements = &self.body.blocks[block.0].statements;
+        root != source && self.counter_parameter_prefix(block, root, source, statements.len())
     }
     pub(super) fn counter_entry_emitted(
         &mut self,

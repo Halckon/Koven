@@ -154,7 +154,7 @@ fn counter_tail_partial_suffix_does_not_gain_complete_receipt() {
 }
 
 #[test]
-fn counter_parameter_entries_keep_existing_scalar_audit() {
+fn counter_parameter_entries_complete_boundary() {
     let text = source(2, true, 0)
         .replace(
             "flag: Boolean",
@@ -185,7 +185,7 @@ fn counter_parameter_entries_keep_existing_scalar_audit() {
     assert!(
         actions
             .iter()
-            .all(|(kind, _)| *kind != "counter-tail-complete-boundary-audit")
+            .any(|(kind, _)| *kind == "counter-tail-complete-boundary-audit")
     );
     super::super::assert_native_output(&source, b"");
 }
@@ -320,36 +320,87 @@ fn two_counter_controls_consume_the_whole_selected_batch() {
     }
 }
 
-#[test]
-fn counter_batch_with_parameter_member_keeps_entire_generic_path() {
-    let text = r#"fun run(n: Int, own seed: String) {
+fn parameter_batch_source() -> &'static str {
+    r#"fun run(n: Int, own seed: String) {
         var n0 = n; var g0 = n0 > 0; var a0 = seed; var b0 = "b";
         while(g0) { val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 };
         var n1 = n; var g1 = n1 > 0; var a1 = "a"; var b1 = "b";
         while(g1) { val x = replace(&a1, "x"); val y = replace(&b1, "y"); n1 = n1 - 1; g1 = n1 > 0 }
     }
-    fun entry() { run(0, "seed"); run(2, "seed"); println("ok") }"#;
-    let source = UnitSource::analyze("counter-batch-parameter.ko", text).unwrap();
+    fun entry() { run(-2, "seed"); run(0, "seed"); run(2, "seed"); println("ok") }"#
+}
+
+#[test]
+fn counter_batch_with_first_parameter_member_consumes_whole_group() {
+    for aliased in [false, true] {
+        let text = if aliased {
+            parameter_batch_source().replace("var a0 = seed;", "val saved = seed; var a0 = saved;")
+        } else {
+            parameter_batch_source().to_owned()
+        };
+        let source = UnitSource::analyze("counter-batch-parameter.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        assert_eq!(
+            source
+                .ownership()
+                .owner_observations()
+                .iter()
+                .filter_map(|o| o.counter_batch_evidence_v1())
+                .count(),
+            1
+        );
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert!(
+            actions
+                .iter()
+                .any(|(kind, _)| *kind == "counter-batch-complete-audit")
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "counter-tail-complete-boundary-audit")
+                .count(),
+            2
+        );
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "counter-entry-permit-consumed")
+                .count(),
+            4
+        );
+        super::super::assert_native_output(&source, b"ok\n");
+    }
+}
+
+#[test]
+fn ci_only_counter_parameter_batch_rejects_incomplete_entry_and_foreign_root() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let source =
+        UnitSource::analyze("counter-parameter-batch-fault.ko", parameter_batch_source()).unwrap();
     source.assert_frontend_clean();
-    assert_eq!(
-        source
-            .ownership()
-            .owner_observations()
-            .iter()
-            .filter_map(|o| o.counter_batch_evidence_v1())
-            .count(),
-        1
-    );
-    let (lowered, actions) =
-        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
-    let (program, _) = lowered.unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    assert!(
-        actions
-            .iter()
-            .all(|(kind, _)| !kind.starts_with("counter-"))
-    );
-    super::super::assert_native_output(&source, b"ok\n");
+    for fault in [
+        OwnerFault::MissingCounterEntryPermit,
+        OwnerFault::CounterEntryWrongSource,
+        OwnerFault::CounterEntryDuplicateCommit,
+        OwnerFault::CounterBoundaryWrongEntry,
+        OwnerFault::CounterParameterLateRootUse,
+        OwnerFault::CounterBatchSecondLateAbort,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| !kind.starts_with("counter-tail-")
+                    && *kind != "counter-batch-complete-audit")
+        );
+    }
 }
 
 #[test]

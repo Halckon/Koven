@@ -216,6 +216,17 @@ impl<'a> Builder<'_, 'a> {
         #[cfg(test)]
         {
             use owner_consumer_test_support::{OwnerFault, take_fault};
+            if take_fault(OwnerFault::CounterParameterLateRootUse) {
+                let root = plan.roots[0];
+                let statements = &mut self.body.blocks[entry.0].statements;
+                let mut late = statements
+                    .iter()
+                    .find(|s| s.results == [root])
+                    .ok_or_else(fail)?
+                    .clone();
+                late.op = ROp::Alias { source: root };
+                statements.push(late);
+            }
             if take_fault(OwnerFault::CounterTailLateInitialization) {
                 let statements = &mut self.body.blocks[entry.0].statements;
                 let initial = statements

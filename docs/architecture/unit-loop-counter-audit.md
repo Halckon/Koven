@@ -132,12 +132,16 @@ token不来自清理、AST枚举、旧observation恢复或上一循环first-body
 实际退出按control顺序封存，各成员保留自己的命名空间，不拼成假单catalog。缺失、重复、
 乱序或任一成员失败立即清空全组；最终seal核对控制、成员身份、callable、根及body catalog
 独立性。deferred清除整组，旧单counter及其他loop getter不投影该组。
-后端现在对完整literal-entry闭合批次建立多Plan registry：精确按成员index+control选择，
+后端现在对完整入口闭合批次建立多Plan registry：精确按成员index+control选择，
 entry、Replace、返回binding、body Drop和false-exit Drop的permit均携带成员键，domain
 fallback不重选成员；多个匹配拒绝，不把成员局部索引当全组身份。首成员exit块兼作第二段
 前缀也按实际几何检查。所有成员先完成原有scalar/body/entry/exit核验，再统一复核全部
 Complete身份及checked success/abort边，最后才提交最终成员与全组receipt；后项失败不留下
 首项最终完成receipt。当前提交阶段不再修改CFG或Plan，这一条件是原子提交合同的一部分。
-含Parameter等尚无完整入口边界证明的批次整体不选择，继续generic lowering，不只挑literal
-成员；旧单Plan路径保留。这是受限多Plan实际发射消费，不是一般跨轮归纳、嵌套loop或
+首成员入口现在可为函数入口块内的owned Parameter：最终边界再次核对Value mode、receiver
+偏移后的原parameter slot与实际Alias前缀，追溯中拒绝额外消费、非Alias或错误根；并复用
+已消费入口permit与实际header根一致性。第二成员仍只接纳独立literal来源，不扩展跨控制参数
+运输。未知来源批次整体不选择，不只挑支持的成员；旧单Plan非入口块参数保留不完整边界
+回退。真实native覆盖直接/多步Alias参数的非正零轮及正数迭代，静态receipt不是运行时
+逐轮trace。这是受限多Plan实际发射消费，不是一般跨轮归纳、嵌套loop或
 跨段活根运输，也没有退休旧单根权限。

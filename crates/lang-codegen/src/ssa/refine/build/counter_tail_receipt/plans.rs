@@ -58,19 +58,20 @@ impl<'a> Plans<'a> {
                     if !entries.is_empty() || !group.is_consistent() {
                         return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
                     }
-                    // Batch finalization requires the complete literal-entry boundary contract.
-                    // Audit groups outside that scope retain generic lowering as a whole.
-                    if !group.members().iter().all(|member| {
+                    // Parameters are supported only in the first function-entry member.
+                    // Later members require fresh literal origins, not cross-control moves.
+                    if !group.members().iter().enumerate().all(|(index, member)| {
                         member.root_slots().iter().all(|root| {
-                            matches!(
-                                member
-                                    .input_catalog()
-                                    .definition(root.entry())
-                                    .map(|d| d.origin()),
-                                Some(lang_frontend::ownership_checking::UnitOwnerOrigin::String(
-                                    _
-                                ))
-                            )
+                            use lang_frontend::ownership_checking::UnitOwnerOrigin;
+                            match member
+                                .input_catalog()
+                                .definition(root.entry())
+                                .map(|d| d.origin())
+                            {
+                                Some(UnitOwnerOrigin::String(_)) => true,
+                                Some(UnitOwnerOrigin::Parameter(_)) => index == 0,
+                                _ => false,
+                            }
                         })
                     }) {
                         continue;
