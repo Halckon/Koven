@@ -15298,3 +15298,19 @@ strict Clippy（38.56s）通过。最初补充测试误期望去掉最终a读就
 两新增故障仅编译未执行。独立只读复审无确定阻断；所有结论仅静态清理事实。
 workspace all-target check（28.48s）、fmt/diff、docs915及Rust尺寸门禁通过。
 仅本地提交，不推送；下一步仍需真实CFG receipt与候选来源关系，恢复消费未授权。
+
+### 已批准出口事实的原清理发射核验（2026-11-12）
+
+真实部分退休fixture将a/b声明置于outer body，使a不跨父回边存活；child false分区
+为live b + a的LoopExit Drop。外/内0、1、2轮九组native输出已通过针对测试。
+不能用“移除最终读取”替代这个实际生命周期边界。
+
+后端仅在可选false分区存在时复核已捕获header.false→false块几何，把精确Named根
+映射到原normal根槽，按原LoopExit fact/consumed_drops/span验证旧通用发射中的唯一
+Drop及顺序。不发新Drop，不禁live根后续println/Replace，不禁止槽的新生命周期复用。
+这是RefinedBody阶段原清理指令事实，不是late-SSA CFG fold receipt或退出消费许可。
+新增CI-only删除实际false块Drop，要求实际命中且无清理/normal完成；本地仅编译。
+
+最终普通counter native27/27（33.50s）、codegen all-target strict Clippy（32.67s）
+通过；独立只读复审无确定阻断。本片未改FE、未重跑FE/workspace；CI-only仅编译。
+最初fixture声明分隔parse红已修正，日志nested-local-exit-*保留。仅本地提交不推送。

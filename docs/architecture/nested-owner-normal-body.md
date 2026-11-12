@@ -56,4 +56,6 @@ Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span
 返回 live 根和精确 LoopExit drops，完整覆盖且互斥；干净资源检查复用 boundary_values。
 重复或缺事件不给可选事实，但不撤销原 normal-body 权限。
 这是 planner false 清理点的静态分区，不是入口/回边 token 的实际代际合流证明；
-没有新后端 CFG receipt 或 parent 恢复消费者，仍不得据此额外发射 Drop。
+没有 late-SSA CFG receipt 或 parent 恢复消费者，仍不得据此额外发射 Drop。
+后端在既有几何仍有效的RefinedBody阶段只读核原false块实际Drop：精确root槽、
+LoopExit fact、原consumed记录、span及清理顺序；不限制live根的后续旧路径操作。

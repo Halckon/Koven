@@ -9,6 +9,7 @@ pub(crate) enum OwnerFault {
     NestedBodyForeignLoan,
     NestedBodyLateRootPlace,
     NestedBodyEscapedPreparation,
+    NestedFalseMissingDrop,
     NestedBodyEscapedLoanTerminator,
     BridgeSsaWrongRootArgument,
     BridgeSsaMissingTerminator,

@@ -223,6 +223,17 @@ impl Builder<'_, '_> {
                 Some((RTerm::BorrowReturn { loan }, self.inputs.span));
             owner_consumer_test_support::record_action("nested-preparation-fault-hit", 1);
         }
+        #[cfg(test)]
+        if owner_consumer_test_support::take_fault(
+            owner_consumer_test_support::OwnerFault::NestedFalseMissingDrop,
+        ) && let Some(index) = self.body.blocks[blocks[2].0]
+            .statements
+            .iter()
+            .position(|s| matches!(s.op, ROp::Drop { .. }))
+        {
+            self.body.blocks[blocks[2].0].statements.remove(index);
+            owner_consumer_test_support::record_action("nested-false-fault-hit", 1);
+        }
         let statements = &self.body.blocks[blocks[1].0].statements;
         if plan.stages.is_empty()
             || plan
@@ -312,6 +323,36 @@ impl Builder<'_, '_> {
             }
         }
         self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
+        if let Some((_live, drops)) = plan.evidence.false_exit_partition() {
+            let mut previous = None;
+            for fact in drops {
+                let UnitDropTarget::Named(root) = fact.target() else {
+                    return Err(fail());
+                };
+                if fact.point() != UnitDropPoint::LoopExit(plan.evidence.control()) {
+                    return Err(fail());
+                }
+                let index = plan
+                    .evidence
+                    .normal()
+                    .header_roots()
+                    .iter()
+                    .position(|r| *r == root)
+                    .ok_or_else(fail)?;
+                let actual =
+                    self.multi_root_drop(*fact, blocks[2], *roots.get(index).ok_or_else(fail)?)?;
+                if previous.is_some_and(|p| p >= actual) {
+                    return Err(fail());
+                }
+                previous = Some(actual);
+            }
+            #[cfg(test)]
+            owner_consumer_test_support::record_action(
+                "nested-false-cleanup-rechecked",
+                drops.len(),
+            );
+        }
+
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             "nested-owner-normal-body-complete",

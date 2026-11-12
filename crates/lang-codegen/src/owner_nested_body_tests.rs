@@ -404,3 +404,90 @@ fn assert_existing_false_exit_resume(source: &UnitSource, program: &crate::ssa::
         };
     }
 }
+
+#[test]
+fn nested_false_exit_retires_child_local_root_without_resume_permission() {
+    let mut calls = String::new();
+    let mut expected = String::new();
+    for outer in [0, 1, 2] {
+        for inner in [0, 1, 2] {
+            calls.push_str(&format!("run({outer},{inner});"));
+            for _ in 0..outer {
+                expected.push_str(if inner == 0 { "b\n" } else { "inner-b\n" });
+            }
+        }
+    }
+    let text = format!(
+        r#"fun run(outer: Int, inner: Int) {{
+        var n0=outer; var g0=n0>0;
+        while(g0) {{
+            var a="a"; var b="b"; var n1=inner; var g1=n1>0;
+            while(g1) {{ val x=replace(&a,"inner-a"); val y=replace(&b,"inner-b"); n1=n1-1; g1=n1>0 }};
+            println(b); n0=n0-1; g0=n0>0
+        }}
+    }}
+    fun entry() {{ {calls} }}"#
+    );
+    let source = UnitSource::analyze("nested-local-exit.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let n = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.nested_normal_body_v1())
+        .expect("nested normal");
+    let (live, drops) = n.false_exit_partition().expect("actual cleanup partition");
+    assert_eq!(live.len(), 1);
+    assert_eq!(drops.len(), 1);
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "nested-false-cleanup-rechecked")
+            .map(|(_, n)| *n)
+            .collect::<Vec<_>>(),
+        [1]
+    );
+
+    assert_general_counter_baseline(&text, expected.as_bytes(), false);
+}
+
+#[test]
+fn ci_only_nested_false_cleanup_missing_actual_drop_fails_closed() {
+    let source = UnitSource::analyze(
+        "nested-exit-fault.ko",
+        r#"
+    fun run(outer: Int, inner: Int) {
+        var n0=outer; var g0=n0>0;
+        while(g0) { var a="a"; var b="b"; var n1=inner; var g1=n1>0;
+            while(g1) { val x=replace(&a,"new-a"); val y=replace(&b,"new-b"); n1=n1-1; g1=n1>0 };
+            println(b); n0=n0-1; g0=n0>0 }
+    }
+    fun entry() { run(2,2) }
+    "#,
+    )
+    .unwrap();
+    source.assert_frontend_clean();
+    let (result, actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::with_owner_fault(crate::ssa::OwnerFault::NestedFalseMissingDrop, || {
+            source.lower_entry(source.entry())
+        })
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(k, _)| *k == "nested-false-fault-hit")
+            .count(),
+        1
+    );
+    assert!(
+        actions
+            .iter()
+            .all(|(k, _)| *k != "nested-false-cleanup-rechecked"
+                && *k != "nested-owner-normal-body-complete")
+    );
+}
