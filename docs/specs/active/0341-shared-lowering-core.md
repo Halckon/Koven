@@ -15279,3 +15279,22 @@ success/left 不是独立 false-exit 完成事件，也不包含零轮与正常�
 不做生产接线。选项2必须另明确是否授予恢复消费，不能把选项1批准解释为一并批准。
 验收应包含真实事件丢失/错序、不同control串换、false边根参数串换和脏资源负控；
 故障遵循CI-only，本地只编译。有限native输出与静态SSA候选身份均不是动态迭代证明。
+
+### 已批准：内层 false 出口事实采集（2026-11-12，不授权外层恢复）
+
+用户明确批准选项1。实际 drop_root_loop_exit 调用 drop_loop_exit 后，仅使用本次新增
+LoopExit facts及清理后state封存可选分区，绑定既有analysis/callable/parent/child/condition。
+已完成condition/body/normal事件为前置；首次实际false cleanup、false可能性、完整干净
+boundary_values及所有根恰落live或fresh Drop之一才记录。重复事件撤销可选事实，不把
+left当出口事件。不更新旧ValueState，不复活Complete，不给后端恢复或新Drop许可。
+header根身份与normal producer候选保持分离；没有真实entry token catalog，因此不造
+零轮token、不选择运行时代际。此片是前端实际清理点身份/分区，尚无新后端CFG receipt。
+缺出口事实保留已批准normal-body权限。CI-only覆盖缺实际cleanup与重复cleanup，仅编译。
+
+本片最终FE691/691（6.75s）、普通counter native26/26（31.23s）、双crate all-target
+strict Clippy（38.56s）通过。最初补充测试误期望去掉最终a读就退休a，真实结果live2；
+已确认外层下一轮仍需a，将其保留为真实活性正例，未为迎合测试改生产分区。
+当前普通输入覆盖全live和父回边仍需根，尚未实证嵌套部分退休正例；不得宣称此矩阵完成。
+两新增故障仅编译未执行。独立只读复审无确定阻断；所有结论仅静态清理事实。
+workspace all-target check（28.48s）、fmt/diff、docs915及Rust尺寸门禁通过。
+仅本地提交，不推送；下一步仍需真实CFG receipt与候选来源关系，恢复消费未授权。

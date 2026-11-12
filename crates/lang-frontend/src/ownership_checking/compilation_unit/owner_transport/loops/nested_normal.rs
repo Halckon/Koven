@@ -1,6 +1,8 @@
 //! Normal-body permission only, anchored to an actual parent/child traversal.
 use super::super::{UnitOwnerObservationStatus, UnitOwnerUnsupportedReason};
 use super::*;
+use crate::ownership_checking::compilation_unit::UnitSymbolId;
+use crate::ownership_checking::{UnitDropFact, UnitDropTarget};
 /// A completed inner normal-body rule, without entry, exit, or outer-loop authority.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerNestedNormalBodyV1 {
@@ -13,6 +15,7 @@ pub struct UnitOwnerNestedNormalBodyV1 {
         UnitStatementId,
     ),
     normal: UnitOwnerMultiRootNormalTransportV1,
+    exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
 }
 impl UnitOwnerNestedNormalBodyV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -25,12 +28,14 @@ impl UnitOwnerNestedNormalBodyV1 {
             UnitStatementId,
         ),
         normal: UnitOwnerMultiRootNormalTransportV1,
+        exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
     ) -> Option<Self> {
         let value = Self {
             identity,
             callable,
             sites,
             normal,
+            exit_partition,
         };
         value.is_consistent().then_some(value)
     }
@@ -54,6 +59,36 @@ impl UnitOwnerNestedNormalBodyV1 {
     pub fn normal(&self) -> &UnitOwnerMultiRootNormalTransportV1 {
         &self.normal
     }
+    /// Actual child condition-false cleanup partition: surviving roots and fresh
+    /// LoopExit drops. Static candidate identities, not a selected runtime generation
+    /// or permission to consume roots in the enclosing control.
+    pub fn false_exit_partition(&self) -> Option<(&[UnitSymbolId], &[UnitDropFact])> {
+        self.exit_partition
+            .as_ref()
+            .map(|(live, drops)| (live.as_slice(), drops.as_slice()))
+    }
+    fn exit_is_consistent(&self) -> bool {
+        let Some((live, drops)) = &self.exit_partition else {
+            return true;
+        };
+        let roots = self.normal.header_roots();
+        live.len() + drops.len() == roots.len()
+            && live
+                .iter()
+                .enumerate()
+                .all(|(i, r)| roots.contains(r) && !live[..i].contains(r))
+            && roots.iter().all(|r| {
+                usize::from(live.contains(r))
+                    + drops
+                        .iter()
+                        .filter(|d| {
+                            d.target() == UnitDropTarget::Named(*r)
+                                && d.point() == UnitDropPoint::LoopExit(self.control())
+                        })
+                        .count()
+                    == 1
+            })
+    }
     /// Check local identity and formal-rule consistency, not whole-loop induction.
     pub fn is_consistent(&self) -> bool {
         self.parent() != self.control()
@@ -61,6 +96,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             && self.parent().source_unit() == self.control().source_unit()
             && self.condition().source_unit() == self.control().source_unit()
             && self.body().source_unit() == self.control().source_unit()
+            && self.exit_is_consistent()
             && self.normal.is_consistent()
             && self.normal.statement() == self.control()
             && self.normal.body_catalog().callable() == self.callable

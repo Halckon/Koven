@@ -48,3 +48,12 @@ Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span
 `owner_nested_body_tests.rs`：缺 permit、重复提交和实际 parent frame 损坏负控。
 故障注入名称含 `ci_only`，只在 CI 执行；本地编译不等于负控已通过。
 验收实际结果记入 SPEC-0341，不以此页测试位置清单宣称测试已运行。
+
+## 可选内层 false 清理事实（不授权恢复）
+
+批准的事实采集在实际 `drop_loop_exit` 完成之后读取清理后 state 与新追加 facts，
+仅为同一 child/condition、已完成 normal 事件记录 `false_exit_partition()`。
+返回 live 根和精确 LoopExit drops，完整覆盖且互斥；干净资源检查复用 boundary_values。
+重复或缺事件不给可选事实，但不撤销原 normal-body 权限。
+这是 planner false 清理点的静态分区，不是入口/回边 token 的实际代际合流证明；
+没有新后端 CFG receipt 或 parent 恢复消费者，仍不得据此额外发射 Drop。

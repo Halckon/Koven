@@ -12,6 +12,11 @@ pub(super) struct Nested {
     conditioned: bool,
     body_entered: bool,
     left: bool,
+    exit_seen: bool,
+    exit_partition: Option<(
+        Vec<UnitSymbolId>,
+        Vec<crate::ownership_checking::UnitDropFact>,
+    )>,
     pub(super) valid: bool,
     pub(super) sink: Option<counter_segment::body::Body>,
 }
@@ -91,6 +96,8 @@ impl ControlTransactions {
             conditioned: false,
             body_entered: false,
             left: false,
+            exit_seen: false,
+            exit_partition: None,
             valid: true,
             sink: None,
         });
@@ -143,6 +150,43 @@ impl ControlTransactions {
             n.body_entered = n.valid;
         }
     }
+    // Only the actual implicit-false cleanup event may populate this audit fact.
+    pub(super) fn nested_false_exit(
+        &mut self,
+        control: UnitStatementId,
+        condition: UnitExpressionId,
+        state: &ValueState,
+        drops: &[PlannerDropFact],
+        possible: bool,
+    ) {
+        let Some(n) = self.nested.as_mut().filter(|n| n.control == control) else {
+            return;
+        };
+        #[cfg(test)]
+        if fault(control, 5) {
+            return;
+        }
+        #[cfg(test)]
+        if fault(control, 6) {
+            n.exit_seen = true;
+        }
+        let repeated = n.exit_seen;
+        n.exit_seen = true;
+        n.exit_partition = None;
+        if repeated
+            || !possible
+            || !n.valid
+            || n.left
+            || !n.conditioned
+            || !n.body_entered
+            || n.condition != condition
+            || n.sink.as_ref().and_then(|s| s.result()).is_none()
+        {
+            return;
+        }
+        n.exit_partition =
+            root_incoming::root_exit::actual_partition(control, &n.roots, state, drops);
+    }
     pub(in super::super::super) fn nested_leave(
         &mut self,
         control: UnitStatementId,
@@ -180,6 +224,7 @@ impl ControlTransactions {
             n.callable,
             (n.parent, n.control, n.condition, n.body),
             n.sink?.result()?,
+            n.exit_partition,
         )
     }
 }
@@ -220,6 +265,10 @@ mod tests {
             .expect("actual child body");
         let n = o.nested_normal_body_v1().unwrap();
         assert!(o.is_consistent());
+        let (live, drops) = n.false_exit_partition().expect("actual false cleanup");
+        assert_eq!(live.len(), 2);
+        assert!(drops.is_empty());
+        assert!(live.iter().all(|r| n.normal().header_roots().contains(r)));
         assert_ne!(n.parent(), n.control());
         assert_eq!(n.normal().statement(), n.control());
         assert_eq!(n.normal().steps().len(), 2);
@@ -322,5 +371,47 @@ mod tests {
                 "phase {phase}"
             );
         }
+    }
+    #[test]
+    fn ci_only_nested_false_exit_requires_unique_actual_cleanup() {
+        let fixture = Fixture::new(&[("nested-exit-events.ko", SOURCE)]);
+        let baseline = fixture.shared();
+        let control = baseline
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.nested_normal_body_v1())
+            .unwrap()
+            .control();
+        for phase in [5, 6] {
+            FAULT.set(Some((control, phase)));
+            HITS.set(0);
+            let owned = fixture.shared();
+            let hits = HITS.get();
+            FAULT.set(None);
+            assert!(hits > 0, "actual child cleanup must be targeted");
+            let n = owned
+                .owner_observations()
+                .iter()
+                .find_map(|o| o.nested_normal_body_v1())
+                .expect("normal permission remains independent");
+            assert!(n.false_exit_partition().is_none());
+        }
+    }
+    #[test]
+    fn nested_false_cleanup_keeps_root_needed_by_parent_backedge() {
+        let source = SOURCE.replace("println(a); println(b)", "println(b)");
+        let fixture = Fixture::new(&[("nested-exit-partial.ko", &source)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty());
+        let n = owned
+            .owner_observations()
+            .iter()
+            .find_map(|o| o.nested_normal_body_v1())
+            .unwrap();
+        let (live, drops) = n.false_exit_partition().unwrap();
+        // Removing the final read does not retire a: the enclosing loop still
+        // needs it for the next child activation. Preserve actual planner liveness.
+        assert_eq!(live.len(), 2);
+        assert!(drops.is_empty());
     }
 }

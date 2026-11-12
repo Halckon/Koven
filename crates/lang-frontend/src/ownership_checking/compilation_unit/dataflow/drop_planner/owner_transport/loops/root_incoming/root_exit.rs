@@ -12,6 +12,13 @@ impl DropPlanner<'_, '_> {
         let control = UnitStatementId::new(self.checker.source_unit, id);
         let condition_id = self.checker.unit_expression(condition);
         let false_possible = self.checker.ordinary_condition_outcomes(condition).1;
+        self.owner_loop.nested_false_exit(
+            control,
+            condition_id,
+            state,
+            &self.facts[start..],
+            false_possible,
+        );
         if let Some(body) = self.owner_loop.bridge_body_mut(control) {
             body.false_exit(
                 control,
