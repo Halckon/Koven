@@ -15908,3 +15908,21 @@ loan_region家族94项通过；CI六组只作feature lib no-run。Clippy发现�
 false原生测试1项通过，未把空过滤或缺案例当作通过。fmt/diff/docs913、尺寸2626
 手写Rust文件/36历史超限通过，policy未改。独立身份修复及while职责迁移复审通过。
 此片只本地提交；不声称一般循环、多根、终止性或旧见证退休已完成。
+
+### 已批准同源直接兄弟循环准入（2026-11-12）
+
+前序试改因缺专项授权被权限审核阻止，生产未执行，仅保留普通测试真实红。
+用户现直接同意：“同一函数体内的直接兄弟 while，各自在本轮创建并完全关闭借用；
+仍不开放分支、跳转、嵌套或多根”。因此只扩同一稳定外部 source、同一 callable 的
+直接兄弟 no-carry while；每轮仍各自取得、使用、真实 End 并恢复外部义务。
+
+新增门必须由当前 binding 自身的同 ownership 封印事实启动，目标兄弟也须独立拥有
+准确 binding/source loan/initializer/body/唯一 End；两者在真实 Function body 的直接
+elements 中且 source/callable/source unit 一致。不能仅凭某个目标有事实就给 ordinary
+或 carried binding 放行，不接受不同 source、嵌套、分支或未封印控制节点。
+
+逐循环保留既有 NoCarryLease，实际 SSA 结果不跨本循环回边或进入兄弟循环，false
+退出保持 source。现独立 fresh-loop receipt 仍仅 whole-function 单 while 资格；本片
+若只完成兄弟执行，不宣称已发布兄弟组合 receipt，不退休旧见证。
+复用前序第二 while Unsupported 真红，增加2/3兄弟、独立结果/End、双false原生及
+不同 source/未封印控制负界；CI故障仅编译。本地分步提交，不推送。
