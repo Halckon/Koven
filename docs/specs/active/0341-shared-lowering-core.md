@@ -15256,3 +15256,26 @@ owner 根仍可走既有出口/外层恢复路径，不把临时能力约束扩�
 之后仅增加该测试故障，未改变生产逻辑。两故障均仅编译，不宣称已运行通过。
 codegen all-target strict Clippy通过（26.73s）；最终只读复审无确定阻断。
 本片未重跑FE/workspace；不把静态不逃逸等同于任意轮次动态证明。仅本地提交。
+
+### 下一嵌套出口合同选项（2026-11-12，设计待批准，未启用）
+
+当前 Nested 仅保存 conditioned/body_entered/left 与 normal sink；nested_leave 的
+success/left 不是独立 false-exit 完成事件，也不包含零轮与正常回边的运行时选择。
+因此不能从 left 或现有测试的最终 SSA 映射合成出口 owner token。
+
+建议拆为两个需明确批准的交付边界：
+
+1. **出口事实产品，不授予恢复消费。** 为同一 analysis/callable/parent/child 建立
+   独立 child false-exit 完成采集，记录实际 header、false successor、根 symbol 向量
+   和干净资源分区。入口与 normal 来源须保持两个有身份的候选，不把它们压成遍历
+   最后见到的 producer。缺事件、重复/错 control、根/资源不一致则整项不发布；旧路径
+   继续负责发射。后端仅核真实 CFG/参数映射，不将此事实当 Drop 或 Replace 许可。
+2. **外层恢复消费迁移。** 只有第一步具备完整实际合流身份后，再为 parent resume
+   的实际完成位置、root binding 和下一消费者发一次性许可。必须防止已离开 child
+   的旧 permit 重用，防止与 generic 发射双 Drop，独立核零轮/一轮/多轮有限用例。
+   不包括多 child、更深嵌套、break/continue/return 或任意轮次归纳。
+
+选项1优先级高于继续叠加normal-body审计，但它仍需用户批准该新增事实合同，当前
+不做生产接线。选项2必须另明确是否授予恢复消费，不能把选项1批准解释为一并批准。
+验收应包含真实事件丢失/错序、不同control串换、false边根参数串换和脏资源负控；
+故障遵循CI-only，本地只编译。有限native输出与静态SSA候选身份均不是动态迭代证明。

@@ -33,7 +33,9 @@ Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span
 
 结束检查全部阶段完成、原 body Replace 数量、header→body/false 分支，以及每根
 唯一且有序的 RootPlace→Exclusive BorrowBegin→对应 Replace 准备链；检查整个 body
-中 owner/place/loan 的定义与使用位置，拒绝额外读取、消费或重复定义。结束时再按原 FE step 及实际 call/producer 核 Replace 第二结果→唯一 Alias binding→
+中 owner 的定义与使用位置，拒绝额外读取、消费或重复定义。临时 place/loan 另按
+全函数精确位置核唯一产生/消费，并禁止 terminator 逃逸，不限制 owner 的旧路径跨块运输。
+结束时再按原 FE step 及实际 call/producer 核 Replace 第二结果→唯一 Alias binding→
 原事实 Drop，整函数检查 old/binding 唯一定义和消费且不从 terminator 逃逸；不只依赖
 已推进的 stage。普通测试核最终 typed-SSA 旧值恰一次同块后置 Drop，Alias 会被消除。
 没有另发一次 Drop，也没有向 whole-loop 或 late-SSA group 授予新权限。
