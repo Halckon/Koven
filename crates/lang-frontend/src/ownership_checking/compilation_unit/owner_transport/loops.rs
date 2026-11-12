@@ -340,7 +340,7 @@ impl UnitOwnerObservation {
     /// Separate sealed loop capability; legacy status/events and Choice remain unchanged.
     pub fn loop_observation_v1(&self) -> Option<&UnitOwnerLoopObservationV1> {
         self.loop_value.as_deref().filter(|value| {
-            self.multi_root_boundary.is_none() && self.closed_loop_batch.is_none() && self.control_bridge.is_none() && self.counter_batch.is_none() && self.open_loop_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
+            self.multi_root_boundary.is_none() && self.closed_loop_batch.is_none() && self.private_control_chain.is_none() && self.control_bridge.is_none() && self.counter_batch.is_none() && self.open_loop_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
                 point: UnitDropPoint::AfterStatement(statement), reason: super::UnitOwnerUnsupportedReason::Syntax
             } if statement == value.statement)
                 && value.callable == self.callable

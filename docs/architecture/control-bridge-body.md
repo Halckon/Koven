@@ -151,5 +151,8 @@ body catalog身份及根索引。随后仅通过实际Move→Bind搬运位置，
 保存在observation而非测试旁路；缺入口、body、tail、退出或终段清理均不产生部分链。
 中间live根由续接转移，终段必须全死或有真实完整suffix。内部链与其他能力互斥，绑定
 原analysis/callable和首次Syntax拒绝点，deferred时撤销，旧Complete不恢复。
+所有旧产品的直接getter也独立排斥内部整链，不能只依赖发布前一致性检查；
+派生getter通过父getter继承该互斥。CI-only将真实已有效的旧产品与真实整链混合，
+要求一致性失败且旧getter无可读权限，本地只编译。
 该内部封存没有公共权限getter；后端逐control消费尚未接入，不能宣称新链产品已可用。
 嵌套循环的外层恢复与路径合流仍不在本片范围内。

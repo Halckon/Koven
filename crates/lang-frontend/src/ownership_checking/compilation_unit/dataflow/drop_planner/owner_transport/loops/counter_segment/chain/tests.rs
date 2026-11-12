@@ -109,3 +109,5 @@ fn ci_only_private_chain_rejects_foreign_observation_identity() {
     observation.identity = std::sync::Arc::new(());
     assert!(!observation.is_consistent());
 }
+
+mod getter_exclusion;

@@ -49,7 +49,8 @@ impl UnitOwnerObservation {
     pub fn closed_loop_batch_v1(&self) -> Option<&UnitOwnerClosedLoopBatchV1> {
         let batch = self.closed_loop_batch.as_deref()?;
         let first = batch.products.first()?;
-        (self.control_bridge.is_none()
+        (self.private_control_chain.is_none()
+            && self.control_bridge.is_none()
             && self.counter_batch.is_none()
             && self.multi_root_boundary.is_none()
             && self.loop_value.is_none()
