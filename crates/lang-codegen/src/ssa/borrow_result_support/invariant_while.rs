@@ -133,7 +133,15 @@ pub(in crate::ssa) fn admitted(
     if elements.is_empty() {
         return None;
     }
-    for consumer in elements {
+    let consumers = if tail_continue(file, *while_id).is_some() {
+        &elements[..elements.len() - 1]
+    } else {
+        elements.as_slice()
+    };
+    if consumers.is_empty() {
+        return None;
+    }
+    for consumer in consumers {
         let Statement::Expression { expression } =
             file.ast().statements().get(*consumer).ok()?.payload()
         else {
@@ -200,4 +208,32 @@ fn name(
         .iter()
         .filter(|r| r.source_unit() == expression.source_unit() && r.span() == node.span());
     matches!((references.next(),references.next()),(Some(reference),None) if reference.target()==&UnitReferenceTarget::Symbol(symbol))
+}
+
+/// Only the exact final direct jump; eligibility still requires `admitted`.
+pub(in crate::ssa) fn tail_continue(
+    file: &ParsedFile,
+    statement: StatementId,
+) -> Option<lang_frontend::ast::ExpressionId> {
+    let Statement::While { body, .. } = file.ast().statements().get(statement).ok()?.payload()
+    else {
+        return None;
+    };
+    let Statement::Block { elements } = file.ast().statements().get(*body).ok()?.payload() else {
+        return None;
+    };
+    let Statement::Expression { expression } = file
+        .ast()
+        .statements()
+        .get(*elements.last()?)
+        .ok()?
+        .payload()
+    else {
+        return None;
+    };
+    matches!(
+        file.ast().expressions().get(*expression).ok()?.payload(),
+        Expression::Continue { .. }
+    )
+    .then_some(*expression)
 }

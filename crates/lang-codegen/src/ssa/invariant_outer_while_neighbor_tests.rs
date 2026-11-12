@@ -43,8 +43,16 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
             "borrow val item = view(source); while (flag) { consume(item); break }",
         ),
         (
-            "continue",
-            "borrow val item = view(source); while (flag) { consume(item); continue }",
+            "conditional-continue",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { continue } }",
+        ),
+        (
+            "continue-without-consumer",
+            "borrow val item = view(source); while (flag) { continue }",
+        ),
+        (
+            "nested-continue",
+            "borrow val item = view(source); while (flag) { consume(item); { continue } }",
         ),
         (
             "return",

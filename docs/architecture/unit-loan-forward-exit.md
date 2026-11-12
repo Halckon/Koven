@@ -134,3 +134,7 @@ acquire、jump、嵌套和多consumer，不新增通用循环receipt。见[SPEC-
 上述不变量while现推广为非空动态直线consumer序列：每个调用独立满足原身份与
 同步Borrow合同，actual SSA逐call保持同一result loan并核callee顺序。无固定n
 枚举、无每call acquire；混root、空body、嵌套及jump仍拒，其他循环边界不变。
+
+不变量consumer序列尾现可接无条件continue：独立精确tail/while/frame检查包围
+原jump清理与Goto，核回到原header且lease不变；SSA证明确为continue而非额外
+normal回边。条件/嵌套continue、空consumer、break/return仍不在本合同内。

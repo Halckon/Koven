@@ -15279,3 +15279,30 @@ lineage、callee身份与block顺序，BorrowBegin仅own=1/Borrow=0、BorrowCall
 最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib --no-run、
 fmt/diff及文档912项通过；size基准2beb5592通过（2555手写Rust文件、36历史超限
 债务），policy未改。CI-only仅编译，日志invariant-consumers-*归档。本片本地提交。
+
+## 不变量while尾部continue（实施中）
+
+基于ff9187b6，仅在非空已验证直线consumer序列尾增加一个无条件Continue，
+中间/条件/嵌套jump仍不属于合同。原loop_jump先清理再实际Goto(header)并返回
+Diverged，因此不能用正常fallthrough回边证据替代continue：需查回精确tail节点、
+对应while frame与header，清理前严格loan/view边界，清理后跳转前lease不变。
+不将通用min边界容错当作新协议匹配；不支持For frame、break/return或新借用。
+真实SSA需证明header恰entry和continue两入边、无额外正常回边，continue块无
+result/source End或owner Drop；false出口与true动态不可达出口仍按前合同验证。
+
+真实tail-continue红为count1/Borrow/flag/rooted/on的while span Unsupported。
+实现只放行末直接Continue，原consumer全部逐项检查不变；loop_jump新增原清理前
+和实际Goto前两个hook，精确tail/while/frame、非For、loan/view长度相等与原header
+目标及lease保持均失败封闭，原while快照在Diverged后继续核验，不制造正常回边。
+
+强正控240组合含原120与末continue120，actual terminator源位置精确Continue、
+唯一无条件Goto至原header、恰entry+continue两incoming；该块无End/Drop/Begin/
+BorrowCall。旧source/result/owner lineage及出口顺序、on/off与LLVM/verifier保持。
+独立14类56邻界仍拒条件/嵌套/空consumer continue及break/return等。最终88普通
+回归全绿；迁移旧合法continue负控时按真实错误锚锁定条件if整span，未改生产
+掩盖失败。独立非作者最终复审通过，未新增receipt或修改FE/verifier/尺寸策略。
+
+最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib --no-run、
+fmt/diff、文档912项及size基准2beb5592全部通过（2555文件、36历史超1000债务）。
+container_for仅新增两hook至982行；CI-only仅编译未运行，日志invariant-continue-*
+已归档，本片只本地提交、不推送。

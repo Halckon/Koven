@@ -6,142 +6,163 @@ use lang_frontend::ownership_checking::{
 
 #[test]
 fn ordinary_invariant_outer_while_preserves_one_lease() {
-    for count in [1, 2, 3, 8, 17] {
-        for own in [false, true] {
-            for condition in ["flag", "false", "true"] {
-                let body = (0..count)
-                    .map(|i| {
-                        if i % 2 == 0 {
-                            "consume(item)"
-                        } else {
-                            "consume_other(item)"
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                let mode = if own { "own " } else { "" };
-                let text = format!(
-                    "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun consume_other(item: String): Unit {{}}\nfun run({mode}source: String, flag: Boolean): Unit {{ borrow val item = view(source); while ({condition}) {{ {body} }} }}"
-                );
-                let mut sources = SourceMap::new();
-                let (source, parsed) =
-                    unit_lower_test_support::parsed(&mut sources, "invariant-while.ko", &text);
-                let (environment, types) = standard_environments();
-                for (layout, input) in [
-                    (
-                        "rooted",
-                        SourceUnitInput::new("root", "invariant-while.ko", source, &parsed),
-                    ),
-                    ("memory", SourceUnitInput::memory_document(source, &parsed)),
-                ] {
-                    let inputs = [input];
-                    let (names, typed, on) =
-                        unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
-                    let off = with_loan_observation(false, || {
-                        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+    for continued in [false, true] {
+        for count in [1, 2, 3, 8, 17] {
+            for own in [false, true] {
+                for condition in ["flag", "false", "true"] {
+                    let body = (0..count)
+                        .map(|i| {
+                            if i % 2 == 0 {
+                                "consume(item)"
+                            } else {
+                                "consume_other(item)"
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    let body = if continued {
+                        format!("{body}; continue")
+                    } else {
+                        body
+                    };
+                    let mode = if own { "own " } else { "" };
+                    let text = format!(
+                        "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun consume_other(item: String): Unit {{}}\nfun run({mode}source: String, flag: Boolean): Unit {{ borrow val item = view(source); while ({condition}) {{ {body} }} }}"
+                    );
+                    let mut sources = SourceMap::new();
+                    let (source, parsed) =
+                        unit_lower_test_support::parsed(&mut sources, "invariant-while.ko", &text);
+                    let (environment, types) = standard_environments();
+                    for (layout, input) in [
+                        (
+                            "rooted",
+                            SourceUnitInput::new("root", "invariant-while.ko", source, &parsed),
+                        ),
+                        ("memory", SourceUnitInput::memory_document(source, &parsed)),
+                    ] {
+                        let inputs = [input];
+                        let (names, typed, on) = unit_lower_test_support::analyze(
+                            &sources,
+                            &inputs,
+                            &environment,
+                            &types,
+                        );
+                        let off = with_loan_observation(false, || {
+                            check_compilation_unit_ownership(
+                                &sources, &inputs, &names, &types, &typed,
+                            )
                             .unwrap()
                             .validate()
                             .unwrap()
-                    });
-                    assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
-                    let entry = names
-                        .names()
-                        .index()
-                        .declarations()
-                        .iter()
-                        .find(|d| d.name() == "run")
-                        .unwrap()
-                        .id();
-                    let mut previous = None;
-                    for (setting, owned) in [("on", &on), ("off", &off)] {
-                        let (lowered, verified) =
-                            crate::ssa::unit_lower::observe_final_verifier(|| {
-                                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                    &sources, &inputs, &names, &types, &typed, owned, entry,
-                                )
-                            });
-                        let (program, _) = lowered.unwrap_or_else(|error| {
-                        panic!("count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
-                    });
-                        assert_eq!(verified.len(), 1);
-                        verify_program(&program).unwrap();
-                        let run = program.modules[0]
-                            .functions
+                        });
+                        assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+                        let entry = names
+                            .names()
+                            .index()
+                            .declarations()
                             .iter()
-                            .find(|f| f.name.contains(".run."))
-                            .unwrap();
-                        assert_eq!(
-                            run.instructions
+                            .find(|d| d.name() == "run")
+                            .unwrap()
+                            .id();
+                        let mut previous = None;
+                        for (setting, owned) in [("on", &on), ("off", &off)] {
+                            let (lowered, verified) =
+                                crate::ssa::unit_lower::observe_final_verifier(|| {
+                                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                        &sources, &inputs, &names, &types, &typed, owned, entry,
+                                    )
+                                });
+                            let (program, _) = lowered.unwrap_or_else(|error| {
+                        panic!("continue={continued}/count={count}/own={own}/condition={condition}/{layout}/{setting}: {error:?}")
+                    });
+                            assert_eq!(verified.len(), 1);
+                            verify_program(&program).unwrap();
+                            let run = program.modules[0]
+                                .functions
                                 .iter()
-                                .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
-                                .count(),
-                            1
-                        );
-                        assert_eq!(
-                            run.instructions
-                                .iter()
-                                .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
-                                .count(),
-                            count
-                        );
-                        let calls = run
-                            .instructions
-                            .iter()
-                            .filter_map(|i| match i.operation {
-                                Operation::DirectCall { callee, .. } => Some((i, callee)),
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>();
-                        for (index, (call, callee)) in calls.iter().enumerate() {
-                            let expected = if index % 2 == 0 {
-                                ".consume."
-                            } else {
-                                ".consume_other."
-                            };
-                            assert!(
-                                program
-                                    .modules
+                                .find(|f| f.name.contains(".run."))
+                                .unwrap();
+                            assert_eq!(
+                                run.instructions
                                     .iter()
-                                    .flat_map(|module| &module.functions)
-                                    .find(|function| function.id == *callee)
-                                    .unwrap()
-                                    .name
-                                    .contains(expected)
+                                    .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
+                                    .count(),
+                                1
                             );
-                            assert_eq!(call.block, calls[0].0.block);
-                            let block = run.blocks.iter().find(|b| b.id == call.block).unwrap();
-                            if index > 0 {
+                            assert_eq!(
+                                run.instructions
+                                    .iter()
+                                    .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
+                                    .count(),
+                                count
+                            );
+                            let calls = run
+                                .instructions
+                                .iter()
+                                .filter_map(|i| match i.operation {
+                                    Operation::DirectCall { callee, .. } => Some((i, callee)),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
+                            for (index, (call, callee)) in calls.iter().enumerate() {
+                                let expected = if index % 2 == 0 {
+                                    ".consume."
+                                } else {
+                                    ".consume_other."
+                                };
                                 assert!(
-                                    block
-                                        .instructions
+                                    program
+                                        .modules
                                         .iter()
-                                        .position(|id| *id == calls[index - 1].0.id)
+                                        .flat_map(|module| &module.functions)
+                                        .find(|function| function.id == *callee)
                                         .unwrap()
-                                        < block
+                                        .name
+                                        .contains(expected)
+                                );
+                                assert_eq!(call.block, calls[0].0.block);
+                                let block = run.blocks.iter().find(|b| b.id == call.block).unwrap();
+                                if index > 0 {
+                                    assert!(
+                                        block
                                             .instructions
                                             .iter()
-                                            .position(|id| *id == call.id)
+                                            .position(|id| *id == calls[index - 1].0.id)
                                             .unwrap()
-                                );
+                                            < block
+                                                .instructions
+                                                .iter()
+                                                .position(|id| *id == call.id)
+                                                .unwrap()
+                                    );
+                                }
                             }
+                            assert_eq!(
+                                run.instructions
+                                    .iter()
+                                    .filter(|i| matches!(
+                                        i.operation,
+                                        Operation::BorrowBegin { .. }
+                                    ))
+                                    .count(),
+                                usize::from(own),
+                                "no per-consumer or per-iteration acquisition"
+                            );
+                            assert_transport(
+                                run,
+                                own,
+                                condition,
+                                continued.then(|| text.find("continue").unwrap()),
+                            );
+                            let text = format!(
+                                "{verified:?}\n{}",
+                                crate::llvm::render_verified_program(&program).unwrap()
+                            );
+                            if let Some(previous) = previous.as_ref() {
+                                assert_eq!(&text, previous);
+                            }
+                            previous = Some(text);
                         }
-                        assert_eq!(
-                            run.instructions
-                                .iter()
-                                .filter(|i| matches!(i.operation, Operation::BorrowBegin { .. }))
-                                .count(),
-                            usize::from(own),
-                            "no per-consumer or per-iteration acquisition"
-                        );
-                        assert_transport(run, own, condition);
-                        let text = format!(
-                            "{verified:?}\n{}",
-                            crate::llvm::render_verified_program(&program).unwrap()
-                        );
-                        if let Some(previous) = previous.as_ref() {
-                            assert_eq!(&text, previous);
-                        }
-                        previous = Some(text);
                     }
                 }
             }
@@ -162,7 +183,7 @@ fn edges(block: &Block) -> Vec<&Edge> {
     }
 }
 
-fn assert_transport(run: &Function, own: bool, literal: &str) {
+fn assert_transport(run: &Function, own: bool, literal: &str, continued: Option<usize>) {
     use std::collections::BTreeMap;
     let acquisition = run
         .instructions
@@ -267,6 +288,45 @@ fn assert_transport(run: &Function, own: bool, literal: &str) {
         .filter(|(_, edge)| edge.target == header.id)
         .collect::<Vec<_>>();
     assert_eq!(incoming.len(), 2, "entry and real backedge");
+    if let Some(start) = continued {
+        let jumps = run
+            .blocks
+            .iter()
+            .filter(|block| {
+                block.terminator.as_ref().is_some_and(|term| {
+                    term.origin.span().start() == start
+                        && term.origin.span().end() == start + "continue".len()
+                })
+            })
+            .collect::<Vec<_>>();
+        let [jump] = jumps.as_slice() else {
+            panic!("exactly one actual continue terminator");
+        };
+        let TerminatorKind::Branch(edge) = &jump.terminator.as_ref().unwrap().kind else {
+            panic!("continue must be an unconditional Goto");
+        };
+        assert_eq!(edge.target, header.id);
+        assert!(incoming.iter().any(|(block, _)| block.id == jump.id));
+        assert_ne!(jump.id, acquisition.block);
+        for id in &jump.instructions {
+            let instruction = run
+                .instructions
+                .iter()
+                .find(|instruction| instruction.id == *id)
+                .unwrap();
+            assert!(
+                !matches!(
+                    instruction.operation,
+                    Operation::BorrowEnd { .. }
+                        | Operation::Drop { .. }
+                        | Operation::BorrowBegin { .. }
+                        | Operation::BorrowCall { .. }
+                ),
+                "continue body does not retire or reacquire the outer lease"
+            );
+        }
+    }
+
     for (_, edge) in &incoming {
         assert_eq!(
             edge.arguments

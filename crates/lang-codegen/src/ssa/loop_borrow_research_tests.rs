@@ -14,8 +14,8 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
             "borrow val item = view(source); while (flag) { consume(item); break }",
         ),
         (
-            "outer-binding-continue",
-            "borrow val item = view(source); while (flag) { consume(item); continue }",
+            "outer-binding-conditional-continue",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { continue } }",
         ),
         (
             "outer-binding-return",
@@ -258,6 +258,8 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
                     assert_eq!(span.source_id(), source);
                     let expected = if name == "outer-binding-return" {
                         "return"
+                    } else if name == "outer-binding-conditional-continue" {
+                        "if (flag) { continue }"
                     } else {
                         &body[body.find("while").unwrap()..]
                     };

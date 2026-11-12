@@ -85,3 +85,54 @@ impl Builder<'_, '_> {
         Ok(())
     }
 }
+
+pub(super) struct InvariantContinue {
+    lease: InvariantLease,
+    target: BlockRef,
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn invariant_continue_entry(
+        &self,
+        expression: ExpressionId,
+        is_break: bool,
+        frame: LoopFrame,
+        span: Span,
+    ) -> Result<Option<InvariantContinue>, LoweringError> {
+        let Some(lease) = self.invariant_while_entry(frame.statement.statement(), span)? else {
+            return Ok(None);
+        };
+        if is_break
+            || frame.seq_for.is_some()
+            || frame.map_for.is_some()
+            || frame.statement.source_unit() != self.inputs.source_unit
+            || frame.loans != self.pending_call_loans.len()
+            || frame.views != self.active_views.len()
+            || crate::ssa::borrow_result_support::invariant_while::tail_continue(
+                self.inputs.parsed,
+                frame.statement.statement(),
+            ) != Some(expression)
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        Ok(Some(InvariantContinue {
+            lease,
+            target: frame.continue_target,
+        }))
+    }
+
+    pub(super) fn invariant_continue_exit(
+        &self,
+        continued: Option<&InvariantContinue>,
+        target: BlockRef,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(continued) = continued else {
+            return Ok(());
+        };
+        if continued.target != target {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        self.invariant_while_boundary(Some(&continued.lease), span)
+    }
+}
