@@ -195,5 +195,6 @@ normal/尾continue分别核完整资源投影保持，break单列退出且不认
 确认正常next，按独占loop/session票据有序回交；回边认证要求全部真实返回及入口义务
 保持。观察无副作用，不替代fresh实例、任意控制流归纳或后端每轮receipt。
 前序普通frame整链还可向紧邻空while一次性交接，核真实condition前header、后base
-及normal pre-merge边的零binding/loan与完整外部义务保持；入口票据不能复用为
-body每轮闭合，仍不授予fresh借用准入。
+及normal pre-merge边的零binding/loan与完整外部义务保持。实际空body另由独占
+permit在真实frame入口认领、cleanup前封闭，再由pre-merge唯一消费，核父frame、
+实际零acquire/End与义务不变；不是运行时每轮证明，仍不授予fresh借用准入。

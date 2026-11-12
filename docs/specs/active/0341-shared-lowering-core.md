@@ -15727,3 +15727,34 @@ no-run编译通过，未执行，覆盖缺header、错父checker/session/checkpo
 （2596手写Rust文件、36历史超限），策略未改。独立最终复审还核CI故障仅cfg(test)、
 thread-local/RAII恢复及ignored边界；未执行故障或CG/native。仅本地交付，不推送，
 不宣称empty body证明了fresh acquire/End、非空body事务或任意动态迭代归纳。
+
+
+### 空 loop body 的实际 frame 生命周期研究
+
+延续前序普通闭合至空 while header 的独立观察，不扩大既有空 body 与动态 Boolean
+参数资格。condition 确认资源保持后产生非 Clone permit；两个 checker 在实际
+body scope frame begin 后认领，并在 check_elements 返回后、原 frame.finish 与
+scope cleanup 前封闭真实 frame。核实际 parent/frame/session/loop/body 身份、
+frame 有效性、零 acquire/End、唯一 normal 出口与完整资源投影及事实检查点保持。
+normal pre-merge 独占消费出口票据并核 cleanup 后实际状态，不从清理后为空倒推 End。
+当前 loop 完结无论新证据成功与否清理两槽，异常退出仍由 Guard 清理，避免污染兄弟。
+
+旧 validate 不变；body_complete/body_frame 只提供更强的显式研究观察，默认产品
+与 L0164 不变。此前普通 closure 只用于一次入口，不作为本轮 acquisition/End。
+本片仍是空 body 的静态 checker 生命周期，不证明运行时迭代、非空消费者、fresh
+循环借用、false 零迭代实例或独立 CG 每轮 receipt，也不退休旧见证。
+
+断线前红尝试实际为 Capture 初始化缺字段编译错误，不计行为证据；恢复后修正初始化，
+普通合法源码的产品对照、真实前序 complete_closure 与旧 validate 先通过，再在
+body_complete 断言失败，取得真实行为红。之后才接实际 mint/enter/close 接点。
+
+接点完成后新3项普通测试与旧15项通过；新10组源码覆盖50次capture、50次原产品
+对照，正控另10次真实前序frame capture。覆盖实际body身份、兄弟不互认、非空/
+fresh/常量/跳转与无前序闭合拒绝。2组8项CI-only故障仅feature lib no-run编译
+通过，未执行；故障只破坏首个兄弟，要求旧validate保持且第二个body成功，覆盖
+缺claim/close、错session/loop身份、入口检查点、frame checker与出口检查点等
+隔离边界。独立生产及测试终审通过。
+
+最终11个普通target共253项通过；FE feature all-targets Clippy -D warnings、默认
+workspace all-targets、fmt/diff/docs912通过。尺寸相对2beb5592通过（2599手写Rust
+文件、36历史超限），policy不变。未执行CI故障或CG/native；仅本地提交，不推送。

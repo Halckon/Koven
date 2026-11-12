@@ -94,6 +94,7 @@ struct Acquisition {
     snapshot: Box<dyn Any>,
     ended: bool,
 }
+#[derive(Clone, Debug)]
 pub(crate) struct FrameIdentity {
     identity: Rc<()>,
     pub(crate) checker: BorrowFrameChecker,
@@ -113,6 +114,31 @@ impl FrameIdentity {
 }
 pub(crate) fn current_identity() -> Option<FrameIdentity> {
     CAPTURE.with(|c| c.borrow().as_ref()?.frames.last().map(Frame::identity))
+}
+pub(crate) struct FrameActivity {
+    pub(crate) identity: FrameIdentity,
+    pub(crate) parent: Option<FrameIdentity>,
+    pub(crate) scope: StatementId,
+    pub(crate) span: Span,
+    pub(crate) valid: bool,
+    pub(crate) acquisitions: usize,
+    pub(crate) ends: usize,
+}
+pub(crate) fn current_activity() -> Option<FrameActivity> {
+    CAPTURE.with(|c| {
+        let c = c.borrow();
+        let c = c.as_ref()?;
+        let f = c.frames.last()?;
+        Some(FrameActivity {
+            identity: f.identity(),
+            parent: c.frames.iter().rev().nth(1).map(Frame::identity),
+            scope: f.statement,
+            span: f.span,
+            valid: f.valid,
+            acquisitions: f.acquired.len(),
+            ends: f.ends.len(),
+        })
+    })
 }
 struct Frame {
     identity: Rc<()>,

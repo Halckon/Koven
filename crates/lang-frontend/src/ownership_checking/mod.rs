@@ -197,7 +197,9 @@ pub use research_borrow_frame::{
     BorrowFrameChecker, BorrowFrameConsumerReturn, BorrowFrameObservation, capture_borrow_frames,
 };
 #[cfg(any(test, feature = "loan-observation-test-support"))]
-pub use research_borrow_zero_loop::{BorrowZeroLoopObservation, capture_borrow_zero_loops};
+pub use research_borrow_zero_loop::{
+    BorrowZeroBodyFrame, BorrowZeroLoopObservation, capture_borrow_zero_loops,
+};
 
 #[cfg(any(test, feature = "loan-observation-test-support"))]
 mod research_borrow_loop;

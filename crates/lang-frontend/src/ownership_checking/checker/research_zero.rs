@@ -31,6 +31,7 @@ impl Checker<'_> {
         })?;
         zero::header(
             statement,
+            body,
             span,
             &snapshot,
             true,
@@ -40,6 +41,52 @@ impl Checker<'_> {
                 self.diagnostics.len(),
             ),
         )
+    }
+    pub(super) fn research_zero_body_enter(
+        &self,
+        scope: StatementId,
+        state: &State,
+    ) -> Option<zero::BodyTicket<State>> {
+        if !zero::active() {
+            return None;
+        }
+        zero::enter_body(
+            scope,
+            &self.research_resource_snapshot(state),
+            state.loans.is_empty() && state.borrow_bindings.is_empty(),
+            (
+                self.borrow_results.bindings.len(),
+                self.borrow_results.ends.len(),
+                self.diagnostics.len(),
+            ),
+        )
+    }
+    pub(super) fn research_zero_body_close(
+        &self,
+        ticket: Option<zero::BodyTicket<State>>,
+        flows: &Flows,
+    ) {
+        if ticket.is_none() {
+            return;
+        }
+        let exit = flows
+            .next
+            .as_ref()
+            .map(|state| self.research_resource_snapshot(state));
+        zero::close_body(
+            ticket,
+            exit.as_ref(),
+            flows.breaks.is_none() && flows.continues.is_none(),
+            flows
+                .next
+                .as_ref()
+                .is_some_and(|state| state.loans.is_empty() && state.borrow_bindings.is_empty()),
+            (
+                self.borrow_results.bindings.len(),
+                self.borrow_results.ends.len(),
+                self.diagnostics.len(),
+            ),
+        );
     }
     pub(super) fn research_loop_start(
         &self,

@@ -1,4 +1,5 @@
 //! Ordinary-frame closure handed once to a real empty-while header. Not fresh-loop borrowing.
+mod body;
 #[cfg(test)]
 mod tests;
 use super::{BorrowFrameChecker, BorrowFrameObservation, research_borrow_frame as frames};
@@ -7,6 +8,8 @@ use crate::{
     parser::{Expression, ParsedFile, Statement},
     source::Span,
 };
+pub use body::BorrowZeroBodyFrame;
+pub(crate) use body::{BodyTicket, close as close_body, enter as enter_body};
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 /// Independent research observation of an empty while's zero-loan header and normal edge.
@@ -19,6 +22,7 @@ pub struct BorrowZeroLoopObservation {
     header_preserved: bool,
     backedge_preserved: bool,
     clean: bool,
+    body: Option<BorrowZeroBodyFrame>,
 }
 impl BorrowZeroLoopObservation {
     /// Checker producing the actual states.
@@ -48,6 +52,25 @@ impl BorrowZeroLoopObservation {
             && self.backedge_preserved
             && self.clean
     }
+    /// Actual body scope evidence sealed before cleanup and consumed at pre-merge.
+    pub fn body_frame(&self) -> Option<&BorrowZeroBodyFrame> {
+        self.body.as_ref()
+    }
+    /// Verify the actual body lifecycle in addition to the original header/edge contract.
+    /// This proves no fresh acquisition and never represents a runtime iteration.
+    pub fn body_complete(&self) -> bool {
+        self.validate()
+            && self.body.as_ref().is_some_and(|body| {
+                body.preserved_before_cleanup()
+                    && body.acquisition_count() == 0
+                    && body.end_count() == 0
+            })
+    }
+    /// Body ownership is tied to this exact loop invocation and consumed body exit.
+    pub fn owns_body_frame(&self, body: &BorrowZeroBodyFrame) -> bool {
+        Rc::ptr_eq(&self.identity, &body.loop_identity)
+            && self.body.as_ref().is_some_and(|actual| actual.same(body))
+    }
     /// Actual invocation identity, not just equal source spans.
     pub fn same_loop_as(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.identity, &other.identity)
@@ -64,6 +87,8 @@ struct Capture {
     ready: Option<Ready>,
     header: Option<Box<dyn Any>>,
     active: Option<Rc<()>>,
+    body_permit: Option<Box<dyn Any>>,
+    body_exit: Option<Box<dyn Any>>,
     observations: Vec<BorrowZeroLoopObservation>,
 }
 thread_local! { static CAPTURE: RefCell<Option<Capture>>=const{RefCell::new(None)}; }
@@ -83,6 +108,8 @@ pub fn capture_borrow_zero_loops<T>(
             ready: None,
             header: None,
             active: None,
+            body_permit: None,
+            body_exit: None,
             observations: Vec::new(),
         }))
     }));
@@ -149,6 +176,7 @@ struct Header<S> {
     identity: Rc<()>,
     parent: frames::FrameIdentity,
     statement: StatementId,
+    body: StatementId,
     span: Span,
     entry: S,
     checkpoint: (usize, usize, usize),
@@ -170,12 +198,15 @@ impl Drop for Guard {
             {
                 c.header = None;
                 c.active = None;
+                c.body_permit = None;
+                c.body_exit = None;
             }
         });
     }
 }
 pub(crate) fn header<S: Clone + PartialEq + 'static>(
     statement: StatementId,
+    body: StatementId,
     span: Span,
     state: &S,
     zero: bool,
@@ -211,6 +242,7 @@ pub(crate) fn header<S: Clone + PartialEq + 'static>(
             identity,
             parent,
             statement,
+            body,
             span,
             entry: state.clone(),
             checkpoint,
@@ -230,7 +262,7 @@ pub(crate) struct Ticket<S> {
     header: Header<S>,
     condition_preserved: bool,
 }
-pub(crate) fn condition<S: PartialEq + 'static>(
+pub(crate) fn condition<S: Clone + PartialEq + 'static>(
     statement: Option<StatementId>,
     state: &S,
     zero: bool,
@@ -262,13 +294,16 @@ pub(crate) fn condition<S: PartialEq + 'static>(
             return None;
         }
         let condition_preserved = zero && &header.entry == state && header.checkpoint == checkpoint;
+        if condition_preserved {
+            body::mint(c, &header, state);
+        }
         Some(Ticket {
             header,
             condition_preserved,
         })
     })
 }
-pub(crate) fn finish<S: PartialEq>(
+pub(crate) fn finish<S: PartialEq + 'static>(
     ticket: Option<Ticket<S>>,
     normal: Option<&S>,
     only_normal: bool,
@@ -302,8 +337,12 @@ pub(crate) fn finish<S: PartialEq>(
         {
             return;
         }
+        let body = body::consume(c, &ticket.header, normal, only_normal, zero, checkpoint);
+        c.body_permit = None;
+        c.body_exit = None;
         c.active = None;
         c.observations.push(BorrowZeroLoopObservation {
+            body,
             checker: ticket.header.parent.checker,
             span: ticket.header.span,
             frame: ticket.header.ready.frame,
