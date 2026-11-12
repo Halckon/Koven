@@ -15176,3 +15176,46 @@ planner1496、loops965、refine build990、borrow_binding966。CI-only只编译�
 Preview/DNS按用户要求不排查、不修改、不重跑；不据本地绿灯声称正式CI完成。
 日志留隔离集成工作树 `.local-artifacts/integration/`。推送后须核精确远端head。
 D10/E2继续active；现行各有界能力不代表一般多根/嵌套/复杂CFG及旧见证退休完成。
+
+## 闭合借用词法块之后的普通while（实施中）
+
+在合流66ee7526上复核原循环研究，既有七邻界结论仍成立。进一步定位发现
+validate_bindings经ordinary_local和borrow_result_support::binding的整函数statement
+扫描，无条件拒绝While/Loop：即使真实BorrowBindingEnd已经关闭前一独立词法块，
+后续普通while也被拒。这与循环内创建binding的L0164是不同层次的缺口。
+
+本片仅考虑已关闭借用块之后、同父块兄弟位置的普通while，独立statement能力不能
+混用expression索引；需精确绑定身份、真实唯一End、每个同callable借用分别
+满足门禁。循环中的表达式与真实lowering仍走原检查，不能跳过body或将静态身份
+当作动态实例。实际loop入口还须复核已授权结果及source义务已被关闭；source参数
+本身合法的常驻借用不能与result-source残余混淆。
+
+不涉及活跃loan跨回边、循环内借用、loop/for泛化或祖先块提升；不删除L0164，
+不退休旧见证，也不宣称已有循环借用归纳证明。后续以真实红绿和邻界验证记录界定
+实际可交付范围；未经验证的设计不计入完成。
+
+真实红诊断进一步修正原假设：正控BindingEnd位于块尾consume(item)的
+AfterStatement，而非Block本身。因此本片采用独立的直线末调用合同：块仅含直接
+binding声明及普通调用，唯一End精确指向最后简单Call；随后while为同父后续兄弟。
+不把源码scope结束假充成事实中的结束点，实际result/source loan移除仍由原
+drops/end_result_bindings完成，while入口另复核，未新增动态循环receipt。
+
+实现与独立复审：closed_while私有模块仅为Scoped来源产生独立StatementId集合；
+唯一实际End须同源且位于唯一直接Block的末简单调用。块内仅直接binding声明及
+参数为Name/Literal的普通非borrow-result调用，拒隐藏控制和closure。while仅同父
+后续兄弟、Name/Literal条件且无新binding或嵌套循环；表达式门仍原样逐项执行。
+共享门的其他caller保持false或精确MapFor能力；legacy单位路径对source_loan Some
+仍先拒，不能绕过refine入口的真实borrowed/result_source_loans/pending检查。
+
+真实红为原lexical-end-before-loop的while整span Unsupported，改后14形状×双入口
+×观察on/off=56组合及source已move四组合通过；已move源码仍ownership拒绝。
+真正BorrowCall返回LoanId仅有一次BorrowEnd且在entry、先于后续loop；Borrow参数
+source为BlockParameter且不得End，owned source的新LoanId则唯一End在resultEnd后。
+真实SSA、LLVM及原final verifier一次均通过，on/off文本相同。不新增循环receipt。
+普通loan-region回归86通过；宽ordinary首跑的一项失败来自zero循环DirectCall计数
+测试假设，修正断言后最终精确回归通过，未为通过测试修改生产语义。
+
+恢复连接后确认原86通过日志与工作树保留，归档closed-loop-*；最终独立复审通过。
+Clippy全targets -D warnings、workspace全targets check、FE/CG默认lib --no-run、
+fmt/diff及文档912项通过；尺寸以2beb5592为基准通过，2550个手写Rust文件、36个
+历史超1000行债务仍报告，policy未改。CI-only仅编译未执行，本片未推送。

@@ -374,6 +374,8 @@ fn validate_binding(
             allowed,
         );
     }
+    let closed_whiles =
+        crate::ssa::borrow_result_support::closed_while::following(file, typed, owned, fact);
     crate::ssa::borrow_result_support::binding(
         file,
         fact.marker_span(),
@@ -385,6 +387,9 @@ fn validate_binding(
         builtin,
         call_allowed,
         |statement| {
+            if closed_whiles.contains(&statement) {
+                return true;
+            }
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
             owned.map_iterations().iter().any(|plan| {
                 plan.descriptor().statement() == statement && plan.source() == Some(fact.origin())

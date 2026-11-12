@@ -12,6 +12,7 @@ use lang_frontend::{
     type_checking::BuiltinType,
 };
 
+pub(super) mod closed_while;
 pub(super) mod local_if;
 pub(super) mod ordinary_local;
 #[cfg(test)]
@@ -350,12 +351,12 @@ pub(super) fn binding(
     }
     for (statement, node) in parsed.ast().statements().iter() {
         if contains(function, node.span())
-            && (matches!(
-                node.payload(),
-                Statement::While { .. } | Statement::Loop { .. }
-            ) || (!range
-                && matches!(node.payload(), Statement::For { .. })
-                && !iteration_allowed(statement)))
+            && (matches!(node.payload(), Statement::Loop { .. })
+                || (matches!(node.payload(), Statement::While { .. })
+                    && !iteration_allowed(statement))
+                || (!range
+                    && matches!(node.payload(), Statement::For { .. })
+                    && !iteration_allowed(statement)))
         {
             return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
         }

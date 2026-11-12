@@ -890,3 +890,7 @@ mod auxiliary_sequence_research_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "loop_borrow_research_tests.rs"]
 mod loop_borrow_research_tests;
+
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "closed_loop_invalid_source_tests.rs"]
+mod closed_loop_invalid_source_tests;

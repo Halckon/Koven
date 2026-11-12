@@ -57,6 +57,22 @@ impl Builder<'_, '_> {
         loop_body: StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        for fact in self.inputs.owned.borrow_results().bindings() {
+            if fact.binding().source_unit() == self.inputs.source_unit
+                && crate::ssa::borrow_result_support::closed_while::following(
+                    self.inputs.parsed,
+                    self.inputs.typed,
+                    self.inputs.owned,
+                    fact,
+                )
+                .contains(&statement)
+                && (self.borrowed.contains_key(&fact.binding())
+                    || self.result_source_loans.contains_key(&fact.binding())
+                    || !self.pending_call_loans.is_empty())
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+        }
         let statement = UnitStatementId::new(self.inputs.source_unit, statement);
         self.end_reassigned_loop_views(span)?;
         let header = self.body.block();

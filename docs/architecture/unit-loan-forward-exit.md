@@ -119,3 +119,8 @@ ownership，却在CG为UnsupportedNode、原verifier未运行。循环内临时b
 逆序清理、owner事件及一次性cause验证，随后规范化、去重并有序发布Drop事实。
 退出点选择、scope/branch/loop策略、receiver清理及liveness仍在原planner，模块
 拆分不改变任何执行或观察次序，也不扩大证书边界。
+
+后续普通while已支持一个窄合同：同父直线借用块的最后简单调用拥有唯一真实
+BindingEnd，且所有binding分别准入；while入口复核实际result/source义务已移除。
+Borrow参数原loan继续存活，owned source的新loan则在resultEnd后结束；不支持
+活loan跨循环或循环内借用，L0164保留。见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#闭合借用词法块之后的普通while实施中)。
