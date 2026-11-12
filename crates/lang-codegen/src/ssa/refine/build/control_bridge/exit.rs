@@ -74,6 +74,18 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         #[cfg(test)]
+        if self
+            .control_chain_bodies
+            .as_ref()
+            .is_some_and(|g| g.is_leading(selected.control))
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ChainLeadingExitMissingPermit,
+            )
+        {
+            owner_consumer_test_support::record_action("control-chain-leading-exit-fault-hit", 1);
+            return Ok(None);
+        }
+        #[cfg(test)]
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::MissingBridgeExitDropPermit,
         ) {

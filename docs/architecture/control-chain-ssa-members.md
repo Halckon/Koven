@@ -85,5 +85,17 @@ abort, exclusive success edge, ordered counter writeback/comparison/guard update
 success-to-own-header checks as continuation members. The Anchor carries those actual
 checked blocks through CFG folding and late SSA layout revalidation. Missing receipt revokes
 all group completion; its CI-only injection is compiled, never executed locally. This does
-not grant first scalar initializer or false-exit consumption permission, nor prove dynamic
+not grant first scalar initializer permission, nor prove dynamic
 cross-iteration induction.
+
+
+## Leading implicit-false partition
+
+The leading view borrows the original sealed live/dead root partition. Its original LoopExit
+facts select the same one-shot Drop permits as later members, using all original body roots.
+The finished block must consume exactly those facts in order while leaving live roots untouched;
+all leading cleanup must finish before entering the second control or publishing the group.
+A three-root first body with one retired exit root and two transported roots exercises zero and
+two native iterations. Dedicated CI-only missing-permit and late Anchor checked-block/abort
+corruptions withhold group completion; local verification compiles but does not execute them.
+First scalar initializer permission remains a separate gap.

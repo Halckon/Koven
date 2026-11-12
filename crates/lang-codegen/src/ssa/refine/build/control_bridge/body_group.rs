@@ -13,6 +13,7 @@ pub(in super::super) struct BodyGroup<'a> {
     leading_stages: Vec<consumption::Stage>,
     leading_body_roots: Option<Vec<Slot>>,
     leading_counter: Option<(BlockRef, [Slot; 2])>,
+    leading_exits: Vec<bool>,
 }
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
@@ -80,6 +81,7 @@ impl<'a> BodyGroup<'a> {
             leading_stages: vec![consumption::Stage::Ready; group.leading().normal().steps().len()],
             leading_body_roots: None,
             leading_counter: None,
+            leading_exits: vec![false; group.leading().false_exit_partition().1.len()],
             members: group
                 .members()
                 .iter()
@@ -261,6 +263,7 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         if group.leading_lowered.is_none()
+            || group.leading_exits.iter().any(|done| !done)
             || group
                 .leading_stages
                 .iter()
@@ -328,11 +331,24 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
+        self.check_chain_false_exit(
+            group.leading.normal().header_roots(),
+            group.leading.false_exit_partition(),
+            &group.leading_exits,
+            *leading_blocks,
+            leading_roots,
+        )?;
         for member in &group.members {
             let (blocks, roots) = member.lowered.as_ref().ok_or_else(fail)?;
             let block = blocks[1];
             self.check_control_entry(member.evidence.control())?;
-            self.check_chain_false_exit(member, *blocks, roots)?;
+            self.check_chain_false_exit(
+                member.evidence.roots(),
+                member.evidence.false_exit_partition(),
+                &member.exits,
+                *blocks,
+                roots,
+            )?;
             if member.stages.len() != member.evidence.normal().steps().len()
                 || member
                     .stages
@@ -535,6 +551,11 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-leading-tail-complete", 1);
         #[cfg(test)]
+        owner_consumer_test_support::record_action(
+            "control-chain-leading-exit-complete",
+            group.leading_exits.len(),
+        );
+        #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-tails-complete", count);
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-exits-complete", count);
@@ -570,7 +591,27 @@ impl Builder<'_, '_> {
                     &m.exits,
                 )
             });
-            let Some(m) = members.next() else {
+            let member = members.next();
+            if matches(
+                group.leading.control(),
+                group.leading.false_exit_partition().1,
+                &group.leading_exits,
+            ) {
+                if member.is_some() {
+                    return Err(fail());
+                }
+                let (blocks, _) = group.leading_lowered.as_ref().ok_or_else(fail)?;
+                return Ok(Some(SelectedExit {
+                    control: group.leading.control(),
+                    symbols: group.leading.normal().header_roots(),
+                    roots: group.leading_body_roots.as_deref().ok_or_else(fail)?,
+                    finished: blocks[2],
+                    stages: &group.leading_stages,
+                    drops: group.leading.false_exit_partition().1,
+                    consumed: &group.leading_exits,
+                }));
+            }
+            let Some(m) = member else {
                 return Ok(None);
             };
             if members.next().is_some() {
@@ -617,6 +658,16 @@ impl Builder<'_, '_> {
             if self.control_bridge_plan.is_some() {
                 return Err(fail());
             }
+            if group.leading.control() == control {
+                if group
+                    .members
+                    .iter()
+                    .any(|m| m.evidence.control() == control)
+                {
+                    return Err(fail());
+                }
+                return Ok(&mut group.leading_exits);
+            }
             return group
                 .members
                 .iter_mut()
@@ -632,13 +683,15 @@ impl Builder<'_, '_> {
     }
     fn check_chain_false_exit(
         &self,
-        m: &Member<'_>,
+        symbols: &[UnitSymbolId],
+        partition: (&[UnitSymbolId], &[UnitDropFact]),
+        consumed: &[bool],
         blocks: [BlockRef; 4],
         roots: &[Slot],
     ) -> Result<(), LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         let [header, body, finished, exit] = blocks;
-        let (live, drops) = m.evidence.false_exit_partition();
+        let (live, drops) = partition;
         let predecessors = |target| {
             self.body
                 .blocks
@@ -653,8 +706,9 @@ impl Builder<'_, '_> {
                 .collect::<Vec<_>>()
         };
         let statements = &self.body.blocks[finished.0].statements;
-        if m.exits.len() != drops.len()
-            || m.exits.iter().any(|d| !d)
+        if roots.len() != symbols.len()
+            || consumed.len() != drops.len()
+            || consumed.iter().any(|d| !d)
             || predecessors(finished) != [header]
             || predecessors(exit) != [finished]
             || !matches!(self.body.blocks[header.0].terminator, Some((RTerm::Branch {when_true,when_false,..},_)) if when_true==body && when_false==finished)
@@ -664,25 +718,16 @@ impl Builder<'_, '_> {
                 let UnitDropTarget::Named(root) = fact.target() else {
                     return true;
                 };
-                m.evidence
-                    .roots()
-                    .iter()
-                    .position(|r| *r == root)
-                    .is_none_or(|i| {
-                        !s.results.is_empty()
-                            || !matches!(s.op, ROp::Drop {owner} if owner==roots[i])
-                    })
+                symbols.iter().position(|r| *r == root).is_none_or(|i| {
+                    !s.results.is_empty() || !matches!(s.op, ROp::Drop {owner} if owner==roots[i])
+                })
             })
             || live.iter().any(|r| {
-                m.evidence
-                    .roots()
-                    .iter()
-                    .position(|x| x == r)
-                    .is_none_or(|i| {
-                        statements
-                            .iter()
-                            .any(|s| s.op.operands().contains(&roots[i]))
-                    })
+                symbols.iter().position(|x| x == r).is_none_or(|i| {
+                    statements
+                        .iter()
+                        .any(|s| s.op.operands().contains(&roots[i]))
+                })
             })
         {
             return Err(fail());

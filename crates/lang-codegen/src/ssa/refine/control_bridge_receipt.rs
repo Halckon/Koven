@@ -242,11 +242,26 @@ impl Plans {
                 link.block = block;
             }
         }
+        #[cfg(test)]
+        let leading_touched = self
+            .leading
+            .as_ref()
+            .is_some_and(|a| a.blocks.contains(&successor) || a.checked.contains(&successor));
         if let Some(anchor) = &mut self.leading {
             for b in anchor.blocks.iter_mut().chain(anchor.checked.iter_mut()) {
                 if *b == successor {
                     *b = block;
                 }
+            }
+        }
+        #[cfg(test)]
+        if leading_touched && let Some(anchor) = &mut self.leading {
+            use super::build::owner_consumer_test_support::{
+                OwnerFault, record_action, take_fault,
+            };
+            if take_fault(OwnerFault::ChainLeadingSsaFoldWrongChecked) {
+                anchor.checked[0] = anchor.checked[1];
+                record_action("control-chain-leading-ssa-fault-hit", 1);
             }
         }
         for m in &mut self.group {
@@ -630,6 +645,29 @@ impl Emitted {
                         arguments: Vec::new(),
                     });
             }
+        }
+        #[cfg(test)]
+        if let Some(anchor) = &plans.leading
+            && block == anchor.checked[1]
+            && super::build::owner_consumer_test_support::take_fault(
+                super::build::owner_consumer_test_support::OwnerFault::ChainLeadingSsaAbortBackedge,
+            )
+        {
+            super::build::owner_consumer_test_support::record_action(
+                "control-chain-leading-ssa-fault-hit",
+                2,
+            );
+            let target = self.blocks[&block];
+            let data = function
+                .blocks
+                .iter_mut()
+                .find(|b| b.id == target)
+                .ok_or_else(|| invalid(span))?;
+            data.terminator.as_mut().ok_or_else(|| invalid(span))?.kind =
+                TerminatorKind::Branch(Edge {
+                    target: self.blocks[&anchor.blocks[0]],
+                    arguments: Vec::new(),
+                });
         }
         #[cfg(test)]
         if let Some(last) = plans.group.last()

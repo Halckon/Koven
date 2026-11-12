@@ -515,3 +515,77 @@ fn ci_only_leading_checked_receipt_loss_revokes_whole_group() {
             | "control-chain-ssa-complete"
     )));
 }
+
+#[test]
+fn ci_only_leading_anchor_checked_corruption_withholds_ssa_group() {
+    let source = chain_source(true, true);
+    for fault in [
+        crate::ssa::OwnerFault::ChainLeadingSsaAbortBackedge,
+        crate::ssa::OwnerFault::ChainLeadingSsaFoldWrongChecked,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-chain-leading-ssa-fault-hit")
+                .count(),
+            1
+        );
+        assert!(actions.iter().all(|(kind, _)| !matches!(
+            *kind,
+            "control-chain-link-complete" | "control-chain-ssa-complete"
+        )));
+    }
+}
+
+#[test]
+fn leading_false_exit_consumes_only_retired_root_before_sparse_link() {
+    let source = chain_source_with_shape(true, true, "n", true);
+    let (result, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = result.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, n)| *kind == "control-chain-leading-exit-complete" && *n == 1)
+            .count(),
+        1
+    );
+    assert_eq!(
+        actions
+            .iter()
+            .filter_map(|(kind, n)| (*kind == "control-chain-link-complete").then_some(*n))
+            .collect::<Vec<_>>(),
+        vec![2, 2]
+    );
+    super::super::super::assert_native_output(&source, b"");
+}
+#[test]
+fn ci_only_leading_false_exit_missing_permit_revokes_group() {
+    let source = chain_source_with_shape(true, true, "n", true);
+    let (result, actions) = crate::ssa::observe_owner_actions(|| {
+        crate::ssa::with_owner_fault(
+            crate::ssa::OwnerFault::ChainLeadingExitMissingPermit,
+            || source.lower_entry(source.entry()),
+        )
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "control-chain-leading-exit-fault-hit")
+            .count(),
+        1
+    );
+    assert!(actions.iter().all(|(kind, _)| !matches!(
+        *kind,
+        "control-chain-leading-exit-complete"
+            | "control-chain-bodies-complete"
+            | "control-chain-link-complete"
+            | "control-chain-ssa-complete"
+    )));
+}

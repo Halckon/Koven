@@ -254,6 +254,7 @@ pub struct UnitOwnerControlChainLeadingV1<'a> {
     targets: &'a [UnitSymbolId],
     normal: &'a UnitOwnerMultiRootNormalTransportV1,
     tail: Tail,
+    false_exit: (&'a [UnitSymbolId], &'a [UnitDropFact]),
 }
 impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// Actual first control, not a synthesized group member.
@@ -277,6 +278,10 @@ impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// Consumers must validate checked success/abort; this is not scalar initialization evidence.
     pub fn checked_tail(&self) -> (UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4]) {
         (self.tail.1, self.tail.0, self.tail.2)
+    }
+    /// Actual implicit-false live roots and retirement facts, not suffix permission.
+    pub fn false_exit_partition(&self) -> (&'a [UnitSymbolId], &'a [UnitDropFact]) {
+        self.false_exit
     }
     /// Completed source-to-target root mapping of the first link.
     pub fn roots(&self) -> (&'a [UnitSymbolId], &'a [UnitSymbolId]) {
@@ -352,6 +357,7 @@ impl UnitOwnerObservation {
                 sources: chain.first.sources(),
                 targets: chain.first.targets(),
                 normal: chain.first.prior().roots.normal_transport()?,
+                false_exit: chain.first.prior().false_exit_partition()?,
                 tail: (
                     chain.first.prior().guard(),
                     chain.first.prior().counter(),
