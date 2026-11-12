@@ -258,21 +258,69 @@ fn fresh_fact_from_another_analysis_is_not_the_producer_fact() {
 fn sequence_peer_identity_order_and_fold_evidence_are_independent() {
     let (function, receipt) = capture_sequence();
     receipt.validate(&function).unwrap();
-    for fault in 0..5 {
+    for fault in 0..3 {
         let mut bad = receipt.clone();
         match fault {
             0 => bad.loops.swap(0, 1),
             1 => bad.loops[1].fact = bad.loops[0].fact.clone(),
-            2 => bad.loops[1]
-                .instructions
-                .retain(|(tag, _)| *tag != Tag::ResultEnd),
-            3 => {
-                assert!(!bad.folds.is_empty());
-                bad.folds.remove(0);
-            }
             _ => bad.loops.push(bad.loops[0].clone()),
         }
         assert!(bad.validate(&function).is_err(), "sequence proof {fault}");
+    }
+    // Remove each actual recorded event, not only the first peer's acquire/end.
+    // Keep the original SSA intact so rejection cannot rely on a broken program.
+    for (peer, local) in receipt.loops.iter().enumerate() {
+        assert!(!local.instructions.is_empty());
+        for (index, (tag, _)) in local.instructions.iter().enumerate() {
+            let mut bad = receipt.clone();
+            bad.loops[peer].instructions.remove(index);
+            assert!(
+                bad.validate(&function).is_err(),
+                "missing peer {peer} {tag:?}"
+            );
+        }
+        assert_eq!(local.proof.edges.len(), 5);
+        for index in 0..local.proof.edges.len() {
+            let mut bad = receipt.clone();
+            bad.loops[peer].proof.edges.remove(index);
+            assert!(
+                bad.validate(&function).is_err(),
+                "missing peer {peer} edge {index}"
+            );
+        }
+        for index in 0..local.proof.returns.len() {
+            let mut bad = receipt.clone();
+            bad.loops[peer].proof.returns.remove(index);
+            assert!(
+                bad.validate(&function).is_err(),
+                "missing peer {peer} return {index}"
+            );
+        }
+    }
+    assert_eq!(receipt.loops.last().unwrap().proof.returns.len(), 1);
+    assert!(!receipt.edges.is_empty());
+    for index in 0..receipt.edges.len() {
+        let mut bad = receipt.clone();
+        bad.edges.remove(index);
+        assert!(
+            bad.validate(&function).is_err(),
+            "missing actual edge {index}"
+        );
+    }
+    assert!(!receipt.folds.is_empty());
+    for index in 0..receipt.folds.len() {
+        for duplicate in [false, true] {
+            let mut bad = receipt.clone();
+            if duplicate {
+                bad.folds.insert(index, receipt.folds[index]);
+            } else {
+                bad.folds.remove(index);
+            }
+            assert!(
+                bad.validate(&function).is_err(),
+                "fold {index}, duplicate={duplicate}"
+            );
+        }
     }
 }
 
