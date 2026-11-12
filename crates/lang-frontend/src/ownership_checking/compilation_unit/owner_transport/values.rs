@@ -464,6 +464,7 @@ impl UnitOwnerObservation {
     /// Legacy definitions/events remain Unsupported for Choice-producing AST paths.
     pub fn value_observation_v1(&self) -> Option<UnitOwnerValueObservationV1> {
         if self.private_control_chain.is_some()
+            || self.nested_normal.is_some()
             || self.control_bridge.is_some()
             || self.counter_batch.is_some()
             || self.multi_root_boundary.is_some()

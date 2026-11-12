@@ -13,6 +13,7 @@ mod counter_tail_receipt;
 mod expression;
 mod field;
 mod frames;
+pub(super) use frames::Lowered;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
 mod heap;
 mod inout;
@@ -54,13 +55,6 @@ use crate::ssa::{
     model::{EntityType, SsaTypeId},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Lowered {
-    Value(Slot),
-    Unit,
-    Diverged,
-}
-
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
@@ -68,6 +62,7 @@ pub(super) struct Builder<'i, 'a> {
     header_return_plan: Option<normal_header_return::Plan<'a>>,
     control_bridge_plan: Option<control_bridge::Plan<'a>>,
     control_chain_bodies: Option<control_bridge::BodyGroup<'a>>,
+    nested_owner_body: Option<control_bridge::NestedBody<'a>>,
     counter_tail_plan: counter_tail_receipt::Plans<'a>,
     multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
     checked_expression_edges: usize,
@@ -127,6 +122,7 @@ pub(super) fn build(
         header_return_plan: normal_header_return::Plan::new(inputs)?,
         control_bridge_plan: control_bridge::Plan::new(inputs)?,
         control_chain_bodies: control_bridge::BodyGroup::new(inputs)?,
+        nested_owner_body: control_bridge::NestedBody::new(inputs)?,
         counter_tail_plan: counter_tail_receipt::Plans::new(inputs)?,
         multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
         checked_expression_edges: 0,

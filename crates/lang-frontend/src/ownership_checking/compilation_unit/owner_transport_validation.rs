@@ -39,6 +39,9 @@ impl UnitOwnerObservation {
     /// Check source/product identity and path-local binding/pending/replace conservation.
     /// This does not grant unsupported syntax or replace ordinary ownership validation.
     pub fn is_consistent(&self) -> bool {
+        if let Some(nested) = &self.nested_normal {
+            return nested.matches(self);
+        }
         if let Some(chain) = &self.private_control_chain {
             return chain.matches_observation(&self.identity, self.callable)
                 && self.definitions.is_empty()

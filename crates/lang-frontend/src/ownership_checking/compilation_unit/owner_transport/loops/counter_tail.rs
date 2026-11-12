@@ -132,7 +132,7 @@ impl UnitOwnerObservation {
             && value.is_consistent()
             && self.multi_root_boundary.is_none()
             && self.loop_value.is_none()
-            && self.closed_loop_batch.is_none() && self.private_control_chain.is_none() && self.control_bridge.is_none() && self.counter_batch.is_none()
+            && self.closed_loop_batch.is_none() && self.private_control_chain.is_none() && self.nested_normal.is_none() && self.control_bridge.is_none() && self.counter_batch.is_none()
             && self.open_loop_value.is_none()
             && self.invariant_loop_value.is_none()
             && self.choice_value.is_none())

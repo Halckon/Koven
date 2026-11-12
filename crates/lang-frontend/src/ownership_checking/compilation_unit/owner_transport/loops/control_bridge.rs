@@ -133,7 +133,7 @@ impl UnitOwnerControlBridgeEvidenceV1 {
 impl UnitOwnerObservation {
     /// Read-only static alias evidence, mutually exclusive with owner capabilities.
     pub fn control_bridge_evidence_v1(&self) -> Option<&UnitOwnerControlBridgeEvidenceV1> {
-        if self.private_control_chain.is_some() {
+        if self.private_control_chain.is_some() || self.nested_normal.is_some() {
             return None;
         }
         let bridge = self.control_bridge.as_deref()?;

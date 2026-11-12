@@ -1,5 +1,6 @@
 //! One group of normal-body consumers, keyed by actual control, never entry tokens.
 use super::*;
+mod selection;
 use lang_frontend::ownership_checking::{
     UnitDropFact, UnitOwnerControlChainBodyV1, UnitOwnerControlChainLeadingV1,
     UnitOwnerMultiRootNormalTransportV1,
@@ -104,95 +105,6 @@ impl<'a> BodyGroup<'a> {
     }
 }
 impl Builder<'_, '_> {
-    pub(super) fn bridge_select_body(
-        &self,
-        matches: impl Fn(&UnitOwnerMultiRootNormalTransportV1) -> bool,
-    ) -> Result<Option<Selected<'_>>, LoweringError> {
-        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
-        if let Some(group) = &self.control_chain_bodies {
-            if self.control_bridge_plan.is_some() {
-                return Err(fail());
-            }
-            let mut selected = group
-                .members
-                .iter()
-                .filter(|m| matches(m.evidence.normal()));
-            let member = selected.next();
-            if matches(group.leading.normal()) {
-                if member.is_some() {
-                    return Err(fail());
-                }
-                let (blocks, _) = group.leading_lowered.as_ref().ok_or_else(fail)?;
-                return Ok(Some(Selected {
-                    control: group.leading.control(),
-                    rule: group.leading.normal(),
-                    stages: &group.leading_stages,
-                    block: blocks[1],
-                    roots: group.leading_body_roots.as_deref().ok_or_else(fail)?,
-                }));
-            }
-            let Some(member) = member else {
-                return Ok(None);
-            };
-            if selected.next().is_some() {
-                return Err(fail());
-            }
-            let (block, roots) = member.lowered.as_ref().ok_or_else(fail)?;
-            return Ok(Some(Selected {
-                control: member.evidence.control(),
-                rule: member.evidence.normal(),
-                stages: &member.stages,
-                block: block[1],
-                roots,
-            }));
-        }
-        let Some(plan) = &self.control_bridge_plan else {
-            return Ok(None);
-        };
-        let Some(rule) = plan.evidence.next_normal_transport().filter(|r| matches(r)) else {
-            return Ok(None);
-        };
-        let (_, [_, block, _, _], roots) = plan.next.as_ref().ok_or_else(fail)?;
-        Ok(Some(Selected {
-            control: plan.evidence.next_control(),
-            rule,
-            stages: &plan.chain,
-            block: *block,
-            roots,
-        }))
-    }
-    pub(super) fn bridge_body_stages_mut(
-        &mut self,
-        control: UnitStatementId,
-    ) -> Result<&mut Vec<consumption::Stage>, LoweringError> {
-        let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
-        if let Some(group) = &mut self.control_chain_bodies {
-            if self.control_bridge_plan.is_some() {
-                return Err(fail());
-            }
-            if group.leading.control() == control {
-                if group
-                    .members
-                    .iter()
-                    .any(|m| m.evidence.control() == control)
-                {
-                    return Err(fail());
-                }
-                return Ok(&mut group.leading_stages);
-            }
-            return group
-                .members
-                .iter_mut()
-                .find(|m| m.evidence.control() == control)
-                .map(|m| &mut m.stages)
-                .ok_or_else(fail);
-        }
-        self.control_bridge_plan
-            .as_mut()
-            .filter(|p| p.evidence.next_control() == control)
-            .map(|p| &mut p.chain)
-            .ok_or_else(fail)
-    }
     pub(super) fn control_chain_body_while(
         &mut self,
         control: UnitStatementId,

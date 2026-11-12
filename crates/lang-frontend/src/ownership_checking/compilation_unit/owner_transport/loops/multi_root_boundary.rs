@@ -351,6 +351,7 @@ impl UnitOwnerObservation {
         let boundary = self.multi_root_boundary.as_deref()?;
         (self.closed_loop_batch.is_none()
             && self.private_control_chain.is_none()
+            && self.nested_normal.is_none()
             && self.control_bridge.is_none()
             && self.counter_batch.is_none()
             && self.loop_value.is_none()

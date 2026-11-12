@@ -4,6 +4,7 @@ mod control_scope;
 mod control_transactions;
 mod counter_batch;
 mod counter_segment;
+mod nested;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
 pub(in super::super) use control_scope::ControlVisit;
@@ -762,6 +763,7 @@ impl DropPlanner<'_, '_> {
                         counter_batch: None,
                         control_bridge: None,
                         private_control_chain: None,
+                        nested_normal: None,
                         multi_root_boundary: None,
                         open_loop_value: None,
                     }),

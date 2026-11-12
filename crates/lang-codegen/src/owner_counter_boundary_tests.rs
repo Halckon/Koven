@@ -4,6 +4,8 @@ use super::{UnitSource, source};
 mod chain;
 #[path = "owner_control_bridge_exit_tests.rs"]
 mod exit_partition;
+#[path = "owner_nested_body_tests.rs"]
+mod nested_body;
 
 #[test]
 fn counter_tail_complete_boundary_consumes_live_suffix() {
@@ -554,38 +556,6 @@ fn live_roots_cross_sequential_counters_without_fabricated_batch() {
     }
 }
 
-#[test]
-fn nested_counters_preserve_outer_live_roots_without_flat_batch() {
-    let mut calls = String::new();
-    let mut expected = String::new();
-    for outer in [0, 1, 2] {
-        for inner in [0, 1, 2] {
-            calls.push_str(&format!("run({outer}, {inner}, \"seed\");"));
-            let a = if outer > 0 && inner > 0 {
-                "inner-a"
-            } else {
-                "seed"
-            };
-            let b = if outer > 0 { "outer-b" } else { "entry-b" };
-            expected.push_str(&format!("{a}\n{b}\n"));
-        }
-    }
-    let text = format!(
-        r#"fun run(outer: Int, inner: Int, own seed: String) {{
-        var a = seed; var b = "entry-b"; var n0 = outer; var g0 = n0 > 0;
-        while(g0) {{
-            var n1 = inner; var g1 = n1 > 0;
-            while(g1) {{ val x = replace(&a, "inner-a"); val y = replace(&b, "inner-b");
-                n1 = n1 - 1; g1 = n1 > 0 }};
-            val old = replace(&b, "outer-b"); n0 = n0 - 1; g0 = n0 > 0
-        }};
-        println(a); println(b)
-    }}
-    fun entry() {{ {calls} }}"#
-    );
-    assert_general_counter_baseline(&text, expected.as_bytes(), false);
-}
-
 fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
     let source = UnitSource::analyze("cross-control-counter.ko", text).unwrap();
     source.assert_frontend_clean();
@@ -617,6 +587,18 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
             .filter(|(kind, _)| *kind == "bridge-ssa-receipt-complete")
             .count(),
         usize::from(bridge)
+    );
+    let nested = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .any(|o| o.nested_normal_body_v1().is_some());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "nested-owner-normal-body-complete")
+            .count(),
+        usize::from(nested)
     );
     let chain = source
         .ownership()

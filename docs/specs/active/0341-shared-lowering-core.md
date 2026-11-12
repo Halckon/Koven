@@ -15176,3 +15176,33 @@ planner1496、loops965、refine build990、borrow_binding966。CI-only只编译�
 Preview/DNS按用户要求不排查、不修改、不重跑；不据本地绿灯声称正式CI完成。
 日志留隔离集成工作树 `.local-artifacts/integration/`。推送后须核精确远端head。
 D10/E2继续active；现行各有界能力不代表一般多根/嵌套/复杂CFG及旧见证退休完成。
+
+### 已批准下一片：嵌套内层 normal-body（2026-11-12）
+
+用户明确同意只开放嵌套循环内层受限 normal-body 权限：绑定实际父/子 control、
+callable/analysis 身份和干净资源边界，沿用真实 Replace→返回 binding→Drop 完成
+事件与单次消费许可。不得以 AST 计划补造完成事件、借用旧 Complete 或构造入口 token。
+本片仅接纳一个直接父子对的现有线性内层 body；缺失/损坏证据不得发布新权限，
+未覆盖合法程序保持旧路径。内层出口、外层恢复和任意轮次证明仍走旧路径，
+不宣称一般嵌套或跨轮归纳完成。
+
+验收要求：普通真实输入覆盖零/一/多次内外循环并断言新内层 body 消费；
+父子身份、资源边界、缺失/错序完成与重复消费必须失败封闭。故障注入负控仅 CI
+执行，本地只编译；本片当前实施中，未将未运行检查记为通过。
+
+本片本地实现：实际 ControlStack 父子进入、condition/body 边界及共享 Body 完成事件
+封存独立 normal 产品，旧 Complete/其他产品互斥；后端按实际 parent frame 与唯一根
+slot 接入已有非 Clone 单次 permit，不重复发射 Drop。未授予入口/退出/外层恢复权限。
+只读复审发现原终检会误拒正常 RootPlace 准备链；首有效 native 正控实测 InvalidModel，
+修复为逐根唯一真实 place→exclusive loan→对应 Replace 并核整块定义/使用后转绿。
+普通 counter_boundary 26/26（59.03s），含内/外 0、1、2 轮九组合及新产品/完成标记；
+frontend lib 普通 690/690（17.12s），含合法第二 child/三层嵌套不发布新产品。
+三项新增 CI-only 测试覆盖身份/混合权限、漏/错序事件、缺许可/重复提交、错误真实
+父 frame、foreign loan 与额外 RootPlace，仅编译，未本地执行，远端实跑待推送后核验。
+
+最终本地门禁：双 crate all-target strict Clippy（5m01s）、workspace all-target
+check（3m58s）、fmt/diff、文档915与尺寸2582文件/37项历史超限均通过；未改额度。
+共享选择器按职责拆至 body_group/selection，嵌套正控迁到专属测试模块；build 的
+共有 Lowered outcome 移至既有 frames，历史超限文件1016→1012，不新增超限文件。
+输入为173cf3f7及本片，核 main 仍 f78c8c20；验证日志保留 `.local-artifacts/root-edge-evidence/`
+的 nested-body-*（含首红），本片只本地提交，不推送，正式 CI 与上述未覆盖权限仍待后续。

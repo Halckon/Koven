@@ -35,7 +35,7 @@ impl Body {
             bridge.prior().callable(),
         )
     }
-    fn begin_at(
+    pub(in super::super) fn begin_at(
         checker: &Checker<'_>,
         control: UnitStatementId,
         condition: UnitExpressionId,
@@ -312,6 +312,9 @@ impl ControlTransactions {
         if self.root_branches_invalid || !self.root_branch_arms.is_empty() {
             return None;
         }
+        if self.nested.as_ref().is_some_and(|n| n.control == control) {
+            return self.nested.as_mut().filter(|n| n.valid)?.sink.as_mut();
+        }
         self.counter_segments
             .iter_mut()
             .find(|s| !s.invalid && s.captured && s.statements.last() == Some(&control))?
@@ -324,6 +327,12 @@ impl ControlTransactions {
         control: UnitStatementId,
     ) {
         if self.root_branches_invalid || !self.root_branch_arms.is_empty() {
+            return;
+        }
+        if self.nested.as_ref().is_some_and(|n| n.control == control) {
+            if let Some(n) = &mut self.nested {
+                n.begin(checker);
+            }
             return;
         }
         let Some(s) = self

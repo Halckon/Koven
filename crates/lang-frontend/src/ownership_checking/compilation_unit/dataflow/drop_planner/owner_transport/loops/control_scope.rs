@@ -130,7 +130,6 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         let control = UnitStatementId::new(self.checker.source_unit, id);
-        #[cfg(test)]
         let parent = self.owner_controls.current();
         let previous_transaction = self.owner_loop.selected();
         let entered = self.owner_controls.enter(control);
@@ -138,6 +137,19 @@ impl DropPlanner<'_, '_> {
             self.owner_loop.select(Some(control));
         } else {
             self.owner_loop.clear();
+        }
+        if entered {
+            self.owner_loop.nested_enter(
+                (
+                    control,
+                    self.checker.unit_expression(condition),
+                    UnitStatementId::new(self.checker.source_unit, body),
+                ),
+                parent,
+                self.owner_controls.controls.len(),
+                state,
+                self.owner_observation.as_ref(),
+            );
         }
         #[cfg(test)]
         self.record_control_visit(control, parent, true, None);
@@ -147,6 +159,8 @@ impl DropPlanner<'_, '_> {
             state,
             entered && matches!(result, Ok(true)),
         );
+        self.owner_loop
+            .nested_leave(control, entered && result.is_ok());
         #[cfg(test)]
         let closed_product = self.owner_loop.as_ref().and_then(|t| t.result.clone());
         if entered {

@@ -63,6 +63,7 @@ impl UnitOwnerObservation {
     pub fn counter_batch_evidence_v1(&self) -> Option<&UnitOwnerCounterBatchEvidenceV1> {
         let batch = self.counter_batch.as_deref()?;
         (self.private_control_chain.is_none()
+            && self.nested_normal.is_none()
             && self.control_bridge.is_none()
             && batch.is_consistent()
             && self.counter_tail.is_none()

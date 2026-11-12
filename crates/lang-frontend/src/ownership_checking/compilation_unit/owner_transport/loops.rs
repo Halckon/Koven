@@ -1,4 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod nested_normal;
+pub use nested_normal::UnitOwnerNestedNormalBodyV1;
 mod private_control_chain;
 pub(in crate::ownership_checking::compilation_unit) use private_control_chain::{
     PrivateChainMember, PrivateControlChain,
@@ -343,7 +345,7 @@ impl UnitOwnerObservation {
     /// Separate sealed loop capability; legacy status/events and Choice remain unchanged.
     pub fn loop_observation_v1(&self) -> Option<&UnitOwnerLoopObservationV1> {
         self.loop_value.as_deref().filter(|value| {
-            self.multi_root_boundary.is_none() && self.closed_loop_batch.is_none() && self.private_control_chain.is_none() && self.control_bridge.is_none() && self.counter_batch.is_none() && self.open_loop_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
+            self.multi_root_boundary.is_none() && self.closed_loop_batch.is_none() && self.private_control_chain.is_none() && self.nested_normal.is_none() && self.control_bridge.is_none() && self.counter_batch.is_none() && self.open_loop_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
                 point: UnitDropPoint::AfterStatement(statement), reason: super::UnitOwnerUnsupportedReason::Syntax
             } if statement == value.statement)
                 && value.callable == self.callable
@@ -369,6 +371,7 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
             observation.counter_batch = None;
             observation.control_bridge = None;
             observation.private_control_chain = None;
+            observation.nested_normal = None;
             observation.multi_root_boundary = None;
             observation.open_loop_value = None;
             observation.loop_value = None;

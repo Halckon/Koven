@@ -50,6 +50,7 @@ impl UnitOwnerObservation {
         let batch = self.closed_loop_batch.as_deref()?;
         let first = batch.products.first()?;
         (self.private_control_chain.is_none()
+            && self.nested_normal.is_none()
             && self.control_bridge.is_none()
             && self.counter_batch.is_none()
             && self.multi_root_boundary.is_none()

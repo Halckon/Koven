@@ -51,7 +51,7 @@ v1 范围内 84 项（必做 75，其中已交付 37）；X 阶段只列边界�
 | D7 | 闭包可变捕获（[依据](../proposals/v0.46-language-decisions.md)） | v1.0 做非逃逸版本 | ✅ 2026-10-22：非逃逸闭包以独占借用捕获 var；move/逃逸闭包不允许 | S1 |
 | D8 | Map 迭代顺序 | 插入顺序 | ✅ Guide v0.44 F：插入序 | L13 |
 | D9 | 退出码（[依据](../proposals/v0.46-language-decisions.md)） | main 可返回 Result；abort 保持 SIGABRT；exitProcess 随 IO | ✅ 2026-10-22：正常退出 0；main 返回 Err 为 1；abort 保持 SIGABRT；kovenc run 透传子进程退出码；exitProcess(code): Nothing 随 L6 | L6, L21 |
-| D10 | 管线合并与通用 lowering 是否优先于新功能（[依据](../specs/active/0341-shared-lowering-core.md)） | 是（P1 在 P2–P4 之前） | ✅ 2026-10-22：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341）；E3 先以 nullable 家族试点 | E2, E3 |
+| D10 | 管线合并与通用 lowering 是否优先于新功能（[依据](../specs/active/0341-shared-lowering-core.md)） | 是（P1 在 P2–P4 之前） | ✅ 2026-11-12：批准受限嵌套内层 normal-body 实际父子身份/资源边界及单次 Replace→binding→Drop 权限切片，已本地实现/验证，正式CI待核；出口、外层恢复及任意轮次证明未开放。2026-10-22：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341）；E3 先以 nullable 家族试点 | E2, E3 |
 | D11 | Guide 拆分为语言参考与编译器合同 | 是 | ✅ Compiler Contracts 已建立，按边界渐进迁移 | B25 |
 | D12 | Abort/error() 的 stderr 输出保证（[依据](../proposals/v0.44-language-completion.md)） | 保证打印消息与源码位置 | ✅ 2026-10-22：stderr 输出 abort 消息与源码位置，写失败忽略，随后 SIGABRT | L12 |
 | D13 | companion 语法（[依据](../proposals/v0.46-language-decisions.md)） | 改为 `companion { }`（借鉴 Kotlin 2.5 companion block） | ✅ 2026-10-22：Guide v0.46 采纳，语义不变；不保留 `companion object` 别名 | L19 |

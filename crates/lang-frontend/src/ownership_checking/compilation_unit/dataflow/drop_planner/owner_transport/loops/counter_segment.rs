@@ -1,7 +1,7 @@
 //! Fresh, declaration-only post-loop catalog. Never revives a legacy observation.
 use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
-mod body;
+pub(super) mod body;
 pub(super) mod bridge;
 mod chain;
 pub(super) mod continuation;
