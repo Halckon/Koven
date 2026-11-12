@@ -6,7 +6,7 @@ pub(in crate::ssa) use checked::nested;
 pub(in crate::ssa) mod exits;
 pub(in crate::ssa) use exits::exit_shape;
 pub(in crate::ssa) mod formed;
-pub(in crate::ssa) mod local;
+pub(in crate::ssa) use crate::ssa::mixed_borrow_boundary_tests::map_iteration_local as local;
 pub(in crate::ssa) use super::nullable_if_cleanup::local_runtime;
 pub(in crate::ssa) mod resource;
 pub(in crate::ssa) mod source;

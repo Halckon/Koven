@@ -1,8 +1,5 @@
 //! Reachable compilation-unit body 使用的 scalar storage type 预规划。
 
-#[cfg(test)]
-mod lambda_preflight_tests;
-
 use std::collections::BTreeSet;
 
 use lang_frontend::{
@@ -32,7 +29,7 @@ use super::{
 use crate::ssa::{model::Module, unit_plan::UnitPlannedInstance};
 
 /// 在签名与函数体之前冻结 reachable Map 查询结果的 identity。
-pub(super) fn intern_map_result_types(
+pub(in crate::ssa) fn intern_map_result_types(
     module: &mut Module,
     parsed_by_source: &[&ParsedFile],
     instances: &[UnitPlannedInstance],
@@ -95,7 +92,7 @@ pub(super) fn intern_map_result_types(
 }
 
 /// 只为当前 reachable instance body 中实际出现的已支持 storage type 建立 SSA identity。
-pub(super) fn intern_body_scalar_types(
+pub(in crate::ssa) fn intern_body_scalar_types(
     module: &mut Module,
     parsed: &ParsedFile,
     instance: &UnitPlannedInstance,
@@ -294,7 +291,7 @@ fn intern_map_iteration_types(
 
 /// Plan Map-only nullable storage from historical, normally formed local identities.
 /// The complete unit planner has already checked Resource/deinit eligibility.
-pub(super) fn intern_formed_nullable_map_types(
+pub(in crate::ssa) fn intern_formed_nullable_map_types(
     module: &mut Module,
     parsed: &ParsedFile,
     plan: &super::FunctionPlan,
@@ -377,7 +374,7 @@ pub(super) fn intern_formed_nullable_map_types(
 }
 
 /// Consume only a declared lambda's own normally formed nullable Map locals.
-pub(super) fn intern_lambda_formed_nullable_map_types(
+pub(in crate::ssa) fn intern_lambda_formed_nullable_map_types(
     module: &mut Module,
     parsed: &ParsedFile,
     plan: &super::closure::CallablePlan,

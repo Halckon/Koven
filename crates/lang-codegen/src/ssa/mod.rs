@@ -181,7 +181,7 @@ mod lower_frontend_string_io_unit_comparison_tests;
 mod map_unit_consumer_test_support;
 
 #[cfg(test)]
-mod borrow_result_boundary_tests;
+pub(in crate::ssa) mod borrow_result_boundary_tests;
 
 #[cfg(test)]
 mod nullable_operation_tests;
@@ -201,7 +201,7 @@ mod unit_constant_tests;
 #[cfg(test)]
 mod bitwise_lowering_tests;
 #[cfg(test)]
-mod bitwise_operation_tests;
+pub(in crate::ssa) mod bitwise_operation_tests;
 #[cfg(test)]
 mod checked_integer_conversion_backend_tests;
 #[cfg(test)]
@@ -249,7 +249,7 @@ mod owned_map_borrow_tests;
 mod ordered_map_storage_tests;
 
 #[cfg(test)]
-mod owned_map_borrow_boundary_tests;
+pub(in crate::ssa) mod owned_map_borrow_boundary_tests;
 
 #[cfg(test)]
 mod multi_borrow_range_boundary_tests;
@@ -257,7 +257,7 @@ mod multi_borrow_range_boundary_tests;
 mod multi_borrow_tests;
 
 #[cfg(test)]
-mod mixed_borrow_boundary_tests;
+pub(in crate::ssa) mod mixed_borrow_boundary_tests;
 #[cfg(test)]
 mod mixed_borrow_tests;
 
@@ -274,7 +274,7 @@ mod single_readonly_method_tests;
 mod integer_range_contract_tests;
 
 #[cfg(test)]
-mod integer_range_pending_tests;
+pub(in crate::ssa) mod integer_range_pending_tests;
 
 #[cfg(test)]
 mod integer_range_value_tests;

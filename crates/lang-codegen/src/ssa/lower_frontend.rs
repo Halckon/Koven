@@ -23,11 +23,11 @@ pub(in crate::ssa) use nullable_if_cleanup::constant_presence;
 pub(in crate::ssa) mod nullable_numeric_cleanup;
 pub(in crate::ssa) mod orchestrate;
 pub(in crate::ssa) mod outer_borrowed_while;
-pub(in crate::ssa) mod ownership_primitive;
+pub(in crate::ssa) use super::integer_range_pending_tests::ownership_primitive;
 pub(in crate::ssa) use super::expression_core::pending_call;
 pub(in crate::ssa) use super::lowering_support::frontend_range as range;
 pub(in crate::ssa) use field_replace::readonly_receiver;
-pub(in crate::ssa) mod source_closure;
+pub(in crate::ssa) use super::owned_map_borrow_boundary_tests::source_closure;
 pub(in crate::ssa) use super::map_unit_consumer_test_support::string_clone;
 pub(in crate::ssa) use string_clone::declarations;
 

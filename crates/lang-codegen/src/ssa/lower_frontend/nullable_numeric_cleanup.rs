@@ -1,4 +1,4 @@
-pub(in crate::ssa) mod carrier;
+pub(in crate::ssa) use crate::ssa::bitwise_operation_tests::nullable_numeric_carrier as carrier;
 
 use carrier::{Pair, numeric_exit, source, transport};
 

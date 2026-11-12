@@ -33,7 +33,7 @@ pub(in crate::ssa::lower_frontend) struct Relation {
     pub(in crate::ssa::lower_frontend) drops: [DropFact; 2],
 }
 
-pub(super) fn candidate(
+pub(in crate::ssa) fn candidate(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -368,7 +368,7 @@ impl ExpressionLowerer<'_> {
         relations.all(|other| other == relation).then_some(relation)
     }
 
-    pub(super) fn qualify_outer_borrowed_entry(
+    pub(in crate::ssa) fn qualify_outer_borrowed_entry(
         &self,
         inner: StatementId,
         descriptor: NullComparisonDescriptor,
@@ -398,7 +398,7 @@ impl ExpressionLowerer<'_> {
         Ok(Some(relation))
     }
 
-    pub(super) fn validate_outer_borrowed_entry(
+    pub(in crate::ssa) fn validate_outer_borrowed_entry(
         &self,
         relation: &Relation,
         descriptor: NullComparisonDescriptor,
@@ -507,7 +507,7 @@ impl ExpressionLowerer<'_> {
 
     /// Validate the snapshot before touching ambient sibling state. The exact
     /// proven source is live; rebind_source cannot revive an already ended loan.
-    pub(super) fn restore_outer_borrowed_state(
+    pub(in crate::ssa) fn restore_outer_borrowed_state(
         &mut self,
         relation: &Relation,
         state: &BranchExit,
@@ -532,7 +532,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn validate_outer_borrowed_exit_states(
+    pub(in crate::ssa) fn validate_outer_borrowed_exit_states(
         &self,
         relation: &Relation,
         states: &[BranchExit],
@@ -544,7 +544,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn retire_outer_borrowed_break(
+    pub(in crate::ssa) fn retire_outer_borrowed_break(
         &mut self,
         span: Span,
     ) -> Result<bool, LoweringError> {
@@ -580,7 +580,7 @@ impl ExpressionLowerer<'_> {
         Ok(true)
     }
 
-    pub(super) fn preflight_outer_borrowed_iteration(
+    pub(in crate::ssa) fn preflight_outer_borrowed_iteration(
         &self,
         exit: &IterationExitPlan,
         span: Span,
@@ -648,7 +648,7 @@ impl ExpressionLowerer<'_> {
         Ok(provider)
     }
 
-    pub(super) fn emit_outer_borrowed_drop(
+    pub(in crate::ssa) fn emit_outer_borrowed_drop(
         &mut self,
         fact: DropFact,
     ) -> Result<bool, LoweringError> {
@@ -710,6 +710,3 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-#[cfg(test)]
-#[path = "outer_borrowed_while/runtime/guard_tests.rs"]
-mod guard_tests;

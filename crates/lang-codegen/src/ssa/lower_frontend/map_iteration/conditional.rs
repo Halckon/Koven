@@ -1,7 +1,7 @@
 //! Ordinary body CFG uses a plan-bound source identity and append-only exit evidence.
 use verify::actions;
-mod facts;
-pub(super) use retained as successor;
+pub(in crate::ssa) use crate::ssa::borrow_result_boundary_tests::conditional_facts as facts;
+pub(in crate::ssa) use retained as successor;
 mod verify;
 
 use super::*;
@@ -10,25 +10,25 @@ use lang_frontend::{
     type_checking::MapIterationDescriptor,
 };
 
-pub(super) use self::{local_validate as local, transport_roles as transport};
-pub(super) use actions::validate_drop_ledger;
-pub(super) use facts::{qualify, source_drop};
-pub(super) use verify::validate;
+pub(in crate::ssa) use self::{local_validate as local, transport_roles as transport};
+pub(in crate::ssa) use actions::validate_drop_ledger;
+pub(in crate::ssa) use facts::{qualify, source_drop};
+pub(in crate::ssa) use verify::validate;
 
 #[derive(Clone, Copy)]
-pub(super) struct Shape {
-    pub(super) statement: StatementId,
-    pub(super) body: StatementId,
-    pub(super) source: SourceIdentity,
+pub(in crate::ssa) struct Shape {
+    pub(in crate::ssa) statement: StatementId,
+    pub(in crate::ssa) body: StatementId,
+    pub(in crate::ssa) source: SourceIdentity,
 }
 
-pub(super) struct State {
-    pub(super) shape: Shape,
-    pub(super) exits: Vec<Exit>,
+pub(in crate::ssa) struct State {
+    pub(in crate::ssa) shape: Shape,
+    pub(in crate::ssa) exits: Vec<Exit>,
 }
 
 impl State {
-    pub(super) fn new(shape: Shape) -> Self {
+    pub(in crate::ssa) fn new(shape: Shape) -> Self {
         Self {
             shape,
             exits: Vec::new(),
@@ -38,35 +38,35 @@ impl State {
 
 /// These are the actual live entities immediately before this path's cleanup.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Roles {
-    pub(super) source: LoanId,
-    pub(super) cursor: ValueId,
-    pub(super) key: LoanId,
-    pub(super) value: LoanId,
-    pub(super) owner: Option<ValueId>,
+pub(in crate::ssa) struct Roles {
+    pub(in crate::ssa) source: LoanId,
+    pub(in crate::ssa) cursor: ValueId,
+    pub(in crate::ssa) key: LoanId,
+    pub(in crate::ssa) value: LoanId,
+    pub(in crate::ssa) owner: Option<ValueId>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct CleanupFrame {
-    pub(super) statement: StatementId,
-    pub(super) roles: Roles,
-    pub(super) owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
+pub(in crate::ssa) struct CleanupFrame {
+    pub(in crate::ssa) statement: StatementId,
+    pub(in crate::ssa) roles: Roles,
+    pub(in crate::ssa) owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
 }
 
-pub(super) struct Exit {
-    pub(super) kind: IterationExitKind,
-    pub(super) block: BlockId,
-    pub(super) roles: Roles,
-    pub(super) frames: Vec<CleanupFrame>,
-    pub(super) cleanup_start: usize,
-    pub(super) cleanup_end: usize,
-    pub(super) next: Option<ValueId>,
-    pub(super) returned: Option<ValueId>,
+pub(in crate::ssa) struct Exit {
+    pub(in crate::ssa) kind: IterationExitKind,
+    pub(in crate::ssa) block: BlockId,
+    pub(in crate::ssa) roles: Roles,
+    pub(in crate::ssa) frames: Vec<CleanupFrame>,
+    pub(in crate::ssa) cleanup_start: usize,
+    pub(in crate::ssa) cleanup_end: usize,
+    pub(in crate::ssa) next: Option<ValueId>,
+    pub(in crate::ssa) returned: Option<ValueId>,
 }
 
 /// Conditional local drops are admitted only when the complete source-qualified
 /// plan has proved their original expression owner and ordering.
-pub(super) fn supported_local_drop(
+pub(in crate::ssa) fn supported_local_drop(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -87,7 +87,7 @@ pub(super) fn supported_local_drop(
     })
 }
 
-pub(super) fn shape(
+pub(in crate::ssa) fn shape(
     parsed: &ParsedFile,
     _names: &NameResolution,
     _typed: &TypedFile,
@@ -116,7 +116,7 @@ pub(super) fn shape(
     }))
 }
 
-pub(super) mod transport_roles {
+pub(in crate::ssa) mod transport_roles {
     use super::*;
 
     pub(in super::super) fn roles(
@@ -153,7 +153,7 @@ pub(super) mod transport_roles {
     }
 }
 
-pub(super) mod local_validate {
+pub(in crate::ssa) mod local_validate {
     use super::*;
 
     pub(in super::super) fn validate(
@@ -216,7 +216,7 @@ pub(super) mod local_validate {
     }
 }
 
-pub(super) mod retained {
+pub(in crate::ssa) mod retained {
     //! A nested source may retain the exact owner whose lifetime belongs to an acquired ancestor.
     use super::*;
     use crate::ssa::map_source::Formation;
