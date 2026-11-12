@@ -53,3 +53,11 @@
   - `cargo test -p lang-codegen`：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed。
   - `cargo clippy --locked --workspace --all-targets -- -D warnings`、`cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`git diff --check` 全部通过（本片无需新增体积例外）。
 - 说明：本分支按 `SPEC-0422`～`SPEC-0427` 堆叠在 `SPEC-0421` 之上，PR 将一并交付 `SPEC-0422`～`SPEC-0427`。
+
+## 5. main 合并记录（PR #412 凭证协议）
+
+- 冲突面：`ssa/refine.rs`、`ssa/refine/build.rs`、`ssa/refine/build/{field,inout}.rs`（本片折叠删除，main 有修改）、`ssa/refine/emit/statements.rs`（同上）。
+- 解决方式：**采纳 main 更新的凭证协议**（`nested`/`bounded`/`single`/`multi`/`branch`/`forward`/`aux`/`child` 等 receipt 模块、`emit/statements` 作为独立模块、main 版 `refine.rs`/`emit.rs`），同时**保留本片折叠**：`build/assignment.rs` 仍折叠进 `build/value.rs`，`build/heap.rs` 仍折叠进 `build/borrow_binding.rs`；`build/field`、`build/inout` 以 `pub(in crate::ssa::refine::build) use` 别名保留折叠前的模块名，使 main 新增调用点无需改动即可编译。
+- 迁移 main 侧两处有界 diff：`local_variable` 的 `counter_binding_authorization`/`counter_binding_emitted`，以及 `field_replace_primitive` 的 `counter_replace_*`、`open_loop_replace_emitted`、`header_replace_emitted` 接线，均落在折叠后的宿主模块中。
+- 体积：合并后 `build/borrow_binding.rs`（折叠 `heap` + main 凭证接线）达 1304 行，按策略在 `scripts/rust-size-policy.json` 登记有界例外（reason/owner/split_plan/review 齐备）。
+- 门禁（本地）：`cargo test -p lang-codegen` lib 3052 passed / 1 ignored、集成 2、doc-tests 4；`clippy --workspace --all-targets -D warnings`、`fmt --check`、`check_docs.py`、`check_rust_sizes.py --base main`、`git diff --check` 全通过。
