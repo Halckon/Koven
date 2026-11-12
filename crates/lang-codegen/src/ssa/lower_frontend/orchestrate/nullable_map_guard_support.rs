@@ -1,11 +1,11 @@
 //! CI-only recovery of bounded ordinary B/C checkpoints, never a lowering input seam.
 //! Each fixture first completes the unchanged FE/ownership/SSA pipeline.
-mod checkpoint;
+pub(in crate::ssa) use crate::ssa::refine::build::owner_consumer_test_support::checkpoint;
 mod identity {
     use super::super::super::declarations::FunctionDeclaration;
     use super::*;
 
-    pub(super) fn map_type(
+    pub(in crate::ssa) fn map_type(
         module: &Module,
         typed: &TypedFile,
         ty: TypeId,
@@ -66,7 +66,7 @@ mod identity {
         Some(id)
     }
 
-    pub(super) fn plans(
+    pub(in crate::ssa) fn plans(
         module: &Module,
         names: &NameResolution,
         typed: &TypedFile,
@@ -193,12 +193,12 @@ use lang_frontend::{
     },
 };
 
-pub(in crate::ssa::lower_frontend) use checkpoint::{Checkpoint, Point};
+pub(in crate::ssa) use checkpoint::{Checkpoint, Point};
 
 type PendingCallSnapshot = ((usize, usize), Option<LoanId>, Option<PendingFieldChild>);
 
 #[derive(Debug, PartialEq, Eq)]
-pub(in crate::ssa::lower_frontend) struct Snapshot {
+pub(in crate::ssa) struct Snapshot {
     function: Function,
     block: BlockId,
     source: Option<SourceToken>,
@@ -215,7 +215,7 @@ pub(in crate::ssa::lower_frontend) struct Snapshot {
 }
 
 impl Snapshot {
-    pub(in crate::ssa::lower_frontend) fn take(lowerer: &ExpressionLowerer<'_>) -> Self {
+    pub(in crate::ssa) fn take(lowerer: &ExpressionLowerer<'_>) -> Self {
         // These fixture-proven states cannot be written by the selected guards.
         assert!(lowerer.loops.is_empty());
         assert!(!lowerer.map_loop_owners.has_loop_carriers());
@@ -243,14 +243,14 @@ impl Snapshot {
     }
 }
 
-pub(in crate::ssa::lower_frontend) struct Fixture {
-    pub(in crate::ssa::lower_frontend) id: &'static str,
-    pub(in crate::ssa::lower_frontend) path: &'static str,
-    pub(in crate::ssa::lower_frontend) sources: SourceMap,
-    pub(in crate::ssa::lower_frontend) parsed: ParsedFile,
-    pub(in crate::ssa::lower_frontend) names: NameResolution,
-    pub(in crate::ssa::lower_frontend) typed: TypedFile,
-    pub(in crate::ssa::lower_frontend) owned: OwnershipCheckedFile,
+pub(in crate::ssa) struct Fixture {
+    pub(in crate::ssa) id: &'static str,
+    pub(in crate::ssa) path: &'static str,
+    pub(in crate::ssa) sources: SourceMap,
+    pub(in crate::ssa) parsed: ParsedFile,
+    pub(in crate::ssa) names: NameResolution,
+    pub(in crate::ssa) typed: TypedFile,
+    pub(in crate::ssa) owned: OwnershipCheckedFile,
     product: LoweredFile,
     instances: instances::FunctionInstancePlan,
     layouts: source_closure::CallableLayouts,
@@ -267,7 +267,7 @@ struct Plan {
 }
 
 impl Fixture {
-    pub(in crate::ssa::lower_frontend) fn analyze(id: &'static str) -> Self {
+    pub(in crate::ssa) fn analyze(id: &'static str) -> Self {
         let (_, path, text, _, _) = nullable_map_guard_sources()
             .into_iter()
             .find(|case| case.0 == id)
@@ -388,7 +388,7 @@ impl Fixture {
         }
     }
 
-    pub(in crate::ssa::lower_frontend) fn other_source(
+    pub(in crate::ssa) fn other_source(
         &self,
         source: SourceToken,
     ) -> Option<SourceToken> {
@@ -399,7 +399,7 @@ impl Fixture {
             .map(|instance| instance.source)
     }
 
-    pub(in crate::ssa::lower_frontend) fn span(&self, expression: ExpressionId) -> Span {
+    pub(in crate::ssa) fn span(&self, expression: ExpressionId) -> Span {
         self.parsed
             .ast()
             .expressions()
@@ -408,7 +408,7 @@ impl Fixture {
             .span()
     }
 
-    pub(in crate::ssa::lower_frontend) fn symbol(&self, name: &str) -> SymbolId {
+    pub(in crate::ssa) fn symbol(&self, name: &str) -> SymbolId {
         let symbols = self
             .names
             .symbols()
@@ -419,7 +419,7 @@ impl Fixture {
         symbols[0].id()
     }
 
-    pub(in crate::ssa::lower_frontend) fn reject<T>(
+    pub(in crate::ssa) fn reject<T>(
         &self,
         result: Result<T, LoweringError>,
         kind: LoweringErrorKind,
@@ -442,7 +442,7 @@ impl Fixture {
         assert!(!self.sources.slice(span).unwrap().is_empty());
     }
 
-    pub(in crate::ssa::lower_frontend) fn with_lowerer<T>(
+    pub(in crate::ssa) fn with_lowerer<T>(
         &self,
         state: &mut Checkpoint,
         check: impl FnOnce(&mut ExpressionLowerer<'_>) -> T,
@@ -489,13 +489,13 @@ impl Fixture {
     }
 }
 
-pub(in crate::ssa::lower_frontend) mod provenance {
+pub(in crate::ssa) mod provenance {
     //! Complete published owner incoming graph, rooted at this actual owned parameter.
     use crate::ssa::lower_frontend::map_iteration::source_owner::*;
     use lang_frontend::ownership_checking::{CleanupConditionId, CleanupOwnerValueId};
     use std::collections::{BTreeMap, BTreeSet};
 
-    pub(in crate::ssa::lower_frontend) fn parameter(
+    pub(in crate::ssa) fn parameter(
         owned: &OwnershipCheckedFile,
         symbol: SymbolId,
         origin: Span,
@@ -513,7 +513,7 @@ pub(in crate::ssa::lower_frontend) mod provenance {
         )
     }
 
-    pub(in crate::ssa::lower_frontend) fn formed(
+    pub(in crate::ssa) fn formed(
         owned: &OwnershipCheckedFile,
         symbol: SymbolId,
         birth: (ExpressionId, Span),
@@ -532,7 +532,7 @@ pub(in crate::ssa::lower_frontend) mod provenance {
     }
 
     /// Generic body paths retain all published incoming edges, including multiple jumps.
-    pub(in crate::ssa::lower_frontend) fn flow(
+    pub(in crate::ssa) fn flow(
         owned: &OwnershipCheckedFile,
         symbol: SymbolId,
         origin: Span,
@@ -551,7 +551,7 @@ pub(in crate::ssa::lower_frontend) mod provenance {
         )
     }
 
-    pub(in crate::ssa::lower_frontend) fn entry(
+    pub(in crate::ssa) fn entry(
         owned: &OwnershipCheckedFile,
         symbol: SymbolId,
         birth: (SymbolId, Span),
@@ -572,7 +572,7 @@ pub(in crate::ssa::lower_frontend) mod provenance {
 
     /// Every published incoming path must pass this already proved Exit owner.
     /// Reaching the same birth along another path cannot substitute for continuation.
-    pub(in crate::ssa::lower_frontend) fn from_exit(
+    pub(in crate::ssa) fn from_exit(
         owned: &OwnershipCheckedFile,
         symbol: SymbolId,
         owner: CleanupOwnerValueId,
@@ -914,7 +914,7 @@ pub(in crate::ssa::lower_frontend) mod provenance {
         visit(conditions, path, live, &mut BTreeSet::new())
     }
 
-    pub(in crate::ssa::lower_frontend) fn equal_on_path(
+    pub(in crate::ssa) fn equal_on_path(
         conditions: &CleanupConditions,
         actual: CleanupConditionId,
         expected: CleanupConditionId,

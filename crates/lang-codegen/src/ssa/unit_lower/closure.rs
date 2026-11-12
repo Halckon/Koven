@@ -32,8 +32,6 @@ use crate::ssa::{
 mod generic_runtime_tests;
 #[cfg(test)]
 mod runtime_slots_tests;
-#[cfg(test)]
-mod runtime_tests;
 
 pub(super) type CallableLayouts = BTreeMap<
     (

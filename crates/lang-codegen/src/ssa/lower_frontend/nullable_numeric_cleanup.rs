@@ -1,4 +1,4 @@
-mod carrier;
+pub(in crate::ssa) mod carrier;
 
 use carrier::{Pair, numeric_exit, source, transport};
 
@@ -15,7 +15,7 @@ use lang_frontend::{
     type_checking::SequentialIterationBinding,
 };
 
-pub(super) struct Plan {
+pub(in crate::ssa) struct Plan {
     fact: DropFact,
     root: SymbolId,
     storage: TypeId,
@@ -24,7 +24,7 @@ pub(super) struct Plan {
 }
 
 /// This admits no SSA and does not change the generic condition implication gate.
-pub(super) fn candidate(
+pub(in crate::ssa) fn candidate(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -346,7 +346,7 @@ fn plain_binding(
 
 impl ExpressionLowerer<'_> {
     /// Presence admits only this checked readonly path. No proof is installed here.
-    pub(super) fn qualify_numeric_while_entry(
+    pub(in crate::ssa) fn qualify_numeric_while_entry(
         &self,
         statement: StatementId,
         span: Span,
@@ -381,7 +381,7 @@ impl ExpressionLowerer<'_> {
 
     /// Revalidate the actual state at every edge; the inherited value supplies only
     /// immutable provenance, never an owner or loan to put back into the state.
-    pub(super) fn validate_numeric_while_pair(
+    pub(in crate::ssa) fn validate_numeric_while_pair(
         &self,
         inherited: Option<(SymbolId, NonNullProof)>,
         span: Span,
@@ -427,7 +427,7 @@ impl ExpressionLowerer<'_> {
     }
 
     /// Read-only before end_result_bindings can retire a child or alter a pair.
-    pub(super) fn preflight_nullable_numeric_cleanup(
+    pub(in crate::ssa) fn preflight_nullable_numeric_cleanup(
         &self,
         facts: &[DropFact],
     ) -> Result<(), LoweringError> {
@@ -439,7 +439,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(super) fn emit_nullable_numeric_cleanup(
+    pub(in crate::ssa) fn emit_nullable_numeric_cleanup(
         &mut self,
         fact: DropFact,
     ) -> Result<bool, LoweringError> {

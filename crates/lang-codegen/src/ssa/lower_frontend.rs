@@ -8,7 +8,7 @@ pub(in crate::ssa) mod container;
 pub(in crate::ssa) mod control;
 pub(in crate::ssa) mod field_replace;
 pub(in crate::ssa) mod instances;
-pub(in crate::ssa) mod local_storage;
+pub(in crate::ssa) use super::unit_lower_test_support::local_storage;
 pub(in crate::ssa) use local_storage::integer;
 pub(in crate::ssa) mod loop_control;
 pub(in crate::ssa) use super::statement_core::frontend_map as map;
@@ -28,7 +28,7 @@ pub(in crate::ssa) use super::expression_core::pending_call;
 pub(in crate::ssa) use super::lowering_support::frontend_range as range;
 pub(in crate::ssa) use field_replace::readonly_receiver;
 pub(in crate::ssa) mod source_closure;
-pub(in crate::ssa) mod string_clone;
+pub(in crate::ssa) use super::map_unit_consumer_test_support::string_clone;
 pub(in crate::ssa) use string_clone::declarations;
 
 pub(in crate::ssa) use std::collections::BTreeMap;

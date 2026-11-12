@@ -11,7 +11,7 @@ pub(in crate::ssa) use super::nullable_if_cleanup::local_runtime;
 pub(in crate::ssa) mod resource;
 pub(in crate::ssa) mod source;
 pub(in crate::ssa) use source::borrowed;
-pub(in crate::ssa) mod source_owner;
+pub(in crate::ssa) use crate::ssa::tests::source_owner;
 pub(in crate::ssa) mod temporary;
 pub(in crate::ssa) use temporary::{guard, qualify};
 

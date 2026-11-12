@@ -1,6 +1,6 @@
 //! One readonly nullable owner across one independently owned List provider.
 //! Published presence and actual owner/view/provider columns are separate proofs.
-pub(super) mod carrier;
+pub(in crate::ssa) use crate::ssa::borrow_memory_test_support::borrowed_cleanup_carrier as carrier;
 use carrier::source;
 use super::loop_control::numeric_iteration::provider;
 
@@ -16,19 +16,19 @@ use lang_frontend::{
     type_checking::{IterationProvider, SequentialContainerKind, SequentialIterationBinding},
 };
 
-pub(super) struct Plan {
+pub(in crate::ssa) struct Plan {
     fact: DropFact,
     root: SymbolId,
     storage: TypeId,
-    pub(super) statement: StatementId,
+    pub(in crate::ssa) statement: StatementId,
     outer: StatementId,
-    pub(super) source_root: SymbolId,
-    pub(super) element: SymbolId,
-    pub(super) source_drop: DropFact,
+    pub(in crate::ssa) source_root: SymbolId,
+    pub(in crate::ssa) element: SymbolId,
+    pub(in crate::ssa) source_drop: DropFact,
 }
 
 /// Admission never installs a proof, rewrites a condition or admits an SSA value.
-pub(super) fn candidate(
+pub(in crate::ssa) fn candidate(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -426,7 +426,7 @@ pub(super) fn candidate(
     })
 }
 
-pub(super) fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
+pub(in crate::ssa) fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
     let first = items.next()?;
     items.next().is_none().then_some(first)
 }

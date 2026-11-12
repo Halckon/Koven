@@ -1,10 +1,8 @@
 //! frontend 产物门禁、函数预声明与文件级 lowering 编排。
 
 #[cfg(test)]
-pub(in crate::ssa::lower_frontend) mod nullable_map_guard_support;
+pub(in crate::ssa) mod nullable_map_guard_support;
 
-#[cfg(test)]
-mod registration_tests;
 
 use std::collections::BTreeMap;
 
@@ -63,7 +61,7 @@ struct FunctionPlan {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum FunctionPlanBody {
+pub(in crate::ssa) enum FunctionPlanBody {
     Expression(ExpressionId),
     Block(StatementId),
 }
@@ -930,7 +928,7 @@ pub(crate) fn validate_inputs(
     Ok(())
 }
 
-pub(super) fn unwrap_modified(
+pub(in crate::ssa) fn unwrap_modified(
     parsed: &ParsedFile,
     mut item: ItemId,
 ) -> Result<(Item, Span), LoweringError> {
