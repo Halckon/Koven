@@ -152,110 +152,687 @@ fn run_unit_with_entry(case: &str, path: &str, source_text: &str, entry_name: &s
         .expect("linked Map provider executable must launch")
 }
 
-#[path = "native_map_provider_exits_tests.rs"]
-mod exits_tests;
+mod exits_tests {
+//! SPEC-0331：固定六源无条件 Map 退出的普通 single/basic native 成功合同。
+//! 同源十二条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
 
-#[path = "native_map_provider_conditional_tests.rs"]
-mod conditional_tests;
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run,
+    ssa::map_provider_exits_pipeline_tests::sources as exit_sources,
+};
 
-#[path = "native_map_provider_temporary_tests.rs"]
-mod temporary_tests;
+#[test]
+fn single_map_provider_exit_sources_exit_normally() {
+    for (case, source, expected) in exit_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
+
+#[test]
+fn unit_map_provider_exit_sources_exit_normally() {
+    for (case, source, expected) in exit_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
+
+mod conditional_tests {
+//! SPEC-0331：固定两源条件 Map 退出的普通 single/basic native 成功合同。
+//! 同源四条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
+
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::conditional_sources,
+};
+
+#[test]
+fn single_map_provider_conditional_sources_exit_normally() {
+    for (case, _map, _source_hash, source, expected) in conditional_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
+
+#[test]
+fn unit_map_provider_conditional_sources_exit_normally() {
+    for (case, _map, _source_hash, source, expected) in conditional_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
+
+mod temporary_tests {
+//! SPEC-0331：固定两源 temporary Map 正常耗尽的普通 single/basic native 成功合同。
+//! 同源四条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
+
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::temporary_sources,
+};
+
+#[test]
+fn single_map_provider_temporary_sources_exit_normally() {
+    for (case, _map, _source_hash, source, expected) in temporary_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
+
+#[test]
+fn unit_map_provider_temporary_sources_exit_normally() {
+    for (case, _map, _source_hash, source, expected) in temporary_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
 
 #[path = "native_map_provider_d10_w09_tests.rs"]
-mod d10_w09;
+pub(crate) mod d10_w09;
 
-#[path = "native_map_provider_nested_tests.rs"]
-mod nested_tests;
+mod nested_tests {
+//! SPEC-0331：固定两源同根双层 Borrow Map 正常耗尽的普通 single/basic native 成功合同。
+//! 同源四条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
 
-#[path = "native_map_provider_nested_exits_tests.rs"]
-mod nested_exits_tests;
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::nested_sources,
+};
 
-#[path = "native_map_provider_temporary_exits_tests.rs"]
-mod temporary_exits_tests;
+#[test]
+fn single_map_provider_nested_sources_exit_normally() {
+    for (case, _map, _source_hash, source, expected) in nested_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
 
-#[path = "native_map_provider_local_sources_tests.rs"]
-mod local_sources_tests;
+#[test]
+fn unit_map_provider_nested_sources_exit_normally() {
+    for (case, _map, _source_hash, source, expected) in nested_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
 
-#[path = "native_map_provider_borrow_exits_tests.rs"]
-mod borrow_exits_tests;
+mod nested_exits_tests {
+//! SPEC-0331：固定六源双层 inner continue/break/return 的普通 single/basic native 合同。
+//! 同源十二条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
 
-#[path = "native_map_provider_resource_tests.rs"]
-mod resource_tests;
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::nested_exit_sources,
+};
 
-#[path = "native_map_provider_history_tests.rs"]
-mod history_tests;
+#[test]
+fn single_map_provider_nested_exit_sources_exit_normally() {
+    for (case, source, expected) in nested_exit_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
 
-#[path = "native_map_provider_sequential_tests.rs"]
-mod sequential_tests;
+#[test]
+fn unit_map_provider_nested_exit_sources_exit_normally() {
+    for (case, source, expected) in nested_exit_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
 
-#[path = "native_map_provider_resource_continuation_tests.rs"]
-mod resource_continuation_tests;
+mod temporary_exits_tests {
+//! SPEC-0331：固定六源 temporary Call source continue/break/return 的普通 single/basic native 合同。
+//! 同源十二条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
 
-#[path = "native_map_provider_source_forms_tests.rs"]
-mod source_forms;
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::temporary_exit_sources,
+};
 
-#[path = "native_map_provider_resource_forms_tests.rs"]
-mod resource_forms;
+#[test]
+fn single_map_provider_temporary_exit_sources_exit_normally() {
+    for (case, source, expected) in temporary_exit_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
 
-#[path = "native_map_provider_future_use_tests.rs"]
-mod future_use;
+#[test]
+fn unit_map_provider_temporary_exit_sources_exit_normally() {
+    for (case, source, expected) in temporary_exit_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
 
-#[path = "native_map_provider_local_exits_tests.rs"]
-mod local_exits;
+mod local_sources_tests {
+//! SPEC-0331：固定两源 local named A/B 的普通 single/basic native 合同。
+//! 同源四条 frontend→SSA verifier→LLVM pipeline 真绿后才能另行准入执行。
+//! 原 helper 没有内置硬超时；本模块只复用普通 object/link/run，不扩展执行框架。
 
-#[path = "native_map_provider_local_resources_tests.rs"]
-mod local_resources;
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::local_native_sources,
+};
 
-#[path = "native_map_provider_local_future_tests.rs"]
-mod local_future;
+#[test]
+fn single_map_provider_local_sources_exit_normally() {
+    for (case, source, expected) in local_native_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, expected);
+    }
+}
 
-#[path = "native_map_provider_local_reassignment_tests.rs"]
-mod local_reassignment;
+#[test]
+fn unit_map_provider_local_sources_exit_normally() {
+    for (case, source, expected) in local_native_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, expected);
+    }
+}
+}
 
-#[path = "native_map_provider_local_resource_future_tests.rs"]
-mod local_resource_future;
+mod borrow_exits_tests {
+//! Four newly rebuilt Borrow Map sources, accepted only after their eight real pipelines pass.
+//! Ordinary emit/link/run only; no injected failure, instrumentation or sanitizer controls.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::borrowed_exit_sources,
+};
 
-#[path = "native_map_provider_temporary_forms_tests.rs"]
-mod temporary_forms;
+#[test]
+fn single_borrowed_map_exit_sources_exit_normally() {
+    for (case, source, golden) in borrowed_exit_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, golden);
+    }
+}
 
-#[path = "native_map_provider_temporary_arguments_tests.rs"]
-mod temporary_arguments;
+#[test]
+fn unit_borrowed_map_exit_sources_exit_normally() {
+    for (case, source, golden) in borrowed_exit_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, golden);
+    }
+}
+}
 
-#[path = "native_map_provider_temporary_delivery_tests.rs"]
-mod temporary_delivery;
+mod resource_tests {
+//! Finite Resource Map source ownership; gated first by both real SSA/LLVM pipelines.
+//! Ordinary outputs prove ordering, not dynamic release counts or absence of leaks.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::resource_sources,
+};
 
-#[path = "native_map_provider_temporary_argument_cfg_tests.rs"]
-mod temporary_argument_cfg;
+#[test]
+fn single_resource_map_sources_exit_normally() {
+    for (case, source, golden) in resource_sources() {
+        let run = emit_link_and_run("provider.ko", source, "entry");
+        assert_result(case, "single", &run, golden);
+    }
+}
 
-#[path = "native_map_provider_control_flow_tests.rs"]
-mod ordinary_control_flow;
+#[test]
+fn unit_resource_map_sources_exit_normally() {
+    for (case, source, golden) in resource_sources() {
+        let run = run_unit(case, source);
+        assert_result(case, "unit", &run, golden);
+    }
+}
+}
 
-#[path = "native_map_provider_stack_tests.rs"]
-mod stack_paths;
+mod history_tests {
+//! Ordinary unmodified-source histories, paired with independently specified stdout.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::history_sources,
+};
 
-#[path = "native_map_provider_formation_tests.rs"]
-mod formation_paths;
+#[test]
+fn single_storage_histories_exit_normally_in_insertion_order() {
+    for case in history_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
 
-#[path = "native_map_provider_local_arguments_tests.rs"]
-mod local_arguments;
+#[test]
+fn unit_storage_histories_exit_normally_in_insertion_order() {
+    for case in history_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
 
-#[path = "native_map_provider_births_tests.rs"]
-mod births;
+mod sequential_tests {
+//! Original ordinary sequential Borrow sources; no instrumentation or replacement products.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::sequential_sources,
+};
 
-#[path = "native_map_provider_scope_lowering_tests.rs"]
-mod scope_lowering;
+#[test]
+fn single_sequential_borrowed_maps_exit_with_exact_cleanup_and_order() {
+    for case in sequential_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
 
-#[path = "native_map_provider_scope_lambda_body_tests.rs"]
-mod scope_lambda_body;
+#[test]
+fn unit_sequential_borrowed_maps_exit_with_exact_cleanup_and_order() {
+    for case in sequential_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+#[allow(unused_imports)] pub(crate) use d10_w09::resource_continuation_tests;
+
+mod source_forms {
+//! Ordinary source-form native checks, after both real SSA/LLVM entries succeed.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::source_form_sources,
+};
+#[test]
+fn single_owned_mutable_and_group_sources_exit_normally() {
+    for case in source_form_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_owned_mutable_and_group_sources_exit_normally() {
+    for case in source_form_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+mod resource_forms {
+//! Ordinary native checks for represented Resource payloads, after the SSA/LLVM gate.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::resource_form_sources,
+};
+#[test]
+fn single_existing_resource_representations_exit_normally() {
+    for case in resource_form_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_existing_resource_representations_exit_normally() {
+    for case in resource_form_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+mod future_use {
+//! Ordinary Pure future-use native checks after the real two-entry pipeline succeeds.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::future_use_sources,
+};
+#[test]
+fn single_pure_owned_future_uses_exit_normally() {
+    for case in future_use_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_pure_owned_future_uses_exit_normally() {
+    for case in future_use_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+mod local_exits {
+//! Ordinary native checks for real local formation and moved-alias exits.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::local_exits_sources,
+};
+
+#[test]
+fn single_local_formation_exits_normally() {
+    for case in local_exits_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+
+#[test]
+fn unit_local_formation_exits_normally() {
+    for case in local_exits_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+
+#[test]
+fn unit_rebound_original_root_keeps_both_owners_separate() {
+    let (label, source, golden) =
+        crate::ssa::map_provider_exits_pipeline_tests::local_alias_rebound_source();
+    let run = run_unit(label, &source);
+    assert_result(label, "unit", &run, golden);
+}
+}
+
+mod local_resources {
+//! Strict ordinary native acceptance for factory-formed Resource Map local exits.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::local_resource_sources,
+};
+
+#[test]
+fn single_resource_local_formation_exits_normally() {
+    for case in local_resource_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+
+#[test]
+fn unit_resource_local_formation_exits_normally() {
+    for case in local_resource_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+mod local_future {
+//! Normal local-formation/future-use products; no fault calibration or sanitizers.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::local_future_sources,
+};
+
+#[test]
+fn single_local_sources_follow_future_uses() {
+    for case in local_future_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+
+#[test]
+fn unit_local_sources_follow_future_uses() {
+    for case in local_future_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+#[allow(unused_imports)] pub(crate) use d10_w09::local_reassignment;
+
+mod local_resource_future {
+//! Strict native checks for Resource local future-use corners and real empty inputs.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run,
+    ssa::map_provider_exits_pipeline_tests::local_resource_future_sources,
+};
+#[test]
+fn single_resource_future_locals_exit_normally() {
+    for case in local_resource_future_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_resource_future_locals_exit_normally() {
+    for case in local_resource_future_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+mod temporary_forms {
+//! Real represented temporary source programs, after both SSA/LLVM entries pass.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::temporary_form_sources,
+};
+
+#[test]
+fn single_represented_temporary_sources_exit_normally() {
+    for case in temporary_form_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+
+#[test]
+fn unit_represented_temporary_sources_exit_normally() {
+    for case in temporary_form_sources() {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+}
+
+#[allow(unused_imports)] pub(crate) use d10_w09::temporary_arguments;
+
+#[allow(unused_imports)] pub(crate) use d10_w09::temporary_delivery;
+
+mod temporary_argument_cfg {
+//! Both runtime argument CFG arms execute the original empty temporary-source cases.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run,
+    ssa::map_provider_exits_pipeline_tests::temporary_argument_cfg_sources,
+};
+
+fn run(unit: bool) {
+    for case in temporary_argument_cfg_sources() {
+        let output = if unit {
+            run_unit(&case.label, &case.source)
+        } else {
+            emit_link_and_run("provider.ko", &case.source, "entry")
+        };
+        assert_result(
+            &case.label,
+            if unit { "unit" } else { "single" },
+            &output,
+            &case.golden,
+        );
+    }
+}
+
+#[test]
+fn single_argument_cfg_edges_exit_normally() {
+    run(false);
+}
+
+#[test]
+fn unit_argument_cfg_edges_exit_normally() {
+    run(true);
+}
+}
+
+#[allow(unused_imports)] pub(crate) use d10_w09::ordinary_control_flow;
+
+#[allow(unused_imports)] pub(crate) use d10_w09::stack_paths;
+
+#[allow(unused_imports)] pub(crate) use d10_w09::formation_paths;
+
+#[allow(unused_imports)] pub(crate) use d10_w09::local_arguments;
+
+mod births {
+//! Exact fixture bytes and full golden output for intrinsic/Unit FunctionValue births.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run,
+    ssa::map_provider_exits_pipeline_tests::{MapBirthKind, map_birth_sources},
+};
+fn run(unit: bool) {
+    for c in map_birth_sources() {
+        if !unit && c.kind == MapBirthKind::FunctionValue {
+            continue;
+        }
+        let output = if unit {
+            run_unit(c.label, c.source)
+        } else {
+            emit_link_and_run("provider.ko", c.source, "entry")
+        };
+        assert_result(
+            c.label,
+            if unit { "unit" } else { "single" },
+            &output,
+            c.golden,
+        );
+    }
+}
+#[test]
+fn single_intrinsic_births_keep_full_native_golden() {
+    run(false);
+}
+#[test]
+fn unit_intrinsic_and_function_value_births_keep_full_native_golden() {
+    run(true);
+}
+}
+
+mod scope_lowering {
+//! Every fixed A1 program executes its original entry once, including encoded true/false arms.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::scope_a1_sources,
+};
+fn run(unit: bool) {
+    for c in scope_a1_sources() {
+        let out = if unit {
+            run_unit(c.label, c.source)
+        } else {
+            emit_link_and_run("provider.ko", c.source, "entry")
+        };
+        assert_result(
+            c.label,
+            if unit { "unit" } else { "single" },
+            &out,
+            c.golden,
+        );
+    }
+}
+#[test]
+fn single_scope_a1_frozen_programs_keep_full_golden() {
+    run(false);
+}
+#[test]
+fn unit_scope_a1_frozen_programs_keep_full_golden() {
+    run(true);
+}
+}
+
+mod scope_lambda_body {
+//! Original P15 entries execute once per pipeline with their complete frozen goldens.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::scope_a2_sources,
+};
+fn run(unit: bool) {
+    for c in scope_a2_sources() {
+        let output = if unit {
+            run_unit(c.label, c.source)
+        } else {
+            emit_link_and_run("provider.ko", c.source, "entry")
+        };
+        assert_result(
+            c.label,
+            if unit { "unit" } else { "single" },
+            &output,
+            c.golden,
+        );
+    }
+}
+#[test]
+fn single_scope_a2_lambda_bodies_keep_full_golden() {
+    run(false);
+}
+#[test]
+fn unit_scope_a2_lambda_bodies_keep_full_golden() {
+    run(true);
+}
+}
 
 #[path = "native_map_provider_scope_value_births_tests.rs"]
 mod scope_value_births;
 
-#[path = "native_map_provider_scope_member_parameter_tests.rs"]
-mod scope_member_parameter;
+mod scope_member_parameter {
+//! The two unchanged P24 Unit entries retain their complete original goldens.
+use super::{assert_result, run_unit};
+use crate::ssa::map_provider_exits_pipeline_tests::scope_member_parameter_sources;
+fn run(label: &str) {
+    let c = scope_member_parameter_sources()
+        .into_iter()
+        .find(|c| c.label == label)
+        .expect("one original P24 source");
+    let output = run_unit(c.label, c.source);
+    assert_result(c.label, "unit", &output, c.golden);
+}
+#[test]
+fn unit_original_member_parameter_for_keeps_full_golden() {
+    run("P24-for");
+}
+#[test]
+fn unit_original_member_parameter_control_keeps_full_golden() {
+    run("P24-control");
+}
+}
 
-#[path = "native_map_provider_scope_future_tests.rs"]
-mod scope_future;
+mod scope_future {
+//! All six original D sources retain their frozen full stdout under both entries.
+use super::{assert_result, run_unit};
+use crate::{
+    native_tests::emit_link_and_run, ssa::map_provider_exits_pipeline_tests::scope_future_sources,
+};
+#[test]
+fn single_original_future_handoffs_keep_full_goldens() {
+    let cases = scope_future_sources();
+    assert_eq!(cases.len(), 6);
+    for c in cases {
+        let output = emit_link_and_run("provider.ko", c.source, "entry");
+        assert_result(c.label, "single", &output, c.golden);
+    }
+}
+#[test]
+fn unit_original_future_handoffs_keep_full_goldens() {
+    let cases = scope_future_sources();
+    assert_eq!(cases.len(), 6);
+    for c in cases {
+        let output = run_unit(c.label, c.source);
+        assert_result(c.label, "unit", &output, c.golden);
+    }
+}
+}
 
-#[path = "native_map_for_scalar_tests.rs"]
-mod scalar_routing_tests;
+#[allow(unused_imports)] pub(crate) use d10_w09::scalar_routing_tests;

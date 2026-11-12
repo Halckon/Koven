@@ -440,6 +440,7 @@ subgraph Gactive["现行 active"]
   S0449["S0449<br/>其余测试域叶子薄壳子模块批量退役（42 个）"]
   S0450["S0450<br/>下一层叶子薄壳与同级测试小文件批量收敛（62 个）"]
   S0451["S0451<br/>跨父模块测试薄壳批量打包收敛（22 个）"]
+  S0452["S0452<br/>lang-codegen 非 ssa 子树叶子薄壳与同级测试小文件批量收敛（129 个）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1951,6 +1952,7 @@ S0366 --> S0367
 | SPEC-0449 | active | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](../../specs/active/0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
 | SPEC-0450 | active | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](../../specs/active/0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
 | SPEC-0451 | active | [0451-cross-parent-leaf-test-shells-batch-retirement.md](../../specs/active/0451-cross-parent-leaf-test-shells-batch-retirement.md) |
+| SPEC-0452 | active | [0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md](../../specs/active/0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

@@ -21,12 +21,11 @@ use std::collections::BTreeSet;
 
 #[path = "native_nullable_when_tests/generation.rs"]
 mod generation;
-#[path = "native_nullable_when_tests/products.rs"]
-mod products;
+#[allow(unused_imports)] pub(crate) use sibling_route::products;
 #[path = "native_nullable_when_tests/replacement_if.rs"]
 mod replacement_if;
 #[path = "native_nullable_when_tests/sibling_route.rs"]
-mod sibling_route;
+pub(crate) mod sibling_route;
 #[path = "native_nullable_when_tests/sources.rs"]
 mod sources;
 #[path = "native_nullable_when_tests/support.rs"]
