@@ -8,6 +8,7 @@ mod child_receipt;
 mod condition;
 mod container;
 mod container_for;
+mod control_bridge;
 mod counter_tail_receipt;
 mod expression;
 mod field;
@@ -65,6 +66,7 @@ pub(super) struct Builder<'i, 'a> {
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     open_return_plan: Option<open_loop_return::Plan<'a>>,
     header_return_plan: Option<normal_header_return::Plan<'a>>,
+    control_bridge_plan: Option<control_bridge::Plan<'a>>,
     counter_tail_plan: counter_tail_receipt::Plans<'a>,
     multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
     checked_expression_edges: usize,
@@ -122,6 +124,7 @@ pub(super) fn build(
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         open_return_plan: open_loop_return::Plan::new(inputs)?,
         header_return_plan: normal_header_return::Plan::new(inputs)?,
+        control_bridge_plan: control_bridge::Plan::new(inputs)?,
         counter_tail_plan: counter_tail_receipt::Plans::new(inputs)?,
         multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
         checked_expression_edges: 0,
@@ -183,6 +186,7 @@ pub(super) fn build(
         builder.finish_owner_plan()?;
         builder.finish_checked_edge_receipts()?;
         builder.finish_counter_tail_receipt()?;
+        builder.finish_control_bridge()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -247,6 +251,7 @@ pub(super) fn build(
     builder.finish_loan_receipts()?;
     builder.finish_checked_edge_receipts()?;
     builder.finish_counter_tail_receipt()?;
+    builder.finish_control_bridge()?;
     Ok(builder.body)
 }
 

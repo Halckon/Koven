@@ -538,7 +538,7 @@ fn live_roots_cross_sequential_counters_without_fabricated_batch() {
         }}
         fun entry() {{ {calls} }}"#
         );
-        assert_general_counter_baseline(&text, expected.as_bytes());
+        assert_general_counter_baseline(&text, expected.as_bytes(), true);
     }
 }
 
@@ -571,10 +571,10 @@ fn nested_counters_preserve_outer_live_roots_without_flat_batch() {
     }}
     fun entry() {{ {calls} }}"#
     );
-    assert_general_counter_baseline(&text, expected.as_bytes());
+    assert_general_counter_baseline(&text, expected.as_bytes(), false);
 }
 
-fn assert_general_counter_baseline(text: &str, expected: &[u8]) {
+fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
     let source = UnitSource::analyze("cross-control-counter.ko", text).unwrap();
     source.assert_frontend_clean();
     for observation in source.ownership().owner_observations() {
@@ -592,5 +592,145 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8]) {
             .iter()
             .all(|(kind, _)| !kind.starts_with("counter-"))
     );
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "control-bridge-slot-audit")
+            .count(),
+        usize::from(bridge)
+    );
+    if bridge {
+        assert_cross_control_ssa(&source, &program);
+    }
     super::super::assert_native_output(&source, expected);
+}
+
+// Check final typed-SSA edge operands, not only the pre-SSA slot audit.
+fn assert_cross_control_ssa(source: &UnitSource, program: &crate::ssa::model::Program) {
+    use crate::ssa::model::{EntityId, Operation, TerminatorKind};
+    let run = program
+        .modules
+        .iter()
+        .flat_map(|m| &m.functions)
+        .find(|f| {
+            source
+                .sources
+                .slice(f.origin.span())
+                .unwrap()
+                .starts_with("fun run(")
+        })
+        .unwrap();
+    for name in ["a", "b"] {
+        let replace = |suffix| {
+            run.instructions
+                .iter()
+                .find(|i| {
+                    matches!(i.operation, Operation::RootReplace { .. })
+                        && source
+                            .sources
+                            .slice(i.origin.span())
+                            .unwrap()
+                            .starts_with(&format!("replace(&{name}{suffix},"))
+                })
+                .unwrap()
+        };
+        let prior = replace(0);
+        let next = replace(1);
+        let Operation::RootReplace {
+            owner: original, ..
+        } = prior.operation
+        else {
+            unreachable!()
+        };
+        let Operation::RootReplace { owner: target, .. } = next.operation else {
+            unreachable!()
+        };
+        let body = run.block(prior.block).unwrap();
+        let position = body
+            .parameters
+            .iter()
+            .position(|v| *v == EntityId::Value(original))
+            .unwrap();
+        let (header, when_true, when_false) = run
+            .blocks
+            .iter()
+            .find_map(|b| {
+                if let TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } = &b.terminator.as_ref()?.kind
+                {
+                    (when_true.target == body.id).then_some((b, when_true, when_false))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let header_value = when_true.arguments[position];
+        assert!(header.parameters.contains(&header_value));
+        // The zero-round and checked normal-backedge predecessors both exist.
+        let inputs: Vec<_> = run
+            .blocks
+            .iter()
+            .filter_map(|b| {
+                if let TerminatorKind::Branch(edge) = &b.terminator.as_ref()?.kind {
+                    (edge.target == header.id).then_some(edge)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(inputs.len(), 2);
+        let mut edge = when_false;
+        let mut carried = header_value;
+        let mut reached = false;
+        for _ in 0..8 {
+            let destination = run.block(edge.target).unwrap();
+            let index = edge.arguments.iter().position(|v| *v == carried).unwrap();
+            carried = destination.parameters[index];
+            if destination.id == next.block {
+                assert_eq!(carried, EntityId::Value(target));
+                reached = true;
+                break;
+            }
+            edge = match &destination.terminator.as_ref().unwrap().kind {
+                TerminatorKind::Branch(edge) => edge,
+                TerminatorKind::Conditional { when_true, .. } if when_true.target == next.block => {
+                    when_true
+                }
+                other => panic!("unexpected bridge path: {other:?}"),
+            };
+        }
+        assert!(reached);
+    }
+}
+
+#[test]
+fn ci_only_control_bridge_rejects_wrong_target_and_missing_next() {
+    use crate::ssa::{OwnerFault, with_owner_fault};
+    let text = r#"fun run(n: Int) {
+        var n0 = n; var g0 = n0 > 0; var a0 = "a"; var b0 = "b";
+        while(g0) { val x = replace(&a0, "x"); val y = replace(&b0, "y"); n0 = n0 - 1; g0 = n0 > 0 };
+        var n1 = n; var g1 = n1 > 0; var a1 = a0; var b1 = b0;
+        while(g1) { val x = replace(&a1, "x1"); val y = replace(&b1, "y1"); n1 = n1 - 1; g1 = n1 > 0 }
+    }
+    fun entry() { run(2) }"#;
+    let source = UnitSource::analyze("control-bridge-fault.ko", text).unwrap();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::ControlBridgeWrongRoot,
+        OwnerFault::ControlBridgeMissingNext,
+        OwnerFault::ControlBridgeLateSourceDrop,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert!(
+            actions
+                .iter()
+                .all(|(kind, _)| *kind != "control-bridge-slot-audit")
+        );
+    }
 }

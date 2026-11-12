@@ -174,6 +174,17 @@ move/Alias与后控制入口，并由同一实际SSA出口/入口值核验，再
 启动；段间真实Name move与binding以单次pending表达式转移根索引，逐声明核对实际
 资源集合。所有根重绑定到不同symbol并抵达下一while入口后才记录完整关联。新String、
 任何根drop、额外资源或缺失事件使这条桥接失败。Copyable声明仍服从原精确候选范围。
-该关联目前只在私有采集中完成，`take_segment_entry`明确拒绝将它当producer catalog；
-不产生下一段owner token、正常方程、公开批次或codegen permit。后续仍需实际SSA合流值
-与跨轮合同，才能把此静态来源关联升级为运输能力。
+该关联经完整双候选核验后可作为独立只读`control_bridge_evidence_v1`交付，按原根顺序
+排列目标，绑定原analysis identity及callable，与所有旧owner产品互斥。平衡、deferred、
+全局失效仍撤销产品。`take_segment_entry`继续拒绝将它当producer catalog，不产生
+下一段owner token、正常方程、counter批次或codegen permit。
+
+
+后端独立bridge审计捕获前后control的真实root槽与CFG：前header的false边经唯一finished
+到下一入口块，下一入口必须跳往后header；逐根逆向追溯该块实际Alias链，拒绝额外
+读取、重定义、非Alias定义、错目标和不完整几何。finished不得触碰活根，根槽及目标槽
+各自唯一。此为slot-CFG对应审计，不给下一body或跨轮owner权限；它不替代前段checked
+arithmetic/正常代际证明或最终SSA verifier。最终typed-SSA回归另沿前header的false边、
+退出合流、后header的true边核对实际block参数/edge操作数到后段RootReplace owner，
+同时要求前header的零轮入口与正常回边两个前驱存在。native继续执行零轮与多轮输出
+矩阵；静态CFG关系与有限运行正确仍不等同动态owner实例的归纳证明。
