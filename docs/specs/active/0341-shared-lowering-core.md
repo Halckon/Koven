@@ -15222,3 +15222,23 @@ all-target strict Clippy（1m21s）、workspace all-target check（1m26s）、fm
 全回归（基线 b7a5f8cc 的690项仍仅为该基线证据）。两个新晚期故障仅编译、未执行；
 静态最终 SSA 旧值一致性不等于运行时释放次数或跨轮归纳。独立只读复审未发现确定
 阻断，native通过确认死局部binding槽在终检仍可查。日志 nested-retirement-*，仅本地提交。
+
+### 嵌套旧路径出口/恢复实证审计（2026-11-12，仅测试，无新许可）
+
+基于0a0d9eb5，仅加强已有九组有限 native 输入的最终 SSA 断言：以原前端 primitive
+调用身份定位内层 b Replace、外层恢复 b Replace，核 child body 参数→header 参数；
+从 header.false-edge 逐实际 edge.arguments/destination.parameters 的相同索引运输，
+每边同根恰一次，visited 防止绕入另一轮。只沿无条件走廊，中途不得读/消费根，
+到外层实际 Replace 时核唯一 RootPlace→exclusive loan→Replace 准备链和 owner 身份。
+entry/normal 两个静态 header 入边不标成某一运行时实例，不推出任意轮次归纳。
+
+下一出口/恢复权限仍未批准、未实现：需要实际 parent 暂停与 child false-exit 完成
+事件、entry/normal 合流来源和根/资源分区、parent 恢复完成及对应消费者；不能把
+此测试中的 SSA 参数映射当作现成 owner token 或用有限运行次数代替循环不变量。
+本片没有生产代码改动，也不改变多 child/更深嵌套的发布边界。
+
+本片最终普通 native 用例1/1（1.55s，内部外/内0、1、2轮九组输出及上述SSA断言）
+通过，codegen all-target strict Clippy（58.78s）通过。仅测试与说明变更，未重跑
+完整counter/FE/workspace回归，未执行任何CI-only；独立只读复审未发现确定阻断。
+该测试核末块准备链定义、顺序及owner使用，不单独宣称place/loan全函数消费证明。
+日志 nested-exit-audit-*；仅本地提交，不推送，不开启新权限。

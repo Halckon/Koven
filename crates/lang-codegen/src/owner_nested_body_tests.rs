@@ -155,6 +155,7 @@ fn assert_nested_ssa_retirement(source: &UnitSource) {
             .collect::<Vec<_>>(),
         [2]
     );
+    assert_existing_false_exit_resume(source, &program);
     for step in product.normal().steps() {
         let span = source
             .parsed()
@@ -206,5 +207,195 @@ fn assert_nested_ssa_retirement(source: &UnitSource) {
                     .position(|id| *id == drops[0].id)
                     .unwrap()
         );
+    }
+}
+
+// Audit the existing generic lowering only. This does not publish an exit/resume permit.
+fn assert_existing_false_exit_resume(source: &UnitSource, program: &crate::ssa::model::Program) {
+    use crate::ssa::model::{EntityId, Operation, TerminatorKind};
+    let functions = program
+        .modules
+        .iter()
+        .flat_map(|m| &m.functions)
+        .filter(|f| {
+            source
+                .sources
+                .slice(f.origin.span())
+                .unwrap()
+                .starts_with("fun run(")
+        })
+        .collect::<Vec<_>>();
+    let [function] = functions.as_slice() else {
+        panic!("unique run")
+    };
+    let product = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.nested_normal_body_v1())
+        .unwrap();
+    let find = |literal| {
+        let sites = source
+            .types()
+            .ownership_primitives()
+            .iter()
+            .filter_map(|p| {
+                let call = p.expression();
+                if call.source_unit() != product.control().source_unit() {
+                    return None;
+                }
+                let span = source
+                    .parsed()
+                    .ast()
+                    .expressions()
+                    .get(call.expression())
+                    .unwrap()
+                    .span();
+                source
+                    .sources
+                    .slice(span)
+                    .unwrap()
+                    .contains(literal)
+                    .then_some((call, span))
+            })
+            .collect::<Vec<_>>();
+        let [(call, span)] = sites.as_slice() else {
+            panic!("unique original primitive")
+        };
+        let candidates = function
+            .instructions
+            .iter()
+            .filter(|i| {
+                i.origin.span() == *span && matches!(i.operation, Operation::RootReplace { .. })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(candidates.len(), 1);
+        (*call, candidates[0])
+    };
+    let (inner_call, inner) = find("\"inner-b\"");
+    assert!(
+        product
+            .normal()
+            .steps()
+            .iter()
+            .any(|s| s.call() == inner_call)
+    );
+    let (_, outer) = find("\"outer-b\"");
+    let Operation::RootReplace {
+        owner: inner_owner, ..
+    } = inner.operation
+    else {
+        unreachable!()
+    };
+    let Operation::RootReplace {
+        owner: resumed_owner,
+        loan: resumed_loan,
+        ..
+    } = outer.operation
+    else {
+        unreachable!()
+    };
+    let body = function.block(inner.block).unwrap();
+    let root_position = body
+        .parameters
+        .iter()
+        .position(|v| *v == EntityId::Value(inner_owner))
+        .unwrap();
+    let headers = function
+        .blocks
+        .iter()
+        .filter_map(|b| match &b.terminator.as_ref()?.kind {
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } if when_true.target == body.id => Some((b, when_true, when_false)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(header, when_true, when_false)] = headers.as_slice() else {
+        panic!("unique child header")
+    };
+    let mut value = when_true.arguments[root_position];
+    assert!(header.parameters.contains(&value));
+    // This is a finite static join of entry and normal-backedge operands, not dynamic history.
+    assert_eq!(
+        function
+            .blocks
+            .iter()
+            .filter(|b| matches!(&b.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Branch(edge) if edge.target==header.id))
+            .count(),
+        2
+    );
+    let mut edge = *when_false;
+    let mut visited = std::collections::BTreeSet::new();
+    loop {
+        assert!(
+            visited.insert(edge.target),
+            "resume audit must not cross another iteration"
+        );
+        let destination = function.block(edge.target).unwrap();
+        let positions = edge
+            .arguments
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| (*v == value).then_some(i))
+            .collect::<Vec<_>>();
+        let [position] = positions.as_slice() else {
+            panic!("one carried root operand")
+        };
+        value = destination.parameters[*position];
+        if destination.id == outer.block {
+            assert_eq!(value, EntityId::Value(resumed_owner));
+            let statements = destination
+                .instructions
+                .iter()
+                .map(|id| function.instruction(*id).unwrap())
+                .collect::<Vec<_>>();
+            let loans = statements
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| match s.operation {
+                    Operation::BorrowBegin {
+                        place,
+                        kind: crate::ssa::model::LoanKind::Exclusive,
+                    } if s.results == [EntityId::Loan(resumed_loan)] => Some((i, place)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [(loan_index, place)] = loans.as_slice() else {
+                panic!("actual outer exclusive loan")
+            };
+            let places = statements.iter().enumerate().filter_map(|(i,s)|
+                (s.results==[EntityId::Place(*place)] && matches!(s.operation,Operation::RootPlace {owner} if owner==resumed_owner)).then_some(i)).collect::<Vec<_>>();
+            let [place_index] = places.as_slice() else {
+                panic!("actual outer root place")
+            };
+            let replace_index = destination
+                .instructions
+                .iter()
+                .position(|id| *id == outer.id)
+                .unwrap();
+            assert!(*place_index < *loan_index && *loan_index < replace_index);
+            for (i, statement) in statements.iter().enumerate() {
+                assert_eq!(
+                    statement.operation.entities().contains(&value),
+                    i == *place_index || i == replace_index
+                );
+                assert!(!statement.results.contains(&value));
+            }
+            break;
+        }
+        for id in &destination.instructions {
+            let statement = function.instruction(*id).unwrap();
+            assert!(!statement.operation.entities().contains(&value));
+            assert!(!statement.results.contains(&value));
+        }
+        // Do not infer through branching or another loop. The supported fixture has a direct corridor.
+        edge = match &destination.terminator.as_ref().unwrap().kind {
+            TerminatorKind::Branch(edge) => edge,
+            other => panic!("nonlinear old resume corridor: {other:?}"),
+        };
     }
 }

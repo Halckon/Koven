@@ -8,6 +8,8 @@ SPEC-0341 经明确批准的切片仅接纳一个直接父/子 while 对的内�
 它给出形式 header 根上的 Replace→返回 binding→实际 Drop 单次消费权限；
 不是入口 owner token、内层退出证明、外层恢复许可或任意轮次归纳。
 有限 native 输入的输出也不能代替这些尚缺合同。
+普通测试另核现有通用 lowering 的内层 header false-edge→外层 Replace SSA 运输；
+这是旧路径实证，不是新 owner 产品的出口/恢复许可。
 
 ## 前端事件
 
