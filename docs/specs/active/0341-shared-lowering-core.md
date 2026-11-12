@@ -15867,3 +15867,44 @@ source 从入口经header/body/回边的实际参数映射断言。FE+CG feature
 Clippy、默认workspace all-targets通过；fmt/diff/docs913与尺寸门禁通过。尺寸相对
 2beb5592为2618手写Rust文件、36历史超限，policy及Guide未改。最后CG断言补强
 再作Clippy复核通过；只本地保存，不推送。
+
+### 独立 fresh-loop CG receipt（2026-11-12）
+
+延续已批准有限 no-carry，不扩大语言。独立协议不复用 carried-loop 的入口 acquire/
+出口 End：首资格仅函数体一个 while、Borrow source/flag 两参数；own Boolean、兄弟
+循环及前后语句保留原 lowering 的执行/拒绝边界，无此证书。参数位置按 typed ABI 解析。
+
+真实 producer 捕获 header ReadLoan、body BorrowCall、逐 consumer、唯一 result End、
+原五块 terminator 及实际 fold；Emitted 将标签绑定原 emitter 的真实 ID 和参数映射。
+独立最终图复核从 ABI source/flag 传播角色，逐 incoming 对证局部实体、完整函数全集、
+body 结果只在本轮使用/关闭，不随回边传出；false 路径没有 fresh 操作。单函数暂存
+后仍须整 unit 原 verifier 成功才发布。FE 资格封印的身份与元数据必须对应原准入，
+不能用另一次等值重分析事实替换；不冒充最终图复核重新验证整个 FE catalog。
+
+实际缺 receipt 红测试先验证原 lowering/verifier 成功，再发现 receipt 为空；随后
+首次真实普通绿通过。最初短名配 --exact 导致零测试的命令不计红，编译缺 receiver
+字段也不计行为红。独立复审进一步要求同实例身份对证及 cleanup 前独立 phase 3
+封口，按此补强后再作最终验收。CI-only 故障只编译，旧见证不退休，不推送。
+
+独立复审修复两项：新增只读 Rc::ptr_eq 身份 API，真实 layout 将原准入 fact 封存入
+私有 Proof，最终同时核身份和完整 metadata；phase 3 前移到实际 leave 前，避免
+只依赖旧 lease 的 cleanup 前验证。ordinary 首正控含正反参数顺序、1/3/9 consumer、
+双入口与 on/off 共24组合通过。
+
+新增邻界发现兄弟两 while 的 FE 事实存在，但旧 CG 第二 while 仍 Unsupported：
+`unit_lower/borrow_result` 每个 binding 仅许可自己的 while，而 borrow_result_support
+检查完整函数所有 while。这两处本轮无修改；保留精确原拒绝，不用 receipt 顺带放宽。
+CI编译修正原 verifier 模块路径及测试 Debug/type 路径，不记为行为红。
+
+新增接线使 container_for 达1009行触发原尺寸门禁；将完整 while CFG/lifetime boundary
+方法等价移至独立 `build/while_loop.rs`，容器循环877行，新模块143行，build注册999行。
+不压缩格式、不改policy；迁移后继续最终回归。CI六组只编译，publication rollback
+使用真实原verifier错误及guard撤回单测，不冒充实际orchestrate故障注入。
+
+最终验收：新CG两个普通测试（正控24组合及三个邻界）、FE两个target共3项、CG
+loan_region家族94项通过；CI六组只作feature lib no-run。Clippy发现重复entry/body
+分支，等价合并条件后FE+CG feature all-targets -D warnings通过，并重跑新CG两项；
+默认workspace all-targets通过。模块过滤未包含native函数，因此另显式执行真实
+false原生测试1项通过，未把空过滤或缺案例当作通过。fmt/diff/docs913、尺寸2626
+手写Rust文件/36历史超限通过，policy未改。独立身份修复及while职责迁移复审通过。
+此片只本地提交；不声称一般循环、多根、终止性或旧见证退休已完成。

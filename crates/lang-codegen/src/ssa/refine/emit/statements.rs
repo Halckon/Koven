@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    fresh_loop: crate::ssa::refine::fresh_loop_receipt::Emitted,
     loop_receipt: crate::ssa::refine::loop_receipt::Emitted,
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
@@ -29,6 +30,11 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            fresh_loop: crate::ssa::refine::fresh_loop_receipt::Emitted::new(
+                &body.fresh_loop_plans,
+                function,
+                span,
+            )?,
             loop_receipt: crate::ssa::refine::loop_receipt::Emitted::new(
                 &body.loop_plans,
                 function,
@@ -136,6 +142,14 @@ impl LoanReceipts {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.fresh_loop.layout(
+            &body.fresh_loop_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
         self.loop_receipt.layout(
             &body.loop_plans,
             function,
@@ -196,6 +210,8 @@ impl LoanReceipts {
     ) -> Result<(), LoweringError> {
         self.loop_receipt
             .terminator(&body.loop_plans, function, target, current, span)?;
+        self.fresh_loop
+            .terminator(&body.fresh_loop_plans, function, target, current, span)?;
         self.nested
             .terminator(&body.nested_plans, function, target, current, span)?;
         self.bounded
@@ -216,6 +232,8 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.loop_receipt.finish(&body.loop_plans, function, span)?;
+        self.fresh_loop
+            .finish(&body.fresh_loop_plans, function, span)?;
         self.forward.finish(&body.forward_plans, function, span)?;
         self.consumer.finish(&body.loan_plans, function, span)?;
         self.receiver.finish(&body.receiver_plans, function, span)?;
@@ -255,7 +273,10 @@ impl Emitter<'_> {
         for statement in &body.blocks[block.0].statements {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
             {
-                if statement.loan_tag.is_some() || statement.loop_tag.is_some() {
+                if statement.loan_tag.is_some()
+                    || statement.loop_tag.is_some()
+                    || body.fresh_loop_plans.plan.is_some()
+                {
                     return Err(error(LoweringErrorKind::InvalidModel, statement.span));
                 }
                 let entity = self.get(*source, statement.span)?;
@@ -318,6 +339,16 @@ impl Emitter<'_> {
             for (slot, entity) in statement.results.iter().zip(results) {
                 self.current.insert(*slot, entity);
                 self.defined.insert(*slot, entity);
+            }
+            if let Some(tag) = statement.fresh_loop_tag {
+                receipts.fresh_loop.statement(
+                    &body.fresh_loop_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?;
             }
             if let Some(tag) = statement.loop_tag {
                 receipts.loop_receipt.statement(

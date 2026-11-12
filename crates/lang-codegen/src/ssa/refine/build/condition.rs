@@ -669,6 +669,7 @@ impl Builder<'_, '_> {
                         self.body.blocks[exit_block.0].statements.push(
                             crate::ssa::refine::body::RStmt {
                                 loop_tag: None,
+                                fresh_loop_tag: None,
                                 loan_tag: None,
                                 op: ROp::Drop { owner: slot },
                                 results: Vec::new(),

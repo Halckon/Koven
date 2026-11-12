@@ -49,6 +49,10 @@ impl UnitLoopNoCarryFact {
                 .collect(),
         })
     }
+    /// Whether both facts originate from the same core-checker validation event.
+    pub fn same_identity(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+    }
     /// Source-qualified declaration containing the checked loop.
     pub const fn callable(&self) -> UnitItemId {
         self.callable

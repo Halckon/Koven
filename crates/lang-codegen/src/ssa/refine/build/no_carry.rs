@@ -80,3 +80,72 @@ impl Builder<'_, '_> {
         Ok(())
     }
 }
+
+impl Builder<'_, '_> {
+    pub(super) fn fresh_loop_entry(
+        &mut self,
+        blocks: [BlockRef; 5],
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(p) = &self.body.fresh_loop_plans.plan else {
+            return Ok(());
+        };
+        let source = *self
+            .borrowed
+            .get(&p.fact.source())
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        let flag_symbol = *self
+            .inputs
+            .parameters
+            .get(p.flag_parameter)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        let flag = *self
+            .borrowed
+            .get(&flag_symbol)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        if self.borrowed.len() != 2
+            || !self.result_source_loans.is_empty()
+            || !self.pending_call_loans.is_empty()
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        let [entry, header, body, finished, exit] = blocks;
+        self.body.fresh_loop_plans.begin(
+            super::super::fresh_loop_receipt::LoopBlocks {
+                entry,
+                header,
+                body,
+                finished,
+                exit,
+            },
+            source,
+            flag,
+            span,
+        )
+    }
+    pub(super) fn fresh_loop_boundary(
+        &mut self,
+        phase: usize,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(p) = &self.body.fresh_loop_plans.plan else {
+            return Ok(());
+        };
+        let flag_symbol = *self
+            .inputs
+            .parameters
+            .get(p.flag_parameter)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        if self.borrowed.len() != 2
+            || self.borrowed.get(&p.fact.source()).copied() != p.source
+            || self.borrowed.get(&flag_symbol).copied() != p.flag
+            || !self.result_source_loans.is_empty()
+            || !self.pending_call_loans.is_empty()
+            || self.dead.contains(&p.fact.source())
+            || self.dead.contains(&flag_symbol)
+        {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        self.body.fresh_loop_plans.boundary(phase, span)
+    }
+}

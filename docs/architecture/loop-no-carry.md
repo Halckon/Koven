@@ -47,5 +47,25 @@ binding 尚不存在；实际 body lowering 后、任何 loop leave 清理前，
 旧 carried-loan、空 body、外部 consumer-body 观察仍是各自的研究合同；这些观察不
 授予 fresh 准入。实际生产准入仅由上述非 cfg 协议提供。
 
-更一般控制流、跨回边存活、多根组合以及独立每轮 CG receipt 尚未完成。
+更一般控制流、跨回边存活及多根组合尚未完成；独立 receipt 的更窄范围见下节。
 旧 raw/off/oracle 见证保留，不能以本片较窄合同替代。CI-only 故障组只编译，不本地执行。
+
+## 独立 fresh-loop receipt
+
+`refine/fresh_loop_receipt` 为独立协议，不套用旧 carried-loop 的 entry acquire/exit End。
+首证书仅限函数体唯一 while、两个 Borrow source/flag 参数，参数顺序来自 typed ABI。
+own Boolean、兄弟循环或其它前后语句保留原有执行/拒绝边界，不因缺新证书收紧准入。
+
+真实 builder append 捕获 header 条件读取、body BorrowCall、逐 consumer 和唯一 End；
+真实 terminator 与 fold 回调捕获五个原块、正常回边、false 出口及可发生的出口折叠。
+Emitted 将这些 producer 标签绑定实际 InstructionId、EntityId 及各块参数映射，不从
+最终 SSA 扫描补造 producer。最后独立验证不读取 Plans/Slot/current map，而从实际
+ABI 参数建立 Source/Flag 角色固定点，逐 incoming 检查运输，核 body fresh Result
+的准确使用和关闭，拒绝 Result 跨边、false 创建实例、漏块/漏指令/多余定义。
+
+单函数完整核验后仅暂存；整个 unit 的原 verifier 成功后原子发布，后续函数或 verifier
+失败撤回整批。核心检查不依赖观察开关，观察关闭不取消验证。封印 FE 资格归属由准入
+阶段认证，独立最终图验证不冒充重新验证整个 FE catalog。
+
+该证书证明每次执行有限 body 均创建并关闭结果、正常回边只保留外部贷款；它不是已
+原生运行任意多轮的记录，不证明终止性，也不扩大语言准入或退休旧见证。

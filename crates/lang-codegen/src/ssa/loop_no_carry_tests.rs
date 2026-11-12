@@ -9,11 +9,22 @@ use lang_frontend::{
 
 #[test]
 fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
-    for count in [1, 3, 9] {
+    for (count, reversed) in [1, 3, 9]
+        .into_iter()
+        .flat_map(|count| [false, true].map(move |reversed| (count, reversed)))
+    {
         let consumers = vec!["consume(item)"; count].join(";");
         let text = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(source:String,flag:Boolean):Unit {{while(flag){{borrow val item=view(source);{consumers}}}}}"
         );
+        let text = if reversed {
+            text.replace(
+                "run(source:String,flag:Boolean)",
+                "run(flag:Boolean,source:String)",
+            )
+        } else {
+            text
+        };
         let mut sources = SourceMap::new();
         let (source, parsed) =
             unit_lower_test_support::parsed(&mut sources, "loop-local.ko", &text);
@@ -76,13 +87,17 @@ fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
                     panic!("not scope cleanup")
                 };
                 assert_eq!(point.statement(), last);
-                let (result, verified) = crate::ssa::unit_lower::observe_final_verifier(|| {
-                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                        &sources, &inputs, &names, &types, &typed, owned, entry,
-                    )
-                });
+                let ((result, verified), receipts) =
+                    crate::ssa::refine::fresh_loop_receipt::observe(|| {
+                        crate::ssa::unit_lower::observe_final_verifier(|| {
+                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                &sources, &inputs, &names, &types, &typed, owned, entry,
+                            )
+                        })
+                    });
                 let (program, _) = result.expect("real loop-local body lowering");
                 assert_eq!(verified.len(), 1);
+                assert_eq!(receipts.len(), 1, "actual fresh-loop receipt missing");
                 verify_program(&program).unwrap();
                 let run = program
                     .modules
@@ -90,6 +105,14 @@ fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
                     .flat_map(|m| &m.functions)
                     .find(|f| f.name.contains(".run."))
                     .unwrap();
+                let receipt = receipts[0].clone();
+                receipt
+                    .validate(run)
+                    .expect("detached actual no-carry proof");
+                assert_eq!(receipt.caller, run.id);
+                assert!(owned.ownership().owns_no_carry_loop(&receipt.fact));
+                assert_eq!(receipt.fact.binding(), binding.binding());
+                assert_eq!(receipt.instructions.len(), count + 3);
                 let calls = run
                     .instructions
                     .iter()
@@ -202,7 +225,7 @@ fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
                 );
                 let entry_block = run.block(run.entry_block().unwrap()).unwrap();
                 assert!(run.receiver.is_none());
-                let source_parameter = entry_block.parameters[0];
+                let source_parameter = entry_block.parameters[usize::from(reversed)];
                 assert!(matches!(source_parameter, EntityId::Loan(_)));
                 let TerminatorKind::Branch(initial_edge) =
                     &entry_block.terminator.as_ref().unwrap().kind
@@ -212,7 +235,7 @@ fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
                 assert_eq!(initial_edge.target, header.id);
                 assert_eq!(
                     initial_edge.arguments[header_index], source_parameter,
-                    "the header source is exactly run's declared first Borrow parameter"
+                    "the header source is exactly run's actual declared Borrow String parameter"
                 );
                 let Operation::BorrowCall { arguments, .. } = &acquire.operation else {
                     unreachable!()
@@ -249,6 +272,102 @@ fn ordinary_loop_local_no_carry_has_body_only_lease_and_zero_iteration_exit() {
                     "{verified:?}\n{}",
                     crate::llvm::render_verified_program(&program).unwrap()
                 );
+                if let Some(previous) = baseline.as_ref() {
+                    assert_eq!(&rendered, previous);
+                }
+                baseline = Some(rendered);
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_fresh_loop_receipt_non_candidates_preserve_boundaries() {
+    for (label, parameters, body, expected) in [
+        (
+            "own-flag",
+            "source:String,own flag:Boolean",
+            "while(flag){borrow val item=view(source);consume(item)}",
+            1,
+        ),
+        (
+            "siblings",
+            "source:String,flag:Boolean",
+            "while(flag){borrow val item=view(source);consume(item)};while(flag){borrow val other=view(source);consume(other)}",
+            2,
+        ),
+        (
+            "before-after",
+            "source:String,flag:Boolean",
+            "consume(source);while(flag){borrow val item=view(source);consume(item)};consume(source)",
+            1,
+        ),
+    ] {
+        let text = format!(
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({parameters}):Unit {{{body}}}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "fresh-neighbor.ko", &text);
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "fresh-neighbor.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let (names, typed, on) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(on.ownership(), off.ownership()));
+            let entry = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap()
+                .id();
+            let mut baseline = None;
+            for owned in [&off, &on] {
+                assert_eq!(owned.ownership().no_carry_loops().len(), expected);
+                let ((result, verified), receipts) =
+                    crate::ssa::refine::fresh_loop_receipt::observe(|| {
+                        crate::ssa::unit_lower::observe_final_verifier(|| {
+                            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                                &sources, &inputs, &names, &types, &typed, owned, entry,
+                            )
+                        })
+                    });
+                if label == "siblings" {
+                    let error = result.err().expect("existing sibling boundary");
+                    assert_eq!(
+                        error.kind,
+                        crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
+                    );
+                    let second = parsed
+                        .ast()
+                        .statements()
+                        .iter()
+                        .filter_map(|(_, node)| {
+                            matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+                        })
+                        .max_by_key(|span| span.start())
+                        .unwrap();
+                    assert_eq!(error.span, Some(second));
+                    assert!(verified.is_empty());
+                    assert!(receipts.is_empty());
+                    continue;
+                }
+                let (program, _) = result.unwrap_or_else(|error| panic!("{label}: {error:?}"));
+                assert_eq!(verified.len(), 1);
+                assert!(receipts.is_empty());
+                verify_program(&program).unwrap();
+                let rendered = crate::llvm::render_verified_program(&program).unwrap();
                 if let Some(previous) = baseline.as_ref() {
                     assert_eq!(&rendered, previous);
                 }

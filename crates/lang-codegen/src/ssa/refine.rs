@@ -14,6 +14,7 @@ pub(crate) mod bounded_receipt;
 pub(crate) mod branch_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
+pub(crate) mod fresh_loop_receipt;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
 pub(crate) mod multi_receipt;
