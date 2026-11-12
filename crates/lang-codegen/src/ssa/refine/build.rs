@@ -1,5 +1,6 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
+mod aggregate_value;
 mod borrow_binding;
 mod callable;
 mod checked_edge_receipt;
