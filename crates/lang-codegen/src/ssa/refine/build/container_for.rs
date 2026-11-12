@@ -57,6 +57,7 @@ impl Builder<'_, '_> {
         loop_body: StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        let invariant = self.invariant_while_entry(statement, span)?;
         for fact in self.inputs.owned.borrow_results().bindings() {
             if fact.binding().source_unit() == self.inputs.source_unit
                 && crate::ssa::borrow_result_support::closed_while::following(
@@ -104,6 +105,7 @@ impl Builder<'_, '_> {
         self.goto(header, span)?;
         self.block = Some(header);
         self.condition(condition, body_block, finished)?;
+        self.invariant_while_boundary(invariant.as_ref(), span)?;
         if self.body.blocks[body_block.0].has_predecessor {
             let mark = self.enter(body_block);
             self.loops.push(LoopFrame {
@@ -119,6 +121,7 @@ impl Builder<'_, '_> {
             let reached = self.statement(loop_body)? != Lowered::Diverged;
             self.loops.pop();
             self.leave(mark, span)?;
+            self.invariant_while_boundary(invariant.as_ref(), span)?;
             if reached {
                 let cb = self.cb_backedge(statement, header, span)?;
                 let cr = self.cr_backedge(statement, header, span)?;
@@ -137,6 +140,7 @@ impl Builder<'_, '_> {
             let mark = self.enter(finished);
             self.leave_unclaimed(mark, span)?;
             self.emit_drops(&facts)?;
+            self.invariant_while_boundary(invariant.as_ref(), span)?;
             self.owner_false_edge(statement, exit, span)?;
             self.goto(exit, span)?;
         }
@@ -147,6 +151,7 @@ impl Builder<'_, '_> {
         self.finish_drops(&facts);
         let mark = self.enter(exit);
         self.leave_unclaimed(mark, span)?;
+        self.invariant_while_boundary(invariant.as_ref(), span)?;
         Ok(Lowered::Unit)
     }
 

@@ -23,7 +23,7 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
         ),
         (
             "outer-binding-zero",
-            "borrow val item = view(source); while (false) { consume(item) }",
+            "borrow val item = view(source); while (false) { consume(item); consume(item) }",
         ),
         (
             "lexical-end-before-loop",

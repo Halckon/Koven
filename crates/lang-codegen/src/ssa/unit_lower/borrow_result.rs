@@ -246,7 +246,7 @@ fn is_local_range_binding(
 
 fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
-    _names: &ValidatedCompilationUnitNames,
+    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
@@ -387,7 +387,11 @@ fn validate_binding(
         builtin,
         call_allowed,
         |statement| {
-            if closed_whiles.contains(&statement) {
+            if closed_whiles.contains(&statement)
+                || crate::ssa::borrow_result_support::invariant_while::admitted(
+                    file, names, typed, owned, fact,
+                ) == Some(statement)
+            {
                 return true;
             }
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);

@@ -15,6 +15,7 @@ mod frames;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
 mod heap;
 mod inout;
+mod invariant_while;
 mod map;
 mod multi_root_receipt;
 mod normal_header_return;

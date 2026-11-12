@@ -124,3 +124,9 @@ ownership，却在CG为UnsupportedNode、原verifier未运行。循环内临时b
 BindingEnd，且所有binding分别准入；while入口复核实际result/source义务已移除。
 Borrow参数原loan继续存活，owned source的新loan则在resultEnd后结束；不支持
 活loan跨循环或循环内借用，L0164保留。见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#闭合借用词法块之后的普通while实施中)。
+
+最小外层不变量while另允许：一次直接String借用返回acquire，body仅一次直接
+同步借用消费；唯一真实End在包围[binding,while]块。实际entry/header/回边/false/
+exit维持同一lease，SSA按边参数位置核source/result/owner来源；结束仅在出口，
+own source为resultEnd→sourceEnd→ownerDrop，Borrow参数不伪End。仍拒循环内
+acquire、jump、嵌套和多consumer，不新增通用循环receipt。见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#外层不变量借用while合同实施中)。

@@ -15219,3 +15219,42 @@ source为BlockParameter且不得End，owned source的新LoanId则唯一End在res
 Clippy全targets -D warnings、workspace全targets check、FE/CG默认lib --no-run、
 fmt/diff及文档912项通过；尺寸以2beb5592为基准通过，2550个手写Rust文件、36个
 历史超1000行债务仍报告，policy未改。CI-only仅编译未执行，本片未推送。
+
+## 外层不变量借用while合同（实施中）
+
+基于f80cd4c9独立推进，不纳入尚未合并的其他PR修复。先实测原FE事实：显式外层
+[binding,while]词法块的normal/continue/break/false四形状都只有包围Block的
+AfterStatement结束；return另有对应真实ControlTransfer结束。五形状×双入口×
+on/off共20组合typed/ownership合法且旧事实相等，原始结束点身份已固化测试。
+这证明外层binding不是逐轮acquire/retire，但不替代后端实际循环证明。
+
+下一最小合同仅考虑外部一次acquire、Boolean Name/Literal条件、body直线同步
+consume(item)，无break/continue/return、分支、嵌套、新binding或source移动。
+必须真实唯一外层Block End，保持同一逻辑result/source loan贯穿header/回边与
+false出口，最后才结束。Borrow参数来源与owned source新loan分开核身份和结束，
+不能错误结束调用者入口loan。现有SSA fixed-point运输可复用但须真实verify后才
+计支持；不得修改verifier或用固定源码形状代替独立身份与生命周期核验。
+
+实现的独立准入明确直接Name+Declaration调用、无receiver，source单Borrow映射
+index0/from0且String身份一致，consumer同binding的非cross-thread Borrow参数、
+Unit结果，无新借用或abort。Block仅[binding,while]且唯一真实Block End。Builder在
+entry/header/body-afterleave/false-afterdrops/exit核result/source/root owner或
+入口loan逻辑身份不变，并拒pending call/view残余；原verifier未改，旧见证保留。
+
+普通真实SSA断言从原BorrowCall的source/result出发，逐条edge按参数位置传播
+lineage，header恰entry和backedge两前驱，true/false都运输结果lease，own另运输
+来源与RootPlace所指owner；body不End且acquire只有一次。false出口按真实身份
+resultEnd→sourceEnd→ownerDrop，Borrow参数没有伪sourceEnd。独立八类邻界32
+组合仍合法FE/拒绝CG，含跳转、嵌套、新借用或额外消费等超合同情形。
+
+最终正控增加true：Borrow/own×flag/false/true×双入口×on/off共24组合，真实
+Boolean常量指令和false edge清理目标均核验。true保留结构上的false出口，它在
+运行时不可达，不能将该End解释为循环必然终止或必然清理。最终88项普通回归通过；
+没有执行可能无限运行的native循环。首Clippy仅测试嵌套if告警，改为等价let-chain，
+未修改生产逻辑或降低门禁；独立最终复审通过。
+
+最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib仅编译、
+fmt/diff及文档912项通过。尺寸基准2beb5592通过：2555个手写Rust文件、36个历史
+超1000行债务继续报告，policy无改动。新增production职责分为独立准入201行及
+实际lease状态核验87行；build根仅新增模块声明，未扩大其调度职责。CI-only未执行。
+日志invariant-while-*与outer-loop-fe-final已归档；本片仅本地提交，不推送。
