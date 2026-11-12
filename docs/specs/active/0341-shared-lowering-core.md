@@ -15527,3 +15527,23 @@ all-targets通过，docs912与尺寸相对2beb5592通过（2576个手写Rust文�
 默认lib no-run首次因写incremental query-cache报磁盘无空间失败，非代码断言失败。
 保留全部数据、未cargo clean；同target仅设CARGO_INCREMENTAL=0重试，两crate
 默认lib no-run于1m42s通过，未变更其余配置。初始失败和成功重试日志均保留。
+
+## 每轮no-carry双checker结束点对照（研究中）
+
+本片不解除L0164、不发布新loop capability。既有unit_loop_borrow_boundary的
+rooted/memory属于同一compilation-unit checker的两种入口，不等于旧file-local
+checker的独立验证。新增对照必须分别运行两套name/type/ownership链，不能只把
+unit入口改名为双checker证据。
+
+同一最小body的循环外普通Block只作闭合原语正控：必须从真实BorrowBindingFact
+定位source loan，并核唯一BindingEnd为末consumer的AfterStatement，位置早于
+Block退出；不能只检查最终loan集合为空。对应dynamic while及嵌套lexical Block
+仍要求精确borrow marker的L0164、无伪造binding/End。正控不证明每轮实例或backedge，
+也不将普通Block证明移植为循环准入。
+
+实际普通对照通过：1/3消费者×3种body，共6个file-local执行与24个unit执行
+（两布局×观察开关）；原ownership_borrow_result 12项和loop boundary 1项也通过。
+本片仅新增测试与文档，没有生产行为变化，故不声称一次产品红绿修复。定向Clippy
+-D warnings、fmt/diff、docs912通过；尺寸相对2beb5592为2577文件/36项旧债且通过。
+独立只读复审通过。未运行全workspace或CG回归（生产未改），未执行CI-only故障，
+未推送；下一实现仍需scope restore之前实际frame闭合及回边义务核验。

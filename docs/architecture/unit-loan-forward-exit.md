@@ -173,3 +173,8 @@ Alias证据，核完整Function块/指令/定义元数据与可达集合；从�
 owner/source/result/flag角色至固定点，并逐incoming及每块实际实体核保持关系。
 它封闭CG运输证书的漏覆盖边界，不重新验证FE catalog，不替代原SSA verifier，也
 不将一次planner遍历升级为完整FE循环生命周期；每轮fresh借用仍受L0164保护。
+
+no-carry研究对照分别运行file-local与compilation-unit两套checker；普通Block
+有同binding的唯一末consumer AfterStatement End，而相同body放入dynamic while
+（包括内层lexical Block）仍精确L0164，未伪造binding/End。这只验证关闭原语与
+门禁一致性，不证明回边无实例残留，也不启用每轮fresh借用。
