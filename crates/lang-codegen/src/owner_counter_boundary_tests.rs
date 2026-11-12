@@ -618,6 +618,30 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
             .count(),
         usize::from(bridge)
     );
+    let chain = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .any(|o| o.control_chain_bodies_v1().is_some());
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|(kind, _)| *kind == "control-chain-bodies-complete")
+            .count(),
+        usize::from(chain)
+    );
+    if chain {
+        for kind in [
+            "bridge-body-replace-consumed",
+            "bridge-body-binding-consumed",
+            "bridge-body-drop-consumed",
+        ] {
+            assert_eq!(
+                actions.iter().filter(|(actual, _)| *actual == kind).count(),
+                4
+            );
+        }
+    }
     if bridge {
         assert_eq!(
             actions

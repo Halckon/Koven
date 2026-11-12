@@ -10,6 +10,7 @@ pub(super) enum Stage {
 }
 pub(in super::super) struct Permit {
     index: usize,
+    control: UnitStatementId,
     block: BlockRef,
     instruction: usize,
     span: Span,
@@ -25,27 +26,29 @@ impl Builder<'_, '_> {
         replacement: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
+        let Some(selected) =
+            self.bridge_select_body(|r| r.steps().iter().any(|s| s.call() == call))?
+        else {
             return Ok(None);
         };
-        let Some(rule) = plan.evidence.next_normal_transport() else {
-            return Ok(None);
-        };
+        let rule = selected.rule;
         let Some(index) = rule.steps().iter().position(|s| s.call() == call) else {
             return Ok(None);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let (_, [_, body, _, _], roots) = plan.next.as_ref().ok_or_else(fail)?;
+        let body = selected.block;
+        let roots = selected.roots;
         let step = &rule.steps()[index];
-        let position = plan
-            .evidence
-            .targets()
+        let position = rule
+            .header_roots()
             .iter()
             .position(|r| *r == step.header_root())
             .ok_or_else(fail)?;
         if roots.get(position) != Some(&root)
-            || plan.chain[index] != Stage::Ready
-            || plan.chain[..index].iter().any(|s| *s != Stage::Dropped)
+            || selected.stages[index] != Stage::Ready
+            || selected.stages[..index]
+                .iter()
+                .any(|s| *s != Stage::Dropped)
         {
             return Err(fail());
         }
@@ -54,7 +57,7 @@ impl Builder<'_, '_> {
             .definition(step.producer())
             .ok_or_else(fail)?
             .origin();
-        if self.multi_root_literal(origin, *body)? != replacement {
+        if self.multi_root_literal(origin, body)? != replacement {
             return Err(fail());
         }
         #[cfg(test)]
@@ -63,8 +66,15 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.bridge_permit(index, Stage::Ready, root, Some(replacement), span)
-            .map(Some)
+        self.bridge_permit(
+            selected.control,
+            index,
+            Stage::Ready,
+            root,
+            Some(replacement),
+            span,
+        )
+        .map(Some)
     }
     pub(in super::super) fn bridge_binding_authorization(
         &self,
@@ -73,12 +83,16 @@ impl Builder<'_, '_> {
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
+        let Some(selected) = self.bridge_select_body(|r| {
+            r.steps().iter().any(|s| {
+                s.call() == initializer
+                    || s.returned_value_drop().target() == UnitDropTarget::Named(symbol)
+            })
+        })?
+        else {
             return Ok(None);
         };
-        let Some(rule) = plan.evidence.next_normal_transport() else {
-            return Ok(None);
-        };
+        let rule = selected.rule;
         let Some(index) = rule.steps().iter().position(|s| {
             s.call() == initializer
                 || s.returned_value_drop().target() == UnitDropTarget::Named(symbol)
@@ -97,8 +111,15 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.bridge_permit(index, Stage::Replaced(value), value, None, span)
-            .map(Some)
+        self.bridge_permit(
+            selected.control,
+            index,
+            Stage::Replaced(value),
+            value,
+            None,
+            span,
+        )
+        .map(Some)
     }
     pub(in super::super) fn bridge_drop_authorization(
         &self,
@@ -107,12 +128,15 @@ impl Builder<'_, '_> {
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.control_bridge_plan else {
+        let Some(selected) = self.bridge_select_body(|r| {
+            r.steps()
+                .iter()
+                .any(|s| s.returned_value_drop().target() == target)
+        })?
+        else {
             return Ok(None);
         };
-        let Some(rule) = plan.evidence.next_normal_transport() else {
-            return Ok(None);
-        };
+        let rule = selected.rule;
         let Some(index) = rule
             .steps()
             .iter()
@@ -131,11 +155,31 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.bridge_permit(index, Stage::Bound(value), value, None, span)
-            .map(Some)
+        #[cfg(test)]
+        if self
+            .control_chain_bodies
+            .as_ref()
+            .is_some_and(|g| g.is_last(selected.control))
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ChainLastBodyMissingDrop,
+            )
+        {
+            owner_consumer_test_support::record_action("control-chain-fault-hit", 1);
+            return Ok(None);
+        }
+        self.bridge_permit(
+            selected.control,
+            index,
+            Stage::Bound(value),
+            value,
+            None,
+            span,
+        )
+        .map(Some)
     }
     fn bridge_permit(
         &self,
+        control: UnitStatementId,
         index: usize,
         stage: Stage,
         source: Slot,
@@ -143,14 +187,17 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Permit, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let plan = self.control_bridge_plan.as_ref().ok_or_else(fail)?;
-        let (_, [_, body, _, _], _) = plan.next.as_ref().ok_or_else(fail)?;
-        if self.block != Some(*body) || plan.chain.get(index) != Some(&stage) {
+        let selected = self
+            .bridge_select_body(|r| r.statement() == control)?
+            .ok_or_else(fail)?;
+        let body = selected.block;
+        if self.block != Some(body) || selected.stages.get(index) != Some(&stage) {
             return Err(fail());
         }
         Ok(Permit {
             index,
-            block: *body,
+            control,
+            block: body,
             instruction: self.body.blocks[body.0].statements.len(),
             span,
             stage,
@@ -168,6 +215,16 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         let permit = {
             let mut permit = permit;
+            if let Some(group) = &self.control_chain_bodies
+                && owner_consumer_test_support::take_fault(
+                    owner_consumer_test_support::OwnerFault::ChainBodyWrongControl,
+                )
+            {
+                owner_consumer_test_support::record_action("control-chain-fault-hit", 1);
+                permit.control = group
+                    .other_control(permit.control)
+                    .unwrap_or(permit.control);
+            }
             if owner_consumer_test_support::take_fault(
                 owner_consumer_test_support::OwnerFault::BridgeWrongInstruction,
             ) {
@@ -191,6 +248,12 @@ impl Builder<'_, '_> {
             permit
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
+        let selected = self
+            .bridge_select_body(|r| r.statement() == permit.control)?
+            .ok_or_else(fail)?;
+        if selected.block != permit.block {
+            return Err(fail());
+        }
         let block = &self.body.blocks[permit.block.0];
         let statement = block.statements.get(permit.instruction).ok_or_else(fail)?;
         if self.block != Some(permit.block)
@@ -224,19 +287,19 @@ impl Builder<'_, '_> {
             }
             _ => return Err(fail()),
         };
-        let plan = self.control_bridge_plan.as_mut().ok_or_else(fail)?;
+        let stages = self.bridge_body_stages_mut(permit.control)?;
         #[cfg(test)]
         if matches!(permit.stage, Stage::Bound(_))
             && owner_consumer_test_support::take_fault(
                 owner_consumer_test_support::OwnerFault::BridgeDropDuplicateCommit,
             )
         {
-            plan.chain[permit.index] = Stage::Dropped;
+            stages[permit.index] = Stage::Dropped;
         }
-        if plan.chain.get(permit.index) != Some(&permit.stage) {
+        if stages.get(permit.index) != Some(&permit.stage) {
             return Err(fail());
         }
-        plan.chain[permit.index] = next;
+        stages[permit.index] = next;
         #[cfg(test)]
         owner_consumer_test_support::record_action(
             match next {

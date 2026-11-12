@@ -140,8 +140,8 @@ CI-only错代际负控把退休Drop改为新根Entity，必须拒绝且不得记
 body catalog身份及根索引。随后仅通过实际Move→Bind搬运位置，逐步核完整资源边界；
 缺根、额外owner生产、实际drop或未完成绑定均使该候选失效，不复活旧Complete。
 
-这仍是私有第三段基础，不发布第三段body/退出权限，也不把第一段producer当作第三段
-运行时实例。普通三段native基线覆盖零轮和正常回边组合及逆序重绑定，仍走原通用lowering；
+第三段不把第一段producer当作其运行时实例；normal-body投影范围见下文，退出权限仍不公开。
+普通三段native基线覆盖零轮和正常回边组合及逆序重绑定；不完整链仍走原通用lowering。
 第三段现在复用独立BodyPlan及真实producer→Replace→返回binding→Drop事件机：condition
 完成与body进入必须按同一control顺序发生；入口只有完整continuation才能提供根位置，
 新的body catalog独立分配，不挪用前驱producer。normal、checked tail和false-exit分区继续
@@ -154,5 +154,22 @@ body catalog身份及根索引。随后仅通过实际Move→Bind搬运位置，
 所有旧产品的直接getter也独立排斥内部整链，不能只依赖发布前一致性检查；
 派生getter通过父getter继承该互斥。CI-only将真实已有效的旧产品与真实整链混合，
 要求一致性失败且旧getter无可读权限，本地只编译。
-该内部封存没有公共权限getter；后端逐control消费尚未接入，不能宣称新链产品已可用。
+整链现提供 `control_chain_bodies_v1()` 借用投影，只暴露第二/第三成员的
+control、condition、body、原顺序根和真实normal规则/catalog；成员字段私有，不造入口token。
+getter先核observation整体身份、一致性和互斥；deferred、外来identity或混合旧能力均不投影。
+消费者必须整组选择并完成两个成员的Replace→binding→Drop，不允许单成员降级。
+本接口不提供scalar入口、checked尾部、false出口/suffix或SSA权限；其公开不等于整循环完成。
 嵌套循环的外层恢复与路径合流仍不在本片范围内。
+
+### 后端按 control 的 normal-body 整组消费
+
+完整三段内部链现在只投影第二、第三段的真实 normal-body 组，不公开入口token、checked
+尾部、退出或整链SSA权限。后端一次选择整组，逐control登记实际body块与根槽；调用、返回
+binding和Drop仍复用原发射点与一次性permit，每张permit增加control身份并在提交时重核
+实际块、指令位置、span及原阶段。第三body登记前第二body必须全部退休完毕，所有成员
+均完成才记录整组完成；组内匹配失败不退回旧单bridge消费者，也不重复发射Drop。
+
+普通三段native保留零轮/两轮组合和逆序root映射，封闭终段时另外要求两成员各两根的三步
+消费及整组完成。CI-only错误control和最后成员缺Drop许可要求拒绝且无整组完成，本地
+只编译。该合同是normal指令发射约束；尚未运输每个成员的晚期SSA receipt，不声称入口、
+跨段边参、checked abort或复杂退出的整链授权与任意跨轮归纳已经完成。

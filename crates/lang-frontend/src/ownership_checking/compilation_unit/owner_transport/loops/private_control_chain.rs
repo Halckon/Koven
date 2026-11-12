@@ -1,4 +1,4 @@
-//! Retained internal evidence for exactly three controls. No lowering capability.
+//! Atomic three-control evidence with a borrowed normal-body-only group projection.
 use super::*;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::{UnitDropFact, UnitDropTarget};
@@ -177,5 +177,75 @@ impl PrivateControlChain {
     }
     pub(in crate::ownership_checking::compilation_unit) fn first_control(&self) -> UnitStatementId {
         self.first.prior().statement()
+    }
+}
+
+/// One member of an indivisible normal-body consumption group.
+/// This carries no concrete incoming owner, loop-exit or whole-loop permission.
+#[derive(Clone, Copy, Debug)]
+pub struct UnitOwnerControlChainBodyV1<'a> {
+    control: UnitStatementId,
+    condition: UnitExpressionId,
+    body: UnitStatementId,
+    normal: &'a UnitOwnerMultiRootNormalTransportV1,
+}
+impl<'a> UnitOwnerControlChainBodyV1<'a> {
+    /// Actual source-qualified control owning this body.
+    pub fn control(&self) -> UnitStatementId {
+        self.control
+    }
+    /// Actual completed condition associated with this member.
+    pub fn condition(&self) -> UnitExpressionId {
+        self.condition
+    }
+    /// Actual source body entered by this control.
+    pub fn body(&self) -> UnitStatementId {
+        self.body
+    }
+    /// Borrow the original normal-body catalog and ordered retirement steps.
+    pub fn normal(&self) -> &'a UnitOwnerMultiRootNormalTransportV1 {
+        self.normal
+    }
+    /// Source-root order, not the order of alias declarations or replacement calls.
+    pub fn roots(&self) -> &'a [UnitSymbolId] {
+        self.normal.header_roots()
+    }
+}
+/// The second and third bodies of one validated chain, in control order.
+/// Consumers must select and complete both members atomically, never fall back
+/// to independently authorizing one member. No entry token is synthesized.
+#[derive(Debug)]
+pub struct UnitOwnerControlChainBodiesV1<'a> {
+    members: [UnitOwnerControlChainBodyV1<'a>; 2],
+}
+impl<'a> UnitOwnerControlChainBodiesV1<'a> {
+    /// Both continuation bodies in control order; consume as one group.
+    pub fn members(&self) -> &[UnitOwnerControlChainBodyV1<'a>; 2] {
+        &self.members
+    }
+}
+impl UnitOwnerObservation {
+    /// Borrow only the normal-body rules of a complete, exclusive chain.
+    /// This does not grant entry, checked-tail, exit, suffix or SSA permissions.
+    pub fn control_chain_bodies_v1(&self) -> Option<UnitOwnerControlChainBodiesV1<'_>> {
+        if !self.is_consistent() {
+            return None;
+        }
+        let chain = self.private_control_chain.as_ref()?;
+        let second = UnitOwnerControlChainBodyV1 {
+            control: chain.first.next_control(),
+            condition: chain.first.next_condition(),
+            body: chain.first.next_body(),
+            normal: chain.first.next_normal_transport()?,
+        };
+        let third = UnitOwnerControlChainBodyV1 {
+            control: chain.last.control,
+            condition: chain.last.condition,
+            body: chain.last.body,
+            normal: &chain.last.normal,
+        };
+        Some(UnitOwnerControlChainBodiesV1 {
+            members: [second, third],
+        })
     }
 }

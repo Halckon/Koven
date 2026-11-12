@@ -48,9 +48,32 @@ fn private_three_control_chain_is_retained_only_as_a_complete_group() {
                 true,
                 false,
             );
-        assert!(deferred.iter().all(|o| o.private_control_chain.is_none()));
+        assert!(deferred.iter().all(|o| o.private_control_chain.is_none() && o.control_chain_bodies_v1().is_none()));
         for o in observations {
             assert!(o.is_consistent());
+            assert_eq!(o.control_chain_bodies_v1().is_some(), expected);
+            if let Some(view) = o.control_chain_bodies_v1() {
+                let [second, third] = view.members();
+                assert_ne!(second.control(), third.control());
+                for member in view.members() {
+                    assert_eq!(member.control(), member.normal().statement());
+                    assert_eq!(member.roots(), member.normal().header_roots());
+                    assert_eq!(
+                        member.condition().source_unit(),
+                        member.control().source_unit()
+                    );
+                    assert_eq!(member.body().source_unit(), member.control().source_unit());
+                    assert!(member.normal().is_consistent());
+                }
+                let second_owner = second.normal().body_catalog().definitions()[0].id();
+                assert!(
+                    third
+                        .normal()
+                        .body_catalog()
+                        .definition(second_owner)
+                        .is_none()
+                );
+            }
             // Unary -1 is outside counter-prefix discovery: there is no
             // three-member candidate, so preserve the pre-existing two-control
             // bridge rather than incorrectly revoking that independent proof.
@@ -108,6 +131,7 @@ fn ci_only_private_chain_rejects_foreign_observation_identity() {
     assert!(observation.is_consistent());
     observation.identity = std::sync::Arc::new(());
     assert!(!observation.is_consistent());
+    assert!(observation.control_chain_bodies_v1().is_none());
 }
 
 mod getter_exclusion;

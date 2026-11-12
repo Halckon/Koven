@@ -123,6 +123,7 @@ fn ci_only_private_chain_excludes_all_old_getters_on_mixed_observations() {
         let mut mixed = original.clone();
         mixed.private_control_chain = Some(chain.clone());
         assert!(!mixed.is_consistent(), "case {which}");
+        assert!(mixed.control_chain_bodies_v1().is_none(), "case {which}");
         assert_eq!(available(&mixed), [false; 15], "case {which}");
         assert!(mixed.replace_break_observation_v1().is_none());
     }

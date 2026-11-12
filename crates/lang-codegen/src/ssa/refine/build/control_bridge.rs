@@ -1,6 +1,8 @@
 //! Slot-CFG bridge audit with an optional independent normal-body consumption rule.
 use super::*;
+mod body_group;
 mod consumption;
+pub(super) use body_group::BodyGroup;
 mod counter;
 mod entry;
 mod exit;
@@ -64,6 +66,7 @@ impl Builder<'_, '_> {
         body: UnitStatementId,
         blocks: [BlockRef; 4],
     ) -> Result<(), LoweringError> {
+        self.control_chain_body_while(control, condition, body, blocks)?;
         if self
             .control_bridge_plan
             .as_ref()
@@ -124,6 +127,7 @@ impl Builder<'_, '_> {
         Ok(())
     }
     pub(super) fn finish_control_bridge(&mut self) -> Result<(), LoweringError> {
+        self.finish_control_chain_bodies()?;
         #[cfg(test)]
         if let Some(plan) = &mut self.control_bridge_plan {
             use owner_consumer_test_support::{OwnerFault, take_fault};
