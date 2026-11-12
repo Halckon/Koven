@@ -3,14 +3,14 @@ use super::*;
 const SOURCE: &str =
     "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"left\", \"right\") }";
 #[test]
-fn two_literal_caller_requires_real_refine_route() {
+pub(in crate::ssa) fn two_literal_caller_requires_real_refine_route() {
     check(false);
 }
 #[test]
-fn two_literal_call_requires_real_production_receipt() {
+pub(in crate::ssa) fn two_literal_call_requires_real_production_receipt() {
     check(true);
 }
-fn check(receipt: bool) {
+pub(in crate::ssa) fn check(receipt: bool) {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-literal.ko", SOURCE);
     let (environment, types) = standard_environments();
@@ -67,8 +67,7 @@ fn check(receipt: bool) {
     }
 }
 
-#[path = "multi_temporary_loan_products_tests.rs"]
-pub(super) mod products;
+pub(in crate::ssa) use crate::ssa::loan_region_ssa_tests::parent_child_drop_dependency::products;
 
 pub(in crate::ssa) mod instances {
     //! 从 SPEC-0177 callable key 建立确定的具体泛型实例图。
@@ -100,7 +99,7 @@ pub(in crate::ssa) mod instances {
     }
 
     impl FunctionInstanceKey {
-        pub(in crate::ssa) fn new(symbol: SymbolId, type_arguments: Vec<TypeId>) -> Self {
+        pub(in crate::ssa) pub(in crate::ssa) fn new(symbol: SymbolId, type_arguments: Vec<TypeId>) -> Self {
             Self {
                 symbol,
                 type_arguments,
@@ -108,25 +107,25 @@ pub(in crate::ssa) mod instances {
             }
         }
 
-        pub(in crate::ssa) const fn symbol(&self) -> SymbolId {
+        pub(in crate::ssa) const pub(in crate::ssa) fn symbol(&self) -> SymbolId {
             self.symbol
         }
 
-        pub(in crate::ssa) fn type_arguments(&self) -> &[TypeId] {
+        pub(in crate::ssa) pub(in crate::ssa) fn type_arguments(&self) -> &[TypeId] {
             &self.type_arguments
         }
 
-        pub(in crate::ssa) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+        pub(in crate::ssa) pub(in crate::ssa) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
             &self.callable_arguments
         }
 
-        fn is_specialized(&self) -> bool {
+        pub(in crate::ssa) fn is_specialized(&self) -> bool {
             !self.type_arguments.is_empty() || !self.callable_arguments.is_empty()
         }
     }
 
     impl SourceIdentity for FunctionInstanceKey {
-        fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+        pub(in crate::ssa) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
             self.callable_arguments()
         }
     }
@@ -136,19 +135,19 @@ pub(in crate::ssa) mod instances {
     pub(in crate::ssa) struct OrderedExpressionId(ExpressionId);
 
     impl OrderedExpressionId {
-        pub(in crate::ssa) const fn expression(self) -> ExpressionId {
+        pub(in crate::ssa) const pub(in crate::ssa) fn expression(self) -> ExpressionId {
             self.0
         }
     }
 
     impl Ord for OrderedExpressionId {
-        fn cmp(&self, other: &Self) -> Ordering {
+        pub(in crate::ssa) fn cmp(&self, other: &Self) -> Ordering {
             self.0.index().cmp(&other.0.index())
         }
     }
 
     impl PartialOrd for OrderedExpressionId {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        pub(in crate::ssa) fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
             Some(self.cmp(other))
         }
     }
@@ -176,22 +175,22 @@ pub(in crate::ssa) mod instances {
     }
 
     impl FunctionInstancePlan {
-        pub(in crate::ssa) fn instances(&self) -> &[PlannedInstance] {
+        pub(in crate::ssa) pub(in crate::ssa) fn instances(&self) -> &[PlannedInstance] {
             &self.instances
         }
 
-        pub(in crate::ssa) fn source(&self, source: SourceToken) -> Option<&FunctionInstanceKey> {
+        pub(in crate::ssa) pub(in crate::ssa) fn source(&self, source: SourceToken) -> Option<&FunctionInstanceKey> {
             self.arena.source(source)
         }
 
-        pub(in crate::ssa) fn callable(
+        pub(in crate::ssa) pub(in crate::ssa) fn callable(
             &self,
             callable: CallableToken,
         ) -> Option<&CallableKey<OrderedExpressionId>> {
             self.arena.callable(callable)
         }
 
-        pub(in crate::ssa) fn call_site(
+        pub(in crate::ssa) pub(in crate::ssa) fn call_site(
             &self,
             caller: SourceToken,
             expression: ExpressionId,
@@ -199,14 +198,14 @@ pub(in crate::ssa) mod instances {
             self.routes.get(&(caller, OrderedExpressionId(expression)))
         }
 
-        pub(in crate::ssa) fn pointer_return(&self, source: SourceToken) -> Option<CallableToken> {
+        pub(in crate::ssa) pub(in crate::ssa) fn pointer_return(&self, source: SourceToken) -> Option<CallableToken> {
             self.pointer_returns.get(&source).copied().flatten()
         }
     }
 
     /// The private caller must validate Names -> Typed -> Owned analysis identity first.
     /// Orchestrate's validate_inputs is authoritative; matching source IDs alone is not a witness.
-    pub(in crate::ssa) fn plan_instances(
+    pub(in crate::ssa) pub(in crate::ssa) fn plan_instances(
         parsed: &ParsedFile,
         typed: &TypedFile,
         owned: &OwnershipCheckedFile,
@@ -216,7 +215,7 @@ pub(in crate::ssa) mod instances {
         callable_planner::plan(parsed, typed, owned, templates, deinit_spans)
     }
 
-    pub(in crate::ssa) fn resolve_concrete_type(
+    pub(in crate::ssa) pub(in crate::ssa) fn resolve_concrete_type(
         typed: &TypedFile,
         ty: TypeId,
         substitutions: &BTreeMap<SymbolId, TypeId>,
@@ -282,7 +281,7 @@ pub(in crate::ssa) mod instances {
         }
     }
 
-    fn contains_type_parameter(typed: &TypedFile, kind: &TypeKind) -> bool {
+    pub(in crate::ssa) fn contains_type_parameter(typed: &TypedFile, kind: &TypeKind) -> bool {
         let contains = |ty| {
             typed
                 .types()
@@ -309,13 +308,13 @@ pub(in crate::ssa) mod instances {
         }
     }
 
-    fn span_contains(owner: Span, child: Span) -> bool {
+    pub(in crate::ssa) fn span_contains(owner: Span, child: Span) -> bool {
         owner.source_id() == child.source_id()
             && owner.start() <= child.start()
             && child.end() <= owner.end()
     }
 
-    fn generic_instance_budget_exhausted(count: usize) -> bool {
+    pub(in crate::ssa) fn generic_instance_budget_exhausted(count: usize) -> bool {
         count >= MAX_GENERIC_INSTANCES
     }
 
@@ -324,7 +323,7 @@ pub(in crate::ssa) mod instances {
         use crate::ssa::lower_frontend::instances::{MAX_GENERIC_INSTANCES, generic_instance_budget_exhausted};
 
         #[test]
-        fn generic_instance_budget_has_an_explicit_boundary() {
+        pub(in crate::ssa) fn generic_instance_budget_has_an_explicit_boundary() {
             assert!(!generic_instance_budget_exhausted(
                 MAX_GENERIC_INSTANCES - 1
             ));
@@ -361,7 +360,7 @@ pub(in crate::ssa) mod instances {
             resolving_calls: BTreeSet<(Option<SourceToken>, OrderedExpressionId)>,
         }
 
-        pub(in crate::ssa) fn plan(
+        pub(in crate::ssa) pub(in crate::ssa) fn plan(
             parsed: &ParsedFile,
             typed: &TypedFile,
             owned: &OwnershipCheckedFile,
@@ -507,7 +506,7 @@ pub(in crate::ssa) mod instances {
         }
 
         impl<'a> Planner<'a> {
-            fn signature(
+            pub(in crate::ssa) fn signature(
                 &self,
                 symbol: SymbolId,
                 span: Span,
@@ -518,7 +517,7 @@ pub(in crate::ssa) mod instances {
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
             }
 
-            fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
+            pub(in crate::ssa) fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
                 self.parsed
                     .ast()
                     .expressions()
@@ -530,7 +529,7 @@ pub(in crate::ssa) mod instances {
                     })
             }
 
-            fn enqueue(
+            pub(in crate::ssa) fn enqueue(
                 &mut self,
                 key: FunctionInstanceKey,
                 span: Span,
@@ -544,7 +543,7 @@ pub(in crate::ssa) mod instances {
                 Ok(token)
             }
 
-            fn substitutions(
+            pub(in crate::ssa) fn substitutions(
                 &self,
                 source: SourceToken,
                 span: Span,
@@ -565,7 +564,7 @@ pub(in crate::ssa) mod instances {
                     .collect())
             }
 
-            fn resolve_call(
+            pub(in crate::ssa) fn resolve_call(
                 &mut self,
                 caller: Option<SourceToken>,
                 index: usize,
@@ -616,7 +615,7 @@ pub(in crate::ssa) mod instances {
                 result
             }
 
-            pub(in crate::ssa) fn callback_slots(
+            pub(in crate::ssa) pub(in crate::ssa) fn callback_slots(
                 &mut self,
                 caller: Option<SourceToken>,
                 call: &CallDescriptor,
@@ -716,7 +715,7 @@ pub(in crate::ssa) mod instances {
                 Ok(slots)
             }
 
-            fn origin(
+            pub(in crate::ssa) fn origin(
                 &mut self,
                 caller: Option<SourceToken>,
                 origin: CallableOrigin,
@@ -804,7 +803,7 @@ pub(in crate::ssa) mod instances {
                 }
             }
 
-            fn lambda(
+            pub(in crate::ssa) fn lambda(
                 &mut self,
                 owner: SourceToken,
                 expression: ExpressionId,
@@ -857,7 +856,7 @@ pub(in crate::ssa) mod instances {
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
             }
 
-            fn known_function(
+            pub(in crate::ssa) fn known_function(
                 &mut self,
                 symbol: SymbolId,
                 span: Span,
@@ -882,7 +881,7 @@ pub(in crate::ssa) mod instances {
             }
 
             /// Freeze one summary per concrete factory source, including the absence of a pointer return.
-            pub(in crate::ssa) fn freeze_pointer_return(
+            pub(in crate::ssa) pub(in crate::ssa) fn freeze_pointer_return(
                 &mut self,
                 source: SourceToken,
                 span: Span,
@@ -940,7 +939,7 @@ pub(in crate::ssa) mod instances {
             }
         }
 
-        fn contains_function(typed: &TypedFile, ty: TypeId) -> bool {
+        pub(in crate::ssa) fn contains_function(typed: &TypedFile, ty: TypeId) -> bool {
             match typed.types().get(ty) {
                 Some(TypeKind::Function { .. }) => true,
                 Some(TypeKind::Nullable(inner) | TypeKind::StaticSelf(inner)) => {
@@ -955,7 +954,7 @@ pub(in crate::ssa) mod instances {
             }
         }
 
-        fn index_calls(
+        pub(in crate::ssa) fn index_calls(
             parsed: &ParsedFile,
             typed: &TypedFile,
             templates: &[FunctionTemplate],

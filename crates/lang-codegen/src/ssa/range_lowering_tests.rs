@@ -133,8 +133,7 @@ mod temporary {
     }
 }
 
-#[path = "range_lowering_tests/view_source.rs"]
-mod view_source;
+use crate::ssa::loan_region_ssa_tests::parent_child_drop_dependency::range_view_source as view_source;
 
 mod call_prefix {
     //! Ordinary legal argument return cleans only the already evaluated call prefix.
@@ -433,19 +432,19 @@ mod drop_algorithms {
     }
 }
 
-fn unit(consumer: &str) -> Program {
+pub(in crate::ssa) fn unit(consumer: &str) -> Program {
     unit_with_entry(consumer).0
 }
 
-fn unit_with_entry(consumer: &str) -> (Program, FunctionId) {
+pub(in crate::ssa) fn unit_with_entry(consumer: &str) -> (Program, FunctionId) {
     unit_with_provider_entry(consumer, "")
 }
 
-fn unit_with_provider_entry(consumer: &str, trusted: &str) -> (Program, FunctionId) {
+pub(in crate::ssa) fn unit_with_provider_entry(consumer: &str, trusted: &str) -> (Program, FunctionId) {
     unit_with_provider_order(consumer, trusted, false)
 }
 
-fn unit_with_provider_order(consumer: &str, trusted: &str, reverse: bool) -> (Program, FunctionId) {
+pub(in crate::ssa) fn unit_with_provider_order(consumer: &str, trusted: &str, reverse: bool) -> (Program, FunctionId) {
     let mut sources = SourceMap::new();
     let (p, provider) = super::unit_lower_test_support::parsed(
         &mut sources,
@@ -488,7 +487,7 @@ fn unit_with_provider_order(consumer: &str, trusted: &str, reverse: bool) -> (Pr
 }
 
 #[test]
-fn range_temporary_for_single_and_unit_preserve_root_until_metadata_ends() {
+pub(in crate::ssa) fn range_temporary_for_single_and_unit_preserve_root_until_metadata_ends() {
     let consumer = "class Token(val text:String){deinit(){println(this.text)}}\nfun source():List<Token>{println(\"source\");return listOf(Token(\"first\"),Token(\"second\"))}\nfun main():Unit{for(item in take(source(),1)){println(item.text)}}";
     memory_unit(consumer);
     unit(&format!(
@@ -497,7 +496,7 @@ fn range_temporary_for_single_and_unit_preserve_root_until_metadata_ends() {
 }
 
 #[test]
-fn range_temporary_call_single_and_unit_preserve_root_until_metadata_ends() {
+pub(in crate::ssa) fn range_temporary_call_single_and_unit_preserve_root_until_metadata_ends() {
     let consumer = "class Token(val text:String){deinit(){println(this.text)}}\nfun source():List<Token>{println(\"source\");return listOf(Token(\"first\"),Token(\"second\"))}\nfun read(view:View<Token>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{read(take(source(),1))}";
     memory_unit(consumer);
     unit(&format!(
@@ -506,7 +505,7 @@ fn range_temporary_call_single_and_unit_preserve_root_until_metadata_ends() {
 }
 
 #[test]
-fn range_list_producer_size_uses_metadata_and_source_loan() {
+pub(in crate::ssa) fn range_list_producer_size_uses_metadata_and_source_loan() {
     let program = unit(
         "package app\nimport koven.algorithms.take\nfun check(source:View<String>,expected:Int):Unit { if(source.size != expected){error(\"wrong\")} }\nfun main():Unit {val source=listOf(\"kept\"); borrow val part=take(source,2147483647);check(part,1);println(\"done\")}",
     );
@@ -521,7 +520,7 @@ fn range_list_producer_size_uses_metadata_and_source_loan() {
 }
 
 #[test]
-fn range_single_and_unit_for_deliver_only_shared_elements() {
+pub(in crate::ssa) fn range_single_and_unit_for_deliver_only_shared_elements() {
     let consumer = "class Item(val text:String){}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{val source=listOf(Item(\"first\"),Item(\"excluded\"));borrow val part=take(source,1);read(part)}";
     for program in [
         memory_unit_llvm(consumer),
@@ -555,7 +554,7 @@ fn range_single_and_unit_for_deliver_only_shared_elements() {
 }
 
 #[test]
-fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
+pub(in crate::ssa) fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
     for (case, exit) in ["", "break", "continue"].into_iter().enumerate() {
         let consumer = format!(
             "class Item(val text:String){{}}\nfun consume(own source:List<Item>):Unit{{}}\nfun main():Unit{{val source=listOf(Item(\"first\"),Item(\"excluded\"));{{borrow val part=take(source,1);for(item in part){{println(item.text);{exit}}}}};consume(source)}}"
@@ -587,7 +586,7 @@ fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
 }
 
 #[test]
-fn range_verifier_rejects_metadata_end_while_an_element_loan_is_active() {
+pub(in crate::ssa) fn range_verifier_rejects_metadata_end_while_an_element_loan_is_active() {
     let mut program = unit(
         "package app\nimport koven.algorithms.take\nfun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun main():Unit{val source=listOf(\"first\");borrow val part=take(source,1);read(part)}",
     );
@@ -648,7 +647,7 @@ fn range_verifier_rejects_metadata_end_while_an_element_loan_is_active() {
 }
 
 #[test]
-fn range_verifier_preserves_descriptor_root_pairing_through_loop_edges() {
+pub(in crate::ssa) fn range_verifier_preserves_descriptor_root_pairing_through_loop_edges() {
     let mut program = unit(
         "package app\nimport koven.algorithms.take\nfun main():Unit{val a=listOf(\"a\");val b=listOf(\"b\");{borrow val left=take(a,1);borrow val right=take(b,1);for(item in left){println(item)};for(item in right){println(item)}}}",
     );
@@ -698,19 +697,19 @@ fn range_verifier_preserves_descriptor_root_pairing_through_loop_edges() {
 
 // Historical `single` test names and labels identify this original source layout,
 // not a legacy checker. Never replace it with the separate provider/consumer arm.
-fn memory_unit(consumer: &str) -> Program {
+pub(in crate::ssa) fn memory_unit(consumer: &str) -> Program {
     memory_unit_roots(consumer, false).0
 }
 
-fn memory_unit_llvm(consumer: &str) -> Program {
+pub(in crate::ssa) fn memory_unit_llvm(consumer: &str) -> Program {
     memory_unit_with_entry(consumer).0
 }
 
-fn memory_unit_with_entry(consumer: &str) -> (Program, FunctionId) {
+pub(in crate::ssa) fn memory_unit_with_entry(consumer: &str) -> (Program, FunctionId) {
     memory_unit_roots(consumer, true)
 }
 
-fn memory_unit_roots(consumer: &str, check_llvm: bool) -> (Program, FunctionId) {
+pub(in crate::ssa) fn memory_unit_roots(consumer: &str, check_llvm: bool) -> (Program, FunctionId) {
     use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     use lang_frontend::{
         name_resolution::{SourceUnitKey, SymbolKind},
@@ -843,7 +842,7 @@ fn memory_unit_roots(consumer: &str, check_llvm: bool) -> (Program, FunctionId) 
 }
 
 #[test]
-fn range_single_and_unit_keep_the_same_new_descriptor_abi() {
+pub(in crate::ssa) fn range_single_and_unit_keep_the_same_new_descriptor_abi() {
     let consumer = "class Item(val n:Int){}\nfun check(view:View<Item>):Unit{if(view.size!=1){error(\"wrong\")}}\nfun main():Unit{val source=listOf(Item(7));borrow val part=take(source,1);check(part);println(\"done\")}";
     for program in [
         memory_unit_llvm(consumer),
@@ -859,7 +858,7 @@ fn range_single_and_unit_keep_the_same_new_descriptor_abi() {
 }
 
 #[test]
-fn range_metadata_borrow_is_separate_from_constructing_a_new_descriptor() {
+pub(in crate::ssa) fn range_metadata_borrow_is_separate_from_constructing_a_new_descriptor() {
     let consumer = "fun metadata(source:View<String>):borrow View<String> from source=source\nfun check(source:View<String>):Unit{if(source.size!=1){error(\"size\")}}\nfun consume(own source:List<String>):Unit{}\nfun main():Unit{val source=listOf(\"kept\");borrow val part=take(source,1);borrow val alias=part;borrow val returned=metadata(alias);check(returned);consume(source)}";
     for program in [
         memory_unit_llvm(consumer),
@@ -883,7 +882,7 @@ fn range_metadata_borrow_is_separate_from_constructing_a_new_descriptor() {
 }
 
 #[test]
-fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir() {
+pub(in crate::ssa) fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir() {
     use super::verify::VerifyErrorKind;
     let consumer = "package app\nimport koven.algorithms.take\nfun check(source:View<String>):Unit{}\nfun main():Unit{val source=listOf(\"kept\");borrow val part=take(source,1);check(part)}";
     for variant in 0..5 {
@@ -959,7 +958,7 @@ fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir()
 }
 
 #[test]
-fn abort_predecessor_range_end_source_loan_then_both_abort() {
+pub(in crate::ssa) fn abort_predecessor_range_end_source_loan_then_both_abort() {
     let program = unit(
         r#"package app
         import koven.algorithms.take

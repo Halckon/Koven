@@ -706,12 +706,8 @@ pub(in crate::ssa) mod receiver_receipt_siblings;
 #[cfg(feature = "loan-observation-test-support")]
 
 
-#[path = "temporary_loan_route_tests.rs"]
-mod temporary_route;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "temporary_loan_receipt_tests.rs"]
-mod temporary_receipts;
 
 mod temporary_siblings {
     //! One ordinary analysis containing P1/P2/P3/P4 and B/Call/Return, without native execution.
@@ -955,19 +951,12 @@ mod finite_literal {
 pub(in crate::ssa) mod binding_lifecycle_probe;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "binding_causal_links_tests.rs"]
-mod binding_causal_links;
+pub(in crate::ssa) use parent_child_coverage::binding_causal_links;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "binding_coverage_tests.rs"]
-mod binding_coverage;
 
 #[cfg(feature = "loan-observation-test-support")]
-#[path = "binding_receipt_tests.rs"]
-mod binding_receipts;
 
-#[path = "parent_child_lifecycle_probe_tests.rs"]
-mod parent_child_lifecycle_probe;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_causal_tests.rs"]
@@ -975,8 +964,8 @@ mod parent_child_causal;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_drop_dependency_tests.rs"]
-mod parent_child_drop_dependency;
+pub(in crate::ssa) mod parent_child_drop_dependency;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_coverage_tests.rs"]
-mod parent_child_coverage;
+pub(in crate::ssa) mod parent_child_coverage;

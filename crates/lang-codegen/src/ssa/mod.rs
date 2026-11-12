@@ -232,7 +232,7 @@ mod lowering_entry_contract_tests;
 mod lowering_dependency_tests;
 
 #[cfg(test)]
-mod range_lowering_tests;
+pub(in crate::ssa) mod range_lowering_tests;
 
 #[cfg(test)]
 mod text_copy_tests;
