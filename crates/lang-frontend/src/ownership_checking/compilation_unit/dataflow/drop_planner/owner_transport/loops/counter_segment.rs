@@ -340,6 +340,21 @@ impl ControlTransactions {
                 && state.values.iter().all(|value| value.owner.is_none())
         })
     }
+    pub(in super::super::super) fn take_control_bridge(
+        &mut self,
+    ) -> Option<crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1> {
+        if self.root_branches_invalid {
+            return None;
+        }
+        let [segment] = self.counter_segments.as_mut_slice() else {
+            return None;
+        };
+        if !segment.captured || segment.invalid {
+            return None;
+        }
+        let next = *segment.statements.last()?;
+        segment.bridge.take()?.evidence(next)
+    }
     #[cfg(test)]
     pub(super) fn segment_bridge(&self, control: UnitStatementId) -> Option<bridge::Bridge> {
         if self.root_branches_invalid {

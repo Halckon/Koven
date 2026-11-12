@@ -85,6 +85,27 @@ impl Bridge {
                     == 1
             })
     }
+    pub(super) fn evidence(
+        &self,
+        next: UnitStatementId,
+    ) -> Option<crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1> {
+        if !self.complete() {
+            return None;
+        }
+        let targets = (0..self.prior.root_slots().len())
+            .map(|index| {
+                self.bindings
+                    .iter()
+                    .find(|(_, source)| *source == index)
+                    .map(|(symbol, _)| *symbol)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1::seal(
+            self.prior.clone(),
+            next,
+            targets,
+        )
+    }
     #[cfg(test)]
     pub(in super::super::super) fn sources(
         &self,

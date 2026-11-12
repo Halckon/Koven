@@ -11,8 +11,8 @@ pub(super) use loops::{
 pub use loops::{
     UnitOwnerClosedLoopBatchV1, UnitOwnerConditionalBreakBackedgeV1,
     UnitOwnerConditionalReturnBackedgeV1, UnitOwnerContinueArmBoundaryV1,
-    UnitOwnerContinueBackedgeV1, UnitOwnerCounterBatchEvidenceV1, UnitOwnerCounterTailEvidenceV1,
-    UnitOwnerHeaderSourceV1, UnitOwnerInvariantBreakObservationV1,
+    UnitOwnerContinueBackedgeV1, UnitOwnerControlBridgeEvidenceV1, UnitOwnerCounterBatchEvidenceV1,
+    UnitOwnerCounterTailEvidenceV1, UnitOwnerHeaderSourceV1, UnitOwnerInvariantBreakObservationV1,
     UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantMixedJoinObservationV1,
     UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
@@ -275,6 +275,7 @@ pub struct UnitOwnerObservation {
     pub(super) definitions: Vec<UnitOwnerDefinition>,
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
+    pub(super) control_bridge: Option<Box<UnitOwnerControlBridgeEvidenceV1>>,
     pub(super) counter_batch: Option<Box<UnitOwnerCounterBatchEvidenceV1>>,
     pub(super) counter_tail: Option<Box<UnitOwnerCounterTailEvidenceV1>>,
     pub(super) multi_root_boundary: Option<Box<UnitOwnerMultiRootBoundaryV1>>,

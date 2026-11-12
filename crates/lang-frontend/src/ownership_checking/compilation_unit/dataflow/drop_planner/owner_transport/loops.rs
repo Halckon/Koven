@@ -756,6 +756,7 @@ impl DropPlanner<'_, '_> {
                         closed_loop_batch: None,
                         counter_tail: None,
                         counter_batch: None,
+                        control_bridge: None,
                         multi_root_boundary: None,
                         open_loop_value: None,
                     }),

@@ -62,7 +62,8 @@ impl UnitOwnerObservation {
     /// Atomic non-authorizing counter audit group; unsupported legacy state is retained.
     pub fn counter_batch_evidence_v1(&self) -> Option<&UnitOwnerCounterBatchEvidenceV1> {
         let batch = self.counter_batch.as_deref()?;
-        (batch.is_consistent()
+        (self.control_bridge.is_none()
+            && batch.is_consistent()
             && self.counter_tail.is_none()
             && self.closed_loop_batch.is_none()
             && self.multi_root_boundary.is_none()
