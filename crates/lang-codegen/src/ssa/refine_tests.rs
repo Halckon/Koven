@@ -977,8 +977,8 @@ fn branch_view_divergence_merging_clears_differing_views() {
     counted(source, 2, b"left\nleft\n");
 }
 
-mod abort_owner_assertions;
+pub(in crate::ssa) mod abort_owner_assertions;
 mod container_tests;
 mod control_flow_tests;
 mod map_condition_tests;
-mod operand_exit_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use abort_owner_assertions::operand_exit_tests;

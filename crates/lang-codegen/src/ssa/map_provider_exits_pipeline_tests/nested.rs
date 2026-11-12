@@ -2,8 +2,8 @@
 //! Map Borrow 独立记账；golden 是预测，复杂 owner/exit/cleanup 先完整观察，不预填拓扑。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
-mod query_body;
-mod query_callers;
+#[allow(unused_imports)] pub(in crate::ssa) use query_ssa::query_body;
+#[allow(unused_imports)] pub(in crate::ssa) use query_ssa::query_callers;
 mod query_cleanup {
     //! 独立核完整 normal actions 与 caller owner；unit 只消费自己的公开事实。
     use super::{
@@ -332,7 +332,7 @@ mod query_graph {
     }
 }
 mod query_inputs;
-mod query_ssa;
+pub(in crate::ssa) mod query_ssa;
 mod query_tail {
     //! The actual post-loop/caller size Ifs, including both incoming join edges.
     use super::super::{

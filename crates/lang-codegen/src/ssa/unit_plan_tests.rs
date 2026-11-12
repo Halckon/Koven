@@ -569,8 +569,8 @@ mod entry_identity {
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     }
 }
-mod error_order;
-mod generic_containers;
+#[allow(unused_imports)] pub(in crate::ssa) use generic_containers::error_order;
+pub(in crate::ssa) mod generic_containers;
 mod instances {
     use super::*;
 
@@ -813,6 +813,6 @@ mod instances {
         );
     }
 }
-mod layout_demand;
+pub(in crate::ssa) mod layout_demand;
 mod owner_recipes;
-mod recipe_cycles;
+#[allow(unused_imports)] pub(in crate::ssa) use layout_demand::recipe_cycles;

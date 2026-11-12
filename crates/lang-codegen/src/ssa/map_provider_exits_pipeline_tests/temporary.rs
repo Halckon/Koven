@@ -1,7 +1,7 @@
 //! 两份原字节 temporary source × MemoryDocument/rooted Unit；四次完整观察后统一硬成功断言。
 //! 每份 entry 有两个真实 For；golden 仅留给后续独立准入的 native，不是执行结果。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-mod ast;
+#[allow(unused_imports)] pub(in crate::ssa) use query_ssa::ast;
 mod unit;
 
 use super::{
@@ -732,7 +732,7 @@ mod query_inputs {
         })
     }
 }
-mod query_ssa;
+pub(in crate::ssa) mod query_ssa;
 mod query_test {
     //! 新 exact 独立四次 fresh；查询 Err 只入 report，原 validator/SSA/LLVM 错误继续保全。
     use super::{

@@ -1,6 +1,6 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod cleanup_tests;
-mod determinism_tests;
+pub(in crate::ssa) mod determinism_tests;
 mod provider_lifetime_tests {
     use super::super::{
         model::{EntityId, Operation},
@@ -250,7 +250,7 @@ mod unit_storage_boundary_tests {
         );
     }
 }
-mod unit_storage_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use determinism_tests::unit_storage_tests;
 
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,

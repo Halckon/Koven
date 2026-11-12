@@ -95,6 +95,7 @@ subgraph Gactive["现行 active"]
   S0447["S0447<br/>unit_lower_receiver_tests、sequential_for_lowering_tests、nullable_operation_tests、unit_enum_regression_tests 及 lowering_entry_contract_tests 子壳模块退役"]
   S0448["S0448<br/>map_provider_exits_pipeline_tests 测试域叶子薄壳子模块批量退役（132 个）"]
   S0449["S0449<br/>其余测试域叶子薄壳子模块批量退役（42 个）"]
+  S0450["S0450<br/>下一层叶子薄壳与同级测试小文件批量收敛（62 个）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -209,6 +210,7 @@ ARCH --> S0341
 | SPEC-0447 | active | [0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md](active/0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) |
 | SPEC-0448 | active | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](active/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |
 | SPEC-0449 | active | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](active/0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
+| SPEC-0450 | active | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](active/0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

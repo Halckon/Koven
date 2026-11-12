@@ -2,7 +2,7 @@
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-mod facts;
+pub(in crate::ssa) mod facts;
 mod fixture {
     //! 普通源码、真实 AST 和阶段错误；不制造或改写 frontend facts。
     use lang_frontend::{
@@ -561,9 +561,9 @@ mod pipeline {
         lower_owned_unit_with_entry(&view, entry.id()).map_err(|error| lower_failure(sources, error))
     }
 }
-mod query_inputs;
+#[allow(unused_imports)] pub(in crate::ssa) use facts::query_inputs;
 mod query_llvm;
-mod query_owner;
+#[allow(unused_imports)] pub(in crate::ssa) use facts::query_owner;
 mod query_ssa;
 mod query_test {
     //! 两源 × MemoryDocument/logical-path Unit 的独立 ordinary query；不变异、不额外创建源。

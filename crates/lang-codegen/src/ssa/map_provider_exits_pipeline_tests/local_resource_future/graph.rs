@@ -311,8 +311,8 @@ mod anchors {
         )
     }
 }
-mod continuation;
-mod provider;
+#[allow(unused_imports)] pub(in crate::ssa) use provider::continuation;
+pub(in crate::ssa) mod provider;
 use super::super::local_resources::graph::storage;
 use super::Case;
 use crate::ssa::{

@@ -2,7 +2,7 @@
 //! 十二次 fresh 同源 pipeline 全部观察后统一硬成功；不执行 native，不预言复杂 cleanup 拓扑。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
-mod calls_unit;
+pub(in crate::ssa) mod calls_unit;
 mod guards {
     //! 两个普通 Resource local 的真实形成/构造/deinit/Drop 来源。
     //! formed 是历史，不能代替当前可用性；不对未观察的 owner/phi/condition/Drop 数量做预言。
@@ -644,7 +644,7 @@ pub(crate) fn native_sources() -> [(&'static str, &'static str, &'static str); 6
 }
 
 // Independent deep identity query; the original collector never enters this path.
-mod query_body;
+#[allow(unused_imports)] pub(in crate::ssa) use calls_unit::query_body;
 mod query_callers;
 mod query_inputs;
 mod query_ssa;

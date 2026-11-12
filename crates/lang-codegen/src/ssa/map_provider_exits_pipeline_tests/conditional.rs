@@ -3,7 +3,7 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod query_calls;
-mod query_cleanup;
+pub(in crate::ssa) mod query_cleanup;
 mod query_conditions {
     //! 按真实 AST 独立列出 Unit 五出口；条件路径和 owner 入边由实际 SSA 身份查询等强承接。
     use super::{
@@ -550,7 +550,7 @@ mod query_test {
         );
     }
 }
-mod unit;
+#[allow(unused_imports)] pub(in crate::ssa) use query_cleanup::unit;
 
 use super::{
     Report,

@@ -16,7 +16,7 @@ pub(crate) use refine::{
     observe_owner_returns, with_owner_fault,
 };
 #[cfg(test)]
-mod refine_string_when_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use nullable_map_consume_fixture_tests::refine_string_when_tests;
 #[cfg(test)]
 mod refine_subset_tests;
 #[cfg(test)]
@@ -36,7 +36,7 @@ pub(crate) fn render_program(program: &model::Program) -> String {
     render::render_program(program)
 }
 #[cfg(test)]
-mod borrow_call_lowering_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use text_extension_tests::borrow_call_lowering_tests;
 #[cfg(test)]
 mod borrow_memory_test_support;
 #[cfg(test)]
@@ -49,11 +49,11 @@ pub(in crate::ssa) mod loan_region_ssa_tests;
 #[cfg(test)]
 mod map_consume_fixture_tests;
 #[cfg(test)]
-mod map_consume_lowering_tests;
+pub(in crate::ssa) mod map_consume_lowering_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod map_promotion_contract_tests;
 #[cfg(test)]
-mod nullable_map_consume_fixture_tests;
+pub(in crate::ssa) mod nullable_map_consume_fixture_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod nullable_map_consume_lowering_tests;
 #[cfg(test)]
@@ -80,29 +80,29 @@ mod container_lowering_tests;
 #[cfg(test)]
 mod container_operation_tests;
 #[cfg(test)]
-mod mutable_list_delivery_tests;
+pub(in crate::ssa) mod mutable_list_delivery_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod type_tests;
+pub(in crate::ssa) mod type_tests;
 #[cfg(test)]
-mod unit_generic_container_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use text_extension_tests::unit_generic_container_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod unit_llvm_tests;
 #[cfg(test)]
 mod unit_lower_aggregate_tests;
 #[cfg(test)]
-mod unit_lower_assignment_tests;
+pub(in crate::ssa) mod unit_lower_assignment_tests;
 #[cfg(test)]
-mod unit_lower_borrow_string_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use map_consume_lowering_tests::unit_lower_borrow_string_tests;
 #[cfg(test)]
 mod unit_lower_borrow_tests;
 #[cfg(test)]
 mod unit_lower_closure_tests;
 #[cfg(test)]
-mod unit_lower_container_element_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use owned_map_borrow_tests::unit_lower_container_element_tests;
 #[cfg(test)]
-mod unit_lower_container_size_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use type_tests::unit_lower_container_size_tests;
 #[cfg(test)]
 mod unit_lower_container_tests;
 #[cfg(test)]
@@ -118,11 +118,11 @@ mod unit_lower_receiver_tests;
 #[cfg(test)]
 mod unit_lower_scalar_tests;
 #[cfg(test)]
-mod unit_lower_short_circuit_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use unit_field_borrow_tests::unit_lower_short_circuit_tests;
 #[cfg(test)]
-mod unit_lower_straight_line_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use map_consume_lowering_tests::unit_lower_straight_line_tests;
 #[cfg(test)]
-mod unit_lower_string_tests;
+pub(in crate::ssa) mod unit_lower_string_tests;
 #[cfg(test)]
 mod unit_lower_test_support;
 #[cfg(test)]
@@ -130,9 +130,9 @@ mod unit_lower_tests;
 #[cfg(test)]
 mod unit_lower_type_plan_tests;
 #[cfg(test)]
-mod unit_lower_when_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use rc_nullable_while_observation_tests::unit_lower_when_tests;
 #[cfg(test)]
-mod unit_map_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use mutable_list_delivery_tests::unit_map_tests;
 #[cfg(test)]
 mod unit_plan_tests;
 #[cfg(test)]
@@ -166,16 +166,16 @@ mod lower_frontend_scalar_abi_unit_comparison_tests;
 mod lower_frontend_cfg_ownership_unit_comparison_tests;
 
 #[cfg(test)]
-mod lower_frontend_nullable_unit_comparison_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use unit_lower_string_tests::lower_frontend_nullable_unit_comparison_tests;
 
 #[cfg(test)]
-mod lower_frontend_rc_unit_comparison_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use nullable_map_consume_lowering_tests::lower_frontend_rc_unit_comparison_tests;
 
 #[cfg(test)]
-mod lower_frontend_borrow_unit_comparison_tests;
+pub(in crate::ssa) mod lower_frontend_borrow_unit_comparison_tests;
 
 #[cfg(test)]
-mod lower_frontend_string_io_unit_comparison_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use unit_lower_assignment_tests::lower_frontend_string_io_unit_comparison_tests;
 
 #[cfg(test)]
 mod map_unit_consumer_test_support;
@@ -186,12 +186,12 @@ pub(in crate::ssa) mod borrow_result_boundary_tests;
 #[cfg(test)]
 mod nullable_operation_tests;
 #[cfg(test)]
-mod shared_owner_operation_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use type_tests::shared_owner_operation_tests;
 #[cfg(test)]
 mod string_operation_tests;
 
 #[cfg(test)]
-mod char_constant_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use bitwise_lowering_tests::char_constant_tests;
 
 #[cfg(test)]
 mod sequential_for_lowering_tests;
@@ -199,11 +199,11 @@ mod sequential_for_lowering_tests;
 pub(in crate::ssa) mod unit_constant_tests;
 
 #[cfg(test)]
-mod bitwise_lowering_tests;
+pub(in crate::ssa) mod bitwise_lowering_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod bitwise_operation_tests;
 #[cfg(test)]
-mod checked_integer_conversion_backend_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use numeric_iteration_tests::checked_integer_conversion_backend_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod checked_integer_conversion_contract_tests;
 #[cfg(test)]
@@ -215,10 +215,10 @@ mod integer_core_contract_tests;
 pub(in crate::ssa) mod deinit_tests;
 
 #[cfg(test)]
-mod unit_root_primitive_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use rc_nullable_while_bounded_tests::unit_root_primitive_tests;
 
 #[cfg(test)]
-mod unit_field_borrow_tests;
+pub(in crate::ssa) mod unit_field_borrow_tests;
 #[cfg(test)]
 mod unit_field_replace_tests;
 
@@ -237,13 +237,13 @@ pub(in crate::ssa) mod range_lowering_tests;
 #[cfg(test)]
 mod text_copy_tests;
 #[cfg(test)]
-mod text_extension_tests;
+pub(in crate::ssa) mod text_extension_tests;
 
 #[cfg(test)]
 mod owned_null_cleanup_tests;
 
 #[cfg(test)]
-mod owned_map_borrow_tests;
+pub(in crate::ssa) mod owned_map_borrow_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod ordered_map_storage_tests;
@@ -254,7 +254,7 @@ pub(in crate::ssa) mod owned_map_borrow_boundary_tests;
 #[cfg(test)]
 pub(in crate::ssa) mod multi_borrow_range_boundary_tests;
 #[cfg(test)]
-mod multi_borrow_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use bitwise_lowering_tests::multi_borrow_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod mixed_borrow_boundary_tests;
@@ -262,10 +262,10 @@ pub(in crate::ssa) mod mixed_borrow_boundary_tests;
 mod mixed_borrow_tests;
 
 #[cfg(test)]
-mod nested_borrow_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use lower_frontend_borrow_unit_comparison_tests::nested_borrow_tests;
 
 #[cfg(test)]
-mod borrow_value_field_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use while_flow_tests::borrow_value_field_tests;
 
 #[cfg(test)]
 mod single_readonly_method_tests;
@@ -280,10 +280,10 @@ pub(in crate::ssa) mod integer_range_pending_tests;
 mod integer_range_value_tests;
 
 #[cfg(test)]
-mod numeric_iteration_tests;
+pub(in crate::ssa) mod numeric_iteration_tests;
 
 #[cfg(test)]
-mod while_flow_tests;
+pub(in crate::ssa) mod while_flow_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod rc_nullable_while_observation_tests;

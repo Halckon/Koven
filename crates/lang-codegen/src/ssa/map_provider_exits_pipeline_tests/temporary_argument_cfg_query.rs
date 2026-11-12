@@ -1,5 +1,5 @@
 //! Read-only proof for the empty-Map factory's ordinary argument CFG and hidden owner.
-pub(super) mod argument;
+#[allow(unused_imports)] pub(in crate::ssa) use provider::argument;
 mod ast {
     //! Exact ordinary source Call and argument If; independent of expression arena slots.
     use super::*;
@@ -285,7 +285,7 @@ mod ast {
         })
     }
 }
-mod provider;
+pub(in crate::ssa) mod provider;
 mod wrapper {
     //! Original runtime entry's literal Boolean is delivered to this exact scanner Borrow ABI.
     use super::*;

@@ -1,9 +1,8 @@
 //! Independent original-source ownership topology and complete reachable SSA transport queries.
-mod ssa;
-mod unit;
+pub(in crate::ssa) mod ssa;
 
 pub(super) use ssa::query as ssa;
-pub(super) use unit::query as unit;
+pub(super) use ssa::unit::query as unit;
 
 pub(in crate::ssa) mod nullable_map_guard_support {
     //! CI-only recovery of bounded ordinary B/C checkpoints, never a lowering input seam.

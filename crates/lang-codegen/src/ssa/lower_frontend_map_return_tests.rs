@@ -104,14 +104,12 @@ fn unit_map_return_constant_dead_source_red() {
 #[path = "lower_frontend_map_return_controls_tests.rs"]
 pub(in crate::ssa) mod ordinary_controls;
 
-#[path = "lower_frontend_map_return_matrix_tests.rs"]
-mod source_matrix;
+#[allow(unused_imports)] pub(in crate::ssa) use operand_last_use::source_matrix;
 
 #[path = "lower_frontend_map_operand_last_use_tests.rs"]
 pub(in crate::ssa) mod operand_last_use;
 
-#[path = "lower_frontend_map_operand_structure_tests.rs"]
-pub(in crate::ssa) mod operand_structure;
+#[allow(unused_imports)] pub(in crate::ssa) use operand_last_use::operand_structure;
 
 pub(in crate::ssa) mod rc_nullable_while_identity_queries {
     //! Read-only identities for the exact original SPEC-0332 source, never synthetic SSA.

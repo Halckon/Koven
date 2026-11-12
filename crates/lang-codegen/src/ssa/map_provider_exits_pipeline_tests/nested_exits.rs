@@ -115,7 +115,7 @@ mod guards {
         }
     }
 }
-mod query_body;
+pub(in crate::ssa) mod query_body;
 mod query_callers;
 mod query_graph {
     //! Nested-only role witness, beside the unchanged generic read-only graph helper.
@@ -381,9 +381,9 @@ mod query_graph {
         }
     }
 }
-mod query_inputs;
-mod query_resources;
-mod query_ssa;
+pub(in crate::ssa) mod query_inputs;
+#[allow(unused_imports)] pub(in crate::ssa) use query_inputs::query_resources;
+#[allow(unused_imports)] pub(in crate::ssa) use query_body::query_ssa;
 mod query_tail {
     //! The actual post-loop/caller size Ifs, including both incoming join edges.
     use super::super::{

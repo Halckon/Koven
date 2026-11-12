@@ -2,7 +2,7 @@
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
-mod borrowed;
+pub(in crate::ssa) mod borrowed;
 mod ci_baseline {
     //! 原真实单 Map plan 的 MemoryDocument/rooted Unit baseline；不混入六源 Guard oracle。
     use super::{Report, pipeline};
@@ -69,16 +69,16 @@ mod ci_baseline {
         }
     }
 }
-mod ci_contracts;
+#[allow(unused_imports)] pub(in crate::ssa) use local_future::ci_contracts;
 mod conditional;
 mod control_flow;
 mod d10_temporary_carry;
 mod facts;
 mod fixture;
-mod formation_runtime;
+#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::formation_runtime;
 mod future_use;
-mod history;
-mod identity;
+#[allow(unused_imports)] pub(in crate::ssa) use local_future::history;
+#[allow(unused_imports)] pub(in crate::ssa) use resource::identity;
 mod local_arguments;
 pub(crate) use local_arguments::{
     generic_prerequisite_sources as local_generic_argument_prerequisite_sources,
@@ -88,12 +88,12 @@ pub(crate) use local_arguments::{
 pub(in crate::ssa) mod local_sources;
 mod nested;
 pub(in crate::ssa) mod nested_exits;
-mod pipeline;
-mod query_cleanup;
-mod query_graph;
-pub(in crate::ssa) use query_graph::Graph as OrdinaryGraph;
-pub(in crate::ssa) use query_inputs::one as one_query;
-mod query_inputs;
+#[allow(unused_imports)] pub(in crate::ssa) use resource_forms::pipeline;
+#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::query_cleanup;
+#[allow(unused_imports)] pub(in crate::ssa) use scope_lowering::query_graph;
+pub(in crate::ssa) use scope_lowering::query_graph::Graph as OrdinaryGraph;
+pub(in crate::ssa) use borrowed::query_inputs::one as one_query;
+#[allow(unused_imports)] pub(in crate::ssa) use borrowed::query_inputs;
 mod query_inventory {
     //! 完整定义库存只排除额外能力；expected 必须来自调用方的真实 birth 与逐边身份证明。
     use super::{
@@ -215,10 +215,10 @@ mod query_inventory {
         )
     }
 }
-mod query_map_normal_body;
-mod query_owner;
+#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::query_map_normal_body;
+#[allow(unused_imports)] pub(in crate::ssa) use borrowed::query_owner;
 mod query_ssa;
-mod query_temporary_cleanup;
+#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::query_temporary_cleanup;
 mod query_test {
     //! 独立 ordinary exact：原六源码 × MemoryDocument/rooted Unit 全采后断，不变异、不执行 native。
     use super::{
@@ -339,8 +339,8 @@ mod query_test {
         );
     }
 }
-mod resource;
-mod resource_forms;
+pub(in crate::ssa) mod resource;
+pub(in crate::ssa) mod resource_forms;
 mod scope_future_observer;
 pub(crate) use scope_future_observer::cases as scope_future_sources;
 mod sequential;
@@ -715,9 +715,9 @@ pub(crate) use control_flow::neighbor_sources as ordinary_control_flow_neighbor_
 pub(crate) use control_flow::populated_future_transfer_sources;
 pub(crate) use control_flow::return_sources as ordinary_return_sources;
 pub(crate) use control_flow::sources as ordinary_control_flow_sources;
-pub(crate) use formation_runtime::sources as formation_runtime_sources;
+pub(crate) use scope_value_births::formation_runtime::sources as formation_runtime_sources;
 pub(crate) use future_use::sources as future_use_sources;
-pub(crate) use history::{sanitizer_ir as history_sanitizer_ir, sources as history_sources};
+pub(crate) use local_future::history::{sanitizer_ir as history_sanitizer_ir, sources as history_sources};
 pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;
 pub(crate) use nested_exits::native_sources as nested_exit_sources;
@@ -909,7 +909,7 @@ pub(crate) use local_exits::sources as local_exits_sources;
 mod local_resources;
 pub(crate) use local_resources::sources as local_resource_sources;
 
-mod local_future;
+pub(in crate::ssa) mod local_future;
 pub(crate) use local_future::sources as local_future_sources;
 
 mod local_reassignment;
@@ -934,14 +934,14 @@ pub(crate) use local_exits::alternate_sources as alternate_local_sources;
 mod births;
 pub(crate) use births::{Kind as MapBirthKind, sources as map_birth_sources};
 
-mod scope_lowering;
+pub(in crate::ssa) mod scope_lowering;
 pub(crate) use scope_lowering::sources as scope_a1_sources;
 
 mod scope_lambda_body;
 pub(crate) use scope_lambda_body::sources as scope_a2_sources;
 
 mod scope_member_parameter;
-mod scope_value_births;
+pub(in crate::ssa) mod scope_value_births;
 pub(crate) use scope_member_parameter::sources as scope_member_parameter_sources;
 pub(crate) use scope_value_births::int_storage_sources as scope_int_storage_sources;
 

@@ -273,8 +273,7 @@ pub(in crate::ssa) mod map_result_tests;
 #[path = "lower_frontend_resource_deinit_tests.rs"]
 mod resource_deinit_tests;
 
-#[path = "lower_frontend_return_tests.rs"]
-mod return_control_tests;
+#[allow(unused_imports)] pub(in crate::ssa) use map_result_tests::return_control_tests;
 
 #[path = "lower_frontend_root_boundary_tests.rs"]
 pub(in crate::ssa) mod root_boundaries;

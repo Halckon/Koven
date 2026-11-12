@@ -1,7 +1,7 @@
 //! SPEC-0255/0341: 同源单 source Unit 与双 source Unit 比较完整 String 事实。
 //! 其余旧 Single 差分合同仅由显式 legacy_only 测试入口消费；插值合同保留原测试身份。
 
-mod carry_join;
+pub(in crate::ssa) mod carry_join;
 mod products {
     //! Real source-qualified Unit products, shared by one-source and reordered inputs.
     use super::*;
@@ -285,7 +285,7 @@ mod products {
         (program, entry, modes)
     }
 }
-mod receiver;
+#[allow(unused_imports)] pub(in crate::ssa) use carry_join::receiver;
 mod temporary_alias;
 
 use lang_frontend::{
