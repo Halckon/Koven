@@ -170,9 +170,9 @@ move/Alias与后控制入口，并由同一实际SSA出口/入口值核验，再
 相邻exit=entry几何假设。当前未放宽任何这些门禁。
 
 前控制限定的私有桥接采集现保留完整counter证据中的原入口/首body两个来源向量，不
-选择某一分支，也不分根混配。仅前段全根存活、无退出drop且真实资源边界精确匹配时
+选择某一分支，也不分根混配。仅前段完整退出分区中至少两根存活、退休根有真实退出drop且资源边界精确匹配时
 启动；段间真实Name move与binding以单次pending表达式转移根索引，逐声明核对实际
-资源集合。所有根重绑定到不同symbol并抵达下一while入口后才记录完整关联。新String、
+资源集合。所有存活根重绑定到不同symbol并抵达下一while入口后才记录完整关联。新String、
 任何根drop、额外资源或缺失事件使这条桥接失败。Copyable声明仍服从原精确候选范围。
 该关联经完整双候选核验后可作为独立只读`control_bridge_evidence_v1`交付，按原根顺序
 排列目标，绑定原analysis identity及callable，与所有旧owner产品互斥。平衡、deferred、
@@ -188,3 +188,11 @@ arithmetic/正常代际证明或最终SSA verifier。最终typed-SSA回归另沿
 退出合流、后header的true边核对实际block参数/edge操作数到后段RootReplace owner，
 同时要求前header的零轮入口与正常回边两个前驱存在。native继续执行零轮与多轮输出
 矩阵；静态CFG关系与有限运行正确仍不等同动态owner实例的归纳证明。
+
+
+跨段桥接现在可保留部分live分区：例如前段3根中的中间根在false出口退休，来源向量
+只包含按原根顺序保留的a/c两根，targets逐项对应；退休根仍由原真实drop事实及通用
+lowering处理，不为它创建新token或桥接入口。后端核验仅这些存活槽，允许finished块
+清理其他根，但不允许触碰任一存活根。真实稀疏3→2回归继续沿最终SSA边操作数检查
+源/目标对应，并执行两段各0/2轮native；段间丢弃存活根或不足两根不发布该产品。
+这仍是同一两control静态桥接合同，不是下一body完整权限或嵌套循环支持。

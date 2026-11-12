@@ -53,10 +53,11 @@ impl Builder<'_, '_> {
             {
                 return Err(fail());
             }
-            let roots = prior
-                .root_slots()
+            let roots = plan
+                .evidence
+                .sources()
                 .iter()
-                .map(|s| self.bindings.get(&s.root()).copied().ok_or_else(fail))
+                .map(|symbol| self.bindings.get(symbol).copied().ok_or_else(fail))
                 .collect::<Result<Vec<_>, _>>()?;
             let guard = self
                 .bindings

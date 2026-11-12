@@ -15,13 +15,8 @@ impl Bridge {
         control: UnitStatementId,
         state: &ValueState,
     ) -> Option<Self> {
-        let (live, drops) = prior.false_exit_partition()?;
-        if prior.statement() != control
-            || !prior.is_consistent()
-            || !drops.is_empty()
-            || live.len() != prior.root_slots().len()
-            || live.len() < 2
-        {
+        let (live, _) = prior.false_exit_partition()?;
+        if prior.statement() != control || !prior.is_consistent() || live.len() < 2 {
             return None;
         }
         let value = Self {
@@ -30,6 +25,7 @@ impl Bridge {
                 .root_slots()
                 .iter()
                 .enumerate()
+                .filter(|(_, s)| live.contains(&s.root()))
                 .map(|(i, s)| (s.root(), i))
                 .collect(),
             pending: None,
@@ -75,15 +71,25 @@ impl Bridge {
         true
     }
     pub(super) fn complete(&self) -> bool {
+        let Some((live, _)) = self.prior.false_exit_partition() else {
+            return false;
+        };
         self.pending.is_none()
-            && self.bindings.len() == self.prior.root_slots().len()
-            && self.prior.root_slots().iter().enumerate().all(|(i, slot)| {
-                self.bindings
-                    .iter()
-                    .filter(|(symbol, source)| *source == i && *symbol != slot.root())
-                    .count()
-                    == 1
-            })
+            && live.len() >= 2
+            && self.bindings.len() == live.len()
+            && self
+                .prior
+                .root_slots()
+                .iter()
+                .enumerate()
+                .filter(|(_, slot)| live.contains(&slot.root()))
+                .all(|(i, slot)| {
+                    self.bindings
+                        .iter()
+                        .filter(|(symbol, source)| *source == i && *symbol != slot.root())
+                        .count()
+                        == 1
+                })
     }
     pub(super) fn evidence(
         &self,
@@ -92,8 +98,21 @@ impl Bridge {
         if !self.complete() {
             return None;
         }
-        let targets = (0..self.prior.root_slots().len())
-            .map(|index| {
+        let (live, _) = self.prior.false_exit_partition()?;
+        let sources = self
+            .prior
+            .root_slots()
+            .iter()
+            .filter(|slot| live.contains(&slot.root()))
+            .map(|slot| slot.root())
+            .collect();
+        let targets = self
+            .prior
+            .root_slots()
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| live.contains(&slot.root()))
+            .map(|(index, _)| {
                 self.bindings
                     .iter()
                     .find(|(_, source)| *source == index)
@@ -103,6 +122,7 @@ impl Bridge {
         crate::ownership_checking::UnitOwnerControlBridgeEvidenceV1::seal(
             self.prior.clone(),
             next,
+            sources,
             targets,
         )
     }

@@ -600,13 +600,17 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
         usize::from(bridge)
     );
     if bridge {
-        assert_cross_control_ssa(&source, &program);
+        assert_cross_control_ssa(&source, &program, &[("a", "a"), ("b", "b")]);
     }
     super::super::assert_native_output(&source, expected);
 }
 
 // Check final typed-SSA edge operands, not only the pre-SSA slot audit.
-fn assert_cross_control_ssa(source: &UnitSource, program: &crate::ssa::model::Program) {
+fn assert_cross_control_ssa(
+    source: &UnitSource,
+    program: &crate::ssa::model::Program,
+    roots: &[(&str, &str)],
+) {
     use crate::ssa::model::{EntityId, Operation, TerminatorKind};
     let run = program
         .modules
@@ -620,8 +624,8 @@ fn assert_cross_control_ssa(source: &UnitSource, program: &crate::ssa::model::Pr
                 .starts_with("fun run(")
         })
         .unwrap();
-    for name in ["a", "b"] {
-        let replace = |suffix| {
+    for (previous, next_name) in roots {
+        let replace = |name, suffix| {
             run.instructions
                 .iter()
                 .find(|i| {
@@ -634,8 +638,8 @@ fn assert_cross_control_ssa(source: &UnitSource, program: &crate::ssa::model::Pr
                 })
                 .unwrap()
         };
-        let prior = replace(0);
-        let next = replace(1);
+        let prior = replace(previous, 0);
+        let next = replace(next_name, 1);
         let Operation::RootReplace {
             owner: original, ..
         } = prior.operation
@@ -732,5 +736,92 @@ fn ci_only_control_bridge_rejects_wrong_target_and_missing_next() {
                 .iter()
                 .all(|(kind, _)| *kind != "control-bridge-slot-audit")
         );
+    }
+}
+
+#[test]
+fn partial_live_exit_bridges_sparse_roots_without_resurrecting_retired_root() {
+    for carry in [1, 2] {
+        let second_binding = if carry == 2 {
+            "var b1 = saved_c;"
+        } else {
+            "val last_c = saved_c;"
+        };
+        let second_replace = if carry == 2 {
+            "val y = replace(&b1, \"second-c\");"
+        } else {
+            ""
+        };
+        let second_print = if carry == 2 { "println(b1);" } else { "" };
+        let mut calls = String::new();
+        let mut expected = String::new();
+        for first in [0, 2] {
+            for second in [0, 2] {
+                calls.push_str(&format!("run({first}, {second});"));
+                let a = if second > 0 {
+                    "second-a"
+                } else if first > 0 {
+                    "first-a"
+                } else {
+                    "entry-a"
+                };
+                expected.push_str(&format!("{a}\n"));
+                if carry == 2 {
+                    let c = if second > 0 {
+                        "second-c"
+                    } else if first > 0 {
+                        "first-c"
+                    } else {
+                        "entry-c"
+                    };
+                    expected.push_str(&format!("{c}\n"));
+                }
+            }
+        }
+        let text = format!(
+            r#"fun run(first: Int, second: Int) {{
+            var n0 = first; var g0 = n0 > 0;
+            var a0 = "entry-a"; var b0 = "retired-b"; var c0 = "entry-c";
+            while(g0) {{ val x = replace(&a0, "first-a"); val y = replace(&b0, "first-b");
+                val z = replace(&c0, "first-c"); n0 = n0 - 1; g0 = n0 > 0 }};
+            var n1 = second; var g1 = n1 > 0;
+            val saved_c = c0; var a1 = a0; {second_binding}
+            while(g1) {{ val x = replace(&a1, "second-a"); {second_replace} n1 = n1 - 1; g1 = n1 > 0 }};
+            println(a1); {second_print}
+        }}
+        fun entry() {{ {calls} }}"#
+        );
+        let source = UnitSource::analyze("sparse-control-bridge.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        let bridges: Vec<_> = source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.control_bridge_evidence_v1())
+            .collect();
+        assert_eq!(bridges.len(), usize::from(carry == 2));
+        if let Some(bridge) = bridges.first() {
+            assert_eq!(bridge.prior().root_slots().len(), 3);
+            assert_eq!(bridge.sources().len(), 2);
+            let (live, drops) = bridge.prior().false_exit_partition().unwrap();
+            assert_eq!(live.len(), 2);
+            assert_eq!(drops.len(), 1);
+        }
+        let (lowered, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, entry) = lowered.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, _)| *kind == "control-bridge-slot-audit")
+                .count(),
+            usize::from(carry == 2)
+        );
+        if carry == 2 {
+            assert_cross_control_ssa(&source, &program, &[("a", "a"), ("c", "b")]);
+        }
+        super::super::assert_native_output(&source, expected.as_bytes());
     }
 }
