@@ -151,3 +151,20 @@ Complete身份及checked success/abort边，最后才提交最终成员与全组
 不投影首段或跳过中段；仅CI执行的负控另覆盖短/空身份向量、外来成员permit和
 中段checked失败边破坏。该推广仍要求每段退出全死、段间空资源边界和独立fresh catalog，
 不代表跨段活根运输、嵌套或任意控制流得到支持。
+
+## 跨段活根与嵌套的真实行为基线
+
+通用 lowering 的独立 native 回归现覆盖：两根从首counter退出直接或逆序多步Alias进入
+次counter（首段0/2轮 × 次段0/1/2轮），以及同两根在嵌套counter中被内外层置换
+（两层各0/1/2轮）。入口包含owned参数，输出区分零轮入口值、首段/内层值及末段/外层值。
+这些输入同时断言新counter单项/批次及multi-root boundary产品缺席、没有counter消费动作，
+再通过SSA verifier、LLVM验证与native执行。不能把旧通用lowering可执行解释成新运输权限
+已覆盖；这些有限输出也不是精确析构次数或所有运行路径的证明。
+
+跨段接线的具体缺口不只是移除空边界检查：条件false处的live root可能来自原入口或
+正常回边，现有独立下一段catalog只从实际String事件建立producer；现有静态
+`Entry`/`Backedge`代入也未提供真实退出合流来源。不得以首body输出token、原入口token
+或新造literal token替代它。后续产品需要保留前控制的完整退出来源向量，绑定实际
+move/Alias与后控制入口，并由同一实际SSA出口/入口值核验，再处理旧根消费与新根
+义务的唯一性。嵌套另需parent/child控制归属与各自退出回边，不能复用顶层顺序批次的
+相邻exit=entry几何假设。当前未放宽任何这些门禁。

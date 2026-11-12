@@ -501,3 +501,96 @@ fn ci_only_longer_counter_batch_rejects_foreign_member_and_middle_failure() {
         );
     }
 }
+
+// These are legacy lowering baselines, not new cross-control owner permissions.
+#[test]
+fn live_roots_cross_sequential_counters_without_fabricated_batch() {
+    for aliased in [false, true] {
+        let bridge = if aliased {
+            "val saved_b = b0; val saved_a = a0; var b1 = saved_b; var a1 = saved_a;"
+        } else {
+            "var a1 = a0; var b1 = b0;"
+        };
+        let mut calls = String::new();
+        let mut expected = String::new();
+        for first in [0, 2] {
+            for second in [0, 1, 2] {
+                calls.push_str(&format!("run({first}, {second}, \"seed\");"));
+                let (a, b) = if second > 0 {
+                    ("second-a", "second-b")
+                } else if first > 0 {
+                    ("first-a", "first-b")
+                } else {
+                    ("seed", "entry-b")
+                };
+                expected.push_str(&format!("{a}\n{b}\n"));
+            }
+        }
+        let text = format!(
+            r#"fun run(first: Int, second: Int, own seed: String) {{
+            var n0 = first; var g0 = n0 > 0; var a0 = seed; var b0 = "entry-b";
+            while(g0) {{ val x = replace(&a0, "first-a"); val y = replace(&b0, "first-b");
+                n0 = n0 - 1; g0 = n0 > 0 }};
+            var n1 = second; var g1 = n1 > 0; {bridge}
+            while(g1) {{ val x = replace(&a1, "second-a"); val y = replace(&b1, "second-b");
+                n1 = n1 - 1; g1 = n1 > 0 }};
+            println(a1); println(b1)
+        }}
+        fun entry() {{ {calls} }}"#
+        );
+        assert_general_counter_baseline(&text, expected.as_bytes());
+    }
+}
+
+#[test]
+fn nested_counters_preserve_outer_live_roots_without_flat_batch() {
+    let mut calls = String::new();
+    let mut expected = String::new();
+    for outer in [0, 1, 2] {
+        for inner in [0, 1, 2] {
+            calls.push_str(&format!("run({outer}, {inner}, \"seed\");"));
+            let a = if outer > 0 && inner > 0 {
+                "inner-a"
+            } else {
+                "seed"
+            };
+            let b = if outer > 0 { "outer-b" } else { "entry-b" };
+            expected.push_str(&format!("{a}\n{b}\n"));
+        }
+    }
+    let text = format!(
+        r#"fun run(outer: Int, inner: Int, own seed: String) {{
+        var a = seed; var b = "entry-b"; var n0 = outer; var g0 = n0 > 0;
+        while(g0) {{
+            var n1 = inner; var g1 = n1 > 0;
+            while(g1) {{ val x = replace(&a, "inner-a"); val y = replace(&b, "inner-b");
+                n1 = n1 - 1; g1 = n1 > 0 }};
+            val old = replace(&b, "outer-b"); n0 = n0 - 1; g0 = n0 > 0
+        }};
+        println(a); println(b)
+    }}
+    fun entry() {{ {calls} }}"#
+    );
+    assert_general_counter_baseline(&text, expected.as_bytes());
+}
+
+fn assert_general_counter_baseline(text: &str, expected: &[u8]) {
+    let source = UnitSource::analyze("cross-control-counter.ko", text).unwrap();
+    source.assert_frontend_clean();
+    for observation in source.ownership().owner_observations() {
+        assert!(observation.counter_batch_evidence_v1().is_none());
+        assert!(observation.counter_tail_evidence_v1().is_none());
+        assert!(observation.multi_root_boundary_v1().is_none());
+    }
+    let (lowered, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert!(
+        actions
+            .iter()
+            .all(|(kind, _)| !kind.starts_with("counter-"))
+    );
+    super::super::assert_native_output(&source, expected);
+}
