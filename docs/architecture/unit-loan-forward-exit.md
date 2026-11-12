@@ -154,3 +154,9 @@ symbol，独立资格只授予该binding的尾If，不泛放其他控制流。
 尾条件continue复用精确ConditionalJump的显式kind，true实际Continue与false
 正常回边都到原header。最终SSA实测保留entry加两回边三前驱，逐source/result
 与条件参数身份核验；没有伪造折叠前边或新增独立循环receipt。
+
+独立FE `loop_invariant_lineages()`首片仅为本地字面量String owner、无jump普通
+while发布Partial关系：实际入口/被遍历body回交/正常退出/原BindingEnd及每consumer
+真实pending移除回交。Borrow/own参数旧记录没有Handoff，不伪造身份；常量、jump
+等新资格为空且旧行为保留。它不是循环每轮完整证明，也不是CG receipt；local
+三语句形状的后端资格仍需另接，不能以该关系自动放行。

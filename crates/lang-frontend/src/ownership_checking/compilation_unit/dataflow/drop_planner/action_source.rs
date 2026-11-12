@@ -6,9 +6,11 @@ mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
 mod binding_use_sets;
+mod loop_invariant;
 pub(super) use binding_use_sets::{
     Expected as BindingUseSetExpected, Token as BindingUseSetToken, UseRole as BindingUseRole,
 };
+pub(super) use loop_invariant::{Plan as LoopInvariantPlan, Token as LoopInvariantToken};
 mod child_regions;
 mod distinct_auxiliary_binding_regions;
 mod distinct_auxiliary_retirements;
@@ -55,6 +57,8 @@ impl ActionHandle {
 pub(super) struct ActionSource {
     identity: Arc<()>,
     binding_use_sets: Vec<binding_use_sets::Candidate>,
+    loop_invariants: Vec<loop_invariant::Candidate>,
+    loop_returns: Vec<loop_invariant::Returned>,
     records: Vec<Record>,
     cleanups: usize,
     regions: Vec<crate::ownership_checking::compilation_unit::loan_region_validation::Candidate>,
@@ -121,6 +125,8 @@ impl Default for ActionSource {
             identity: Arc::new(()),
             records: Vec::new(),
             binding_use_sets: Vec::new(),
+            loop_invariants: Vec::new(),
+            loop_returns: Vec::new(),
             cleanups: 0,
             regions: Vec::new(),
             binding_regions: Vec::new(),
@@ -251,6 +257,7 @@ impl ActionSource {
         // Each actual retirement has its own record. Only the old projection deduplicates.
         let handle = self.next_handle();
         self.records.push(Record::BorrowBindingEnd(fact));
+        self.close_loop_invariants(&fact, &handle);
         handle
     }
 
@@ -437,10 +444,23 @@ impl ActionSource {
         source: crate::name_resolution::SourceUnitId,
         file: crate::source::SourceId,
     ) -> Vec<crate::ownership_checking::UnitLoanActionObservation> {
-        use crate::ownership_checking::UnitLoanAction;
         if !self.enabled {
             return Vec::new();
         }
+        #[cfg(test)]
+        let this = loop_invariant::tests::mutate(self);
+        #[cfg(not(test))]
+        let this = self;
+        this.finish_observations(source, file)
+    }
+
+    fn finish_observations(
+        self,
+        source: crate::name_resolution::SourceUnitId,
+        file: crate::source::SourceId,
+    ) -> Vec<crate::ownership_checking::UnitLoanActionObservation> {
+        use crate::ownership_checking::UnitLoanAction;
+        let loop_invariant_lineages = self.validate_loop_invariants();
         let child_links =
             binding_child_links::validate(&self.records, &self.identity, source, file);
         let auxiliary_retirements = self.validate_auxiliary_retirements(source, file);
@@ -669,6 +689,7 @@ impl ActionSource {
             later_auxiliary_binding_regions,
             auxiliary_sequence_regions,
             interleaved_auxiliary_regions,
+            loop_invariant_lineages,
             binding_use_sets,
             binding_use_set_retirements,
             multi_binding_regions,

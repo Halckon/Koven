@@ -49,6 +49,8 @@ mod loan_actions;
 mod loan_auxiliary_retirement;
 mod loan_auxiliary_sequence_regions;
 mod loan_binding_use_sets;
+mod loan_loop_invariant;
+pub use loan_loop_invariant::UnitLoanLoopInvariantLineage;
 mod loan_multi_binding_regions;
 pub use loan_multi_binding_regions::{
     UnitBorrowMultiBindingRegion, UnitMultiBindingAuxiliaryUse, UnitMultiBindingSourceState,

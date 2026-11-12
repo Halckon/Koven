@@ -700,6 +700,7 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
+        let mut loop_lineage = self.begin_loop_invariant_observation(id, condition, body, state);
         self.owner_loop.record_root_condition(
             UnitStatementId::new(self.checker.source_unit, id),
             self.checker.unit_expression(condition),
@@ -765,8 +766,15 @@ impl DropPlanner<'_, '_> {
             } else {
                 None
             };
+            self.advance_loop_invariant_observation(&mut loop_lineage, &body_state, 1, true);
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
+            self.advance_loop_invariant_observation(
+                &mut loop_lineage,
+                &body_state,
+                2,
+                matches!(continued, Ok(true)),
+            );
             self.owner_loop.record_root_fallthrough(
                 UnitStatementId::new(self.checker.source_unit, id),
                 &body_state,
@@ -845,6 +853,7 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         self.drop_root_loop_exit(id, condition, state);
+        self.complete_loop_invariant_observation(loop_lineage, state);
         if collecting
             && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())
             && let Some((collected, _)) = replacement_body.take()

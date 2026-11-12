@@ -15414,3 +15414,40 @@ policy不变，无循环内新borrow或多根循环支持，旧见证仍保留�
 最终Clippy全targets -D warnings、workspace全targets、默认FE/CG lib仅编译、
 fmt/diff、文档912项及size基准2beb5592通过（2555文件、36历史超1000债务）。
 CI-only未执行，conditional-continue-*日志归档。本片仅本地提交、不推送。
+
+## 循环不变量独立FE关系（实施中，Partial）
+
+基于59e9725d转向独立receipt的前提，不继续堆固定控制形状。首片只观察已合法
+外层一次borrow-return binding、普通Boolean参数while及非空直线consumer序列；
+无jump、无循环内acquire。计划UnitLoanLoopInvariantLineage永远Partial，分别
+绑定同catalog实际source Begin/handoff、entry、被真实遍历body的正常回交、可达
+false出口状态及最后原BindingEnd，不把一次静态遍历冒充任意运行次数的Complete。
+
+从真实入口保存独立因果票据，旧PendingBindingTransport reconcile失效不恢复、
+旧PartialEq/产品不改变；实际body_state clone和外层state分别核验。常量false
+未访问body不造证据，true无正常出口不补End；Borrow参数缺owner合法，不伪造owner。
+观察关闭仍由原checker执行，证书不参与语言合法性，L0164保留。独立CG receipt
+仍须后续actual block/slot、edge/fold验证与原verifier后原子发布，本片不提前声称。
+
+真实红为原typed/ownership/唯一BlockEnd成功后新产品0!=1。实际探针纠正来源假设：
+Borrow和own参数旧记录均无Handoff、transport=0，local literal String则有真实
+Begin/Handoff与transport；首片严格仅该local三语句形状发Partial，参数原lowering
+仍正常但新资格空。不伪造ID或恢复旧transport观察能力，CG三语句资格尚需后续接入。
+
+producer入口不能提前要求未来尚未发生的BindingEnd。计划仅声明completion位置，
+独立非Clone票据由真实入口捕获；body_state clone正常回交及外state退出分别核，
+最终actual end_borrow_binding再验证唯一精确End位于真实exit后。每consumer回交
+从finish_call_pending_loans实际extract_if移除捕获原loan/Begin/cursor侧记录，
+不是从Begin列表推定；完整body原记录逐项回放，额外动作、重复/错序回交均拒绝。
+final重核Begin/Handoff/End与票据同catalog及唯一性，旧raw End/Unique资格不改。
+
+普通矩阵local/Borrow/own×consumer1/2/8×normal/continue/break/return/false×
+双入口/on-off共180执行组合已绿，只有local normal观察开启发产品。uses逐实际
+AST call、同catalog Begin/loan、CallReturn与递增cursor验证，coverage始终Partial。
+CI-only真实完成候选变异覆盖身份/边界/动作/回交次序等，只编译不执行。
+
+本片最终验证：10个FE集成目标共12测试及180组合通过，旧CG普通88测试通过；
+CI-only组16故障仅编译。Clippy question_mark/clone_on_copy以等价写法修正后，
+FE/CG全目标Clippy、workspace all-targets及默认lib no-run均通过。
+fmt/diff/docs与相对2beb5592尺寸门禁通过（2561个手写Rust文件、36个既有超千行项），
+尺寸policy未改；独立审查确认实际回交侧记录完整、顺序严格，不提前给CG验收资格。
