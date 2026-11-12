@@ -37,12 +37,13 @@ pub(super) struct Member {
     pub checked: [BlockRef; 2],
     pub roots: Vec<Slot>,
 }
-/// Actual first-control transport anchor; it does not authorize that body's replacements.
+/// Actual first-control transport and separately validated normal-body root snapshots.
 #[derive(Clone, Debug)]
 pub(super) struct Anchor {
     pub control: UnitStatementId,
     pub blocks: [BlockRef; 4],
     pub roots: Vec<Slot>,
+    pub body_roots: Vec<Slot>,
 }
 /// Actual source-to-target alias mapping between the two admitted members.
 #[derive(Clone, Debug)]
@@ -117,13 +118,19 @@ impl Plans {
         {
             return Err(invalid(span));
         }
-        if leading.roots.len() < 2
+        if leading.body_roots.len() < 2
+            || leading.body_roots.iter().collect::<BTreeSet<_>>().len() != leading.body_roots.len()
+            || leading
+                .roots
+                .iter()
+                .any(|r| !leading.body_roots.contains(r))
+            || leading.roots.len() < 2
             || leading.roots.iter().collect::<BTreeSet<_>>().len() != leading.roots.len()
             || leading.blocks.iter().collect::<BTreeSet<_>>().len() != leading.blocks.len()
             || group.iter().any(|m| {
                 m.control == leading.control
                     || m.control.source_unit() != leading.control.source_unit()
-                    || m.roots.iter().any(|r| leading.roots.contains(r))
+                    || m.roots.iter().any(|r| leading.body_roots.contains(r))
                     || m.blocks
                         .iter()
                         .chain(m.checked.iter())
@@ -173,9 +180,14 @@ impl Plans {
                 (Role::Legacy(1), p.next, &p.targets),
             ]
         } else {
-            self.group
+            self.leading
                 .iter()
-                .map(|m| (Role::Control(m.control), m.blocks, m.roots.as_slice()))
+                .map(|m| (Role::Control(m.control), m.blocks, m.body_roots.as_slice()))
+                .chain(
+                    self.group
+                        .iter()
+                        .map(|m| (Role::Control(m.control), m.blocks, m.roots.as_slice())),
+                )
                 .collect()
         }
     }

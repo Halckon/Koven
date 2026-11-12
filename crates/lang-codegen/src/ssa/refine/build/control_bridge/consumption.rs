@@ -167,6 +167,18 @@ impl Builder<'_, '_> {
             owner_consumer_test_support::record_action("control-chain-fault-hit", 1);
             return Ok(None);
         }
+        #[cfg(test)]
+        if self
+            .control_chain_bodies
+            .as_ref()
+            .is_some_and(|g| g.is_leading(selected.control))
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ChainLeadingBodyMissingDrop,
+            )
+        {
+            owner_consumer_test_support::record_action("control-chain-fault-hit", 2);
+            return Ok(None);
+        }
         self.bridge_permit(
             selected.control,
             index,

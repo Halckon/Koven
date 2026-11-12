@@ -638,6 +638,19 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
                 .count(),
             1
         );
+        let expected_steps: usize = source
+            .ownership()
+            .owner_observations()
+            .iter()
+            .filter_map(|o| o.control_chain_bodies_v1())
+            .map(|g| {
+                g.leading().normal().steps().len()
+                    + g.members()
+                        .iter()
+                        .map(|m| m.normal().steps().len())
+                        .sum::<usize>()
+            })
+            .sum();
         for kind in [
             "bridge-body-replace-consumed",
             "bridge-body-binding-consumed",
@@ -645,7 +658,7 @@ fn assert_general_counter_baseline(text: &str, expected: &[u8], bridge: bool) {
         ] {
             assert_eq!(
                 actions.iter().filter(|(actual, _)| *actual == kind).count(),
-                4
+                expected_steps
             );
         }
     }

@@ -10,6 +10,8 @@ pub(in super::super) struct BodyGroup<'a> {
     link: (&'a [UnitSymbolId], &'a [UnitSymbolId]),
     leading: UnitOwnerControlChainLeadingV1<'a>,
     leading_lowered: Option<([BlockRef; 4], Vec<Slot>)>,
+    leading_stages: Vec<consumption::Stage>,
+    leading_body_roots: Option<Vec<Slot>>,
 }
 struct Member<'a> {
     evidence: UnitOwnerControlChainBodyV1<'a>,
@@ -29,6 +31,10 @@ pub(super) struct Selected<'a> {
     pub roots: &'a [Slot],
 }
 impl<'a> BodyGroup<'a> {
+    #[cfg(test)]
+    pub(super) fn is_leading(&self, control: UnitStatementId) -> bool {
+        self.leading.control() == control
+    }
     #[cfg(test)]
     pub(super) fn other_control(&self, control: UnitStatementId) -> Option<UnitStatementId> {
         self.members
@@ -70,6 +76,8 @@ impl<'a> BodyGroup<'a> {
             link: group.inter_member_roots(),
             leading: group.leading(),
             leading_lowered: None,
+            leading_stages: vec![consumption::Stage::Ready; group.leading().normal().steps().len()],
+            leading_body_roots: None,
             members: group
                 .members()
                 .iter()
@@ -103,7 +111,21 @@ impl Builder<'_, '_> {
                 .members
                 .iter()
                 .filter(|m| matches(m.evidence.normal()));
-            let Some(member) = selected.next() else {
+            let member = selected.next();
+            if matches(group.leading.normal()) {
+                if member.is_some() {
+                    return Err(fail());
+                }
+                let (blocks, _) = group.leading_lowered.as_ref().ok_or_else(fail)?;
+                return Ok(Some(Selected {
+                    control: group.leading.control(),
+                    rule: group.leading.normal(),
+                    stages: &group.leading_stages,
+                    block: blocks[1],
+                    roots: group.leading_body_roots.as_deref().ok_or_else(fail)?,
+                }));
+            }
+            let Some(member) = member else {
                 return Ok(None);
             };
             if selected.next().is_some() {
@@ -141,6 +163,16 @@ impl Builder<'_, '_> {
         if let Some(group) = &mut self.control_chain_bodies {
             if self.control_bridge_plan.is_some() {
                 return Err(fail());
+            }
+            if group.leading.control() == control {
+                if group
+                    .members
+                    .iter()
+                    .any(|m| m.evidence.control() == control)
+                {
+                    return Err(fail());
+                }
+                return Ok(&mut group.leading_stages);
             }
             return group
                 .members
@@ -187,6 +219,21 @@ impl Builder<'_, '_> {
                 .iter()
                 .map(|s| self.bindings.get(s).copied().ok_or_else(fail))
                 .collect::<Result<Vec<_>, _>>()?;
+            let body_roots = group
+                .leading
+                .normal()
+                .header_roots()
+                .iter()
+                .map(|s| self.bindings.get(s).copied().ok_or_else(fail))
+                .collect::<Result<Vec<_>, _>>()?;
+            if body_roots
+                .iter()
+                .enumerate()
+                .any(|(i, r)| body_roots[..i].contains(r))
+            {
+                return Err(fail());
+            }
+            group.leading_body_roots = Some(body_roots);
             group.leading_lowered = Some((blocks, roots));
         }
         for member in &mut group.members {
@@ -203,6 +250,14 @@ impl Builder<'_, '_> {
         else {
             return Ok(());
         };
+        if group.leading_lowered.is_none()
+            || group
+                .leading_stages
+                .iter()
+                .any(|s| *s != consumption::Stage::Dropped)
+        {
+            return Err(fail());
+        }
         if group.members[..index].iter().any(|m| {
             m.lowered.is_none()
                 || m.stages.iter().any(|s| *s != consumption::Stage::Dropped)
@@ -246,6 +301,23 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
+        let (leading_blocks, _) = group.leading_lowered.as_ref().ok_or_else(fail)?;
+        let leading_roots = group.leading_body_roots.as_ref().ok_or_else(fail)?;
+        if leading_roots.len() != group.leading.normal().header_roots().len()
+            || group.leading_stages.len() != group.leading.normal().steps().len()
+            || group
+                .leading_stages
+                .iter()
+                .any(|s| *s != consumption::Stage::Dropped)
+            || self.body.blocks[leading_blocks[1].0]
+                .statements
+                .iter()
+                .filter(|s| matches!(s.op, ROp::RootReplace { .. }))
+                .count()
+                != group.leading_stages.len()
+        {
+            return Err(fail());
+        }
         for member in &group.members {
             let (blocks, roots) = member.lowered.as_ref().ok_or_else(fail)?;
             let block = blocks[1];
@@ -398,6 +470,7 @@ impl Builder<'_, '_> {
             control: group.leading.control(),
             blocks: *leading_blocks,
             roots: leading_roots.clone(),
+            body_roots: group.leading_body_roots.as_ref().ok_or_else(fail)?.clone(),
         };
         let leading_link = super::super::super::control_bridge_receipt::Link {
             from_control: group.leading.control(),
@@ -412,6 +485,11 @@ impl Builder<'_, '_> {
                 vec![leading_link, link],
                 self.inputs.span,
             )?;
+        #[cfg(test)]
+        owner_consumer_test_support::record_action(
+            "control-chain-leading-body-complete",
+            group.leading.normal().header_roots().len(),
+        );
         #[cfg(test)]
         owner_consumer_test_support::record_action("control-chain-tails-complete", count);
         #[cfg(test)]

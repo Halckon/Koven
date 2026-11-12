@@ -252,6 +252,7 @@ pub struct UnitOwnerControlChainLeadingV1<'a> {
     body: UnitStatementId,
     sources: &'a [UnitSymbolId],
     targets: &'a [UnitSymbolId],
+    normal: &'a UnitOwnerMultiRootNormalTransportV1,
 }
 impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// Actual first control, not a synthesized group member.
@@ -265,6 +266,11 @@ impl<'a> UnitOwnerControlChainLeadingV1<'a> {
     /// Actual first control body.
     pub fn body(&self) -> UnitStatementId {
         self.body
+    }
+    /// Original first-body normal rule, including every body root and actual producer catalog.
+    /// This grants no first scalar-entry, checked-tail or false-exit contract.
+    pub fn normal(&self) -> &'a UnitOwnerMultiRootNormalTransportV1 {
+        self.normal
     }
     /// Completed source-to-target root mapping of the first link.
     pub fn roots(&self) -> (&'a [UnitSymbolId], &'a [UnitSymbolId]) {
@@ -339,6 +345,7 @@ impl UnitOwnerObservation {
                 body: chain.first.prior().body(),
                 sources: chain.first.sources(),
                 targets: chain.first.targets(),
+                normal: chain.first.prior().roots.normal_transport()?,
             },
         })
     }

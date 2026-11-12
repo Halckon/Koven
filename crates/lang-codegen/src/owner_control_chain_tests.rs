@@ -54,6 +54,14 @@ fn chain_source(sparse: bool, suffix: bool) -> super::UnitSource {
     chain_source_with_counter(sparse, suffix, "n")
 }
 fn chain_source_with_counter(sparse: bool, suffix: bool, counter: &str) -> super::UnitSource {
+    chain_source_with_shape(sparse, suffix, counter, false)
+}
+fn chain_source_with_shape(
+    sparse: bool,
+    suffix: bool,
+    counter: &str,
+    first_only: bool,
+) -> super::UnitSource {
     let mut text = String::from("fun run(n: Int) {");
     for i in 0..3 {
         text.push_str(&format!("var n{i}={counter}; var g{i}=n{i}>0;"));
@@ -63,14 +71,14 @@ fn chain_source_with_counter(sparse: bool, suffix: bool, counter: &str) -> super
             let p = i - 1;
             text.push_str(&format!("var a{i}=a{p}; var b{i}=b{p};"));
         }
-        if sparse && i < 2 {
+        if sparse && (i == 0 || (i == 1 && !first_only)) {
             text.push_str(if i == 0 {
                 "var c0=\"c\";"
             } else {
                 "var c1=c0;"
             });
         }
-        let extra = if sparse && i < 2 {
+        let extra = if sparse && (i == 0 || (i == 1 && !first_only)) {
             format!("val z=replace(&c{i},\"z\");")
         } else {
             String::new()
@@ -114,6 +122,7 @@ fn ci_only_chain_body_group_rejects_foreign_control_and_last_missing_drop() {
     for fault in [
         OwnerFault::ChainBodyWrongControl,
         OwnerFault::ChainLastBodyMissingDrop,
+        OwnerFault::ChainLeadingBodyMissingDrop,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             with_owner_fault(fault, || source.lower_entry(source.entry()))
@@ -419,5 +428,36 @@ fn ci_only_chain_link_wrong_target_rejects_group_receipt() {
             *kind,
             "control-chain-link-complete" | "control-chain-ssa-complete"
         )));
+    }
+}
+
+#[test]
+fn leading_normal_body_consumes_all_roots_before_sparse_transport() {
+    for first_only in [false, true] {
+        let source = chain_source_with_shape(true, true, "n", first_only);
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-leading-body-complete" && *n == 3)
+                .count(),
+            1
+        );
+        let sizes = actions
+            .iter()
+            .filter_map(|(kind, n)| (*kind == "control-chain-link-complete").then_some(*n))
+            .collect::<Vec<_>>();
+        assert_eq!(sizes, if first_only { vec![2, 2] } else { vec![3, 2] });
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(kind, n)| *kind == "control-chain-ssa-complete" && *n == 2)
+                .count(),
+            1
+        );
+        super::super::super::assert_native_output(&source, b"");
     }
 }
