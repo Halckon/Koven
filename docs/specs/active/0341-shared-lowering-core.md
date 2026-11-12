@@ -16419,3 +16419,28 @@ generic verifier或其他未等价witness。CI-only针对提前实际Consume、�
 独立复审未见确定阻断。三项新增CI-only真实SSA故障仅编译，不计本地执行成功；FE
 未修改且未重跑。日志nested-false-exclusive-*。本片不触及#420 folding拆分，
 不新增receipt、不扩大权限、不退休未证明等价的旧检查，仅本地提交不推送。
+
+
+### 已批准直接父循环完整入口与 false 出口验证（2026-11-13）
+
+用户明确批准在既有直接父／子 while、String 根和 checked counter 范围内，补充父
+header 的整组入口／正常回边，以及父 false 出口资源消费的独立证明。本节是新增
+实施范围，不把此前仅到达父 header 的单根可选 carry receipt 升格为跨轮证明。
+不改变 Guide，不扩大 Break、Return、额外嵌套层或未闭合资源的接纳范围。
+
+实施要求：从 frontend 已验证事实和实际 lowering 捕获父 control、完整根组、入口、
+回边与 false 出口身份；SSA 终检逐个核实际参数、所有前驱和对应边实参，不以类型
+相同、根数量相同或单条回边替代整组身份。父 false 路径独立核 live／retired 完整
+互斥分区，退休值仅由原 Drop 消费一次且不能逃逸。checked Abort 保持终止，不作为
+正常回边。候选被选中后，缺失或失配必须失败，不能静默回落为旧路径成功。
+
+| 验收项 | 目标 | 当前结果 |
+|---|---|---|
+| 精确父 header 全组入口与回边 | 真实参数／边、丢根、同类型换根、额外前驱 | 待实现、待验证 |
+| 父 false 资源闭合 | live／retired 分区、原 Drop 排他消费、无逃逸 | 待实现、待验证 |
+| 运行代际覆盖 | 外／内零、一、至少二轮与部分退休后的恢复 | 待实现、待验证 |
+| 边界拒绝 | Break、Return、额外嵌套、未闭合资源不新增许可 | 待验证 |
+| 原生产验证保留 | 原 verifier、旧 witness 和 child receipt 不被替代 | 待验证 |
+
+新增 fault injection 仅在 CI 执行；本地只报告编译和普通定向测试，不把待运行项
+记成通过。实现与验收按小步本地提交，本批不推送。
