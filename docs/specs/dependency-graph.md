@@ -75,6 +75,7 @@ subgraph Gactive["现行 active"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
   S0428["S0428<br/>model/constant、render/types、verify_ownership/map、provider、refine 及 lower_frontend 壳子模块退役"]
   S0429["S0429<br/>map_iteration、closure、verify_ownership/borrow_result、map_source/formation 及 unit_lower 壳子模块退役"]
+  S0430["S0430<br/>outer_borrowed_while、verify/closure_escape、verify_operation 及 lower_frontend 壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -169,6 +170,7 @@ ARCH --> S0341
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
 | SPEC-0428 | active | [0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md](active/0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md) |
 | SPEC-0429 | active | [0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md](active/0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) |
+| SPEC-0430 | active | [0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md](active/0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

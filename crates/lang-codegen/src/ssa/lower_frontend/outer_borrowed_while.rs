@@ -1,6 +1,6 @@
 use super::control::BranchExit;
 use super::non_null_proof::outer_borrowed_provider as provider;
-mod source;
+use super::container::access::outer_borrowed_source as source;
 pub(in crate::ssa::lower_frontend) use super::*;
 use crate::ssa::model::SsaTypeKind;
 use carrier::{Columns, instructions, transport};

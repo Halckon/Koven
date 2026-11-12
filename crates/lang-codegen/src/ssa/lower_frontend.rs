@@ -1,38 +1,37 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
-pub(in crate::ssa::lower_frontend) use map_consume::resource_deinit;
-mod borrow_argument;
-mod borrow_result;
+pub(in crate::ssa) use map_consume::resource_deinit;
+pub(in crate::ssa) mod borrow_argument;
+pub(in crate::ssa) mod borrow_result;
 #[cfg(test)]
-mod cleanup_guard_harness;
-mod container;
+pub(in crate::ssa) use container::cleanup_guard_harness;
+pub(in crate::ssa) mod container;
 pub(in crate::ssa) mod control;
-mod enum_type_test;
-mod field_replace;
-mod instances;
-mod local_storage;
-use local_storage::integer;
+pub(in crate::ssa) mod field_replace;
+pub(in crate::ssa) mod instances;
+pub(in crate::ssa) mod local_storage;
+pub(in crate::ssa) use local_storage::integer;
 pub(in crate::ssa) mod loop_control;
-mod map;
-mod map_consume;
+pub(in crate::ssa) use super::statement_core::frontend_map as map;
+pub(in crate::ssa) mod map_consume;
 pub(in crate::ssa) mod map_iteration;
-mod map_loop_owner;
-mod nominal;
-mod non_null_proof;
-mod nullable_borrowed_cleanup;
-mod nullable_if_cleanup;
-pub(in crate::ssa::lower_frontend) use nullable_if_cleanup::constant_presence;
+pub(in crate::ssa) mod map_loop_owner;
+pub(in crate::ssa) mod nominal;
+pub(in crate::ssa) mod non_null_proof;
+pub(in crate::ssa) mod nullable_borrowed_cleanup;
+pub(in crate::ssa) mod nullable_if_cleanup;
+pub(in crate::ssa) use nullable_if_cleanup::constant_presence;
 pub(in crate::ssa) mod nullable_numeric_cleanup;
-mod nullable_when;
-pub(super) mod orchestrate;
-mod outer_borrowed_while;
-mod ownership_primitive;
-mod pending_call;
-mod range;
-use field_replace::readonly_receiver;
-mod source_closure;
-mod string_clone;
-use string_clone::declarations;
+pub(in crate::ssa) mod nullable_when;
+pub(in crate::ssa) mod orchestrate;
+pub(in crate::ssa) mod outer_borrowed_while;
+pub(in crate::ssa) mod ownership_primitive;
+pub(in crate::ssa) use super::expression_core::pending_call;
+pub(in crate::ssa) mod range;
+pub(in crate::ssa) use field_replace::readonly_receiver;
+pub(in crate::ssa) mod source_closure;
+pub(in crate::ssa) mod string_clone;
+pub(in crate::ssa) use string_clone::declarations;
 
 pub(in crate::ssa) use std::collections::BTreeMap;
 
@@ -59,9 +58,9 @@ pub(in crate::ssa) use super::model::{
     FunctionId, LoanId, LoanKind, ModelError, Operation, Origin, PlaceId, ScalarConstant,
     SsaTypeId, TerminatorKind, ValueId,
 };
-use instances::FunctionInstanceKey;
-use non_null_proof::NonNullProof;
-use pending_call::PendingCallLoans;
+pub(in crate::ssa) use instances::FunctionInstanceKey;
+pub(in crate::ssa) use non_null_proof::NonNullProof;
+pub(in crate::ssa) use pending_call::PendingCallLoans;
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 pub(in crate::ssa) use super::{
@@ -77,7 +76,7 @@ pub(in crate::ssa) fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<Buil
     }
 }
 
-fn return_values(
+pub(in crate::ssa) fn return_values(
     typed: &TypedFile,
     return_type: TypeId,
     result: LoweredValue,
@@ -96,50 +95,50 @@ fn return_values(
 }
 
 pub(in crate::ssa) struct ExpressionLowerer<'a> {
-    map_loop_owners: map_loop_owner::Carriers,
-    map_iteration_state: map_iteration::State,
-    parsed: &'a ParsedFile,
-    names: &'a NameResolution,
-    typed: &'a TypedFile,
-    owned: &'a OwnershipCheckedFile,
-    source_text: &'a str,
-    references: &'a BTreeMap<(usize, usize), SymbolId>,
-    function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
-    source_closures: &'a source_closure::CallableLayouts,
-    instance_plan: &'a instances::FunctionInstancePlan,
-    source_token: Option<super::lowering_support::callable_instances::SourceToken>,
-    thunk_expression: Option<ExpressionId>,
-    capture_loans: BTreeMap<(usize, usize), LoanId>,
-    type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
-    heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
-    map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
-    nullable_maps: &'a BTreeMap<SsaTypeId, SsaTypeId>,
-    ssa_types: &'a [super::model::SsaTypeKind],
-    enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
-    substitutions: &'a BTreeMap<SymbolId, TypeId>,
-    function: &'a mut Function,
-    block: BlockId,
-    bindings: BTreeMap<SymbolId, LoweredValue>,
-    borrow_bindings: BTreeMap<SymbolId, LoanId>,
-    result_source_loans: BTreeMap<SymbolId, Vec<LoanId>>,
-    non_null_bindings: BTreeMap<SymbolId, NonNullProof>,
-    temporaries: BTreeMap<usize, ValueId>,
-    pending_call_loans: PendingCallLoans,
-    return_type: TypeId,
-    readonly_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
-    loops: Vec<loop_control::LoopContext>,
+    pub(in crate::ssa) map_loop_owners: map_loop_owner::Carriers,
+    pub(in crate::ssa) map_iteration_state: map_iteration::State,
+    pub(in crate::ssa) parsed: &'a ParsedFile,
+    pub(in crate::ssa) names: &'a NameResolution,
+    pub(in crate::ssa) typed: &'a TypedFile,
+    pub(in crate::ssa) owned: &'a OwnershipCheckedFile,
+    pub(in crate::ssa) source_text: &'a str,
+    pub(in crate::ssa) references: &'a BTreeMap<(usize, usize), SymbolId>,
+    pub(in crate::ssa) function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
+    pub(in crate::ssa) source_closures: &'a source_closure::CallableLayouts,
+    pub(in crate::ssa) instance_plan: &'a instances::FunctionInstancePlan,
+    pub(in crate::ssa) source_token: Option<super::lowering_support::callable_instances::SourceToken>,
+    pub(in crate::ssa) thunk_expression: Option<ExpressionId>,
+    pub(in crate::ssa) capture_loans: BTreeMap<(usize, usize), LoanId>,
+    pub(in crate::ssa) type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
+    pub(in crate::ssa) heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    pub(in crate::ssa) map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    pub(in crate::ssa) nullable_maps: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    pub(in crate::ssa) ssa_types: &'a [super::model::SsaTypeKind],
+    pub(in crate::ssa) enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
+    pub(in crate::ssa) substitutions: &'a BTreeMap<SymbolId, TypeId>,
+    pub(in crate::ssa) function: &'a mut Function,
+    pub(in crate::ssa) block: BlockId,
+    pub(in crate::ssa) bindings: BTreeMap<SymbolId, LoweredValue>,
+    pub(in crate::ssa) borrow_bindings: BTreeMap<SymbolId, LoanId>,
+    pub(in crate::ssa) result_source_loans: BTreeMap<SymbolId, Vec<LoanId>>,
+    pub(in crate::ssa) non_null_bindings: BTreeMap<SymbolId, NonNullProof>,
+    pub(in crate::ssa) temporaries: BTreeMap<usize, ValueId>,
+    pub(in crate::ssa) pending_call_loans: PendingCallLoans,
+    pub(in crate::ssa) return_type: TypeId,
+    pub(in crate::ssa) readonly_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
+    pub(in crate::ssa) loops: Vec<loop_control::LoopContext>,
 }
 
 impl ExpressionLowerer<'_> {
     // A MoveOnly Value delivery transfers these SSA owners into the new aggregate.
-    fn forget_delivered_owners(&mut self, owners: &[ValueId]) {
+    pub(in crate::ssa) fn forget_delivered_owners(&mut self, owners: &[ValueId]) {
         self.bindings.retain(
             |_, binding| !matches!(binding, LoweredValue::Value(value) if owners.contains(value)),
         );
         self.temporaries.retain(|_, value| !owners.contains(value));
     }
 
-    fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
+    pub(in crate::ssa) fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
         let result = self.lower_expression(expression)?;
         if let LoweredValue::Value(value) = result
             && self.typed.expression_category(expression)
@@ -158,7 +157,7 @@ impl ExpressionLowerer<'_> {
         Ok(result)
     }
 
-    fn lower_expression(
+    pub(in crate::ssa) fn lower_expression(
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -262,7 +261,7 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn lower_construction(
+    pub(in crate::ssa) fn lower_construction(
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -465,7 +464,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(result))
     }
 
-    fn lower_rc_operation(
+    pub(in crate::ssa) fn lower_rc_operation(
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -531,7 +530,7 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn validate_construction_root(
+    pub(in crate::ssa) fn validate_construction_root(
         &self,
         result_type: TypeId,
         target: ConstructionTarget,
@@ -573,11 +572,11 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+    pub(in crate::ssa) fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
         super::statement_core::lower_statement(self, statement)
     }
 
-    fn lower_statement_inner(
+    pub(in crate::ssa) fn lower_statement_inner(
         &mut self,
         statement: StatementId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -617,7 +616,7 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn lower_literal(
+    pub(in crate::ssa) fn lower_literal(
         &mut self,
         literal: LiteralKind,
         expression: ExpressionId,
@@ -651,7 +650,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_string_literal(
+    pub(in crate::ssa) fn lower_string_literal(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -667,7 +666,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_name(
+    pub(in crate::ssa) fn lower_name(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -718,7 +717,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_prefix(
+    pub(in crate::ssa) fn lower_prefix(
         &mut self,
         operator: PrefixOperator,
         operand: ExpressionId,
@@ -779,7 +778,7 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn lower_binary(
+    pub(in crate::ssa) fn lower_binary(
         &mut self,
         left: ExpressionId,
         operator: AstBinaryOperator,
@@ -838,7 +837,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_string_binary(
+    pub(in crate::ssa) fn lower_string_binary(
         &mut self,
         left: ExpressionId,
         operator: AstBinaryOperator,
@@ -870,7 +869,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_string_view(&mut self, expression: ExpressionId) -> Result<EntityId, LoweringError> {
+    pub(in crate::ssa) fn lower_string_view(&mut self, expression: ExpressionId) -> Result<EntityId, LoweringError> {
         // A constant name is a fresh temporary, not a local binding or borrowed parameter.
         if self
             .typed
@@ -910,14 +909,14 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn is_string_expression(&self, expression: ExpressionId) -> bool {
+    pub(in crate::ssa) fn is_string_expression(&self, expression: ExpressionId) -> bool {
         self.typed
             .expression_type(expression)
             .and_then(|ty| self.typed.types().get(ty))
             == Some(&TypeKind::Builtin(BuiltinType::String))
     }
 
-    fn lower_assignment(
+    pub(in crate::ssa) fn lower_assignment(
         &mut self,
         target: ExpressionId,
         operator: AssignmentOperator,
@@ -980,7 +979,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Unit)
     }
 
-    fn lower_return(
+    pub(in crate::ssa) fn lower_return(
         &mut self,
         return_expression: ExpressionId,
         expression: Option<ExpressionId>,
@@ -1016,7 +1015,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Diverged)
     }
 
-    fn lower_call(
+    pub(in crate::ssa) fn lower_call(
         &mut self,
         expression: ExpressionId,
         callee_expression: ExpressionId,
@@ -1213,7 +1212,7 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn require_value(&mut self, expression: ExpressionId) -> Result<ValueId, LoweringError> {
+    pub(in crate::ssa) fn require_value(&mut self, expression: ExpressionId) -> Result<ValueId, LoweringError> {
         match self.lower(expression)? {
             LoweredValue::Value(value) => Ok(value),
             LoweredValue::Unit | LoweredValue::Diverged => {
@@ -1232,7 +1231,7 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn declaration_symbol(&self, span: Span, kind: SymbolKind) -> Result<SymbolId, LoweringError> {
+    pub(in crate::ssa) fn declaration_symbol(&self, span: Span, kind: SymbolKind) -> Result<SymbolId, LoweringError> {
         self.names
             .symbols()
             .iter()
@@ -1241,13 +1240,13 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
-    fn source_slice(&self, span: Span) -> Result<&str, LoweringError> {
+    pub(in crate::ssa) fn source_slice(&self, span: Span) -> Result<&str, LoweringError> {
         self.source_text
             .get(span.start()..span.end())
             .ok_or_else(|| error(LoweringErrorKind::MismatchedSource, span))
     }
 
-    fn parse_integer_literal(
+    pub(in crate::ssa) fn parse_integer_literal(
         &self,
         kind: IntegerLiteralKind,
         span: Span,
@@ -1255,7 +1254,7 @@ impl ExpressionLowerer<'_> {
         parse_integer_literal_text(self.source_slice(span)?, kind, span)
     }
 
-    fn expression_ssa_type(
+    pub(in crate::ssa) fn expression_ssa_type(
         &self,
         expression: ExpressionId,
         span: Span,
@@ -1274,11 +1273,11 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))
     }
 
-    fn resolve_type(&self, ty: TypeId, span: Span) -> Result<TypeId, LoweringError> {
+    pub(in crate::ssa) fn resolve_type(&self, ty: TypeId, span: Span) -> Result<TypeId, LoweringError> {
         instances::resolve_concrete_type(self.typed, ty, self.substitutions, span)
     }
 
-    fn append(
+    pub(in crate::ssa) fn append(
         &mut self,
         operation: Operation,
         results: Vec<EntityType>,
@@ -1290,14 +1289,14 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn value(entity: EntityId) -> ValueId {
+pub(in crate::ssa) fn value(entity: EntityId) -> ValueId {
     let EntityId::Value(value) = entity else {
         unreachable!("scalar lowering only requests value results");
     };
     value
 }
 
-fn place(entity: EntityId) -> super::model::PlaceId {
+pub(in crate::ssa) fn place(entity: EntityId) -> super::model::PlaceId {
     let EntityId::Place(place) = entity else {
         unreachable!("frontend lowering requested a place result");
     };

@@ -7,12 +7,12 @@ use aliases::{
     provider_lifetime,
 };
 mod closure;
-mod field_exchange;
+pub(in crate::ssa) mod field_exchange;
 #[cfg(test)]
 mod field_exchange_tests;
 mod range;
 use range::borrow_result;
-pub(super) mod root_exchange;
+pub(in crate::ssa) mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
 
