@@ -83,12 +83,20 @@ pub(in crate::ssa) fn pairs(
         .iter()
         .chain(owned.no_carry_counter_branches().iter().map(|f| f.pair()))
         .chain(owned.no_carry_break_branches().iter().map(|f| f.pair()))
+        .chain(
+            owned
+                .no_carry_counter_break_branches()
+                .iter()
+                .map(|f| f.counter().pair()),
+        )
 }
 pub(in crate::ssa) fn owns_pair(
     owned: &CompilationUnitOwnership,
     pair: &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact,
 ) -> bool {
-    owned.owns_no_carry_branch(pair)
+    owned.no_carry_counter_break_branches().iter().any(|f| {
+        owned.owns_no_carry_counter_break_branch(f) && f.counter().pair().same_identity(pair)
+    }) || owned.owns_no_carry_branch(pair)
         || owned
             .no_carry_counter_branches()
             .iter()

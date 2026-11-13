@@ -415,6 +415,17 @@ fn validate_binding(
                 .get_or_insert_with(Default::default)
                 .insert(prefix.prefix().expression().index());
         }
+        for cb in owned.no_carry_counter_break_branches().iter().filter(|b| {
+            owned.owns_no_carry_counter_break_branch(b)
+                && b.counter().pair().branch().expression() == control
+                && b.counter().pair().branch().source_unit() == fact.binding().source_unit()
+        }) {
+            let allowed = allowed_controls.get_or_insert_with(Default::default);
+            allowed.insert(cb.break_control().expression().index());
+            allowed.insert(cb.break_expression().expression().index());
+            allowed.insert(cb.counter().condition().expression().index());
+            allowed.insert(cb.counter().decrement().expression().index());
+        }
         // Only the separately owned bounded fact admits its exact guard/update.
         // Other binary expressions retain the ordinary borrow-binding frontier.
         for counter in owned.no_carry_counter_branches().iter().filter(|c| {

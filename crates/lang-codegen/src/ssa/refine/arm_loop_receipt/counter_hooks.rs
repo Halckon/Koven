@@ -33,7 +33,16 @@ impl Plans {
         fact: &UnitLoopCounterBranchNoCarryFact,
     ) -> Result<counter::CounterSpec, LoweringError> {
         let fail = || invalid(inputs.span);
-        if !inputs.owned.owns_no_carry_counter_branch(fact) {
+        if !inputs.owned.owns_no_carry_counter_branch(fact)
+            && !inputs
+                .owned
+                .no_carry_counter_break_branches()
+                .iter()
+                .any(|b| {
+                    inputs.owned.owns_no_carry_counter_break_branch(b)
+                        && b.counter().same_identity(fact)
+                })
+        {
             return Err(fail());
         }
         let node = |id: UnitExpressionId| {
@@ -218,11 +227,9 @@ impl Emitted {
                 .iter()
                 .zip(&body.arm_counter_required)
                 .any(|(a, b)| !a.same_identity(b))
-            || body
-                .arm_loop_plans
-                .loops
-                .iter()
-                .any(|p| p.counter.is_some() != p.counter_fact.is_some())
+            || body.arm_loop_plans.loops.iter().any(|p| {
+                p.counter.is_some() != (p.counter_fact.is_some() || p.counter_break.is_some())
+            })
         {
             return Err(invalid(span));
         }

@@ -17,19 +17,29 @@ impl Builder<'_, '_> {
     ) -> Result<Option<ArmBreak>, LoweringError> {
         let id = self.unit(expression);
         let Some(p) = self.body.arm_loop_plans.loops.iter().find(|p| {
-            p.fact.arms()[0].loop_statement() == frame.statement && p.tail_break.is_some()
+            p.fact.arms()[0].loop_statement() == frame.statement
+                && (p.tail_break.is_some() || p.counter_break.is_some())
         }) else {
             return Ok(None);
         };
-        let b = p
-            .tail_break
-            .as_ref()
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        let (expected, observed, expected_from) = if let Some(cb) = &p.counter_break {
+            (
+                cb.fact.break_expression(),
+                cb.observed,
+                cb.split.map(|bs| bs[1]),
+            )
+        } else {
+            let b = p
+                .tail_break
+                .as_ref()
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+            (b.expression, b.observed, p.join)
+        };
         let from = self.current(span)?;
         if !is_break
-            || b.expression != id
-            || b.observed.is_some()
-            || p.join != Some(from)
+            || expected != id
+            || observed.is_some()
+            || expected_from != Some(from)
             || p.blocks.map(|b| b[4]) != Some(frame.exit)
             || frame.seq_for.is_some()
             || frame.map_for.is_some()
@@ -65,8 +75,22 @@ impl Builder<'_, '_> {
         if super::super::arm_loop_receipt::skip_break_capture() {
             return Ok(());
         }
-        self.body
+        if let Some(cb) = self
+            .body
             .arm_loop_plans
-            .record_break(t.expression, t.from, target, span)
+            .loops
+            .iter_mut()
+            .filter_map(|p| p.counter_break.as_mut())
+            .find(|b| b.fact.break_expression() == t.expression)
+        {
+            if cb.break_span != span || cb.observed.replace((t.from, target)).is_some() {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            Ok(())
+        } else {
+            self.body
+                .arm_loop_plans
+                .record_break(t.expression, t.from, target, span)
+        }
     }
 }

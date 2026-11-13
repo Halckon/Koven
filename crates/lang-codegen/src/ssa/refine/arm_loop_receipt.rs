@@ -8,7 +8,7 @@ use crate::ssa::{
 use lang_frontend::{
     ownership_checking::{
         UnitDropPoint, UnitLoopBranchNoCarryFact, UnitLoopBreakBranchNoCarryFact,
-        UnitLoopCounterBranchNoCarryFact,
+        UnitLoopCounterBranchNoCarryFact, UnitLoopCounterBreakBranchNoCarryFact,
     },
     parser::{Expression, Statement},
     source::Span,
@@ -23,6 +23,8 @@ mod ci_tests;
 use break_hooks::BreakPlan;
 mod break_validation;
 mod counter;
+mod counter_break;
+mod counter_break_validation;
 #[cfg(test)]
 mod counter_ci;
 mod counter_hooks;
@@ -54,6 +56,7 @@ pub(super) struct Plan {
     arms: [Arm; 2],
     prefix: Option<prefix::Prefix>,
     counter: Option<counter::Counter>,
+    pub(super) counter_break: Option<counter_break::CounterBreak>,
     pub(super) tail_break: Option<BreakPlan>,
     counter_fact: Option<UnitLoopCounterBranchNoCarryFact>,
     conditions: [UnitExpressionId; 2],
@@ -112,6 +115,7 @@ impl Plans {
             else {
                 return Err(fail());
             };
+            let counter_break = Self::counter_break_plan(inputs, fact)?;
             let counter_fact = inputs
                 .owned
                 .no_carry_counter_branches()
@@ -120,6 +124,7 @@ impl Plans {
                 .cloned();
             if counter_fact
                 .as_ref()
+                .or_else(|| counter_break.as_ref().map(|c| c.fact.counter()))
                 .is_some_and(|c| c.condition().expression() != *outer)
             {
                 return Err(fail());
@@ -130,6 +135,7 @@ impl Plans {
             }
             let counter = counter_fact
                 .as_ref()
+                .or_else(|| counter_break.as_ref().map(|c| c.fact.counter()))
                 .map(|c| Self::counter_spec(inputs, c))
                 .transpose()?
                 .map(counter::Counter::new);
@@ -143,6 +149,7 @@ impl Plans {
             );
             let initial = counter_fact
                 .as_ref()
+                .or_else(|| counter_break.as_ref().map(|c| c.fact.counter()))
                 .map(|c| c.initializer().expression())
                 .unwrap_or(*outer);
             for expr in [&initial, condition] {
@@ -243,6 +250,7 @@ impl Plans {
                 prefix: Self::prefix_plan(inputs, fact)?,
                 counter,
                 counter_fact,
+                counter_break,
                 tail_break,
                 conditions: [
                     UnitExpressionId::new(inputs.source_unit, *outer),
@@ -281,6 +289,9 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         for p in &mut self.loops {
+            if let Some(cb) = &mut p.counter_break {
+                cb.split(id, b, p.join, span)?;
+            }
             if let Some(prefix) = &mut p.prefix {
                 prefix.split(id, b, span)?;
             }
@@ -306,6 +317,9 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         for p in &mut self.loops {
+            if let Some(cb) = &mut p.counter_break {
+                cb.join(id, b, preds, span)?;
+            }
             if let Some(prefix) = &mut p.prefix {
                 prefix.join(id, b, preds, span)?;
             }
@@ -328,6 +342,9 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         for p in &mut self.loops {
+            if let Some(cb) = &mut p.counter_break {
+                cb.condition(id, b, value, p.join, span)?;
+            }
             if let Some(prefix) = &mut p.prefix {
                 prefix.condition(id, b, value, span)?;
             }
@@ -343,6 +360,9 @@ impl Plans {
     }
     pub(super) fn fold(&mut self, block: BlockRef, successor: BlockRef, offset: usize) {
         for p in &mut self.loops {
+            if let Some(cb) = &mut p.counter_break {
+                cb.fold(block, successor);
+            }
             if let Some(prefix) = &mut p.prefix {
                 prefix.fold(block, successor);
             }
@@ -388,6 +408,7 @@ impl Plans {
 pub(super) struct Emitted {
     selected: Vec<UnitLoopBranchNoCarryFact>,
     counter_selected: Vec<UnitLoopCounterBranchNoCarryFact>,
+    counter_break_selected: Vec<UnitLoopCounterBreakBranchNoCarryFact>,
     break_selected: Vec<UnitLoopBreakBranchNoCarryFact>,
     prefix_selected: Vec<lang_frontend::ownership_checking::UnitLoopBreakPrefixFact>,
     aliases: BTreeMap<(BlockRef, usize), (Slot, Slot, EntityId)>,
@@ -416,6 +437,7 @@ impl Emitted {
             return Err(invalid(span));
         }
         self.check_counter_required(body, span)?;
+        self.check_counter_break_required(body, span)?;
         self.check_break_required(body, span)?;
         self.check_prefix_required(body, span)?;
         if body.arm_loop_required.is_empty() {
@@ -447,6 +469,7 @@ impl Emitted {
             .map(|p| p.fact.clone())
             .collect();
         self.counter_selected = body.arm_counter_required.clone();
+        self.counter_break_selected = body.arm_counter_break_required.clone();
         self.break_selected = body.arm_break_required.clone();
         self.prefix_selected = body.arm_prefix_required.clone();
         self.blocks = blocks.clone();
@@ -494,8 +517,18 @@ impl Emitted {
         #[cfg(test)]
         publication::before_finish(&mut self);
         self.check_counter_required(body, span)?;
+        self.check_counter_break_required(body, span)?;
         self.check_break_required(body, span)?;
         self.check_prefix_required(body, span)?;
+        if self.counter_break_selected.len() != body.arm_counter_break_required.len()
+            || self
+                .counter_break_selected
+                .iter()
+                .zip(&body.arm_counter_break_required)
+                .any(|(a, b)| !a.same_identity(b))
+        {
+            return Err(invalid(span));
+        }
         if self.prefix_selected.len() != body.arm_prefix_required.len()
             || self
                 .prefix_selected
@@ -572,7 +605,15 @@ impl Receipt {
                     .iter()
                     .any(|f| f.same_identity(&b.fact))
             })
-            || self.plan.counter.is_some() != self.plan.counter_fact.is_some()
+            || self.plan.counter.is_some()
+                != (self.plan.counter_fact.is_some() || self.plan.counter_break.is_some())
+            || self.plan.counter_break.as_ref().is_some_and(|b| {
+                !self
+                    .evidence
+                    .counter_break_selected
+                    .iter()
+                    .any(|f| f.same_identity(&b.fact))
+            })
             || self.plan.counter_fact.as_ref().is_some_and(|f| {
                 !self
                     .evidence

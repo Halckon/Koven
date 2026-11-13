@@ -65,7 +65,11 @@ impl Emitted {
         let [actual_split, arm_a, arm_b] = p.split.ok_or_else(|| invalid(s))?;
         let join = p.join.ok_or_else(|| invalid(s))?;
         if init.block != entry
-            || op_block != join
+            || op_block
+                != p.counter_break
+                    .as_ref()
+                    .and_then(|b| b.continued)
+                    .unwrap_or(join)
             || split != actual_split
             || init.output != left_slot
             || update.block != success
@@ -74,15 +78,19 @@ impl Emitted {
             return Err(invalid(s));
         }
         // All selected edges retain positional slot/entity transport, including the checked edge.
-        for (from, to) in [
+        let mut links = vec![
             (entry, vec![header]),
             (header, vec![split, finished]),
             (split, vec![arm_a, arm_b]),
             (arm_a, vec![join]),
             (arm_b, vec![join]),
-            (join, vec![abort, success]),
+            (op_block, vec![abort, success]),
             (success, vec![header]),
-        ] {
+        ];
+        if p.counter_break.is_some() {
+            self.validate_counter_break(parameters, f, p, s)?;
+        }
+        for (from, to) in links.drain(..) {
             self.links(f, from, &to, s)?;
         }
         for (to, from) in [
@@ -91,15 +99,24 @@ impl Emitted {
             (arm_a, vec![split]),
             (arm_b, vec![split]),
             (join, vec![arm_a, arm_b]),
-            (success, vec![join]),
-            (abort, vec![join]),
+            (success, vec![op_block]),
+            (abort, vec![op_block]),
             (finished, vec![header]),
         ] {
             self.incoming(f, to, &from, s)?;
         }
         if finished != exit {
             self.links(f, finished, &[exit], s)?;
-            self.incoming(f, exit, &[finished], s)?;
+            if let Some(cb) = &p.counter_break {
+                self.incoming(
+                    f,
+                    exit,
+                    &[finished, cb.split.ok_or_else(|| invalid(s))?[1]],
+                    s,
+                )?;
+            } else {
+                self.incoming(f, exit, &[finished], s)?;
+            }
         }
         let rounds_slot = *parameters.get(p.roles[1]).ok_or_else(|| invalid(s))?;
         let rounds = self.entity(entry, rounds_slot, s)?;
@@ -162,20 +179,20 @@ impl Emitted {
             return Err(invalid(s));
         }
         self.condition(parameters, f, p, 1, s)?;
-        let uids = self.ids(f, join, s)?;
+        let uids = self.ids(f, op_block, s)?;
         if uids.len() != 2 {
             return Err(invalid(s));
         }
-        let one = self.counter_constant(f, uids[0], join, (1, counter.spec.one_span), s)?;
-        if self.counter_end(join, one_slot, s)? != one {
+        let one = self.counter_constant(f, uids[0], op_block, (1, counter.spec.one_span), s)?;
+        if self.counter_end(op_block, one_slot, s)? != one {
             return Err(invalid(s));
         }
-        let previous = self.entity(join, init.output, s)?;
+        let previous = self.entity(op_block, init.output, s)?;
         let (EntityId::Value(left), EntityId::Value(right)) = (previous, one) else {
             return Err(invalid(s));
         };
-        let result = self.counter_end(join, result_slot, s)?;
-        let failed = self.counter_end(join, failed_slot, s)?;
+        let result = self.counter_end(op_block, result_slot, s)?;
+        let failed = self.counter_end(op_block, failed_slot, s)?;
         let arithmetic = f.instruction(uids[1]).ok_or_else(|| invalid(s))?;
         if arithmetic.operation
             != (Operation::CheckedArithmetic {
@@ -187,13 +204,13 @@ impl Emitted {
             || result == failed
             || !matches!(result, EntityId::Value(_))
             || !matches!(failed, EntityId::Value(_))
-            || arithmetic.block != self.block(join, s)?
+            || arithmetic.block != self.block(op_block, s)?
             || arithmetic.origin != Origin::Source(counter.spec.update_span)
         {
             return Err(invalid(s));
         }
         let term = f
-            .block(self.block(join, s)?)
+            .block(self.block(op_block, s)?)
             .and_then(|b| b.terminator.as_ref())
             .ok_or_else(|| invalid(s))?;
         if !matches!(term.kind,TerminatorKind::Conditional{condition,..} if EntityId::Value(condition)==failed)
@@ -245,7 +262,11 @@ impl Emitted {
         }
         // The old counter is transported only through the loop's header, choice and arms.
         // Checked-result/one slots are permitted on both checked siblings by emitter liveness.
-        let live_counter_blocks = [header, split, arm_a, arm_b, join];
+        let mut live_counter_blocks = vec![header, split, arm_a, arm_b, join];
+        if let Some(cb) = &p.counter_break {
+            live_counter_blocks.push(cb.split.ok_or_else(|| invalid(s))?[2]);
+            live_counter_blocks.push(op_block);
+        }
         let mut counter_entities = vec![initial, result, updated];
         for (b, slots) in &self.parameters {
             for slot in slots {
@@ -276,7 +297,11 @@ impl Emitted {
             }
         }
         // Counter values may leave a block only through already checked selected edges.
-        let transports = [entry, header, split, arm_a, arm_b, join, success];
+        let mut transports = vec![entry, header, split, arm_a, arm_b, join, success];
+        if let Some(cb) = &p.counter_break {
+            transports.push(cb.split.ok_or_else(|| invalid(s))?[2]);
+            transports.push(op_block);
+        }
         for block in &f.blocks {
             if block.terminator.as_ref().is_some_and(|t| {
                 t.kind
