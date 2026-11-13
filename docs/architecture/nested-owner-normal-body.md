@@ -185,3 +185,9 @@ Place/新建 loan/String 根 loan，只允许原槽既有 Shared Int 输入借�
 唯一定义/使用和结束链，复用 old 的既有 Drop 收据。abort 保持独立终止并核 metadata。
 此部分正确性仅适用于已选择的初始 own 参数/literal、直接父子 while、单次父写入与
 checked tail；不是一般父循环证明或终止证明，也不以有限 native 轮数作归纳依据。
+
+独立审计补强了 child generation 的最终证据：每步捕获 literal/preparation/borrow 的真实
+InstructionId 与 operation，终检锁同块 fresh literal 的唯一交付、输入身份及完整
+Exclusive 借用结束链；链检查与 parent 复用。组合选择另在 builder 封存 selected 与
+独立 required，layout 保存预期，选后证据丢失必须报错而不是跳过证明。此补强不改变
+原形状权限；CI-only 矩阵扩为 33 类，尚未本地执行或取得远端验证。

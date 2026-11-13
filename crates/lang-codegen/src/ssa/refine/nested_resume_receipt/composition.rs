@@ -12,37 +12,32 @@ impl Emitted {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(child) = &body.child_cycle_plans.0 else {
-            return Ok(());
-        };
-        let Some(initial) = child.initial_base else {
-            return Ok(());
-        };
-        let Some(p) = &body.nested_resume_plans.0 else {
-            return Ok(());
-        };
-        let Some(c) = &p.carry else {
-            return Ok(());
-        };
-        let Some(parent) = &body.nested_exit_plans.parent else {
-            return Ok(());
-        };
-        // Composition publication is narrower than existing lowering.
-        if c.checked.len() != 1 || c.edges.is_empty() {
-            return Ok(());
-        }
-        let Some(raw_resume) = body.blocks.get(p.resume.0) else {
-            return Err(invalid(span));
-        };
-        if !raw_resume
-            .statements
-            .iter()
-            .take(p.positions[0])
-            .any(|s| s.results == [p.replacement] && matches!(s.op, ROp::StringLiteral { .. }))
-        {
-            return Ok(());
-        }
         let fail = || invalid(span);
+        let required = self.composition_required.ok_or_else(fail)?;
+        if required
+            != body
+                .nested_body_plans
+                .0
+                .as_ref()
+                .is_some_and(|p| p.parent_composition_required)
+            || required
+                != body
+                    .nested_resume_plans
+                    .0
+                    .as_ref()
+                    .is_some_and(|p| p.composition_selected)
+            || required != selected(body)
+        {
+            return Err(fail());
+        }
+        if !required {
+            return Ok(());
+        }
+        let child = body.child_cycle_plans.0.as_ref().ok_or_else(fail)?;
+        let initial = child.initial_base.ok_or_else(fail)?;
+        let p = body.nested_resume_plans.0.as_ref().ok_or_else(fail)?;
+        let c = p.carry.as_ref().ok_or_else(fail)?;
+        let parent = body.nested_exit_plans.parent.as_ref().ok_or_else(fail)?;
         if !body.nested_exit_plans.parent_required
             || !body
                 .nested_body_plans
@@ -89,7 +84,7 @@ impl Emitted {
         {
             return Err(fail());
         }
-        self.composition_loan(function, replace, owner, span)?;
+        super::composition_loan::verify(function, replace, owner, span)?;
         let mut preparations = 0;
         for i in &function.instructions {
             let owner_uses = i
@@ -378,4 +373,29 @@ impl Emitted {
         }
         Ok(())
     }
+}
+
+// Called once before layout to seal eligibility, then rechecked rather than
+// used as a late escape hatch. Only never-selected shapes may skip publication.
+pub(super) fn selected(body: &RefinedBody) -> bool {
+    let Some(child) = &body.child_cycle_plans.0 else {
+        return false;
+    };
+    if child.initial_base.is_none() || body.nested_exit_plans.parent.is_none() {
+        return false;
+    }
+    let Some(p) = &body.nested_resume_plans.0 else {
+        return false;
+    };
+    let Some(c) = &p.carry else {
+        return false;
+    };
+    c.checked.len() == 1
+        && !c.edges.is_empty()
+        && body.blocks.get(p.resume.0).is_some_and(|b| {
+            b.statements
+                .iter()
+                .take(p.positions[0])
+                .any(|s| s.results == [p.replacement] && matches!(s.op, ROp::StringLiteral { .. }))
+        })
 }

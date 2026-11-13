@@ -7,6 +7,9 @@ use crate::ssa::{
 };
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::{BTreeMap, BTreeSet};
+mod generation;
+#[cfg(test)]
+mod generation_faults;
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
 }
@@ -23,6 +26,7 @@ pub(super) struct Step {
 pub(super) struct Plan {
     pub cycle_required: bool,
     pub initial_base_required: bool,
+    pub parent_composition_required: bool,
     pub control: UnitStatementId,
     pub body: BlockRef,
     pub steps: Vec<Step>,
@@ -97,6 +101,7 @@ fn recheck(body: &RefinedBody, p: &Plan, span: Span) -> Result<(), LoweringError
 struct Observed {
     replace: Option<(InstructionId, Operation, EntityId, EntityId)>,
     alias: bool,
+    generation: Option<generation::Snapshot>,
     drop: Option<InstructionId>,
 }
 #[derive(Default)]
@@ -201,6 +206,9 @@ impl Emitted {
                     || !matches!(actual.operation,Operation::RootReplace{owner,replacement,..} if Some(&EntityId::Value(owner))==self.inputs.get(index) && EntityId::Value(replacement)==rhs)
                 {
                     return Err(fail());
+                }
+                if p.cycle_required {
+                    o.generation = Some(generation::Snapshot::capture(function, id, span)?);
                 }
                 o.replace = Some((id, actual.operation.clone(), new, old));
             }
@@ -319,6 +327,12 @@ impl Emitted {
             {
                 return Err(fail());
             }
+            if p.cycle_required {
+                o.generation
+                    .as_ref()
+                    .ok_or_else(fail)?
+                    .finish(function, *id, span)?;
+            }
             // The eliminated Alias maps to this same SSA Value, not a fabricated second owner.
             for i in &function.instructions {
                 if i.results.contains(old) != (i.id == *id)
@@ -337,6 +351,13 @@ impl Emitted {
                     return Err(fail());
                 }
             }
+        }
+        #[cfg(test)]
+        if p.cycle_required {
+            super::build::owner_consumer_test_support::record_action(
+                "child-generation-source-ssa-complete",
+                p.steps.len(),
+            );
         }
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(

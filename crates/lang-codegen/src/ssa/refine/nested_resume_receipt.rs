@@ -11,7 +11,7 @@ mod carry;
 mod composition;
 #[cfg(test)]
 mod composition_faults;
-mod composition_loan;
+pub(super) mod composition_loan;
 mod header;
 pub(super) use carry::{Carry, CarryChecked};
 fn invalid(span: Span) -> LoweringError {
@@ -20,6 +20,7 @@ fn invalid(span: Span) -> LoweringError {
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
     pub carry: Option<Carry>,
+    pub composition_selected: bool,
     pub parent: UnitStatementId,
     pub child: UnitStatementId,
     pub header: BlockRef,
@@ -68,6 +69,7 @@ impl Plans {
 #[derive(Default)]
 pub(super) struct Emitted {
     header_receipt: Option<header::Header>,
+    composition_required: Option<bool>,
     current: BTreeMap<BlockRef, BTreeMap<Slot, EntityId>>,
     checked: BTreeMap<BlockRef, (InstructionId, Operation)>,
     function: Option<FunctionId>,
@@ -118,6 +120,27 @@ impl Emitted {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        let required = body
+            .nested_body_plans
+            .0
+            .as_ref()
+            .is_some_and(|p| p.parent_composition_required);
+        if required
+            != body
+                .nested_resume_plans
+                .0
+                .as_ref()
+                .is_some_and(|p| p.composition_selected)
+            || required != composition_selected(body)
+        {
+            #[cfg(test)]
+            super::build::owner_consumer_test_support::record_action(
+                "child-cycle-independent-rejection",
+                1,
+            );
+            return Err(invalid(span));
+        }
+        self.composition_required = Some(required);
         let Some(p) = &body.nested_resume_plans.0 else {
             return Ok(());
         };
@@ -490,4 +513,8 @@ pub(super) fn inject_final(plans: &Plans, function: &mut Function) {
             record_action("nested-resume-ssa-fault-hit", 1);
         }
     }
+}
+
+pub(super) fn composition_selected(body: &RefinedBody) -> bool {
+    composition::selected(body)
 }

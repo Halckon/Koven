@@ -528,6 +528,7 @@ impl Builder<'_, '_> {
         Ok(super::super::super::nested_body_receipt::Plan {
             cycle_required: false,
             initial_base_required: false,
+            parent_composition_required: false,
             control: rule.statement(),
             body,
             steps,

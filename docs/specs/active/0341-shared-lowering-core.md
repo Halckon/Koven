@@ -16712,3 +16712,26 @@ strict Clippy、两 CI-only 精确目标编译列举（none executed）、文档
 原参数槽、实际 checked 整数类型、raw 全体无重新定义且观察 current 等于同槽参数的
 外部只读输入，保留正常读取，不放行新借用。独立审查另外补齐新代全局消费、输入
 唯一身份与完整 exclusive loan 链，临时调试输出已移除。
+
+### D10 独立证据审计补强（2026-11-13）
+
+审计确认两处独立核验缺口，而不是已经证明非法源码能绕过最终 SSA verifier：旧 child
+retirement 只锁 Replace/new-old/Drop，没有重核真实 literal 来源及 Exclusive 借用全链；
+组合选择在终检重新计算后可 early-Ok，不能区别从未选中与选后证据丢失。
+
+选中 child cycle 时，每个 Replace 发射点现记录实际 StringLiteral、RootPlace、BorrowBegin
+的 InstructionId/operation 快照。最终按实际 Definition 复核同块 literal 唯一定义、在
+Replace 前激活、rhs 唯一交付且无逃逸；输入 owner 唯一参数来源/唯一准备与消费。
+child 与 parent 共用同一独立 exclusive loan 链检查，核 place/loan 的定义、使用、顺序、
+结束和不跨参数/边逃逸；old 的唯一 Drop 仍复用原收据，不复制实现。
+
+组合资格在 builder 完成局部计划之后封存，分别保存在 resume.selected 与独立 retirement
+required；layout 再保存 expected。layout/终检核资格一致性，已选后的 carry 丢失、checked
+清空、raw literal 资格漂移不再降级为 Ok；真正从未选中的形状继续保留旧 lowering。
+
+新增八项 CI-only 真实变异：child producer 种类、Shared 借用、额外 loan 使用，以及组合
+选后 carry/checked/producer 证据丢失、selected/required 各自单边清除，共 33 类。使用既有两个双宿主精确目标，本地
+禁止执行注入。本片普通模块 3/3 通过（两个 ignored 明确跳过），既有普通/native 基线
+1/1 通过；all-target strict Clippy、docs922、格式/diff 与尺寸门禁通过。两个 CI-only
+目标精确编译列举通过，none executed；新增八例的实际触发与拒绝仍待远端运行。
+独审复核确认来源/借用链及失效关闭结构补齐；未推送。

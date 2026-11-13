@@ -664,6 +664,7 @@ pub(super) fn inject_owner_final(
     function: &mut Function,
     receipts: &mut LoanReceipts,
 ) {
+    receipts.nested_body.inject_generation(body, function);
     receipts
         .child_cycle
         .inject(body, function, &receipts.nested_body);

@@ -334,6 +334,7 @@ impl Builder<'_, '_> {
         }
         Ok(super::super::super::nested_resume_receipt::Plan {
             carry: None,
+            composition_selected: false,
             parent: plan.evidence.parent(),
             child: plan.evidence.control(),
             header: blocks[0],

@@ -138,6 +138,15 @@ impl Builder<'_, '_> {
         self.finish_nested_owner_body()?;
         self.finish_nested_resume()?;
         self.finish_parent_owner_exit()?;
+        let selected = crate::ssa::refine::nested_resume_receipt::composition_selected(&self.body);
+        if let Some(p) = &mut self.body.nested_resume_plans.0 {
+            p.composition_selected = selected;
+        }
+        if let Some(p) = &mut self.body.nested_body_plans.0 {
+            p.parent_composition_required = selected;
+        }
+        #[cfg(test)]
+        self.corrupt_selected_composition();
         self.finish_control_chain_bodies()?;
         #[cfg(test)]
         if let Some(plan) = &mut self.control_bridge_plan {
@@ -454,4 +463,53 @@ fn alias_prefix(body: &RefinedBody, block: BlockRef, mut value: Slot, source: Sl
                     position.checked_sub(1).map(|i| path[i].1),
                 )
             })
+}
+
+#[cfg(test)]
+impl Builder<'_, '_> {
+    fn corrupt_selected_composition(&mut self) {
+        use owner_consumer_test_support::{OwnerFault, record_action, take_fault};
+        let faults = [
+            OwnerFault::ParentCompositionSelectedFlagLost,
+            OwnerFault::ParentCompositionRequiredFlagLost,
+            OwnerFault::ParentCompositionMissingCarry,
+            OwnerFault::ParentCompositionMissingChecked,
+            OwnerFault::ParentCompositionLostProducer,
+        ];
+        let Some(fault) = faults.into_iter().find(|f| take_fault(*f)) else {
+            return;
+        };
+        assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+        assert!(crate::ssa::refine::nested_resume_receipt::composition_selected(&self.body));
+        let p = self.body.nested_resume_plans.0.as_mut().unwrap();
+        assert!(p.composition_selected);
+        match fault {
+            OwnerFault::ParentCompositionSelectedFlagLost => p.composition_selected = false,
+            OwnerFault::ParentCompositionRequiredFlagLost => {
+                self.body
+                    .nested_body_plans
+                    .0
+                    .as_mut()
+                    .unwrap()
+                    .parent_composition_required = false
+            }
+            OwnerFault::ParentCompositionMissingCarry => p.carry = None,
+            OwnerFault::ParentCompositionMissingChecked => {
+                p.carry.as_mut().unwrap().checked.clear()
+            }
+            OwnerFault::ParentCompositionLostProducer => {
+                let statement = self.body.blocks[p.resume.0]
+                    .statements
+                    .iter_mut()
+                    .take(p.positions[0])
+                    .find(|s| {
+                        s.results == [p.replacement] && matches!(s.op, ROp::StringLiteral { .. })
+                    })
+                    .unwrap();
+                statement.op = ROp::Alias { source: p.root };
+            }
+            _ => unreachable!(),
+        }
+        record_action("child-cycle-fault-hit", 1);
+    }
 }
