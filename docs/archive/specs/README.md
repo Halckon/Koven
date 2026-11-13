@@ -589,3 +589,7 @@
 - [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)：同根堆对象可空 `if`、接口委托与混合兼容回退旧路径退役。
 - [SPEC-0383](0383-refine-final-legacy-retirement.md)：最终默认路由收敛与旧路径退休收尾。
 - [SPEC-0384](0384-refine-legacy-module-retirement.md)：枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐。
+- [SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)：`deinit` 字段借用、独立堆对象可空 `if` 与字符串字段接收者旧路径退役。
+- [SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md)：`Inout` 接收者、接口委托、无状态 `object` 与局部解构旧路径退役。
+- [SPEC-0387](0387-refine-string-clone-box-value-field-when-retirement.md)：`String.clone()`、装箱构造、`value class` 字段借用与通用 `when` 旧路径退役。
+- [SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)：数值区间 `for`、运行时长度容器构造、`Map.get`、非可空 `Map.consume` 与 `$map.result` 旧路径退役。

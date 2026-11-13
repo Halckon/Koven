@@ -4,20 +4,20 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0387` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认在 SPEC-0386 基线上继续推进 E3 下一个切片 |
 | 基线 | `4972ecd7`（SPEC-0386） |
 | 分支 | `feature/spec-0387-refine-field-borrow-string-clone-container-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0377](0377-refine-box-map.md)、[SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0377](../../specs/active/0377-refine-box-map.md)、[SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0377](0377-refine-box-map.md) 与 [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `String.clone()`、`Box<T>` 构造、`value class` 字段借用及 `when` 家族迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对 `value class` 字段/`Rc<String>` `.value`/顺序容器下标接收者上的 `String.clone()` 及非返回来源 `Borrow` `value class` 参数 MoveOnly 字段借用的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 903 行旧路径代码，使 `unit_lower/control.rs` 从 844 行降至 396 行）：
+在 [SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0377](../../specs/active/0377-refine-box-map.md) 与 [SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `String.clone()`、`Box<T>` 构造、`value class` 字段借用及 `when` 家族迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对 `value class` 字段/`Rc<String>` `.value`/顺序容器下标接收者上的 `String.clone()` 及非返回来源 `Borrow` `value class` 参数 MoveOnly 字段借用的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 903 行旧路径代码，使 `unit_lower/control.rs` 从 844 行降至 396 行）：
 
 1. **补齐 `ssa::refine` 对扩展 `String.clone()` 接收者与 `value class` 字段借用的准入与构建**：
    - 在 `refine/subset/scalar_text.rs` 与 `refine/build/scalar_text.rs` 的 `string_operation` 中新增对 `value class` 字段投影（经 `ROp::SharedFieldLoan`）、`Rc<String>` `.value` 载荷（`borrowed_rc_payload` / `borrowed_rc_payload_loan`）及顺序容器下标 `xs[i]`（`borrowed_container_element` / `borrowed_container_element_loan`）接收者上 `String.clone()` 的支持；
@@ -40,3 +40,20 @@
 - [x] 补齐 `crates/lang-codegen/src/ssa/refine/{subset,build}/{scalar_text.rs,callable.rs}` 与 `refine/subset/range_borrow.rs`，删除 `crates/lang-codegen/src/ssa/unit_lower/string_clone.rs`，并精简 `crates/lang-codegen/src/ssa/unit_lower/{aggregate.rs,field_borrow.rs,control.rs,borrow_result.rs}` 与 `unit_lower.rs`（净减约 903 行 legacy 代码，`unit_lower/control.rs` 从 844 行降至 396 行）。
 - [x] 新增 `ssa::refine_subset_tests::string_clone_value_field_borrow_box_and_when_route_to_refine` 与 `ssa::refine_tests::map_condition_tests::retired_string_clone_box_value_field_borrow_and_when_boundary_tests` 回归测试并全部通过。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 1 个退役项已从版本库移除 | 通过 | 逐个确认：1/1 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 1/1 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- route_to_refine retired_` = `19 passed / 0 failed`（含本批四份 Spec 的具名回归测试） |
+
+核对说明：
+
+- 确认删除：`unit_lower/string_clone.rs`
+- 具名测试通过：`string_clone_value_field_borrow_box_and_when_route_to_refine`、`retired_string_clone_box_value_field_borrow_and_when_boundary_tests`
+- 验收标准中的复选框已全部勾选，本账本复核其可验证部分；历史已 squash，无法把改动单独归因到本 Spec 的提交。

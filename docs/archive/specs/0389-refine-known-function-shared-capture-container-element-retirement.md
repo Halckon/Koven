@@ -11,13 +11,13 @@
 | 批准依据 | 用户确认在 SPEC-0388 基线上继续推进 E3 下一个切片 |
 | 基线 | `598b054a`（SPEC-0388） |
 | 分支 | `feature/spec-0389-refine-container-element-closure-range-retirement`；收尾修复 `fix/spec-0389-compound-assignment-snapshot-order` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0375](../../specs/active/0375-refine-sequential-containers.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md)、[SPEC-0388](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0375](../../specs/active/0375-refine-sequential-containers.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md)、[SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0375](../../specs/active/0375-refine-sequential-containers.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md) 与 [SPEC-0388](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) 已将闭包家族、运行时长度容器生成与顺序容器元素操作迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对具名函数引用（`UnitCallableOrigin::KnownFunction`）、`Array<Unit>` / `List<Unit>` 运行时生成、嵌套 Copyable `value class` 投影、局部整型复合赋值（`+=` 等）及 `Abort` 边退役借用槽位过滤的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 670 行旧路径代码）：
+在 [SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0375](../../specs/active/0375-refine-sequential-containers.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md) 与 [SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) 已将闭包家族、运行时长度容器生成与顺序容器元素操作迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对具名函数引用（`UnitCallableOrigin::KnownFunction`）、`Array<Unit>` / `List<Unit>` 运行时生成、嵌套 Copyable `value class` 投影、局部整型复合赋值（`+=` 等）及 `Abort` 边退役借用槽位过滤的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 670 行旧路径代码）：
 
 1. **补齐 `ssa::refine` 具名函数引用、`Unit` 元素容器、嵌套 `value class` 投影与 `Abort` 活跃性边界**：
    - 在 `refine.rs`、`unit_lower/callable_abi.rs`、`unit_lower/orchestrate.rs`、`refine/subset/callable.rs`、`refine/build/callable.rs`、`refine/subset/container.rs` 与 `refine/build/container.rs` 中接入 `UnitCallableOrigin::KnownFunction(target)`，支持具名顶层/局部函数作为局部函数值、借用实参或 `Array<T>(size, fn_name)` / `List<T>(size, fn_name)` 生成器实参（形成 `ROp::FunctionAddress` 并在调用返回时按临时借用槽位确定性释放）；

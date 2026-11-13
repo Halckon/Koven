@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 400 份"))
+ARCH(("已完成<br/>archive 404 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -29,10 +29,6 @@ subgraph Gactive["现行 active"]
   S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
   S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
-  S0385["S0385<br/>deinit 字段借用、独立堆对象可空 if 与字符串字段接收者旧路径退役"]
-  S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
-  S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
-  S0388["S0388<br/>数值区间 for、运行时长度容器构造、Map.get、非可空 Map.consume 与 $map.result 旧路径退役"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
@@ -86,10 +82,6 @@ ARCH --> S0341
 | SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](active/0379-refine-reassignment-and-move-enum-when.md) |
 | SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
 | SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](active/0381-refine-default-routing-and-legacy-retirement.md) |
-| SPEC-0385 | active | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
-| SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
-| SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](active/0387-refine-string-clone-box-value-field-when-retirement.md) |
-| SPEC-0388 | active | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
@@ -103,4 +95,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（400 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（404 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

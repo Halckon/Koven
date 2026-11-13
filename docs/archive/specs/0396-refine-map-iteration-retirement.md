@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进 E3；在完成可空 `while` 家族旧路径退役（[SPEC-0395](0395-refine-nullable-while-retirement.md)）后继续推进 `Map` 迭代旧路径退役 |
 | 基线 | [SPEC-0395](0395-refine-nullable-while-retirement.md)（`9f9608ab`，基于 `main` `4ae149a6` PR #354） |
 | 分支 | `feature/spec-0396-refine-map-iteration-retirement` |
-| 前置 | [SPEC-0377](../../specs/active/0377-refine-box-map.md)、[SPEC-0388](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md) |
+| 前置 | [SPEC-0377](../../specs/active/0377-refine-box-map.md)、[SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

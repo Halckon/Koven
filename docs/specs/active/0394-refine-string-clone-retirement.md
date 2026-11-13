@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进 E3；SPEC-0393 范围收缩时暂留的 `String.clone()` 旧路径由本片退役；用户选择把钉住旧 SSA 形状的测试“按细化层形状重写” |
 | 基线 | `feature/spec-0393-refine-range-borrow-result-rc-closure-retirement` `68930ddd` |
 | 分支 | `feature/spec-0394-refine-string-clone-retirement` |
-| 前置 | [SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0387](0387-refine-string-clone-box-value-field-when-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md) |
+| 前置 | [SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0387](../../archive/specs/0387-refine-string-clone-box-value-field-when-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

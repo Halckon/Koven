@@ -4,20 +4,20 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0386` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认在 SPEC-0385 基线上继续推进 E3 下一个切片 |
 | 基线 | `09edda45`（SPEC-0385） |
 | 分支 | `feature/spec-0386-refine-inout-delegation-object-destructuring-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](0373-refine-destructuring-range-for.md)、[SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](../../specs/active/0373-refine-destructuring-range-for.md)、[SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](0373-refine-destructuring-range-for.md) 与 [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `Inout` 接收者方法体（`inout fun`）、接口 `by` 委托链、无状态 `object` 单例及 `value class` 局部解构迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 括号接收者与具名委托/可变接收者调用准入，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现分支（合计再清理约 558 行旧路径代码，使 `unit_lower/receiver.rs` 从 992 行降至 693 行）：
+在 [SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](../../specs/active/0373-refine-destructuring-range-for.md) 与 [SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `Inout` 接收者方法体（`inout fun`）、接口 `by` 委托链、无状态 `object` 单例及 `value class` 局部解构迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 括号接收者与具名委托/可变接收者调用准入，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现分支（合计再清理约 558 行旧路径代码，使 `unit_lower/receiver.rs` 从 992 行降至 693 行）：
 
 1. **补齐 `ssa::refine` 接收者准入与括号解包**：
    - 在 `refine/subset/receiver.rs` 的 `owner_type` 与 `refine/build/place.rs` 的 `owner_loan` 中对 `Owner::Expression` / `OwnerRef::Expression` 执行括号解包（`ungrouped`），使 `(this).field = v` 等括号包裹的接收者字段赋值与访问完整纳入 `ssa::refine`；
@@ -40,3 +40,20 @@
 - [x] 补齐 `crates/lang-codegen/src/ssa/refine/subset/receiver.rs` 与 `crates/lang-codegen/src/ssa/refine/build/place.rs`，并精简 `crates/lang-codegen/src/ssa/unit_lower/{receiver.rs,call.rs,assignment.rs,aggregate.rs,orchestrate.rs}` 与 `unit_lower.rs`（净减约 558 行 legacy 代码，`unit_lower/receiver.rs` 从 992 行降至 693 行）。
 - [x] 新增 `ssa::refine_subset_tests::inout_receiver_delegation_object_and_destructuring_route_to_refine` 与 `ssa::refine_tests::map_condition_tests::retired_inout_receiver_delegation_object_and_destructuring_boundary_tests` 回归测试并全部通过。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 1 个退役项已从版本库移除 | 通过 | 逐个确认：1/1 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 1/1 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- route_to_refine retired_` = `19 passed / 0 failed`（含本批四份 Spec 的具名回归测试） |
+
+核对说明：
+
+- 本 Spec 为路径退役 + 补齐 refine 子集，无独立文件删除；`refine/subset/receiver.rs`、`refine/build/place.rs` 均存在
+- 具名测试通过：`ssa::refine_subset_tests::inout_receiver_delegation_object_and_destructuring_route_to_refine`、`retired_inout_receiver_delegation_object_and_destructuring_boundary_tests`
+- 验收标准中的复选框已全部勾选，本账本复核其可验证部分；历史已 squash，无法把改动单独归因到本 Spec 的提交。

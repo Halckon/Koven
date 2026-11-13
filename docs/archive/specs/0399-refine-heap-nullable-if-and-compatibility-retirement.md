@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认合入最新 `main` 后继续推进下一片 E3 旧路径退役 |
 | 基线 | [SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md)（`c96e63e2`） |
 | 分支 | `feature/spec-0399-refine-heap-nullable-if-and-compatibility-retirement` |
-| 前置 | [SPEC-0385](../../specs/active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0386](../../specs/active/0386-refine-inout-delegation-object-destructuring-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md) |
+| 前置 | [SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
