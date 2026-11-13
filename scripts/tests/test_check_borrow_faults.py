@@ -50,6 +50,14 @@ class BorrowFaultGateTests(unittest.TestCase):
                   "ci_only_bridge_scalar_entry_requires_actual_ordered_completion")
         self.assertIn(target, manifest["lang-frontend"])
 
+    def test_legacy_scalar_workflow_does_not_execute_twice(self):
+        workflow = (GATE.ROOT / ".github/workflows/ci.yml").read_text()
+        commands = [line.strip() for line in workflow.splitlines()
+                    if "run: bash scripts/check_bridge_scalar_entry_ci.sh" in line]
+        self.assertEqual(commands, [
+            "run: bash scripts/check_bridge_scalar_entry_ci.sh --list-only"])
+        self.assertIn("run: python3 scripts/check_borrow_faults.py", workflow)
+
     def test_local_execution_refused_before_any_subprocess(self):
         for env in ({}, {"CI": "true"}, {"GITHUB_ACTIONS": "true"},
                     {"CI": "True", "GITHUB_ACTIONS": "true"}):
