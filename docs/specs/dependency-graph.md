@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 379 份"))
+ARCH(("已完成<br/>archive 380 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -58,7 +58,6 @@ subgraph Gactive["现行 active"]
   S0410["S0410<br/>unit_lower 接口委托兼容死分支退役、refine 构建/准入/凭证壳模块收敛与 nullable_when 保留边界核定"]
   S0411["S0411<br/>ssa/integer_range、unit_lower 迭代清理与空值比较壳模块及 refine 有界路由壳模块退役"]
   S0412["S0412<br/>render、verify 及 lower_frontend Map 壳模块退役"]
-  S0413["S0413<br/>verify_operation、verify_ownership 及 verify/content_flow 壳模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -136,7 +135,6 @@ ARCH --> S0341
 | SPEC-0410 | active | [0410-refine-delegated-receiver-and-build-subset-shells-retirement.md](active/0410-refine-delegated-receiver-and-build-subset-shells-retirement.md) |
 | SPEC-0411 | active | [0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md](active/0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
 | SPEC-0412 | active | [0412-refine-render-verify-and-map-frontend-shells-retirement.md](active/0412-refine-render-verify-and-map-frontend-shells-retirement.md) |
-| SPEC-0413 | active | [0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md](active/0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -145,4 +143,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（379 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（380 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

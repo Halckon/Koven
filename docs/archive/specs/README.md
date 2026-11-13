@@ -568,3 +568,4 @@
 - [SPEC-0416](0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)：`lowering_support`、`map_source`、`borrow_result_support` 及 `lower_frontend` 控制/清理壳子模块退役。
 - [SPEC-0415](0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md)：`lower_frontend` 下 `map_iteration` 与 `borrow_argument` 壳子模块退役。
 - [SPEC-0414](0414-refine-model-constant-and-lower-frontend-shells-retirement.md)：`lower_frontend` 标量、枚举、闭包 ABI 与 Map 消费/守卫壳模块退役。
+- [SPEC-0413](0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md)：`verify_operation`、`verify_ownership` 及 `verify/content_flow` 壳模块退役。
