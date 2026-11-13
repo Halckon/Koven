@@ -102,3 +102,8 @@ fn scalar_signature_does_not_authorize_hidden_callee_effects() {
         check_callee("if(choose){tick(1)}else{tick(2)};", false, body);
     }
 }
+
+#[test]
+fn scalar_prefix_does_not_gain_initializer_in_old_tail_break_domain() {
+    check("if(choose){tick(1)}else{tick(2)};var unused=1;", false);
+}

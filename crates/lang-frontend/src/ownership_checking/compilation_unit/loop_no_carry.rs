@@ -1,16 +1,19 @@
 //! Sealed core-checker no-carry facts. Not a runtime iteration trace or an SSA receipt.
 mod counter_break;
+mod prefix_counter_break;
 use super::{CompilationUnitOwnership, UnitDropPoint};
 use crate::{
     name_resolution::{SourceUnitId, UnitSymbolId},
     type_checking::{UnitExpressionId, UnitItemId, UnitStatementId},
 };
 pub use counter_break::UnitLoopCounterBreakBranchNoCarryFact;
+pub use prefix_counter_break::UnitLoopPrefixCounterBreakFact;
 use std::rc::Rc;
 
 /// One publication gate for both independent no-carry proof domains.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct CompletedNoCarry {
+    pub(super) prefix_counter_breaks: Vec<UnitLoopPrefixCounterBreakFact>,
     pub(super) loops: Vec<UnitLoopNoCarryFact>,
     pub(super) branches: Vec<UnitLoopBranchNoCarryFact>,
     pub(super) counter_branches: Vec<UnitLoopCounterBranchNoCarryFact>,
@@ -20,6 +23,8 @@ pub(super) struct CompletedNoCarry {
 }
 impl CompletedNoCarry {
     pub(super) fn extend(&mut self, other: Self) {
+        self.prefix_counter_breaks
+            .extend(other.prefix_counter_breaks);
         self.loops.extend(other.loops);
         self.branches.extend(other.branches);
         self.counter_branches.extend(other.counter_branches);

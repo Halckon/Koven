@@ -35,6 +35,7 @@ pub(crate) struct BreakPlan {
 
 #[derive(Clone)]
 pub(crate) struct CounterBreakPlan<B> {
+    pub(crate) prefix: Option<ExpressionId>,
     pub(crate) control: ExpressionId,
     pub(crate) condition: ExpressionId,
     pub(crate) flag: B,

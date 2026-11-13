@@ -20,6 +20,7 @@ mod loan;
 mod map;
 mod map_iteration;
 mod no_carry;
+mod no_carry_prefix;
 mod nullable_when;
 mod ownership_primitive;
 mod range_construction;
@@ -150,6 +151,7 @@ struct Checker<'a> {
     checking_borrow_return: bool,
     allowed_borrow_call: Option<ExpressionId>,
     no_carry: Option<no_carry::Session>,
+    no_carry_prefix: no_carry_prefix::Evidence,
     borrow_results: super::borrow_result::FileBorrowResults,
     range_producers: Vec<Span>,
     current_borrow_return: Option<super::borrow_result::ReturnSource<SymbolId>>,
@@ -263,6 +265,7 @@ impl<'a> Checker<'a> {
             checking_borrow_return: false,
             allowed_borrow_call: None,
             no_carry: None,
+            no_carry_prefix: Default::default(),
             borrow_results: Default::default(),
             range_producers: super::range_producer::collect_single(sources, parsed, names, typed)?,
             current_borrow_return: None,
@@ -602,6 +605,16 @@ impl<'a> Checker<'a> {
     }
 
     fn check_statement(
+        &mut self,
+        id: StatementId,
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        self.prefix_init_before(id, &state);
+        let flows = self.check_statement_inner(id, state)?;
+        self.prefix_init_after(id, &flows);
+        Ok(flows)
+    }
+    fn check_statement_inner(
         &mut self,
         id: StatementId,
         state: State,

@@ -55,13 +55,44 @@ pub(super) fn select<B: Copy>(
     ) {
         return None;
     }
-    // Do not combine this domain with the independently admitted prefix domain.
-    let direct=parsed.ast().items().iter().any(|(_,node)| {
-        let Item::Function {form,..}=node.payload() else{return false};
-        let body=match form {FunctionForm::ImplicitUnitBlock(body)|FunctionForm::Explicit{body:FunctionBody::Block(body),..}=>*body,_=>return false};
-        parsed.ast().statements().get(body).is_ok_and(|node|matches!(node.payload(),Statement::Block{elements} if elements.get(1)==Some(&target)))
-    });
-    direct.then_some(CounterBreakPlan {
+    // Position two is only a candidate; adapters must supply real prefix/init
+    // completion authority before the loop can start.
+    let prefix = parsed.ast().items().iter().find_map(|(_, node)| {
+        let Item::Function { form, .. } = node.payload() else {
+            return None;
+        };
+        let body = match form {
+            FunctionForm::ImplicitUnitBlock(body)
+            | FunctionForm::Explicit {
+                body: FunctionBody::Block(body),
+                ..
+            } => *body,
+            _ => return None,
+        };
+        let Statement::Block { elements } = parsed.ast().statements().get(body).ok()?.payload()
+        else {
+            return None;
+        };
+        if elements.get(1) == Some(&target) {
+            return Some(None);
+        }
+        if elements.get(2) == Some(&target) {
+            let Statement::Expression { expression } =
+                parsed.ast().statements().get(elements[0]).ok()?.payload()
+            else {
+                return None;
+            };
+            if matches!(
+                parsed.ast().expressions().get(*expression).ok()?.payload(),
+                Expression::If { .. }
+            ) {
+                return Some(Some(*expression));
+            }
+        }
+        None
+    })?;
+    Some(CounterBreakPlan {
+        prefix,
         control: *control,
         condition: *condition,
         flag,

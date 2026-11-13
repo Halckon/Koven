@@ -150,6 +150,14 @@ impl Checker<'_> {
                 },
             ),
         )?;
+        if let Some(prefix) = selection.conditional.as_ref().and_then(|c| c.prefix)
+            && selection
+                .counter
+                .as_ref()
+                .is_none_or(|c| !self.prefix_ready(repeated, prefix, c.initial_statement, &entry))
+        {
+            return None;
+        }
         let plan = selection.first;
         if selection.second.as_ref().is_some_and(|p| {
             self.borrowed_call_source(p.source_call) != Some(p.source_argument)
@@ -167,7 +175,12 @@ impl Checker<'_> {
             return None;
         }
         if selection.exit.is_some() {
-            self.prefix_enter(repeated, &entry);
+            let initial = selection
+                .conditional
+                .as_ref()
+                .and_then(|p| p.prefix)
+                .and_then(|_| selection.counter.as_ref().map(|c| c.initial_statement));
+            self.prefix_enter(repeated, &entry, initial);
         }
         Some(Session {
             frame: core::Frame::new(plan, entry.clone()),
@@ -659,13 +672,33 @@ impl Checker<'_> {
                                 pair,
                                 counter,
                             );
-                            result.counter_break_branches.push(
-                                UnitLoopCounterBreakBranchNoCarryFact::new(
-                                    self.source_unit,
-                                    counter,
-                                    conditional,
-                                ),
+                            let prefix = conditional.prefix;
+                            let fact = UnitLoopCounterBreakBranchNoCarryFact::new(
+                                self.source_unit,
+                                counter,
+                                conditional,
                             );
+                            if let Some(prefix) = prefix {
+                                let mut plans = self.no_carry_prefix.entered.iter().filter(|p| {
+                                    p.prefix == prefix
+                                        && p.target == fact.target_loop().statement()
+                                        && p.initial
+                                            == Some(fact.counter().initial_statement().statement())
+                                });
+                                if let Some(plan) = plans.next()
+                                    && plans.next().is_none()
+                                {
+                                    result.prefix_counter_breaks.push(super::super::loop_no_carry::UnitLoopPrefixCounterBreakFact::new(fact,self.unit_expression(plan.prefix),self.unit_expression(plan.condition),plan.calls.map(|id|self.unit_expression(id))));
+                                } else {
+                                    self.emit_borrow_binding_diagnostic(
+                                        crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                                        "counter prefix completion is missing",
+                                        marker,
+                                    )?;
+                                }
+                            } else {
+                                result.counter_break_branches.push(fact);
+                            }
                         }
                     } else if let Some(exit) = exit {
                         if accepted {
@@ -704,7 +737,7 @@ impl Checker<'_> {
                 .no_carry_prefix
                 .entered
                 .iter()
-                .filter(|p| p.target == fact.target_loop().statement());
+                .filter(|p| p.target == fact.target_loop().statement() && p.initial.is_none());
             if let Some(plan) = selected.next()
                 && selected.next().is_none()
             {

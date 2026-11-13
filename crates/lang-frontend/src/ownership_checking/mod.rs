@@ -57,7 +57,7 @@ pub use cleanup_condition::{
 };
 pub use compilation_unit::loop_no_carry::{
     UnitLoopBreakBranchNoCarryFact, UnitLoopBreakPrefixFact, UnitLoopCounterBranchNoCarryFact,
-    UnitLoopCounterBreakBranchNoCarryFact, UnitLoopNoCarryExitKind,
+    UnitLoopCounterBreakBranchNoCarryFact, UnitLoopNoCarryExitKind, UnitLoopPrefixCounterBreakFact,
 };
 pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,

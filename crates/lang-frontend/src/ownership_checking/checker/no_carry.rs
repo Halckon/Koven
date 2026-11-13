@@ -158,6 +158,14 @@ impl Checker<'_> {
         {
             return;
         }
+        if let Some(prefix) = selection.conditional.as_ref().and_then(|c| c.prefix)
+            && selection
+                .counter
+                .as_ref()
+                .is_none_or(|c| !self.prefix_ready(statement, prefix, c.initial_statement, &entry))
+        {
+            return;
+        }
         let plan = selection.first;
         self.no_carry = Some(Session {
             frame: core::Frame::new(plan.clone(), entry.clone()),
