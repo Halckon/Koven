@@ -804,7 +804,7 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
 }
 
 /// ADR-0033 inline inners admitted so far (SPEC-0350): Boolean, integers, String, and value classes.
-fn is_inline_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+pub(super) fn is_inline_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
     match typed.types().get(ty) {
         Some(UnitTypeKind::Builtin(
             BuiltinType::Boolean
