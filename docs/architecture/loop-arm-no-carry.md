@@ -38,3 +38,15 @@ API。builder 在真实 arm lowering 与 drop 后比较入口资源快照；缺�
 最终 Function。测试发布观察接入 whole-unit guard：最终 verifier 前只 pending，
 成功才发布，失败清空本轮 pending。CI-only 五项精确入口复用 borrowing fault runner
 与 macOS/Linux 矩阵；默认 ignored、GITHUB_ACTIONS 门控，本地只编译列举。
+
+## 正轮 native 的当前限制
+
+现有 selector 要求 while 条件为稳定 Boolean 值参数的 Name；body 必须只有一个
+if/else，每臂仅借用声明和 String Borrow 同步 consumer。赋值、局部可变条件、
+计数器条件、break/return 均不属于此形状。`flag=false` 是零轮；`flag=true` 时，
+只要 consumer 正常返回，下一轮条件仍为 true，因此不存在正轮后正常有限返回路径。
+这不是链接器或 ABI 故障，也不能用进程超时、强制中止或手改 SSA 伪装正轮验收。
+
+普通边界回归 `ordinary_loop_arm_finite_exit_candidates_remain_outside_selected_shape`
+核可变局部 flag、递减计数器、合流后 break 均拒绝且不发布双臂事实；沿用 Single/Unit、
+rooted/memory、真实 observer on/off 对照。有限正轮需要另行批准更宽的退出形状。

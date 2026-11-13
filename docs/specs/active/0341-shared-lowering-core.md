@@ -16816,3 +16816,27 @@ RefinedBody 对最终 Function 重放；发布观察使用 whole-unit 原子 gua
 本地 exact `--list-only` 已编译并核对全部 41 项（新增 5 项），none executed；
 codegen all-target observer-support strict Clippy 通过。新增普通重放测试本轮同样
 只编译未运行。动态故障结果仍待双宿主 CI，不将列举成功计为故障验收通过。
+
+### 双臂有限正轮可执行性核对（2026-11-13）
+
+已核对 shared shape selector：while 条件必须是 Boolean 参数 Name、循环体恰含
+单个 if/else、每臂只有借用声明和同步 String consumer；禁止条件更新与退出跳转。
+因此现有已选形状不能同时满足“至少一轮”和“正常有限返回”。不启动 true 条件的
+无限 native，不以 timeout/abort 替代正轮证据，也不绕过 FE 事实手改 SSA。
+
+新增普通源码拒绝回归覆盖可变局部 Boolean、递减计数器及合流后 break；新项 1/1、
+该文件完整 ordinary 3/3、observer-support 精确 test target strict Clippy 通过。
+通过 helper 同时核 Single/Unit、rooted/memory、真实 observation on/off 与事实撤销。
+native 测试仅补限制注释，生产 selector/ABI/receipt 不扩展，仍未推送。
+
+后续候选（仅设计，未授权实施）：
+
+1. 最小“一轮退出”：在双臂完整闭合后允许一个无条件 tail break。需另标 exit kind，
+   记录实际 break 身份、合流到退出边和 cleanup，禁止将退出误当 normal backedge。
+   可运行 flag=true、choose=true/false 两例并在返回后消费 source；仅证明一次迭代，
+   不构成多轮回边验收。
+2. 若目标是至少两轮：单独批准有界 owned 整数计数器、精确比较与合流后递减。需证明
+   counter 参数运输/递减与条件、两臂每轮闭合、正常回边和最终退出，native 覆盖0/1/2轮
+   及两臂后源可用。比 tail break 范围更大，但才真正验证重复迭代。
+
+建议若只补一轮端到端证据，先选第一项；若验收目标明确包含跨轮，不能以第一项替代第二项。

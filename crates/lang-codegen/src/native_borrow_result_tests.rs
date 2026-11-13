@@ -369,6 +369,8 @@ fun entry() {
 
 #[test]
 fn native_loop_arm_no_carry_zero_iteration_preserves_source() {
+    // Selected while condition is a stable Boolean parameter. Passing true would
+    // not return normally; do not disguise timeout/abort as finite positive coverage.
     let text = r#"fun view(source:String):borrow String from source=source
 fun consume(item:String):Unit { println("unexpected") }
 fun run(source:String,flag:Boolean,choose:Boolean):Unit {
