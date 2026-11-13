@@ -17309,3 +17309,14 @@ D10 后续普通组合验证（基线 `451cea25`）：scalar prefix × own/liter
 单根保留/全根 false 清理四组合，通过完整 FQN `--exact` 测试 1/1；同轮核验
 入口、初始基例、父组合及对应 false 清理数量收据。仅增加普通回归，无生产选择
 扩展，无本地故障注入；docs 925 文件通过，改动测试文件 154 行，未推送。
+### 条件 break 与双臂共用稳定 Boolean 的普通交互（2026-11-13）
+
+在本地整合 `451cea25` 上补 `082ab500`：已批准 counter+条件break 形状的
+双臂条件与stop条件可引用同一稳定Boolean参数，而不是两个独立参数。未改变
+生产实现、授权或语法，不引入prefix/嵌套/额外跳转。原独立参数8模式普通矩阵
+保留并复用测试helper；新增共享参数4种Borrow/Own模式，真实SSA覆盖rooted/
+memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用，核验break
+与继续路径、循环后读取及最终消费。两新普通完整FQN与两旧普通完整FQN精确执行
+各1/1通过，原native96次也保持通过；不是新的跨轮借用或一般别名推导能力。
+后端observer-support all-target严格Clippy、格式、docs925、相对451cea25尺寸门禁
+与diff检查通过。仅本地提交，无推送，无CI环境启用或本地故障执行。
