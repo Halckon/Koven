@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 366 份"))
+ARCH(("已完成<br/>archive 367 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -71,7 +71,6 @@ subgraph Gactive["现行 active"]
   S0423["S0423<br/>map_iteration、refine/build、unit_plan、unit_lower 及可空清理壳子模块退役"]
   S0424["S0424<br/>borrow_result_support、orchestrate、可空清理及 lower_frontend 壳子模块退役"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
-  S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -162,7 +161,6 @@ ARCH --> S0341
 | SPEC-0423 | active | [0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md](active/0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md) |
 | SPEC-0424 | active | [0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md](active/0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md) |
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
-| SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -171,4 +169,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（366 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（367 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -12,7 +12,7 @@
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0426](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、细化层子集准入/构建以及可空与迭代清理证明行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
+紧接 [SPEC-0426](0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、细化层子集准入/构建以及可空与迭代清理证明行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
 
 1. `lower_frontend/map_iteration/conditional/actions.rs`（411 行）-> 并入 `lower_frontend/map_iteration/conditional/verify.rs`（844 行）；
 2. `lower_frontend/map_iteration/local_runtime/evidence.rs`（402 行）-> 并入 `lower_frontend/map_iteration/resource.rs`（828 行）；
