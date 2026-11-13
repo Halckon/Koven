@@ -17248,3 +17248,16 @@ exact 实跑；有限执行不替代逐边身份与无重入证明。未扩 conc
 GitHub Actions 环境门控，并由双宿主 exact runner 保留实际覆盖；本地修复验证仅
 编译列举（none executed）。此前宽过滤误执行已记录并报告，后续普通验证只用完整
 FQN `--exact`，不能用“CI-only”名称替代执行隔离。
+### 已批准的 counter 双臂闭合后条件 break（2026-11-13）
+
+本次仅在既有同源 bounded counter 两臂借用各自关闭之后加入一个稳定 Boolean
+参数控制的 `if(stop){break}`，随后非 break 路径执行原 `remaining=remaining-1`
+与回边。循环前仍是 `var remaining=rounds`，条件仍是 `remaining>0`；原单次
+取得/关闭、计数下降及 checked arithmetic 合同不变。该 if 无 else、标签、return、
+continue、额外借用或嵌套，不与 prefix、任意跳转或多根循环组合授权混同。
+
+前端须独立封存条件 break 的真实控制、清理与目标及两臂闭合事实；后端须记录
+真实 stop 分支/退出、非 break 递减/回边以及完整前驱与根身份，独立 receipt
+证明两条路径，缺失证据失败封闭。普通真实 SSA/native 覆盖0/1/2轮×双臂×stop
+真假，确认结束后源仍可读并最终消费；反例故障只编译列举，禁止本地执行。
+先核对并复用 main 与 `afabb0b1`/各现有分支，分步本地提交，不推送、不外发。
