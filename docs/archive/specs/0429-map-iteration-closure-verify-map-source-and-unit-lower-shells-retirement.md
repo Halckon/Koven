@@ -1,15 +1,15 @@
 # SPEC-0429: `map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块退役
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0429 |
 | 标题 | `map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块退役 |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-04-17 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-13 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -75,3 +75,16 @@
 2. `python3 scripts/check_rust_sizes.py --base main` 通过，修改文件均小于 1000 行，手写 Rust 文件数净减 8。
 3. `python3 scripts/gen_spec_dag.py` 与 `python3 scripts/check_docs.py` 通过。
 4. `cargo test -p lang-codegen --lib` 编译与单测通过。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认不存在：`lower_frontend/map_iteration/carrier.rs`、`lower_frontend/map_iteration/checked.rs`、`verify/closure_content.rs`、`verify_ownership/borrow_result.rs`、`map_source/formation.rs`、`lower_frontend/map_iteration/source_owner/provenance.rs`、`lower_frontend/map_iteration/temporary/cleanup.rs`、`unit_lower/control/conditional/nullable_if/heap.rs` |
+| 内容并入当时声明的合并目标 | 部分目标已被后续 Spec 再次合并 | `control/map_frames.rs`、`closure.rs`、`refine/build/rc.rs`、`unit_lower/loop_control.rs` 仍存在且承接内容；`map_iteration/conditional.rs` 与 `nullable_numeric_cleanup.rs` 两个目标在后续批量收敛中又迁走，按符号逐个核实：`crosses_callable`/`validate_map_parent`/`active_map_temporary` 现位于 `ssa/map_provider_exits_pipeline_tests/nested_exits/query_cleanup.rs:580/598/624`，`same_epoch`/`named_formation`/`collect_updates` 现位于 `ssa/map_provider_exits_pipeline_tests/temporary_exits/query_cleanup.rs:577/602/890`；`map_source.rs:2` 与 `map_loop_owner.rs:144` 仍以 `nullable_numeric_cleanup` 名义消费该实现 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 8 | 受限通过 | 8 个文件删除已逐项核实；23 个 Spec 已 squash 为 `430a0de2`，无法从历史中分离本 Spec 的计数，账本不虚报该数字 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed (941 Markdown files)` |
+| `cargo test -p lang-codegen --lib` | 通过 | 引用既有全量结果（默认 3055 / feature 3117），本 Spec 直接相关域定向 `cargo test -p lang-codegen --lib -- verify_ownership numeric_cleanup nullable_numeric temporary_exits nested_exits map_source` = `63 passed / 0 failed` |
+
+未覆盖项：定向为默认配置；`lower_frontend` 整体是 `#[cfg(test)]` 树（见 `ssa/mod.rs`），本 Spec 不改变生产 lowering 语义，未追加 native/CLI/LSP 门禁。

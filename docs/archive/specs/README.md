@@ -532,3 +532,4 @@
 - [SPEC-0382](0382-refine-map-ops-and-primitive-retirement.md)：Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休；完成 E3 收尾与 unit_lower/ownership_primitive.rs 删除。
 - [SPEC-0389](0389-refine-known-function-shared-capture-container-element-retirement.md)：具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役；收尾修复元素目标复合赋值的槽位定位与边界检查顺序。
 - [SPEC-0428](0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md)：`model/constant`、`render/types`、`verify_ownership/map`、`provider`、`refine` 及 `lower_frontend` 壳子模块退役。
+- [SPEC-0429](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md)：`map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块退役。

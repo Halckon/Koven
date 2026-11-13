@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0429](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) 完成 `map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块或同层模块暴露私有实现的薄壳文件：
+在 [SPEC-0429](../../archive/specs/0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) 完成 `map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块或同层模块暴露私有实现的薄壳文件：
 
 1. `ssa/lower_frontend/enum_type_test.rs`（305 行）：仅向 `lower_frontend` 暴露枚举类型测试与无载荷 Copyable 枚举条件降低，可收敛入 `ssa/lower_frontend/control/carried.rs`。
 2. `ssa/lower_frontend/outer_borrowed_while/source.rs`（515 行）：仅向 `outer_borrowed_while` 暴露外层借用 `for` 与内层可空 `while` 的源筛选与载体证明，可收敛入 `ssa/lower_frontend/container/access.rs`。
