@@ -17345,3 +17345,9 @@ memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用�
 无重入、child 归纳及 parent 组合收据，不能仅删除旧 selector 或复用有限运行结果。
 不允许第二个或嵌套 concat、一般调用 producer、借用输入、额外控制流或复杂退出。
 本批基于 `a95d095c` 独立开发，仅本地提交，故障反例只允许远端 CI 执行。
+
+组合实现本地证据：FE 两项新普通正负例及两项旧入口回归完整 FQN exact 4/4 通过；
+后端新增普通SSA覆盖concat位于任一根×两根保留/部分清理/全部清理六组合，四类
+来源及组合收据全部命中；18次双臂×outer/inner 0/1/2 native执行通过，两项旧scalar
+exact回归通过。此前普通红例显示旧路径不发布组合收据。新增九类CI-only反例
+仅准备远端验收，不以本地有限执行代替静态归纳。frontend/codegen all-target 严格Clippy通过；两个CI-only exact目标仅编译列举、none executed，旧direct concat native回归也通过。尺寸门禁2690个Rust文件、36处旧欠账通过，docs925文件通过。远端九类组合故障仍待实跑，本批未推送。

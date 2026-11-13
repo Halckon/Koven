@@ -125,7 +125,10 @@ impl Emitted {
                     let source = function.instruction(instruction).ok_or_else(fail)?;
                     if source.block != block(head)?.id
                         || source.results != [owner]
-                        || !matches!(source.operation, Operation::StringLiteral { .. })
+                        || !matches!(
+                            source.operation,
+                            Operation::StringLiteral { .. } | Operation::StringConcat { .. }
+                        )
                         || self.initial_sources.get(&owner)
                             != Some(&(instruction, source.operation.clone()))
                         || block(head)?
@@ -136,6 +139,17 @@ impl Emitted {
                             != 1
                     {
                         return Err(fail());
+                    }
+                    if matches!(source.operation, Operation::StringConcat { .. }) {
+                        // The same actual function-entry block ends in the split:
+                        // both literal inputs must be cleaned before either arm.
+                        super::initial_concat::verify(
+                            function,
+                            block(head)?.id,
+                            instruction,
+                            owner,
+                            span,
+                        )?;
                     }
                     Some(instruction)
                 }

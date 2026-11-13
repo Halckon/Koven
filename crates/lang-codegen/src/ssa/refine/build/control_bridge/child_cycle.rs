@@ -116,7 +116,7 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        (concat_count <= usize::from(nested.scalar_entry.is_none())
+        (concat_count <= 1
             && roots
                 .iter()
                 .all(|r| known.get(r).is_some_and(|s| !used.contains(s))))

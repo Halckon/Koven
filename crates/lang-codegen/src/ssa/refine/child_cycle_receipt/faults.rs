@@ -63,7 +63,13 @@ impl Emitted {
             OwnerFault::InitialConcatDuplicateInput
             | OwnerFault::InitialConcatMissingDrop
             | OwnerFault::InitialConcatEarlyDrop => {
-                let block_id = self.blocks[&p.initial_base.unwrap()];
+                let source_role = p
+                    .scalar_entry
+                    .as_ref()
+                    .and_then(|s| s.split.map(|roles| roles[0]))
+                    .or(p.initial_base)
+                    .expect("actual source entry");
+                let block_id = self.blocks[&source_role];
                 let (producer, left) = function
                     .instructions
                     .iter()

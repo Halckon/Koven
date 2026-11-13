@@ -152,3 +152,118 @@ fn scalar_prefix_composes_with_partial_and_full_false_cleanup() {
         }
     }
 }
+
+#[test]
+fn concat_scalar_prefix_preserves_source_cleanup_and_false_partitions() {
+    for concat_first in [false, true] {
+        for suffix in ["println(a); println(b)", "println(a)", ""] {
+            let text = if concat_first {
+                source("var a=\"left\"+\"right\";", "run(true,1,2,\"seed\");")
+            } else {
+                source("var a=seed;", "run(false,0,0,\"seed\");")
+                    .replace("var b=\"b\"", "var b=\"left\"+\"right\"")
+            }
+            .replace("println(a); println(b)", suffix);
+            let source = UnitSource::analyze("concat-scalar-owner-entry.ko", &text).unwrap();
+            source.assert_frontend_clean();
+            let (result, actions) =
+                crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+            let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+            crate::ssa::verify::verify_program(&program).unwrap();
+            for (marker, count) in [
+                ("parent-initial-concat-source-ssa-complete", 1),
+                ("parent-scalar-entry-ssa-complete", 2),
+                ("parent-initial-owner-base-ssa-complete", 2),
+                ("parent-generation-composition-ssa-complete", 2),
+            ] {
+                assert_eq!(
+                    actions
+                        .iter()
+                        .filter(|(name, _)| *name == marker)
+                        .map(|(_, n)| *n)
+                        .collect::<Vec<_>>(),
+                    [count],
+                    "{marker}: {actions:?}"
+                );
+            }
+            let drops = if suffix.is_empty() {
+                2
+            } else if suffix.contains("println(b)") {
+                0
+            } else {
+                1
+            };
+            if drops > 0 {
+                assert_eq!(
+                    actions
+                        .iter()
+                        .filter(|(name, _)| *name == "nested-parent-false-ssa-complete")
+                        .map(|(_, n)| *n)
+                        .collect::<Vec<_>>(),
+                    [drops],
+                    "{actions:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn concat_scalar_prefix_native_preserves_zero_and_repeated_generations() {
+    let mut calls = String::new();
+    let mut expected = String::new();
+    for flag in [false, true] {
+        for outer in [0, 1, 2] {
+            for inner in [0, 1, 2] {
+                calls.push_str(&format!("run({flag},{outer},{inner},\"seed\");"));
+                let a = if outer > 0 && inner > 0 {
+                    "inner-a"
+                } else {
+                    "leftright"
+                };
+                let b = if outer > 0 { "outer-b" } else { "b" };
+                expected.push_str(&format!("{a}\n{b}\n"));
+            }
+        }
+    }
+    super::assert_general_counter_baseline(
+        &source("var a=\"left\"+\"right\";", &calls),
+        expected.as_bytes(),
+        false,
+    );
+}
+
+#[test]
+#[ignore = "CI-only concat scalar composition corruption; exact dual-host runner"]
+fn ci_only_concat_scalar_entry_rejects_cleanup_and_diamond_corruption() {
+    use crate::ssa::OwnerFault::*;
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    let text = source("var a=\"left\"+\"right\";", "run(true,1,2,\"seed\");");
+    let source = UnitSource::analyze("concat-scalar-fault.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    source.lower_entry(source.entry()).expect("baseline");
+    for (fault, marker) in [
+        (InitialConcatDuplicateInput, "child-cycle"),
+        (InitialConcatMissingDrop, "child-cycle"),
+        (InitialConcatEarlyDrop, "child-cycle"),
+        (ScalarEntryArmConsume, "scalar-entry"),
+        (ScalarEntryJoinEscape, "scalar-entry"),
+        (ScalarEntryArmDefinition, "scalar-entry"),
+        (ScalarEntryArmSwap, "scalar-entry"),
+        (ScalarEntryJoinReentry, "scalar-entry"),
+        (ScalarEntryWrongCall, "scalar-entry"),
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        for suffix in ["fault-hit", "independent-rejection"] {
+            let expected = format!("{marker}-{suffix}");
+            assert_eq!(
+                actions.iter().filter(|(name, _)| *name == expected).count(),
+                1,
+                "{actions:?}"
+            );
+        }
+    }
+}
