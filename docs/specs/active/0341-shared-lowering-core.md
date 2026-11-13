@@ -16840,3 +16840,37 @@ native 测试仅补限制注释，生产 selector/ABI/receipt 不扩展，仍未
    及两臂后源可用。比 tail break 范围更大，但才真正验证重复迭代。
 
 建议若只补一轮端到端证据，先选第一项；若验收目标明确包含跨轮，不能以第一项替代第二项。
+
+### E2 有界 counter 双臂实施合同（2026-11-13，用户批准）
+
+用户批准限定有界 counter，并要求真实 0/1/2 轮、条件/递减/回边运输及两臂返回后
+源可用的端到端验证。本轮只新增以下函数直接序列：
+
+```koven
+var remaining = rounds
+while (remaining > 0) {
+    if (choose) { borrow val a = view(source); consume(a) }
+    else { borrow val b = view(source); consume(b) }
+    remaining = remaining - 1
+}
+```
+
+`rounds` 为稳定 Int 值参数（Borrow 或 Own），`remaining` 为紧邻 while 前唯一初始化
+的局部 Int var；`choose` 为稳定 Boolean 参数，`source` 为同一稳定 String Borrow
+参数。两臂可有非空且不同长度的既有同步 consumer 序列。仅 builtin `> 0` 与 `- 1`；
+counter 名称只允许初始化声明、条件读取、该唯一递减的写/读，不得 alias、另写或后用。
+不接受其它条件副作用、额外 body statement、跳转、嵌套、多根或跨轮 loan 携带。
+
+每臂沿既有真实 acquire/consumer-return/End/scope-close 关闭；实际递减前须已完成
+两臂合流并恢复外部借用资源，回边与条件 false 出口不得携带本轮 fresh loan。正值
+counter 才进入 body，因此每次减一无下溢，至多 max(rounds,0) 次迭代；此标量界
+不替代资源闭合证明。旧稳定 Boolean 双臂与直线事实 API 不扩张，新 counter pair
+须有独立身份、来源/条件/update 事实和全局失败撤销门禁。
+
+后端只消费已验证新事实，独立核实际 init、比较、递减、SSA counter 运输、正常回边
+与退出，继续逐臂验证完整借用链和不逃逸，不以测试轮数代替结构证明。ordinary
+Single/Unit、rooted/memory、observer on/off 保持一致。native 分别执行 rounds=0/1/2
+和 choose=true/false，核实际消费者输出及调用返回后 source 可用。
+
+先合同后代码，独立工作树分步本地提交；不推送，不本地执行故障注入。CI-only
+扩展若需要则只定义/编译/列举，动态结果留远端，未验证不标完成。
