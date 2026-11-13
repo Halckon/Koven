@@ -6,6 +6,8 @@ use lang_frontend::ownership_checking::{
 
 pub(in super::super) struct NestedBody<'a> {
     pub(super) evidence: &'a UnitOwnerNestedNormalBodyV1,
+    pub(in crate::ssa::refine::build) scalar_entry:
+        Option<crate::ssa::refine::child_cycle_receipt::scalar_entry::ScalarEntry>,
     stages: Vec<consumption::Stage>,
     pub(super) lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     pub(super) entry: Option<BlockRef>,
@@ -43,6 +45,9 @@ impl<'a> NestedBody<'a> {
             return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
         }
         Ok(Some(Self {
+            scalar_entry: crate::ssa::refine::child_cycle_receipt::scalar_entry::ScalarEntry::new(
+                inputs, evidence,
+            )?,
             evidence,
             stages: vec![consumption::Stage::Ready; evidence.normal().steps().len()],
             lowered: None,

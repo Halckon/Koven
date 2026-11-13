@@ -8,6 +8,9 @@ impl Emitted {
         function: &mut Function,
         retirement: &super::super::nested_body_receipt::Emitted,
     ) {
+        if self.inject_scalar_entry(function) {
+            return;
+        }
         let faults = [
             OwnerFault::InitialConcatDuplicateInput,
             OwnerFault::InitialConcatMissingDrop,

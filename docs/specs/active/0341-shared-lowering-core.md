@@ -17237,3 +17237,9 @@ none executed。未启用本地CI环境或执行故障注入，本批仅本地�
 该入口证明接续原 child/parent recurrence，不更改其正常回边、false 或 abort 合同。
 不得以 raw 块形状猜测、有限轮执行或 E2 的其他合同代替 D10 所需独立证据。
 不涵盖一般 producer、更深嵌套、额外前缀控制流及复杂退出；CI 故障仅远端执行。
+
+D10 标量入口实现已完成：FE 两个完整 FQN 普通正/负例通过；后端普通 SSA 覆盖
+own/literal 根 × Boolean 默认/own 模式，native 覆盖两种根来源 × 两臂 × outer/inner
+0/1/2，共 36 组。原 child recurrence、concat native、父 false 清理三个普通 exact
+回归通过，frontend/codegen all-target 严格 Clippy 通过。新六类故障仅编译列举，待远端双宿主
+exact 实跑；有限执行不替代逐边身份与无重入证明。未扩 concat/一般producer/复杂退出。

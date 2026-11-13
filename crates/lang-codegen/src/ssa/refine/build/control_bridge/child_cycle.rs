@@ -39,6 +39,7 @@ impl Builder<'_, '_> {
             control: rule.control(),
             parent_header: nested.parent_header.ok_or_else(fail)?,
             initial_base: self.initial_base(nested, roots),
+            scalar_entry: nested.scalar_entry.clone(),
             entry,
             header: blocks[0],
             body,
@@ -57,7 +58,19 @@ impl Builder<'_, '_> {
     // Select direct entry own/literal roots or one concat of two literal temporaries.
     // Other initial producers retain existing lowering, without a base claim.
     fn initial_base(&self, nested: &NestedBody<'_>, roots: &[Slot]) -> Option<BlockRef> {
-        let entry = nested.parent_initial.filter(|b| *b == BlockRef(0))?;
+        let initial = nested.parent_initial?;
+        let entry = if let Some(prefix) = &nested.scalar_entry {
+            let [entry, _, _] = prefix.split?;
+            if prefix.join != Some(initial) || entry != BlockRef(0) {
+                return None;
+            }
+            entry
+        } else {
+            if initial != BlockRef(0) {
+                return None;
+            }
+            initial
+        };
         let block = self.body.blocks.get(entry.0)?;
         let mut known = self
             .body
@@ -103,10 +116,10 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        (concat_count <= 1
+        (concat_count <= usize::from(nested.scalar_entry.is_none())
             && roots
                 .iter()
                 .all(|r| known.get(r).is_some_and(|s| !used.contains(s))))
-        .then_some(entry)
+        .then_some(initial)
     }
 }
