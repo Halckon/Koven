@@ -125,3 +125,26 @@
 
 1. 上述 37 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `1682` 降至 `1645`。
+
+## 4. main 集成修复检查点（未完成验收）
+
+本节仅记录冲突修复，不改变原验收标准，不宣称 SPEC-0451–0453 或 E3 完成。
+输入为 main `fbfb5a3a`、原始批次 tip `7451e9a3`、修复版前序批次 `1a30b51d`；
+集成后的代码检查点为 `5f0e88d2`。旧的全选一侧冲突解决混合了不同模块布局；
+本轮恢复有语义归属的 helper/test 子模块、移除跨域 packed 副本，保留原断言与 fixture。
+其中 §2.2 的若干文件已恢复，原删除数量和 §2.1 行高不是当前验收结果，仍须重新对账。
+
+| 检查 | 实际结果与边界 |
+|---|---|
+| 默认及 `loan-observation-test-support` 的 `cargo check -p lang-codegen --all-targets` | 均通过；后续两配置 Clippy 亦通过 |
+| `cargo clippy -p lang-codegen --all-targets [--features loan-observation-test-support] -- -D warnings` | 两配置均退出码 0 |
+| `cargo fmt --all -- --check`、`git diff --check` | 均退出码 0；格式化仅覆盖本批次已有失败的 codegen 文件 |
+| `cargo test -p lang-codegen --lib --features loan-observation-test-support -- --list` | 3119 项；相对前序 3118 项，末尾名称多重集无缺项，仅新增 #407 nullable 分类用例；名称核对不能代替行为证明 |
+| 全 feature lib 回归 | 1800 秒超时，部分 438 项通过、1 项失败，无最终退出码，不计通过 |
+| feature SSA/LLVM 较广回归（`-- ssa:: llvm::`） | 1200 秒超时，部分 2016 项通过、46 项失败，无最终退出码，不计通过 |
+| 上述 46 项失败集合原名重跑 | 修复 BorrowReturn 唯一来源 verifier 与 #407 分类 guard 后，46 passed / 0 failed，退出码 0 |
+| 原子性子进程精确回归 | `native::unit_tests::boxed_enum_tests::for_atomic::actual_for_rejections_are_atomic_before_reservation_and_llvm`：1 passed；修正迁移后的 `--exact` 路径，保留确实运行 1 项的断言 |
+| 受影响测试域定向回归 | nullable operation、closure operation、lowering entry、multi-borrow range、map stage gate、scalar ABI、BorrowReturn verifier、LLVM narrow/provider CFG、grouped/negated/leaf-not owner：feature 配置 120 passed / 0 failed；默认配置追加 #407 与原子性子进程测试，122 passed / 0 failed；均退出码 0 |
+| 独立只读审查 | 核对 17 组 packed 正文恢复、挂载、fixture 与 #407 保留；未发现本轮尚未解决的具体问题，不替代全量与 CI 验收 |
+
+剩余：完整回归及双宿主 CI、原退役数量与宿主职责重新对账。不得仅凭编译通过归档。

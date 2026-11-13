@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0450](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) 完成同级兄弟测试薄壳批量收敛后，直属父模块与同级宿主行高已接近 985 行阈值，但全 `ssa` 测试域仍分布有 22 个体积较小（169–486 行）的 `#[cfg(test)]` 门控纯叶子测试模块，同时多处跨子树测试宿主仍存在充足的行宽余量。本 Spec 通过跨父模块安全打包内联（`pub(in crate::ssa) mod <name> { ... }`）并将原父模块声明替换为 `#[allow(unused_imports)] pub(in crate::ssa) use <host>::<name> as <orig>;`，一次性收敛这 22 个独立文件。
+在 [SPEC-0450](../../archive/specs/0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) 完成同级兄弟测试薄壳批量收敛后，直属父模块与同级宿主行高已接近 985 行阈值，但全 `ssa` 测试域仍分布有 22 个体积较小（169–486 行）的 `#[cfg(test)]` 门控纯叶子测试模块，同时多处跨子树测试宿主仍存在充足的行宽余量。本 Spec 通过跨父模块安全打包内联（`pub(in crate::ssa) mod <name> { ... }`）并将原父模块声明替换为 `#[allow(unused_imports)] pub(in crate::ssa) use <host>::<name> as <orig>;`，一次性收敛这 22 个独立文件。
 
 ---
 
