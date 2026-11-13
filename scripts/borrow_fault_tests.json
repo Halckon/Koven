@@ -72,6 +72,14 @@
     "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_source_identity_rejects",
     "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_capture_loss_revokes_and_recovers",
     "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_receipt_loss_revokes_and_recovers",
-    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_final_verifier_revokes_and_recovers"
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_final_verifier_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_capture_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_selection_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_join_bypass_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_initializer_missing_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_stop_identity_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_resource_transport_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_dual_exit_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_final_verifier_revokes_and_recovers"
   ]
 }
