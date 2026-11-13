@@ -17790,3 +17790,18 @@ MismatchedSource → MismatchedAnalysis → FrontendDiagnostics 优先级见证�
 严格 observer-support all-target Clippy、测试编译、fmt/docs/diff 与独立审查通过。
 这是见证分层迁移，不是旧 checker/lowering 退休，不新增语言能力或改变 Origin；
 精确交付头双宿主及动态故障验收仍待 CI。
+
+### Map require wrapper 的根选择差异见证（2026-11-14）
+
+基于 `e37124e4` 保留 `verify_ownership::closure::map_require_tests` 的两个原有
+测试身份。普通同源 `READONLY_WRAPPER` 经 Unit selected entry 仅发射 entry，
+核唯一函数及其原始 declaration Span；旧 whole-file 则保留恰好 view、entry 两根。
+旧见证不再仅以任意函数具有 borrow return 为充分条件，而核唯一 view、唯一
+MapRequireValue 返回 slot loan、BorrowReturn 返回同一 loan，且无 Copy/SharedRetain。
+这是可执行的根选择差异记录，不构成两入口等价或 legacy 路径退役证据，不改生产
+行为、借用语义或 Origin 决策。
+
+两个普通真实源码测试各以完整 FQN exact 执行，均 1/1 通过；测试编译、带
+loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）和
+diff 检查通过，独立只读审查无阻断。未运行故障注入或全量测试，远程 CI 不在本地
+结果覆盖范围。
