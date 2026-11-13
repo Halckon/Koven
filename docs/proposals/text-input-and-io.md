@@ -18,3 +18,11 @@
 三个示范程序的格式、产品容量、成功与失败 oracle 保留在
 [原批准材料](../archive/migrations/text-io-approved-contract.md#三个程序的确定性-oracle-建议)，
 由 [生态工作项](../development/ecosystem/M1.md)和各自实现 Spec 承接，不当成语言规则。
+
+## 与演进总纲的对齐（2026-11-10 增补）
+
+上列待决项在演进总纲中的候选去向（均未启用，不构成公共签名）：
+
+- 显式流 owner 与关闭语义：`deinit` 尽力关闭加显式 `close()` 返回 `Result` 的双通道，见[之七](evolution-07-concurrency-async-io-ffi.md) J23 与步骤 IO0。
+- Char 迭代、索引、trim、builder、`Str`：见[之六](evolution-06-text-globals-extensions-metadata.md) §2（步骤 TX0–TX4）。
+- 网络、异步 IO、公开 C FFI：见之七 §4.3（IO3、IO4、FF3）。

@@ -79,3 +79,11 @@ Windows、musl、交叉编译是各自目标平台工作。async/await、Future�
 
 H1–H6、正式编号、首片源码和 H-A–H-H 均未完成或未运行。
 文档验证遵守[测试规则](../development/testing.md)；原起草检查点见[历史 §11](../archive/development/post-governance-milestones.md#11-文档起草记录)。
+
+## 7. 与演进总纲的对齐（2026-11-10 增补）
+
+[演进总纲之七](evolution-07-concurrency-async-io-ffi.md)给出线程之后的并发路线，本页即其步骤 S1。与 H1–H6 相关的候选结论（未启用）：
+
+- H3：现行“未 join 的句柄析构时阻塞等待”就是结构化并发语义，建议保持，不增加 detach（之七 J17）。
+- 借用型并发不通过放宽本页的 `Transferable` 规则取得，而是经独立的作用域 API（之七 S2a、S2b），其句柄是不可逃逸的资源类型。
+- actor、线程池、`select` 均为库，不新增关键字或第二套跨线程能力（之七 J14、J21）。

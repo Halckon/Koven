@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：488497a9 + SPEC-0392 F5/F7 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47 · 更新：2026-11-06 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：488497a9 + SPEC-0392 F5/F7 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47 · 更新：2026-11-11 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 ## 总览
 
@@ -39,7 +39,7 @@
 | ✅ 已交付 | B06 | const val 封闭求值、数值字面量（radix/下划线）与整数具名位运算 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0226](../archive/specs/0226-unit-constant-materialization-ownership.md) [0227](../archive/specs/0227-unit-constant-native-lowering.md) [0229](../archive/specs/0229-extended-numeric-literal-values.md) [0240](../archive/specs/0240-integer-bitwise-execution.md) |
 | ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 止血 | v1 必做 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) |
 | ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | — |
-| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 语言增量 | v1 必做 | 已定义 | 2,4,5 | — |
+| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 语言增量 | v1 必做 | 已定义 | 2,4,5 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0327](../archive/specs/0327-checked-integer-conversions.md) |
 | ☐ 未开始 | L3b | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | P3 语言增量 | v1 必做 | 需新增 | 2,4 | — |
 | ✅ 已交付 | L9b | 简单变量普通赋值的类型、Unit 结果与收窄事实失效 | P3 语言增量 | v1 必做 | 已定义 | 2 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) |
@@ -112,8 +112,8 @@
 | ✅ 已交付 | L4 | IntRange/LongRange 可存储 Copyable 值、in / not in、升序基本 for | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0328](../archive/specs/0328-integer-range-values.md) [0329](../archive/specs/0329-integer-range-iteration.md) |
 | ✅ 已交付 | L13 | Map 插入序借用遍历（D8） | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0331](../archive/specs/0331-map-borrowed-iteration.md) |
 | ✅ 已交付 | L13b | MutableMap.consume 整体移交为只读 Map | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0291](../specs/active/0291-readonly-map-construction.md) |
-| ☐ 未开始 | L16 | 同步、非逃逸 Borrow 回调的 forEach 与 List/Map 高层基础 API | P3 语言增量 | v1 必做 | 需新增 | 2,3,4,5 | [collection-api-followups](../proposals/collection-api-followups.md) |
-| ☐ 未开始 | S3 | owned 集合算法：map/filter/fold/sort/contains/indexOf/reverse | P3 语言增量 | v1 建议 | 需新增 | 2,3,4,5 | [collection-algorithm-ownership-r3](../proposals/collection-algorithm-ownership-r3.md) |
+| ☐ 未开始 | L16 | 同步、非逃逸 Borrow 回调的 forEach 与 List/Map 高层基础 API | P3 语言增量 | v1 必做 | 需新增 | 2,3,4,5 | [collection-api-followups](../proposals/collection-api-followups.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
+| ☐ 未开始 | S3 | owned 集合算法：map/filter/fold/sort/contains/indexOf/reverse | P3 语言增量 | v1 建议 | 需新增 | 2,3,4,5 | [collection-algorithm-ownership-r3](../proposals/collection-algorithm-ownership-r3.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ☐ 未开始 | S6 | Map 带初值构造 mapOf("a" to 1) | P3 语言增量 | v1 建议 | 需新增 | 2,3,4 | — |
 | ⏸ 延后 | X04 | N1b、filter 视图、consume 链；step/downTo 与反向迭代 | X v1 之外 | v1.x | 需新增 | 2,3,4 | [0292](../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 
@@ -125,8 +125,8 @@
 | ✅ 已交付 | B22 | argv 词频程序（Map 版）与 main(args) | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4,6 | [0274](../archive/specs/0274-argv-word-frequency.md) [0295](../archive/specs/0295-map-argv-word-frequency.md) |
 | ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | P3 语言增量 | v1 必做 | 已定义 | 2,4 | — |
 | ☐ 未开始 | L5 | 文本 API：已启用字节长度、复制/严格UTF-8、字节切片、split/lines、parseLong与checkedPlus；Char迭代、trim、StringBuilder等仍待后继合同 | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) |
-| ☐ 未开始 | L6 | 同步 IO：显式上限文件读写、目录路径、标准流Result合同；exitProcess与显式流owner另行定义（D9） | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) |
-| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | — |
+| ☐ 未开始 | L6 | 同步 IO：显式上限文件读写、目录路径、标准流Result合同；exitProcess与显式流owner另行定义（D9） | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
+| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 
 ## 标准库与运行时
 
@@ -137,8 +137,8 @@
 | ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | P0 止血 | v1 必做 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) |
 | ◐ 部分 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0359](../archive/specs/0359-refine-rc.md) |
 | ☐ 未开始 | L8 | Box 访问面措辞修正：box.value 为只读 projection place、unbox(): T | P3 语言增量 | v1 必做 | 需新增 | 2 | — |
-| ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 文本与 IO | v1 必做 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) |
-| ☐ 未开始 | L6b | time/sleep/math 基础 API | P4 文本与 IO | v1 必做 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) |
+| ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 文本与 IO | v1 必做 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
+| ☐ 未开始 | L6b | time/sleep/math 基础 API | P4 文本与 IO | v1 必做 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ⏸ 延后 | X05 | Weak<T> 与 Rc 环处理；Copyable 显式 opt-in/opt-out | X v1 之外 | v1.x | 需新增 | 2,5 | — |
 | ⏸ 延后 | X09 | Shareable、Arc/Mutex/原子、scoped threads；Lazy 与共享可变全局（G3/G4） | X v1 之外 | v2 | 需新增 | 2,3,4,5 | [global-and-static-state](../proposals/global-and-static-state.md) |
 | ⏸ 延后 | X10 | unsafe、RawPtr、extern "C"、标准库自写（D6） | X v1 之外 | v2 | 需新增 | 1,2,4,5 | — |
@@ -185,7 +185,7 @@
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 止血 | v1 必做 | 需新增 | — | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) |
 | ☐ 未开始 | L14 | 把 v1 不做的内容移出 Guide：unsafe/extern/RawPtr、线程/channel 预声明 API（D6） | P3 语言增量 | v1 必做 | 需新增 | — | — |
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | P5 验收与发布 | v1 必做 | — | 6 | — |
-| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | P5 验收与发布 | v1 必做 | — | 2,3,4 | — |
+| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | P5 验收与发布 | v1 必做 | — | 2,3,4 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | P5 验收与发布 | v1 必做 | — | — | — |
-| ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | P5 验收与发布 | v1 必做 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [measurement-distribution](../proposals/measurement-distribution.md) |
+| ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | P5 验收与发布 | v1 必做 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [measurement-distribution](../proposals/measurement-distribution.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ⏸ 延后 | X03 | 性能基线与正式分发（M5 其余） | X v1 之外 | v1.x | — | — | [measurement-distribution](../proposals/measurement-distribution.md) |

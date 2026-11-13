@@ -17,6 +17,23 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
+- [所有权、可存储引用与 dyn 的中后期演进总纲](ownership-references-dyn-evolution.md)：v1.x–v4 方向、K0–K8 分阶段与待决问题
+  - [之一：调研、基底能力内核与决断](evolution-01-kernel-and-decisions.md)
+  - [之二：路线 L 借用内核](evolution-02-route-loan-kernel.md)
+  - [之三：路线 X 抽象打包（dyn 与 callable）](evolution-03-route-existential.md)
+  - [之四：路线 C/U/S 能力与共享、裸内存、挂起](evolution-04-route-capability-unsafe-suspend.md)
+  - [之五：数据结构适配性检验](evolution-05-data-structure-fitness.md)
+  - [之六：文本、全局状态、扩展函数与元数据](evolution-06-text-globals-extensions-metadata.md)
+  - [之七：并发与异步模型、IO 与外部函数边界](evolution-07-concurrency-async-io-ffi.md)
+  - [之八：中间表示、逃逸分析、向量化与自举条件](evolution-08-compiler-ir-escape-simd-selfhost.md)
+  - [之九：总体架构——内核与扩展的分层、接口与原则](evolution-09-architecture.md)
+  - [之十：尚未覆盖的领域](evolution-10-coverage-gaps.md)
+  - [之十一：失败模型、通用接口清单、编译单元依赖](evolution-11-failure-interfaces-units.md)
+  - [之十二：标准库清单与平台适配](evolution-12-stdlib-platform.md)
+  - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
+- [v1 冻结前的兼容性约束（Z1–Z10）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
+- [unsafe 合同提纲（U0）](unsafe-aliasing-contract-outline.md)：章节结构、失败安全条款草案与内存模型取向
+- [Parser 文法与验证实施建议：评审与路径分解](parser-grammar-verification-review.md)：恢复先行、机器文法为新语法把关的路线 F
 - [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)
