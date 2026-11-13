@@ -552,3 +552,4 @@
 - [SPEC-0446](0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md)：`range_lowering_tests` 下局部控制流、断言、支撑、比较边界及接收者测试壳子模块退役。
 - [SPEC-0447](0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md)：`unit_lower_receiver_tests`、`sequential_for_lowering_tests`、`nullable_operation_tests`、`unit_enum_regression_tests` 及 `lowering_entry_contract_tests` 子壳模块退役。
 - [SPEC-0448](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md)：`map_provider_exits_pipeline_tests` 测试域叶子薄壳子模块批量退役（132 个）。
+- [SPEC-0449](0449-remaining-test-domains-leaf-shells-batch-retirement.md)：其余测试域叶子薄壳子模块批量退役（42 个）。

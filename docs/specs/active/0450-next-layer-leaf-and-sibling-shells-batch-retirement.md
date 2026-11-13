@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0448](../../archive/specs/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) 与 [SPEC-0449](0449-remaining-test-domains-leaf-shells-batch-retirement.md) 完成 174 个第一层与第二层叶子薄壳的直接父模块内联后，`crates/lang-codegen/src/ssa/` 下暴露出一批新的二级叶子宿主（如 `borrowed.rs`、`resource_forms.rs`、`nullable_map_consume_fixture_tests.rs`、`abort_owner_assertions.rs` 等）以及直接父模块行高已接近 985 行但同级兄弟宿主模块仍具充足行宽余量的 62 个纯叶子测试小文件。本 Spec 通过同级宿主内联与原父模块 `pub(in crate::ssa) use` 重导出一次性将其全部收敛。
+在 [SPEC-0448](../../archive/specs/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) 与 [SPEC-0449](../../archive/specs/0449-remaining-test-domains-leaf-shells-batch-retirement.md) 完成 174 个第一层与第二层叶子薄壳的直接父模块内联后，`crates/lang-codegen/src/ssa/` 下暴露出一批新的二级叶子宿主（如 `borrowed.rs`、`resource_forms.rs`、`nullable_map_consume_fixture_tests.rs`、`abort_owner_assertions.rs` 等）以及直接父模块行高已接近 985 行但同级兄弟宿主模块仍具充足行宽余量的 62 个纯叶子测试小文件。本 Spec 通过同级宿主内联与原父模块 `pub(in crate::ssa) use` 重导出一次性将其全部收敛。
 
 ---
 
