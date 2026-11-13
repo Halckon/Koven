@@ -24,6 +24,8 @@ use break_hooks::BreakPlan;
 mod break_validation;
 mod counter;
 mod counter_break;
+#[cfg(test)]
+mod counter_break_ci;
 mod counter_break_validation;
 #[cfg(test)]
 mod counter_ci;
@@ -38,9 +40,9 @@ mod validation;
 #[cfg(test)]
 pub(crate) use publication::observe;
 #[cfg(test)]
-pub(in crate::ssa::refine) use publication::skip_break_capture;
-#[cfg(test)]
 pub(in crate::ssa) use publication::{UnitPublication, before_final_verifier};
+#[cfg(test)]
+pub(in crate::ssa::refine) use publication::{skip_break_capture, skip_counter_break_capture};
 fn invalid(s: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, s)
 }

@@ -6,6 +6,8 @@ use std::cell::RefCell;
 pub(super) enum Fault {
     ReceiptMissing,
     CounterReceiptMissing,
+    CounterBreakReceiptMissing,
+    CounterBreakCaptureMissing,
     BreakReceiptMissing,
     PrefixReceiptMissing,
     PrefixCaptureMissing,
@@ -83,6 +85,17 @@ pub(super) fn record(receipt: Receipt) {
     });
 }
 pub(super) fn before_finish(evidence: &mut Emitted) {
+    STATE.with(|s| {
+        if let Some(s) = s.borrow_mut().as_mut()
+            && !evidence.counter_break_selected.is_empty()
+            && s.fault == Some(Fault::CounterBreakReceiptMissing)
+        {
+            require_ci();
+            s.fault = None;
+            evidence.counter_break_selected.clear();
+        }
+    });
+
     STATE.with(|s| {
         if let Some(s) = s.borrow_mut().as_mut()
             && !evidence.prefix_selected.is_empty()
@@ -192,6 +205,19 @@ pub(super) fn skip_prefix_capture() -> bool {
         let mut s = s.borrow_mut();
         let Some(s) = s.as_mut() else { return false };
         if s.fault != Some(Fault::PrefixCaptureMissing) {
+            return false;
+        }
+        require_ci();
+        s.fault = None;
+        true
+    })
+}
+
+pub(in crate::ssa::refine) fn skip_counter_break_capture() -> bool {
+    STATE.with(|s| {
+        let mut s = s.borrow_mut();
+        let Some(s) = s.as_mut() else { return false };
+        if s.fault != Some(Fault::CounterBreakCaptureMissing) {
             return false;
         }
         require_ci();

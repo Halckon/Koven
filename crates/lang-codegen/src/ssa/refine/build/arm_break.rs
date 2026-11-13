@@ -83,6 +83,10 @@ impl Builder<'_, '_> {
             .filter_map(|p| p.counter_break.as_mut())
             .find(|b| b.fact.break_expression() == t.expression)
         {
+            #[cfg(test)]
+            if super::super::arm_loop_receipt::skip_counter_break_capture() {
+                return Ok(());
+            }
             if cb.break_span != span || cb.observed.replace((t.from, target)).is_some() {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
