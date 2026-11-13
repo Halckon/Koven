@@ -126,23 +126,42 @@ fn ordinary_counter_arm_conditional_break_rejects_extra_control() {
             unit_lower_test_support::parsed(&mut sources, "counter-break-rejected.ko", &text);
         let inputs = [SourceUnitInput::memory_document(source, &parsed)];
         let (environment, types) = standard_environments();
-        let (names, typed, owned) =
-            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
-        assert!(
-            owned
-                .ownership()
-                .no_carry_counter_break_branches()
-                .is_empty(),
-            "{tail}"
-        );
-        assert!(
-            owned.ownership().no_carry_counter_branches().is_empty(),
-            "{tail}"
-        );
-        assert!(
-            owned.ownership().no_carry_break_branches().is_empty(),
-            "{tail}"
-        );
+        // Rejected source may fail the frontend ownership gate before codegen.
+        // Do not use the positive-only helper, which requires valid ownership.
+        let index = lang_frontend::name_resolution::index_compilation_unit(&sources, &inputs)
+            .expect("valid unit input");
+        let names = lang_frontend::name_resolution::resolve_compilation_unit_names(
+            &sources,
+            &inputs,
+            &index,
+            &environment,
+        )
+        .unwrap()
+        .validate()
+        .expect("valid names");
+        let typed = lang_frontend::type_checking::check_compilation_unit_types(
+            &sources, &inputs, &names, &types,
+        )
+        .unwrap()
+        .validate()
+        .expect("valid types");
+        let owned = lang_frontend::ownership_checking::check_compilation_unit_ownership(
+            &sources, &inputs, &names, &types, &typed,
+        )
+        .expect("ownership analysis completes");
+        assert!(owned.no_carry_counter_break_branches().is_empty(), "{tail}");
+        assert!(owned.no_carry_counter_branches().is_empty(), "{tail}");
+        assert!(owned.no_carry_break_branches().is_empty(), "{tail}");
+        let owned = match owned.validate() {
+            Ok(owned) => owned,
+            Err(rejected) => {
+                assert!(
+                    !rejected.diagnostics().is_empty() || !rejected.deferred().is_empty(),
+                    "frontend must explain rejection: {tail}"
+                );
+                continue;
+            }
+        };
         let entry = names
             .names()
             .index()
