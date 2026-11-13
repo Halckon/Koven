@@ -22,6 +22,7 @@ mod map;
 mod map_iteration_source;
 mod missing_name_receiver;
 mod no_carry;
+mod no_carry_prefix;
 mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
@@ -560,6 +561,7 @@ struct Checker<'a> {
     checking_borrow_return: bool,
     allowed_borrow_call: Option<ExpressionId>,
     no_carry: Option<no_carry::Session>,
+    no_carry_prefix: no_carry_prefix::Evidence,
     no_carry_proofs: Vec<crate::ownership_checking::loop_no_carry::Proof<UnitSymbolId>>,
     borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
     range_producers: Vec<Span>,
@@ -725,6 +727,7 @@ impl<'a> Checker<'a> {
             checking_borrow_return: false,
             allowed_borrow_call: None,
             no_carry: None,
+            no_carry_prefix: Default::default(),
             no_carry_proofs: Vec::new(),
             borrow_results: Default::default(),
             range_producers: Vec::new(),

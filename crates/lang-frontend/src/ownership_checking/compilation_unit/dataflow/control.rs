@@ -19,29 +19,42 @@ impl Checker<'_> {
         branch_usage: ExpressionUse,
         escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let candidate = self.prefix_plan(control);
+        let original = candidate.as_ref().map(|_| self.resource_snapshot(&state));
+        let mut unchanged = true;
         let mut prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
+        if let Some(entry) = &original {
+            unchanged &= self.prefix_unchanged(entry, &prefix);
+        }
         let Some(mut base) = prefix.next.take() else {
             return Ok(prefix);
         };
         let (then_branch, else_branch) = arms;
         let (reaches_then, reaches_else) = self.ordinary_condition_outcomes(condition);
+        unchanged &= reaches_then && reaches_else;
         if reaches_then {
             let mut then_state = base.clone();
             self.release_exclusive_branch(control, 0, &mut then_state);
-            prefix.merge(self.check_control_body(
-                then_branch,
-                then_state,
-                branch_usage,
-                escaping,
-            )?);
+            let flows = self.check_control_body(then_branch, then_state, branch_usage, escaping)?;
+            if let Some(entry) = &original {
+                unchanged &= self.prefix_unchanged(entry, &flows);
+            }
+            prefix.merge(flows);
         }
         if reaches_else {
             self.release_exclusive_branch(control, 1, &mut base);
-            prefix.merge(if let Some(else_branch) = else_branch {
+            let flows = if let Some(else_branch) = else_branch {
                 self.check_control_body(else_branch, base, branch_usage, escaping)?
             } else {
                 Flows::next(base)
-            });
+            };
+            if let Some(entry) = &original {
+                unchanged &= self.prefix_unchanged(entry, &flows);
+            }
+            prefix.merge(flows);
+        }
+        if unchanged && let (Some(plan), Some(entry)) = (candidate, original) {
+            self.prefix_complete(plan, entry);
         }
         Ok(prefix)
     }

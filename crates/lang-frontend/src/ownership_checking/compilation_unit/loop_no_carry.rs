@@ -12,6 +12,7 @@ pub(super) struct CompletedNoCarry {
     pub(super) loops: Vec<UnitLoopNoCarryFact>,
     pub(super) branches: Vec<UnitLoopBranchNoCarryFact>,
     pub(super) counter_branches: Vec<UnitLoopCounterBranchNoCarryFact>,
+    pub(super) break_prefixes: Vec<UnitLoopBreakPrefixFact>,
     pub(super) break_branches: Vec<UnitLoopBreakBranchNoCarryFact>,
 }
 impl CompletedNoCarry {
@@ -20,6 +21,7 @@ impl CompletedNoCarry {
         self.branches.extend(other.branches);
         self.counter_branches.extend(other.counter_branches);
         self.break_branches.extend(other.break_branches);
+        self.break_prefixes.extend(other.break_prefixes);
     }
 }
 
@@ -345,5 +347,65 @@ impl CompilationUnitOwnership {
             .break_branches
             .iter()
             .any(|owned| owned.same_identity(fact))
+    }
+}
+
+/// Independent scalar-prefix completion bound to one sealed tail-break event.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoopBreakPrefixFact {
+    identity: Rc<()>,
+    pair: UnitLoopBreakBranchNoCarryFact,
+    prefix: UnitExpressionId,
+    condition: UnitExpressionId,
+    calls: [UnitExpressionId; 2],
+}
+impl UnitLoopBreakPrefixFact {
+    pub(super) fn new(
+        pair: UnitLoopBreakBranchNoCarryFact,
+        prefix: UnitExpressionId,
+        condition: UnitExpressionId,
+        calls: [UnitExpressionId; 2],
+    ) -> Self {
+        Self {
+            identity: Rc::new(()),
+            pair,
+            prefix,
+            condition,
+            calls,
+        }
+    }
+    /// Exact prefix if validated on both real paths.
+    pub const fn prefix(&self) -> UnitExpressionId {
+        self.prefix
+    }
+    /// Already typed Boolean parameter condition.
+    pub const fn condition(&self) -> UnitExpressionId {
+        self.condition
+    }
+    /// The two independent scalar calls, in arm order.
+    pub const fn calls(&self) -> [UnitExpressionId; 2] {
+        self.calls
+    }
+    /// The exact terminal-break proof this prefix enters.
+    pub const fn pair(&self) -> &UnitLoopBreakBranchNoCarryFact {
+        &self.pair
+    }
+    /// Identity of one validation event, not structural authority.
+    pub fn same_identity(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+impl CompilationUnitOwnership {
+    /// Independently completed scalar prefixes of tail-break loops.
+    pub fn no_carry_break_prefixes(&self) -> &[UnitLoopBreakPrefixFact] {
+        &self.no_carry.break_prefixes
+    }
+    /// Structurally equal foreign facts confer no authority.
+    pub fn owns_no_carry_break_prefix(&self, fact: &UnitLoopBreakPrefixFact) -> bool {
+        self.no_carry
+            .break_prefixes
+            .iter()
+            .any(|p| p.same_identity(fact))
+            && self.owns_no_carry_break_branch(fact.pair())
     }
 }

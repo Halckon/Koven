@@ -83,7 +83,7 @@ impl Checker<'_> {
             })
     }
     pub(super) fn no_carry_begin(
-        &self,
+        &mut self,
         repeated: StatementId,
         body: StatementId,
         state: &State,
@@ -164,6 +164,9 @@ impl Checker<'_> {
             || plan.root.source_unit() != self.source_unit
         {
             return None;
+        }
+        if selection.exit.is_some() {
+            self.prefix_enter(repeated, &entry);
         }
         Some(Session {
             frame: core::Frame::new(plan, entry.clone()),
@@ -650,6 +653,25 @@ impl Checker<'_> {
                     "loop-local borrow final End does not match independently closed core frames",
                     marker,
                 )?;
+            }
+        }
+        for fact in &result.break_branches {
+            let mut selected = self
+                .no_carry_prefix
+                .entered
+                .iter()
+                .filter(|p| p.target == fact.target_loop().statement());
+            if let Some(plan) = selected.next()
+                && selected.next().is_none()
+            {
+                result.break_prefixes.push(
+                    super::super::loop_no_carry::UnitLoopBreakPrefixFact::new(
+                        fact.clone(),
+                        self.unit_expression(plan.prefix),
+                        self.unit_expression(plan.condition),
+                        plan.calls.map(|id| self.unit_expression(id)),
+                    ),
+                );
             }
         }
         Ok(result)
