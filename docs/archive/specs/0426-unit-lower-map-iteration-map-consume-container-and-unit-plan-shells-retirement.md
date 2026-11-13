@@ -12,7 +12,7 @@
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0425](../../specs/active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下编译单元降低、实例规划与单文件降低目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、泛型实例规划及 Map 迭代/消费行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
+紧接 [SPEC-0425](0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下编译单元降低、实例规划与单文件降低目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、泛型实例规划及 Map 迭代/消费行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
 
 1. `unit_lower/assignment.rs`（397 行）-> 并入 `unit_lower/map.rs`（875 行）；
 2. `unit_lower/callable_abi.rs`（397 行）-> 并入 `unit_lower/call_lifetimes.rs`（872 行）；

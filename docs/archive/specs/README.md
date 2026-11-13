@@ -556,3 +556,4 @@
 - [SPEC-0450](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md)：下一层叶子薄壳与同级测试小文件批量收敛（62 个）。
 - [SPEC-0427](0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md)：`map_iteration`、`nullable_borrowed_cleanup`、`refine` 及 `lower_frontend` 壳子模块退役。
 - [SPEC-0426](0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md)：`unit_lower`、`map_iteration`、`map_consume` 及 `unit_plan` 壳子模块退役。
+- [SPEC-0425](0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md)：`nullable_if_cleanup`、`map_iteration`、`outer_borrowed_while`、`unit_lower` 及 `refine` 壳子模块退役。
