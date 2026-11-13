@@ -23,6 +23,8 @@ mod ci_tests;
 use break_hooks::BreakPlan;
 mod break_validation;
 mod composed_prefix;
+#[cfg(test)]
+mod composed_prefix_ci;
 mod counter;
 mod counter_break;
 #[cfg(test)]

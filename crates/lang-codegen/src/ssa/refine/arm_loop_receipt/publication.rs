@@ -10,6 +10,7 @@ pub(super) enum Fault {
     CounterBreakCaptureMissing,
     BreakReceiptMissing,
     PrefixReceiptMissing,
+    ComposedPrefixReceiptMissing,
     PrefixCaptureMissing,
     BreakCaptureMissing,
     FinalVerifier,
@@ -85,6 +86,17 @@ pub(super) fn record(receipt: Receipt) {
     });
 }
 pub(super) fn before_finish(evidence: &mut Emitted) {
+    STATE.with(|s| {
+        if let Some(s) = s.borrow_mut().as_mut()
+            && !evidence.composed_prefix_selected.is_empty()
+            && s.fault == Some(Fault::ComposedPrefixReceiptMissing)
+        {
+            require_ci();
+            s.fault = None;
+            evidence.composed_prefix_selected.clear();
+        }
+    });
+
     STATE.with(|s| {
         if let Some(s) = s.borrow_mut().as_mut()
             && !evidence.counter_break_selected.is_empty()
