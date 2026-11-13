@@ -45,6 +45,7 @@ pub struct UnitOwnerChildGenerationRuleV1 {
     condition: UnitExpressionId,
     normal: UnitOwnerMultiRootNormalTransportV1,
     recurrences: Vec<UnitOwnerRootGenerationRuleV1>,
+    entry_owners: Vec<(UnitSymbolId, UnitOwnerId)>,
 }
 impl UnitOwnerChildGenerationRuleV1 {
     pub(super) fn from_nested(nested: &UnitOwnerNestedNormalBodyV1) -> Option<Self> {
@@ -70,12 +71,26 @@ impl UnitOwnerChildGenerationRuleV1 {
         if !drops.is_empty() || live != roots || nested.parent_resume_roots()? != roots {
             return None;
         }
+        let entry_owners = nested.generation_entry_owners()?;
+        if entry_owners.len() != roots.len()
+            || entry_owners
+                .iter()
+                .zip(roots)
+                .any(|((root, _), expected)| root != expected)
+            || entry_owners
+                .iter()
+                .enumerate()
+                .any(|(i, (_, owner))| entry_owners[..i].iter().any(|(_, prior)| prior == owner))
+        {
+            return None;
+        }
         let recurrences = Self::derive(normal)?;
         Some(Self {
             control: nested.control(),
             condition: nested.condition(),
             normal: normal.clone(),
             recurrences,
+            entry_owners: entry_owners.to_vec(),
         })
     }
     fn derive(
@@ -122,10 +137,22 @@ impl UnitOwnerChildGenerationRuleV1 {
     pub fn recurrences(&self) -> &[UnitOwnerRootGenerationRuleV1] {
         &self.recurrences
     }
+    /// Actual planner entry owner identities, unchanged through condition/body entry.
+    /// The snapshot has no active loans or pending resources. These are static IDs,
+    /// not SSA Values and not evidence for later parent activations.
+    pub fn entry_owners(&self) -> &[(UnitSymbolId, UnitOwnerId)] {
+        &self.entry_owners
+    }
     /// Recheck the sealed linear recurrence. Does not inspect backend SSA.
     pub fn is_consistent(&self) -> bool {
         self.control == self.normal.statement()
             && self.condition.source_unit() == self.control.source_unit()
+            && self
+                .entry_owners
+                .iter()
+                .map(|(r, _)| *r)
+                .collect::<Vec<_>>()
+                == self.normal.header_roots()
             && Self::derive(&self.normal).as_ref() == Some(&self.recurrences)
     }
 }

@@ -8,6 +8,7 @@ type NestedCompletion = (
     Option<UnitOwnerNestedResumeWriteV1>,
     Option<UnitOwnerNestedParentBoundaryV1>,
     Option<CounterTail>,
+    Option<Vec<(UnitSymbolId, crate::ownership_checking::UnitOwnerId)>>,
 );
 /// A completed inner normal-body rule, without entry, exit, or outer-loop authority.
 #[derive(Clone, Debug)]
@@ -26,6 +27,7 @@ pub struct UnitOwnerNestedNormalBodyV1 {
     resume_write: Option<UnitOwnerNestedResumeWriteV1>,
     parent_boundary: Option<UnitOwnerNestedParentBoundaryV1>,
     counter_tail: Option<CounterTail>,
+    entry_owners: Option<Vec<(UnitSymbolId, crate::ownership_checking::UnitOwnerId)>>,
 }
 impl UnitOwnerNestedNormalBodyV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -42,7 +44,7 @@ impl UnitOwnerNestedNormalBodyV1 {
         resume_roots: Option<Vec<UnitSymbolId>>,
         parent_facts: NestedCompletion,
     ) -> Option<Self> {
-        let (resume_write, parent_boundary, counter_tail) = parent_facts;
+        let (resume_write, parent_boundary, counter_tail, entry_owners) = parent_facts;
         let value = Self {
             identity,
             callable,
@@ -53,6 +55,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             resume_write,
             parent_boundary,
             counter_tail,
+            entry_owners,
         };
         value.is_consistent().then_some(value)
     }
@@ -96,6 +99,11 @@ impl UnitOwnerNestedNormalBodyV1 {
     /// Actual parent boundary observations only, not a generational invariant or backend authority.
     pub fn parent_boundary_v1(&self) -> Option<&UnitOwnerNestedParentBoundaryV1> {
         self.parent_boundary.as_ref()
+    }
+    pub(super) fn generation_entry_owners(
+        &self,
+    ) -> Option<&[(UnitSymbolId, crate::ownership_checking::UnitOwnerId)]> {
+        self.entry_owners.as_deref()
     }
     pub(super) fn generation_counter_tail(&self) -> Option<CounterTail> {
         self.counter_tail

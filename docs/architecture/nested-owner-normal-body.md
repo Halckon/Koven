@@ -135,3 +135,14 @@ String producer 激活的新实例，原 binding Drop 消费 current(k)。静态
 这是以入口根独占且无活 loan 为前提的 FE 条件规则，不是入口实例证明，也未独立
 核实 SSA 是否实现了递推；父组合、实际 checked-abort CFG 和具体入口条件仍需后续
 配对验证。没有新增 lowering 权限，旧 witness 和通用 verifier 均保留。
+
+### 实际 planner 入口快照
+
+child enter 从真实 `ValueState` 的封闭资源边界捕获完整 `(root, owner)` 向量，
+要求每根有确定 owner 且 owner 不重复；condition 与 body-entry 再观察同一向量，
+变化即撤销此快照，不能从 normal outputs 反推入口。`entry_owners()` 发布此静态
+身份快照；任何活动 loan、pending resource 或缺失 owner 都不发布代际规则。
+这不是 SSA Value 的基例：重复 parent 激活的动态 owner 仍不能用首次 planner ID
+代替。现有 body receipt 已独立核实 Replace 返回旧值的唯一 Drop，后续应复用它，
+另外捕获 child preheader/header/true-edge 和 checked-success backedge 的逐根身份链；
+只核对父 header 或从最终 CFG 猜出 child 回边都不能补足该缺口。

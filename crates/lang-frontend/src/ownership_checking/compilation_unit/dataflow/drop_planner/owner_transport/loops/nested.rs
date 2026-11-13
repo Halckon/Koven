@@ -11,6 +11,7 @@ pub(super) struct Nested {
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
     roots: Vec<UnitSymbolId>,
+    entry_owners: Option<Vec<(UnitSymbolId, crate::ownership_checking::UnitOwnerId)>>,
     conditioned: bool,
     body_entered: bool,
     left: bool,
@@ -26,6 +27,22 @@ pub(super) struct Nested {
     pub(super) sink: Option<counter_segment::body::Body>,
 }
 impl Nested {
+    fn entry_owners(
+        control: UnitStatementId,
+        state: &ValueState,
+    ) -> Option<Vec<(UnitSymbolId, crate::ownership_checking::UnitOwnerId)>> {
+        let frame = root_frame::ControlRootFrame::capture(control, state)?;
+        frame
+            .roots_for(control)?
+            .iter()
+            .map(|value| Some((value.symbol, value.owner.clone()?)))
+            .collect()
+    }
+    fn observe_entry(&mut self, state: &ValueState) {
+        if self.entry_owners != Self::entry_owners(self.control, state) {
+            self.entry_owners = None;
+        }
+    }
     fn matches(&self, state: &ValueState) -> bool {
         boundary_values(state).is_some_and(|values| {
             values.len() == self.roots.len()
@@ -101,6 +118,7 @@ impl ControlTransactions {
             identity: o.identity.clone(),
             callable: o.callable,
             roots,
+            entry_owners: Nested::entry_owners(sites.0, state),
             conditioned: false,
             body_entered: false,
             left: false,
@@ -134,6 +152,7 @@ impl ControlTransactions {
             }
         }
         if let Some(n) = self.nested.as_mut().filter(|n| n.control == control) {
+            n.observe_entry(state);
             n.valid &= !n.conditioned && condition == n.condition && n.matches(state);
             n.conditioned = n.valid;
         }
@@ -153,6 +172,7 @@ impl ControlTransactions {
             return;
         }
         if let Some(n) = self.nested.as_mut().filter(|n| n.control == control) {
+            n.observe_entry(state);
             n.valid &= n.conditioned
                 && !n.body_entered
                 && condition == n.condition
@@ -284,6 +304,7 @@ impl ControlTransactions {
                 n.resume.as_ref().and_then(|r| r.result()),
                 parent,
                 sink.counter_tail(),
+                n.entry_owners,
             ),
         )
     }

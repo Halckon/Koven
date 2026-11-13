@@ -16553,3 +16553,26 @@ checked abort 是独立终止路径，不参与正常回边归纳，也不声称
 
 未运行任何 CI-only 故障注入。独立审查先发现缺实际 counter 门控，已修复并补普通
 负例，复审无确定阻断。剩余真实入口、独立 SSA 代际消费和父组合继续 active。
+
+
+### D10 child 实际 planner 入口快照切片（2026-11-13，本地已验）
+
+在上一条件式规则上保留真实 child enter 的每根 owner 身份，并在实际 condition / body-entry
+确认不变，封闭边界排除活 loan 与 pending resource；缺失或重复 owner 不发布此规则。
+不新增 lowering 许可，不把静态 owner ID 当作跨父轮次的实例，也不宣称 SSA 基例已闭合。
+独立 SSA 接续须以 pre-fold 的真实 child preheader/header/body/false 身份捕获、正常
+checked-success 回边向量以及现有旧值退休 receipt 配对，不能复制退休检查冒充归纳。
+本切片只推进 FE 入口观察；SSA 代际消费、checked-abort 配对及 parent 组合仍 active。
+
+
+| 验收项 | 实际结果 |
+|---|---|
+| FE lib `child_generation_rule`（两个普通测试） | 2/2 通过；完整根顺序、owner 唯一、child producer 区分及既有拒绝形状 |
+| `cargo clippy -j1 -p lang-frontend --all-targets -- -D warnings` | 通过 |
+| 修改文件 rustfmt / diff check / docs922 | 通过 |
+
+初轮附加断言错误地假定外层 callable events 保留 Binding；实测该 unsupported
+observation 按既有合同清空 events/definitions，已撤除此不成立断言后重跑通过。
+不把该外层事件当作入口证明；本片只保留实际 planner 状态快照。独立只读复审无确定
+阻断。未运行 CI-only 故障注入；本轮未重跑 workspace、SSA 或 native，因为未改 backend，
+也未实现独立 SSA cycle receipt。本地提交不推送。

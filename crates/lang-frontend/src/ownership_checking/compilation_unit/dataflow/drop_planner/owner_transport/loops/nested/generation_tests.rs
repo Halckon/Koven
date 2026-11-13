@@ -22,6 +22,21 @@ fn child_generation_rules_bind_current_roots_to_actual_fresh_sites_and_drops() {
         assert_eq!(rule.control(), nested.control());
         assert_eq!(rule.condition(), nested.condition());
         let normal = nested.normal();
+        assert_eq!(
+            rule.entry_owners()
+                .iter()
+                .map(|(r, _)| *r)
+                .collect::<Vec<_>>(),
+            normal.header_roots()
+        );
+        for (i, (_, owner)) in rule.entry_owners().iter().enumerate() {
+            assert!(
+                rule.entry_owners()[..i]
+                    .iter()
+                    .all(|(_, prior)| prior != owner)
+            );
+            assert!(rule.recurrences().iter().all(|r| &r.producer() != owner));
+        }
         assert_eq!(rule.recurrences().len(), normal.header_roots().len());
         for (recurrence, root) in rule.recurrences().iter().zip(normal.header_roots()) {
             let step = normal
