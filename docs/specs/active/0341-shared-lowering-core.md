@@ -17240,3 +17240,24 @@ all-target严格Clippy、普通codegen完整FQN exact25/25、前端普通20/20�
 通过。62项借用故障清单、child-cycle三目标与父receipt两目标仅编译列举通过，
 none executed；未启用本地CI环境或执行故障。推送后必须核对新head对应PR事件
 双宿主CI，旧head结果不替代本批动态验收；当前不宣称已合并或D10/E2整体完成。
+
+### D10 Replace 借用准备链的全函数位置封印（2026-11-13）
+
+静态检查发现既有 `composition_loan::verify` 仅在声明块计数三条准备链指令，
+随后遍历 instruction arena 核定义/使用。若同一 BorrowBegin ID 被再次挂到其它
+块列表，arena 与原块均保持不变，独立 receipt 的旧检查不覆盖第二次挂载。
+这不是已证明的最终编译器接受漏洞：通用 verifier 原本就按全函数挂载计数并报告
+InstructionPlacement。生产调用先从 nested-body generation 或 parent composition
+进入独立 helper，Unit orchestrate 再运行完整 verify_program，原后备防线保留。
+
+`c442ebb3` 先加入既有 CI-only child-cycle 入口的新变异，只将同 BorrowBegin ID
+额外挂到真实函数入口，保 instruction arena、定义和原挂载；不在本地执行。
+`cc1ca09e` 将 helper 的 prepare/borrow/RootReplace 位置检查改为全函数恰一处，
+且所属块必须仍为实际 Replace 块，原三者顺序、独占模式和精确产生/消费检查不变。
+没有新 producer、语言形状、Origin、公共 API 或新发射器。
+
+复用既有普通 child-cycle exact，另核两种 Replace 顺序的真实 native stdout；
+一个 exact 通过，两个有限程序合计四次正常调用，原六种独立完成 marker 保持。
+故障入口已编译且 exact 列举为一项，none executed；本轮只有静态缺口推断与普通
+正控通过，没有故障反例的动态红/绿证据，远端独立拒绝仍待获准发布后的 CI。
+默认 debug2/opt0；执行前冻结完整 source SHA、原 build artifact 和 binary SHA。
