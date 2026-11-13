@@ -63,6 +63,8 @@ mod owner_return_tests;
 mod owner_short_circuit_leaf_not_tests;
 #[path = "owner_short_circuit_tests.rs"]
 mod owner_short_circuit_tests;
+#[path = "owner_string_bytes_tests.rs"]
+mod owner_string_bytes_tests;
 #[path = "native_pending_construction_tests.rs"]
 mod pending_construction_tests;
 #[path = "native_resource_map_loop_tests.rs"]
