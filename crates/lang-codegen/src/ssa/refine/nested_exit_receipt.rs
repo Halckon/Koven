@@ -7,6 +7,8 @@ use crate::ssa::{
 };
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::BTreeMap;
+mod pair;
+pub(super) use pair::Emitted;
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
 }
@@ -23,9 +25,15 @@ pub(super) struct Plan {
     pub exit: BlockRef,
     pub drops: Vec<DropSite>,
     pub roots: Vec<Slot>,
+    pub live: Vec<Slot>,
+    pub parent: bool,
 }
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans(pub Option<Plan>);
+pub(super) struct Plans {
+    pub child: Option<Plan>,
+    pub parent: Option<Plan>,
+    pub parent_required: bool,
+}
 impl Plans {
     pub(super) fn fold(
         &mut self,
@@ -34,7 +42,7 @@ impl Plans {
         prefix: usize,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if let Some(p) = &mut self.0 {
+        for p in [&mut self.child, &mut self.parent].into_iter().flatten() {
             if p.header == successor {
                 p.header = block;
             }
@@ -55,7 +63,7 @@ impl Plans {
     }
 }
 #[derive(Default)]
-pub(super) struct Emitted {
+struct Receipt {
     function: Option<FunctionId>,
     control: Option<UnitStatementId>,
     blocks: BTreeMap<BlockRef, BlockId>,
@@ -63,17 +71,17 @@ pub(super) struct Emitted {
     entities: BTreeMap<BlockRef, Vec<EntityId>>,
     observed: BTreeMap<usize, (InstructionId, EntityId)>,
 }
-impl Emitted {
+impl Receipt {
     pub(super) fn layout(
         &mut self,
-        body: &super::body::RefinedBody,
+        plan: &Option<Plan>,
         function: &Function,
         blocks: &BTreeMap<BlockRef, BlockId>,
         slots: &BTreeMap<BlockRef, Vec<Slot>>,
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &body.nested_exit_plans.0 else {
+        let Some(p) = plan else {
             return Ok(());
         };
         if self.function.is_some() || p.header == p.exit {
@@ -85,6 +93,13 @@ impl Emitted {
                 .enumerate()
                 .any(|(i, r)| p.roots[..i].contains(r))
             || p.drops.iter().any(|d| !p.roots.contains(&d.root))
+            || p.live.iter().any(|r| !p.roots.contains(r))
+            || p.live.len() + p.drops.len() != p.roots.len()
+            || p.roots.iter().any(|r| {
+                p.live.iter().filter(|v| *v == r).count()
+                    + p.drops.iter().filter(|d| d.root == *r).count()
+                    != 1
+            })
         {
             return Err(invalid(span));
         }
@@ -110,14 +125,14 @@ impl Emitted {
     }
     pub(super) fn statement(
         &mut self,
-        body: &super::body::RefinedBody,
+        plan: &Option<Plan>,
         function: &Function,
         position: (BlockRef, usize),
         instruction: InstructionId,
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &body.nested_exit_plans.0 else {
+        let Some(p) = plan else {
             return Ok(());
         };
         if position.0 != p.exit {
@@ -152,11 +167,11 @@ impl Emitted {
     }
     pub(super) fn finish(
         &self,
-        body: &super::body::RefinedBody,
+        plan: &Option<Plan>,
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(p) = &body.nested_exit_plans.0 else {
+        let Some(p) = plan else {
             return Ok(());
         };
         if self.control != Some(p.control)
@@ -182,6 +197,22 @@ impl Emitted {
         let exit = function
             .block(self.blocks[&p.exit])
             .ok_or_else(|| invalid(span))?;
+        // The approved parent false exit has exactly the header's false edge.
+        // Another predecessor could otherwise feed unrelated same-typed owners.
+        if p.parent {
+            for block in &function.blocks {
+                let term = block.terminator.as_ref().ok_or_else(|| invalid(span))?;
+                let incoming = term
+                    .kind
+                    .targets()
+                    .into_iter()
+                    .filter(|target| *target == exit.id)
+                    .count();
+                if incoming != usize::from(block.id == header.id) {
+                    return Err(invalid(span));
+                }
+            }
+        }
         if header.parameters != self.entities[&p.header]
             || exit.parameters != self.entities[&p.exit]
         {
@@ -253,12 +284,20 @@ impl Emitted {
         }
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(
-            "nested-false-root-vector-complete",
+            if p.parent {
+                "nested-parent-false-root-vector-complete"
+            } else {
+                "nested-false-root-vector-complete"
+            },
             p.roots.len(),
         );
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(
-            "nested-false-ssa-complete",
+            if p.parent {
+                "nested-parent-false-ssa-complete"
+            } else {
+                "nested-false-ssa-complete"
+            },
             p.drops.len(),
         );
         Ok(())
@@ -268,7 +307,7 @@ impl Emitted {
 #[cfg(test)]
 pub(super) fn inject_final(plans: &Plans, function: &mut Function) {
     use super::build::owner_consumer_test_support::{OwnerFault, record_action, take_fault};
-    let Some(p) = &plans.0 else {
+    let Some(p) = &plans.child else {
         return;
     };
     let Some(d) = p.drops.first() else {

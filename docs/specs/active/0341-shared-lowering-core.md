@@ -16456,3 +16456,19 @@ header 的整组入口／正常回边，以及父 false 出口资源消费的独
 测试的偏差不作为合规 CI 验收证据；本轮只执行明确的普通精确测试。
 workspace all-target check 在恢复连接后重核通过；fmt、docs915 和 diff 检查通过。
 公开 API 仅增加只读父边界事实，原 child/carry 与 generic verifier 均保留。
+
+### 父 false 独立 SSA 消费收据切片（2026-11-13）
+
+基于 FE 父边界事实提交 `4deef005`（owner 集成为 `3d0852c8`），新增独立父
+false receipt；父与子持有分开的观察状态，仅共享机械 SSA 核验。不生成新 Drop，
+不改变 lowering 权限；实际根完整互斥分为 live 与原 Drop，父出口仅有父 header
+false 边这一前驱，边实参按根身份匹配，退休 Value 仅被原 Drop 消费一次且不能
+逃逸。选中后父 receipt 缺失在 layout／finish 均失败；原 child/carry/verifier 保留。
+
+普通 native 精确测试 `parent_false_receipt_partitions_live_and_retired_roots` 1/1
+通过：全 live／部分退休／全退休三种分区，每种运行外内 (0,0)、(1,1)、(2,2)、
+(2,0) 四组合。另四项既有 nested/lifecycle 普通精确测试各 1/1 通过。首次增加
+(2,0) 后预期输出漏加第四组而失败，补齐该组预期后重跑通过，不隐去失败记录。
+CG all-target strict Clippy、workspace all-target check、fmt、docs915、diff 通过。
+本地未执行故障注入；新父路径的 CI 故障覆盖仍待补充和实际运行。独立只读复审
+未见确定阻断。仅为边界运输与消费核验，不证明父根跨轮代际归纳，D10/E2 不标完成。

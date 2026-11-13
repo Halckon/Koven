@@ -929,3 +929,6 @@ fn ci_only_nested_body_ssa_retires_each_original_value_atomically() {
 
 #[path = "owner_nested_lifecycle_tests.rs"]
 mod lifecycle;
+
+#[path = "owner_parent_false_tests.rs"]
+mod parent_false;

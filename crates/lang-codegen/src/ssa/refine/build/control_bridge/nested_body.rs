@@ -9,6 +9,7 @@ pub(in super::super) struct NestedBody<'a> {
     stages: Vec<consumption::Stage>,
     pub(super) lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     pub(super) parent_header: Option<BlockRef>,
+    pub(super) parent_lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     pub(super) resume_stage: consumption::Stage,
 }
 impl<'a> NestedBody<'a> {
@@ -44,6 +45,7 @@ impl<'a> NestedBody<'a> {
             stages: vec![consumption::Stage::Ready; evidence.normal().steps().len()],
             lowered: None,
             parent_header: None,
+            parent_lowered: None,
             resume_stage: consumption::Stage::Ready,
         }))
     }
@@ -333,7 +335,7 @@ impl Builder<'_, '_> {
         }
         self.body.nested_body_plans =
             super::super::super::nested_body_receipt::Plans(Some(retirement));
-        if let Some((_live, drops)) = plan.evidence.false_exit_partition() {
+        if let Some((live, drops)) = plan.evidence.false_exit_partition() {
             let mut previous = None;
             let mut sites = Vec::new();
             for fact in drops {
@@ -362,15 +364,30 @@ impl Builder<'_, '_> {
                     span: fact.value_origin(),
                 });
             }
-            self.body.nested_exit_plans = super::super::super::nested_exit_receipt::Plans(Some(
-                super::super::super::nested_exit_receipt::Plan {
+            self.body.nested_exit_plans = super::super::super::nested_exit_receipt::Plans {
+                child: Some(super::super::super::nested_exit_receipt::Plan {
                     control: plan.evidence.control(),
                     header: blocks[0],
                     exit: blocks[2],
                     drops: sites,
                     roots: roots.clone(),
-                },
-            ));
+                    live: live
+                        .iter()
+                        .map(|r| {
+                            plan.evidence
+                                .normal()
+                                .header_roots()
+                                .iter()
+                                .position(|s| s == r)
+                                .map(|i| roots[i])
+                                .ok_or_else(fail)
+                        })
+                        .collect::<Result<_, _>>()?,
+                    parent: false,
+                }),
+                parent: None,
+                parent_required: false,
+            };
             #[cfg(test)]
             owner_consumer_test_support::record_action(
                 "nested-false-cleanup-rechecked",

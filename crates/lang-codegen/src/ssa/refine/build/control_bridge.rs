@@ -3,6 +3,7 @@ use super::*;
 mod body_group;
 mod nested_body;
 mod nested_resume;
+mod parent_exit;
 mod resume_carry;
 pub(super) use nested_body::NestedBody;
 mod consumption;
@@ -70,6 +71,7 @@ impl Builder<'_, '_> {
         body: UnitStatementId,
         blocks: [BlockRef; 4],
     ) -> Result<(), LoweringError> {
+        self.parent_owner_while(control, condition, body, blocks)?;
         self.nested_owner_while(control, condition, body, blocks)?;
         self.control_chain_body_while(control, condition, body, blocks)?;
         if self
@@ -134,6 +136,7 @@ impl Builder<'_, '_> {
     pub(super) fn finish_control_bridge(&mut self) -> Result<(), LoweringError> {
         self.finish_nested_owner_body()?;
         self.finish_nested_resume()?;
+        self.finish_parent_owner_exit()?;
         self.finish_control_chain_bodies()?;
         #[cfg(test)]
         if let Some(plan) = &mut self.control_bridge_plan {

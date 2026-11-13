@@ -185,3 +185,9 @@ body-entry、normal-backedge 的完整有序根组，以及父自身新生成 Lo
 与 live 根的互斥完整分区；父/子 control、condition、body 身份保持区分。仅在既有
 nested/resume 事实一致且事件完整时发布。该只读事实不授予新 lowering 能力，不等同
 父根代际不变量、后端排他消费证明或完整跨轮归纳。
+
+该父边界事实的 codegen 消费侧另有父 false SSA receipt：独立于 child 的观察状态，
+核对完整 live／retired 根分区、header 到 false 出口的逐根实参、唯一入口，以及原
+Drop 对退休出口 Value 的排他消费。它不生成清理、不恢复旧见证、不赋予新 lowering
+权限；普通 native 已覆盖三类分区和四组外内轮数，父路径 CI 故障覆盖仍待补充。
+该收据与父 header 运输检查均不等同于完整跨轮代际归纳。
