@@ -12,7 +12,7 @@
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0422](../../specs/active/0422-refine-emit-verify-instances-and-closure-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低辅助目录的壳模块收敛，将以下 9 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、析构规划、精化层构建及所有权验证行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
+紧接 [SPEC-0422](0422-refine-emit-verify-instances-and-closure-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低辅助目录的壳模块收敛，将以下 9 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、析构规划、精化层构建及所有权验证行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
 
 1. `lower_frontend/map_iteration/formed_runtime.rs`（279 行）-> 并入 `lower_frontend/map_iteration/formed.rs`（748 行）；
 2. `lower_frontend/map_iteration/formed/retained.rs`（316 行）-> 并入 `lower_frontend/map_iteration/local.rs`（673 行）；

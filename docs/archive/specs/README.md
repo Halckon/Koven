@@ -559,3 +559,4 @@
 - [SPEC-0425](0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md)：`nullable_if_cleanup`、`map_iteration`、`outer_borrowed_while`、`unit_lower` 及 `refine` 壳子模块退役。
 - [SPEC-0424](0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md)：`borrow_result_support`、`orchestrate`、可空清理及 `lower_frontend` 壳子模块退役。
 - [SPEC-0423](0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)：`map_iteration`、`refine/build`、`unit_plan`、`unit_lower` 及可空清理壳子模块退役。
+- [SPEC-0422](0422-refine-emit-verify-instances-and-closure-shells-retirement.md)：`refine/emit/statements`、`verify_operation`、`verify_ownership/provider_lifetime`、`unit_lower/closure/layout` 及 `lower_frontend` 实例/接收者壳子模块退役。
