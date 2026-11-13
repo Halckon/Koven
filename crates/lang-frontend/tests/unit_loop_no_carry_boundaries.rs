@@ -191,10 +191,29 @@ fn ordinary_no_carry_rejects_unsealed_control_and_resource_boundaries() {
 
 #[test]
 fn ordinary_no_carry_siblings_keep_identities_and_global_failure_revokes_all() {
-    for rejected in [false, true] {
-        let tail = if rejected { ";continue" } else { "" };
+    // An earlier invalid sibling must not be forgotten when a later body has a valid shape.
+    for (same_source, rejected_at) in [
+        (false, None),
+        (false, Some(0)),
+        (false, Some(1)),
+        (true, None),
+        (true, Some(0)),
+        (true, Some(1)),
+    ] {
+        let rejected = rejected_at.is_some();
+        let first_tail = if rejected_at == Some(0) {
+            ";continue"
+        } else {
+            ""
+        };
+        let second_tail = if rejected_at == Some(1) {
+            ";continue"
+        } else {
+            ""
+        };
+        let second_source = if same_source { "source" } else { "other" };
         let text = format!(
-            "fun view(source:String):borrow String from source=source\nfun observe(item:String):Unit {{}}\nfun run(source:String,other:String,flag:Boolean):Unit {{while(flag){{borrow val first=view(source);observe(first)}};while(flag){{borrow val second=view(other);observe(second){tail}}}}}"
+            "fun view(source:String):borrow String from source=source\nfun observe(item:String):Unit {{}}\nfun run(source:String,other:String,flag:Boolean):Unit {{while(flag){{borrow val first=view(source);observe(first){first_tail}}};while(flag){{borrow val second=view({second_source});observe(second){second_tail}}}}}"
         );
         let mut sources = SourceMap::new();
         let source = sources.add_source("siblings.ko", &text).unwrap();
@@ -246,7 +265,7 @@ fn ordinary_no_carry_siblings_keep_identities_and_global_failure_revokes_all() {
                     assert_ne!(left.loop_statement(), right.loop_statement());
                     assert_ne!(left.body(), right.body());
                     assert_ne!(left.binding(), right.binding());
-                    assert_ne!(left.source(), right.source());
+                    assert_eq!(left.source() == right.source(), same_source);
                     assert_ne!(left.initializer(), right.initializer());
                     assert_ne!(left.end(), right.end());
                     assert_eq!(left.callable(), right.callable());

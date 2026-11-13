@@ -16735,3 +16735,12 @@ required；layout 再保存 expected。layout/终检核资格一致性，已选�
 1/1 通过；all-target strict Clippy、docs922、格式/diff 与尺寸门禁通过。两个 CI-only
 目标精确编译列举通过，none executed；新增八例的实际触发与拒绝仍待远端运行。
 独审复核确认来源/借用链及失效关闭结构补齐；未推送。
+### No-carry sibling 失败顺序普通回归（2026-11-13）
+
+既有 `ordinary_no_carry_siblings_keep_identities_and_global_failure_revokes_all` 扩展为
+同源／异源与无失败／首环失败／次环失败六组合，覆盖先失败后遇合格 body 时不得
+重新发布局部能力。Single 与 memory/rooted Unit 仍核整体失败撤销，Unit observer
+on/off 保持相同许可结果；同源仅共享外部 source，不共享 binding、initializer 或 End。
+仅普通源码含 Continue 的拒绝用例，不使用故障注入，不扩大 no-carry 许可。
+精确测试在默认和 `loan-observation-test-support` 两种构建各 1/1 通过；后者 all-target
+strict Clippy、fmt、docs922、diff 检查通过。本片仅本地提交，未推送。
