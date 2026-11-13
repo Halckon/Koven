@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0433](0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) 完成 `refine` 五类借用凭证 `ci_tests`、`verify/closure_escape/types/graph_tests` 及 `verify_operation/map` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `verify_operation/map`、`verify_ownership` 及 `unit_lower` 的孤立单文件测试壳模块：
+在 [SPEC-0433](../../archive/specs/0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) 完成 `refine` 五类借用凭证 `ci_tests`、`verify/closure_escape/types/graph_tests` 及 `verify_operation/map` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `verify_operation/map`、`verify_ownership` 及 `unit_lower` 的孤立单文件测试壳模块：
 
 1. `ssa/verify_operation/map/tests.rs`（212 行）：仅包含 Map 操作局部静态契约测试，可收敛入 `ssa/unit_plan/concrete_types.rs`。
 2. `ssa/verify_ownership/direct_field_tests.rs`（177 行）：仅包含直接字段借用投影证明测试，可收敛入 `ssa/unit_plan/recipe_validation.rs`。
