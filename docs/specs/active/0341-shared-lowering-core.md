@@ -17415,3 +17415,21 @@ codegen observer-support all-target严格Clippy通过；79项借用故障清单�
 保持，格式、docs925、尺寸与diff检查通过。本地整合 `d6327122` 的全部crates
 及清单逐文件等同后端已验证提交。8项新CI反例动态拒绝/恢复仍待远端，本轮
 未推送、未本地执行故障，不能借此前#420旧head的CI声称新组合已远端验收。
+
+### concat标量入口与prefix-counter组合本地整合（2026-11-13）
+
+隔离树复用 `a95d095c`、D10 `ed02988c` 与E2 `97772be6`；main `fbfb5a3a`
+已为祖先，原PR工作树与远端 `0a13dd7f` 不变。仅Spec追加冲突，双方合同/证据
+完整保留；独立复核未见代码、清单或独立runner遗漏，bridge去重策略保持。
+
+workspace all-target check、frontend/codegen observer-support all-target严格Clippy
+通过；codegen普通完整FQN exact39/39、前端普通29/29通过，覆盖新concat入口
+组合及唯一挂载正例、prefix-counter独立事实/SSA/native/收据重放、旧域和main
+定向回归。验证脚本曾按旧tail-break前缀suite预期3项停止，实际新增第四项普通
+回归已4/4通过；更新仓库外计数后完成剩余检查，未删减测试或运行故障。
+
+格式、docs925、相对 `a95d095c` 尺寸门禁与diff通过。统一79项故障清单、
+child-cycle三目标、父receipt两目标、scalar-owner两目标及旧bridge目标均仅
+编译列举通过，none executed；bridge为统一清单内同一目标，不重复动态执行。
+本轮未启用本地CI环境、未运行故障、未推送/合并。新组合和指令唯一挂载反例仍待
+远端双宿主实际拒绝/恢复证据，普通组合通过不代表D10/E2整体完成。
