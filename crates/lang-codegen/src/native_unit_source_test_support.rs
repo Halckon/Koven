@@ -19,6 +19,8 @@ mod nullable_when_tests;
 mod owner_alias_return_tests;
 #[path = "owner_boolean_comparison_tests.rs"]
 mod owner_boolean_comparison_tests;
+#[path = "owner_call_initial_probe_tests.rs"]
+mod owner_call_initial_probe_tests;
 #[path = "owner_conditional_break_tests.rs"]
 mod owner_conditional_break_tests;
 #[path = "owner_conditional_return_tests.rs"]
