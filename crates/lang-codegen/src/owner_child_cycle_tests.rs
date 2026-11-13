@@ -102,6 +102,7 @@ fn ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption() {
         ChildGenerationProducer,
         ChildGenerationSharedLoan,
         ChildGenerationExtraLoanUse,
+        ChildGenerationDuplicateBorrowPlacement,
         ParentCompositionSelectedFlagLost,
         ParentCompositionRequiredFlagLost,
         ParentCompositionMissingCarry,

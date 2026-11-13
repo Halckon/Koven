@@ -6,6 +6,7 @@ pub(crate) enum OwnerFault {
     ChildGenerationProducer,
     ChildGenerationSharedLoan,
     ChildGenerationExtraLoanUse,
+    ChildGenerationDuplicateBorrowPlacement,
     ParentCompositionSelectedFlagLost,
     ParentCompositionRequiredFlagLost,
     ParentCompositionMissingCarry,
