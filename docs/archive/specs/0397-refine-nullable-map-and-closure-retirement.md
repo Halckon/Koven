@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0397` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md)、[Guide v0.47 集合与解构](../../guide/12-collections-destructuring.md) |
 | 批准依据 | 用户确认继续推进 E3；在完成 `Map` 迭代旧路径退役（[SPEC-0396](0396-refine-map-iteration-retirement.md)）后继续推进可空 `Map` 分支/消费与闭包回退旧路径退役 |
 | 基线 | [SPEC-0396](0396-refine-map-iteration-retirement.md)（`44d34c68`） |
 | 分支 | `feature/spec-0397-refine-nullable-map-and-closure-retirement` |
-| 前置 | [SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0377](0377-refine-box-map.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md) |
+| 前置 | [SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0377](../../specs/active/0377-refine-box-map.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0388](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -58,3 +58,19 @@
 - [x] 在 `crates/lang-codegen/src/ssa/refine_tests/map_condition_tests.rs` 中补充可空 `Map` `if` 读取/`consume()`、`Map.remove`、`FunctionValue` 调用与 lambda thunk 在强制旧路径（`with_per_family_lowering`）下的 `UnsupportedNode` 边界回归测试。
 - [x] `scripts/check_rust_sizes.py --base main` 与 `scripts/check_docs.py` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 9 个退役项已从版本库移除 | 通过 | 逐个确认：9/9 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 2/9 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored`、feature 套件 `3117 passed / 0 failed / 1 ignored`（均已执行） |
+
+核对说明：
+
+- 确认不存在：`map_consume/nullable`（含 `source`/`cleanup`/`guard_tests`）、`orchestrate/nullable_map_guard_support`（含 `checkpoint`/`prelude`）、`control/nullable_if/guard_tests`、`loop_control/map_borrow`
+- 本 Spec 的文件级退役项在当前树均已不存在；其中部分文件随后又被更后续 Spec 再次收敛，帐本只声明当前状态。历史已 squash，无法把删除单独归因到本 Spec。

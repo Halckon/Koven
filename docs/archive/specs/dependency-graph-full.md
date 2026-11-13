@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，393 份）"]
+subgraph Garchive["已完成（archive，400 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -350,7 +350,14 @@ subgraph Garchive["已完成（archive，393 份）"]
   S0366["S0366<br/>文本与同步 IO 规范启用"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
   S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
+  S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
+  S0384["S0384<br/>枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐"]
   S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
+  S0395["S0395<br/>可空 while 证明视图与借用子项旧路径退役"]
+  S0396["S0396<br/>Map / MutableMap 迭代与关联延续旧路径退役"]
+  S0397["S0397<br/>可空 Map 分支/消费、Map.remove 借用与闭包回退旧路径退役"]
+  S0398["S0398<br/>可空 String if 与同根可空堆对象字段 if 旧路径退役"]
+  S0399["S0399<br/>同根堆对象可空 if、接口委托与混合兼容回退旧路径退役"]
   S0400["S0400<br/>unit_lower 区间/捕获/闭包来源死 Carrier、调用帧冗余槽与守卫测试支架退役"]
   S0401["S0401<br/>unit_lower 可空 Rc if 证明入口、validated_rc_operation 与只写 shared_field_roots 退役"]
   S0402["S0402<br/>unit_lower 遗留壳模块、单变体 IterationState 与死辅助入口退役"]
@@ -423,8 +430,6 @@ subgraph Gactive["现行 active"]
   S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
   S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
-  S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
-  S0384["S0384<br/>枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐"]
   S0385["S0385<br/>deinit 字段借用、独立堆对象可空 if 与字符串字段接收者旧路径退役"]
   S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
@@ -434,11 +439,6 @@ subgraph Gactive["现行 active"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0393["S0393<br/>RangeView、借用结果函数与绑定、Rc 操作及带捕获闭包旧路径退役"]
   S0394["S0394<br/>直接 String.clone() 旧路径退役"]
-  S0395["S0395<br/>可空 while 证明视图与借用子项旧路径退役"]
-  S0396["S0396<br/>Map / MutableMap 迭代与关联延续旧路径退役"]
-  S0397["S0397<br/>可空 Map 分支/消费、Map.remove 借用与闭包回退旧路径退役"]
-  S0398["S0398<br/>可空 String if 与同根可空堆对象字段 if 旧路径退役"]
-  S0399["S0399<br/>同根堆对象可空 if、接口委托与混合兼容回退旧路径退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1862,7 +1862,14 @@ S0366 --> S0367
 | SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
 | SPEC-0382 | archive | [0382-refine-map-ops-and-primitive-retirement.md](0382-refine-map-ops-and-primitive-retirement.md) |
+| SPEC-0383 | archive | [0383-refine-final-legacy-retirement.md](0383-refine-final-legacy-retirement.md) |
+| SPEC-0384 | archive | [0384-refine-legacy-module-retirement.md](0384-refine-legacy-module-retirement.md) |
 | SPEC-0389 | archive | [0389-refine-known-function-shared-capture-container-element-retirement.md](0389-refine-known-function-shared-capture-container-element-retirement.md) |
+| SPEC-0395 | archive | [0395-refine-nullable-while-retirement.md](0395-refine-nullable-while-retirement.md) |
+| SPEC-0396 | archive | [0396-refine-map-iteration-retirement.md](0396-refine-map-iteration-retirement.md) |
+| SPEC-0397 | archive | [0397-refine-nullable-map-and-closure-retirement.md](0397-refine-nullable-map-and-closure-retirement.md) |
+| SPEC-0398 | archive | [0398-refine-nullable-string-and-field-if-retirement.md](0398-refine-nullable-string-and-field-if-retirement.md) |
+| SPEC-0399 | archive | [0399-refine-heap-nullable-if-and-compatibility-retirement.md](0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
 | SPEC-0400 | archive | [0400-refine-unit-lower-dead-carrier-retirement.md](0400-refine-unit-lower-dead-carrier-retirement.md) |
 | SPEC-0401 | archive | [0401-refine-unit-lower-rc-if-and-field-root-retirement.md](0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
 | SPEC-0402 | archive | [0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
@@ -1933,8 +1940,6 @@ S0366 --> S0367
 | SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](../../specs/active/0379-refine-reassignment-and-move-enum-when.md) |
 | SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
 | SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) |
-| SPEC-0383 | active | [0383-refine-final-legacy-retirement.md](../../specs/active/0383-refine-final-legacy-retirement.md) |
-| SPEC-0384 | active | [0384-refine-legacy-module-retirement.md](../../specs/active/0384-refine-legacy-module-retirement.md) |
 | SPEC-0385 | active | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](../../specs/active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
 | SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](../../specs/active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](../../specs/active/0387-refine-string-clone-box-value-field-when-retirement.md) |
@@ -1944,11 +1949,6 @@ S0366 --> S0367
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
 | SPEC-0393 | active | [0393-refine-range-borrow-result-rc-closure-retirement.md](../../specs/active/0393-refine-range-borrow-result-rc-closure-retirement.md) |
 | SPEC-0394 | active | [0394-refine-string-clone-retirement.md](../../specs/active/0394-refine-string-clone-retirement.md) |
-| SPEC-0395 | active | [0395-refine-nullable-while-retirement.md](../../specs/active/0395-refine-nullable-while-retirement.md) |
-| SPEC-0396 | active | [0396-refine-map-iteration-retirement.md](../../specs/active/0396-refine-map-iteration-retirement.md) |
-| SPEC-0397 | active | [0397-refine-nullable-map-and-closure-retirement.md](../../specs/active/0397-refine-nullable-map-and-closure-retirement.md) |
-| SPEC-0398 | active | [0398-refine-nullable-string-and-field-if-retirement.md](../../specs/active/0398-refine-nullable-string-and-field-if-retirement.md) |
-| SPEC-0399 | active | [0399-refine-heap-nullable-if-and-compatibility-retirement.md](../../specs/active/0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

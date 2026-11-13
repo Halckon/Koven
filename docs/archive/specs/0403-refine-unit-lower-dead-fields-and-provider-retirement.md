@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)（`ebde99f4`） |
 | 分支 | `feature/spec-0403-refine-unit-lower-dead-fields-and-provider-retirement` |
-| 前置 | [SPEC-0384](../../specs/active/0384-refine-legacy-module-retirement.md)、[SPEC-0396](../../specs/active/0396-refine-map-iteration-retirement.md)、[SPEC-0398](../../specs/active/0398-refine-nullable-string-and-field-if-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
+| 前置 | [SPEC-0384](0384-refine-legacy-module-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md)、[SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

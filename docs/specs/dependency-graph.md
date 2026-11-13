@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 393 份"))
+ARCH(("已完成<br/>archive 400 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -29,8 +29,6 @@ subgraph Gactive["现行 active"]
   S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
   S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
-  S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
-  S0384["S0384<br/>枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐"]
   S0385["S0385<br/>deinit 字段借用、独立堆对象可空 if 与字符串字段接收者旧路径退役"]
   S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
@@ -40,11 +38,6 @@ subgraph Gactive["现行 active"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0393["S0393<br/>RangeView、借用结果函数与绑定、Rc 操作及带捕获闭包旧路径退役"]
   S0394["S0394<br/>直接 String.clone() 旧路径退役"]
-  S0395["S0395<br/>可空 while 证明视图与借用子项旧路径退役"]
-  S0396["S0396<br/>Map / MutableMap 迭代与关联延续旧路径退役"]
-  S0397["S0397<br/>可空 Map 分支/消费、Map.remove 借用与闭包回退旧路径退役"]
-  S0398["S0398<br/>可空 String if 与同根可空堆对象字段 if 旧路径退役"]
-  S0399["S0399<br/>同根堆对象可空 if、接口委托与混合兼容回退旧路径退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -93,8 +86,6 @@ ARCH --> S0341
 | SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](active/0379-refine-reassignment-and-move-enum-when.md) |
 | SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
 | SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](active/0381-refine-default-routing-and-legacy-retirement.md) |
-| SPEC-0383 | active | [0383-refine-final-legacy-retirement.md](active/0383-refine-final-legacy-retirement.md) |
-| SPEC-0384 | active | [0384-refine-legacy-module-retirement.md](active/0384-refine-legacy-module-retirement.md) |
 | SPEC-0385 | active | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
 | SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](active/0387-refine-string-clone-box-value-field-when-retirement.md) |
@@ -104,11 +95,6 @@ ARCH --> S0341
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
 | SPEC-0393 | active | [0393-refine-range-borrow-result-rc-closure-retirement.md](active/0393-refine-range-borrow-result-rc-closure-retirement.md) |
 | SPEC-0394 | active | [0394-refine-string-clone-retirement.md](active/0394-refine-string-clone-retirement.md) |
-| SPEC-0395 | active | [0395-refine-nullable-while-retirement.md](active/0395-refine-nullable-while-retirement.md) |
-| SPEC-0396 | active | [0396-refine-map-iteration-retirement.md](active/0396-refine-map-iteration-retirement.md) |
-| SPEC-0397 | active | [0397-refine-nullable-map-and-closure-retirement.md](active/0397-refine-nullable-map-and-closure-retirement.md) |
-| SPEC-0398 | active | [0398-refine-nullable-string-and-field-if-retirement.md](active/0398-refine-nullable-string-and-field-if-retirement.md) |
-| SPEC-0399 | active | [0399-refine-heap-nullable-if-and-compatibility-retirement.md](active/0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -117,4 +103,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（393 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（400 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

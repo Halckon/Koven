@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md)（`6ceafb47`） |
 | 分支 | `feature/spec-0402-refine-unit-lower-shell-modules-and-iteration-state-retirement` |
-| 前置 | [SPEC-0395](../../specs/active/0395-refine-nullable-while-retirement.md)、[SPEC-0396](../../specs/active/0396-refine-map-iteration-retirement.md)、[SPEC-0397](../../specs/active/0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
+| 前置 | [SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

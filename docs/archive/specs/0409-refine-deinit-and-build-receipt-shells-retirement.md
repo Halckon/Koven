@@ -11,7 +11,7 @@
 | 批准依据 | 用户指示盘点剩余退休工作并继续推进下一批 |
 | 基线 | [SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)（`a7fc2986`，含 `main` `e659b66a`） |
 | 分支 | `feature/spec-0409-refine-deinit-and-build-receipt-shells-retirement` |
-| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../archive/specs/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../archive/specs/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../archive/specs/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
+| 前置 | [SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../archive/specs/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../archive/specs/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../archive/specs/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

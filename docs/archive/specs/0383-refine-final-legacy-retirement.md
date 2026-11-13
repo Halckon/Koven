@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0383` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认在最新 `main` 基线上继续推进 E3 最终旧路径退休评估与收尾阶段开发 |
 | 基线 | `main` `041e8238` |
 | 分支 | `feature/spec-0383-refine-final-legacy-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -131,7 +131,7 @@ continue/break/return。SSA 查询定位实际 scan 函数，检查 provider 与
 head `d84051e2` 与 main `3f88b1aa` 的组合在 [run 42133927775](https://github.com/Halckon/Koven/actions/runs/42133927775)
 完成双宿主 check/Clippy，macOS 实际通过四项 oracle 校准及七项 Abort 前驱回归；
 Ubuntu 测试因 LLVM 包下载超时尚未启动，Preview 未执行，不记作组合验收通过。
-按用户最新要求，现基于 main `c80e9e38` 将 [SPEC-0390](0390-prebuilt-ci-toolchain.md) 的
+按用户最新要求，现基于 main `c80e9e38` 将 [SPEC-0390](../../specs/active/0390-prebuilt-ci-toolchain.md) 的
 已发布固定 digest 直接整合本 PR：Linux 核心 job 使用非 root 容器，保留原测试和
 macOS/Preview 门禁。三个 owner 测试/helper 文件与 `d84051e2` 逐字一致。
 
@@ -142,3 +142,19 @@ macOS/Preview 门禁。三个 owner 测试/helper 文件与 `d84051e2` 逐字一
 两套 Preview producer/consumer 与汇总门禁均通过。Linux 容器的非 root 权限错误测试、
 Actions 挂载/HOME、checkout、离线工具链、调试断点、sanitizer 与产物上传实际通过。
 冷缓存查找/保存成功，但命中后的恢复/解包尚未验证；SPEC-0390 继续保持 in-progress。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 1 个退役项已从版本库移除 | 通过 | 逐个确认：1/1 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 0/1 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored`、feature 套件 `3117 passed / 0 failed / 1 ignored`（均已执行） |
+
+核对说明：
+
+- 确认不存在：`unit_lower/integer.rs`
+- 本 Spec 的文件级退役项在当前树均已不存在；其中部分文件随后又被更后续 Spec 再次收敛，帐本只声明当前状态。历史已 squash，无法把删除单独归因到本 Spec。

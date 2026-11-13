@@ -11,13 +11,13 @@
 | 批准依据 | 用户确认在最新 `main` 与 SPEC-0384 基线上继续推进 E3 下一个切片 |
 | 基线 | `46585e00`（SPEC-0384） |
 | 分支 | `feature/spec-0385-refine-rc-nullable-when-map-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0384](0384-refine-legacy-module-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0383](../../archive/specs/0383-refine-final-legacy-retirement.md)、[SPEC-0384](../../archive/specs/0384-refine-legacy-module-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0383](0383-refine-final-legacy-retirement.md) 与 [SPEC-0384](0384-refine-legacy-module-retirement.md) 已将 `deinit` 析构体、多层 `this` 字段借用/读取、可信字符串扩展方法接收者及堆对象可空 `if` 非空证明视图全量路由至 `ssa::refine` 的基础上，彻底退役 `unit_lower` 中已无任何生产或测试调用方的冗余 legacy 模块与分支（合计清理约 755 行旧路径代码）：
+在 [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0383](../../archive/specs/0383-refine-final-legacy-retirement.md) 与 [SPEC-0384](../../archive/specs/0384-refine-legacy-module-retirement.md) 已将 `deinit` 析构体、多层 `this` 字段借用/读取、可信字符串扩展方法接收者及堆对象可空 `if` 非空证明视图全量路由至 `ssa::refine` 的基础上，彻底退役 `unit_lower` 中已无任何生产或测试调用方的冗余 legacy 模块与分支（合计清理约 755 行旧路径代码）：
 
 1. **删除 `unit_lower/deinit_borrow.rs`（262 行）**：移除仅服务于 legacy `deinit` / `this` 多跳字段路径的 `is_this_field_path`、`lower_this_field_borrow` 与 `read_this_field_path`，同步清理 `unit_lower.rs`、`aggregate.rs`、`borrow.rs` 与 `string_clone.rs` 中的挂载与分支。
 2. **删除 `unit_lower/receiver/string_field.rs`（62 行）**：移除 `lower_string_field_receiver`（可信字符串扩展方法在 `ssa::refine` 中已默认激活 `migrated` 并支持 `r.field.ext()`），同步清理 `receiver.rs`。

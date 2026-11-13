@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认 E3 进入收尾阶段并继续推进 SPEC-0405 清理 |
 | 基线 | [SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)（`d3537535`，含 [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) `06dc4e80`） |
 | 分支 | `feature/spec-0405-refine-dead-helpers-and-test-entry-gates-retirement` |
-| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
+| 前置 | [SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

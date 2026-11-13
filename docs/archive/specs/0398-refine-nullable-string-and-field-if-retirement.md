@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0398` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认继续推进 E3；在完成 `wt-spec-0397` 合并清理后继续推进可空 `String` `if` 与同根可空堆对象字段 `if` 旧路径退役 |
 | 基线 | [SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)（`dd716bab`） |
 | 分支 | `feature/spec-0398-refine-nullable-string-and-field-if-retirement` |
-| 前置 | [SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0378](0378-refine-class-fields-rc-and-null-views.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md) |
+| 前置 | [SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0378](../../specs/active/0378-refine-class-fields-rc-and-null-views.md)、[SPEC-0385](../../specs/active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -51,3 +51,19 @@
 - [x] 更新 `crates/lang-codegen/src/ssa/text_extension_tests.rs` 与 `crates/lang-codegen/src/ssa/unit_lower/control/nullable_if/field_tests.rs`，验证默认细化层路由覆盖可空 `String` `if` 借用/返回与双极性可空字段 `if`，且强制旧路径（`with_per_family_lowering`）对已退役的 `String` `if` 返回 `UnsupportedNode`。
 - [x] `scripts/check_rust_sizes.py --base main` 与 `scripts/check_docs.py` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 8 个退役项已从版本库移除 | 通过 | 逐个确认：8/8 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 1/8 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored`、feature 套件 `3117 passed / 0 failed / 1 ignored`（均已执行） |
+
+核对说明：
+
+- 确认不存在：`control/nullable_if/string.rs`、`receiver/nullable_string.rs`、`call_lifetimes/nullable_text.rs`、`nullable_if/heap/field`（含 tests）、`while_proof/string_return_tests`、`borrow/nullable_string_tests`、`nullable_if/field_tests`
+- 本 Spec 的文件级退役项在当前树均已不存在；其中部分文件随后又被更后续 Spec 再次收敛，帐本只声明当前状态。历史已 squash，无法把删除单独归因到本 Spec。

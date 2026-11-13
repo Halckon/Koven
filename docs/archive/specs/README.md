@@ -582,3 +582,10 @@
 - [SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md)：`ssa/deinit`、`refine/build` 凭证壳模块收敛及冗余路由/作用域状态退役。
 - [SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)：`ssa` 类型与源查询壳模块收敛及 `null` 字面量判定辅助去重。
 - [SPEC-0400](0400-refine-unit-lower-dead-carrier-retirement.md)：`unit_lower` 区间/捕获/闭包来源死 Carrier、调用帧冗余槽与守卫测试支架退役。
+- [SPEC-0395](0395-refine-nullable-while-retirement.md)：可空 `while` 证明视图与借用子项旧路径退役。
+- [SPEC-0396](0396-refine-map-iteration-retirement.md)：`Map` / `MutableMap` 迭代与关联延续旧路径退役。
+- [SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)：可空 `Map` 分支/消费、`Map.remove` 借用与闭包回退旧路径退役。
+- [SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md)：可空 `String` `if` 与同根可空堆对象字段 `if` 旧路径退役。
+- [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)：同根堆对象可空 `if`、接口委托与混合兼容回退旧路径退役。
+- [SPEC-0383](0383-refine-final-legacy-retirement.md)：最终默认路由收敛与旧路径退休收尾。
+- [SPEC-0384](0384-refine-legacy-module-retirement.md)：枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐。
