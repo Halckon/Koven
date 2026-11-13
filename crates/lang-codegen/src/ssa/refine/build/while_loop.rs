@@ -99,7 +99,10 @@ impl Builder<'_, '_> {
                 map_for: None,
             });
             let reached = self.statement(loop_body)? != Lowered::Diverged;
-            if (no_carry.is_some() || arm_carry.is_some()) && !reached {
+            if (no_carry.is_some() || arm_carry.is_some())
+                && !reached
+                && !self.body.arm_loop_plans.completed_break(statement)
+            {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
             self.no_carry_boundary(no_carry.as_ref(), span)?;

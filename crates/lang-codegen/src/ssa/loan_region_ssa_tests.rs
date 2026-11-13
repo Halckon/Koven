@@ -940,3 +940,6 @@ mod loop_arm_no_carry_tests;
 
 #[path = "loop_arm_counter_tests.rs"]
 mod loop_arm_counter_tests;
+
+#[path = "loop_arm_break_tests.rs"]
+mod loop_arm_break_tests;

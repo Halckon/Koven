@@ -209,7 +209,9 @@ impl Emitted {
         if split != actual_split || source != parameters[p.roles[0]] || then_block == else_block {
             return Err(invalid(s));
         }
-        if p.counter.is_some() {
+        if p.tail_break.is_some() {
+            self.validate_break(parameters, f, p, s)?;
+        } else if p.counter.is_some() {
             self.validate_counter(parameters, f, p, s)?;
         } else {
             self.links(f, entry, &[header], s)?;

@@ -108,6 +108,11 @@ impl Builder<'_, '_> {
                 .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?,
         );
         p.blocks = Some(blocks);
+        // A single-break loop has no backedge; retain its independently witnessed
+        // header instead of folding the only entry predecessor into the condition.
+        if p.tail_break.is_some() {
+            self.body.blocks[blocks[1].0].preserve_header = true;
+        }
         Ok(())
     }
 }

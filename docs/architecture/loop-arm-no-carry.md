@@ -93,3 +93,18 @@ ControlTransfer 清理、body scope 清理和目标 LoopExit 清理后核同一�
 loan/稳定外部资源。唯有整段完成 witness 与两臂 End 均匹配才发布退出能力；collector
 不依赖可关闭的观察器。公共事实给出 break statement/expression、body、目标 while、
 两种 cleanup point 和固定 Break exit-kind。native 与后端独立 receipt 仍另行验收。
+
+## 单一无条件 tail break 的独立后端
+
+`no_carry_break_branches()` 单独进入必需/选中清单；条件/分支还是稳定 Boolean
+参数，不能与 counter 或旧 backedge 能力混用。真实 jump 在清理前后比较资源，
+只在实际 Goto 写入后记录 break 源块与目标；while-body Diverged 必须由该记录解释。
+新域保留独立 header（无回边时不将其折入预头），最终收据核两臂 End、arm→merge、
+实际 break→exit、false→exit、来源/前驱和 ABI 运输。exit 后继做可达性检查，禁止
+隐藏重入当前选中区域，而不误将合法前缀 CFG 限成预头无前驱。
+
+普通 SSA 验证 Own/Borrow 标志、参数重排、rooted/memory 与真实 observer 对照，
+且退出后同函数继续消费 source。native 真正运行 flag=false/true × 两臂，分别零轮/
+一轮，核消费次数、同函数 after-loop source 可读、调用者返回后可读和最终 own 消费。
+这不是多轮证明；额外/条件跳转、嵌套、多根及跨出口 loan 仍不授权。专属故障动态
+验收尚待后续 CI，普通正例和静态复审不能替代。

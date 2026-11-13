@@ -17035,3 +17035,21 @@ break，其余覆盖不删除。尺寸门禁与 docs923 通过，无新增豁免
 集成目标共 11/11 通过（旧 Boolean 双臂3、新tail-break2、counter4、旧边界2），
 包括实际 observer on/off。fmt、docs923、diff与尺寸门禁通过。planner借用End集合
 仅重组为同职责收据容器，并同步一个编译期测试访问路径；未执行本地CI故障。
+
+### Tail break 后端与真实出口普通验证（2026-11-13）
+
+复用前端 `c0c9dbe7`，新能力独立必需/选中身份在 layout/final 交叉核对。实际 jump
+在 ControlTransfer/LoopExit 清理前后核无活动本轮借用，并在真实 Goto 发出后捕获
+源块/目标；body Diverged 只由已捕获 break 解释。新域保留 header 身份。最终收据
+核真实来源、完整前驱、零回边、两臂 End 与无逃逸，另从 exit 实际后继遍历拒绝
+任何隐藏重入当前片的路径，不要求可能有合法前置 CFG 的 preheader 没有前驱。
+
+首轮后端编译即通过；普通 SSA 精确目标 1/1 覆盖 Own/Borrow 条件、参数重排、
+rooted/memory、真实 observer on/off 与独立 receipt replay。native 1/1 实际运行
+0/1 轮 × true/false 两臂，核 consumer 次数与同函数出口后 source 使用、调用者
+返回后可用及最终 own 消费。未运行本地故障，未推送，不能称多轮或CI动态验收。
+
+收尾验证：旧 no-carry 普通回归 12/12、counter ABI/observer 矩阵 1/1、codegen
+all-target strict Clippy、fmt、docs923、Rust 尺寸门禁与 diff 通过。独立只读后端
+复审未见确定阻断；当前真实普通布局保留 header，未伪造折叠路径或故障结果。
+tail-break 专属 CI-only 反例及双宿主动态执行仍待单独完成，不借用旧域结果充数。

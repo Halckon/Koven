@@ -7,15 +7,19 @@ use crate::ssa::{
 };
 use lang_frontend::{
     ownership_checking::{
-        UnitDropPoint, UnitLoopBranchNoCarryFact, UnitLoopCounterBranchNoCarryFact,
+        UnitDropPoint, UnitLoopBranchNoCarryFact, UnitLoopBreakBranchNoCarryFact,
+        UnitLoopCounterBranchNoCarryFact,
     },
     parser::{Expression, Statement},
     source::Span,
     type_checking::{ParameterMode, UnitCallTarget, UnitExpressionId},
 };
 use std::collections::BTreeMap;
+mod break_hooks;
 #[cfg(test)]
 mod ci_tests;
+use break_hooks::BreakPlan;
+mod break_validation;
 mod counter;
 #[cfg(test)]
 mod counter_ci;
@@ -42,6 +46,7 @@ pub(super) struct Plan {
     pub(super) fact: UnitLoopBranchNoCarryFact,
     arms: [Arm; 2],
     counter: Option<counter::Counter>,
+    pub(super) tail_break: Option<BreakPlan>,
     counter_fact: Option<UnitLoopCounterBranchNoCarryFact>,
     conditions: [UnitExpressionId; 2],
     condition_spans: [Span; 2],
@@ -49,7 +54,7 @@ pub(super) struct Plan {
     pub(super) source: Option<Slot>,
     pub(super) blocks: Option<[BlockRef; 5]>,
     split: Option<[BlockRef; 3]>,
-    join: Option<BlockRef>,
+    pub(super) join: Option<BlockRef>,
     used: [Option<(BlockRef, Slot)>; 2],
 }
 #[derive(Clone, Debug, Default)]
@@ -109,6 +114,10 @@ impl Plans {
                 .as_ref()
                 .is_some_and(|c| c.condition().expression() != *outer)
             {
+                return Err(fail());
+            }
+            let tail_break = Self::break_plan(inputs, fact)?;
+            if tail_break.is_some() && counter_fact.is_some() {
                 return Err(fail());
             }
             let counter = counter_fact
@@ -225,6 +234,7 @@ impl Plans {
                 arms,
                 counter,
                 counter_fact,
+                tail_break,
                 conditions: [
                     UnitExpressionId::new(inputs.source_unit, *outer),
                     UnitExpressionId::new(inputs.source_unit, *condition),
@@ -311,6 +321,16 @@ impl Plans {
     }
     pub(super) fn fold(&mut self, block: BlockRef, successor: BlockRef, offset: usize) {
         for p in &mut self.loops {
+            if let Some(b) = &mut p.tail_break
+                && let Some((from, to)) = &mut b.observed
+            {
+                if *from == successor {
+                    *from = block;
+                }
+                if *to == successor {
+                    *to = block;
+                }
+            }
             if let Some(c) = &mut p.counter {
                 c.fold(block, successor, offset);
             }
@@ -343,6 +363,7 @@ impl Plans {
 pub(super) struct Emitted {
     selected: Vec<UnitLoopBranchNoCarryFact>,
     counter_selected: Vec<UnitLoopCounterBranchNoCarryFact>,
+    break_selected: Vec<UnitLoopBreakBranchNoCarryFact>,
     aliases: BTreeMap<(BlockRef, usize), (Slot, Slot, EntityId)>,
     blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockRef, Vec<Slot>>,
@@ -369,6 +390,7 @@ impl Emitted {
             return Err(invalid(span));
         }
         self.check_counter_required(body, span)?;
+        self.check_break_required(body, span)?;
         if body.arm_loop_required.is_empty() {
             return Ok(());
         }
@@ -376,6 +398,9 @@ impl Emitted {
             return Err(invalid(span));
         }
         for p in &body.arm_loop_plans.loops {
+            if p.tail_break.as_ref().is_some_and(|b| b.observed.is_none()) {
+                return Err(invalid(span));
+            }
             if let Some(c) = &p.counter {
                 c.ready(span)?;
             }
@@ -395,6 +420,7 @@ impl Emitted {
             .map(|p| p.fact.clone())
             .collect();
         self.counter_selected = body.arm_counter_required.clone();
+        self.break_selected = body.arm_break_required.clone();
         self.blocks = blocks.clone();
         self.parameters = parameters.clone();
         self.entities = entities.clone();
@@ -440,6 +466,16 @@ impl Emitted {
         #[cfg(test)]
         publication::before_finish(&mut self);
         self.check_counter_required(body, span)?;
+        self.check_break_required(body, span)?;
+        if self.break_selected.len() != body.arm_break_required.len()
+            || self
+                .break_selected
+                .iter()
+                .zip(&body.arm_break_required)
+                .any(|(a, b)| !a.same_identity(b))
+        {
+            return Err(invalid(span));
+        }
         if self.counter_selected.len() != body.arm_counter_required.len()
             || self
                 .counter_selected
@@ -491,6 +527,13 @@ impl Receipt {
                 .selected
                 .iter()
                 .any(|f| f.same_identity(&self.plan.fact))
+            || self.plan.tail_break.as_ref().is_some_and(|b| {
+                !self
+                    .evidence
+                    .break_selected
+                    .iter()
+                    .any(|f| f.same_identity(&b.fact))
+            })
             || self.plan.counter.is_some() != self.plan.counter_fact.is_some()
             || self.plan.counter_fact.as_ref().is_some_and(|f| {
                 !self

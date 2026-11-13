@@ -437,3 +437,21 @@ fun entry() {
     let run = emit_link_and_run("counter-loop-own-reordered", text, "entry");
     super::boxed_enum_tests::assert_success(&run,b"negative-returned\nkept\nzero-returned\nkept\nL\nkept\nR\nkept\nR\nkept\none-returned\nkept\nL\nkept\nL\nkept\nR\nkept\nR\nkept\nR\nkept\nR\nkept\ntwo-returned\nkept\nkept\n");
 }
+
+#[test]
+fn native_loop_arm_tail_break_runs_at_most_once_and_preserves_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun run(own choose:Boolean,source:String,own flag:Boolean):Unit {
+ while(flag){if(choose){borrow val a=view(source);left(a)}else{borrow val b=view(source);right(b);right(b)};break}
+ println("after-loop");println(source)
+}
+fun take(own source:String):Unit {println(source)}
+fun entry(){val source="kept".clone();run(true,source,false);run(false,source,false);println("zero");println(source);run(true,source,true);println("left-exited");println(source);run(false,source,true);println("right-exited");println(source);take(source)}"#;
+    let run = emit_link_and_run("arm-tail-break", text, "entry");
+    super::boxed_enum_tests::assert_success(
+        &run,
+        b"after-loop\nkept\nafter-loop\nkept\nzero\nkept\nL\nkept\nafter-loop\nkept\nleft-exited\nkept\nR\nkept\nR\nkept\nafter-loop\nkept\nright-exited\nkept\nkept\n",
+    );
+}

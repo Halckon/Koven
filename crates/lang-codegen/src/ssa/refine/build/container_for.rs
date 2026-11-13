@@ -105,6 +105,7 @@ impl Builder<'_, '_> {
         frame.broken |= is_break;
         let frame = *frame;
         let invariant = self.invariant_jump_entry(expression, is_break, frame, span)?;
+        let arm_break = self.arm_break_entry(expression, is_break, frame, span)?;
         let loans_boundary = frame.loans.min(self.pending_call_loans.len());
         while self.pending_call_loans.len() > loans_boundary {
             let loan = self
@@ -217,6 +218,7 @@ impl Builder<'_, '_> {
         )?;
         self.invariant_jump_exit(invariant.as_ref(), is_break, target, jump_span)?;
         self.terminate(RTerm::Goto(target), jump_span)?;
+        self.arm_break_emitted(arm_break, target, jump_span)?;
         self.cb_break_emitted(cb, jump_span)?;
         self.header_continue_emitted(continued, jump_span)?;
         self.mixed_header_jump_emitted(mixed, jump_span)?;

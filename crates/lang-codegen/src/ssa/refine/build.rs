@@ -19,6 +19,7 @@ pub(in crate::ssa::refine::build) use value::field;
 mod frames;
 pub(super) use frames::Lowered;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
+mod arm_break;
 mod branch_no_carry;
 mod invariant_while;
 mod map;
@@ -155,6 +156,7 @@ pub(super) fn build(
             fresh_loop_plans: super::fresh_loop_receipt::Plans::new(inputs, types)?,
             arm_loop_plans: super::arm_loop_receipt::Plans::new(inputs)?,
             arm_loop_required: super::arm_loop_receipt::Plans::required(inputs),
+            arm_break_required: super::arm_loop_receipt::Plans::required_breaks(inputs),
             arm_counter_required: super::arm_loop_receipt::Plans::required_counters(inputs),
             single_plans: super::single_receipt::Plans::new(inputs)?,
             multi_plans: super::multi_receipt::Plans::new(inputs)?,

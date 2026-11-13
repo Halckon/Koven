@@ -82,6 +82,7 @@ pub(in crate::ssa) fn pairs(
         .no_carry_branches()
         .iter()
         .chain(owned.no_carry_counter_branches().iter().map(|f| f.pair()))
+        .chain(owned.no_carry_break_branches().iter().map(|f| f.pair()))
 }
 pub(in crate::ssa) fn owns_pair(
     owned: &CompilationUnitOwnership,
@@ -92,4 +93,8 @@ pub(in crate::ssa) fn owns_pair(
             .no_carry_counter_branches()
             .iter()
             .any(|f| owned.owns_no_carry_counter_branch(f) && f.pair().same_identity(pair))
+        || owned
+            .no_carry_break_branches()
+            .iter()
+            .any(|f| owned.owns_no_carry_break_branch(f) && f.pair().same_identity(pair))
 }
