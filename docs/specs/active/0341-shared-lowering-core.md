@@ -16774,6 +16774,10 @@ Clippy、fmt、docs923、diff 和以 fbdaea63 为基线的 Rust 尺寸门禁通�
 本批仅前端闭合事实；后端 branch admission、双臂消费与独立 receipt/native 验证
 尚未实施，不把 FE 通过等同 E2 完成。相关 PR/CI 未由本地修改触发，未推送。
 
+补充验证：`loan-observation-test-support` 构建下上述普通双臂矩阵 2/2 通过，
+实际 observer on/off 均核相同许可及独立事实；`cargo check --locked --workspace
+--all-targets` 通过。两项仅普通执行／编译，不含本地故障注入。
+
 ### 受限循环双臂后端 SSA 首轮（2026-11-13）
 
 新增独立 branch admission，不将 arm 混入旧直线 loop API。每臂真实 lowering 后
@@ -16931,6 +16935,7 @@ publication/replay，变异仅编译列举，实际拒绝/恢复证据待远端�
 独立只读审查无确定阻断。四项属于真实 Function/alias 证据变异后的独立重放，
 两项定义于实际 finish/final-verifier 边界；以上六项动态均未在本地运行，尚无远端
 双宿主执行结果。另已集成 FE 参数重绑定前后拒绝普通回归，生产 mutability 不变。
+
 ### 父 false 反向部分退休的 FE 身份回归（2026-11-13）
 
 普通源码测试 `parent_boundary_retires_resumed_root_and_preserves_other_root` 补充只保留
