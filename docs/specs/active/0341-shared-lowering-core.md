@@ -17700,3 +17700,15 @@ Value prefix/access suffix 次序和 failure 边不变，独立审查未发现�
 arithmetic live-owner edge 三项普通完整 FQN exact 3/3 通过；codegen
 observer-support all-target 严格 Clippy、fmt、diff、文档门禁通过。没有新增
 测试、Origin 决策或推送；故障注入未执行，其余 SSA 豁免仍待逐项审计。
+
+### Refine 收据观察接口测试边界（2026-11-13）
+
+基于 `3d5d589c` 对 single/multi/nested receipt 三模块恢复 dead-code 门禁，
+六个仅测试消费的计数/形状观察接口限定为测试构建，方法体和测试见证不变。
+single 的 tail_mapping_matches 与 nested 的 cascade 校验仍由生产消费，
+未被门控或删除；不代表整个 refine/SSA 豁免清理完成。
+
+现有 bounded continuation、multiple-hole shared-tail、nested-then-tail 三项
+普通完整 FQN exact 3/3 通过；observer-support codegen all-target 严格 Clippy、
+fmt、diff、文档检查通过。独立只读审查无阻断。未新增测试、未改变 Origin
+或收据语义，故障注入未执行，未推送，远端双宿主验收仍待进行。

@@ -168,9 +168,11 @@ fn invalid(span: Span) -> LoweringError {
 }
 
 impl Receipt {
+    #[cfg(test)]
     pub(crate) fn continuation_goto_count(&self) -> usize {
         self.original_gotos.len()
     }
+    #[cfg(test)]
     pub(crate) fn continuation_fold_count(&self) -> usize {
         self.folds.len()
     }

@@ -170,12 +170,15 @@ fn invalid(span: Span) -> LoweringError {
 }
 
 impl Receipt {
+    #[cfg(test)]
     pub(crate) fn continuation_goto_count(&self) -> usize {
         self.original_gotos.len()
     }
+    #[cfg(test)]
     pub(crate) fn continuation_fold_count(&self) -> usize {
         self.folds.len()
     }
+    #[cfg(test)]
     pub(crate) fn tail_mapping_matches(&self, block: BlockId) -> bool {
         let mut original = self.original_tail;
         for (from, to) in &self.folds {
