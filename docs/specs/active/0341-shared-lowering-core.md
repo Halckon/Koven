@@ -17385,3 +17385,10 @@ choose/stop、资源根与身份必须保留。两出口运输与后继无重入
 完整FQN精确执行，Single checker在两处borrow marker报告L0164（未证loop
 continuation），0 passed/1 failed。这不是故障注入；普通后端验收先行提交
 `96159f1b`，其中504个native调用仍为待执行计划，不是通过记录。
+
+前端组合API在 `063dd6d8` 独立发布 `UnitLoopPrefixCounterBreakFact`，嵌入旧域
+见证不获得旧域owns授权。独立静态复审发现prefix后scalar初始化可能误扩旧
+tail-break前缀域，已以expected initializer精确匹配和旧域发布限定None修正，
+并新增普通拒绝回归；Single/Unit初始化事件另加单调失效保护，后者不是已证
+合法源码漏洞。最终复审未发现其他确定遗漏。此前核心普通正/拒绝各1/1通过，
+这些最终修复的精确回归和严格Clippy仍待执行，不能沿用此前绿灯冒充最终验收。
