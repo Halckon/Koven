@@ -76,8 +76,8 @@
 
 宿主核对说明：
 
-- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/conditional/verify.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/resource.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/loop_control/numeric_iteration.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/map_consume.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/source.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/conditional/verify.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/llvm/entry.rs`（`43` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/resource.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/lower_frontend_root_boundary_tests.rs`（`108` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/loop_control/numeric_iteration.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/lowering_support_tests.rs`（`232` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/map_consume.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/binding_lifecycle_probe_tests.rs`（`67` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/multi_borrow_range_boundary_tests/map_iteration_source.rs`（`21` 行）

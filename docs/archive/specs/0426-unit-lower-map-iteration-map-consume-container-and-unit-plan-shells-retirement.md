@@ -56,6 +56,6 @@
 
 宿主核对说明：
 
-- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/exits.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/temporary.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/map_consume/nullable.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/exits.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/checked_integer_conversion_tests.rs`（`151` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/temporary.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_type_origin_tests.rs`（`380` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/map_consume/nullable.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/rc_nullable_while_memory_document_tests.rs`（`148` 行）

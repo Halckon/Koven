@@ -56,6 +56,6 @@
 
 宿主核对说明：
 
-- `crates/lang-codegen/src/ssa/lower_frontend/nullable_if_cleanup/carrier.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/source_owner/handoff.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/outer_borrowed_while.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/nullable_if_cleanup/carrier.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_promotion_contract_tests.rs`（`147` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/source_owner/handoff.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native.rs`（`491` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/outer_borrowed_while.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/integer_range_contract_tests.rs`（`215` 行）
