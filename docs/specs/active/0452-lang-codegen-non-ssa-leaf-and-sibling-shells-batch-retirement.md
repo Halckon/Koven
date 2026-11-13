@@ -207,3 +207,32 @@
 
 1. 上述 129 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `1811` 降至 `1682`。
+
+## 4. 集成后恢复项对账（部分进展）
+
+输入检查点 `baf0b364` 已续接 #421 冲突修复 `4e201f4b`。当时 §2.2 的 129 项中，
+125 个路径不再存在，以下 4 个文件仍保留；路径不存在仅是物理清单检查，不证明内容完整迁移。
+§2.1 行高及 §3 总文件数是原批次目标，不作为当前验收结果。
+
+| 恢复项（相对 `crates/lang-codegen/src/`） | 本轮处理 |
+|---|---|
+| `owner_group_condition_tests.rs` | 将完整同名模块并回原 `native_unit_source_test_support.rs` |
+| `owner_negated_condition_tests.rs` | 同上，保留 Not parity、真实 Return receipt 与 native 输出断言 |
+| `owner_short_circuit_leaf_not_tests.rs` | 同上，继续使用原父模块导入的 short-circuit helper |
+| `native_nullable_rc_proof_tests.rs` | 保留 447 行独立模块；内联父文件已为 955 行，不能直接合并且不应再次跨域挂载 |
+
+三个 owner 模块各含 3 个测试；同名内联后层级、可见性、fixture、测试身份和配置边界不变。
+去掉外层缩进后，三个正文分别与输入文件逐字节相同。父文件从 800 行变为 955 行，
+未扩大可见性、提高尺寸上限、压行或删除断言。
+
+| 验证 | 实际结果 |
+|---|---|
+| feature 配置 `cargo test -p lang-codegen --lib --features loan-observation-test-support -- owner_group_condition_tests owner_negated_condition_tests owner_short_circuit_leaf_not_tests` | 修改前后均 9 passed / 0 failed，退出码 0；完整测试名称一致，包含真实 native 执行 |
+| 默认配置上述 9 项，加 #421 的 readonly wrapper、Legacy 对照及 nullable 分类用例 | 12 passed / 0 failed，退出码 0 |
+| 默认及 feature 的 `cargo clippy -p lang-codegen --all-targets -- -D warnings` | 均退出码 0 |
+| fmt、Rust 尺寸门禁 | 均退出码 0；内联宿主 955 行 |
+| 独立只读审查 | 核对三个旧文件、完整 diff、挂载、private helper 来源、fixture、cfg 与位置敏感风险，未发现本候选的具体问题 |
+
+当前原清单物理删除进度为 **128/129**，剩余 nullable Rc 文件继续待办。
+125 项既有迁移的完整性、原总文件数目标、完整回归与双宿主 CI 仍须验收；本 Spec 保持
+`in-progress`，不以本轮三个模块的有界通过替代整批验收。
