@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，354 份）"]
+subgraph Garchive["已完成（archive，355 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -363,6 +363,7 @@ subgraph Garchive["已完成（archive，354 份）"]
   S0437["S0437<br/>lambda_preflight_tests、outer_borrowed_while 守卫、key_return 身份及 lower_frontend 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役"]
   S0438["S0438<br/>outer_borrowed_while、source_owner/handoff、map_iteration 退出/成形/临时项及可空清理载体与源证明壳子模块退役"]
   S0439["S0439<br/>numeric_iteration、map_consume、map_iteration 根/资源/校验/源及 rc_nullable_while_presence_identity 壳子模块退役"]
+  S0440["S0440<br/>rc_nullable_while_identity_queries、same_guard、map_loop/operand_unit_identity、owner_consumer_test_support 及 loop_control/instances 壳子模块退役"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -428,7 +429,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0440["S0440<br/>rc_nullable_while_identity_queries、same_guard、map_loop/operand_unit_identity、owner_consumer_test_support 及 loop_control/instances 壳子模块退役"]
   S0441["S0441<br/>container_lowering_tests 三子壳及剩余 lower_frontend 支撑/清理壳子模块退役"]
   S0442["S0442<br/>range_lowering_tests、unit_lower_container_tests、unit_plan_tests、borrowed_generate_tests 及 source_forms 子壳模块退役"]
   S0443["S0443<br/>owned_source_return、range_lowering_tests、local_arguments、nested 及 temporary_exits 子壳模块退役"]
@@ -1875,6 +1875,7 @@ S0366 --> S0367
 | SPEC-0437 | archive | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
 | SPEC-0438 | archive | [0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md](0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) |
 | SPEC-0439 | archive | [0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md](0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) |
+| SPEC-0440 | archive | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -1938,7 +1939,6 @@ S0366 --> S0367
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](../../specs/active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](../../specs/active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0440 | active | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](../../specs/active/0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
 | SPEC-0441 | active | [0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md](../../specs/active/0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) |
 | SPEC-0442 | active | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](../../specs/active/0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
 | SPEC-0443 | active | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](../../specs/active/0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |

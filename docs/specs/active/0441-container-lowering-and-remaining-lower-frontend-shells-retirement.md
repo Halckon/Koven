@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0440](0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) 完成 `rc_nullable_while_identity_queries`、`same_guard`、`map_loop/operand_unit_identity` 及 `loop_control`/`instances` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `lower_frontend` 测试对比支撑壳与 `container_lowering_tests` 目录下的 3 个薄壳文件：
+在 [SPEC-0440](../../archive/specs/0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) 完成 `rc_nullable_while_identity_queries`、`same_guard`、`map_loop/operand_unit_identity` 及 `loop_control`/`instances` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `lower_frontend` 测试对比支撑壳与 `container_lowering_tests` 目录下的 3 个薄壳文件：
 
 1. `ssa/container_lowering_tests/runtime_helpers.rs`（73 行）：仅向父测试模块提供辅助函数，可内联回 `ssa/container_lowering_tests.rs`。
 2. `ssa/container_lowering_tests/runtime_matrix.rs`（58 行）：仅向父测试模块提供矩阵单测，可内联回 `ssa/container_lowering_tests.rs`。
