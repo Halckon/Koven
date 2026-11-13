@@ -17,3 +17,7 @@ join 保持为父 header 的初始前驱，接续原 child/parent recurrence、f
 
 CI-only 六类变异直接要求 scalar receipt 拒绝：arm偷用、join逃逸、参数定义错误、
 根交换、join重入及错误callee。本地只编译列举，正常执行不代替归纳证明。
+
+普通组合回归同时要求入口、初始基例、父组合与 false 分区收据：own/literal 两种
+初始来源分别覆盖仅保留一根与全部清理。该检查补齐 diamond 入口与既有清理分区的
+交叉覆盖，不增加生产权限，也不替代 CI-only 破坏性反例。

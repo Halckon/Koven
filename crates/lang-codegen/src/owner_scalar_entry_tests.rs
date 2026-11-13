@@ -117,3 +117,38 @@ fn ci_only_scalar_entry_rejects_actual_source_transport_and_escape() {
         }
     }
 }
+
+#[test]
+fn scalar_prefix_composes_with_partial_and_full_false_cleanup() {
+    for initial in ["var a=seed;", "var a=\"a\";"] {
+        for suffix in ["println(a)", ""] {
+            let text = source(initial, "run(true,1,2,\"seed\"); run(false,0,0,\"seed\");")
+                .replace("println(a); println(b)", suffix);
+            let source = UnitSource::analyze("scalar-owner-cleanup.ko", &text).unwrap();
+            source.assert_frontend_clean();
+            let (result, actions) =
+                crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+            let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+            crate::ssa::verify::verify_program(&program).unwrap();
+            for (marker, expected) in [
+                ("parent-scalar-entry-ssa-complete", 2),
+                ("parent-initial-owner-base-ssa-complete", 2),
+                ("parent-generation-composition-ssa-complete", 2),
+                (
+                    "nested-parent-false-ssa-complete",
+                    if suffix.is_empty() { 2 } else { 1 },
+                ),
+            ] {
+                assert_eq!(
+                    actions
+                        .iter()
+                        .filter(|(name, _)| *name == marker)
+                        .map(|(_, count)| *count)
+                        .collect::<Vec<_>>(),
+                    [expected],
+                    "{marker}: {actions:?}"
+                );
+            }
+        }
+    }
+}
