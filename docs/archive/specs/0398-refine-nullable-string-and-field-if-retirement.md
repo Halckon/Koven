@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进 E3；在完成 `wt-spec-0397` 合并清理后继续推进可空 `String` `if` 与同根可空堆对象字段 `if` 旧路径退役 |
 | 基线 | [SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)（`dd716bab`） |
 | 分支 | `feature/spec-0398-refine-nullable-string-and-field-if-retirement` |
-| 前置 | [SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0378](../../specs/active/0378-refine-class-fields-rc-and-null-views.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md) |
+| 前置 | [SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0378](0378-refine-class-fields-rc-and-null-views.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

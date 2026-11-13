@@ -11,13 +11,13 @@
 | 批准依据 | 用户确认在 SPEC-0385 基线上继续推进 E3 下一个切片 |
 | 基线 | `09edda45`（SPEC-0385） |
 | 分支 | `feature/spec-0386-refine-inout-delegation-object-destructuring-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](../../specs/active/0373-refine-destructuring-range-for.md)、[SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](0373-refine-destructuring-range-for.md)、[SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](../../specs/active/0373-refine-destructuring-range-for.md) 与 [SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `Inout` 接收者方法体（`inout fun`）、接口 `by` 委托链、无状态 `object` 单例及 `value class` 局部解构迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 括号接收者与具名委托/可变接收者调用准入，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现分支（合计再清理约 558 行旧路径代码，使 `unit_lower/receiver.rs` 从 992 行降至 693 行）：
+在 [SPEC-0358](../../archive/specs/0358-refine-assignment-inout.md)、[SPEC-0373](0373-refine-destructuring-range-for.md) 与 [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `Inout` 接收者方法体（`inout fun`）、接口 `by` 委托链、无状态 `object` 单例及 `value class` 局部解构迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 括号接收者与具名委托/可变接收者调用准入，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现分支（合计再清理约 558 行旧路径代码，使 `unit_lower/receiver.rs` 从 992 行降至 693 行）：
 
 1. **补齐 `ssa::refine` 接收者准入与括号解包**：
    - 在 `refine/subset/receiver.rs` 的 `owner_type` 与 `refine/build/place.rs` 的 `owner_loan` 中对 `Owner::Expression` / `OwnerRef::Expression` 执行括号解包（`ungrouped`），使 `(this).field = v` 等括号包裹的接收者字段赋值与访问完整纳入 `ssa::refine`；

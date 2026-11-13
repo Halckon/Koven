@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认合入 `main` 最新修改并继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)（`d5af2081`，含 `main` `03d70377`） |
 | 分支 | `feature/spec-0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement` |
-| 前置 | [SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
+| 前置 | [SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

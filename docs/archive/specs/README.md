@@ -595,3 +595,15 @@
 - [SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)：数值区间 `for`、运行时长度容器构造、`Map.get`、非可空 `Map.consume` 与 `$map.result` 旧路径退役。
 - [SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)：`RangeView`、借用结果函数与绑定、`Rc` 操作及带捕获闭包旧路径退役。
 - [SPEC-0394](0394-refine-string-clone-retirement.md)：直接 `String.clone()` 旧路径退役。
+- [SPEC-0370](0370-refine-lambda-bodies.md)：lambda 体（thunk）与局部 callable 绑定迁入所有权细化层。
+- [SPEC-0371](0371-refine-integer-range-text.md)：整数内建、整数区间、`String.clone()` 与文本原语迁入所有权细化层。
+- [SPEC-0372](0372-refine-generic-class-enum.md)：泛型 `class` 与泛型 Copyable `enum class` 迁入所有权细化层。
+- [SPEC-0373](0373-refine-destructuring-range-for.md)：局部解构与整数区间 `for` 循环迁入所有权细化层。
+- [SPEC-0374](0374-refine-ownership-primitives-const.md)：所有权原语与 `const val` 物化迁入所有权细化层。
+- [SPEC-0375](0375-refine-sequential-containers.md)：顺序容器（Array/List/MutableList）迁入所有权细化层。
+- [SPEC-0376](0376-refine-container-for-generate.md)：顺序容器 for 遍历与运行时长度构造迁入所有权细化层。
+- [SPEC-0377](0377-refine-box-map.md)：Box、递归装箱枚举与 Map 核心操作迁入所有权细化层。
+- [SPEC-0378](0378-refine-class-fields-rc-and-null-views.md)：复合 class 字段、通用 Rc 负载与智能窄化接收者迁入所有权细化层。
+- [SPEC-0379](0379-refine-reassignment-and-move-enum-when.md)：MoveOnly 局部可变重赋值与 MoveOnly 枚举 `when` 迁入所有权细化层。
+- [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)：`deinit` 析构体、多层字段借用、接口委托、无状态 `object` 与 `Map.withValue` 迁入所有权细化层。
+- [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)：默认分流边界修复与旧路径退休。

@@ -11,13 +11,13 @@
 | 批准依据 | 用户确认在 SPEC-0386 基线上继续推进 E3 下一个切片 |
 | 基线 | `4972ecd7`（SPEC-0386） |
 | 分支 | `feature/spec-0387-refine-field-borrow-string-clone-container-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0377](../../specs/active/0377-refine-box-map.md)、[SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0377](0377-refine-box-map.md)、[SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)、[SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0377](../../specs/active/0377-refine-box-map.md) 与 [SPEC-0380](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `String.clone()`、`Box<T>` 构造、`value class` 字段借用及 `when` 家族迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对 `value class` 字段/`Rc<String>` `.value`/顺序容器下标接收者上的 `String.clone()` 及非返回来源 `Borrow` `value class` 参数 MoveOnly 字段借用的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 903 行旧路径代码，使 `unit_lower/control.rs` 从 844 行降至 396 行）：
+在 [SPEC-0356](../../archive/specs/0356-refine-when-family.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0377](0377-refine-box-map.md) 与 [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md) 已将 `String.clone()`、`Box<T>` 构造、`value class` 字段借用及 `when` 家族迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对 `value class` 字段/`Rc<String>` `.value`/顺序容器下标接收者上的 `String.clone()` 及非返回来源 `Borrow` `value class` 参数 MoveOnly 字段借用的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 903 行旧路径代码，使 `unit_lower/control.rs` 从 844 行降至 396 行）：
 
 1. **补齐 `ssa::refine` 对扩展 `String.clone()` 接收者与 `value class` 字段借用的准入与构建**：
    - 在 `refine/subset/scalar_text.rs` 与 `refine/build/scalar_text.rs` 的 `string_operation` 中新增对 `value class` 字段投影（经 `ROp::SharedFieldLoan`）、`Rc<String>` `.value` 载荷（`borrowed_rc_payload` / `borrowed_rc_payload_loan`）及顺序容器下标 `xs[i]`（`borrowed_container_element` / `borrowed_container_element_loan`）接收者上 `String.clone()` 的支持；

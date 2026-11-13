@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认从 `main` 合入最新改动后继续推进非 `String` `nullable_when` 与默认路由专项收口 |
 | 基线 | [SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md)（PR #415 合入 `main` `4150bbd8`） |
 | 分支 | `feature/spec-0410-refine-nullable-when-and-default-routing` |
-| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)、[SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md) |
+| 前置 | [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)、[SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -36,7 +36,7 @@
 
 ### 2.3 非 `String` `nullable_when` 与全函数默认路由的白盒契约边界核定
 
-经全量审计，以下两项边界由现有 2,100+ 行白盒 SSA 结构测试与路由矩阵测试显式锁定（对应 [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) §2.2 与 [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md) §2.2）：
+经全量审计，以下两项边界由现有 2,100+ 行白盒 SSA 结构测试与路由矩阵测试显式锁定（对应 [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md) §2.2 与 [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md) §2.2）：
 
 1. **非 `String` `nullable_when`（`unit_lower/nullable_when`）**：
    - `crates/lang-codegen/src/native_nullable_when_tests/`（`native_nullable_when_tests.rs`、`support.rs`、`replacement_if.rs`、`generation.rs`、`sources.rs`）直接白盒断言 `unit_lower` 生成的特定 CFG 拓扑与 `Origin::Source` 归属：

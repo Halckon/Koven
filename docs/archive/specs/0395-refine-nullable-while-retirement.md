@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进 E3；按顺序先推进可空 `while` 家族旧路径退役，再推进 Map 迭代旧路径退役 |
 | 基线 | `main` `4ae149a6`（PR #354） |
 | 分支 | `feature/spec-0395-refine-legacy-retirement` |
-| 前置 | [SPEC-0378](../../specs/active/0378-refine-class-fields-rc-and-null-views.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0394](0394-refine-string-clone-retirement.md) |
+| 前置 | [SPEC-0378](0378-refine-class-fields-rc-and-null-views.md)、[SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)、[SPEC-0394](0394-refine-string-clone-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

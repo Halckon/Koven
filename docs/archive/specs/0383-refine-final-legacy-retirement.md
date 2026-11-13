@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认在最新 `main` 基线上继续推进 E3 最终旧路径退休评估与收尾阶段开发 |
 | 基线 | `main` `041e8238` |
 | 分支 | `feature/spec-0383-refine-final-legacy-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

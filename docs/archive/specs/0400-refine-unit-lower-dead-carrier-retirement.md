@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认合入 PR #408（`3fe1920a`）后继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)（`3fe1920a`） |
 | 分支 | `feature/spec-0400-refine-unit-lower-dead-carrier-retirement` |
-| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
+| 前置 | [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

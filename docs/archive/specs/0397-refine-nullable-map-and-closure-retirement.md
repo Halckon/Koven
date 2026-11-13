@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认继续推进 E3；在完成 `Map` 迭代旧路径退役（[SPEC-0396](0396-refine-map-iteration-retirement.md)）后继续推进可空 `Map` 分支/消费与闭包回退旧路径退役 |
 | 基线 | [SPEC-0396](0396-refine-map-iteration-retirement.md)（`44d34c68`） |
 | 分支 | `feature/spec-0397-refine-nullable-map-and-closure-retirement` |
-| 前置 | [SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0377](../../specs/active/0377-refine-box-map.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md) |
+| 前置 | [SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0377](0377-refine-box-map.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

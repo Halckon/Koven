@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，406 份）"]
+subgraph Garchive["已完成（archive，418 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -349,6 +349,18 @@ subgraph Garchive["已完成（archive，406 份）"]
   S0365["S0365<br/>带捕获闭包返回的来源事实"]
   S0366["S0366<br/>文本与同步 IO 规范启用"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
+  S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
+  S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
+  S0372["S0372<br/>泛型 class 与泛型 Copyable enum class 迁入所有权细化层"]
+  S0373["S0373<br/>局部解构与整数区间 for 循环迁入所有权细化层"]
+  S0374["S0374<br/>所有权原语与 const val 物化迁入所有权细化层"]
+  S0375["S0375<br/>顺序容器（Array/List/MutableList）迁入所有权细化层"]
+  S0376["S0376<br/>顺序容器 for 遍历与运行时长度构造迁入所有权细化层"]
+  S0377["S0377<br/>Box、递归装箱枚举与 Map 核心操作迁入所有权细化层"]
+  S0378["S0378<br/>复合 class 字段、通用 Rc 负载与智能窄化接收者迁入所有权细化层"]
+  S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
+  S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
+  S0381["S0381<br/>默认分流边界修复与旧路径退休"]
   S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
   S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
   S0384["S0384<br/>枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐"]
@@ -424,18 +436,6 @@ subgraph Gactive["现行 active"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
   S0369["S0369<br/>CLI 最终调试产物与源码断点"]
-  S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
-  S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
-  S0372["S0372<br/>泛型 class 与泛型 Copyable enum class 迁入所有权细化层"]
-  S0373["S0373<br/>局部解构与整数区间 for 循环迁入所有权细化层"]
-  S0374["S0374<br/>所有权原语与 const val 物化迁入所有权细化层"]
-  S0375["S0375<br/>顺序容器（Array/List/MutableList）迁入所有权细化层"]
-  S0376["S0376<br/>顺序容器 for 遍历与运行时长度构造迁入所有权细化层"]
-  S0377["S0377<br/>Box、递归装箱枚举与 Map 核心操作迁入所有权细化层"]
-  S0378["S0378<br/>复合 class 字段、通用 Rc 负载与智能窄化接收者迁入所有权细化层"]
-  S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
-  S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
-  S0381["S0381<br/>默认分流边界修复与旧路径退休"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
@@ -1861,6 +1861,18 @@ S0366 --> S0367
 | SPEC-0365 | archive | [0365-closure-return-facts.md](0365-closure-return-facts.md) |
 | SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
+| SPEC-0370 | archive | [0370-refine-lambda-bodies.md](0370-refine-lambda-bodies.md) |
+| SPEC-0371 | archive | [0371-refine-integer-range-text.md](0371-refine-integer-range-text.md) |
+| SPEC-0372 | archive | [0372-refine-generic-class-enum.md](0372-refine-generic-class-enum.md) |
+| SPEC-0373 | archive | [0373-refine-destructuring-range-for.md](0373-refine-destructuring-range-for.md) |
+| SPEC-0374 | archive | [0374-refine-ownership-primitives-const.md](0374-refine-ownership-primitives-const.md) |
+| SPEC-0375 | archive | [0375-refine-sequential-containers.md](0375-refine-sequential-containers.md) |
+| SPEC-0376 | archive | [0376-refine-container-for-generate.md](0376-refine-container-for-generate.md) |
+| SPEC-0377 | archive | [0377-refine-box-map.md](0377-refine-box-map.md) |
+| SPEC-0378 | archive | [0378-refine-class-fields-rc-and-null-views.md](0378-refine-class-fields-rc-and-null-views.md) |
+| SPEC-0379 | archive | [0379-refine-reassignment-and-move-enum-when.md](0379-refine-reassignment-and-move-enum-when.md) |
+| SPEC-0380 | archive | [0380-refine-deinit-nested-fields-and-box-payloads.md](0380-refine-deinit-nested-fields-and-box-payloads.md) |
+| SPEC-0381 | archive | [0381-refine-default-routing-and-legacy-retirement.md](0381-refine-default-routing-and-legacy-retirement.md) |
 | SPEC-0382 | archive | [0382-refine-map-ops-and-primitive-retirement.md](0382-refine-map-ops-and-primitive-retirement.md) |
 | SPEC-0383 | archive | [0383-refine-final-legacy-retirement.md](0383-refine-final-legacy-retirement.md) |
 | SPEC-0384 | archive | [0384-refine-legacy-module-retirement.md](0384-refine-legacy-module-retirement.md) |
@@ -1934,18 +1946,6 @@ S0366 --> S0367
 | SPEC-0360 | active | [0360-string-when-refinement.md](../../specs/active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](../../specs/active/0368-text-byte-foundation.md) |
 | SPEC-0369 | active | [0369-final-debug-artifacts.md](../../specs/active/0369-final-debug-artifacts.md) |
-| SPEC-0370 | active | [0370-refine-lambda-bodies.md](../../specs/active/0370-refine-lambda-bodies.md) |
-| SPEC-0371 | active | [0371-refine-integer-range-text.md](../../specs/active/0371-refine-integer-range-text.md) |
-| SPEC-0372 | active | [0372-refine-generic-class-enum.md](../../specs/active/0372-refine-generic-class-enum.md) |
-| SPEC-0373 | active | [0373-refine-destructuring-range-for.md](../../specs/active/0373-refine-destructuring-range-for.md) |
-| SPEC-0374 | active | [0374-refine-ownership-primitives-const.md](../../specs/active/0374-refine-ownership-primitives-const.md) |
-| SPEC-0375 | active | [0375-refine-sequential-containers.md](../../specs/active/0375-refine-sequential-containers.md) |
-| SPEC-0376 | active | [0376-refine-container-for-generate.md](../../specs/active/0376-refine-container-for-generate.md) |
-| SPEC-0377 | active | [0377-refine-box-map.md](../../specs/active/0377-refine-box-map.md) |
-| SPEC-0378 | active | [0378-refine-class-fields-rc-and-null-views.md](../../specs/active/0378-refine-class-fields-rc-and-null-views.md) |
-| SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](../../specs/active/0379-refine-reassignment-and-move-enum-when.md) |
-| SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
-| SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |

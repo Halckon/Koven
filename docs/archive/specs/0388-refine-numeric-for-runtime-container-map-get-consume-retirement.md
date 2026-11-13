@@ -11,13 +11,13 @@
 | 批准依据 | 用户确认在 SPEC-0387 基线上继续推进 E3 下一个切片 |
 | 基线 | `3cba24b2`（SPEC-0387） |
 | 分支 | `feature/spec-0388-refine-rc-numeric-for-runtime-container-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0373](../../specs/active/0373-refine-destructuring-range-for.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0387](0387-refine-string-clone-box-value-field-when-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[SPEC-0373](0373-refine-destructuring-range-for.md)、[SPEC-0376](0376-refine-container-for-generate.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0387](0387-refine-string-clone-box-value-field-when-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0373](../../specs/active/0373-refine-destructuring-range-for.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md) 与 [SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) 已将 `IntRange`/`LongRange` 数值 `for` 循环、运行时长度容器构造（`Array<T>(size, init)` / `List<T>(size, init)`）、`Map.get`、`MutableMap.consume` 及 `$map.result.tX` 操作迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对发散（`Nothing`）实参与死代码语句块的准入和构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 1,260 行旧路径代码）：
+在 [SPEC-0373](0373-refine-destructuring-range-for.md)、[SPEC-0376](0376-refine-container-for-generate.md) 与 [SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) 已将 `IntRange`/`LongRange` 数值 `for` 循环、运行时长度容器构造（`Array<T>(size, init)` / `List<T>(size, init)`）、`Map.get`、`MutableMap.consume` 及 `$map.result.tX` 操作迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对发散（`Nothing`）实参与死代码语句块的准入和构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 1,260 行旧路径代码）：
 
 1. **补齐 `ssa::refine` 对发散操作数与块内提前终止语句的准入与构建**：
    - 在 `refine/subset.rs` 的 `Statement::Block / ControlBody / LambdaBody` 中，当块内遇到类型为 `Nothing` 的表达式语句（如 `return`、`break`、`continue` 或 abort 调用）时停止对后续不可达语句的预检并将外层函数标记为 `migrated = true`（与 `refine/build.rs` 遇到 `Lowered::Diverged` 立即终止块构建保持严格一致）；
