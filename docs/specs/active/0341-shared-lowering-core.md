@@ -17340,3 +17340,22 @@ child-cycle 或 parent-generation-composition 收据。此结果仅证明旧 low
 准备时模块注册定位失败导致首轮仅编译未注册文件，后因 Program 无 Debug 发生
 一次编译失败，改用既有 SSA renderer 后重编并执行唯一 exact；两次准备记录保留，
 均不计入测试通过。未执行任何故障注入、foreign handle 或其它 CI-only 测试。
+
+### 位置封印与已有普通回归的本地整合（2026-11-13）
+
+代码整合头 `7c92e9a2` 以 `cfb52a9f` 为基，保留并合入 `0f98fe25`、
+`18e443b3`、`b7c829ab`、`68885de9` 的原提交历史。只处理追加验收记录及
+普通测试模块注册冲突；独立只读审查确认五个来源均为祖先，生产与测试源文件
+逐字节保全，三个新增模块各注册一次，没有新增生产行为或 Origin 决策。
+本整合不包含 `a4b53282` 的另一批组合能力，不能据此声称全部本地工作已经汇总。
+
+在该整合源码上重新编译并只执行已有普通完整 FQN exact：codegen 六项及 frontend
+两项均通过，codegen 覆盖 String 字节、兄弟函数隔离、call-initial 既有路径与
+parent/child generation，含 42 次有限 native 源函数调用。故障注入仍只随测试目标
+编译，未在本地运行；远端 CI 尚未验证此头。默认 debug2/opt0，执行前保存源码与
+原始 artifact/binary SHA、精确清单及日志，执行后核对源码无漂移。
+
+两 crate all-target 严格 Clippy（codegen 启用 loan-observation-test-support）、
+fmt、文档结构（924 Markdown）、相对 main 尺寸门禁和 diff 检查通过；2680 手写
+Rust 文件，36 项历史超限不变。最后仅追加本段验收记录，D10/E2 仍 in-progress；
+本批保持本地提交，不推送、不发 PR，也不以普通结果替代 CI-only 动态拒绝证据。
