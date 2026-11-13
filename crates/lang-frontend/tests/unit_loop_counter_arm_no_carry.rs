@@ -204,3 +204,17 @@ fn ordinary_counter_loop_rejects_unsealed_counter_and_control() {
 fn ordinary_counter_loop_rejects_inout_rounds() {
     check(&bounded(&arms(1, 2)), "inout ", false);
 }
+
+#[test]
+fn ordinary_counter_loop_rejects_rounds_rebinding() {
+    let valid = bounded(&arms(1, 2));
+    for mode in ["", "own "] {
+        for body in [
+            format!("rounds=2;{valid}"),
+            valid.replace("rounds;while", "rounds;rounds=2;while"),
+            format!("{valid};rounds=2"),
+        ] {
+            check(&body, mode, false);
+        }
+    }
+}

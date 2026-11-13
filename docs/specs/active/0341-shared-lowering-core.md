@@ -16913,3 +16913,7 @@ strict Clippy、fmt、docs923 与 Rust 尺寸门禁通过。独立只读复审�
 Own 参数不可重绑定由两 checker 的 mutability 门禁保证，counter 引用仍严格白名单。
 counter 专属故障矩阵尚待后续单独补齐，旧 Boolean CI 矩阵不能冒称覆盖新域；本轮
 未推送、未执行任何本地故障注入，远端双宿主验收仍待执行。
+补稳定参数回归：Single/Unit 的既有 mutable-place 门禁仅允许 Inout/Exclusive 参数
+或局部 Var，Borrow/Own rounds 不能重绑定；Int 值复制不改变参数，不扩大为禁止
+无害参数读取。新增初始化前、初始化后和循环后 `rounds=2`，各核 Borrow/Own 模式
+及 Single/Unit rooted/memory、observer on/off，精确普通回归 1/1 通过。生产逻辑无变。
