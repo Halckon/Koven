@@ -145,3 +145,40 @@ fn entry_concat_publishes_distinct_completed_origin_and_closes_literal_inputs() 
         crate::ownership_checking::UnitOwnerProducerCatalogV1::from_legacy(observation).is_none()
     );
 }
+
+#[test]
+fn entry_concat_rejects_second_concat_and_interpolated_operand() {
+    let source = SOURCE.replace(", own seed: String", "");
+    for source in [
+        source.replace(
+            "var a=seed; var b=\"b\"",
+            r#"var a="left"+"right"; var b="other"+"second""#,
+        ),
+        source.replace("var a=seed", r#"var a="${outer}"+"right""#),
+    ] {
+        let fixture = Fixture::new(&[("entry-concat-boundary.ko", &source)]);
+        let owned = fixture.shared();
+        assert!(owned.diagnostics().is_empty());
+        assert!(owned.owner_observations().iter().all(|o| {
+            o.nested_normal_body_v1()
+                .and_then(|n| n.child_generation_rule_v1())
+                .is_none()
+        }));
+    }
+}
+
+#[test]
+fn entry_concat_does_not_publish_borrow_binding_owner() {
+    use crate::ownership_checking::UnitOwnerOrigin;
+    let fixture = Fixture::new(&[(
+        "entry-concat-borrow.ko",
+        r#"fun run() { borrow val a="left"+"right"; println(a) }"#,
+    )]);
+    let owned = fixture.shared();
+    // A borrow binding cannot acquire the completed owned-producer claim.
+    assert!(owned.owner_observations().iter().all(|o| {
+        o.definitions()
+            .iter()
+            .all(|d| !matches!(d.origin(), UnitOwnerOrigin::StringConcat { .. }))
+    }));
+}
