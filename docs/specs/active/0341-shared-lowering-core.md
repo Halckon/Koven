@@ -17351,3 +17351,9 @@ memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用�
 来源及组合收据全部命中；18次双臂×outer/inner 0/1/2 native执行通过，两项旧scalar
 exact回归通过。此前普通红例显示旧路径不发布组合收据。新增九类CI-only反例
 仅准备远端验收，不以本地有限执行代替静态归纳。frontend/codegen all-target 严格Clippy通过；两个CI-only exact目标仅编译列举、none executed，旧direct concat native回归也通过。尺寸门禁2690个Rust文件、36处旧欠账通过，docs925文件通过。远端九类组合故障仍待实跑，本批未推送。
+
+D10 concat 独立来源/清理收据补强：原位置检查仅核 entry 内的唯一出现，未自行
+排除同一 InstructionId 被另一 block 再次挂载。通用 SSA verifier 已检查该结构，
+但不能代替独立 concat 证据；将对 literal/concat/Drop 各指令核全函数唯一挂载且
+位于真实 entry。新增 CI-only 重复 Drop 挂载反例，直接要求 concat receipt 拒绝；
+本地仅编译列举并跑完整 FQN 普通回归，不执行故障。选择范围和生产 lowering 不变。
