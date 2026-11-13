@@ -17151,3 +17151,20 @@ Replace），每个位置覆盖 outer/inner 0、1、2 九组合，并核独立co
 不改生产代码，不扩大单concat范围，也不将有限执行冒充归纳证明。
 该普通测试已通过：两种根位置合计 18 组实际 native 输出及 SSA receipt 发布断言；
 文档与尺寸门禁通过，未运行故障注入，未更改生产权限或退休旧 witness。
+
+### 前置空标量分支与 concat 恢复根本地整合（2026-11-13）
+
+隔离分支保留 `bf3a38ce`，复用前置标量分支 `6b59c63c`（含 `4e774262` 的
+边界回归及后续精确启用）与 D10 普通回归 `40c2c6e4`。仅 Spec 追加段落冲突，
+双方完整保留；独立只读整合复核未发现确定遗漏，CI 入口均保留。
+
+断线恢复后先核工作树和原进程，确认 workspace all-target check 日志已完成；
+未完成的严格 Clippy 重新执行并通过。精选 codegen 普通精确目标17/17、前端
+普通20/20通过，包含新 prefix 事实/拒绝/独立 receipt/native、真实 observer
+on/off、concat 位于父恢复根时的18组 native 与 SSA收据断言及既有各域回归。
+格式、docs924、相对 `bf3a38ce` 的 Rust 尺寸门禁与 diff检查通过。
+
+CI-only borrowing清单59项、child-cycle三个目标、父receipt两个目标均仅编译
+列举成功，none executed。未在本地启用CI环境或执行故障注入；未推送、未合并。
+新前置标量路径五项反例及此前concat/tail-break反例仍待远端双宿主动态验收；
+普通测试与清单存在不替代动态拒绝/恢复证据，D10/E2整体仍未完成。
