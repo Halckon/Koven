@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 344 份"))
+ARCH(("已完成<br/>archive 345 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -73,7 +73,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0430["S0430<br/>outer_borrowed_while、verify/closure_escape、verify_operation 及 lower_frontend 壳子模块退役"]
   S0431["S0431<br/>map_source_unit_contract、range、map_iteration/local/identity、nullable_when、nominal、loop_control/nullable_while、borrow_result 及 borrow_argument 壳子模块退役"]
   S0432["S0432<br/>source_owner、local_storage、string_clone、checkpoint、carrier、closure/runtime_tests、nullable_numeric_cleanup/tests 及 orchestrate/registration_tests 壳子模块退役"]
   S0433["S0433<br/>refine 五类借用凭证 ci_tests、verify/closure_escape/types/graph_tests 及 verify_operation/map 壳子模块退役"]
@@ -186,7 +185,6 @@ ARCH --> S0341
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0430 | active | [0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md](active/0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) |
 | SPEC-0431 | active | [0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md](active/0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) |
 | SPEC-0432 | active | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](active/0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
 | SPEC-0433 | active | [0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md](active/0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) |
@@ -215,4 +213,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（344 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（345 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

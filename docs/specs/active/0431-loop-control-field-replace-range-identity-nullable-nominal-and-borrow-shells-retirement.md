@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0430](0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) 完成 `outer_borrowed_while`、`verify/closure_escape`、`verify_operation` 及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留最后一批可并入小于 500 行宿主模块而不突破 1000 行上限的薄壳文件：
+在 [SPEC-0430](../../archive/specs/0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) 完成 `outer_borrowed_while`、`verify/closure_escape`、`verify_operation` 及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留最后一批可并入小于 500 行宿主模块而不突破 1000 行上限的薄壳文件：
 
 1. `ssa/lower_frontend_map_source_unit_contract.rs`（458 行）：仅向 `lower_frontend_map_loop_unit_identity.rs` 暴露 Map 迭代源契约，可收敛入同父宿主 `ssa/lower_frontend_map_loop_unit_contract.rs`。
 2. `ssa/lower_frontend/range.rs`（599 行）：仅向 `lower_frontend` 暴露 N1a 区间扩展接收者、绑定与返回降低，可收敛入 `ssa/lowering_support.rs` 的测试专用内联模块。

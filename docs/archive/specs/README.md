@@ -533,3 +533,4 @@
 - [SPEC-0389](0389-refine-known-function-shared-capture-container-element-retirement.md)：具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役；收尾修复元素目标复合赋值的槽位定位与边界检查顺序。
 - [SPEC-0428](0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md)：`model/constant`、`render/types`、`verify_ownership/map`、`provider`、`refine` 及 `lower_frontend` 壳子模块退役。
 - [SPEC-0429](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md)：`map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块退役。
+- [SPEC-0430](0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md)：`outer_borrowed_while`、`verify/closure_escape`、`verify_operation` 及 `lower_frontend` 壳子模块退役。
