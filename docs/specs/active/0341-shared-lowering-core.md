@@ -17688,3 +17688,15 @@ IncomingColumns 原始列接口及对应实现限定为测试构建。生产查�
 observer-support codegen all-target 严格 Clippy、fmt、diff 与文档门禁通过；
 现有四项 carry_join 和 aggregate/bitwise 两项 renderer 普通完整 FQN exact
 6/6 通过。独立只读审查无阻断，未新增测试或语义、未运行故障注入、未推送。
+
+### Checked scalar carry 冗余快照退役（2026-11-13）
+
+基于 `b6b2e100` 移除 `CheckedRoles` 未读取的 `baseline_borrows` 保存字段，
+恢复 scalar 子模块的 dead-code 门禁。capture 阶段仍先保存 borrow 快照并从它
+建立 carried loans；success 边仍按实际参数重绑，不改用旧快照恢复权限。
+Value prefix/access suffix 次序和 failure 边不变，独立审查未发现阻断。
+
+现有 arithmetic/comparison operator、checked compound assignment、checked
+arithmetic live-owner edge 三项普通完整 FQN exact 3/3 通过；codegen
+observer-support all-target 严格 Clippy、fmt、diff、文档门禁通过。没有新增
+测试、Origin 决策或推送；故障注入未执行，其余 SSA 豁免仍待逐项审计。
