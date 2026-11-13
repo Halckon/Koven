@@ -13,6 +13,8 @@ impl Emitted {
             OwnerFault::ChildGenerationSharedLoan,
             OwnerFault::ChildGenerationExtraLoanUse,
             OwnerFault::ChildGenerationDuplicateBorrowPlacement,
+            OwnerFault::ChildGenerationDuplicateLiteralPlacement,
+            OwnerFault::ChildGenerationDuplicateDropPlacement,
         ];
         let Some(fault) = faults.into_iter().find(|f| take_fault(*f)) else {
             return;
@@ -49,14 +51,23 @@ impl Emitted {
             panic!("borrow");
         };
         match fault {
-            OwnerFault::ChildGenerationDuplicateBorrowPlacement => {
+            OwnerFault::ChildGenerationDuplicateBorrowPlacement
+            | OwnerFault::ChildGenerationDuplicateLiteralPlacement
+            | OwnerFault::ChildGenerationDuplicateDropPlacement => {
+                let duplicate = match fault {
+                    OwnerFault::ChildGenerationDuplicateLiteralPlacement => producer,
+                    OwnerFault::ChildGenerationDuplicateDropPlacement => {
+                        self.observed[0].drop.unwrap()
+                    }
+                    _ => borrow,
+                };
                 // Keep the instruction arena, definition and original placement intact.
                 // Only add a second placement in the real function entry.
                 let entry = function.entry_block().unwrap();
                 assert_ne!(entry, block);
                 let other = function.blocks.iter_mut().find(|b| b.id == entry).unwrap();
-                assert!(!other.instructions.contains(&borrow));
-                other.instructions.push(borrow);
+                assert!(!other.instructions.contains(&duplicate));
+                other.instructions.push(duplicate);
             }
             OwnerFault::ChildGenerationProducer => {
                 let i = function
