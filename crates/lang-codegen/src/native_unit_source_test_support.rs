@@ -15,10 +15,6 @@ mod local_object_constant_qualifier_tests;
 mod nullable_rc_proof_tests;
 #[path = "native_nullable_when_tests.rs"]
 mod nullable_when_tests;
-#[path = "owner_alias_return_tests.rs"]
-mod owner_alias_return_tests;
-#[path = "owner_boolean_comparison_tests.rs"]
-mod owner_boolean_comparison_tests;
 #[path = "owner_conditional_break_tests.rs"]
 mod owner_conditional_break_tests;
 #[path = "owner_conditional_return_tests.rs"]
@@ -41,28 +37,21 @@ mod owner_negated_condition_tests;
 mod owner_normal_backedge_tests;
 #[path = "owner_own_call_tests.rs"]
 mod owner_own_call_tests;
-#[path = "owner_pair_call_tests.rs"]
-mod owner_pair_call_tests;
+#[path = "owner_short_circuit_leaf_not_tests.rs"]
+mod owner_short_circuit_leaf_not_tests;
+use owner_own_call_tests::owner_short_circuit_tests;
 #[path = "owner_parameter_header_tests.rs"]
 mod owner_parameter_header_tests;
 #[path = "owner_parameter_loop_tests.rs"]
 mod owner_parameter_loop_tests;
 #[path = "owner_parameter_mixed_tests.rs"]
 mod owner_parameter_mixed_tests;
-#[path = "owner_replace_break_ci_tests.rs"]
-mod owner_replace_break_ci_tests;
 #[path = "owner_replace_break_downstream_tests.rs"]
 mod owner_replace_break_downstream_tests;
-#[path = "owner_replace_return_tests.rs"]
-mod owner_replace_return_tests;
 #[path = "native_owner_replacement_success_tests.rs"]
 mod owner_replacement_success_tests;
 #[path = "owner_return_tests.rs"]
 mod owner_return_tests;
-#[path = "owner_short_circuit_leaf_not_tests.rs"]
-mod owner_short_circuit_leaf_not_tests;
-#[path = "owner_short_circuit_tests.rs"]
-mod owner_short_circuit_tests;
 #[path = "native_pending_construction_tests.rs"]
 mod pending_construction_tests;
 #[path = "native_resource_map_loop_tests.rs"]

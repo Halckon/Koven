@@ -12,7 +12,7 @@ use lang_frontend::{
     parser::{Item, NameMarker, Statement},
 };
 
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_resources::graph::provider::unit_20 as unit;
+mod unit;
 
 pub(super) use unit::inspect as inspect_unit;
 

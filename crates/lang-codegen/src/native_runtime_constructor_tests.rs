@@ -3,27 +3,27 @@ use super::*;
 use crate::test_support::diagnostics::assert_diagnostic;
 
 pub(crate) mod evaluation {
-//! Normal source sequencing, including a language-level negative-length Abort.
-use super::*;
-use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
+    //! Normal source sequencing, including a language-level negative-length Abort.
+    use super::*;
+    use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 
-pub(crate) struct EvaluationCase {
-    pub(crate) label: String,
-    // Single: format!("{}\n{}", case.api, case.entry).
-    // Unit: package p + api; package q + imports + entry (real cross-file factory).
-    pub(crate) api: String,
-    pub(crate) entry: String,
-    pub(crate) expected: &'static [u8],
-    pub(crate) aborts: bool,
-}
+    pub(crate) struct EvaluationCase {
+        pub(crate) label: String,
+        // Single: format!("{}\n{}", case.api, case.entry).
+        // Unit: package p + api; package q + imports + entry (real cross-file factory).
+        pub(crate) api: String,
+        pub(crate) entry: String,
+        pub(crate) expected: &'static [u8],
+        pub(crate) aborts: bool,
+    }
 
-/// Six ordinary programs distinguish once-only operands and ordered invocations.
-pub(crate) fn evaluation_cases() -> Vec<EvaluationCase> {
-    let mut cases = Vec::new();
-    for container in ["Array", "List"] {
-        for length in [-1, 0, 3] {
-            let api = format!(
-                r#"fun size(): Int {{ println("size")
+    /// Six ordinary programs distinguish once-only operands and ordered invocations.
+    pub(crate) fn evaluation_cases() -> Vec<EvaluationCase> {
+        let mut cases = Vec::new();
+        for container in ["Array", "List"] {
+            for length in [-1, 0, 3] {
+                let api = format!(
+                    r#"fun size(): Int {{ println("size")
 return {length} }}
 fun trace(index: Int): Unit {{
     if (index == 0) {{ println("call-zero")
@@ -39,156 +39,156 @@ fun factory(): (Int)->Int {{
     return ({{ index -> trace(index)
 index }})
 }}"#
-            );
-            let check = if length == 3 {
-                "if (items[2] != 2) { error(\"element\") }"
-            } else {
-                ""
-            };
-            let entry = format!(
-                r#"fun entry(): Unit {{
+                );
+                let check = if length == 3 {
+                    "if (items[2] != 2) { error(\"element\") }"
+                } else {
+                    ""
+                };
+                let entry = format!(
+                    r#"fun entry(): Unit {{
     val items = {container}<Int>(size(), factory())
     if (items.size != {length}) {{ error("length") }}
     {check}
     println("after")
 }}"#
-            );
-            cases.push(EvaluationCase {
-                label: format!("{container}/length{length}"),
-                api,
-                entry,
-                expected: match length {
-                    -1 => b"size\n",
-                    0 => b"size\nfactory\nafter\n",
-                    3 => b"size\nfactory\ncall-zero\ncall-one\ncall-two\nafter\n",
-                    _ => unreachable!("fixed fixture lengths"),
-                },
-                aborts: length < 0,
-            });
+                );
+                cases.push(EvaluationCase {
+                    label: format!("{container}/length{length}"),
+                    api,
+                    entry,
+                    expected: match length {
+                        -1 => b"size\n",
+                        0 => b"size\nfactory\nafter\n",
+                        3 => b"size\nfactory\ncall-zero\ncall-one\ncall-two\nafter\n",
+                        _ => unreachable!("fixed fixture lengths"),
+                    },
+                    aborts: length < 0,
+                });
+            }
         }
+        cases
     }
-    cases
-}
 
-/// Language-level Nothing operands abort before generation or any callback invocation.
-pub(crate) fn nothing_operand_cases() -> Vec<EvaluationCase> {
-    let mut cases = Vec::new();
-    for container in ["Array", "List"] {
-        for (label, operands) in [
-            (
-                "size",
-                "error(\"size\"), { index -> println(\"call\")\nindex }",
-            ),
-            ("initializer", "3, error(\"initializer\")"),
-        ] {
-            cases.push(EvaluationCase {
+    /// Language-level Nothing operands abort before generation or any callback invocation.
+    pub(crate) fn nothing_operand_cases() -> Vec<EvaluationCase> {
+        let mut cases = Vec::new();
+        for container in ["Array", "List"] {
+            for (label, operands) in [
+                (
+                    "size",
+                    "error(\"size\"), { index -> println(\"call\")\nindex }",
+                ),
+                ("initializer", "3, error(\"initializer\")"),
+            ] {
+                cases.push(EvaluationCase {
                 label: format!("{container}/Nothing-{label}"),
                 api: "fun unused(): Unit {}".to_owned(),
                 entry: format!("fun entry(): Unit {{ val unused = {container}<Int>({operands})\nprintln(\"after\") }}"),
                 expected: b"",
                 aborts: true,
             });
+            }
+        }
+        cases
+    }
+
+    pub(crate) fn assert_evaluation_output(case: &EvaluationCase, output: &std::process::Output) {
+        if case.aborts {
+            assert_diagnostic!(!output.status.success(), "{}: {output:?}", case.label);
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                assert_eq_diagnostic!(
+                    output.status.signal(),
+                    Some(6),
+                    "{}: {output:?}",
+                    case.label
+                );
+            }
+            // Do not use a stderr-empty oracle for SIGABRT: platform crash reporting
+            // is independent of whether size/factory/callback language effects ran.
+        } else {
+            assert_diagnostic!(output.status.success(), "{}: {output:?}", case.label);
+            assert_diagnostic!(output.stderr.is_empty(), "{}: {output:?}", case.label);
+        }
+        assert_eq!(output.stdout, case.expected, "{}", case.label);
+    }
+
+    #[test]
+    fn runtime_constructor_native_single_evaluates_operands_once_in_order() {
+        let cases = evaluation_cases();
+        assert_eq!(cases.len(), 6);
+        for case in cases {
+            let text = format!("{}\n{}", case.api, case.entry);
+            let output = emit_link_and_run("runtime-evaluation.ko", &text, "entry");
+            assert_evaluation_output(&case, &output);
         }
     }
-    cases
-}
 
-pub(crate) fn assert_evaluation_output(case: &EvaluationCase, output: &std::process::Output) {
-    if case.aborts {
-        assert_diagnostic!(!output.status.success(), "{}: {output:?}", case.label);
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            assert_eq_diagnostic!(
-                output.status.signal(),
-                Some(6),
-                "{}: {output:?}",
-                case.label
-            );
+    #[test]
+    fn runtime_constructor_native_single_nothing_operands_do_not_generate() {
+        let cases = nothing_operand_cases();
+        assert_eq!(cases.len(), 4);
+        for case in cases {
+            let text = format!("{}\n{}", case.api, case.entry);
+            let output = emit_link_and_run("runtime-nothing.ko", &text, "entry");
+            assert_evaluation_output(&case, &output);
         }
-        // Do not use a stderr-empty oracle for SIGABRT: platform crash reporting
-        // is independent of whether size/factory/callback language effects ran.
-    } else {
-        assert_diagnostic!(output.status.success(), "{}: {output:?}", case.label);
-        assert_diagnostic!(output.stderr.is_empty(), "{}: {output:?}", case.label);
     }
-    assert_eq!(output.stdout, case.expected, "{}", case.label);
-}
-
-#[test]
-fn runtime_constructor_native_single_evaluates_operands_once_in_order() {
-    let cases = evaluation_cases();
-    assert_eq!(cases.len(), 6);
-    for case in cases {
-        let text = format!("{}\n{}", case.api, case.entry);
-        let output = emit_link_and_run("runtime-evaluation.ko", &text, "entry");
-        assert_evaluation_output(&case, &output);
-    }
-}
-
-#[test]
-fn runtime_constructor_native_single_nothing_operands_do_not_generate() {
-    let cases = nothing_operand_cases();
-    assert_eq!(cases.len(), 4);
-    for case in cases {
-        let text = format!("{}\n{}", case.api, case.entry);
-        let output = emit_link_and_run("runtime-nothing.ko", &text, "entry");
-        assert_evaluation_output(&case, &output);
-    }
-}
 }
 
 pub(crate) mod storable_helpers {
-//! Generic Borrow Fn helpers with existing nested and nominal storable elements.
-use super::*;
+    //! Generic Borrow Fn helpers with existing nested and nominal storable elements.
+    use super::*;
 
-/// Keep the helper separate for the unit facade's real p-to-q source import.
-pub(crate) fn cases() -> Vec<(RuntimeCase, String)> {
-    let mut cases = Vec::new();
-    for (element, declarations, constructor, projection) in [
-        ("Array<Int>", "", "arrayOf", "value[0]"),
-        ("List<Int>", "", "listOf", "value[0]"),
-        (
-            "Wrapped",
-            "value class Wrapped(val number: Int)",
-            "Wrapped",
-            "value.number",
-        ),
-        (
-            "Holder<Int>",
-            "class Holder<T>(val number: T)",
-            "Holder<Int>",
-            "value.number",
-        ),
-    ] {
-        for container in ["Array", "List"] {
-            for (environment, captured, moved) in [
-                ("pointer", false, false),
-                ("shared", true, false),
-                ("owned", true, true),
-            ] {
-                for explicit in [true, false] {
-                    let number = if captured { "index + scale" } else { "index" };
-                    let expected = if captured { 9 } else { 2 };
-                    let literal = format!(
-                        "{}{{ index -> println(\"call\")\n{constructor}({number}) }}",
-                        if moved { "move " } else { "" }
-                    );
-                    let nested_check = if constructor == "arrayOf" || constructor == "listOf" {
-                        "if (value.size != 1) { error(\"nested length\") }\n"
-                    } else {
-                        ""
-                    };
-                    let callee = if explicit {
-                        format!("generate<{element}>")
-                    } else {
-                        "generate".to_owned()
-                    };
-                    let api = format!(
-                        "fun <T> generate(size: Int, initializer: (Int)->T): {container}<T> = {container}<T>(size, initializer)"
-                    );
-                    let text = format!(
-                        r#"{declarations}
+    /// Keep the helper separate for the unit facade's real p-to-q source import.
+    pub(crate) fn cases() -> Vec<(RuntimeCase, String)> {
+        let mut cases = Vec::new();
+        for (element, declarations, constructor, projection) in [
+            ("Array<Int>", "", "arrayOf", "value[0]"),
+            ("List<Int>", "", "listOf", "value[0]"),
+            (
+                "Wrapped",
+                "value class Wrapped(val number: Int)",
+                "Wrapped",
+                "value.number",
+            ),
+            (
+                "Holder<Int>",
+                "class Holder<T>(val number: T)",
+                "Holder<Int>",
+                "value.number",
+            ),
+        ] {
+            for container in ["Array", "List"] {
+                for (environment, captured, moved) in [
+                    ("pointer", false, false),
+                    ("shared", true, false),
+                    ("owned", true, true),
+                ] {
+                    for explicit in [true, false] {
+                        let number = if captured { "index + scale" } else { "index" };
+                        let expected = if captured { 9 } else { 2 };
+                        let literal = format!(
+                            "{}{{ index -> println(\"call\")\n{constructor}({number}) }}",
+                            if moved { "move " } else { "" }
+                        );
+                        let nested_check = if constructor == "arrayOf" || constructor == "listOf" {
+                            "if (value.size != 1) { error(\"nested length\") }\n"
+                        } else {
+                            ""
+                        };
+                        let callee = if explicit {
+                            format!("generate<{element}>")
+                        } else {
+                            "generate".to_owned()
+                        };
+                        let api = format!(
+                            "fun <T> generate(size: Int, initializer: (Int)->T): {container}<T> = {container}<T>(size, initializer)"
+                        );
+                        let text = format!(
+                            r#"{declarations}
 fun verify(value: {element}): Unit {{
     {nested_check}if ({projection} != {expected}) {{ error("element value") }}
 }}
@@ -200,8 +200,8 @@ fun entry(): Int {{
     return items.size
 }}
 fun nativeEntry(): Unit {{ if (entry() != 3) {{ error("logical length") }} }}"#
-                    );
-                    cases.push((
+                        );
+                        cases.push((
                         RuntimeCase {
                             text,
                             label: format!(
@@ -215,23 +215,23 @@ fun nativeEntry(): Unit {{ if (entry() != 3) {{ error("logical length") }} }}"#
                         },
                         api,
                     ));
+                    }
                 }
             }
         }
+        cases
     }
-    cases
-}
 
-#[test]
-fn runtime_constructor_native_single_storable_helper_elements() {
-    let cases = cases();
-    assert_eq!(cases.len(), 48);
-    for (case, api) in cases {
-        let text = format!("{api}\n{}", case.text);
-        let output = emit_link_and_run("runtime-storable-helper.ko", &text, "nativeEntry");
-        assert_output(&case, &output);
+    #[test]
+    fn runtime_constructor_native_single_storable_helper_elements() {
+        let cases = cases();
+        assert_eq!(cases.len(), 48);
+        for (case, api) in cases {
+            let text = format!("{api}\n{}", case.text);
+            let output = emit_link_and_run("runtime-storable-helper.ko", &text, "nativeEntry");
+            assert_output(&case, &output);
+        }
     }
-}
 }
 
 #[derive(Clone)]
@@ -463,17 +463,17 @@ fn runtime_constructor_native_single_generic_helper_preserves_element_and_enviro
 }
 
 pub(crate) mod root_primitive_tests {
-//! SPEC-0244：源码原语真实 link/run 与精确 owner 释放。
-use super::super::{TestDirectory, UnitSource, emit_link_and_run};
-use crate::test_support::diagnostics::assert_diagnostic;
-use lang_frontend::name_resolution::SymbolKind;
-use std::{fs, process::Command};
+    //! SPEC-0244：源码原语真实 link/run 与精确 owner 释放。
+    use super::super::{TestDirectory, UnitSource, emit_link_and_run};
+    use crate::test_support::diagnostics::assert_diagnostic;
+    use lang_frontend::name_resolution::SymbolKind;
+    use std::{fs, process::Command};
 
-#[test]
-fn root_primitive_native_string_exchange_and_source_order() {
-    let output = emit_link_and_run(
-        "root-exchange.ko",
-        r#"
+    #[test]
+    fn root_primitive_native_string_exchange_and_source_order() {
+        let output = emit_link_and_run(
+            "root-exchange.ko",
+            r#"
         fun make(): String { println("evaluate-new"); return "new" + "value" }
         fun entry(): Unit {
             var a = "old" + "value"
@@ -488,20 +488,20 @@ fn root_primitive_native_string_exchange_and_source_order() {
             println(b)
         }
     "#,
-        "entry",
-    );
-    assert_diagnostic!(output.status.success(), "{output:?}");
-    assert_eq!(
-        output.stdout,
-        b"evaluate-new\noldvalue\nnewvalue\nsecondvalue\nnewvalue\nnewvalue\nlast\n"
-    );
-}
+            "entry",
+        );
+        assert_diagnostic!(output.status.success(), "{output:?}");
+        assert_eq!(
+            output.stdout,
+            b"evaluate-new\noldvalue\nnewvalue\nsecondvalue\nnewvalue\nnewvalue\nlast\n"
+        );
+    }
 
-#[test]
-fn root_primitive_native_copyable_snapshots_and_repeated_swap() {
-    let output = emit_link_and_run(
-        "root-copy.ko",
-        r#"
+    #[test]
+    fn root_primitive_native_copyable_snapshots_and_repeated_swap() {
+        let output = emit_link_and_run(
+            "root-copy.ko",
+            r#"
         fun entry(): Unit {
             var a = 1
             var b = a
@@ -514,17 +514,17 @@ fn root_primitive_native_copyable_snapshots_and_repeated_swap() {
             if (a == 1 && b == 2) { println("swapped") }
         }
     "#,
-        "entry",
-    );
-    assert_diagnostic!(output.status.success(), "{output:?}");
-    assert_eq!(output.stdout, b"copied\nswapped\n");
-}
+            "entry",
+        );
+        assert_diagnostic!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"copied\nswapped\n");
+    }
 
-#[test]
-fn root_primitive_native_control_exit_retains_initialized_target() {
-    let output = emit_link_and_run(
-        "root-exit.ko",
-        r#"
+    #[test]
+    fn root_primitive_native_control_exit_retains_initialized_target() {
+        let output = emit_link_and_run(
+            "root-exit.ko",
+            r#"
         fun breakCase(flag: Boolean): Unit {
             var target = "old" + "break"
             loop {
@@ -547,15 +547,15 @@ fn root_primitive_native_control_exit_retains_initialized_target() {
             returnCase(false)
         }
     "#,
-        "entry",
-    );
-    assert_diagnostic!(output.status.success(), "{output:?}");
-    assert_eq!(output.stdout, b"oldbreak\noldbreak\nnew\noldreturn\nnew\n");
-}
+            "entry",
+        );
+        assert_diagnostic!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"oldbreak\noldbreak\nnew\noldreturn\nnew\n");
+    }
 
-#[test]
-fn root_primitive_native_all_storage_owners_free_exactly_once() {
-    let source = r#"
+    #[test]
+    fn root_primitive_native_all_storage_owners_free_exactly_once() {
+        let source = r#"
         class Node(val value: String)
         value class Inline(val value: String)
         fun entry(): Unit {
@@ -588,31 +588,31 @@ fn root_primitive_native_all_storage_owners_free_exactly_once() {
             swap(&inline, &otherInline)
         }
     "#;
-    let analysis = UnitSource::analyze("root-counted.ko", source)
-        .expect("original source must pass strict Unit admission");
-    analysis.assert_frontend_clean();
-    let (program, entry) = analysis
-        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
-        .expect("source root owners lower to verified SSA");
-    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
-        .unwrap()
-        .replace("@malloc(", "@counted_malloc(")
-        .replace("@free(", "@counted_free(");
-    // Six families each own three concat buffers; class, Box, Rc and List each
-    // add three heap headers/payload allocations. Exchange itself allocates nothing.
-    run_counted(&llvm, 30, b"oldstring\notherstring\nnewstring\n");
-}
+        let analysis = UnitSource::analyze("root-counted.ko", source)
+            .expect("original source must pass strict Unit admission");
+        analysis.assert_frontend_clean();
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+            .expect("source root owners lower to verified SSA");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .unwrap()
+            .replace("@malloc(", "@counted_malloc(")
+            .replace("@free(", "@counted_free(");
+        // Six families each own three concat buffers; class, Box, Rc and List each
+        // add three heap headers/payload allocations. Exchange itself allocates nothing.
+        run_counted(&llvm, 30, b"oldstring\notherstring\nnewstring\n");
+    }
 
-fn run_counted(llvm: &str, count: usize, stdout: &[u8]) {
-    let directory = TestDirectory::create();
-    let ir = directory.join("root.ll");
-    let counter = directory.join("counter.c");
-    let executable = directory.join("root");
-    fs::write(&ir, llvm).unwrap();
-    fs::write(
-        &counter,
-        format!(
-            r#"
+    fn run_counted(llvm: &str, count: usize, stdout: &[u8]) {
+        let directory = TestDirectory::create();
+        let ir = directory.join("root.ll");
+        let counter = directory.join("counter.c");
+        let executable = directory.join("root");
+        fs::write(&ir, llvm).unwrap();
+        fs::write(
+            &counter,
+            format!(
+                r#"
 #include <stdlib.h>
 #include <assert.h>
 static void *live[{count}];
@@ -637,27 +637,27 @@ __attribute__((destructor)) static void verify_counts(void) {{
     for (int i = 0; i < allocations; ++i) assert(!live[i]);
 }}
 "#
-        ),
-    )
-    .unwrap();
-    let link = Command::new(crate::test_support::ir_clang())
-        .arg(&ir)
-        .arg(&counter)
-        .arg("-o")
-        .arg(&executable)
-        .output()
+            ),
+        )
         .unwrap();
-    assert!(link.status.success(), "{link:?}");
-    let run = Command::new(&executable).output().unwrap();
-    assert!(run.status.success(), "{run:?}");
-    assert_eq!(run.stdout, stdout);
-}
+        let link = Command::new(crate::test_support::ir_clang())
+            .arg(&ir)
+            .arg(&counter)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(link.status.success(), "{link:?}");
+        let run = Command::new(&executable).output().unwrap();
+        assert!(run.status.success(), "{run:?}");
+        assert_eq!(run.stdout, stdout);
+    }
 
-#[test]
-fn root_primitive_native_conditional_commit_and_return_free_each_owner_once() {
-    let analysis = UnitSource::analyze(
-        "root-conditional-counts.ko",
-        r#"
+    #[test]
+    fn root_primitive_native_conditional_commit_and_return_free_each_owner_once() {
+        let analysis = UnitSource::analyze(
+            "root-conditional-counts.ko",
+            r#"
         fun test(flag: Boolean): Unit {
             var target = "old" + "value"
             val old = replace(&target, if (flag) return else "new" + "value")
@@ -667,47 +667,47 @@ fn root_primitive_native_conditional_commit_and_return_free_each_owner_once() {
         fun entry(): Unit { test(true)
  test(false) }
     "#,
-    )
-    .expect("original source must pass strict Unit admission");
-    analysis.assert_frontend_clean();
-    let (program, entry) = analysis
-        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
-        .expect("conditional return keeps old root until normal commit");
-    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
-        .unwrap()
-        .replace("@malloc(", "@counted_malloc(")
-        .replace("@free(", "@counted_free(");
-    run_counted(&llvm, 3, b"oldvalue\nnewvalue\n");
-}
+        )
+        .expect("original source must pass strict Unit admission");
+        analysis.assert_frontend_clean();
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+            .expect("conditional return keeps old root until normal commit");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .unwrap()
+            .replace("@malloc(", "@counted_malloc(")
+            .replace("@free(", "@counted_free(");
+        run_counted(&llvm, 3, b"oldvalue\nnewvalue\n");
+    }
 
-#[test]
-fn root_primitive_native_abort_never_commits_or_drops_the_old_root() {
-    let analysis = UnitSource::analyze(
-        "root-abort-counts.ko",
-        r#"
+    #[test]
+    fn root_primitive_native_abort_never_commits_or_drops_the_old_root() {
+        let analysis = UnitSource::analyze(
+            "root-abort-counts.ko",
+            r#"
         fun entry(): Unit {
             var target = "old" + "value"
             val old = replace(&target, error("stop"))
         }
     "#,
-    )
-    .expect("original source must pass strict Unit admission");
-    analysis.assert_frontend_clean();
-    let (program, entry) = analysis
-        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
-        .expect("abort has a prefix, no commit");
-    assert!(!crate::ssa::render_program(&program).contains("root_replace"));
-    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
-        .unwrap()
-        .replace("@malloc(", "@counted_malloc(")
-        .replace("@free(", "@unexpected_free(")
-        .replace("@abort(", "@expected_abort(");
-    let directory = TestDirectory::create();
-    let ir = directory.join("abort.ll");
-    let counter = directory.join("counter.c");
-    let executable = directory.join("abort");
-    fs::write(&ir, llvm).unwrap();
-    fs::write(&counter, r#"
+        )
+        .expect("original source must pass strict Unit admission");
+        analysis.assert_frontend_clean();
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+            .expect("abort has a prefix, no commit");
+        assert!(!crate::ssa::render_program(&program).contains("root_replace"));
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .unwrap()
+            .replace("@malloc(", "@counted_malloc(")
+            .replace("@free(", "@unexpected_free(")
+            .replace("@abort(", "@expected_abort(");
+        let directory = TestDirectory::create();
+        let ir = directory.join("abort.ll");
+        let counter = directory.join("counter.c");
+        let executable = directory.join("abort");
+        fs::write(&ir, llvm).unwrap();
+        fs::write(&counter, r#"
 #include <stdlib.h>
 #include <assert.h>
 static void *owner;
@@ -716,27 +716,27 @@ void unexpected_free(void *pointer) { (void)pointer; _Exit(41); }
 void expected_abort(void) { assert(owner); _Exit(0); }
 __attribute__((destructor)) static void unexpected_return(void) { _Exit(42); }
 "#).unwrap();
-    let link = Command::new(crate::test_support::ir_clang())
-        .arg(&ir)
-        .arg(&counter)
-        .arg("-o")
-        .arg(&executable)
-        .output()
-        .unwrap();
-    assert!(link.status.success(), "{link:?}");
-    let run = Command::new(&executable).output().unwrap();
-    assert!(run.status.success(), "{run:?}");
-    assert!(
-        run.stdout.is_empty() && run.stderr.starts_with(b"abort: "),
-        "{run:?}"
-    );
-}
+        let link = Command::new(crate::test_support::ir_clang())
+            .arg(&ir)
+            .arg(&counter)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(link.status.success(), "{link:?}");
+        let run = Command::new(&executable).output().unwrap();
+        assert!(run.status.success(), "{run:?}");
+        assert!(
+            run.stdout.is_empty() && run.stderr.starts_with(b"abort: "),
+            "{run:?}"
+        );
+    }
 
-#[test]
-fn root_primitive_native_unit_loop_exit_keeps_initialized_storage() {
-    let run = emit_link_and_run(
-        "unit-root-loop.ko",
-        r#"
+    #[test]
+    fn root_primitive_native_unit_loop_exit_keeps_initialized_storage() {
+        let run = emit_link_and_run(
+            "unit-root-loop.ko",
+            r#"
         fun unit(): Unit {}
         fun test(flag: Boolean): Unit {
             var a = unit()
@@ -753,9 +753,9 @@ fn root_primitive_native_unit_loop_exit_keeps_initialized_storage() {
             test(false)
         }
     "#,
-        "entry",
-    );
-    assert!(run.status.success(), "{run:?}");
-    assert_eq!(run.stdout, b"unit-ready\nunit-ready\n");
-}
+            "entry",
+        );
+        assert!(run.status.success(), "{run:?}");
+        assert_eq!(run.stdout, b"unit-ready\nunit-ready\n");
+    }
 }

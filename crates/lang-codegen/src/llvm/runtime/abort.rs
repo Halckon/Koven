@@ -494,180 +494,181 @@ fn call<'ctx>(
 }
 
 pub(crate) mod map_result {
-//! Owned presence/payload storage destroys its payload only on the present branch.
-use super::super::{LlvmAdapterError, RuntimeAbi};
-use crate::ssa::model::{Module, SsaTypeId};
-use inkwell::{
-    builder::Builder,
-    values::{BasicValueEnum, FunctionValue},
-};
+    //! Owned presence/payload storage destroys its payload only on the present branch.
+    use super::super::{LlvmAdapterError, RuntimeAbi};
+    use crate::ssa::model::{Module, SsaTypeId};
+    use inkwell::{
+        builder::Builder,
+        values::{BasicValueEnum, FunctionValue},
+    };
 
-impl<'ctx> RuntimeAbi<'ctx> {
-    pub(crate) fn define_map_result_drop(
-        &self,
-        module: &Module,
-        ty: SsaTypeId,
-        function: FunctionValue<'ctx>,
-        builder: &Builder<'ctx>,
-        value: BasicValueEnum<'ctx>,
-    ) -> Result<(), LlvmAdapterError> {
-        let inner = module
-            .presence_payload_type(ty)
-            .ok_or_else(|| LlvmAdapterError::InvalidSsa("presence payload missing".into()))?;
-        let header = value.into_struct_value();
-        let present = builder
-            .build_extract_value(header, 0, "present")?
-            .into_int_value();
-        let occupied = self.context.append_basic_block(function, "present");
-        let done = self.context.append_basic_block(function, "done");
-        builder.build_conditional_branch(present, occupied, done)?;
-        builder.position_at_end(occupied);
-        let payload = builder.build_extract_value(header, 1, "payload")?;
-        self.emit_drop(builder, inner, payload)?;
-        builder.build_unconditional_branch(done)?;
-        builder.position_at_end(done);
-        Ok(())
+    impl<'ctx> RuntimeAbi<'ctx> {
+        pub(crate) fn define_map_result_drop(
+            &self,
+            module: &Module,
+            ty: SsaTypeId,
+            function: FunctionValue<'ctx>,
+            builder: &Builder<'ctx>,
+            value: BasicValueEnum<'ctx>,
+        ) -> Result<(), LlvmAdapterError> {
+            let inner = module
+                .presence_payload_type(ty)
+                .ok_or_else(|| LlvmAdapterError::InvalidSsa("presence payload missing".into()))?;
+            let header = value.into_struct_value();
+            let present = builder
+                .build_extract_value(header, 0, "present")?
+                .into_int_value();
+            let occupied = self.context.append_basic_block(function, "present");
+            let done = self.context.append_basic_block(function, "done");
+            builder.build_conditional_branch(present, occupied, done)?;
+            builder.position_at_end(occupied);
+            let payload = builder.build_extract_value(header, 1, "payload")?;
+            self.emit_drop(builder, inner, payload)?;
+            builder.build_unconditional_branch(done)?;
+            builder.position_at_end(done);
+            Ok(())
+        }
     }
-}
 }
 
 pub(crate) mod inline_nullable {
-//! ADR-0033: an owned inline nullable destroys its payload only when present.
-use super::super::{LlvmAdapterError, RuntimeAbi};
-use crate::ssa::model::SsaTypeId;
-use inkwell::{
-    builder::Builder,
-    values::{BasicValueEnum, FunctionValue},
-};
+    //! ADR-0033: an owned inline nullable destroys its payload only when present.
+    use super::super::{LlvmAdapterError, RuntimeAbi};
+    use crate::ssa::model::SsaTypeId;
+    use inkwell::{
+        builder::Builder,
+        values::{BasicValueEnum, FunctionValue},
+    };
 
-impl<'ctx> RuntimeAbi<'ctx> {
-    pub(crate) fn define_inline_nullable_drop(
-        &self,
-        inner: SsaTypeId,
-        niche: bool,
-        function: FunctionValue<'ctx>,
-        builder: &Builder<'ctx>,
-        value: BasicValueEnum<'ctx>,
-    ) -> Result<(), LlvmAdapterError> {
-        let wrapper = value.into_struct_value();
-        let present = if niche {
-            // String and container owners keep a non-null data pointer in field 0.
-            let data = builder
-                .build_extract_value(wrapper, 0, "data")?
-                .into_pointer_value();
-            builder.build_is_not_null(data, "present")?
-        } else {
-            builder
-                .build_extract_value(wrapper, 0, "present")?
-                .into_int_value()
-        };
-        let occupied = self.context.append_basic_block(function, "present");
-        let done = self.context.append_basic_block(function, "done");
-        builder.build_conditional_branch(present, occupied, done)?;
-        builder.position_at_end(occupied);
-        let payload = if niche {
-            value
-        } else {
-            builder.build_extract_value(wrapper, 1, "payload")?
-        };
-        self.emit_drop(builder, inner, payload)?;
-        builder.build_unconditional_branch(done)?;
-        builder.position_at_end(done);
-        Ok(())
+    impl<'ctx> RuntimeAbi<'ctx> {
+        pub(crate) fn define_inline_nullable_drop(
+            &self,
+            inner: SsaTypeId,
+            niche: bool,
+            function: FunctionValue<'ctx>,
+            builder: &Builder<'ctx>,
+            value: BasicValueEnum<'ctx>,
+        ) -> Result<(), LlvmAdapterError> {
+            let wrapper = value.into_struct_value();
+            let present = if niche {
+                // String and container owners keep a non-null data pointer in field 0.
+                let data = builder
+                    .build_extract_value(wrapper, 0, "data")?
+                    .into_pointer_value();
+                builder.build_is_not_null(data, "present")?
+            } else {
+                builder
+                    .build_extract_value(wrapper, 0, "present")?
+                    .into_int_value()
+            };
+            let occupied = self.context.append_basic_block(function, "present");
+            let done = self.context.append_basic_block(function, "done");
+            builder.build_conditional_branch(present, occupied, done)?;
+            builder.position_at_end(occupied);
+            let payload = if niche {
+                value
+            } else {
+                builder.build_extract_value(wrapper, 1, "payload")?
+            };
+            self.emit_drop(builder, inner, payload)?;
+            builder.build_unconditional_branch(done)?;
+            builder.position_at_end(done);
+            Ok(())
+        }
     }
-}
 }
 
 pub(crate) mod string {
-//! String byte buffer 使用的集中系统分配与 stdout ABI。
+    //! String byte buffer 使用的集中系统分配与 stdout ABI。
 
-use inkwell::{
-    IntPredicate,
-    builder::Builder,
-    values::{
-        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue, ValueKind,
-    },
-};
+    use inkwell::{
+        IntPredicate,
+        builder::Builder,
+        values::{
+            BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue,
+            ValueKind,
+        },
+    };
 
-use super::super::RuntimeAbi;
-use crate::llvm::LlvmAdapterError;
+    use super::super::RuntimeAbi;
+    use crate::llvm::LlvmAdapterError;
 
-impl<'ctx> RuntimeAbi<'ctx> {
-    pub(in crate::llvm) fn allocate_string_bytes(
-        &self,
-        builder: &Builder<'ctx>,
-        function: FunctionValue<'ctx>,
-        length: IntValue<'ctx>,
-        name: &str,
-    ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
-        let malloc = self
-            .malloc
-            .ok_or_else(|| LlvmAdapterError::Build("malloc 未声明".to_owned()))?;
-        let allocation = match builder
-            .build_call(
-                malloc,
-                &[BasicMetadataValueEnum::from(length)],
-                &format!("{name}.buffer"),
-            )?
-            .try_as_basic_value()
-        {
-            ValueKind::Basic(BasicValueEnum::PointerValue(pointer)) => pointer,
-            _ => {
-                return Err(LlvmAdapterError::Build(
-                    "malloc 未返回 LLVM pointer".to_owned(),
-                ));
-            }
-        };
-        let failed = builder.build_is_null(allocation, &format!("{name}.oom"))?;
-        self.abort_if(
-            builder,
-            function,
-            failed,
-            name,
-            super::super::AbortMessage::Text("allocation failed"),
-        )?;
-        Ok(allocation)
+    impl<'ctx> RuntimeAbi<'ctx> {
+        pub(in crate::llvm) fn allocate_string_bytes(
+            &self,
+            builder: &Builder<'ctx>,
+            function: FunctionValue<'ctx>,
+            length: IntValue<'ctx>,
+            name: &str,
+        ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+            let malloc = self
+                .malloc
+                .ok_or_else(|| LlvmAdapterError::Build("malloc 未声明".to_owned()))?;
+            let allocation = match builder
+                .build_call(
+                    malloc,
+                    &[BasicMetadataValueEnum::from(length)],
+                    &format!("{name}.buffer"),
+                )?
+                .try_as_basic_value()
+            {
+                ValueKind::Basic(BasicValueEnum::PointerValue(pointer)) => pointer,
+                _ => {
+                    return Err(LlvmAdapterError::Build(
+                        "malloc 未返回 LLVM pointer".to_owned(),
+                    ));
+                }
+            };
+            let failed = builder.build_is_null(allocation, &format!("{name}.oom"))?;
+            self.abort_if(
+                builder,
+                function,
+                failed,
+                name,
+                super::super::AbortMessage::Text("allocation failed"),
+            )?;
+            Ok(allocation)
+        }
+
+        pub(in crate::llvm) fn emit_write_bytes(
+            &self,
+            builder: &Builder<'ctx>,
+            function: FunctionValue<'ctx>,
+            bytes: PointerValue<'ctx>,
+            length: IntValue<'ctx>,
+            name: &str,
+        ) -> Result<(), LlvmAdapterError> {
+            let call = builder.build_call(
+                self.write
+                    .ok_or_else(|| LlvmAdapterError::Build("write 未声明".to_owned()))?,
+                &[
+                    BasicMetadataValueEnum::from(self.context.i32_type().const_int(1, false)),
+                    BasicMetadataValueEnum::from(bytes),
+                    BasicMetadataValueEnum::from(length),
+                ],
+                &format!("{name}.written"),
+            )?;
+            let written = match call.try_as_basic_value() {
+                ValueKind::Basic(BasicValueEnum::IntValue(value)) => value,
+                _ => {
+                    return Err(LlvmAdapterError::Build(
+                        "write 未返回整数 byte count".to_owned(),
+                    ));
+                }
+            };
+            let incomplete = builder.build_int_compare(
+                IntPredicate::NE,
+                written,
+                length,
+                &format!("{name}.incomplete"),
+            )?;
+            self.abort_if(
+                builder,
+                function,
+                incomplete,
+                name,
+                super::super::AbortMessage::Text("stdout write failed"),
+            )
+        }
     }
-
-    pub(in crate::llvm) fn emit_write_bytes(
-        &self,
-        builder: &Builder<'ctx>,
-        function: FunctionValue<'ctx>,
-        bytes: PointerValue<'ctx>,
-        length: IntValue<'ctx>,
-        name: &str,
-    ) -> Result<(), LlvmAdapterError> {
-        let call = builder.build_call(
-            self.write
-                .ok_or_else(|| LlvmAdapterError::Build("write 未声明".to_owned()))?,
-            &[
-                BasicMetadataValueEnum::from(self.context.i32_type().const_int(1, false)),
-                BasicMetadataValueEnum::from(bytes),
-                BasicMetadataValueEnum::from(length),
-            ],
-            &format!("{name}.written"),
-        )?;
-        let written = match call.try_as_basic_value() {
-            ValueKind::Basic(BasicValueEnum::IntValue(value)) => value,
-            _ => {
-                return Err(LlvmAdapterError::Build(
-                    "write 未返回整数 byte count".to_owned(),
-                ));
-            }
-        };
-        let incomplete = builder.build_int_compare(
-            IntPredicate::NE,
-            written,
-            length,
-            &format!("{name}.incomplete"),
-        )?;
-        self.abort_if(
-            builder,
-            function,
-            incomplete,
-            name,
-            super::super::AbortMessage::Text("stdout write failed"),
-        )
-    }
-}
 }

@@ -400,414 +400,421 @@ fn emitted_koven_objects_link_and_run_normal_and_abort_entries() {
 }
 
 pub(crate) mod borrowed_generate_tests {
-use super::super::render_verified_program;
-use crate::ssa::borrowed_generate_tests::{Layout, dynamic_fixture, fixture};
-use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
+    use super::super::render_verified_program;
+    use crate::ssa::borrowed_generate_tests::{Layout, dynamic_fixture, fixture};
+    use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 
-#[test]
-fn borrowed_generation_prepares_fixed_storage_once_outside_the_loop() {
-    for layout in [Layout::Pointer, Layout::Shared, Layout::Owned] {
-        for size in [0, 1, 3] {
-            let fixture = fixture(layout, size, false);
-            let llvm = render_verified_program(&fixture.program)
-                .expect("borrowed generator LLVM must verify");
-            let make = llvm
-                .split("@f1.make()")
-                .nth(1)
-                .expect("make")
-                .split("\n}")
-                .next()
-                .expect("body");
-            let body = make
-                .split(".body:")
-                .nth(1)
-                .expect("loop body")
-                .split(".done:")
-                .next()
-                .expect("done");
-            assert_diagnostic!(
-                !body.contains("alloca"),
-                "loop storage must remain bounded: {llvm}"
-            );
-            assert_eq_diagnostic!(
-                make.matches(".index.storage = alloca i32").count(),
-                1,
-                "{llvm}"
-            );
-            assert_eq_diagnostic!(
-                make.matches(".environment.storage = alloca").count(),
-                usize::from(!matches!(layout, Layout::Pointer)),
-                "{llvm}"
-            );
-            assert_diagnostic!(
-                body.contains("call i32"),
-                "callback stays in guarded loop: {llvm}"
-            );
-            assert!(make.contains("icmp ult i64"));
+    #[test]
+    fn borrowed_generation_prepares_fixed_storage_once_outside_the_loop() {
+        for layout in [Layout::Pointer, Layout::Shared, Layout::Owned] {
+            for size in [0, 1, 3] {
+                let fixture = fixture(layout, size, false);
+                let llvm = render_verified_program(&fixture.program)
+                    .expect("borrowed generator LLVM must verify");
+                let make = llvm
+                    .split("@f1.make()")
+                    .nth(1)
+                    .expect("make")
+                    .split("\n}")
+                    .next()
+                    .expect("body");
+                let body = make
+                    .split(".body:")
+                    .nth(1)
+                    .expect("loop body")
+                    .split(".done:")
+                    .next()
+                    .expect("done");
+                assert_diagnostic!(
+                    !body.contains("alloca"),
+                    "loop storage must remain bounded: {llvm}"
+                );
+                assert_eq_diagnostic!(
+                    make.matches(".index.storage = alloca i32").count(),
+                    1,
+                    "{llvm}"
+                );
+                assert_eq_diagnostic!(
+                    make.matches(".environment.storage = alloca").count(),
+                    usize::from(!matches!(layout, Layout::Pointer)),
+                    "{llvm}"
+                );
+                assert_diagnostic!(
+                    body.contains("call i32"),
+                    "callback stays in guarded loop: {llvm}"
+                );
+                assert!(make.contains("icmp ult i64"));
 
-            assert!(make.contains("llvm.umul.with.overflow"));
+                assert!(make.contains("llvm.umul.with.overflow"));
+            }
         }
+    }
+
+    #[test]
+    fn borrowed_unit_void_generation_calls_each_logical_index_without_buffer_addressing() {
+        let fixture = fixture(Layout::Pointer, 3, true);
+        let llvm = render_verified_program(&fixture.program).expect("Unit LLVM must verify");
+        let make = llvm
+            .split("@f1.make()")
+            .nth(1)
+            .expect("make")
+            .split("\n}")
+            .next()
+            .expect("body");
+        assert_diagnostic!(
+            make.contains("call void %"),
+            "logical Unit callback must be invoked: {llvm}"
+        );
+        assert!(!make.contains("getelementptr"));
+        assert!(!make.contains("call ptr @malloc"));
+    }
+
+    #[test]
+    fn borrowed_generation_dynamic_length_keeps_checked_length_and_bytes_guards() {
+        let fixture = dynamic_fixture(Layout::Pointer);
+        let llvm =
+            render_verified_program(&fixture.program).expect("dynamic borrowed generator LLVM");
+        let make = llvm
+            .split("@f1.make(")
+            .nth(1)
+            .expect("make")
+            .split("\n}")
+            .next()
+            .expect("body");
+        assert_diagnostic!(
+            make.contains("icmp slt i32"),
+            "negative length rejected before conversion: {llvm}"
+        );
+        assert_diagnostic!(
+            make.contains("zext i32"),
+            "nonnegative logical length becomes size_t: {llvm}"
+        );
+        assert_diagnostic!(
+            make.contains("llvm.umul.with.overflow"),
+            "physical bytes remain checked: {llvm}"
+        );
+        let preheader = make.split(".loop:").next().expect("preheader");
+        assert_diagnostic!(
+            !preheader.contains("call i32 %"),
+            "no callback before allocation succeeds: {llvm}"
+        );
     }
 }
 
-#[test]
-fn borrowed_unit_void_generation_calls_each_logical_index_without_buffer_addressing() {
-    let fixture = fixture(Layout::Pointer, 3, true);
-    let llvm = render_verified_program(&fixture.program).expect("Unit LLVM must verify");
-    let make = llvm
-        .split("@f1.make()")
-        .nth(1)
-        .expect("make")
-        .split("\n}")
-        .next()
-        .expect("body");
-    assert_diagnostic!(
-        make.contains("call void %"),
-        "logical Unit callback must be invoked: {llvm}"
-    );
-    assert!(!make.contains("getelementptr"));
-    assert!(!make.contains("call ptr @malloc"));
-}
-
-#[test]
-fn borrowed_generation_dynamic_length_keeps_checked_length_and_bytes_guards() {
-    let fixture = dynamic_fixture(Layout::Pointer);
-    let llvm = render_verified_program(&fixture.program).expect("dynamic borrowed generator LLVM");
-    let make = llvm
-        .split("@f1.make(")
-        .nth(1)
-        .expect("make")
-        .split("\n}")
-        .next()
-        .expect("body");
-    assert_diagnostic!(
-        make.contains("icmp slt i32"),
-        "negative length rejected before conversion: {llvm}"
-    );
-    assert_diagnostic!(
-        make.contains("zext i32"),
-        "nonnegative logical length becomes size_t: {llvm}"
-    );
-    assert_diagnostic!(
-        make.contains("llvm.umul.with.overflow"),
-        "physical bytes remain checked: {llvm}"
-    );
-    let preheader = make.split(".loop:").next().expect("preheader");
-    assert_diagnostic!(
-        !preheader.contains("call i32 %"),
-        "no callback before allocation succeeds: {llvm}"
-    );
-}
-}
-
 pub(crate) mod nullable_tests {
-use crate::test_support::diagnostics::assert_diagnostic;
-use lang_frontend::source::SourceMap;
+    use crate::test_support::diagnostics::assert_diagnostic;
+    use lang_frontend::source::SourceMap;
 
-use crate::ssa::model::{
-    Edge, EntityId, EntityType, LoanKind, Operation, Origin, Program, TerminatorKind, ValueId,
-};
-
-use super::super::render_verified_program;
-
-fn value(entity: EntityId) -> ValueId {
-    let EntityId::Value(value) = entity else {
-        panic!("expected value");
+    use crate::ssa::model::{
+        Edge, EntityId, EntityType, LoanKind, Operation, Origin, Program, TerminatorKind, ValueId,
     };
-    value
-}
 
-#[test]
-fn nullable_handle_uses_one_pointer_non_null_phi_and_conditional_drop() {
-    let mut sources = SourceMap::default();
-    let source = sources
-        .add_source("nullable-llvm.ko", "if (node != null) node")
-        .expect("source");
-    let origin = Origin::Source(sources.span(source, 0, 2).expect("span"));
-    let mut program = Program::default();
-    let module_id = program.add_module("nullable_llvm");
-    let module = program.module_mut(module_id).expect("module");
-    let payload = module
-        .add_aggregate_type("Node.payload", Vec::new())
-        .expect("payload");
-    let inner = module.declare_heap_owner("Node").expect("owner");
-    module
-        .define_heap_owner(inner, payload)
-        .expect("definition");
-    let nullable = module.add_nullable_handle_type(inner).expect("nullable");
+    use super::super::render_verified_program;
 
-    let function_id = module
-        .add_function("inspect", Vec::new(), origin.clone())
-        .expect("function");
-    let function = module.function_mut(function_id).expect("function");
-    let entry = function
-        .add_block(vec![EntityType::Value(nullable)], origin.clone())
-        .expect("entry");
-    let owner = value(function.block(entry).expect("block").parameters[0]);
-    let null_block = function
-        .add_block(vec![EntityType::Value(nullable)], origin.clone())
-        .expect("null block");
-    let non_null_block = function
-        .add_block(
-            vec![
-                EntityType::Value(nullable),
-                EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: inner,
+    fn value(entity: EntityId) -> ValueId {
+        let EntityId::Value(value) = entity else {
+            panic!("expected value");
+        };
+        value
+    }
+
+    #[test]
+    fn nullable_handle_uses_one_pointer_non_null_phi_and_conditional_drop() {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_source("nullable-llvm.ko", "if (node != null) node")
+            .expect("source");
+        let origin = Origin::Source(sources.span(source, 0, 2).expect("span"));
+        let mut program = Program::default();
+        let module_id = program.add_module("nullable_llvm");
+        let module = program.module_mut(module_id).expect("module");
+        let payload = module
+            .add_aggregate_type("Node.payload", Vec::new())
+            .expect("payload");
+        let inner = module.declare_heap_owner("Node").expect("owner");
+        module
+            .define_heap_owner(inner, payload)
+            .expect("definition");
+        let nullable = module.add_nullable_handle_type(inner).expect("nullable");
+
+        let function_id = module
+            .add_function("inspect", Vec::new(), origin.clone())
+            .expect("function");
+        let function = module.function_mut(function_id).expect("function");
+        let entry = function
+            .add_block(vec![EntityType::Value(nullable)], origin.clone())
+            .expect("entry");
+        let owner = value(function.block(entry).expect("block").parameters[0]);
+        let null_block = function
+            .add_block(vec![EntityType::Value(nullable)], origin.clone())
+            .expect("null block");
+        let non_null_block = function
+            .add_block(
+                vec![
+                    EntityType::Value(nullable),
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: inner,
+                    },
+                ],
+                origin.clone(),
+            )
+            .expect("non-null block");
+        let null_owner = value(function.block(null_block).expect("block").parameters[0]);
+        let parameters = function
+            .block(non_null_block)
+            .expect("block")
+            .parameters
+            .clone();
+        let non_null_owner = value(parameters[0]);
+        let EntityId::Loan(view) = parameters[1] else {
+            panic!("expected non-null view");
+        };
+        function
+            .set_terminator(
+                entry,
+                TerminatorKind::NullableBranch {
+                    owner,
+                    when_null: Edge {
+                        target: null_block,
+                        arguments: vec![EntityId::Value(owner)],
+                    },
+                    when_non_null: Edge {
+                        target: non_null_block,
+                        arguments: vec![EntityId::Value(owner)],
+                    },
+                    view,
                 },
-            ],
-            origin.clone(),
-        )
-        .expect("non-null block");
-    let null_owner = value(function.block(null_block).expect("block").parameters[0]);
-    let parameters = function
-        .block(non_null_block)
-        .expect("block")
-        .parameters
-        .clone();
-    let non_null_owner = value(parameters[0]);
-    let EntityId::Loan(view) = parameters[1] else {
-        panic!("expected non-null view");
-    };
-    function
-        .set_terminator(
-            entry,
-            TerminatorKind::NullableBranch {
-                owner,
-                when_null: Edge {
-                    target: null_block,
-                    arguments: vec![EntityId::Value(owner)],
-                },
-                when_non_null: Edge {
-                    target: non_null_block,
-                    arguments: vec![EntityId::Value(owner)],
-                },
-                view,
-            },
-            origin.clone(),
-        )
-        .expect("branch");
-    function
-        .append_instruction(
-            null_block,
-            Operation::Drop { owner: null_owner },
-            Vec::new(),
-            origin.clone(),
-        )
-        .expect("nullable drop");
-    function
-        .set_terminator(
-            null_block,
-            TerminatorKind::Return { values: Vec::new() },
-            origin.clone(),
-        )
-        .expect("return");
-    let taken = value(
+                origin.clone(),
+            )
+            .expect("branch");
+        function
+            .append_instruction(
+                null_block,
+                Operation::Drop { owner: null_owner },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("nullable drop");
+        function
+            .set_terminator(
+                null_block,
+                TerminatorKind::Return { values: Vec::new() },
+                origin.clone(),
+            )
+            .expect("return");
+        let taken = value(
+            function
+                .append_instruction(
+                    non_null_block,
+                    Operation::NullableTake {
+                        owner: non_null_owner,
+                        proof: view,
+                    },
+                    vec![EntityType::Value(inner)],
+                    origin.clone(),
+                )
+                .expect("take")
+                .1[0],
+        );
         function
             .append_instruction(
                 non_null_block,
-                Operation::NullableTake {
-                    owner: non_null_owner,
-                    proof: view,
-                },
-                vec![EntityType::Value(inner)],
+                Operation::Drop { owner: taken },
+                Vec::new(),
                 origin.clone(),
             )
-            .expect("take")
-            .1[0],
-    );
-    function
-        .append_instruction(
-            non_null_block,
-            Operation::Drop { owner: taken },
-            Vec::new(),
-            origin.clone(),
-        )
-        .expect("inner drop");
-    function
-        .set_terminator(
-            non_null_block,
-            TerminatorKind::Return { values: Vec::new() },
-            origin,
-        )
-        .expect("return");
+            .expect("inner drop");
+        function
+            .set_terminator(
+                non_null_block,
+                TerminatorKind::Return { values: Vec::new() },
+                origin,
+            )
+            .expect("return");
 
-    let ir = render_verified_program(&program).expect("nullable LLVM lowering");
-    assert_diagnostic!(ir.contains("phi ptr"), "{ir}");
-    assert_diagnostic!(ir.contains("icmp eq ptr"), "{ir}");
-    assert_diagnostic!(
-        ir.contains("define internal void @koven.drop.t2(ptr"),
-        "{ir}"
-    );
-    assert_diagnostic!(ir.contains("call void @koven.drop.t1(ptr"), "{ir}");
-    assert_diagnostic!(
-        !ir.contains("koven.enum"),
-        "nullable pointer must not gain a tag: {ir}"
-    );
-    assert_diagnostic!(
-        !ir.contains("malloc"),
-        "nullable wrapping must not allocate: {ir}"
-    );
-}
+        let ir = render_verified_program(&program).expect("nullable LLVM lowering");
+        assert_diagnostic!(ir.contains("phi ptr"), "{ir}");
+        assert_diagnostic!(ir.contains("icmp eq ptr"), "{ir}");
+        assert_diagnostic!(
+            ir.contains("define internal void @koven.drop.t2(ptr"),
+            "{ir}"
+        );
+        assert_diagnostic!(ir.contains("call void @koven.drop.t1(ptr"), "{ir}");
+        assert_diagnostic!(
+            !ir.contains("koven.enum"),
+            "nullable pointer must not gain a tag: {ir}"
+        );
+        assert_diagnostic!(
+            !ir.contains("malloc"),
+            "nullable wrapping must not allocate: {ir}"
+        );
+    }
 }
 
 pub(crate) mod synthetic_zst_tests {
-//! Internal test SSA only: no source-level MoveOnly ZST capability.
-use super::super::object_tests::{TestDirectory, link};
-use crate::ssa::{
-    model::{
-        EntityId, EntityType, Operation, Origin, Ownership, Program, ScalarConstant,
-        SequentialContainerKind, SsaTypeKind, TerminatorKind,
-    },
-    verify::verify_program,
-};
-use lang_frontend::source::SourceMap;
-use std::{fs, process::Command};
+    //! Internal test SSA only: no source-level MoveOnly ZST capability.
+    use super::super::object_tests::{TestDirectory, link};
+    use crate::ssa::{
+        model::{
+            EntityId, EntityType, Operation, Origin, Ownership, Program, ScalarConstant,
+            SequentialContainerKind, SsaTypeKind, TerminatorKind,
+        },
+        verify::verify_program,
+    };
+    use lang_frontend::source::SourceMap;
+    use std::{fs, process::Command};
 
-fn instrument_entry(ir: &str, name: &str, hook: &str) -> String {
-    let definition = ir
-        .lines()
-        .find(|line| line.starts_with("define ") && line.contains(&format!("@{name}(")))
-        .expect("real drop definition");
-    let start = ir.find(definition).unwrap();
-    let entry = start + ir[start..].find("entry:\n").unwrap() + "entry:\n".len();
-    let mut result = ir.to_owned();
-    result.insert_str(entry, &format!("  call void @{hook}()\n"));
-    result
-}
+    fn instrument_entry(ir: &str, name: &str, hook: &str) -> String {
+        let definition = ir
+            .lines()
+            .find(|line| line.starts_with("define ") && line.contains(&format!("@{name}(")))
+            .expect("real drop definition");
+        let start = ir.find(definition).unwrap();
+        let entry = start + ir[start..].find("entry:\n").unwrap() + "entry:\n".len();
+        let mut result = ir.to_owned();
+        result.insert_str(entry, &format!("  call void @{hook}()\n"));
+        result
+    }
 
-#[test]
-fn synthetic_zst_container_drop_counts_logical_elements_and_storage_separately() {
-    for kind in [
-        SequentialContainerKind::Array,
-        SequentialContainerKind::List,
-        SequentialContainerKind::MutableList,
-    ] {
-        for length in [0, 1, 3] {
-            for nonzero_stride in [false, true] {
-                let mut sources = SourceMap::default();
-                let source = sources
-                    .add_source("synthetic-zst.ko", "internal test fixture")
-                    .unwrap();
-                let origin = Origin::Source(sources.span(source, 0, 8).unwrap());
-                let mut program = Program::default();
-                let module_id = program.add_module("synthetic-zst");
-                let module = program.module_mut(module_id).unwrap();
-                let zero = module.intern_type(SsaTypeKind::ZeroSized {
-                    name: "SyntheticMoveOnlyZst".into(),
-                    ownership: Ownership::MoveOnly,
-                });
-                let int = module.intern_type(SsaTypeKind::Integer {
-                    bits: 32,
-                    signed: true,
-                });
-                let element = if nonzero_stride {
-                    module
-                        .add_aggregate_type("NonzeroWrapper", vec![zero, int])
-                        .unwrap()
-                } else {
-                    zero
-                };
-                let container = module.add_sequential_container_type(kind, element).unwrap();
-                let entry = module
-                    .add_function("entry", vec![], origin.clone())
-                    .unwrap();
-                let function = module.function_mut(entry).unwrap();
-                let block = function.add_block(vec![], origin.clone()).unwrap();
-                let mut elements = Vec::new();
-                for _ in 0..length {
+    #[test]
+    fn synthetic_zst_container_drop_counts_logical_elements_and_storage_separately() {
+        for kind in [
+            SequentialContainerKind::Array,
+            SequentialContainerKind::List,
+            SequentialContainerKind::MutableList,
+        ] {
+            for length in [0, 1, 3] {
+                for nonzero_stride in [false, true] {
+                    let mut sources = SourceMap::default();
+                    let source = sources
+                        .add_source("synthetic-zst.ko", "internal test fixture")
+                        .unwrap();
+                    let origin = Origin::Source(sources.span(source, 0, 8).unwrap());
+                    let mut program = Program::default();
+                    let module_id = program.add_module("synthetic-zst");
+                    let module = program.module_mut(module_id).unwrap();
+                    let zero = module.intern_type(SsaTypeKind::ZeroSized {
+                        name: "SyntheticMoveOnlyZst".into(),
+                        ownership: Ownership::MoveOnly,
+                    });
+                    let int = module.intern_type(SsaTypeKind::Integer {
+                        bits: 32,
+                        signed: true,
+                    });
+                    let element = if nonzero_stride {
+                        module
+                            .add_aggregate_type("NonzeroWrapper", vec![zero, int])
+                            .unwrap()
+                    } else {
+                        zero
+                    };
+                    let container = module.add_sequential_container_type(kind, element).unwrap();
+                    let entry = module
+                        .add_function("entry", vec![], origin.clone())
+                        .unwrap();
+                    let function = module.function_mut(entry).unwrap();
+                    let block = function.add_block(vec![], origin.clone()).unwrap();
+                    let mut elements = Vec::new();
+                    for _ in 0..length {
+                        let (_, result) = function
+                            .append_instruction(
+                                block,
+                                Operation::Constant(ScalarConstant::SyntheticZero),
+                                vec![EntityType::Value(zero)],
+                                origin.clone(),
+                            )
+                            .unwrap();
+                        let EntityId::Value(zst) = result[0] else {
+                            panic!("zero value")
+                        };
+                        let value = if nonzero_stride {
+                            let (_, result) = function
+                                .append_instruction(
+                                    block,
+                                    Operation::Constant(ScalarConstant::Integer(7)),
+                                    vec![EntityType::Value(int)],
+                                    origin.clone(),
+                                )
+                                .unwrap();
+                            let EntityId::Value(number) = result[0] else {
+                                panic!("integer")
+                            };
+                            let (_, result) = function
+                                .append_instruction(
+                                    block,
+                                    Operation::AggregateConstruct {
+                                        aggregate: element,
+                                        fields: vec![zst, number],
+                                    },
+                                    vec![EntityType::Value(element)],
+                                    origin.clone(),
+                                )
+                                .unwrap();
+                            let EntityId::Value(value) = result[0] else {
+                                panic!("element")
+                            };
+                            value
+                        } else {
+                            zst
+                        };
+                        elements.push(value);
+                    }
                     let (_, result) = function
                         .append_instruction(
                             block,
-                            Operation::Constant(ScalarConstant::SyntheticZero),
-                            vec![EntityType::Value(zero)],
+                            Operation::ContainerConstruct {
+                                container,
+                                elements,
+                            },
+                            vec![EntityType::Value(container)],
                             origin.clone(),
                         )
                         .unwrap();
-                    let EntityId::Value(zst) = result[0] else {
-                        panic!("zero value")
+                    let EntityId::Value(owner) = result[0] else {
+                        panic!("container")
                     };
-                    let value = if nonzero_stride {
-                        let (_, result) = function
-                            .append_instruction(
-                                block,
-                                Operation::Constant(ScalarConstant::Integer(7)),
-                                vec![EntityType::Value(int)],
-                                origin.clone(),
-                            )
-                            .unwrap();
-                        let EntityId::Value(number) = result[0] else {
-                            panic!("integer")
-                        };
-                        let (_, result) = function
-                            .append_instruction(
-                                block,
-                                Operation::AggregateConstruct {
-                                    aggregate: element,
-                                    fields: vec![zst, number],
-                                },
-                                vec![EntityType::Value(element)],
-                                origin.clone(),
-                            )
-                            .unwrap();
-                        let EntityId::Value(value) = result[0] else {
-                            panic!("element")
-                        };
-                        value
-                    } else {
-                        zst
-                    };
-                    elements.push(value);
-                }
-                let (_, result) = function
-                    .append_instruction(
-                        block,
-                        Operation::ContainerConstruct {
-                            container,
-                            elements,
-                        },
-                        vec![EntityType::Value(container)],
-                        origin.clone(),
-                    )
-                    .unwrap();
-                let EntityId::Value(owner) = result[0] else {
-                    panic!("container")
-                };
-                function
-                    .append_instruction(block, Operation::Drop { owner }, vec![], origin.clone())
-                    .unwrap();
-                function
-                    .set_terminator(block, TerminatorKind::Return { values: vec![] }, origin)
-                    .unwrap();
-                verify_program(&program).unwrap();
-                let directory = TestDirectory::create();
-                let object = directory.join("real.o");
-                super::super::emit_verified_object(&program, &sources, entry, &object).unwrap();
-                let executable = directory.join("real");
-                link(&object, &executable);
-                assert!(Command::new(&executable).output().unwrap().status.success());
-                let ir = super::super::render_verified_program_with_entry(&program, entry).unwrap();
-                let ir = instrument_entry(
-                    &ir,
-                    &format!("koven.drop.t{}", zero.index()),
-                    "count_element",
-                );
-                let ir = instrument_entry(
-                    &ir,
-                    &format!("koven.drop.t{}", container.index()),
-                    "count_container",
-                );
-                let ir = ir
-                    .replace("@malloc(", "@counted_malloc(")
-                    .replace("@free(", "@counted_free(");
-                let ir = format!(
-                    "{ir}\ndeclare void @count_element()\ndeclare void @count_container()\n"
-                );
-                let llvm = directory.join("counted.ll");
-                fs::write(&llvm, ir).unwrap();
-                let counter = directory.join("counter.c");
-                let allocations = usize::from(nonzero_stride && length > 0);
-                fs::write(&counter, format!(r#"
+                    function
+                        .append_instruction(
+                            block,
+                            Operation::Drop { owner },
+                            vec![],
+                            origin.clone(),
+                        )
+                        .unwrap();
+                    function
+                        .set_terminator(block, TerminatorKind::Return { values: vec![] }, origin)
+                        .unwrap();
+                    verify_program(&program).unwrap();
+                    let directory = TestDirectory::create();
+                    let object = directory.join("real.o");
+                    super::super::emit_verified_object(&program, &sources, entry, &object).unwrap();
+                    let executable = directory.join("real");
+                    link(&object, &executable);
+                    assert!(Command::new(&executable).output().unwrap().status.success());
+                    let ir =
+                        super::super::render_verified_program_with_entry(&program, entry).unwrap();
+                    let ir = instrument_entry(
+                        &ir,
+                        &format!("koven.drop.t{}", zero.index()),
+                        "count_element",
+                    );
+                    let ir = instrument_entry(
+                        &ir,
+                        &format!("koven.drop.t{}", container.index()),
+                        "count_container",
+                    );
+                    let ir = ir
+                        .replace("@malloc(", "@counted_malloc(")
+                        .replace("@free(", "@counted_free(");
+                    let ir = format!(
+                        "{ir}\ndeclare void @count_element()\ndeclare void @count_container()\n"
+                    );
+                    let llvm = directory.join("counted.ll");
+                    fs::write(&llvm, ir).unwrap();
+                    let counter = directory.join("counter.c");
+                    let allocations = usize::from(nonzero_stride && length > 0);
+                    fs::write(&counter, format!(r#"
 #include <stdlib.h>
 #include <assert.h>
 static int elements, containers, allocations, frees;
@@ -818,32 +825,32 @@ void *counted_malloc(size_t size) {{ assert(!storage); ++allocations; return sto
 void counted_free(void *pointer) {{ assert(pointer && pointer == storage); storage = 0; ++frees; free(pointer); }}
 __attribute__((destructor)) static void verify(void) {{ assert(elements == {length}); assert(containers == 1); assert(allocations == {allocations}); assert(frees == {allocations}); assert(!storage); }}
 "#)).unwrap();
-                let counted_object = directory.join("counted.o");
-                let compiled = Command::new(crate::test_support::ir_clang())
-                    .arg("-c")
-                    .arg(&llvm)
-                    .arg("-o")
-                    .arg(&counted_object)
-                    .output()
-                    .unwrap();
-                assert!(compiled.status.success(), "{compiled:?}");
-                let counted = directory.join("counted");
-                let linked = Command::new(crate::test_support::clang())
-                    .arg(&counted_object)
-                    .arg(&counter)
-                    .arg("-o")
-                    .arg(&counted)
-                    .output()
-                    .unwrap();
-                assert!(linked.status.success(), "{linked:?}");
-                let run = Command::new(counted).output().unwrap();
-                assert!(
-                    run.status.success(),
-                    "kind={kind:?} length={length} nonzero={nonzero_stride}: {run:?}"
-                );
-                assert!(run.stdout.is_empty() && run.stderr.is_empty());
+                    let counted_object = directory.join("counted.o");
+                    let compiled = Command::new(crate::test_support::ir_clang())
+                        .arg("-c")
+                        .arg(&llvm)
+                        .arg("-o")
+                        .arg(&counted_object)
+                        .output()
+                        .unwrap();
+                    assert!(compiled.status.success(), "{compiled:?}");
+                    let counted = directory.join("counted");
+                    let linked = Command::new(crate::test_support::clang())
+                        .arg(&counted_object)
+                        .arg(&counter)
+                        .arg("-o")
+                        .arg(&counted)
+                        .output()
+                        .unwrap();
+                    assert!(linked.status.success(), "{linked:?}");
+                    let run = Command::new(counted).output().unwrap();
+                    assert!(
+                        run.status.success(),
+                        "kind={kind:?} length={length} nonzero={nonzero_stride}: {run:?}"
+                    );
+                    assert!(run.stdout.is_empty() && run.stderr.is_empty());
+                }
             }
         }
     }
-}
 }

@@ -10,7 +10,8 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::refine_tests::abort_owner_assertions::checks as checks;
+#[path = "ast_checks.rs"]
+mod checks;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Exit {

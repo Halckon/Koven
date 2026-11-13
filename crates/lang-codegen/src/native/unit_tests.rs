@@ -1,29 +1,43 @@
 #[path = "unit_borrow_result_tests.rs"]
 mod borrow_result_tests;
-#[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::borrow_string_tests;
-#[allow(unused_imports)] pub(crate) use container_size_tests::companion_boundary;
-#[allow(unused_imports)] pub(crate) use test_directory::container_append_tests;
-#[allow(unused_imports)] pub(crate) use test_directory::container_clear_tests;
-#[allow(unused_imports)] pub(crate) use map_consume_tests::container_insert_at_tests;
-#[allow(unused_imports)] pub(crate) use boxed_enum_tests::container_remove_at_tests;
-#[allow(unused_imports)] pub(crate) use map_consume_tests::container_remove_first_tests;
-#[allow(unused_imports)] pub(crate) use map_consume_tests::container_remove_last_tests;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::container_remove_at_tests;
+#[allow(unused_imports)]
+pub(crate) use container_size_tests::companion_boundary;
+#[allow(unused_imports)]
+pub(crate) use map_consume_tests::container_insert_at_tests;
+#[allow(unused_imports)]
+pub(crate) use map_consume_tests::container_remove_first_tests;
+#[allow(unused_imports)]
+pub(crate) use map_consume_tests::container_remove_last_tests;
+#[allow(unused_imports)]
+pub(crate) use map_operand_last_use_tests::borrow_string_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::container_append_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::container_clear_tests;
 #[path = "unit_container_size_tests.rs"]
 pub(crate) mod container_size_tests;
 #[path = "unit_handoff_contract_tests.rs"]
 mod handoff_contracts;
 #[path = "unit_map_consume_tests.rs"]
 pub(crate) mod map_consume_tests;
-#[allow(unused_imports)] pub(crate) use map_loop_owner_tests::map_key_return_tests;
+#[allow(unused_imports)]
+pub(crate) use map_loop_owner_tests::map_key_return_tests;
 #[path = "unit_map_loop_owner_tests.rs"]
 pub(crate) mod map_loop_owner_tests;
-#[allow(unused_imports)] pub(crate) use test_directory::map_word_frequency_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::map_word_frequency_tests;
 #[path = "unit_owned_null_cleanup_tests.rs"]
 pub(crate) mod owned_null_cleanup_tests;
-#[allow(unused_imports)] pub(crate) use test_directory::receiver_two_phase_tests;
-#[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::runtime_global_tests;
-#[allow(unused_imports)] pub(crate) use boxed_enum_tests::string_clone_tests;
-#[allow(unused_imports)] pub(crate) use map_consume_tests::temporary_null_cleanup_tests;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::string_clone_tests;
+#[allow(unused_imports)]
+pub(crate) use map_consume_tests::temporary_null_cleanup_tests;
+#[allow(unused_imports)]
+pub(crate) use map_operand_last_use_tests::runtime_global_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::receiver_two_phase_tests;
 
 use std::{fs, path::Path, process::Command};
 
@@ -50,16 +64,22 @@ use crate::ssa::{
 
 #[path = "unit_test_directory.rs"]
 pub(crate) mod test_directory;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::for_atomic;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::iteration_boundaries;
 use test_directory::TestDirectory;
-#[allow(unused_imports)] pub(crate) use boxed_enum_tests::for_atomic;
-#[allow(unused_imports)] pub(crate) use boxed_enum_tests::iteration_boundaries;
-#[allow(unused_imports)] pub(crate) use test_directory::iteration_conditional_receivers;
+#[allow(unused_imports)]
+pub(crate) use test_directory::iteration_conditional_receivers;
 #[path = "unit_for_report_resource_tests.rs"]
 pub(crate) mod iteration_report_resources;
-#[allow(unused_imports)] pub(crate) use owned_null_cleanup_tests::iteration_resources;
-#[allow(unused_imports)] pub(crate) use owned_null_cleanup_tests::sequential_iteration;
+#[allow(unused_imports)]
+pub(crate) use owned_null_cleanup_tests::iteration_resources;
+#[allow(unused_imports)]
+pub(crate) use owned_null_cleanup_tests::sequential_iteration;
 
-#[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::non_null_assertion_tests;
+#[allow(unused_imports)]
+pub(crate) use map_operand_last_use_tests::non_null_assertion_tests;
 
 #[path = "unit_constant_tests.rs"]
 pub(crate) mod constants;
@@ -67,8 +87,11 @@ pub(crate) mod constants;
 #[path = "unit_boxed_enum_tests.rs"]
 pub(crate) mod boxed_enum_tests;
 
-#[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::analysis_support;
-use map_operand_last_use_tests::analysis_support::{UnitAnalysis, analyze_sources, analyze_unit, parsed};
+#[allow(unused_imports)]
+pub(crate) use map_operand_last_use_tests::analysis_support;
+use map_operand_last_use_tests::analysis_support::{
+    UnitAnalysis, analyze_sources, analyze_unit, parsed,
+};
 
 #[test]
 fn unit_object_atomically_replaces_links_and_runs_across_packages() {
@@ -1909,16 +1932,22 @@ fn assert_no_sibling_temporary(directory: &Path) {
     );
 }
 
-#[allow(unused_imports)] pub(crate) use map_operand_last_use_tests::bitwise_tests;
+#[allow(unused_imports)]
+pub(crate) use map_operand_last_use_tests::bitwise_tests;
 
-#[allow(unused_imports)] pub(crate) use iteration_report_resources::resource_deinit_tests;
+#[allow(unused_imports)]
+pub(crate) use iteration_report_resources::resource_deinit_tests;
 
-#[allow(unused_imports)] pub(crate) use owned_null_cleanup_tests::resource_exchange_tests;
+#[allow(unused_imports)]
+pub(crate) use owned_null_cleanup_tests::resource_exchange_tests;
 
-#[allow(unused_imports)] pub(crate) use test_directory::field_resource_replace_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::field_resource_replace_tests;
 
-#[allow(unused_imports)] pub(crate) use test_directory::owned_map_borrow_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::owned_map_borrow_tests;
 
 #[path = "unit_map_operand_last_use_tests.rs"]
 pub(crate) mod map_operand_last_use_tests;
-#[allow(unused_imports)] pub(crate) use test_directory::owned_source_continue_tests;
+#[allow(unused_imports)]
+pub(crate) use test_directory::owned_source_continue_tests;

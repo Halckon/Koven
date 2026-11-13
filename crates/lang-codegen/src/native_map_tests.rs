@@ -4,12 +4,12 @@ use super::emit_link_and_run;
 use crate::test_support::diagnostics::assert_diagnostic;
 
 mod constant_operand_tests {
-//! Ordinary source to native only; no allocator replacement or SSA mutation.
-use super::emit_link_and_run;
+    //! Ordinary source to native only; no allocator replacement or SSA mutation.
+    use super::emit_link_and_run;
 
-#[test]
-fn native_map_basic_grouped_local_and_borrow_keys_keep_storage_identity() {
-    let source = r#"
+    #[test]
+    fn native_map_basic_grouped_local_and_borrow_keys_keep_storage_identity() {
+        let source = r#"
 fun inspect(numbers: MutableMap<Int, Int>, key: Int, words: MutableMap<String, Int>, word: String): Unit {
     if (numbers.contains((key))) { println("borrow int") }
     if (numbers.get((key)) == 7) { println("borrow get") }
@@ -30,18 +30,18 @@ fun main(): Unit {
     println(word)
 }
 "#;
-    let run = emit_link_and_run("map-basic-grouped-keys.ko", source, "main");
-    assert!(run.status.success(), "{run:?}");
-    assert_eq!(
+        let run = emit_link_and_run("map-basic-grouped-keys.ko", source, "main");
+        assert!(run.status.success(), "{run:?}");
+        assert_eq!(
         run.stdout,
         b"borrow int\nborrow get\nborrow string\nlocal int\nlocal string\nremove int\nremove string\nkey\n"
     );
-    assert!(run.stderr.is_empty(), "{run:?}");
-}
+        assert!(run.stderr.is_empty(), "{run:?}");
+    }
 
-#[test]
-fn native_map_constant_grouped_char_and_string_keys_use_materialization() {
-    let source = r#"
+    #[test]
+    fn native_map_constant_grouped_char_and_string_keys_use_materialization() {
+        let source = r#"
 const val HIT: Char = '中'
 const val MISS: Char = 'b'
 const val WORD: String = "key"
@@ -59,14 +59,14 @@ fun main(): Unit {
     println(WORD)
 }
 "#;
-    let run = emit_link_and_run("map-constant-grouped-keys.ko", source, "main");
-    assert!(run.status.success(), "{run:?}");
-    assert_eq!(
+        let run = emit_link_and_run("map-constant-grouped-keys.ko", source, "main");
+        assert!(run.status.success(), "{run:?}");
+        assert_eq!(
         run.stdout,
         b"char contains\nchar get\nchar remove\nstring contains\nstring get\nstring remove\nkey\n"
     );
-    assert!(run.stderr.is_empty(), "{run:?}");
-}
+        assert!(run.stderr.is_empty(), "{run:?}");
+    }
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! Copy primitives must publish independent valid String owners and reject invalid storage input.
 use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::lower_frontend_tests::resource_deinit_tests::direct_closure::nullable_return as nullable_return;
+mod nullable_return;
 
 use super::{model::*, unit_lower_test_support as support};
 use lang_frontend::{

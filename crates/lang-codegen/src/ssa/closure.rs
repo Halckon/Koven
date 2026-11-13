@@ -357,8 +357,7 @@ impl Module {
     }
 
     fn check_callable_signature(&self, signature: &CallableSignature) -> Result<(), ModelError> {
-        if signature.returns.len() > 1
-            || (signature.never_returns && !signature.returns.is_empty())
+        if signature.returns.len() > 1 || (signature.never_returns && !signature.returns.is_empty())
         {
             return Err(ModelError::InvalidCallableReturnArity);
         }

@@ -245,417 +245,418 @@ fn record_layout_reports_checked_arithmetic_overflow() {
 }
 
 pub(crate) mod aggregate_tests {
-use inkwell::context::Context;
-use lang_frontend::source::SourceMap;
+    use inkwell::context::Context;
+    use lang_frontend::source::SourceMap;
 
-use crate::ssa::model::{
-    Edge, EntityId, EntityType, LoanKind, Operation, Origin, Program, SsaTypeKind, TerminatorKind,
-    ValueId,
-};
-
-use super::super::{native_target_machine, render_verified_program, type_map::TypeMap};
-
-fn origin() -> Origin {
-    let mut sources = SourceMap::default();
-    let source = sources
-        .add_source("aggregate-llvm.ko", "value class Point")
-        .expect("test source must be unique");
-    Origin::Source(sources.span(source, 0, 5).expect("test span must be valid"))
-}
-
-fn value(entity: EntityId) -> ValueId {
-    let EntityId::Value(value) = entity else {
-        panic!("expected value, got {entity:?}");
+    use crate::ssa::model::{
+        Edge, EntityId, EntityType, LoanKind, Operation, Origin, Program, SsaTypeKind,
+        TerminatorKind, ValueId,
     };
-    value
-}
 
-#[test]
-fn target_data_layout_drives_aggregate_size_alignment_and_field_offsets() {
-    let mut program = Program::default();
-    let module_id = program.add_module("layout");
-    let module = program.module_mut(module_id).expect("module must exist");
-    let byte = module.intern_type(SsaTypeKind::Integer {
-        bits: 8,
-        signed: false,
-    });
-    let word = module.intern_type(SsaTypeKind::Integer {
-        bits: 64,
-        signed: false,
-    });
-    let aggregate = module
-        .add_aggregate_type("Padded", vec![byte, word, byte])
-        .expect("aggregate type must be valid");
+    use super::super::{native_target_machine, render_verified_program, type_map::TypeMap};
 
-    let context = Context::create();
-    let target = super::super::native_target_machine()
-        .expect("target machine must exist")
-        .1
-        .get_target_data();
-    let types = TypeMap::lower(&context, module, &target).expect("type lowering must succeed");
-    let (_, machine) = native_target_machine().expect("first target must be available");
-    let layout = types
-        .aggregate_layout(&machine.get_target_data(), aggregate)
-        .expect("aggregate layout must be computable");
+    fn origin() -> Origin {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_source("aggregate-llvm.ko", "value class Point")
+            .expect("test source must be unique");
+        Origin::Source(sources.span(source, 0, 5).expect("test span must be valid"))
+    }
 
-    assert_eq!(layout.store_size, 24);
-    assert_eq!(layout.abi_size, 24);
-    assert_eq!(layout.abi_alignment, 8);
-    assert_eq!(layout.field_offsets, vec![0, 8, 16]);
-}
+    fn value(entity: EntityId) -> ValueId {
+        let EntityId::Value(value) = entity else {
+            panic!("expected value, got {entity:?}");
+        };
+        value
+    }
 
-#[test]
-fn aggregate_values_calls_returns_and_phi_lower_as_first_class_llvm_values() {
-    let origin = origin();
-    let mut program = Program::default();
-    let module_id = program.add_module("aggregate_values");
-    let module = program.module_mut(module_id).expect("module must exist");
-    let boolean = module.intern_type(SsaTypeKind::Boolean);
-    let integer = module.intern_type(SsaTypeKind::Integer {
-        bits: 32,
-        signed: true,
-    });
-    let point = module
-        .add_aggregate_type("Point", vec![integer, integer])
-        .expect("point type must be valid");
-    let large = module
-        .add_aggregate_type("Large", vec![integer; 8])
-        .expect("large aggregate must be valid");
+    #[test]
+    fn target_data_layout_drives_aggregate_size_alignment_and_field_offsets() {
+        let mut program = Program::default();
+        let module_id = program.add_module("layout");
+        let module = program.module_mut(module_id).expect("module must exist");
+        let byte = module.intern_type(SsaTypeKind::Integer {
+            bits: 8,
+            signed: false,
+        });
+        let word = module.intern_type(SsaTypeKind::Integer {
+            bits: 64,
+            signed: false,
+        });
+        let aggregate = module
+            .add_aggregate_type("Padded", vec![byte, word, byte])
+            .expect("aggregate type must be valid");
 
-    let swap_id = module
-        .add_function("swap", vec![point], origin.clone())
-        .expect("swap signature must be valid");
-    let swap = module.function_mut(swap_id).expect("swap must exist");
-    let entry = swap
-        .add_block(vec![EntityType::Value(point)], origin.clone())
-        .expect("swap entry must be valid");
-    let input = value(swap.block(entry).expect("entry").parameters[0]);
-    let mut fields = Vec::new();
-    for field in 0..2 {
-        fields.push(value(
+        let context = Context::create();
+        let target = super::super::native_target_machine()
+            .expect("target machine must exist")
+            .1
+            .get_target_data();
+        let types = TypeMap::lower(&context, module, &target).expect("type lowering must succeed");
+        let (_, machine) = native_target_machine().expect("first target must be available");
+        let layout = types
+            .aggregate_layout(&machine.get_target_data(), aggregate)
+            .expect("aggregate layout must be computable");
+
+        assert_eq!(layout.store_size, 24);
+        assert_eq!(layout.abi_size, 24);
+        assert_eq!(layout.abi_alignment, 8);
+        assert_eq!(layout.field_offsets, vec![0, 8, 16]);
+    }
+
+    #[test]
+    fn aggregate_values_calls_returns_and_phi_lower_as_first_class_llvm_values() {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("aggregate_values");
+        let module = program.module_mut(module_id).expect("module must exist");
+        let boolean = module.intern_type(SsaTypeKind::Boolean);
+        let integer = module.intern_type(SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        });
+        let point = module
+            .add_aggregate_type("Point", vec![integer, integer])
+            .expect("point type must be valid");
+        let large = module
+            .add_aggregate_type("Large", vec![integer; 8])
+            .expect("large aggregate must be valid");
+
+        let swap_id = module
+            .add_function("swap", vec![point], origin.clone())
+            .expect("swap signature must be valid");
+        let swap = module.function_mut(swap_id).expect("swap must exist");
+        let entry = swap
+            .add_block(vec![EntityType::Value(point)], origin.clone())
+            .expect("swap entry must be valid");
+        let input = value(swap.block(entry).expect("entry").parameters[0]);
+        let mut fields = Vec::new();
+        for field in 0..2 {
+            fields.push(value(
+                swap.append_instruction(
+                    entry,
+                    Operation::AggregateProject {
+                        aggregate: input,
+                        field,
+                    },
+                    vec![EntityType::Value(integer)],
+                    origin.clone(),
+                )
+                .expect("project must be appendable")
+                .1[0],
+            ));
+        }
+        let swapped = value(
             swap.append_instruction(
                 entry,
-                Operation::AggregateProject {
-                    aggregate: input,
-                    field,
-                },
-                vec![EntityType::Value(integer)],
-                origin.clone(),
-            )
-            .expect("project must be appendable")
-            .1[0],
-        ));
-    }
-    let swapped = value(
-        swap.append_instruction(
-            entry,
-            Operation::AggregateConstruct {
-                aggregate: point,
-                fields: vec![fields[1], fields[0]],
-            },
-            vec![EntityType::Value(point)],
-            origin.clone(),
-        )
-        .expect("construct must be appendable")
-        .1[0],
-    );
-    swap.set_terminator(
-        entry,
-        TerminatorKind::Return {
-            values: vec![swapped],
-        },
-        origin.clone(),
-    )
-    .expect("swap return must be valid");
-
-    let caller_id = module
-        .add_function("caller", vec![point], origin.clone())
-        .expect("caller signature must be valid");
-    let caller = module.function_mut(caller_id).expect("caller must exist");
-    let entry = caller
-        .add_block(vec![EntityType::Value(point)], origin.clone())
-        .expect("caller entry must be valid");
-    let input = value(caller.block(entry).expect("entry").parameters[0]);
-    let called = value(
-        caller
-            .append_instruction(
-                entry,
-                Operation::DirectCall {
-                    callee: swap_id,
-                    receiver: None,
-                    arguments: vec![EntityId::Value(input)],
+                Operation::AggregateConstruct {
+                    aggregate: point,
+                    fields: vec![fields[1], fields[0]],
                 },
                 vec![EntityType::Value(point)],
                 origin.clone(),
             )
-            .expect("call must be appendable")
+            .expect("construct must be appendable")
             .1[0],
-    );
-    caller
-        .set_terminator(
+        );
+        swap.set_terminator(
             entry,
             TerminatorKind::Return {
-                values: vec![called],
+                values: vec![swapped],
             },
             origin.clone(),
         )
-        .expect("caller return must be valid");
+        .expect("swap return must be valid");
 
-    let choose_id = module
-        .add_function("choose", vec![point], origin.clone())
-        .expect("choose signature must be valid");
-    let choose = module.function_mut(choose_id).expect("choose must exist");
-    let entry = choose
-        .add_block(
-            vec![
-                EntityType::Value(boolean),
-                EntityType::Value(point),
-                EntityType::Value(point),
-            ],
+        let caller_id = module
+            .add_function("caller", vec![point], origin.clone())
+            .expect("caller signature must be valid");
+        let caller = module.function_mut(caller_id).expect("caller must exist");
+        let entry = caller
+            .add_block(vec![EntityType::Value(point)], origin.clone())
+            .expect("caller entry must be valid");
+        let input = value(caller.block(entry).expect("entry").parameters[0]);
+        let called = value(
+            caller
+                .append_instruction(
+                    entry,
+                    Operation::DirectCall {
+                        callee: swap_id,
+                        receiver: None,
+                        arguments: vec![EntityId::Value(input)],
+                    },
+                    vec![EntityType::Value(point)],
+                    origin.clone(),
+                )
+                .expect("call must be appendable")
+                .1[0],
+        );
+        caller
+            .set_terminator(
+                entry,
+                TerminatorKind::Return {
+                    values: vec![called],
+                },
+                origin.clone(),
+            )
+            .expect("caller return must be valid");
+
+        let choose_id = module
+            .add_function("choose", vec![point], origin.clone())
+            .expect("choose signature must be valid");
+        let choose = module.function_mut(choose_id).expect("choose must exist");
+        let entry = choose
+            .add_block(
+                vec![
+                    EntityType::Value(boolean),
+                    EntityType::Value(point),
+                    EntityType::Value(point),
+                ],
+                origin.clone(),
+            )
+            .expect("choose entry must be valid");
+        let parameters = choose.block(entry).expect("entry").parameters.clone();
+        let when_true = choose
+            .add_block(Vec::new(), origin.clone())
+            .expect("true block must be valid");
+        let when_false = choose
+            .add_block(Vec::new(), origin.clone())
+            .expect("false block must be valid");
+        let join = choose
+            .add_block(vec![EntityType::Value(point)], origin.clone())
+            .expect("join must be valid");
+        choose
+            .set_terminator(
+                entry,
+                TerminatorKind::Conditional {
+                    condition: value(parameters[0]),
+                    when_true: Edge {
+                        target: when_true,
+                        arguments: Vec::new(),
+                    },
+                    when_false: Edge {
+                        target: when_false,
+                        arguments: Vec::new(),
+                    },
+                },
+                origin.clone(),
+            )
+            .expect("conditional must be valid");
+        choose
+            .set_terminator(
+                when_true,
+                TerminatorKind::Branch(Edge {
+                    target: join,
+                    arguments: vec![parameters[1]],
+                }),
+                origin.clone(),
+            )
+            .expect("true branch must be valid");
+        choose
+            .set_terminator(
+                when_false,
+                TerminatorKind::Branch(Edge {
+                    target: join,
+                    arguments: vec![parameters[2]],
+                }),
+                origin.clone(),
+            )
+            .expect("false branch must be valid");
+        let joined = value(choose.block(join).expect("join").parameters[0]);
+        choose
+            .set_terminator(
+                join,
+                TerminatorKind::Return {
+                    values: vec![joined],
+                },
+                origin.clone(),
+            )
+            .expect("join return must be valid");
+
+        let identity_id = module
+            .add_function("large_identity", vec![large], origin.clone())
+            .expect("large identity signature must be valid");
+        let identity = module
+            .function_mut(identity_id)
+            .expect("large identity must exist");
+        let entry = identity
+            .add_block(vec![EntityType::Value(large)], origin.clone())
+            .expect("large entry must be valid");
+        let input = value(identity.block(entry).expect("entry").parameters[0]);
+        identity
+            .set_terminator(
+                entry,
+                TerminatorKind::Return {
+                    values: vec![input],
+                },
+                origin,
+            )
+            .expect("large return must be valid");
+
+        let first =
+            render_verified_program(&program).expect("aggregate LLVM lowering must succeed");
+        let second = render_verified_program(&program).expect("repeat lowering must succeed");
+        crate::test_support::diagnostics::assert_text_eq!(first, second);
+        assert!(first.contains("%koven.t2 = type { i32, i32 }"));
+        assert!(first.contains("%koven.t3 = type { i32, i32, i32, i32, i32, i32, i32, i32 }"));
+        assert!(first.contains("extractvalue %koven.t2"));
+        assert!(first.contains("insertvalue %koven.t2"));
+        assert!(first.contains("call %koven.t2 @f0.swap"));
+        assert!(first.contains("phi %koven.t2"));
+        assert!(!first.contains("malloc"));
+        assert!(!first.contains("free"));
+        assert!(!first.contains("koven.drop"));
+    }
+
+    #[test]
+    fn heap_owner_drop_lowers_to_explicit_unique_free_glue() {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("pending_drop");
+        let module = program.module_mut(module_id).expect("module must exist");
+        let payload = module
+            .add_aggregate_type("Owner.payload", Vec::new())
+            .expect("payload must be valid");
+        let owner = module
+            .declare_heap_owner("Owner")
+            .expect("owner declaration must be valid");
+        module
+            .define_heap_owner(owner, payload)
+            .expect("owner definition must be valid");
+        let function_id = module
+            .add_function("drop_owner", Vec::new(), origin.clone())
+            .expect("function must be valid");
+        let function = module
+            .function_mut(function_id)
+            .expect("function must exist");
+        let entry = function
+            .add_block(vec![EntityType::Value(owner)], origin.clone())
+            .expect("entry must be valid");
+        let owner = value(function.block(entry).expect("entry").parameters[0]);
+        function
+            .append_instruction(entry, Operation::Drop { owner }, Vec::new(), origin.clone())
+            .expect("drop must be appendable");
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .expect("return must be valid");
+
+        let llvm = render_verified_program(&program).expect("heap owner drop glue must lower");
+        assert!(llvm.contains("define internal void @koven.drop.t1(ptr %0)"));
+        assert_eq!(llvm.matches("call void @free(ptr %0)").count(), 1);
+        assert_eq!(llvm.matches("call void @koven.drop.t1").count(), 1);
+    }
+
+    #[test]
+    fn shared_heap_field_loan_loads_the_handle_before_projecting_payload() {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("heap_field_loan");
+        let module = program.module_mut(module_id).expect("module must exist");
+        let integer = module.intern_type(SsaTypeKind::Integer {
+            bits: 64,
+            signed: true,
+        });
+        let delegate_payload = module
+            .add_aggregate_type("Reader.payload", vec![integer])
+            .expect("delegate payload must be valid");
+        let delegate = module
+            .declare_heap_owner("Reader")
+            .expect("delegate owner declaration must be valid");
+        module
+            .define_heap_owner(delegate, delegate_payload)
+            .expect("delegate owner definition must be valid");
+        let payload = module
+            .add_aggregate_type("Host.payload", vec![delegate])
+            .expect("host payload must be valid");
+        let host = module
+            .declare_heap_owner("Host")
+            .expect("host owner declaration must be valid");
+        module
+            .define_heap_owner(host, payload)
+            .expect("host owner definition must be valid");
+        let delegate_receiver = EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: delegate,
+        };
+        let read_id = module
+            .add_instance_function("read", delegate_receiver, Vec::new(), origin.clone())
+            .expect("delegate function must be valid");
+        let read = module
+            .function_mut(read_id)
+            .expect("delegate function must exist");
+        let read_entry = read
+            .add_block(vec![delegate_receiver], origin.clone())
+            .expect("delegate entry must be valid");
+        read.set_terminator(
+            read_entry,
+            TerminatorKind::Return { values: Vec::new() },
             origin.clone(),
         )
-        .expect("choose entry must be valid");
-    let parameters = choose.block(entry).expect("entry").parameters.clone();
-    let when_true = choose
-        .add_block(Vec::new(), origin.clone())
-        .expect("true block must be valid");
-    let when_false = choose
-        .add_block(Vec::new(), origin.clone())
-        .expect("false block must be valid");
-    let join = choose
-        .add_block(vec![EntityType::Value(point)], origin.clone())
-        .expect("join must be valid");
-    choose
-        .set_terminator(
-            entry,
-            TerminatorKind::Conditional {
-                condition: value(parameters[0]),
-                when_true: Edge {
-                    target: when_true,
+        .expect("delegate return must be valid");
+        let receiver_type = EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: host,
+        };
+        let function_id = module
+            .add_instance_function("project", receiver_type, Vec::new(), origin.clone())
+            .expect("function must be valid");
+        let function = module
+            .function_mut(function_id)
+            .expect("function must exist");
+        let entry = function
+            .add_block(vec![receiver_type], origin.clone())
+            .expect("entry must be valid");
+        let EntityId::Loan(receiver) = function.block(entry).expect("entry").parameters[0] else {
+            panic!("receiver loan");
+        };
+        let field_loan = function
+            .append_instruction(
+                entry,
+                Operation::SharedHeapFieldLoan {
+                    base: receiver,
+                    field: 0,
+                },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: delegate,
+                }],
+                origin.clone(),
+            )
+            .expect("field loan must be appendable")
+            .1[0];
+        let EntityId::Loan(field_loan) = field_loan else {
+            panic!("field loan result");
+        };
+        function
+            .append_instruction(
+                entry,
+                Operation::DirectCall {
+                    callee: read_id,
+                    receiver: Some(EntityId::Loan(field_loan)),
                     arguments: Vec::new(),
                 },
-                when_false: Edge {
-                    target: when_false,
-                    arguments: Vec::new(),
-                },
-            },
-            origin.clone(),
-        )
-        .expect("conditional must be valid");
-    choose
-        .set_terminator(
-            when_true,
-            TerminatorKind::Branch(Edge {
-                target: join,
-                arguments: vec![parameters[1]],
-            }),
-            origin.clone(),
-        )
-        .expect("true branch must be valid");
-    choose
-        .set_terminator(
-            when_false,
-            TerminatorKind::Branch(Edge {
-                target: join,
-                arguments: vec![parameters[2]],
-            }),
-            origin.clone(),
-        )
-        .expect("false branch must be valid");
-    let joined = value(choose.block(join).expect("join").parameters[0]);
-    choose
-        .set_terminator(
-            join,
-            TerminatorKind::Return {
-                values: vec![joined],
-            },
-            origin.clone(),
-        )
-        .expect("join return must be valid");
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("delegate call must be appendable");
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: field_loan },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("field loan end must be appendable");
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .expect("return must be valid");
 
-    let identity_id = module
-        .add_function("large_identity", vec![large], origin.clone())
-        .expect("large identity signature must be valid");
-    let identity = module
-        .function_mut(identity_id)
-        .expect("large identity must exist");
-    let entry = identity
-        .add_block(vec![EntityType::Value(large)], origin.clone())
-        .expect("large entry must be valid");
-    let input = value(identity.block(entry).expect("entry").parameters[0]);
-    identity
-        .set_terminator(
-            entry,
-            TerminatorKind::Return {
-                values: vec![input],
-            },
-            origin,
-        )
-        .expect("large return must be valid");
-
-    let first = render_verified_program(&program).expect("aggregate LLVM lowering must succeed");
-    let second = render_verified_program(&program).expect("repeat lowering must succeed");
-    crate::test_support::diagnostics::assert_text_eq!(first, second);
-    assert!(first.contains("%koven.t2 = type { i32, i32 }"));
-    assert!(first.contains("%koven.t3 = type { i32, i32, i32, i32, i32, i32, i32, i32 }"));
-    assert!(first.contains("extractvalue %koven.t2"));
-    assert!(first.contains("insertvalue %koven.t2"));
-    assert!(first.contains("call %koven.t2 @f0.swap"));
-    assert!(first.contains("phi %koven.t2"));
-    assert!(!first.contains("malloc"));
-    assert!(!first.contains("free"));
-    assert!(!first.contains("koven.drop"));
-}
-
-#[test]
-fn heap_owner_drop_lowers_to_explicit_unique_free_glue() {
-    let origin = origin();
-    let mut program = Program::default();
-    let module_id = program.add_module("pending_drop");
-    let module = program.module_mut(module_id).expect("module must exist");
-    let payload = module
-        .add_aggregate_type("Owner.payload", Vec::new())
-        .expect("payload must be valid");
-    let owner = module
-        .declare_heap_owner("Owner")
-        .expect("owner declaration must be valid");
-    module
-        .define_heap_owner(owner, payload)
-        .expect("owner definition must be valid");
-    let function_id = module
-        .add_function("drop_owner", Vec::new(), origin.clone())
-        .expect("function must be valid");
-    let function = module
-        .function_mut(function_id)
-        .expect("function must exist");
-    let entry = function
-        .add_block(vec![EntityType::Value(owner)], origin.clone())
-        .expect("entry must be valid");
-    let owner = value(function.block(entry).expect("entry").parameters[0]);
-    function
-        .append_instruction(entry, Operation::Drop { owner }, Vec::new(), origin.clone())
-        .expect("drop must be appendable");
-    function
-        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
-        .expect("return must be valid");
-
-    let llvm = render_verified_program(&program).expect("heap owner drop glue must lower");
-    assert!(llvm.contains("define internal void @koven.drop.t1(ptr %0)"));
-    assert_eq!(llvm.matches("call void @free(ptr %0)").count(), 1);
-    assert_eq!(llvm.matches("call void @koven.drop.t1").count(), 1);
-}
-
-#[test]
-fn shared_heap_field_loan_loads_the_handle_before_projecting_payload() {
-    let origin = origin();
-    let mut program = Program::default();
-    let module_id = program.add_module("heap_field_loan");
-    let module = program.module_mut(module_id).expect("module must exist");
-    let integer = module.intern_type(SsaTypeKind::Integer {
-        bits: 64,
-        signed: true,
-    });
-    let delegate_payload = module
-        .add_aggregate_type("Reader.payload", vec![integer])
-        .expect("delegate payload must be valid");
-    let delegate = module
-        .declare_heap_owner("Reader")
-        .expect("delegate owner declaration must be valid");
-    module
-        .define_heap_owner(delegate, delegate_payload)
-        .expect("delegate owner definition must be valid");
-    let payload = module
-        .add_aggregate_type("Host.payload", vec![delegate])
-        .expect("host payload must be valid");
-    let host = module
-        .declare_heap_owner("Host")
-        .expect("host owner declaration must be valid");
-    module
-        .define_heap_owner(host, payload)
-        .expect("host owner definition must be valid");
-    let delegate_receiver = EntityType::Loan {
-        kind: LoanKind::Shared,
-        target: delegate,
-    };
-    let read_id = module
-        .add_instance_function("read", delegate_receiver, Vec::new(), origin.clone())
-        .expect("delegate function must be valid");
-    let read = module
-        .function_mut(read_id)
-        .expect("delegate function must exist");
-    let read_entry = read
-        .add_block(vec![delegate_receiver], origin.clone())
-        .expect("delegate entry must be valid");
-    read.set_terminator(
-        read_entry,
-        TerminatorKind::Return { values: Vec::new() },
-        origin.clone(),
-    )
-    .expect("delegate return must be valid");
-    let receiver_type = EntityType::Loan {
-        kind: LoanKind::Shared,
-        target: host,
-    };
-    let function_id = module
-        .add_instance_function("project", receiver_type, Vec::new(), origin.clone())
-        .expect("function must be valid");
-    let function = module
-        .function_mut(function_id)
-        .expect("function must exist");
-    let entry = function
-        .add_block(vec![receiver_type], origin.clone())
-        .expect("entry must be valid");
-    let EntityId::Loan(receiver) = function.block(entry).expect("entry").parameters[0] else {
-        panic!("receiver loan");
-    };
-    let field_loan = function
-        .append_instruction(
-            entry,
-            Operation::SharedHeapFieldLoan {
-                base: receiver,
-                field: 0,
-            },
-            vec![EntityType::Loan {
-                kind: LoanKind::Shared,
-                target: delegate,
-            }],
-            origin.clone(),
-        )
-        .expect("field loan must be appendable")
-        .1[0];
-    let EntityId::Loan(field_loan) = field_loan else {
-        panic!("field loan result");
-    };
-    function
-        .append_instruction(
-            entry,
-            Operation::DirectCall {
-                callee: read_id,
-                receiver: Some(EntityId::Loan(field_loan)),
-                arguments: Vec::new(),
-            },
-            Vec::new(),
-            origin.clone(),
-        )
-        .expect("delegate call must be appendable");
-    function
-        .append_instruction(
-            entry,
-            Operation::BorrowEnd { loan: field_loan },
-            Vec::new(),
-            origin.clone(),
-        )
-        .expect("field loan end must be appendable");
-    function
-        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
-        .expect("return must be valid");
-
-    let llvm = render_verified_program(&program).expect("heap field loan LLVM must verify");
-    assert!(llvm.contains("%l1.handle = load ptr, ptr %l0"));
-    assert!(llvm.contains("getelementptr inbounds nuw"));
-    assert!(llvm.contains("ptr %l1.handle"));
-    assert!(llvm.contains("call void @f0.read(ptr %l1)"));
-    assert!(!llvm.contains("load ptr, ptr %l1"));
-    assert!(!llvm.contains("extractvalue"));
-}
+        let llvm = render_verified_program(&program).expect("heap field loan LLVM must verify");
+        assert!(llvm.contains("%l1.handle = load ptr, ptr %l0"));
+        assert!(llvm.contains("getelementptr inbounds nuw"));
+        assert!(llvm.contains("ptr %l1.handle"));
+        assert!(llvm.contains("call void @f0.read(ptr %l1)"));
+        assert!(!llvm.contains("load ptr, ptr %l1"));
+        assert!(!llvm.contains("extractvalue"));
+    }
 }

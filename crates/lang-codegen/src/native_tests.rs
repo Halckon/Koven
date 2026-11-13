@@ -2,9 +2,11 @@ use crate::test_support::diagnostics::assert_diagnostic;
 #[path = "native_runtime_constructor_tests.rs"]
 pub(crate) mod runtime_constructor_tests;
 
-#[allow(unused_imports)] pub(crate) use string_length_tests::field_replace_tests;
+#[allow(unused_imports)]
+pub(crate) use string_length_tests::field_replace_tests;
 
-#[allow(unused_imports)] pub(crate) use runtime_constructor_tests::root_primitive_tests;
+#[allow(unused_imports)]
+pub(crate) use runtime_constructor_tests::root_primitive_tests;
 
 #[path = "native_return_control_tests.rs"]
 pub(crate) mod return_control_tests;
@@ -12,7 +14,8 @@ pub(crate) mod return_control_tests;
 #[path = "native_string_length_tests.rs"]
 pub(crate) mod string_length_tests;
 
-#[allow(unused_imports)] pub(crate) use scalar_joint_tests::string_clone_tests;
+#[allow(unused_imports)]
+pub(crate) use scalar_joint_tests::string_clone_tests;
 
 #[path = "native_numeric_literal_tests.rs"]
 pub(crate) mod numeric_literal_tests;
@@ -20,11 +23,14 @@ pub(crate) mod numeric_literal_tests;
 #[path = "native_scalar_joint_tests.rs"]
 pub(crate) mod scalar_joint_tests;
 
-#[allow(unused_imports)] pub(crate) use string_length_tests::constant_tests;
+#[allow(unused_imports)]
+pub(crate) use string_length_tests::constant_tests;
 
-#[allow(unused_imports)] pub(crate) use numeric_literal_tests::non_null_assertion_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::non_null_assertion_tests;
 
-#[allow(unused_imports)] pub(crate) use boxed_enum_tests::abort_output_tests;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::abort_output_tests;
 
 #[path = "native_sequential_for_tests.rs"]
 pub(crate) mod sequential_for_tests;
@@ -35,12 +41,14 @@ pub(crate) mod boxed_enum_tests;
 #[path = "native_map_tests.rs"]
 mod map_tests;
 
-#[allow(unused_imports)] pub(crate) use numeric_literal_tests::map_sibling_route_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::map_sibling_route_tests;
 
 #[path = "native_ordered_map_tests.rs"]
 pub(crate) mod ordered_map_tests;
 
-#[allow(unused_imports)] pub(crate) use boxed_enum_tests::borrow_result_tests;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::borrow_result_tests;
 
 use std::{
     fs,
@@ -1113,11 +1121,14 @@ fn associated_constants_reach_native_scalar_char_and_string_operations() {
     assert!(run.stderr.is_empty(), "{run:?}");
 }
 
-#[allow(unused_imports)] pub(crate) use numeric_literal_tests::bitwise_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::bitwise_tests;
 
 #[path = "native_resource_deinit_tests.rs"]
 mod resource_deinit_tests;
 
-#[allow(unused_imports)] pub(crate) use numeric_literal_tests::resource_exchange_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::resource_exchange_tests;
 
-#[allow(unused_imports)] pub(crate) use numeric_literal_tests::field_resource_replace_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::field_resource_replace_tests;

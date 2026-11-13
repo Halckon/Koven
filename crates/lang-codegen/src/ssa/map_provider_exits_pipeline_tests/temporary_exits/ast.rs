@@ -10,7 +10,8 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::nullable_map_consume_lowering_tests::consume_identity::source::checks as checks;
+#[path = "ast_checks.rs"]
+mod checks;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::ssa) enum Exit {
