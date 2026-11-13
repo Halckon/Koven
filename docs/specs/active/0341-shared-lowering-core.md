@@ -17596,3 +17596,24 @@ workspace all-target check、frontend/codegen observer-support all-target严格C
 codegen普通完整FQN exact43/43、前端普通29/29通过。格式、docs925、相对基线
 尺寸门禁与diff通过。79统一清单及所有独立目标仅编译列举通过，none executed。
 本批无生产扩展，未本地运行故障、未推送，不改变#420最小批次；动态反例仍待CI。
+
+### bounded composition 与位置封印批次共同验收（2026-11-13）
+
+本地合成代码头 `644dcb59` 保留双亲 `64141d86` 与 `a4b53282`：将此前分散的
+三根 scalar-owner、prefix/counter conditional-break 组合能力与后续位置封印、普通
+回归放到同一基线。唯一人工冲突是本账本的末尾追加，双方记录完整保留；两个重叠
+CI-only 测试文件自动保留各自 fault 枚举和用例。独立只读审查核双方独有 13/71
+文件逐字节保全，且 scalar-entry 线路仍经过加强的 generation/composition 位置
+校验，prefix/counter identity 检查没有被覆盖。没有新增源形状或 Origin 决策。
+
+整合头重新编译后，沿原已审计的普通源码清单逐项完整 FQN exact 执行：codegen
+48/48、frontend 31/31 通过，包括两批交互后的三根、前缀/计数 break、位置封印与
+String 字节/兄弟隔离/call-initial 回归。执行前冻结实际源码、原始编译 artifact 和
+二进制 SHA，执行后源码无漂移；默认 debug2/opt0，不重用旧头通过结论。
+CI-only 借用库存 79 项及 child/scalar/parent 额外 7 个目标仅从新二进制精确列举，
+none executed；这不替代远端故障动态拒绝与恢复验收，也未执行本地 CI 环境模拟。
+
+workspace all-target check、frontend/codegen observer-support all-target 严格
+Clippy、fmt、docs925、相对 main 尺寸门禁及 diff 检查通过；2701 手写 Rust 文件、
+36 项历史超限不变。最后仅追加本验收段落；未推送、开 PR 或合并远端，未把本批
+等同于所有本地分支的总整合，D10/E2 仍 in-progress。
