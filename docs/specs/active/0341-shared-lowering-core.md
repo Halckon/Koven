@@ -17247,8 +17247,9 @@ none executed；未启用本地CI环境或执行故障。推送后必须核对�
 `seed+"extra"` 可正常编译，但不授予 parent initial-owner base；本轮将它与直接
 own seed 的完整函数放在同一 Unit，交错调用并交换声明顺序。先分别取得两种合法
 函数的普通 receipt 基线，再核混合 Unit 的 initial-base、parent composition 和
-child-cycle 三类收据集合等于独立基线之和，完整函数的资格不被抹去，邻形不误增
-initial-base。没有把一个 analysis 的 token/handle 传给另一个 analysis 查询。
+child-cycle 三类收据集合等于独立基线之和，没有额外增加或减少收据。独立基线明确
+完整函数有 initial-base、邻形没有；混合阶段不额外声称逐函数归属证明。没有把一个
+analysis 的 token/handle 传给另一个 analysis 查询。
 
 代码头 `64eb92b3` 的两个普通完整 FQN exact 均通过：SSA集合隔离与native实际
 各自结果，覆盖正反声明顺序、真实 Basic/Const、16次有限交错调用。该回归核收据
