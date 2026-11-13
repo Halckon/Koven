@@ -27,6 +27,9 @@ mod counter;
 mod counter_ci;
 mod counter_hooks;
 mod counter_validation;
+mod prefix;
+#[cfg(test)]
+mod prefix_ci;
 #[cfg(test)]
 mod publication;
 mod validation;
@@ -49,6 +52,7 @@ struct Arm {
 pub(super) struct Plan {
     pub(super) fact: UnitLoopBranchNoCarryFact,
     arms: [Arm; 2],
+    prefix: Option<prefix::Prefix>,
     counter: Option<counter::Counter>,
     pub(super) tail_break: Option<BreakPlan>,
     counter_fact: Option<UnitLoopCounterBranchNoCarryFact>,
@@ -236,6 +240,7 @@ impl Plans {
             loops.push(Plan {
                 fact: fact.clone(),
                 arms,
+                prefix: Self::prefix_plan(inputs, fact)?,
                 counter,
                 counter_fact,
                 tail_break,
@@ -275,6 +280,11 @@ impl Plans {
         b: [BlockRef; 3],
         span: Span,
     ) -> Result<(), LoweringError> {
+        for p in &mut self.loops {
+            if let Some(prefix) = &mut p.prefix {
+                prefix.split(id, b, span)?;
+            }
+        }
         let Some(p) = self.loops.iter_mut().find(|p| p.fact.branch() == id) else {
             return Ok(());
         };
@@ -295,6 +305,11 @@ impl Plans {
         preds: &[BlockRef],
         span: Span,
     ) -> Result<(), LoweringError> {
+        for p in &mut self.loops {
+            if let Some(prefix) = &mut p.prefix {
+                prefix.join(id, b, preds, span)?;
+            }
+        }
         let Some(p) = self.loops.iter_mut().find(|p| p.fact.branch() == id) else {
             return Ok(());
         };
@@ -313,6 +328,9 @@ impl Plans {
         span: Span,
     ) -> Result<(), LoweringError> {
         for p in &mut self.loops {
+            if let Some(prefix) = &mut p.prefix {
+                prefix.condition(id, b, value, span)?;
+            }
             if let Some(i) = p.conditions.iter().position(|c| *c == id) {
                 let blocks = p.blocks.ok_or_else(|| invalid(span))?;
                 if p.used[i].is_some() || b != if i == 0 { blocks[1] } else { blocks[2] } {
@@ -325,6 +343,9 @@ impl Plans {
     }
     pub(super) fn fold(&mut self, block: BlockRef, successor: BlockRef, offset: usize) {
         for p in &mut self.loops {
+            if let Some(prefix) = &mut p.prefix {
+                prefix.fold(block, successor);
+            }
             if let Some(b) = &mut p.tail_break
                 && let Some((from, to)) = &mut b.observed
             {
@@ -368,6 +389,7 @@ pub(super) struct Emitted {
     selected: Vec<UnitLoopBranchNoCarryFact>,
     counter_selected: Vec<UnitLoopCounterBranchNoCarryFact>,
     break_selected: Vec<UnitLoopBreakBranchNoCarryFact>,
+    prefix_selected: Vec<lang_frontend::ownership_checking::UnitLoopBreakPrefixFact>,
     aliases: BTreeMap<(BlockRef, usize), (Slot, Slot, EntityId)>,
     blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockRef, Vec<Slot>>,
@@ -395,6 +417,7 @@ impl Emitted {
         }
         self.check_counter_required(body, span)?;
         self.check_break_required(body, span)?;
+        self.check_prefix_required(body, span)?;
         if body.arm_loop_required.is_empty() {
             return Ok(());
         }
@@ -425,6 +448,7 @@ impl Emitted {
             .collect();
         self.counter_selected = body.arm_counter_required.clone();
         self.break_selected = body.arm_break_required.clone();
+        self.prefix_selected = body.arm_prefix_required.clone();
         self.blocks = blocks.clone();
         self.parameters = parameters.clone();
         self.entities = entities.clone();
@@ -471,6 +495,16 @@ impl Emitted {
         publication::before_finish(&mut self);
         self.check_counter_required(body, span)?;
         self.check_break_required(body, span)?;
+        self.check_prefix_required(body, span)?;
+        if self.prefix_selected.len() != body.arm_prefix_required.len()
+            || self
+                .prefix_selected
+                .iter()
+                .zip(&body.arm_prefix_required)
+                .any(|(a, b)| !a.same_identity(b))
+        {
+            return Err(invalid(span));
+        }
         if self.break_selected.len() != body.arm_break_required.len()
             || self
                 .break_selected
@@ -547,6 +581,19 @@ impl Receipt {
                     .any(|p| p.same_identity(f))
             })
         {
+            return Err(invalid(self.span));
+        }
+        let mut prefixes = self
+            .evidence
+            .prefix_selected
+            .iter()
+            .filter(|p| p.pair().pair().same_identity(&self.plan.fact));
+        match (prefixes.next(), &self.plan.prefix) {
+            (None, None) => {}
+            (Some(fact), Some(prefix)) if fact.same_identity(&prefix.fact) => {}
+            _ => return Err(invalid(self.span)),
+        }
+        if prefixes.next().is_some() {
             return Err(invalid(self.span));
         }
         self.evidence

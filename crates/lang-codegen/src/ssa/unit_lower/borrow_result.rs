@@ -406,6 +406,15 @@ fn validate_binding(
                 .get_or_insert_with(Default::default)
                 .insert(tail.break_expression().expression().index());
         }
+        for prefix in owned.no_carry_break_prefixes().iter().filter(|p| {
+            owned.owns_no_carry_break_prefix(p)
+                && p.pair().pair().branch().expression() == control
+                && p.prefix().source_unit() == fact.binding().source_unit()
+        }) {
+            allowed_controls
+                .get_or_insert_with(Default::default)
+                .insert(prefix.prefix().expression().index());
+        }
         // Only the separately owned bounded fact admits its exact guard/update.
         // Other binary expressions retain the ordinary borrow-binding frontier.
         for counter in owned.no_carry_counter_branches().iter().filter(|c| {

@@ -17116,10 +17116,31 @@ receipt 验证器允许 preheader 有前驱的结构设计，不等同于源码 
 且 tail-break 的 while 之前有且仅有一个独立 if/else，条件为已有 Boolean
 参数，两条分支均不借用、创建、消费或改变资源；循环两臂与实际 break 的既有
 独立证明保持不变。第一实现进一步限定各前缀臂为一个接收 Int literal、返回
-Unit 的直接标量调用，不支持嵌套前缀、多个前缀、资源实参、提前退出或跨轮借用。
+Unit 的直接标量调用，且被调函数须为已解析并验证的空 Unit body；不接受 println、
+未知/递归调用或任何非空被调函数体。不支持嵌套前缀、多个前缀、资源实参、提前退出或跨轮借用。
 
 交付要求：前端发布拥有完整来源身份的独立前缀事实，后端以实际 split、join、
 完整前驱、标量指令和资源参数运输形成独立可重放证据；两条前缀路径必须进入同一
 循环 preheader，资源状态一致。缺失或错误证据失败封闭。更新原精确拒绝用例为
 获批切片正例，并继续保留其他形状拒绝；真实 native 覆盖两条前缀与循环零/一轮。
 普通测试可本地运行，故障注入仍只允许 CI。该批准不是完成证据，本地提交、不推送。
+
+本轮落地来源：前端 `e9b47747` 发布独立 prefix fact，`373f3861` 进一步要求
+canonical 同单元声明的真实空 Unit block。单凭 Int→Unit 签名不构成资源效应证明；
+println、String 分配、递归乃至非空标量局部均拒绝，未授权一般 callee effect 分析。
+后端单独保留 prefix required/selected 身份及实际 condition/split/join，重放时检查
+真实函数入口、精确 literal/callee/origin/指令归属、完整前驱与所有资源参数原样运输。
+独立只读审阅提出的指令归属和真实入口绑定已修正并复核，无新增确定遗漏。
+
+最终普通本地验证：前端新 prefix 3/3、旧 tail-break 2/2；后端源码普通正/拒绝3/3、
+独立 receipt 普通重放1/1、新旧 native 2/2通过。native 使用空 tick，不增加前缀 I/O；
+两种 Boolean 前缀条件与零/一轮调用组合真实执行，SSA另断言三处 Conditional 保留。
+这取代此前 `4e774262` 对这一精确空体切片的拒绝结论，不取消其他 prefix 拒绝。
+
+新增五个 CI-only 目标：前缀路径绕过、literal替换、指令归属错误、真实条件捕获缺失、
+独立选中证据缺失；本地只允许编译列举，远端实际拒绝/恢复证据仍待后续推送验收。
+未推送，D10/E2 整体未完成。
+
+门禁：frontend/codegen observer-support all-target 严格 Clippy、格式、docs924、
+相对 `4e774262` 的尺寸门禁及 diff 检查通过。CI-only borrowing 清单现59项，
+仅编译列举，none executed；不将清单存在等同远端失败/恢复动态通过。

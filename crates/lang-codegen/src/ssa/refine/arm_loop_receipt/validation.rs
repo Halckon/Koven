@@ -202,6 +202,7 @@ impl Emitted {
                 return Err(invalid(s));
             }
         }
+        self.validate_prefix(parameters, f, p, s)?;
         let [entry, header, split, finished, exit] = p.blocks.ok_or_else(|| invalid(s))?;
         let [actual_split, then_block, else_block] = p.split.ok_or_else(|| invalid(s))?;
         let join = p.join.ok_or_else(|| invalid(s))?;

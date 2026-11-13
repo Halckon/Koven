@@ -7,6 +7,8 @@ pub(super) enum Fault {
     ReceiptMissing,
     CounterReceiptMissing,
     BreakReceiptMissing,
+    PrefixReceiptMissing,
+    PrefixCaptureMissing,
     BreakCaptureMissing,
     FinalVerifier,
 }
@@ -82,6 +84,15 @@ pub(super) fn record(receipt: Receipt) {
 }
 pub(super) fn before_finish(evidence: &mut Emitted) {
     STATE.with(|s| {
+        if let Some(s) = s.borrow_mut().as_mut()
+            && !evidence.prefix_selected.is_empty()
+            && s.fault == Some(Fault::PrefixReceiptMissing)
+        {
+            require_ci();
+            s.fault = None;
+            evidence.prefix_selected.clear();
+        }
+
         if let Some(s) = s.borrow_mut().as_mut()
             && !evidence.selected.is_empty()
             && s.fault == Some(Fault::ReceiptMissing)
@@ -168,6 +179,19 @@ pub(in crate::ssa::refine) fn skip_break_capture() -> bool {
         let mut s = s.borrow_mut();
         let Some(s) = s.as_mut() else { return false };
         if s.fault != Some(Fault::BreakCaptureMissing) {
+            return false;
+        }
+        require_ci();
+        s.fault = None;
+        true
+    })
+}
+
+pub(super) fn skip_prefix_capture() -> bool {
+    STATE.with(|s| {
+        let mut s = s.borrow_mut();
+        let Some(s) = s.as_mut() else { return false };
+        if s.fault != Some(Fault::PrefixCaptureMissing) {
             return false;
         }
         require_ci();

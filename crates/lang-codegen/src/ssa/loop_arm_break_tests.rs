@@ -10,7 +10,7 @@ fn ordinary_loop_arm_tail_break_closes_before_actual_exit() {
 }
 
 #[test]
-fn ordinary_loop_arm_tail_break_rejects_unapproved_prefix_cfg() {
+fn ordinary_loop_arm_tail_break_accepts_scalar_prefix_cfg() {
     check_break(true);
 }
 
@@ -68,21 +68,6 @@ fn check_break(prefix: bool) {
                             &sources, &inputs, &names, &types, &typed, owned, entry,
                         )
                     });
-                if prefix {
-                    let error = result
-                        .err()
-                        .expect("prefix if remains outside String binding frontier");
-                    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-                    let span = error.span.expect("rejected prefix origin");
-                    assert_eq!(
-                        &text[span.start()..span.end()],
-                        "if(choose){tick(1)}else{tick(2)}"
-                    );
-                    assert!(receipts.is_empty());
-                    assert_eq!(trace.before_verifier, 0);
-                    assert_eq!(trace.pending_after, 0);
-                    continue;
-                }
                 let (program, _) = result.expect("actual closed-arm break");
                 verify_program(&program).unwrap();
                 assert_eq!(receipts.len(), 1);
@@ -95,6 +80,18 @@ fn check_break(prefix: bool) {
                     .find(|f| f.id == receipts[0].caller)
                     .unwrap();
                 receipts[0].validate(run).unwrap();
+                if prefix {
+                    assert_eq!(
+                        run.blocks
+                            .iter()
+                            .filter(|b| matches!(
+                                b.terminator.as_ref().map(|t| &t.kind),
+                                Some(TerminatorKind::Conditional { .. })
+                            ))
+                            .count(),
+                        3
+                    );
+                }
                 assert_eq!(
                     run.instructions
                         .iter()
@@ -117,5 +114,45 @@ fn check_break(prefix: bool) {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn ordinary_loop_arm_tail_break_other_prefixes_remain_closed() {
+    for before in [
+        "if(choose){tick(1)}else{tick(2)};if(choose){tick(1)}else{tick(2)};",
+        "if(choose){if(flag){tick(1)}else{tick(2)}}else{tick(2)};",
+        "if(choose){consume(source)}else{consume(source)};",
+    ] {
+        let text = format!(
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun tick(own value:Int):Unit {{}}\nfun run(own choose:Boolean,source:String,own flag:Boolean):Unit {{{before}while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};break}};consume(source)}}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "closed-prefix.ko", &text);
+        let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+        let (environment, types) = standard_environments();
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        assert!(owned.ownership().no_carry_break_prefixes().is_empty());
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run")
+            .unwrap()
+            .id();
+        let (result, receipts, trace) = crate::ssa::refine::arm_loop_receipt::observe(|| {
+            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &types, &typed, &owned, entry,
+            )
+        });
+        assert_eq!(
+            result.err().expect("unapproved prefix").kind,
+            crate::ssa::LoweringErrorKind::UnsupportedNode
+        );
+        assert!(receipts.is_empty());
+        assert_eq!(trace.pending_after, 0);
     }
 }
