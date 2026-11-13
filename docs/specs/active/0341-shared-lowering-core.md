@@ -17395,3 +17395,11 @@ tail-break前缀域，已以expected initializer精确匹配和旧域发布限�
 prefix/counter-break/counter各1），observer-support all-target严格Clippy通过。
 `7bdab837` 将statement调度机械拆出以保持尺寸预算；独审确认调用顺序与分支
 不变，尺寸门禁通过。后端组合实际receipt与新native仍待接通验证。
+
+
+后端生产 `ba684b2b` 独立组合required/selected/receipt已接通；新普通SSA 28种
+参数/共享角色组合（rooted/memory、observer开关）完整FQN精确执行1/1通过，
+真实native 504调用1/1通过，七项旧prefix/counter/条件break普通exact均通过。
+两位独立只读审查确认prefix裁剪保留共享stop，实际join→init→header链和资源
+身份没有确定遗漏；本地整合 `48d93615` 的crates逐文件与已验证生产提交相同。
+普通双receipt、CI-only反例编译列举与最终严格Clippy尚待完成；没有推送。
