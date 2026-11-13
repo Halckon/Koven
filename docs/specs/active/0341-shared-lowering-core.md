@@ -17675,3 +17675,16 @@ AbortHelpers 构建与调用；窄目标测试同步去掉冗余字段初始化�
 文档门禁通过；四项普通完整 FQN exact（narrow target buffer/length、
 deterministic scalar render、debug IR mapping、call-initial native probe）4/4 通过。
 独立只读审查未发现阻断；故障注入未执行，未推送，远端双宿主 CI 待验证。
+
+### SSA carry 与 renderer 测试边界（2026-11-13）
+
+基于 `f37bbee6` 审计 SSA 广域豁免；默认生产构建去除豁免产生 41 条警告，
+含模型/诊断保留见证，因此未一刀切删除。先对 carry 子模块启用 `deny(dead_code)`，
+将仅 retained Single 测试路径消费的 AliasRole entity、SourceSlot type 查询、
+IncomingColumns 原始列接口及对应实现限定为测试构建。生产查询、列构建与 alias
+重绑定不变；SSA renderer 及专用类型格式化模块同步限定为测试构建。其余 SSA
+豁免继续保留待逐项审计，不宣称整层完成退役。
+
+observer-support codegen all-target 严格 Clippy、fmt、diff 与文档门禁通过；
+现有四项 carry_join 和 aggregate/bitwise 两项 renderer 普通完整 FQN exact
+6/6 通过。独立只读审查无阻断，未新增测试或语义、未运行故障注入、未推送。

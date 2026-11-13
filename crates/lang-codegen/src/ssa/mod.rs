@@ -1,3 +1,4 @@
+#[deny(dead_code)]
 mod carry;
 mod closure;
 use closure::integer;
@@ -30,6 +31,7 @@ mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
 pub(crate) mod provider;
+#[cfg(test)]
 mod render;
 mod statement_core;
 #[cfg(test)]
