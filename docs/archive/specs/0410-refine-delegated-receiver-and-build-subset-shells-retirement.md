@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0410` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认从 `main` 合入最新改动后继续推进非 `String` `nullable_when` 与默认路由专项收口 |
-| 基线 | [SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md)（PR #415 合入 `main` `4150bbd8`） |
+| 基线 | [SPEC-0409](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md)（PR #415 合入 `main` `4150bbd8`） |
 | 分支 | `feature/spec-0410-refine-nullable-when-and-default-routing` |
-| 前置 | [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)、[SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md) |
+| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0399](../../specs/active/0399-refine-heap-nullable-if-and-compatibility-retirement.md)、[SPEC-0404](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](../../specs/active/0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)、[SPEC-0409](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -36,7 +36,7 @@
 
 ### 2.3 非 `String` `nullable_when` 与全函数默认路由的白盒契约边界核定
 
-经全量审计，以下两项边界由现有 2,100+ 行白盒 SSA 结构测试与路由矩阵测试显式锁定（对应 [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md) §2.2 与 [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md) §2.2）：
+经全量审计，以下两项边界由现有 2,100+ 行白盒 SSA 结构测试与路由矩阵测试显式锁定（对应 [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) §2.2 与 [SPEC-0399](../../specs/active/0399-refine-heap-nullable-if-and-compatibility-retirement.md) §2.2）：
 
 1. **非 `String` `nullable_when`（`unit_lower/nullable_when`）**：
    - `crates/lang-codegen/src/native_nullable_when_tests/`（`native_nullable_when_tests.rs`、`support.rs`、`replacement_if.rs`、`generation.rs`、`sources.rs`）直接白盒断言 `unit_lower` 生成的特定 CFG 拓扑与 `Origin::Source` 归属：
@@ -51,3 +51,20 @@
 - [x] 退役 `unit_lower/field_borrow.rs::lower_delegated_call_receiver` 与 `refine` 下的 7 个壳子模块（`build/place.rs`、`build/statements.rs`、`subset/loop_route.rs`、`subset/drops.rs`、`receiver_receipt/admission.rs`、`loan_receipt/admission.rs`、`named_receipt/admission.rs`）。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 8 个退役项已从版本库移除 | 通过 | 逐个确认：8/8 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 5/8 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+
+核对说明：
+
+- `ssa/triggered-by-0410` 的 3 个 `*/admission.rs` 逐个确认已删除（receiver/loan/named receipt）
+- 宿主 `refine/subset/control.rs` 随后被 SPEC-0417 再次合并，其 `LoopRoute` 逻辑现位于 `ssa/refine/subset/` 下的控制流准入模块
+- `unit_lower/call.rs`、`refine/build/borrow_binding.rs`、`refine/subset/field.rs`、三个 receipt 宿主文件均存在

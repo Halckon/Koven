@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0406` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户指示合入 `main` 最新修改并继续推进 E3 收尾清理 |
-| 基线 | [SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)（`708fc6c8`，含 `main` `e659b66a`） |
+| 基线 | [SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)（`708fc6c8`，含 `main` `e659b66a`） |
 | 分支 | `feature/spec-0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement` |
-| 前置 | [SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
+| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0403](../../specs/active/0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -38,3 +38,19 @@
 - [x] 退役 `unit_lower/handoff.rs` 与 `unit_lower/nullable_when/cleanup.rs`，完成 `closure/layout.rs` 辅助函数内聚与 `ssa::integer` 算子映射统一。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 2 个退役项已从版本库移除 | 通过 | 逐个确认：2/2 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 2/2 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+
+核对说明：
+
+- 退役 `unit_lower/handoff.rs`（收归 `unit_lower/constant.rs`）与 `unit_lower/nullable_when/cleanup.rs`（收归 `unit_lower/nullable_when.rs`），两个宿主均存在
+- `unit_lower/closure/layout.rs` 属本 Spec 内部内聚删除，该文件随后被 SPEC-0436 再次合并

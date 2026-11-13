@@ -571,3 +571,6 @@
 - [SPEC-0413](0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md)：`verify_operation`、`verify_ownership` 及 `verify/content_flow` 壳模块退役。
 - [SPEC-0411](0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md)：`ssa/integer_range`、`unit_lower` 迭代清理与空值比较壳模块及 `refine` 有界路由壳模块退役。
 - [SPEC-0412](0412-refine-render-verify-and-map-frontend-shells-retirement.md)：`render`、`verify` 及 `lower_frontend` Map 壳模块退役。
+- [SPEC-0410](0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)：`unit_lower` 接口委托兼容死分支退役、`refine` 构建/准入/凭证壳模块收敛与 `nullable_when` 保留边界核定。
+- [SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)：`unit_lower` 析构/CFG 壳模块收敛、`expression_core` 测试遗留迁移与 `lowering_support` 辅助去重。
+- [SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)：`unit_lower` 入口交接与可空 `when` 清理壳模块收敛及整数算子映射去重。
