@@ -1,17 +1,17 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
-mod orchestrate;
+pub(in crate::ssa) mod orchestrate;
 use orchestrate::lower_unit_from_facts;
 #[cfg(all(test, feature = "loan-observation-test-support"))]
 pub(in crate::ssa) use orchestrate::observe_final_verifier;
 
 mod aggregate;
 mod borrow;
-mod borrow_result;
+pub(in crate::ssa) use super::provider::borrow_result;
 mod call;
 mod call_lifetimes;
-use call_lifetimes::callable_abi;
+pub(in crate::ssa) use call_lifetimes::callable_abi;
 mod cfg;
-mod closure;
+pub(in crate::ssa) mod closure;
 pub(crate) mod constant;
 mod construction;
 mod container;
@@ -23,10 +23,8 @@ mod nullable_when;
 mod ownership;
 mod receiver;
 use control::scalar;
-mod type_lower;
-#[cfg(test)]
-mod type_origin_cache_tests;
-mod type_plan;
+pub(in crate::ssa) mod type_lower;
+pub(in crate::ssa) mod type_plan;
 
 #[cfg(test)]
 pub(crate) use borrow_result::validate_bindings;
@@ -37,7 +35,7 @@ pub(crate) use constant::lower_scalar_unit_with_entry;
 use nullable_proof::NullableProofs;
 use std::collections::BTreeMap;
 
-use lang_frontend::{
+pub(in crate::ssa) use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
@@ -56,7 +54,7 @@ use lang_frontend::{
     },
 };
 
-use super::{
+pub(in crate::ssa) use super::{
     LoweringError, LoweringErrorKind,
     lowering_support::{
         error as lowering_error, parse_integer_literal_text, present_name, span_key, string_literal,
@@ -73,7 +71,7 @@ use super::{
     verify::verify_program,
 };
 
-use super::expression_core::LoweredValue;
+pub(in crate::ssa) use super::expression_core::LoweredValue;
 
 /// Same-source span containment formerly hosted by the retired map-iteration module.
 pub(in crate::ssa) fn span_contains(outer: Span, inner: Span) -> bool {
@@ -99,25 +97,25 @@ pub(super) fn enclosing_lambda(parsed: &ParsedFile, span: Span) -> Option<Expres
         .map(|(id, _)| id)
 }
 
-enum FunctionPlanBody {
+pub(in crate::ssa) enum FunctionPlanBody {
     Expression(ExpressionId),
     Block(StatementId),
 }
 
-struct FunctionPlan {
-    id: FunctionId,
-    instance: UnitPlannedInstance,
-    function_item: ItemId,
-    body: FunctionPlanBody,
-    receiver: Option<ReceiverPlan>,
-    parameter_symbols: Vec<UnitSymbolId>,
+pub(in crate::ssa) struct FunctionPlan {
+    pub(in crate::ssa) id: FunctionId,
+    pub(in crate::ssa) instance: UnitPlannedInstance,
+    pub(in crate::ssa) function_item: ItemId,
+    pub(in crate::ssa) body: FunctionPlanBody,
+    pub(in crate::ssa) receiver: Option<ReceiverPlan>,
+    pub(in crate::ssa) parameter_symbols: Vec<UnitSymbolId>,
     /// The first Inout parameter's declaration; only the refinement layer lowers it.
-    inout_parameter: Option<Span>,
-    return_type: UnitTypeId,
+    pub(in crate::ssa) inout_parameter: Option<Span>,
+    pub(in crate::ssa) return_type: UnitTypeId,
 }
 
 #[derive(Clone, Copy)]
-struct ReceiverPlan {
+pub(in crate::ssa) struct ReceiverPlan {
     owner: DeclarationId,
     mode: ParameterMode,
     template_ty: UnitTypeId,
@@ -157,14 +155,14 @@ impl From<ReceiverBinding> for ConsumedReceiver {
     }
 }
 
-struct UnitExpressionLowerer<'a> {
+pub(in crate::ssa) struct UnitExpressionLowerer<'a> {
     migrated_family_compatibility: bool,
     sources: &'a SourceMap,
-    parsed: &'a lang_frontend::parser::ParsedFile,
-    source_unit: SourceUnitId,
-    names: &'a ValidatedCompilationUnitNames,
-    typed: &'a CompilationUnitTypes,
-    owned: &'a CompilationUnitOwnership,
+    pub(in crate::ssa) parsed: &'a lang_frontend::parser::ParsedFile,
+    pub(in crate::ssa) source_unit: SourceUnitId,
+    pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
+    pub(in crate::ssa) typed: &'a CompilationUnitTypes,
+    pub(in crate::ssa) owned: &'a CompilationUnitOwnership,
     constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     source_plan: &'a super::unit_plan::UnitCallablePlan,
@@ -179,10 +177,10 @@ struct UnitExpressionLowerer<'a> {
     substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
     static_self: Option<UnitTypeId>,
     references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
-    function: &'a mut Function,
-    block: BlockId,
+    pub(in crate::ssa) function: &'a mut Function,
+    pub(in crate::ssa) block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
-    borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    pub(in crate::ssa) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
     current_receiver: Option<ReceiverBinding>,
@@ -650,7 +648,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn expression_ssa_type(
+    pub(in crate::ssa) fn expression_ssa_type(
         &self,
         expression: ExpressionId,
         span: Span,
@@ -810,7 +808,7 @@ fn builtin_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinT
     }
 }
 
-fn instance_function_name(
+pub(in crate::ssa) fn instance_function_name(
     names: &ValidatedCompilationUnitNames,
     instance: &UnitPlannedInstance,
 ) -> Result<String, LoweringError> {

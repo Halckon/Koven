@@ -89,3 +89,5 @@ fn multi_parameter_borrow_unit_short_range_argument_remains_unsupported() {
         "view(source, take(items, 1))"
     );
 }
+
+pub(in crate::ssa) mod map_iteration_source;

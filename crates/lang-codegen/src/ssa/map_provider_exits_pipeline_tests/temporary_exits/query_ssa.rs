@@ -15,7 +15,7 @@ use crate::test_support::diagnostics::diagnostic;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Roles {
+pub(in crate::ssa) struct Roles {
     pub owner: ValueId,
     pub source: LoanId,
     pub cursor: ValueId,

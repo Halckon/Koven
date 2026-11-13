@@ -73,6 +73,29 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
+  S0428["S0428<br/>model/constant、render/types、verify_ownership/map、provider、refine 及 lower_frontend 壳子模块退役"]
+  S0429["S0429<br/>map_iteration、closure、verify_ownership/borrow_result、map_source/formation 及 unit_lower 壳子模块退役"]
+  S0430["S0430<br/>outer_borrowed_while、verify/closure_escape、verify_operation 及 lower_frontend 壳子模块退役"]
+  S0431["S0431<br/>map_source_unit_contract、range、map_iteration/local/identity、nullable_when、nominal、loop_control/nullable_while、borrow_result 及 borrow_argument 壳子模块退役"]
+  S0432["S0432<br/>source_owner、local_storage、string_clone、checkpoint、carrier、closure/runtime_tests、nullable_numeric_cleanup/tests 及 orchestrate/registration_tests 壳子模块退役"]
+  S0433["S0433<br/>refine 五类借用凭证 ci_tests、verify/closure_escape/types/graph_tests 及 verify_operation/map 壳子模块退役"]
+  S0434["S0434<br/>verify_operation/map/tests、verify_ownership 字段与生命周期测试及 unit_lower 闭包/类型原点测试壳子模块退役"]
+  S0435["S0435<br/>unit_lower/control/result_tests、item_operand_ssa_test_support 及 lower_frontend 守卫与实例测试壳子模块退役"]
+  S0436["S0436<br/>unit_lower 借用/编排/字段可空测试、verify_ownership/root_exchange_tests 及 lower_frontend 实例/闭包/待定调用/借用清理测试壳子模块退役"]
+  S0437["S0437<br/>lambda_preflight_tests、outer_borrowed_while 守卫、key_return 身份及 lower_frontend 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役"]
+  S0438["S0438<br/>outer_borrowed_while、source_owner/handoff、map_iteration 退出/成形/临时项及可空清理载体与源证明壳子模块退役"]
+  S0439["S0439<br/>numeric_iteration、map_consume、map_iteration 根/资源/校验/源及 rc_nullable_while_presence_identity 壳子模块退役"]
+  S0440["S0440<br/>rc_nullable_while_identity_queries、same_guard、map_loop/operand_unit_identity、owner_consumer_test_support 及 loop_control/instances 壳子模块退役"]
+  S0441["S0441<br/>container_lowering_tests 三子壳及剩余 lower_frontend 支撑/清理壳子模块退役"]
+  S0442["S0442<br/>range_lowering_tests、unit_lower_container_tests、unit_plan_tests、borrowed_generate_tests 及 source_forms 子壳模块退役"]
+  S0443["S0443<br/>owned_source_return、range_lowering_tests、local_arguments、nested 及 temporary_exits 子壳模块退役"]
+  S0444["S0444<br/>loan_region_ssa_tests 下观察器、接收者、具名借用、临时借用兄弟及有限字面量测试壳子模块退役"]
+  S0445["S0445<br/>loan_region_ssa_tests 下临时借用、绑定凭证、父子探针、多临时乘积及 range_lowering_tests/view_source 壳子模块退役"]
+  S0446["S0446<br/>range_lowering_tests 下局部控制流、断言、支撑、比较边界及接收者测试壳子模块退役"]
+  S0447["S0447<br/>unit_lower_receiver_tests、sequential_for_lowering_tests、nullable_operation_tests、unit_enum_regression_tests 及 lowering_entry_contract_tests 子壳模块退役"]
+  S0448["S0448<br/>map_provider_exits_pipeline_tests 测试域叶子薄壳子模块批量退役（132 个）"]
+  S0449["S0449<br/>其余测试域叶子薄壳子模块批量退役（42 个）"]
+  S0450["S0450<br/>下一层叶子薄壳与同级测试小文件批量收敛（62 个）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -165,6 +188,29 @@ ARCH --> S0341
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
+| SPEC-0428 | active | [0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md](active/0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md) |
+| SPEC-0429 | active | [0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md](active/0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) |
+| SPEC-0430 | active | [0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md](active/0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) |
+| SPEC-0431 | active | [0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md](active/0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) |
+| SPEC-0432 | active | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](active/0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
+| SPEC-0433 | active | [0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md](active/0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) |
+| SPEC-0434 | active | [0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md](active/0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) |
+| SPEC-0435 | active | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](active/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |
+| SPEC-0436 | active | [0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md](active/0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) |
+| SPEC-0437 | active | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](active/0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
+| SPEC-0438 | active | [0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md](active/0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) |
+| SPEC-0439 | active | [0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md](active/0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) |
+| SPEC-0440 | active | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](active/0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
+| SPEC-0441 | active | [0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md](active/0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) |
+| SPEC-0442 | active | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](active/0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
+| SPEC-0443 | active | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](active/0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |
+| SPEC-0444 | active | [0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md](active/0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) |
+| SPEC-0445 | active | [0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md](active/0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) |
+| SPEC-0446 | active | [0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md](active/0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md) |
+| SPEC-0447 | active | [0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md](active/0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) |
+| SPEC-0448 | active | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](active/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |
+| SPEC-0449 | active | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](active/0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
+| SPEC-0450 | active | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](active/0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

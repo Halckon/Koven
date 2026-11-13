@@ -293,10 +293,6 @@ pub(crate) struct EntityData {
     pub(crate) origin: Origin,
 }
 
-#[path = "model/constant.rs"]
-mod constant;
-pub(crate) use constant::ScalarConstant;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BinaryOperator {
     Add,
@@ -349,7 +345,7 @@ pub(crate) enum ClosureCaptureOperand {
 
 #[path = "model/operation.rs"]
 mod operation;
-pub(crate) use operation::Operation;
+pub(crate) use operation::{Operation, ScalarConstant};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Instruction {

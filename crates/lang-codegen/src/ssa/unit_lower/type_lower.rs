@@ -21,7 +21,7 @@ use crate::ssa::{
 };
 
 /// unit lowering 共享的 concrete type identity 与 nominal layout metadata。
-pub(super) struct UnitTypeLowering {
+pub(in crate::ssa) struct UnitTypeLowering {
     type_ids: BTreeMap<UnitTypeId, SsaTypeId>,
     declaration_spans: BTreeMap<DeclarationId, Span>,
     heap_payloads: BTreeMap<SsaTypeId, SsaTypeId>,
@@ -60,7 +60,7 @@ impl PendingOwnerDefinition {
 }
 
 impl UnitTypeLowering {
-    pub(super) fn new(names: &ValidatedCompilationUnitNames) -> Self {
+    pub(in crate::ssa) fn new(names: &ValidatedCompilationUnitNames) -> Self {
         Self {
             type_ids: BTreeMap::new(),
             declaration_spans: names
@@ -79,7 +79,7 @@ impl UnitTypeLowering {
         }
     }
 
-    pub(super) fn type_ids(&self) -> &BTreeMap<UnitTypeId, SsaTypeId> {
+    pub(in crate::ssa) fn type_ids(&self) -> &BTreeMap<UnitTypeId, SsaTypeId> {
         &self.type_ids
     }
 
@@ -95,7 +95,7 @@ impl UnitTypeLowering {
         &self.enum_payloads
     }
 
-    pub(super) fn intern(
+    pub(in crate::ssa) fn intern(
         &mut self,
         module: &mut Module,
         typed: &CompilationUnitTypes,
@@ -107,7 +107,7 @@ impl UnitTypeLowering {
         Ok(id)
     }
 
-    pub(super) fn intern_map_result(
+    pub(in crate::ssa) fn intern_map_result(
         &mut self,
         module: &mut Module,
         typed: &CompilationUnitTypes,

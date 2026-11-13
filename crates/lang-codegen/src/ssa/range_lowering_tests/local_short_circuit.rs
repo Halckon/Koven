@@ -3,10 +3,94 @@ use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 
 #[path = "local_short_circuit_boundary.rs"]
-mod boundary;
+pub(in crate::ssa) mod boundary;
 
-#[path = "local_short_circuit_receiver.rs"]
-mod receiver;
+mod receiver {
+    //! SPEC-0316 × SPEC-0317: the ordinary value-class receiver intersection.
+    use super::*;
+
+    fn receivers(pipeline: Pipeline) {
+        for move_only in [false, true] {
+            let field = if move_only { ",val text:String" } else { "" };
+            let payload = if move_only { ",\"kept\".clone()" } else { "" };
+            for and in [true, false] {
+                let operator = if and { "&&" } else { "||" };
+                let expression = format!("leftGate.left() {operator} rightGate.right()");
+                for site in [Use::Local, Use::Argument, Use::Condition] {
+                    let statement = statement(&expression, site);
+                    let consumer = format!(
+                        r#"
+    value class Gate(val flag:Boolean{field}){{
+        fun left():Boolean{{println("lhs");return this.flag}}
+        fun right():Boolean{{println("rhs");return this.flag}}
+    }}
+    fun finish(own gate:Gate):Unit{{println("gate")}}
+    fun show(flag:Boolean):Unit{{if(flag){{println("true")}}else{{println("false")}}}}
+    fun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}
+    fun consume(own root:List<String>):Unit{{println("consume")}}
+    fun scan(left:Boolean,right:Boolean):Unit{{
+        val root=listOf("a","b","c")
+        val leftGate=Gate(left{payload})
+        val rightGate=Gate(right{payload})
+        {{
+            borrow val parent=take(root,2)
+            borrow val child=take(parent,1)
+            borrow val sibling=take(parent,2)
+            {statement}
+            read(parent);read(child);read(sibling)
+        }}
+        consume(root);finish(leftGate);finish(rightGate)
+    }}
+    fun main():Unit{{scan(true,true);scan(true,false);scan(false,true);scan(false,false)}}
+    "#
+                    );
+                    let label = format!("0317-receiver-{pipeline:?}-{move_only}-{and}-{site:?}");
+                    let lowered = lower_positive(&consumer, &expression, pipeline);
+                    let span = lowered.expected_span;
+                    let (program, entry) = lowered.require_success(&label);
+                    assertions::short_circuit_branch(&program, span);
+                    let mut expected = String::new();
+                    for (left, right) in
+                        [(true, true), (true, false), (false, true), (false, false)]
+                    {
+                        expected.push_str("lhs\n");
+                        if left == and {
+                            expected.push_str("rhs\n");
+                        }
+                        expected.push_str(if if and { left && right } else { left || right } {
+                            "true\n"
+                        } else {
+                            "false\n"
+                        });
+                        expected.push_str("a\nb\na\na\nb\nconsume\ngate\ngate\n");
+                    }
+                    run_unmodified(&program, entry, &label, expected.as_bytes());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn range_short_circuit_value_receiver_single() {
+        receivers(Pipeline::Single);
+    }
+    #[test]
+    fn range_short_circuit_value_receiver_unit() {
+        receivers(Pipeline::Unit);
+    }
+    #[test]
+    fn range_short_circuit_value_receiver_unit_reversed() {
+        receivers(Pipeline::UnitReversed);
+    }
+    #[test]
+    fn range_short_circuit_value_receiver_constant_unit() {
+        receivers(Pipeline::UnitConstant);
+    }
+    #[test]
+    fn range_short_circuit_value_receiver_constant_unit_reversed() {
+        receivers(Pipeline::UnitConstantReversed);
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 enum Use {
@@ -497,5 +581,97 @@ fn range_short_circuit_pending_prefix_unit_constant() {
 fn range_short_circuit_pending_prefix_reversed_constant() {
     for and in [true, false] {
         dynamic(Pipeline::UnitConstantReversed, and, Use::PendingArgument);
+    }
+}
+
+pub(in crate::ssa) mod comparison_boundary {
+    //! Ordinary source keeps the non-Int, concat and alias gates closed.
+    use super::super::support::{UnitExpectation, observe_original_unit};
+    use crate::ssa::LoweringErrorKind;
+
+    use crate::ssa::range_lowering_tests::local_control::*;
+    use crate::test_support::diagnostics::assert_eq_diagnostic;
+
+    fn reject(statement: &str, fragment: &str) {
+        let source = format!(
+            r#"
+    fun check(flag:Boolean):Unit{{}}
+    fun read(view:View<String>):Unit{{}}
+    fun consume(own root:List<String>):Unit{{}}
+    fun scan(n:Int,flag:Boolean):Unit{{
+        val root=listOf("kept")
+        {{borrow val part=take(root,1);{statement};read(part)}}
+        consume(root)
+    }}
+    fun main():Unit{{scan(0,true)}}
+    "#
+        );
+        for pipeline in [
+            Pipeline::Single,
+            Pipeline::Unit,
+            Pipeline::UnitReversed,
+            Pipeline::SingleConstant,
+            Pipeline::UnitConstant,
+            Pipeline::UnitConstantReversed,
+        ] {
+            if matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
+                observe_original_unit(
+                    &source,
+                    fragment,
+                    pipeline,
+                    UnitExpectation::Reject(fragment),
+                    "comparison-boundary",
+                );
+                continue;
+            }
+            let lowered = lower(&source, fragment, pipeline);
+            let error = lowered
+                .result
+                .err()
+                .expect("this ordinary source is still outside the capability gate");
+            assert_eq_diagnostic!(
+                error.kind,
+                LoweringErrorKind::UnsupportedNode,
+                "{pipeline:?}: {error:?}"
+            );
+            assert_eq_diagnostic!(
+                error.span,
+                Some(lowered.expected_span),
+                "{pipeline:?}: {error:?}"
+            );
+            assert_eq!(
+                lowered.sources.slice(error.span.unwrap()).unwrap(),
+                fragment
+            );
+        }
+    }
+
+    #[test]
+    fn range_comparison_boundary_non_int() {
+        for expression in [
+            "2L!=4L",
+            "2L<=4L",
+            "2L>4L",
+            "2L>=4L",
+            "flag!=true",
+            "\"a\"!=\"b\"",
+        ] {
+            reject(&format!("check({expression})"), expression);
+        }
+    }
+
+    #[test]
+    fn range_comparison_boundary_concat() {
+        reject("println(\"a\"+\"b\")", "\"a\"+\"b\"");
+    }
+
+    #[test]
+    fn range_comparison_boundary_metadata_alias() {
+        for expression in ["n!=0", "n<=0", "n>0", "n>=0"] {
+            reject(
+                &format!("borrow val alias=part;read(alias);check({expression})"),
+                expression,
+            );
+        }
     }
 }

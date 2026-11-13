@@ -1,6 +1,6 @@
 //! A sealed bounded suffix authorizes one edge-selected value. Existing emitters retain all
 //! physical effects; this plan owns admission, action order and cleanup reconciliation.
-mod replacement;
+use super::scalar_text::replacement;
 use super::{BlockRef, Builder, RTerm, RefineInputs, Slot};
 use crate::ssa::lowering_support::{LoweringError, LoweringErrorKind, error};
 use lang_frontend::{
@@ -37,22 +37,22 @@ pub(super) struct OwnerPlan<'a> {
     pub(super) return_binding: Option<ReturnBindingPlan>,
     pub(super) return_replacement: Option<ReturnReplacementPlan>,
     pub(super) root_slot: Option<Slot>,
-    bound: Option<Slot>,
-    exit: Option<BlockRef>,
-    false_block: Option<BlockRef>,
+    pub(in crate::ssa::refine::build) bound: Option<Slot>,
+    pub(in crate::ssa::refine::build) exit: Option<BlockRef>,
+    pub(in crate::ssa::refine::build) false_block: Option<BlockRef>,
     // Indexed by semantic role: condition-false P, then Break Q, never CFG order.
-    incoming: [Option<BlockRef>; 2],
-    replaced: bool,
+    pub(in crate::ssa::refine::build) incoming: [Option<BlockRef>; 2],
+    pub(in crate::ssa::refine::build) replaced: bool,
     pub(super) stage: u8,
 }
 
 /// An authorization can only be issued after this plan's actual Take and Bind.
 #[derive(Clone, Copy)]
 pub(super) struct DropReceipt {
-    selected: Slot,
-    bound: Slot,
-    index: usize,
-    replacement: bool,
+    pub(in crate::ssa::refine::build) selected: Slot,
+    pub(in crate::ssa::refine::build) bound: Slot,
+    pub(in crate::ssa::refine::build) index: usize,
+    pub(in crate::ssa::refine::build) replacement: bool,
 }
 
 impl<'a> OwnerPlan<'a> {
