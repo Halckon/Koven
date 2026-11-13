@@ -131,7 +131,10 @@ impl Checker<'_> {
             }))
         .then_some(*expression)
     }
-    pub(super) fn prefix_plan(&self, control: ExpressionId) -> Option<Plan> {
+    pub(super) fn scalar_prefix_parts(
+        &self,
+        control: ExpressionId,
+    ) -> Option<(ExpressionId, [ExpressionId; 2])> {
         let Expression::If {
             condition,
             then_branch,
@@ -157,7 +160,13 @@ impl Checker<'_> {
         {
             return None;
         }
-        let calls = [self.prefix_call(*then_branch)?, self.prefix_call(*other)?];
+        Some((
+            *condition,
+            [self.prefix_call(*then_branch)?, self.prefix_call(*other)?],
+        ))
+    }
+    pub(super) fn prefix_plan(&self, control: ExpressionId) -> Option<Plan> {
+        let (condition, calls) = self.scalar_prefix_parts(control)?;
         for (_, node) in self.parsed.ast().items().iter() {
             let Item::Function { form, .. } = node.payload() else {
                 continue;
@@ -184,7 +193,7 @@ impl Checker<'_> {
             {
                 return Some(Plan {
                     prefix: control,
-                    condition: *condition,
+                    condition,
                     calls,
                     target: *target,
                 });
