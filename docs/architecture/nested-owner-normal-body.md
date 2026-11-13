@@ -149,16 +149,19 @@ child enter 从真实 `ValueState` 的封闭资源边界捕获完整 `(root, own
 
 ### 独立 child cycle 的边界接线
 
-checked-counter 符号规则对应的六角色收据在真实 preheader 跳转前及已观察的
+checked-counter 符号规则对应的七角色收据在真实 preheader 跳转前及已观察的
 checked expression 处捕获角色，经 folding 重定位后按实际 emitted 参数/current
 映射检查完整根向量。复用先通过终检的 body retirement 所保存 input/new 身份，
 核 child header true/false 条件和前驱、成功回边的新代，以及新代无旁路直接消费。
 Abort 由独立 emission hook 观察，核 checked 指令和 flag 极性、对应 operator/divisor
 及无指令终止块。既有 abort sibling 活跃槽传播允许新代在 success/abort 互斥边
 各携带一次；按根槽逐边核验，不把两边合计当重复消费，也不把 Abort 算正常回边。
-这只是 child 的局部传递证明；父 header 到 child preheader 的基例链、父归纳与更广
-嵌套仍未由此证明。当前本地验证结果与未验项以 SPEC-0341 账本为准。
+此收据还从真实 loop frame 捕获 parent header，核实际 true 边到 child preheader
+的完整参数向量、唯一前驱及 guard 身份；两端每根保持自身参数，无读取/借用/消费。
+它与 entry→child header 接成条件式入口链：给定父 header 当前向量，即供给 child
+本次调用的入口。父 header 初始来源和跨父轮归纳、更广嵌套仍未由此证明。当前本地验证结果与未验项以 SPEC-0341 账本为准。
 
 child-cycle 的 CI-only 负例独立放在 `child_cycle_receipt/faults.rs`，分别破坏真实角色
 观察和 SSA 边/消费。两个 ignored 测试通过专用脚本接入现有双宿主 test job；本地
-`--list-only` 只编译列举，不能作为破坏矩阵运行通过的证据。父入口与组合证明仍待推进。
+`--list-only` 只编译列举，不能作为破坏矩阵运行通过的证据。新增父 true 根交换、preheader 额外前驱及根消费三例，共 18 类；仍只本地编译列举。
+父初始入口与组合归纳仍待推进。

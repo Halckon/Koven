@@ -1,6 +1,7 @@
 //! Independent child-cycle transport, not a parent induction/base proof.
 #[cfg(test)]
 mod faults;
+mod parent_entry;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -17,6 +18,7 @@ fn invalid(span: Span) -> LoweringError {
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
     pub control: UnitStatementId,
+    pub parent_header: BlockRef,
     pub entry: BlockRef,
     pub header: BlockRef,
     pub body: BlockRef,
@@ -29,8 +31,9 @@ pub(super) struct Plan {
     pub checked_operator: CheckedArithmeticOperator,
 }
 impl Plan {
-    fn roles(&self) -> [BlockRef; 6] {
+    fn roles(&self) -> [BlockRef; 7] {
         [
+            self.parent_header,
             self.entry,
             self.header,
             self.body,
@@ -40,7 +43,7 @@ impl Plan {
         ]
     }
     fn valid(&self) -> bool {
-        self.roles().into_iter().collect::<BTreeSet<_>>().len() == 6
+        self.roles().into_iter().collect::<BTreeSet<_>>().len() == 7
             && !self.roots.is_empty()
             && self.roots.iter().collect::<BTreeSet<_>>().len() == self.roots.len()
     }
@@ -63,6 +66,7 @@ impl Plans {
                     .ok_or_else(|| invalid(span))?;
             }
             for role in [
+                &mut p.parent_header,
                 &mut p.entry,
                 &mut p.header,
                 &mut p.body,
@@ -314,7 +318,7 @@ impl Emitted {
             || actual.checked_instruction != p.checked_instruction
             || actual.checked_span != p.checked_span
             || actual.checked_operator != p.checked_operator
-            || self.seen.len() != 6
+            || self.seen.len() != 7
             || generations.len() != p.roots.len()
             || generations.iter().map(|g| g.0).collect::<BTreeSet<_>>()
                 != p.roots.iter().copied().collect()
@@ -444,6 +448,7 @@ impl Emitted {
         {
             return Err(fail());
         }
+        self.parent_entry(body, function, span)?;
         let entry = self.seen.get(&p.entry).ok_or_else(fail)?;
         let entry_roots = p
             .roots

@@ -32,6 +32,7 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
         for marker in [
             "nested-body-retirement-ssa-complete",
             "child-cycle-ssa-complete",
+            "child-parent-entry-ssa-complete",
         ] {
             assert_eq!(
                 actions
@@ -85,6 +86,9 @@ fn assert_cycle_faults(faults: &[crate::ssa::OwnerFault]) {
 fn ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption() {
     use crate::ssa::OwnerFault::*;
     assert_cycle_faults(&[
+        ChildCycleParentTrueSwap,
+        ChildCycleParentEntryPredecessor,
+        ChildCycleParentEntryConsumer,
         ChildCycleMissingPlan,
         ChildCycleMissingReceipt,
         ChildCycleMissingObservation,

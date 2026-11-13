@@ -16628,3 +16628,24 @@ ignored 测试。默认执行要求 `GITHUB_ACTIONS=true`，测试与注入入�
 独立只读复审确认 1 项缺计划、14 项 late faults 与测试清单一致，双宿主入口无单平台
 条件。没有本地执行任何故障注入，也未推送或取得远端运行结果。此轮是 child-cycle
 证明的负例覆盖建设，不增加父入口链/父组合实现完成度。
+
+
+### D10 条件式 parent-header → child-entry 链（2026-11-13）
+
+在已选 child-cycle 的六角色之外，保留真实 enclosing loop frame 的 parent header，
+共同参与 folding/layout/实际 terminator 观察。独立终检校 parent guard 身份、真实
+true 边完整目标槽向量、child preheader 唯一前驱，以及两块每根参数保持且无指令
+读取/借用/消费；两条互斥父边每根各运输一次。接上既有 entry→child header 与
+child recurrence 后，得到“给定父 header 当前独占向量”的本次 child 调用入口链。
+
+这不是父根初始创建/函数入口基例，也不独立证明 parent header 的两条入边生命周期；
+parent resume、false partition 的局部收据不能据此合称完整跨父轮归纳。没有扩大语法、
+退出或嵌套支持。父初始 owner 来源与跨父轮组合仍 active。
+
+新增三项 CI-only 实际变异：父 true 根交换、preheader 额外前驱、preheader 根消费，
+复用双宿主精确入口，现共 18 类。只读复审核对条件证明范围，未发现确定阻断。
+本地验收：普通正例（两根正序/逆序）1/1 通过并断言真实 parent-entry marker；
+既有 nested counter 普通/native 基线 1/1 通过；两个 CI-only 精确目标编译列举通过
+（none executed）；codegen all-target strict Clippy、docs922、修改文件 rustfmt、
+diff check 与尺寸门禁（base `f62b312b`）通过。任何 CI-only 变异均未在本地执行，
+远端结果仍待验证；未推送。

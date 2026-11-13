@@ -9,6 +9,9 @@ impl Emitted {
         retirement: &super::super::nested_body_receipt::Emitted,
     ) {
         let faults = [
+            OwnerFault::ChildCycleParentTrueSwap,
+            OwnerFault::ChildCycleParentEntryPredecessor,
+            OwnerFault::ChildCycleParentEntryConsumer,
             OwnerFault::ChildCycleMissingReceipt,
             OwnerFault::ChildCycleMissingObservation,
             OwnerFault::ChildCycleEntrySwap,
@@ -49,6 +52,61 @@ impl Emitted {
         let first = root_index(p.header, p.roots[0]);
         let second = root_index(p.header, p.roots[1]);
         match fault {
+            OwnerFault::ChildCycleParentTrueSwap => {
+                let a = root_index(p.entry, p.roots[0]);
+                let b = root_index(p.entry, p.roots[1]);
+                let block = function
+                    .blocks
+                    .iter_mut()
+                    .find(|b| b.id == self.blocks[&p.parent_header])
+                    .unwrap();
+                let TerminatorKind::Conditional { when_true, .. } =
+                    &mut block.terminator.as_mut().unwrap().kind
+                else {
+                    panic!("parent header");
+                };
+                assert_ne!(when_true.arguments[a], when_true.arguments[b]);
+                when_true.arguments.swap(a, b);
+            }
+            OwnerFault::ChildCycleParentEntryPredecessor => {
+                let block = function.blocks.iter_mut().find(|b| b.id == exit).unwrap();
+                assert!(
+                    !block
+                        .terminator
+                        .as_ref()
+                        .unwrap()
+                        .kind
+                        .targets()
+                        .contains(&entry)
+                );
+                block.terminator.as_mut().unwrap().kind = TerminatorKind::Branch(Edge {
+                    target: entry,
+                    arguments: self.slots[&p.entry]
+                        .iter()
+                        .map(|s| self.seen[&p.parent_header][s])
+                        .collect(),
+                });
+            }
+            OwnerFault::ChildCycleParentEntryConsumer => {
+                let value = self.parameter(p.entry, root, span).unwrap();
+                let EntityId::Value(owner) = value else {
+                    panic!("entry root");
+                };
+                let id = *function
+                    .block(entry)
+                    .unwrap()
+                    .instructions
+                    .first()
+                    .expect("scalar child initialization");
+                let instruction = function
+                    .instructions
+                    .iter_mut()
+                    .find(|i| i.id == id)
+                    .unwrap();
+                assert!(!instruction.operation.entities().contains(&value));
+                instruction.operation = Operation::Drop { owner };
+            }
+
             OwnerFault::ChildCycleMissingReceipt => {
                 self.plan.take();
             }

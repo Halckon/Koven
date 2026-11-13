@@ -37,6 +37,7 @@ impl Builder<'_, '_> {
         }
         Ok(Some(CyclePlan {
             control: rule.control(),
+            parent_header: nested.parent_header.ok_or_else(fail)?,
             entry,
             header: blocks[0],
             body,

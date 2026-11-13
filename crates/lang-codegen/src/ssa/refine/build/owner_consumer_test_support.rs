@@ -3,6 +3,9 @@ use std::cell::{Cell, RefCell};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerFault {
+    ChildCycleParentTrueSwap,
+    ChildCycleParentEntryPredecessor,
+    ChildCycleParentEntryConsumer,
     ChildCycleMissingPlan,
     ChildCycleMissingReceipt,
     ChildCycleMissingObservation,
