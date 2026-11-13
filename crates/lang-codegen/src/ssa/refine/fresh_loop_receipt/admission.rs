@@ -305,7 +305,7 @@ fn loop_plan(
         boundary: 0,
     }))
 }
-pub(super) fn callee(
+pub(in crate::ssa::refine) fn callee(
     inputs: &RefineInputs<'_>,
     call: UnitExpressionId,
 ) -> Result<FunctionId, LoweringError> {

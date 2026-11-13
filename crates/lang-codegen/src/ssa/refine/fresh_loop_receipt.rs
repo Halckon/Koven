@@ -11,6 +11,7 @@ use lang_frontend::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 mod admission;
+pub(super) use admission::callee;
 mod builder;
 #[cfg(test)]
 mod ci_tests;

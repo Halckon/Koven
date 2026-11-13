@@ -4,6 +4,7 @@
 //! During migration `lower_owned_unit_with_entry` routes a function instance here only
 //! when [`accepts`] proves its whole body lies inside the migrated subset. Once routed,
 //! a failure is an error; there is no fallback to the per-family lowering.
+pub(crate) mod arm_loop_receipt;
 mod body;
 mod build;
 mod child_cycle_receipt;

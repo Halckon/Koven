@@ -3,6 +3,7 @@ use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
     child_cycle: crate::ssa::refine::child_cycle_receipt::Emitted,
+    arm_loop: crate::ssa::refine::arm_loop_receipt::Emitted,
     nested_body: crate::ssa::refine::nested_body_receipt::Emitted,
     nested_resume: crate::ssa::refine::nested_resume_receipt::Emitted,
     nested_exit: crate::ssa::refine::nested_exit_receipt::Emitted,
@@ -36,6 +37,7 @@ impl LoanReceipts {
     ) -> Result<Self, LoweringError> {
         Ok(Self {
             child_cycle: Default::default(),
+            arm_loop: Default::default(),
             nested_body: Default::default(),
             nested_resume: Default::default(),
             nested_exit: Default::default(),
@@ -152,6 +154,8 @@ impl LoanReceipts {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.arm_loop
+            .layout(body, blocks, parameters, entities, span)?;
         self.owner_bridge
             .layout(body, function, blocks, parameters, entities, span)?;
         self.fresh_loop.layout(
@@ -245,6 +249,7 @@ impl LoanReceipts {
             .terminator(&body.fresh_loop_plans, function, target, current, span)?;
         self.child_cycle
             .terminator(body, function, target, current, span)?;
+        self.arm_loop.terminator(body, target, current, span)?;
         self.nested_resume
             .terminator(function, target, current, span)?;
         self.nested
@@ -266,6 +271,7 @@ impl LoanReceipts {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.arm_loop.finish(body, function, span)?;
         self.owner_bridge.finish(body, function, span)?;
         self.nested_body.finish(body, function, span)?;
         self.child_cycle.finish(
@@ -460,6 +466,9 @@ impl Emitter<'_> {
                 &self.current,
                 statement.span,
             )?;
+            receipts
+                .arm_loop
+                .statement(body, (block, index), instruction, statement.span)?;
             if let Some(tag) = statement.fresh_loop_tag {
                 receipts.fresh_loop.statement(
                     &body.fresh_loop_plans,

@@ -18,6 +18,7 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let invariant = self.invariant_while_entry(statement, span)?;
         let no_carry = self.no_carry_entry(statement, span)?;
+        let arm_carry = self.arm_loop_lease(statement, span)?;
         for fact in self.inputs.owned.borrow_results().bindings() {
             if fact.binding().source_unit() == self.inputs.source_unit
                 && crate::ssa::borrow_result_support::closed_while::following(
@@ -40,6 +41,11 @@ impl Builder<'_, '_> {
         let body_block = self.body.block();
         let finished = self.body.block();
         let exit = self.body.block();
+        self.arm_loop_begin(
+            statement,
+            [self.current(span)?, header, body_block, finished, exit],
+            span,
+        )?;
         self.fresh_loop_entry(
             statement,
             [self.current(span)?, header, body_block, finished, exit],
@@ -76,6 +82,7 @@ impl Builder<'_, '_> {
         self.block = Some(header);
         self.condition(condition, body_block, finished)?;
         self.no_carry_boundary(no_carry.as_ref(), span)?;
+        self.arm_boundary(arm_carry.as_ref(), span)?;
         self.invariant_while_boundary(invariant.as_ref(), span)?;
         self.loop_receipt_boundary(invariant.as_ref(), 2, span)?;
         self.fresh_loop_boundary(2, span)?;
@@ -92,10 +99,11 @@ impl Builder<'_, '_> {
                 map_for: None,
             });
             let reached = self.statement(loop_body)? != Lowered::Diverged;
-            if no_carry.is_some() && !reached {
+            if (no_carry.is_some() || arm_carry.is_some()) && !reached {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
             self.no_carry_boundary(no_carry.as_ref(), span)?;
+            self.arm_boundary(arm_carry.as_ref(), span)?;
             if reached {
                 self.fresh_loop_boundary(3, span)?;
             }
@@ -125,6 +133,7 @@ impl Builder<'_, '_> {
             self.loop_receipt_boundary(invariant.as_ref(), 4, span)?;
             self.fresh_loop_boundary(4, span)?;
             self.no_carry_boundary(no_carry.as_ref(), span)?;
+            self.arm_boundary(arm_carry.as_ref(), span)?;
             self.owner_false_edge(statement, exit, span)?;
             self.goto(exit, span)?;
         }
@@ -139,6 +148,7 @@ impl Builder<'_, '_> {
         self.loop_receipt_boundary(invariant.as_ref(), 5, span)?;
         self.fresh_loop_boundary(5, span)?;
         self.no_carry_boundary(no_carry.as_ref(), span)?;
+        self.arm_boundary(arm_carry.as_ref(), span)?;
         Ok(Lowered::Unit)
     }
 }

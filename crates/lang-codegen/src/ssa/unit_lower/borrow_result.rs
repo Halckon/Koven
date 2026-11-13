@@ -391,6 +391,13 @@ fn validate_binding(
     {
         allowed.insert(returned.index());
     }
+    let branch_no_carry =
+        crate::ssa::borrow_result_support::branch_no_carry::admitted(file, owned, fact);
+    if let Some((_, control)) = branch_no_carry {
+        allowed_controls
+            .get_or_insert_with(Default::default)
+            .insert(control.index());
+    }
     let no_carry = crate::ssa::borrow_result_support::no_carry::admitted(file, owned, fact);
     let no_carry_siblings =
         crate::ssa::borrow_result_support::no_carry::siblings(file, owned, fact);
@@ -410,6 +417,7 @@ fn validate_binding(
             if closed_whiles.contains(&statement)
                 || invariant == Some(statement)
                 || no_carry == Some(statement)
+                || branch_no_carry.is_some_and(|(s, _)| s == statement)
                 || no_carry_siblings.contains(&statement)
             {
                 return true;

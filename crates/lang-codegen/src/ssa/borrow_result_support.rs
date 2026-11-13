@@ -16,6 +16,7 @@ pub(super) mod closed_while;
 pub(super) mod invariant_while;
 pub(super) mod local_if;
 pub(super) use local_if::ordinary_local;
+pub(super) mod branch_no_carry;
 pub(super) mod no_carry;
 #[cfg(test)]
 pub(super) use local_if::stable_map;

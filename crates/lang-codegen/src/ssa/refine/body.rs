@@ -948,6 +948,8 @@ pub(super) struct RefinedBody {
     pub(super) owner_bridge_plans: super::control_bridge_receipt::Plans,
     pub(super) loop_plans: super::loop_receipt::Plans,
     pub(super) fresh_loop_plans: super::fresh_loop_receipt::Plans,
+    pub(super) arm_loop_plans: super::arm_loop_receipt::Plans,
+    pub(super) arm_loop_required: Vec<lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact>,
     pub(super) loan_plans: super::loan_receipt::Plans,
     pub(super) receiver_plans: super::receiver_receipt::Plans,
     pub(super) named_plans: super::named_receipt::Plans,

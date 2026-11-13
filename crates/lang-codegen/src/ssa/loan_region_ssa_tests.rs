@@ -934,3 +934,6 @@ mod loop_no_carry_sibling_tests;
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "fresh_publication_tests.rs"]
 mod fresh_publication_tests;
+
+#[path = "loop_arm_no_carry_tests.rs"]
+mod loop_arm_no_carry_tests;

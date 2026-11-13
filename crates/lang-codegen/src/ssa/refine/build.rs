@@ -19,6 +19,7 @@ pub(in crate::ssa::refine::build) use value::field;
 mod frames;
 pub(super) use frames::Lowered;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
+mod branch_no_carry;
 mod invariant_while;
 mod map;
 mod multi_root_receipt;
@@ -33,6 +34,7 @@ mod rc;
 mod while_loop;
 use rc::receiver;
 mod scalar_text;
+mod statements;
 mod tagged;
 mod value;
 mod when;
@@ -151,6 +153,17 @@ pub(super) fn build(
             bounded_plans: super::bounded_receipt::Plans::new(inputs)?,
             loop_plans: super::loop_receipt::Plans::new(inputs)?,
             fresh_loop_plans: super::fresh_loop_receipt::Plans::new(inputs, types)?,
+            arm_loop_plans: super::arm_loop_receipt::Plans::new(inputs)?,
+            arm_loop_required: inputs
+                .owned
+                .no_carry_branches()
+                .iter()
+                .filter(|p| {
+                    Some(p.arms()[0].callable().item()) == inputs.function_item
+                        && p.branch().source_unit() == inputs.source_unit
+                })
+                .cloned()
+                .collect(),
             single_plans: super::single_receipt::Plans::new(inputs)?,
             multi_plans: super::multi_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,
@@ -978,47 +991,4 @@ impl Builder<'_, '_> {
 
 impl Builder<'_, '_> {
     // ---- statements ----
-
-    fn statement_inner(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
-        let node = self
-            .inputs
-            .parsed
-            .ast()
-            .statements()
-            .get(statement)
-            .map_err(|_| error(LoweringErrorKind::MissingFact, self.inputs.span))?;
-        let span = node.span();
-        match node.payload().clone() {
-            Statement::Block { elements }
-            | Statement::ControlBody { elements }
-            | Statement::LambdaBody { elements } => {
-                let mut last = Lowered::Unit;
-                let mut elements = elements.into_iter();
-                while let Some(element) = elements.next() {
-                    last = self.statement(element)?;
-                    if last == Lowered::Diverged {
-                        for skipped in elements {
-                            let span = self.statement_span(skipped)?;
-                            self.unreachable_drop_scopes.push(span);
-                        }
-                        return Ok(Lowered::Diverged);
-                    }
-                }
-                Ok(last)
-            }
-            Statement::Expression { expression } => self.expression(expression),
-            Statement::LocalVariable { declaration } => self.local_variable(declaration, span),
-            Statement::While {
-                condition, body, ..
-            } => self.while_loop(statement, condition, body, span),
-            Statement::Loop { body, .. } => self.loop_statement(statement, body, span),
-            Statement::For { source, body, .. } => {
-                self.for_statement(statement, source, body, span)
-            }
-            Statement::LocalDestructuring { initializer, .. } => {
-                self.local_destructuring(statement, initializer, span)
-            }
-            _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
-        }
-    }
 }

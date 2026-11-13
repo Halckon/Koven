@@ -16773,3 +16773,16 @@ Clippy、fmt、docs923、diff 和以 fbdaea63 为基线的 Rust 尺寸门禁通�
 
 本批仅前端闭合事实；后端 branch admission、双臂消费与独立 receipt/native 验证
 尚未实施，不把 FE 通过等同 E2 完成。相关 PR/CI 未由本地修改触发，未推送。
+
+### 受限循环双臂后端 SSA 首轮（2026-11-13）
+
+新增独立 branch admission，不将 arm 混入旧直线 loop API。每臂真实 lowering 后
+比较入口资源快照；独立 final-SSA 检查器核对两条 acquire/consumer/End 链、实际
+指令身份、CFG 边和参数运输，禁止新 loan 进入合流、回边或任意其他块。
+FE 必需 pair 清单、layout 选中清单和最终计划逐项核对，防止遗漏计划静默成功。
+statement dispatch 按职责从接近尺寸门禁的 build 模块移出，未增加尺寸豁免。
+
+首轮默认构建普通 SSA 测试 1/1 通过，覆盖 rooted/memory 输入和参数重排，并检查
+两臂不同 Loan、不同块以及各自实际 End。observer feature 对照、native 与完整
+Clippy 尚待本轮后续验证；CI-only 故障注入未在本地执行。此为局部闭合能力，
+不代表一般分支/跳转、多根/嵌套或 D10/E2 整体完成。未推送。

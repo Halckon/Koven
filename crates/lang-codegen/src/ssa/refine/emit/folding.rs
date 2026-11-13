@@ -64,5 +64,6 @@ pub(super) fn merge_straight_lines(
         body.multi_plans.fold(block, successor, span)?;
         body.loop_plans.fold(block, successor, span)?;
         body.fresh_loop_plans.fold(block, successor, span)?;
+        body.arm_loop_plans.fold(block, successor);
     }
 }
