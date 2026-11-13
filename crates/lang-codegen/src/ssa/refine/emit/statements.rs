@@ -228,6 +228,8 @@ impl LoanReceipts {
             .terminator(&body.loop_plans, function, target, current, span)?;
         self.fresh_loop
             .terminator(&body.fresh_loop_plans, function, target, current, span)?;
+        self.nested_resume
+            .terminator(function, target, current, span)?;
         self.nested
             .terminator(&body.nested_plans, function, target, current, span)?;
         self.bounded
@@ -633,7 +635,12 @@ impl Emitter<'_> {
 }
 
 #[cfg(test)]
-pub(super) fn inject_owner_final(body: &RefinedBody, function: &mut Function) {
+pub(super) fn inject_owner_final(
+    body: &RefinedBody,
+    function: &mut Function,
+    receipts: &LoanReceipts,
+) {
+    receipts.nested_resume.inject_header(function);
     crate::ssa::refine::nested_exit_receipt::inject_final(&body.nested_exit_plans, function);
     crate::ssa::refine::nested_resume_receipt::inject_final(&body.nested_resume_plans, function);
     crate::ssa::refine::nested_body_receipt::inject_final(&body.nested_body_plans, function);

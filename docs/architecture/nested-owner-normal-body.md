@@ -102,3 +102,11 @@ Alias 映射及原 Drop，随 fold 追踪位置，所有根终检成功后才记
 既有 false receipt 现补全具体退休出口参数 Value 的排他性：仅该参数定义、仅原
 Drop 使用一次、无指令重定义或 terminator 逃逸。live 根和同源码 symbol 的后续
 新 Value 不受限制，普通再赋值用例覆盖此区分；该规则仅用于当前受限 String 清理。
+
+
+父 header 的第一片独立检查位于 `nested_resume_receipt/header.rs`：仅当既有可选
+carry 的实际父 header 有入口与回边两个前驱时选中，捕获全部 header 槽和实际参数。
+每个前驱发射终止符时从当前槽映射逐项核对真实边实参，函数终检重查参数、完整前驱
+集合及每条边的完整向量；同类型换位也不能用类型相等放行。选中后缺项或额外前驱
+失败，不修改原 carry 或 generic verifier。这只是已捕获 CFG 的运输完整性，不等于
+前端父根不变量、父 false 资源分区或任意动态代际归纳；这些仍未实现。

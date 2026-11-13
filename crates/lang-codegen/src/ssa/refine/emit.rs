@@ -937,7 +937,7 @@ pub(super) fn emit(
         receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
     #[cfg(test)]
-    statements::inject_owner_final(body, emitter.function);
+    statements::inject_owner_final(body, emitter.function, &receipts);
     receipts.finish(body, emitter.function, span)?;
     Ok(())
 }

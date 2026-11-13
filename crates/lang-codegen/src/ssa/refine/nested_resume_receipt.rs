@@ -8,6 +8,7 @@ use crate::ssa::{
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::BTreeMap;
 mod carry;
+mod header;
 pub(super) use carry::{Carry, CarryChecked};
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)
@@ -62,6 +63,7 @@ impl Plans {
 }
 #[derive(Default)]
 pub(super) struct Emitted {
+    header_receipt: Option<header::Header>,
     checked: BTreeMap<BlockRef, (InstructionId, Operation)>,
     function: Option<FunctionId>,
     blocks: BTreeMap<BlockRef, BlockId>,
@@ -96,6 +98,12 @@ fn recheck_plan(body: &RefinedBody, p: &Plan, span: Span) -> Result<(), Lowering
     Ok(())
 }
 impl Emitted {
+    #[cfg(test)]
+    pub(super) fn inject_header(&self, function: &mut Function) {
+        if let Some(header) = &self.header_receipt {
+            header.inject(function);
+        }
+    }
     pub(super) fn layout(
         &mut self,
         body: &RefinedBody,
@@ -134,6 +142,8 @@ impl Emitted {
             self.inputs
                 .insert(b, *es.get(index).ok_or_else(|| invalid(span))?);
         }
+        self.header_receipt =
+            header::Header::select(body, p, function, blocks, slots, entities, span)?;
         self.function = Some(function.id());
         self.blocks = blocks.clone();
         self.slots = slots.clone();
@@ -216,6 +226,18 @@ impl Emitted {
                 self.drop = Some(id);
             }
             _ => return Err(invalid(span)),
+        }
+        Ok(())
+    }
+    pub(super) fn terminator(
+        &mut self,
+        function: &Function,
+        from: BlockId,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if let Some(header) = &mut self.header_receipt {
+            header.observe(function, from, current, span)?;
         }
         Ok(())
     }
@@ -330,6 +352,9 @@ impl Emitted {
                 (replace, new),
                 span,
             )?;
+        }
+        if let Some(header) = &self.header_receipt {
+            header.finish(function, span)?;
         }
         #[cfg(test)]
         super::build::owner_consumer_test_support::record_action(
