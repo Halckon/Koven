@@ -16744,3 +16744,16 @@ on/off 保持相同许可结果；同源仅共享外部 source，不共享 bindi
 仅普通源码含 Continue 的拒绝用例，不使用故障注入，不扩大 no-carry 许可。
 精确测试在默认和 `loan-observation-test-support` 两种构建各 1/1 通过；后者 all-target
 strict Clippy、fmt、docs922、diff 检查通过。本片仅本地提交，未推送。
+
+### 受限循环双臂 no-carry 实施合同（2026-11-13 用户批准）
+
+只选择函数直接 while body 中一个 if/else，条件为稳定 Boolean 参数；两臂各自
+执行已有直线单借用生命周期，来源必须为同一稳定外部 String Borrow 参数。
+每臂独立匹配实际 acquire、同步 consumer return、最后使用 End 和 scope close，
+恢复相同外部资源状态；合流及正常回边上本轮 loan 集合为空。不得用臂计数相同、
+单臂成功、observer marker 或有限轮样例代替两个独立闭合证明。
+
+拒绝跨臂 binding/loan、borrow phi、条件中的借用副作用、非正常跳转、嵌套分支或
+循环、多根借用、跨轮携带和任一未闭合状态。保留 Single/Unit、observer-off 一致，
+整体失败撤销所有能力。新双臂事实不能冒充既有直线 loop fact，codegen 独立收据
+尚未落地前不得声称端到端完成。本地仅执行普通测试；真实故障注入仅 CI。
