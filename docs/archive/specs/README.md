@@ -564,3 +564,4 @@
 - [SPEC-0420](0420-refine-support-verify-receipt-and-drops-shells-retirement.md)：`lowering_support`、`integer`、`verify_ownership/reborrow`、`refine` 接收者/借用凭证及 `lower_frontend/drops` 壳子模块退役。
 - [SPEC-0419](0419-refine-lower-frontend-and-map-iteration-shells-retirement.md)：`lower_frontend` 绑定、非空断言、Map 结果/资源析构与 `map_iteration` 壳子模块退役。
 - [SPEC-0418](0418-refine-receipt-subset-and-frontend-shells-retirement.md)：`refine` 借用凭证/准入壳模块及 `lower_frontend` 守卫/容器/闭包壳子模块退役。
+- [SPEC-0417](0417-refine-verify-render-and-build-shells-retirement.md)：`verify`、`render`、`verify_operation`、`verify_ownership` 及 `refine/build` 壳子模块退役。

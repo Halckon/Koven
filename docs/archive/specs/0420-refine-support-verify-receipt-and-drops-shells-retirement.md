@@ -11,7 +11,7 @@
 | 批准依据 | 用户指示继续下一批批量实施 |
 | 基线 | [SPEC-0419](0419-refine-lower-frontend-and-map-iteration-shells-retirement.md)（`2e003c05`） |
 | 分支 | `feature/spec-0420-refine-support-verify-receipt-and-drops-shells-retirement` |
-| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0416](../../specs/active/0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)、[SPEC-0417](../../specs/active/0417-refine-verify-render-and-build-shells-retirement.md)、[SPEC-0418](0418-refine-receipt-subset-and-frontend-shells-retirement.md)、[SPEC-0419](0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
+| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0416](../../specs/active/0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)、[SPEC-0417](0417-refine-verify-render-and-build-shells-retirement.md)、[SPEC-0418](0418-refine-receipt-subset-and-frontend-shells-retirement.md)、[SPEC-0419](0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

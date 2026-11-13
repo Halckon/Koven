@@ -9,9 +9,9 @@
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户指示继续一次推进多批 |
-| 基线 | [SPEC-0417](../../specs/active/0417-refine-verify-render-and-build-shells-retirement.md)（`15d39035`） |
+| 基线 | [SPEC-0417](0417-refine-verify-render-and-build-shells-retirement.md)（`15d39035`） |
 | 分支 | `feature/spec-0418-refine-receipt-subset-and-frontend-shells-retirement` |
-| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0409](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md)、[SPEC-0410](../../specs/active/0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)、[SPEC-0415](../../specs/active/0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md)、[SPEC-0416](../../specs/active/0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)、[SPEC-0417](../../specs/active/0417-refine-verify-render-and-build-shells-retirement.md) |
+| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0409](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md)、[SPEC-0410](../../specs/active/0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)、[SPEC-0415](../../specs/active/0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md)、[SPEC-0416](../../specs/active/0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)、[SPEC-0417](0417-refine-verify-render-and-build-shells-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
