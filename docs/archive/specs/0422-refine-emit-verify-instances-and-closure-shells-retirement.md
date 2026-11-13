@@ -12,7 +12,7 @@
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0421](../../specs/active/0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md)，`crates/lang-codegen/src/ssa` 下仍有一批薄壳子模块可内联收敛至宿主或同层兄弟模块，且合并后全部非豁免文件均保持在 1000 行阈值以内：
+紧接 [SPEC-0421](0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md)，`crates/lang-codegen/src/ssa` 下仍有一批薄壳子模块可内联收敛至宿主或同层兄弟模块，且合并后全部非豁免文件均保持在 1000 行阈值以内：
 
 1. `refine/emit/statements.rs`（150 行）-> 并入 `refine.rs`（635 行）；
 2. `single_readonly_method_boundaries.rs`（153 行）-> 并入 `single_readonly_method_tests.rs`（645 行）；
