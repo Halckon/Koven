@@ -1,15 +1,15 @@
 # SPEC-0448: `map_provider_exits_pipeline_tests` 测试域叶子薄壳子模块批量退役（132 个）
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0448 |
 | 标题 | `map_provider_exits_pipeline_tests` 测试域叶子薄壳子模块批量退役（132 个） |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-04-17 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-13 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -166,3 +166,25 @@
 
 1. 上述 132 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `2069` 降至 `1937`。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 132 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：132/132 个路径不存在 |
+| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 124/132 个目标路径在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 `完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored` 与 feature 套件 `3117 passed / 0 failed / 1 ignored` 覆盖全部 132 个被折叠模块的测试；本 Spec 未另跑独立定向重跑` |
+
+宿主核对说明：
+
+- `ssa/map_provider_exits_pipeline_tests/local_reassignment/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/root_primitive_lower_tests.rs`（`829` 行）
+- `ssa/map_provider_exits_pipeline_tests/local_resource_future/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/named_literal_mapping_tests.rs`（`493` 行）
+- `ssa/map_provider_exits_pipeline_tests/local_resources/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/local_resources.rs`（`268` 行）
+- `ssa/map_provider_exits_pipeline_tests/local_resources/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/refine/subset.rs`（`418` 行）
+- `ssa/map_provider_exits_pipeline_tests/scope_lambda_body/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/support.rs`（`204` 行）
+- `ssa/map_provider_exits_pipeline_tests/scope_value_births/conditional_owner_observer/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/support.rs`（`708` 行）
+- `ssa/map_provider_exits_pipeline_tests/scope_value_births/int_storage/facts.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/support.rs`（`204` 行）
+- `ssa/map_provider_exits_pipeline_tests/sequential/identity.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_provider_pipeline_tests/query_ssa.rs`（`164` 行）

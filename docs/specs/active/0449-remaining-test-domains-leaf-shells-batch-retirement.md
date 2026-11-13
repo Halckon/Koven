@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0448](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) 完成 `map_provider_exits_pipeline_tests` 域 132 个叶子薄壳批量收敛后，`crates/lang-codegen/src/ssa/` 其余测试域（`map_iteration_stage_gate_tests`、`map_provider_pipeline_tests`、`nullable_map_consume_lowering_tests`、`while_flow_tests`、`unit_plan_tests`、`closure_operation_tests`、`numeric_iteration_tests`、`string_operation_tests`、`integer_range_value_tests`、`lower_frontend_tests`、`lower_frontend_map_loop_tests` 等）仍残留 42 个可直接内联回直接父模块的叶子薄壳文件（各宿主合并后均严格低于 985 行）。本 Spec 一次性将其全部收敛回各自父模块。
+在 [SPEC-0448](../../archive/specs/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) 完成 `map_provider_exits_pipeline_tests` 域 132 个叶子薄壳批量收敛后，`crates/lang-codegen/src/ssa/` 其余测试域（`map_iteration_stage_gate_tests`、`map_provider_pipeline_tests`、`nullable_map_consume_lowering_tests`、`while_flow_tests`、`unit_plan_tests`、`closure_operation_tests`、`numeric_iteration_tests`、`string_operation_tests`、`integer_range_value_tests`、`lower_frontend_tests`、`lower_frontend_map_loop_tests` 等）仍残留 42 个可直接内联回直接父模块的叶子薄壳文件（各宿主合并后均严格低于 985 行）。本 Spec 一次性将其全部收敛回各自父模块。
 
 ---
 
