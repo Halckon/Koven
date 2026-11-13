@@ -1,5 +1,6 @@
 {
   "lang-frontend": [
+    "ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::loops::counter_segment::entry::tests::ci_only_bridge_scalar_entry_requires_actual_ordered_completion",
     "ownership_checking::loop_no_carry::tests::foreign_end_missing_precleanup_or_normal_edge_revokes_capability",
     "ownership_checking::loop_no_carry::tests::missing_actual_acquire_release_return_never_grants_core_authority",
     "ownership_checking::research_borrow_consumer_body::tests::body_consumer_requires_every_actual_acquisition_and_ordered_operand",

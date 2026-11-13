@@ -43,6 +43,13 @@ class FakeRunner:
 
 
 class BorrowFaultGateTests(unittest.TestCase):
+    def test_legacy_scalar_entry_is_in_full_frontend_inventory(self):
+        manifest = GATE.load_manifest(GATE.ROOT / "scripts/borrow_fault_tests.json")
+        target = ("ownership_checking::compilation_unit::dataflow::drop_planner::"
+                  "owner_transport::loops::counter_segment::entry::tests::"
+                  "ci_only_bridge_scalar_entry_requires_actual_ordered_completion")
+        self.assertIn(target, manifest["lang-frontend"])
+
     def test_local_execution_refused_before_any_subprocess(self):
         for env in ({}, {"CI": "true"}, {"GITHUB_ACTIONS": "true"},
                     {"CI": "True", "GITHUB_ACTIONS": "true"}):
