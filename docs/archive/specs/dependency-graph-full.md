@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，359 份）"]
+subgraph Garchive["已完成（archive，360 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -368,6 +368,7 @@ subgraph Garchive["已完成（archive，359 份）"]
   S0442["S0442<br/>range_lowering_tests、unit_lower_container_tests、unit_plan_tests、borrowed_generate_tests 及 source_forms 子壳模块退役"]
   S0443["S0443<br/>owned_source_return、range_lowering_tests、local_arguments、nested 及 temporary_exits 子壳模块退役"]
   S0444["S0444<br/>loan_region_ssa_tests 下观察器、接收者、具名借用、临时借用兄弟及有限字面量测试壳子模块退役"]
+  S0445["S0445<br/>loan_region_ssa_tests 下临时借用、绑定凭证、父子探针、多临时乘积及 range_lowering_tests/view_source 壳子模块退役"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -433,7 +434,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0445["S0445<br/>loan_region_ssa_tests 下临时借用、绑定凭证、父子探针、多临时乘积及 range_lowering_tests/view_source 壳子模块退役"]
   S0446["S0446<br/>range_lowering_tests 下局部控制流、断言、支撑、比较边界及接收者测试壳子模块退役"]
   S0447["S0447<br/>unit_lower_receiver_tests、sequential_for_lowering_tests、nullable_operation_tests、unit_enum_regression_tests 及 lowering_entry_contract_tests 子壳模块退役"]
   S0448["S0448<br/>map_provider_exits_pipeline_tests 测试域叶子薄壳子模块批量退役（132 个）"]
@@ -1880,6 +1880,7 @@ S0366 --> S0367
 | SPEC-0442 | archive | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
 | SPEC-0443 | archive | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |
 | SPEC-0444 | archive | [0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md](0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) |
+| SPEC-0445 | archive | [0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md](0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -1943,7 +1944,6 @@ S0366 --> S0367
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](../../specs/active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](../../specs/active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0445 | active | [0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md](../../specs/active/0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) |
 | SPEC-0446 | active | [0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md](../../specs/active/0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md) |
 | SPEC-0447 | active | [0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md](../../specs/active/0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) |
 | SPEC-0448 | active | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](../../specs/active/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |

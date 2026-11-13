@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0445](0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) 完成 `loan_region_ssa_tests` 及 `range_lowering_tests/view_source` 收敛后，`crates/lang-codegen/src/ssa/range_lowering_tests/` 下仍残留一批局部控制流、比较边界与接收者薄壳测试模块：
+在 [SPEC-0445](../../archive/specs/0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) 完成 `loan_region_ssa_tests` 及 `range_lowering_tests/view_source` 收敛后，`crates/lang-codegen/src/ssa/range_lowering_tests/` 下仍残留一批局部控制流、比较边界与接收者薄壳测试模块：
 
 1. `ssa/range_lowering_tests/local_control_ownership.rs`（264 行）：直接内联回 `ssa/range_lowering_tests/local_control.rs`。
 2. `ssa/range_lowering_tests/local_control_boundary.rs`（247 行）：直接内联回 `ssa/range_lowering_tests/local_control.rs`。
