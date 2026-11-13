@@ -17391,4 +17391,7 @@ continuation），0 passed/1 failed。这不是故障注入；普通后端验收
 tail-break前缀域，已以expected initializer精确匹配和旧域发布限定None修正，
 并新增普通拒绝回归；Single/Unit初始化事件另加单调失效保护，后者不是已证
 合法源码漏洞。最终复审未发现其他确定遗漏。此前核心普通正/拒绝各1/1通过，
-这些最终修复的精确回归和严格Clippy仍待执行，不能沿用此前绿灯冒充最终验收。
+最终修复已重新精确执行6个普通测试全通过（新组合2、旧域init扩张拒绝1、旧
+prefix/counter-break/counter各1），observer-support all-target严格Clippy通过。
+`7bdab837` 将statement调度机械拆出以保持尺寸预算；独审确认调用顺序与分支
+不变，尺寸门禁通过。后端组合实际receipt与新native仍待接通验证。
