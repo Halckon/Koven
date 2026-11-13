@@ -154,16 +154,8 @@ pub(super) fn build(
             loop_plans: super::loop_receipt::Plans::new(inputs)?,
             fresh_loop_plans: super::fresh_loop_receipt::Plans::new(inputs, types)?,
             arm_loop_plans: super::arm_loop_receipt::Plans::new(inputs)?,
-            arm_loop_required: inputs
-                .owned
-                .no_carry_branches()
-                .iter()
-                .filter(|p| {
-                    Some(p.arms()[0].callable().item()) == inputs.function_item
-                        && p.branch().source_unit() == inputs.source_unit
-                })
-                .cloned()
-                .collect(),
+            arm_loop_required: super::arm_loop_receipt::Plans::required(inputs),
+            arm_counter_required: super::arm_loop_receipt::Plans::required_counters(inputs),
             single_plans: super::single_receipt::Plans::new(inputs)?,
             multi_plans: super::multi_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,

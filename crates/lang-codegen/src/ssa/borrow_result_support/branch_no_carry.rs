@@ -13,12 +13,10 @@ pub(in crate::ssa) fn admitted(
     owned: &CompilationUnitOwnership,
     binding: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> Option<(StatementId, ExpressionId)> {
-    let mut selected = owned
-        .no_carry_branches()
-        .iter()
-        .filter(|p| p.arms().iter().any(|a| a.binding() == binding.binding()));
+    let mut selected =
+        pairs(owned).filter(|p| p.arms().iter().any(|a| a.binding() == binding.binding()));
     let pair = selected.next()?;
-    if selected.next().is_some() || !owned.owns_no_carry_branch(pair) {
+    if selected.next().is_some() || !owns_pair(owned, pair) {
         return None;
     }
     let branch = file
@@ -74,4 +72,24 @@ pub(in crate::ssa) fn admitted(
         pair.arms()[0].loop_statement().statement(),
         pair.branch().expression(),
     ))
+}
+
+/// Internal mechanical traversal; the frontend public capability domains stay separate.
+pub(in crate::ssa) fn pairs(
+    owned: &CompilationUnitOwnership,
+) -> impl Iterator<Item = &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact> {
+    owned
+        .no_carry_branches()
+        .iter()
+        .chain(owned.no_carry_counter_branches().iter().map(|f| f.pair()))
+}
+pub(in crate::ssa) fn owns_pair(
+    owned: &CompilationUnitOwnership,
+    pair: &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact,
+) -> bool {
+    owned.owns_no_carry_branch(pair)
+        || owned
+            .no_carry_counter_branches()
+            .iter()
+            .any(|f| owned.owns_no_carry_counter_branch(f) && f.pair().same_identity(pair))
 }

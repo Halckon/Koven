@@ -2,10 +2,15 @@
 use super::*;
 use crate::ssa::model::{Edge, Operation, Origin, PlaceAccess, TerminatorKind};
 impl Emitted {
-    fn block(&self, b: BlockRef, s: Span) -> Result<BlockId, LoweringError> {
+    pub(super) fn block(&self, b: BlockRef, s: Span) -> Result<BlockId, LoweringError> {
         self.blocks.get(&b).copied().ok_or_else(|| invalid(s))
     }
-    fn entity(&self, b: BlockRef, slot: Slot, s: Span) -> Result<EntityId, LoweringError> {
+    pub(super) fn entity(
+        &self,
+        b: BlockRef,
+        slot: Slot,
+        s: Span,
+    ) -> Result<EntityId, LoweringError> {
         let i = self
             .parameters
             .get(&b)
@@ -17,7 +22,7 @@ impl Emitted {
             .copied()
             .ok_or_else(|| invalid(s))
     }
-    fn edges<'a>(
+    pub(super) fn edges<'a>(
         &self,
         f: &'a Function,
         b: BlockRef,
@@ -38,7 +43,7 @@ impl Emitted {
             _ => Err(invalid(s)),
         }
     }
-    fn links(
+    pub(super) fn links(
         &self,
         f: &Function,
         from: BlockRef,
@@ -68,7 +73,7 @@ impl Emitted {
         }
         Ok(())
     }
-    fn incoming(
+    pub(super) fn incoming(
         &self,
         f: &Function,
         to: BlockRef,
@@ -96,7 +101,12 @@ impl Emitted {
         }
         Ok(())
     }
-    fn ids(&self, f: &Function, b: BlockRef, s: Span) -> Result<Vec<InstructionId>, LoweringError> {
+    pub(super) fn ids(
+        &self,
+        f: &Function,
+        b: BlockRef,
+        s: Span,
+    ) -> Result<Vec<InstructionId>, LoweringError> {
         let ids = self
             .instructions
             .iter()
@@ -112,7 +122,7 @@ impl Emitted {
         }
         Ok(ids)
     }
-    fn condition(
+    pub(super) fn condition(
         &self,
         parameters: &[Slot],
         f: &Function,
@@ -199,38 +209,42 @@ impl Emitted {
         if split != actual_split || source != parameters[p.roles[0]] || then_block == else_block {
             return Err(invalid(s));
         }
-        self.links(f, entry, &[header], s)?;
-        self.links(f, header, &[split, finished], s)?;
-        self.links(f, split, &[then_block, else_block], s)?;
-        self.links(f, then_block, &[join], s)?;
-        self.links(f, else_block, &[join], s)?;
-        self.links(f, join, &[header], s)?;
-        self.incoming(f, header, &[entry, join], s)?;
-        self.incoming(f, split, &[header], s)?;
-        self.incoming(f, then_block, &[split], s)?;
-        self.incoming(f, else_block, &[split], s)?;
-        self.incoming(f, join, &[then_block, else_block], s)?;
-        self.incoming(f, finished, &[header], s)?;
-        if finished != exit {
-            self.links(f, finished, &[exit], s)?;
-            self.incoming(f, exit, &[finished], s)?;
-        }
-        // Local arm results must never enter another block's parameters, including loop reentry.
-        for b in [header, split, then_block, else_block, join, finished, exit] {
-            if self
-                .parameters
-                .get(&b)
-                .ok_or_else(|| invalid(s))?
-                .iter()
-                .any(|slot| !parameters.contains(slot))
-            {
+        if p.counter.is_some() {
+            self.validate_counter(parameters, f, p, s)?;
+        } else {
+            self.links(f, entry, &[header], s)?;
+            self.links(f, header, &[split, finished], s)?;
+            self.links(f, split, &[then_block, else_block], s)?;
+            self.links(f, then_block, &[join], s)?;
+            self.links(f, else_block, &[join], s)?;
+            self.links(f, join, &[header], s)?;
+            self.incoming(f, header, &[entry, join], s)?;
+            self.incoming(f, split, &[header], s)?;
+            self.incoming(f, then_block, &[split], s)?;
+            self.incoming(f, else_block, &[split], s)?;
+            self.incoming(f, join, &[then_block, else_block], s)?;
+            self.incoming(f, finished, &[header], s)?;
+            if finished != exit {
+                self.links(f, finished, &[exit], s)?;
+                self.incoming(f, exit, &[finished], s)?;
+            }
+            // Local arm results must never enter another block's parameters, including loop reentry.
+            for b in [header, split, then_block, else_block, join, finished, exit] {
+                if self
+                    .parameters
+                    .get(&b)
+                    .ok_or_else(|| invalid(s))?
+                    .iter()
+                    .any(|slot| !parameters.contains(slot))
+                {
+                    return Err(invalid(s));
+                }
+            }
+            self.condition(parameters, f, p, 0, s)?;
+            self.condition(parameters, f, p, 1, s)?;
+            if !self.ids(f, join, s)?.is_empty() || !self.ids(f, finished, s)?.is_empty() {
                 return Err(invalid(s));
             }
-        }
-        self.condition(parameters, f, p, 0, s)?;
-        self.condition(parameters, f, p, 1, s)?;
-        if !self.ids(f, join, s)?.is_empty() || !self.ids(f, finished, s)?.is_empty() {
-            return Err(invalid(s));
         }
         let mut results = Vec::new();
         for (index, b) in [then_block, else_block].into_iter().enumerate() {

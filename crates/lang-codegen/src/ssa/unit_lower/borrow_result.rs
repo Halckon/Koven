@@ -397,6 +397,17 @@ fn validate_binding(
         allowed_controls
             .get_or_insert_with(Default::default)
             .insert(control.index());
+        // Only the separately owned bounded fact admits its exact guard/update.
+        // Other binary expressions retain the ordinary borrow-binding frontier.
+        for counter in owned.no_carry_counter_branches().iter().filter(|c| {
+            owned.owns_no_carry_counter_branch(c)
+                && c.pair().branch().expression() == control
+                && c.pair().branch().source_unit() == fact.binding().source_unit()
+        }) {
+            let allowed = allowed_controls.get_or_insert_with(Default::default);
+            allowed.insert(counter.condition().expression().index());
+            allowed.insert(counter.decrement().expression().index());
+        }
     }
     let no_carry = crate::ssa::borrow_result_support::no_carry::admitted(file, owned, fact);
     let no_carry_siblings =

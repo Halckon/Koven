@@ -39,9 +39,9 @@ API。builder 在真实 arm lowering 与 drop 后比较入口资源快照；缺�
 成功才发布，失败清空本轮 pending。CI-only 五项精确入口复用 borrowing fault runner
 与 macOS/Linux 矩阵；默认 ignored、GITHUB_ACTIONS 门控，本地只编译列举。
 
-## 正轮 native 的当前限制
+## 旧稳定 Boolean 域的正轮 native 限制
 
-现有 selector 要求 while 条件为稳定 Boolean 值参数的 Name；body 必须只有一个
+旧稳定 Boolean selector 要求 while 条件为稳定 Boolean 值参数的 Name；body 必须只有一个
 if/else，每臂仅借用声明和 String Borrow 同步 consumer。赋值、局部可变条件、
 计数器条件、break/return 均不属于此形状。`flag=false` 是零轮；`flag=true` 时，
 只要 consumer 正常返回，下一轮条件仍为 true，因此不存在正轮后正常有限返回路径。
@@ -49,7 +49,7 @@ if/else，每臂仅借用声明和 String Borrow 同步 consumer。赋值、局�
 
 普通边界回归 `ordinary_loop_arm_finite_exit_candidates_remain_outside_selected_shape`
 核可变局部 flag、递减计数器、合流后 break 均拒绝且不发布双臂事实；沿用 Single/Unit、
-rooted/memory、真实 observer on/off 对照。有限正轮需要另行批准更宽的退出形状。
+rooted/memory、真实 observer on/off 对照。该旧域仍不放宽；另行批准的有界 counter 域见下节。
 
 ## 有界 counter 的独立前端事实
 
@@ -60,3 +60,16 @@ counter 选择器另核紧邻的 `var remaining=rounds`、`remaining>0` 与唯�
 `no_carry_counter_branches()` 独立保存 counter/init/condition/update 身份及双臂事实，
 旧 `no_carry_branches()` 不列出该 pair；全局失败同时清空新旧领域。此为前端资源
 闭合，不等于后端条件/递减/checked-abort/回边 receipt 或真实 native 0/1/2 轮验收。
+
+## 有界 counter 的后端与普通 native 证据
+
+后端通过新 owned counter fact 的精确 condition/decrement 身份开放入口，不开放一般
+binary 或旧事实域。独立收据核真实初始化 Alias、Borrow rounds Read 或 Own value、
+header 的零常量和 GreaterThan、合流后 CheckedArithmetic Subtract、成功回边的 Alias、
+对应失败 Abort 和完整前驱/参数运输；每臂借用链及 fresh loan 不逃逸仍独立核验。
+实际 checked subtract 保留 success/Abort 双边，不把静态有界性当作省略错误边的理由。
+
+普通 SSA 覆盖 Borrow/Own rounds 与 rooted/memory，产物通过 verifier 且独立收据可
+重放。普通 native 真正运行 0/1/2 轮与 true/false 两臂，验证不同长度 consumer 输出，
+每次返回后 source 可读且最终可 own 消费。零轮与正轮分别有输出标记，不用超时、
+强制退出或修改 SSA 代替有限正轮。跳转、嵌套、多根及跨轮 loan 携带仍未纳入。

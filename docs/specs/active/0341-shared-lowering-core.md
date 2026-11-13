@@ -16892,3 +16892,24 @@ Clippy 与前端 check 通过。独立静审要求显式排除 Inout rounds，�
 最终追加验证：显式 Borrow/Own 模式门禁与 Inout 拒绝回归落地，observer-support
 普通 counter 矩阵 3/3 通过（真实 observation on/off）；all-target strict Clippy 复核
 通过。Unit 模式使用函数参数 ownership descriptor，而非仅供 lambda 的 body-mode表。
+
+### 有界 counter 后端与真实正轮实施（2026-11-13）
+
+独立 counter 必需清单与选中身份现贯通 builder/layout/final receipt；入口只放行
+新 owned fact 的精确 guard/decrement，不一般性放宽 borrow binding 的 binary 门禁。
+实际 init/update Alias、header Compare、checked Subtract 与对应 success/Abort、
+位置一致的参数运输和回边逐项核验；逐臂借用链、End 与新 loan 不逃逸检查继续独立。
+收据仍可脱离 builder 重放，whole-unit verifier 成功前不发布。
+
+普通红基线先在旧实现得到 L0164；新 FE 集成后的首次后端测试因旧 binary 门禁得到
+UnsupportedNode，定位并补精确事实入口后转绿。普通 SSA 1/1 覆盖 Borrow/Own rounds
+与 rooted/memory，包含 verifier 与独立收据重放。native 1/1 实际运行 rounds=0/1/2
+与 choose=true/false，核不同长度 consumer 输出、每次正常返回后的 source 可读与
+最终 own 消费。不是零轮替代正轮，也未运行本地故障注入；无跳转/嵌套/多根扩张。
+
+最终补充验证：真实 observer on/off 普通 SSA 1/1、既有 no-carry 普通回归 12/12
+（含旧 Boolean 双臂、直线、同源 sibling 与 native）通过；codegen all-target
+strict Clippy、fmt、docs923 与 Rust 尺寸门禁通过。独立只读复审未见确定阻断；
+Own 参数不可重绑定由两 checker 的 mutability 门禁保证，counter 引用仍严格白名单。
+counter 专属故障矩阵尚待后续单独补齐，旧 Boolean CI 矩阵不能冒称覆盖新域；本轮
+未推送、未执行任何本地故障注入，远端双宿主验收仍待执行。

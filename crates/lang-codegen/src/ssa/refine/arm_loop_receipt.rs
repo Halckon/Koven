@@ -6,7 +6,9 @@ use crate::ssa::{
     model::{BlockId, EntityId, Function, FunctionId, InstructionId},
 };
 use lang_frontend::{
-    ownership_checking::{UnitDropPoint, UnitLoopBranchNoCarryFact},
+    ownership_checking::{
+        UnitDropPoint, UnitLoopBranchNoCarryFact, UnitLoopCounterBranchNoCarryFact,
+    },
     parser::{Expression, Statement},
     source::Span,
     type_checking::{ParameterMode, UnitCallTarget, UnitExpressionId},
@@ -14,6 +16,9 @@ use lang_frontend::{
 use std::collections::BTreeMap;
 #[cfg(test)]
 mod ci_tests;
+mod counter;
+mod counter_hooks;
+mod counter_validation;
 #[cfg(test)]
 mod publication;
 mod validation;
@@ -34,6 +39,8 @@ struct Arm {
 pub(super) struct Plan {
     pub(super) fact: UnitLoopBranchNoCarryFact,
     arms: [Arm; 2],
+    counter: Option<counter::Counter>,
+    counter_fact: Option<UnitLoopCounterBranchNoCarryFact>,
     conditions: [UnitExpressionId; 2],
     condition_spans: [Span; 2],
     roles: [usize; 3],
@@ -50,12 +57,14 @@ pub(super) struct Plans {
 impl Plans {
     pub(super) fn new(inputs: &RefineInputs<'_>) -> Result<Self, LoweringError> {
         let mut loops = Vec::new();
-        for fact in inputs.owned.no_carry_branches().iter().filter(|p| {
-            Some(p.arms()[0].callable().item()) == inputs.function_item
-                && p.branch().source_unit() == inputs.source_unit
-        }) {
+        for fact in
+            crate::ssa::borrow_result_support::branch_no_carry::pairs(inputs.owned).filter(|p| {
+                Some(p.arms()[0].callable().item()) == inputs.function_item
+                    && p.branch().source_unit() == inputs.source_unit
+            })
+        {
             let fail = || invalid(inputs.span);
-            if !inputs.owned.owns_no_carry_branch(fact) {
+            if !crate::ssa::borrow_result_support::branch_no_carry::owns_pair(inputs.owned, fact) {
                 return Err(fail());
             }
             let Expression::If {
@@ -88,6 +97,23 @@ impl Plans {
             else {
                 return Err(fail());
             };
+            let counter_fact = inputs
+                .owned
+                .no_carry_counter_branches()
+                .iter()
+                .find(|c| c.pair().same_identity(fact))
+                .cloned();
+            if counter_fact
+                .as_ref()
+                .is_some_and(|c| c.condition().expression() != *outer)
+            {
+                return Err(fail());
+            }
+            let counter = counter_fact
+                .as_ref()
+                .map(|c| Self::counter_spec(inputs, c))
+                .transpose()?
+                .map(counter::Counter::new);
             let mut role = Vec::new();
             role.push(
                 inputs
@@ -96,7 +122,11 @@ impl Plans {
                     .position(|p| *p == fact.arms()[0].source())
                     .ok_or_else(fail)?,
             );
-            for expr in [outer, condition] {
+            let initial = counter_fact
+                .as_ref()
+                .map(|c| c.initializer().expression())
+                .unwrap_or(*outer);
+            for expr in [&initial, condition] {
                 let node = inputs
                     .parsed
                     .ast()
@@ -117,6 +147,14 @@ impl Plans {
                         .position(|p| p == symbol)
                         .ok_or_else(fail)?,
                 );
+            }
+            if counter_fact.is_some()
+                && !matches!(
+                    inputs.modes.get(role[1]),
+                    Some(ParameterMode::Borrow | ParameterMode::Value)
+                )
+            {
+                return Err(fail());
             }
             if inputs.modes.get(role[0]) != Some(&ParameterMode::Borrow) {
                 return Err(fail());
@@ -183,6 +221,8 @@ impl Plans {
             loops.push(Plan {
                 fact: fact.clone(),
                 arms,
+                counter,
+                counter_fact,
                 conditions: [
                     UnitExpressionId::new(inputs.source_unit, *outer),
                     UnitExpressionId::new(inputs.source_unit, *condition),
@@ -267,8 +307,11 @@ impl Plans {
         }
         Ok(())
     }
-    pub(super) fn fold(&mut self, block: BlockRef, successor: BlockRef) {
+    pub(super) fn fold(&mut self, block: BlockRef, successor: BlockRef, offset: usize) {
         for p in &mut self.loops {
+            if let Some(c) = &mut p.counter {
+                c.fold(block, successor, offset);
+            }
             if let Some(bs) = &mut p.blocks {
                 for b in bs {
                     if *b == successor {
@@ -297,6 +340,8 @@ impl Plans {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Emitted {
     selected: Vec<UnitLoopBranchNoCarryFact>,
+    counter_selected: Vec<UnitLoopCounterBranchNoCarryFact>,
+    aliases: BTreeMap<(BlockRef, usize), (Slot, Slot, EntityId)>,
     blocks: BTreeMap<BlockRef, BlockId>,
     parameters: BTreeMap<BlockRef, Vec<Slot>>,
     entities: BTreeMap<BlockRef, Vec<EntityId>>,
@@ -321,6 +366,7 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
+        self.check_counter_required(body, span)?;
         if body.arm_loop_required.is_empty() {
             return Ok(());
         }
@@ -328,6 +374,9 @@ impl Emitted {
             return Err(invalid(span));
         }
         for p in &body.arm_loop_plans.loops {
+            if let Some(c) = &p.counter {
+                c.ready(span)?;
+            }
             if p.blocks.is_none()
                 || p.split.is_none()
                 || p.join.is_none()
@@ -343,6 +392,7 @@ impl Emitted {
             .iter()
             .map(|p| p.fact.clone())
             .collect();
+        self.counter_selected = body.arm_counter_required.clone();
         self.blocks = blocks.clone();
         self.parameters = parameters.clone();
         self.entities = entities.clone();
@@ -387,6 +437,16 @@ impl Emitted {
     ) -> Result<(), LoweringError> {
         #[cfg(test)]
         publication::before_finish(&mut self);
+        self.check_counter_required(body, span)?;
+        if self.counter_selected.len() != body.arm_counter_required.len()
+            || self
+                .counter_selected
+                .iter()
+                .zip(&body.arm_counter_required)
+                .any(|(a, b)| !a.same_identity(b))
+        {
+            return Err(invalid(span));
+        }
         if self.selected.len() != body.arm_loop_plans.loops.len()
             || self
                 .selected
@@ -423,7 +483,21 @@ pub(crate) struct Receipt {
 }
 impl Receipt {
     pub(crate) fn validate(&self, function: &Function) -> Result<(), LoweringError> {
-        if function.id != self.caller {
+        if function.id != self.caller
+            || !self
+                .evidence
+                .selected
+                .iter()
+                .any(|f| f.same_identity(&self.plan.fact))
+            || self.plan.counter.is_some() != self.plan.counter_fact.is_some()
+            || self.plan.counter_fact.as_ref().is_some_and(|f| {
+                !self
+                    .evidence
+                    .counter_selected
+                    .iter()
+                    .any(|p| p.same_identity(f))
+            })
+        {
             return Err(invalid(self.span));
         }
         self.evidence

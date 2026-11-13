@@ -317,6 +317,7 @@ impl Builder<'_, '_> {
         self.sync_dead();
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: slot }, vec![binding], span)?;
+        self.arm_counter_alias(symbol, value, slot, binding, false, span)?;
         self.narrowed.remove(&symbol);
         Ok(Lowered::Unit)
     }
@@ -917,6 +918,7 @@ pub(in crate::ssa::refine::build) mod field {
                 crate::ssa::model::EntityType::Value(ty),
                 span,
             )?;
+            self.arm_counter_alias(symbol, initializer, value, binding, true, span)?;
             self.counter_binding_emitted(counter, binding, span)?;
             self.bridge_emitted(bridge, Some(binding), span)?;
             self.bridge_suffix_emitted(suffix, Some(binding), span)?;

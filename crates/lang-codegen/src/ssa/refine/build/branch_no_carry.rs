@@ -13,7 +13,7 @@ impl Builder<'_, '_> {
         proof: &UnitLoopBranchNoCarryFact,
         span: Span,
     ) -> Result<BranchLease, LoweringError> {
-        if !self.inputs.owned.owns_no_carry_branch(proof)
+        if !crate::ssa::borrow_result_support::branch_no_carry::owns_pair(self.inputs.owned, proof)
             || !self.borrowed.contains_key(&proof.arms()[0].source())
             || !self.pending_call_loans.is_empty()
             || proof.arms().iter().any(|p| {
@@ -36,12 +36,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Option<BranchLease>, LoweringError> {
         let id = UnitStatementId::new(self.inputs.source_unit, statement);
-        let mut selected = self
-            .inputs
-            .owned
-            .no_carry_branches()
-            .iter()
-            .filter(|p| p.arms()[0].loop_statement() == id);
+        let mut selected =
+            crate::ssa::borrow_result_support::branch_no_carry::pairs(self.inputs.owned)
+                .filter(|p| p.arms()[0].loop_statement() == id);
         let Some(p) = selected.next() else {
             return Ok(None);
         };
@@ -56,12 +53,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Option<BranchLease>, LoweringError> {
         let id = self.unit(expression);
-        let mut selected = self
-            .inputs
-            .owned
-            .no_carry_branches()
-            .iter()
-            .filter(|p| p.branch() == id);
+        let mut selected =
+            crate::ssa::borrow_result_support::branch_no_carry::pairs(self.inputs.owned)
+                .filter(|p| p.branch() == id);
         let Some(p) = selected.next() else {
             return Ok(None);
         };
@@ -115,5 +109,38 @@ impl Builder<'_, '_> {
         );
         p.blocks = Some(blocks);
         Ok(())
+    }
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn arm_counter_alias(
+        &mut self,
+        symbol: UnitSymbolId,
+        expression: ExpressionId,
+        input: Slot,
+        output: Slot,
+        initial: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let block = self.current(span)?;
+        let index = self.body.blocks[block.0]
+            .statements
+            .len()
+            .checked_sub(1)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        let id = self.unit(expression);
+        if initial {
+            self.body
+                .arm_loop_plans
+                .bind_counter(symbol, id, (block, index), (input, output), span)
+        } else {
+            self.body.arm_loop_plans.assign_counter(
+                symbol,
+                id,
+                (block, index),
+                (input, output),
+                span,
+            )
+        }
     }
 }

@@ -383,3 +383,31 @@ fun entry() { val source="kept".clone(); run(source,false,true); run(source,fals
     let run = emit_link_and_run("loop-arm-zero", text, "entry");
     super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
+
+#[test]
+fn native_counter_loop_arms_run_zero_one_two_then_return_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("left");println(item)}
+fun right(item:String):Unit {println("right");println(item)}
+fun run(source:String,rounds:Int,choose:Boolean):Unit {
+ var remaining=rounds
+ while(remaining>0) {
+  if(choose){borrow val a=view(source);left(a)}
+  else {borrow val b=view(source);right(b);right(b)}
+  remaining=remaining-1
+ }
+}
+fun take(own source:String):Unit {println(source)}
+fun entry() {
+ val source="kept".clone()
+ run(source,0,true);println("returned-0-left");println(source)
+ run(source,0,false);println("returned-0-right");println(source)
+ run(source,1,true);println("returned-1-left");println(source)
+ run(source,1,false);println("returned-1-right");println(source)
+ run(source,2,true);println("returned-2-left");println(source)
+ run(source,2,false);println("returned-2-right");println(source)
+ take(source)
+}"#;
+    let run = emit_link_and_run("counter-loop-arms-finite", text, "entry");
+    super::boxed_enum_tests::assert_success(&run,b"returned-0-left\nkept\nreturned-0-right\nkept\nleft\nkept\nreturned-1-left\nkept\nright\nkept\nright\nkept\nreturned-1-right\nkept\nleft\nkept\nleft\nkept\nreturned-2-left\nkept\nright\nkept\nright\nkept\nright\nkept\nright\nkept\nreturned-2-right\nkept\nkept\n");
+}

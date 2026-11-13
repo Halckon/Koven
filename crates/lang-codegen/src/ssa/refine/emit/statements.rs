@@ -352,6 +352,13 @@ impl Emitter<'_> {
                 let entity = self.get(*source, statement.span)?;
                 self.current.insert(*result, entity);
                 self.defined.insert(*result, entity);
+                receipts.arm_loop.alias(
+                    body,
+                    (block, index),
+                    (*source, *result),
+                    entity,
+                    statement.span,
+                )?;
                 receipts.nested_body.statement(
                     body,
                     self.function,
