@@ -17227,3 +17227,13 @@ concat入口与父false部分/全部清理组合均保留。唯一冲突为Spec�
 CI-only借用清单62项、child-cycle三个目标、父receipt两个目标仅编译列举通过，
 none executed。未启用本地CI环境或执行故障注入，本批仅本地提交，未推送/合并；
 新增独立prefix三项反例仍待远端双宿主实际拒绝/恢复验收，完整D10/E2仍未完成。
+
+### D10 标量分支入口基例（已批准，实施中）
+
+父 while 前仅一个无资源副作用的标量 if/else；两臂沿用可证明为空体的 Int→Unit
+调用，禁止 owner 参数传递、借用、重新赋值及额外 producer。初始根只允许 own
+参数或 literal，不叠加 concat。分别封存真实 entry/split/双臂/join 与父 header
+身份，逐边证明完整 owner 向量保持，唯一前驱集合且退出不可重入入口区域。
+该入口证明接续原 child/parent recurrence，不更改其正常回边、false 或 abort 合同。
+不得以 raw 块形状猜测、有限轮执行或 E2 的其他合同代替 D10 所需独立证据。
+不涵盖一般 producer、更深嵌套、额外前缀控制流及复杂退出；CI 故障仅远端执行。
