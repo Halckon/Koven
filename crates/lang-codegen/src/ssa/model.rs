@@ -769,11 +769,6 @@ pub(crate) struct Module {
 }
 
 impl Module {
-    #[cfg(test)]
-    pub(crate) const fn id(&self) -> ModuleId {
-        self.id
-    }
-
     pub(crate) fn intern_type(&mut self, kind: SsaTypeKind) -> SsaTypeId {
         if let Some(id) = self.type_ids.get(&kind).copied() {
             return id;

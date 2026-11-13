@@ -17739,3 +17739,16 @@ current-H drop 三项既有普通 exact 3/3 通过，fmt/docs/diff 与独立审�
 aggregate type/render、aggregate heap flow、pending-value carry 三项普通 exact
 3/3 通过，fmt/docs/diff 与独立审查通过。未新增测试、未改 Origin、未执行
 CI-only 故障，未推送；测试全域豁免剩余项留给后续独立切片。
+
+### 模型和 ownership 测试边界（2026-11-13）
+
+对测试配置 21 项历史诊断先处理两个明确无消费者项：退役 `Module.id()`
+getter（ModuleId 字段与生产读取保留），去除 ownership Harness 的 Boolean
+类型缓存（类型 intern、参数/返回类型 resolve 与所有断言保留）。model 与
+verify_ownership_tests 子树恢复 dead-code 门禁，不删除测试见证或局部合同例外。
+其余 map fixture 未用字段/帮助函数仍待逐项审计，尤其未连接的结构断言
+不能仅为 lint 删除；本步不等于测试广域豁免清零。
+observer-support all-target 严格 Clippy 和测试编译通过；Boolean 条件边所有权
+转移、遗漏分支拒绝、move-only 错误区分与 aggregate type/render 既有普通
+exact 4/4 通过，fmt/docs/diff 与独立审查通过。未新增测试、未改 Origin、
+未运行 CI-only 故障，未推送。

@@ -30,6 +30,7 @@ pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 pub(crate) use refine::with_per_family_lowering;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
+#[deny(dead_code)]
 pub(crate) mod model;
 pub(crate) mod provider;
 #[cfg(test)]
@@ -159,6 +160,7 @@ mod unit_type_origin_tests;
 mod verify_tests;
 
 #[cfg(test)]
+#[deny(dead_code)]
 mod verify_ownership_tests;
 
 #[cfg(test)]
