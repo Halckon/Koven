@@ -43,6 +43,7 @@ impl UnitOwnerRootGenerationRuleV1 {
 pub struct UnitOwnerChildGenerationRuleV1 {
     control: UnitStatementId,
     condition: UnitExpressionId,
+    checked_expression: UnitExpressionId,
     normal: UnitOwnerMultiRootNormalTransportV1,
     recurrences: Vec<UnitOwnerRootGenerationRuleV1>,
     entry_owners: Vec<(UnitSymbolId, UnitOwnerId)>,
@@ -88,6 +89,7 @@ impl UnitOwnerChildGenerationRuleV1 {
         Some(Self {
             control: nested.control(),
             condition: nested.condition(),
+            checked_expression: sites[1],
             normal: normal.clone(),
             recurrences,
             entry_owners: entry_owners.to_vec(),
@@ -132,6 +134,10 @@ impl UnitOwnerChildGenerationRuleV1 {
     /// Exact child condition; neither true nor termination is assumed.
     pub fn condition(&self) -> UnitExpressionId {
         self.condition
+    }
+    /// Actual checked subtraction expression captured by the completed counter tail.
+    pub fn checked_expression(&self) -> UnitExpressionId {
+        self.checked_expression
     }
     /// Recurrences in complete header-root order, not execution/Drop order.
     pub fn recurrences(&self) -> &[UnitOwnerRootGenerationRuleV1] {

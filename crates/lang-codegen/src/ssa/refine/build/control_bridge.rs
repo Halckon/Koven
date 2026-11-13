@@ -1,6 +1,7 @@
 //! Slot-CFG bridge audit with an optional independent normal-body consumption rule.
 use super::*;
 mod body_group;
+mod child_cycle;
 mod nested_body;
 mod nested_resume;
 mod parent_exit;

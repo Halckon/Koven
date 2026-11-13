@@ -6,6 +6,7 @@
 //! a failure is an error; there is no fallback to the per-family lowering.
 mod body;
 mod build;
+mod child_cycle_receipt;
 mod control_bridge_receipt;
 mod nested_body_receipt;
 mod nested_exit_receipt;

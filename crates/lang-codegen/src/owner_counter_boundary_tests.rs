@@ -2,6 +2,8 @@
 use super::{UnitSource, source};
 #[path = "owner_control_chain_tests.rs"]
 mod chain;
+#[path = "owner_child_cycle_tests.rs"]
+mod child_cycle;
 #[path = "owner_control_bridge_exit_tests.rs"]
 mod exit_partition;
 #[path = "owner_nested_body_tests.rs"]

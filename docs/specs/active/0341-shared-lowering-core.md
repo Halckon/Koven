@@ -16576,3 +16576,30 @@ observation 按既有合同清空 events/definitions，已撤除此不成立断�
 不把该外层事件当作入口证明；本片只保留实际 planner 状态快照。独立只读复审无确定
 阻断。未运行 CI-only 故障注入；本轮未重跑 workspace、SSA 或 native，因为未改 backend，
 也未实现独立 SSA cycle receipt。本地提交不推送。
+
+### D10 独立 child-cycle SSA 收据（2026-11-13，本地普通验收通过）
+
+仅选择已有 checked-counter child 符号规则：builder 在真实 `goto(header)` 前捕获
+preheader，按已记录 checked expression 身份捕获 body/success/abort，不从最终 CFG
+搜索代替原观察。独立收据在 layout/terminator 保存六角色与完整参数、当前根身份，
+终检要求 header 仅 entry/backedge 两前驱、true/false 的逐根运输，以及成功回边完整
+传递 Replace 新 owner。checked 指令、flag 极性、独立终止 Abort 均配对。
+复用已成功终检的 body retirement 原始 input/new 观察，不重复实现旧值 Drop 证明。
+仍不证明父 header 到 child preheader 的完整入口链或父轮归纳；不增加新语法/形状。
+
+
+| 验收项 | 实际结果 |
+|---|---|
+| `child_cycle_receipt_connects_actual_current_and_next_root_vectors` | 1/1 通过，包含两根正序/逆序普通源码及实际 receipt marker |
+| 既有 `nested_counters_preserve_outer_live_roots_without_flat_batch` | 1/1 通过，含既有普通 native 基线 |
+| `cargo clippy -j1 -p lang-codegen --lib -- -D warnings` | 通过 |
+| docs922、修改文件 rustfmt、diff check、Rust size guard（base `0f3d13a9`） | 通过 |
+
+初编译 ValueId 解引用问题已修；首轮普通正例还发现 Abort emission 原来跳过普通
+terminator hook，以及 abort sibling 活跃槽传播使互斥两边各携新代，均修正后重跑通过。
+独立审查发现的 header guard 身份及 Subtract abort divisor 配对亦已修正。新代只能在
+成功边和可选同根 Abort 边各运输一次，无其它直接消费；Abort 不作为正常回边。
+已选 cycle 的 required 标志与退休计划分开保存，缺计划拒绝静默降级。
+未运行任何本地故障注入，新增收据的破坏性负例矩阵与远端 CI 尚未验证；本轮未重跑
+全 workspace/all-target 门禁。父入口链、父组合及完整跨父轮次归纳仍 active，不以有限
+native 轮数或本片普通正例代替它们。仅本地提交，不推送。

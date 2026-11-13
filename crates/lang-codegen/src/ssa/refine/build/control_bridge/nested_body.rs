@@ -8,6 +8,7 @@ pub(in super::super) struct NestedBody<'a> {
     pub(super) evidence: &'a UnitOwnerNestedNormalBodyV1,
     stages: Vec<consumption::Stage>,
     pub(super) lowered: Option<([BlockRef; 4], Vec<Slot>)>,
+    pub(super) entry: Option<BlockRef>,
     pub(super) parent_header: Option<BlockRef>,
     pub(super) parent_lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     pub(super) resume_stage: consumption::Stage,
@@ -44,6 +45,7 @@ impl<'a> NestedBody<'a> {
             evidence,
             stages: vec![consumption::Stage::Ready; evidence.normal().steps().len()],
             lowered: None,
+            entry: None,
             parent_header: None,
             parent_lowered: None,
             resume_stage: consumption::Stage::Ready,
@@ -141,6 +143,7 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
+        plan.entry = Some(self.block.ok_or_else(fail)?);
         plan.parent_header = self.loops.last().map(|parent| parent.continue_target);
         plan.lowered = Some((blocks, roots));
         Ok(())
@@ -329,10 +332,15 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        let retirement = self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
+        let mut retirement =
+            self.check_nested_retirement(plan.evidence.normal(), blocks[1], roots)?;
         if retirement.control != plan.evidence.control() {
             return Err(fail());
         }
+        self.body.child_cycle_plans = super::super::super::child_cycle_receipt::Plans(
+            self.child_cycle_plan(plan, blocks, roots)?,
+        );
+        retirement.cycle_required = self.body.child_cycle_plans.0.is_some();
         self.body.nested_body_plans =
             super::super::super::nested_body_receipt::Plans(Some(retirement));
         if let Some((live, drops)) = plan.evidence.false_exit_partition() {
@@ -490,6 +498,7 @@ impl Builder<'_, '_> {
             rule.steps().len(),
         );
         Ok(super::super::super::nested_body_receipt::Plan {
+            cycle_required: false,
             control: rule.statement(),
             body,
             steps,

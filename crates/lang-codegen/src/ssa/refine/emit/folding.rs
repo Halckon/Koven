@@ -35,6 +35,8 @@ pub(super) fn merge_straight_lines(
             return Ok(body);
         };
         let prefix_len = body.blocks[block.0].statements.len();
+        body.child_cycle_plans
+            .fold(block, successor, prefix_len, span)?;
         body.nested_body_plans
             .fold(block, successor, prefix_len, span)?;
         body.nested_resume_plans

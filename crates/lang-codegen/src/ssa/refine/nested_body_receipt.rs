@@ -21,6 +21,7 @@ pub(super) struct Step {
 }
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
+    pub cycle_required: bool,
     pub control: UnitStatementId,
     pub body: BlockRef,
     pub steps: Vec<Step>,
@@ -232,6 +233,31 @@ impl Emitted {
             _ => return Err(fail()),
         }
         Ok(())
+    }
+    // Caller must first complete finish: these are original emission observations,
+    // not generations reconstructed from the final CFG.
+    pub(super) fn generations(
+        &self,
+        body: &RefinedBody,
+        span: Span,
+    ) -> Result<Vec<(Slot, EntityId, EntityId)>, LoweringError> {
+        let Some(plan) = &body.nested_body_plans.0 else {
+            return Ok(Vec::new());
+        };
+        plan.steps
+            .iter()
+            .enumerate()
+            .map(|(i, step)| {
+                let input = self.inputs.get(i).copied().ok_or_else(|| invalid(span))?;
+                let new = self
+                    .observed
+                    .get(i)
+                    .and_then(|o| o.replace.as_ref())
+                    .map(|r| r.2)
+                    .ok_or_else(|| invalid(span))?;
+                Ok((step.root, input, new))
+            })
+            .collect()
     }
     pub(super) fn finish(
         &self,

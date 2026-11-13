@@ -146,3 +146,15 @@ child enter 从真实 `ValueState` 的封闭资源边界捕获完整 `(root, own
 代替。现有 body receipt 已独立核实 Replace 返回旧值的唯一 Drop，后续应复用它，
 另外捕获 child preheader/header/true-edge 和 checked-success backedge 的逐根身份链；
 只核对父 header 或从最终 CFG 猜出 child 回边都不能补足该缺口。
+
+### 独立 child cycle 的边界接线
+
+checked-counter 符号规则对应的六角色收据在真实 preheader 跳转前及已观察的
+checked expression 处捕获角色，经 folding 重定位后按实际 emitted 参数/current
+映射检查完整根向量。复用先通过终检的 body retirement 所保存 input/new 身份，
+核 child header true/false 条件和前驱、成功回边的新代，以及新代无旁路直接消费。
+Abort 由独立 emission hook 观察，核 checked 指令和 flag 极性、对应 operator/divisor
+及无指令终止块。既有 abort sibling 活跃槽传播允许新代在 success/abort 互斥边
+各携带一次；按根槽逐边核验，不把两边合计当重复消费，也不把 Abort 算正常回边。
+这只是 child 的局部传递证明；父 header 到 child preheader 的基例链、父归纳与更广
+嵌套仍未由此证明。当前本地验证结果与未验项以 SPEC-0341 账本为准。

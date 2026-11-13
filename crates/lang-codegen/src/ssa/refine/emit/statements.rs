@@ -2,6 +2,7 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    child_cycle: crate::ssa::refine::child_cycle_receipt::Emitted,
     nested_body: crate::ssa::refine::nested_body_receipt::Emitted,
     nested_resume: crate::ssa::refine::nested_resume_receipt::Emitted,
     nested_exit: crate::ssa::refine::nested_exit_receipt::Emitted,
@@ -34,6 +35,7 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            child_cycle: Default::default(),
             nested_body: Default::default(),
             nested_resume: Default::default(),
             nested_exit: Default::default(),
@@ -176,6 +178,8 @@ impl LoanReceipts {
             entities,
             span,
         )?;
+        self.child_cycle
+            .layout(body, function, blocks, parameters, entities, span)?;
         self.nested_body
             .layout(body, function, blocks, parameters, entities, span)?;
         self.nested_resume
@@ -216,6 +220,17 @@ impl LoanReceipts {
         )?;
         Ok(())
     }
+    pub(super) fn child_cycle_abort(
+        &mut self,
+        body: &RefinedBody,
+        function: &Function,
+        target: BlockId,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.child_cycle
+            .terminator(body, function, target, current, span)
+    }
     pub(super) fn terminator(
         &mut self,
         body: &RefinedBody,
@@ -228,6 +243,8 @@ impl LoanReceipts {
             .terminator(&body.loop_plans, function, target, current, span)?;
         self.fresh_loop
             .terminator(&body.fresh_loop_plans, function, target, current, span)?;
+        self.child_cycle
+            .terminator(body, function, target, current, span)?;
         self.nested_resume
             .terminator(function, target, current, span)?;
         self.nested
@@ -251,6 +268,12 @@ impl LoanReceipts {
     ) -> Result<(), LoweringError> {
         self.owner_bridge.finish(body, function, span)?;
         self.nested_body.finish(body, function, span)?;
+        self.child_cycle.finish(
+            body,
+            function,
+            &self.nested_body.generations(body, span)?,
+            span,
+        )?;
         self.nested_exit.finish(body, function, span)?;
         self.nested_resume.finish(body, function, span)?;
         self.loop_receipt.finish(&body.loop_plans, function, span)?;

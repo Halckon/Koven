@@ -883,6 +883,13 @@ pub(super) fn emit(
                 .set_abort_terminator(target, reason, origin)
                 .map_err(model_error)?;
             emitter.owner_terminator(body, *block, &mut receipts, *term_span)?;
+            receipts.child_cycle_abort(
+                body,
+                emitter.function,
+                target,
+                &emitter.current,
+                *term_span,
+            )?;
             continue;
         }
         let kind = match terminator {
