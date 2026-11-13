@@ -17765,3 +17765,15 @@ active 源码与调用均未改动；这些 Unit 场景不是跨源文件覆盖�
 变更后严格 all-target observer-support Clippy、测试编译、原七项加现有
 双 pipeline temporary representations 普通 exact 8/8 通过，fmt/docs/diff
 与独立审查通过。未新增测试、未改生产算法/Origin、未运行故障注入、未推送。
+
+### 临时 Map cleanup 见证边界审计（2026-11-13）
+
+追溯 `df48178f` 确认普通消费者主动迁往 rooted/MemoryDocument Unit，
+`query_temporary_cleanup::single` 因而不再调用，并非本轮证实的漏接。
+它还包含 legacy cleanup condition/phi 的独立检查，不与 Unit 版本完全等价；
+不为 lint 删除。恢复该模块 dead-code 门禁，仅在这个函数保留具名例外，
+明确等候 legacy 合同审计；Unit cleanup 的 births/temporary delivery/forms/
+D10 temporary carry 消费者不变。本步不新增覆盖、不宣称已迁移剩余合同。
+严格 observer-support all-target Clippy、测试编译、temporary forms 与 D10
+W09 temporary carry 既有普通 exact 2/2、fmt/docs/diff 和独立审查通过。
+未改 Origin、未恢复 legacy single 执行、未运行故障注入，未推送。
