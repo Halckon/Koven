@@ -17455,3 +17455,12 @@ a/c保留child当前代；真实FE三根/三step/三recurrence与SSA来源/入�
 
 后端observer-support all-target严格Clippy、格式、docs925、相对d28ca8a2尺寸
 门禁与diff检查通过。
+
+### 三根与两两Boolean身份普通合批验收（2026-11-13）
+
+隔离基线 `d28ca8a2` 整合D10 `1fb3cfb0` 与E2 `8a4739c9`/`f178ec60`，
+仅Spec追加冲突，双方记录完整；独立复审无遗漏，79清单与runner去重策略不变。
+workspace all-target check、frontend/codegen observer-support all-target严格Clippy、
+codegen普通完整FQN exact43/43、前端普通29/29通过。格式、docs925、相对基线
+尺寸门禁与diff通过。79统一清单及所有独立目标仅编译列举通过，none executed。
+本批无生产扩展，未本地运行故障、未推送，不改变#420最小批次；动态反例仍待CI。
