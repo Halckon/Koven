@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，380 份）"]
+subgraph Garchive["已完成（archive，381 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -351,6 +351,7 @@ subgraph Garchive["已完成（archive，380 份）"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
   S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
   S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
+  S0411["S0411<br/>ssa/integer_range、unit_lower 迭代清理与空值比较壳模块及 refine 有界路由壳模块退役"]
   S0413["S0413<br/>verify_operation、verify_ownership 及 verify/content_flow 壳模块退役"]
   S0414["S0414<br/>lower_frontend 标量、枚举、闭包 ABI 与 Map 消费/守卫壳模块退役"]
   S0415["S0415<br/>lower_frontend 下 map_iteration 与 borrow_argument 壳子模块退役"]
@@ -437,7 +438,6 @@ subgraph Gactive["现行 active"]
   S0408["S0408<br/>ssa 类型与源查询壳模块收敛及 null 字面量判定辅助去重"]
   S0409["S0409<br/>ssa/deinit、refine/build 凭证壳模块收敛及冗余路由/作用域状态退役"]
   S0410["S0410<br/>unit_lower 接口委托兼容死分支退役、refine 构建/准入/凭证壳模块收敛与 nullable_when 保留边界核定"]
-  S0411["S0411<br/>ssa/integer_range、unit_lower 迭代清理与空值比较壳模块及 refine 有界路由壳模块退役"]
   S0412["S0412<br/>render、verify 及 lower_frontend Map 壳模块退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1863,6 +1863,7 @@ S0366 --> S0367
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
 | SPEC-0382 | archive | [0382-refine-map-ops-and-primitive-retirement.md](0382-refine-map-ops-and-primitive-retirement.md) |
 | SPEC-0389 | archive | [0389-refine-known-function-shared-capture-container-element-retirement.md](0389-refine-known-function-shared-capture-container-element-retirement.md) |
+| SPEC-0411 | archive | [0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md](0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
 | SPEC-0413 | archive | [0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md](0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md) |
 | SPEC-0414 | archive | [0414-refine-model-constant-and-lower-frontend-shells-retirement.md](0414-refine-model-constant-and-lower-frontend-shells-retirement.md) |
 | SPEC-0415 | archive | [0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md](0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md) |
@@ -1947,7 +1948,6 @@ S0366 --> S0367
 | SPEC-0408 | active | [0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md](../../specs/active/0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
 | SPEC-0409 | active | [0409-refine-deinit-and-build-receipt-shells-retirement.md](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md) |
 | SPEC-0410 | active | [0410-refine-delegated-receiver-and-build-subset-shells-retirement.md](../../specs/active/0410-refine-delegated-receiver-and-build-subset-shells-retirement.md) |
-| SPEC-0411 | active | [0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md](../../specs/active/0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
 | SPEC-0412 | active | [0412-refine-render-verify-and-map-frontend-shells-retirement.md](../../specs/active/0412-refine-render-verify-and-map-frontend-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
