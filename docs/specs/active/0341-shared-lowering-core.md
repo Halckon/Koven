@@ -17752,3 +17752,16 @@ observer-support all-target 严格 Clippy 和测试编译通过；Boolean 条件
 转移、遗漏分支拒绝、move-only 错误区分与 aggregate type/render 既有普通
 exact 4/4 通过，fmt/docs/diff 与独立审查通过。未新增测试、未改 Origin、
 未运行 CI-only 故障，未推送。
+
+### Map break 结构见证去重（2026-11-13）
+
+核对历史 `90f05cd1` 的 shell 迁移及 `5f0e88d2` 的主线合同协调后确认：
+`temporary_forms/graph.rs::structure` 是迁移残留副本，不是漏接的唯一见证。
+active `lower_frontend_map_break_structure_tests.rs` 保留全部断言，由原 break
+测试两个入口消费；两个版本仅可见性、格式与单表达式闭包花括号不同。
+先运行 active 普通 exact 7/7（live/dead、basic/constant、put/remove）通过，
+再退役无人调用的副本并恢复 temporary_forms 整个子树的 dead-code 门禁。
+active 源码与调用均未改动；这些 Unit 场景不是跨源文件覆盖，不扩大声明。
+变更后严格 all-target observer-support Clippy、测试编译、原七项加现有
+双 pipeline temporary representations 普通 exact 8/8 通过，fmt/docs/diff
+与独立审查通过。未新增测试、未改生产算法/Origin、未运行故障注入、未推送。
