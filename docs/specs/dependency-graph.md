@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 355 份"))
+ARCH(("已完成<br/>archive 356 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -73,7 +73,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0441["S0441<br/>container_lowering_tests 三子壳及剩余 lower_frontend 支撑/清理壳子模块退役"]
   S0442["S0442<br/>range_lowering_tests、unit_lower_container_tests、unit_plan_tests、borrowed_generate_tests 及 source_forms 子壳模块退役"]
   S0443["S0443<br/>owned_source_return、range_lowering_tests、local_arguments、nested 及 temporary_exits 子壳模块退役"]
   S0444["S0444<br/>loan_region_ssa_tests 下观察器、接收者、具名借用、临时借用兄弟及有限字面量测试壳子模块退役"]
@@ -175,7 +174,6 @@ ARCH --> S0341
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0441 | active | [0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md](active/0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) |
 | SPEC-0442 | active | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](active/0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
 | SPEC-0443 | active | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](active/0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |
 | SPEC-0444 | active | [0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md](active/0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) |
@@ -193,4 +191,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（355 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（356 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

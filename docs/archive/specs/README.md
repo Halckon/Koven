@@ -544,3 +544,4 @@
 - [SPEC-0438](0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md)：`outer_borrowed_while`、`source_owner/handoff`、`map_iteration` 退出/成形/临时项及可空清理载体与源证明壳子模块退役。
 - [SPEC-0439](0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md)：`numeric_iteration`、`map_consume`、`map_iteration` 根/资源/校验/源及 `rc_nullable_while_presence_identity` 壳子模块退役。
 - [SPEC-0440](0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md)：`rc_nullable_while_identity_queries`、`same_guard`、`map_loop/operand_unit_identity`、`owner_consumer_test_support` 及 `loop_control`/`instances` 壳子模块退役。
+- [SPEC-0441](0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md)：`container_lowering_tests` 三子壳及剩余 `lower_frontend` 支撑/清理壳子模块退役。

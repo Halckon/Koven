@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0441](0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) 完成 `container_lowering_tests` 三子壳及剩余 `lower_frontend` 支撑/清理壳子模块收敛后，`crates/lang-codegen/src/ssa/` 的测试子目录下仍残留一批可直接内联回直接父模块的薄壳文件：
+在 [SPEC-0441](../../archive/specs/0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) 完成 `container_lowering_tests` 三子壳及剩余 `lower_frontend` 支撑/清理壳子模块收敛后，`crates/lang-codegen/src/ssa/` 的测试子目录下仍残留一批可直接内联回直接父模块的薄壳文件：
 
 1. `ssa/range_lowering_tests/drop_algorithms.rs`（56 行）：直接内联回 `ssa/range_lowering_tests.rs`。
 2. `ssa/range_lowering_tests/temporary.rs`（125 行）：直接内联回 `ssa/range_lowering_tests.rs`。
