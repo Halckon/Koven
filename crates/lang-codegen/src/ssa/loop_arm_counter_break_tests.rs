@@ -6,11 +6,26 @@ use lang_frontend::ownership_checking::{
 };
 #[test]
 fn ordinary_counter_arm_conditional_break_closes_both_paths() {
-    for mask in 0..8 {
+    check_counter_break_paths(false);
+}
+
+#[test]
+fn ordinary_counter_arm_conditional_break_shares_stable_flag() {
+    check_counter_break_paths(true);
+}
+
+fn check_counter_break_paths(shared: bool) {
+    for mask in 0..if shared { 4 } else { 8 } {
         let mode = |bit| if mask & bit != 0 { "own " } else { "" };
         let (rounds, choose, stop) = (mode(1), mode(2), mode(4));
+        let stop_parameter = if shared {
+            String::new()
+        } else {
+            format!("{stop}stop:Boolean,")
+        };
+        let stop_condition = if shared { "choose" } else { "stop" };
         let text = format!(
-            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({rounds}rounds:Int,{stop}stop:Boolean,source:String,{choose}choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};if(stop){{break}};remaining=remaining-1}};consume(source)}}"
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({rounds}rounds:Int,{stop_parameter}source:String,{choose}choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};if({stop_condition}){{break}};remaining=remaining-1}};consume(source)}}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) =

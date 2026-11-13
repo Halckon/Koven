@@ -569,6 +569,15 @@ fun take(own source:String):Unit {println(source)}
 
 #[test]
 fn native_counter_arm_conditional_break_runs_zero_one_two_rounds() {
+    run_counter_break_paths(false);
+}
+
+#[test]
+fn native_counter_arm_conditional_break_shares_stable_flag() {
+    run_counter_break_paths(true);
+}
+
+fn run_counter_break_paths(shared: bool) {
     let mut text = String::from(
         r#"fun view(source:String):borrow String from source=source
 fun left(item:String):Unit {println("L");println(item)}
@@ -579,12 +588,18 @@ fun take(own source:String):Unit {println(source)}
     let mut entry =
         String::from("fun entry(){val source=\"kept\".clone();val yes=true;val no=false;\n");
     let mut expected = String::new();
-    for mask in 0..8 {
+    for mask in 0..if shared { 4 } else { 8 } {
         let mode = |bit| if mask & bit != 0 { "own " } else { "" };
         let (rounds, choose, stop) = (mode(1), mode(2), mode(4));
-        text.push_str(&format!(r#"fun run{mask}({rounds}rounds:Int,{stop}stop:Boolean,source:String,{choose}choose:Boolean):Unit {{
+        let stop_parameter = if shared {
+            String::new()
+        } else {
+            format!("{stop}stop:Boolean,")
+        };
+        let stop_condition = if shared { "choose" } else { "stop" };
+        text.push_str(&format!(r#"fun run{mask}({rounds}rounds:Int,{stop_parameter}source:String,{choose}choose:Boolean):Unit {{
  var remaining=rounds
- while(remaining>0){{if(choose){{borrow val a=view(source);left(a)}}else{{borrow val b=view(source);right(b);right(b)}};if(stop){{break}};remaining=remaining-1}}
+ while(remaining>0){{if(choose){{borrow val a=view(source);left(a)}}else{{borrow val b=view(source);right(b);right(b)}};if({stop_condition}){{break}};remaining=remaining-1}}
  println("after-loop");println(source)
 }}
 "#));
@@ -593,10 +608,17 @@ fun take(own source:String):Unit {println(source)}
         for rounds in 0..=2 {
             for choose in [false, true] {
                 for stop in [false, true] {
+                    if shared && stop != choose {
+                        continue;
+                    }
                     let name = |value| if value { "yes" } else { "no" };
+                    let stop_argument = if shared {
+                        String::new()
+                    } else {
+                        format!("{},", name(stop))
+                    };
                     entry.push_str(&format!(
-                        "run{mask}({rounds},{},source,{});\n",
-                        name(stop),
+                        "run{mask}({rounds},{stop_argument}source,{});\n",
                         name(choose)
                     ));
                     let iterations = if stop { rounds.min(1) } else { rounds };
@@ -615,6 +637,11 @@ fun take(own source:String):Unit {println(source)}
     entry.push_str("take(source)}");
     expected.push_str("kept\n");
     text.push_str(&entry);
-    let run = emit_link_and_run("counter-arm-conditional-break", &text, "entry");
+    let label = if shared {
+        "counter-arm-conditional-break-shared-flag"
+    } else {
+        "counter-arm-conditional-break"
+    };
+    let run = emit_link_and_run(label, &text, "entry");
     super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
