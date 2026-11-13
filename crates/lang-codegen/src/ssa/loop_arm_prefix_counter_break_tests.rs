@@ -51,6 +51,18 @@ fn ordinary_prefix_counter_break_transports_all_live_roles() {
                 let products = [&owned];
                 let mut baseline = None;
                 for owned in products {
+                    let facts = owned.ownership().no_carry_prefix_counter_breaks();
+                    assert_eq!(facts.len(), 1);
+                    assert!(
+                        owned
+                            .ownership()
+                            .owns_no_carry_prefix_counter_break(&facts[0])
+                    );
+                    assert!(
+                        !owned
+                            .ownership()
+                            .owns_no_carry_counter_break_branch(facts[0].counter_break())
+                    );
                     assert!(
                         owned
                             .ownership()
@@ -58,6 +70,7 @@ fn ordinary_prefix_counter_break_transports_all_live_roles() {
                             .is_empty()
                     );
                     assert!(owned.ownership().no_carry_counter_branches().is_empty());
+                    assert!(owned.ownership().no_carry_break_prefixes().is_empty());
                     assert!(owned.ownership().no_carry_break_branches().is_empty());
                     assert!(owned.ownership().no_carry_branches().is_empty());
                     assert!(owned.ownership().no_carry_loops().is_empty());
