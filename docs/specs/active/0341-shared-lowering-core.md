@@ -17777,3 +17777,16 @@ D10 temporary carry 消费者不变。本步不新增覆盖、不宣称已迁移
 严格 observer-support all-target Clippy、测试编译、temporary forms 与 D10
 W09 temporary carry 既有普通 exact 2/2、fmt/docs/diff 和独立审查通过。
 未改 Origin、未恢复 legacy single 执行、未运行故障注入，未推送。
+
+
+### 普通 Unit 诊断门与旧身份见证分离（2026-11-13）
+
+基于 `19c66730`，将原 mixed recovery 目标中的 L0080/L0084、精确来源 Span、
+names/basic/const capability gate 断言迁至独立普通 Unit 目标；保留原输入字节及
+未选中的同文 foreign.ko，不混用产物。旧目标的原 FQN 和
+MismatchedSource → MismatchedAnalysis → FrontendDiagnostics 优先级见证完整保留，
+仅在 CI 执行；Unit 前置 capability 拒绝不能替代该旧入口独有合同。
+新普通完整 FQN exact 1/1 通过；旧 mixed 目标仅精确列举匹配 1、未执行。
+严格 observer-support all-target Clippy、测试编译、fmt/docs/diff 与独立审查通过。
+这是见证分层迁移，不是旧 checker/lowering 退休，不新增语言能力或改变 Origin；
+精确交付头双宿主及动态故障验收仍待 CI。
