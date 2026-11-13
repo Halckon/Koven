@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0394` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认继续推进 E3；SPEC-0393 范围收缩时暂留的 `String.clone()` 旧路径由本片退役；用户选择把钉住旧 SSA 形状的测试“按细化层形状重写” |
 | 基线 | `feature/spec-0393-refine-range-borrow-result-rc-closure-retirement` `68930ddd` |
 | 分支 | `feature/spec-0394-refine-string-clone-retirement` |
-| 前置 | [SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0387](../../archive/specs/0387-refine-string-clone-box-value-field-when-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md) |
+| 前置 | [SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0387](../../archive/specs/0387-refine-string-clone-box-value-field-when-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -44,3 +44,20 @@
 | 提交 | 内容 |
 |---|---|
 | 本分支首提交 | 退役 `String.clone()` 旧路径；按第 2 节改写测试 |
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 0 个退役项已从版本库移除 | 通过 | 逐个确认：0/0 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 0/0 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- range_view_borrow_return retired_borrow_result_rc_operation` 等具名回归在完整套件中被执行并通过（默认 `3055 passed / 0 failed`、feature `3117 passed`） |
+
+核对说明：
+
+- 本 Spec 为细化层准入恢复（`String.clone()` 计入必需构造），无文件删除；以具名回归与全量套件为证据
+- `retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary_tests` 通过
+- §3 中“双宿主 CI 以 PR 为准”一项未勾选，但该 Spec 的改动已随 [PR #338](https://github.com/Halckon/Koven/pull/338) 合入 main（合并提交 `11130e16`，在本分支基线 `f78c8c20` 之内），故按“合并 PR 的 CI 已提供双宿主证据”结账；本账本未重跑该 PR 的原始 job。

@@ -593,3 +593,5 @@
 - [SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md)：`Inout` 接收者、接口委托、无状态 `object` 与局部解构旧路径退役。
 - [SPEC-0387](0387-refine-string-clone-box-value-field-when-retirement.md)：`String.clone()`、装箱构造、`value class` 字段借用与通用 `when` 旧路径退役。
 - [SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)：数值区间 `for`、运行时长度容器构造、`Map.get`、非可空 `Map.consume` 与 `$map.result` 旧路径退役。
+- [SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)：`RangeView`、借用结果函数与绑定、`Rc` 操作及带捕获闭包旧路径退役。
+- [SPEC-0394](0394-refine-string-clone-retirement.md)：直接 `String.clone()` 旧路径退役。

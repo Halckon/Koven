@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0393` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认在 SPEC-0389 基线上继续推进 E3 下一个切片；原编号 0390 与 main 的 CI 镜像 Spec 冲突，合入 main 时改为 0393 |
 | 基线 | `90cd542b`（SPEC-0389）；合入 main `6272d3e5` |
 | 分支 | `feature/spec-0393-refine-range-borrow-result-rc-closure-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0389](../../archive/specs/0389-refine-known-function-shared-capture-container-element-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0389](../../archive/specs/0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -61,4 +61,21 @@
 | `46566977` | 退役旧路径并去掉范围/借用结果门控（接手前；验收项当时未实测） |
 | 合并提交 | 合入 main `6272d3e5`；Spec 改号 0393 |
 | 本提交 | 补齐第 1 节第 2 项的细化层能力，恢复 `String.clone()` 旧路径，调整上节所列测试 |
-| SPEC-0392 复审 | 按绑定形状保留旧 CFG 边界；两条有/无兄弟函数的原生回归见[复审账本](0392-compiler-layered-review.md#106-r4-借用绑定校验归属与兄弟函数对照)。 |
+| SPEC-0392 复审 | 按绑定形状保留旧 CFG 边界；两条有/无兄弟函数的原生回归见[复审账本](../../specs/active/0392-compiler-layered-review.md#106-r4-借用绑定校验归属与兄弟函数对照)。 |
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 1 个退役项已从版本库移除 | 通过 | 逐个确认：1/1 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 1/1 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- range_view_borrow_return retired_borrow_result_rc_operation` 等具名回归在完整套件中被执行并通过（默认 `3055 passed / 0 failed`、feature `3117 passed`） |
+
+核对说明：
+
+- 确认删除：`unit_lower/range.rs`
+- 具名测试：`ssa::refine_subset_tests::range_view_borrow_return_and_borrow_val_route_to_refine`、`retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary_tests` 均在 19 项定向中通过
+- §3 中“双宿主 CI 以 PR 为准”一项未勾选，但该 Spec 的改动已随 [PR #338](https://github.com/Halckon/Koven/pull/338) 合入 main（合并提交 `11130e16`，在本分支基线 `f78c8c20` 之内），故按“合并 PR 的 CI 已提供双宿主证据”结账；本账本未重跑该 PR 的原始 job。

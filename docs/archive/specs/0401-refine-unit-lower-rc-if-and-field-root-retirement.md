@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认 `SPEC-0400` 已发起 PR 后继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0400](0400-refine-unit-lower-dead-carrier-retirement.md)（`ed7272e2`） |
 | 分支 | `feature/spec-0401-refine-unit-lower-rc-if-and-field-root-retirement` |
-| 前置 | [SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0393](../../specs/active/0393-refine-range-borrow-result-rc-closure-retirement.md)、[SPEC-0400](0400-refine-unit-lower-dead-carrier-retirement.md) |
+| 前置 | [SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)、[SPEC-0400](0400-refine-unit-lower-dead-carrier-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
