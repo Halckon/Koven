@@ -17240,3 +17240,21 @@ all-target严格Clippy、普通codegen完整FQN exact25/25、前端普通20/20�
 通过。62项借用故障清单、child-cycle三目标与父receipt两目标仅编译列举通过，
 none executed；未启用本地CI环境或执行故障。推送后必须核对新head对应PR事件
 双宿主CI，旧head结果不替代本批动态验收；当前不宣称已合并或D10/E2整体完成。
+
+### 已有 owner 代际运输的 String 字节边界回归（2026-11-13）
+
+基于 main `3b7a9a7a` 的隔离测试分支，仅为既有两根 parent/child 运输增加数据边界
+回归，不改变生产、语言、ABI 或任何 Origin-based 待定设计。Guide 13 的 String
+长度化 UTF-8 合同允许空串与 U+0000；新 fixture 覆盖 own seed 的普通 concat、空根、
+child 替换与 parent 恢复后的空串、内嵌 NUL 和多字节文本，核实际原始 stdout 字节。
+
+测试代码头 `cdaaa0e3` 的两个普通完整 FQN exact 均通过：SSA 项复核现有 child cycle
+与 parent composition 收据确实发布；native 项沿实际 Basic/Const 两路运行两组数据，
+每组包含零轮、父迭代而子零轮、一次和重复激活，共16次有限调用。有限输出回归不替代
+归纳或资源无泄漏证明，不扩大计数控制、三根组合或 concat placement 能力。
+
+codegen observer-support all-target 严格 Clippy、fmt、docs 与相对 main 的尺寸门禁
+通过。测试只调用 fresh-helper 审计的普通源码链与 passive compiler receipt observer；
+未执行故障注入、foreign 查询或 runtime resource counter。二进制 debug2/opt0，精确
+选择、执行前源码与原始 artifact/binary SHA、逐项日志保存在本地证据目录。本日仅本地
+提交，未推送、未发 PR 或外部消息；远端 CI 未验证本轮回归。
