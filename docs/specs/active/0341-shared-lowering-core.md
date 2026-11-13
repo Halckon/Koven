@@ -17261,3 +17261,24 @@ InstructionPlacement。生产调用先从 nested-body generation 或 parent comp
 故障入口已编译且 exact 列举为一项，none executed；本轮只有静态缺口推断与普通
 正控通过，没有故障反例的动态红/绿证据，远端独立拒绝仍待获准发布后的 CI。
 默认 debug2/opt0；执行前冻结完整 source SHA、原 build artifact 和 binary SHA。
+
+### D10 父子代际 literal 与旧值退休位置闭合（2026-11-13）
+
+在 `8abc2b3b` 独立只读审查确认无阻断、且核对现有分支无重复后，合批修正相邻
+四处已有唯一执行合同：child generation literal、child detached old Drop、parent
+composition literal、parent detached old Drop。此前仅原块列表唯一与 arena
+使用计数不足以独立排除相同指令 ID 的异块二次挂载；通用 verifier 的原防线仍在，
+不是已证最终接受畸形 SSA 的漏洞，也不扩大任何源形状或 producer。
+
+`643fbc35` 先增加四个 cfg(test) CI-only 真实 ID 异块挂载反例；`82007048`
+将四处改为全函数唯一挂载且在原块，保持原次序、定义、use 与身份检查。child 两项
+直接检验 nested-body finish（其中 literal 经 generation finish）；parent literal
+直接检验 compose，parent Drop 必须直接检验 resume finish，不能用不相关收据
+拒绝替代覆盖。四项只追加原 ID 到真实 entry，arena、原位置与观察快照不变。
+独立静态审查确认各反例准确抵达对应检查，未发现确定回归。
+
+本地复用完全不变的普通 child-cycle exact：1/1 通过（2.23s），两种 Replace 顺序
+各执行两次有限正常 native 调用，六类完成 marker 及 stdout 保持；没有堆叠新
+普通样例。默认 debug2/opt0，执行前冻结新的完整 source SHA、artifact 与 binary。
+四项新故障随现有 CI-only exact 编译、列举一项，none executed；没有故障动态
+红绿证据，仍待将来获准发布后的远端验收。本轮仅本地提交，不推送或外发。

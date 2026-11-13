@@ -192,8 +192,8 @@ Exclusive 借用结束链；链检查与 parent 复用。组合选择另在 buil
 独立 required，layout 保存预期，选后证据丢失必须报错而不是跳过证明。此补强不改变
 原形状权限；CI-only 矩阵扩为 34 类，尚未本地执行或取得远端验证。
 
-父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
-检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
+父子 literal producer 与 detached old Drop 均在全函数块列表恰一挂载且属于原块；
+保持原有次序及定义/使用检查。CI-only 同块/异块重复 ID 由各自独立收据直接拒绝；
 不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。
 
 受限入口总计一次 concat 的来源、临时清理与运输合同，见
