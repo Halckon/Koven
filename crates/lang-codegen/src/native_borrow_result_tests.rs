@@ -411,3 +411,29 @@ fun entry() {
     let run = emit_link_and_run("counter-loop-arms-finite", text, "entry");
     super::boxed_enum_tests::assert_success(&run,b"returned-0-left\nkept\nreturned-0-right\nkept\nleft\nkept\nreturned-1-left\nkept\nright\nkept\nright\nkept\nreturned-1-right\nkept\nleft\nkept\nleft\nkept\nreturned-2-left\nkept\nright\nkept\nright\nkept\nright\nkept\nright\nkept\nreturned-2-right\nkept\nkept\n");
 }
+
+#[test]
+fn native_counter_loop_reordered_own_parameters_preserve_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun run(own choose:Boolean,own rounds:Int,source:String):Unit {
+ var remaining=rounds
+ while(remaining>0) {
+  if(choose){borrow val a=view(source);left(a)}
+  else {borrow val b=view(source);right(b);right(b)}
+  remaining=remaining-1
+ }
+}
+fun take(own source:String):Unit {println(source)}
+fun entry() {
+ val source="kept".clone()
+ run(true,-1,source);run(false,-1,source);println("negative-returned");println(source)
+ run(true,0,source);run(false,0,source);println("zero-returned");println(source)
+ run(true,1,source);run(false,1,source);println("one-returned");println(source)
+ run(true,2,source);run(false,2,source);println("two-returned");println(source)
+ take(source)
+}"#;
+    let run = emit_link_and_run("counter-loop-own-reordered", text, "entry");
+    super::boxed_enum_tests::assert_success(&run,b"negative-returned\nkept\nzero-returned\nkept\nL\nkept\nR\nkept\nR\nkept\none-returned\nkept\nL\nkept\nL\nkept\nR\nkept\nR\nkept\nR\nkept\nR\nkept\ntwo-returned\nkept\nkept\n");
+}

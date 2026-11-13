@@ -16985,3 +16985,12 @@ CI-only 总计 37 类（concat fixture 另复用两类运输变异），三个�
 检查分支；MissingDrop/EarlyDrop 核实际清理链，待远端双宿主执行验收。
 后端普通 child-cycle 域最终 5/5 通过、3 ignored，codegen all-target 严格 Clippy 通过；
 文档 923 页与 Rust 尺寸门禁通过。未推送，新负例仍待远端验收。
+### Counter ABI 普通覆盖补强（2026-11-13）
+
+核对整合头 `773edc2d` 后复用既有后端，不修改生产或扩展语法。补原测试遗漏的
+choose Borrow/Own 与参数重排，组合 rounds Borrow/Own、rooted/memory、真实 observer
+on/off 共 32 次 lowering/verifier/独立 receipt replay，精确普通目标 1/1 通过。
+新增 native 把 choose/rounds 都设为 Own 且 source 移到末位，真实执行 -1/0/1/2
+与两臂，核 consumer 次数、正常返回后 source 可读和最终 own 消费，1/1 通过。
+负数按既有 >0 guard 零轮退出，不新增控制形状。fmt、docs923、尺寸门禁、diff通过；
+本轮未新增生产修复，未运行任何本地故障注入，未推送。动态 CI 结论仍以远端为准。
