@@ -641,6 +641,7 @@ pub(super) fn inject_owner_final(
     receipts: &LoanReceipts,
 ) {
     receipts.nested_resume.inject_header(function);
+    receipts.nested_exit.inject_parent(body, function);
     crate::ssa::refine::nested_exit_receipt::inject_final(&body.nested_exit_plans, function);
     crate::ssa::refine::nested_resume_receipt::inject_final(&body.nested_resume_plans, function);
     crate::ssa::refine::nested_body_receipt::inject_final(&body.nested_body_plans, function);

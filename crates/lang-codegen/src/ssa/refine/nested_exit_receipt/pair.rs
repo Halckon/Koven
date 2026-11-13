@@ -4,7 +4,7 @@ use crate::ssa::refine::body::RefinedBody;
 #[derive(Default)]
 pub(in super::super) struct Emitted {
     child: Receipt,
-    parent: Receipt,
+    pub(super) parent: Receipt,
 }
 impl Emitted {
     pub(in super::super) fn layout(

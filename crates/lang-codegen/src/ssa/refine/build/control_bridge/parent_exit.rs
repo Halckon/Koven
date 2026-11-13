@@ -102,6 +102,24 @@ impl Builder<'_, '_> {
             drops: sites,
             parent: true,
         });
+        #[cfg(test)]
+        {
+            use owner_consumer_test_support::{OwnerFault, record_action, take_fault};
+            if take_fault(OwnerFault::ParentFalseMissingPlan) {
+                self.body.nested_exit_plans.parent = None;
+                record_action("parent-false-plan-fault-hit", 1);
+            }
+            if take_fault(OwnerFault::ParentFalseIncompletePartition) {
+                self.body
+                    .nested_exit_plans
+                    .parent
+                    .as_mut()
+                    .unwrap()
+                    .live
+                    .clear();
+                record_action("parent-false-plan-fault-hit", 1);
+            }
+        }
         Ok(())
     }
 }

@@ -72,3 +72,84 @@ fn parent_false_receipt_partitions_live_and_retired_roots() {
         assert_general_counter_baseline(&text, expected.as_bytes(), false);
     }
 }
+
+fn fault_source() -> UnitSource {
+    UnitSource::analyze("parent-fault.ko", r#"
+    fun run(outer:Int,inner:Int) {
+        var a="a"; var b="b"; var n0=outer; var g0=n0>0;
+        while(g0) { var n1=inner; var g1=n1>0;
+            while(g1) { val x=replace(&a,"inner-a"); val y=replace(&b,"inner-b"); n1=n1-1; g1=n1>0 };
+            val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
+        }; println(b)
+    }
+    fun entry() { run(2,2) }
+    "#).unwrap()
+}
+
+#[test]
+#[ignore = "CI-only fault injection; explicit parent receipt CI step"]
+fn ci_only_parent_header_receipt_rejects_actual_edge_corruption() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    use crate::ssa::OwnerFault;
+    let source = fault_source();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::NestedHeaderSwapArguments,
+        OwnerFault::NestedHeaderMissingArgument,
+        OwnerFault::NestedHeaderExtraPredecessor,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(k, _)| *k == "nested-resume-ssa-fault-hit")
+                .count(),
+            1
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|(k, _)| *k != "nested-parent-header-vector-complete")
+        );
+    }
+}
+
+#[test]
+#[ignore = "CI-only fault injection; explicit parent receipt CI step"]
+fn ci_only_parent_false_receipt_rejects_actual_partition_and_consumption_corruption() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    use crate::ssa::OwnerFault;
+    let source = fault_source();
+    source.assert_frontend_clean();
+    for fault in [
+        OwnerFault::ParentFalseMissingPlan,
+        OwnerFault::ParentFalseIncompletePartition,
+        OwnerFault::ParentFalseSwapArguments,
+        OwnerFault::ParentFalseMissingDrop,
+        OwnerFault::ParentFalseSecondDrop,
+        OwnerFault::ParentFalseEscape,
+        OwnerFault::ParentFalseExtraPredecessor,
+    ] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err());
+        let marker = if matches!(
+            fault,
+            OwnerFault::ParentFalseMissingPlan | OwnerFault::ParentFalseIncompletePartition
+        ) {
+            "parent-false-plan-fault-hit"
+        } else {
+            "parent-false-ssa-fault-hit"
+        };
+        assert_eq!(actions.iter().filter(|(k, _)| *k == marker).count(), 1);
+        assert!(
+            actions
+                .iter()
+                .all(|(k, _)| *k != "nested-parent-false-ssa-complete")
+        );
+    }
+}

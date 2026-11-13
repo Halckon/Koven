@@ -768,9 +768,6 @@ fn ci_only_nested_parent_resume_ssa_checks_actual_retirement() {
         crate::ssa::OwnerFault::NestedResumeSsaDuplicateReplace,
         crate::ssa::OwnerFault::NestedCarrySsaWrongRootArgument,
         crate::ssa::OwnerFault::NestedCarrySsaAbortToSuccess,
-        crate::ssa::OwnerFault::NestedHeaderSwapArguments,
-        crate::ssa::OwnerFault::NestedHeaderMissingArgument,
-        crate::ssa::OwnerFault::NestedHeaderExtraPredecessor,
     ] {
         let (result, actions) = crate::ssa::observe_owner_actions(|| {
             crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))

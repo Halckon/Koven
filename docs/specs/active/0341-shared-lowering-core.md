@@ -16472,3 +16472,16 @@ false 边这一前驱，边实参按根身份匹配，退休 Value 仅被原 Dro
 CG all-target strict Clippy、workspace all-target check、fmt、docs915、diff 通过。
 本地未执行故障注入；新父路径的 CI 故障覆盖仍待补充和实际运行。独立只读复审
 未见确定阻断。仅为边界运输与消费核验，不证明父根跨轮代际归纳，D10/E2 不标完成。
+
+### 父收据独立 CI 故障入口（2026-11-13）
+
+父 header 既有三种真实边故障（同类型换根、缺参、额外前驱）从旧 resume 组合
+测试迁至独立 ignored 测试，不在 CI 重复执行。父 false 独立 ignored 测试覆盖
+选中计划缺失、不完整分区、false 实参换根、原 Drop 丢失、不同指令二次 Drop、
+退休 Value terminator 逃逸及额外出口前驱；SSA 损坏在独立父 receipt 内先拒绝，
+不得借通用 verifier 的失败代替收据证明。两个测试各要求 GitHub Actions 环境，
+普通 composition 不执行；双平台 Targeted 在 composition 后通过
+`scripts/check_parent_receipt_ci.sh` 校验精确测试存在再各执行一次。
+
+本地只编译及 `--list --ignored`：两个精确测试存在，未运行任何故障。普通父
+false native 精确回归 1/1 通过；CI 实际故障验收仍待推送后的两宿主运行，不标绿。

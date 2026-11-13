@@ -8,6 +8,8 @@ use crate::ssa::{
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::BTreeMap;
 mod pair;
+#[cfg(test)]
+mod parent_faults;
 pub(super) use pair::Emitted;
 fn invalid(span: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, span)

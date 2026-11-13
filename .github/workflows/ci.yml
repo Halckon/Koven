@@ -362,6 +362,8 @@ jobs:
         run: bash scripts/check_integration.sh
       - name: Run exact borrowing fault contracts (36 tests)
         run: python3 scripts/check_borrow_faults.py
+      - name: Independent parent receipt CI-only fault contracts
+        run: bash scripts/check_parent_receipt_ci.sh
       - name: Observe final Linux composition disk usage
         if: always() && runner.os == 'Linux'
         run: python3 scripts/ci_disk_usage.py after-composition || true
