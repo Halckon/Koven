@@ -108,3 +108,10 @@ loan/稳定外部资源。唯有整段完成 witness 与两臂 End 均匹配才�
 一轮，核消费次数、同函数 after-loop source 可读、调用者返回后可读和最终 own 消费。
 这不是多轮证明；额外/条件跳转、嵌套、多根及跨出口 loan 仍不授权。专属故障动态
 验收尚待后续 CI，普通正例和静态复审不能替代。
+
+单一 tail-break 专属 CI-only 清单新增七入口：实际 break 错出口、两臂各自 End
+遗漏、fresh loan 携入出口、exit 直接/经一或两个新 CFG 块隐藏重入、真实 break
+capture 丢失、选中收据在 finish 丢失、最终 verifier 失败撤销两收据。清理缺失
+反例具体删除实际 BorrowEnd，不把空清理代码跳过说成资源泄漏。所有反例默认
+ignored、GITHUB_ACTIONS 门控；已有双宿主 borrowing runner 精确发现，不重复造
+workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行为准。

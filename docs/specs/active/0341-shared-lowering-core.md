@@ -17053,3 +17053,19 @@ rooted/memory、真实 observer on/off 与独立 receipt replay。native 1/1 实
 all-target strict Clippy、fmt、docs923、Rust 尺寸门禁与 diff 通过。独立只读后端
 复审未见确定阻断；当前真实普通布局保留 header，未伪造折叠路径或故障结果。
 tail-break 专属 CI-only 反例及双宿主动态执行仍待单独完成，不借用旧域结果充数。
+
+### Tail break 专属 CI-only 反例（2026-11-13）
+
+新增七个精确入口，分别覆盖错出口、两臂实际 BorrowEnd 遗漏、fresh loan 出口运输、
+exit 直接/一跳/两跳隐藏重入、真实 Goto 后 capture 丢失、finish 选中清单丢失、
+真实最终 verifier 失败的双收据撤销。四项修改真实产物后独立重放，三项通过实际
+捕获/finish/verifier 边界一次性钩子；三项边界反例失败后均用正常 capture 核恢复。多跳使用本
+函数新 BlockId 和真实空 CFG 中间块，不修改已记录片内边，不以直接边冒充 DFS。
+
+所有反例默认 ignored，代码与 runner 均有 CI 门控；复用既有 macOS/Linux 精确
+runner。无故障双 caller publication/replay 普通基线 1/1 已通过。未在本地运行
+任何反例，未推送，动态结果不得由静审、编译列举或普通基线替代。
+
+本地收尾：普通双收据基线 1/1、54 项精确清单仅编译列举（none executed）、
+all-target strict Clippy、fmt、docs923、尺寸门禁、diff 均通过。独立复审确认多跳
+确实新增 Function CFG 块而非伪别名；仍未执行七项动态反例，远端双宿主结果待验收。

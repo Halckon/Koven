@@ -14,6 +14,13 @@
     "ownership_checking::research_borrow_zero_loop::tests::zero_loop_requires_real_header_parent_session_and_checkpoint"
   ],
   "lang-codegen": [
+    "ssa::refine::arm_loop_receipt::break_ci::break_actual_capture_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::break_ci::break_each_arm_cleanup_missing_rejects",
+    "ssa::refine::arm_loop_receipt::break_ci::break_exit_hidden_reentry_rejects",
+    "ssa::refine::arm_loop_receipt::break_ci::break_final_verifier_failure_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::break_ci::break_fresh_loan_on_exit_rejects",
+    "ssa::refine::arm_loop_receipt::break_ci::break_selected_receipt_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::break_ci::break_wrong_exit_rejects",
     "ssa::refine::arm_loop_receipt::ci_tests::arm_ends_missing_or_exchanged_reject",
     "ssa::refine::arm_loop_receipt::ci_tests::arm_loan_carried_on_merge_or_backedge_rejects",
     "ssa::refine::arm_loop_receipt::ci_tests::final_verifier_error_revokes_both_receipts_and_recovers",

@@ -61,6 +61,10 @@ impl Builder<'_, '_> {
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
+        #[cfg(test)]
+        if super::super::arm_loop_receipt::skip_break_capture() {
+            return Ok(());
+        }
         self.body
             .arm_loop_plans
             .record_break(t.expression, t.from, target, span)

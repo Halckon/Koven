@@ -15,6 +15,8 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitExpressionId},
 };
 use std::collections::BTreeMap;
+#[cfg(test)]
+mod break_ci;
 mod break_hooks;
 #[cfg(test)]
 mod ci_tests;
@@ -30,6 +32,8 @@ mod publication;
 mod validation;
 #[cfg(test)]
 pub(crate) use publication::observe;
+#[cfg(test)]
+pub(in crate::ssa::refine) use publication::skip_break_capture;
 #[cfg(test)]
 pub(in crate::ssa) use publication::{UnitPublication, before_final_verifier};
 fn invalid(s: Span) -> LoweringError {

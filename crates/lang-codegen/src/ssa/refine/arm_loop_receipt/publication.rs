@@ -6,6 +6,8 @@ use std::cell::RefCell;
 pub(super) enum Fault {
     ReceiptMissing,
     CounterReceiptMissing,
+    BreakReceiptMissing,
+    BreakCaptureMissing,
     FinalVerifier,
 }
 #[derive(Default)]
@@ -96,6 +98,14 @@ pub(super) fn before_finish(evidence: &mut Emitted) {
             s.fault = None;
             evidence.counter_selected.clear();
         }
+        if let Some(s) = s.borrow_mut().as_mut()
+            && !evidence.break_selected.is_empty()
+            && s.fault == Some(Fault::BreakReceiptMissing)
+        {
+            require_ci();
+            s.fault = None;
+            evidence.break_selected.clear();
+        }
     });
 }
 pub(in crate::ssa) fn before_final_verifier(program: &mut Program) {
@@ -151,4 +161,17 @@ impl Drop for UnitPublication {
             });
         }
     }
+}
+
+pub(in crate::ssa::refine) fn skip_break_capture() -> bool {
+    STATE.with(|s| {
+        let mut s = s.borrow_mut();
+        let Some(s) = s.as_mut() else { return false };
+        if s.fault != Some(Fault::BreakCaptureMissing) {
+            return false;
+        }
+        require_ci();
+        s.fault = None;
+        true
+    })
 }
