@@ -108,5 +108,15 @@ Drop 使用一次、无指令重定义或 terminator 逃逸。live 根和同源�
 carry 的实际父 header 有入口与回边两个前驱时选中，捕获全部 header 槽和实际参数。
 每个前驱发射终止符时从当前槽映射逐项核对真实边实参，函数终检重查参数、完整前驱
 集合及每条边的完整向量；同类型换位也不能用类型相等放行。选中后缺项或额外前驱
-失败，不修改原 carry 或 generic verifier。这只是已捕获 CFG 的运输完整性，不等于
-前端父根不变量、父 false 资源分区或任意动态代际归纳；这些仍未实现。
+失败，不修改原 carry 或 generic verifier。这只是已捕获 CFG 的运输完整性，本身
+不证明前端父根不变量、父 false 资源消费或任意动态代际归纳。
+
+后续 `UnitOwnerNestedParentBoundaryV1` 已独立封存父入口、条件、body-entry、正常
+回边根组及父自身 false 出口的 live／retired 完整分区。`control_bridge/parent_exit.rs`
+消费该只读事实，`nested_exit_receipt.rs` 与其 `pair.rs` 为父、子分别保存实际 SSA
+观察状态；父 receipt 核 header 到 false 出口的逐根实参、唯一前驱、原 Drop 顺序
+及对退休出口 Value 的排他消费，选中后计划或观察状态缺失失败。它不生成新清理，
+不扩大 lowering 许可，也不替代上述独立测试、child/carry receipt 或 generic verifier。
+普通 native 与 CI 待验边界见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md)。
+已实现的是受限直接父子 while 的边界运输与消费核验；完整父根跨轮代际不变量及
+任意动态代际归纳仍未实现，不能把这些局部收据合称为完整循环证明。
